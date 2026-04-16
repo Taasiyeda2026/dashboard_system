@@ -6,7 +6,7 @@
 //   Who has access: Anyone (or Anyone with Google account)
 // ============================================================
 
-const SPREADSHEET_ID = "YOUR_SPREADSHEET_ID"; // ← החלף במזהה הגיליון שלך
+const SPREADSHEET_ID = "1odLLnhpm7gLwSsDrgzxjIy2cuHXZGNNQYXCkuhAt52s"; // ← החלף במזהה הגיליון שלך
 const LATE_CUTOFF    = "2026-06-15";
 
 // ── Entry points ─────────────────────────────────────────────

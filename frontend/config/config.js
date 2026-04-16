@@ -4,7 +4,7 @@
 
 export const CONFIG = {
   // Replace with the deployed Apps Script Web App URL
-  API_URL: "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+  API_URL: "https://script.google.com/macros/s/AKfycbwlJuofD5-Adw1CD1pSdBR3f5RRS-LZsBv1I_zMM1-4UN6maq8qdPZqBQ1Zo4c_fneU/exec",
 
   APP_NAME: "תעשיידע",
   APP_VERSION: "1.0.0",
