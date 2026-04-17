@@ -87,15 +87,19 @@ function doPost(e) {
 ========================= */
 
 function actionLogin_(payload) {
+  var userId = text_(payload.user_id || payload.userId);
   var entryCode = text_(payload.entry_code || payload.entryCode);
+  if (!userId) throw new Error('user_id is required');
   if (!entryCode) throw new Error('entry_code is required');
 
   var permissionRows = readRows_(CONFIG.sheets.permissions);
   var match = permissionRows.find(function(row) {
-    return text_(row.entry_code) === entryCode && yesNo_(row.active) === 'yes';
+    return text_(row.user_id) === userId &&
+           text_(row.entry_code) === entryCode &&
+           yesNo_(row.active) === 'yes';
   });
 
-  if (!match) throw new Error('Invalid or inactive code');
+  if (!match) throw new Error('Invalid user_id or entry_code');
 
   var role = normalizeRole_(match.display_role);
   var user = {

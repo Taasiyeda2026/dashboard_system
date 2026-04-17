@@ -106,9 +106,9 @@ async function render() {
     app.innerHTML = loginScreen.render();
     loginScreen.bind({
       root: app,
-      onLogin: async (code, errorNode) => {
+      onLogin: async (userId, code, errorNode) => {
         try {
-          const session = await api.login(code);
+          const session = await api.login(userId, code);
           setSession(session);
           await restoreSession();
           await render();

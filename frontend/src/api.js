@@ -19,7 +19,7 @@ async function request(action, payload = {}) {
 }
 
 export const api = {
-  login: (entry_code) => request('login', { entry_code }),
+  login: (user_id, entry_code) => request('login', { user_id, entry_code }),
   bootstrap: () => request('bootstrap'),
   dashboard: () => request('dashboard'),
   activities: (filters) => request('activities', filters),
