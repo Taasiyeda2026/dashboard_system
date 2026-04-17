@@ -29,7 +29,13 @@ This folder contains a clean, from-scratch foundation for the new internal activ
 
 ### Frontend
 
-1. Open `new-system/frontend/src/config.js`.
-2. Set `API_URL` to your Apps Script deployment URL.
+1. `API_URL` is already pre-configured to:
+   `https://script.google.com/macros/s/AKfycbwlJuofD5-Adw1CD1pSdBR3f5RRS-LZsBv1I_zMM1-4UN6maq8qdPZqBQ1Zo4c_fneU/exec`
+2. If you deploy a different Apps Script version, update `new-system/frontend/src/config.js`.
 3. Serve `new-system/frontend` as static files (GitHub Pages / simple static hosting).
 
+### Default spreadsheet binding
+
+- `new-system/backend/src/config.gs` is now bound by default to:
+  `1odLLnhpm7gLwSsDrgzxjIy2cuHXZGNNQYXCkuhAt52s`
+- Replace this value only if you intentionally switch to a new spreadsheet.
