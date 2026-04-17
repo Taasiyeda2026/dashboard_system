@@ -1,18 +1,17 @@
 export const loginScreen = {
   render() {
     return `
-      <div class="outer-shell login-shell">
-        <section class="panel">
-          <h1>Dashboard Login</h1>
-          <p>Enter your user ID and entry code from the permissions sheet.</p>
-          <form id="loginForm" class="stack">
-            <input id="userId" required placeholder="User ID" autocomplete="username" />
-            <input id="entryCode" required placeholder="Entry code" autocomplete="one-time-code" />
-            <button type="submit">Login</button>
+      <main class="login-shell" dir="rtl">
+        <section class="login-card">
+          <h1>כניסה למערכת</h1>
+          <form id="loginForm" class="login-form">
+            <input id="userId" required placeholder="מזהה משתמש" autocomplete="username" />
+            <input id="entryCode" required placeholder="קוד כניסה" autocomplete="one-time-code" />
+            <button type="submit" class="login-submit">התחברות</button>
           </form>
           <p id="loginError" class="error"></p>
         </section>
-      </div>
+      </main>
     `;
   },
   bind({ root, onLogin }) {

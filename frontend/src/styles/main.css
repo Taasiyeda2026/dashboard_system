@@ -76,6 +76,46 @@ input, select {
 }
 .error { color: var(--danger); min-height: 20px; }
 
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.login-card {
+  width: min(360px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.login-card h1 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.login-form {
+  display: grid;
+  gap: 8px;
+}
+
+.login-submit {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.login-submit:hover {
+  border-color: var(--accent);
+  color: #fff;
+  filter: brightness(0.95);
+}
+
 .compact-toggle {
   display: inline-flex;
   align-items: center;
