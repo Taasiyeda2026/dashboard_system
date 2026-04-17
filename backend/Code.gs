@@ -59,10 +59,10 @@ function login(entryCode) {
   if (!match) throw new Error('Invalid or inactive code');
 
   const user = {
-    user_id: text(match.user_id),
-    name: text(match.name),
-    role: normalizeRole(match.role),
-    instructor_id: text(match.instructor_id)
+    user_id: str(match.user_id),
+    name: str(match.full_name),
+    role: normalizeRole(match.display_role),
+    default_view: str(match.default_view)
   };
 
   const token = Utilities.getUuid();
@@ -71,23 +71,51 @@ function login(entryCode) {
 }
 
 function bootstrap(user) {
-  const routes = routesByRole(user.role);
-  return { routes: routes, default_route: routes[0] || 'login', role: user.role, user: user };
+  const map = {
+    dashboard: 'view_dashboard',
+    activities: 'view_activities',
+    week: 'view_week',
+    month: 'view_month',
+    instructors: 'view_instructors',
+    exceptions: 'view_exceptions',
+    'my-data': 'view_my_data',
+    contacts: 'view_contacts',
+    finance: 'view_finance',
+    permissions: 'view_permissions'
+  };
+  const defaults = user.role === 'instructor'
+    ? ['my-data']
+    : ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance'];
+
+  const row = permissionRow(user.user_id);
+  const routes = user.role === 'admin' || user.role === 'operations_reviewer'
+    ? [...defaults, 'permissions']
+    : defaults.filter((route) => yesNo(row[map[route]]) === 'yes' || route === 'my-data');
+
+  const preferred = str(row.default_view) || (user.role === 'instructor' ? 'my-data' : 'dashboard');
+  const defaultRoute = routes.includes(preferred) ? preferred : routes[0] || 'my-data';
+
+  return { role: user.role, default_route: defaultRoute, routes };
 }
 
-function dashboardData(user) {
-  allow(user, ['admin', 'operations_reviewer', 'authorized_user']);
-  const shortRows = readSheet(APP_CONFIG.sheets.dataShort).map(normalizeShort);
-  const longRows = buildLongRows();
-  const instructors = readSheet(APP_CONFIG.sheets.instructors);
-  const currentMonth = Utilities.formatDate(new Date(), 'UTC', 'yyyy-MM');
+function dashboard(user) {
+  requireAny(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  const shortRows = rowsFor(SETTINGS.sheets.dataShort);
+  const longRows = withLongDates(rowsFor(SETTINGS.sheets.dataLong), rowsFor(SETTINGS.sheets.meetings));
+  const instructorRows = rowsFor(SETTINGS.sheets.instructors);
 
-  const grouped = {};
-  shortRows.forEach(function(row) {
-    const manager = text(row.activity_manager) || 'unassigned';
-    grouped[manager] = grouped[manager] || { activity_manager: manager, total_short: 0, total_long: 0, total: 0 };
-    grouped[manager].total_short += 1;
-    grouped[manager].total += 1;
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  const courseEndings = longRows.filter((row) => str(row.activity_type) === 'course' && inMonth(row.end_date, monthStart, monthEnd)).length;
+
+  const byManager = {};
+  shortRows.forEach((row) => {
+    const k = str(row.activity_manager) || 'unassigned';
+    byManager[k] = byManager[k] || { activity_manager: k, short_count: 0, long_count: 0, total: 0 };
+    byManager[k].short_count++;
+    byManager[k].total++;
   });
   longRows.forEach(function(row) {
     const manager = text(row.activity_manager) || 'unassigned';
@@ -109,40 +137,30 @@ function dashboardData(user) {
   };
 }
 
-function activitiesData(user, payload) {
-  allow(user, ['admin', 'operations_reviewer', 'authorized_user']);
-  const filterType = text(payload.activity_type || 'all');
-  const filterStatus = text(payload.finance_status || '');
-  const viewRows = allActivities().filter(function(row) {
-    if (filterType !== 'all' && row.activity_type !== filterType) return false;
-    if (filterStatus && row.finance_status !== filterStatus) return false;
-    return true;
-  }).sort(function(a, b) {
-    return text(a.start_date).localeCompare(text(b.start_date));
-  });
+function activities(user, type) {
+  requireAny(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  const notes = rowsFor(SETTINGS.sheets.privateNotes);
+  const notesBySource = notes.reduce((acc, row) => {
+    const key = `${str(row.source_sheet)}:${str(row.source_row_id)}`;
+    acc[key] = row;
+    return acc;
+  }, {});
+
+  const merged = [
+    ...rowsFor(SETTINGS.sheets.dataShort).map((r) => mapShort(r)),
+    ...withLongDates(rowsFor(SETTINGS.sheets.dataLong), rowsFor(SETTINGS.sheets.meetings)).map((r) => mapLong(r))
+  ].filter((row) => type === 'all' || row.activity_type === type)
+    .sort((a, b) => str(a.start_date).localeCompare(str(b.start_date)));
 
   const notesBySource = mapByKey(readSheet(APP_CONFIG.sheets.privateNotes), 'source_row_id');
   return {
-    rows: viewRows.map(function(row) {
+    rows: merged.map((row) => {
+      const note = notesBySource[`${row.source_sheet}:${row.RowID}`];
       return {
-        row_id: row.row_id,
-        source_sheet: row.source_sheet,
-        title: row.title,
-        activity_type: row.activity_type,
-        start_date: row.start_date,
-        end_date: row.end_date,
-        instructor_1: row.instructor_1,
-        instructor_2: row.instructor_2,
-        activity_manager: row.activity_manager,
-        finance_status: row.finance_status,
-        active: row.active,
-        private_note: user.role === 'operations_reviewer' ? text((notesBySource[row.row_id] || {}).note) : ''
+        ...row,
+        private_note: user.role === 'operations_reviewer' && yesNo(note?.active || 'yes') === 'yes' ? str(note?.note_text) : ''
       };
-    }),
-    filters: {
-      activity_types: ['all', 'course', 'after_school', 'workshop', 'tour', 'escape_room'],
-      finance_statuses: ['open', 'closed']
-    }
+    })
   };
 }
 
@@ -197,141 +215,98 @@ function exceptionsData(user) {
   const counts = { missing_instructor: 0, missing_start_date: 0, late_end_date: 0 };
   const result = [];
 
-  rows.forEach(function(row) {
-    let exceptionType = '';
-    if (!text(row.instructor_1)) exceptionType = 'missing_instructor';
-    else if (!text(row.start_date)) exceptionType = 'missing_start_date';
-    else if (text(row.end_date) > APP_CONFIG.endDateLimit) exceptionType = 'late_end_date';
-    if (!exceptionType) return;
+  rows.forEach((row) => {
+    let ex = '';
+    if (!str(row.emp_id)) ex = 'missing_instructor';
+    else if (!str(row.start_date)) ex = 'missing_start_date';
+    else if (str(row.end_date) > endLimit) ex = 'late_end_date';
+    if (!ex) return;
 
-    counts[exceptionType] += 1;
-    result.push({
-      row_id: row.row_id,
-      title: row.title,
-      activity_type: row.activity_type,
-      start_date: row.start_date,
-      end_date: row.end_date,
-      exception_type: exceptionType
-    });
+    counts[ex]++;
+    result.push({ RowID: str(row.RowID), activity_name: str(row.activity_name), end_date: str(row.end_date), exception_type: ex });
   });
 
   return { rows: result, counts: counts, priority: ['missing_instructor', 'missing_start_date', 'late_end_date'] };
 }
 
-function financeData(user) {
-  allow(user, ['admin', 'operations_reviewer', 'authorized_user']);
+function finance(user) {
+  requireAny(user, ['admin', 'operations_reviewer', 'authorized_user']);
   return {
-    rows: allActivities().map(function(row) {
-      return {
-        row_id: row.row_id,
-        title: row.title,
-        finance_status: row.finance_status,
-        active: row.active,
-        activity_manager: row.activity_manager
-      };
-    })
+    rows: allActivities().map((r) => ({
+      RowID: r.RowID,
+      activity_name: r.activity_name,
+      finance_status: normalizeFinance(r.finance_status),
+      status: str(r.status)
+    }))
   };
 }
 
-function instructorsData(user) {
-  allow(user, ['admin', 'operations_reviewer', 'authorized_user']);
-  return {
-    rows: readSheet(APP_CONFIG.sheets.instructors).map(function(row) {
-      return {
-        instructor_id: text(row.instructor_id),
-        full_name: text(row.full_name),
-        phone: text(row.phone),
-        email: text(row.email),
-        direct_manager: text(row.direct_manager),
-        active: toYesNo(row.active)
-      };
-    })
-  };
+function instructors(user) {
+  requireAny(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  return { rows: rowsFor(SETTINGS.sheets.instructors) };
 }
 
-function contactsData(user) {
-  allow(user, ['admin', 'operations_reviewer', 'authorized_user']);
-  const instructors = readSheet(APP_CONFIG.sheets.instructors).map(function(r) {
-    return { type: 'instructor', name: text(r.full_name), phone: text(r.phone), email: text(r.email) };
-  });
-  const schools = readSheet(APP_CONFIG.sheets.schools).map(function(r) {
-    return { type: 'school', name: text(r.school_name), phone: text(r.phone), email: text(r.email) };
-  });
-  return { rows: instructors.concat(schools) };
+function contacts(user) {
+  requireAny(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  const instructorsRows = rowsFor(SETTINGS.sheets.instructors).map((r) => ({
+    kind: 'instructor',
+    emp_id: str(r.emp_id),
+    full_name: str(r.full_name),
+    mobile: str(r.mobile),
+    phone: '',
+    email: str(r.email)
+  }));
+  const schoolsRows = rowsFor(SETTINGS.sheets.schools).map((r) => ({
+    kind: 'school',
+    authority: str(r.authority),
+    school: str(r.school),
+    contact_name: str(r.contact_name),
+    phone: str(r.phone),
+    mobile: str(r.mobile),
+    email: str(r.email)
+  }));
+  return { rows: [...instructorsRows, ...schoolsRows] };
 }
 
 function myData(user) {
-  allow(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
-  if (user.role === 'instructor') {
-    return {
-      rows: allActivities().filter(function(row) {
-        return text(row.instructor_1) === text(user.instructor_id) || text(row.instructor_2) === text(user.instructor_id);
-      })
-    };
-  }
-  return { rows: allActivities() };
+  requireAny(user, ['instructor', 'admin', 'operations_reviewer', 'authorized_user']);
+  const empId = str(user.user_id);
+  const rows = allActivities().filter((r) => str(r.emp_id) === empId || str(r.emp_id_2) === empId);
+  return { rows };
 }
 
 function permissionsData(user) {
-  allow(user, ['admin', 'operations_reviewer']);
-  return {
-    rows: readSheet(APP_CONFIG.sheets.permissions).map(function(row) {
-      return {
-        user_id: text(row.user_id),
-        name: text(row.name),
-        role: normalizeRole(row.role),
-        entry_code: text(row.entry_code),
-        instructor_id: text(row.instructor_id),
-        active: toYesNo(row.active)
-      };
-    })
-  };
+  requireAny(user, ['admin', 'operations_reviewer']);
+  return { rows: rowsFor(SETTINGS.sheets.permissions).map((r) => ({ ...r, display_role: normalizeRole(r.display_role) })) };
 }
 
-function addActivity(user, payload) {
-  allow(user, ['admin', 'operations_reviewer']);
-  const target = text(payload.target || 'data_short');
-  const data = payload.data || {};
-  if (target !== 'data_short' && target !== 'data_long') throw new Error('Invalid target sheet');
+function submitEditRequest(user, input) {
+  requireAny(user, ['authorized_user', 'instructor']);
+  const id = str(input.source_row_id || input.RowID);
+  const sourceSheet = str(input.source_sheet || (id.startsWith('LONG-') ? SETTINGS.sheets.dataLong : SETTINGS.sheets.dataShort));
+  if (!/^SHORT-|^LONG-/.test(id)) throw new Error('Invalid source row id');
 
-  if (target === 'data_short') {
-    const row = {
-      row_id: nextId(APP_CONFIG.sheets.dataShort, 'SHORT-'),
-      title: text(data.title),
-      activity_type: text(data.activity_type),
-      start_date: text(data.start_date),
-      instructor_1: text(data.instructor_1),
-      instructor_2: text(data.instructor_2),
-      activity_manager: text(data.activity_manager),
-      finance_status: normalizeFinance(data.finance_status),
-      active: toYesNo(data.active || 'yes')
-    };
-    appendToSheet(APP_CONFIG.sheets.dataShort, row);
-    return { created: true, row_id: row.row_id, target: target };
-  }
-
-  const longRow = {
-    row_id: nextId(APP_CONFIG.sheets.dataLong, 'LONG-'),
-    title: text(data.title),
-    activity_type: text(data.activity_type),
-    instructor_1: text(data.instructor_1),
-    activity_manager: text(data.activity_manager),
-    finance_status: normalizeFinance(data.finance_status),
-    active: toYesNo(data.active || 'yes')
-  };
-  appendToSheet(APP_CONFIG.sheets.dataLong, longRow);
-
-  const meetings = Array.isArray(data.meetings) ? data.meetings : [];
-  meetings.filter(function(d) { return !!text(d); }).forEach(function(date) {
-    appendToSheet(APP_CONFIG.sheets.meetings, {
-      meeting_id: Utilities.getUuid(),
-      source_row_id: longRow.row_id,
-      meeting_date: text(date)
-    });
+  appendRow(SETTINGS.sheets.editRequests, {
+    request_id: `REQ-${new Date().getTime()}`,
+    source_sheet: sourceSheet,
+    source_row_id: id,
+    field_name: str(input.field_name),
+    old_value: str(input.old_value),
+    new_value: str(input.new_value),
+    requested_by_user_id: user.user_id,
+    requested_by_name: user.name,
+    requested_at: new Date().toISOString(),
+    status: 'pending',
+    reviewed_at: '',
+    reviewed_by: '',
+    reviewer_notes: '',
+    active: 'yes'
   });
 
-  return { created: true, row_id: longRow.row_id, target: target };
-}
+function saveActivity(user, input) {
+  const sourceRowId = str(input.source_row_id || input.RowID);
+  const sourceSheet = str(input.source_sheet || (sourceRowId.startsWith('LONG-') ? SETTINGS.sheets.dataLong : SETTINGS.sheets.dataShort));
+  const changes = input.changes || {};
 
 function saveActivity(user, payload) {
   const sourceRowId = text(payload.source_row_id);
@@ -339,49 +314,77 @@ function saveActivity(user, payload) {
   const changes = payload.changes || {};
 
   if (user.role === 'authorized_user' || user.role === 'instructor') {
-    return submitEditRequest(user, { source_row_id: sourceRowId, changes: changes });
+    const fieldNames = Object.keys(changes);
+    fieldNames.forEach((field) => {
+      submitEditRequest(user, {
+        source_sheet: sourceSheet,
+        source_row_id: sourceRowId,
+        field_name: field,
+        old_value: '',
+        new_value: changes[field]
+      });
+    });
+    return { created: true };
   }
   allow(user, ['admin', 'operations_reviewer']);
 
-  const isShort = sourceRowId.indexOf('SHORT-') === 0;
-  const sheetName = isShort ? APP_CONFIG.sheets.dataShort : APP_CONFIG.sheets.dataLong;
-  const records = readSheet(sheetName);
-  const index = records.findIndex(function(row) { return text(row.row_id) === sourceRowId; });
-  if (index === -1) throw new Error('Row not found');
+  requireAny(user, ['admin', 'operations_reviewer']);
+  updateRowByKey(sourceSheet, 'RowID', sourceRowId, changes);
 
-  const updated = Object.assign({}, records[index], changes);
-  if (!isShort) updated.instructor_2 = '';
-  if (updated.finance_status) updated.finance_status = normalizeFinance(updated.finance_status);
-  if (updated.active) updated.active = toYesNo(updated.active);
+  if (sourceSheet === SETTINGS.sheets.dataLong && (changes.start_date || changes.end_date)) {
+    setLongDateRange(sourceRowId, str(changes.start_date), str(changes.end_date));
+  }
 
   writeBack(sheetName, records, index, updated);
   return { updated: true, source_row_id: sourceRowId };
 }
 
-function submitEditRequest(user, payload) {
-  allow(user, ['authorized_user', 'instructor']);
-  const sourceRowId = text(payload.source_row_id);
-  if (!/^SHORT-|^LONG-/.test(sourceRowId)) throw new Error('Invalid source_row_id');
+function addActivity(user, input) {
+  requireAny(user, ['admin', 'operations_reviewer']);
+  const activity = input.activity || {};
+  const target = str(activity.source || 'short').toLowerCase() === 'long' ? SETTINGS.sheets.dataLong : SETTINGS.sheets.dataShort;
+  const idPrefix = target === SETTINGS.sheets.dataLong ? 'LONG' : 'SHORT';
+  const rowId = `${idPrefix}-${new Date().getTime()}`;
 
-  const requestRow = {
-    request_id: 'REQ-' + new Date().getTime(),
-    source_row_id: sourceRowId,
-    requester_user_id: text(user.user_id),
-    status: 'pending',
-    changes_json: JSON.stringify(payload.changes || {}),
-    created_at: new Date().toISOString(),
-    reviewed_by: '',
-    reviewed_at: ''
+  const common = {
+    RowID: rowId,
+    activity_manager: str(activity.activity_manager),
+    authority: str(activity.authority),
+    school: str(activity.school),
+    activity_type: str(activity.activity_type),
+    activity_no: str(activity.activity_no),
+    activity_name: str(activity.activity_name || activity.title),
+    sessions: str(activity.sessions),
+    price: str(activity.price),
+    funding: str(activity.funding),
+    start_time: str(activity.start_time),
+    end_time: str(activity.end_time),
+    emp_id: str(activity.emp_id || activity.instructor_1),
+    instructor_name: str(activity.instructor_name),
+    status: str(activity.status || 'active'),
+    notes: str(activity.notes),
+    finance_status: normalizeFinance(activity.finance_status),
+    finance_notes: str(activity.finance_notes)
   };
   appendToSheet(APP_CONFIG.sheets.editRequests, requestRow);
   return { created: true, request_id: requestRow.request_id };
 }
 
-function reviewEditRequest(user, payload) {
-  allow(user, ['operations_reviewer']);
-  const requestId = text(payload.request_id);
-  const newStatus = text(payload.status);
-  if (['approved', 'rejected'].indexOf(newStatus) === -1) throw new Error('Invalid review status');
+  if (target === SETTINGS.sheets.dataShort) {
+    appendRow(target, {
+      ...common,
+      emp_id_2: str(activity.emp_id_2 || activity.instructor_2),
+      instructor_name_2: str(activity.instructor_name_2),
+      start_date: str(activity.start_date)
+    });
+  } else {
+    appendRow(target, {
+      ...common,
+      start_date: str(activity.start_date),
+      end_date: str(activity.end_date || activity.start_date)
+    });
+    setLongDateRange(rowId, str(activity.start_date), str(activity.end_date || activity.start_date));
+  }
 
   const records = readSheet(APP_CONFIG.sheets.editRequests);
   const index = records.findIndex(function(row) { return text(row.request_id) === requestId; });
@@ -400,22 +403,30 @@ function reviewEditRequest(user, payload) {
     saveActivity(adminProxy, { source_row_id: sourceRowId, changes: changes });
   }
 
-  writeBack(APP_CONFIG.sheets.editRequests, records, index, row);
-  return { reviewed: true, request_id: requestId, status: newStatus };
-}
-
-function savePermission(user, payload) {
-  allow(user, ['admin', 'operations_reviewer']);
-  const row = payload.row || {};
-  const records = readSheet(APP_CONFIG.sheets.permissions);
-  const index = records.findIndex(function(r) { return text(r.user_id) === text(row.user_id); });
-  const normalized = {
-    user_id: text(row.user_id),
-    name: text(row.name),
-    role: normalizeRole(row.role),
-    entry_code: text(row.entry_code),
-    instructor_id: text(row.instructor_id),
-    active: toYesNo(row.active)
+  const existing = permissionRow(userId);
+  const payload = {
+    ...existing,
+    user_id: userId,
+    entry_code: str(permission.entry_code),
+    full_name: str(permission.full_name),
+    display_role: normalizeRole(permission.display_role),
+    default_view: str(permission.default_view),
+    view_admin: optionalYesNo(permission, 'view_admin', existing),
+    view_dashboard: optionalYesNo(permission, 'view_dashboard', existing),
+    view_activities: optionalYesNo(permission, 'view_activities', existing),
+    view_week: optionalYesNo(permission, 'view_week', existing),
+    view_month: optionalYesNo(permission, 'view_month', existing),
+    view_instructors: optionalYesNo(permission, 'view_instructors', existing),
+    view_exceptions: optionalYesNo(permission, 'view_exceptions', existing),
+    view_my_data: optionalYesNo(permission, 'view_my_data', existing),
+    view_contacts: optionalYesNo(permission, 'view_contacts', existing),
+    view_finance: optionalYesNo(permission, 'view_finance', existing),
+    view_permissions: optionalYesNo(permission, 'view_permissions', existing),
+    can_request_edit: optionalYesNo(permission, 'can_request_edit', existing),
+    can_edit_direct: optionalYesNo(permission, 'can_edit_direct', existing),
+    can_add_activity: optionalYesNo(permission, 'can_add_activity', existing),
+    can_review_requests: optionalYesNo(permission, 'can_review_requests', existing),
+    active: yesNo(permission.active)
   };
 
   if (index >= 0) writeBack(APP_CONFIG.sheets.permissions, records, index, normalized);
@@ -441,64 +452,102 @@ function savePrivateNote(user, payload) {
   return { saved: true };
 }
 
-function allActivities() {
-  const shortRows = readSheet(APP_CONFIG.sheets.dataShort).map(normalizeShort);
-  const longRows = buildLongRows();
-  return shortRows.concat(longRows);
+function mapShort(row) {
+  row = row || {};
+  return {
+    source_sheet: SETTINGS.sheets.dataShort,
+    RowID: str(row.RowID),
+    activity_manager: str(row.activity_manager),
+    authority: str(row.authority),
+    school: str(row.school),
+    activity_type: str(row.activity_type),
+    activity_no: str(row.activity_no),
+    activity_name: str(row.activity_name),
+    sessions: str(row.sessions),
+    price: str(row.price),
+    funding: str(row.funding),
+    start_time: str(row.start_time),
+    end_time: str(row.end_time),
+    emp_id: str(row.emp_id),
+    instructor_name: str(row.instructor_name),
+    emp_id_2: str(row.emp_id_2),
+    instructor_name_2: str(row.instructor_name_2),
+    start_date: str(row.start_date),
+    end_date: str(row.start_date),
+    status: str(row.status),
+    notes: str(row.notes),
+    finance_status: normalizeFinance(row.finance_status),
+    finance_notes: str(row.finance_notes)
+  };
 }
 
-function visibleActivitiesForUser(user) {
-  const rows = allActivities();
-  if (user.role !== 'instructor') return rows;
-  return rows.filter(function(row) {
-    return text(row.instructor_1) === text(user.instructor_id) || text(row.instructor_2) === text(user.instructor_id);
-  });
+function mapLong(row) {
+  row = row || {};
+  return {
+    source_sheet: SETTINGS.sheets.dataLong,
+    RowID: str(row.RowID),
+    activity_manager: str(row.activity_manager),
+    authority: str(row.authority),
+    school: str(row.school),
+    activity_type: str(row.activity_type),
+    activity_no: str(row.activity_no),
+    activity_name: str(row.activity_name),
+    sessions: str(row.sessions),
+    price: str(row.price),
+    funding: str(row.funding),
+    start_time: str(row.start_time),
+    end_time: str(row.end_time),
+    emp_id: str(row.emp_id),
+    instructor_name: str(row.instructor_name),
+    emp_id_2: '',
+    instructor_name_2: '',
+    start_date: str(row.start_date),
+    end_date: str(row.end_date),
+    status: str(row.status),
+    notes: str(row.notes),
+    finance_status: normalizeFinance(row.finance_status),
+    finance_notes: str(row.finance_notes)
+  };
 }
 
-function buildLongRows() {
-  const longRows = readSheet(APP_CONFIG.sheets.dataLong);
-  const meetings = readSheet(APP_CONFIG.sheets.meetings);
-  const grouped = {};
-  meetings.forEach(function(m) {
-    const source = text(m.source_row_id);
-    if (!/^LONG-/.test(source)) return;
-    grouped[source] = grouped[source] || [];
-    grouped[source].push(text(m.meeting_date));
+function withLongDates(longRows, meetingRows) {
+  const byId = {};
+  meetingRows.forEach((m) => {
+    const id = str(m.source_row_id);
+    const d = str(m.meeting_date);
+    if (!id || !d || yesNo(m.active || 'yes') !== 'yes') return;
+    byId[id] = byId[id] || [];
+    byId[id].push(d);
   });
 
-  return longRows.map(function(row) {
-    const rowId = text(row.row_id);
-    const dates = (grouped[rowId] || []).sort();
+  return longRows.map((row) => {
+    const dates = (byId[str(row.RowID)] || []).sort();
     return {
-      row_id: rowId,
-      source_sheet: APP_CONFIG.sheets.dataLong,
-      title: text(row.title),
-      activity_type: text(row.activity_type),
-      start_date: dates[0] || text(row.start_date),
-      end_date: dates.length ? dates[dates.length - 1] : text(row.end_date),
-      instructor_1: text(row.instructor_1),
-      instructor_2: '',
-      activity_manager: text(row.activity_manager),
-      finance_status: normalizeFinance(row.finance_status),
-      active: toYesNo(row.active)
+      ...row,
+      start_date: dates[0] || str(row.start_date),
+      end_date: dates[dates.length - 1] || str(row.end_date)
     };
   });
 }
 
-function normalizeShort(row) {
-  return {
-    row_id: text(row.row_id),
-    source_sheet: APP_CONFIG.sheets.dataShort,
-    title: text(row.title),
-    activity_type: text(row.activity_type),
-    start_date: text(row.start_date),
-    end_date: text(row.start_date),
-    instructor_1: text(row.instructor_1),
-    instructor_2: text(row.instructor_2),
-    activity_manager: text(row.activity_manager),
-    finance_status: normalizeFinance(row.finance_status),
-    active: toYesNo(row.active)
-  };
+function permissionRow(userId) {
+  return rowsFor(SETTINGS.sheets.permissions).find((r) => str(r.user_id) === str(userId)) || {};
+}
+
+function rowsFor(sheetName) {
+  const sheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId).getSheetByName(sheetName);
+  if (!sheet) throw new Error(`Missing sheet: ${sheetName}`);
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return [];
+  if (!values[0] || !values[0].length) throw new Error(`Missing headers in sheet: ${sheetName}`);
+
+  const headers = values[0].map((h) => str(h));
+  return values.slice(1).map((row) => {
+    row = row || [];
+    const item = {};
+    headers.forEach((h, i) => { item[h] = row[i]; });
+    return item;
+  });
 }
 
 function requireAuth(token) {
@@ -520,15 +569,21 @@ function routesByRole(role) {
 function readSheet(name) {
   const sheet = getSheet(name);
   const values = sheet.getDataRange().getValues();
-  if (values.length < 2) return [];
-  const headers = values[0].map(function(h) { return text(h); });
-  return values.slice(1).filter(function(row) {
-    return row.some(function(cell) { return text(cell) !== ''; });
-  }).map(function(row) {
-    const item = {};
-    headers.forEach(function(h, idx) { item[h] = row[idx]; });
-    return item;
-  });
+  const headers = values[0].map((h) => str(h));
+  const sourceIdx = headers.indexOf('source_row_id');
+  const dateIdx = headers.indexOf('meeting_date');
+  if (sourceIdx < 0 || dateIdx < 0) return;
+
+  for (let i = values.length - 1; i >= 1; i--) {
+    if (str(values[i][sourceIdx]) === str(sourceRowId)) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+
+  const start = startDate || endDate;
+  const end = endDate || startDate;
+  if (start) appendRow(SETTINGS.sheets.meetings, { source_row_id: sourceRowId, meeting_no: '1', meeting_date: start, notes: '', active: 'yes' });
+  if (end && end !== start) appendRow(SETTINGS.sheets.meetings, { source_row_id: sourceRowId, meeting_no: '2', meeting_date: end, notes: '', active: 'yes' });
 }
 
 function appendToSheet(name, row) {
@@ -557,17 +612,10 @@ function nextId(sheetName, prefix) {
   return prefix + ('000' + (max + 1)).slice(-3);
 }
 
-function getSheet(name) {
-  const spreadsheet = SpreadsheetApp.openById(APP_CONFIG.spreadsheetId);
-  const sheet = spreadsheet.getSheetByName(name);
-  if (!sheet) throw new Error('Sheet not found: ' + name);
-  return sheet;
-}
-
-function normalizeRole(value) {
-  const role = text(value).toLowerCase();
-  if (['admin', 'operations_reviewer', 'authorized_user', 'instructor'].indexOf(role) >= 0) return role;
-  throw new Error('Invalid role: ' + role);
+function str(value) {
+  if (value === null || value === undefined) return '';
+  if (Object.prototype.toString.call(value) === '[object Date]') return fmtDate(value);
+  return String(value).trim();
 }
 
 function normalizeFinance(value) {
@@ -584,8 +632,19 @@ function mapByKey(rows, key) {
   return map;
 }
 
-function text(value) {
-  return value === null || value === undefined ? '' : String(value).trim();
+function optionalYesNo(input, key, fallbackObj) {
+  if (Object.prototype.hasOwnProperty.call(input || {}, key)) {
+    return yesNo(input[key]);
+  }
+  return yesNo(fallbackObj[key]);
+}
+
+function mondayOf(date) {
+  const clone = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = clone.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  clone.setDate(clone.getDate() + diff);
+  return clone;
 }
 
 function shiftDate(date, days) {

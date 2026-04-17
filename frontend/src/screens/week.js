@@ -1,6 +1,11 @@
-export const weekScreen = {
-  load: ({ api }) => api.week(),
-  render(data) {
-    return `<section class="panel"><h2>Week</h2><div class="stack">${(data.days || []).map((day) => `<article class="mini-card"><h4>${day.date}</h4><p>${day.items.length} activities</p></article>`).join('')}</div></section>`;
-  }
-};
+export function weekScreen(data) {
+  const safeDays = Array.isArray(data?.days) ? data.days : [];
+  const days = safeDays.map((d) => `
+    <article class="card day-col">
+      <h3>${d.date}</h3>
+      <ul>${(Array.isArray(d.items) ? d.items : []).map((item) => `<li>${item.RowID} • ${item.activity_name || 'Untitled'}</li>`).join('') || '<li>None</li>'}</ul>
+    </article>
+  `).join('');
+
+  return `<section class="stack"><h2>Week</h2><div class="week-grid">${days || '<article class="card">No week data available.</article>'}</div></section>`;
+}
