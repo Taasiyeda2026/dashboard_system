@@ -1,119 +1,41 @@
-# תעשיידע — מערכת ניהול פעילויות חינוכיות
+# New System Foundation (Phase 1)
 
-## מבנה הפרויקט
+This folder contains a clean, from-scratch foundation for the new internal activities system.
 
-```
-taasiyeda/
-├── index.html                    ← נקודת כניסה + login screen
-├── manifest.json                 ← PWA manifest
-├── sw.js                         ← Service Worker (PWA caching)
-├── frontend/
-│   ├── app.js                    ← Router + shell + auth guard
-│   ├── api/
-│   │   └── api.js                ← כל הקריאות ל-Apps Script
-│   ├── config/
-│   │   └── config.js             ← קונפיגורציה מרכזית
-│   ├── shared/
-│   │   ├── utils.js              ← פונקציות עזר
-│   │   ├── filters.js            ← filter bar גנרי
-│   │   └── toast.js              ← הודעות toast
-│   ├── components/
-│   │   └── activity-drawer.js    ← Drawer פעילות + עריכה inline
-│   ├── screens/
-│   │   ├── dashboard.js
-│   │   ├── activities.js
-│   │   ├── week.js
-│   │   ├── month.js
-│   │   ├── instructors.js
-│   │   ├── exceptions.js
-│   │   ├── my-data.js
-│   │   ├── contacts.js
-│   │   ├── finance.js
-│   │   └── permissions.js
-│   └── styles/
-│       └── main.css
-└── backend/
-    └── Code.gs                   ← Google Apps Script (backend)
-```
+## Implemented in this phase
 
----
+1. Folder and file structure for frontend + Apps Script backend.
+2. Modular Apps Script backend skeleton.
+3. Frontend skeleton (mobile-first, simple router/state/API client).
+4. Login screen.
+5. Dashboard screen.
+6. Activities screen.
+7. Initial Google Sheets connection + strict sheet schema metadata.
 
-## הגדרה ראשונית
+## Stack
 
-### שלב 1 — Google Sheets
+- **Data**: Google Sheets
+- **Backend API**: Google Apps Script Web App
+- **Frontend**: Vanilla JS modules, responsive, PWA-ready
 
-צור Spreadsheet חדש עם הגיליונות הבאים (בדיוק בשמות האלה):
+## How to run (phase 1)
 
-- `data_short`
-- `data_long`
-- `activity_meetings`
-- `permissions`
-- `lists`
-- `contacts_instructors`
-- `contacts_schools`
-- `edit_requests`
-- `operations_private_notes`
+### Backend
 
-העתק לכל גיליון את שורת הכותרות לפי האפיון.
+1. Open Google Apps Script project connected to your spreadsheet.
+2. Copy files from `new-system/backend/src/*.gs` into the project.
+3. Deploy as Web App (`Execute as Me`, access according to your policy).
+4. Copy deployment URL.
 
-### שלב 2 — Google Apps Script
+### Frontend
 
-1. פתח את הגיליון → Extensions → Apps Script
-2. מחק את הקוד הקיים
-3. הדבק את כל תוכן `backend/Code.gs`
-4. בשורה הראשונה החלף: `YOUR_SPREADSHEET_ID` במזהה ה-Spreadsheet שלך
-   (מוצא אותו ב-URL: `docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit`)
-5. פרוס כ-Web App:
-   - **Deploy → New deployment**
-   - Type: **Web app**
-   - Execute as: **Me**
-   - Who has access: **Anyone**
-   - לחץ Deploy → העתק את ה-URL
+1. `API_URL` is already pre-configured to:
+   `https://script.google.com/macros/s/AKfycbwlJuofD5-Adw1CD1pSdBR3f5RRS-LZsBv1I_zMM1-4UN6maq8qdPZqBQ1Zo4c_fneU/exec`
+2. If you deploy a different Apps Script version, update `new-system/frontend/src/config.js`.
+3. Serve `new-system/frontend` as static files (GitHub Pages / simple static hosting).
 
-### שלב 3 — Frontend
+### Default spreadsheet binding
 
-1. פתח `frontend/config/config.js`
-2. החלף `YOUR_DEPLOYMENT_ID` ב-URL שקיבלת מהפרסום
-
-### שלב 4 — GitHub Pages
-
-1. Push את כל הקבצים לריפו
-2. Settings → Pages → Source: main branch / root
-3. המערכת תהיה זמינה בכתובת `https://taasiyeda2026.github.io/dashboard_system`
-
-### שלב 5 — PWA Icons
-
-צור תיקייה `icons/` עם:
-- `icon-192.png` (192×192px)
-- `icon-512.png` (512×512px)
-
----
-
-## הוספת משתמש ראשון (Admin)
-
-הוסף שורה ידנית בגיליון `permissions`:
-
-| user_id | entry_code | full_name | display_role | default_view | view_admin | ... כל השאר TRUE | active |
-|---------|------------|-----------|--------------|--------------|------------|-----------------|--------|
-| admin_1 | 1234       | מנהל מערכת | Admin        | dashboard    | TRUE       | TRUE            | TRUE   |
-
----
-
-## הרשאות
-
-| תפקיד               | יכולות                                      |
-|---------------------|---------------------------------------------|
-| Admin               | הכל — עריכה ישירה, הוספה, ניהול הרשאות    |
-| מבקרת תפעול         | עריכה ישירה, אישור בקשות, הערות פנימיות   |
-| מנהל פעילות         | צפייה + הגשת בקשות שינוי                  |
-| מדריך               | מסך אישי בלבד                              |
-
----
-
-## טכנולוגיות
-
-- **Frontend:** Vanilla JS ES Modules — ללא build tools
-- **Backend:** Google Apps Script
-- **Data:** Google Sheets
-- **Hosting:** GitHub Pages
-- **PWA:** Service Worker + Web App Manifest
+- `new-system/backend/src/config.gs` is now bound by default to:
+  `1odLLnhpm7gLwSsDrgzxjIy2cuHXZGNNQYXCkuhAt52s`
+- Replace this value only if you intentionally switch to a new spreadsheet.
