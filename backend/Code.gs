@@ -19,7 +19,6 @@ const CONFIG = {
     dataLong: 'data_long',
     meetings: 'activity_meetings',
     permissions: 'permissions',
-    lists: 'lists',
     instructors: 'contacts_instructors',
     schools: 'contacts_schools',
     editRequests: 'edit_requests',
@@ -105,7 +104,9 @@ function actionLogin_(payload) {
     display_role: role,
     default_view: text_(match.default_view),
     // assumption: for instructor accounts user_id == emp_id
-    emp_id: text_(match.user_id)
+    emp_id: text_(match.user_id),
+    name: text_(match.full_name),
+    role: role
   };
 
   var token = Utilities.getUuid();
@@ -453,14 +454,17 @@ function actionPermissions_(user) {
 }
 
 function actionAddActivity_(user, payload) {
-  var permission = getPermissionRow_(user.user_id);
-  if (yesNo_(permission.can_add_activity) !== 'yes') {
+  if (!canDirectAdd_(user)) {
     throw new Error('Forbidden');
   }
 
-  var activity = payload.activity || {};
-  var source = text_(activity.source || 'short').toLowerCase();
-  var targetSheet = source === 'long' ? CONFIG.sheets.dataLong : CONFIG.sheets.dataShort;
+  var targetRaw = text_(payload.target || payload.source_sheet || '');
+  var targetSheet = normalizeTargetSheet_(targetRaw);
+  if (!targetSheet) {
+    throw new Error('Invalid target/source sheet');
+  }
+  var rawActivity = payload.data || payload.activity || payload.row || {};
+  var activity = normalizeActivityPayload_(rawActivity, targetSheet);
   var rowId = nextId_(targetSheet, targetSheet === CONFIG.sheets.dataLong ? 'LONG-' : 'SHORT-');
 
   var common = {
@@ -532,8 +536,8 @@ function actionAddActivity_(user, payload) {
       finance_notes: common.finance_notes
     });
 
-    if (Array.isArray(activity.meetings) && activity.meetings.length) {
-      setMeetings_(rowId, activity.meetings);
+    if (Array.isArray(rawActivity.meetings) && rawActivity.meetings.length) {
+      setMeetings_(rowId, rawActivity.meetings);
     } else {
       setMeetingsFromRange_(rowId, text_(activity.start_date), text_(activity.end_date));
     }
@@ -548,27 +552,31 @@ function actionAddActivity_(user, payload) {
 
 function actionSaveActivity_(user, payload) {
   var sourceRowId = text_(payload.source_row_id || payload.RowID);
-  var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? CONFIG.sheets.dataLong : CONFIG.sheets.dataShort));
-  var changes = payload.changes || {};
+  var sourceSheet = resolveSourceSheet_(sourceRowId, payload.source_sheet);
+  var rawChanges = payload.changes || payload.data || {};
+  var changes = normalizeActivityPayload_(rawChanges, sourceSheet);
 
   if (!sourceRowId) throw new Error('source_row_id is required');
+  if (!sourceSheet) throw new Error('Invalid source sheet');
 
-  var permission = getPermissionRow_(user.user_id);
-  if (yesNo_(permission.can_edit_direct) !== 'yes') {
+  if (user.display_role === 'authorized_user') {
     return actionSubmitEditRequest_(user, {
       source_sheet: sourceSheet,
       source_row_id: sourceRowId,
-      changes: changes
+      changes: rawChanges
     });
   }
+  if (!canDirectEdit_(user)) throw new Error('Forbidden');
 
   updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
 
   if (sourceSheet === CONFIG.sheets.dataLong) {
-    if (Array.isArray(changes.meetings)) {
-      setMeetings_(sourceRowId, changes.meetings);
+    if (Array.isArray(rawChanges.meetings)) {
+      setMeetings_(sourceRowId, rawChanges.meetings);
     } else if (changes.start_date || changes.end_date) {
-      setMeetingsFromRange_(sourceRowId, text_(changes.start_date), text_(changes.end_date));
+      if (!hasActiveMeetings_(sourceRowId)) {
+        setMeetingsFromRange_(sourceRowId, text_(changes.start_date), text_(changes.end_date));
+      }
     }
   }
 
@@ -580,16 +588,19 @@ function actionSaveActivity_(user, payload) {
 }
 
 function actionSubmitEditRequest_(user, payload) {
-  requireAnyRole_(user, ['authorized_user', 'instructor']);
+  requireAnyRole_(user, ['authorized_user']);
 
   var sourceRowId = text_(payload.source_row_id || payload.RowID);
-  var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? CONFIG.sheets.dataLong : CONFIG.sheets.dataShort));
-  var changes = payload.changes || {};
+  var sourceSheet = resolveSourceSheet_(sourceRowId, payload.source_sheet);
+  var rawChanges = payload.changes || payload.data || {};
+  var changes = normalizeActivityPayload_(rawChanges, sourceSheet);
 
   if (!sourceRowId) throw new Error('source_row_id is required');
+  if (!sourceSheet) throw new Error('Invalid source sheet');
   if (sourceRowId.indexOf('SHORT-') !== 0 && sourceRowId.indexOf('LONG-') !== 0) {
     throw new Error('Invalid source_row_id');
   }
+  if (!Object.keys(changes).length) throw new Error('No valid editable fields in changes');
 
   var currentRow = getRowByKey_(sourceSheet, 'RowID', sourceRowId);
   var requestId = 'REQ-' + new Date().getTime();
@@ -620,10 +631,7 @@ function actionSubmitEditRequest_(user, payload) {
 }
 
 function actionReviewEditRequest_(user, payload) {
-  var permission = getPermissionRow_(user.user_id);
-  if (yesNo_(permission.can_review_requests) !== 'yes') {
-    throw new Error('Forbidden');
-  }
+  requireAnyRole_(user, ['operations_reviewer']);
 
   var requestId = text_(payload.request_id);
   var status = text_(payload.status).toLowerCase();
@@ -653,17 +661,17 @@ function actionReviewEditRequest_(user, payload) {
     updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
 
     if (sourceSheet === CONFIG.sheets.dataLong && (changes.start_date || changes.end_date)) {
-      setMeetingsFromRange_(sourceRowId, text_(changes.start_date), text_(changes.end_date));
+      if (!hasActiveMeetings_(sourceRowId)) {
+        setMeetingsFromRange_(sourceRowId, text_(changes.start_date), text_(changes.end_date));
+      }
     }
   }
 
-  requestRows.forEach(function(row) {
-    updateEditRequestRows_(requestId, {
-      status: status,
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: text_(user.user_id),
-      reviewer_notes: reviewerNotes
-    });
+  updateEditRequestRows_(requestId, {
+    status: status,
+    reviewed_at: new Date().toISOString(),
+    reviewed_by: text_(user.user_id),
+    reviewer_notes: reviewerNotes
   });
 
   return {
@@ -715,14 +723,14 @@ function actionSavePermission_(user, payload) {
 }
 
 function actionSavePrivateNote_(user, payload) {
-  var permission = getPermissionRow_(user.user_id);
-  if (yesNo_(permission.can_review_requests) !== 'yes' || user.display_role !== 'operations_reviewer') {
-    throw new Error('Forbidden');
-  }
-
+  requireAnyRole_(user, ['operations_reviewer']);
   var sourceSheet = text_(payload.source_sheet);
   var sourceRowId = text_(payload.source_row_id);
-  var noteText = text_(payload.note_text || payload.note);
+  var noteText = text_(payload.note_text || payload.note || payload.value);
+
+  if (!sourceSheet && sourceRowId) {
+    sourceSheet = resolveSourceSheet_(sourceRowId, '');
+  }
 
   if (!sourceSheet || !sourceRowId) throw new Error('source_sheet and source_row_id are required');
 
@@ -940,10 +948,32 @@ function setMeetings_(sourceRowId, meetings) {
     return !!text_(item.meeting_date);
   });
 
-  deleteRowsByKey_(CONFIG.sheets.meetings, 'source_row_id', sourceRowId);
+  var existing = readRowsWithMeta_(CONFIG.sheets.meetings).filter(function(row) {
+    return text_(row.data.source_row_id) === text_(sourceRowId);
+  });
 
-  cleaned.forEach(function(row) {
-    appendRow_(CONFIG.sheets.meetings, row);
+  var usedRowNumbers = {};
+  cleaned.forEach(function(item) {
+    var match = existing.find(function(existingRow) {
+      return text_(existingRow.data.meeting_no) === text_(item.meeting_no) && !usedRowNumbers[existingRow.rowNumber];
+    });
+
+    if (match) {
+      writeRowAt_(CONFIG.sheets.meetings, match.rowNumber, item);
+      usedRowNumbers[match.rowNumber] = true;
+      return;
+    }
+    appendRow_(CONFIG.sheets.meetings, item);
+  });
+
+  existing.forEach(function(existingRow) {
+    if (usedRowNumbers[existingRow.rowNumber]) return;
+    var patch = {};
+    Object.keys(existingRow.data).forEach(function(key) {
+      patch[key] = existingRow.data[key];
+    });
+    patch.active = 'no';
+    writeRowAt_(CONFIG.sheets.meetings, existingRow.rowNumber, patch);
   });
 }
 
@@ -994,6 +1024,29 @@ function readRows_(sheetName) {
   });
 }
 
+function readRowsWithMeta_(sheetName) {
+  var sheet = getSheet_(sheetName);
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < CONFIG.dataStartRow) return [];
+
+  var headers = sheet.getRange(CONFIG.headerRow, 1, 1, lastCol).getValues()[0].map(text_);
+  var values = sheet.getRange(CONFIG.dataStartRow, 1, lastRow - CONFIG.dataStartRow + 1, lastCol).getValues();
+
+  return values.map(function(row, idx) {
+    var item = {};
+    headers.forEach(function(header, headerIdx) {
+      item[header] = row[headerIdx];
+    });
+    return {
+      rowNumber: CONFIG.dataStartRow + idx,
+      data: item
+    };
+  }).filter(function(entry) {
+    return Object.keys(entry.data).some(function(key) { return text_(entry.data[key]) !== ''; });
+  });
+}
+
 function appendRow_(sheetName, rowObj) {
   var sheet = getSheet_(sheetName);
   var headers = getHeaders_(sheet);
@@ -1001,6 +1054,15 @@ function appendRow_(sheetName, rowObj) {
     return Object.prototype.hasOwnProperty.call(rowObj, header) ? rowObj[header] : '';
   });
   sheet.appendRow(row);
+}
+
+function writeRowAt_(sheetName, rowNumber, rowObj) {
+  var sheet = getSheet_(sheetName);
+  var headers = getHeaders_(sheet);
+  var row = headers.map(function(header) {
+    return Object.prototype.hasOwnProperty.call(rowObj, header) ? rowObj[header] : '';
+  });
+  sheet.getRange(rowNumber, 1, 1, headers.length).setValues([row]);
 }
 
 function getRowByKey_(sheetName, keyField, keyValue) {
@@ -1100,23 +1162,6 @@ function updateEditRequestRows_(requestId, patch) {
   });
 }
 
-function deleteRowsByKey_(sheetName, keyField, keyValue) {
-  var sheet = getSheet_(sheetName);
-  var headers = getHeaders_(sheet);
-  var keyIndex = headers.indexOf(keyField);
-  if (keyIndex < 0) throw new Error('Key field not found: ' + keyField);
-
-  var lastRow = sheet.getLastRow();
-  if (lastRow < CONFIG.dataStartRow) return;
-
-  for (var rowNum = lastRow; rowNum >= CONFIG.dataStartRow; rowNum--) {
-    var value = text_(sheet.getRange(rowNum, keyIndex + 1).getValue());
-    if (value === text_(keyValue)) {
-      sheet.deleteRow(rowNum);
-    }
-  }
-}
-
 function nextId_(sheetName, prefix) {
   var keyField = 'RowID';
   var rows = readRows_(sheetName);
@@ -1165,6 +1210,14 @@ function requireAnyRole_(user, roles) {
   }
 }
 
+function canDirectEdit_(user) {
+  return user && (user.display_role === 'admin' || user.display_role === 'operations_reviewer');
+}
+
+function canDirectAdd_(user) {
+  return canDirectEdit_(user);
+}
+
 /* =========================
    Normalization helpers
 ========================= */
@@ -1191,6 +1244,73 @@ function pickYesNo_(input, key, fallback) {
     return yesNo_(input[key]);
   }
   return yesNo_(fallback[key]);
+}
+
+function normalizeTargetSheet_(value) {
+  var textValue = text_(value);
+  if (textValue === CONFIG.sheets.dataShort || textValue.toLowerCase() === 'short') return CONFIG.sheets.dataShort;
+  if (textValue === CONFIG.sheets.dataLong || textValue.toLowerCase() === 'long') return CONFIG.sheets.dataLong;
+  return '';
+}
+
+function resolveSourceSheet_(sourceRowId, sourceSheetHint) {
+  var normalizedHint = normalizeTargetSheet_(sourceSheetHint);
+  if (normalizedHint) return normalizedHint;
+  if (text_(sourceRowId).indexOf('LONG-') === 0) return CONFIG.sheets.dataLong;
+  if (text_(sourceRowId).indexOf('SHORT-') === 0) return CONFIG.sheets.dataShort;
+  return '';
+}
+
+function normalizeActivityPayload_(raw, sourceSheet) {
+  var payload = raw || {};
+  var map = {
+    activity_manager: payload.activity_manager,
+    authority: payload.authority,
+    school: payload.school,
+    activity_type: payload.activity_type,
+    activity_no: payload.activity_no,
+    activity_name: payload.activity_name,
+    sessions: payload.sessions,
+    price: payload.price,
+    funding: payload.funding,
+    start_time: payload.start_time,
+    end_time: payload.end_time,
+    emp_id: payload.emp_id,
+    instructor_name: payload.instructor_name,
+    start_date: payload.start_date,
+    status: payload.status,
+    notes: payload.notes,
+    finance_status: payload.finance_status,
+    finance_notes: payload.finance_notes
+  };
+
+  if (sourceSheet === CONFIG.sheets.dataShort) {
+    map.emp_id_2 = payload.emp_id_2;
+    map.instructor_name_2 = payload.instructor_name_2;
+  }
+  if (sourceSheet === CONFIG.sheets.dataLong) {
+    map.end_date = payload.end_date;
+  }
+
+  var cleaned = {};
+  Object.keys(map).forEach(function(key) {
+    if (!Object.prototype.hasOwnProperty.call(map, key)) return;
+    if (map[key] === undefined) return;
+    if (key === 'finance_status') {
+      cleaned[key] = normalizeFinance_(map[key]);
+      return;
+    }
+    cleaned[key] = text_(map[key]);
+  });
+
+  return cleaned;
+}
+
+function hasActiveMeetings_(sourceRowId) {
+  var rows = readRows_(CONFIG.sheets.meetings);
+  return rows.some(function(row) {
+    return text_(row.source_row_id) === text_(sourceRowId) && yesNo_(row.active) === 'yes';
+  });
 }
 
 function text_(value) {
