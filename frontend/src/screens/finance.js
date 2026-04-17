@@ -1,9 +1,8 @@
-import { renderTableScreen } from './shared/table.js';
+import { escapeHtml } from './shared/html.js';
 
-export function financeScreen(data) {
-  return renderTableScreen({
-    title: 'Finance',
-    columns: ['row_id', 'title', 'finance_status', 'active'],
-    rows: data.rows
-  });
-}
+export const financeScreen = {
+  load: ({ api }) => api.finance(),
+  render(data) {
+    return `<section class="panel"><h2>Finance</h2><div class="stack">${(data.rows || []).map((row) => `<article class="mini-card"><h4>${row.row_id}</h4><p>${escapeHtml(row.title)}</p><p>Status: ${row.finance_status} | Active: ${row.active}</p></article>`).join('')}</div></section>`;
+  }
+};
