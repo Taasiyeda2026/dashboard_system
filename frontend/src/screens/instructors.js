@@ -1,4 +1,4 @@
-import { renderTableScreen } from './shared/table.js';
+import { escapeHtml } from './shared/html.js';
 
 export function instructorsScreen(data) {
   return renderTableScreen({

@@ -84,8 +84,8 @@ function login(entryCode) {
   };
 
   const token = Utilities.getUuid();
-  CacheService.getScriptCache().put(`sess:${token}`, JSON.stringify(user), 60 * 60 * 8);
-  return { token, user };
+  CacheService.getScriptCache().put('session:' + token, JSON.stringify(user), 60 * 60 * 8);
+  return { token: token, user: user };
 }
 
 function bootstrap(user) {
@@ -125,12 +125,14 @@ function dashboard(user) {
 
   return {
     totals: {
-      short: shortRows.length,
-      long: longRows.length,
-      instructors: instructorRows.length,
-      courseEndings
+      total_short_activities: shortRows.length,
+      total_long_activities: longRows.length,
+      total_instructors: instructors.length,
+      total_course_endings_current_month: longRows.filter(function(row) {
+        return row.activity_type === 'course' && text(row.end_date).slice(0, 7) === currentMonth;
+      }).length
     },
-    byManager: Object.keys(byManager).sort().map((k) => byManager[k])
+    by_activity_manager: Object.keys(grouped).sort().map(function(key) { return grouped[key]; })
   };
 }
 
@@ -209,7 +211,7 @@ function exceptions(user) {
     return acc;
   }, []);
 
-  return { rows: result, counts };
+  return { rows: result, counts: counts, priority: ['missing_instructor', 'missing_start_date', 'late_end_date'] };
 }
 
 function finance(user) {
@@ -340,6 +342,7 @@ function saveActivity(user, input) {
     const created = createEditRequestsFromChanges(user, source_sheet, source_row_id, changes);
     return { created: true, count: created };
   }
+  allow(user, ['admin', 'operations_reviewer']);
 
   requireAnyRole(user, ['admin', 'operations_reviewer']);
   updateRowByKey(source_sheet, 'RowID', source_row_id, changes);

@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+import { escapeHtml } from './shared/html.js';
 
 export function permissionsScreen(data, canEdit) {
   const safeRows = Array.isArray(data?.rows) ? data.rows : [];

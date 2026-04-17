@@ -1,42 +1,74 @@
 :root {
-  --shell: #121722;
-  --app: #f3f6fb;
-  --card: #ffffff;
-  --line: #d8e0ed;
-  --text: #202a39;
-  --primary: #2f65f7;
+  --bg: #111827;
+  --panel: #f8fafc;
+  --text: #0f172a;
+  --muted: #475569;
+  --accent: #2563eb;
+  --danger: #b91c1c;
+  --line: #cbd5e1;
 }
-* { box-sizing: border-box; }
-body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--shell); color: var(--text); }
-.shell { min-height: 100vh; padding: 10px; display: flex; justify-content: center; }
-.app { width: min(1100px, 100%); background: var(--app); border-radius: 14px; padding: 10px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
-.topbar { display: grid; gap: 8px; margin-bottom: 10px; }
-.stack { display: grid; gap: 10px; }
-.btn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 10px; font-size: .9rem; }
-.btn.nav-btn { margin: 2px; }
-.btn.chip { font-size: .8rem; padding: 5px 8px; }
-.btn.danger { background: #ffe5e8; border-color: #f8c1c9; }
-.kpis { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
-.kpi strong { font-size: 1.6rem; }
-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
-th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 6px; }
-.week-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; }
-.month-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; }
-.month-cell { min-height: 84px; padding: 6px; }
-.day-col ul, .month-cell ul { margin: 0; padding-left: 16px; }
-.login-card { max-width: 460px; margin: 40px auto; }
-.error { color: #cf163f; min-height: 18px; }
-.hidden { display: none; }
-.overflow-x { overflow-x: auto; }
-.muted { opacity: .75; }
 
-@media (max-width: 900px) {
-  .week-grid, .month-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  direction: rtl;
 }
-@media (max-width: 640px) {
-  .app { padding: 8px; border-radius: 10px; }
-  .kpis { grid-template-columns: 1fr; }
-  .week-grid, .month-grid { grid-template-columns: 1fr; }
-  .btn { padding: 8px; }
+
+.outer-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+.panel {
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+}
+
+h1, h2, h3, h4, p { margin: 0 0 6px; }
+p { color: var(--muted); }
+
+.tabs { display: flex; gap: 8px; overflow-x: auto; }
+.nav-btn, button, .small {
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.nav-btn.is-active, .small.is-active, button:hover { border-color: var(--accent); color: var(--accent); }
+.danger { background: #fee2e2; color: var(--danger); border-color: #fecaca; }
+
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.title-wrap h1 { font-size: 1.1rem; }
+.grid.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.card p { font-size: 1.4rem; color: var(--text); }
+.mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.mini-card { border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+
+.controls { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 10px; }
+.inline { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.stack { display: grid; gap: 8px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 760px; }
+th, td { border-bottom: 1px solid var(--line); text-align: right; padding: 6px; font-size: 0.86rem; }
+.month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+
+input, select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+}
+.error { color: var(--danger); min-height: 20px; }
+
+@media (min-width: 768px) {
+  .outer-shell { padding: 18px; }
+  .controls { grid-template-columns: 2fr auto auto auto; }
 }

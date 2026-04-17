@@ -7,5 +7,9 @@ export function monthScreen(data) {
     </article>
   `).join('');
 
-  return `<section class="stack"><h2>Month</h2><div class="month-grid">${cells || '<article class="card">No month data available.</article>'}</div></section>`;
-}
+export const monthScreen = {
+  load: ({ api }) => api.month(),
+  render(data) {
+    return `<section class="panel"><h2>Month ${escapeHtml(data.month || '')}</h2><div class="month-grid">${(data.cells || []).map((cell) => `<article class="mini-card"><h4>${cell.day}</h4><p>${cell.items.length}</p></article>`).join('')}</div></section>`;
+  }
+};
