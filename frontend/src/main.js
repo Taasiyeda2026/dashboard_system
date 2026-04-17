@@ -18,7 +18,7 @@ async function bootstrap() {
   await renderApp(document.getElementById('root'));
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./public/sw.js').catch(() => {});
+    navigator.serviceWorker.register('./frontend/public/sw.js').catch(() => {});
   }
 }
 
