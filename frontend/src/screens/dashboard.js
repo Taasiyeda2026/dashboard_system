@@ -1,34 +1,18 @@
-export function dashboardScreen(data, userRole = '') {
-  const cards = [
-    ['Total Short Activities', data.totals.short],
-    ['Total Long Activities', data.totals.long],
-    ['Total Instructors', data.totals.instructors],
-    ['Course Endings This Month', data.totals.courseEndings]
-  ];
+import { escapeHtml } from './shared/html.js';
 
-  const grouped = data.byManager.map((row) => `
-    <tr>
-      <td>${row.activity_manager || '—'}</td>
-      <td>${row.short_count}</td>
-      <td>${row.long_count}</td>
-      <td>${row.total}</td>
-    </tr>
-  `).join('');
-
-  return `
-    <section class="stack">
-      <h2>Dashboard</h2>
-      <div class="kpis">
-        ${cards.map(([label, value]) => `<article class="card kpi"><h3>${label}</h3><strong>${value}</strong></article>`).join('')}
-      </div>
-      <article class="card">
-        <h3>Totals by Activity Manager</h3>
-        <table>
-          <thead><tr><th>Manager</th><th>Short</th><th>Long</th><th>Total</th></tr></thead>
-          <tbody>${grouped}</tbody>
-        </table>
-      </article>
-      <small class="muted">Role: ${userRole}</small>
-    </section>
-  `;
-}
+export const dashboardScreen = {
+  load: ({ api }) => api.dashboard(),
+  render(data) {
+    const totals = data.totals || {};
+    const managerCards = (data.by_activity_manager || []).map((row) => `<article class="mini-card"><h4>${escapeHtml(row.activity_manager)}</h4><p>Short: ${row.total_short}</p><p>Long: ${row.total_long}</p><p>Total: ${row.total}</p></article>`).join('');
+    return `
+      <section class="grid cards">
+        <article class="panel card"><h3>Total Short Activities</h3><p>${totals.total_short_activities || 0}</p></article>
+        <article class="panel card"><h3>Total Long Activities</h3><p>${totals.total_long_activities || 0}</p></article>
+        <article class="panel card"><h3>Total Instructors</h3><p>${totals.total_instructors || 0}</p></article>
+        <article class="panel card"><h3>Course Endings (Current Month)</h3><p>${totals.total_course_endings_current_month || 0}</p></article>
+      </section>
+      <section class="panel"><h3>Totals by Activity Manager</h3><div class="mini-grid">${managerCards || '<p>No data</p>'}</div></section>
+    `;
+  }
+};

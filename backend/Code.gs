@@ -1,9 +1,4 @@
-/**
- * Internal operations backend for Google Apps Script.
- * Source of truth: Google Sheets only.
- */
-
-const SETTINGS = {
+const APP_CONFIG = {
   spreadsheetId: 'REPLACE_WITH_SPREADSHEET_ID',
   endDateLimit: '2026-06-15',
   sheets: {
@@ -20,46 +15,47 @@ const SETTINGS = {
 };
 
 function doGet() {
-  return jsonOut({ ok: true, data: { service: 'operations-backend', status: 'ready' } });
+  return jsonResponse({ ok: true, data: { service: 'dashboard-system', version: 1 } });
 }
 
 function doPost(e) {
   try {
-    const raw = e && e.postData ? e.postData.contents : '{}';
-    const input = JSON.parse(raw || '{}');
-    const action = input.action;
-    const auth = action === 'login' ? { user: null } : requireAuth(input.token);
-
-    const map = {
-      login: () => login(input.entryCode),
-      bootstrap: () => bootstrap(auth.user),
-      dashboard: () => dashboard(auth.user),
-      activities: () => activities(auth.user, input.type || 'all'),
-      week: () => week(auth.user),
-      month: () => month(auth.user),
-      exceptions: () => exceptions(auth.user),
-      finance: () => finance(auth.user),
-      instructors: () => instructors(auth.user),
-      contacts: () => contacts(auth.user),
-      myData: () => myData(auth.user),
-      permissions: () => permissionsData(auth.user),
-      submitEditRequest: () => submitEditRequest(auth.user, input),
-      saveActivity: () => saveActivity(auth.user, input),
-      addActivity: () => addActivity(auth.user, input),
-      savePermission: () => savePermission(auth.user, input)
+    const payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    const action = text(payload.action);
+    const currentUser = action === 'login' ? null : requireAuth(payload.token);
+    const handlers = {
+      login: function() { return login(payload.entry_code); },
+      bootstrap: function() { return bootstrap(currentUser); },
+      dashboard: function() { return dashboardData(currentUser); },
+      activities: function() { return activitiesData(currentUser, payload); },
+      week: function() { return weekData(currentUser); },
+      month: function() { return monthData(currentUser); },
+      exceptions: function() { return exceptionsData(currentUser); },
+      finance: function() { return financeData(currentUser); },
+      instructors: function() { return instructorsData(currentUser); },
+      contacts: function() { return contactsData(currentUser); },
+      myData: function() { return myData(currentUser); },
+      permissions: function() { return permissionsData(currentUser); },
+      addActivity: function() { return addActivity(currentUser, payload); },
+      saveActivity: function() { return saveActivity(currentUser, payload); },
+      submitEditRequest: function() { return submitEditRequest(currentUser, payload); },
+      reviewEditRequest: function() { return reviewEditRequest(currentUser, payload); },
+      savePermission: function() { return savePermission(currentUser, payload); },
+      savePrivateNote: function() { return savePrivateNote(currentUser, payload); }
     };
 
-    if (!map[action]) throw new Error('Unknown action');
-    return jsonOut({ ok: true, data: map[action]() });
+    if (!handlers[action]) throw new Error('Unknown action');
+    return jsonResponse({ ok: true, data: handlers[action]() });
   } catch (error) {
-    return jsonOut({ ok: false, error: error.message || 'Unhandled error' });
+    return jsonResponse({ ok: false, error: error && error.message ? error.message : 'Unexpected error' });
   }
 }
 
 function login(entryCode) {
-  const rows = rowsFor(SETTINGS.sheets.permissions);
-  if (!rows.length) throw new Error('Permissions sheet is empty');
-  const match = rows.find((row) => str(row.entry_code) === str(entryCode) && yesNo(row.active) === 'yes');
+  const records = readSheet(APP_CONFIG.sheets.permissions);
+  const match = records.find(function(row) {
+    return text(row.entry_code) === text(entryCode) && toYesNo(row.active) === 'yes';
+  });
   if (!match) throw new Error('Invalid or inactive code');
 
   const user = {
@@ -70,8 +66,8 @@ function login(entryCode) {
   };
 
   const token = Utilities.getUuid();
-  CacheService.getScriptCache().put(`sess:${token}`, JSON.stringify(user), 60 * 60 * 8);
-  return { token, user };
+  CacheService.getScriptCache().put('session:' + token, JSON.stringify(user), 60 * 60 * 8);
+  return { token: token, user: user };
 }
 
 function bootstrap(user) {
@@ -121,21 +117,23 @@ function dashboard(user) {
     byManager[k].short_count++;
     byManager[k].total++;
   });
-  longRows.forEach((row) => {
-    const k = str(row.activity_manager) || 'unassigned';
-    byManager[k] = byManager[k] || { activity_manager: k, short_count: 0, long_count: 0, total: 0 };
-    byManager[k].long_count++;
-    byManager[k].total++;
+  longRows.forEach(function(row) {
+    const manager = text(row.activity_manager) || 'unassigned';
+    grouped[manager] = grouped[manager] || { activity_manager: manager, total_short: 0, total_long: 0, total: 0 };
+    grouped[manager].total_long += 1;
+    grouped[manager].total += 1;
   });
 
   return {
     totals: {
-      short: shortRows.length,
-      long: longRows.length,
-      instructors: instructorRows.length,
-      courseEndings
+      total_short_activities: shortRows.length,
+      total_long_activities: longRows.length,
+      total_instructors: instructors.length,
+      total_course_endings_current_month: longRows.filter(function(row) {
+        return row.activity_type === 'course' && text(row.end_date).slice(0, 7) === currentMonth;
+      }).length
     },
-    byManager: Object.keys(byManager).sort().map((k) => byManager[k])
+    by_activity_manager: Object.keys(grouped).sort().map(function(key) { return grouped[key]; })
   };
 }
 
@@ -154,6 +152,7 @@ function activities(user, type) {
   ].filter((row) => type === 'all' || row.activity_type === type)
     .sort((a, b) => str(a.start_date).localeCompare(str(b.start_date)));
 
+  const notesBySource = mapByKey(readSheet(APP_CONFIG.sheets.privateNotes), 'source_row_id');
   return {
     rows: merged.map((row) => {
       const note = notesBySource[`${row.source_sheet}:${row.RowID}`];
@@ -165,46 +164,54 @@ function activities(user, type) {
   };
 }
 
-function week(user) {
-  requireAny(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
-  const start = mondayOf(new Date());
-  const days = Array.from({ length: 7 }, (_, i) => shiftDate(start, i));
-  const rows = allActivities();
+function weekData(user) {
+  allow(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
+  const today = new Date();
+  const day = today.getUTCDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = shiftDate(today, mondayOffset);
+  const rows = visibleActivitiesForUser(user);
 
   return {
-    days: days.map((d) => {
-      const key = fmtDate(d);
+    days: Array.apply(null, Array(7)).map(function(_, i) {
+      const d = shiftDate(monday, i);
+      const key = formatDate(d);
       return {
         date: key,
-        items: rows.filter((r) => str(r.start_date) <= key && str(r.end_date || r.start_date) >= key)
+        items: rows.filter(function(row) {
+          return key >= text(row.start_date) && key <= text(row.end_date || row.start_date);
+        })
       };
     })
   };
 }
 
-function month(user) {
-  requireAny(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
+function monthData(user) {
+  allow(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
   const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const daysInMonth = new Date(y, m + 1, 0).getDate();
-  const rows = allActivities();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const daysCount = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const rows = visibleActivitiesForUser(user);
 
   return {
-    cells: Array.from({ length: daysInMonth }, (_, i) => {
-      const date = fmtDate(new Date(y, m, i + 1));
+    month: Utilities.formatDate(now, 'UTC', 'yyyy-MM'),
+    cells: Array.apply(null, Array(daysCount)).map(function(_, idx) {
+      const date = formatDate(new Date(Date.UTC(year, month, idx + 1)));
       return {
-        day: i + 1,
-        items: rows.filter((r) => str(r.start_date) <= date && str(r.end_date || r.start_date) >= date)
+        day: idx + 1,
+        date: date,
+        items: rows.filter(function(row) {
+          return date >= text(row.start_date) && date <= text(row.end_date || row.start_date);
+        })
       };
     })
   };
 }
 
-function exceptions(user) {
-  requireAny(user, ['admin', 'operations_reviewer', 'authorized_user']);
-  const rows = withLongDates(rowsFor(SETTINGS.sheets.dataLong), rowsFor(SETTINGS.sheets.meetings));
-  const endLimit = SETTINGS.endDateLimit;
+function exceptionsData(user) {
+  allow(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  const rows = buildLongRows();
   const counts = { missing_instructor: 0, missing_start_date: 0, late_end_date: 0 };
   const result = [];
 
@@ -219,7 +226,7 @@ function exceptions(user) {
     result.push({ RowID: str(row.RowID), activity_name: str(row.activity_name), end_date: str(row.end_date), exception_type: ex });
   });
 
-  return { rows: result, counts };
+  return { rows: result, counts: counts, priority: ['missing_instructor', 'missing_start_date', 'late_end_date'] };
 }
 
 function finance(user) {
@@ -295,15 +302,16 @@ function submitEditRequest(user, input) {
     reviewer_notes: '',
     active: 'yes'
   });
-  return { created: true };
-}
 
 function saveActivity(user, input) {
   const sourceRowId = str(input.source_row_id || input.RowID);
   const sourceSheet = str(input.source_sheet || (sourceRowId.startsWith('LONG-') ? SETTINGS.sheets.dataLong : SETTINGS.sheets.dataShort));
   const changes = input.changes || {};
 
-  if (!sourceRowId) throw new Error('Missing source row id');
+function saveActivity(user, payload) {
+  const sourceRowId = text(payload.source_row_id);
+  if (!sourceRowId) throw new Error('source_row_id is required');
+  const changes = payload.changes || {};
 
   if (user.role === 'authorized_user' || user.role === 'instructor') {
     const fieldNames = Object.keys(changes);
@@ -318,6 +326,7 @@ function saveActivity(user, input) {
     });
     return { created: true };
   }
+  allow(user, ['admin', 'operations_reviewer']);
 
   requireAny(user, ['admin', 'operations_reviewer']);
   updateRowByKey(sourceSheet, 'RowID', sourceRowId, changes);
@@ -326,6 +335,7 @@ function saveActivity(user, input) {
     setLongDateRange(sourceRowId, str(changes.start_date), str(changes.end_date));
   }
 
+  writeBack(sheetName, records, index, updated);
   return { updated: true, source_row_id: sourceRowId };
 }
 
@@ -356,6 +366,9 @@ function addActivity(user, input) {
     finance_status: normalizeFinance(activity.finance_status),
     finance_notes: str(activity.finance_notes)
   };
+  appendToSheet(APP_CONFIG.sheets.editRequests, requestRow);
+  return { created: true, request_id: requestRow.request_id };
+}
 
   if (target === SETTINGS.sheets.dataShort) {
     appendRow(target, {
@@ -373,14 +386,22 @@ function addActivity(user, input) {
     setLongDateRange(rowId, str(activity.start_date), str(activity.end_date || activity.start_date));
   }
 
-  return { created: true, source_row_id: rowId };
-}
+  const records = readSheet(APP_CONFIG.sheets.editRequests);
+  const index = records.findIndex(function(row) { return text(row.request_id) === requestId; });
+  if (index === -1) throw new Error('Request not found');
 
-function savePermission(user, input) {
-  requireAny(user, ['admin', 'operations_reviewer']);
-  const permission = input.permission || {};
-  const userId = str(permission.user_id);
-  if (!userId) throw new Error('Missing user_id');
+  const row = Object.assign({}, records[index], {
+    status: newStatus,
+    reviewed_by: text(user.user_id),
+    reviewed_at: new Date().toISOString()
+  });
+
+  if (newStatus === 'approved') {
+    const sourceRowId = text(row.source_row_id);
+    const changes = JSON.parse(text(row.changes_json) || '{}');
+    const adminProxy = { role: 'admin' };
+    saveActivity(adminProxy, { source_row_id: sourceRowId, changes: changes });
+  }
 
   const existing = permissionRow(userId);
   const payload = {
@@ -408,15 +429,27 @@ function savePermission(user, input) {
     active: yesNo(permission.active)
   };
 
-  upsertByKey(SETTINGS.sheets.permissions, 'user_id', payload);
-  return { saved: true, user_id: userId };
+  if (index >= 0) writeBack(APP_CONFIG.sheets.permissions, records, index, normalized);
+  else appendToSheet(APP_CONFIG.sheets.permissions, normalized);
+  return { saved: true };
 }
 
-function allActivities() {
-  return [
-    ...rowsFor(SETTINGS.sheets.dataShort).map((r) => mapShort(r)),
-    ...withLongDates(rowsFor(SETTINGS.sheets.dataLong), rowsFor(SETTINGS.sheets.meetings)).map((r) => mapLong(r))
-  ];
+function savePrivateNote(user, payload) {
+  allow(user, ['operations_reviewer']);
+  const sourceRowId = text(payload.source_row_id);
+  const noteText = text(payload.note);
+  const records = readSheet(APP_CONFIG.sheets.privateNotes);
+  const index = records.findIndex(function(r) { return text(r.source_row_id) === sourceRowId; });
+  const data = {
+    source_row_id: sourceRowId,
+    note: noteText,
+    updated_by: text(user.user_id),
+    updated_at: new Date().toISOString()
+  };
+
+  if (index >= 0) writeBack(APP_CONFIG.sheets.privateNotes, records, index, data);
+  else appendToSheet(APP_CONFIG.sheets.privateNotes, data);
+  return { saved: true };
 }
 
 function mapShort(row) {
@@ -517,58 +550,24 @@ function rowsFor(sheetName) {
   });
 }
 
-function appendRow(sheetName, item) {
-  const sheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId).getSheetByName(sheetName);
-  if (!sheet) throw new Error(`Missing sheet: ${sheetName}`);
-  const headers = sheet.getDataRange().getValues()[0].map((h) => str(h));
-  if (!headers.length) throw new Error(`Missing headers in sheet: ${sheetName}`);
-  const row = headers.map((h) => item[h] ?? '');
-  sheet.appendRow(row);
+function requireAuth(token) {
+  const raw = CacheService.getScriptCache().get('session:' + text(token));
+  if (!raw) throw new Error('Unauthorized');
+  return JSON.parse(raw);
 }
 
-function updateRowByKey(sheetName, key, keyValue, changes) {
-  const sheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId).getSheetByName(sheetName);
-  if (!sheet) throw new Error(`Missing sheet: ${sheetName}`);
-  const values = sheet.getDataRange().getValues();
-  if (!values.length) throw new Error(`Missing headers in sheet: ${sheetName}`);
-  const headers = values[0].map((h) => str(h));
-  const keyIndex = headers.indexOf(key);
-  if (keyIndex < 0) throw new Error(`Missing key column: ${key}`);
-
-  for (let i = 1; i < values.length; i++) {
-    if (str(values[i][keyIndex]) !== str(keyValue)) continue;
-    headers.forEach((header, col) => {
-      if (Object.prototype.hasOwnProperty.call(changes, header)) {
-        values[i][col] = changes[header];
-      }
-    });
-    sheet.getRange(i + 1, 1, 1, headers.length).setValues([values[i]]);
-    return;
-  }
-  throw new Error(`Row not found: ${keyValue}`);
+function allow(user, roles) {
+  if (!user || roles.indexOf(user.role) === -1) throw new Error('Forbidden');
 }
 
-function upsertByKey(sheetName, key, item) {
-  const sheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId).getSheetByName(sheetName);
-  if (!sheet) throw new Error(`Missing sheet: ${sheetName}`);
-  const values = sheet.getDataRange().getValues();
-  if (!values.length) throw new Error(`Missing headers in sheet: ${sheetName}`);
-  const headers = values[0].map((h) => str(h));
-  const keyIndex = headers.indexOf(key);
-  if (keyIndex < 0) throw new Error(`Missing key column: ${key}`);
-
-  for (let i = 1; i < values.length; i++) {
-    if (str(values[i][keyIndex]) !== str(item[key])) continue;
-    const next = headers.map((h) => item[h] ?? values[i][headers.indexOf(h)]);
-    sheet.getRange(i + 1, 1, 1, headers.length).setValues([next]);
-    return;
-  }
-  appendRow(sheetName, item);
+function routesByRole(role) {
+  if (role === 'instructor') return ['my-data'];
+  if (role === 'authorized_user') return ['dashboard', 'activities', 'week', 'month', 'exceptions', 'finance', 'instructors', 'contacts', 'my-data'];
+  return ['dashboard', 'activities', 'week', 'month', 'exceptions', 'finance', 'instructors', 'contacts', 'my-data', 'permissions'];
 }
 
-function setLongDateRange(sourceRowId, startDate, endDate) {
-  const sheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId).getSheetByName(SETTINGS.sheets.meetings);
-  if (!sheet) throw new Error(`Missing sheet: ${SETTINGS.sheets.meetings}`);
+function readSheet(name) {
+  const sheet = getSheet(name);
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map((h) => str(h));
   const sourceIdx = headers.indexOf('source_row_id');
@@ -587,19 +586,30 @@ function setLongDateRange(sourceRowId, startDate, endDate) {
   if (end && end !== start) appendRow(SETTINGS.sheets.meetings, { source_row_id: sourceRowId, meeting_no: '2', meeting_date: end, notes: '', active: 'yes' });
 }
 
-function requireAuth(token) {
-  if (!str(token)) throw new Error('Unauthorized');
-  const raw = CacheService.getScriptCache().get(`sess:${str(token)}`);
-  if (!raw) throw new Error('Unauthorized');
-  return { user: JSON.parse(raw) };
+function appendToSheet(name, row) {
+  const sheet = getSheet(name);
+  const headers = sheet.getDataRange().getValues()[0] || [];
+  const values = headers.map(function(h) { return row[text(h)] || ''; });
+  sheet.appendRow(values);
 }
 
-function requireAny(user, roles) {
-  if (!roles.includes(user.role)) throw new Error('Forbidden');
+function writeBack(name, records, index, updatedRow) {
+  const sheet = getSheet(name);
+  const headers = sheet.getDataRange().getValues()[0] || [];
+  const rowNumber = index + 2;
+  const values = headers.map(function(h) { return updatedRow[text(h)] || ''; });
+  sheet.getRange(rowNumber, 1, 1, values.length).setValues([values]);
 }
 
-function jsonOut(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+function nextId(sheetName, prefix) {
+  const rows = readSheet(sheetName);
+  const max = rows.reduce(function(acc, row) {
+    const raw = text(row.row_id);
+    if (raw.indexOf(prefix) !== 0) return acc;
+    const value = parseInt(raw.replace(prefix, ''), 10);
+    return Math.max(acc, isNaN(value) ? 0 : value);
+  }, 0);
+  return prefix + ('000' + (max + 1)).slice(-3);
 }
 
 function str(value) {
@@ -608,22 +618,18 @@ function str(value) {
   return String(value).trim();
 }
 
-function yesNo(value) {
-  const v = str(value).toLowerCase();
-  return v === 'yes' ? 'yes' : 'no';
-}
-
 function normalizeFinance(value) {
-  const v = str(value).toLowerCase();
-  return v === 'closed' ? 'closed' : 'open';
+  return text(value).toLowerCase() === 'closed' ? 'closed' : 'open';
 }
 
-function normalizeRole(value) {
-  const raw = str(value).toLowerCase();
-  if (raw === 'admin') return 'admin';
-  if (raw === 'operations reviewer' || raw === 'operations_reviewer') return 'operations_reviewer';
-  if (raw === 'instructor') return 'instructor';
-  return 'authorized_user';
+function toYesNo(value) {
+  return text(value).toLowerCase() === 'no' ? 'no' : 'yes';
+}
+
+function mapByKey(rows, key) {
+  const map = {};
+  rows.forEach(function(row) { map[text(row[key])] = row; });
+  return map;
 }
 
 function optionalYesNo(input, key, fallbackObj) {
@@ -642,18 +648,13 @@ function mondayOf(date) {
 }
 
 function shiftDate(date, days) {
-  const clone = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  clone.setDate(clone.getDate() + days);
-  return clone;
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days));
 }
 
-function inMonth(dateValue, monthStart, monthEnd) {
-  const text = str(dateValue);
-  if (!text) return false;
-  const d = new Date(text);
-  return d >= monthStart && d <= monthEnd;
+function formatDate(date) {
+  return Utilities.formatDate(date, 'UTC', 'yyyy-MM-dd');
 }
 
-function fmtDate(date) {
-  return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+function jsonResponse(payload) {
+  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
 }

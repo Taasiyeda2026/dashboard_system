@@ -1,19 +1,25 @@
 export const state = {
-  token: localStorage.getItem('ops_token') || '',
-  user: JSON.parse(localStorage.getItem('ops_user') || 'null'),
-  bootstrap: null,
-  route: 'dashboard',
-  viewMode: 'table'
+  token: localStorage.getItem('dashboard_token') || '',
+  user: JSON.parse(localStorage.getItem('dashboard_user') || 'null'),
+  route: 'login',
+  routes: [],
+  activityTab: 'all',
+  activityView: 'table',
+  financeFilter: ''
 };
 
-export function setAuth(session) {
-  state.token = session?.token || '';
-  state.user = session?.user || null;
-  if (state.token) {
-    localStorage.setItem('ops_token', state.token);
-    localStorage.setItem('ops_user', JSON.stringify(state.user));
+export function setSession(session) {
+  if (!session) {
+    state.token = '';
+    state.user = null;
+    state.routes = [];
+    state.route = 'login';
+    localStorage.removeItem('dashboard_token');
+    localStorage.removeItem('dashboard_user');
     return;
   }
-  localStorage.removeItem('ops_token');
-  localStorage.removeItem('ops_user');
+  state.token = session.token;
+  state.user = session.user;
+  localStorage.setItem('dashboard_token', session.token);
+  localStorage.setItem('dashboard_user', JSON.stringify(session.user));
 }
