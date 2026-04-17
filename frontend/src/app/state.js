@@ -3,6 +3,8 @@ import { CONFIG } from '../config.js';
 export const state = {
   user: null,
   route: CONFIG.ROUTES.login,
+  bootstrap: null,
+  moduleMap: {},
   activitiesFilters: {
     activity_type: 'all',
     authority: '',
@@ -27,7 +29,18 @@ export function saveSession(user) {
   localStorage.setItem(CONFIG.SESSION_KEY, JSON.stringify(user));
 }
 
+export function setBootstrap(payload) {
+  state.bootstrap = payload;
+  const modules = payload?.bootstrap?.modules || [];
+  state.moduleMap = modules.reduce((acc, moduleDef) => {
+    acc[moduleDef.id] = moduleDef;
+    return acc;
+  }, {});
+}
+
 export function clearSession() {
   state.user = null;
+  state.bootstrap = null;
+  state.moduleMap = {};
   localStorage.removeItem(CONFIG.SESSION_KEY);
 }

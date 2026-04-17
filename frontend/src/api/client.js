@@ -31,5 +31,12 @@ export const api = {
   login: (identifier, password) => request('login', { identifier, entry_code: password }, 'POST'),
   getBootstrap: () => request('getBootstrap'),
   getDashboard: () => request('getDashboard'),
-  getActivities: (filters) => request('getActivities', filters)
+  getActivities: (filters) => request('getActivities', filters),
+  getModuleData: (moduleId, filters = {}) => {
+    const payload = { module_id: moduleId };
+    Object.entries(filters).forEach(([key, value]) => {
+      payload[`filter_${key}`] = value;
+    });
+    return request('getModuleData', payload);
+  }
 };
