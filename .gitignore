@@ -1,0 +1,15 @@
+# macOS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Local env
+.env
+
+# Build artifacts
+node_modules/
+dist/
+coverage/

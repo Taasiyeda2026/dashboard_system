@@ -1,32 +1,34 @@
-import { api } from '../api/client.js';
+export function dashboardScreen(data, userRole = '') {
+  const cards = [
+    ['Total Short Activities', data.totals.short],
+    ['Total Long Activities', data.totals.long],
+    ['Total Instructors', data.totals.instructors],
+    ['Course Endings This Month', data.totals.courseEndings]
+  ];
 
-export async function renderDashboard() {
-  const root = document.createElement('div');
-  root.className = 'screen';
-  root.innerHTML = '<div class="card">טוען Dashboard...</div>';
+  const grouped = data.byManager.map((row) => `
+    <tr>
+      <td>${row.activity_manager || '—'}</td>
+      <td>${row.short_count}</td>
+      <td>${row.long_count}</td>
+      <td>${row.total}</td>
+    </tr>
+  `).join('');
 
-  try {
-    const result = await api.getDashboard();
-    const d = result.dashboard || {};
-    const managers = d.by_manager || [];
-
-    root.innerHTML = `
-      <section class="stats-grid">
-        <article class="card"><h3>סה"כ פעילויות קצרות</h3><div class="value">${d.total_short || 0}</div></article>
-        <article class="card"><h3>סה"כ פעילויות ארוכות</h3><div class="value">${d.total_long || 0}</div></article>
-        <article class="card"><h3>סה"כ מדריכים</h3><div class="value">${d.total_instructors || 0}</div></article>
-        <article class="card"><h3>סיומי קורסים החודש</h3><div class="value">${d.total_course_endings_this_month || 0}</div></article>
-      </section>
-      <section class="card">
-        <h2>סיכום לפי מנהל פעילות</h2>
-        <div class="manager-list">
-          ${managers.map((m) => `<div>${m.manager}: קצר ${m.total_short}, ארוך ${m.total_long}</div>`).join('') || '<div>אין נתונים</div>'}
-        </div>
-      </section>
-    `;
-  } catch (err) {
-    root.innerHTML = `<div class="card error">${err.message}</div>`;
-  }
-
-  return root;
+  return `
+    <section class="stack">
+      <h2>Dashboard</h2>
+      <div class="kpis">
+        ${cards.map(([label, value]) => `<article class="card kpi"><h3>${label}</h3><strong>${value}</strong></article>`).join('')}
+      </div>
+      <article class="card">
+        <h3>Totals by Activity Manager</h3>
+        <table>
+          <thead><tr><th>Manager</th><th>Short</th><th>Long</th><th>Total</th></tr></thead>
+          <tbody>${grouped}</tbody>
+        </table>
+      </article>
+      <small class="muted">Role: ${userRole}</small>
+    </section>
+  `;
 }

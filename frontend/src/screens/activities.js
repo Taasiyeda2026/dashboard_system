@@ -1,58 +1,56 @@
-import { api } from '../api/client.js';
-
 const tabs = ['all', 'course', 'after_school', 'workshop', 'tour', 'escape_room'];
 
-export async function renderActivities(filters, onFiltersChange) {
-  const root = document.createElement('div');
-  root.className = 'screen';
+export function activitiesScreen(data, canSeePrivateNotes) {
+  const rows = data.rows.map((row) => `
+    <tr>
+      <td>${row.row_id}</td>
+      <td>${row.activity_type}</td>
+      <td>${row.title || '—'}</td>
+      <td>${row.start_date || '—'}</td>
+      <td>${row.end_date || '—'}</td>
+      <td>${row.instructor_1 || '—'}</td>
+      <td>${row.instructor_2 || '—'}</td>
+      <td>${row.finance_status || 'open'}</td>
+      ${canSeePrivateNotes ? `<td>${row.private_note || ''}</td>` : ''}
+    </tr>
+  `).join('');
 
-  root.innerHTML = `
-    <section class="card filters">
-      <div class="tab-row" id="tab-row"></div>
-      <div class="filter-grid">
-        <input data-filter="authority" placeholder="רשות" value="${filters.authority || ''}" />
-        <input data-filter="school" placeholder="בית ספר" value="${filters.school || ''}" />
-        <input data-filter="instructor_name" placeholder="מדריך" value="${filters.instructor_name || ''}" />
-        <input data-filter="activity_manager" placeholder="מנהל פעילות" value="${filters.activity_manager || ''}" />
-        <input data-filter="status" placeholder="סטטוס" value="${filters.status || ''}" />
+  const compact = data.rows.map((row) => `
+    <article class="card compact-row">
+      <header>${row.row_id} • ${row.activity_type}</header>
+      <p>${row.title || 'Untitled activity'}</p>
+      <small>${row.start_date || '—'} → ${row.end_date || '—'}</small>
+    </article>
+  `).join('');
+
+  return `
+    <section class="stack">
+      <h2>Activities</h2>
+      <div id="activity-tabs" class="tabs">
+        ${tabs.map((tab) => `<button class="btn chip" data-tab="${tab}">${tab}</button>`).join('')}
       </div>
-      <button id="apply-filters">עדכן מסננים</button>
+      <div class="toolbar">
+        <label><input id="toggle-view" type="checkbox" /> Compact view</label>
+      </div>
+      <div id="activities-table-wrap" class="card overflow-x">
+        <table>
+          <thead><tr><th>ID</th><th>Type</th><th>Title</th><th>Start</th><th>End</th><th>Instructor 1</th><th>Instructor 2</th><th>Finance</th>${canSeePrivateNotes ? '<th>Private Note</th>' : ''}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div id="activities-compact" class="hidden">${compact}</div>
     </section>
-    <section class="card" id="activities-list">טוען פעילויות...</section>
   `;
+}
 
-  const tabRow = root.querySelector('#tab-row');
-  tabRow.innerHTML = tabs
-    .map((tab) => `<button class="tab-btn ${filters.activity_type === tab ? 'active' : ''}" data-tab="${tab}">${tab}</button>`)
-    .join('');
-
-  tabRow.addEventListener('click', (event) => {
-    const btn = event.target.closest('button[data-tab]');
-    if (!btn) return;
-    onFiltersChange({ ...filters, activity_type: btn.dataset.tab });
+export function bindActivities(onTab) {
+  document.getElementById('activity-tabs')?.addEventListener('click', (event) => {
+    const tab = event.target?.dataset?.tab;
+    if (tab) onTab(tab);
   });
 
-  root.querySelector('#apply-filters').addEventListener('click', () => {
-    const next = { ...filters };
-    root.querySelectorAll('[data-filter]').forEach((input) => {
-      next[input.dataset.filter] = input.value.trim();
-    });
-    onFiltersChange(next);
+  document.getElementById('toggle-view')?.addEventListener('change', (event) => {
+    document.getElementById('activities-table-wrap')?.classList.toggle('hidden', event.target.checked);
+    document.getElementById('activities-compact')?.classList.toggle('hidden', !event.target.checked);
   });
-
-  const requestFilters = { ...filters };
-  if (requestFilters.activity_type === 'all') requestFilters.activity_type = '';
-
-  try {
-    const result = await api.getActivities(requestFilters);
-    const activities = result.activities || [];
-
-    root.querySelector('#activities-list').innerHTML = activities.length
-      ? `<ul class="list">${activities.map((row) => `<li>${row.RowID} · ${row.activity_name || '-'} · ${row.activity_type || '-'}</li>`).join('')}</ul>`
-      : 'אין פעילויות לתצוגה';
-  } catch (err) {
-    root.querySelector('#activities-list').textContent = err.message;
-  }
-
-  return root;
 }
