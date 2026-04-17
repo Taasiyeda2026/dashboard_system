@@ -1,41 +1,60 @@
-# New System Foundation (Phase 1)
+# Operations System (New Internal Build)
 
-This folder contains a clean, from-scratch foundation for the new internal activities system.
-
-## Implemented in this phase
-
-1. Folder and file structure for frontend + Apps Script backend.
-2. Modular Apps Script backend skeleton.
-3. Frontend skeleton (mobile-first, simple router/state/API client).
-4. Login screen.
-5. Dashboard screen.
-6. Activities screen.
-7. Initial Google Sheets connection + strict sheet schema metadata.
+Small, mobile-first internal system with Google Sheets as source of truth and Google Apps Script as backend API.
 
 ## Stack
+- Google Sheets
+- Google Apps Script (`backend/Code.gs`)
+- Vanilla JavaScript ES Modules frontend
+- PWA support (`frontend/public/manifest.json`, `frontend/public/sw.js`)
 
-- **Data**: Google Sheets
-- **Backend API**: Google Apps Script Web App
-- **Frontend**: Vanilla JS modules, responsive, PWA-ready
+## Data sheets
+1. `data_short`
+2. `data_long`
+3. `activity_meetings`
+4. `permissions`
+5. `lists`
+6. `contacts_instructors`
+7. `contacts_schools`
+8. `edit_requests`
+9. `operations_private_notes`
 
-## How to run (phase 1)
+## Role model
+- **Admin**: direct read/write/add to source data.
+- **Operations reviewer**: direct read/write/add, edit-request review, private notes access.
+- **Other authorized users**: submit edit requests only.
+- **Instructor**: my-data only.
 
-### Backend
+## Screens
+1. Dashboard
+2. Activities
+3. Week
+4. Month
+5. Instructors
+6. Exceptions
+7. My Data
+8. Contacts
+9. Finance
+10. Permissions
 
-1. Open Google Apps Script project connected to your spreadsheet.
-2. Copy files from `new-system/backend/src/*.gs` into the project.
-3. Deploy as Web App (`Execute as Me`, access according to your policy).
-4. Copy deployment URL.
+## Quick start
+
+### Backend (Apps Script)
+1. Create Apps Script project attached to your spreadsheet.
+2. Paste `backend/Code.gs`.
+3. Set `SETTINGS.spreadsheetId`.
+4. Deploy Web App and copy deployment URL.
 
 ### Frontend
+1. Set `frontend/src/config.js` with the deployment URL.
+2. Serve repository as static site.
+3. Open `index.html`.
 
-1. `API_URL` is already pre-configured to:
-   `https://script.google.com/macros/s/AKfycbyfdDwgM9D9nODbAF4JI3I3L20loOJeTuEs0LwNKv_QyXpCun59IHCqO79y0IRKLiN8/exec`
-2. If you deploy a different Apps Script version, update `new-system/frontend/src/config.js`.
-3. Serve `new-system/frontend` as static files (GitHub Pages / simple static hosting).
-
-### Default spreadsheet binding
-
-- `new-system/backend/src/config.gs` is now bound by default to:
-  `1odLLnhpm7gLwSsDrgzxjIy2cuHXZGNNQYXCkuhAt52s`
-- Replace this value only if you intentionally switch to a new spreadsheet.
+## Notes
+- `data_short.start_date` is one day only.
+- `data_long.start_date/end_date` are derived from `activity_meetings`.
+- `direct_manager` is read from `contacts_instructors`.
+- Exceptions run on `data_long` only with priority:
+  1) missing instructor
+  2) missing start date
+  3) end date after `2026-06-15`
