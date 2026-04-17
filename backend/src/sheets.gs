@@ -11,19 +11,44 @@ function getSheet_(name) {
   return sheet;
 }
 
-function getRows_(sheetName) {
+function getSheetData_(sheetName) {
   var sheet = getSheet_(sheetName);
   var values = sheet.getDataRange().getValues();
-  if (!values || values.length < 2) return [];
 
-  var headers = values[0].map(String);
-  return values.slice(1).map(function (row) {
+  if (!values || values.length === 0) {
+    return { internal_headers: [], display_headers: [], rows: [] };
+  }
+
+  var internalHeaders = values[0].map(function (value) { return String(value || '').trim(); });
+  var displayHeaders = values.length > 1
+    ? values[1].map(function (value) { return String(value || '').trim(); })
+    : internalHeaders;
+
+  var rows = values.slice(2).map(function (row) {
     var obj = {};
-    headers.forEach(function (header, index) {
+    internalHeaders.forEach(function (header, index) {
       obj[header] = row[index] === undefined ? '' : row[index];
     });
     return obj;
   });
+
+  return {
+    internal_headers: internalHeaders,
+    display_headers: displayHeaders,
+    rows: rows
+  };
+}
+
+function getRows_(sheetName) {
+  return getSheetData_(sheetName).rows;
+}
+
+function getSheetSchema_(sheetName) {
+  var data = getSheetData_(sheetName);
+  return {
+    internal_headers: data.internal_headers,
+    display_headers: data.display_headers
+  };
 }
 
 function validateRequiredSheets_() {

@@ -15,5 +15,16 @@ const CONFIG = {
     contacts_schools: ['authority','school','contact_name','contact_role','phone','mobile','email','address','notes','active'],
     edit_requests: ['request_id','source_sheet','source_row_id','field_name','old_value','new_value','requested_by_user_id','requested_by_name','requested_at','status','reviewed_at','reviewed_by','reviewer_notes','active'],
     operations_private_notes: ['source_sheet','source_row_id','note_text','updated_at','updated_by','active']
-  }
+  },
+  MODULES: [
+    { id: 'dashboard', title: 'Dashboard', type: 'derived', permission: 'view_dashboard' },
+    { id: 'activities', title: 'Activities', type: 'derived', permission: 'view_activities', sheets: ['data_short', 'data_long'] },
+    { id: 'activity_meetings', title: 'Activity Meetings', sheet: 'activity_meetings', permission: 'view_activities' },
+    { id: 'lists', title: 'Lists', sheet: 'lists', permission: 'view_admin' },
+    { id: 'contacts_instructors', title: 'Instructor Contacts', sheet: 'contacts_instructors', permission: 'view_contacts' },
+    { id: 'contacts_schools', title: 'School Contacts', sheet: 'contacts_schools', permission: 'view_contacts' },
+    { id: 'edit_requests', title: 'Edit Requests', sheet: 'edit_requests', permission: 'can_review_requests' },
+    { id: 'permissions', title: 'Permissions', sheet: 'permissions', permission: 'view_permissions' },
+    { id: 'operations_private_notes', title: 'Operations Notes', sheet: 'operations_private_notes', permission: 'view_admin' }
+  ]
 };

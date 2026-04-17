@@ -1,5 +1,18 @@
 import { api } from '../api/client.js';
-import { saveSession } from '../app/state.js';
+import { saveSession, setBootstrap, state } from '../app/state.js';
+import { CONFIG } from '../config.js';
+
+function pickInitialRoute(bootstrapPayload) {
+  const modules = (bootstrapPayload?.bootstrap?.modules || []).filter((m) => m.accessible);
+  if (!modules.length) return CONFIG.ROUTES.login;
+
+  const preferred = state.user?.default_view;
+  const preferredExists = modules.find((m) => m.id === preferred);
+  if (preferredExists) return preferred;
+
+  const dashboard = modules.find((m) => m.id === CONFIG.ROUTES.dashboard);
+  return dashboard ? dashboard.id : modules[0].id;
+}
 
 export function renderLogin(onSuccess) {
   const el = document.createElement('div');
@@ -45,6 +58,10 @@ export function renderLogin(onSuccess) {
       }
 
       saveSession({ ...result.user, entry_code: password });
+      const bootstrapPayload = await api.getBootstrap();
+      setBootstrap(bootstrapPayload);
+      state.route = pickInitialRoute(bootstrapPayload);
+
       onSuccess();
     } catch (err) {
       error.textContent = err.message;

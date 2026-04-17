@@ -3,40 +3,48 @@ import { state, clearSession } from './state.js';
 import { renderLogin } from '../screens/login.js';
 import { renderDashboard } from '../screens/dashboard.js';
 import { renderActivities } from '../screens/activities.js';
+import { renderModuleTable } from '../screens/moduleTable.js';
+
+function getAccessibleModules() {
+  const modules = state.bootstrap?.bootstrap?.modules || [];
+  return modules.filter((m) => m.accessible);
+}
 
 export async function renderApp(root) {
   root.innerHTML = '';
 
   if (!state.user) {
-    root.appendChild(renderLogin(() => {
+    root.appendChild(renderLogin(async () => {
       state.route = CONFIG.ROUTES.dashboard;
       renderApp(root);
     }));
     return;
   }
 
+  const modules = getAccessibleModules();
   const shell = document.createElement('div');
   shell.className = 'app-shell';
   shell.innerHTML = `
     <header class="topbar">
       <strong>${CONFIG.APP_NAME}</strong>
-      <div class="topbar-actions">
-        <button data-route="${CONFIG.ROUTES.dashboard}">Dashboard</button>
-        <button data-route="${CONFIG.ROUTES.activities}">Activities</button>
-        <button id="logout-btn">Logout</button>
-      </div>
+      <div class="topbar-actions" id="topbar-actions"></div>
     </header>
     <main id="view"></main>
   `;
 
-  shell.querySelectorAll('[data-route]').forEach((btn) => {
+  const actions = shell.querySelector('#topbar-actions');
+  actions.innerHTML = modules
+    .map((moduleDef) => `<button data-route="${moduleDef.id}">${moduleDef.title}</button>`)
+    .join('') + '<button id="logout-btn">Logout</button>';
+
+  actions.querySelectorAll('[data-route]').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.route = btn.dataset.route;
       renderApp(root);
     });
   });
 
-  shell.querySelector('#logout-btn').addEventListener('click', () => {
+  actions.querySelector('#logout-btn').addEventListener('click', () => {
     clearSession();
     state.route = CONFIG.ROUTES.login;
     renderApp(root);
@@ -54,5 +62,17 @@ export async function renderApp(root) {
     return;
   }
 
+  if (state.route === CONFIG.ROUTES.dashboard) {
+    view.appendChild(await renderDashboard());
+    return;
+  }
+
+  const moduleDef = state.moduleMap[state.route];
+  if (moduleDef && moduleDef.sheet) {
+    view.appendChild(await renderModuleTable(moduleDef.id, moduleDef.title));
+    return;
+  }
+
+  state.route = CONFIG.ROUTES.dashboard;
   view.appendChild(await renderDashboard());
 }

@@ -13,7 +13,8 @@ function handleHttpRequest_(e) {
     var handlers = {
       getBootstrap: actionGetBootstrap_,
       getDashboard: actionGetDashboard_,
-      getActivities: actionGetActivities_
+      getActivities: actionGetActivities_,
+      getModuleData: actionGetModuleData_
     };
 
     var handler = handlers[request.action];
