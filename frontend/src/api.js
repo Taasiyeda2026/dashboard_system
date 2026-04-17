@@ -4,7 +4,7 @@ import { state, setSession } from './state.js';
 async function request(action, payload = {}) {
   const response = await fetch(config.apiUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
     body: JSON.stringify({ action, token: state.token, ...payload })
   });
 
