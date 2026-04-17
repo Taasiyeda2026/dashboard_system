@@ -1,4 +1,4 @@
-const CACHE = 'internal-dashboard-v1';
+const CACHE = 'internal-dashboard-v2';
 const APP_SHELL = [
   './index.html',
   './frontend/src/main.js',
