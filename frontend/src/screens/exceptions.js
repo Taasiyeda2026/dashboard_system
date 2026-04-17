@@ -1,25 +1,8 @@
-export function exceptionsScreen(data) {
-  const safeRows = Array.isArray(data?.rows) ? data.rows : [];
-  const counts = data?.counts || { missing_instructor: 0, missing_start_date: 0, late_end_date: 0 };
-  const rows = safeRows.map((row) => `
-    <tr><td>${row.row_id}</td><td>${row.exception_type}</td><td>${row.title || '—'}</td><td>${row.end_date || '—'}</td></tr>
-  `).join('');
+import { escapeHtml } from './shared/html.js';
 
-  return `
-    <section class="stack">
-      <h2>Exceptions (Long activities only)</h2>
-      <article class="card">
-        <table>
-          <thead><tr><th>ID</th><th>Exception</th><th>Activity</th><th>End Date</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="4">No exceptions found.</td></tr>'}</tbody>
-        </table>
-      </article>
-      <article class="card">
-        <h3>Counts</h3>
-        <p>Missing instructor: ${counts.missing_instructor}</p>
-        <p>Missing start date: ${counts.missing_start_date}</p>
-        <p>Late end date: ${counts.late_end_date}</p>
-      </article>
-    </section>
-  `;
-}
+export const exceptionsScreen = {
+  load: ({ api }) => api.exceptions(),
+  render(data) {
+    return `<section class="panel"><h2>Exceptions (data_long only)</h2><p>Priority: missing instructor → missing start date → late end date</p><div class="inline"><span>missing_instructor: ${data.counts?.missing_instructor || 0}</span><span>missing_start_date: ${data.counts?.missing_start_date || 0}</span><span>late_end_date: ${data.counts?.late_end_date || 0}</span></div><div class="stack">${(data.rows || []).map((row) => `<article class="mini-card"><h4>${row.row_id}</h4><p>${escapeHtml(row.title)}</p><p>${row.exception_type}</p></article>`).join('')}</div></section>`;
+  }
+};

@@ -1,33 +1,24 @@
-import { api } from '../api.js';
-import { setAuth } from '../state.js';
-
-export function loginScreen(onSuccess) {
-  return `
-    <section class="card login-card">
-      <h1>Internal Operations Login</h1>
-      <p>Enter your one-time access code from the permissions sheet.</p>
-      <form id="login-form">
-        <input id="entry-code" placeholder="Entry code" required autocomplete="one-time-code" />
-        <button class="btn" type="submit">Login</button>
-      </form>
-      <p id="login-error" class="error"></p>
-    </section>
-  `;
-}
-
-export function bindLogin(onSuccess) {
-  const form = document.getElementById('login-form');
-  const errorNode = document.getElementById('login-error');
-  form?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    errorNode.textContent = '';
-    try {
-      const code = document.getElementById('entry-code').value.trim();
-      const session = await api.login(code);
-      setAuth(session);
-      onSuccess();
-    } catch (error) {
-      errorNode.textContent = error.message;
-    }
-  });
-}
+export const loginScreen = {
+  render() {
+    return `
+      <div class="outer-shell login-shell">
+        <section class="panel">
+          <h1>Dashboard Login</h1>
+          <p>Enter your code from the permissions sheet.</p>
+          <form id="loginForm" class="stack">
+            <input id="entryCode" required placeholder="Entry code" autocomplete="off" />
+            <button type="submit">Login</button>
+          </form>
+          <p id="loginError" class="error"></p>
+        </section>
+      </div>
+    `;
+  },
+  bind({ root, onLogin }) {
+    root.querySelector('#loginForm')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const code = root.querySelector('#entryCode')?.value.trim();
+      await onLogin(code, root.querySelector('#loginError'));
+    });
+  }
+};
