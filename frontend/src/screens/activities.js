@@ -1,7 +1,8 @@
 const tabs = ['all', 'course', 'after_school', 'workshop', 'tour', 'escape_room'];
 
 export function activitiesScreen(data, canSeePrivateNotes) {
-  const rows = data.rows.map((row) => `
+  const safeRows = Array.isArray(data?.rows) ? data.rows : [];
+  const rows = safeRows.map((row) => `
     <tr>
       <td>${row.row_id}</td>
       <td>${row.activity_type}</td>
@@ -15,7 +16,7 @@ export function activitiesScreen(data, canSeePrivateNotes) {
     </tr>
   `).join('');
 
-  const compact = data.rows.map((row) => `
+  const compact = safeRows.map((row) => `
     <article class="card compact-row">
       <header>${row.row_id} • ${row.activity_type}</header>
       <p>${row.title || 'Untitled activity'}</p>
@@ -35,10 +36,10 @@ export function activitiesScreen(data, canSeePrivateNotes) {
       <div id="activities-table-wrap" class="card overflow-x">
         <table>
           <thead><tr><th>ID</th><th>Type</th><th>Title</th><th>Start</th><th>End</th><th>Instructor 1</th><th>Instructor 2</th><th>Finance</th>${canSeePrivateNotes ? '<th>Private Note</th>' : ''}</tr></thead>
-          <tbody>${rows}</tbody>
+          <tbody>${rows || `<tr><td colspan="${canSeePrivateNotes ? 9 : 8}">No activities found for this filter.</td></tr>`}</tbody>
         </table>
       </div>
-      <div id="activities-compact" class="hidden">${compact}</div>
+      <div id="activities-compact" class="hidden">${compact || '<article class="card compact-row">No activities found for this filter.</article>'}</div>
     </section>
   `;
 }

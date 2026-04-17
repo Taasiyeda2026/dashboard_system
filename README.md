@@ -58,3 +58,27 @@ Small, mobile-first internal system with Google Sheets as source of truth and Go
   1) missing instructor
   2) missing start date
   3) end date after `2026-06-15`
+
+## Manual validation checklist (deployment readiness)
+
+Run these checks against the deployed Apps Script Web App URL and the served frontend on real devices/browsers.
+
+- [ ] admin login
+- [ ] operations reviewer login
+- [ ] authorized user login
+- [ ] instructor login
+- [ ] session restore
+- [ ] logout
+- [ ] admin direct edit
+- [ ] operations reviewer direct edit
+- [ ] authorized user edit request creation
+- [ ] authorized user cannot add directly
+- [ ] operations reviewer can add directly
+- [ ] private notes visible only to operations reviewer
+- [ ] exceptions logic validation
+- [ ] finance screen validation
+- [ ] permissions screen save validation
+- [ ] week view on mobile
+- [ ] month view on mobile
+- [ ] activities screen table/compact toggle on mobile
+- [ ] PWA install and refresh validation

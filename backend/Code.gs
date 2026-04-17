@@ -25,7 +25,8 @@ function doGet() {
 
 function doPost(e) {
   try {
-    const input = JSON.parse(e.postData.contents || '{}');
+    const raw = e && e.postData ? e.postData.contents : '{}';
+    const input = JSON.parse(raw || '{}');
     const action = input.action;
     const auth = action === 'login' ? { user: null } : requireAuth(input.token);
 
@@ -42,7 +43,10 @@ function doPost(e) {
       contacts: () => contacts(auth.user),
       myData: () => myData(auth.user),
       permissions: () => permissionsData(auth.user),
-      submitEditRequest: () => submitEditRequest(auth.user, input)
+      submitEditRequest: () => submitEditRequest(auth.user, input),
+      saveActivity: () => saveActivity(auth.user, input),
+      addActivity: () => addActivity(auth.user, input),
+      savePermission: () => savePermission(auth.user, input)
     };
 
     if (!map[action]) throw new Error('Unknown action');
@@ -54,6 +58,7 @@ function doPost(e) {
 
 function login(entryCode) {
   const rows = rowsFor(SETTINGS.sheets.permissions);
+  if (!rows.length) throw new Error('Permissions sheet is empty');
   const match = rows.find((row) => str(row.entry_code) === str(entryCode) && yesNo(row.active) === 'yes');
   if (!match) throw new Error('Invalid or inactive code');
 
@@ -70,11 +75,17 @@ function login(entryCode) {
 }
 
 function bootstrap(user) {
+  const defaultRoute = user.role === 'instructor' ? 'my-data' : 'dashboard';
   return {
     role: user.role,
-    routes: user.role === 'instructor'
-      ? ['my-data']
-      : ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance', 'permissions']
+    default_route: defaultRoute,
+    routes: user.role === 'admin'
+      ? ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance', 'permissions']
+      : user.role === 'operations_reviewer'
+        ? ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance', 'permissions']
+        : user.role === 'authorized_user'
+          ? ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance']
+          : ['week', 'month', 'my-data']
   };
 }
 
@@ -126,7 +137,10 @@ function activities(user, type) {
    .sort((a, b) => str(a.start_date).localeCompare(str(b.start_date)));
 
   return {
-    rows: merged.map((row) => ({ ...row, private_note: str(notesBySource[row.row_id]?.note || '') }))
+    rows: merged.map((row) => ({
+      ...row,
+      private_note: user.role === 'operations_reviewer' ? str(notesBySource[row.row_id]?.note || '') : ''
+    }))
   };
 }
 
@@ -218,7 +232,16 @@ function myData(user) {
 
 function permissionsData(user) {
   requireAny(user, ['admin', 'operations_reviewer']);
-  return { rows: rowsFor(SETTINGS.sheets.permissions).map((r) => ({ user_id: r.user_id, name: r.name, role: normalizeRole(r.role), active: yesNo(r.active) })) };
+  return {
+    rows: rowsFor(SETTINGS.sheets.permissions).map((r) => ({
+      user_id: str(r.user_id),
+      name: str(r.name),
+      role: normalizeRole(r.role),
+      entry_code: str(r.entry_code),
+      instructor_id: str(r.instructor_id),
+      active: yesNo(r.active)
+    }))
+  };
 }
 
 function submitEditRequest(user, input) {
@@ -236,6 +259,72 @@ function submitEditRequest(user, input) {
   return { created: true };
 }
 
+function saveActivity(user, input) {
+  const sourceRowId = str(input.source_row_id);
+  const changes = input.changes || {};
+
+  if (!sourceRowId) throw new Error('Missing source row id');
+
+  if (user.role === 'authorized_user') {
+    return submitEditRequest(user, { source_row_id: sourceRowId, changes });
+  }
+
+  requireAny(user, ['admin', 'operations_reviewer']);
+  const sheetName = sourceRowId.startsWith('LONG-') ? SETTINGS.sheets.dataLong : SETTINGS.sheets.dataShort;
+  updateRowByKey(sheetName, 'row_id', sourceRowId, changes);
+
+  if (sourceRowId.startsWith('LONG-') && (changes.start_date || changes.end_date)) {
+    setLongDateRange(sourceRowId, str(changes.start_date), str(changes.end_date));
+  }
+
+  return { updated: true, source_row_id: sourceRowId };
+}
+
+function addActivity(user, input) {
+  requireAny(user, ['admin', 'operations_reviewer']);
+  const activity = input.activity || {};
+  const target = str(activity.source || 'short').toLowerCase() === 'long' ? 'long' : 'short';
+  const idPrefix = target === 'long' ? 'LONG' : 'SHORT';
+  const rowId = `${idPrefix}-${new Date().getTime()}`;
+  const payload = {
+    row_id: rowId,
+    title: str(activity.title),
+    activity_type: str(activity.activity_type),
+    instructor_1: str(activity.instructor_1),
+    activity_manager: str(activity.activity_manager),
+    finance_status: normalizeFinance(activity.finance_status),
+    active: yesNo(activity.active || 'yes')
+  };
+
+  if (target === 'short') {
+    appendRow(SETTINGS.sheets.dataShort, { ...payload, start_date: str(activity.start_date) });
+  } else {
+    appendRow(SETTINGS.sheets.dataLong, payload);
+    setLongDateRange(rowId, str(activity.start_date), str(activity.end_date || activity.start_date));
+  }
+
+  return { created: true, source_row_id: rowId };
+}
+
+function savePermission(user, input) {
+  requireAny(user, ['admin', 'operations_reviewer']);
+  const permission = input.permission || {};
+  const userId = str(permission.user_id);
+  if (!userId) throw new Error('Missing user_id');
+
+  const payload = {
+    user_id: userId,
+    name: str(permission.name),
+    role: normalizeRole(permission.role),
+    entry_code: str(permission.entry_code),
+    instructor_id: str(permission.instructor_id),
+    active: yesNo(permission.active)
+  };
+
+  upsertByKey(SETTINGS.sheets.permissions, 'user_id', payload);
+  return { saved: true, user_id: userId };
+}
+
 function allActivities() {
   return [
     ...rowsFor(SETTINGS.sheets.dataShort).map((r) => mapShort(r)),
@@ -244,6 +333,7 @@ function allActivities() {
 }
 
 function mapShort(row) {
+  row = row || {};
   return {
     row_id: str(row.row_id),
     title: str(row.title),
@@ -259,6 +349,7 @@ function mapShort(row) {
 }
 
 function mapLong(row) {
+  row = row || {};
   return {
     row_id: str(row.row_id),
     title: str(row.title),
@@ -298,9 +389,11 @@ function rowsFor(sheetName) {
   if (!sheet) throw new Error(`Missing sheet: ${sheetName}`);
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) return [];
+  if (!values[0] || !values[0].length) throw new Error(`Missing headers in sheet: ${sheetName}`);
 
   const headers = values[0].map((h) => str(h));
   return values.slice(1).map((row) => {
+    row = row || [];
     const item = {};
     headers.forEach((h, i) => { item[h] = row[i]; });
     return item;
@@ -309,12 +402,76 @@ function rowsFor(sheetName) {
 
 function appendRow(sheetName, item) {
   const sheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId).getSheetByName(sheetName);
+  if (!sheet) throw new Error(`Missing sheet: ${sheetName}`);
   const headers = sheet.getDataRange().getValues()[0].map((h) => str(h));
+  if (!headers.length) throw new Error(`Missing headers in sheet: ${sheetName}`);
   const row = headers.map((h) => item[h] ?? '');
   sheet.appendRow(row);
 }
 
+function updateRowByKey(sheetName, key, keyValue, changes) {
+  const sheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId).getSheetByName(sheetName);
+  if (!sheet) throw new Error(`Missing sheet: ${sheetName}`);
+  const values = sheet.getDataRange().getValues();
+  if (!values.length) throw new Error(`Missing headers in sheet: ${sheetName}`);
+  const headers = values[0].map((h) => str(h));
+  const keyIndex = headers.indexOf(key);
+  if (keyIndex < 0) throw new Error(`Missing key column: ${key}`);
+
+  for (let i = 1; i < values.length; i++) {
+    if (str(values[i][keyIndex]) !== str(keyValue)) continue;
+    headers.forEach((header, col) => {
+      if (Object.prototype.hasOwnProperty.call(changes, header)) {
+        values[i][col] = changes[header];
+      }
+    });
+    sheet.getRange(i + 1, 1, 1, headers.length).setValues([values[i]]);
+    return;
+  }
+  throw new Error(`Row not found: ${keyValue}`);
+}
+
+function upsertByKey(sheetName, key, item) {
+  const sheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId).getSheetByName(sheetName);
+  if (!sheet) throw new Error(`Missing sheet: ${sheetName}`);
+  const values = sheet.getDataRange().getValues();
+  if (!values.length) throw new Error(`Missing headers in sheet: ${sheetName}`);
+  const headers = values[0].map((h) => str(h));
+  const keyIndex = headers.indexOf(key);
+  if (keyIndex < 0) throw new Error(`Missing key column: ${key}`);
+
+  for (let i = 1; i < values.length; i++) {
+    if (str(values[i][keyIndex]) !== str(item[key])) continue;
+    const next = headers.map((h) => item[h] ?? values[i][headers.indexOf(h)]);
+    sheet.getRange(i + 1, 1, 1, headers.length).setValues([next]);
+    return;
+  }
+  appendRow(sheetName, item);
+}
+
+function setLongDateRange(sourceRowId, startDate, endDate) {
+  const sheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId).getSheetByName(SETTINGS.sheets.meetings);
+  if (!sheet) throw new Error(`Missing sheet: ${SETTINGS.sheets.meetings}`);
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map((h) => str(h));
+  const sourceIdx = headers.indexOf('source_row_id');
+  const dateIdx = headers.indexOf('meeting_date');
+  if (sourceIdx < 0 || dateIdx < 0) return;
+
+  for (let i = values.length - 1; i >= 1; i--) {
+    if (str(values[i][sourceIdx]) === str(sourceRowId)) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+
+  const start = startDate || endDate;
+  const end = endDate || startDate;
+  if (start) appendRow(SETTINGS.sheets.meetings, { source_row_id: sourceRowId, meeting_date: start });
+  if (end && end !== start) appendRow(SETTINGS.sheets.meetings, { source_row_id: sourceRowId, meeting_date: end });
+}
+
 function requireAuth(token) {
+  if (!str(token)) throw new Error('Unauthorized');
   const raw = CacheService.getScriptCache().get(`sess:${str(token)}`);
   if (!raw) throw new Error('Unauthorized');
   return { user: JSON.parse(raw) };
