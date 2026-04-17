@@ -11,13 +11,16 @@ export const contactsScreen = {
 
     return `
       <section class="stack">
-        <h2>Contacts</h2>
-        <article class="card overflow-x">
-          <table>
-            <thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
-            <tbody>${body || `<tr><td colspan="${columns.length}">No records found.</td></tr>`}</tbody>
-          </table>
-        </article>
+        <h2>📇 Contacts</h2>
+        <details class="compact-block" open>
+          <summary>📋 Rows (${rows.length})</summary>
+          <div class="compact-body overflow-x">
+            <table>
+              <thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
+              <tbody>${body || `<tr><td colspan="${columns.length}">No records found.</td></tr>`}</tbody>
+            </table>
+          </div>
+        </details>
       </section>
     `;
   }

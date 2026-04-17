@@ -11,19 +11,21 @@ export const exceptionsScreen = {
 
     return `
       <section class="stack">
-        <h2>Exceptions (Long activities only)</h2>
-        <article class="card">
-          <table>
-            <thead><tr><th>RowID</th><th>Exception</th><th>Activity</th><th>End Date</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="4">No exceptions found.</td></tr>'}</tbody>
-          </table>
-        </article>
-        <article class="card">
-          <h3>Counts</h3>
-          <p>Missing instructor: ${counts.missing_instructor}</p>
-          <p>Missing start date: ${counts.missing_start_date}</p>
-          <p>Late end date: ${counts.late_end_date}</p>
-        </article>
+        <h2>⚠️ Exceptions</h2>
+        <div class="count-chips">
+          <span class="chip-mini">👤 חסר מדריך: ${counts.missing_instructor}</span>
+          <span class="chip-mini">📅 חסר תאריך: ${counts.missing_start_date}</span>
+          <span class="chip-mini">⏰ תאריך מאוחר: ${counts.late_end_date}</span>
+        </div>
+        <details class="compact-block" open>
+          <summary>📋 Rows (${safeRows.length})</summary>
+          <div class="compact-body overflow-x">
+            <table>
+              <thead><tr><th>RowID</th><th>Exception</th><th>Activity</th><th>End Date</th></tr></thead>
+              <tbody>${rows || '<tr><td colspan="4">No exceptions found.</td></tr>'}</tbody>
+            </table>
+          </div>
+        </details>
       </section>
     `;
   }

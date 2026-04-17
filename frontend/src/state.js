@@ -4,7 +4,7 @@ export const state = {
   route: 'login',
   routes: [],
   activityTab: 'all',
-  activityView: 'table',
+  activityView: 'compact',
   financeFilter: ''
 };
 

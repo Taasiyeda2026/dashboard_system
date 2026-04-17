@@ -33,21 +33,24 @@ export const activitiesScreen = {
 
     return `
       <section class="stack">
-        <h2>Activities</h2>
+        <h2>🗂️ Activities</h2>
         <div class="tabs">
-          ${tabs.map((tab) => `<button class="btn chip ${tab === (state.activityTab || 'all') ? 'is-active' : ''}" data-tab="${tab}">${tab}</button>`).join('')}
+          ${tabs.map((tab) => `<button class="btn chip ${tab === (state.activityTab || 'all') ? 'is-active' : ''}" data-tab="${tab}">${tab === 'all' ? '✨ all' : tab}</button>`).join('')}
         </div>
         <div class="toolbar">
-          <label><input id="toggle-view" type="checkbox" ${compactView ? 'checked' : ''} /> Compact view</label>
+          <label class="compact-toggle"><input id="toggle-view" type="checkbox" ${compactView ? 'checked' : ''} /> 🔍 Compact</label>
         </div>
         ${compactView
           ? `<div class="stack">${compactRows || '<article class="card">No activities found for this filter.</article>'}</div>`
-          : `<div class="card overflow-x">
+          : `<details class="compact-block" open>
+              <summary>📋 Table (${safeRows.length})</summary>
+              <div class="compact-body overflow-x">
               <table>
                 <thead><tr><th>RowID</th><th>Type</th><th>Name</th><th>Start</th><th>End</th><th>Instructor 1 (emp_id)</th><th>Instructor 2 (emp_id)</th><th>Finance</th>${canSeePrivateNotes ? '<th>Private Note</th>' : ''}</tr></thead>
                 <tbody>${tableRows || `<tr><td colspan="${canSeePrivateNotes ? 9 : 8}">No activities found for this filter.</td></tr>`}</tbody>
               </table>
-            </div>`}
+              </div>
+            </details>`}
       </section>
     `;
   },
