@@ -64,9 +64,9 @@ function login(entryCode) {
 
   const user = {
     user_id: str(match.user_id),
-    name: str(match.name),
-    role: normalizeRole(match.role),
-    instructor_id: str(match.instructor_id)
+    name: str(match.full_name),
+    role: normalizeRole(match.display_role),
+    default_view: str(match.default_view)
   };
 
   const token = Utilities.getUuid();
@@ -75,18 +75,31 @@ function login(entryCode) {
 }
 
 function bootstrap(user) {
-  const defaultRoute = user.role === 'instructor' ? 'my-data' : 'dashboard';
-  return {
-    role: user.role,
-    default_route: defaultRoute,
-    routes: user.role === 'admin'
-      ? ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance', 'permissions']
-      : user.role === 'operations_reviewer'
-        ? ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance', 'permissions']
-        : user.role === 'authorized_user'
-          ? ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance']
-          : ['week', 'month', 'my-data']
+  const map = {
+    dashboard: 'view_dashboard',
+    activities: 'view_activities',
+    week: 'view_week',
+    month: 'view_month',
+    instructors: 'view_instructors',
+    exceptions: 'view_exceptions',
+    'my-data': 'view_my_data',
+    contacts: 'view_contacts',
+    finance: 'view_finance',
+    permissions: 'view_permissions'
   };
+  const defaults = user.role === 'instructor'
+    ? ['my-data']
+    : ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance'];
+
+  const row = permissionRow(user.user_id);
+  const routes = user.role === 'admin' || user.role === 'operations_reviewer'
+    ? [...defaults, 'permissions']
+    : defaults.filter((route) => yesNo(row[map[route]]) === 'yes' || route === 'my-data');
+
+  const preferred = str(row.default_view) || (user.role === 'instructor' ? 'my-data' : 'dashboard');
+  const defaultRoute = routes.includes(preferred) ? preferred : routes[0] || 'my-data';
+
+  return { role: user.role, default_route: defaultRoute, routes };
 }
 
 function dashboard(user) {
@@ -99,7 +112,7 @@ function dashboard(user) {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-  const courseEndings = longRows.filter((row) => row.activity_type === 'course' && inMonth(row.end_date, monthStart, monthEnd)).length;
+  const courseEndings = longRows.filter((row) => str(row.activity_type) === 'course' && inMonth(row.end_date, monthStart, monthEnd)).length;
 
   const byManager = {};
   shortRows.forEach((row) => {
@@ -129,18 +142,26 @@ function dashboard(user) {
 function activities(user, type) {
   requireAny(user, ['admin', 'operations_reviewer', 'authorized_user']);
   const notes = rowsFor(SETTINGS.sheets.privateNotes);
-  const notesBySource = toMap(notes, 'source_row_id');
+  const notesBySource = notes.reduce((acc, row) => {
+    const key = `${str(row.source_sheet)}:${str(row.source_row_id)}`;
+    acc[key] = row;
+    return acc;
+  }, {});
+
   const merged = [
     ...rowsFor(SETTINGS.sheets.dataShort).map((r) => mapShort(r)),
     ...withLongDates(rowsFor(SETTINGS.sheets.dataLong), rowsFor(SETTINGS.sheets.meetings)).map((r) => mapLong(r))
   ].filter((row) => type === 'all' || row.activity_type === type)
-   .sort((a, b) => str(a.start_date).localeCompare(str(b.start_date)));
+    .sort((a, b) => str(a.start_date).localeCompare(str(b.start_date)));
 
   return {
-    rows: merged.map((row) => ({
-      ...row,
-      private_note: user.role === 'operations_reviewer' ? str(notesBySource[row.row_id]?.note || '') : ''
-    }))
+    rows: merged.map((row) => {
+      const note = notesBySource[`${row.source_sheet}:${row.RowID}`];
+      return {
+        ...row,
+        private_note: user.role === 'operations_reviewer' && yesNo(note?.active || 'yes') === 'yes' ? str(note?.note_text) : ''
+      };
+    })
   };
 }
 
@@ -189,13 +210,13 @@ function exceptions(user) {
 
   rows.forEach((row) => {
     let ex = '';
-    if (!str(row.instructor_1)) ex = 'missing_instructor';
+    if (!str(row.emp_id)) ex = 'missing_instructor';
     else if (!str(row.start_date)) ex = 'missing_start_date';
     else if (str(row.end_date) > endLimit) ex = 'late_end_date';
     if (!ex) return;
 
     counts[ex]++;
-    result.push({ row_id: row.row_id, title: row.title, end_date: row.end_date, exception_type: ex });
+    result.push({ RowID: str(row.RowID), activity_name: str(row.activity_name), end_date: str(row.end_date), exception_type: ex });
   });
 
   return { rows: result, counts };
@@ -203,77 +224,105 @@ function exceptions(user) {
 
 function finance(user) {
   requireAny(user, ['admin', 'operations_reviewer', 'authorized_user']);
-  return { rows: allActivities().map((r) => ({ row_id: r.row_id, title: r.title, finance_status: normalizeFinance(r.finance_status), active: yesNo(r.active) })) };
+  return {
+    rows: allActivities().map((r) => ({
+      RowID: r.RowID,
+      activity_name: r.activity_name,
+      finance_status: normalizeFinance(r.finance_status),
+      status: str(r.status)
+    }))
+  };
 }
 
 function instructors(user) {
   requireAny(user, ['admin', 'operations_reviewer', 'authorized_user']);
-  return { rows: rowsFor(SETTINGS.sheets.instructors).map((row) => ({
-    instructor_id: str(row.instructor_id),
-    full_name: str(row.full_name),
-    direct_manager: str(row.direct_manager),
-    active: yesNo(row.active)
-  })) };
+  return { rows: rowsFor(SETTINGS.sheets.instructors) };
 }
 
 function contacts(user) {
   requireAny(user, ['admin', 'operations_reviewer', 'authorized_user']);
-  const instructorsRows = rowsFor(SETTINGS.sheets.instructors).map((r) => ({ kind: 'instructor', name: r.full_name, phone: r.phone, email: r.email }));
-  const schoolsRows = rowsFor(SETTINGS.sheets.schools).map((r) => ({ kind: 'school', name: r.school_name, phone: r.phone, email: r.email }));
+  const instructorsRows = rowsFor(SETTINGS.sheets.instructors).map((r) => ({
+    kind: 'instructor',
+    emp_id: str(r.emp_id),
+    full_name: str(r.full_name),
+    mobile: str(r.mobile),
+    phone: '',
+    email: str(r.email)
+  }));
+  const schoolsRows = rowsFor(SETTINGS.sheets.schools).map((r) => ({
+    kind: 'school',
+    authority: str(r.authority),
+    school: str(r.school),
+    contact_name: str(r.contact_name),
+    phone: str(r.phone),
+    mobile: str(r.mobile),
+    email: str(r.email)
+  }));
   return { rows: [...instructorsRows, ...schoolsRows] };
 }
 
 function myData(user) {
   requireAny(user, ['instructor', 'admin', 'operations_reviewer', 'authorized_user']);
-  const instructorId = str(user.instructor_id);
-  const rows = allActivities().filter((r) => str(r.instructor_1) === instructorId || str(r.instructor_2) === instructorId);
+  const empId = str(user.user_id);
+  const rows = allActivities().filter((r) => str(r.emp_id) === empId || str(r.emp_id_2) === empId);
   return { rows };
 }
 
 function permissionsData(user) {
   requireAny(user, ['admin', 'operations_reviewer']);
-  return {
-    rows: rowsFor(SETTINGS.sheets.permissions).map((r) => ({
-      user_id: str(r.user_id),
-      name: str(r.name),
-      role: normalizeRole(r.role),
-      entry_code: str(r.entry_code),
-      instructor_id: str(r.instructor_id),
-      active: yesNo(r.active)
-    }))
-  };
+  return { rows: rowsFor(SETTINGS.sheets.permissions).map((r) => ({ ...r, display_role: normalizeRole(r.display_role) })) };
 }
 
 function submitEditRequest(user, input) {
   requireAny(user, ['authorized_user', 'instructor']);
-  const id = str(input.source_row_id);
+  const id = str(input.source_row_id || input.RowID);
+  const sourceSheet = str(input.source_sheet || (id.startsWith('LONG-') ? SETTINGS.sheets.dataLong : SETTINGS.sheets.dataShort));
   if (!/^SHORT-|^LONG-/.test(id)) throw new Error('Invalid source row id');
+
   appendRow(SETTINGS.sheets.editRequests, {
     request_id: `REQ-${new Date().getTime()}`,
+    source_sheet: sourceSheet,
     source_row_id: id,
+    field_name: str(input.field_name),
+    old_value: str(input.old_value),
+    new_value: str(input.new_value),
+    requested_by_user_id: user.user_id,
+    requested_by_name: user.name,
+    requested_at: new Date().toISOString(),
     status: 'pending',
-    requester_user_id: user.user_id,
-    changes_json: JSON.stringify(input.changes || {}),
-    created_at: new Date().toISOString()
+    reviewed_at: '',
+    reviewed_by: '',
+    reviewer_notes: '',
+    active: 'yes'
   });
   return { created: true };
 }
 
 function saveActivity(user, input) {
-  const sourceRowId = str(input.source_row_id);
+  const sourceRowId = str(input.source_row_id || input.RowID);
+  const sourceSheet = str(input.source_sheet || (sourceRowId.startsWith('LONG-') ? SETTINGS.sheets.dataLong : SETTINGS.sheets.dataShort));
   const changes = input.changes || {};
 
   if (!sourceRowId) throw new Error('Missing source row id');
 
-  if (user.role === 'authorized_user') {
-    return submitEditRequest(user, { source_row_id: sourceRowId, changes });
+  if (user.role === 'authorized_user' || user.role === 'instructor') {
+    const fieldNames = Object.keys(changes);
+    fieldNames.forEach((field) => {
+      submitEditRequest(user, {
+        source_sheet: sourceSheet,
+        source_row_id: sourceRowId,
+        field_name: field,
+        old_value: '',
+        new_value: changes[field]
+      });
+    });
+    return { created: true };
   }
 
   requireAny(user, ['admin', 'operations_reviewer']);
-  const sheetName = sourceRowId.startsWith('LONG-') ? SETTINGS.sheets.dataLong : SETTINGS.sheets.dataShort;
-  updateRowByKey(sheetName, 'row_id', sourceRowId, changes);
+  updateRowByKey(sourceSheet, 'RowID', sourceRowId, changes);
 
-  if (sourceRowId.startsWith('LONG-') && (changes.start_date || changes.end_date)) {
+  if (sourceSheet === SETTINGS.sheets.dataLong && (changes.start_date || changes.end_date)) {
     setLongDateRange(sourceRowId, str(changes.start_date), str(changes.end_date));
   }
 
@@ -283,23 +332,44 @@ function saveActivity(user, input) {
 function addActivity(user, input) {
   requireAny(user, ['admin', 'operations_reviewer']);
   const activity = input.activity || {};
-  const target = str(activity.source || 'short').toLowerCase() === 'long' ? 'long' : 'short';
-  const idPrefix = target === 'long' ? 'LONG' : 'SHORT';
+  const target = str(activity.source || 'short').toLowerCase() === 'long' ? SETTINGS.sheets.dataLong : SETTINGS.sheets.dataShort;
+  const idPrefix = target === SETTINGS.sheets.dataLong ? 'LONG' : 'SHORT';
   const rowId = `${idPrefix}-${new Date().getTime()}`;
-  const payload = {
-    row_id: rowId,
-    title: str(activity.title),
-    activity_type: str(activity.activity_type),
-    instructor_1: str(activity.instructor_1),
+
+  const common = {
+    RowID: rowId,
     activity_manager: str(activity.activity_manager),
+    authority: str(activity.authority),
+    school: str(activity.school),
+    activity_type: str(activity.activity_type),
+    activity_no: str(activity.activity_no),
+    activity_name: str(activity.activity_name || activity.title),
+    sessions: str(activity.sessions),
+    price: str(activity.price),
+    funding: str(activity.funding),
+    start_time: str(activity.start_time),
+    end_time: str(activity.end_time),
+    emp_id: str(activity.emp_id || activity.instructor_1),
+    instructor_name: str(activity.instructor_name),
+    status: str(activity.status || 'active'),
+    notes: str(activity.notes),
     finance_status: normalizeFinance(activity.finance_status),
-    active: yesNo(activity.active || 'yes')
+    finance_notes: str(activity.finance_notes)
   };
 
-  if (target === 'short') {
-    appendRow(SETTINGS.sheets.dataShort, { ...payload, start_date: str(activity.start_date) });
+  if (target === SETTINGS.sheets.dataShort) {
+    appendRow(target, {
+      ...common,
+      emp_id_2: str(activity.emp_id_2 || activity.instructor_2),
+      instructor_name_2: str(activity.instructor_name_2),
+      start_date: str(activity.start_date)
+    });
   } else {
-    appendRow(SETTINGS.sheets.dataLong, payload);
+    appendRow(target, {
+      ...common,
+      start_date: str(activity.start_date),
+      end_date: str(activity.end_date || activity.start_date)
+    });
     setLongDateRange(rowId, str(activity.start_date), str(activity.end_date || activity.start_date));
   }
 
@@ -312,12 +382,29 @@ function savePermission(user, input) {
   const userId = str(permission.user_id);
   if (!userId) throw new Error('Missing user_id');
 
+  const existing = permissionRow(userId);
   const payload = {
+    ...existing,
     user_id: userId,
-    name: str(permission.name),
-    role: normalizeRole(permission.role),
     entry_code: str(permission.entry_code),
-    instructor_id: str(permission.instructor_id),
+    full_name: str(permission.full_name),
+    display_role: normalizeRole(permission.display_role),
+    default_view: str(permission.default_view),
+    view_admin: optionalYesNo(permission, 'view_admin', existing),
+    view_dashboard: optionalYesNo(permission, 'view_dashboard', existing),
+    view_activities: optionalYesNo(permission, 'view_activities', existing),
+    view_week: optionalYesNo(permission, 'view_week', existing),
+    view_month: optionalYesNo(permission, 'view_month', existing),
+    view_instructors: optionalYesNo(permission, 'view_instructors', existing),
+    view_exceptions: optionalYesNo(permission, 'view_exceptions', existing),
+    view_my_data: optionalYesNo(permission, 'view_my_data', existing),
+    view_contacts: optionalYesNo(permission, 'view_contacts', existing),
+    view_finance: optionalYesNo(permission, 'view_finance', existing),
+    view_permissions: optionalYesNo(permission, 'view_permissions', existing),
+    can_request_edit: optionalYesNo(permission, 'can_request_edit', existing),
+    can_edit_direct: optionalYesNo(permission, 'can_edit_direct', existing),
+    can_add_activity: optionalYesNo(permission, 'can_add_activity', existing),
+    can_review_requests: optionalYesNo(permission, 'can_review_requests', existing),
     active: yesNo(permission.active)
   };
 
@@ -335,32 +422,58 @@ function allActivities() {
 function mapShort(row) {
   row = row || {};
   return {
-    row_id: str(row.row_id),
-    title: str(row.title),
+    source_sheet: SETTINGS.sheets.dataShort,
+    RowID: str(row.RowID),
+    activity_manager: str(row.activity_manager),
+    authority: str(row.authority),
+    school: str(row.school),
     activity_type: str(row.activity_type),
+    activity_no: str(row.activity_no),
+    activity_name: str(row.activity_name),
+    sessions: str(row.sessions),
+    price: str(row.price),
+    funding: str(row.funding),
+    start_time: str(row.start_time),
+    end_time: str(row.end_time),
+    emp_id: str(row.emp_id),
+    instructor_name: str(row.instructor_name),
+    emp_id_2: str(row.emp_id_2),
+    instructor_name_2: str(row.instructor_name_2),
     start_date: str(row.start_date),
     end_date: str(row.start_date),
-    instructor_1: str(row.instructor_1),
-    instructor_2: str(row.instructor_2),
-    activity_manager: str(row.activity_manager),
+    status: str(row.status),
+    notes: str(row.notes),
     finance_status: normalizeFinance(row.finance_status),
-    active: yesNo(row.active)
+    finance_notes: str(row.finance_notes)
   };
 }
 
 function mapLong(row) {
   row = row || {};
   return {
-    row_id: str(row.row_id),
-    title: str(row.title),
+    source_sheet: SETTINGS.sheets.dataLong,
+    RowID: str(row.RowID),
+    activity_manager: str(row.activity_manager),
+    authority: str(row.authority),
+    school: str(row.school),
     activity_type: str(row.activity_type),
+    activity_no: str(row.activity_no),
+    activity_name: str(row.activity_name),
+    sessions: str(row.sessions),
+    price: str(row.price),
+    funding: str(row.funding),
+    start_time: str(row.start_time),
+    end_time: str(row.end_time),
+    emp_id: str(row.emp_id),
+    instructor_name: str(row.instructor_name),
+    emp_id_2: '',
+    instructor_name_2: '',
     start_date: str(row.start_date),
     end_date: str(row.end_date),
-    instructor_1: str(row.instructor_1),
-    instructor_2: '',
-    activity_manager: str(row.activity_manager),
+    status: str(row.status),
+    notes: str(row.notes),
     finance_status: normalizeFinance(row.finance_status),
-    active: yesNo(row.active)
+    finance_notes: str(row.finance_notes)
   };
 }
 
@@ -369,19 +482,23 @@ function withLongDates(longRows, meetingRows) {
   meetingRows.forEach((m) => {
     const id = str(m.source_row_id);
     const d = str(m.meeting_date);
-    if (!id || !d) return;
+    if (!id || !d || yesNo(m.active || 'yes') !== 'yes') return;
     byId[id] = byId[id] || [];
     byId[id].push(d);
   });
 
   return longRows.map((row) => {
-    const dates = (byId[str(row.row_id)] || []).sort();
+    const dates = (byId[str(row.RowID)] || []).sort();
     return {
       ...row,
-      start_date: dates[0] || '',
-      end_date: dates[dates.length - 1] || ''
+      start_date: dates[0] || str(row.start_date),
+      end_date: dates[dates.length - 1] || str(row.end_date)
     };
   });
+}
+
+function permissionRow(userId) {
+  return rowsFor(SETTINGS.sheets.permissions).find((r) => str(r.user_id) === str(userId)) || {};
 }
 
 function rowsFor(sheetName) {
@@ -466,8 +583,8 @@ function setLongDateRange(sourceRowId, startDate, endDate) {
 
   const start = startDate || endDate;
   const end = endDate || startDate;
-  if (start) appendRow(SETTINGS.sheets.meetings, { source_row_id: sourceRowId, meeting_date: start });
-  if (end && end !== start) appendRow(SETTINGS.sheets.meetings, { source_row_id: sourceRowId, meeting_date: end });
+  if (start) appendRow(SETTINGS.sheets.meetings, { source_row_id: sourceRowId, meeting_no: '1', meeting_date: start, notes: '', active: 'yes' });
+  if (end && end !== start) appendRow(SETTINGS.sheets.meetings, { source_row_id: sourceRowId, meeting_no: '2', meeting_date: end, notes: '', active: 'yes' });
 }
 
 function requireAuth(token) {
@@ -483,10 +600,6 @@ function requireAny(user, roles) {
 
 function jsonOut(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
-}
-
-function toMap(rows, key) {
-  return rows.reduce((acc, row) => { acc[str(row[key])] = row; return acc; }, {});
 }
 
 function str(value) {
@@ -511,6 +624,13 @@ function normalizeRole(value) {
   if (raw === 'operations reviewer' || raw === 'operations_reviewer') return 'operations_reviewer';
   if (raw === 'instructor') return 'instructor';
   return 'authorized_user';
+}
+
+function optionalYesNo(input, key, fallbackObj) {
+  if (Object.prototype.hasOwnProperty.call(input || {}, key)) {
+    return yesNo(input[key]);
+  }
+  return yesNo(fallbackObj[key]);
 }
 
 function mondayOf(date) {

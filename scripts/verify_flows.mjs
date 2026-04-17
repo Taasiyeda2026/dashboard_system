@@ -49,42 +49,42 @@ function parseResponse(resp) {
 function seedSheets() {
   return {
     data_short: new MockSheet('data_short', [
-      ['row_id', 'title', 'activity_type', 'start_date', 'instructor_1', 'instructor_2', 'activity_manager', 'finance_status', 'active'],
-      ['SHORT-1', 'Short A', 'course', '2026-04-13', 'I-1', '', 'M-1', 'open', 'yes']
+      ['RowID', 'activity_manager', 'authority', 'school', 'activity_type', 'activity_no', 'activity_name', 'sessions', 'price', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2', 'start_date', 'status', 'notes', 'finance_status', 'finance_notes'],
+      ['SHORT-1', 'M-1', 'AUTH-1', 'School A', 'workshop', 'A-101', 'Short A', '1', '100', 'city', '09:00', '11:00', 'U-INST', 'Inst One', '', '', '2026-04-13', 'active', '', 'open', '']
     ]),
     data_long: new MockSheet('data_long', [
-      ['row_id', 'title', 'activity_type', 'instructor_1', 'activity_manager', 'finance_status', 'active', 'start_date', 'end_date'],
-      ['LONG-1', 'Long Missing Instructor', 'course', '', 'M-1', 'closed', 'yes', '', ''],
-      ['LONG-2', 'Long Missing Start', 'course', 'I-1', 'M-1', 'open', 'yes', '', ''],
-      ['LONG-3', 'Long Late End', 'course', 'I-1', 'M-1', 'open', 'yes', '', '']
+      ['RowID', 'activity_manager', 'authority', 'school', 'activity_type', 'activity_no', 'activity_name', 'sessions', 'price', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'start_date', 'end_date', 'status', 'notes', 'finance_status', 'finance_notes'],
+      ['LONG-1', 'M-1', 'AUTH-1', 'School A', 'course', 'L-201', 'Long Missing Instructor', '8', '200', 'city', '09:00', '12:00', '', '', '', '', 'active', '', 'closed', ''],
+      ['LONG-2', 'M-1', 'AUTH-1', 'School A', 'course', 'L-202', 'Long Missing Start', '8', '200', 'city', '09:00', '12:00', 'U-INST', 'Inst One', '', '', 'active', '', 'open', ''],
+      ['LONG-3', 'M-1', 'AUTH-1', 'School A', 'course', 'L-203', 'Long Late End', '8', '200', 'city', '09:00', '12:00', 'U-INST', 'Inst One', '', '', 'active', '', 'open', '']
     ]),
     activity_meetings: new MockSheet('activity_meetings', [
-      ['source_row_id', 'meeting_date'],
-      ['LONG-3', '2026-06-16'],
-      ['LONG-3', '2026-06-17']
+      ['source_row_id', 'meeting_no', 'meeting_date', 'notes', 'active'],
+      ['LONG-3', '1', '2026-06-16', '', 'yes'],
+      ['LONG-3', '2', '2026-06-17', '', 'yes']
     ]),
     permissions: new MockSheet('permissions', [
-      ['user_id', 'name', 'role', 'entry_code', 'instructor_id', 'active'],
-      ['U-ADMIN', 'Admin User', 'admin', 'CODE-ADMIN', '', 'yes'],
-      ['U-REVIEW', 'Ops Reviewer', 'operations reviewer', 'CODE-REVIEW', '', 'yes'],
-      ['U-AUTH', 'Authorized', 'authorized_user', 'CODE-AUTH', '', 'yes'],
-      ['U-INST', 'Instructor', 'instructor', 'CODE-INST', 'I-1', 'yes']
+      ['user_id', 'entry_code', 'full_name', 'display_role', 'default_view', 'view_admin', 'view_dashboard', 'view_activities', 'view_week', 'view_month', 'view_instructors', 'view_exceptions', 'view_my_data', 'view_contacts', 'view_finance', 'view_permissions', 'can_request_edit', 'can_edit_direct', 'can_add_activity', 'can_review_requests', 'active'],
+      ['U-ADMIN', 'CODE-ADMIN', 'Admin User', 'admin', 'dashboard', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'no', 'yes', 'yes', 'yes', 'yes'],
+      ['U-REVIEW', 'CODE-REVIEW', 'Ops Reviewer', 'operations reviewer', 'dashboard', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'no', 'yes', 'yes', 'yes', 'yes'],
+      ['U-AUTH', 'CODE-AUTH', 'Authorized', 'authorized_user', 'dashboard', 'no', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes', 'no', 'yes', 'no', 'no', 'no', 'yes'],
+      ['U-INST', 'CODE-INST', 'Instructor', 'instructor', 'my-data', 'no', 'no', 'no', 'yes', 'yes', 'no', 'no', 'yes', 'no', 'no', 'no', 'yes', 'no', 'no', 'no', 'yes']
     ]),
     lists: new MockSheet('lists', [['name'], ['x']]),
     contacts_instructors: new MockSheet('contacts_instructors', [
-      ['instructor_id', 'full_name', 'direct_manager', 'phone', 'email', 'active'],
-      ['I-1', 'Inst One', 'M-1', '111', 'i1@example.com', 'yes']
+      ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'],
+      ['U-INST', 'Inst One', '111', 'i1@example.com', '', 'part-time', 'M-1', 'yes']
     ]),
     contacts_schools: new MockSheet('contacts_schools', [
-      ['school_name', 'phone', 'email'],
-      ['School A', '222', 's@example.com']
+      ['authority', 'school', 'contact_name', 'contact_role', 'phone', 'mobile', 'email', 'address', 'notes', 'active'],
+      ['AUTH-1', 'School A', 'School Contact', 'Coordinator', '222', '333', 's@example.com', '', '', 'yes']
     ]),
     edit_requests: new MockSheet('edit_requests', [
-      ['request_id', 'source_row_id', 'status', 'requester_user_id', 'changes_json', 'created_at']
+      ['request_id', 'source_sheet', 'source_row_id', 'field_name', 'old_value', 'new_value', 'requested_by_user_id', 'requested_by_name', 'requested_at', 'status', 'reviewed_at', 'reviewed_by', 'reviewer_notes', 'active']
     ]),
     operations_private_notes: new MockSheet('operations_private_notes', [
-      ['source_row_id', 'note'],
-      ['SHORT-1', 'Sensitive note']
+      ['source_sheet', 'source_row_id', 'note_text', 'updated_at', 'updated_by', 'active'],
+      ['data_short', 'SHORT-1', 'Sensitive note', '2026-04-01T00:00:00.000Z', 'U-REVIEW', 'yes']
     ])
   };
 }
@@ -115,10 +115,7 @@ function buildContext() {
     Session: { getScriptTimeZone: () => 'Etc/UTC' },
     ContentService: {
       MimeType: { JSON: 'application/json' },
-      createTextOutput: (content) => ({
-        content,
-        setMimeType() { return this; }
-      })
+      createTextOutput: (content) => ({ content, setMimeType() { return this; } })
     },
     console
   };
@@ -150,8 +147,8 @@ function buildContext() {
   const activitiesAdmin = parseResponse(context.doPost(toEvent({ action: 'activities', token: adminLogin.data.token, type: 'all' })));
   assert.equal(activitiesReviewer.data.rows.some((r) => r.private_note === 'Sensitive note'), true);
   assert.equal(activitiesAdmin.data.rows.some((r) => r.private_note === 'Sensitive note'), false);
-  assert.equal(activitiesReviewer.data.rows.some((r) => r.row_id.startsWith('SHORT-')), true);
-  assert.equal(activitiesReviewer.data.rows.some((r) => r.row_id.startsWith('LONG-')), true);
+  assert.equal(activitiesReviewer.data.rows.some((r) => r.RowID.startsWith('SHORT-')), true);
+  assert.equal(activitiesReviewer.data.rows.some((r) => r.RowID.startsWith('LONG-')), true);
 
   const week = parseResponse(context.doPost(toEvent({ action: 'week', token: reviewLogin.data.token })));
   const month = parseResponse(context.doPost(toEvent({ action: 'month', token: reviewLogin.data.token })));
@@ -161,32 +158,32 @@ function buildContext() {
   assert.equal(typeof dashboard.data.totals.short, 'number');
 
   const exceptions = parseResponse(context.doPost(toEvent({ action: 'exceptions', token: reviewLogin.data.token })));
-  const exById = Object.fromEntries(exceptions.data.rows.map((r) => [r.row_id, r.exception_type]));
+  const exById = Object.fromEntries(exceptions.data.rows.map((r) => [r.RowID, r.exception_type]));
   assert.equal(exById['LONG-1'], 'missing_instructor');
   assert.equal(exById['LONG-2'], 'missing_start_date');
   assert.equal(exById['LONG-3'], 'late_end_date');
 
-  const authEdit = parseResponse(context.doPost(toEvent({ action: 'saveActivity', token: authLogin.data.token, source_row_id: 'SHORT-1', changes: { title: 'Auth change' } })));
+  const authEdit = parseResponse(context.doPost(toEvent({ action: 'saveActivity', token: authLogin.data.token, source_sheet: 'data_short', source_row_id: 'SHORT-1', changes: { activity_name: 'Auth change' } })));
   assert.equal(authEdit.data.created, true);
-  assert.equal(sheets.data_short.values[1][1], 'Short A');
+  assert.equal(sheets.data_short.values[1][6], 'Short A');
   assert.equal(sheets.edit_requests.values.length, 2);
 
-  const adminEdit = parseResponse(context.doPost(toEvent({ action: 'saveActivity', token: adminLogin.data.token, source_row_id: 'SHORT-1', changes: { title: 'Admin change' } })));
+  const adminEdit = parseResponse(context.doPost(toEvent({ action: 'saveActivity', token: adminLogin.data.token, source_sheet: 'data_short', source_row_id: 'SHORT-1', changes: { activity_name: 'Admin change' } })));
   assert.equal(adminEdit.data.updated, true);
-  assert.equal(sheets.data_short.values[1][1], 'Admin change');
+  assert.equal(sheets.data_short.values[1][6], 'Admin change');
 
-  const addByReviewer = parseResponse(context.doPost(toEvent({ action: 'addActivity', token: reviewLogin.data.token, activity: { source: 'short', title: 'New short', activity_type: 'tour', start_date: '2026-04-18', instructor_1: 'I-1', activity_manager: 'M-1', finance_status: 'open', active: 'yes' } })));
+  const addByReviewer = parseResponse(context.doPost(toEvent({ action: 'addActivity', token: reviewLogin.data.token, activity: { source: 'short', activity_name: 'New short', activity_type: 'tour', start_date: '2026-04-18', emp_id: 'U-INST', activity_manager: 'M-1', finance_status: 'open', status: 'active' } })));
   assert.equal(addByReviewer.data.created, true);
   assert.ok(sheets.data_short.values.length > 2);
 
-  const addByAuthorized = parseResponse(context.doPost(toEvent({ action: 'addActivity', token: authLogin.data.token, activity: { source: 'short', title: 'Nope' } })));
+  const addByAuthorized = parseResponse(context.doPost(toEvent({ action: 'addActivity', token: authLogin.data.token, activity: { source: 'short', activity_name: 'Nope' } })));
   assert.equal(addByAuthorized.ok, false);
 
-  const savePermission = parseResponse(context.doPost(toEvent({ action: 'savePermission', token: adminLogin.data.token, permission: { user_id: 'U-AUTH', name: 'Authorized', role: 'instructor', entry_code: 'CODE-AUTH', instructor_id: 'I-1', active: 'yes' } })));
+  const savePermission = parseResponse(context.doPost(toEvent({ action: 'savePermission', token: adminLogin.data.token, permission: { user_id: 'U-AUTH', full_name: 'Authorized', display_role: 'instructor', entry_code: 'CODE-AUTH', default_view: 'my-data', active: 'yes' } })));
   assert.equal(savePermission.data.saved, true);
   const permissionsRead = parseResponse(context.doPost(toEvent({ action: 'permissions', token: adminLogin.data.token })));
   const updatedRole = permissionsRead.data.rows.find((r) => r.user_id === 'U-AUTH');
-  assert.equal(updatedRole.role, 'instructor');
+  assert.equal(updatedRole.display_role, 'instructor');
 
   const finance = parseResponse(context.doPost(toEvent({ action: 'finance', token: reviewLogin.data.token })));
   assert.equal(finance.data.rows.some((r) => r.finance_status === 'closed'), true);
