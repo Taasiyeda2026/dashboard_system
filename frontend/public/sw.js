@@ -2,8 +2,8 @@ const CACHE_NAME = 'new-system-v1';
 const ASSETS = [
   './',
   './index.html',
-  './src/main.js',
-  './src/styles/main.css'
+  './frontend/src/main.js',
+  './frontend/src/styles/main.css'
 ];
 
 self.addEventListener('install', (event) => {
