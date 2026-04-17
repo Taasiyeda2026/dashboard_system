@@ -2,7 +2,7 @@ export function exceptionsScreen(data) {
   const safeRows = Array.isArray(data?.rows) ? data.rows : [];
   const counts = data?.counts || { missing_instructor: 0, missing_start_date: 0, late_end_date: 0 };
   const rows = safeRows.map((row) => `
-    <tr><td>${row.row_id}</td><td>${row.exception_type}</td><td>${row.title || '—'}</td><td>${row.end_date || '—'}</td></tr>
+    <tr><td>${row.RowID}</td><td>${row.exception_type}</td><td>${row.activity_name || '—'}</td><td>${row.end_date || '—'}</td></tr>
   `).join('');
 
   return `
@@ -10,7 +10,7 @@ export function exceptionsScreen(data) {
       <h2>Exceptions (Long activities only)</h2>
       <article class="card">
         <table>
-          <thead><tr><th>ID</th><th>Exception</th><th>Activity</th><th>End Date</th></tr></thead>
+          <thead><tr><th>RowID</th><th>Exception</th><th>Activity</th><th>End Date</th></tr></thead>
           <tbody>${rows || '<tr><td colspan="4">No exceptions found.</td></tr>'}</tbody>
         </table>
       </article>

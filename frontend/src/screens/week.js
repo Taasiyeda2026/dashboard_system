@@ -3,7 +3,7 @@ export function weekScreen(data) {
   const days = safeDays.map((d) => `
     <article class="card day-col">
       <h3>${d.date}</h3>
-      <ul>${(Array.isArray(d.items) ? d.items : []).map((item) => `<li>${item.row_id} • ${item.title || 'Untitled'}</li>`).join('') || '<li>None</li>'}</ul>
+      <ul>${(Array.isArray(d.items) ? d.items : []).map((item) => `<li>${item.RowID} • ${item.activity_name || 'Untitled'}</li>`).join('') || '<li>None</li>'}</ul>
     </article>
   `).join('');
 
