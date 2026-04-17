@@ -28,7 +28,7 @@ async function request(action, params = {}, method = 'GET') {
 }
 
 export const api = {
-  login: (entryCode) => request('login', { entry_code: entryCode }, 'POST'),
+  login: (identifier, password) => request('login', { identifier, entry_code: password }, 'POST'),
   getBootstrap: () => request('getBootstrap'),
   getDashboard: () => request('getDashboard'),
   getActivities: (filters) => request('getActivities', filters)

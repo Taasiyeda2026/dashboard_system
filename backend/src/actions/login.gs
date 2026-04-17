@@ -1,5 +1,8 @@
 function actionLogin_(request) {
-  var user = authenticate_(request.user_id, request.entry_code);
+  var identifier = String(request.identifier || '').trim();
+  if (!identifier || !request.entry_code) return { user: null };
+
+  var user = authenticate_(null, request.entry_code, identifier);
   if (!user) return { user: null };
 
   var safeUser = {};
