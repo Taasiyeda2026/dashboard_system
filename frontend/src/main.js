@@ -10,23 +10,16 @@ import { financeScreen } from './screens/finance.js';
 import { instructorsScreen } from './screens/instructors.js';
 import { contactsScreen } from './screens/contacts.js';
 import { myDataScreen } from './screens/my-data.js';
-import { permissionsScreen } from './screens/permissions.js';
+import { permissionsScreen, bindPermissions } from './screens/permissions.js';
 
 const app = document.getElementById('app');
-
-const ROLE_ROUTES = {
-  admin: ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance', 'permissions'],
-  operations_reviewer: ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance', 'permissions'],
-  authorized_user: ['dashboard', 'activities', 'week', 'month', 'instructors', 'exceptions', 'my-data', 'contacts', 'finance'],
-  instructor: ['week', 'month', 'my-data']
-};
 
 const SCREEN_REGISTRY = {
   dashboard: {
     load: async () => dashboardScreen(await api.dashboard(), state.user?.role)
   },
   activities: {
-    load: async () => activitiesScreen(await api.activities({ type: state.filterType || 'all' }), state.user?.role === 'operations_reviewer' || state.user?.role === 'admin'),
+    load: async () => activitiesScreen(await api.activities({ type: state.filterType || 'all' }), state.user?.role === 'operations_reviewer'),
     bind: () => bindActivities((tab) => {
       state.filterType = tab;
       render();
@@ -54,12 +47,13 @@ const SCREEN_REGISTRY = {
     load: async () => myDataScreen(await api.myData())
   },
   permissions: {
-    load: async () => permissionsScreen(await api.permissions())
+    load: async () => permissionsScreen(await api.permissions(), state.user?.role === 'admin' || state.user?.role === 'operations_reviewer'),
+    bind: () => bindPermissions()
   }
 };
 
 function allowedRoutes() {
-  return ROLE_ROUTES[state.user?.role] || [];
+  return state.bootstrap?.routes || [];
 }
 
 function shell(content) {
@@ -100,6 +94,13 @@ async function render() {
     wireShell();
     current?.bind?.();
   } catch (error) {
+    if (error.message === 'Unauthorized') {
+      setAuth(null);
+      state.bootstrap = null;
+      state.route = 'login';
+      render();
+      return;
+    }
     app.innerHTML = shell(`<article class="card"><h2>Error</h2><p>${error.message}</p></article>`);
     wireShell();
   }
@@ -112,7 +113,8 @@ function wireShell() {
   }));
   document.getElementById('logout')?.addEventListener('click', () => {
     setAuth(null);
-    state.route = 'dashboard';
+    state.route = 'login';
+    state.bootstrap = null;
     render();
   });
 }
@@ -120,12 +122,13 @@ function wireShell() {
 async function refresh() {
   if (state.token) {
     state.bootstrap = await api.bootstrap();
+    state.route = state.bootstrap.default_route || state.bootstrap.routes?.[0] || 'dashboard';
   }
   await render();
 }
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./frontend/public/sw.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('/frontend/public/sw.js').catch(() => {}));
 }
 
 refresh();

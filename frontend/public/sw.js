@@ -1,9 +1,10 @@
 const CACHE_NAME = 'ops-v1';
 const ASSETS = [
-  './',
-  './index.html',
-  './frontend/src/main.js',
-  './frontend/src/styles/main.css'
+  '/',
+  '/index.html',
+  '/frontend/src/main.js',
+  '/frontend/src/styles/main.css',
+  '/frontend/public/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
