@@ -3,6 +3,7 @@ import { state, setSession } from './state.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { dsSkeletonLines } from './screens/shared/layout.js';
+import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { loginScreen } from './screens/login.js';
 import { dashboardScreen } from './screens/dashboard.js';
 import { activitiesScreen } from './screens/activities.js';
@@ -19,6 +20,7 @@ const app = document.getElementById('app');
 const loginLogoSrc = new URL('../assets/logo1.png', import.meta.url).href;
 
 let isMobileNavOpen = false;
+const ui = createSharedInteractionLayer();
 
 function isDesktopViewport() {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 960px)').matches;
@@ -227,6 +229,7 @@ function bindScreen(screen, screenRoot, data) {
     data,
     state,
     api,
+    ui,
     rerender: render,
     rerenderActivitiesView: () => rerenderActivitiesViewOnly(screen, screenRoot)
   });
@@ -315,6 +318,7 @@ function bindShell() {
   });
 
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
+    ui.closeAll();
     setSession(null);
     render();
   });
@@ -323,6 +327,7 @@ function bindShell() {
 async function render() {
   if (!state.token) {
     isMobileNavOpen = false;
+    ui.closeAll();
     app.innerHTML = loginScreen.render();
     loginScreen.bind({
       root: app,
