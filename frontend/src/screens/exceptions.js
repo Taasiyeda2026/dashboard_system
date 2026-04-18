@@ -34,9 +34,9 @@ export const exceptionsScreen = {
     );
 
     const summaryChips = `
-      <span class="ds-chip ds-chip--warn">חסר מדריך: ${counts.missing_instructor}</span>
-      <span class="ds-chip ds-chip--warn">חסר תאריך התחלה: ${counts.missing_start_date}</span>
-      <span class="ds-chip ds-chip--danger">תאריך סיום מאוחר: ${counts.late_end_date}</span>
+      <span class="ds-chip ds-chip--status ds-chip--status-warning">חסר מדריך: ${counts.missing_instructor}</span>
+      <span class="ds-chip ds-chip--status ds-chip--status-warning">חסר תאריך התחלה: ${counts.missing_start_date}</span>
+      <span class="ds-chip ds-chip--status ds-chip--status-danger">תאריך סיום מאוחר: ${counts.late_end_date}</span>
     `;
 
     const tableBlock =

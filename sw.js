@@ -1,5 +1,5 @@
 /* Service worker at repository root so scope covers the whole GitHub Pages site. */
-const CACHE_VERSION = 7;
+const CACHE_VERSION = 8;
 const CACHE = `internal-dashboard-v${CACHE_VERSION}`;
 
 const APP_SHELL = [
@@ -9,7 +9,15 @@ const APP_SHELL = [
   './frontend/src/state.js',
   './frontend/src/config.js',
   './frontend/src/styles/main.css',
-  './frontend/public/manifest.json'
+  './frontend/public/manifest.json',
+  './frontend/assets/logo1.png',
+  './frontend/assets/logo2.png',
+  './frontend/assets/apple-touch-icon.png',
+  './frontend/assets/favicon-32.png',
+  './frontend/assets/favicon-16.png',
+  './frontend/assets/pwa/icon-192.png',
+  './frontend/assets/pwa/icon-512.png',
+  './frontend/assets/pwa/icon-maskable-512.png'
 ];
 
 function sameOrigin(url) {
@@ -20,6 +28,7 @@ function shouldHandleFetch(request, url) {
   if (request.mode === 'navigate') return true;
   const p = url.pathname;
   if (p.endsWith('.js') || p.endsWith('.css')) return true;
+  if (p.endsWith('.png') || p.endsWith('.ico') || p.endsWith('.svg')) return true;
   if (p.endsWith('.json') && p.includes('manifest')) return true;
   if (p.endsWith('index.html')) return true;
   return false;
