@@ -170,6 +170,12 @@ function shell(content) {
             </button>
             <p class="shell-top__mobile-brand">תעשיידע</p>
           </div>
+          <div class="shell-top__center">
+            <div class="shell-top-user" aria-label="משתמש מחובר">
+              <span class="shell-top-user__name">${displayName}</span>
+              <span class="shell-top-user__role">${roleLine}</span>
+            </div>
+          </div>
           <div class="shell-top__end">
             <button type="button" class="ds-btn ds-btn--danger ds-btn--sm" id="logoutBtn">התנתקות</button>
           </div>
