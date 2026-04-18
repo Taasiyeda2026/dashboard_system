@@ -44,7 +44,9 @@ export const loginScreen = {
   },
 
   bind({ root, onLogin }) {
-    root.querySelector('#loginForm')?.addEventListener('submit', async (event) => {
+    const form = root.querySelector('#loginForm');
+
+    form?.addEventListener('submit', async (event) => {
       event.preventDefault();
 
       const errorNode = root.querySelector('#loginError');
@@ -60,5 +62,14 @@ export const loginScreen = {
 
       await onLogin(userId, code, errorNode);
     });
+
+    const submitOnEnter = (event) => {
+      if (event.key !== 'Enter' || event.isComposing || !form) return;
+      event.preventDefault();
+      form.requestSubmit();
+    };
+
+    root.querySelector('#userId')?.addEventListener('keydown', submitOnEnter);
+    root.querySelector('#entryCode')?.addEventListener('keydown', submitOnEnter);
   }
 };
