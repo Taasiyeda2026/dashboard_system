@@ -143,6 +143,7 @@ select {
   flex-direction: column;
   background: var(--ds-shell);
   color: var(--ds-shell-text);
+  position: relative;
 }
 
 @media (min-width: 960px) {
@@ -153,27 +154,78 @@ select {
 }
 
 .shell-sidebar {
-  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 30;
+  width: min(86vw, 320px);
   background: linear-gradient(180deg, var(--ds-shell-2) 0%, var(--ds-shell) 100%);
-  border-bottom: 1px solid var(--ds-shell-border);
+  border-inline-start: 1px solid var(--ds-shell-border);
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--ds-space-3);
-  padding: var(--ds-space-3) var(--ds-space-4);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  padding: var(--ds-space-4);
+  box-shadow: var(--ds-shadow-lg);
+  transform: translateX(104%);
+  transition: transform 0.2s ease;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.app-shell.is-mobile-nav-open .shell-sidebar {
+  transform: translateX(0);
 }
 
 @media (min-width: 960px) {
   .shell-sidebar {
+    position: static;
+    top: auto;
+    bottom: auto;
+    right: auto;
+    z-index: auto;
+    flex-shrink: 0;
+    width: var(--ds-sidebar-w);
     flex-direction: column;
     align-items: stretch;
-    width: var(--ds-sidebar-w);
-    border-bottom: none;
+    transform: none;
+    transition: none;
+    box-shadow: none;
+    border-inline-start: none;
     border-inline-end: 1px solid var(--ds-shell-border);
     padding: var(--ds-space-5) var(--ds-space-4);
-    overflow-x: visible;
+    overflow-y: hidden;
+  }
+}
+
+.shell-sidebar__mobile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--ds-shell-border);
+  padding-bottom: var(--ds-space-3);
+}
+
+.shell-sidebar__mobile-brand {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ds-shell-text);
+}
+
+.shell-close-btn {
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: var(--ds-radius-sm);
+  border: 1px solid var(--ds-shell-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ds-shell-text);
+  font-size: 1rem;
+}
+
+@media (min-width: 960px) {
+  .shell-sidebar__mobile-head {
+    display: none;
   }
 }
 
@@ -212,7 +264,7 @@ select {
 
 .shell-nav {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   gap: var(--ds-space-2);
   flex: 1;
   min-width: 0;
@@ -220,7 +272,6 @@ select {
 
 @media (min-width: 960px) {
   .shell-nav {
-    flex-direction: column;
     flex: 1;
     overflow-y: auto;
   }
@@ -235,7 +286,7 @@ select {
   font-size: 0.82rem;
   font-weight: 500;
   text-align: right;
-  white-space: nowrap;
+  white-space: normal;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
     box-shadow 0.15s ease, transform 0.08s ease;
 }
@@ -269,7 +320,7 @@ select {
 }
 
 .shell-sidebar__footer {
-  display: none;
+  display: block;
   margin-top: auto;
   padding-top: var(--ds-space-4);
   border-top: 1px solid var(--ds-shell-border);
@@ -278,6 +329,28 @@ select {
 @media (min-width: 960px) {
   .shell-sidebar__footer {
     display: block;
+  }
+}
+
+.shell-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  border: 0;
+  background: var(--ds-backdrop-bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.app-shell.is-mobile-nav-open .shell-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (min-width: 960px) {
+  .shell-backdrop {
+    display: none;
   }
 }
 
@@ -318,6 +391,40 @@ select {
   background: var(--ds-surface);
   border-bottom: 1px solid var(--ds-border);
   box-shadow: var(--ds-shadow-xs);
+}
+
+.shell-top__start,
+.shell-top__end {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.shell-menu-btn {
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  inline-size: 38px;
+  block-size: 36px;
+  border-radius: var(--ds-radius-sm);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.shell-menu-btn:hover:not(:disabled) {
+  background: var(--ds-interactive-hover);
+  border-color: var(--ds-border-strong);
+}
+
+.shell-menu-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ds-focus-ring);
+}
+
+@media (min-width: 960px) {
+  .shell-menu-btn {
+    display: none;
+  }
 }
 
 .shell-top__mobile-brand {
