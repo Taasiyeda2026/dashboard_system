@@ -55,11 +55,17 @@ export const api = {
   exceptions: () => request('exceptions'),
   finance: () => request('finance'),
   instructors: () => request('instructors'),
+  instructorContacts: () => request('instructorContacts'),
   contacts: () => request('contacts'),
+  endDates: () => request('endDates'),
   myData: () => request('myData'),
   permissions: () => request('permissions'),
   addActivity: (target, data) => request('addActivity', { target, data }),
-  saveActivity: (source_row_id, changes) => request('saveActivity', { source_row_id, changes }),
+  /** מקבל אובייקט מלא (כולל source_sheet, changes) או חתימה ישנה (id, changes). */
+  saveActivity: (a, b) =>
+    b !== undefined && b !== null
+      ? request('saveActivity', { source_row_id: a, changes: b })
+      : request('saveActivity', a),
   submitEditRequest: (source_row_id, changes) => request('submitEditRequest', { source_row_id, changes }),
   reviewEditRequest: (request_id, status) => request('reviewEditRequest', { request_id, status }),
   savePermission: (row) => request('savePermission', { row }),

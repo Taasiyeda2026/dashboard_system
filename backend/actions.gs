@@ -2,7 +2,7 @@ function actionBootstrap_(user) {
   var permission = getPermissionRow_(user.user_id);
   var routes = buildRoutesFromPermission_(permission, user.display_role);
   var preferred = text_(permission.default_view) || defaultRouteForRole_(user.display_role);
-  var defaultRoute = routes.indexOf(preferred) >= 0 ? preferred : (routes[0] || 'my-data');
+  var defaultRoute = resolveDefaultRoute_(preferred, routes, user.display_role);
 
   return {
     role: user.display_role,
@@ -11,7 +11,8 @@ function actionBootstrap_(user) {
     profile: {
       full_name: text_(permission.full_name),
       display_role2: text_(permission.display_role2)
-    }
+    },
+    client_settings: buildClientSettingsPayload_()
   };
 }
 
@@ -24,25 +25,14 @@ function actionDashboard_(user) {
   }
 
   var shortRows = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
-  var longRows = readRows_(CONFIG.SHEETS.DATA_LONG).map(mapLongRow_);
-  var hasCourseRows = longRows.some(function(row) {
-    return text_(row.activity_type) === 'course';
-  });
-  if (hasCourseRows) {
-    var meetingsByRow = buildMeetingsMap_();
-    longRows.forEach(function(row) {
-      var dates = meetingsByRow[row.RowID] || [];
-      if (dates.length) {
-        row.start_date = dates[0];
-        row.end_date = dates[dates.length - 1];
-      }
-    });
-  }
+  var longRows = buildLongRows_();
   var instructorRows = readRows_(CONFIG.SHEETS.INSTRUCTORS).filter(function(row) {
     return yesNo_(row.active) === 'yes';
   });
 
   var currentMonth = formatDate_(new Date()).slice(0, 7);
+  var todayIso = formatDate_(new Date());
+  var combined = shortRows.concat(longRows);
 
   var byManager = {};
   shortRows.forEach(function(row) {
@@ -77,16 +67,106 @@ function actionDashboard_(user) {
     return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === currentMonth;
   }).length;
 
+  var financeOpenCount = combined.filter(function(row) {
+    return normalizeFinance_(row.finance_status) === 'open';
+  }).length;
+
+  var exceptionSum = 0;
+  longRows.forEach(function(row) {
+    var t = '';
+    if (!text_(row.emp_id)) {
+      t = 'x';
+    } else if (!text_(row.start_date)) {
+      t = 'x';
+    } else if (text_(row.end_date) > getLateEndDateCutoff_()) {
+      t = 'x';
+    }
+    if (t) exceptionSum += 1;
+  });
+
+  var kpi_cards = [
+    { id: 'short', action: 'kpi|short', title: String(shortRows.length), subtitle: 'פעילויות קצרות', value: shortRows.length },
+    { id: 'long', action: 'kpi|long', title: String(longRows.length), subtitle: 'פעילויות ארוכות', value: longRows.length },
+    {
+      id: 'active_courses',
+      action: 'kpi|active_courses',
+      title: String(countActiveByType_(combined, todayIso, 'course')),
+      subtitle: 'קורסים פעילים',
+      value: countActiveByType_(combined, todayIso, 'course')
+    },
+    {
+      id: 'active_workshops',
+      action: 'kpi|active_workshops',
+      title: String(countActiveByType_(combined, todayIso, 'workshop')),
+      subtitle: 'סדנאות פעילות',
+      value: countActiveByType_(combined, todayIso, 'workshop')
+    },
+    {
+      id: 'active_tours',
+      action: 'kpi|active_tours',
+      title: String(countActiveByType_(combined, todayIso, 'tour')),
+      subtitle: 'סיורים פעילים',
+      value: countActiveByType_(combined, todayIso, 'tour')
+    },
+    {
+      id: 'active_after_school',
+      action: 'kpi|active_after_school',
+      title: String(countActiveByType_(combined, todayIso, 'after_school')),
+      subtitle: 'אפטרסקול פעיל',
+      value: countActiveByType_(combined, todayIso, 'after_school')
+    },
+    {
+      id: 'active_escape_room',
+      action: 'kpi|active_escape_room',
+      title: String(countActiveByType_(combined, todayIso, 'escape_room')),
+      subtitle: 'חדרי בריחה פעילים',
+      value: countActiveByType_(combined, todayIso, 'escape_room')
+    },
+    {
+      id: 'finance_open',
+      action: 'kpi|finance_open',
+      title: String(financeOpenCount),
+      subtitle: 'כספים פתוחים',
+      value: financeOpenCount
+    },
+    {
+      id: 'exceptions',
+      action: 'kpi|exceptions',
+      title: String(exceptionSum),
+      subtitle: 'חריגות (קורסים)',
+      value: exceptionSum
+    },
+    {
+      id: 'instructors',
+      action: 'kpi|instructors',
+      title: String(instructorRows.length),
+      subtitle: 'מדריכים פעילים',
+      value: instructorRows.length
+    },
+    {
+      id: 'endings',
+      action: 'kpi|endings',
+      title: String(courseEndings),
+      subtitle: 'מסיימים החודש',
+      value: courseEndings
+    }
+  ];
+
   var result = {
     totals: {
       total_short_activities: shortRows.length,
       total_long_activities: longRows.length,
       total_instructors: instructorRows.length,
-      total_course_endings_current_month: courseEndings
+      total_course_endings_current_month: courseEndings,
+      /** תאימות לאחור לבדיקות / לקוחות ישנים */
+      short: shortRows.length,
+      long: longRows.length
     },
     by_activity_manager: Object.keys(byManager).sort().map(function(key) {
       return byManager[key];
-    })
+    }),
+    kpi_cards: kpi_cards,
+    show_only_nonzero_kpis: settingYes_('show_only_nonzero_kpis')
   };
   scriptCachePutJson_(SCRIPT_CACHE_KEY_DASHBOARD, result, CONFIG.SCRIPT_CACHE_SECONDS);
   return result;
@@ -96,8 +176,12 @@ function actionActivities_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
   var allRows = allActivities_();
+  var typeKeys = listValuesForName_('activity_type');
+  if (!typeKeys.length) {
+    typeKeys = ['course', 'workshop', 'after_school', 'escape_room', 'tour'];
+  }
   var activityTypeCounts = {};
-  ['course', 'workshop', 'after_school', 'escape_room', 'tour'].forEach(function(t) {
+  typeKeys.forEach(function(t) {
     activityTypeCounts[t] = allRows.filter(function(r) {
       return text_(r.activity_type) === t;
     }).length;
@@ -152,8 +236,8 @@ function actionActivities_(user, payload) {
       };
     }),
     filters: {
-      activity_types: CONFIG.ACTIVITY_TYPES,
-      finance_statuses: CONFIG.FINANCE_STATUSES
+      activity_types: activityTypesForFilters_(),
+      finance_statuses: financeStatusesForFilters_()
     }
   };
 }
@@ -162,22 +246,30 @@ function actionWeek_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
 
   var today = new Date();
-  var monday = mondayOfWeek_(today);
-  var rows = visibleActivitiesForUser_(user);
+  var startDay = getWeekStartDay_();
+  var anchor = startOfWeekContaining_(today, startDay);
+  var showSat = settingShowShabbat_();
 
   var days = [];
   for (var i = 0; i < 7; i++) {
-    var d = shiftDate_(monday, i);
+    var d = shiftDate_(anchor, i);
+    var dow = d.getDay();
+    if (!showSat && dow === 6) {
+      continue;
+    }
     var key = formatDate_(d);
     days.push({
       date: key,
-      items: rows.filter(function(row) {
-        return key >= text_(row.start_date) && key <= text_(row.end_date || row.start_date);
-      })
+      weekday_label: hebrewWeekdayLabel_(dow),
+      items: activitiesOnCalendarDate_(user, key)
     });
   }
 
-  return { days: days };
+  return {
+    days: days,
+    week_starts_on: startDay,
+    show_shabbat: showSat
+  };
 }
 
 function actionMonth_(user) {
@@ -187,7 +279,6 @@ function actionMonth_(user) {
   var year = now.getFullYear();
   var month = now.getMonth();
   var daysInMonth = new Date(year, month + 1, 0).getDate();
-  var rows = visibleActivitiesForUser_(user);
 
   var cells = [];
   for (var i = 1; i <= daysInMonth; i++) {
@@ -196,15 +287,14 @@ function actionMonth_(user) {
     cells.push({
       day: i,
       date: key,
-      items: rows.filter(function(row) {
-        return key >= text_(row.start_date) && key <= text_(row.end_date || row.start_date);
-      })
+      items: activitiesOnCalendarDate_(user, key)
     });
   }
 
   return {
     month: formatDate_(new Date()).slice(0, 7),
-    cells: cells
+    cells: cells,
+    hide_saturday: !settingShowShabbat_()
   };
 }
 
@@ -225,7 +315,7 @@ function actionExceptions_(user) {
       exceptionType = 'missing_instructor';
     } else if (!text_(row.start_date)) {
       exceptionType = 'missing_start_date';
-    } else if (text_(row.end_date) > CONFIG.LATE_END_DATE_CUTOFF) {
+    } else if (text_(row.end_date) > getLateEndDateCutoff_()) {
       exceptionType = 'late_end_date';
     }
 
@@ -250,17 +340,34 @@ function actionExceptions_(user) {
 function actionFinance_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
+  var today = formatDate_(new Date());
+  var rule = text_(readActiveSettingsMap_().finance_display_rule);
+  var rows = allActivities_().filter(function(row) {
+    if (rule === 'ended_until_today') {
+      var e = text_(row.end_date || row.start_date);
+      return !!e && e <= today;
+    }
+    return true;
+  });
+
   return {
-    rows: allActivities_().map(function(row) {
+    rows: rows.map(function(row) {
       return {
         RowID: row.RowID,
+        source_sheet: row.source_sheet,
         activity_name: row.activity_name,
         finance_status: normalizeFinance_(row.finance_status),
+        finance_notes: text_(row.finance_notes),
         status: text_(row.status),
         activity_manager: text_(row.activity_manager),
         authority: text_(row.authority),
         school: text_(row.school),
-        activity_type: text_(row.activity_type)
+        activity_type: text_(row.activity_type),
+        funding: text_(row.funding),
+        start_date: text_(row.start_date),
+        end_date: text_(row.end_date || row.start_date),
+        price: row.price,
+        sessions: row.sessions
       };
     })
   };
@@ -288,20 +395,6 @@ function actionInstructors_(user) {
 function actionContacts_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
-  var instructorRows = readRows_(CONFIG.SHEETS.INSTRUCTORS).map(function(row) {
-    return {
-      kind: 'instructor',
-      emp_id: text_(row.emp_id),
-      full_name: text_(row.full_name),
-      authority: '',
-      school: '',
-      contact_name: '',
-      phone: '',
-      mobile: text_(row.mobile),
-      email: text_(row.email)
-    };
-  });
-
   var schoolRows = readRows_(CONFIG.SHEETS.SCHOOLS).map(function(row) {
     return {
       kind: 'school',
@@ -316,7 +409,55 @@ function actionContacts_(user) {
     };
   });
 
-  return { rows: instructorRows.concat(schoolRows) };
+  return { rows: schoolRows };
+}
+
+function actionInstructorContacts_(user) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+
+  return {
+    rows: readRows_(CONFIG.SHEETS.INSTRUCTORS).map(function(row) {
+      return {
+        emp_id: text_(row.emp_id),
+        full_name: text_(row.full_name),
+        mobile: text_(row.mobile),
+        email: text_(row.email),
+        address: text_(row.address),
+        employment_type: text_(row.employment_type),
+        direct_manager: text_(row.direct_manager),
+        active: yesNo_(row.active)
+      };
+    })
+  };
+}
+
+function actionEndDates_(user) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+
+  var rows = buildLongRows_()
+    .filter(function(row) {
+      return !!text_(row.end_date);
+    })
+    .map(function(row) {
+      return {
+        RowID: row.RowID,
+        activity_name: row.activity_name,
+        activity_type: text_(row.activity_type),
+        activity_manager: text_(row.activity_manager),
+        authority: text_(row.authority),
+        school: text_(row.school),
+        start_date: text_(row.start_date),
+        end_date: text_(row.end_date),
+        status: text_(row.status),
+        source_sheet: row.source_sheet
+      };
+    });
+
+  rows.sort(function(a, b) {
+    return text_(a.end_date).localeCompare(text_(b.end_date));
+  });
+
+  return { rows: rows };
 }
 
 function actionMyData_(user) {
@@ -342,31 +483,32 @@ function actionPermissions_(user) {
     return cachedPerm;
   }
 
+  var permSheet = getSheet_(CONFIG.SHEETS.PERMISSIONS);
+  var permHeaders = getHeaders_(permSheet);
+
   var result = {
     rows: readRows_(CONFIG.SHEETS.PERMISSIONS).map(function(row) {
-      return {
+      var out = {
         user_id: text_(row.user_id),
         entry_code: text_(row.entry_code),
         full_name: text_(row.full_name),
         display_role: normalizeRole_(internalRoleFromPermissionRow_(row)),
+        display_role2: text_(row.display_role2),
         default_view: text_(row.default_view),
-        view_admin: yesNo_(row.view_admin),
-        view_dashboard: yesNo_(row.view_dashboard),
-        view_activities: yesNo_(row.view_activities),
-        view_week: yesNo_(row.view_week),
-        view_month: yesNo_(row.view_month),
-        view_instructors: yesNo_(row.view_instructors),
-        view_exceptions: yesNo_(row.view_exceptions),
-        view_my_data: yesNo_(row.view_my_data),
-        view_contacts: yesNo_(row.view_contacts),
-        view_finance: yesNo_(row.view_finance),
-        view_permissions: yesNo_(row.view_permissions),
-        can_request_edit: yesNo_(row.can_request_edit),
-        can_edit_direct: yesNo_(row.can_edit_direct),
-        can_add_activity: yesNo_(row.can_add_activity),
-        can_review_requests: yesNo_(row.can_review_requests),
         active: yesNo_(row.active)
       };
+      permHeaders.forEach(function(h) {
+        if (h === 'user_id' || h === 'entry_code' || h === 'full_name' || h === 'display_role' || h === 'display_role2' || h === 'default_view' || h === 'active') {
+          return;
+        }
+        if (h.indexOf('view_') === 0 || h.indexOf('can_') === 0) {
+          out[h] = yesNo_(row[h]);
+        }
+      });
+      if (out.view_contacts_instructors === undefined) {
+        out.view_contacts_instructors = yesNo_(row.view_contacts_instructors || row.view_contacts);
+      }
+      return out;
     })
   };
   scriptCachePutJson_(SCRIPT_CACHE_KEY_PERMISSIONS_LIST, result, CONFIG.SCRIPT_CACHE_SECONDS);
@@ -375,7 +517,7 @@ function actionPermissions_(user) {
 
 function actionAddActivity_(user, payload) {
   var permission = getPermissionRow_(user.user_id);
-  if (yesNo_(permission.can_add_activity) !== 'yes') {
+  if (!effectiveCanAddActivity_(permission, user.display_role)) {
     throw new Error('Forbidden');
   }
 
@@ -476,7 +618,7 @@ function actionSaveActivity_(user, payload) {
   if (!sourceRowId) throw new Error('source_row_id is required');
 
   var permission = getPermissionRow_(user.user_id);
-  if (yesNo_(permission.can_edit_direct) !== 'yes') {
+  if (!effectiveCanEditDirect_(permission, user.display_role)) {
     return actionSubmitEditRequest_(user, {
       source_sheet: sourceSheet,
       source_row_id: sourceRowId,
@@ -603,32 +745,45 @@ function actionSavePermission_(user, payload) {
   if (!userId) throw new Error('user_id is required');
 
   var existing = getPermissionRow_(userId);
+  var sheet = getSheet_(CONFIG.SHEETS.PERMISSIONS);
+  var headers = getHeaders_(sheet);
 
-  var normalized = {
-    user_id: userId,
-    entry_code: text_(row.entry_code || existing.entry_code),
-    full_name: text_(row.full_name || existing.full_name),
-    display_role: normalizeRole_(text_(row.display_role) || internalRoleFromPermissionRow_(existing)),
-    default_view: text_(row.default_view || existing.default_view),
-    view_admin: pickYesNo_(row, 'view_admin', existing),
-    view_dashboard: pickYesNo_(row, 'view_dashboard', existing),
-    view_activities: pickYesNo_(row, 'view_activities', existing),
-    view_week: pickYesNo_(row, 'view_week', existing),
-    view_month: pickYesNo_(row, 'view_month', existing),
-    view_instructors: pickYesNo_(row, 'view_instructors', existing),
-    view_exceptions: pickYesNo_(row, 'view_exceptions', existing),
-    view_my_data: pickYesNo_(row, 'view_my_data', existing),
-    view_contacts: pickYesNo_(row, 'view_contacts', existing),
-    view_finance: pickYesNo_(row, 'view_finance', existing),
-    view_permissions: pickYesNo_(row, 'view_permissions', existing),
-    can_request_edit: pickYesNo_(row, 'can_request_edit', existing),
-    can_edit_direct: pickYesNo_(row, 'can_edit_direct', existing),
-    can_add_activity: pickYesNo_(row, 'can_add_activity', existing),
-    can_review_requests: pickYesNo_(row, 'can_review_requests', existing),
-    active: yesNo_(row.active || existing.active)
-  };
+  var merged = {};
+  headers.forEach(function(h) {
+    if (h === 'user_id') {
+      merged[h] = userId;
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(row, h)) {
+      if (h === 'display_role') {
+        merged[h] = normalizeRole_(text_(row[h]) || internalRoleFromPermissionRow_(existing));
+      } else if (h === 'active' || h.indexOf('view_') === 0 || h.indexOf('can_') === 0) {
+        merged[h] = yesNo_(row[h]);
+      } else {
+        merged[h] = row[h];
+      }
+      return;
+    }
+    merged[h] = existing[h] !== undefined && existing[h] !== null ? existing[h] : '';
+  });
 
-  upsertRowByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', normalized);
+  if (headers.indexOf('entry_code') >= 0 && !text_(merged.entry_code)) {
+    merged.entry_code = text_(row.entry_code || existing.entry_code);
+  }
+  if (headers.indexOf('full_name') >= 0 && !text_(merged.full_name)) {
+    merged.full_name = text_(row.full_name || existing.full_name);
+  }
+  if (headers.indexOf('display_role') >= 0 && !text_(merged.display_role)) {
+    merged.display_role = normalizeRole_(internalRoleFromPermissionRow_(existing));
+  }
+  if (headers.indexOf('default_view') >= 0 && !text_(merged.default_view)) {
+    merged.default_view = text_(row.default_view || existing.default_view);
+  }
+  if (headers.indexOf('active') >= 0) {
+    merged.active = Object.prototype.hasOwnProperty.call(row, 'active') ? yesNo_(row.active) : yesNo_(existing.active);
+  }
+
+  upsertRowByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', merged);
 
   scriptCacheInvalidateDataViews_();
   return {
@@ -731,7 +886,7 @@ function mapShortRow_(row) {
     emp_id_2: text_(row.emp_id_2),
     instructor_name_2: text_(row.instructor_name_2),
     start_date: text_(row.start_date),
-    end_date: text_(row.start_date),
+    end_date: text_(row.end_date) || text_(row.start_date),
     status: text_(row.status),
     notes: text_(row.notes),
     finance_status: normalizeFinance_(row.finance_status),
@@ -805,7 +960,7 @@ function upsertPrivateNoteRow_(rowObj) {
     updated[header] = Object.prototype.hasOwnProperty.call(rowObj, header) ? rowObj[header] : rows[index][header];
   });
 
-  var rowNumber = CONFIG.DATA_START_ROW + index;
+  var rowNumber = getDataStartRow_() + index;
   var values = headers.map(function(header) { return updated[header]; });
   sheet.getRange(rowNumber, 1, 1, headers.length).setValues([values]);
   invalidateReadRowsCache_(CONFIG.SHEETS.PRIVATE_NOTES);
@@ -903,9 +1058,127 @@ function updateEditRequestRows_(requestId, patch) {
       updated[header] = Object.prototype.hasOwnProperty.call(patch, header) ? patch[header] : row[header];
     });
 
-    var rowNumber = CONFIG.DATA_START_ROW + idx;
+    var rowNumber = getDataStartRow_() + idx;
     var values = headers.map(function(header) { return updated[header]; });
     sheet.getRange(rowNumber, 1, 1, headers.length).setValues([values]);
   });
   invalidateReadRowsCache_(CONFIG.SHEETS.EDIT_REQUESTS);
+}
+
+function listValuesForName_(listName) {
+  var target = text_(listName);
+  var rows = readRows_(CONFIG.SHEETS.LISTS);
+  var out = [];
+  rows.forEach(function(row) {
+    if (text_(row.list_name) !== target) return;
+    var v = text_(row.value);
+    if (!v) return;
+    if (out.indexOf(v) < 0) out.push(v);
+  });
+  return out;
+}
+
+function activityTypesForFilters_() {
+  var fromSheet = listValuesForName_('activity_type');
+  if (!fromSheet.length) {
+    return CONFIG.ACTIVITY_TYPES.slice();
+  }
+  return ['all'].concat(fromSheet);
+}
+
+function financeStatusesForFilters_() {
+  var fromSheet = listValuesForName_('finance_status');
+  return fromSheet.length ? fromSheet : CONFIG.FINANCE_STATUSES.slice();
+}
+
+function getLateEndDateCutoff_() {
+  var m = readActiveSettingsMap_();
+  var v = text_(m.late_end_date_cutoff);
+  return v || CONFIG.LATE_END_DATE_CUTOFF;
+}
+
+function settingYes_(key) {
+  return yesNo_(readActiveSettingsMap_()[key]) !== 'no';
+}
+
+/** yes = הצגת שבת בלוחות זמן (כמו ב־settings) */
+function settingShowShabbat_() {
+  return text_(readActiveSettingsMap_().show_shabbat).toLowerCase() === 'yes';
+}
+
+function getWeekStartDay_() {
+  var n = parseInt(text_(readActiveSettingsMap_().week_start_day), 10);
+  if (isNaN(n) || n < 0 || n > 6) {
+    return 0;
+  }
+  return n;
+}
+
+function startOfWeekContaining_(date, startDay) {
+  var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  var day = d.getDay();
+  var diff = (day - startDay + 7) % 7;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+function hebrewWeekdayLabel_(jsDay) {
+  var names = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  return names[jsDay] || '';
+}
+
+function buildClientSettingsPayload_() {
+  var m = readActiveSettingsMap_();
+  return {
+    hide_emp_id_on_screens: yesNo_(m.hide_emp_id_on_screens) === 'yes',
+    hide_activity_no_on_screens: yesNo_(m.hide_activity_no_on_screens) === 'yes',
+    week_start_day: getWeekStartDay_(),
+    show_shabbat: settingShowShabbat_()
+  };
+}
+
+function activitiesOnCalendarDate_(user, dateKey) {
+  var rows = visibleActivitiesForUser_(user);
+  var map = buildMeetingsMap_();
+  var out = [];
+  var seen = {};
+  rows.forEach(function(row) {
+    var include = false;
+    if (text_(row.source_sheet) === CONFIG.SHEETS.DATA_LONG) {
+      var dlist = map[row.RowID] || [];
+      if (dlist.length) {
+        include = dlist.indexOf(dateKey) >= 0;
+      } else {
+        var s = text_(row.start_date);
+        var e = text_(row.end_date || row.start_date);
+        include = !!s && dateKey >= s && dateKey <= e;
+      }
+    } else {
+      var s2 = text_(row.start_date);
+      var e2 = text_(row.end_date || row.start_date);
+      include = !!s2 && dateKey >= s2 && dateKey <= e2;
+    }
+    if (include && !seen[row.RowID]) {
+      seen[row.RowID] = true;
+      out.push(row);
+    }
+  });
+  return out;
+}
+
+function isActivityActiveBySpec_(row, todayIso) {
+  var st = text_(row.status).toLowerCase();
+  if (settingYes_('use_status_with_dates') && st === 'ended') {
+    return false;
+  }
+  var s = text_(row.start_date);
+  var e = text_(row.end_date || row.start_date);
+  if (!s) return false;
+  return todayIso >= s && todayIso <= e;
+}
+
+function countActiveByType_(rows, todayIso, activityType) {
+  return rows.filter(function(row) {
+    return text_(row.activity_type) === activityType && isActivityActiveBySpec_(row, todayIso);
+  }).length;
 }

@@ -68,9 +68,14 @@ function padDayKey(y, mo, dayNum) {
   return `${y}-${String(mo).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
 }
 
-function dayNeedsAttention(items) {
+function dayNeedsAttention(items, hideEmpIds) {
   const list = Array.isArray(items) ? items : [];
-  return list.some((it) => !String(it?.emp_id || '').trim());
+  return list.some((it) => {
+    const names = [it.instructor_name, it.instructor_name_2].filter((x) => x && String(x).trim()).join('');
+    if (names) return false;
+    if (hideEmpIds) return true;
+    return !String(it?.emp_id || '').trim();
+  });
 }
 
 function activityDotsMeta(n) {
@@ -79,7 +84,7 @@ function activityDotsMeta(n) {
   return `●●●●● +${n - 5}`;
 }
 
-function monthDayDrawerBody(cell) {
+function monthDayDrawerBody(cell, hideEmpIds) {
   const items = Array.isArray(cell?.items) ? cell.items : [];
   if (!items.length) {
     return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(cell?.date || '')}</p>`;
@@ -89,7 +94,7 @@ function monthDayDrawerBody(cell) {
       (it) => `
     <section class="ds-cal-drawer-block" aria-label="${escapeHtml(it.activity_name || 'פעילות')}">
       <h3 class="ds-cal-drawer-block__title">${escapeHtml(it.activity_name || 'פעילות')}</h3>
-      ${activityRowDetailHtml(it)}
+      ${activityRowDetailHtml(it, { privateNote: null, hideEmpIds: !!hideEmpIds })}
     </section>`
     )
     .join('');
@@ -98,7 +103,7 @@ function monthDayDrawerBody(cell) {
 
 export const monthScreen = {
   load: ({ api }) => api.month(),
-  render(data) {
+  render(data, { state }) {
     const spec = inferMonthSpec(data || {});
     const y = spec.y;
     const mo = spec.mo;
@@ -112,6 +117,8 @@ export const monthScreen = {
     const safeCells = Array.isArray(data?.cells) ? data.cells : [];
     const byDay = cellMapFromCells(safeCells);
     const todayIso = localYmd();
+    const hideSaturday = !!data?.hide_saturday;
+    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 
     const weekdayRow = HEBREW_WEEKDAY_SHORT.map(
       (label) => `<div class="ds-cal-wd" role="columnheader">${escapeHtml(label)}</div>`
@@ -124,6 +131,11 @@ export const monthScreen = {
         continue;
       }
       const dayNum = i - firstWeekday + 1;
+      const cellDate = new Date(y, mo - 1, dayNum);
+      if (hideSaturday && cellDate.getDay() === 6) {
+        slots.push('<div class="ds-cal-slot ds-cal-slot--shabbat-off" aria-hidden="true"></div>');
+        continue;
+      }
       const cell = byDay[dayNum] || {
         day: dayNum,
         date: padDayKey(y, mo, dayNum),
@@ -131,7 +143,7 @@ export const monthScreen = {
       };
       const n = Array.isArray(cell.items) ? cell.items.length : 0;
       const isToday = cell.date === todayIso;
-      const warn = dayNeedsAttention(cell.items);
+      const warn = dayNeedsAttention(cell.items, hideEmpIds);
       const extra = [isToday ? 'is-cal-today' : '', warn ? 'is-month-warn' : ''].filter(Boolean).join(' ');
       const subtitle = n > 0 ? activityDotsMeta(n) : '';
       const meta = n > 0 ? `${n} פעילויות` : 'ללא';
@@ -148,7 +160,7 @@ export const monthScreen = {
     }
 
     const gridHtml = `
-      <div class="ds-cal-wrap" dir="rtl">
+      <div class="ds-cal-wrap${hideSaturday ? ' ds-cal-wrap--hide-shabbat' : ''}" dir="rtl">
         <div class="ds-cal-weekdays" role="row">${weekdayRow}</div>
         <div class="ds-cal-grid" role="grid" aria-label="לוח חודש">${slots.join('')}</div>
       </div>`;
@@ -165,7 +177,8 @@ export const monthScreen = {
       })}
     `);
   },
-  bind({ root, ui, data }) {
+  bind({ root, ui, data, state }) {
+    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;
       const dayNum = action.split('|')[1];
@@ -184,7 +197,7 @@ export const monthScreen = {
       const n = Array.isArray(cell.items) ? cell.items.length : 0;
       ui.openDrawer({
         title: `יום ${d} · ${cell.date || ''}`,
-        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(cell)}`
+        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(cell, hideEmpIds)}`
       });
     });
   }

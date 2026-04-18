@@ -10,6 +10,8 @@ export const state = {
   activityEndingCurrentMonth: false,
   activityView: 'compact',
   financeFilter: '',
+  /** הגדרות UI ממקור הנתונים (bootstrap / login) */
+  clientSettings: {},
   /** @type {Record<string, { data: unknown, t: number }>} */
   screenDataCache: {}
 };
@@ -29,6 +31,7 @@ export function setSession(session) {
     state.activityQuickFamily = '';
     state.activityQuickManager = '';
     state.activityEndingCurrentMonth = false;
+    state.clientSettings = {};
     state.screenDataCache = {};
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');

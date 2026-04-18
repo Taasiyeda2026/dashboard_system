@@ -111,16 +111,60 @@ const COLUMN_LABELS = {
   end_date: 'תאריך סיום',
   activity_type: 'סוג פעילות',
   user_id: 'מזהה משתמש',
+  default_view: 'מסך ברירת מחדל',
   display_role: 'תפקיד',
   actions: 'פעולות',
   exception_type: 'סוג חריגה',
-  private_note: 'הערה פרטית'
+  private_note: 'הערה פרטית',
+  address: 'כתובת',
+  funding: 'מימון',
+  finance_notes: 'הערות כספים',
+  sessions: 'מפגשים',
+  price: 'מחיר',
+  source_sheet: 'גיליון מקור'
 };
 
 export function hebrewColumn(key) {
   if (key === undefined || key === null) return 'שדה';
   const k = String(key).trim();
   return COLUMN_LABELS[k] || 'שדה';
+}
+
+/** תוויות לשדות הרשאה (מקור: גיליון permissions) */
+const PERMISSION_FIELD_LABELS = {
+  default_view: 'מסך ברירת מחדל',
+  display_role2: 'תיאור תפקיד',
+  entry_code: 'קוד כניסה',
+  full_name: 'שם מלא',
+  view_admin: 'צפייה — ניהול',
+  view_dashboard: 'צפייה — לוח בקרה',
+  view_activities: 'צפייה — פעילויות',
+  view_week: 'צפייה — שבוע',
+  view_month: 'צפייה — חודש',
+  view_instructors: 'צפייה — מדריכים',
+  view_exceptions: 'צפייה — חריגות',
+  view_my_data: 'צפייה — הנתונים שלי',
+  view_operations_data: 'צפייה — נתוני תפעול',
+  view_contacts_instructors: 'צפייה — אנשי קשר מדריכים',
+  'view_contacts_instructors 2': 'צפייה — אנשי קשר מדריכים (2)',
+  view_finance: 'צפייה — כספים',
+  view_permissions: 'צפייה — הרשאות',
+  view_edit_requests: 'צפייה — בקשות עריכה',
+  view_final_approvals: 'צפייה — אישורים סופיים',
+  view_contacts: 'צפייה — אנשי קשר (מקור ישן)',
+  can_request_edit: 'יכול לבקש עריכה',
+  can_edit_direct: 'עריכה ישירה',
+  can_add_activity: 'הוספת פעילות',
+  can_review_requests: 'אישור בקשות'
+};
+
+export function hebrewPermissionField(key) {
+  const k = String(key || '').trim();
+  if (PERMISSION_FIELD_LABELS[k]) return PERMISSION_FIELD_LABELS[k];
+  const norm = k.replace(/\s+/g, '_');
+  if (PERMISSION_FIELD_LABELS[norm]) return PERMISSION_FIELD_LABELS[norm];
+  if (COLUMN_LABELS[norm]) return COLUMN_LABELS[norm];
+  return k || 'שדה';
 }
 
 const HEBREW_EMPLOYMENT_TYPE = {

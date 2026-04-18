@@ -64,9 +64,9 @@ export const contactsScreen = {
             .join('')}</div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('אנשי קשר', 'גורמים ורשתות')}
+      ${dsPageHeader('אנשי קשר', 'בתי ספר, רשויות וגורמים כלליים — לא מדריכים')}
       ${dsCard({
-        title: 'רשימת אנשי קשר',
+        title: 'אנשי קשר (בתי ספר / רשויות)',
         badge: `${rows.length} שורות`,
         body: narrow ? compact : tableBlock,
         padded: rows.length === 0 || narrow

@@ -61,7 +61,7 @@ export const myDataScreen = {
       })}
     `);
   },
-  bind({ root, data, ui }) {
+  bind({ root, data, ui, state }) {
     const rows = Array.isArray(data?.rows) ? data.rows : [];
 
     root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
@@ -69,9 +69,10 @@ export const myDataScreen = {
         const rowId = rowNode.dataset.rowId;
         const hit = rows.find((r) => String(r.RowID) === String(rowId));
         if (!hit || !ui) return;
+        const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
         ui.openDrawer({
           title: `פירוט ${hit.RowID}`,
-          content: activityRowDetailHtml(hit)
+          content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds })
         });
       });
       rowNode.addEventListener('keydown', (event) => {
@@ -87,9 +88,10 @@ export const myDataScreen = {
       const rowId = action.slice('mydata:'.length);
       const hit = rows.find((r) => String(r.RowID) === String(rowId));
       if (!hit) return;
+      const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
       ui.openDrawer({
         title: `פירוט ${hit.RowID}`,
-        content: activityRowDetailHtml(hit)
+        content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds })
       });
     });
   }

@@ -34,6 +34,70 @@ function getSpreadsheet_() {
   return ss;
 }
 
+/**
+ * קורא את גיליון settings בשורת נתונים קבועה (3) בלי לעבור דרך readRows_,
+ * כדי למנוע רקורסיה עם getDataStartRow_.
+ */
+function readActiveSettingsMap_() {
+  if (__rqCache_ && __rqCache_.settingsMap) {
+    return __rqCache_.settingsMap;
+  }
+  var map = {};
+  try {
+    var sheet = getSpreadsheet_().getSheetByName(CONFIG.SHEETS.SETTINGS);
+    if (!sheet) {
+      if (__rqCache_) {
+        __rqCache_.settingsMap = map;
+      }
+      return map;
+    }
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+    if (lastRow < CONFIG.DATA_START_ROW || !lastCol) {
+      if (__rqCache_) {
+        __rqCache_.settingsMap = map;
+      }
+      return map;
+    }
+    var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
+    var values = sheet.getRange(CONFIG.DATA_START_ROW, 1, lastRow, lastCol).getValues();
+    var keyIdx = headers.indexOf('setting_key');
+    var valIdx = headers.indexOf('setting_value');
+    var actIdx = headers.indexOf('active');
+    if (keyIdx < 0 || valIdx < 0) {
+      if (__rqCache_) {
+        __rqCache_.settingsMap = map;
+      }
+      return map;
+    }
+    values.forEach(function(row) {
+      var k = text_(row[keyIdx]);
+      if (!k) return;
+      if (actIdx >= 0 && yesNo_(row[actIdx]) === 'no') return;
+      map[k] = row[valIdx];
+    });
+  } catch (err) {
+    // eslint-disable-line no-empty
+  }
+  if (__rqCache_) {
+    __rqCache_.settingsMap = map;
+  }
+  return map;
+}
+
+function getDataStartRow_() {
+  if (__rqCache_ && __rqCache_.effectiveDataStart) {
+    return __rqCache_.effectiveDataStart;
+  }
+  var m = readActiveSettingsMap_();
+  var n = parseInt(text_(m.data_start_row), 10);
+  var d = !isNaN(n) && n > 0 ? n : CONFIG.DATA_START_ROW;
+  if (__rqCache_) {
+    __rqCache_.effectiveDataStart = d;
+  }
+  return d;
+}
+
 function getSheet_(sheetName) {
   var key = sheetName;
   if (__rqCache_ && __rqCache_.sheetByName[key]) {
@@ -74,7 +138,8 @@ function readRows_(sheetName) {
   var sheet = getSheet_(sheetName);
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
-  if (lastRow < CONFIG.DATA_START_ROW) {
+  var dataStart = getDataStartRow_();
+  if (lastRow < dataStart) {
     if (__rqCache_) {
       __rqCache_.readRows[cacheKey] = [];
     }
@@ -82,7 +147,7 @@ function readRows_(sheetName) {
   }
 
   var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
-  var values = sheet.getRange(CONFIG.DATA_START_ROW, 1, lastRow - CONFIG.DATA_START_ROW + 1, lastCol).getValues();
+  var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, lastCol).getValues();
 
   var result = values.filter(function(row) {
     return row.some(function(cell) { return text_(cell) !== ''; });
@@ -147,7 +212,7 @@ function updateRowByKey_(sheetName, keyField, keyValue, changes) {
       : rows[index][header];
   });
 
-  var rowNumber = CONFIG.DATA_START_ROW + index;
+  var rowNumber = getDataStartRow_() + index;
   var values = headers.map(function(header) { return updated[header]; });
   sheet.getRange(rowNumber, 1, 1, headers.length).setValues([values]);
   invalidateReadRowsCache_(sheetName);
@@ -171,7 +236,7 @@ function upsertRowByKey_(sheetName, keyField, rowObj) {
     updated[header] = Object.prototype.hasOwnProperty.call(rowObj, header) ? rowObj[header] : rows[index][header];
   });
 
-  var rowNumber = CONFIG.DATA_START_ROW + index;
+  var rowNumber = getDataStartRow_() + index;
   var values = headers.map(function(header) { return updated[header]; });
   sheet.getRange(rowNumber, 1, 1, headers.length).setValues([values]);
   invalidateReadRowsCache_(sheetName);
@@ -184,12 +249,13 @@ function deleteRowsByKey_(sheetName, keyField, keyValue) {
   if (keyIndex < 0) throw new Error('Key field not found: ' + keyField);
 
   var lastRow = sheet.getLastRow();
-  if (lastRow < CONFIG.DATA_START_ROW) {
+  var dataStart = getDataStartRow_();
+  if (lastRow < dataStart) {
     invalidateReadRowsCache_(sheetName);
     return;
   }
 
-  for (var rowNum = lastRow; rowNum >= CONFIG.DATA_START_ROW; rowNum--) {
+  for (var rowNum = lastRow; rowNum >= dataStart; rowNum--) {
     var value = text_(sheet.getRange(rowNum, keyIndex + 1).getValue());
     if (value === text_(keyValue)) {
       sheet.deleteRow(rowNum);

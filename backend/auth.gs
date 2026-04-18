@@ -28,13 +28,14 @@ function actionLogin_(payload) {
 
   var routes = buildRoutesFromPermission_(match, role);
   var preferred = text_(match.default_view) || defaultRouteForRole_(role);
-  var defaultRoute = routes.indexOf(preferred) >= 0 ? preferred : (routes[0] || 'my-data');
+  var defaultRoute = resolveDefaultRoute_(preferred, routes, role);
 
   return {
     token: token,
     user: user,
     routes: routes,
-    default_route: defaultRoute
+    default_route: defaultRoute,
+    client_settings: buildClientSettingsPayload_()
   };
 }
 
@@ -79,10 +80,12 @@ function buildRoutesFromPermission_(permission, role) {
     week: 'view_week',
     month: 'view_month',
     instructors: 'view_instructors',
+    'instructor-contacts': '__instructor_contacts__',
     exceptions: 'view_exceptions',
-    'my-data': 'view_my_data',
-    contacts: 'view_contacts',
+    'my-data': '__my_data__',
+    contacts: '__school_contacts__',
     finance: 'view_finance',
+    'end-dates': 'view_activities',
     permissions: 'view_permissions'
   };
 
@@ -92,20 +95,116 @@ function buildRoutesFromPermission_(permission, role) {
     'week',
     'month',
     'instructors',
-    'exceptions',
-    'my-data',
+    'instructor-contacts',
     'contacts',
+    'exceptions',
     'finance',
+    'end-dates',
+    'my-data',
     'permissions'
   ];
 
   return allRoutes.filter(function(route) {
-    if (route === 'permissions' && !(role === 'admin' || role === 'operations_reviewer')) return false;
-    if (route === 'my-data' && role === 'instructor') return true;
-    return yesNo_(permission[map[route]]) === 'yes' || route === 'my-data';
+    if (route === 'permissions') {
+      if (!(role === 'admin' || role === 'operations_reviewer')) return false;
+      return yesNo_(permission.view_permissions) === 'yes';
+    }
+    if (route === 'my-data') {
+      return (
+        yesNo_(permission.view_my_data) === 'yes' ||
+        yesNo_(permission.view_operations_data) === 'yes'
+      );
+    }
+    if (route === 'instructor-contacts') {
+      return instructorContactsViewYes_(permission);
+    }
+    if (route === 'contacts') {
+      return schoolContactsViewYes_(permission);
+    }
+    var flag = map[route];
+    if (!flag) return false;
+    return yesNo_(permission[flag]) === 'yes';
   });
 }
 
 function defaultRouteForRole_(role) {
   return role === 'instructor' ? 'my-data' : 'dashboard';
+}
+
+/** מיושר לערכי default_view בגיליון permissions (למשל view_dashboard) */
+function viewKeyToRouteId_(viewKey) {
+  var k = text_(viewKey);
+  var table = {
+    view_dashboard: 'dashboard',
+    view_activities: 'activities',
+    view_week: 'week',
+    view_month: 'month',
+    view_instructors: 'instructors',
+    view_exceptions: 'exceptions',
+    view_my_data: 'my-data',
+    view_operations_data: 'my-data',
+    view_contacts_instructors: 'instructor-contacts',
+    view_finance: 'finance',
+    view_permissions: 'permissions',
+    view_admin: 'dashboard',
+    view_edit_requests: 'permissions',
+    view_final_approvals: 'permissions'
+  };
+  return table[k] || '';
+}
+
+function resolveDefaultRoute_(preferred, routes, role) {
+  var p = text_(preferred);
+  if (!p) {
+    p = defaultRouteForRole_(role);
+  }
+  if (routes.indexOf(p) >= 0) {
+    return p;
+  }
+  if (p.indexOf('view_') === 0) {
+    var mapped = viewKeyToRouteId_(p);
+    if (mapped && routes.indexOf(mapped) >= 0) {
+      return mapped;
+    }
+  }
+  return routes[0] || 'my-data';
+}
+
+function instructorContactsViewYes_(permission) {
+  if (yesNo_(permission.view_contacts_instructors) === 'yes') return true;
+  if (yesNo_(permission['view_contacts_instructors 2']) === 'yes') return true;
+  return yesNo_(permission.view_contacts) === 'yes';
+}
+
+function schoolContactsViewYes_(permission) {
+  if (yesNo_(permission.view_operations_data) === 'yes') return true;
+  return yesNo_(permission.view_dashboard) === 'yes';
+}
+
+function hasWorkViewForEdit_(permission) {
+  return (
+    yesNo_(permission.view_activities) === 'yes' ||
+    yesNo_(permission.view_week) === 'yes' ||
+    yesNo_(permission.view_month) === 'yes' ||
+    yesNo_(permission.view_finance) === 'yes' ||
+    yesNo_(permission.view_operations_data) === 'yes' ||
+    yesNo_(permission.view_exceptions) === 'yes'
+  );
+}
+
+function effectiveCanEditDirect_(permission, role) {
+  if (role === 'instructor') return false;
+  if (role === 'admin') return true;
+  var explicit = text_(permission.can_edit_direct).toLowerCase();
+  if (explicit === 'yes') return true;
+  if (explicit === 'no') return false;
+  return hasWorkViewForEdit_(permission);
+}
+
+function effectiveCanAddActivity_(permission, role) {
+  if (role === 'instructor') return false;
+  var explicit = text_(permission.can_add_activity).toLowerCase();
+  if (explicit === 'yes') return true;
+  if (explicit === 'no') return false;
+  return yesNo_(permission.view_activities) === 'yes';
 }

@@ -4,7 +4,8 @@ import {
   hebrewColumn,
   visibleActivityCategoryLabel,
   ACTIVITY_TAB_ORDER,
-  financeStatusVariant
+  financeStatusVariant,
+  translateApiErrorForUser
 } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
@@ -17,6 +18,7 @@ import {
   dsInteractiveCard,
   dsStatusChip
 } from './shared/layout.js';
+import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 
 const SHORT_TYPES = new Set(['workshop', 'tour', 'after_school', 'escape_room']);
 
@@ -62,26 +64,9 @@ function applyClientFilters(rows, state) {
   return out;
 }
 
-function activityDetailsHtml(row, canSeePrivateNotes) {
-  const note = canSeePrivateNotes ? row.private_note || '—' : 'אין הרשאה';
-  const instNames = [row.instructor_name, row.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
-  const instLine = instNames || `${row.emp_id || '—'} · ${row.emp_id_2 || '—'}`;
-  const finChip = dsStatusChip(
-    hebrewFinanceStatus(row.finance_status || 'open'),
-    financeStatusVariant(row.finance_status)
-  );
-  return `
-    <div class="ds-details-grid" dir="rtl">
-      <p><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '—')}</p>
-      <p><strong>RowID:</strong> ${escapeHtml(row.RowID || '—')}</p>
-      <p><strong>סוג פעילות:</strong> ${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</p>
-      <p><strong>אחראי פעילות:</strong> ${escapeHtml(row.activity_manager || '—')}</p>
-      <p><strong>תאריכים:</strong> ${escapeHtml(row.start_date || '—')} עד ${escapeHtml(row.end_date || '—')}</p>
-      <p><strong>מדריכים:</strong> ${escapeHtml(instLine)}</p>
-      <p><strong>סטטוס כספי:</strong> ${finChip}</p>
-      <p><strong>הערות:</strong> ${escapeHtml(note)}</p>
-    </div>
-  `;
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, hideEmpIds) {
+  const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
+  return activityWorkDrawerHtml(row, { privateNote, canEdit, hideEmpIds: !!hideEmpIds });
 }
 
 export const activitiesScreen = {
@@ -104,25 +89,27 @@ export const activitiesScreen = {
     const visibleTabs = visibleTabsFromCounts(counts);
     const financeStatuses = Array.isArray(data?.filters?.finance_statuses) ? data.filters.finance_statuses : [];
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
+    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const forceCompact = typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches;
     const compactView = forceCompact || state?.activityView === 'compact';
 
     const tableRows = safeRows
-      .map(
-        (row) => `
+      .map((row) => {
+        const emp1 = hideEmpIds ? '' : `<td>${escapeHtml(row.emp_id || '—')}</td>`;
+        const emp2 = hideEmpIds ? '' : `<td>${escapeHtml(row.emp_id_2 || '—')}</td>`;
+        return `
       <tr class="ds-data-row" data-row-id="${escapeHtml(row.RowID)}">
         <td>${escapeHtml(row.RowID)}</td>
         <td>${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</td>
         <td>${escapeHtml(row.activity_name || '—')}</td>
         <td>${escapeHtml(row.start_date || '—')}</td>
         <td>${escapeHtml(row.end_date || '—')}</td>
-        <td>${escapeHtml(row.emp_id || '—')}</td>
-        <td>${escapeHtml(row.emp_id_2 || '—')}</td>
+        ${emp1}${emp2}
         <td>${dsStatusChip(hebrewFinanceStatus(row.finance_status || 'open'), financeStatusVariant(row.finance_status))}</td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
-    `
-      )
+    `;
+      })
       .join('');
 
     const compactRows = safeRows
@@ -138,6 +125,7 @@ export const activitiesScreen = {
       .join('');
 
     const thPrivate = canSeePrivateNotes ? `<th>${hebrewColumn('private_note')}</th>` : '';
+    const thEmp = hideEmpIds ? '' : '<th>מדריך/ה 1 (מזהה)</th><th>מדריך/ה 2 (מזהה)</th>';
 
     const familyChips = [
       {
@@ -185,7 +173,7 @@ export const activitiesScreen = {
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות למסנן זה')
         : dsTableWrap(`<table class="ds-table ds-table--interactive">
-                <thead><tr><th>${hebrewColumn('RowID')}</th><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>התחלה</th><th>סיום</th><th>מדריך/ה 1 (מזהה)</th><th>מדריך/ה 2 (מזהה)</th><th>${hebrewColumn('finance_status')}</th>${thPrivate}</tr></thead>
+                <thead><tr><th>${hebrewColumn('RowID')}</th><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>התחלה</th><th>סיום</th>${thEmp}<th>${hebrewColumn('finance_status')}</th>${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`);
 
@@ -230,8 +218,39 @@ export const activitiesScreen = {
           })}
     `);
   },
-  bind({ root, data, state, rerender, rerenderActivitiesView, ui }) {
+  bind({ root, data, state, rerender, rerenderActivitiesView, ui, api }) {
     const filteredRows = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state);
+    const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
+    const canEditActivity = state?.user?.display_role !== 'instructor';
+    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+
+    function bindActivityEditForm(contentRoot) {
+      const form = contentRoot.querySelector('[data-edit-activity]');
+      if (!form || !api) return;
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const statusEl = form.querySelector('.ds-activity-edit-status');
+        const sourceSheet = form.getAttribute('data-source-sheet') || '';
+        const sourceRowId = form.getAttribute('data-row-id') || '';
+        const fd = new FormData(form);
+        const changes = {
+          status: String(fd.get('status') ?? '').trim(),
+          notes: String(fd.get('notes') ?? '').trim(),
+          finance_status: String(fd.get('finance_status') ?? '').trim(),
+          finance_notes: String(fd.get('finance_notes') ?? '').trim(),
+          start_date: String(fd.get('start_date') ?? '').trim(),
+          end_date: String(fd.get('end_date') ?? '').trim()
+        };
+        try {
+          await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
+          if (statusEl) statusEl.textContent = 'נשמר';
+          ui?.closeAll();
+          if (typeof rerender === 'function') await rerender();
+        } catch (err) {
+          if (statusEl) statusEl.textContent = translateApiErrorForUser(err?.message);
+        }
+      });
+    }
 
     root.querySelectorAll('[data-tab]').forEach((node) => {
       node.addEventListener('click', () => {
@@ -282,7 +301,8 @@ export const activitiesScreen = {
         if (!hit || !ui) return;
         ui.openDrawer({
           title: `פירוט פעילות ${hit.RowID}`,
-          content: activityDetailsHtml(hit, state?.user?.display_role === 'operations_reviewer')
+          content: activityDrawerContent(hit, canSeePrivateNotes, canEditActivity, hideEmpIds),
+          onOpen: bindActivityEditForm
         });
       });
       rowNode.addEventListener('keydown', (event) => {
@@ -300,7 +320,8 @@ export const activitiesScreen = {
       if (!row) return;
       ui.openDrawer({
         title: `פירוט פעילות ${row.RowID}`,
-        content: activityDetailsHtml(row, state?.user?.display_role === 'operations_reviewer')
+        content: activityDrawerContent(row, canSeePrivateNotes, canEditActivity, hideEmpIds),
+        onOpen: bindActivityEditForm
       });
     });
   }

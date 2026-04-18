@@ -85,7 +85,7 @@ export function createSharedInteractionLayer() {
     host.classList.toggle('is-backdrop-visible', visible);
   }
 
-  function openDrawer({ title = 'פרטים', content = '', onClose } = {}) {
+  function openDrawer({ title = 'פרטים', content = '', onClose, onOpen } = {}) {
     const root = ensureHost();
     const drawer = root.querySelector('.ds-drawer');
     const titleNode = root.querySelector('.ds-drawer__title');
@@ -100,6 +100,7 @@ export function createSharedInteractionLayer() {
     drawer.setAttribute('aria-hidden', 'false');
     root.classList.add('is-drawer-open');
     setBackdropVisible(true);
+    if (typeof onOpen === 'function') onOpen(contentNode);
   }
 
   function closeDrawer() {
