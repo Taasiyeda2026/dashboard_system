@@ -17,8 +17,6 @@ import { permissionsScreen } from './screens/permissions.js';
 const app = document.getElementById('app');
 const loginLogoSrc = new URL('../assets/logo1.png', import.meta.url).href;
 
-let pendingProgressiveShell = false;
-
 function flushPaint() {
   return new Promise((resolve) => {
     requestAnimationFrame(() => {
@@ -54,12 +52,6 @@ function screenLoadingMarkup() {
       <p class="screen-loading-msg">טוען נתונים...</p>
     </div>
   `;
-}
-
-function consumeProgressiveShellFlag() {
-  if (!pendingProgressiveShell) return false;
-  pendingProgressiveShell = false;
-  return true;
 }
 
 function applyBootstrapFromLoginData(data) {
@@ -99,7 +91,10 @@ const screens = {
 
 function shell(content) {
   const nav = state.routes
-    .map((route) => `<button type="button" class="nav-btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`)
+    .map(
+      (route) =>
+        `<button type="button" class="nav-btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`
+    )
     .join('');
 
   return `
@@ -117,6 +112,62 @@ function shell(content) {
   `;
 }
 
+function screenDataCacheKey() {
+  if (state.route === 'activities') {
+    return `activities:${state.activityTab || 'all'}`;
+  }
+  return state.route;
+}
+
+async function loadScreenDataWithCache(screen) {
+  if (!screen.load) return {};
+  const key = screenDataCacheKey();
+  const hit = state.screenDataCache[key];
+  if (hit) return hit.data;
+  const data = await screen.load({ api, state });
+  state.screenDataCache[key] = { data, t: Date.now() };
+  return data;
+}
+
+function setShellNavBusy(busy) {
+  document.querySelectorAll('.outer-shell [data-route]').forEach((b) => {
+    b.disabled = busy;
+  });
+  document.querySelector('.outer-shell')?.classList.toggle('is-route-loading', busy);
+}
+
+function updateNavActiveClasses() {
+  document.querySelectorAll('[data-route]').forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.route === state.route);
+  });
+}
+
+function bindScreen(screen, screenRoot, data) {
+  screen.bind?.({
+    root: screenRoot,
+    data,
+    state,
+    api,
+    rerender: render,
+    rerenderActivitiesView: () => rerenderActivitiesViewOnly(screen, screenRoot)
+  });
+}
+
+function rerenderActivitiesViewOnly(screen, screenRoot) {
+  if (state.route !== 'activities') {
+    render();
+    return;
+  }
+  const key = screenDataCacheKey();
+  const hit = state.screenDataCache[key];
+  if (!hit) {
+    render();
+    return;
+  }
+  screenRoot.innerHTML = screen.render(hit.data, { state });
+  bindScreen(screen, screenRoot, hit.data);
+}
+
 async function restoreSession() {
   if (!state.token) return;
   if (state.routes.length) return;
@@ -132,37 +183,28 @@ async function mountScreen() {
   const screen = screens[state.route];
   if (!screen) throw new Error('Screen not found: ' + state.route);
 
-  const progressive = consumeProgressiveShellFlag();
+  const shellExists = !!(state.token && document.querySelector('.outer-shell #screenRoot'));
 
-  if (progressive) {
+  if (!shellExists) {
     app.innerHTML = shell(screenLoadingMarkup());
     bindShell();
     await flushPaint();
+  } else {
+    setShellNavBusy(true);
+    const sr = document.getElementById('screenRoot');
+    if (sr) sr.innerHTML = screenLoadingMarkup();
+    updateNavActiveClasses();
+    await flushPaint();
   }
 
-  const data = screen.load ? await screen.load({ api, state }) : {};
-
-  if (progressive) {
+  try {
+    const data = await loadScreenDataWithCache(screen);
     const screenRoot = document.getElementById('screenRoot');
     if (!screenRoot) throw new Error('screenRoot missing');
     screenRoot.innerHTML = screen.render(data, { state });
-    screen.bind?.({
-      root: screenRoot,
-      data,
-      state,
-      api,
-      rerender: render
-    });
-  } else {
-    app.innerHTML = shell(screen.render(data, { state }));
-    bindShell();
-    screen.bind?.({
-      root: document.getElementById('screenRoot'),
-      data,
-      state,
-      api,
-      rerender: render
-    });
+    bindScreen(screen, screenRoot, data);
+  } finally {
+    setShellNavBusy(false);
   }
 }
 
@@ -193,7 +235,6 @@ async function render() {
           app.innerHTML = renderPostLoginLoadingHtml();
           await flushPaint();
           await restoreSession();
-          pendingProgressiveShell = true;
           await render();
         } catch (error) {
           if (errorNode) errorNode.textContent = error.message;

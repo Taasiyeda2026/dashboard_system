@@ -1,5 +1,14 @@
 import { config } from './config.js';
-import { state, setSession } from './state.js';
+import { state, setSession, clearScreenDataCache } from './state.js';
+
+const MUTATING_ACTIONS = {
+  saveActivity: true,
+  addActivity: true,
+  submitEditRequest: true,
+  reviewEditRequest: true,
+  savePermission: true,
+  savePrivateNote: true
+};
 
 async function request(action, payload = {}) {
   const response = await fetch(config.apiUrl, {
@@ -14,6 +23,9 @@ async function request(action, payload = {}) {
       setSession(null);
     }
     throw new Error(json.error || 'הבקשה נכשלה');
+  }
+  if (MUTATING_ACTIONS[action]) {
+    clearScreenDataCache();
   }
   return json.data;
 }

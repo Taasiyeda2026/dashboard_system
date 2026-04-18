@@ -14,6 +14,11 @@ function actionBootstrap_(user) {
 function actionDashboard_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
+  var cachedDash = scriptCacheGetJson_(SCRIPT_CACHE_KEY_DASHBOARD);
+  if (cachedDash) {
+    return cachedDash;
+  }
+
   var shortRows = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
   var longRows = readRows_(CONFIG.SHEETS.DATA_LONG).map(mapLongRow_);
   var hasCourseRows = longRows.some(function(row) {
@@ -68,7 +73,7 @@ function actionDashboard_(user) {
     return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === currentMonth;
   }).length;
 
-  return {
+  var result = {
     totals: {
       total_short_activities: shortRows.length,
       total_long_activities: longRows.length,
@@ -79,6 +84,8 @@ function actionDashboard_(user) {
       return byManager[key];
     })
   };
+  scriptCachePutJson_(SCRIPT_CACHE_KEY_DASHBOARD, result, CONFIG.SCRIPT_CACHE_SECONDS);
+  return result;
 }
 
 function actionActivities_(user, payload) {
@@ -317,7 +324,12 @@ function actionMyData_(user) {
 function actionPermissions_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer']);
 
-  return {
+  var cachedPerm = scriptCacheGetJson_(SCRIPT_CACHE_KEY_PERMISSIONS_LIST);
+  if (cachedPerm) {
+    return cachedPerm;
+  }
+
+  var result = {
     rows: readRows_(CONFIG.SHEETS.PERMISSIONS).map(function(row) {
       return {
         user_id: text_(row.user_id),
@@ -344,6 +356,8 @@ function actionPermissions_(user) {
       };
     })
   };
+  scriptCachePutJson_(SCRIPT_CACHE_KEY_PERMISSIONS_LIST, result, CONFIG.SCRIPT_CACHE_SECONDS);
+  return result;
 }
 
 function actionAddActivity_(user, payload) {
@@ -433,6 +447,7 @@ function actionAddActivity_(user, payload) {
     }
   }
 
+  scriptCacheInvalidateDataViews_();
   return {
     created: true,
     RowID: rowId,
@@ -466,6 +481,7 @@ function actionSaveActivity_(user, payload) {
     }
   }
 
+  scriptCacheInvalidateDataViews_();
   return {
     updated: true,
     source_sheet: sourceSheet,
@@ -558,6 +574,7 @@ function actionReviewEditRequest_(user, payload) {
     reviewer_notes: reviewerNotes
   });
 
+  scriptCacheInvalidateDataViews_();
   return {
     reviewed: true,
     request_id: requestId,
@@ -600,6 +617,7 @@ function actionSavePermission_(user, payload) {
 
   upsertRowByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', normalized);
 
+  scriptCacheInvalidateDataViews_();
   return {
     saved: true,
     user_id: userId
@@ -631,6 +649,7 @@ function actionSavePrivateNote_(user, payload) {
 
   upsertPrivateNoteRow_(row);
 
+  scriptCacheInvalidateDataViews_();
   return {
     saved: true,
     source_sheet: sourceSheet,
@@ -639,7 +658,14 @@ function actionSavePrivateNote_(user, payload) {
 }
 
 function allActivities_() {
-  return readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_).concat(buildLongRows_());
+  if (__rqCache_ && Object.prototype.hasOwnProperty.call(__rqCache_, 'allActivities')) {
+    return __rqCache_.allActivities;
+  }
+  var list = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_).concat(buildLongRows_());
+  if (__rqCache_) {
+    __rqCache_.allActivities = list;
+  }
+  return list;
 }
 
 function visibleActivitiesForUser_(user) {
@@ -652,10 +678,13 @@ function visibleActivitiesForUser_(user) {
 }
 
 function buildLongRows_() {
+  if (__rqCache_ && __rqCache_.buildLongRows) {
+    return __rqCache_.buildLongRows;
+  }
   var rows = readRows_(CONFIG.SHEETS.DATA_LONG).map(mapLongRow_);
   var meetingsByRow = buildMeetingsMap_();
 
-  return rows.map(function(row) {
+  var built = rows.map(function(row) {
     var dates = meetingsByRow[row.RowID] || [];
     if (dates.length) {
       row.start_date = dates[0];
@@ -663,6 +692,10 @@ function buildLongRows_() {
     }
     return row;
   });
+  if (__rqCache_) {
+    __rqCache_.buildLongRows = built;
+  }
+  return built;
 }
 
 function mapShortRow_(row) {
@@ -762,9 +795,13 @@ function upsertPrivateNoteRow_(rowObj) {
   var rowNumber = CONFIG.DATA_START_ROW + index;
   var values = headers.map(function(header) { return updated[header]; });
   sheet.getRange(rowNumber, 1, 1, headers.length).setValues([values]);
+  invalidateReadRowsCache_(CONFIG.SHEETS.PRIVATE_NOTES);
 }
 
 function buildMeetingsMap_() {
+  if (__rqCache_ && __rqCache_.meetingsMap) {
+    return __rqCache_.meetingsMap;
+  }
   var rows = readRows_(CONFIG.SHEETS.MEETINGS).filter(function(row) {
     return yesNo_(row.active) === 'yes';
   });
@@ -782,6 +819,9 @@ function buildMeetingsMap_() {
     map[key].sort();
   });
 
+  if (__rqCache_) {
+    __rqCache_.meetingsMap = map;
+  }
   return map;
 }
 
@@ -854,4 +894,5 @@ function updateEditRequestRows_(requestId, patch) {
     var values = headers.map(function(header) { return updated[header]; });
     sheet.getRange(rowNumber, 1, 1, headers.length).setValues([values]);
   });
+  invalidateReadRowsCache_(CONFIG.SHEETS.EDIT_REQUESTS);
 }

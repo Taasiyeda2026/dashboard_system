@@ -74,6 +74,11 @@ input {
   padding: var(--space-2);
 }
 
+.outer-shell.is-route-loading .nav-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .panel {
   background: var(--panel);
   border-radius: 10px;

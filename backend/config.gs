@@ -4,6 +4,8 @@ const CONFIG = {
   DATA_START_ROW: 3,
   LATE_END_DATE_CUTOFF: '2026-06-15',
   SESSION_CACHE_SECONDS: 60 * 60 * 8,
+  /** Script cache TTL for dashboard / permissions list (seconds). */
+  SCRIPT_CACHE_SECONDS: 90,
   SHEETS: {
     DATA_SHORT: 'data_short',
     DATA_LONG: 'data_long',

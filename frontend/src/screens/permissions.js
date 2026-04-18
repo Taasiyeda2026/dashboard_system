@@ -49,7 +49,7 @@ export const permissionsScreen = {
       </section>
     `;
   },
-  bind({ root, api }) {
+  bind({ root, api, rerender }) {
     root.querySelectorAll('[data-save-permission]').forEach((button) =>
       button.addEventListener('click', async () => {
         const userId = button.dataset.userId;
@@ -67,6 +67,7 @@ export const permissionsScreen = {
             active
           });
           if (status) status.textContent = `נשמר (${userId})`;
+          if (typeof rerender === 'function') await rerender();
         } catch (error) {
           if (status) status.textContent = error.message;
         }

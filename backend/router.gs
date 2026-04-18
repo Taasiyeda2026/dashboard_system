@@ -13,6 +13,7 @@ function doGet() {
 
 function doPost(e) {
   try {
+    beginRequestCache_();
     var payload = parsePayload_(e);
     var action = text_(payload.action);
     var user = action === 'login' ? null : requireAuth_(payload.token);

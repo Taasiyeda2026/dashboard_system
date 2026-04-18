@@ -58,7 +58,7 @@ export const activitiesScreen = {
       </section>
     `;
   },
-  bind({ root, state, rerender }) {
+  bind({ root, state, rerender, rerenderActivitiesView }) {
     root.querySelectorAll('[data-tab]').forEach((node) => {
       node.addEventListener('click', () => {
         state.activityTab = node.dataset.tab;
@@ -67,7 +67,11 @@ export const activitiesScreen = {
     });
     root.querySelector('#toggle-view')?.addEventListener('change', (event) => {
       state.activityView = event.target.checked ? 'compact' : 'table';
-      rerender();
+      if (typeof rerenderActivitiesView === 'function') {
+        rerenderActivitiesView();
+      } else {
+        rerender();
+      }
     });
   }
 };

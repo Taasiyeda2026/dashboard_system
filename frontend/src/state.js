@@ -5,8 +5,14 @@ export const state = {
   routes: [],
   activityTab: 'all',
   activityView: 'compact',
-  financeFilter: ''
+  financeFilter: '',
+  /** @type {Record<string, { data: unknown, t: number }>} */
+  screenDataCache: {}
 };
+
+export function clearScreenDataCache() {
+  state.screenDataCache = {};
+}
 
 export function setSession(session) {
   if (!session) {
@@ -14,12 +20,14 @@ export function setSession(session) {
     state.user = null;
     state.routes = [];
     state.route = 'login';
+    state.screenDataCache = {};
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
     return;
   }
   state.token = session.token;
   state.user = session.user;
+  state.screenDataCache = {};
   localStorage.setItem('dashboard_token', session.token);
   localStorage.setItem('dashboard_user', JSON.stringify(session.user));
 }
