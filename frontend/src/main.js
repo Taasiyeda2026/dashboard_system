@@ -125,7 +125,17 @@ async function render() {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./frontend/public/sw.js').catch(() => {});
+    const swUrl = new URL('./sw.js', window.location.href);
+    navigator.serviceWorker
+      .register(swUrl.href, { updateViaCache: 'none' })
+      .then((reg) => {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            reg.update().catch(() => {});
+          }
+        });
+      })
+      .catch(() => {});
   });
 }
 

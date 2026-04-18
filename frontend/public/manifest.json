@@ -1,7 +1,8 @@
 {
   "name": "Internal Dashboard System",
   "short_name": "Dashboard",
-  "start_url": "./index.html",
+  "start_url": "../../index.html",
+  "scope": "../../",
   "display": "standalone",
   "background_color": "#111827",
   "theme_color": "#111827",
@@ -11,7 +12,20 @@
     {
       "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='24' fill='%23111827'/%3E%3Cpath d='M24 72h80v16H24zm0-32h80v16H24z' fill='%23f8fafc'/%3E%3C/svg%3E",
       "sizes": "128x128",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%23111827'/%3E%3Cpath d='M36 108h120v24H36zm0-48h120v24H36z' fill='%23f8fafc'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%23111827'/%3E%3Cpath d='M96 288h320v64H96zm0-128h320v64H96z' fill='%23f8fafc'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }
