@@ -1,3 +1,5 @@
+const loginLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
+
 export const loginScreen = {
   render() {
     return `
@@ -6,10 +8,10 @@ export const loginScreen = {
           <div class="login-brand">
             <img
               class="login-logo"
-              src="./frontend/assets/logo1.png"
+              src="${loginLogoSrc}"
               alt="תעשיידע"
-              width="280"
-              height="120"
+              width="200"
+              height="86"
               decoding="async"
             />
           </div>

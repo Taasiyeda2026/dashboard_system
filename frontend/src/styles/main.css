@@ -149,6 +149,7 @@ input, select {
   display: block;
   width: 100%;
   max-width: 200px;
+  max-height: 76px;
   height: auto;
   object-fit: contain;
 }
