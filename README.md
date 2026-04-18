@@ -51,6 +51,13 @@
 2. הריצו שרת סטטי מהשורש (למשל `python -m http.server 5173`).
 3. פתחו `http://localhost:5173`.
 
+### בדיקת PWA בסיסית (Phase 11)
+
+1. ודאו ש־`index.html` טוען את `frontend/public/manifest.json`.
+2. ודאו שבדפדפן מופיע service worker פעיל (`sw.js`) תחת אותו origin.
+3. לאחר שינויי frontend משמעותיים, העלו `CACHE_VERSION` ב־`sw.js` כדי לרענן cache shell.
+4. בדקו שהאייקונים ב־manifest נטענים מהנתיבים ב־`frontend/assets/pwa/`.
+
 ## Backend setup (Apps Script)
 
 1. צרו/פתחו פרויקט Apps Script.
@@ -61,8 +68,16 @@
 6. פרסו כ־Web App (execute as owner + access לפי צורך ארגוני).
 7. עדכנו את `apiUrl` ב־frontend לנקודת `/exec` של הפריסה.
 
+### Backend deploy hygiene (ללא ambiguity)
+
+- מקור האמת לקוד backend הוא רק `backend/*.gs` (לא להעתיק חלקית מקבצים חיצוניים).
+- בכל פריסה יש לוודא שקיים `Code.gs` עם `doGet/doPost`, וש־`router.gs` כולל את ה־handlers המעודכנים.
+- לאחר שינוי הרשאות/פעולות, בצעו deploy חדש ל־Web App ועדכנו את URL ב־frontend config.
+- מומלץ לשמור מזהה פריסה (Deployment ID) ותאריך בפרויקט/כרטיס שינוי.
+
 ## הערות תחזוקה
 
 - אין לפזר URL קשיח של API בקוד מסכים/שירותים; המקור היחיד הוא `frontend/src/config.js` (או `window.__DASHBOARD_CONFIG__` / פרמטר `?apiUrl=` לפי סעיף Frontend setup).
 - שכבת אינטראקציה משותפת (drawer/modal) נמצאת ב־`frontend/src/screens/shared/interactions.js` ומוזנת מ־`main.js` ל־`bind` של מסכים (`ui`).
 - בשינוי סכימה/שדות ב־Sheets, יש לעדכן mapping מתאים ב־`backend/actions.gs` ו־`backend/sheets.gs`.
+- לשחרור frontend: להריץ בדיקה מקומית, לוודא טעינת manifest+SW, ולעדכן cache version במידת הצורך כדי למנוע shell מיושן.

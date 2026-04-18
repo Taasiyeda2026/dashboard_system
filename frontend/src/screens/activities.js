@@ -199,9 +199,9 @@ export const activitiesScreen = {
       ${dsToolbar(`
         <label class="compact-toggle"><input id="toggle-view" type="checkbox" ${compactView ? 'checked' : ''} ${forceCompact ? 'disabled' : ''} /> תצוגה קומפקטית</label>
         ${hasAnyFilter ? '<button type="button" class="ds-btn ds-btn--sm" data-clear-filters>ניקוי מסננים</button>' : ''}
-        ${state.activityQuickManager ? `<span class="ds-chip ds-chip--neutral">אחראי: ${escapeHtml(state.activityQuickManager)}</span>` : ''}
-        ${state.activityEndingCurrentMonth ? '<span class="ds-chip ds-chip--neutral">מסיימי קורס החודש</span>' : ''}
-        ${state.activityQuickFamily ? `<span class="ds-chip ds-chip--neutral">משפחה: ${state.activityQuickFamily === 'short' ? 'קצרות' : 'ארוכות'}</span>` : ''}
+        ${state.activityQuickManager ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">אחראי: ${escapeHtml(state.activityQuickManager)}</span>` : ''}
+        ${state.activityEndingCurrentMonth ? '<span class="ds-chip ds-chip--status ds-chip--status-neutral">מסיימי קורס החודש</span>' : ''}
+        ${state.activityQuickFamily ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">משפחה: ${state.activityQuickFamily === 'short' ? 'קצרות' : 'ארוכות'}</span>` : ''}
         ${forceCompact ? '<span class="ds-muted">במובייל צר מופעלת תצוגה קומפקטית אוטומטית</span>' : ''}
       `)}
       ${compactView
