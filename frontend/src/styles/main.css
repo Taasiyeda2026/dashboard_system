@@ -138,6 +138,21 @@ input, select {
   padding: 12px;
 }
 
+.login-brand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 0 10px;
+}
+
+.login-logo {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  height: auto;
+  object-fit: contain;
+}
+
 .login-title {
   margin: 0 0 6px;
   font-size: 1rem;

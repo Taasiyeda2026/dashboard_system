@@ -3,6 +3,16 @@ export const loginScreen = {
     return `
       <div class="login-shell" dir="rtl">
         <section class="login-card">
+          <div class="login-brand">
+            <img
+              class="login-logo"
+              src="./frontend/assets/logo1.png"
+              alt="תעשיידע"
+              width="280"
+              height="120"
+              decoding="async"
+            />
+          </div>
           <h1 class="login-title">כניסה למערכת</h1>
           <p class="login-subtitle">Dashboard Taasiyeda</p>
 
