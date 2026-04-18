@@ -11,12 +11,14 @@ const CONFIG = {
     DATA_LONG: 'data_long',
     MEETINGS: 'activity_meetings',
     PERMISSIONS: 'permissions',
+    SETTINGS: 'settings',
     LISTS: 'lists',
     INSTRUCTORS: 'contacts_instructors',
     SCHOOLS: 'contacts_schools',
     EDIT_REQUESTS: 'edit_requests',
     PRIVATE_NOTES: 'operations_private_notes'
   },
+  /** ברירת מחדל כשגיליון lists ריק או חסר — מיושר ל־lists במקור הנתונים */
   ACTIVITY_TYPES: ['all', 'course', 'after_school', 'workshop', 'tour', 'escape_room'],
   FINANCE_STATUSES: ['open', 'closed'],
   EDIT_REQUEST_STATUSES: ['pending', 'approved', 'rejected']

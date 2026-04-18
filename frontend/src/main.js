@@ -12,7 +12,9 @@ import { monthScreen } from './screens/month.js';
 import { exceptionsScreen } from './screens/exceptions.js';
 import { financeScreen } from './screens/finance.js';
 import { instructorsScreen } from './screens/instructors.js';
+import { instructorContactsScreen } from './screens/instructor-contacts.js';
 import { contactsScreen } from './screens/contacts.js';
+import { endDatesScreen } from './screens/end-dates.js';
 import { myDataScreen } from './screens/my-data.js';
 import { permissionsScreen } from './screens/permissions.js';
 
@@ -73,6 +75,9 @@ function applyBootstrapFromLoginData(data) {
     data.default_route && data.routes.includes(data.default_route)
       ? data.default_route
       : state.routes[0] || 'my-data';
+  if (data.client_settings && typeof data.client_settings === 'object') {
+    state.clientSettings = { ...data.client_settings };
+  }
 }
 
 const screenLabels = {
@@ -83,7 +88,9 @@ const screenLabels = {
   exceptions: 'חריגות',
   finance: 'כספים',
   instructors: 'מדריכים',
+  'instructor-contacts': 'אנשי קשר מדריכים',
   contacts: 'אנשי קשר',
+  'end-dates': 'תאריכי סיום',
   'my-data': 'הנתונים שלי',
   permissions: 'הרשאות'
 };
@@ -96,7 +103,9 @@ const screens = {
   exceptions: exceptionsScreen,
   finance: financeScreen,
   instructors: instructorsScreen,
+  'instructor-contacts': instructorContactsScreen,
   contacts: contactsScreen,
+  'end-dates': endDatesScreen,
   'my-data': myDataScreen,
   permissions: permissionsScreen
 };
@@ -258,6 +267,9 @@ async function restoreSession() {
   const bootstrap = await api.bootstrap();
   state.routes = bootstrap.routes || [];
   state.route = bootstrap.default_route || state.routes[0] || 'my-data';
+  if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
+    state.clientSettings = { ...bootstrap.client_settings };
+  }
   if (bootstrap.profile && state.user) {
     const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
     if (fn) state.user.full_name = fn;

@@ -1,5 +1,10 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewColumn, hebrewFinanceStatus, financeStatusVariant } from './shared/ui-hebrew.js';
+import {
+  hebrewColumn,
+  hebrewFinanceStatus,
+  financeStatusVariant,
+  translateApiErrorForUser
+} from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
   dsCard,
@@ -10,38 +15,26 @@ import {
   dsStatusChip
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
+import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 
-function financeDrawerHtml(row) {
-  const finLabel = hebrewFinanceStatus(row.finance_status || 'open');
-  const finChip = dsStatusChip(finLabel, financeStatusVariant(row.finance_status));
-  return `
-    <div class="ds-details-grid" dir="rtl">
-      <p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>
-      <p><strong>${escapeHtml(hebrewColumn('activity_name'))}:</strong> ${escapeHtml(row.activity_name || '—')}</p>
-      <p><strong>${escapeHtml(hebrewColumn('finance_status'))}:</strong> ${finChip}</p>
-      <p><strong>${escapeHtml(hebrewColumn('status'))}:</strong> ${escapeHtml(row.status || '—')}</p>
-    </div>`;
-}
+const TABLE_COLUMNS = ['RowID', 'activity_name', 'school', 'funding', 'end_date', 'finance_status', 'status'];
 
 export const financeScreen = {
   load: ({ api }) => api.finance(),
   render(data) {
-    const columns = ['RowID', 'activity_name', 'finance_status', 'status'];
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
 
     const body = rows.map(
       (row) => `
-      <tr class="ds-data-row" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${columns
-        .map((column) => {
-          if (column === 'finance_status') {
-            const label = hebrewFinanceStatus(row.finance_status);
-            return `<td>${dsStatusChip(label, financeStatusVariant(row.finance_status))}</td>`;
-          }
-          const val = row?.[column] ?? '';
-          return `<td>${escapeHtml(val)}</td>`;
-        })
-        .join('')}</tr>
+      <tr class="ds-data-row" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${TABLE_COLUMNS.map((column) => {
+        if (column === 'finance_status') {
+          const label = hebrewFinanceStatus(row.finance_status);
+          return `<td>${dsStatusChip(label, financeStatusVariant(row.finance_status))}</td>`;
+        }
+        const val = row?.[column] ?? '';
+        return `<td>${escapeHtml(String(val))}</td>`;
+      }).join('')}</tr>
     `
     );
 
@@ -49,7 +42,7 @@ export const financeScreen = {
       rows.length === 0
         ? dsEmptyState('לא נמצאו רשומות')
         : dsTableWrap(`<table class="ds-table ds-table--interactive">
-            <thead><tr>${columns.map((column) => `<th>${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
+            <thead><tr>${TABLE_COLUMNS.map((column) => `<th>${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
             <tbody>${body.join('')}</tbody>
           </table>`);
 
@@ -63,13 +56,13 @@ export const financeScreen = {
                 action: `finance:${row.RowID}`,
                 title: `${row.RowID} · ${row.activity_name || '—'}`,
                 subtitle: hebrewFinanceStatus(row.finance_status || 'open'),
-                meta: row.status ? `סטטוס: ${row.status}` : ''
+                meta: row.end_date ? `סיום: ${row.end_date}` : ''
               })
             )
             .join('')}</div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('כספים', 'מעקב אחר סטטוס כספי בפעילויות')}
+      ${dsPageHeader('כספים', 'פעילויות שהסתיימו עד היום — לפי הגדרות המערכת')}
       ${dsCard({
         title: 'רשימת כספים',
         badge: `${rows.length} שורות`,
@@ -78,15 +71,53 @@ export const financeScreen = {
       })}
     `);
   },
-  bind({ root, data, ui }) {
+  bind({ root, data, ui, api, state, rerender }) {
     const rows = Array.isArray(data?.rows) ? data.rows : [];
+    const canEdit = state?.user?.display_role !== 'instructor';
+    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+
+    function bindFinanceEditForm(contentRoot) {
+      const form = contentRoot.querySelector('[data-edit-activity]');
+      if (!form || !api) return;
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const statusEl = form.querySelector('.ds-activity-edit-status');
+        const sourceSheet = form.getAttribute('data-source-sheet') || '';
+        const sourceRowId = form.getAttribute('data-row-id') || '';
+        const fd = new FormData(form);
+        const changes = {
+          status: String(fd.get('status') ?? '').trim(),
+          notes: String(fd.get('notes') ?? '').trim(),
+          finance_status: String(fd.get('finance_status') ?? '').trim(),
+          finance_notes: String(fd.get('finance_notes') ?? '').trim(),
+          start_date: String(fd.get('start_date') ?? '').trim(),
+          end_date: String(fd.get('end_date') ?? '').trim()
+        };
+        try {
+          await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
+          if (statusEl) statusEl.textContent = 'נשמר';
+          ui?.closeAll();
+          if (typeof rerender === 'function') await rerender();
+        } catch (err) {
+          if (statusEl) statusEl.textContent = translateApiErrorForUser(err?.message);
+        }
+      });
+    }
+
+    const openDrawer = (hit) => {
+      if (!hit || !ui) return;
+      ui.openDrawer({
+        title: `כספים · ${hit.RowID}`,
+        content: activityWorkDrawerHtml(hit, { privateNote: null, canEdit, hideEmpIds }),
+        onOpen: canEdit ? bindFinanceEditForm : undefined
+      });
+    };
 
     root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
       rowNode.addEventListener('click', () => {
         const rowId = rowNode.dataset.rowId;
         const hit = rows.find((r) => String(r.RowID) === String(rowId));
-        if (!hit || !ui) return;
-        ui.openDrawer({ title: `כספים · ${hit.RowID}`, content: financeDrawerHtml(hit) });
+        openDrawer(hit);
       });
       rowNode.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -100,8 +131,7 @@ export const financeScreen = {
       if (!action.startsWith('finance:')) return;
       const rowId = action.slice('finance:'.length);
       const hit = rows.find((r) => String(r.RowID) === String(rowId));
-      if (!hit) return;
-      ui.openDrawer({ title: `כספים · ${hit.RowID}`, content: financeDrawerHtml(hit) });
+      openDrawer(hit);
     });
   }
 };
