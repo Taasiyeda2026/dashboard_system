@@ -27,7 +27,7 @@
   --panel: #f8fafc;
   --text: #0f172a;
   --muted: #475569;
-  --accent-legacy: #2563eb;
+  --accent-legacy: #1d3544;
   --danger: #b91c1c;
   --line: #cbd5e1;
 }
@@ -171,7 +171,7 @@ input, select {
 .login-card .login-form input:focus {
   outline: none;
   border-color: var(--accent-legacy);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 2px rgba(29, 53, 68, 0.15);
 }
 
 .login-submit {
