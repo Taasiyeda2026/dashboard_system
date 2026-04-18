@@ -34,7 +34,35 @@
   --ds-info: #1d4ed8;
   --ds-info-soft: #dbeafe;
 
+  --ds-surface-overlay: rgba(11, 13, 18, 0.58);
+  --ds-muted-bg: #eef2f7;
+  --ds-muted-border: #d8e0ec;
+
+  --ds-status-neutral: #334155;
+  --ds-status-neutral-soft: #e2e8f0;
+  --ds-status-warning-border: #fed7aa;
+  --ds-status-success-border: #bbf7d0;
+
   --ds-focus-ring: 0 0 0 2px rgba(26, 51, 88, 0.22);
+  --ds-focus-ring-strong: 0 0 0 3px rgba(26, 51, 88, 0.3);
+
+  --ds-interactive-hover: #f1f5f9;
+  --ds-interactive-active: #e2e8f0;
+  --ds-interactive-selected: #e8eef6;
+  --ds-interactive-disabled: #94a3b8;
+
+  --ds-drawer-bg: var(--ds-surface);
+  --ds-drawer-border: var(--ds-border);
+  --ds-modal-bg: var(--ds-surface);
+  --ds-modal-border: var(--ds-border-strong);
+  --ds-backdrop-bg: var(--ds-surface-overlay);
+
+  --ds-card-interactive-bg: var(--ds-surface);
+  --ds-card-interactive-border: var(--ds-border);
+  --ds-day-cell-bg: var(--ds-surface-raised);
+  --ds-day-cell-border: var(--ds-border);
+  --ds-session-card-bg: var(--ds-surface);
+  --ds-session-card-border: var(--ds-border);
 
   --ds-radius-sm: 6px;
   --ds-radius-md: 10px;
