@@ -12,6 +12,10 @@ const MUTATING_ACTIONS = {
 };
 
 async function request(action, payload = {}) {
+  if (!config.apiUrl) {
+    throw new Error('חסר קישור API. עדכנו frontend/src/config.js או window.__DASHBOARD_CONFIG__.');
+  }
+
   let response;
   try {
     response = await fetch(config.apiUrl, {
