@@ -15,8 +15,10 @@ export const loginScreen = {
               decoding="async"
             />
           </div>
-          <h1 class="login-title">כניסה למערכת</h1>
-          <p class="login-subtitle">דשבורד תעשיידע</p>
+          <header class="ds-page-header ds-page-header--login" aria-labelledby="loginHeading">
+            <h1 id="loginHeading" class="ds-page-header__title">כניסה למערכת</h1>
+            <p class="ds-page-header__subtitle">דשבורד תעשיידע — התחברות מאובטחת</p>
+          </header>
 
           <form id="loginForm" class="login-form">
             <input

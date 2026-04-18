@@ -49,6 +49,19 @@ export function dsEmptyState(message) {
   return `<div class="ds-empty" role="status"><p class="ds-empty__msg">${escapeHtml(message)}</p></div>`;
 }
 
+/** Chip סטטוס לקריאה בלבד (טבלאות / פירוט) — success | warning | danger | neutral */
+export function dsStatusChip(label, kind = 'neutral') {
+  const safe = escapeHtml(String(label ?? ''));
+  const variants = {
+    success: 'ds-chip--status ds-chip--status-success',
+    warning: 'ds-chip--status ds-chip--status-warning',
+    danger: 'ds-chip--status ds-chip--status-danger',
+    neutral: 'ds-chip--status ds-chip--status-neutral'
+  };
+  const cls = variants[kind] || variants.neutral;
+  return `<span class="ds-chip ${cls}" role="status">${safe}</span>`;
+}
+
 export function dsKpiGrid(items) {
   const cells = items
     .map(

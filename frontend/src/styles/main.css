@@ -1060,6 +1060,11 @@ span.ds-chip {
   color: var(--ds-success);
 }
 
+.ds-table td .ds-chip {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 /* ——— Tables ——— */
 .ds-table-wrap {
   overflow-x: auto;
@@ -1689,20 +1694,20 @@ span.ds-chip {
   object-fit: contain;
 }
 
-.login-title {
-  margin: 0 0 var(--ds-space-2);
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--ds-text);
+/* כותרת מסך התחברות — אותה היררכיה כמו dsPageHeader */
+.ds-page-header--login {
   text-align: center;
+  padding-bottom: var(--ds-space-3);
+  margin: 0 0 var(--ds-space-2);
+  border-bottom: 1px solid var(--ds-border);
 }
 
-.login-subtitle {
-  margin: 0 0 var(--ds-space-4);
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--ds-text-muted);
-  text-align: center;
+.ds-page-header--login .ds-page-header__title {
+  font-size: 1.08rem;
+}
+
+.ds-page-header--login .ds-page-header__subtitle {
+  margin-top: var(--ds-space-2);
 }
 
 .login-form {
@@ -1725,7 +1730,11 @@ span.ds-chip {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.login-card .login-form input:focus {
+.login-card .login-form input:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.login-card .login-form input:focus-visible {
   outline: none;
   border-color: rgba(26, 51, 88, 0.45);
   box-shadow: var(--ds-focus-ring);
@@ -1756,6 +1765,11 @@ span.ds-chip {
 .login-submit:active:not(:disabled) {
   transform: translateY(1px);
   filter: brightness(0.95);
+}
+
+.login-submit:focus-visible {
+  outline: none;
+  box-shadow: var(--ds-focus-ring-strong);
 }
 
 .login-submit:disabled {
@@ -1904,6 +1918,21 @@ select[data-role-select]:focus-visible {
   .shell-close-btn,
   .ds-icon-btn {
     min-height: 44px;
+  }
+
+  .ds-interactive-card--session:not(:disabled),
+  .ds-interactive-card--mini:not(:disabled),
+  .ds-interactive-card--kpi:not(:disabled) {
+    min-height: 44px;
+  }
+
+  .login-card .login-form input {
+    min-height: 44px;
+  }
+
+  .login-submit {
+    min-height: 44px;
+    min-width: 140px;
   }
 }
 

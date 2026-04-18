@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewExceptionType, hebrewColumn } from './shared/ui-hebrew.js';
+import { hebrewExceptionType, hebrewColumn, exceptionTypeVariant } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
   dsCard,
@@ -7,15 +7,18 @@ import {
   dsTableWrap,
   dsEmptyState,
   dsFilterBar,
-  dsInteractiveCard
+  dsInteractiveCard,
+  dsStatusChip
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
 
 function exceptionDrawerHtml(row) {
+  const typeLabel = hebrewExceptionType(row.exception_type);
+  const typeChip = dsStatusChip(typeLabel, exceptionTypeVariant(row.exception_type));
   return `
     <div class="ds-details-grid" dir="rtl">
       <p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>
-      <p><strong>${escapeHtml(hebrewColumn('exception_type'))}:</strong> ${escapeHtml(hebrewExceptionType(row.exception_type))}</p>
+      <p><strong>${escapeHtml(hebrewColumn('exception_type'))}:</strong> ${typeChip}</p>
       <p><strong>${escapeHtml(hebrewColumn('activity_name'))}:</strong> ${escapeHtml(row.activity_name || '—')}</p>
       <p><strong>${escapeHtml(hebrewColumn('end_date'))}:</strong> ${escapeHtml(row.end_date || '—')}</p>
     </div>`;
@@ -30,7 +33,7 @@ export const exceptionsScreen = {
 
     const rows = safeRows.map(
       (row, idx) => `
-      <tr class="ds-data-row" data-exc-idx="${idx}" role="button" tabindex="0"><td>${escapeHtml(row.RowID)}</td><td>${escapeHtml(hebrewExceptionType(row.exception_type))}</td><td>${escapeHtml(row.activity_name || '—')}</td><td>${escapeHtml(row.end_date || '—')}</td></tr>`
+      <tr class="ds-data-row" data-exc-idx="${idx}" role="button" tabindex="0"><td>${escapeHtml(row.RowID)}</td><td>${dsStatusChip(hebrewExceptionType(row.exception_type), exceptionTypeVariant(row.exception_type))}</td><td>${escapeHtml(row.activity_name || '—')}</td><td>${escapeHtml(row.end_date || '—')}</td></tr>`
     );
 
     const summaryChips = `

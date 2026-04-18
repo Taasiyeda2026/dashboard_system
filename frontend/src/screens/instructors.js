@@ -6,7 +6,8 @@ import {
   dsScreenStack,
   dsTableWrap,
   dsEmptyState,
-  dsInteractiveCard
+  dsInteractiveCard,
+  dsStatusChip
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
 
@@ -24,6 +25,11 @@ function instructorDrawerHtml(row, columns) {
   const lines = columns
     .map((col) => {
       const raw = row?.[col] ?? '';
+      if (col === 'active') {
+        const label = cellDisplay(col, raw);
+        const kind = String(raw || '').toLowerCase() === 'yes' ? 'success' : 'neutral';
+        return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${dsStatusChip(label, kind)}</p>`;
+      }
       const val = cellDisplay(col, raw);
       return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${escapeHtml(String(val || '—'))}</p>`;
     })
@@ -41,7 +47,15 @@ export const instructorsScreen = {
     const body = rows.map(
       (row) => `
       <tr class="ds-data-row" data-row-id="${escapeHtml(row.emp_id)}" role="button" tabindex="0">${columns
-        .map((column) => `<td>${escapeHtml(cellDisplay(column, row?.[column]))}</td>`)
+        .map((column) => {
+          const raw = row?.[column];
+          if (column === 'active') {
+            const label = cellDisplay(column, raw);
+            const kind = String(raw || '').toLowerCase() === 'yes' ? 'success' : 'neutral';
+            return `<td>${dsStatusChip(label, kind)}</td>`;
+          }
+          return `<td>${escapeHtml(cellDisplay(column, raw))}</td>`;
+        })
         .join('')}</tr>`
     );
 

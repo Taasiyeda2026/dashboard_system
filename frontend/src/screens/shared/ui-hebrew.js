@@ -62,6 +62,22 @@ export function hebrewFinanceStatus(value) {
   return value || '—';
 }
 
+/** מפתח ל־dsStatusChip: success / warning / danger / neutral */
+export function financeStatusVariant(value) {
+  const v = String(value || '').toLowerCase();
+  if (v === 'closed') return 'success';
+  if (v === 'open') return 'warning';
+  return 'neutral';
+}
+
+/** חריגות: עוצמת chip לפי סוג */
+export function exceptionTypeVariant(exceptionType) {
+  const k = String(exceptionType || '').trim();
+  if (k === 'late_end_date') return 'danger';
+  if (k === 'missing_instructor' || k === 'missing_start_date') return 'warning';
+  return 'neutral';
+}
+
 export const HEBREW_EXCEPTION_TYPE = {
   missing_instructor: 'חסר מדריך',
   missing_start_date: 'חסר תאריך התחלה',

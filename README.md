@@ -55,7 +55,7 @@
 
 1. ודאו ש־`index.html` טוען את `frontend/public/manifest.json`.
 2. ודאו שבדפדפן מופיע service worker פעיל (`sw.js`) תחת אותו origin.
-3. לאחר שינויי frontend משמעותיים, העלו `CACHE_VERSION` ב־`sw.js` כדי לרענן cache shell.
+3. לאחר שינויי frontend משמעותיים (כולל CSS/מסכים), העלו את `CACHE_VERSION` ב־`sw.js` כדי לרענן cache shell ולא לשרת גרסה ישנה.
 4. בדקו שהאייקונים ב־manifest נטענים מהנתיבים ב־`frontend/assets/pwa/`.
 
 ## Backend setup (Apps Script)

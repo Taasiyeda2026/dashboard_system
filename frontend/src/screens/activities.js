@@ -1,5 +1,11 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewFinanceStatus, hebrewColumn, visibleActivityCategoryLabel, ACTIVITY_TAB_ORDER } from './shared/ui-hebrew.js';
+import {
+  hebrewFinanceStatus,
+  hebrewColumn,
+  visibleActivityCategoryLabel,
+  ACTIVITY_TAB_ORDER,
+  financeStatusVariant
+} from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
   dsFilterBar,
@@ -8,7 +14,8 @@ import {
   dsScreenStack,
   dsTableWrap,
   dsEmptyState,
-  dsInteractiveCard
+  dsInteractiveCard,
+  dsStatusChip
 } from './shared/layout.js';
 
 const SHORT_TYPES = new Set(['workshop', 'tour', 'after_school', 'escape_room']);
@@ -59,6 +66,10 @@ function activityDetailsHtml(row, canSeePrivateNotes) {
   const note = canSeePrivateNotes ? row.private_note || '—' : 'אין הרשאה';
   const instNames = [row.instructor_name, row.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
   const instLine = instNames || `${row.emp_id || '—'} · ${row.emp_id_2 || '—'}`;
+  const finChip = dsStatusChip(
+    hebrewFinanceStatus(row.finance_status || 'open'),
+    financeStatusVariant(row.finance_status)
+  );
   return `
     <div class="ds-details-grid" dir="rtl">
       <p><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '—')}</p>
@@ -67,7 +78,7 @@ function activityDetailsHtml(row, canSeePrivateNotes) {
       <p><strong>אחראי פעילות:</strong> ${escapeHtml(row.activity_manager || '—')}</p>
       <p><strong>תאריכים:</strong> ${escapeHtml(row.start_date || '—')} עד ${escapeHtml(row.end_date || '—')}</p>
       <p><strong>מדריכים:</strong> ${escapeHtml(instLine)}</p>
-      <p><strong>סטטוס כספי:</strong> ${escapeHtml(hebrewFinanceStatus(row.finance_status || 'open'))}</p>
+      <p><strong>סטטוס כספי:</strong> ${finChip}</p>
       <p><strong>הערות:</strong> ${escapeHtml(note)}</p>
     </div>
   `;
@@ -107,7 +118,7 @@ export const activitiesScreen = {
         <td>${escapeHtml(row.end_date || '—')}</td>
         <td>${escapeHtml(row.emp_id || '—')}</td>
         <td>${escapeHtml(row.emp_id_2 || '—')}</td>
-        <td>${escapeHtml(hebrewFinanceStatus(row.finance_status || 'open'))}</td>
+        <td>${dsStatusChip(hebrewFinanceStatus(row.finance_status || 'open'), financeStatusVariant(row.finance_status))}</td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
     `
@@ -120,7 +131,7 @@ export const activitiesScreen = {
           action: `activity:${row.RowID}`,
           title: `${row.RowID} · ${visibleActivityCategoryLabel(row.activity_type)}`,
           subtitle: row.activity_name || 'פעילות ללא שם',
-          meta: `${row.start_date || '—'} עד ${row.end_date || '—'}`,
+          meta: `${hebrewFinanceStatus(row.finance_status || 'open')} · ${row.start_date || '—'} עד ${row.end_date || '—'}`,
           variant: 'session'
         })
       )

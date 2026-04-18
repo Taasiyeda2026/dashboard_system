@@ -1,21 +1,24 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewColumn, hebrewFinanceStatus } from './shared/ui-hebrew.js';
+import { hebrewColumn, hebrewFinanceStatus, financeStatusVariant } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
   dsCard,
   dsScreenStack,
   dsTableWrap,
   dsEmptyState,
-  dsInteractiveCard
+  dsInteractiveCard,
+  dsStatusChip
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
 
 function financeDrawerHtml(row) {
+  const finLabel = hebrewFinanceStatus(row.finance_status || 'open');
+  const finChip = dsStatusChip(finLabel, financeStatusVariant(row.finance_status));
   return `
     <div class="ds-details-grid" dir="rtl">
       <p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>
       <p><strong>${escapeHtml(hebrewColumn('activity_name'))}:</strong> ${escapeHtml(row.activity_name || '—')}</p>
-      <p><strong>${escapeHtml(hebrewColumn('finance_status'))}:</strong> ${escapeHtml(hebrewFinanceStatus(row.finance_status || 'open'))}</p>
+      <p><strong>${escapeHtml(hebrewColumn('finance_status'))}:</strong> ${finChip}</p>
       <p><strong>${escapeHtml(hebrewColumn('status'))}:</strong> ${escapeHtml(row.status || '—')}</p>
     </div>`;
 }
@@ -31,8 +34,11 @@ export const financeScreen = {
       (row) => `
       <tr class="ds-data-row" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${columns
         .map((column) => {
-          let val = row?.[column] ?? '';
-          if (column === 'finance_status') val = hebrewFinanceStatus(val);
+          if (column === 'finance_status') {
+            const label = hebrewFinanceStatus(row.finance_status);
+            return `<td>${dsStatusChip(label, financeStatusVariant(row.finance_status))}</td>`;
+          }
+          const val = row?.[column] ?? '';
           return `<td>${escapeHtml(val)}</td>`;
         })
         .join('')}</tr>

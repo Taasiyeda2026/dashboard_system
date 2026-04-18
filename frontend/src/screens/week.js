@@ -1,6 +1,6 @@
 import { escapeHtml } from './shared/html.js';
-import { visibleActivityCategoryLabel, hebrewFinanceStatus } from './shared/ui-hebrew.js';
-import { dsPageHeader, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
+import { visibleActivityCategoryLabel, hebrewFinanceStatus, financeStatusVariant } from './shared/ui-hebrew.js';
+import { dsPageHeader, dsScreenStack, dsInteractiveCard, dsStatusChip } from './shared/layout.js';
 
 const HEBREW_DOW_MON_FIRST = ['שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת', 'ראשון'];
 
@@ -23,6 +23,10 @@ function weekItemMeta(item) {
 function weekDrawerHtml(item, date) {
   const names = [item.instructor_name, item.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
   const ids = `${item.emp_id || '—'} · ${item.emp_id_2 || '—'}`;
+  const finChip = dsStatusChip(
+    hebrewFinanceStatus(item.finance_status || 'open'),
+    financeStatusVariant(item.finance_status)
+  );
   return `
     <div class="ds-details-grid" dir="rtl">
       <p><strong>שם פעילות:</strong> ${escapeHtml(item.activity_name || '—')}</p>
@@ -31,7 +35,7 @@ function weekDrawerHtml(item, date) {
       <p><strong>תאריכים:</strong> ${escapeHtml(item.start_date || '—')} עד ${escapeHtml(item.end_date || '—')}</p>
       <p><strong>יום בלוח:</strong> ${escapeHtml(date)}</p>
       <p><strong>מדריכים:</strong> ${escapeHtml(names || ids)}</p>
-      <p><strong>סטטוס כספי:</strong> ${escapeHtml(hebrewFinanceStatus(item.finance_status || 'open'))}</p>
+      <p><strong>סטטוס כספי:</strong> ${finChip}</p>
     </div>`;
 }
 

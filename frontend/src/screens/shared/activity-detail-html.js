@@ -1,5 +1,6 @@
 import { escapeHtml } from './html.js';
-import { visibleActivityCategoryLabel, hebrewFinanceStatus } from './ui-hebrew.js';
+import { visibleActivityCategoryLabel, hebrewFinanceStatus, financeStatusVariant } from './ui-hebrew.js';
+import { dsStatusChip } from './layout.js';
 
 /** Detail block for a raw activity row (week/month/my-data style fields). */
 export function activityRowDetailHtml(row, { privateNote = null } = {}) {
@@ -8,6 +9,10 @@ export function activityRowDetailHtml(row, { privateNote = null } = {}) {
   const instLine = names || ids;
   const noteLine =
     privateNote === null ? '' : `<p><strong>הערה פרטית:</strong> ${escapeHtml(privateNote)}</p>`;
+  const finChip = dsStatusChip(
+    hebrewFinanceStatus(row.finance_status || 'open'),
+    financeStatusVariant(row.finance_status)
+  );
   return `
     <div class="ds-details-grid" dir="rtl">
       <p><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '—')}</p>
@@ -16,7 +21,7 @@ export function activityRowDetailHtml(row, { privateNote = null } = {}) {
       <p><strong>אחראי פעילות:</strong> ${escapeHtml(row.activity_manager || '—')}</p>
       <p><strong>תאריכים:</strong> ${escapeHtml(row.start_date || '—')} עד ${escapeHtml(row.end_date || '—')}</p>
       <p><strong>מדריכים:</strong> ${escapeHtml(instLine)}</p>
-      <p><strong>סטטוס כספי:</strong> ${escapeHtml(hebrewFinanceStatus(row.finance_status || 'open'))}</p>
+      <p><strong>סטטוס כספי:</strong> ${finChip}</p>
       ${noteLine}
     </div>`;
 }
