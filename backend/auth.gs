@@ -85,7 +85,7 @@ function buildRoutesFromPermission_(permission, role) {
     'my-data': '__my_data__',
     contacts: '__school_contacts__',
     finance: 'view_finance',
-    'end-dates': 'view_activities',
+    'end-dates': '__end_dates__',
     permissions: 'view_permissions'
   };
 
@@ -110,16 +110,16 @@ function buildRoutesFromPermission_(permission, role) {
       return yesNo_(permission.view_permissions) === 'yes';
     }
     if (route === 'my-data') {
-      return (
-        yesNo_(permission.view_my_data) === 'yes' ||
-        yesNo_(permission.view_operations_data) === 'yes'
-      );
+      return myDataViewYes_(permission);
     }
     if (route === 'instructor-contacts') {
       return instructorContactsViewYes_(permission);
     }
     if (route === 'contacts') {
       return schoolContactsViewYes_(permission);
+    }
+    if (route === 'end-dates') {
+      return endDatesViewYes_(permission);
     }
     var flag = map[route];
     if (!flag) return false;
@@ -135,16 +135,34 @@ function defaultRouteForRole_(role) {
 function viewKeyToRouteId_(viewKey) {
   var k = text_(viewKey);
   var table = {
+    dashboard: 'dashboard',
     view_dashboard: 'dashboard',
+    activities: 'activities',
     view_activities: 'activities',
+    week: 'week',
     view_week: 'week',
+    month: 'month',
     view_month: 'month',
+    instructors: 'instructors',
     view_instructors: 'instructors',
+    exceptions: 'exceptions',
     view_exceptions: 'exceptions',
+    my_data: 'my-data',
+    'my-data': 'my-data',
     view_my_data: 'my-data',
     view_operations_data: 'my-data',
+    instructor_contacts: 'instructor-contacts',
+    'instructor-contacts': 'instructor-contacts',
     view_contacts_instructors: 'instructor-contacts',
+    'view_contacts_instructors 2': 'instructor-contacts',
+    contacts: 'contacts',
+    view_contacts: 'contacts',
+    end_dates: 'end-dates',
+    'end-dates': 'end-dates',
+    view_end_dates: 'end-dates',
+    finance: 'finance',
     view_finance: 'finance',
+    permissions: 'permissions',
     view_permissions: 'permissions',
     view_admin: 'dashboard',
     view_edit_requests: 'permissions',
@@ -173,12 +191,22 @@ function resolveDefaultRoute_(preferred, routes, role) {
 function instructorContactsViewYes_(permission) {
   if (yesNo_(permission.view_contacts_instructors) === 'yes') return true;
   if (yesNo_(permission['view_contacts_instructors 2']) === 'yes') return true;
-  return yesNo_(permission.view_contacts) === 'yes';
+  return false;
 }
 
 function schoolContactsViewYes_(permission) {
-  if (yesNo_(permission.view_operations_data) === 'yes') return true;
-  return yesNo_(permission.view_dashboard) === 'yes';
+  return yesNo_(permission.view_contacts) === 'yes';
+}
+
+function endDatesViewYes_(permission) {
+  return yesNo_(permission.view_end_dates) === 'yes';
+}
+
+function myDataViewYes_(permission) {
+  return (
+    yesNo_(permission.view_my_data) === 'yes' ||
+    yesNo_(permission.view_operations_data) === 'yes'
+  );
 }
 
 function hasWorkViewForEdit_(permission) {

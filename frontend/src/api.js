@@ -60,7 +60,12 @@ export const api = {
   endDates: () => request('endDates'),
   myData: () => request('myData'),
   permissions: () => request('permissions'),
-  addActivity: (target, data) => request('addActivity', { target, data }),
+  addActivity: (target, data) => {
+    if (typeof target === 'object' && target !== null && data === undefined) {
+      return request('addActivity', { activity: target });
+    }
+    return request('addActivity', { activity: { ...(data || {}), source: target } });
+  },
   /** מקבל אובייקט מלא (כולל source_sheet, changes) או חתימה ישנה (id, changes). */
   saveActivity: (a, b) =>
     b !== undefined && b !== null
@@ -69,5 +74,14 @@ export const api = {
   submitEditRequest: (source_row_id, changes) => request('submitEditRequest', { source_row_id, changes }),
   reviewEditRequest: (request_id, status) => request('reviewEditRequest', { request_id, status }),
   savePermission: (row) => request('savePermission', { row }),
-  savePrivateNote: (source_row_id, note) => request('savePrivateNote', { source_row_id, note })
+  savePrivateNote: (a, b, c) => {
+    if (typeof a === 'object' && a !== null) {
+      return request('savePrivateNote', {
+        source_sheet: a.source_sheet,
+        source_row_id: a.source_row_id,
+        note: a.note ?? a.note_text ?? ''
+      });
+    }
+    return request('savePrivateNote', { source_sheet: a, source_row_id: b, note: c });
+  }
 };

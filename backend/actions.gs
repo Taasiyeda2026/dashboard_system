@@ -394,6 +394,10 @@ function actionInstructors_(user) {
 
 function actionContacts_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var permission = getPermissionRow_(user.user_id);
+  if (!schoolContactsViewYes_(permission)) {
+    throw new Error('Forbidden');
+  }
 
   var schoolRows = readRows_(CONFIG.SHEETS.SCHOOLS).map(function(row) {
     return {
@@ -414,6 +418,10 @@ function actionContacts_(user) {
 
 function actionInstructorContacts_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var permission = getPermissionRow_(user.user_id);
+  if (!instructorContactsViewYes_(permission)) {
+    throw new Error('Forbidden');
+  }
 
   return {
     rows: readRows_(CONFIG.SHEETS.INSTRUCTORS).map(function(row) {
@@ -433,6 +441,10 @@ function actionInstructorContacts_(user) {
 
 function actionEndDates_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var permission = getPermissionRow_(user.user_id);
+  if (!endDatesViewYes_(permission)) {
+    throw new Error('Forbidden');
+  }
 
   var rows = buildLongRows_()
     .filter(function(row) {
@@ -462,6 +474,10 @@ function actionEndDates_(user) {
 
 function actionMyData_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
+  var permission = getPermissionRow_(user.user_id);
+  if (user.display_role !== 'instructor' && !myDataViewYes_(permission)) {
+    throw new Error('Forbidden');
+  }
 
   if (user.display_role === 'instructor') {
     var myEmpId = text_(user.emp_id || user.user_id);
@@ -477,6 +493,10 @@ function actionMyData_(user) {
 
 function actionPermissions_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  var permission = getPermissionRow_(user.user_id);
+  if (yesNo_(permission.view_permissions) !== 'yes') {
+    throw new Error('Forbidden');
+  }
 
   var cachedPerm = scriptCacheGetJson_(SCRIPT_CACHE_KEY_PERMISSIONS_LIST);
   if (cachedPerm) {
@@ -505,9 +525,6 @@ function actionPermissions_(user) {
           out[h] = yesNo_(row[h]);
         }
       });
-      if (out.view_contacts_instructors === undefined) {
-        out.view_contacts_instructors = yesNo_(row.view_contacts_instructors || row.view_contacts);
-      }
       return out;
     })
   };
