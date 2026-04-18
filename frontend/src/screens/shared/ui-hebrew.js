@@ -1,5 +1,9 @@
 /** Visible UI strings only (Hebrew). Internal API values stay English where required. */
 
+/** Display names for short vs long activity families (UI only; not API/sheet keys). */
+export const UI_ACTIVITY_FAMILY_SHORT = 'סדנאות וסיורים';
+export const UI_ACTIVITY_FAMILY_LONG = 'תוכניות';
+
 export const HEBREW_ROLE = {
   admin: 'מנהל/ת',
   operations_reviewer: 'בקר/ת תפעול',
