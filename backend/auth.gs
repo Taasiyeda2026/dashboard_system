@@ -9,7 +9,7 @@ function actionLogin_(payload) {
 
   if (!match) throw new Error('Invalid or inactive code');
 
-  var role = normalizeRole_(match.display_role);
+  var role = normalizeRole_(internalRoleFromPermissionRow_(match));
   var user = {
     user_id: text_(match.user_id),
     full_name: text_(match.full_name),
@@ -42,9 +42,17 @@ function requireAuth_(token) {
 }
 
 function requireAnyRole_(user, roles) {
-  if (!user || roles.indexOf(user.display_role) < 0) {
+  if (!user || !user.display_role) {
     throw new Error('Forbidden');
   }
+  var role = user.display_role;
+  if (roles.indexOf(role) >= 0) {
+    return;
+  }
+  if (roles.indexOf('authorized_user') >= 0 && isAuthorizedUserTier_(role)) {
+    return;
+  }
+  throw new Error('Forbidden');
 }
 
 function getPermissionRow_(userId) {
