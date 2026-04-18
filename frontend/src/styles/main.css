@@ -156,15 +156,16 @@ input, select {
 
 .login-title {
   margin: 0 0 6px;
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 0.88rem;
+  font-weight: 500;
   color: var(--text);
   text-align: center;
 }
 
 .login-subtitle {
   margin: 0 0 10px;
-  font-size: 0.78rem;
+  font-size: calc(0.78rem + 1px);
+  font-weight: 600;
   color: var(--muted);
   text-align: center;
 }
@@ -172,16 +173,18 @@ input, select {
 .login-form {
   display: grid;
   gap: 8px;
+  justify-items: center;
 }
 
 .login-card .login-form input {
-  width: 100%;
+  width: min(220px, 100%);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 6px 8px;
   font-size: 0.82rem;
   background: #fff;
   color: var(--text);
+  text-align: center;
 }
 
 .login-card .login-form input:focus {
@@ -196,10 +199,10 @@ input, select {
   color: #fff;
   font-weight: 600;
   border-radius: 8px;
-  padding: 6px 8px;
-  font-size: 0.8rem;
+  padding: 4px 14px;
+  font-size: 0.76rem;
   line-height: 1.1;
-  width: 100%;
+  width: auto;
   margin-top: 2px;
 }
 
