@@ -36,7 +36,7 @@
 - edit_requests
 - operations_private_notes
 
-שורת כותרות: שורה 1. נתונים: משורה 3 (או לפי settings.data_start_row אם מוגדר בגיליון settings).
+שורת כותרות: שורה 1. נתונים: תמיד משורה 3.
 
 ================================================================================
 ב. עמודות מינימליות לפי שימוש בקוד (יישור למקור — הרחבה מותרת)
@@ -49,7 +49,6 @@ permissions (כותרות לדוגמה; חייבות להתאים לגיליון
 settings (שורה 1):
 - setting_key, setting_value, value_type, notes, active
 מפתחות שנקראים בקוד (חלקם אופציונליים — אם חסרים יש ברירות מחדל):
-- data_start_row
 - finance_display_rule (למשל ended_until_today)
 - show_only_nonzero_kpis
 - use_status_with_dates

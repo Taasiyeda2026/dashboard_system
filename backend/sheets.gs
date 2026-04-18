@@ -36,7 +36,7 @@ function getSpreadsheet_() {
 
 /**
  * קורא את גיליון settings בשורת נתונים קבועה (3) בלי לעבור דרך readRows_,
- * כדי למנוע רקורסיה עם getDataStartRow_.
+ * כדי למנוע תלות רקורסיבית.
  */
 function readActiveSettingsMap_() {
   if (__rqCache_ && __rqCache_.settingsMap) {
@@ -60,7 +60,8 @@ function readActiveSettingsMap_() {
       return map;
     }
     var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
-    var values = sheet.getRange(CONFIG.DATA_START_ROW, 1, lastRow, lastCol).getValues();
+    var rowCount = lastRow - CONFIG.DATA_START_ROW + 1;
+    var values = sheet.getRange(CONFIG.DATA_START_ROW, 1, rowCount, lastCol).getValues();
     var keyIdx = headers.indexOf('setting_key');
     var valIdx = headers.indexOf('setting_value');
     var actIdx = headers.indexOf('active');
@@ -86,16 +87,7 @@ function readActiveSettingsMap_() {
 }
 
 function getDataStartRow_() {
-  if (__rqCache_ && __rqCache_.effectiveDataStart) {
-    return __rqCache_.effectiveDataStart;
-  }
-  var m = readActiveSettingsMap_();
-  var n = parseInt(text_(m.data_start_row), 10);
-  var d = !isNaN(n) && n > 0 ? n : CONFIG.DATA_START_ROW;
-  if (__rqCache_) {
-    __rqCache_.effectiveDataStart = d;
-  }
-  return d;
+  return CONFIG.DATA_START_ROW;
 }
 
 function getSheet_(sheetName) {
