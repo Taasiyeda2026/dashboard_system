@@ -196,7 +196,7 @@ function closeMobileNav() {
 
 function screenDataCacheKey() {
   if (state.route === 'activities') {
-    return `activities:${state.activityTab || 'all'}`;
+    return `activities:${state.activityTab || 'all'}:${state.activityFinanceStatus || ''}:${state.activityQuickFamily || ''}:${state.activityQuickManager || ''}`;
   }
   return state.route;
 }

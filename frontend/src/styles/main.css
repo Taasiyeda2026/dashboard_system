@@ -1034,6 +1034,17 @@ span.ds-chip {
   background: rgba(248, 250, 252, 0.85);
 }
 
+.ds-table--interactive tbody tr {
+  cursor: pointer;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.ds-table--interactive tbody tr:focus-visible td {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(26, 51, 88, 0.2);
+  background: var(--ds-interactive-hover);
+}
+
 /* ——— Compact list rows (activities) ——— */
 .ds-compact-list {
   display: flex;
@@ -1072,6 +1083,21 @@ span.ds-chip {
 .ds-compact-row small {
   font-size: 0.74rem;
   color: var(--ds-text-muted);
+}
+
+.ds-details-grid {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.ds-details-grid p {
+  margin: 0;
+  color: var(--ds-text-secondary);
+  font-size: 0.86rem;
+}
+
+.ds-details-grid strong {
+  color: var(--ds-text);
 }
 
 /* ——— Week / month ——— */

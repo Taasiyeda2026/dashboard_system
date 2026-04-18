@@ -1,4 +1,3 @@
-import { escapeHtml } from './shared/html.js';
 import { UI_ACTIVITY_FAMILY_LONG, UI_ACTIVITY_FAMILY_SHORT } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
 
@@ -34,6 +33,16 @@ export const dashboardScreen = {
         subtitle: 'מסיימים החודש'
       }
     ];
+    const kpiGrid = `<div class="ds-kpi-grid">${kpiItems
+      .map((item) =>
+        dsInteractiveCard({
+          action: item.action,
+          title: item.title,
+          subtitle: item.subtitle,
+          variant: 'kpi'
+        })
+      )
+      .join('')}</div>`;
 
     const kpiHtml = kpiDefs
       .map((k) =>
