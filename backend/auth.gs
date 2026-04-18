@@ -14,6 +14,7 @@ function actionLogin_(payload) {
     user_id: text_(match.user_id),
     full_name: text_(match.full_name),
     display_role: role,
+    display_role2: text_(match.display_role2),
     default_view: text_(match.default_view),
     emp_id: text_(match.user_id)
   };

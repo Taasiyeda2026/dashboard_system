@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewActivityType, hebrewFinanceStatus, hebrewColumn } from './shared/ui-hebrew.js';
+import { hebrewFinanceStatus, hebrewColumn, visibleActivityCategoryLabel, ACTIVITY_TAB_ORDER } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
   dsFilterBar,
@@ -10,19 +10,34 @@ import {
   dsEmptyState
 } from './shared/layout.js';
 
-const tabs = ['all', 'course', 'after_school', 'workshop', 'tour', 'escape_room'];
+function visibleTabsFromCounts(counts) {
+  const c = counts || {};
+  const withData = ACTIVITY_TAB_ORDER.filter((t) => (c[t] || 0) > 0);
+  return ['all'].concat(withData);
+}
 
 export const activitiesScreen = {
-  load: ({ api, state }) => api.activities({ activity_type: state.activityTab || 'all' }),
+  async load({ api, state }) {
+    const requested = state.activityTab || 'all';
+    let data = await api.activities({ activity_type: requested });
+    const allowed = visibleTabsFromCounts(data.activity_type_counts);
+    if (allowed.indexOf(requested) < 0) {
+      state.activityTab = 'all';
+      data = await api.activities({ activity_type: 'all' });
+    }
+    return data;
+  },
   render(data, { state }) {
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
+    const counts = data?.activity_type_counts || {};
+    const visibleTabs = visibleTabsFromCounts(counts);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const compactView = state?.activityView === 'compact';
 
     const tableRows = safeRows.map((row) => `
       <tr>
         <td>${escapeHtml(row.RowID)}</td>
-        <td>${escapeHtml(hebrewActivityType(row.activity_type))}</td>
+        <td>${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</td>
         <td>${escapeHtml(row.activity_name || '—')}</td>
         <td>${escapeHtml(row.start_date || '—')}</td>
         <td>${escapeHtml(row.end_date || '—')}</td>
@@ -36,19 +51,18 @@ export const activitiesScreen = {
     const compactRows = safeRows.map(
       (row) => `
       <article class="ds-compact-row">
-        <header>${escapeHtml(row.RowID)} · ${escapeHtml(hebrewActivityType(row.activity_type))}</header>
+        <header>${escapeHtml(row.RowID)} · ${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</header>
         <p>${escapeHtml(row.activity_name || 'פעילות ללא שם')}</p>
         <small>${escapeHtml(row.start_date || '—')} עד ${escapeHtml(row.end_date || '—')}</small>
       </article>`
     );
 
     const thPrivate = canSeePrivateNotes ? `<th>${hebrewColumn('private_note')}</th>` : '';
-    const colSpan = canSeePrivateNotes ? 9 : 8;
 
-    const filterButtons = tabs
+    const filterButtons = visibleTabs
       .map(
         (tab) =>
-          `<button type="button" class="ds-chip ${tab === (state.activityTab || 'all') ? 'is-active' : ''}" data-tab="${tab}">${escapeHtml(hebrewActivityType(tab))}</button>`
+          `<button type="button" class="ds-chip ${tab === (state.activityTab || 'all') ? 'is-active' : ''}" data-tab="${tab}">${escapeHtml(visibleActivityCategoryLabel(tab))}</button>`
       )
       .join('');
 

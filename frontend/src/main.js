@@ -92,6 +92,17 @@ const screens = {
   permissions: permissionsScreen
 };
 
+function shellUserDisplayName() {
+  const fn = state.user?.full_name != null ? String(state.user.full_name).trim() : '';
+  return escapeHtml(fn || 'משתמש');
+}
+
+function shellUserRoleLine() {
+  const r2 = state.user?.display_role2 != null ? String(state.user.display_role2).trim() : '';
+  if (r2) return escapeHtml(r2);
+  return escapeHtml(hebrewRole(state.user?.display_role || state.user?.role));
+}
+
 function shell(content) {
   const nav = state.routes
     .map(
@@ -100,8 +111,8 @@ function shell(content) {
     )
     .join('');
 
-  const displayName = escapeHtml(state.user?.full_name || state.user?.name || 'משתמש');
-  const roleLine = escapeHtml(hebrewRole(state.user?.display_role || state.user?.role));
+  const displayName = shellUserDisplayName();
+  const roleLine = shellUserRoleLine();
 
   return `
     <div class="app-shell" dir="rtl">
@@ -140,19 +151,20 @@ function screenDataCacheKey() {
 
 async function loadScreenDataWithCache(screen) {
   if (!screen.load) return {};
-  const key = screenDataCacheKey();
-  const hit = state.screenDataCache[key];
+  const keyBefore = screenDataCacheKey();
+  const hit = state.screenDataCache[keyBefore];
   if (hit) return hit.data;
   const data = await screen.load({ api, state });
-  state.screenDataCache[key] = { data, t: Date.now() };
+  const keyAfter = screenDataCacheKey();
+  state.screenDataCache[keyAfter] = { data, t: Date.now() };
   return data;
 }
 
 function setShellNavBusy(busy) {
-  document.querySelectorAll('.outer-shell [data-route]').forEach((b) => {
+  document.querySelectorAll('.app-shell [data-route]').forEach((b) => {
     b.disabled = busy;
   });
-  document.querySelector('.outer-shell')?.classList.toggle('is-route-loading', busy);
+  document.querySelector('.app-shell')?.classList.toggle('is-route-loading', busy);
 }
 
 function updateNavActiveClasses() {
@@ -193,6 +205,13 @@ async function restoreSession() {
   const bootstrap = await api.bootstrap();
   state.routes = bootstrap.routes || [];
   state.route = bootstrap.default_route || state.routes[0] || 'my-data';
+  if (bootstrap.profile && state.user) {
+    const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
+    if (fn) state.user.full_name = fn;
+    state.user.display_role2 =
+      bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
+    localStorage.setItem('dashboard_user', JSON.stringify(state.user));
+  }
 }
 
 async function mountScreen() {

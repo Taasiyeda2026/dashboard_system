@@ -31,6 +31,24 @@ export const HEBREW_ACTIVITY_TYPE = {
   escape_room: 'חדר בריחה'
 };
 
+/** Visible Hebrew labels for activities UI (tabs + type column). Order for tabs after "הכל" is in ACTIVITY_TAB_ORDER. */
+export const ACTIVITY_TAB_ORDER = ['course', 'workshop', 'after_school', 'escape_room', 'tour'];
+
+const VISIBLE_ACTIVITY_LABELS = {
+  all: 'הכל',
+  course: 'קורסים',
+  workshop: 'סדנאות',
+  after_school: 'חוגים',
+  escape_room: 'חדרי בריחה',
+  tour: 'סיורים'
+};
+
+export function visibleActivityCategoryLabel(value) {
+  const k = String(value || '').trim();
+  if (VISIBLE_ACTIVITY_LABELS[k]) return VISIBLE_ACTIVITY_LABELS[k];
+  return 'לא מסווג';
+}
+
 export function hebrewActivityType(value) {
   if (value === undefined || value === null || value === '') return '—';
   const k = String(value).trim();

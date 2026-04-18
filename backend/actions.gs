@@ -7,7 +7,11 @@ function actionBootstrap_(user) {
   return {
     role: user.display_role,
     default_route: defaultRoute,
-    routes: routes
+    routes: routes,
+    profile: {
+      full_name: text_(permission.full_name),
+      display_role2: text_(permission.display_role2)
+    }
   };
 }
 
@@ -91,9 +95,17 @@ function actionDashboard_(user) {
 function actionActivities_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
+  var allRows = allActivities_();
+  var activityTypeCounts = {};
+  ['course', 'workshop', 'after_school', 'escape_room', 'tour'].forEach(function(t) {
+    activityTypeCounts[t] = allRows.filter(function(r) {
+      return text_(r.activity_type) === t;
+    }).length;
+  });
+
   var activityType = text_(payload.activity_type || 'all');
   var financeStatus = text_(payload.finance_status || '');
-  var rows = allActivities_().filter(function(row) {
+  var rows = allRows.filter(function(row) {
     if (activityType && activityType !== 'all' && text_(row.activity_type) !== activityType) return false;
     if (financeStatus && text_(row.finance_status) !== financeStatus) return false;
     return true;
@@ -106,6 +118,7 @@ function actionActivities_(user, payload) {
   var noteMap = buildPrivateNotesMap_();
 
   return {
+    activity_type_counts: activityTypeCounts,
     rows: rows.map(function(row) {
       var noteKey = row.source_sheet + '|' + row.RowID;
       var noteRow = noteMap[noteKey];
