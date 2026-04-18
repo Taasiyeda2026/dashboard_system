@@ -1,6 +1,14 @@
 import { escapeHtml } from './shared/html.js';
 import { hebrewColumn, hebrewEmploymentType } from './shared/ui-hebrew.js';
-import { dsPageHeader, dsCard, dsScreenStack, dsTableWrap, dsEmptyState } from './shared/layout.js';
+import {
+  dsPageHeader,
+  dsCard,
+  dsScreenStack,
+  dsTableWrap,
+  dsEmptyState,
+  dsInteractiveCard
+} from './shared/layout.js';
+import { isNarrowViewport } from './shared/responsive.js';
 
 function cellDisplay(column, value) {
   if (column === 'active') {
@@ -12,32 +20,91 @@ function cellDisplay(column, value) {
   return value ?? '';
 }
 
+function instructorDrawerHtml(row, columns) {
+  const lines = columns
+    .map((col) => {
+      const raw = row?.[col] ?? '';
+      const val = cellDisplay(col, raw);
+      return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${escapeHtml(String(val || '—'))}</p>`;
+    })
+    .join('');
+  return `<div class="ds-details-grid" dir="rtl">${lines}</div>`;
+}
+
 export const instructorsScreen = {
   load: ({ api }) => api.instructors(),
   render(data) {
     const columns = ['emp_id', 'full_name', 'mobile', 'email', 'employment_type', 'direct_manager', 'active'];
     const rows = Array.isArray(data?.rows) ? data.rows : [];
+    const narrow = isNarrowViewport();
+
     const body = rows.map(
       (row) => `
-      <tr>${columns.map((column) => `<td>${escapeHtml(cellDisplay(column, row?.[column]))}</td>`).join('')}</tr>`
+      <tr class="ds-data-row" data-row-id="${escapeHtml(row.emp_id)}" role="button" tabindex="0">${columns
+        .map((column) => `<td>${escapeHtml(cellDisplay(column, row?.[column]))}</td>`)
+        .join('')}</tr>`
     );
 
     const tableBlock =
       rows.length === 0
         ? dsEmptyState('לא נמצאו רשומות')
-        : dsTableWrap(`<table class="ds-table">
+        : dsTableWrap(`<table class="ds-table ds-table--interactive">
             <thead><tr>${columns.map((column) => `<th>${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
             <tbody>${body.join('')}</tbody>
           </table>`);
+
+    const compact =
+      rows.length === 0
+        ? dsEmptyState('לא נמצאו רשומות')
+        : `<div class="ds-compact-list">${rows
+            .map((row) =>
+              dsInteractiveCard({
+                variant: 'session',
+                action: `instructor:${encodeURIComponent(row.emp_id)}`,
+                title: `${row.emp_id} · ${row.full_name || '—'}`,
+                subtitle: cellDisplay('employment_type', row.employment_type),
+                meta: row.mobile || row.email || ''
+              })
+            )
+            .join('')}</div>`;
 
     return dsScreenStack(`
       ${dsPageHeader('מדריכים', 'פרטי העסקה וקשר')}
       ${dsCard({
         title: 'רשימת מדריכים',
         badge: `${rows.length} שורות`,
-        body: tableBlock,
-        padded: rows.length === 0
+        body: narrow ? compact : tableBlock,
+        padded: rows.length === 0 || narrow
       })}
     `);
+  },
+  bind({ root, data, ui }) {
+    const rows = Array.isArray(data?.rows) ? data.rows : [];
+    const columns = ['emp_id', 'full_name', 'mobile', 'email', 'employment_type', 'direct_manager', 'active'];
+
+    const openInstructor = (empId) => {
+      const hit = rows.find((r) => String(r.emp_id) === String(empId));
+      if (!hit || !ui) return;
+      ui.openDrawer({
+        title: `${hit.full_name || hit.emp_id}`,
+        content: instructorDrawerHtml(hit, columns)
+      });
+    };
+
+    root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
+      rowNode.addEventListener('click', () => openInstructor(rowNode.dataset.rowId));
+      rowNode.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          rowNode.click();
+        }
+      });
+    });
+
+    ui?.bindInteractiveCards(root, (action) => {
+      if (!action.startsWith('instructor:')) return;
+      const empId = decodeURIComponent(action.slice('instructor:'.length));
+      openInstructor(empId);
+    });
   }
 };

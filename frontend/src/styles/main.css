@@ -1275,6 +1275,143 @@ span.ds-chip {
   text-align: center;
 }
 
+/* ——— Calendar month (Phase 7) ——— */
+.ds-cal-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+}
+
+.ds-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--ds-space-2);
+}
+
+.ds-cal-wd {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ds-text-muted);
+  padding: var(--ds-space-1) 0;
+}
+
+.ds-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--ds-space-2);
+}
+
+.ds-cal-slot--empty {
+  min-height: 4.5rem;
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface-subtle);
+  border: 1px dashed var(--ds-border);
+  opacity: 0.45;
+}
+
+.ds-cal-grid .ds-interactive-card--day-cell {
+  min-height: 4.5rem;
+  width: 100%;
+  text-align: center;
+  align-items: center;
+  justify-content: flex-start;
+  padding: var(--ds-space-2);
+}
+
+.ds-cal-grid .ds-interactive-card--day-cell .ds-interactive-card__title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.ds-cal-grid .ds-interactive-card--day-cell .ds-interactive-card__subtitle {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--ds-accent);
+}
+
+.ds-interactive-card.is-cal-today {
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ds-accent) 35%, transparent);
+}
+
+.ds-interactive-card.is-month-warn {
+  border-inline-end: 3px solid var(--ds-warning);
+}
+
+.ds-cal-drawer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-4);
+  margin-top: var(--ds-space-3);
+}
+
+.ds-cal-drawer-block__title {
+  margin: 0 0 var(--ds-space-2);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ds-text);
+}
+
+@media (max-width: 760px) {
+  .ds-cal-slot--empty {
+    min-height: 3.25rem;
+  }
+
+  .ds-cal-grid .ds-interactive-card--day-cell {
+    min-height: 3.25rem;
+    padding: var(--ds-space-1) var(--ds-space-2);
+  }
+
+  .ds-cal-grid .ds-interactive-card--day-cell .ds-interactive-card__meta {
+    font-size: 0.68rem;
+  }
+
+  .ds-cal-weekdays,
+  .ds-cal-grid {
+    gap: var(--ds-space-1);
+  }
+}
+
+/* ——— Entity cards (mobile table fallback) ——— */
+.ds-entity-card {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  padding: var(--ds-space-3);
+  box-shadow: var(--ds-shadow-xs);
+}
+
+.ds-entity-card + .ds-entity-card {
+  margin-top: var(--ds-space-3);
+}
+
+.ds-entity-card__title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ds-text);
+}
+
+.ds-entity-card__meta {
+  margin-top: 2px;
+  font-size: 0.78rem;
+}
+
+.ds-entity-card__body {
+  margin-top: var(--ds-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-3);
+}
+
+.ds-entity-card__body .perm-active-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: 0.84rem;
+}
+
 .ds-month-cell {
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-sm);

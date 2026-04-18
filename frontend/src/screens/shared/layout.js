@@ -67,7 +67,16 @@ export function dsKpiGrid(items) {
  * Shared clickable card primitive for KPI / mini cards / day cells / session cards.
  * Requires an explicit action key to avoid ambiguous clickable behavior.
  */
-export function dsInteractiveCard({ action, title, subtitle = '', meta = '', variant = 'mini', selected = false, disabled = false }) {
+export function dsInteractiveCard({
+  action,
+  title,
+  subtitle = '',
+  meta = '',
+  variant = 'mini',
+  selected = false,
+  disabled = false,
+  extraClass = ''
+} = {}) {
   if (!action) {
     throw new Error('dsInteractiveCard requires action');
   }
@@ -75,11 +84,12 @@ export function dsInteractiveCard({ action, title, subtitle = '', meta = '', var
   const disabledAttr = disabled ? ' disabled aria-disabled="true"' : '';
   const subtitleHtml = subtitle ? `<p class="ds-interactive-card__subtitle">${escapeHtml(subtitle)}</p>` : '';
   const metaHtml = meta ? `<p class="ds-interactive-card__meta">${escapeHtml(meta)}</p>` : '';
+  const moreClass = extraClass && /^[a-zA-Z0-9_\s-]+$/.test(extraClass) ? ` ${extraClass}` : '';
 
   return `
     <button
       type="button"
-      class="ds-interactive-card ds-interactive-card--${escapeHtml(variant)}${selectedClass}"
+      class="ds-interactive-card ds-interactive-card--${escapeHtml(variant)}${selectedClass}${moreClass}"
       data-card-action="${escapeHtml(action)}"${disabledAttr}
     >
       <p class="ds-interactive-card__title">${escapeHtml(title)}</p>
