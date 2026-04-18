@@ -1,7 +1,7 @@
 {
   "id": "./index.html",
-  "name": "תעשיידע — לוח בקרה פנימי",
-  "short_name": "תעשיידע",
+  "name": "Dashboard-Taasiyeda",
+  "short_name": "Dashboard-Taasiyeda",
   "description": "מערכת ניהול פנימית לפעילויות, הרשאות ותפעול.",
   "start_url": "../../index.html",
   "scope": "../../",
