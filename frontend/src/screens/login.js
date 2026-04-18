@@ -1,15 +1,14 @@
 export const loginScreen = {
   render() {
     return `
-      <section class="login-wrap" dir="rtl">
-        <div class="login-card">
-          <h1 class="login-title">התחברות</h1>
+      <div class="login-shell" dir="rtl">
+        <section class="login-card">
+          <h1 class="login-title">כניסה למערכת</h1>
           <p class="login-subtitle">Dashboard Taasiyeda</p>
 
           <form id="loginForm" class="login-form" novalidate>
             <input
               id="userId"
-              class="login-input"
               required
               placeholder="מזהה משתמש"
               autocomplete="username"
@@ -17,21 +16,18 @@ export const loginScreen = {
 
             <input
               id="entryCode"
-              class="login-input"
               type="password"
               required
               placeholder="קוד כניסה"
               autocomplete="current-password"
             />
 
-            <button type="submit" class="btn btn-primary login-btn">
-              התחבר
-            </button>
+            <button type="submit" class="login-submit">התחברות</button>
           </form>
 
           <p id="loginError" class="error"></p>
-        </div>
-      </section>
+        </section>
+      </div>
     `;
   },
 
