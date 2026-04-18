@@ -1,0 +1,3906 @@
+{
+  "source_file": "system dashboard (1).xlsx",
+  "generated_at": "2026-04-18T20:42:22.084541Z",
+  "assumptions": {
+    "header_row": 1,
+    "display_or_description_row": 2,
+    "default_data_start_row": 3,
+    "note": "הקובץ נבנה כמקור אמת עבור Agent. לכל גיליון נשמרו שמות עמודות, שורת תיאור/כותרת שנייה, ורשומות לא ריקות מהשורה השלישית ומטה."
+  },
+  "sheets": {
+    "data_long": {
+      "sheet_index": 0,
+      "used_range": "A1:O123",
+      "header_row_values": [
+        "RowID"
+      ],
+      "row2_values": [],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 0,
+      "records": []
+    },
+    "data_short": {
+      "sheet_index": 1,
+      "used_range": "A1:U8",
+      "header_row_values": [
+        "RowID",
+        "activity_manager",
+        "authority",
+        "school",
+        "activity_type",
+        "activity_no",
+        "activity_name",
+        "sessions",
+        "price",
+        "funding",
+        "start_time",
+        "end_time",
+        "emp_id",
+        "instructor_name",
+        "emp_id_2",
+        "instructor_name_2",
+        "start_date",
+        "status",
+        "notes",
+        "finance_status",
+        "finance_notes"
+      ],
+      "row2_values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 6,
+      "records": [
+        {
+          "__sheet_row": 3,
+          "raw": {
+            "RowID": "SHORT-001",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          },
+          "normalized": {
+            "RowID": "SHORT-001",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          }
+        },
+        {
+          "__sheet_row": 4,
+          "raw": {
+            "RowID": "SHORT-002",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          },
+          "normalized": {
+            "RowID": "SHORT-002",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          }
+        },
+        {
+          "__sheet_row": 5,
+          "raw": {
+            "RowID": "SHORT-003",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          },
+          "normalized": {
+            "RowID": "SHORT-003",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          }
+        },
+        {
+          "__sheet_row": 6,
+          "raw": {
+            "RowID": "SHORT-004",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          },
+          "normalized": {
+            "RowID": "SHORT-004",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          }
+        },
+        {
+          "__sheet_row": 7,
+          "raw": {
+            "RowID": "SHORT-005",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          },
+          "normalized": {
+            "RowID": "SHORT-005",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          }
+        },
+        {
+          "__sheet_row": 8,
+          "raw": {
+            "RowID": "SHORT-006",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          },
+          "normalized": {
+            "RowID": "SHORT-006",
+            "activity_manager": "גיל נאמן",
+            "authority": "נתניה",
+            "school": "אלתרמן",
+            "activity_type": "workshop",
+            "activity_no": 60027,
+            "activity_name": "תמיר - איפה דדי",
+            "sessions": 1,
+            "price": 435,
+            "funding": "רשות",
+            "start_time": null,
+            "end_time": null,
+            "emp_id": null,
+            "instructor_name": null,
+            "emp_id_2": null,
+            "instructor_name_2": null,
+            "start_date": null,
+            "status": null,
+            "notes": null,
+            "finance_status": null,
+            "finance_notes": null
+          }
+        }
+      ]
+    },
+    "activity_meetings": {
+      "sheet_index": 2,
+      "used_range": "A1:E1218",
+      "header_row_values": [
+        "source_row_id"
+      ],
+      "row2_values": [],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 0,
+      "records": []
+    },
+    "permissions": {
+      "sheet_index": 3,
+      "used_range": "A1:V30",
+      "header_row_values": [
+        "user_id",
+        "entry_code",
+        "full_name",
+        "display_role",
+        "display_role2",
+        "default_view",
+        "view_admin",
+        "view_dashboard",
+        "view_activities",
+        "view_week",
+        "view_month",
+        "view_instructors",
+        "view_exceptions",
+        "view_my_data",
+        "view_operations_data",
+        "view_contacts_instructors",
+        "view_contacts_instructors 2",
+        "view_finance",
+        "view_permissions",
+        "view_edit_requests",
+        "view_final_approvals",
+        "active"
+      ],
+      "row2_values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 28,
+      "records": [
+        {
+          "__sheet_row": 3,
+          "raw": {
+            "user_id": 8000,
+            "entry_code": 2311,
+            "full_name": "עידן נחום",
+            "display_role": "admin",
+            "display_role2": "מנהל מערכת",
+            "default_view": "view_admin",
+            "view_admin": "yes",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "no",
+            "view_operations_data": "yes",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "yes",
+            "view_permissions": "yes",
+            "view_edit_requests": "yes",
+            "view_final_approvals": "yes",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 8000,
+            "entry_code": 2311,
+            "full_name": "עידן נחום",
+            "display_role": "admin",
+            "display_role2": "מנהל מערכת",
+            "default_view": "view_admin",
+            "view_admin": "yes",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "no",
+            "view_operations_data": "yes",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "yes",
+            "view_permissions": "yes",
+            "view_edit_requests": "yes",
+            "view_final_approvals": "yes",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 4,
+          "raw": {
+            "user_id": 7000,
+            "entry_code": 6666,
+            "full_name": "טוני נעים",
+            "display_role": "finance",
+            "display_role2": "מנהלת חשבונות וחשבת שכר",
+            "default_view": "view_finance",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "no",
+            "view_my_data": "no",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "yes",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 7000,
+            "entry_code": 6666,
+            "full_name": "טוני נעים",
+            "display_role": "finance",
+            "display_role2": "מנהלת חשבונות וחשבת שכר",
+            "default_view": "view_finance",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "no",
+            "view_my_data": "no",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "yes",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 5,
+          "raw": {
+            "user_id": 6000,
+            "entry_code": 5555,
+            "full_name": "עדן כהן",
+            "display_role": "operation manager",
+            "display_role2": "בקרת תפעול",
+            "default_view": "view_operations_data",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "no",
+            "view_operations_data": "yes",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "yes",
+            "view_final_approvals": "yes",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 6000,
+            "entry_code": 5555,
+            "full_name": "עדן כהן",
+            "display_role": "operation manager",
+            "display_role2": "בקרת תפעול",
+            "default_view": "view_operations_data",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "no",
+            "view_operations_data": "yes",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "yes",
+            "view_final_approvals": "yes",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 6,
+          "raw": {
+            "user_id": 5000,
+            "entry_code": 2458,
+            "full_name": "גיל נאמן",
+            "display_role": "activities manager",
+            "display_role2": "מנהל פעילויות",
+            "default_view": "view_dashboard",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "no",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 5000,
+            "entry_code": 2458,
+            "full_name": "גיל נאמן",
+            "display_role": "activities manager",
+            "display_role2": "מנהל פעילויות",
+            "default_view": "view_dashboard",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "no",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 7,
+          "raw": {
+            "user_id": 4000,
+            "entry_code": 2545,
+            "full_name": "לינוי שמואל מזרחי",
+            "display_role": "activities manager",
+            "display_role2": "מנהלת פעילויות",
+            "default_view": "view_dashboard",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "no",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 4000,
+            "entry_code": 2545,
+            "full_name": "לינוי שמואל מזרחי",
+            "display_role": "activities manager",
+            "display_role2": "מנהלת פעילויות",
+            "default_view": "view_dashboard",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "no",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 8,
+          "raw": {
+            "user_id": 3000,
+            "entry_code": 3000,
+            "full_name": "יעל אביב",
+            "display_role": "domain manager",
+            "display_role2": "מנהלת תחום חינוך",
+            "default_view": "view_dashboard",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "no",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 3000,
+            "entry_code": 3000,
+            "full_name": "יעל אביב",
+            "display_role": "domain manager",
+            "display_role2": "מנהלת תחום חינוך",
+            "default_view": "view_dashboard",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "no",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 9,
+          "raw": {
+            "user_id": 1500,
+            "entry_code": 2090,
+            "full_name": "הילה רוזן",
+            "display_role": "manager instructor",
+            "display_role2": "מנהלת הדרכה",
+            "default_view": "view_dashboard",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1500,
+            "entry_code": 2090,
+            "full_name": "הילה רוזן",
+            "display_role": "manager instructor",
+            "display_role2": "מנהלת הדרכה",
+            "default_view": "view_dashboard",
+            "view_admin": "no",
+            "view_dashboard": "yes",
+            "view_activities": "yes",
+            "view_week": "yes",
+            "view_month": "yes",
+            "view_instructors": "yes",
+            "view_exceptions": "yes",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "yes",
+            "view_contacts_instructors 2": "yes",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 10,
+          "raw": {
+            "user_id": 1501,
+            "entry_code": 2348,
+            "full_name": "סוהא סאלם",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1501,
+            "entry_code": 2348,
+            "full_name": "סוהא סאלם",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 11,
+          "raw": {
+            "user_id": 1503,
+            "entry_code": 2604,
+            "full_name": "הנאא אבו אמזה",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1503,
+            "entry_code": 2604,
+            "full_name": "הנאא אבו אמזה",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 12,
+          "raw": {
+            "user_id": 1505,
+            "entry_code": 2852,
+            "full_name": "אוריה פדידה",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1505,
+            "entry_code": 2852,
+            "full_name": "אוריה פדידה",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 13,
+          "raw": {
+            "user_id": 1506,
+            "entry_code": 2978,
+            "full_name": "אילנה טיטייבסקי",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1506,
+            "entry_code": 2978,
+            "full_name": "אילנה טיטייבסקי",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 14,
+          "raw": {
+            "user_id": 1510,
+            "entry_code": 3482,
+            "full_name": "הגר פרירה קוראה",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1510,
+            "entry_code": 3482,
+            "full_name": "הגר פרירה קוראה",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 15,
+          "raw": {
+            "user_id": 1511,
+            "entry_code": 3482,
+            "full_name": "כרמית סמנדרוב",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1511,
+            "entry_code": 3482,
+            "full_name": "כרמית סמנדרוב",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 16,
+          "raw": {
+            "user_id": 1513,
+            "entry_code": 3734,
+            "full_name": "מיכל שכטמן",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1513,
+            "entry_code": 3734,
+            "full_name": "מיכל שכטמן",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 17,
+          "raw": {
+            "user_id": 1514,
+            "entry_code": 3860,
+            "full_name": "קרן גורביץ",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1514,
+            "entry_code": 3860,
+            "full_name": "קרן גורביץ",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 18,
+          "raw": {
+            "user_id": 1515,
+            "entry_code": 4112,
+            "full_name": "ברקת קטעי",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1515,
+            "entry_code": 4112,
+            "full_name": "ברקת קטעי",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 19,
+          "raw": {
+            "user_id": 1517,
+            "entry_code": 4364,
+            "full_name": "אסיל ג'בר",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1517,
+            "entry_code": 4364,
+            "full_name": "אסיל ג'בר",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 20,
+          "raw": {
+            "user_id": 1519,
+            "entry_code": 4616,
+            "full_name": "אביגדור שרון",
+            "display_role": "instructor",
+            "display_role2": "מדריך",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1519,
+            "entry_code": 4616,
+            "full_name": "אביגדור שרון",
+            "display_role": "instructor",
+            "display_role2": "מדריך",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 21,
+          "raw": {
+            "user_id": 1502,
+            "entry_code": 2474,
+            "full_name": "אלדר מיכאל טייב",
+            "display_role": "instructor",
+            "display_role2": "מדריך",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1502,
+            "entry_code": 2474,
+            "full_name": "אלדר מיכאל טייב",
+            "display_role": "instructor",
+            "display_role2": "מדריך",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 22,
+          "raw": {
+            "user_id": 1504,
+            "entry_code": 2726,
+            "full_name": "עליזה מולה",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1504,
+            "entry_code": 2726,
+            "full_name": "עליזה מולה",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 23,
+          "raw": {
+            "user_id": 1507,
+            "entry_code": 3104,
+            "full_name": "אלכס זפקה",
+            "display_role": "instructor",
+            "display_role2": "מדריך",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1507,
+            "entry_code": 3104,
+            "full_name": "אלכס זפקה",
+            "display_role": "instructor",
+            "display_role2": "מדריך",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 24,
+          "raw": {
+            "user_id": 1508,
+            "entry_code": 3230,
+            "full_name": "אמיר מלמוד",
+            "display_role": "instructor",
+            "display_role2": "מדריך",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1508,
+            "entry_code": 3230,
+            "full_name": "אמיר מלמוד",
+            "display_role": "instructor",
+            "display_role2": "מדריך",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 25,
+          "raw": {
+            "user_id": 1509,
+            "entry_code": 3356,
+            "full_name": "אפרת אוחיון",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1509,
+            "entry_code": 3356,
+            "full_name": "אפרת אוחיון",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 26,
+          "raw": {
+            "user_id": 1512,
+            "entry_code": 3608,
+            "full_name": "ליאל בן חמו",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1512,
+            "entry_code": 3608,
+            "full_name": "ליאל בן חמו",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 27,
+          "raw": {
+            "user_id": 1522,
+            "entry_code": 4985,
+            "full_name": "אביב בלנדר",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1522,
+            "entry_code": 4985,
+            "full_name": "אביב בלנדר",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 28,
+          "raw": {
+            "user_id": 1523,
+            "entry_code": 4423,
+            "full_name": "ראנה סאלח",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1523,
+            "entry_code": 4423,
+            "full_name": "ראנה סאלח",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 29,
+          "raw": {
+            "user_id": 1524,
+            "entry_code": 2247,
+            "full_name": "אושרי רם",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1524,
+            "entry_code": 2247,
+            "full_name": "אושרי רם",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 30,
+          "raw": {
+            "user_id": 1525,
+            "entry_code": 3050,
+            "full_name": "אסאלה ברהום",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          },
+          "normalized": {
+            "user_id": 1525,
+            "entry_code": 3050,
+            "full_name": "אסאלה ברהום",
+            "display_role": "instructor",
+            "display_role2": "מדריכה",
+            "default_view": "view_my_data",
+            "view_admin": "no",
+            "view_dashboard": "no",
+            "view_activities": "no",
+            "view_week": "no",
+            "view_month": "no",
+            "view_instructors": "no",
+            "view_exceptions": "no",
+            "view_my_data": "yes",
+            "view_operations_data": "no",
+            "view_contacts_instructors": "no",
+            "view_contacts_instructors 2": "no",
+            "view_finance": "no",
+            "view_permissions": "no",
+            "view_edit_requests": "no",
+            "view_final_approvals": "no",
+            "active": "yes"
+          }
+        }
+      ]
+    },
+    "settings": {
+      "sheet_index": 4,
+      "used_range": "A1:E19",
+      "header_row_values": [
+        "setting_key",
+        "setting_value",
+        "value_type",
+        "notes",
+        "active"
+      ],
+      "row2_values": [
+        "מפתח הגדרה",
+        "ערך הגדרה",
+        "סוג ערך",
+        "הערות",
+        "פעיל"
+      ],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 17,
+      "records": [
+        {
+          "__sheet_row": 3,
+          "raw": {
+            "setting_key": "system_name",
+            "setting_value": "Dashboard Taasiyeda",
+            "value_type": "string",
+            "notes": "שם המערכת הנוכחי",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "system_name",
+            "setting_value": "Dashboard Taasiyeda",
+            "value_type": "string",
+            "notes": "שם המערכת הנוכחי",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 4,
+          "raw": {
+            "setting_key": "all_views_from_data",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "כל מסכי הפעילות במערכת נגזרים מ-data",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "all_views_from_data",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "כל מסכי הפעילות במערכת נגזרים מ-data",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 5,
+          "raw": {
+            "setting_key": "finance_display_rule",
+            "setting_value": "ended_until_today",
+            "value_type": "rule",
+            "notes": "במסך כספים מוצגים רק מה שהסתיים עד היום לפי end_date",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "finance_display_rule",
+            "setting_value": "ended_until_today",
+            "value_type": "rule",
+            "notes": "במסך כספים מוצגים רק מה שהסתיים עד היום לפי end_date",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 6,
+          "raw": {
+            "setting_key": "finance_grouping_gefen",
+            "setting_value": "school",
+            "value_type": "rule",
+            "notes": "במימון גפן הריכוז הוא לפי בית ספר",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "finance_grouping_gefen",
+            "setting_value": "school",
+            "value_type": "rule",
+            "notes": "במימון גפן הריכוז הוא לפי בית ספר",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 7,
+          "raw": {
+            "setting_key": "finance_grouping_other",
+            "setting_value": "funding",
+            "value_type": "rule",
+            "notes": "בכל מימון אחר הריכוז הוא לפי המימון עצמו",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "finance_grouping_other",
+            "setting_value": "funding",
+            "value_type": "rule",
+            "notes": "בכל מימון אחר הריכוז הוא לפי המימון עצמו",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 8,
+          "raw": {
+            "setting_key": "week_start_day",
+            "setting_value": 0,
+            "value_type": "number",
+            "notes": "0=ראשון",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "week_start_day",
+            "setting_value": 0,
+            "value_type": "number",
+            "notes": "0=ראשון",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 9,
+          "raw": {
+            "setting_key": "show_shabbat",
+            "setting_value": "no",
+            "value_type": "boolean",
+            "notes": "שבת לא מוצגת בתצוגות זמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "show_shabbat",
+            "setting_value": "no",
+            "value_type": "boolean",
+            "notes": "שבת לא מוצגת בתצוגות זמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 10,
+          "raw": {
+            "setting_key": "allow_admin_direct_data_edit",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "אדמין יכול לעדכן ישירות את data",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "allow_admin_direct_data_edit",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "אדמין יכול לעדכן ישירות את data",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 11,
+          "raw": {
+            "setting_key": "require_final_admin_approval",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "רק אדמין מכניס נתון סופי ל-data",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "require_final_admin_approval",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "רק אדמין מכניס נתון סופי ל-data",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 12,
+          "raw": {
+            "setting_key": "operations_data",
+            "setting_value": "view_operations_data",
+            "value_type": "string",
+            "notes": "שם מסך העבודה של תפעול במערכת",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "operations_data",
+            "setting_value": "view_operations_data",
+            "value_type": "string",
+            "notes": "שם מסך העבודה של תפעול במערכת",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 13,
+          "raw": {
+            "setting_key": "admin_screen",
+            "setting_value": "view_admin",
+            "value_type": "string",
+            "notes": "מסך אדמין ראשי לניווט",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "admin_screen",
+            "setting_value": "view_admin",
+            "value_type": "string",
+            "notes": "מסך אדמין ראשי לניווט",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 14,
+          "raw": {
+            "setting_key": "data_start_row",
+            "setting_value": 3,
+            "value_type": "number",
+            "notes": "בכל הגיליונות הנתונים מתחילים משורה 3",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "data_start_row",
+            "setting_value": 3,
+            "value_type": "number",
+            "notes": "בכל הגיליונות הנתונים מתחילים משורה 3",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 15,
+          "raw": {
+            "setting_key": "show_only_nonzero_kpis",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "בדשבורד מציגים רק כרטיסים עם ערך בפועל",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "show_only_nonzero_kpis",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "בדשבורד מציגים רק כרטיסים עם ערך בפועל",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 16,
+          "raw": {
+            "setting_key": "use_status_with_dates",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "במסכים משתמשים גם בסטטוס וגם בתאריכים",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "use_status_with_dates",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "במסכים משתמשים גם בסטטוס וגם בתאריכים",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 17,
+          "raw": {
+            "setting_key": "hide_emp_id_on_screens",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "מספר עובד לא מוצג במסכים",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "hide_emp_id_on_screens",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "מספר עובד לא מוצג במסכים",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 18,
+          "raw": {
+            "setting_key": "hide_activity_no_on_screens",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "מספר תוכנית לא מוצג במסכים",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "hide_activity_no_on_screens",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "מספר תוכנית לא מוצג במסכים",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 19,
+          "raw": {
+            "setting_key": "operations_notes_private",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "הערות תפעול הן פנימיות ולא נשלחות לאישור סופי",
+            "active": "yes"
+          },
+          "normalized": {
+            "setting_key": "operations_notes_private",
+            "setting_value": "yes",
+            "value_type": "boolean",
+            "notes": "הערות תפעול הן פנימיות ולא נשלחות לאישור סופי",
+            "active": "yes"
+          }
+        }
+      ]
+    },
+    "lists": {
+      "sheet_index": 5,
+      "used_range": "A1:G47",
+      "header_row_values": [
+        "list_name",
+        "value",
+        "label",
+        "parent_value",
+        "activity_type",
+        "activity_no",
+        "activity_name"
+      ],
+      "row2_values": [
+        "שם רשימה",
+        "ערך",
+        "תווית",
+        "סוג פעילות",
+        "מספר תוכנית",
+        "שם הפעילות",
+        "פעיל"
+      ],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 45,
+      "records": [
+        {
+          "__sheet_row": 3,
+          "raw": {
+            "list_name": "activity_type",
+            "value": "course",
+            "label": "קורס",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity_type",
+            "value": "course",
+            "label": "קורס",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 4,
+          "raw": {
+            "list_name": "activity_type",
+            "value": "after_school",
+            "label": "חוג אפטרסקול",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity_type",
+            "value": "after_school",
+            "label": "חוג אפטרסקול",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 5,
+          "raw": {
+            "list_name": "activity_type",
+            "value": "workshop",
+            "label": "סדנה",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity_type",
+            "value": "workshop",
+            "label": "סדנה",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 6,
+          "raw": {
+            "list_name": "activity_type",
+            "value": "tour",
+            "label": "סיור",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity_type",
+            "value": "tour",
+            "label": "סיור",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 7,
+          "raw": {
+            "list_name": "activity_type",
+            "value": "escape_room",
+            "label": "חדר בריחה",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity_type",
+            "value": "escape_room",
+            "label": "חדר בריחה",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 8,
+          "raw": {
+            "list_name": "activity_status",
+            "value": "active",
+            "label": "פעיל",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity_status",
+            "value": "active",
+            "label": "פעיל",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 9,
+          "raw": {
+            "list_name": "activity_status",
+            "value": "ended",
+            "label": "הסתיים",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity_status",
+            "value": "ended",
+            "label": "הסתיים",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 10,
+          "raw": {
+            "list_name": "finance_status",
+            "value": "open",
+            "label": "פתוח",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "finance_status",
+            "value": "open",
+            "label": "פתוח",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 11,
+          "raw": {
+            "list_name": "finance_status",
+            "value": "closed",
+            "label": "סגור",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "finance_status",
+            "value": "closed",
+            "label": "סגור",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 12,
+          "raw": {
+            "list_name": "action_language",
+            "value": "edit",
+            "label": "עריכה",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "action_language",
+            "value": "edit",
+            "label": "עריכה",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 13,
+          "raw": {
+            "list_name": "action_language",
+            "value": "request_edit",
+            "label": "בקשת שינוי",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "action_language",
+            "value": "request_edit",
+            "label": "בקשת שינוי",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 14,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_6089",
+            "label": "ביומימיקרי",
+            "parent_value": "course",
+            "activity_type": 6089,
+            "activity_no": "ביומימיקרי",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_6089",
+            "label": "ביומימיקרי",
+            "parent_value": "course",
+            "activity_type": 6089,
+            "activity_no": "ביומימיקרי",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 15,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_53828",
+            "label": "ביומימיקרי לחטיבה",
+            "parent_value": "course",
+            "activity_type": 53828,
+            "activity_no": "ביומימיקרי לחטיבה",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_53828",
+            "label": "ביומימיקרי לחטיבה",
+            "parent_value": "course",
+            "activity_type": 53828,
+            "activity_no": "ביומימיקרי לחטיבה",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 16,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_9545",
+            "label": "בינה מלאכותית",
+            "parent_value": "course",
+            "activity_type": 9545,
+            "activity_no": "בינה מלאכותית",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_9545",
+            "label": "בינה מלאכותית",
+            "parent_value": "course",
+            "activity_type": 9545,
+            "activity_no": "בינה מלאכותית",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 17,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_57646",
+            "label": "השמיים אינם הגבול",
+            "parent_value": "course",
+            "activity_type": 57646,
+            "activity_no": "השמיים אינם הגבול",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_57646",
+            "label": "השמיים אינם הגבול",
+            "parent_value": "course",
+            "activity_type": 57646,
+            "activity_no": "השמיים אינם הגבול",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 18,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_57651",
+            "label": "טכנולוגיות החלל",
+            "parent_value": "course",
+            "activity_type": 57651,
+            "activity_no": "טכנולוגיות החלל",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_57651",
+            "label": "טכנולוגיות החלל",
+            "parent_value": "course",
+            "activity_type": 57651,
+            "activity_no": "טכנולוגיות החלל",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 19,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_53819",
+            "label": "יישומי AI",
+            "parent_value": "course",
+            "activity_type": 53819,
+            "activity_no": "יישומי AI",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_53819",
+            "label": "יישומי AI",
+            "parent_value": "course",
+            "activity_type": 53819,
+            "activity_no": "יישומי AI",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 20,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_90001",
+            "label": "מנהיגות ירוקה",
+            "parent_value": "course",
+            "activity_type": 90001,
+            "activity_no": "מנהיגות ירוקה",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_90001",
+            "label": "מנהיגות ירוקה",
+            "parent_value": "course",
+            "activity_type": 90001,
+            "activity_no": "מנהיגות ירוקה",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 21,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_3604",
+            "label": "פורצות דרך",
+            "parent_value": "course",
+            "activity_type": 3604,
+            "activity_no": "פורצות דרך",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_3604",
+            "label": "פורצות דרך",
+            "parent_value": "course",
+            "activity_type": 3604,
+            "activity_no": "פורצות דרך",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 22,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_90004",
+            "label": "פרימיום",
+            "parent_value": "course",
+            "activity_type": 90004,
+            "activity_no": "פרימיום",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_90004",
+            "label": "פרימיום",
+            "parent_value": "course",
+            "activity_type": 90004,
+            "activity_no": "פרימיום",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 23,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_46091",
+            "label": "רוקחים עולם",
+            "parent_value": "course",
+            "activity_type": 46091,
+            "activity_no": "רוקחים עולם",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_46091",
+            "label": "רוקחים עולם",
+            "parent_value": "course",
+            "activity_type": 46091,
+            "activity_no": "רוקחים עולם",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 24,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_90002",
+            "label": "תלמידים להייטק",
+            "parent_value": "after_school",
+            "activity_type": 90002,
+            "activity_no": "תלמידים להייטק",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_90002",
+            "label": "תלמידים להייטק",
+            "parent_value": "after_school",
+            "activity_type": 90002,
+            "activity_no": "תלמידים להייטק",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 25,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_90003",
+            "label": "מייקרים",
+            "parent_value": "after_school",
+            "activity_type": 90003,
+            "activity_no": "מייקרים",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_90003",
+            "label": "מייקרים",
+            "parent_value": "after_school",
+            "activity_type": 90003,
+            "activity_no": "מייקרים",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 26,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_60025",
+            "label": "תמיר - המחזור מתחיל בבית",
+            "parent_value": "workshop",
+            "activity_type": 60025,
+            "activity_no": "תמיר - המחזור מתחיל בבית",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_60025",
+            "label": "תמיר - המחזור מתחיל בבית",
+            "parent_value": "workshop",
+            "activity_type": 60025,
+            "activity_no": "תמיר - המחזור מתחיל בבית",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 27,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_60026",
+            "label": "תמיר - חדר בריחה קווסט",
+            "parent_value": "workshop",
+            "activity_type": 60026,
+            "activity_no": "תמיר - חדר בריחה קווסט",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_60026",
+            "label": "תמיר - חדר בריחה קווסט",
+            "parent_value": "workshop",
+            "activity_type": 60026,
+            "activity_no": "תמיר - חדר בריחה קווסט",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 28,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_60027",
+            "label": "תמיר - איפה דדי",
+            "parent_value": "workshop",
+            "activity_type": 60027,
+            "activity_no": "תמיר - איפה דדי",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_60027",
+            "label": "תמיר - איפה דדי",
+            "parent_value": "workshop",
+            "activity_type": 60027,
+            "activity_no": "תמיר - איפה דדי",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 29,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_13990",
+            "label": "התנסות בתעשייה",
+            "parent_value": "tour",
+            "activity_type": 13990,
+            "activity_no": "התנסות בתעשייה",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_13990",
+            "label": "התנסות בתעשייה",
+            "parent_value": "tour",
+            "activity_type": 13990,
+            "activity_no": "התנסות בתעשייה",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 30,
+          "raw": {
+            "list_name": "activity",
+            "value": "activity_1001",
+            "label": "חדר בריחה ביומימיקרי",
+            "parent_value": "escape_room",
+            "activity_type": 1001,
+            "activity_no": "חדר בריחה ביומימיקרי",
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "activity",
+            "value": "activity_1001",
+            "label": "חדר בריחה ביומימיקרי",
+            "parent_value": "escape_room",
+            "activity_type": 1001,
+            "activity_no": "חדר בריחה ביומימיקרי",
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 31,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_admin",
+            "label": "ניהול מערכת",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_admin",
+            "label": "ניהול מערכת",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 32,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_dashboard",
+            "label": "דשבורד",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_dashboard",
+            "label": "דשבורד",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 33,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_finance",
+            "label": "כספים",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_finance",
+            "label": "כספים",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 34,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_activities",
+            "label": "פעילויות",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_activities",
+            "label": "פעילויות",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 35,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_month",
+            "label": "תצוגה חודשית",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_month",
+            "label": "תצוגה חודשית",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 36,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_week",
+            "label": "תצוגה שבועית",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_week",
+            "label": "תצוגה שבועית",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 37,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_exceptions",
+            "label": "חריגות",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_exceptions",
+            "label": "חריגות",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 38,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_instructors",
+            "label": "מדריכים",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_instructors",
+            "label": "מדריכים",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 39,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_my_data",
+            "label": "המסך האישי שלי",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_my_data",
+            "label": "המסך האישי שלי",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 40,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_operations_data",
+            "label": "תפעול",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_operations_data",
+            "label": "תפעול",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 41,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_contacts",
+            "label": "אנשי קשר",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_contacts",
+            "label": "אנשי קשר",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 42,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_lists",
+            "label": "רשימות",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_lists",
+            "label": "רשימות",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 43,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_permissions",
+            "label": "הרשאות",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_permissions",
+            "label": "הרשאות",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 44,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_settings",
+            "label": "הגדרות",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_settings",
+            "label": "הגדרות",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 45,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_edit_requests",
+            "label": "בקשות עריכה",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_edit_requests",
+            "label": "בקשות עריכה",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 46,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_final_approvals",
+            "label": "אישור סופי",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_final_approvals",
+            "label": "אישור סופי",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        },
+        {
+          "__sheet_row": 47,
+          "raw": {
+            "list_name": "view_type",
+            "value": "view_edit_requests",
+            "label": "בקשות עריכה",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          },
+          "normalized": {
+            "list_name": "view_type",
+            "value": "view_edit_requests",
+            "label": "בקשות עריכה",
+            "parent_value": null,
+            "activity_type": null,
+            "activity_no": null,
+            "activity_name": "yes"
+          }
+        }
+      ]
+    },
+    "contacts_schools": {
+      "sheet_index": 6,
+      "used_range": "A1:I264",
+      "header_row_values": [
+        "authority"
+      ],
+      "row2_values": [],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 0,
+      "records": []
+    },
+    "contacts_instructors": {
+      "sheet_index": 7,
+      "used_range": "A1:H20",
+      "header_row_values": [
+        "emp_id",
+        "full_name",
+        "mobile",
+        "email",
+        "address",
+        "employment_type",
+        "direct_manager",
+        "active"
+      ],
+      "row2_values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 18,
+      "records": [
+        {
+          "__sheet_row": 3,
+          "raw": {
+            "emp_id": 1507,
+            "full_name": "אלכס זפקה",
+            "mobile": "053-2346117",
+            "email": "alexzapeka138@gmail.com",
+            "address": "מדרחוב הנביאים 2, אשדוד",
+            "employment_type": "תעשיידע",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1507,
+            "full_name": "אלכס זפקה",
+            "mobile": "053-2346117",
+            "email": "alexzapeka138@gmail.com",
+            "address": "מדרחוב הנביאים 2, אשדוד",
+            "employment_type": "תעשיידע",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 4,
+          "raw": {
+            "emp_id": 1500,
+            "full_name": "הילה רוזן",
+            "mobile": "052-3222951",
+            "email": "hilarozen27@gmail.com",
+            "address": "צה\"ל 68, גן יבנה",
+            "employment_type": "תעשיידע",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1500,
+            "full_name": "הילה רוזן",
+            "mobile": "052-3222951",
+            "email": "hilarozen27@gmail.com",
+            "address": "צה\"ל 68, גן יבנה",
+            "employment_type": "תעשיידע",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 5,
+          "raw": {
+            "emp_id": 1508,
+            "full_name": "אמיר מלמוד",
+            "mobile": "052-3344561",
+            "email": "malamud95@gmail.com",
+            "address": "משעול הנבטים 3, באר שבע",
+            "employment_type": "מעוף",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1508,
+            "full_name": "אמיר מלמוד",
+            "mobile": "052-3344561",
+            "email": "malamud95@gmail.com",
+            "address": "משעול הנבטים 3, באר שבע",
+            "employment_type": "מעוף",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 6,
+          "raw": {
+            "emp_id": 1504,
+            "full_name": "עליזה מולה",
+            "mobile": "052-6752249",
+            "email": "alizamola100@gmail.com",
+            "address": "הרצל 39/3 קרית עקרון",
+            "employment_type": "מעוף",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1504,
+            "full_name": "עליזה מולה",
+            "mobile": "052-6752249",
+            "email": "alizamola100@gmail.com",
+            "address": "הרצל 39/3 קרית עקרון",
+            "employment_type": "מעוף",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 7,
+          "raw": {
+            "emp_id": 1512,
+            "full_name": "ליאל בן חמו",
+            "mobile": "054-3152814",
+            "email": "Lielba2371@gmail.com",
+            "address": "הרימון 5/20 מושב נגה",
+            "employment_type": "תעשיידע",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1512,
+            "full_name": "ליאל בן חמו",
+            "mobile": "054-3152814",
+            "email": "Lielba2371@gmail.com",
+            "address": "הרימון 5/20 מושב נגה",
+            "employment_type": "תעשיידע",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 8,
+          "raw": {
+            "emp_id": 1502,
+            "full_name": "אלדר מיכאל טייב",
+            "mobile": "053-5269925",
+            "email": "Eldi078@gmail.com",
+            "address": "שיריון 3/3 קרית גת",
+            "employment_type": "תעשיידע",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1502,
+            "full_name": "אלדר מיכאל טייב",
+            "mobile": "053-5269925",
+            "email": "Eldi078@gmail.com",
+            "address": "שיריון 3/3 קרית גת",
+            "employment_type": "תעשיידע",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 9,
+          "raw": {
+            "emp_id": 1509,
+            "full_name": "אפרת אוחיון",
+            "mobile": "055-5589016",
+            "email": "efratt0706@gmail.com",
+            "address": "חננאל 10 אשקלון",
+            "employment_type": "תעשיידע",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1509,
+            "full_name": "אפרת אוחיון",
+            "mobile": "055-5589016",
+            "email": "efratt0706@gmail.com",
+            "address": "חננאל 10 אשקלון",
+            "employment_type": "תעשיידע",
+            "direct_manager": "לינוי שמואל מזרחי",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 10,
+          "raw": {
+            "emp_id": 1519,
+            "full_name": "אביגדור שרון",
+            "mobile": "054-4553280",
+            "email": "avigdor.sharon@gmail.com",
+            "address": null,
+            "employment_type": "עצמאי",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1519,
+            "full_name": "אביגדור שרון",
+            "mobile": "054-4553280",
+            "email": "avigdor.sharon@gmail.com",
+            "address": null,
+            "employment_type": "עצמאי",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 11,
+          "raw": {
+            "emp_id": 1522,
+            "full_name": "אביב בלנדר",
+            "mobile": "052-8338858",
+            "email": "Avivbandler@gmail.con",
+            "address": "כפר יובל",
+            "employment_type": "תעשיידע",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1522,
+            "full_name": "אביב בלנדר",
+            "mobile": "052-8338858",
+            "email": "Avivbandler@gmail.con",
+            "address": "כפר יובל",
+            "employment_type": "תעשיידע",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 12,
+          "raw": {
+            "emp_id": 1505,
+            "full_name": "אוריה פדידה",
+            "mobile": "052-7536718",
+            "email": "Oriyafedida10@gmail.com",
+            "address": "חטיבת הראל 12 נתניה",
+            "employment_type": "מנפאואר",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1505,
+            "full_name": "אוריה פדידה",
+            "mobile": "052-7536718",
+            "email": "Oriyafedida10@gmail.com",
+            "address": "חטיבת הראל 12 נתניה",
+            "employment_type": "מנפאואר",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 13,
+          "raw": {
+            "emp_id": 1506,
+            "full_name": "אילנה טיטייבסקי",
+            "mobile": "050-3077714",
+            "email": "ilanakal@gmail.com",
+            "address": "נחליאלי 3א נהריה",
+            "employment_type": "מעוף",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1506,
+            "full_name": "אילנה טיטייבסקי",
+            "mobile": "050-3077714",
+            "email": "ilanakal@gmail.com",
+            "address": "נחליאלי 3א נהריה",
+            "employment_type": "מעוף",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 14,
+          "raw": {
+            "emp_id": 1517,
+            "full_name": "אסיל ג'בר",
+            "mobile": "052-309-4716",
+            "email": "aseel.jaber1321@gmail.com",
+            "address": "אבו גוש, המצפה 14",
+            "employment_type": null,
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1517,
+            "full_name": "אסיל ג'בר",
+            "mobile": "052-309-4716",
+            "email": "aseel.jaber1321@gmail.com",
+            "address": "אבו גוש, המצפה 14",
+            "employment_type": null,
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 15,
+          "raw": {
+            "emp_id": 1515,
+            "full_name": "ברקת קטעי",
+            "mobile": "050-7797678",
+            "email": null,
+            "address": null,
+            "employment_type": "תעשיידע",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1515,
+            "full_name": "ברקת קטעי",
+            "mobile": "050-7797678",
+            "email": null,
+            "address": null,
+            "employment_type": "תעשיידע",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 16,
+          "raw": {
+            "emp_id": 1503,
+            "full_name": "הנאא אבו אמזה",
+            "mobile": "050-2601036",
+            "email": "Noshi88@gmail.com",
+            "address": "נצרת רח 3050",
+            "employment_type": "תעשיידע",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1503,
+            "full_name": "הנאא אבו אמזה",
+            "mobile": "050-2601036",
+            "email": "Noshi88@gmail.com",
+            "address": "נצרת רח 3050",
+            "employment_type": "תעשיידע",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 17,
+          "raw": {
+            "emp_id": 1511,
+            "full_name": "כרמית סמנדרוב",
+            "mobile": "052-3929595",
+            "email": "Carmityu35@gmail.com",
+            "address": "מרדכי פופל 14, רשל\"צ",
+            "employment_type": "מנפאואר",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1511,
+            "full_name": "כרמית סמנדרוב",
+            "mobile": "052-3929595",
+            "email": "Carmityu35@gmail.com",
+            "address": "מרדכי פופל 14, רשל\"צ",
+            "employment_type": "מנפאואר",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 18,
+          "raw": {
+            "emp_id": 1514,
+            "full_name": "קרן גורביץ",
+            "mobile": "054-4856117",
+            "email": "Kerengur2016@gmail.com",
+            "address": "מעונות סטודנטים רופין",
+            "employment_type": "תעשיידע",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1514,
+            "full_name": "קרן גורביץ",
+            "mobile": "054-4856117",
+            "email": "Kerengur2016@gmail.com",
+            "address": "מעונות סטודנטים רופין",
+            "employment_type": "תעשיידע",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 19,
+          "raw": {
+            "emp_id": 1513,
+            "full_name": "מיכל שכטמן",
+            "mobile": "053-9590269",
+            "email": "hmijal@gmail.com",
+            "address": "דוד המלך 31 קרית ארבע",
+            "employment_type": "תעשיידע",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1513,
+            "full_name": "מיכל שכטמן",
+            "mobile": "053-9590269",
+            "email": "hmijal@gmail.com",
+            "address": "דוד המלך 31 קרית ארבע",
+            "employment_type": "תעשיידע",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        },
+        {
+          "__sheet_row": 20,
+          "raw": {
+            "emp_id": 1501,
+            "full_name": "סוהא סאלם",
+            "mobile": "050-9914808",
+            "email": "suhasalm79@gmail.com",
+            "address": "דוד נוי 37/3 עכו",
+            "employment_type": "מעוף",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          },
+          "normalized": {
+            "emp_id": 1501,
+            "full_name": "סוהא סאלם",
+            "mobile": "050-9914808",
+            "email": "suhasalm79@gmail.com",
+            "address": "דוד נוי 37/3 עכו",
+            "employment_type": "מעוף",
+            "direct_manager": "גיל נאמן",
+            "active": "yes"
+          }
+        }
+      ]
+    },
+    "operations_private_notes": {
+      "sheet_index": 8,
+      "used_range": "A1:F1",
+      "header_row_values": [
+        "source_sheet",
+        "source_row_id",
+        "note_text",
+        "updated_at",
+        "updated_by",
+        "active"
+      ],
+      "row2_values": [],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 0,
+      "records": []
+    },
+    "edit_requests": {
+      "sheet_index": 9,
+      "used_range": "A1:N1",
+      "header_row_values": [
+        "request_id",
+        "source_sheet",
+        "source_row_id",
+        "field_name",
+        "old_value",
+        "new_value",
+        "requested_by_user_id",
+        "requested_by_name",
+        "requested_at",
+        "status",
+        "reviewed_at",
+        "reviewed_by",
+        "reviewer_notes",
+        "active"
+      ],
+      "row2_values": [],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 0,
+      "records": []
+    },
+    "אפיון": {
+      "sheet_index": 10,
+      "used_range": "A1:C21",
+      "header_row_values": [
+        "topic",
+        "decision",
+        "notes"
+      ],
+      "row2_values": [
+        "נושא",
+        "החלטה",
+        "הערות"
+      ],
+      "data_start_row_assumed": 3,
+      "record_count_non_empty_from_row3": 19,
+      "records": [
+        {
+          "__sheet_row": 3,
+          "raw": {
+            "topic": "מקור מידע",
+            "decision": "כל מסכי הפעילות נגזרים מ-data",
+            "notes": "גם כספים הוא מסך נגזר מתוך data"
+          },
+          "normalized": {
+            "topic": "מקור מידע",
+            "decision": "כל מסכי הפעילות נגזרים מ-data",
+            "notes": "גם כספים הוא מסך נגזר מתוך data"
+          }
+        },
+        {
+          "__sheet_row": 4,
+          "raw": {
+            "topic": "KPI בדשבורד",
+            "decision": "מציגים רק כרטיסים עם ערך",
+            "notes": "אם אין ערך לא מציגים"
+          },
+          "normalized": {
+            "topic": "KPI בדשבורד",
+            "decision": "מציגים רק כרטיסים עם ערך",
+            "notes": "אם אין ערך לא מציגים"
+          }
+        },
+        {
+          "__sheet_row": 5,
+          "raw": {
+            "topic": "KPI קורסים",
+            "decision": "סך הכל קורסים פעילים לפי התאריך",
+            "notes": null
+          },
+          "normalized": {
+            "topic": "KPI קורסים",
+            "decision": "סך הכל קורסים פעילים לפי התאריך",
+            "notes": null
+          }
+        },
+        {
+          "__sheet_row": 6,
+          "raw": {
+            "topic": "KPI סדנאות",
+            "decision": "סך הכל סדנאות פעילות לפי התאריך",
+            "notes": null
+          },
+          "normalized": {
+            "topic": "KPI סדנאות",
+            "decision": "סך הכל סדנאות פעילות לפי התאריך",
+            "notes": null
+          }
+        },
+        {
+          "__sheet_row": 7,
+          "raw": {
+            "topic": "KPI סיורים",
+            "decision": "סך הכל סיורים פעילים לפי התאריך",
+            "notes": null
+          },
+          "normalized": {
+            "topic": "KPI סיורים",
+            "decision": "סך הכל סיורים פעילים לפי התאריך",
+            "notes": null
+          }
+        },
+        {
+          "__sheet_row": 8,
+          "raw": {
+            "topic": "נגמרים החודש",
+            "decision": "רק course",
+            "notes": null
+          },
+          "normalized": {
+            "topic": "נגמרים החודש",
+            "decision": "רק course",
+            "notes": null
+          }
+        },
+        {
+          "__sheet_row": 9,
+          "raw": {
+            "topic": "חריגות",
+            "decision": "רק course",
+            "notes": "ללא מדריך, ללא שעות, ללא תאריך התחלה, וכל קורס שמסתיים ביוני 2026"
+          },
+          "normalized": {
+            "topic": "חריגות",
+            "decision": "רק course",
+            "notes": "ללא מדריך, ללא שעות, ללא תאריך התחלה, וכל קורס שמסתיים ביוני 2026"
+          }
+        },
+        {
+          "__sheet_row": 10,
+          "raw": {
+            "topic": "סטטוס בקורסים",
+            "decision": "פעיל / הסתיים",
+            "notes": "לא רק תאריך סיום קובע מה יוצג"
+          },
+          "normalized": {
+            "topic": "סטטוס בקורסים",
+            "decision": "פעיל / הסתיים",
+            "notes": "לא רק תאריך סיום קובע מה יוצג"
+          }
+        },
+        {
+          "__sheet_row": 11,
+          "raw": {
+            "topic": "סטטוס בכספים",
+            "decision": "פתוח / סגור",
+            "notes": null
+          },
+          "normalized": {
+            "topic": "סטטוס בכספים",
+            "decision": "פתוח / סגור",
+            "notes": null
+          }
+        },
+        {
+          "__sheet_row": 12,
+          "raw": {
+            "topic": "מפגש שבוצע",
+            "decision": "כל תאריך שעבר מסומן כביצוע",
+            "notes": null
+          },
+          "normalized": {
+            "topic": "מפגש שבוצע",
+            "decision": "כל תאריך שעבר מסומן כביצוע",
+            "notes": null
+          }
+        },
+        {
+          "__sheet_row": 13,
+          "raw": {
+            "topic": "שדות לא מוצגים",
+            "decision": "emp_id ו-activity_no",
+            "notes": "נשמרים במערכת אבל לא מוצגים"
+          },
+          "normalized": {
+            "topic": "שדות לא מוצגים",
+            "decision": "emp_id ו-activity_no",
+            "notes": "נשמרים במערכת אבל לא מוצגים"
+          }
+        },
+        {
+          "__sheet_row": 14,
+          "raw": {
+            "topic": "מסך אדמין",
+            "decision": "לוח בקרה עם כפתורי ניווט",
+            "notes": "settings, lists, permissions, dashboard, contacts, views"
+          },
+          "normalized": {
+            "topic": "מסך אדמין",
+            "decision": "לוח בקרה עם כפתורי ניווט",
+            "notes": "settings, lists, permissions, dashboard, contacts, views"
+          }
+        },
+        {
+          "__sheet_row": 15,
+          "raw": {
+            "topic": "מסך תפעול ראשי",
+            "decision": "מסך דומה עם הרשאות מותרות",
+            "notes": "הדגש על המסך שלה"
+          },
+          "normalized": {
+            "topic": "מסך תפעול ראשי",
+            "decision": "מסך דומה עם הרשאות מותרות",
+            "notes": "הדגש על המסך שלה"
+          }
+        },
+        {
+          "__sheet_row": 16,
+          "raw": {
+            "topic": "כספים - גפן",
+            "decision": "ריכוז לפי בית ספר",
+            "notes": "ובכל זאת מציגים גם את כל הנתונים"
+          },
+          "normalized": {
+            "topic": "כספים - גפן",
+            "decision": "ריכוז לפי בית ספר",
+            "notes": "ובכל זאת מציגים גם את כל הנתונים"
+          }
+        },
+        {
+          "__sheet_row": 17,
+          "raw": {
+            "topic": "כספים - לא גפן",
+            "decision": "ריכוז לפי המימון עצמו",
+            "notes": null
+          },
+          "normalized": {
+            "topic": "כספים - לא גפן",
+            "decision": "ריכוז לפי המימון עצמו",
+            "notes": null
+          }
+        },
+        {
+          "__sheet_row": 18,
+          "raw": {
+            "topic": "ייצוא כספים",
+            "decision": "כולל את כל התאריכים שבוצעו בפועל",
+            "notes": "start_date עד date35 לפי מה שקיים"
+          },
+          "normalized": {
+            "topic": "ייצוא כספים",
+            "decision": "כולל את כל התאריכים שבוצעו בפועל",
+            "notes": "start_date עד date35 לפי מה שקיים"
+          }
+        },
+        {
+          "__sheet_row": 19,
+          "raw": {
+            "topic": "תפעול",
+            "decision": "אדמין עסקי מלא ללא הרשאות מערכת טכניות",
+            "notes": "גישה מלאה למסכים העסקיים בלבד"
+          },
+          "normalized": {
+            "topic": "תפעול",
+            "decision": "אדמין עסקי מלא ללא הרשאות מערכת טכניות",
+            "notes": "גישה מלאה למסכים העסקיים בלבד"
+          }
+        },
+        {
+          "__sheet_row": 20,
+          "raw": {
+            "topic": "permissions",
+            "decision": "מודל ההרשאות הנוכחי נשמר לתאימות",
+            "notes": "בוצע יישור הרשאות לאדמין ולתפעול"
+          },
+          "normalized": {
+            "topic": "permissions",
+            "decision": "מודל ההרשאות הנוכחי נשמר לתאימות",
+            "notes": "בוצע יישור הרשאות לאדמין ולתפעול"
+          }
+        },
+        {
+          "__sheet_row": 21,
+          "raw": {
+            "topic": "operations_data",
+            "decision": "workflow_status הוא סטטוס התהליך הראשי",
+            "notes": "סטטוסים חסרים מולאו מתוך admin_status"
+          },
+          "normalized": {
+            "topic": "operations_data",
+            "decision": "workflow_status הוא סטטוס התהליך הראשי",
+            "notes": "סטטוסים חסרים מולאו מתוך admin_status"
+          }
+        }
+      ]
+    }
+  }
+}
