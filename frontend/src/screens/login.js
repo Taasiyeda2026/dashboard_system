@@ -18,7 +18,7 @@ export const loginScreen = {
           <h1 class="login-title">כניסה למערכת</h1>
           <p class="login-subtitle">Dashboard Taasiyeda</p>
 
-          <form id="loginForm" class="login-form" novalidate>
+          <form id="loginForm" class="login-form">
             <input
               id="userId"
               required
@@ -47,10 +47,18 @@ export const loginScreen = {
     root.querySelector('#loginForm')?.addEventListener('submit', async (event) => {
       event.preventDefault();
 
-      const userId = root.querySelector('#userId')?.value.trim();
-      const code = root.querySelector('#entryCode')?.value.trim();
+      const errorNode = root.querySelector('#loginError');
+      if (errorNode) errorNode.textContent = '';
 
-      await onLogin(userId, code, root.querySelector('#loginError'));
+      const userId = root.querySelector('#userId')?.value.trim() ?? '';
+      const code = root.querySelector('#entryCode')?.value.trim() ?? '';
+
+      if (!userId || !code) {
+        if (errorNode) errorNode.textContent = 'נא למלא מזהה משתמש וקוד כניסה';
+        return;
+      }
+
+      await onLogin(userId, code, errorNode);
     });
   }
 };
