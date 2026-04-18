@@ -15,7 +15,20 @@ function actionDashboard_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
   var shortRows = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
-  var longRows = buildLongRows_();
+  var longRows = readRows_(CONFIG.SHEETS.DATA_LONG).map(mapLongRow_);
+  var hasCourseRows = longRows.some(function(row) {
+    return text_(row.activity_type) === 'course';
+  });
+  if (hasCourseRows) {
+    var meetingsByRow = buildMeetingsMap_();
+    longRows.forEach(function(row) {
+      var dates = meetingsByRow[row.RowID] || [];
+      if (dates.length) {
+        row.start_date = dates[0];
+        row.end_date = dates[dates.length - 1];
+      }
+    });
+  }
   var instructorRows = readRows_(CONFIG.SHEETS.INSTRUCTORS).filter(function(row) {
     return yesNo_(row.active) === 'yes';
   });

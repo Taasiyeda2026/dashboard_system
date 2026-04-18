@@ -25,9 +25,15 @@ function actionLogin_(payload) {
     CONFIG.SESSION_CACHE_SECONDS
   );
 
+  var routes = buildRoutesFromPermission_(match, role);
+  var preferred = text_(match.default_view) || defaultRouteForRole_(role);
+  var defaultRoute = routes.indexOf(preferred) >= 0 ? preferred : (routes[0] || 'my-data');
+
   return {
     token: token,
-    user: user
+    user: user,
+    routes: routes,
+    default_route: defaultRoute
   };
 }
 

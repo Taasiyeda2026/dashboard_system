@@ -45,6 +45,18 @@ export const loginScreen = {
 
   bind({ root, onLogin }) {
     const form = root.querySelector('#loginForm');
+    const userInput = root.querySelector('#userId');
+    const codeInput = root.querySelector('#entryCode');
+    const submitBtn = root.querySelector('.login-submit');
+
+    const setBusy = (busy, buttonLabel) => {
+      if (userInput) userInput.disabled = busy;
+      if (codeInput) codeInput.disabled = busy;
+      if (submitBtn) {
+        submitBtn.disabled = busy;
+        if (typeof buttonLabel === 'string') submitBtn.textContent = buttonLabel;
+      }
+    };
 
     form?.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -52,15 +64,21 @@ export const loginScreen = {
       const errorNode = root.querySelector('#loginError');
       if (errorNode) errorNode.textContent = '';
 
-      const userId = root.querySelector('#userId')?.value.trim() ?? '';
-      const code = root.querySelector('#entryCode')?.value.trim() ?? '';
+      const userId = userInput?.value.trim() ?? '';
+      const code = codeInput?.value.trim() ?? '';
 
       if (!userId || !code) {
         if (errorNode) errorNode.textContent = 'נא למלא מזהה משתמש וקוד כניסה';
         return;
       }
 
-      await onLogin(userId, code, errorNode);
+      setBusy(true, 'מתחבר...');
+      try {
+        await onLogin(userId, code, errorNode);
+      } catch (error) {
+        if (errorNode && !errorNode.textContent) errorNode.textContent = error.message;
+        if (root.isConnected) setBusy(false, 'התחברות');
+      }
     });
 
     const submitOnEnter = (event) => {
@@ -69,7 +87,7 @@ export const loginScreen = {
       form.requestSubmit();
     };
 
-    root.querySelector('#userId')?.addEventListener('keydown', submitOnEnter);
-    root.querySelector('#entryCode')?.addEventListener('keydown', submitOnEnter);
+    userInput?.addEventListener('keydown', submitOnEnter);
+    codeInput?.addEventListener('keydown', submitOnEnter);
   }
 };

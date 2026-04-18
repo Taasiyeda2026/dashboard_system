@@ -15,6 +15,43 @@ import { permissionsScreen } from './screens/permissions.js';
 
 const app = document.getElementById('app');
 
+let pendingProgressiveShell = false;
+
+function flushPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
+  });
+}
+
+function renderAppBootLoadingHtml() {
+  return `
+    <div class="app-boot-loading" dir="rtl">
+      <p class="app-boot-loading-msg">טוען את המערכת...</p>
+    </div>
+  `;
+}
+
+function screenLoadingMarkup() {
+  return '<div class="screen-loading" dir="rtl"><p class="screen-loading-msg">טוען נתונים...</p></div>';
+}
+
+function consumeProgressiveShellFlag() {
+  if (!pendingProgressiveShell) return false;
+  pendingProgressiveShell = false;
+  return true;
+}
+
+function applyBootstrapFromLoginData(data) {
+  if (!data || !Array.isArray(data.routes) || !data.routes.length) return;
+  state.routes = data.routes;
+  state.route =
+    data.default_route && data.routes.includes(data.default_route)
+      ? data.default_route
+      : state.routes[0] || 'my-data';
+}
+
 const screenLabels = {
   dashboard: 'Dashboard',
   activities: 'Activities',
@@ -63,6 +100,7 @@ function shell(content) {
 
 async function restoreSession() {
   if (!state.token) return;
+  if (state.routes.length) return;
   const bootstrap = await api.bootstrap();
   state.routes = bootstrap.routes || [];
   state.route = bootstrap.default_route || state.routes[0] || 'my-data';
@@ -74,17 +112,39 @@ async function mountScreen() {
 
   const screen = screens[state.route];
   if (!screen) throw new Error('Screen not found: ' + state.route);
+
+  const progressive = consumeProgressiveShellFlag();
+
+  if (progressive) {
+    app.innerHTML = shell(screenLoadingMarkup());
+    bindShell();
+    await flushPaint();
+  }
+
   const data = screen.load ? await screen.load({ api, state }) : {};
 
-  app.innerHTML = shell(screen.render(data, { state }));
-  bindShell();
-  screen.bind?.({
-    root: document.getElementById('screenRoot'),
-    data,
-    state,
-    api,
-    rerender: render
-  });
+  if (progressive) {
+    const screenRoot = document.getElementById('screenRoot');
+    if (!screenRoot) throw new Error('screenRoot missing');
+    screenRoot.innerHTML = screen.render(data, { state });
+    screen.bind?.({
+      root: screenRoot,
+      data,
+      state,
+      api,
+      rerender: render
+    });
+  } else {
+    app.innerHTML = shell(screen.render(data, { state }));
+    bindShell();
+    screen.bind?.({
+      root: document.getElementById('screenRoot'),
+      data,
+      state,
+      api,
+      rerender: render
+    });
+  }
 }
 
 function bindShell() {
@@ -108,12 +168,17 @@ async function render() {
       root: app,
       onLogin: async (userId, code, errorNode) => {
         try {
-          const session = await api.login(userId, code);
-          setSession(session);
+          const data = await api.login(userId, code);
+          setSession({ token: data.token, user: data.user });
+          applyBootstrapFromLoginData(data);
+          app.innerHTML = renderAppBootLoadingHtml();
+          await flushPaint();
           await restoreSession();
+          pendingProgressiveShell = true;
           await render();
         } catch (error) {
           if (errorNode) errorNode.textContent = error.message;
+          throw error;
         }
       }
     });
