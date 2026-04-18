@@ -13,7 +13,7 @@ async function request(action, payload = {}) {
     if ((json.error || '').toLowerCase() === 'unauthorized') {
       setSession(null);
     }
-    throw new Error(json.error || 'Request failed');
+    throw new Error(json.error || 'הבקשה נכשלה');
   }
   return json.data;
 }

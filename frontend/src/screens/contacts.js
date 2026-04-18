@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { hebrewColumn } from './shared/ui-hebrew.js';
 
 export const contactsScreen = {
   load: ({ api }) => api.contacts(),
@@ -11,13 +12,13 @@ export const contactsScreen = {
 
     return `
       <section class="stack">
-        <h2>📇 Contacts</h2>
+        <h2>📇 אנשי קשר</h2>
         <details class="compact-block" open>
-          <summary>📋 Rows (${rows.length})</summary>
+          <summary>רשימה (${rows.length} שורות)</summary>
           <div class="compact-body overflow-x">
             <table>
-              <thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
-              <tbody>${body || `<tr><td colspan="${columns.length}">No records found.</td></tr>`}</tbody>
+              <thead><tr>${columns.map((column) => `<th>${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
+              <tbody>${body || `<tr><td colspan="${columns.length}">לא נמצאו רשומות</td></tr>`}</tbody>
             </table>
           </div>
         </details>

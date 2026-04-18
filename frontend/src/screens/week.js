@@ -7,10 +7,10 @@ export const weekScreen = {
     const days = safeDays.map((d) => `
       <article class="card day-col">
         <h3>${escapeHtml(d.date)}</h3>
-        <ul>${(Array.isArray(d.items) ? d.items : []).map((item) => `<li>${escapeHtml(item.RowID)} • ${escapeHtml(item.activity_name || 'Untitled')}</li>`).join('') || '<li>None</li>'}</ul>
+        <ul>${(Array.isArray(d.items) ? d.items : []).map((item) => `<li>${escapeHtml(item.RowID)} · ${escapeHtml(item.activity_name || 'ללא שם')}</li>`).join('') || '<li>אין פריטים</li>'}</ul>
       </article>
     `).join('');
 
-    return `<section class="stack"><h2>Week</h2><div class="week-grid">${days || '<article class="card">No week data available.</article>'}</div></section>`;
+    return `<section class="stack"><h2>📅 תצוגת שבוע</h2><div class="week-grid">${days || '<article class="card">אין נתוני שבוע זמינים</article>'}</div></section>`;
   }
 };

@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { state, setSession } from './state.js';
 import { escapeHtml } from './screens/shared/html.js';
+import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { loginScreen } from './screens/login.js';
 import { dashboardScreen } from './screens/dashboard.js';
 import { activitiesScreen } from './screens/activities.js';
@@ -71,16 +72,16 @@ function applyBootstrapFromLoginData(data) {
 }
 
 const screenLabels = {
-  dashboard: 'Dashboard',
-  activities: 'Activities',
-  week: 'Week',
-  month: 'Month',
-  exceptions: 'Exceptions',
-  finance: 'Finance',
-  instructors: 'Instructors',
-  contacts: 'Contacts',
-  'my-data': 'My Data',
-  permissions: 'Permissions'
+  dashboard: 'לוח בקרה',
+  activities: 'פעילויות',
+  week: 'שבוע',
+  month: 'חודש',
+  exceptions: 'חריגות',
+  finance: 'כספים',
+  instructors: 'מדריכים',
+  contacts: 'אנשי קשר',
+  'my-data': 'הנתונים שלי',
+  permissions: 'הרשאות'
 };
 
 const screens = {
@@ -98,17 +99,17 @@ const screens = {
 
 function shell(content) {
   const nav = state.routes
-    .map((route) => `<button class="nav-btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || route}</button>`)
+    .map((route) => `<button type="button" class="nav-btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`)
     .join('');
 
   return `
     <div class="outer-shell">
       <header class="topbar panel">
         <div class="title-wrap">
-          <h1>Internal Dashboard</h1>
-          <p>${escapeHtml(state.user?.name)} · ${escapeHtml(state.user?.role)}</p>
+          <h1>לוח בקרה פנימי</h1>
+          <p>${escapeHtml(state.user?.full_name || state.user?.name || '')} · ${escapeHtml(hebrewRole(state.user?.display_role || state.user?.role))}</p>
         </div>
-        <button class="danger" id="logoutBtn">Logout</button>
+        <button class="danger" id="logoutBtn" type="button">התנתקות</button>
       </header>
       <nav class="tabs panel">${nav}</nav>
       <section id="screenRoot">${content}</section>
@@ -223,5 +224,5 @@ if ('serviceWorker' in navigator) {
 }
 
 render().catch((error) => {
-  app.innerHTML = `<div class="outer-shell"><section class="panel"><h2>Error</h2><p>${escapeHtml(error.message)}</p></section></div>`;
+  app.innerHTML = `<div class="outer-shell"><section class="panel panel--error"><h2>שגיאה</h2><p>${escapeHtml(error.message)}</p></section></div>`;
 });

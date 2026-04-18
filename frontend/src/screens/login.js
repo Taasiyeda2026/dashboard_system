@@ -16,7 +16,7 @@ export const loginScreen = {
             />
           </div>
           <h1 class="login-title">כניסה למערכת</h1>
-          <p class="login-subtitle">Dashboard Taasiyeda</p>
+          <p class="login-subtitle">דשבורד תעשיידע</p>
 
           <form id="loginForm" class="login-form">
             <input

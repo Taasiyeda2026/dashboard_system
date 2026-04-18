@@ -11,10 +11,12 @@ export const monthScreen = {
       </article>
     `).join('');
 
+    const monthLabel = data?.month ? `חודש ${escapeHtml(data.month)}` : 'חודש';
+
     return `
       <section class="panel">
-        <h2>Month ${escapeHtml(data?.month || '')}</h2>
-        <div class="month-grid">${cards || '<article class="mini-card"><p>No month data available.</p></article>'}</div>
+        <h2>${monthLabel}</h2>
+        <div class="month-grid">${cards || '<article class="mini-card"><p>אין נתוני חודש זמינים</p></article>'}</div>
       </section>
     `;
   }
