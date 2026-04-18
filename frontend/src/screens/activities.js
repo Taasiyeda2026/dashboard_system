@@ -1,5 +1,14 @@
 import { escapeHtml } from './shared/html.js';
 import { hebrewActivityType, hebrewFinanceStatus, hebrewColumn } from './shared/ui-hebrew.js';
+import {
+  dsPageHeader,
+  dsFilterBar,
+  dsToolbar,
+  dsCard,
+  dsScreenStack,
+  dsTableWrap,
+  dsEmptyState
+} from './shared/layout.js';
 
 const tabs = ['all', 'course', 'after_school', 'workshop', 'tour', 'escape_room'];
 
@@ -22,41 +31,60 @@ export const activitiesScreen = {
         <td>${escapeHtml(hebrewFinanceStatus(row.finance_status || 'open'))}</td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
-    `).join('');
+    `);
 
-    const compactRows = safeRows.map((row) => `
-      <article class="card compact-row">
+    const compactRows = safeRows.map(
+      (row) => `
+      <article class="ds-compact-row">
         <header>${escapeHtml(row.RowID)} · ${escapeHtml(hebrewActivityType(row.activity_type))}</header>
         <p>${escapeHtml(row.activity_name || 'פעילות ללא שם')}</p>
-        <small>${escapeHtml(row.start_date || '—')} → ${escapeHtml(row.end_date || '—')}</small>
-      </article>
-    `).join('');
+        <small>${escapeHtml(row.start_date || '—')} עד ${escapeHtml(row.end_date || '—')}</small>
+      </article>`
+    );
 
     const thPrivate = canSeePrivateNotes ? `<th>${hebrewColumn('private_note')}</th>` : '';
     const colSpan = canSeePrivateNotes ? 9 : 8;
 
-    return `
-      <section class="stack">
-        <h2>🗂️ פעילויות</h2>
-        <div class="tabs">
-          ${tabs.map((tab) => `<button type="button" class="btn chip ${tab === (state.activityTab || 'all') ? 'is-active' : ''}" data-tab="${tab}">${escapeHtml(hebrewActivityType(tab))}</button>`).join('')}
-        </div>
-        <div class="toolbar">
-          <label class="compact-toggle"><input id="toggle-view" type="checkbox" ${compactView ? 'checked' : ''} /> תצוגה קומפקטית</label>
-        </div>
-        ${compactView
-          ? `<div class="stack">${compactRows || '<article class="card">לא נמצאו פעילויות למסנן זה</article>'}</div>`
-          : `<details class="compact-block" open>
-              <summary>טבלה (${safeRows.length} שורות)</summary>
-              <div class="compact-body overflow-x">
-              <table>
+    const filterButtons = tabs
+      .map(
+        (tab) =>
+          `<button type="button" class="ds-chip ${tab === (state.activityTab || 'all') ? 'is-active' : ''}" data-tab="${tab}">${escapeHtml(hebrewActivityType(tab))}</button>`
+      )
+      .join('');
+
+    const tableSection =
+      safeRows.length === 0
+        ? dsEmptyState('לא נמצאו פעילויות למסנן זה')
+        : dsTableWrap(`<table class="ds-table">
                 <thead><tr><th>${hebrewColumn('RowID')}</th><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>התחלה</th><th>סיום</th><th>מדריך/ה 1 (מזהה)</th><th>מדריך/ה 2 (מזהה)</th><th>${hebrewColumn('finance_status')}</th>${thPrivate}</tr></thead>
-                <tbody>${tableRows || `<tr><td colspan="${colSpan}">לא נמצאו פעילויות למסנן זה</td></tr>`}</tbody>
-              </table>
-              </div>
-            </details>`}
-      </section>
-    `;
+                <tbody>${tableRows.join('')}</tbody>
+              </table>`);
+
+    const compactSection =
+      safeRows.length === 0
+        ? dsEmptyState('לא נמצאו פעילויות למסנן זה')
+        : `<div class="ds-compact-list">${compactRows.join('')}</div>`;
+
+    return dsScreenStack(`
+      ${dsPageHeader('פעילויות', 'סינון וצפייה ברשימת הפעילויות')}
+      ${dsFilterBar(filterButtons)}
+      ${dsToolbar(
+        `<label class="compact-toggle"><input id="toggle-view" type="checkbox" ${compactView ? 'checked' : ''} /> תצוגה קומפקטית</label>`
+      )}
+      ${compactView
+        ? dsCard({
+            title: 'רשימת פעילויות',
+            badge: `${safeRows.length} שורות`,
+            body: compactSection,
+            padded: true
+          })
+        : dsCard({
+            title: 'רשימת פעילויות',
+            badge: `${safeRows.length} שורות`,
+            body: tableSection,
+            padded: false
+          })}
+    `);
   },
   bind({ root, state, rerender, rerenderActivitiesView }) {
     root.querySelectorAll('[data-tab]').forEach((node) => {

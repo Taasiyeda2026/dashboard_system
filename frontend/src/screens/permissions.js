@@ -1,5 +1,6 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewColumn, hebrewRole } from './shared/ui-hebrew.js';
+import { hebrewColumn, hebrewRole, translateApiErrorForUser } from './shared/ui-hebrew.js';
+import { dsPageHeader, dsCard, dsScreenStack, dsTableWrap, dsEmptyState } from './shared/layout.js';
 
 function hebrewYesNo(value) {
   const v = String(value || '').toLowerCase();
@@ -15,39 +16,47 @@ export const permissionsScreen = {
       state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
 
-    const body = safeRows.map((row) => {
-      const roleDisplay = canEdit
-        ? `<select data-role-select data-user-id="${escapeHtml(row.user_id)}">
+    const body = safeRows
+      .map((row) => {
+        const roleDisplay = canEdit
+          ? `<select data-role-select data-user-id="${escapeHtml(row.user_id)}">
             <option value="admin" ${row.display_role === 'admin' ? 'selected' : ''}>מנהל/ת</option>
             <option value="operations_reviewer" ${row.display_role === 'operations_reviewer' ? 'selected' : ''}>בקר/ת תפעול</option>
             <option value="authorized_user" ${row.display_role === 'authorized_user' ? 'selected' : ''}>משתמש/ת מורשה</option>
             <option value="instructor" ${row.display_role === 'instructor' ? 'selected' : ''}>מדריך/ה</option>
           </select>`
-        : escapeHtml(hebrewRole(row.display_role));
+          : escapeHtml(hebrewRole(row.display_role));
 
-      const activeDisplay = canEdit
-        ? `<label class="perm-active-label"><input type="checkbox" data-active-toggle data-user-id="${escapeHtml(row.user_id)}" ${row.active === 'yes' ? 'checked' : ''} /> פעיל</label>`
-        : escapeHtml(hebrewYesNo(row.active));
+        const activeDisplay = canEdit
+          ? `<label class="perm-active-label"><input type="checkbox" data-active-toggle data-user-id="${escapeHtml(row.user_id)}" ${row.active === 'yes' ? 'checked' : ''} /> פעיל</label>`
+          : escapeHtml(hebrewYesNo(row.active));
 
-      const saveButton = canEdit
-        ? `<button type="button" class="btn" data-save-permission data-user-id="${escapeHtml(row.user_id)}" data-full-name="${escapeHtml(row.full_name)}" data-entry-code="${escapeHtml(row.entry_code || '')}" data-default-view="${escapeHtml(row.default_view || '')}">שמירה</button>`
-        : '';
+        const saveButton = canEdit
+          ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-save-permission data-user-id="${escapeHtml(row.user_id)}" data-full-name="${escapeHtml(row.full_name)}" data-entry-code="${escapeHtml(row.entry_code || '')}" data-default-view="${escapeHtml(row.default_view || '')}">שמירה</button>`
+          : '';
 
-      return `<tr><td>${escapeHtml(row.user_id)}</td><td>${escapeHtml(row.full_name)}</td><td>${roleDisplay}</td><td>${activeDisplay}</td><td>${saveButton}</td></tr>`;
-    }).join('') || `<tr><td colspan="5">לא נמצאו שורות הרשאה</td></tr>`;
+        return `<tr><td>${escapeHtml(row.user_id)}</td><td>${escapeHtml(row.full_name)}</td><td>${roleDisplay}</td><td>${activeDisplay}</td><td>${saveButton}</td></tr>`;
+      })
+      .join('');
 
-    return `
-      <section class="stack">
-        <h2>🔐 הרשאות</h2>
-        <article class="card overflow-x">
-          <table>
+    const tableInner =
+      safeRows.length === 0
+        ? dsEmptyState('לא נמצאו שורות הרשאה')
+        : dsTableWrap(`<table class="ds-table">
             <thead><tr><th>${hebrewColumn('user_id')}</th><th>${hebrewColumn('full_name')}</th><th>${hebrewColumn('display_role')}</th><th>${hebrewColumn('active')}</th><th>${hebrewColumn('actions')}</th></tr></thead>
             <tbody>${body}</tbody>
-          </table>
-        </article>
-        <p id="permissions-status" class="muted"></p>
-      </section>
-    `;
+          </table>`);
+
+    return dsScreenStack(`
+      ${dsPageHeader('הרשאות', 'ניהול גישה למערכת')}
+      ${dsCard({
+        title: 'משתמשים והרשאות',
+        badge: `${safeRows.length} משתמשים`,
+        body: tableInner,
+        padded: safeRows.length === 0
+      })}
+      <p id="permissions-status" class="ds-muted" role="status"></p>
+    `);
   },
   bind({ root, api, rerender }) {
     root.querySelectorAll('[data-save-permission]').forEach((button) =>
@@ -66,10 +75,10 @@ export const permissionsScreen = {
             display_role,
             active
           });
-          if (status) status.textContent = `נשמר (${userId})`;
+          if (status) status.textContent = `נשמר עבור ${userId}`;
           if (typeof rerender === 'function') await rerender();
         } catch (error) {
-          if (status) status.textContent = error.message;
+          if (status) status.textContent = translateApiErrorForUser(error?.message);
         }
       })
     );

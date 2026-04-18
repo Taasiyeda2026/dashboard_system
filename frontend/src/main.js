@@ -1,7 +1,8 @@
 import { api } from './api.js';
 import { state, setSession } from './state.js';
 import { escapeHtml } from './screens/shared/html.js';
-import { hebrewRole } from './screens/shared/ui-hebrew.js';
+import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
+import { dsSkeletonLines } from './screens/shared/layout.js';
 import { loginScreen } from './screens/login.js';
 import { dashboardScreen } from './screens/dashboard.js';
 import { activitiesScreen } from './screens/activities.js';
@@ -41,6 +42,7 @@ function renderPostLoginLoadingHtml() {
         </div>
         <p class="login-loading-heading" role="status">טוען את המערכת...</p>
         <p class="login-loading-sub">מכינים את המסך הראשון, נא להמתין</p>
+        ${dsSkeletonLines(3)}
       </section>
     </div>
   `;
@@ -48,8 +50,9 @@ function renderPostLoginLoadingHtml() {
 
 function screenLoadingMarkup() {
   return `
-    <div class="screen-loading screen-loading--prominent" dir="rtl" role="status" aria-live="polite">
-      <p class="screen-loading-msg">טוען נתונים...</p>
+    <div class="ds-loading-card" dir="rtl" role="status" aria-live="polite">
+      <div class="ds-spinner" aria-hidden="true"></div>
+      <p>טוען נתונים...</p>
     </div>
   `;
 }
@@ -93,21 +96,37 @@ function shell(content) {
   const nav = state.routes
     .map(
       (route) =>
-        `<button type="button" class="nav-btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`
+        `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`
     )
     .join('');
 
+  const displayName = escapeHtml(state.user?.full_name || state.user?.name || 'משתמש');
+  const roleLine = escapeHtml(hebrewRole(state.user?.display_role || state.user?.role));
+
   return `
-    <div class="outer-shell">
-      <header class="topbar panel">
-        <div class="title-wrap">
-          <h1>לוח בקרה פנימי</h1>
-          <p>${escapeHtml(state.user?.full_name || state.user?.name || '')} · ${escapeHtml(hebrewRole(state.user?.display_role || state.user?.role))}</p>
+    <div class="app-shell" dir="rtl">
+      <aside class="shell-sidebar" aria-label="ניווט ראשי">
+        <div class="shell-brand">
+          <img class="shell-brand__mark" src="${loginLogoSrc}" alt="" width="120" height="52" decoding="async" />
+          <span class="shell-brand__name">תעשיידע</span>
         </div>
-        <button class="danger" id="logoutBtn" type="button">התנתקות</button>
-      </header>
-      <nav class="tabs panel">${nav}</nav>
-      <section id="screenRoot">${content}</section>
+        <nav class="shell-nav">${nav}</nav>
+        <div class="shell-sidebar__footer">
+          <div class="shell-user">
+            <span class="shell-user__name">${displayName}</span>
+            <span class="shell-user__role">${roleLine}</span>
+          </div>
+        </div>
+      </aside>
+      <div class="shell-main">
+        <header class="shell-top">
+          <p class="shell-top__mobile-brand">תעשיידע</p>
+          <button type="button" class="ds-btn ds-btn--danger ds-btn--sm" id="logoutBtn">התנתקות</button>
+        </header>
+        <div class="shell-stage">
+          <div id="screenRoot" class="screen-root">${content}</div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -181,9 +200,9 @@ async function mountScreen() {
   if (!state.routes.includes(state.route)) state.route = state.routes[0] || 'my-data';
 
   const screen = screens[state.route];
-  if (!screen) throw new Error('Screen not found: ' + state.route);
+  if (!screen) throw new Error('מסך לא זמין');
 
-  const shellExists = !!(state.token && document.querySelector('.outer-shell #screenRoot'));
+  const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
 
   if (!shellExists) {
     app.innerHTML = shell(screenLoadingMarkup());
@@ -200,7 +219,7 @@ async function mountScreen() {
   try {
     const data = await loadScreenDataWithCache(screen);
     const screenRoot = document.getElementById('screenRoot');
-    if (!screenRoot) throw new Error('screenRoot missing');
+    if (!screenRoot) throw new Error('אזור התצוגה לא זמין');
     screenRoot.innerHTML = screen.render(data, { state });
     bindScreen(screen, screenRoot, data);
   } finally {
@@ -265,5 +284,12 @@ if ('serviceWorker' in navigator) {
 }
 
 render().catch((error) => {
-  app.innerHTML = `<div class="outer-shell"><section class="panel panel--error"><h2>שגיאה</h2><p>${escapeHtml(error.message)}</p></section></div>`;
+  const msg = translateApiErrorForUser(error?.message);
+  app.innerHTML = `
+    <div class="login-shell" dir="rtl">
+      <section class="login-card ds-error-page panel--error">
+        <h2>שגיאה</h2>
+        <p>${escapeHtml(msg)}</p>
+      </section>
+    </div>`;
 });

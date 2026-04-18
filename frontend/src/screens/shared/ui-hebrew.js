@@ -84,5 +84,69 @@ const COLUMN_LABELS = {
 };
 
 export function hebrewColumn(key) {
-  return COLUMN_LABELS[key] || key;
+  if (key === undefined || key === null) return 'שדה';
+  const k = String(key).trim();
+  return COLUMN_LABELS[k] || 'שדה';
+}
+
+const HEBREW_EMPLOYMENT_TYPE = {
+  full_time: 'משרה מלאה',
+  part_time: 'משרה חלקית',
+  contractor: 'קבלן',
+  external: 'חיצוני',
+  employee: 'עובד/ת',
+  salaried: 'שכיר/ה',
+  hourly: 'לפי שעה',
+  temporary: 'זמני/ת'
+};
+
+export function hebrewEmploymentType(value) {
+  if (value === undefined || value === null || value === '') return '—';
+  const s = String(value).trim();
+  if (/[\u0590-\u05FF]/.test(s)) return s;
+  const k = s.toLowerCase();
+  return HEBREW_EMPLOYMENT_TYPE[k] || 'לא מסווג';
+}
+
+const HEBREW_CONTACT_KIND = {
+  school: 'בית ספר',
+  authority: 'גורם מממן',
+  instructor: 'מדריך/ה',
+  contact: 'איש קשר',
+  vendor: 'ספק',
+  partner: 'שותף'
+};
+
+export function hebrewContactKind(value) {
+  if (value === undefined || value === null || value === '') return '—';
+  const s = String(value).trim();
+  if (/[\u0590-\u05FF]/.test(s)) return s;
+  const k = s.toLowerCase();
+  return HEBREW_CONTACT_KIND[k] || 'לא מסווג';
+}
+
+const API_ERROR_HE = {
+  unauthorized: 'ההרשאה פגה — נדרשת התחברות מחדש',
+  forbidden: 'אין הרשאה לביצוע הפעולה',
+  'not found': 'הפריט לא נמצא',
+  not_found: 'הפריט לא נמצא',
+  bad_request: 'הבקשה אינה תקינה',
+  invalid_credentials: 'מזהה משתמש או קוד כניסה שגויים',
+  invalid_user: 'מזהה משתמש או קוד כניסה שגויים',
+  login_failed: 'ההתחברות נכשלה',
+  server_error: 'שגיאת שרת — נסו שוב מאוחר יותר',
+  network_error: 'בעיית תקשורת — בדקו את החיבור לאינטרנט',
+  offline: 'אין חיבור לרשת'
+};
+
+/** Maps common API English errors to Hebrew; leaves Hebrew messages unchanged. */
+export function translateApiErrorForUser(message) {
+  if (message === undefined || message === null || message === '') return 'אירעה שגיאה';
+  const raw = String(message).trim();
+  if (/[\u0590-\u05FF]/.test(raw)) return raw;
+  const key = raw.toLowerCase();
+  if (API_ERROR_HE[key]) return API_ERROR_HE[key];
+  if (/^5\d\d\b/.test(key) || key.includes('internal')) return API_ERROR_HE.server_error;
+  if (key.includes('network') || key.includes('fetch')) return API_ERROR_HE.network_error;
+  return 'אירעה שגיאה';
 }

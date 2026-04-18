@@ -1,6 +1,6 @@
 {
-  "name": "Internal Dashboard System",
-  "short_name": "Dashboard",
+  "name": "תעשיידע — לוח בקרה פנימי",
+  "short_name": "תעשיידע",
   "start_url": "../../index.html",
   "scope": "../../",
   "display": "standalone",

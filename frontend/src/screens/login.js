@@ -54,6 +54,7 @@ export const loginScreen = {
       if (codeInput) codeInput.disabled = busy;
       if (submitBtn) {
         submitBtn.disabled = busy;
+        submitBtn.classList.toggle('is-loading', busy);
         if (typeof buttonLabel === 'string') submitBtn.textContent = buttonLabel;
       }
     };

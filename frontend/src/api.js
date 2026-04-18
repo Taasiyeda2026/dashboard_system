@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { state, setSession, clearScreenDataCache } from './state.js';
+import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 
 const MUTATING_ACTIONS = {
   saveActivity: true,
@@ -11,18 +12,28 @@ const MUTATING_ACTIONS = {
 };
 
 async function request(action, payload = {}) {
-  const response = await fetch(config.apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-    body: JSON.stringify({ action, token: state.token, ...payload })
-  });
+  let response;
+  try {
+    response = await fetch(config.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ action, token: state.token, ...payload })
+    });
+  } catch {
+    throw new Error(translateApiErrorForUser('network_error'));
+  }
 
-  const json = await response.json();
+  let json;
+  try {
+    json = await response.json();
+  } catch {
+    throw new Error(translateApiErrorForUser('server_error'));
+  }
   if (!json.ok) {
     if ((json.error || '').toLowerCase() === 'unauthorized') {
       setSession(null);
     }
-    throw new Error(json.error || 'הבקשה נכשלה');
+    throw new Error(translateApiErrorForUser(json.error));
   }
   if (MUTATING_ACTIONS[action]) {
     clearScreenDataCache();
