@@ -23,6 +23,13 @@ function isShortFamily(row) {
   return SHORT_TYPES.has(String(row?.activity_type || '').trim());
 }
 
+function currentMonthYm() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
 function applyClientFilters(rows, state) {
   let out = Array.isArray(rows) ? rows.slice() : [];
 
@@ -36,18 +43,30 @@ function applyClientFilters(rows, state) {
     out = out.filter((row) => String(row.activity_manager || 'unassigned') === state.activityQuickManager);
   }
 
+  if (state.activityEndingCurrentMonth) {
+    const ym = currentMonthYm();
+    out = out.filter(
+      (row) =>
+        String(row.activity_type || '').trim() === 'course' &&
+        String(row.end_date || '').slice(0, 7) === ym
+    );
+  }
+
   return out;
 }
 
 function activityDetailsHtml(row, canSeePrivateNotes) {
   const note = canSeePrivateNotes ? row.private_note || '—' : 'אין הרשאה';
+  const instNames = [row.instructor_name, row.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
+  const instLine = instNames || `${row.emp_id || '—'} · ${row.emp_id_2 || '—'}`;
   return `
     <div class="ds-details-grid" dir="rtl">
       <p><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '—')}</p>
       <p><strong>RowID:</strong> ${escapeHtml(row.RowID || '—')}</p>
       <p><strong>סוג פעילות:</strong> ${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</p>
+      <p><strong>אחראי פעילות:</strong> ${escapeHtml(row.activity_manager || '—')}</p>
       <p><strong>תאריכים:</strong> ${escapeHtml(row.start_date || '—')} עד ${escapeHtml(row.end_date || '—')}</p>
-      <p><strong>מדריכים:</strong> ${escapeHtml(row.emp_id || '—')} · ${escapeHtml(row.emp_id_2 || '—')}</p>
+      <p><strong>מדריכים:</strong> ${escapeHtml(instLine)}</p>
       <p><strong>סטטוס כספי:</strong> ${escapeHtml(hebrewFinanceStatus(row.finance_status || 'open'))}</p>
       <p><strong>הערות:</strong> ${escapeHtml(note)}</p>
     </div>
@@ -147,7 +166,8 @@ export const activitiesScreen = {
       (state.activityTab && state.activityTab !== 'all') ||
         state.activityFinanceStatus ||
         state.activityQuickFamily ||
-        state.activityQuickManager
+        state.activityQuickManager ||
+        state.activityEndingCurrentMonth
     );
 
     const tableSection =
@@ -162,13 +182,26 @@ export const activitiesScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('פעילויות', 'סינון, בחירה ופתיחת פירוט פעילות')}
-      ${dsFilterBar(filterButtons)}
-      ${dsFilterBar(financeChips || '<span class="ds-muted">אין סטטוסי כספים זמינים</span>')}
-      ${dsFilterBar(familyChips)}
+      <div class="ds-filter-stack" dir="rtl">
+        <div class="ds-filter-group">
+          <span class="ds-filter-label">סוג לפי גיליון</span>
+          ${dsFilterBar(filterButtons)}
+        </div>
+        <div class="ds-filter-group">
+          <span class="ds-filter-label">סטטוס כספים</span>
+          ${dsFilterBar(financeChips || '<span class="ds-muted">אין סטטוסי כספים זמינים</span>')}
+        </div>
+        <div class="ds-filter-group">
+          <span class="ds-filter-label">משפחת פעילות (מקומי)</span>
+          ${dsFilterBar(familyChips)}
+        </div>
+      </div>
       ${dsToolbar(`
         <label class="compact-toggle"><input id="toggle-view" type="checkbox" ${compactView ? 'checked' : ''} ${forceCompact ? 'disabled' : ''} /> תצוגה קומפקטית</label>
         ${hasAnyFilter ? '<button type="button" class="ds-btn ds-btn--sm" data-clear-filters>ניקוי מסננים</button>' : ''}
         ${state.activityQuickManager ? `<span class="ds-chip ds-chip--neutral">אחראי: ${escapeHtml(state.activityQuickManager)}</span>` : ''}
+        ${state.activityEndingCurrentMonth ? '<span class="ds-chip ds-chip--neutral">מסיימי קורס החודש</span>' : ''}
+        ${state.activityQuickFamily ? `<span class="ds-chip ds-chip--neutral">משפחה: ${state.activityQuickFamily === 'short' ? 'קצרות' : 'ארוכות'}</span>` : ''}
         ${forceCompact ? '<span class="ds-muted">במובייל צר מופעלת תצוגה קומפקטית אוטומטית</span>' : ''}
       `)}
       ${compactView
@@ -216,6 +249,7 @@ export const activitiesScreen = {
       state.activityFinanceStatus = '';
       state.activityQuickFamily = '';
       state.activityQuickManager = '';
+      state.activityEndingCurrentMonth = false;
       rerender();
     });
 

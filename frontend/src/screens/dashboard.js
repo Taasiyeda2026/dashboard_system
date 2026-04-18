@@ -1,5 +1,15 @@
+import { escapeHtml } from './shared/html.js';
 import { UI_ACTIVITY_FAMILY_LONG, UI_ACTIVITY_FAMILY_SHORT } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
+
+function goActivitiesDrill(state, patch) {
+  state.route = 'activities';
+  state.activityTab = patch.activityTab ?? 'all';
+  state.activityFinanceStatus = patch.activityFinanceStatus ?? '';
+  state.activityQuickFamily = patch.activityQuickFamily ?? '';
+  state.activityQuickManager = patch.activityQuickManager ?? '';
+  state.activityEndingCurrentMonth = !!patch.activityEndingCurrentMonth;
+}
 
 export const dashboardScreen = {
   load: ({ api }) => api.dashboard(),
@@ -33,16 +43,6 @@ export const dashboardScreen = {
         subtitle: 'מסיימים החודש'
       }
     ];
-    const kpiGrid = `<div class="ds-kpi-grid">${kpiItems
-      .map((item) =>
-        dsInteractiveCard({
-          action: item.action,
-          title: item.title,
-          subtitle: item.subtitle,
-          variant: 'kpi'
-        })
-      )
-      .join('')}</div>`;
 
     const kpiHtml = kpiDefs
       .map((k) =>
@@ -56,7 +56,7 @@ export const dashboardScreen = {
       .join('');
 
     return dsScreenStack(`
-      ${dsPageHeader('לוח בקרה', 'תמונת מצב כללית')}
+      ${dsPageHeader('לוח בקרה', 'תמונת מצב כללית — לחיצה מעבירה לעבודה')}
       <div class="ds-kpi-grid">${kpiHtml}</div>
       ${dsCard({
         title: 'פילוח לפי אחראי פעילות',
@@ -66,28 +66,37 @@ export const dashboardScreen = {
       })}
     `);
   },
-  bind({ root, ui }) {
+  bind({ root, ui, state, rerender }) {
     ui.bindInteractiveCards(root, (action) => {
-      if (action.startsWith('kpi|')) {
-        const key = action.slice(4);
-        const titles = {
-          short: 'סיכום — פעילויות קצרות',
-          long: 'סיכום — פעילויות ארוכות',
-          instructors: 'סיכום — מדריכים',
-          endings: 'סיכום — מסיימים החודש'
-        };
-        ui.openDrawer({
-          title: titles[key] || 'סיכום',
-          content: '<p class="ds-muted">תצוגת פירוט בסיסית. ניתוב למסכים מסוננים יתווסף בהמשך.</p>'
-        });
+      if (action === 'kpi|short') {
+        goActivitiesDrill(state, { activityQuickFamily: 'short' });
+        ui.closeAll();
+        rerender();
+        return;
+      }
+      if (action === 'kpi|long') {
+        goActivitiesDrill(state, { activityQuickFamily: 'long' });
+        ui.closeAll();
+        rerender();
+        return;
+      }
+      if (action === 'kpi|instructors') {
+        state.route = 'instructors';
+        ui.closeAll();
+        rerender();
+        return;
+      }
+      if (action === 'kpi|endings') {
+        goActivitiesDrill(state, { activityEndingCurrentMonth: true });
+        ui.closeAll();
+        rerender();
         return;
       }
       if (action.startsWith('manager|')) {
         const name = decodeURIComponent(action.slice('manager|'.length));
-        ui.openDrawer({
-          title: 'אחראי פעילות',
-          content: `<p><strong>${escapeHtml(name)}</strong></p><p class="ds-muted">פירוט מלא וסינון לפי אחראי יתווספו בהמשך.</p>`
-        });
+        goActivitiesDrill(state, { activityQuickManager: name });
+        ui.closeAll();
+        rerender();
       }
     });
   }

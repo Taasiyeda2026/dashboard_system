@@ -7,6 +7,7 @@ export const state = {
   activityFinanceStatus: '',
   activityQuickFamily: '',
   activityQuickManager: '',
+  activityEndingCurrentMonth: false,
   activityView: 'compact',
   financeFilter: '',
   /** @type {Record<string, { data: unknown, t: number }>} */
@@ -27,6 +28,7 @@ export function setSession(session) {
     state.activityFinanceStatus = '';
     state.activityQuickFamily = '';
     state.activityQuickManager = '';
+    state.activityEndingCurrentMonth = false;
     state.screenDataCache = {};
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
