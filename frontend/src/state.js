@@ -4,6 +4,9 @@ export const state = {
   route: 'login',
   routes: [],
   activityTab: 'all',
+  activityFinanceStatus: '',
+  activityQuickFamily: '',
+  activityQuickManager: '',
   activityView: 'compact',
   financeFilter: '',
   /** @type {Record<string, { data: unknown, t: number }>} */
@@ -20,6 +23,10 @@ export function setSession(session) {
     state.user = null;
     state.routes = [];
     state.route = 'login';
+    state.activityTab = 'all';
+    state.activityFinanceStatus = '';
+    state.activityQuickFamily = '';
+    state.activityQuickManager = '';
     state.screenDataCache = {};
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');

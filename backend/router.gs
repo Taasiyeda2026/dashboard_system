@@ -1,4 +1,4 @@
-function doGet() {
+function handleGet_() {
   var validation = validateRequiredSheets_();
 
   return jsonResponse_({
@@ -11,7 +11,7 @@ function doGet() {
   });
 }
 
-function doPost(e) {
+function handlePost_(e) {
   try {
     beginRequestCache_();
     var payload = parsePayload_(e);

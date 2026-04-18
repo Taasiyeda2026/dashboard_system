@@ -63,6 +63,32 @@ export function dsKpiGrid(items) {
   return `<div class="ds-kpi-grid">${cells}</div>`;
 }
 
+/**
+ * Shared clickable card primitive for KPI / mini cards / day cells / session cards.
+ * Requires an explicit action key to avoid ambiguous clickable behavior.
+ */
+export function dsInteractiveCard({ action, title, subtitle = '', meta = '', variant = 'mini', selected = false, disabled = false }) {
+  if (!action) {
+    throw new Error('dsInteractiveCard requires action');
+  }
+  const selectedClass = selected ? ' is-selected' : '';
+  const disabledAttr = disabled ? ' disabled aria-disabled="true"' : '';
+  const subtitleHtml = subtitle ? `<p class="ds-interactive-card__subtitle">${escapeHtml(subtitle)}</p>` : '';
+  const metaHtml = meta ? `<p class="ds-interactive-card__meta">${escapeHtml(meta)}</p>` : '';
+
+  return `
+    <button
+      type="button"
+      class="ds-interactive-card ds-interactive-card--${escapeHtml(variant)}${selectedClass}"
+      data-card-action="${escapeHtml(action)}"${disabledAttr}
+    >
+      <p class="ds-interactive-card__title">${escapeHtml(title)}</p>
+      ${subtitleHtml}
+      ${metaHtml}
+    </button>
+  `;
+}
+
 export function dsSkeletonLines(count = 3) {
   const lines = Array.from({ length: count }, (_, i) => {
     const mod = i === count - 1 ? ' ds-skeleton-line--short' : '';

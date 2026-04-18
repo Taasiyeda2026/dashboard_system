@@ -3,6 +3,7 @@ import { state, setSession } from './state.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { dsSkeletonLines } from './screens/shared/layout.js';
+import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { loginScreen } from './screens/login.js';
 import { dashboardScreen } from './screens/dashboard.js';
 import { activitiesScreen } from './screens/activities.js';
@@ -17,6 +18,13 @@ import { permissionsScreen } from './screens/permissions.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc = new URL('../assets/logo1.png', import.meta.url).href;
+
+let isMobileNavOpen = false;
+const ui = createSharedInteractionLayer();
+
+function isDesktopViewport() {
+  return typeof window !== 'undefined' && window.matchMedia('(min-width: 960px)').matches;
+}
 
 function flushPaint() {
   return new Promise((resolve) => {
@@ -113,10 +121,18 @@ function shell(content) {
 
   const displayName = shellUserDisplayName();
   const roleLine = shellUserRoleLine();
+  const drawerClass = isMobileNavOpen ? ' is-mobile-nav-open' : '';
+  const drawerHidden = !isDesktopViewport() && !isMobileNavOpen ? 'true' : 'false';
+  const drawerExpanded = isMobileNavOpen ? 'true' : 'false';
 
   return `
-    <div class="app-shell" dir="rtl">
-      <aside class="shell-sidebar" aria-label="ניווט ראשי">
+    <div class="app-shell${drawerClass}" dir="rtl">
+      <button type="button" class="shell-backdrop" data-mobile-close aria-label="סגירת תפריט"></button>
+      <aside class="shell-sidebar" aria-label="ניווט ראשי" id="mobileNavDrawer" aria-hidden="${drawerHidden}">
+        <div class="shell-sidebar__mobile-head">
+          <span class="shell-sidebar__mobile-brand">תעשיידע</span>
+          <button type="button" class="shell-close-btn" data-mobile-close aria-label="סגירת תפריט">✕</button>
+        </div>
         <div class="shell-brand">
           <img class="shell-brand__mark" src="${loginLogoSrc}" alt="" width="120" height="52" decoding="async" />
           <span class="shell-brand__name">תעשיידע</span>
@@ -131,8 +147,22 @@ function shell(content) {
       </aside>
       <div class="shell-main">
         <header class="shell-top">
-          <p class="shell-top__mobile-brand">תעשיידע</p>
-          <button type="button" class="ds-btn ds-btn--danger ds-btn--sm" id="logoutBtn">התנתקות</button>
+          <div class="shell-top__start">
+            <button
+              type="button"
+              class="shell-menu-btn"
+              id="mobileMenuBtn"
+              aria-controls="mobileNavDrawer"
+              aria-expanded="${drawerExpanded}"
+              aria-label="פתיחת תפריט ניווט"
+            >
+              ☰
+            </button>
+            <p class="shell-top__mobile-brand">תעשיידע</p>
+          </div>
+          <div class="shell-top__end">
+            <button type="button" class="ds-btn ds-btn--danger ds-btn--sm" id="logoutBtn">התנתקות</button>
+          </div>
         </header>
         <div class="shell-stage">
           <div id="screenRoot" class="screen-root">${content}</div>
@@ -142,9 +172,29 @@ function shell(content) {
   `;
 }
 
+function setMobileNavOpen(open) {
+  isMobileNavOpen = !!open;
+  const shellNode = document.querySelector('.app-shell');
+  if (!shellNode) return;
+  shellNode.classList.toggle('is-mobile-nav-open', isMobileNavOpen);
+  const drawer = shellNode.querySelector('.shell-sidebar');
+  if (drawer) {
+    drawer.setAttribute('aria-hidden', !isDesktopViewport() && !isMobileNavOpen ? 'true' : 'false');
+  }
+  const menuBtn = shellNode.querySelector('#mobileMenuBtn');
+  if (menuBtn) {
+    menuBtn.setAttribute('aria-expanded', isMobileNavOpen ? 'true' : 'false');
+  }
+}
+
+function closeMobileNav() {
+  if (!isMobileNavOpen) return;
+  setMobileNavOpen(false);
+}
+
 function screenDataCacheKey() {
   if (state.route === 'activities') {
-    return `activities:${state.activityTab || 'all'}`;
+    return `activities:${state.activityTab || 'all'}:${state.activityFinanceStatus || ''}:${state.activityQuickFamily || ''}:${state.activityQuickManager || ''}`;
   }
   return state.route;
 }
@@ -179,6 +229,7 @@ function bindScreen(screen, screenRoot, data) {
     data,
     state,
     api,
+    ui,
     rerender: render,
     rerenderActivitiesView: () => rerenderActivitiesViewOnly(screen, screenRoot)
   });
@@ -215,6 +266,9 @@ async function restoreSession() {
 }
 
 async function mountScreen() {
+  if (isDesktopViewport()) {
+    isMobileNavOpen = false;
+  }
   if (!state.routes.length) await restoreSession();
   if (!state.routes.includes(state.route)) state.route = state.routes[0] || 'my-data';
 
@@ -249,12 +303,22 @@ async function mountScreen() {
 function bindShell() {
   document.querySelectorAll('[data-route]').forEach((button) => {
     button.addEventListener('click', () => {
+      closeMobileNav();
       state.route = button.dataset.route;
       render();
     });
   });
 
+  document.getElementById('mobileMenuBtn')?.addEventListener('click', () => {
+    setMobileNavOpen(!isMobileNavOpen);
+  });
+
+  document.querySelectorAll('[data-mobile-close]').forEach((button) => {
+    button.addEventListener('click', closeMobileNav);
+  });
+
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
+    ui.closeAll();
     setSession(null);
     render();
   });
@@ -262,6 +326,8 @@ function bindShell() {
 
 async function render() {
   if (!state.token) {
+    isMobileNavOpen = false;
+    ui.closeAll();
     app.innerHTML = loginScreen.render();
     loginScreen.bind({
       root: app,
@@ -285,6 +351,19 @@ async function render() {
 
   await mountScreen();
 }
+
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeMobileNav();
+  }
+});
+
+window.addEventListener('resize', () => {
+  if (isDesktopViewport()) {
+    closeMobileNav();
+  }
+});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
