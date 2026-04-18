@@ -1,4 +1,10 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbxvBltVlROk0KoTDwMBtL6QSjaKpZ5wuVYpR4B5KSFi0VBjheu3At9uyATMvP4oAUzY/exec';
+const runtimeConfig = globalThis.__DASHBOARD_CONFIG__ || {};
+
+const API_URL =
+  runtimeConfig.apiUrl ||
+  (typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('apiUrl') || ''
+    : '');
 
 export const config = {
   apiUrl: API_URL

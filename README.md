@@ -1,14 +1,29 @@
 # Internal Dashboard System (Google Sheets + Apps Script + Vanilla JS)
 
-This repository is a brand new internal dashboard system built from scratch with:
+מערכת ניהול פנימית מבוססת:
 
-- Vanilla JS (ES modules)
-- Google Apps Script backend
-- Google Sheets as source of truth
-- Mobile-first RTL UI
-- PWA support (manifest + service worker)
+- Frontend: Vanilla JS (ES modules)
+- Backend: Google Apps Script
+- Data source: Google Sheets
+- UI: RTL + עברית
+- PWA: manifest + service worker
 
-## Final Sheets
+## מבנה ריפו בפועל
+
+- `frontend/` — קוד הממשק (`src/` לקוד, `assets/` למדיה).
+- `backend/` — קבצי Apps Script הפעילים.
+  - `Code.gs` — **entrypoint** לפריסה (`doGet`, `doPost`).
+  - `router.gs` — ניתוב בקשות והפעלת handlers.
+  - `actions.gs` — פעולות API.
+  - `auth.gs` — אימות והרשאות.
+  - `sheets.gs` — גישת נתונים ל־Sheets.
+  - `helpers.gs` — utilities כלליים.
+  - `script-cache.gs` — cache לביצועים.
+  - `config.gs` — קונפיגורציית backend.
+- `index.html` — נקודת כניסה ל־frontend.
+- `sw.js` — service worker.
+
+## גיליונות נתונים צפויים
 
 - `data_short`
 - `data_long`
@@ -20,26 +35,33 @@ This repository is a brand new internal dashboard system built from scratch with
 - `edit_requests`
 - `operations_private_notes`
 
-## Key Rules Implemented
+## Frontend setup
 
-- `data_short` = one-day activities, supports `instructor_1` and `instructor_2`.
-- `data_long` = multi-date activities, supports `instructor_1` only.
-- `activity_meetings` stores dates for `data_long` only.
-- `direct_manager` is read only from `contacts_instructors`.
-- Admin + operations reviewer can add/edit source data directly.
-- Authorized user + instructor submit edit requests (no direct source edit).
-- Instructor routes are limited to `my-data`.
-- No settings screen, no lists screen, no heavy approval workflow.
+1. הגדירו API URL באחת מהדרכים הבאות:
+   - ערך runtime לפני טעינת האפליקציה:
+     ```html
+     <script>
+       window.__DASHBOARD_CONFIG__ = {
+         apiUrl: 'https://script.google.com/macros/s/.../exec'
+       };
+     </script>
+     ```
+   - או פרמטר query בזמן פתיחה (לבדיקות):
+     `?apiUrl=https://script.google.com/macros/s/.../exec`
+2. הריצו שרת סטטי מהשורש (למשל `python -m http.server 5173`).
+3. פתחו `http://localhost:5173`.
 
-## Frontend Setup
+## Backend setup (Apps Script)
 
-1. Open `frontend/src/config.js`.
-2. Set `apiUrl` to your deployed Apps Script Web App URL.
-3. Serve repository root with any static server and open `index.html`.
+1. צרו/פתחו פרויקט Apps Script.
+2. העתיקו את כל הקבצים מתוך `backend/*.gs` לפרויקט.
+3. ודאו שהקבצים כוללים את `Code.gs` עם `doGet/doPost` כ־entrypoint.
+4. עדכנו `CONFIG.SPREADSHEET_ID` בתוך `backend/config.gs`.
+5. ודאו שורת headers תואמת לשמות השדות במערכת.
+6. פרסו כ־Web App (execute as owner + access לפי צורך ארגוני).
+7. עדכנו את `apiUrl` ב־frontend לנקודת `/exec` של הפריסה.
 
-## Backend Setup
+## הערות תחזוקה
 
-1. Copy `backend/Code.gs` into Apps Script.
-2. Set `APP_CONFIG.spreadsheetId`.
-3. Ensure each target sheet has a header row matching used keys.
-4. Deploy as Web App (execute as script owner, accessible to required users).
+- אין לפזר URL קשיח של API בקוד מסכים/שירותים; המקור היחיד הוא `frontend/src/config.js`.
+- בשינוי סכימה/שדות ב־Sheets, יש לעדכן mapping מתאים ב־`backend/actions.gs` ו־`backend/sheets.gs`.
