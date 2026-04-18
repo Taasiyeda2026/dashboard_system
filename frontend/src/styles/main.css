@@ -1813,6 +1813,12 @@ span.ds-chip {
   min-height: 1.25em;
 }
 
+.login-card .error:empty {
+  display: none;
+  margin-top: 0;
+  min-height: 0;
+}
+
 /* ——— Permissions ——— */
 .perm-active-label {
   display: inline-flex;

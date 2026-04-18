@@ -43,7 +43,7 @@ export function createSharedInteractionLayer() {
           <button type="button" class="ds-icon-btn" data-ui-close-modal aria-label="סגירה">✕</button>
         </header>
         <div class="ds-modal__content"></div>
-        <footer class="ds-modal__footer"></footer>
+        <footer class="ds-modal__footer" hidden></footer>
       </section>
     `;
 
@@ -78,11 +78,11 @@ export function createSharedInteractionLayer() {
   }
 
   function setBackdropVisible(visible) {
-    const root = ensureHost();
-    const backdrop = root.querySelector('.ds-ui-backdrop');
+    if (!host || !document.body.contains(host)) return;
+    const backdrop = host.querySelector('.ds-ui-backdrop');
     if (!backdrop) return;
     backdrop.hidden = !visible;
-    root.classList.toggle('is-backdrop-visible', visible);
+    host.classList.toggle('is-backdrop-visible', visible);
   }
 
   function openDrawer({ title = 'פרטים', content = '', onClose } = {}) {
@@ -103,13 +103,17 @@ export function createSharedInteractionLayer() {
   }
 
   function closeDrawer() {
-    const root = ensureHost();
-    const drawer = root.querySelector('.ds-drawer');
-    if (!drawer || !drawerOpen) return;
+    if (!drawerOpen) return;
+    if (!host || !document.body.contains(host)) {
+      drawerOpen = false;
+      return;
+    }
+    const drawer = host.querySelector('.ds-drawer');
+    if (!drawer) return;
 
     drawerOpen = false;
     drawer.setAttribute('aria-hidden', 'true');
-    root.classList.remove('is-drawer-open');
+    host.classList.remove('is-drawer-open');
     setBackdropVisible(modalOpen);
 
     if (onDrawerClose) onDrawerClose();
@@ -138,13 +142,17 @@ export function createSharedInteractionLayer() {
   }
 
   function closeModal() {
-    const root = ensureHost();
-    const modal = root.querySelector('.ds-modal');
-    if (!modal || !modalOpen) return;
+    if (!modalOpen) return;
+    if (!host || !document.body.contains(host)) {
+      modalOpen = false;
+      return;
+    }
+    const modal = host.querySelector('.ds-modal');
+    if (!modal) return;
 
     modalOpen = false;
     modal.setAttribute('aria-hidden', 'true');
-    root.classList.remove('is-modal-open');
+    host.classList.remove('is-modal-open');
     setBackdropVisible(drawerOpen);
 
     if (onModalClose) onModalClose();
@@ -168,8 +176,6 @@ export function createSharedInteractionLayer() {
       });
     });
   }
-
-  ensureHost();
 
   return {
     openDrawer,
