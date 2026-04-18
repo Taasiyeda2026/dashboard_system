@@ -14,6 +14,7 @@ import { myDataScreen } from './screens/my-data.js';
 import { permissionsScreen } from './screens/permissions.js';
 
 const app = document.getElementById('app');
+const loginLogoSrc = new URL('../assets/logo1.png', import.meta.url).href;
 
 let pendingProgressiveShell = false;
 
@@ -25,16 +26,33 @@ function flushPaint() {
   });
 }
 
-function renderAppBootLoadingHtml() {
+function renderPostLoginLoadingHtml() {
   return `
-    <div class="app-boot-loading" dir="rtl">
-      <p class="app-boot-loading-msg">טוען את המערכת...</p>
+    <div class="login-shell" dir="rtl">
+      <section class="login-card login-card--post-auth" aria-busy="true">
+        <div class="login-brand">
+          <img
+            class="login-logo"
+            src="${loginLogoSrc}"
+            alt="תעשיידע"
+            width="200"
+            height="86"
+            decoding="async"
+          />
+        </div>
+        <p class="login-loading-heading" role="status">טוען את המערכת...</p>
+        <p class="login-loading-sub">מכינים את המסך הראשון, נא להמתין</p>
+      </section>
     </div>
   `;
 }
 
 function screenLoadingMarkup() {
-  return '<div class="screen-loading" dir="rtl"><p class="screen-loading-msg">טוען נתונים...</p></div>';
+  return `
+    <div class="screen-loading screen-loading--prominent" dir="rtl" role="status" aria-live="polite">
+      <p class="screen-loading-msg">טוען נתונים...</p>
+    </div>
+  `;
 }
 
 function consumeProgressiveShellFlag() {
@@ -171,7 +189,7 @@ async function render() {
           const data = await api.login(userId, code);
           setSession({ token: data.token, user: data.user });
           applyBootstrapFromLoginData(data);
-          app.innerHTML = renderAppBootLoadingHtml();
+          app.innerHTML = renderPostLoginLoadingHtml();
           await flushPaint();
           await restoreSession();
           pendingProgressiveShell = true;
