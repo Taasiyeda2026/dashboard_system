@@ -12,8 +12,8 @@
 
 - `frontend/` — קוד הממשק (`src/` לקוד, `assets/` למדיה).
 - `backend/` — קבצי Apps Script הפעילים.
-  - `Code.gs` — **entrypoint** לפריסה (`doGet`, `doPost`).
-  - `router.gs` — ניתוב בקשות והפעלת handlers.
+  - `Code.gs` — **entrypoint** לפריסה (`doGet`, `doPost`); מעביר ל־`handleGet_` / `handlePost_` ב־`router.gs` (אין לשכפל לוגיקת HTTP כאן).
+  - `router.gs` — ניתוב בקשות והפעלת handlers (`handleGet_`, `handlePost_`, מיפוי `handlers`).
   - `actions.gs` — פעולות API.
   - `auth.gs` — אימות והרשאות.
   - `sheets.gs` — גישת נתונים ל־Sheets.
@@ -63,5 +63,6 @@
 
 ## הערות תחזוקה
 
-- אין לפזר URL קשיח של API בקוד מסכים/שירותים; המקור היחיד הוא `frontend/src/config.js`.
+- אין לפזר URL קשיח של API בקוד מסכים/שירותים; המקור היחיד הוא `frontend/src/config.js` (או `window.__DASHBOARD_CONFIG__` / פרמטר `?apiUrl=` לפי סעיף Frontend setup).
+- שכבת אינטראקציה משותפת (drawer/modal) נמצאת ב־`frontend/src/screens/shared/interactions.js` ומוזנת מ־`main.js` ל־`bind` של מסכים (`ui`).
 - בשינוי סכימה/שדות ב־Sheets, יש לעדכן mapping מתאים ב־`backend/actions.gs` ו־`backend/sheets.gs`.

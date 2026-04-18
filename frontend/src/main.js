@@ -20,6 +20,7 @@ const app = document.getElementById('app');
 const loginLogoSrc = new URL('../assets/logo1.png', import.meta.url).href;
 
 let isMobileNavOpen = false;
+let lastRenderedRoute = null;
 const ui = createSharedInteractionLayer();
 
 function isDesktopViewport() {
@@ -174,6 +175,7 @@ function shell(content) {
 
 function setMobileNavOpen(open) {
   isMobileNavOpen = !!open;
+  document.body.classList.toggle('is-shell-nav-open', isMobileNavOpen && !isDesktopViewport());
   const shellNode = document.querySelector('.app-shell');
   if (!shellNode) return;
   shellNode.classList.toggle('is-mobile-nav-open', isMobileNavOpen);
@@ -268,9 +270,16 @@ async function restoreSession() {
 async function mountScreen() {
   if (isDesktopViewport()) {
     isMobileNavOpen = false;
+    document.body.classList.remove('is-shell-nav-open');
   }
   if (!state.routes.length) await restoreSession();
   if (!state.routes.includes(state.route)) state.route = state.routes[0] || 'my-data';
+
+  const routeChanged = lastRenderedRoute !== state.route;
+  if (routeChanged) {
+    ui.closeAll();
+    closeMobileNav();
+  }
 
   const screen = screens[state.route];
   if (!screen) throw new Error('מסך לא זמין');
@@ -295,6 +304,7 @@ async function mountScreen() {
     if (!screenRoot) throw new Error('אזור התצוגה לא זמין');
     screenRoot.innerHTML = screen.render(data, { state });
     bindScreen(screen, screenRoot, data);
+    if (routeChanged) lastRenderedRoute = state.route;
   } finally {
     setShellNavBusy(false);
   }
@@ -326,7 +336,9 @@ function bindShell() {
 
 async function render() {
   if (!state.token) {
+    lastRenderedRoute = null;
     isMobileNavOpen = false;
+    document.body.classList.remove('is-shell-nav-open');
     ui.closeAll();
     app.innerHTML = loginScreen.render();
     loginScreen.bind({

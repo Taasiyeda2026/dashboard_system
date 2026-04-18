@@ -8,40 +8,28 @@ export const dashboardScreen = {
     const managers = Array.isArray(data.by_activity_manager) ? data.by_activity_manager : [];
 
     const managerCards = managers
-      .map((row) =>
-        dsInteractiveCard({
-          action: `manager:${row.activity_manager || 'unassigned'}`,
-          title: row.activity_manager || 'ללא שיוך',
-          subtitle: `${UI_ACTIVITY_FAMILY_SHORT}: ${row.total_short} · ${UI_ACTIVITY_FAMILY_LONG}: ${row.total_long}`,
-          meta: `סה״כ: ${row.total}`,
-          variant: 'mini'
-        })
-      )
+      .map((row) => {
+        const meta = `${UI_ACTIVITY_FAMILY_SHORT}: ${row.total_short} · ${UI_ACTIVITY_FAMILY_LONG}: ${row.total_long} · סה״כ: ${row.total}`;
+        return dsInteractiveCard({
+          variant: 'mini',
+          action: `manager|${encodeURIComponent(row.activity_manager)}`,
+          title: row.activity_manager,
+          meta
+        });
+      })
       .join('');
 
     const managersBlock = managers.length
       ? `<div class="ds-mini-grid">${managerCards}</div>`
       : '<div class="ds-empty"><p class="ds-empty__msg">אין נתונים להצגה</p></div>';
 
-    const kpiItems = [
+    const kpiDefs = [
+      { action: 'kpi|short', title: String(totals.total_short_activities || 0), subtitle: UI_ACTIVITY_FAMILY_SHORT },
+      { action: 'kpi|long', title: String(totals.total_long_activities || 0), subtitle: UI_ACTIVITY_FAMILY_LONG },
+      { action: 'kpi|instructors', title: String(totals.total_instructors || 0), subtitle: 'מדריכים' },
       {
-        action: 'kpi:short',
-        title: `${totals.total_short_activities || 0}`,
-        subtitle: UI_ACTIVITY_FAMILY_SHORT
-      },
-      {
-        action: 'kpi:long',
-        title: `${totals.total_long_activities || 0}`,
-        subtitle: UI_ACTIVITY_FAMILY_LONG
-      },
-      {
-        action: 'kpi:instructors',
-        title: `${totals.total_instructors || 0}`,
-        subtitle: 'מדריכים'
-      },
-      {
-        action: 'kpi:ending-month',
-        title: `${totals.total_course_endings_current_month || 0}`,
+        action: 'kpi|endings',
+        title: String(totals.total_course_endings_current_month || 0),
         subtitle: 'מסיימים החודש'
       }
     ];
@@ -56,9 +44,20 @@ export const dashboardScreen = {
       )
       .join('')}</div>`;
 
+    const kpiHtml = kpiDefs
+      .map((k) =>
+        dsInteractiveCard({
+          variant: 'kpi',
+          action: k.action,
+          title: k.title,
+          subtitle: k.subtitle
+        })
+      )
+      .join('');
+
     return dsScreenStack(`
       ${dsPageHeader('לוח בקרה', 'תמונת מצב כללית')}
-      ${kpiGrid}
+      <div class="ds-kpi-grid">${kpiHtml}</div>
       ${dsCard({
         title: 'פילוח לפי אחראי פעילות',
         badge: `${managers.length} רשומות`,
@@ -67,50 +66,28 @@ export const dashboardScreen = {
       })}
     `);
   },
-  bind({ root, state, rerender, ui }) {
-    const navigate = (preferred) => {
-      const target = state.routes.includes(preferred) ? preferred : 'activities';
-      state.route = target;
-      rerender();
-    };
-
-    ui?.bindInteractiveCards(root, (action) => {
-      if (!action) return;
-
-      if (action === 'kpi:instructors') {
-        navigate('instructors');
+  bind({ root, ui }) {
+    ui.bindInteractiveCards(root, (action) => {
+      if (action.startsWith('kpi|')) {
+        const key = action.slice(4);
+        const titles = {
+          short: 'סיכום — פעילויות קצרות',
+          long: 'סיכום — פעילויות ארוכות',
+          instructors: 'סיכום — מדריכים',
+          endings: 'סיכום — מסיימים החודש'
+        };
+        ui.openDrawer({
+          title: titles[key] || 'סיכום',
+          content: '<p class="ds-muted">תצוגת פירוט בסיסית. ניתוב למסכים מסוננים יתווסף בהמשך.</p>'
+        });
         return;
       }
-
-      if (action === 'kpi:short') {
-        state.activityQuickFamily = 'short';
-        state.activityQuickManager = '';
-        state.activityTab = 'all';
-        navigate('activities');
-        return;
-      }
-
-      if (action === 'kpi:long') {
-        state.activityQuickFamily = 'long';
-        state.activityQuickManager = '';
-        state.activityTab = 'all';
-        navigate('activities');
-        return;
-      }
-
-      if (action === 'kpi:ending-month') {
-        state.activityQuickFamily = 'long';
-        state.activityQuickManager = '';
-        state.activityTab = 'course';
-        navigate('activities');
-        return;
-      }
-
-      if (action.startsWith('manager:')) {
-        state.activityQuickFamily = '';
-        state.activityQuickManager = action.replace('manager:', '');
-        state.activityTab = 'all';
-        navigate('activities');
+      if (action.startsWith('manager|')) {
+        const name = decodeURIComponent(action.slice('manager|'.length));
+        ui.openDrawer({
+          title: 'אחראי פעילות',
+          content: `<p><strong>${escapeHtml(name)}</strong></p><p class="ds-muted">פירוט מלא וסינון לפי אחראי יתווספו בהמשך.</p>`
+        });
       }
     });
   }
