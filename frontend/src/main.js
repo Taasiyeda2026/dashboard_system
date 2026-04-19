@@ -323,6 +323,8 @@ function clearScreenDataCache() {
   }
   Object.keys(state.screenDataCache).forEach((key) => {
     if (key.startsWith('dashboard:')) delete state.screenDataCache[key];
+    if (key.startsWith('week:')) delete state.screenDataCache[key];
+    if (key.startsWith('month:')) delete state.screenDataCache[key];
   });
 }
 
