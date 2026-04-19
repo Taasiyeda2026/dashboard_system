@@ -244,7 +244,7 @@ function buildDatesExpandRowHtml(row, colCount) {
 /* ————————————————————————————————
    Grouped table rendering
 ———————————————————————————————— */
-function buildGroupedTable(rows, canEdit, canView) {
+function buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir) {
   if (rows.length === 0) return dsEmptyState('לא נמצאו רשומות');
 
   const sorted = sortRows(rows);
@@ -265,8 +265,23 @@ function buildGroupedTable(rows, canEdit, canView) {
   const hasActionsCol = canView;
   const BASE_COLS = 9 + (hasNotesCol ? 1 : 0) + (hasActionsCol ? 1 : 0);
 
+  function tableTh(label, col, align) {
+    const active = tableSortCol === col;
+    const alignStyle = align ? `text-align:${align};` : '';
+    const activeStyle = active ? 'text-decoration:underline dotted;' : '';
+    const ind = active ? (tableSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<th data-table-sort-col="${escapeHtml(col)}" style="cursor:pointer;user-select:none;white-space:nowrap;${alignStyle}${activeStyle}">${escapeHtml(label)}${ind}</th>`;
+  }
+
   const tbody = sortedKeys.map((key) => {
-    const gRows = groups[key];
+    const rawGRows = groups[key];
+    const gRows = tableSortCol
+      ? [...rawGRows].sort((a, b) => {
+          const av = parseFloat(a[tableSortCol]) || 0;
+          const bv = parseFloat(b[tableSortCol]) || 0;
+          return tableSortDir === 'asc' ? av - bv : bv - av;
+        })
+      : rawGRows;
     const gOpen = gRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open').length;
     const gClosed = gRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed').length;
     const gTotal = gRows.reduce((s, r) => {
@@ -358,8 +373,8 @@ function buildGroupedTable(rows, canEdit, canView) {
       <th>בית ספר</th>
       <th>רשות</th>
       <th>מנהל קורס</th>
-      <th>מחיר</th>
-      <th>מפגשים</th>
+      ${tableTh('מחיר', 'price', 'left')}
+      ${tableTh('מפגשים', 'sessions', 'center')}
       <th>סכום</th>
       <th>מימון</th>
       <th>סטטוס</th>
@@ -480,13 +495,17 @@ const LS = {
   viewMode: 'finance_view_mode',
   mgrSortCol: 'finance_mgr_sort_col',
   mgrSortDir: 'finance_mgr_sort_dir',
+  tableSortCol: 'finance_table_sort_col',
+  tableSortDir: 'finance_table_sort_dir',
   userId: 'finance_user_id'
 };
 
 const LS_ALL_PREF_KEYS = [
   'finance_date_from', 'finance_date_to', 'finance_search', 'finance_status_filter',
   'finance_month_ym', 'finance_tab', 'finance_view_mode',
-  'finance_mgr_sort_col', 'finance_mgr_sort_dir', 'finance_user_id'
+  'finance_mgr_sort_col', 'finance_mgr_sort_dir',
+  'finance_table_sort_col', 'finance_table_sort_dir',
+  'finance_user_id'
 ];
 
 function clearFinanceStorage() {
@@ -503,6 +522,8 @@ function resetFinanceStateKeys(state) {
   state.financeViewMode = '';
   state.managerBreakdownSortCol = '';
   state.managerBreakdownSortDir = '';
+  state.financeTableSortCol = '';
+  state.financeTableSortDir = '';
 }
 
 function loadStateFromStorage(state) {
@@ -526,6 +547,8 @@ function loadStateFromStorage(state) {
     financeMonthYm: LS.monthYm,
     financeTab: LS.tab,
     financeViewMode: LS.viewMode,
+    financeTableSortCol: LS.tableSortCol,
+    financeTableSortDir: LS.tableSortDir,
     managerBreakdownSortCol: LS.mgrSortCol,
     managerBreakdownSortDir: LS.mgrSortDir
   };
@@ -686,9 +709,12 @@ export const financeScreen = {
     const exportBtn = `<button type="button" class="ds-btn ds-btn--sm" data-export-csv>ייצוא Excel</button>`;
     const syncBtn = isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-sync-finance title="סנכרון נתוני כספים">↻ סנכרון</button>` : '';
 
+    const tableSortCol = state?.financeTableSortCol || '';
+    const tableSortDir = state?.financeTableSortDir || 'asc';
+
     const dataBody = viewMode === 'cards'
       ? buildCardsView(rows, canEdit)
-      : buildGroupedTable(rows, canEdit, canView);
+      : buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir);
 
     return dsScreenStack(`
       ${dsPageHeader('כספים', headerSubtitle)}
@@ -839,6 +865,22 @@ export const financeScreen = {
         clearScreenDataCache();
       }
       rerender();
+    });
+
+    /* Table sort (price / sessions column headers) */
+    root.querySelectorAll('[data-table-sort-col]').forEach((th) => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.tableSortCol;
+        if (state.financeTableSortCol === col) {
+          state.financeTableSortDir = state.financeTableSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.financeTableSortCol = col;
+          state.financeTableSortDir = 'asc';
+        }
+        localStorage.setItem(LS.tableSortCol, state.financeTableSortCol);
+        localStorage.setItem(LS.tableSortDir, state.financeTableSortDir);
+        rerender();
+      });
     });
 
     /* Manager sort — persist chosen column + direction to localStorage */
