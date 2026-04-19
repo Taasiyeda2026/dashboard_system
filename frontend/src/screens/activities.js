@@ -9,7 +9,6 @@ import {
 } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
-  dsFilterBar,
   dsToolbar,
   dsCard,
   dsScreenStack,
@@ -181,21 +180,21 @@ export const activitiesScreen = {
     ]
       .map(
         (f) =>
-          `<button type="button" class="ds-chip ${f.key === (state.activityQuickFamily || '') ? 'is-active' : ''}" data-family="${f.key}">${escapeHtml(f.label)}</button>`
+          `<button type="button" class="ds-chip--tab ${f.key === (state.activityQuickFamily || '') ? 'is-active' : ''}" data-family="${f.key}">${escapeHtml(f.label)}</button>`
       )
       .join('');
 
     const filterButtons = visibleTabs
       .map(
         (tab) =>
-          `<button type="button" class="ds-chip ${tab === (state.activityTab || 'all') ? 'is-active' : ''}" data-tab="${tab}">${escapeHtml(visibleActivityCategoryLabel(tab))}</button>`
+          `<button type="button" class="ds-chip--tab ${tab === (state.activityTab || 'all') ? 'is-active' : ''}" data-tab="${tab}">${escapeHtml(visibleActivityCategoryLabel(tab))}</button>`
       )
       .join('');
 
     const financeChips = financeStatuses
       .map(
         (status) =>
-          `<button type="button" class="ds-chip ${status === (state.activityFinanceStatus || '') ? 'is-active' : ''}" data-finance="${status}">${escapeHtml(hebrewFinanceStatus(status))}</button>`
+          `<button type="button" class="ds-chip--tab ${status === (state.activityFinanceStatus || '') ? 'is-active' : ''}" data-finance="${status}">${escapeHtml(hebrewFinanceStatus(status))}</button>`
       )
       .join('');
 
@@ -236,19 +235,11 @@ export const activitiesScreen = {
         />
         <button type="button" class="ds-btn ds-btn--sm" data-goto-contacts>📋 אנשי קשר</button>
       </div>
-      <div class="ds-filter-stack" dir="rtl">
-        <div class="ds-filter-group">
-          <span class="ds-filter-label">סוג לפי גיליון</span>
-          ${dsFilterBar(filterButtons)}
-        </div>
-        <div class="ds-filter-group">
-          <span class="ds-filter-label">סטטוס כספים</span>
-          ${dsFilterBar(financeChips || '<span class="ds-muted">אין סטטוסי כספים זמינים</span>')}
-        </div>
-        <div class="ds-filter-group">
-          <span class="ds-filter-label">לפי משך (מקומי)</span>
-          ${dsFilterBar(familyChips)}
-        </div>
+      <div class="ds-filter-row" dir="rtl">
+        ${filterButtons}
+        ${financeChips ? `<span class="ds-filter-row__sep" aria-hidden="true"></span>${financeChips}` : ''}
+        <span class="ds-filter-row__sep" aria-hidden="true"></span>
+        ${familyChips}
       </div>
       ${dsToolbar(`
         <label class="compact-toggle"><input id="toggle-view" type="checkbox" ${compactView ? 'checked' : ''} ${forceCompact ? 'disabled' : ''} /> תצוגה קומפקטית</label>

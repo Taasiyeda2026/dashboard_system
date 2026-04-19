@@ -1281,6 +1281,53 @@ span.ds-chip {
   margin: 0 0 var(--ds-space-2);
 }
 
+/* ——— Tab-style filter row (replaces oval pill chips in activities) ——— */
+.ds-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--ds-border);
+  padding: 0 var(--ds-space-1) 0 0;
+  background: var(--ds-surface);
+}
+
+.ds-filter-row__sep {
+  width: 1px;
+  height: 20px;
+  background: var(--ds-border);
+  margin: 0 var(--ds-space-1);
+  flex-shrink: 0;
+}
+
+.ds-chip--tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--ds-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  min-height: 36px;
+  padding: 0 var(--ds-space-3);
+  box-shadow: none;
+  margin-bottom: -1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.ds-chip--tab:hover:not(:disabled) {
+  color: var(--ds-text);
+  border-bottom-color: var(--ds-border-strong);
+  box-shadow: none;
+}
+
+.ds-chip--tab.is-active {
+  color: var(--ds-accent);
+  border-bottom-color: var(--ds-accent);
+  background: transparent;
+  box-shadow: none;
+}
+
 /* ——— Week board (7 columns desktop, stacked mobile) ——— */
 .ds-week-board {
   display: grid;
