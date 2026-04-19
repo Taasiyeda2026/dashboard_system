@@ -19,8 +19,8 @@ frontend/
     state.js           ← global state
     screens/           ← מסכים (login, dashboard, activities, week, month, ...)
       shared/          ← רכיבים/utils משותפים (interactions, html, ui-hebrew)
-  styles/
-    main.css           ← design tokens + layout + קומפוננטות
+    styles/
+      main.css         ← design tokens + layout + קומפוננטות
   assets/              ← מדיה (לוגו, PWA icons)
 backend/
   Code.gs              ← entrypoint (doGet/doPost) → router.gs
