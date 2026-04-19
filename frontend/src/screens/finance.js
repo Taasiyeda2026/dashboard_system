@@ -82,11 +82,41 @@ function exportToCsv(rows) {
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
 }
 
+const LS_DATE_FROM = 'finance_date_from';
+const LS_DATE_TO = 'finance_date_to';
+
+function loadDatesFromStorage(state) {
+  if (!state.financeDateFrom) {
+    const storedFrom = localStorage.getItem(LS_DATE_FROM);
+    if (storedFrom) state.financeDateFrom = storedFrom;
+  }
+  if (!state.financeDateTo) {
+    const storedTo = localStorage.getItem(LS_DATE_TO);
+    if (storedTo) state.financeDateTo = storedTo;
+  }
+}
+
+function saveDatesToStorage(dateFrom, dateTo) {
+  if (dateFrom) {
+    localStorage.setItem(LS_DATE_FROM, dateFrom);
+  } else {
+    localStorage.removeItem(LS_DATE_FROM);
+  }
+  if (dateTo) {
+    localStorage.setItem(LS_DATE_TO, dateTo);
+  } else {
+    localStorage.removeItem(LS_DATE_TO);
+  }
+}
+
 export const financeScreen = {
-  load: ({ api, state }) => api.finance({
-    date_from: state?.financeDateFrom || '',
-    date_to: state?.financeDateTo || ''
-  }),
+  load: ({ api, state }) => {
+    loadDatesFromStorage(state);
+    return api.finance({
+      date_from: state?.financeDateFrom || '',
+      date_to: state?.financeDateTo || ''
+    });
+  },
   render(data, { state } = {}) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
@@ -272,12 +302,14 @@ export const financeScreen = {
 
     root.querySelector('#finance-date-from')?.addEventListener('change', (ev) => {
       state.financeDateFrom = ev.target.value || '';
+      saveDatesToStorage(state.financeDateFrom, state.financeDateTo);
       clearScreenDataCache();
       rerender();
     });
 
     root.querySelector('#finance-date-to')?.addEventListener('change', (ev) => {
       state.financeDateTo = ev.target.value || '';
+      saveDatesToStorage(state.financeDateFrom, state.financeDateTo);
       clearScreenDataCache();
       rerender();
     });
@@ -285,6 +317,7 @@ export const financeScreen = {
     root.querySelector('[data-clear-dates]')?.addEventListener('click', () => {
       state.financeDateFrom = '';
       state.financeDateTo = '';
+      saveDatesToStorage('', '');
       clearScreenDataCache();
       rerender();
     });
