@@ -2,7 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
-import { translateApiErrorForUser } from './shared/ui-hebrew.js';
+import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 
 function localYmd() {
   const d = new Date();
@@ -133,34 +133,8 @@ export const weekScreen = {
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const canEditActivity = state?.user?.display_role !== 'instructor';
 
-    function bindActivityEditForm(contentRoot) {
-      const form = contentRoot.querySelector('[data-edit-activity]');
-      if (!form || !api) return;
-      form.addEventListener('submit', async (ev) => {
-        ev.preventDefault();
-        const statusEl = form.querySelector('.ds-activity-edit-status');
-        const sourceSheet = form.getAttribute('data-source-sheet') || '';
-        const sourceRowId = form.getAttribute('data-row-id') || '';
-        const fd = new FormData(form);
-        const changes = {
-          status: String(fd.get('status') ?? '').trim(),
-          notes: String(fd.get('notes') ?? '').trim(),
-          finance_status: String(fd.get('finance_status') ?? '').trim(),
-          finance_notes: String(fd.get('finance_notes') ?? '').trim(),
-          start_date: String(fd.get('start_date') ?? '').trim(),
-          end_date: String(fd.get('end_date') ?? '').trim()
-        };
-        try {
-          await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
-          if (statusEl) statusEl.textContent = 'נשמר';
-          ui?.closeAll();
-          clearScreenDataCache?.();
-          if (typeof rerender === 'function') await rerender();
-        } catch (err) {
-          if (statusEl) statusEl.textContent = translateApiErrorForUser(err?.message);
-        }
-      });
-    }
+    const bindActivityEditForm = (contentRoot) =>
+      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
 
     root.querySelector('[data-week-prev]')?.addEventListener('click', () => {
       state.weekOffset = (state.weekOffset || 0) - 1;
