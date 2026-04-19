@@ -973,5 +973,12 @@ export const financeScreen = {
       const hit = allRows.find((r) => String(r.RowID) === String(rowId));
       openDrawer(hit);
     });
+  },
+
+  onLeave({ state }) {
+    state.financeSearch = '';
+    state.financeStatusFilter = '';
+    save(LS.search, '');
+    save(LS.statusFilter, '');
   }
 };
