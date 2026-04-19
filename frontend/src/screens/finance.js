@@ -244,7 +244,7 @@ function buildDatesExpandRowHtml(row, colCount) {
 /* ————————————————————————————————
    Grouped table rendering
 ———————————————————————————————— */
-function buildGroupedTable(rows, canEdit) {
+function buildGroupedTable(rows, canEdit, canView) {
   if (rows.length === 0) return dsEmptyState('לא נמצאו רשומות');
 
   const sorted = sortRows(rows);
@@ -259,8 +259,11 @@ function buildGroupedTable(rows, canEdit) {
     getGroupSortKey(a).localeCompare(getGroupSortKey(b), 'he')
   );
 
-  /* Columns: name | school | authority | manager | amount | funding | status | notes | actions */
-  const BASE_COLS = 7 + (canEdit ? 2 : 0);
+  /* Columns: name | school | authority | manager | amount | funding | status | notes | actions
+     Notes and actions are shown for all canView users (read-only for non-editors) */
+  const hasNotesCol = canView;
+  const hasActionsCol = canView;
+  const BASE_COLS = 7 + (hasNotesCol ? 1 : 0) + (hasActionsCol ? 1 : 0);
 
   const tbody = sortedKeys.map((key) => {
     const gRows = groups[key];
@@ -285,7 +288,7 @@ function buildGroupedTable(rows, canEdit) {
       const uid = escapeHtml(row.RowID);
       const hasDates = Array.from({ length: 35 }, (_, i) => row[`Date${i + 1}`]).some(Boolean);
 
-      /* Status cell: editable select or read-only chip */
+      /* Status cell: editable select (admin/reviewer) or read-only chip (all) */
       const statusOpts = ['', 'open', 'closed'].map((v) =>
         `<option value="${v}" ${String(row.finance_status || '') === v ? 'selected' : ''}>${v === '' ? '— ללא —' : hebrewFinanceStatus(v)}</option>`
       ).join('');
@@ -294,21 +297,30 @@ function buildGroupedTable(rows, canEdit) {
         ? `<td class="ds-finance-status-cell"><select class="ds-input ds-input--sm ds-finance-status-select" data-inline-status="${uid}">${statusOpts}</select></td>`
         : `<td>${dsStatusChip(hebrewFinanceStatus(row.finance_status), financeStatusVariant(row.finance_status))}</td>`;
 
-      /* Notes column (editors only) */
-      const notesCell = canEdit
-        ? `<td class="ds-finance-notes-cell"><input type="text" class="ds-input ds-input--sm ds-finance-notes-input" data-inline-notes="${uid}"
-            value="${escapeHtml(String(row.finance_notes || ''))}" placeholder="הערות..." title="הערות כספים" /></td>`
-        : '';
+      /* Notes column: editable input (admin/reviewer) or read-only text (other canView) */
+      let notesCell = '';
+      if (hasNotesCol) {
+        notesCell = canEdit
+          ? `<td class="ds-finance-notes-cell"><input type="text" class="ds-input ds-input--sm ds-finance-notes-input" data-inline-notes="${uid}"
+              value="${escapeHtml(String(row.finance_notes || ''))}" placeholder="הערות..." title="הערות כספים" /></td>`
+          : `<td class="ds-finance-notes-cell ds-muted" style="font-size:0.8rem;">${escapeHtml(String(row.finance_notes || ''))}</td>`;
+      }
 
-      /* Actions cell: save + dates + export (editors only) */
-      const actionsCell = canEdit ? `<td class="ds-finance-actions-cell">
-        <div class="ds-finance-row-actions">
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-finance-save-btn" data-inline-save="${uid}" title="שמור">💾</button>
-          ${hasDates ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dates-toggle="${uid}" title="תאריכי פגישות">תאריכים ▾</button>` : ''}
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-export-row="${uid}" title="ייצוא שורה">↓</button>
-          <span class="ds-finance-inline-status ds-muted" data-inline-msg="${uid}" role="status" aria-live="polite"></span>
-        </div>
-      </td>` : '';
+      /* Actions column: save/archive for editors; dates/export for all canView */
+      let actionsCell = '';
+      if (hasActionsCol) {
+        const viewActions = `${hasDates ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dates-toggle="${uid}" title="תאריכי פגישות">תאריכים ▾</button>` : ''}
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-export-row="${uid}" title="ייצוא שורה">↓</button>`;
+        actionsCell = canEdit
+          ? `<td class="ds-finance-actions-cell">
+              <div class="ds-finance-row-actions">
+                <button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-finance-save-btn" data-inline-save="${uid}" title="שמור">💾</button>
+                ${viewActions}
+                <span class="ds-finance-inline-status ds-muted" data-inline-msg="${uid}" role="status" aria-live="polite"></span>
+              </div>
+            </td>`
+          : `<td class="ds-finance-actions-cell"><div class="ds-finance-row-actions">${viewActions}</div></td>`;
+      }
 
       const datesExpandRow = buildDatesExpandRowHtml(row, BASE_COLS);
 
@@ -328,8 +340,8 @@ function buildGroupedTable(rows, canEdit) {
     return groupHeader + dataRows;
   }).join('');
 
-  const notesHead = canEdit ? '<th>הערות</th>' : '';
-  const actionsHead = canEdit ? '<th class="ds-finance-actions-head">פעולות</th>' : '';
+  const notesHead = hasNotesCol ? '<th>הערות</th>' : '';
+  const actionsHead = hasActionsCol ? '<th class="ds-finance-actions-head">פעולות</th>' : '';
 
   return dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--grouped">
     <thead><tr>
@@ -492,29 +504,32 @@ export const financeScreen = {
     const monthYm = state?.financeMonthYm || '';
     const viewMode = state?.financeViewMode || (narrow ? 'cards' : 'table');
     const canEdit = ['admin', 'operations_reviewer'].includes(state?.user?.display_role);
+    const canView = state?.user?.display_role !== 'instructor';
     const isAdmin = state?.user?.display_role === 'admin';
 
     /* Admin/reviewer can see all tabs; others see active only */
-    let rows = canEdit ? applyTabFilter(allRows, activeTab) : applyTabFilter(allRows, 'active');
-    rows = applyMonthFilter(rows, monthYm, dateFrom, dateTo);
-    rows = applySearch(rows, searchQ);
+    let baseRows = canEdit ? applyTabFilter(allRows, activeTab) : applyTabFilter(allRows, 'active');
+
+    /* KPI window: month-filter only — independent of search/status chips */
+    const kpiRows = applyMonthFilter(baseRows, monthYm, dateFrom, dateTo);
+    const kpiOpen = kpiRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open');
+    const kpiClosed = kpiRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed');
+    const amountOpen = kpiOpen.reduce((s, r) => s + rowAmount(r), 0);
+    const amountClosed = kpiClosed.reduce((s, r) => s + rowAmount(r), 0);
+    const amountTotal = kpiRows.reduce((s, r) => s + rowAmount(r), 0);
+
+    const kpis = [
+      { label: 'פעילויות בחלון', value: String(kpiRows.length) },
+      { label: 'סל גבייה פתוח', value: formatILS(amountOpen), hint: `${kpiOpen.length} פעילויות` },
+      { label: 'סל גבייה סגור', value: formatILS(amountClosed), hint: `${kpiClosed.length} פעילויות` },
+      { label: 'סה"כ סל גבייה', value: formatILS(amountTotal) }
+    ];
+
+    /* Display rows: apply search and status on top of the month window */
+    let rows = applySearch(kpiRows, searchQ);
     if (statusFilter) {
       rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
     }
-
-    /* KPIs */
-    const visibleOpen = rows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open');
-    const visibleClosed = rows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed');
-    const amountOpen = visibleOpen.reduce((s, r) => s + rowAmount(r), 0);
-    const amountClosed = visibleClosed.reduce((s, r) => s + rowAmount(r), 0);
-    const amountTotal = rows.reduce((s, r) => s + rowAmount(r), 0);
-
-    const kpis = [
-      { label: 'סה"כ פעילויות', value: String(rows.length) },
-      { label: 'סל גבייה פתוח', value: formatILS(amountOpen), hint: `${visibleOpen.length} פעילויות` },
-      { label: 'סל גבייה סגור', value: formatILS(amountClosed), hint: `${visibleClosed.length} פעילויות` },
-      { label: 'סה"כ סל גבייה', value: formatILS(amountTotal) }
-    ];
 
     /* Status filter chips */
     const statuses = [...new Set(rows.map((r) => String(r.finance_status || '')).filter(Boolean))];
@@ -609,7 +624,7 @@ export const financeScreen = {
 
     const dataBody = viewMode === 'cards'
       ? buildCardsView(rows, canEdit)
-      : buildGroupedTable(rows, canEdit);
+      : buildGroupedTable(rows, canEdit, canView);
 
     return dsScreenStack(`
       ${dsPageHeader('כספים', headerSubtitle)}

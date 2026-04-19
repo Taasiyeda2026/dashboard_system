@@ -35,18 +35,23 @@ export const adminHomeScreen = {
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
     const routes = Array.isArray(state?.routes) ? state.routes : [];
 
-    /* KPIs from permissions data */
-    const activeCount = safeRows.filter((r) => String(r.active || '').toLowerCase() === 'yes').length;
+    /* Admin-centric KPIs: access-rights overview from permissions rows */
+    const activeRows = safeRows.filter((r) => String(r.active || '').toLowerCase() === 'yes');
+    const activeCount = activeRows.length;
     const inactiveCount = safeRows.length - activeCount;
+    /* Access grants among active users */
+    const withFinance = activeRows.filter((r) => String(r.view_finance || '').toLowerCase() === 'yes').length;
+    const withPermissions = activeRows.filter((r) => String(r.view_permissions || '').toLowerCase() === 'yes').length;
     const adminCount = safeRows.filter((r) => r.display_role === 'admin').length;
     const reviewerCount = safeRows.filter((r) => r.display_role === 'operations_reviewer').length;
+    const accessibleRoutes = routes.length;
 
     const kpis = [
-      { label: 'סה"כ משתמשים', value: String(safeRows.length) },
-      { label: 'פעילים', value: String(activeCount) },
-      { label: 'לא פעילים', value: String(inactiveCount) },
-      { label: 'מנהלים', value: String(adminCount) },
-      ...(reviewerCount > 0 ? [{ label: 'בקרי תפעול', value: String(reviewerCount) }] : [])
+      { label: 'משתמשים פעילים', value: String(activeCount), hint: `${inactiveCount} לא פעילים` },
+      { label: 'גישה לכספים', value: String(withFinance), hint: 'מתוך פעילים' },
+      { label: 'גישה להרשאות', value: String(withPermissions), hint: 'מתוך פעילים' },
+      { label: 'מנהלים / בקרים', value: `${adminCount} / ${reviewerCount}` },
+      { label: 'מסכים נגישים', value: String(accessibleRoutes), hint: 'למשתמש הנוכחי' }
     ];
 
     /* Navigation cards — only for routes the user has access to */
