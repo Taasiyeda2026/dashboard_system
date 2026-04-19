@@ -438,30 +438,57 @@ function actionFinance_(user) {
     return true;
   });
 
+  var mappedRows = rows.map(function(row) {
+    return {
+      RowID: row.RowID,
+      source_sheet: row.source_sheet,
+      activity_name: row.activity_name,
+      emp_id: text_(row.emp_id),
+      emp_id_2: text_(row.emp_id_2),
+      instructor_name: text_(row.instructor_name),
+      instructor_name_2: text_(row.instructor_name_2),
+      finance_status: normalizeFinance_(row.finance_status),
+      finance_notes: text_(row.finance_notes),
+      status: text_(row.status),
+      activity_manager: text_(row.activity_manager),
+      authority: text_(row.authority),
+      school: text_(row.school),
+      activity_type: text_(row.activity_type),
+      funding: text_(row.funding),
+      start_date: text_(row.start_date),
+      end_date: text_(row.end_date || row.start_date),
+      price: row.price,
+      sessions: row.sessions
+    };
+  });
+
+  var totalOpen = 0, totalClosed = 0, totalOther = 0;
+  var managerMap = {};
+  mappedRows.forEach(function(r) {
+    var st = String(r.finance_status || '').toLowerCase();
+    if (st === 'open') totalOpen++;
+    else if (st === 'closed') totalClosed++;
+    else totalOther++;
+
+    var mgr = String(r.activity_manager || '').trim() || '—';
+    if (!managerMap[mgr]) managerMap[mgr] = { mgr: mgr, total: 0, open: 0, closed: 0, other: 0 };
+    managerMap[mgr].total++;
+    if (st === 'open') managerMap[mgr].open++;
+    else if (st === 'closed') managerMap[mgr].closed++;
+    else managerMap[mgr].other++;
+  });
+
+  var byManager = Object.keys(managerMap).map(function(k) { return managerMap[k]; }).sort(function(a, b) { return b.total - a.total; });
+
   return {
-    rows: rows.map(function(row) {
-      return {
-        RowID: row.RowID,
-        source_sheet: row.source_sheet,
-        activity_name: row.activity_name,
-        emp_id: text_(row.emp_id),
-        emp_id_2: text_(row.emp_id_2),
-        instructor_name: text_(row.instructor_name),
-        instructor_name_2: text_(row.instructor_name_2),
-        finance_status: normalizeFinance_(row.finance_status),
-        finance_notes: text_(row.finance_notes),
-        status: text_(row.status),
-        activity_manager: text_(row.activity_manager),
-        authority: text_(row.authority),
-        school: text_(row.school),
-        activity_type: text_(row.activity_type),
-        funding: text_(row.funding),
-        start_date: text_(row.start_date),
-        end_date: text_(row.end_date || row.start_date),
-        price: row.price,
-        sessions: row.sessions
-      };
-    })
+    rows: mappedRows,
+    aggregates: {
+      total: mappedRows.length,
+      totalOpen: totalOpen,
+      totalClosed: totalClosed,
+      totalOther: totalOther,
+      byManager: byManager
+    }
   };
 }
 

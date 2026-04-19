@@ -86,12 +86,13 @@ export const financeScreen = {
       rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
     }
 
-    const totalOpen = allRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open').length;
-    const totalClosed = allRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed').length;
-    const totalOther = allRows.length - totalOpen - totalClosed;
+    const agg = data?.aggregates;
+    const totalOpen = agg ? agg.totalOpen : allRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open').length;
+    const totalClosed = agg ? agg.totalClosed : allRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed').length;
+    const totalOther = agg ? agg.totalOther : allRows.length - totalOpen - totalClosed;
 
     const kpis = [
-      { label: 'סה"כ פעילויות', value: String(allRows.length) },
+      { label: 'סה"כ פעילויות', value: String(agg ? agg.total : allRows.length) },
       { label: 'פתוח', value: String(totalOpen) },
       { label: 'סגור', value: String(totalClosed) },
       ...(totalOther > 0 ? [{ label: 'אחר', value: String(totalOther) }] : [])
@@ -105,7 +106,7 @@ export const financeScreen = {
       )
       .join('');
 
-    const managerBreakdown = buildManagerBreakdown(allRows);
+    const managerBreakdown = (agg?.byManager) ? agg.byManager : buildManagerBreakdown(allRows);
     const managerTableRows = managerBreakdown.map((m) => `
       <tr>
         <td>${escapeHtml(m.mgr)}</td>
