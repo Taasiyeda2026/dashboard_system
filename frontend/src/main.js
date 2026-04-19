@@ -321,6 +321,9 @@ function clearScreenDataCache() {
   } else {
     delete state.screenDataCache[screenDataCacheKey()];
   }
+  Object.keys(state.screenDataCache).forEach((key) => {
+    if (key.startsWith('dashboard:')) delete state.screenDataCache[key];
+  });
 }
 
 function bindScreen(screen, screenRoot, data) {
