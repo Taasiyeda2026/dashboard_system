@@ -38,6 +38,7 @@ function handlePost_(e) {
       submitEditRequest: function() { return actionSubmitEditRequest_(user, payload); },
       reviewEditRequest: function() { return actionReviewEditRequest_(user, payload); },
       savePermission: function() { return actionSavePermission_(user, payload); },
+      addUser: function() { return actionAddUser_(user, payload); },
       savePrivateNote: function() { return actionSavePrivateNote_(user, payload); }
     };
 

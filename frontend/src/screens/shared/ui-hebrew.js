@@ -215,7 +215,8 @@ const API_ERROR_HE = {
   login_failed: 'ההתחברות נכשלה',
   server_error: 'שגיאת שרת — נסו שוב מאוחר יותר',
   network_error: 'בעיית תקשורת — בדקו את החיבור לאינטרנט',
-  offline: 'אין חיבור לרשת'
+  offline: 'אין חיבור לרשת',
+  user_already_exists: 'מזהה המשתמש כבר קיים במערכת'
 };
 
 /** Maps common API English errors to Hebrew; leaves Hebrew messages unchanged. */

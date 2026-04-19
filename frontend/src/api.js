@@ -8,6 +8,7 @@ const MUTATING_ACTIONS = {
   submitEditRequest: true,
   reviewEditRequest: true,
   savePermission: true,
+  addUser: true,
   savePrivateNote: true
 };
 
@@ -74,6 +75,7 @@ export const api = {
   submitEditRequest: (source_row_id, changes) => request('submitEditRequest', { source_row_id, changes }),
   reviewEditRequest: (request_id, status) => request('reviewEditRequest', { request_id, status }),
   savePermission: (row) => request('savePermission', { row }),
+  addUser: (row) => request('addUser', { row }),
   savePrivateNote: (a, b, c) => {
     if (typeof a === 'object' && a !== null) {
       return request('savePrivateNote', {

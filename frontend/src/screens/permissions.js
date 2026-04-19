@@ -59,6 +59,39 @@ function buildPermFlagGrid(row, keys) {
   return `<div class="ds-perm-flag-grid">${chips}</div>`;
 }
 
+function buildAddUserDrawerHtml() {
+  return `<div class="ds-perm-edit-form" dir="rtl">
+    <div class="ds-perm-edit-section">
+      <p class="ds-perm-section-label">פרטי משתמש חדש</p>
+      <div class="ds-perm-field">
+        <span class="ds-muted">מזהה משתמש</span>
+        <input type="text" class="ds-input ds-input--sm" id="new-user-id" placeholder="user_id" />
+      </div>
+      <div class="ds-perm-field">
+        <span class="ds-muted">שם מלא</span>
+        <input type="text" class="ds-input ds-input--sm" id="new-full-name" placeholder="שם מלא" />
+      </div>
+      <div class="ds-perm-field">
+        <span class="ds-muted">קוד כניסה</span>
+        <input type="text" class="ds-input ds-input--sm" id="new-entry-code" placeholder="קוד כניסה" />
+      </div>
+      <div class="ds-perm-field">
+        <span class="ds-muted">תפקיד</span>
+        <select class="ds-input ds-input--sm" id="new-display-role">
+          <option value="instructor">מדריך/ה</option>
+          <option value="authorized_user">משתמש/ת מורשה</option>
+          <option value="operations_reviewer">בקר/ת תפעול</option>
+          <option value="admin">מנהל/ת</option>
+        </select>
+      </div>
+    </div>
+    <div class="ds-perm-actions">
+      <button type="button" class="ds-btn ds-btn--primary" data-add-user-submit>הוספה</button>
+      <p class="ds-perm-save-status ds-muted" role="status" aria-live="polite"></p>
+    </div>
+  </div>`;
+}
+
 function buildEditDrawerHtml(row) {
   const uid = escapeHtml(row.user_id);
   const keys = sortedPermissionEditorKeys(row);
@@ -173,6 +206,7 @@ export const permissionsScreen = {
   render(data, { state }) {
     const canEdit =
       state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
+    const isAdmin = state?.user?.display_role === 'admin';
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
 
     const activeCount = safeRows.filter((r) => String(r.active || '').toLowerCase() === 'yes').length;
@@ -200,10 +234,15 @@ export const permissionsScreen = {
       label: hebrewRole(r)
     }));
 
+    const addUserBtn = isAdmin
+      ? `<div dir="rtl" style="margin-bottom:var(--space-3,12px)"><button type="button" class="ds-btn ds-btn--primary" data-add-user>הוסף משתמש</button></div>`
+      : '';
+
     return dsScreenStack(`
       ${dsPageHeader('הרשאות', 'ניהול גישה ודגלי הרשאה — תואם לגיליון permissions')}
       ${safeRows.length ? dsKpiGrid(kpis) : ''}
       ${safeRows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש משתמש…', filterLabel: 'תפקיד', filters: roleFilters }) : ''}
+      ${addUserBtn}
       ${dsCard({
         title: 'משתמשים והרשאות',
         badge: `${safeRows.length} משתמשים`,
@@ -215,6 +254,45 @@ export const permissionsScreen = {
   bind({ root, data, api, ui, rerender }) {
     bindPageListTools(root);
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
+
+    const addUserBtn = root.querySelector('[data-add-user]');
+    if (addUserBtn && ui) {
+      addUserBtn.addEventListener('click', () => {
+        ui.openDrawer({
+          title: 'הוסף משתמש חדש',
+          content: buildAddUserDrawerHtml(),
+          onOpen: (contentNode) => {
+            const statusEl = contentNode.querySelector('.ds-perm-save-status');
+            const submitBtn = contentNode.querySelector('[data-add-user-submit]');
+            if (!submitBtn) return;
+
+            submitBtn.addEventListener('click', async () => {
+              const user_id = contentNode.querySelector('#new-user-id')?.value.trim();
+              const full_name = contentNode.querySelector('#new-full-name')?.value.trim();
+              const entry_code = contentNode.querySelector('#new-entry-code')?.value.trim();
+              const display_role = contentNode.querySelector('#new-display-role')?.value;
+
+              if (!user_id) {
+                if (statusEl) statusEl.textContent = 'יש להזין מזהה משתמש';
+                return;
+              }
+
+              submitBtn.classList.add('is-loading');
+              if (statusEl) statusEl.textContent = '';
+              try {
+                await api.addUser({ user_id, full_name, entry_code, display_role });
+                if (statusEl) statusEl.textContent = 'המשתמש נוצר בהצלחה';
+                if (typeof rerender === 'function') await rerender();
+              } catch (error) {
+                if (statusEl) statusEl.textContent = translateApiErrorForUser(error?.message);
+              } finally {
+                submitBtn.classList.remove('is-loading');
+              }
+            });
+          }
+        });
+      });
+    }
 
     root.querySelectorAll('[data-edit-perm]').forEach((btn) => {
       btn.addEventListener('click', () => {

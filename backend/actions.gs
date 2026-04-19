@@ -917,6 +917,50 @@ function actionSavePermission_(user, payload) {
   };
 }
 
+function actionAddUser_(user, payload) {
+  requireAnyRole_(user, ['admin']);
+
+  var row = payload.row || {};
+  var userId = text_(row.user_id);
+  if (!userId) throw new Error('user_id is required');
+
+  var sheet = getSheet_(CONFIG.SHEETS.PERMISSIONS);
+  var headers = getHeaders_(sheet);
+
+  var existingRows = readRows_(CONFIG.SHEETS.PERMISSIONS);
+  var alreadyExists = existingRows.some(function(r) {
+    return text_(r.user_id) === userId;
+  });
+  if (alreadyExists) throw new Error('user_already_exists');
+
+  var newRow = {};
+  headers.forEach(function(h) {
+    if (h === 'user_id') {
+      newRow[h] = userId;
+    } else if (h === 'full_name') {
+      newRow[h] = text_(row.full_name || '');
+    } else if (h === 'entry_code') {
+      newRow[h] = text_(row.entry_code || '');
+    } else if (h === 'display_role') {
+      newRow[h] = normalizeRole_(text_(row.display_role || 'instructor'));
+    } else if (h === 'active') {
+      newRow[h] = 'yes';
+    } else if (h.indexOf('view_') === 0 || h.indexOf('can_') === 0) {
+      newRow[h] = 'no';
+    } else {
+      newRow[h] = '';
+    }
+  });
+
+  upsertRowByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', newRow);
+
+  scriptCacheInvalidateDataViews_();
+  return {
+    created: true,
+    user_id: userId
+  };
+}
+
 function actionSavePrivateNote_(user, payload) {
   var permission = getPermissionRow_(user.user_id);
   if (yesNo_(permission.can_review_requests) !== 'yes' || user.display_role !== 'operations_reviewer') {
