@@ -794,7 +794,10 @@ export const financeScreen = {
         const arch = String(r.is_archived || r.archive || '').toLowerCase();
         return arch !== 'yes' && arch !== 'true' && arch !== '1';
       });
-      rows = applyMonthFilter(rows, monthYm, dateFrom, dateTo);
+      /* When a custom date range is active it takes precedence over monthYm —
+         pass empty string for ymStr so applyMonthFilter uses the date range. */
+      const effectiveYm = (dateFrom || dateTo) ? '' : monthYm;
+      rows = applyMonthFilter(rows, effectiveYm, dateFrom, dateTo);
       rows = applySearch(rows, searchQ);
       if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
 
