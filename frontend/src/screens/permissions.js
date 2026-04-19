@@ -389,8 +389,9 @@ export const permissionsScreen = {
           await api.deactivateUser(userId);
           clearScreenDataCache?.();
           if (typeof rerender === 'function') await rerender();
+          showToast(`המשתמש/ת "${name}" הושבת/ה בהצלחה`, 'success');
         } catch (error) {
-          window.alert(translateApiErrorForUser(error?.message));
+          showToast(translateApiErrorForUser(error?.message), 'error');
           btn.classList.remove('is-loading');
           btn.disabled = false;
         }
@@ -413,7 +414,7 @@ export const permissionsScreen = {
           if (typeof rerender === 'function') await rerender();
           showToast(`המשתמש/ת "${name}" הופעל/ה מחדש בהצלחה`, 'success');
         } catch (error) {
-          window.alert(translateApiErrorForUser(error?.message));
+          showToast(translateApiErrorForUser(error?.message), 'error');
           btn.classList.remove('is-loading');
           btn.disabled = false;
         }
@@ -437,7 +438,7 @@ export const permissionsScreen = {
           clearScreenDataCache?.();
           if (typeof rerender === 'function') await rerender();
         } catch (error) {
-          window.alert(translateApiErrorForUser(error?.message));
+          showToast(translateApiErrorForUser(error?.message), 'error');
           btn.classList.remove('is-loading');
           btn.disabled = false;
         }

@@ -11,6 +11,12 @@ import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
  * permissions, exceptions, end-dates, instructors, my-data, week, month,
  * dashboard, etc. — fetches fresh data on its next render.
  *
+ * Calendar views (week, month, dashboard) are therefore always stale-safe:
+ * any admin action (deactivateUser, reactivateUser, deleteUser, savePermission,
+ * addUser) or finance mutation (saveFinanceRow, syncFinance, saveActivity)
+ * triggers a full cache wipe, ensuring calendar screens never show stale data
+ * after a mutation elsewhere in the app.
+ *
  * Screens that expose their own save forms (activities.js, finance.js,
  * permissions.js) additionally call the bind-injected clearScreenDataCache?.()
  * right before rerender() as a belt-and-suspenders guard for their targeted

@@ -421,11 +421,20 @@ function buildCardsView(rows, canEdit) {
 /* ————————————————————————————————
    Excel export (.xls HTML table format, RTL)
 ———————————————————————————————— */
-function exportToExcel(rows, label) {
+function exportToExcel(rows, label, periodLabel, filterLabel) {
   const cols = ['RowID', 'activity_name', 'school', 'authority', 'activity_manager', 'funding', 'Payer', 'price', 'sessions', 'Payment', 'finance_status', 'finance_notes', 'start_date', 'end_date', 'status'];
   const headers = cols.map((c) => hebrewColumn(c) || c);
 
   const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  /* Self-documenting header rows: period + active filters */
+  const metaRows = [];
+  if (periodLabel) {
+    const filterNote = filterLabel ? ` · ${filterLabel}` : '';
+    metaRows.push(`<tr><td colspan="${cols.length}" style="background:#e8eaf6;font-weight:bold;font-size:0.9rem;padding:6px 8px;border:1px solid #aab;">תקופה: ${esc(periodLabel)}${esc(filterNote)}</td></tr>`);
+  }
+  const exportDate = new Date().toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  metaRows.push(`<tr><td colspan="${cols.length}" style="background:#f5f5f5;font-size:0.8rem;color:#555;padding:4px 8px;border:1px solid #ccc;">יוצא בתאריך: ${esc(exportDate)} · ${esc(String(rows.length))} רשומות</td></tr>`);
 
   const headerRow = `<tr>${headers.map((h) => `<th style="background:#dde;">${esc(h)}</th>`).join('')}</tr>`;
   const dataRows = rows.map((row) => {
@@ -442,7 +451,7 @@ function exportToExcel(rows, label) {
   const html = `<html dir="rtl" xmlns:x="urn:schemas-microsoft-com:office:excel">
 <head><meta charset="UTF-8">
 <style>td,th{border:1px solid #ccc;padding:4px 8px;}th{background:#cce;font-weight:bold;}table{border-collapse:collapse;direction:rtl;}</style>
-</head><body><table>${headerRow}${dataRows.join('')}</table></body></html>`;
+</head><body><table>${metaRows.join('')}${headerRow}${dataRows.join('')}</table></body></html>`;
 
   const blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -466,10 +475,45 @@ const LS = {
   tab: 'finance_tab',
   viewMode: 'finance_view_mode',
   mgrSortCol: 'finance_mgr_sort_col',
-  mgrSortDir: 'finance_mgr_sort_dir'
+  mgrSortDir: 'finance_mgr_sort_dir',
+  userId: 'finance_user_id'
 };
 
+const LS_ALL_PREF_KEYS = [
+  'finance_date_from', 'finance_date_to', 'finance_search', 'finance_status_filter',
+  'finance_month_ym', 'finance_tab', 'finance_view_mode',
+  'finance_mgr_sort_col', 'finance_mgr_sort_dir', 'finance_user_id'
+];
+
+function clearFinanceStorage() {
+  LS_ALL_PREF_KEYS.forEach((k) => localStorage.removeItem(k));
+}
+
+function resetFinanceStateKeys(state) {
+  state.financeDateFrom = '';
+  state.financeDateTo = '';
+  state.financeSearch = '';
+  state.financeStatusFilter = '';
+  state.financeMonthYm = '';
+  state.financeTab = '';
+  state.financeViewMode = '';
+  state.managerBreakdownSortCol = '';
+  state.managerBreakdownSortDir = '';
+}
+
 function loadStateFromStorage(state) {
+  /* Isolate preferences by user — clear both LS and in-memory finance state
+     when a different user logs in, preventing cross-user preference leakage */
+  const currentUserId = String(state?.user?.user_id || '');
+  const storedUserId = localStorage.getItem(LS.userId) || '';
+  if (currentUserId && storedUserId && currentUserId !== storedUserId) {
+    clearFinanceStorage();
+    resetFinanceStateKeys(state);
+  }
+  if (currentUserId) {
+    localStorage.setItem(LS.userId, currentUserId);
+  }
+
   const map = {
     financeDateFrom: LS.dateFrom,
     financeDateTo: LS.dateTo,
@@ -617,7 +661,7 @@ export const financeScreen = {
       <button type="button" class="ds-month-nav__btn" data-month-prev title="חלון קודם">◀</button>
       <span class="ds-month-nav__label">${pairLabel}</span>
       <button type="button" class="ds-month-nav__btn" data-month-next title="חלון הבא">▶</button>
-      ${!isCurrentMonth ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-month-today>חודש נוכחי</button>` : ''}
+      ${!isCurrentMonth ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm ds-month-nav__today-btn" data-month-today>היום</button>` : ''}
       ${monthYm ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-month-clear>כל התקופה</button>` : ''}
     </div>`;
 
@@ -837,7 +881,27 @@ export const financeScreen = {
         const parts = [fmt(dateFrom), fmt(dateTo)].filter(Boolean);
         exportLabel = parts.join('_');
       }
-      exportToExcel(rows, exportLabel);
+
+      /* Period label for embedded header row */
+      let periodLabel = '';
+      if (monthYm) {
+        periodLabel = `${ymToMonthLabel(prevMonth(monthYm))} – ${ymToMonthLabel(monthYm)}`;
+      } else if (dateFrom || dateTo) {
+        const fromLabel = dateFrom ? formatDateIL(dateFrom) : 'תחילת התקופה';
+        const toLabel = dateTo ? formatDateIL(dateTo) : 'סוף התקופה';
+        periodLabel = `${fromLabel} – ${toLabel}`;
+      } else {
+        periodLabel = 'כל התקופה';
+      }
+
+      /* Filter label for embedded header row */
+      const filterParts = [];
+      if (statusFilter) filterParts.push(`סטטוס: ${hebrewFinanceStatus(statusFilter)}`);
+      if (searchQ) filterParts.push(`חיפוש: "${searchQ}"`);
+      if (activeTab === 'archive') filterParts.push('ארכיון');
+      const filterLabel = filterParts.join(' · ');
+
+      exportToExcel(rows, exportLabel, periodLabel, filterLabel);
     });
 
     /* Sync button (admin/reviewer only — invalidates server cache and rerenders) */
