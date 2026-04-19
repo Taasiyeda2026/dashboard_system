@@ -117,7 +117,7 @@ export const instructorContactsScreen = {
       })}
     `);
   },
-  bind({ root, data, state, ui, rerender }) {
+  bind({ root, data, state, ui, rerender, clearScreenDataCache }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
 
     root.querySelector('#instr-contacts-search')?.addEventListener('input', (ev) => {

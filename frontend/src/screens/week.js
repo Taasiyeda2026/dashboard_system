@@ -127,7 +127,7 @@ export const weekScreen = {
       <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
   },
-  bind({ root, ui, data, state, rerender }) {
+  bind({ root, ui, data, state, rerender, clearScreenDataCache }) {
     bindPageListTools(root);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 

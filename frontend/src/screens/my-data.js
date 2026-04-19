@@ -84,7 +84,7 @@ export const myDataScreen = {
       })}
     `);
   },
-  bind({ root, data, ui, state }) {
+  bind({ root, data, ui, state, rerender, clearScreenDataCache }) {
     bindPageListTools(root);
     const rows = Array.isArray(data?.rows) ? data.rows : [];
 

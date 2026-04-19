@@ -210,7 +210,7 @@ export const monthScreen = {
       })}
     `);
   },
-  bind({ root, ui, data, state, rerender }) {
+  bind({ root, ui, data, state, rerender, clearScreenDataCache }) {
     bindPageListTools(root, { mode: 'dim' });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 

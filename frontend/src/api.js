@@ -2,6 +2,22 @@ import { config } from './config.js';
 import { state, setSession, clearScreenDataCache } from './state.js';
 import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 
+/**
+ * Actions that modify server-side data.
+ *
+ * After any of these actions succeeds, clearScreenDataCache() is called
+ * automatically (see bottom of request()). This wipes the entire
+ * state.screenDataCache so that every screen — activities, finance,
+ * permissions, exceptions, end-dates, instructors, my-data, week, month,
+ * dashboard, etc. — fetches fresh data on its next render.
+ *
+ * Screens that expose their own save forms (activities.js, finance.js,
+ * permissions.js) additionally call the bind-injected clearScreenDataCache?.()
+ * right before rerender() as a belt-and-suspenders guard for their targeted
+ * route cache keys. Read-only screens (exceptions, end-dates, instructors,
+ * my-data, week, month, contacts, instructor-contacts) have no save handlers
+ * and rely solely on this centralised clear, which is sufficient.
+ */
 const MUTATING_ACTIONS = {
   saveActivity: true,
   addActivity: true,

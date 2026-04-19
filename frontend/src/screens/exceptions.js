@@ -125,7 +125,7 @@ export const exceptionsScreen = {
       })}
     `);
   },
-  bind({ root, data, ui, state, rerender }) {
+  bind({ root, data, ui, state, rerender, clearScreenDataCache }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
 
     root.querySelector('#exceptions-search')?.addEventListener('input', (ev) => {

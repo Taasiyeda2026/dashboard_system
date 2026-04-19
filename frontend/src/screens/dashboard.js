@@ -1,6 +1,5 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
-import { clearScreenDataCache } from '../state.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -133,10 +132,10 @@ export const dashboardScreen = {
       })}
     `);
   },
-  bind({ root, ui, state, rerender }) {
+  bind({ root, ui, state, rerender, clearScreenDataCache }) {
     const applyYm = (nextYm) => {
       state.dashboardMonthYm = nextYm;
-      clearScreenDataCache();
+      clearScreenDataCache?.();
       rerender();
     };
 

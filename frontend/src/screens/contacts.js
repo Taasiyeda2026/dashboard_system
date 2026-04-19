@@ -144,7 +144,7 @@ export const contactsScreen = {
       })}
     `);
   },
-  bind({ root, data, state, rerender }) {
+  bind({ root, data, state, rerender, clearScreenDataCache }) {
     root.querySelector('#contacts-search')?.addEventListener('input', (ev) => {
       state.contactsSearch = ev.target.value || '';
       rerender();

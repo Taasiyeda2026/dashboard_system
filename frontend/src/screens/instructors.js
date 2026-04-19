@@ -116,7 +116,7 @@ export const instructorsScreen = {
       })}
     `);
   },
-  bind({ root, data, state, ui, rerender }) {
+  bind({ root, data, state, ui, rerender, clearScreenDataCache }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
 
     let _searchTimer;

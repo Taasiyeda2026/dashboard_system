@@ -80,7 +80,7 @@ export const endDatesScreen = {
       })}
     `);
   },
-  bind({ root }) {
+  bind({ root, rerender, clearScreenDataCache }) {
     bindPageListTools(root);
   }
 };
