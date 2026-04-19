@@ -219,10 +219,11 @@ export const activitiesScreen = {
 
     const userRoutes = Array.isArray(state?.routes) ? state.routes : [];
     const shortcutDefs = [
-      { route: 'week',        label: 'שבוע',     icon: '📅' },
-      { route: 'month',       label: 'חודש',     icon: '📆' },
-      { route: 'exceptions',  label: 'חריגות',   icon: '⚠️' },
-      { route: 'instructors', label: 'מדריכים',  icon: '👥' },
+      { route: 'week',        label: 'שבוע',       icon: '📅' },
+      { route: 'month',       label: 'חודש',       icon: '📆' },
+      { route: 'exceptions',  label: 'חריגות',     icon: '⚠️' },
+      { route: 'instructors', label: 'מדריכים',    icon: '👥' },
+      { route: 'contacts',    label: 'אנשי קשר',  icon: '🏫' },
     ];
     const shortcutsHtml = shortcutDefs
       .filter((d) => userRoutes.includes(d.route))
