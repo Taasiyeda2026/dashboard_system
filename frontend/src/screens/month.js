@@ -85,18 +85,21 @@ function activityDotsMeta(n) {
   return `●●●●● +${n - 5}`;
 }
 
-function monthDayDrawerBody(cell, hideEmpIds, canEdit) {
+function monthDayDrawerBody(cell, hideEmpIds, canEdit, showPrivateNote) {
   const items = Array.isArray(cell?.items) ? cell.items : [];
   if (!items.length) {
     return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(cell?.date || '')}</p>`;
   }
   const blocks = items
     .map(
-      (it) => `
+      (it) => {
+        const privateNote = showPrivateNote ? it.private_note || '—' : null;
+        return `
     <section class="ds-cal-drawer-block" aria-label="${escapeHtml(it.activity_name || 'פעילות')}">
       <h3 class="ds-cal-drawer-block__title">${escapeHtml(it.activity_name || 'פעילות')}</h3>
-      ${activityWorkDrawerHtml(it, { privateNote: null, canEdit: !!canEdit, hideEmpIds: !!hideEmpIds })}
-    </section>`
+      ${activityWorkDrawerHtml(it, { privateNote, canEdit: !!canEdit, hideEmpIds: !!hideEmpIds })}
+    </section>`;
+      }
     )
     .join('');
   return `<div class="ds-cal-drawer-stack">${blocks}</div>`;
@@ -215,6 +218,7 @@ export const monthScreen = {
     bindPageListTools(root, { mode: 'dim' });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const canEditActivity = state?.user?.display_role !== 'instructor';
+    const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
@@ -247,7 +251,7 @@ export const monthScreen = {
       const n = Array.isArray(cell.items) ? cell.items.length : 0;
       ui.openDrawer({
         title: `יום ${d} · ${cell.date || ''}`,
-        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(cell, hideEmpIds, canEditActivity)}`,
+        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(cell, hideEmpIds, canEditActivity, showPrivateNote)}`,
         onOpen: canEditActivity ? bindActivityEditForm : undefined
       });
     });

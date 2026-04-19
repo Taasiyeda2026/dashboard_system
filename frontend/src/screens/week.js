@@ -27,8 +27,9 @@ function weekItemMeta(item, hideEmpIds) {
   return `מזהה שורה: ${item.RowID || ''}`;
 }
 
-function weekDrawerHtml(item, date, hideEmpIds, canEdit) {
-  const full = activityWorkDrawerHtml(item, { privateNote: null, canEdit: !!canEdit, hideEmpIds: !!hideEmpIds });
+function weekDrawerHtml(item, date, hideEmpIds, canEdit, showPrivateNote) {
+  const privateNote = showPrivateNote ? item.private_note || '—' : null;
+  const full = activityWorkDrawerHtml(item, { privateNote, canEdit: !!canEdit, hideEmpIds: !!hideEmpIds });
   const cut = full.lastIndexOf('</div>');
   if (cut < 0) return full;
   return `${full.slice(0, cut)}
@@ -132,6 +133,7 @@ export const weekScreen = {
     bindPageListTools(root);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const canEditActivity = state?.user?.display_role !== 'instructor';
+    const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
@@ -162,7 +164,7 @@ export const weekScreen = {
       }
       ui.openDrawer({
         title: item.activity_name || 'פעילות',
-        content: weekDrawerHtml(item, date, hideEmpIds, canEditActivity),
+        content: weekDrawerHtml(item, date, hideEmpIds, canEditActivity, showPrivateNote),
         onOpen: canEditActivity ? bindActivityEditForm : undefined
       });
     });
