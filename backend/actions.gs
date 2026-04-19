@@ -497,9 +497,11 @@ function actionFinance_(user, payload) {
   var managerMap = {};
   mappedRows.forEach(function(r) {
     var st = String(r.finance_status || '').toLowerCase();
+    /* Prefer actual Payment (collected) over expected price×sessions */
+    var explicitPayment = parseFloat(r.Payment) || 0;
     var price = parseFloat(r.price) || 0;
     var sessions = parseFloat(r.sessions) || 0;
-    var amount = sessions > 0 ? price * sessions : price;
+    var amount = explicitPayment > 0 ? explicitPayment : (sessions > 0 ? price * sessions : price);
 
     if (st === 'open') { totalOpen++; amountOpen += amount; }
     else if (st === 'closed') { totalClosed++; amountClosed += amount; }
@@ -1617,7 +1619,7 @@ function actionAdminLists_(user, payload) {
 
 /* ── Save Finance Row (status + notes) ─────────────────────────────────────── */
 function actionSaveFinanceRow_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
   var sourceRowId = text_(payload.source_row_id || payload.RowID);
   var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT));
   if (!sourceRowId) throw new Error('source_row_id is required');
@@ -1628,4 +1630,11 @@ function actionSaveFinanceRow_(user, payload) {
   updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
   scriptCacheInvalidateDataViews_();
   return { saved: true, source_row_id: sourceRowId };
+}
+
+/* ── Sync Finance (refresh cache + return timestamp) ───────────────────────── */
+function actionSyncFinance_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  scriptCacheInvalidateDataViews_();
+  return { synced: true, timestamp: new Date().toISOString() };
 }

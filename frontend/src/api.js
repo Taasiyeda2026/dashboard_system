@@ -29,7 +29,8 @@ const MUTATING_ACTIONS = {
   reactivateUser: true,
   deleteUser: true,
   savePrivateNote: true,
-  saveFinanceRow: true
+  saveFinanceRow: true,
+  syncFinance: true
 };
 
 async function request(action, payload = {}) {
@@ -102,6 +103,7 @@ export const api = {
   adminSettings: () => request('adminSettings'),
   adminLists: () => request('adminLists'),
   saveFinanceRow: (payload) => request('saveFinanceRow', payload),
+  syncFinance: () => request('syncFinance', {}),
   savePrivateNote: (a, b, c) => {
     if (typeof a === 'object' && a !== null) {
       return request('savePrivateNote', {

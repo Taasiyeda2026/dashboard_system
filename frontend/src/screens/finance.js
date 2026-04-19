@@ -121,12 +121,10 @@ function formatDateIL(isoDate) {
   return `${d}/${m}/${y}`;
 }
 
-/* Row amount: prefer backend-computed `amount` or explicit Payment field;
-   otherwise compute from price × sessions — matches backend/actions.gs. */
+/* Row amount: use actual Payment (collected amount) first;
+   fall back to price × sessions (agreed/expected amount). */
 function rowAmount(row) {
-  const backendAmt = parseFloat(row.amount) || 0;
-  if (backendAmt > 0) return backendAmt;
-  const explicit = parseFloat(row.Payment || row.payment_amount) || 0;
+  const explicit = parseFloat(row.Payment || row.payment || row.payment_amount) || 0;
   if (explicit > 0) return explicit;
   const price = parseFloat(row.price) || 0;
   const sessions = parseFloat(row.sessions) || 0;
@@ -187,9 +185,14 @@ function buildMeetingsDatesHtml(row) {
     const val = String(row[`Date${i}`] || '').trim();
     if (val) dates.push({ num: i, val });
   }
-  if (dates.length === 0) return '';
 
-  const chips = dates.map(({ num, val }) => {
+  const totalSessions = parseFloat(row.sessions) || 0;
+  const recorded = dates.length;
+  const pending = Math.max(0, Math.round(totalSessions) - recorded);
+
+  if (recorded === 0 && pending === 0) return '';
+
+  const recordedChips = dates.map(({ num, val }) => {
     const parts = val.split('/');
     const isoVal = parts.length === 3
       ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
@@ -198,22 +201,29 @@ function buildMeetingsDatesHtml(row) {
     return `<span class="ds-date-chip ds-date-chip--${kind}" title="פגישה ${num}">${escapeHtml(val)}</span>`;
   }).join('');
 
+  const pendingChips = pending > 0
+    ? Array.from({ length: Math.min(pending, 10) }, (_, i) =>
+        `<span class="ds-date-chip ds-date-chip--pending" title="פגישה ${recorded + i + 1} — טרם תוזמנה">—</span>`
+      ).join('') + (pending > 10 ? `<span class="ds-muted" style="font-size:0.7rem;">ועוד ${pending - 10}</span>` : '')
+    : '';
+
   const past = dates.filter(({ val }) => {
     const parts = val.split('/');
     const iso = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` : val;
     return iso < today;
   }).length;
-  const future = dates.length - past;
+  const future = recorded - past;
 
   return `<div class="ds-meetings-panel">
     <div class="ds-meetings-panel__summary">
-      <span>תאריכי פגישות (${dates.length})</span>
+      <span>פגישות (${recorded}${pending > 0 ? `/${Math.round(totalSessions)}` : ''})</span>
       <span class="ds-meetings-panel__counts">
         ${past > 0 ? `<span class="ds-date-count ds-date-count--past">${past} עברו</span>` : ''}
         ${future > 0 ? `<span class="ds-date-count ds-date-count--future">${future} עתידיות</span>` : ''}
+        ${pending > 0 ? `<span class="ds-date-count ds-date-count--pending">${pending} ממתינות</span>` : ''}
       </span>
     </div>
-    <div class="ds-meetings-panel__body">${chips}</div>
+    <div class="ds-meetings-panel__body">${recordedChips}${pendingChips}</div>
   </div>`;
 }
 
@@ -385,30 +395,36 @@ function buildCardsView(rows, canEdit) {
 }
 
 /* ————————————————————————————————
-   CSV export
+   Excel export (.xls HTML table format, RTL)
 ———————————————————————————————— */
-function exportToCsv(rows, label) {
-  const cols = ['RowID', 'activity_name', 'activity_manager', 'school', 'authority', 'funding', 'Payer', 'price', 'sessions', 'amount', 'Payment', 'start_date', 'end_date', 'finance_status', 'finance_notes', 'status'];
+function exportToExcel(rows, label) {
+  const cols = ['RowID', 'activity_name', 'school', 'authority', 'activity_manager', 'funding', 'Payer', 'price', 'sessions', 'Payment', 'finance_status', 'finance_notes', 'start_date', 'end_date', 'status'];
   const headers = cols.map((c) => hebrewColumn(c) || c);
-  const lines = [headers.join(',')];
-  rows.forEach((row) => {
-    const vals = cols.map((c) => {
+
+  const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const headerRow = `<tr>${headers.map((h) => `<th style="background:#dde;">${esc(h)}</th>`).join('')}</tr>`;
+  const dataRows = rows.map((row) => {
+    const cells = cols.map((c) => {
       let v;
-      if (c === 'amount') {
-        v = String(rowAmount(row));
-      } else {
-        v = String(row[c] ?? '');
-        if (c === 'finance_status') v = hebrewFinanceStatus(v);
-      }
-      return `"${v.replace(/"/g, '""')}"`;
+      if (c === 'Payment') v = String(rowAmount(row));
+      else v = String(row[c] ?? '');
+      if (c === 'finance_status') v = hebrewFinanceStatus(v);
+      return `<td>${esc(v)}</td>`;
     });
-    lines.push(vals.join(','));
+    return `<tr>${cells.join('')}</tr>`;
   });
-  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+
+  const html = `<html dir="rtl" xmlns:x="urn:schemas-microsoft-com:office:excel">
+<head><meta charset="UTF-8">
+<style>td,th{border:1px solid #ccc;padding:4px 8px;}th{background:#cce;font-weight:bold;}table{border-collapse:collapse;direction:rtl;}</style>
+</head><body><table>${headerRow}${dataRows.join('')}</table></body></html>`;
+
+  const blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `כספים${label ? '-' + label : ''}.csv`;
+  a.download = `כספים${label ? '-' + label : ''}.xls`;
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
@@ -588,7 +604,7 @@ export const financeScreen = {
     else if (dateTo) headerSubtitle = `מציג: עד ${formatDateIL(dateTo)}`;
     else headerSubtitle = 'מציג: כל התקופה';
 
-    const exportBtn = `<button type="button" class="ds-btn ds-btn--sm" data-export-csv>ייצוא CSV</button>`;
+    const exportBtn = `<button type="button" class="ds-btn ds-btn--sm" data-export-csv>ייצוא Excel</button>`;
     const syncBtn = isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-sync-finance title="סנכרון נתוני כספים">↻ סנכרון</button>` : '';
 
     const dataBody = viewMode === 'cards'
@@ -757,20 +773,17 @@ export const financeScreen = {
       rows = applyMonthFilter(rows, monthYm);
       rows = applySearch(rows, searchQ);
       if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
-      exportToCsv(rows, monthYm ? ymToMonthLabel(monthYm) : '');
+      exportToExcel(rows, monthYm ? ymToMonthLabel(monthYm) : '');
     });
 
-    /* Sync button (admin only — shows toast since API action may not exist) */
+    /* Sync button (admin/reviewer only — invalidates server cache and rerenders) */
     root.querySelector('[data-sync-finance]')?.addEventListener('click', async () => {
       const btn = root.querySelector('[data-sync-finance]');
       if (btn) { btn.disabled = true; btn.textContent = '↻ מסנכרן...'; }
       try {
-        if (typeof api.syncFinance === 'function') {
-          await api.syncFinance();
-          showToast('הנתונים סונכרנו בהצלחה', 'success');
-        } else {
-          showToast('סנכרון כספים — לא מוגדר ב-API עדיין', 'info', 3000);
-        }
+        const res = await api.syncFinance();
+        const ts = res?.timestamp ? new Date(res.timestamp).toLocaleTimeString('he-IL') : '';
+        showToast(`הנתונים סונכרנו בהצלחה${ts ? ' — ' + ts : ''}`, 'success');
         clearScreenDataCache();
         rerender();
       } catch (err) {
@@ -799,7 +812,7 @@ export const financeScreen = {
         e.stopPropagation();
         const uid = btn.dataset.exportRow;
         const hit = allRows.find((r) => String(r.RowID) === String(uid));
-        if (hit) exportToCsv([hit], String(hit.activity_name || hit.RowID).slice(0, 20));
+        if (hit) exportToExcel([hit], String(hit.activity_name || hit.RowID).slice(0, 20));
       });
     });
 

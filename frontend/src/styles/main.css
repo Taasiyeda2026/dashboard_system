@@ -3351,6 +3351,20 @@ select[data-role-select]:focus-visible {
   border: 1px solid var(--ds-status-success-border);
 }
 
+.ds-date-chip--pending {
+  background: var(--ds-warning-soft, #fff7e6);
+  color: var(--ds-warning, #b45309);
+  border: 1px dashed var(--ds-warning, #b45309);
+  opacity: 0.7;
+  letter-spacing: 0.05em;
+}
+
+.ds-date-count--pending {
+  background: var(--ds-warning-soft, #fff7e6);
+  color: var(--ds-warning, #b45309);
+  border: 1px solid var(--ds-warning, #b45309);
+}
+
 /* ——— Admin home: control grid ——— */
 .ds-admin-ctrl-grid {
   display: grid;
