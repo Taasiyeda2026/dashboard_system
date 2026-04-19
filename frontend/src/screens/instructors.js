@@ -7,8 +7,6 @@ import {
   dsEmptyState,
   dsStatusChip
 } from './shared/layout.js';
-import { isNarrowViewport } from './shared/responsive.js';
-
 const AVATAR_PALETTE = [
   '#ef4444','#f97316','#eab308','#22c55e',
   '#3b82f6','#8b5cf6','#ec4899','#14b8a6',
