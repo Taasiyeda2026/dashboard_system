@@ -794,10 +794,6 @@ select {
   color: var(--ds-accent);
 }
 
-.ds-interactive-card--kpi .ds-interactive-card__title {
-  font-size: 1.08rem;
-}
-
 .ds-interactive-card--day-cell {
   min-height: 88px;
 }
