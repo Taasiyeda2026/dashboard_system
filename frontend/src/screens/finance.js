@@ -243,6 +243,7 @@ export const financeScreen = {
             style="font-size:0.85rem;padding:4px 6px;"
           />
         </span>
+        ${(dateFrom || dateTo) ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-clear-dates style="white-space:nowrap;">נקה תאריכים</button>` : ''}
       </div>
       ${dsCard({
         title: 'רשימת כספים',
@@ -277,6 +278,13 @@ export const financeScreen = {
 
     root.querySelector('#finance-date-to')?.addEventListener('change', (ev) => {
       state.financeDateTo = ev.target.value || '';
+      clearScreenDataCache();
+      rerender();
+    });
+
+    root.querySelector('[data-clear-dates]')?.addEventListener('click', () => {
+      state.financeDateFrom = '';
+      state.financeDateTo = '';
       clearScreenDataCache();
       rerender();
     });
