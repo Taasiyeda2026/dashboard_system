@@ -2852,6 +2852,36 @@ select[data-role-select]:focus-visible {
   padding: var(--ds-space-1) 0;
 }
 
+/* ——— Quick-filter chip row (activities) ——— */
+.ds-filter-row--quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  padding-bottom: var(--ds-space-1);
+}
+
+/* ——— KPI mini-row (week / month) ——— */
+.ds-mini-kpi-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3) var(--ds-space-4);
+  padding: var(--ds-space-2) 0;
+  border-bottom: 1px solid var(--ds-border);
+  margin-bottom: var(--ds-space-1);
+}
+
+.ds-mini-kpi {
+  font-size: 0.8rem;
+  color: var(--ds-text-muted);
+}
+
+.ds-mini-kpi strong {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--ds-text);
+  margin-left: 3px;
+}
+
 /* ——— Contacts: school grouping + inline expand ——— */
 .ci-list {
   display: flex;

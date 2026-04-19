@@ -184,13 +184,23 @@ export const monthScreen = {
     const currentYm = data?.month || `${y}-${String(mo).padStart(2, '0')}`;
     const monthTitle = monthTitleHebrew(spec);
 
+    const uniqueActs = new Set(safeCells.flatMap((c) => (c.items || []).map((it) => it.RowID))).size;
+    const activeDaysCount = safeCells.filter((c) => (c.items || []).length > 0).length;
+    const totalEvents = safeCells.reduce((s, c) => s + (c.items || []).length, 0);
+    const monthKpiRow = `<div class="ds-mini-kpi-row">
+      <span class="ds-mini-kpi"><strong>${uniqueActs}</strong> פעילויות</span>
+      <span class="ds-mini-kpi"><strong>${activeDaysCount}</strong> ימים פעילים</span>
+      <span class="ds-mini-kpi"><strong>${totalEvents}</strong> אירועים</span>
+    </div>`;
+
     return dsScreenStack(`
-      ${dsPageHeader('חודש', 'לוח חודש — לחיצה על יום לפתיחת פירוט')}
+      ${dsPageHeader('חודש', '')}
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">→ חודש קודם</button>
+        <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">▶ חודש קודם</button>
         <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
-        <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">חודש הבא ←</button>
+        <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">חודש הבא ◀</button>
       </nav>
+      ${monthKpiRow}
       ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש לפי שם פעילות ביום…', filters: [] })}
       ${dsCard({
         title: 'לוח חודשי',

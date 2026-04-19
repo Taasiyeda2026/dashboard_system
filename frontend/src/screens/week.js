@@ -106,13 +106,23 @@ export const weekScreen = {
         ? `${Math.abs(weekOffset)} שבועות אחורה${rangeLabel ? ` · ${rangeLabel}` : ''}`
         : `${weekOffset} שבועות קדימה${rangeLabel ? ` · ${rangeLabel}` : ''}`;
 
+    const uniqueActivities = new Set(safeDays.flatMap((d) => (d.items || []).map((it) => it.RowID))).size;
+    const activeDays = safeDays.filter((d) => (d.items || []).length > 0).length;
+    const totalSessions = safeDays.reduce((sum, d) => sum + (d.items || []).length, 0);
+    const kpiRow = `<div class="ds-mini-kpi-row">
+      <span class="ds-mini-kpi"><strong>${uniqueActivities}</strong> פעילויות</span>
+      <span class="ds-mini-kpi"><strong>${activeDays}</strong> ימים פעילים</span>
+      <span class="ds-mini-kpi"><strong>${totalSessions}</strong> מפגשים</span>
+    </div>`;
+
     return dsScreenStack(`
-      ${dsPageHeader('שבוע', 'לוח עבודה — לחיצה על פריט לפתיחת פירוט')}
+      ${dsPageHeader('שבוע', '')}
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">→ שבוע קודם</button>
+        <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">▶ שבוע קודם</button>
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
-        <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">שבוע הבא ←</button>
+        <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">שבוע הבא ◀</button>
       </nav>
+      ${kpiRow}
       ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפריטי השבוע…', filters: [] })}
       <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
