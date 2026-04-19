@@ -117,6 +117,13 @@ function saveDatesToStorage(dateFrom, dateTo) {
 }
 
 export const financeScreen = {
+  onLeave({ state }) {
+    if (state.financeDateFrom || state.financeDateTo) {
+      state.financeDateFrom = '';
+      state.financeDateTo = '';
+      saveDatesToStorage('', '');
+    }
+  },
   load: ({ api, state }) => {
     loadDatesFromStorage(state);
     return api.finance({

@@ -419,6 +419,8 @@ async function mountScreen() {
 
   const routeChanged = lastRenderedRoute !== state.route;
   if (routeChanged) {
+    const leavingScreen = screens[lastRenderedRoute];
+    if (leavingScreen?.onLeave) leavingScreen.onLeave({ state });
     ui.closeAll();
     closeMobileNav();
   }
