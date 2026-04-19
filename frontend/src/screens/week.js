@@ -114,7 +114,7 @@ export const weekScreen = {
         <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">שבוע הבא ←</button>
       </nav>
       ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפריטי השבוע…', filters: [] })}
-      <div class="ds-week-board" role="region" aria-label="לוח שבוע">${body}</div>
+      <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
   },
   bind({ root, ui, data, state, rerender }) {

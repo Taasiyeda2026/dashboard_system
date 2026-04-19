@@ -1289,7 +1289,7 @@ span.ds-chip {
 
 @media (min-width: 960px) {
   .ds-week-board {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--week-cols, 7), minmax(0, 1fr));
     align-items: stretch;
   }
 }

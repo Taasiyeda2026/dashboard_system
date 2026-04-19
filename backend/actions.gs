@@ -334,10 +334,11 @@ function actionMonth_(user, payload) {
 
   var now = new Date();
   var ym = text_(payload && payload.ym).slice(0, 7);
+  var ymMatch = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(ym);
   var year, month;
-  if (/^\d{4}-\d{2}$/.test(ym)) {
-    year = parseInt(ym.slice(0, 4), 10);
-    month = parseInt(ym.slice(5, 7), 10) - 1;
+  if (ymMatch) {
+    year = parseInt(ymMatch[1], 10);
+    month = parseInt(ymMatch[2], 10) - 1;
   } else {
     year = now.getFullYear();
     month = now.getMonth();
