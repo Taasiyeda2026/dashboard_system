@@ -1016,7 +1016,7 @@ select {
 }
 
 .ds-btn--sm {
-  min-height: 40px;
+  min-height: 44px;
   padding: 6px 10px;
   font-size: 0.78rem;
 }

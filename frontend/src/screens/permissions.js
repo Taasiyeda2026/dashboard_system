@@ -181,7 +181,7 @@ export const permissionsScreen = {
         if (!row || !ui) return;
 
         ui.openDrawer({
-          title: `עריכת הרשאות — ${escapeHtml(row.full_name || userId)}`,
+          title: `עריכת הרשאות — ${row.full_name || userId}`,
           content: buildEditDrawerHtml(row),
           onOpen: (contentNode) => {
             const statusEl = contentNode.querySelector('.ds-perm-save-status');
