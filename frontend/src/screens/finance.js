@@ -91,6 +91,8 @@ function exportToCsv(rows) {
 
 const LS_DATE_FROM = 'finance_date_from';
 const LS_DATE_TO = 'finance_date_to';
+const LS_SEARCH = 'finance_search';
+const LS_STATUS_FILTER = 'finance_status_filter';
 
 function loadDatesFromStorage(state) {
   if (!state.financeDateFrom) {
@@ -100,6 +102,14 @@ function loadDatesFromStorage(state) {
   if (!state.financeDateTo) {
     const storedTo = localStorage.getItem(LS_DATE_TO);
     if (storedTo) state.financeDateTo = storedTo;
+  }
+  if (!state.financeSearch) {
+    const storedSearch = localStorage.getItem(LS_SEARCH);
+    if (storedSearch) state.financeSearch = storedSearch;
+  }
+  if (!state.financeStatusFilter) {
+    const storedStatus = localStorage.getItem(LS_STATUS_FILTER);
+    if (storedStatus) state.financeStatusFilter = storedStatus;
   }
 }
 
@@ -116,14 +126,23 @@ function saveDatesToStorage(dateFrom, dateTo) {
   }
 }
 
+function saveSearchToStorage(search) {
+  if (search) {
+    localStorage.setItem(LS_SEARCH, search);
+  } else {
+    localStorage.removeItem(LS_SEARCH);
+  }
+}
+
+function saveStatusFilterToStorage(statusFilter) {
+  if (statusFilter) {
+    localStorage.setItem(LS_STATUS_FILTER, statusFilter);
+  } else {
+    localStorage.removeItem(LS_STATUS_FILTER);
+  }
+}
+
 export const financeScreen = {
-  onLeave({ state }) {
-    if (state.financeDateFrom || state.financeDateTo) {
-      state.financeDateFrom = '';
-      state.financeDateTo = '';
-      saveDatesToStorage('', '');
-    }
-  },
   load: ({ api, state }) => {
     loadDatesFromStorage(state);
     return api.finance({
@@ -356,12 +375,14 @@ export const financeScreen = {
 
     root.querySelector('#finance-search')?.addEventListener('input', (ev) => {
       state.financeSearch = ev.target.value || '';
+      saveSearchToStorage(state.financeSearch);
       rerender();
     });
 
     root.querySelectorAll('[data-status-filter]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.financeStatusFilter = btn.dataset.statusFilter || '';
+        saveStatusFilterToStorage(state.financeStatusFilter);
         rerender();
       });
     });
