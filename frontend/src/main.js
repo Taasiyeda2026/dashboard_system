@@ -152,11 +152,11 @@ function shell(content) {
           <img class="shell-brand__mark" src="${loginLogoSrc}" alt="" width="120" height="52" decoding="async" />
           <span class="shell-brand__name">תעשיידע</span>
         </div>
-        <nav class="shell-nav">${nav}</nav>
         <div class="shell-sidebar__user" aria-label="משתמש מחובר">
           <span class="shell-sidebar__user-name">${displayName}</span>
           <span class="shell-sidebar__user-role">${roleLine}</span>
         </div>
+        <nav class="shell-nav">${nav}</nav>
       </aside>
       <div class="shell-main">
         <header class="shell-top">

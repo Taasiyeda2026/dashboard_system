@@ -396,14 +396,14 @@ select {
   line-height: 1.35;
 }
 
-/* User identity block at the bottom of the sidebar */
+/* User identity block — below logo, above nav */
 .shell-sidebar__user {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--ds-space-3) var(--ds-space-3) var(--ds-space-2);
-  border-top: 1px solid var(--ds-shell-border);
-  margin-top: auto;
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-bottom: 1px solid var(--ds-shell-border);
+  margin-bottom: var(--ds-space-2);
 }
 
 .shell-sidebar__user-name {
@@ -525,7 +525,7 @@ select {
 
 @media (min-width: 768px) {
   .shell-stage {
-    padding: var(--ds-space-4);
+    padding: var(--ds-space-3);
   }
 }
 
@@ -798,11 +798,11 @@ select {
 }
 
 .ds-interactive-card--day-cell {
-  min-height: 88px;
+  min-height: 56px;
 }
 
 .ds-interactive-card--session {
-  min-height: 58px;
+  min-height: 44px;
 }
 
 /* ——— Design system: screen layout ——— */
@@ -1167,7 +1167,7 @@ span.ds-chip {
 
 .ds-table th,
 .ds-table td {
-  padding: 8px 10px;
+  padding: 5px 8px;
   border-bottom: 1px solid var(--ds-border);
   text-align: right;
   vertical-align: top;
@@ -1302,7 +1302,7 @@ span.ds-chip {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 140px;
+  min-height: 80px;
 }
 
 .ds-week-col.is-today {
@@ -1315,8 +1315,8 @@ span.ds-chip {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  padding: var(--ds-space-2) var(--ds-space-3);
+  gap: 1px;
+  padding: var(--ds-space-1) var(--ds-space-2);
   border-bottom: 1px solid var(--ds-border);
   background: var(--ds-surface-subtle);
 }
@@ -1339,11 +1339,11 @@ span.ds-chip {
 }
 
 .ds-week-col__body {
-  padding: var(--ds-space-2);
+  padding: var(--ds-space-1);
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--ds-space-2);
+  gap: var(--ds-space-1);
 }
 
 .ds-week-empty {
@@ -1678,38 +1678,38 @@ span.ds-chip {
 .ds-cal-wrap {
   display: flex;
   flex-direction: column;
-  gap: var(--ds-space-2);
-  padding: var(--ds-space-3);
+  gap: var(--ds-space-1);
+  padding: var(--ds-space-2);
 }
 
 .ds-cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--ds-space-2);
+  gap: var(--ds-space-1);
 }
 
 .ds-cal-wd {
   text-align: center;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
   color: var(--ds-text-muted);
-  padding: var(--ds-space-1) 0;
+  padding: 2px 0;
 }
 
 .ds-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--ds-space-2);
+  gap: var(--ds-space-1);
 }
 
 .ds-cal-slot-hit {
-  min-height: 4.25rem;
+  min-height: 3rem;
   height: 100%;
 }
 
 .ds-cal-slot-hit .ds-interactive-card {
   width: 100%;
-  min-height: 4.25rem;
+  min-height: 3rem;
 }
 
 .ds-week-session-wrap {
@@ -1717,7 +1717,7 @@ span.ds-chip {
 }
 
 .ds-cal-slot--empty {
-  min-height: 4.5rem;
+  min-height: 3rem;
   border-radius: var(--ds-radius-sm);
   background: var(--ds-surface-subtle);
   border: 1px dashed var(--ds-border);
@@ -1725,16 +1725,16 @@ span.ds-chip {
 }
 
 .ds-cal-grid .ds-interactive-card--day-cell {
-  min-height: 4.5rem;
+  min-height: 3rem;
   width: 100%;
   text-align: center;
   align-items: center;
   justify-content: flex-start;
-  padding: var(--ds-space-2);
+  padding: var(--ds-space-1) var(--ds-space-2);
 }
 
 .ds-cal-grid .ds-interactive-card--day-cell .ds-interactive-card__title {
-  font-size: 1.05rem;
+  font-size: 0.88rem;
   font-weight: 800;
   line-height: 1.1;
 }
@@ -1770,21 +1770,26 @@ span.ds-chip {
 
 @media (max-width: 760px) {
   .ds-cal-slot--empty {
-    min-height: 3.25rem;
+    min-height: 2.5rem;
+  }
+
+  .ds-cal-slot-hit,
+  .ds-cal-slot-hit .ds-interactive-card {
+    min-height: 2.5rem;
   }
 
   .ds-cal-grid .ds-interactive-card--day-cell {
-    min-height: 3.25rem;
-    padding: var(--ds-space-1) var(--ds-space-2);
+    min-height: 2.5rem;
+    padding: 2px var(--ds-space-1);
   }
 
   .ds-cal-grid .ds-interactive-card--day-cell .ds-interactive-card__meta {
-    font-size: 0.68rem;
+    font-size: 0.64rem;
   }
 
   .ds-cal-weekdays,
   .ds-cal-grid {
-    gap: var(--ds-space-1);
+    gap: 2px;
   }
 }
 

@@ -193,7 +193,7 @@ export const monthScreen = {
       </nav>
       ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש לפי שם פעילות ביום…', filters: [] })}
       ${dsCard({
-        title: monthTitle,
+        title: 'לוח חודשי',
         badge: `${dim} ימים · ${escapeHtml(currentYm)}`,
         body: gridHtml,
         padded: false
