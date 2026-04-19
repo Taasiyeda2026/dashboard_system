@@ -122,6 +122,7 @@ const COLUMN_LABELS = {
   finance_notes: 'הערות כספים',
   sessions: 'מפגשים',
   price: 'מחיר',
+  amount: 'סכום',
   source_sheet: 'גיליון מקור'
 };
 

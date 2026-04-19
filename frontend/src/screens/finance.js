@@ -59,13 +59,20 @@ function formatILS(amount) {
 }
 
 function exportToCsv(rows) {
-  const cols = ['RowID', 'activity_name', 'activity_manager', 'school', 'funding', 'start_date', 'end_date', 'finance_status', 'finance_notes', 'status'];
+  const cols = ['RowID', 'activity_name', 'activity_manager', 'school', 'funding', 'price', 'sessions', 'amount', 'start_date', 'end_date', 'finance_status', 'finance_notes', 'status'];
   const headers = cols.map((c) => hebrewColumn(c));
   const lines = [headers.join(',')];
   rows.forEach((row) => {
     const vals = cols.map((c) => {
-      let v = String(row[c] ?? '');
-      if (c === 'finance_status') v = hebrewFinanceStatus(v);
+      let v;
+      if (c === 'amount') {
+        const price = parseFloat(row.price) || 0;
+        const sessions = parseFloat(row.sessions) || 0;
+        v = String(sessions > 0 ? price * sessions : price);
+      } else {
+        v = String(row[c] ?? '');
+        if (c === 'finance_status') v = hebrewFinanceStatus(v);
+      }
       v = v.replace(/"/g, '""');
       return `"${v}"`;
     });
