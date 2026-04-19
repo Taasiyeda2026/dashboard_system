@@ -479,19 +479,25 @@ function actionFinance_(user, payload) {
   });
 
   var totalOpen = 0, totalClosed = 0, totalOther = 0;
+  var amountOpen = 0, amountClosed = 0, amountOther = 0;
   var managerMap = {};
   mappedRows.forEach(function(r) {
     var st = String(r.finance_status || '').toLowerCase();
-    if (st === 'open') totalOpen++;
-    else if (st === 'closed') totalClosed++;
-    else totalOther++;
+    var price = parseFloat(r.price) || 0;
+    var sessions = parseFloat(r.sessions) || 0;
+    var amount = sessions > 0 ? price * sessions : price;
+
+    if (st === 'open') { totalOpen++; amountOpen += amount; }
+    else if (st === 'closed') { totalClosed++; amountClosed += amount; }
+    else { totalOther++; amountOther += amount; }
 
     var mgr = String(r.activity_manager || '').trim() || '—';
-    if (!managerMap[mgr]) managerMap[mgr] = { mgr: mgr, total: 0, open: 0, closed: 0, other: 0 };
+    if (!managerMap[mgr]) managerMap[mgr] = { mgr: mgr, total: 0, open: 0, closed: 0, other: 0, amountOpen: 0, amountClosed: 0, amountOther: 0, amountTotal: 0 };
     managerMap[mgr].total++;
-    if (st === 'open') managerMap[mgr].open++;
-    else if (st === 'closed') managerMap[mgr].closed++;
-    else managerMap[mgr].other++;
+    managerMap[mgr].amountTotal += amount;
+    if (st === 'open') { managerMap[mgr].open++; managerMap[mgr].amountOpen += amount; }
+    else if (st === 'closed') { managerMap[mgr].closed++; managerMap[mgr].amountClosed += amount; }
+    else { managerMap[mgr].other++; managerMap[mgr].amountOther += amount; }
   });
 
   var byManager = Object.keys(managerMap).map(function(k) { return managerMap[k]; }).sort(function(a, b) { return b.total - a.total; });
@@ -503,6 +509,10 @@ function actionFinance_(user, payload) {
       totalOpen: totalOpen,
       totalClosed: totalClosed,
       totalOther: totalOther,
+      amountOpen: amountOpen,
+      amountClosed: amountClosed,
+      amountOther: amountOther,
+      amountTotal: amountOpen + amountClosed + amountOther,
       byManager: byManager
     }
   };

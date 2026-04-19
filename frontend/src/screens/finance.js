@@ -37,16 +37,25 @@ function buildManagerBreakdown(rows) {
   const map = {};
   rows.forEach((r) => {
     const mgr = String(r.activity_manager || '').trim() || '—';
-    if (!map[mgr]) map[mgr] = { total: 0, open: 0, closed: 0, other: 0 };
+    if (!map[mgr]) map[mgr] = { total: 0, open: 0, closed: 0, other: 0, amountOpen: 0, amountClosed: 0, amountOther: 0, amountTotal: 0 };
     map[mgr].total += 1;
+    const price = parseFloat(r.price) || 0;
+    const sessions = parseFloat(r.sessions) || 0;
+    const amount = sessions > 0 ? price * sessions : price;
+    map[mgr].amountTotal += amount;
     const st = String(r.finance_status || '').toLowerCase();
-    if (st === 'open') map[mgr].open += 1;
-    else if (st === 'closed') map[mgr].closed += 1;
-    else map[mgr].other += 1;
+    if (st === 'open') { map[mgr].open += 1; map[mgr].amountOpen += amount; }
+    else if (st === 'closed') { map[mgr].closed += 1; map[mgr].amountClosed += amount; }
+    else { map[mgr].other += 1; map[mgr].amountOther += amount; }
   });
   return Object.entries(map)
     .map(([mgr, counts]) => ({ mgr, ...counts }))
     .sort((a, b) => b.total - a.total);
+}
+
+function formatILS(amount) {
+  if (!amount && amount !== 0) return '—';
+  return '₪' + Number(amount).toLocaleString('he-IL', { maximumFractionDigits: 0 });
 }
 
 function exportToCsv(rows) {
@@ -96,10 +105,17 @@ export const financeScreen = {
     const totalClosed = agg ? agg.totalClosed : allRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed').length;
     const totalOther = agg ? agg.totalOther : allRows.length - totalOpen - totalClosed;
 
+    const amountOpen = agg?.amountOpen ?? null;
+    const amountClosed = agg?.amountClosed ?? null;
+    const amountTotal = agg?.amountTotal ?? null;
+
     const kpis = [
       { label: 'סה"כ פעילויות', value: String(agg ? agg.total : allRows.length) },
-      { label: 'פתוח', value: String(totalOpen) },
-      { label: 'סגור', value: String(totalClosed) },
+      { label: 'פתוח (מספר)', value: String(totalOpen) },
+      { label: 'פתוח (סכום)', value: amountOpen !== null ? formatILS(amountOpen) : '—' },
+      { label: 'סגור (מספר)', value: String(totalClosed) },
+      { label: 'סגור (סכום)', value: amountClosed !== null ? formatILS(amountClosed) : '—' },
+      { label: 'סה"כ סכום', value: amountTotal !== null ? formatILS(amountTotal) : '—' },
       ...(totalOther > 0 ? [{ label: 'אחר', value: String(totalOther) }] : [])
     ];
 
@@ -117,7 +133,10 @@ export const financeScreen = {
         <td>${escapeHtml(m.mgr)}</td>
         <td style="text-align:center;">${m.total}</td>
         <td style="text-align:center;">${dsStatusChip(String(m.open), 'warning')}</td>
+        <td style="text-align:center;">${formatILS(m.amountOpen)}</td>
         <td style="text-align:center;">${dsStatusChip(String(m.closed), 'success')}</td>
+        <td style="text-align:center;">${formatILS(m.amountClosed)}</td>
+        <td style="text-align:center;">${formatILS(m.amountTotal)}</td>
         ${totalOther > 0 ? `<td style="text-align:center;">${m.other > 0 ? m.other : '—'}</td>` : ''}
       </tr>`).join('');
 
@@ -129,7 +148,10 @@ export const financeScreen = {
           <th>מנהל פעילות</th>
           <th style="text-align:center;">סה"כ</th>
           <th style="text-align:center;">פתוח</th>
+          <th style="text-align:center;">סכום פתוח</th>
           <th style="text-align:center;">סגור</th>
+          <th style="text-align:center;">סכום סגור</th>
+          <th style="text-align:center;">סה"כ סכום</th>
           ${totalOther > 0 ? '<th style="text-align:center;">אחר</th>' : ''}
         </tr></thead>
         <tbody>${managerTableRows}</tbody>
