@@ -26,6 +26,7 @@ const MUTATING_ACTIONS = {
   savePermission: true,
   addUser: true,
   deactivateUser: true,
+  reactivateUser: true,
   deleteUser: true,
   savePrivateNote: true
 };
@@ -95,6 +96,7 @@ export const api = {
   savePermission: (row) => request('savePermission', { row }),
   addUser: (row) => request('addUser', { row }),
   deactivateUser: (user_id) => request('deactivateUser', { user_id }),
+  reactivateUser: (user_id) => request('reactivateUser', { user_id }),
   deleteUser: (user_id) => request('deleteUser', { user_id }),
   savePrivateNote: (a, b, c) => {
     if (typeof a === 'object' && a !== null) {

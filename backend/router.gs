@@ -40,6 +40,7 @@ function handlePost_(e) {
       savePermission: function() { return actionSavePermission_(user, payload); },
       addUser: function() { return actionAddUser_(user, payload); },
       deactivateUser: function() { return actionDeactivateUser_(user, payload); },
+      reactivateUser: function() { return actionReactivateUser_(user, payload); },
       deleteUser: function() { return actionDeleteUser_(user, payload); },
       savePrivateNote: function() { return actionSavePrivateNote_(user, payload); }
     };

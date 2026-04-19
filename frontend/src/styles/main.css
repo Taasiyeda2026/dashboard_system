@@ -1058,6 +1058,21 @@ select {
   box-shadow: none;
 }
 
+.ds-btn--success {
+  background: var(--ds-success-soft);
+  border-color: var(--ds-success);
+  color: var(--ds-success);
+}
+
+.ds-btn--success:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+.ds-btn--success:active:not(:disabled) {
+  filter: brightness(0.92);
+  box-shadow: none;
+}
+
 .ds-btn--sm {
   min-height: 44px;
   padding: 6px 10px;

@@ -190,11 +190,14 @@ function renderUserBlock(row, canEdit, isAdmin, currentUserId) {
   const deactivateBtn = isAdmin && isActive && !isSelf
     ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-deactivate-user data-user-id="${uid}">השבת</button>`
     : '';
+  const reactivateBtn = isAdmin && !isActive
+    ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--success" data-reactivate-user data-user-id="${uid}">הפעל</button>`
+    : '';
   const deleteBtn = isAdmin && !isActive
     ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-delete-user data-user-id="${uid}">מחק</button>`
     : '';
 
-  const actionBtns = [editBtn, deactivateBtn, deleteBtn].filter(Boolean).join('');
+  const actionBtns = [editBtn, deactivateBtn, reactivateBtn, deleteBtn].filter(Boolean).join('');
 
   return `<details class="ds-perm-card" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}">
     <summary>
@@ -324,6 +327,28 @@ export const permissionsScreen = {
         btn.disabled = true;
         try {
           await api.deactivateUser(userId);
+          clearScreenDataCache?.();
+          if (typeof rerender === 'function') await rerender();
+        } catch (error) {
+          window.alert(translateApiErrorForUser(error?.message));
+          btn.classList.remove('is-loading');
+          btn.disabled = false;
+        }
+      });
+    });
+
+    root.querySelectorAll('[data-reactivate-user]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const userId = btn.dataset.userId;
+        const row = safeRows.find((r) => String(r.user_id) === String(userId));
+        const name = row?.full_name || userId;
+        if (!window.confirm(`האם להפעיל מחדש את המשתמש/ת "${name}"?`)) return;
+
+        btn.classList.add('is-loading');
+        btn.disabled = true;
+        try {
+          await api.reactivateUser(userId);
           clearScreenDataCache?.();
           if (typeof rerender === 'function') await rerender();
         } catch (error) {
