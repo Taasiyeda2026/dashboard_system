@@ -80,10 +80,18 @@ export const financeScreen = {
     const narrow = isNarrowViewport();
     const searchQ = state?.financeSearch || '';
     const statusFilter = state?.financeStatusFilter || '';
+    const dateFrom = state?.financeDateFrom || '';
+    const dateTo = state?.financeDateTo || '';
 
     let rows = applySearch(allRows, searchQ);
     if (statusFilter) {
       rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
+    }
+    if (dateFrom) {
+      rows = rows.filter((r) => r.end_date && String(r.end_date) >= dateFrom);
+    }
+    if (dateTo) {
+      rows = rows.filter((r) => r.end_date && String(r.end_date) <= dateTo);
     }
 
     const agg = data?.aggregates;
@@ -194,7 +202,29 @@ export const financeScreen = {
         />
         ${exportBtn}
       </div>
-      <div class="ds-filter-bar" role="toolbar">${statusChips}</div>
+      <div class="ds-filter-bar" role="toolbar" style="flex-wrap:wrap;gap:8px;">
+        ${statusChips}
+        <span style="display:flex;align-items:center;gap:4px;margin-right:8px;">
+          <label for="finance-date-from" style="font-size:0.85rem;white-space:nowrap;">מתאריך</label>
+          <input
+            id="finance-date-from"
+            type="date"
+            class="ds-input"
+            value="${escapeHtml(dateFrom)}"
+            style="font-size:0.85rem;padding:4px 6px;"
+          />
+        </span>
+        <span style="display:flex;align-items:center;gap:4px;">
+          <label for="finance-date-to" style="font-size:0.85rem;white-space:nowrap;">עד תאריך</label>
+          <input
+            id="finance-date-to"
+            type="date"
+            class="ds-input"
+            value="${escapeHtml(dateTo)}"
+            style="font-size:0.85rem;padding:4px 6px;"
+          />
+        </span>
+      </div>
       ${dsCard({
         title: 'רשימת כספים',
         badge: `${rows.length} שורות`,
@@ -220,11 +250,25 @@ export const financeScreen = {
       });
     });
 
+    root.querySelector('#finance-date-from')?.addEventListener('change', (ev) => {
+      state.financeDateFrom = ev.target.value || '';
+      rerender();
+    });
+
+    root.querySelector('#finance-date-to')?.addEventListener('change', (ev) => {
+      state.financeDateTo = ev.target.value || '';
+      rerender();
+    });
+
     root.querySelector('[data-export-csv]')?.addEventListener('click', () => {
       const searchQ = state?.financeSearch || '';
       const statusFilter = state?.financeStatusFilter || '';
+      const dateFrom = state?.financeDateFrom || '';
+      const dateTo = state?.financeDateTo || '';
       let rows = applySearch(allRows, searchQ);
       if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
+      if (dateFrom) rows = rows.filter((r) => r.end_date && String(r.end_date) >= dateFrom);
+      if (dateTo) rows = rows.filter((r) => r.end_date && String(r.end_date) <= dateTo);
       exportToCsv(rows);
     });
 
