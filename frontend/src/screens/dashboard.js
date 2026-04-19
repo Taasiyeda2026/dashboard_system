@@ -131,7 +131,7 @@ export const dashboardScreen = {
       </div>
     `);
   },
-  bind({ root, ui, state, rerender, clearScreenDataCache }) {
+  bind({ root, ui, state, api, rerender, clearScreenDataCache }) {
     function showDataAreaLoading() {
       const area = root.querySelector('[data-dash-data-area]');
       if (area) {
@@ -139,10 +139,16 @@ export const dashboardScreen = {
       }
     }
 
-    const applyYm = (nextYm) => {
+    const applyYm = async (nextYm) => {
       state.dashboardMonthYm = nextYm;
       showDataAreaLoading();
-      clearScreenDataCache?.();
+      try {
+        const data = await api.dashboard({ month: nextYm });
+        const cacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(nextYm) ? nextYm : 'default'}`;
+        state.screenDataCache[cacheKey] = { data, t: Date.now() };
+      } catch (_err) {
+        clearScreenDataCache?.();
+      }
       rerender();
     };
 
