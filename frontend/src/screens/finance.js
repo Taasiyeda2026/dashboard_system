@@ -18,7 +18,7 @@ import { isNarrowViewport } from './shared/responsive.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 
-const TABLE_COLUMNS = ['RowID', 'activity_name', 'school', 'funding', 'end_date', 'finance_status', 'status'];
+const TABLE_COLUMNS = ['RowID', 'activity_name', 'emp_id', 'emp_id_2', 'school', 'funding', 'end_date', 'finance_status', 'status'];
 
 export const financeScreen = {
   load: ({ api }) => api.finance(),
@@ -62,7 +62,17 @@ export const financeScreen = {
         : `<div class="ds-compact-list">${rows
             .map((row) => {
               const fst = String(row.finance_status || '').trim();
-              const searchHay = [row.RowID, row.activity_name, row.school, row.funding, row.end_date, row.finance_status, row.status]
+              const searchHay = [
+                row.RowID,
+                row.activity_name,
+                row.emp_id,
+                row.emp_id_2,
+                row.school,
+                row.funding,
+                row.end_date,
+                row.finance_status,
+                row.status
+              ]
                 .filter(Boolean)
                 .join(' ');
               return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(fst)}">

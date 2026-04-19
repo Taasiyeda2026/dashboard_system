@@ -13,7 +13,8 @@ const CONFIG = {
     PERMISSIONS: 'permissions',
     SETTINGS: 'settings',
     LISTS: 'lists',
-    INSTRUCTORS: 'contacts_instructors',
+    /** אנשי קשר מדריכים — מקור מידע למסך instructor-contacts בלבד; לא מקור תפעולי לזיהוי מדריך בפעילות */
+    CONTACTS_INSTRUCTORS: 'contacts_instructors',
     SCHOOLS: 'contacts_schools',
     EDIT_REQUESTS: 'edit_requests',
     PRIVATE_NOTES: 'operations_private_notes'

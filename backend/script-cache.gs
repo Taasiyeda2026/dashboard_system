@@ -1,6 +1,6 @@
 /** Short-lived CacheService entries for heavy read-only payloads (invalidated on writes). */
 
-var SCRIPT_CACHE_KEY_DASHBOARD = 'pc:dashboard:v1';
+var SCRIPT_CACHE_KEY_DASHBOARD = 'pc:dashboard:v2';
 var SCRIPT_CACHE_KEY_PERMISSIONS_LIST = 'pc:permissions:v2';
 
 function scriptCacheGetJson_(key) {

@@ -69,13 +69,12 @@ function padDayKey(y, mo, dayNum) {
   return `${y}-${String(mo).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
 }
 
-function dayNeedsAttention(items, hideEmpIds) {
+function dayNeedsAttention(items) {
   const list = Array.isArray(items) ? items : [];
   return list.some((it) => {
-    const names = [it.instructor_name, it.instructor_name_2].filter((x) => x && String(x).trim()).join('');
-    if (names) return false;
-    if (hideEmpIds) return true;
-    return !String(it?.emp_id || '').trim();
+    const id1 = String(it?.emp_id || '').trim();
+    const id2 = String(it?.emp_id_2 || '').trim();
+    return !id1 && !id2;
   });
 }
 
@@ -144,12 +143,14 @@ export const monthScreen = {
       };
       const n = Array.isArray(cell.items) ? cell.items.length : 0;
       const isToday = cell.date === todayIso;
-      const warn = dayNeedsAttention(cell.items, hideEmpIds);
+      const warn = dayNeedsAttention(cell.items);
       const extra = [isToday ? 'is-cal-today' : '', warn ? 'is-month-warn' : ''].filter(Boolean).join(' ');
       const subtitle = n > 0 ? activityDotsMeta(n) : '';
       const meta = n > 0 ? `${n} פעילויות` : 'ללא';
       const hay = (Array.isArray(cell.items) ? cell.items : [])
-        .map((it) => [it.activity_name, it.RowID, it.instructor_name, it.instructor_name_2].filter(Boolean).join(' '))
+        .map((it) =>
+          [it.activity_name, it.RowID, it.emp_id, it.emp_id_2, it.instructor_name, it.instructor_name_2].filter(Boolean).join(' ')
+        )
         .join(' ');
       slots.push(
         `<div class="ds-cal-slot-hit" data-list-item data-search="${escapeHtml(hay)}" data-filter="">

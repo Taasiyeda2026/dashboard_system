@@ -26,13 +26,11 @@ function actionDashboard_(user) {
 
   var shortRows = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
   var longRows = buildLongRows_();
-  var instructorRows = readRows_(CONFIG.SHEETS.INSTRUCTORS).filter(function(row) {
-    return yesNo_(row.active) === 'yes';
-  });
 
   var currentMonth = formatDate_(new Date()).slice(0, 7);
   var todayIso = formatDate_(new Date());
   var combined = shortRows.concat(longRows);
+  var uniqueInstructorCount = countUniqueOperationalInstructors_(combined);
 
   var byManager = {};
   shortRows.forEach(function(row) {
@@ -74,7 +72,7 @@ function actionDashboard_(user) {
   var exceptionSum = 0;
   longRows.forEach(function(row) {
     var t = '';
-    if (!text_(row.emp_id)) {
+    if (!text_(row.emp_id) && !text_(row.emp_id_2)) {
       t = 'x';
     } else if (!text_(row.start_date)) {
       t = 'x';
@@ -139,9 +137,9 @@ function actionDashboard_(user) {
     {
       id: 'instructors',
       action: 'kpi|instructors',
-      title: String(instructorRows.length),
+      title: String(uniqueInstructorCount),
       subtitle: 'מדריכים פעילים',
-      value: instructorRows.length
+      value: uniqueInstructorCount
     },
     {
       id: 'endings',
@@ -156,7 +154,7 @@ function actionDashboard_(user) {
     totals: {
       total_short_activities: shortRows.length,
       total_long_activities: longRows.length,
-      total_instructors: instructorRows.length,
+      total_instructors: uniqueInstructorCount,
       total_course_endings_current_month: courseEndings,
       /** תאימות לאחור לבדיקות / לקוחות ישנים */
       short: shortRows.length,
@@ -319,7 +317,7 @@ function actionExceptions_(user) {
 
   rows.forEach(function(row) {
     var exceptionType = '';
-    if (!text_(row.emp_id)) {
+    if (!text_(row.emp_id) && !text_(row.emp_id_2)) {
       exceptionType = 'missing_instructor';
     } else if (!text_(row.start_date)) {
       exceptionType = 'missing_start_date';
@@ -364,6 +362,10 @@ function actionFinance_(user) {
         RowID: row.RowID,
         source_sheet: row.source_sheet,
         activity_name: row.activity_name,
+        emp_id: text_(row.emp_id),
+        emp_id_2: text_(row.emp_id_2),
+        instructor_name: text_(row.instructor_name),
+        instructor_name_2: text_(row.instructor_name_2),
         finance_status: normalizeFinance_(row.finance_status),
         finance_notes: text_(row.finance_notes),
         status: text_(row.status),
@@ -385,18 +387,7 @@ function actionInstructors_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
   return {
-    rows: readRows_(CONFIG.SHEETS.INSTRUCTORS).map(function(row) {
-      return {
-        emp_id: text_(row.emp_id),
-        full_name: text_(row.full_name),
-        mobile: text_(row.mobile),
-        email: text_(row.email),
-        address: text_(row.address),
-        employment_type: text_(row.employment_type),
-        direct_manager: text_(row.direct_manager),
-        active: yesNo_(row.active)
-      };
-    })
+    rows: buildOperationalInstructorsPayloadRows_()
   };
 }
 
@@ -432,7 +423,7 @@ function actionInstructorContacts_(user) {
   }
 
   return {
-    rows: readRows_(CONFIG.SHEETS.INSTRUCTORS).map(function(row) {
+    rows: readRows_(CONFIG.SHEETS.CONTACTS_INSTRUCTORS).map(function(row) {
       return {
         emp_id: text_(row.emp_id),
         full_name: text_(row.full_name),
@@ -946,8 +937,8 @@ function mapLongRow_(row) {
     end_time: text_(row.end_time),
     emp_id: text_(row.emp_id),
     instructor_name: text_(row.instructor_name),
-    emp_id_2: '',
-    instructor_name_2: '',
+    emp_id_2: text_(row.emp_id_2),
+    instructor_name_2: text_(row.instructor_name_2),
     start_date: text_(row.start_date),
     end_date: text_(row.end_date),
     status: text_(row.status),
@@ -955,6 +946,68 @@ function mapLongRow_(row) {
     finance_status: normalizeFinance_(row.finance_status),
     finance_notes: text_(row.finance_notes)
   };
+}
+
+/** מזהי מדריך/ה תפעוליים ייחודיים מתוך שורות פעילות — רק emp_id ו-emp_id_2. */
+function collectUniqueOperationalEmpIds_(activityRows) {
+  var seen = {};
+  activityRows.forEach(function(row) {
+    var a = text_(row.emp_id);
+    var b = text_(row.emp_id_2);
+    if (a) seen[a] = true;
+    if (b) seen[b] = true;
+  });
+  return Object.keys(seen).sort();
+}
+
+function countUniqueOperationalInstructors_(activityRows) {
+  return collectUniqueOperationalEmpIds_(activityRows).length;
+}
+
+/** מפת העשרה: emp_id -> שורה בגיליון contacts_instructors (תצוגה / פרטי קשר בלבד). */
+function readInstructorContactsEnrichmentMap_() {
+  var rows = readRows_(CONFIG.SHEETS.CONTACTS_INSTRUCTORS);
+  var map = {};
+  rows.forEach(function(row) {
+    var id = text_(row.emp_id);
+    if (!id) return;
+    if (!map[id]) map[id] = row;
+  });
+  return map;
+}
+
+/**
+ * מסך instructors: ישות תפעולית — רשימת מזהים ייחודיים מ-data_short + data_long,
+ * עם שדות תצוגה מהעשרה אופציונלית מ-contacts_instructors או משמות בפעילות.
+ */
+function buildOperationalInstructorsPayloadRows_() {
+  var combined = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_).concat(buildLongRows_());
+  var ids = collectUniqueOperationalEmpIds_(combined);
+  var enrich = readInstructorContactsEnrichmentMap_();
+  var displayNameFromActivity = {};
+  combined.forEach(function(row) {
+    var e1 = text_(row.emp_id);
+    var n1 = text_(row.instructor_name);
+    if (e1 && n1 && !displayNameFromActivity[e1]) displayNameFromActivity[e1] = n1;
+    var e2 = text_(row.emp_id_2);
+    var n2 = text_(row.instructor_name_2);
+    if (e2 && n2 && !displayNameFromActivity[e2]) displayNameFromActivity[e2] = n2;
+  });
+  return ids.map(function(empId) {
+    var c = enrich[empId];
+    var fromAct = displayNameFromActivity[empId] || '';
+    var fullName = c ? text_(c.full_name) : fromAct;
+    return {
+      emp_id: empId,
+      full_name: fullName,
+      mobile: c ? text_(c.mobile) : '',
+      email: c ? text_(c.email) : '',
+      address: c ? text_(c.address) : '',
+      employment_type: c ? text_(c.employment_type) : '',
+      direct_manager: c ? text_(c.direct_manager) : '',
+      active: c ? yesNo_(c.active) : 'yes'
+    };
+  });
 }
 
 function buildPrivateNotesMap_() {

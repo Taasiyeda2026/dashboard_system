@@ -4,9 +4,11 @@ import { dsStatusChip } from './layout.js';
 
 /** Detail block for a raw activity row (week/month/my-data style fields). */
 export function activityRowDetailHtml(row, { privateNote = null, hideEmpIds = false } = {}) {
+  const id1 = String(row.emp_id || '').trim();
+  const id2 = String(row.emp_id_2 || '').trim();
+  const ids = [id1, id2].filter(Boolean).join(' · ') || '—';
   const names = [row.instructor_name, row.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
-  const ids = `${row.emp_id || '—'} · ${row.emp_id_2 || '—'}`;
-  const instLine = names || (hideEmpIds ? '—' : ids);
+  const instLine = hideEmpIds ? names || '—' : names ? `${ids} (${names})` : ids;
   const noteLine =
     privateNote === null ? '' : `<p><strong>הערה פרטית:</strong> ${escapeHtml(privateNote)}</p>`;
   const finChip = dsStatusChip(

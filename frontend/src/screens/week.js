@@ -12,13 +12,18 @@ function localYmd() {
 }
 
 function weekItemMeta(item, hideEmpIds) {
+  const id1 = String(item.emp_id || '').trim();
+  const id2 = String(item.emp_id_2 || '').trim();
+  const ids = [id1, id2].filter(Boolean).join(' · ');
   const names = [item.instructor_name, item.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
-  if (names) return `מדריך: ${names}`;
-  if (!hideEmpIds) {
-    const ids = [item.emp_id, item.emp_id_2].filter((x) => x && String(x).trim()).join(' · ');
+  if (hideEmpIds) {
+    if (names) return `מדריך: ${names}`;
     if (ids) return `מזהה: ${ids}`;
+    return 'ללא מזהה מדריך';
   }
-  return `מזהה: ${item.RowID || ''}`;
+  if (ids) return names ? `מזהה: ${ids} (${names})` : `מזהה: ${ids}`;
+  if (names) return `תצוגה: ${names}`;
+  return `מזהה שורה: ${item.RowID || ''}`;
 }
 
 function weekDrawerHtml(item, date, hideEmpIds) {

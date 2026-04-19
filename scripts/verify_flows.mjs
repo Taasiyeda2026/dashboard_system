@@ -53,10 +53,33 @@ function seedSheets() {
       ['SHORT-1', 'M-1', 'AUTH-1', 'School A', 'workshop', 'A-101', 'Short A', '1', '100', 'city', '09:00', '11:00', 'U-INST', 'Inst One', '', '', '2026-04-13', 'active', '', 'open', '']
     ]),
     data_long: new MockSheet('data_long', [
-      ['RowID', 'activity_manager', 'authority', 'school', 'activity_type', 'activity_no', 'activity_name', 'sessions', 'price', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'start_date', 'end_date', 'status', 'notes', 'finance_status', 'finance_notes'],
-      ['LONG-1', 'M-1', 'AUTH-1', 'School A', 'course', 'L-201', 'Long Missing Instructor', '8', '200', 'city', '09:00', '12:00', '', '', '', '', 'active', '', 'closed', ''],
-      ['LONG-2', 'M-1', 'AUTH-1', 'School A', 'course', 'L-202', 'Long Missing Start', '8', '200', 'city', '09:00', '12:00', 'U-INST', 'Inst One', '', '', 'active', '', 'open', ''],
-      ['LONG-3', 'M-1', 'AUTH-1', 'School A', 'course', 'L-203', 'Long Late End', '8', '200', 'city', '09:00', '12:00', 'U-INST', 'Inst One', '', '', 'active', '', 'open', '']
+      [
+        'RowID',
+        'activity_manager',
+        'authority',
+        'school',
+        'activity_type',
+        'activity_no',
+        'activity_name',
+        'sessions',
+        'price',
+        'funding',
+        'start_time',
+        'end_time',
+        'emp_id',
+        'instructor_name',
+        'emp_id_2',
+        'instructor_name_2',
+        'start_date',
+        'end_date',
+        'status',
+        'notes',
+        'finance_status',
+        'finance_notes'
+      ],
+      ['LONG-1', 'M-1', 'AUTH-1', 'School A', 'course', 'L-201', 'Long Missing Instructor', '8', '200', 'city', '09:00', '12:00', '', '', '', '', '', '', 'active', '', 'closed', ''],
+      ['LONG-2', 'M-1', 'AUTH-1', 'School A', 'course', 'L-202', 'Long Missing Start', '8', '200', 'city', '09:00', '12:00', 'U-INST', 'Inst One', '', '', '', '', 'active', '', 'open', ''],
+      ['LONG-3', 'M-1', 'AUTH-1', 'School A', 'course', 'L-203', 'Long Late End', '8', '200', 'city', '09:00', '12:00', 'U-INST', 'Inst One', '', '', '', '', 'active', '', 'open', '']
     ]),
     activity_meetings: new MockSheet('activity_meetings', [
       ['source_row_id', 'meeting_no', 'meeting_date', 'notes', 'active'],
@@ -156,6 +179,12 @@ function buildContext() {
   assert.ok(Array.isArray(week.data.days));
   assert.ok(Array.isArray(month.data.cells));
   assert.equal(typeof dashboard.data.totals.short, 'number');
+  assert.equal(dashboard.data.totals.total_instructors, 1);
+
+  const instructors = parseResponse(context.doPost(toEvent({ action: 'instructors', token: adminLogin.data.token })));
+  assert.equal(instructors.ok, true);
+  assert.equal(instructors.data.rows.length, 1);
+  assert.equal(instructors.data.rows[0].emp_id, 'U-INST');
 
   const exceptions = parseResponse(context.doPost(toEvent({ action: 'exceptions', token: reviewLogin.data.token })));
   const exById = Object.fromEntries(exceptions.data.rows.map((r) => [r.RowID, r.exception_type]));
