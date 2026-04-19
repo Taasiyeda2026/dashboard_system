@@ -1706,6 +1706,60 @@ span.ds-chip {
   }
 }
 
+.ds-perm-bool-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+  margin-top: var(--ds-space-2);
+}
+
+.ds-perm-section-label--sub {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ds-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 var(--ds-space-1);
+  padding-bottom: var(--ds-space-1);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.ds-perm-flag-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1);
+  margin-top: var(--ds-space-2);
+}
+
+.ds-perm-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: var(--ds-radius-full);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.ds-perm-flag--on {
+  background: var(--ds-success-soft);
+  color: var(--ds-success);
+  border-color: var(--ds-status-success-border);
+}
+
+.ds-perm-flag--off {
+  background: var(--ds-surface-subtle);
+  color: var(--ds-text-muted);
+  border-color: var(--ds-border);
+  opacity: 0.6;
+}
+
+.ds-perm-flag--key {
+  font-weight: 700;
+  border-color: var(--ds-success);
+}
+
 /* ——— Calendar / week navigation bar ——— */
 .ds-cal-nav {
   display: flex;

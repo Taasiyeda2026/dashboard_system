@@ -1,7 +1,17 @@
 import { escapeHtml } from './shared/html.js';
 import { hebrewPermissionField, hebrewRole, translateApiErrorForUser, hebrewColumn } from './shared/ui-hebrew.js';
-import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState, dsStatusChip } from './shared/layout.js';
+import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState, dsStatusChip, dsKpiGrid } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
+
+const KEY_PERM_FLAGS = [
+  'can_add_activity',
+  'can_edit_direct',
+  'can_request_edit',
+  'can_review_requests',
+  'view_finance',
+  'view_admin',
+  'view_permissions'
+];
 
 function sortedPermissionEditorKeys(row) {
   const keys = Object.keys(row).filter((k) => {
@@ -34,6 +44,21 @@ function roleChipKind(role) {
   return 'neutral';
 }
 
+function buildPermFlagGrid(row, keys) {
+  const allFlags = keys.filter((k) => k.startsWith('view_') || k.startsWith('can_'));
+  if (allFlags.length === 0) return '';
+
+  const chips = allFlags.map((k) => {
+    const active = String(row[k] || '').toLowerCase() === 'yes';
+    const isKey = KEY_PERM_FLAGS.includes(k);
+    return `<span class="ds-perm-flag ${active ? 'ds-perm-flag--on' : 'ds-perm-flag--off'} ${isKey && active ? 'ds-perm-flag--key' : ''}" title="${escapeHtml(hebrewPermissionField(k))}">
+      ${active ? '✓' : '✗'} ${escapeHtml(hebrewPermissionField(k))}
+    </span>`;
+  }).join('');
+
+  return `<div class="ds-perm-flag-grid">${chips}</div>`;
+}
+
 function buildEditDrawerHtml(row) {
   const uid = escapeHtml(row.user_id);
   const keys = sortedPermissionEditorKeys(row);
@@ -50,22 +75,28 @@ function buildEditDrawerHtml(row) {
     })
     .join('');
 
-  const boolFields = keys
-    .filter((k) => k.startsWith('view_') || k.startsWith('can_'))
-    .map((k) => {
+  const viewFlags = keys.filter((k) => k.startsWith('view_'));
+  const canFlags = keys.filter((k) => k.startsWith('can_'));
+
+  function renderBoolGroup(flagKeys, groupTitle) {
+    if (flagKeys.length === 0) return '';
+    const fields = flagKeys.map((k) => {
       const checked = String(row[k] || '').toLowerCase() === 'yes';
       const fieldAttr = `data-perm-field="${escapeHtml(k)}" data-user-id="${uid}"`;
-      return `<div class="ds-perm-field">
-        <label class="ds-perm-check">
-          <input type="checkbox" ${fieldAttr} ${checked ? 'checked' : ''} />
-          ${escapeHtml(hebrewPermissionField(k))}
-        </label>
-      </div>`;
-    })
-    .join('');
+      return `<label class="ds-perm-check">
+        <input type="checkbox" ${fieldAttr} ${checked ? 'checked' : ''} />
+        ${escapeHtml(hebrewPermissionField(k))}
+      </label>`;
+    }).join('');
+    return `<div class="ds-perm-bool-group">
+      <p class="ds-perm-section-label ds-perm-section-label--sub">${escapeHtml(groupTitle)}</p>
+      <div class="ds-perm-bool-grid">${fields}</div>
+    </div>`;
+  }
 
   return `<div class="ds-perm-edit-form" dir="rtl">
     <div class="ds-perm-edit-section">
+      <p class="ds-perm-section-label">פרטי משתמש</p>
       <div class="ds-perm-field">
         <span class="ds-muted">${escapeHtml(hebrewColumn('display_role'))}</span>
         <select data-role-select data-user-id="${uid}" class="ds-input ds-input--sm">
@@ -77,15 +108,16 @@ function buildEditDrawerHtml(row) {
       </div>
       <div class="ds-perm-field">
         <label class="ds-perm-check">
-          <input type="checkbox" data-active-toggle data-user-id="${uid}" ${row.active === 'yes' ? 'checked' : ''} />
+          <input type="checkbox" data-active-toggle data-user-id="${uid}" ${String(row.active || '').toLowerCase() === 'yes' ? 'checked' : ''} />
           פעיל/ה
         </label>
       </div>
       ${textFields}
     </div>
     <div class="ds-perm-edit-section">
-      <p class="ds-perm-section-label">${escapeHtml('הרשאות גישה')}</p>
-      <div class="ds-perm-bool-grid">${boolFields}</div>
+      <p class="ds-perm-section-label">הרשאות גישה</p>
+      ${renderBoolGroup(viewFlags, 'צפייה במסכים')}
+      ${renderBoolGroup(canFlags, 'פעולות מותרות')}
     </div>
     <div class="ds-perm-actions">
       <button type="button" class="ds-btn ds-btn--primary" data-save-permission data-user-id="${uid}">שמירה</button>
@@ -100,7 +132,6 @@ function renderUserBlock(row, canEdit) {
     .filter(Boolean)
     .join(' ');
   const roleKey = String(row.display_role || '').trim();
-
   const keys = sortedPermissionEditorKeys(row);
 
   const textFields = keys
@@ -117,14 +148,9 @@ function renderUserBlock(row, canEdit) {
   const activeLabel = String(row.active || '').toLowerCase() === 'yes' ? 'פעיל/ה' : 'לא פעיל/ה';
   const activeKind = String(row.active || '').toLowerCase() === 'yes' ? 'success' : 'neutral';
 
-  const permChips = keys
-    .filter((k) => k.startsWith('view_') || k.startsWith('can_'))
-    .filter((k) => String(row[k] || '').toLowerCase() === 'yes')
-    .map((k) => `<span class="ds-chip ds-chip--perm">${escapeHtml(hebrewPermissionField(k))}</span>`)
-    .join('');
-
+  const flagGrid = buildPermFlagGrid(row, keys);
   const editBtn = canEdit
-    ? `<button type="button" class="ds-btn ds-btn--sm" data-edit-perm data-user-id="${uid}">עריכה</button>`
+    ? `<button type="button" class="ds-btn ds-btn--sm" data-edit-perm data-user-id="${uid}">עריכת הרשאות</button>`
     : '';
 
   return `<details class="ds-perm-card" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}">
@@ -136,7 +162,7 @@ function renderUserBlock(row, canEdit) {
     <div class="ds-perm-body">
       <p class="ds-perm-uid ds-muted">${uid}</p>
       ${textFields}
-      ${permChips ? `<div class="ds-perm-chips">${permChips}</div>` : ''}
+      ${flagGrid}
       ${editBtn ? `<div class="ds-perm-actions">${editBtn}</div>` : ''}
     </div>
   </details>`;
@@ -149,6 +175,21 @@ export const permissionsScreen = {
       state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
 
+    const activeCount = safeRows.filter((r) => String(r.active || '').toLowerCase() === 'yes').length;
+    const adminCount = safeRows.filter((r) => r.display_role === 'admin').length;
+    const reviewerCount = safeRows.filter((r) => r.display_role === 'operations_reviewer').length;
+    const authorizedCount = safeRows.filter((r) => r.display_role === 'authorized_user').length;
+    const instructorCount = safeRows.filter((r) => r.display_role === 'instructor').length;
+
+    const kpis = [
+      { label: 'סה"כ משתמשים', value: String(safeRows.length) },
+      { label: 'פעילים', value: String(activeCount) },
+      { label: 'מנהלים', value: String(adminCount) },
+      { label: 'בקרי תפעול', value: String(reviewerCount) },
+      ...(authorizedCount > 0 ? [{ label: 'משתמשים מורשים', value: String(authorizedCount) }] : []),
+      ...(instructorCount > 0 ? [{ label: 'מדריכים', value: String(instructorCount) }] : [])
+    ];
+
     const body =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו שורות הרשאה')
@@ -160,7 +201,8 @@ export const permissionsScreen = {
     }));
 
     return dsScreenStack(`
-      ${dsPageHeader('הרשאות', 'ניהול גישה — תואם לגיליון permissions')}
+      ${dsPageHeader('הרשאות', 'ניהול גישה ודגלי הרשאה — תואם לגיליון permissions')}
+      ${safeRows.length ? dsKpiGrid(kpis) : ''}
       ${safeRows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש משתמש…', filterLabel: 'תפקיד', filters: roleFilters }) : ''}
       ${dsCard({
         title: 'משתמשים והרשאות',

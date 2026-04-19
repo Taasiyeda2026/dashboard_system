@@ -12,13 +12,13 @@ import {
   dsTableWrap,
   dsEmptyState,
   dsInteractiveCard,
-  dsStatusChip
+  dsStatusChip,
+  dsKpiGrid
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
-import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 
-const TABLE_COLUMNS = ['RowID', 'activity_name', 'emp_id', 'emp_id_2', 'school', 'funding', 'end_date', 'finance_status', 'status'];
+const TABLE_COLUMNS = ['RowID', 'activity_name', 'activity_manager', 'school', 'funding', 'end_date', 'finance_status'];
 
 function applySearch(rows, q) {
   if (!q) return rows;
@@ -28,8 +28,49 @@ function applySearch(rows, q) {
       String(r.activity_name || '').toLowerCase().includes(lq) ||
       String(r.RowID || '').toLowerCase().includes(lq) ||
       String(r.school || '').toLowerCase().includes(lq) ||
+      String(r.activity_manager || '').toLowerCase().includes(lq) ||
       hebrewFinanceStatus(r.finance_status).toLowerCase().includes(lq)
   );
+}
+
+function buildManagerBreakdown(rows) {
+  const map = {};
+  rows.forEach((r) => {
+    const mgr = String(r.activity_manager || '').trim() || '—';
+    if (!map[mgr]) map[mgr] = { total: 0, open: 0, closed: 0, other: 0 };
+    map[mgr].total += 1;
+    const st = String(r.finance_status || '').toLowerCase();
+    if (st === 'open') map[mgr].open += 1;
+    else if (st === 'closed') map[mgr].closed += 1;
+    else map[mgr].other += 1;
+  });
+  return Object.entries(map)
+    .map(([mgr, counts]) => ({ mgr, ...counts }))
+    .sort((a, b) => b.total - a.total);
+}
+
+function exportToCsv(rows) {
+  const cols = ['RowID', 'activity_name', 'activity_manager', 'school', 'funding', 'start_date', 'end_date', 'finance_status', 'finance_notes', 'status'];
+  const headers = cols.map((c) => hebrewColumn(c));
+  const lines = [headers.join(',')];
+  rows.forEach((row) => {
+    const vals = cols.map((c) => {
+      let v = String(row[c] ?? '');
+      if (c === 'finance_status') v = hebrewFinanceStatus(v);
+      v = v.replace(/"/g, '""');
+      return `"${v}"`;
+    });
+    lines.push(vals.join(','));
+  });
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'כספים.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
 }
 
 export const financeScreen = {
@@ -45,6 +86,17 @@ export const financeScreen = {
       rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
     }
 
+    const totalOpen = allRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open').length;
+    const totalClosed = allRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed').length;
+    const totalOther = allRows.length - totalOpen - totalClosed;
+
+    const kpis = [
+      { label: 'סה"כ פעילויות', value: String(allRows.length) },
+      { label: 'פתוח', value: String(totalOpen) },
+      { label: 'סגור', value: String(totalClosed) },
+      ...(totalOther > 0 ? [{ label: 'אחר', value: String(totalOther) }] : [])
+    ];
+
     const statuses = [...new Set(allRows.map((r) => String(r.finance_status || '')).filter(Boolean))];
     const statusChips = [{ val: '', label: 'הכל' }, ...statuses.map((s) => ({ val: s, label: hebrewFinanceStatus(s) }))]
       .map(
@@ -53,10 +105,31 @@ export const financeScreen = {
       )
       .join('');
 
-    const finOpts = [...new Set(rows.map((r) => String(r.finance_status || '').trim()).filter(Boolean))].map((st) => ({
-      value: st,
-      label: hebrewFinanceStatus(st)
-    }));
+    const managerBreakdown = buildManagerBreakdown(allRows);
+    const managerTableRows = managerBreakdown.map((m) => `
+      <tr>
+        <td>${escapeHtml(m.mgr)}</td>
+        <td style="text-align:center;">${m.total}</td>
+        <td style="text-align:center;">${dsStatusChip(String(m.open), 'warning')}</td>
+        <td style="text-align:center;">${dsStatusChip(String(m.closed), 'success')}</td>
+        ${totalOther > 0 ? `<td style="text-align:center;">${m.other > 0 ? m.other : '—'}</td>` : ''}
+      </tr>`).join('');
+
+    const managerTable = managerBreakdown.length === 0 ? '' : dsCard({
+      title: 'פירוט לפי מנהל פעילות',
+      badge: `${managerBreakdown.length} מנהלים`,
+      body: dsTableWrap(`<table class="ds-table">
+        <thead><tr>
+          <th>מנהל פעילות</th>
+          <th style="text-align:center;">סה"כ</th>
+          <th style="text-align:center;">פתוח</th>
+          <th style="text-align:center;">סגור</th>
+          ${totalOther > 0 ? '<th style="text-align:center;">אחר</th>' : ''}
+        </tr></thead>
+        <tbody>${managerTableRows}</tbody>
+      </table>`),
+      padded: false
+    });
 
     const body = rows.map((row) => {
       const searchHay = TABLE_COLUMNS.map((c) => String(row?.[c] ?? '')).join(' ');
@@ -89,19 +162,7 @@ export const financeScreen = {
         : `<div class="ds-compact-list">${rows
             .map((row) => {
               const fst = String(row.finance_status || '').trim();
-              const searchHay = [
-                row.RowID,
-                row.activity_name,
-                row.emp_id,
-                row.emp_id_2,
-                row.school,
-                row.funding,
-                row.end_date,
-                row.finance_status,
-                row.status
-              ]
-                .filter(Boolean)
-                .join(' ');
+              const searchHay = TABLE_COLUMNS.map((c) => String(row?.[c] ?? '')).join(' ');
               return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(fst)}">
               ${dsInteractiveCard({
                 variant: 'session',
@@ -114,9 +175,13 @@ export const financeScreen = {
             })
             .join('')}</div>`;
 
+    const exportBtn = `<button type="button" class="ds-btn ds-btn--sm" data-export-csv>ייצוא CSV</button>`;
+
     return dsScreenStack(`
       ${dsPageHeader('כספים', 'פעילויות שהסתיימו עד היום — לפי הגדרות המערכת')}
-      <div class="ds-screen-top-row">
+      ${dsKpiGrid(kpis)}
+      ${managerTable}
+      <div class="ds-screen-top-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <input
           id="finance-search"
           type="search"
@@ -124,7 +189,9 @@ export const financeScreen = {
           placeholder="חיפוש..."
           value="${escapeHtml(searchQ)}"
           dir="rtl"
+          style="flex:1;min-width:160px;"
         />
+        ${exportBtn}
       </div>
       <div class="ds-filter-bar" role="toolbar">${statusChips}</div>
       ${dsCard({
@@ -150,6 +217,14 @@ export const financeScreen = {
         state.financeStatusFilter = btn.dataset.statusFilter || '';
         rerender();
       });
+    });
+
+    root.querySelector('[data-export-csv]')?.addEventListener('click', () => {
+      const searchQ = state?.financeSearch || '';
+      const statusFilter = state?.financeStatusFilter || '';
+      let rows = applySearch(allRows, searchQ);
+      if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
+      exportToCsv(rows);
     });
 
     function bindFinanceEditForm(contentRoot) {
