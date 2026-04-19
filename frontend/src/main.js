@@ -24,6 +24,9 @@ let isMobileNavOpen = false;
 let lastRenderedRoute = null;
 const ui = createSharedInteractionLayer();
 
+/** In-flight API request dedup: prevents duplicate calls when navigating quickly. */
+const inflightRequests = new Map();
+
 function isDesktopViewport() {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 960px)').matches;
 }
@@ -45,6 +48,24 @@ function screenLoadingMarkup() {
   `;
 }
 
+/* ——— Route cache in localStorage (avoids extra bootstrap call on refresh) ——— */
+function saveRoutesToStorage(routes, defaultRoute, clientSettings) {
+  try {
+    localStorage.setItem('dashboard_routes', JSON.stringify({
+      routes,
+      defaultRoute,
+      clientSettings: clientSettings || {}
+    }));
+  } catch {}
+}
+
+function loadRoutesFromStorage() {
+  try {
+    const raw = localStorage.getItem('dashboard_routes');
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
 function applyBootstrapFromLoginData(data) {
   if (!data || !Array.isArray(data.routes) || !data.routes.length) return;
   state.routes = data.routes;
@@ -55,6 +76,7 @@ function applyBootstrapFromLoginData(data) {
   if (data.client_settings && typeof data.client_settings === 'object') {
     state.clientSettings = { ...data.client_settings };
   }
+  saveRoutesToStorage(state.routes, state.route, state.clientSettings);
 }
 
 const screenLabels = {
@@ -87,6 +109,8 @@ const screens = {
   permissions: permissionsScreen
 };
 
+const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts']);
+
 function shellUserDisplayName() {
   const fn = state.user?.full_name != null ? String(state.user.full_name).trim() : '';
   return escapeHtml(fn || 'משתמש');
@@ -97,8 +121,6 @@ function shellUserRoleLine() {
   if (r2) return escapeHtml(r2);
   return escapeHtml(hebrewRole(state.user?.display_role || state.user?.role));
 }
-
-const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts']);
 
 function shell(content) {
   const nav = state.routes
@@ -190,15 +212,30 @@ function screenDataCacheKey() {
   return state.route;
 }
 
+/**
+ * Returns cached data immediately if available.
+ * Deduplicates in-flight requests so rapid navigation doesn't fire duplicate API calls.
+ */
 async function loadScreenDataWithCache(screen) {
   if (!screen.load) return {};
-  const keyBefore = screenDataCacheKey();
-  const hit = state.screenDataCache[keyBefore];
+  const key = screenDataCacheKey();
+  const hit = state.screenDataCache[key];
   if (hit) return hit.data;
-  const data = await screen.load({ api, state });
-  const keyAfter = screenDataCacheKey();
-  state.screenDataCache[keyAfter] = { data, t: Date.now() };
-  return data;
+
+  if (inflightRequests.has(key)) return inflightRequests.get(key);
+
+  const p = screen.load({ api, state })
+    .then((data) => {
+      state.screenDataCache[screenDataCacheKey()] = { data, t: Date.now() };
+      inflightRequests.delete(key);
+      return data;
+    })
+    .catch((err) => {
+      inflightRequests.delete(key);
+      throw err;
+    });
+  inflightRequests.set(key, p);
+  return p;
 }
 
 function setShellNavBusy(busy) {
@@ -214,14 +251,31 @@ function updateNavActiveClasses() {
   });
 }
 
+/**
+ * Fast re-render for same-route filter/search changes.
+ * Bypasses the full mount cycle when data is already cached.
+ * Falls back to full render() if cache is missing or route has changed.
+ */
+function fastRerenderScreen(screen, routeAtBind) {
+  if (state.route !== routeAtBind) { render(); return; }
+  const key = screenDataCacheKey();
+  const hit = state.screenDataCache[key];
+  if (!hit) { render(); return; }
+  const screenRoot = document.getElementById('screenRoot');
+  if (!screenRoot) { render(); return; }
+  screenRoot.innerHTML = screen.render(hit.data, { state });
+  bindScreen(screen, screenRoot, hit.data);
+}
+
 function bindScreen(screen, screenRoot, data) {
+  const routeAtBind = state.route;
   screen.bind?.({
     root: screenRoot,
     data,
     state,
     api,
     ui,
-    rerender: render,
+    rerender: () => fastRerenderScreen(screen, routeAtBind),
     rerenderActivitiesView: () => rerenderActivitiesViewOnly(screen, screenRoot)
   });
 }
@@ -241,15 +295,50 @@ function rerenderActivitiesViewOnly(screen, screenRoot) {
   bindScreen(screen, screenRoot, hit.data);
 }
 
+/**
+ * Restores session on page refresh.
+ * Uses cached routes from localStorage to avoid a blocking bootstrap API call.
+ * The bootstrap call runs in the background to refresh permissions/profile.
+ */
 async function restoreSession() {
   if (!state.token) return;
   if (state.routes.length) return;
+
+  const saved = loadRoutesFromStorage();
+  if (saved?.routes?.length) {
+    state.routes = saved.routes;
+    state.route = saved.defaultRoute || state.routes[0] || 'my-data';
+    if (saved.clientSettings && typeof saved.clientSettings === 'object') {
+      state.clientSettings = { ...saved.clientSettings };
+    }
+    // Non-blocking background refresh
+    api.bootstrap().then((b) => {
+      if (b.routes?.length) {
+        state.routes = b.routes;
+        saveRoutesToStorage(b.routes, b.default_route, b.client_settings);
+      }
+      if (b.client_settings && typeof b.client_settings === 'object') {
+        state.clientSettings = { ...b.client_settings };
+      }
+      if (b.profile && state.user) {
+        const fn = b.profile.full_name != null ? String(b.profile.full_name).trim() : '';
+        if (fn) state.user.full_name = fn;
+        state.user.display_role2 =
+          b.profile.display_role2 != null ? String(b.profile.display_role2) : '';
+        localStorage.setItem('dashboard_user', JSON.stringify(state.user));
+      }
+    }).catch(() => {});
+    return;
+  }
+
+  // First ever login on this device: blocking bootstrap call
   const bootstrap = await api.bootstrap();
   state.routes = bootstrap.routes || [];
   state.route = bootstrap.default_route || state.routes[0] || 'my-data';
   if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
     state.clientSettings = { ...bootstrap.client_settings };
   }
+  saveRoutesToStorage(state.routes, state.route, state.clientSettings);
   if (bootstrap.profile && state.user) {
     const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
     if (fn) state.user.full_name = fn;
@@ -282,14 +371,33 @@ async function mountScreen() {
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
 
   if (!shellExists) {
+    // First mount: build shell HTML
     const shellBody = cacheEntry ? screen.render(cacheEntry.data, { state }) : screenLoadingMarkup();
     app.innerHTML = shell(shellBody);
     bindShell();
+    if (cacheEntry) {
+      // Already rendered inside shell — just bind, no API call needed
+      const screenRoot = document.getElementById('screenRoot');
+      if (screenRoot) bindScreen(screen, screenRoot, cacheEntry.data);
+      if (routeChanged) lastRenderedRoute = state.route;
+      return;
+    }
     await flushPaint();
+  } else if (cacheEntry) {
+    // Shell exists + cache hit: render immediately, no loading state, no flushPaint
+    updateNavActiveClasses();
+    const screenRoot = document.getElementById('screenRoot');
+    if (screenRoot) {
+      screenRoot.innerHTML = screen.render(cacheEntry.data, { state });
+      bindScreen(screen, screenRoot, cacheEntry.data);
+    }
+    if (routeChanged) lastRenderedRoute = state.route;
+    return;
   } else {
+    // Shell exists, no cache: show loading spinner
     setShellNavBusy(true);
     const sr = document.getElementById('screenRoot');
-    if (sr && !cacheEntry) sr.innerHTML = screenLoadingMarkup();
+    if (sr) sr.innerHTML = screenLoadingMarkup();
     updateNavActiveClasses();
     await flushPaint();
   }
@@ -326,6 +434,7 @@ function bindShell() {
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
     ui.closeAll();
     setSession(null);
+    localStorage.removeItem('dashboard_routes');
     render();
   });
 }
