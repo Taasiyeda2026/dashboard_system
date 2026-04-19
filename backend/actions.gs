@@ -959,6 +959,25 @@ function actionAddUser_(user, payload) {
   });
   if (alreadyExists) throw new Error('user_already_exists');
 
+  var resolvedRole = normalizeRole_(text_(row.display_role || 'instructor'));
+
+  var nonAdminRoleDefaults = {
+    operations_reviewer: {
+      view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
+      view_instructors: 'yes', view_exceptions: 'yes', view_finance: 'yes',
+      view_edit_requests: 'yes', view_final_approvals: 'yes',
+      can_edit_direct: 'yes', can_review_requests: 'yes'
+    },
+    authorized_user: {
+      view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
+      can_add_activity: 'yes', can_edit_direct: 'yes'
+    },
+    instructor: {}
+  };
+
+  var isAdmin = resolvedRole === 'admin';
+  var nonAdminDefaults = nonAdminRoleDefaults[resolvedRole] || {};
+
   var newRow = {};
   headers.forEach(function(h) {
     if (h === 'user_id') {
@@ -968,11 +987,11 @@ function actionAddUser_(user, payload) {
     } else if (h === 'entry_code') {
       newRow[h] = text_(row.entry_code || '');
     } else if (h === 'display_role') {
-      newRow[h] = normalizeRole_(text_(row.display_role || 'instructor'));
+      newRow[h] = resolvedRole;
     } else if (h === 'active') {
       newRow[h] = 'yes';
     } else if (h.indexOf('view_') === 0 || h.indexOf('can_') === 0) {
-      newRow[h] = 'no';
+      newRow[h] = isAdmin ? 'yes' : (nonAdminDefaults[h] || 'no');
     } else {
       newRow[h] = '';
     }
