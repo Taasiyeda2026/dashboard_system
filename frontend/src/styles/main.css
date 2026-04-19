@@ -2059,14 +2059,20 @@ span.ds-chip {
 /* ——— Manager breakdown cards (dashboard) ——— */
 .ds-manager-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--ds-space-3);
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--ds-space-2);
 }
 
 @media (min-width: 640px) {
-  .ds-manager-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .ds-manager-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (min-width: 960px) {
+  .ds-manager-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (min-width: 1280px) {
+  .ds-manager-grid { grid-template-columns: repeat(5, 1fr); }
 }
 
 .ds-manager-card {
@@ -2075,13 +2081,13 @@ span.ds-chip {
   text-align: center;
   background: rgba(232, 238, 246, 0.35);
   border: 1px solid rgba(200, 212, 228, 0.65);
-  border-radius: var(--ds-radius-lg);
-  padding: var(--ds-space-4) var(--ds-space-3);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-2) var(--ds-space-2);
 }
 
 .ds-manager-card__name {
-  margin: 0 0 var(--ds-space-3);
-  font-size: 0.95rem;
+  margin: 0 0 var(--ds-space-2);
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--ds-text);
   text-align: center;
@@ -2098,8 +2104,8 @@ span.ds-chip {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: var(--ds-space-2) var(--ds-space-1);
+  gap: 1px;
+  padding: 4px 4px;
   background: var(--ds-surface);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-sm);
@@ -2123,7 +2129,7 @@ span.ds-chip {
 }
 
 .ds-manager-stat__value {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 800;
   color: var(--ds-text);
   line-height: 1.1;
