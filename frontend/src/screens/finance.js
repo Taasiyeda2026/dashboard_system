@@ -666,6 +666,7 @@ export const financeScreen = {
           <input id="finance-date-to" type="date" class="ds-input" value="${escapeHtml(dateTo)}" style="font-size:0.85rem;padding:4px 6px;" />
         </span>
         ${(dateFrom || dateTo) ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-clear-dates>נקה תאריכים</button>` : ''}
+        ${(dateFrom || dateTo || searchQ || statusFilter) ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-reset-filters style="border-color:var(--color-warning,#d97706);color:var(--color-warning,#d97706)">איפוס כל הסננים</button>` : ''}
       </div>
       <div data-finance-data-area>
         ${dsCard({
@@ -773,6 +774,22 @@ export const financeScreen = {
       save(LS.dateTo, '');
       showDataAreaLoading();
       clearScreenDataCache();
+      rerender();
+    });
+    root.querySelector('[data-reset-filters]')?.addEventListener('click', () => {
+      const hadDates = !!(state.financeDateFrom || state.financeDateTo);
+      state.financeDateFrom = '';
+      state.financeDateTo = '';
+      state.financeSearch = '';
+      state.financeStatusFilter = '';
+      save(LS.dateFrom, '');
+      save(LS.dateTo, '');
+      save(LS.search, '');
+      save(LS.statusFilter, '');
+      if (hadDates) {
+        showDataAreaLoading();
+        clearScreenDataCache();
+      }
       rerender();
     });
 
