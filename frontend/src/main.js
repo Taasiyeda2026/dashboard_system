@@ -98,8 +98,11 @@ function shellUserRoleLine() {
   return escapeHtml(hebrewRole(state.user?.display_role || state.user?.role));
 }
 
+const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts']);
+
 function shell(content) {
   const nav = state.routes
+    .filter((route) => !NAV_HIDDEN_ROUTES.has(route))
     .map(
       (route) =>
         `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`

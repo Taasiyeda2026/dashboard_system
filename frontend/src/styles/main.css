@@ -2054,6 +2054,241 @@ select[data-role-select]:focus-visible {
   }
 }
 
+/* ——— Compact overrides (tightening without redesign) ——— */
+.ds-kpi {
+  padding: var(--ds-space-2) var(--ds-space-3);
+}
+
+.ds-kpi__label {
+  margin-bottom: var(--ds-space-1);
+  font-size: 0.72rem;
+}
+
+.ds-kpi__value {
+  font-size: 1.18rem;
+}
+
+.ds-card__head {
+  min-height: 42px;
+  padding: var(--ds-space-2) var(--ds-space-3);
+}
+
+.ds-filter-bar {
+  padding: var(--ds-space-2);
+  gap: var(--ds-space-1);
+}
+
+.ds-chip {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 0.73rem;
+}
+
+.ds-table th,
+.ds-table td {
+  padding: 6px 8px;
+}
+
+.ds-interactive-card--session {
+  min-height: 52px;
+  padding: var(--ds-space-2) var(--ds-space-3);
+}
+
+.ds-page-header {
+  padding-bottom: var(--ds-space-1);
+}
+
+.ds-page-header__title {
+  font-size: 1.08rem;
+}
+
+.ds-page-header__subtitle {
+  margin-top: var(--ds-space-1);
+  font-size: 0.8rem;
+}
+
+.ds-screen-stack {
+  gap: var(--ds-space-3);
+}
+
+.shell-stage {
+  padding: var(--ds-space-2);
+}
+
+@media (min-width: 768px) {
+  .shell-stage {
+    padding: var(--ds-space-3);
+  }
+}
+
+.shell-top {
+  min-height: 48px;
+  padding: var(--ds-space-2) var(--ds-space-3);
+}
+
+/* ——— Search input ——— */
+.ds-search-input {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  min-height: 34px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  flex: 1;
+  min-width: 140px;
+  max-width: 280px;
+}
+
+.ds-search-input:focus {
+  outline: none;
+  border-color: rgba(26, 51, 88, 0.45);
+  box-shadow: var(--ds-focus-ring);
+}
+
+/* ——— Screen top row (search + action button) ——— */
+.ds-screen-top-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+}
+
+/* ——— Contacts: school grouping + inline expand ——— */
+.ci-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-2);
+}
+
+.ci-school-block {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-subtle);
+  overflow: hidden;
+}
+
+.ci-school-head {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ds-accent);
+  background: var(--ds-surface-raised);
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--ds-border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ci-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ds-text-muted);
+  background: var(--ds-surface-subtle);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-full);
+  padding: 1px 7px;
+}
+
+.ci-school-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.ci-row {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--ds-border);
+  background: var(--ds-surface);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.ci-row:last-child {
+  border-bottom: none;
+}
+
+.ci-row:hover {
+  background: var(--ds-interactive-hover);
+}
+
+.ci-row[aria-expanded="true"] {
+  background: var(--ds-interactive-selected);
+}
+
+.ci-row__main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  flex-wrap: wrap;
+}
+
+.ci-row__kind {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ds-text-muted);
+  background: var(--ds-surface-subtle);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-full);
+  padding: 1px 7px;
+  flex-shrink: 0;
+}
+
+.ci-row__name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ds-text);
+  flex: 1;
+  min-width: 0;
+}
+
+.ci-row__meta {
+  font-size: 0.76rem;
+  color: var(--ds-text-muted);
+}
+
+.ci-row__toggle {
+  font-size: 0.72rem;
+  color: var(--ds-text-muted);
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  transition: transform 0.15s ease;
+}
+
+.ci-row__detail {
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--ds-border);
+  background: var(--ds-surface-subtle);
+}
+
+.ci-detail-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.ci-detail-item {
+  font-size: 0.78rem;
+  color: var(--ds-text-secondary);
+  white-space: nowrap;
+}
+
+.ci-detail-item strong {
+  color: var(--ds-text);
+}
+
+/* ——— Mobile chip size fix: keep 44px touch targets ——— */
+@media (max-width: 760px) {
+  .ds-chip {
+    min-height: 36px;
+    padding: 6px 12px;
+  }
+}
+
 .month-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));

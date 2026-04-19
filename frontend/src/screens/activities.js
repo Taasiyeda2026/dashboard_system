@@ -22,6 +22,9 @@ import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 
 const SHORT_TYPES = new Set(['workshop', 'tour', 'after_school', 'escape_room']);
 
+const FAMILY_LABEL_SHORT = 'חד-יומיות';
+const FAMILY_LABEL_LONG = 'תוכניות';
+
 function visibleTabsFromCounts(counts) {
   const c = counts || {};
   const withData = ACTIVITY_TAB_ORDER.filter((t) => (c[t] || 0) > 0);
@@ -61,6 +64,16 @@ function applyClientFilters(rows, state) {
     );
   }
 
+  if (state.activitySearch) {
+    const q = state.activitySearch.toLowerCase();
+    out = out.filter(
+      (row) =>
+        String(row.activity_name || '').toLowerCase().includes(q) ||
+        String(row.RowID || '').toLowerCase().includes(q) ||
+        visibleActivityCategoryLabel(row.activity_type).toLowerCase().includes(q)
+    );
+  }
+
   return out;
 }
 
@@ -92,6 +105,7 @@ export const activitiesScreen = {
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const forceCompact = typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches;
     const compactView = forceCompact || state?.activityView === 'compact';
+    const searchVal = escapeHtml(state.activitySearch || '');
 
     const tableRows = safeRows
       .map((row) => {
@@ -128,18 +142,9 @@ export const activitiesScreen = {
     const thEmp = hideEmpIds ? '' : '<th>מדריך/ה 1 (מזהה)</th><th>מדריך/ה 2 (מזהה)</th>';
 
     const familyChips = [
-      {
-        key: '',
-        label: 'כל המשפחות'
-      },
-      {
-        key: 'short',
-        label: 'קצרות בלבד'
-      },
-      {
-        key: 'long',
-        label: 'ארוכות בלבד'
-      }
+      { key: '', label: 'כל המשפחות' },
+      { key: 'short', label: FAMILY_LABEL_SHORT },
+      { key: 'long', label: FAMILY_LABEL_LONG }
     ]
       .map(
         (f) =>
@@ -166,7 +171,8 @@ export const activitiesScreen = {
         state.activityFinanceStatus ||
         state.activityQuickFamily ||
         state.activityQuickManager ||
-        state.activityEndingCurrentMonth
+        state.activityEndingCurrentMonth ||
+        state.activitySearch
     );
 
     const tableSection =
@@ -181,6 +187,17 @@ export const activitiesScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('פעילויות', 'סינון, בחירה ופתיחת פירוט פעילות')}
+      <div class="ds-screen-top-row">
+        <input
+          id="activity-search"
+          type="search"
+          class="ds-search-input"
+          placeholder="חיפוש פעילות..."
+          value="${searchVal}"
+          dir="rtl"
+        />
+        <button type="button" class="ds-btn ds-btn--sm" data-goto-contacts>📋 אנשי קשר</button>
+      </div>
       <div class="ds-filter-stack" dir="rtl">
         <div class="ds-filter-group">
           <span class="ds-filter-label">סוג לפי גיליון</span>
@@ -200,7 +217,8 @@ export const activitiesScreen = {
         ${hasAnyFilter ? '<button type="button" class="ds-btn ds-btn--sm" data-clear-filters>ניקוי מסננים</button>' : ''}
         ${state.activityQuickManager ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">אחראי: ${escapeHtml(state.activityQuickManager)}</span>` : ''}
         ${state.activityEndingCurrentMonth ? '<span class="ds-chip ds-chip--status ds-chip--status-neutral">מסיימי קורס החודש</span>' : ''}
-        ${state.activityQuickFamily ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">משפחה: ${state.activityQuickFamily === 'short' ? 'קצרות' : 'ארוכות'}</span>` : ''}
+        ${state.activityQuickFamily === 'short' ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">משפחה: ${FAMILY_LABEL_SHORT}</span>` : ''}
+        ${state.activityQuickFamily === 'long' ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">משפחה: ${FAMILY_LABEL_LONG}</span>` : ''}
         ${forceCompact ? '<span class="ds-muted">במובייל צר מופעלת תצוגה קומפקטית אוטומטית</span>' : ''}
       `)}
       ${compactView
@@ -252,6 +270,20 @@ export const activitiesScreen = {
       });
     }
 
+    root.querySelector('#activity-search')?.addEventListener('input', (ev) => {
+      state.activitySearch = ev.target.value || '';
+      if (typeof rerenderActivitiesView === 'function') {
+        rerenderActivitiesView();
+      } else {
+        rerender();
+      }
+    });
+
+    root.querySelector('[data-goto-contacts]')?.addEventListener('click', () => {
+      state.route = 'contacts';
+      rerender();
+    });
+
     root.querySelectorAll('[data-tab]').forEach((node) => {
       node.addEventListener('click', () => {
         state.activityTab = node.dataset.tab;
@@ -280,6 +312,7 @@ export const activitiesScreen = {
       state.activityQuickFamily = '';
       state.activityQuickManager = '';
       state.activityEndingCurrentMonth = false;
+      state.activitySearch = '';
       rerender();
     });
 

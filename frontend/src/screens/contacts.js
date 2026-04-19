@@ -1,16 +1,8 @@
 import { escapeHtml } from './shared/html.js';
 import { hebrewColumn, hebrewContactKind } from './shared/ui-hebrew.js';
-import {
-  dsPageHeader,
-  dsCard,
-  dsScreenStack,
-  dsTableWrap,
-  dsEmptyState,
-  dsInteractiveCard
-} from './shared/layout.js';
-import { isNarrowViewport } from './shared/responsive.js';
+import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 
-const CONTACT_COLUMNS = ['kind', 'emp_id', 'full_name', 'authority', 'school', 'contact_name', 'phone', 'mobile', 'email'];
+const DETAIL_COLUMNS = ['kind', 'emp_id', 'full_name', 'authority', 'school', 'contact_name', 'phone', 'mobile', 'email'];
 
 function cellVal(row, column) {
   let val = row?.[column] ?? '';
@@ -18,87 +10,166 @@ function cellVal(row, column) {
   return val;
 }
 
-function contactDrawerHtml(row) {
-  const lines = CONTACT_COLUMNS.map((col) => {
-    const val = cellVal(row, col);
-    return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${escapeHtml(String(val || '—'))}</p>`;
-  }).join('');
-  return `<div class="ds-details-grid" dir="rtl">${lines}</div>`;
+function contactDetailHtml(row) {
+  return DETAIL_COLUMNS
+    .map((col) => {
+      const val = String(cellVal(row, col) || '');
+      if (!val || val === '—') return '';
+      return `<span class="ci-detail-item"><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${escapeHtml(val)}</span>`;
+    })
+    .filter(Boolean)
+    .join('');
+}
+
+function groupBySchool(rows) {
+  const schools = new Map();
+  const general = [];
+  for (const row of rows) {
+    const school = String(row.school || '').trim();
+    if (school) {
+      if (!schools.has(school)) schools.set(school, []);
+      schools.get(school).push(row);
+    } else {
+      general.push(row);
+    }
+  }
+  return { schools, general };
+}
+
+function renderContactRow(row, idx) {
+  const kind = escapeHtml(String(cellVal(row, 'kind') || ''));
+  const name = escapeHtml(row.full_name || row.contact_name || '—');
+  const phone = escapeHtml(row.phone || row.mobile || '');
+  const email = escapeHtml(row.email || '');
+  const meta = [phone, email].filter(Boolean).join(' · ');
+  return `
+    <div class="ci-row" data-contact-idx="${idx}" role="button" tabindex="0" aria-expanded="false">
+      <div class="ci-row__main">
+        <span class="ci-row__kind">${kind}</span>
+        <span class="ci-row__name">${name}</span>
+        ${meta ? `<span class="ci-row__meta">${meta}</span>` : ''}
+        <span class="ci-row__toggle" aria-hidden="true">&#9658;</span>
+      </div>
+      <div class="ci-row__detail" hidden>
+        <div class="ci-detail-grid">${contactDetailHtml(row)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function applySearch(rows, q) {
+  if (!q) return rows;
+  const lq = q.toLowerCase();
+  return rows.filter(
+    (r) =>
+      String(r.full_name || '').toLowerCase().includes(lq) ||
+      String(r.contact_name || '').toLowerCase().includes(lq) ||
+      String(r.school || '').toLowerCase().includes(lq) ||
+      String(r.authority || '').toLowerCase().includes(lq) ||
+      String(r.phone || '').includes(lq) ||
+      String(r.mobile || '').includes(lq) ||
+      String(r.email || '').toLowerCase().includes(lq) ||
+      hebrewContactKind(r.kind).includes(lq)
+  );
 }
 
 export const contactsScreen = {
   load: ({ api }) => api.contacts(),
-  render(data) {
-    const rows = Array.isArray(data?.rows) ? data.rows : [];
-    const narrow = isNarrowViewport();
+  render(data, { state } = {}) {
+    const allRows = Array.isArray(data?.rows) ? data.rows : [];
+    const searchQ = state?.contactsSearch || '';
+    const kindFilter = state?.contactsKindFilter || '';
 
-    const body = rows.map(
-      (row, idx) => `
-      <tr class="ds-data-row" data-contact-idx="${idx}" role="button" tabindex="0">${CONTACT_COLUMNS.map((column) => {
-        const val = cellVal(row, column);
-        return `<td>${escapeHtml(val)}</td>`;
-      }).join('')}</tr>`
-    );
+    let rows = applySearch(allRows, searchQ);
+    if (kindFilter) {
+      rows = rows.filter((r) => String(r.kind || '') === kindFilter);
+    }
 
-    const tableBlock =
-      rows.length === 0
-        ? dsEmptyState('לא נמצאו רשומות')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive">
-            <thead><tr>${CONTACT_COLUMNS.map((column) => `<th>${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
-            <tbody>${body.join('')}</tbody>
-          </table>`);
+    const kinds = [...new Set(allRows.map((r) => String(r.kind || '')).filter(Boolean))];
+    const kindChips = [{ val: '', label: 'הכל' }, ...kinds.map((k) => ({ val: k, label: hebrewContactKind(k) }))]
+      .map(
+        (k) =>
+          `<button type="button" class="ds-chip ${k.val === kindFilter ? 'is-active' : ''}" data-kind-filter="${escapeHtml(k.val)}">${escapeHtml(k.label)}</button>`
+      )
+      .join('');
 
-    const compact =
-      rows.length === 0
-        ? dsEmptyState('לא נמצאו רשומות')
-        : `<div class="ds-compact-list">${rows
-            .map((row, idx) =>
-              dsInteractiveCard({
-                variant: 'session',
-                action: `contact:${idx}`,
-                title: `${cellVal(row, 'kind')} · ${row.full_name || '—'}`,
-                subtitle: row.school || row.authority || '',
-                meta: row.phone || row.mobile || row.email || ''
-              })
-            )
-            .join('')}</div>`;
+    const { schools, general } = groupBySchool(rows);
+
+    let bodyHtml = '';
+
+    if (rows.length === 0) {
+      bodyHtml = dsEmptyState('לא נמצאו אנשי קשר');
+    } else {
+      let globalIdx = 0;
+
+      schools.forEach((schoolRows, schoolName) => {
+        const rowsHtml = schoolRows.map((r) => renderContactRow(r, globalIdx++)).join('');
+        bodyHtml += `
+          <div class="ci-school-block">
+            <div class="ci-school-head">&#127979; ${escapeHtml(schoolName)} <span class="ci-count">${schoolRows.length}</span></div>
+            <div class="ci-school-rows">${rowsHtml}</div>
+          </div>
+        `;
+      });
+
+      if (general.length > 0) {
+        const rowsHtml = general.map((r) => renderContactRow(r, globalIdx++)).join('');
+        bodyHtml += `
+          <div class="ci-school-block">
+            <div class="ci-school-head">&#128203; גורמים כלליים <span class="ci-count">${general.length}</span></div>
+            <div class="ci-school-rows">${rowsHtml}</div>
+          </div>
+        `;
+      }
+    }
 
     return dsScreenStack(`
-      ${dsPageHeader('אנשי קשר', 'בתי ספר, רשויות וגורמים כלליים — לא מדריכים')}
+      ${dsPageHeader('אנשי קשר', 'בתי ספר, רשויות וגורמים כלליים')}
+      <div class="ds-screen-top-row">
+        <input
+          id="contacts-search"
+          type="search"
+          class="ds-search-input"
+          placeholder="חיפוש איש קשר..."
+          value="${escapeHtml(searchQ)}"
+          dir="rtl"
+        />
+      </div>
+      <div class="ds-filter-bar" role="toolbar">${kindChips}</div>
       ${dsCard({
-        title: 'אנשי קשר (בתי ספר / רשויות)',
-        badge: `${rows.length} שורות`,
-        body: narrow ? compact : tableBlock,
-        padded: rows.length === 0 || narrow
+        title: 'אנשי קשר',
+        badge: `${rows.length} רשומות`,
+        body: `<div class="ci-list">${bodyHtml}</div>`,
+        padded: false
       })}
     `);
   },
-  bind({ root, data, ui }) {
-    const rows = Array.isArray(data?.rows) ? data.rows : [];
+  bind({ root, data, state, rerender }) {
+    root.querySelector('#contacts-search')?.addEventListener('input', (ev) => {
+      state.contactsSearch = ev.target.value || '';
+      rerender();
+    });
 
-    const openAt = (idx) => {
-      const hit = rows[idx];
-      if (!hit || !ui) return;
-      ui.openDrawer({
-        title: hit.full_name || hebrewContactKind(hit.kind) || 'איש קשר',
-        content: contactDrawerHtml(hit)
-      });
-    };
-
-    root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
-      rowNode.addEventListener('click', () => openAt(Number(rowNode.dataset.contactIdx)));
-      rowNode.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          rowNode.click();
-        }
+    root.querySelectorAll('[data-kind-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.contactsKindFilter = btn.dataset.kindFilter || '';
+        rerender();
       });
     });
 
-    ui?.bindInteractiveCards(root, (action) => {
-      if (!action.startsWith('contact:')) return;
-      const idx = Number(action.slice('contact:'.length));
-      openAt(idx);
+    root.querySelectorAll('.ci-row').forEach((rowEl) => {
+      const toggle = () => {
+        const expanded = rowEl.getAttribute('aria-expanded') === 'true';
+        rowEl.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        const detail = rowEl.querySelector('.ci-row__detail');
+        const icon = rowEl.querySelector('.ci-row__toggle');
+        if (detail) detail.hidden = expanded;
+        if (icon) icon.textContent = expanded ? '\u25B8' : '\u25BE';
+      };
+      rowEl.addEventListener('click', toggle);
+      rowEl.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); }
+      });
     });
   }
 };
