@@ -10,21 +10,30 @@ import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.
 function renderSettingsTable(entries, searchable) {
   if (!entries || entries.length === 0) return dsEmptyState('אין הגדרות להצגה');
 
+  const hasType = entries.some((e) => e.type);
+  const hasNotes = entries.some((e) => e.notes);
+
   const rowsHtml = entries.map((entry) => {
     const key = escapeHtml(String(entry.key ?? entry.setting ?? entry.name ?? ''));
     const val = escapeHtml(String(entry.value ?? entry.val ?? ''));
     const desc = escapeHtml(String(entry.description ?? entry.desc ?? ''));
-    const searchData = [key, val, desc].join(' ').toLowerCase();
+    const type = escapeHtml(String(entry.type ?? entry.setting_type ?? ''));
+    const notes = escapeHtml(String(entry.notes ?? entry.setting_notes ?? ''));
+    const searchData = [key, val, desc, type, notes].join(' ').toLowerCase();
     return `<tr data-list-item data-search="${escapeHtml(searchData)}">
       <td style="font-weight:600;white-space:nowrap;">${key}</td>
       <td><code style="font-size:0.8rem;background:var(--ds-surface-subtle);padding:2px 6px;border-radius:4px;border:1px solid var(--ds-border);">${val || '—'}</code></td>
-      <td class="ds-muted" style="font-size:0.78rem;">${desc}</td>
+      ${hasType ? `<td class="ds-muted" style="font-size:0.78rem;">${type || '—'}</td>` : ''}
+      ${hasNotes ? `<td class="ds-muted" style="font-size:0.78rem;">${notes}</td>` : `<td class="ds-muted" style="font-size:0.78rem;">${desc}</td>`}
     </tr>`;
   }).join('');
 
+  const typeHead = hasType ? '<th>סוג</th>' : '';
+  const notesHead = '<th>הערות</th>';
+
   return `${searchable ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש הגדרה...' }) : ''}
   <div class="ds-table-wrap"><table class="ds-table">
-    <thead><tr><th>מפתח</th><th>ערך</th><th>תיאור</th></tr></thead>
+    <thead><tr><th>מפתח</th><th>ערך</th>${typeHead}${notesHead}</tr></thead>
     <tbody>${rowsHtml}</tbody>
   </table></div>`;
 }
@@ -53,7 +62,8 @@ export const adminSettingsScreen = {
       ? apiSettings.map((e) => ({
           key: e.key ?? e.setting_key ?? e.setting ?? e.name ?? '',
           value: e.value ?? e.setting_value ?? e.val ?? '',
-          description: e.description ?? e.desc ?? ''
+          type: e.type ?? e.setting_type ?? '',
+          notes: e.notes ?? e.setting_notes ?? e.description ?? e.desc ?? ''
         }))
       : Object.entries(apiSettings).map(([key, value]) => ({ key, value }));
 

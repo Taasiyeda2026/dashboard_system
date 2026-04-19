@@ -40,17 +40,23 @@ function applySearch(rows, q) {
 }
 
 function applyMonthFilter(rows, ymStr, dateFrom, dateTo) {
-  /* When no month or date filter is set: default to current + previous month */
-  if (!ymStr && !dateFrom && !dateTo) {
-    const cur = currentYm();
-    const prev = prevMonth(cur);
+  /* Custom date range takes precedence */
+  if (!ymStr && (dateFrom || dateTo)) {
     return rows.filter((r) => {
-      const ym = String(r.end_date || '').slice(0, 7);
-      return ym === cur || ym === prev;
+      const d = String(r.end_date || '');
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
     });
   }
+  /* No filter: show all */
   if (!ymStr) return rows;
-  return rows.filter((r) => String(r.end_date || '').startsWith(ymStr));
+  /* Month window: show selected month AND previous month together */
+  const prevYm = prevMonth(ymStr);
+  return rows.filter((r) => {
+    const ym = String(r.end_date || '').slice(0, 7);
+    return ym === ymStr || ym === prevYm;
+  });
 }
 
 function applyTabFilter(rows, tab) {
@@ -243,8 +249,8 @@ function buildGroupedTable(rows, canEdit) {
     getGroupSortKey(a).localeCompare(getGroupSortKey(b), 'he')
   );
 
-  /* Base columns: name | authority | manager | date | amount | status | notes | actions */
-  const BASE_COLS = 6 + (canEdit ? 2 : 0); /* name+authority+manager+date+amount+status [+notes+actions] */
+  /* Columns: name | school | authority | manager | amount | funding | status | notes | actions */
+  const BASE_COLS = 7 + (canEdit ? 2 : 0);
 
   const tbody = sortedKeys.map((key) => {
     const gRows = groups[key];
@@ -298,10 +304,11 @@ function buildGroupedTable(rows, canEdit) {
 
       return `<tr class="ds-data-row" data-row-id="${uid}">
         <td>${escapeHtml(row.activity_name || '—')}</td>
+        <td>${escapeHtml(row.school || '—')}</td>
         <td>${escapeHtml(row.authority || '—')}</td>
         <td>${escapeHtml(row.activity_manager || '—')}</td>
-        <td>${formatDateIL(row.end_date)}</td>
         <td style="text-align:left;">${formatILS(amt)}</td>
+        <td>${escapeHtml(row.funding || '—')}</td>
         ${statusCell}
         ${notesCell}
         ${actionsCell}
@@ -316,11 +323,12 @@ function buildGroupedTable(rows, canEdit) {
 
   return dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--grouped">
     <thead><tr>
-      <th>שם פעילות</th>
-      <th>גורם מממן</th>
-      <th>מנהל פעילות</th>
-      <th>תאריך סיום</th>
+      <th>שם פעילות / קורס</th>
+      <th>בית ספר</th>
+      <th>רשות</th>
+      <th>מנהל קורס</th>
       <th>סכום גבייה</th>
+      <th>מימון</th>
       <th>סטטוס</th>
       ${notesHead}
       ${actionsHead}
@@ -435,6 +443,10 @@ function loadStateFromStorage(state) {
       if (v) state[stateKey] = v;
     }
   });
+  /* Default month: current month (shows cur + prev pair via applyMonthFilter) */
+  if (!state.financeMonthYm) {
+    state.financeMonthYm = currentYm();
+  }
 }
 
 function save(key, val) {
@@ -549,13 +561,16 @@ export const financeScreen = {
       <button type="button" class="ds-finance-tab ${activeTab === 'archive' ? 'is-active' : ''}" data-finance-tab="archive">ארכיון</button>
     </div>` : '';
 
-    /* Month nav */
+    /* Month nav — shows a 2-month window */
     const isCurrentMonth = monthYm === currentYm();
+    const pairLabel = monthYm
+      ? `${ymToMonthLabel(prevMonth(monthYm))} – ${ymToMonthLabel(monthYm)}`
+      : 'כל התקופה';
     const monthNavHtml = `<div class="ds-month-nav" dir="rtl">
-      <button type="button" class="ds-month-nav__btn" data-month-prev title="חודש קודם">◀</button>
-      <span class="ds-month-nav__label">${monthYm ? ymToMonthLabel(monthYm) : 'כל התקופה'}</span>
-      <button type="button" class="ds-month-nav__btn" data-month-next title="חודש הבא">▶</button>
-      ${!isCurrentMonth ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-month-today>החודש</button>` : ''}
+      <button type="button" class="ds-month-nav__btn" data-month-prev title="חלון קודם">◀</button>
+      <span class="ds-month-nav__label">${pairLabel}</span>
+      <button type="button" class="ds-month-nav__btn" data-month-next title="חלון הבא">▶</button>
+      ${!isCurrentMonth ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-month-today>חודש נוכחי</button>` : ''}
       ${monthYm ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-month-clear>כל התקופה</button>` : ''}
     </div>`;
 
@@ -567,11 +582,11 @@ export const financeScreen = {
 
     /* Header subtitle */
     let headerSubtitle;
-    if (monthYm) headerSubtitle = `מציג: ${ymToMonthLabel(monthYm)}`;
+    if (monthYm) headerSubtitle = `מציג: ${ymToMonthLabel(prevMonth(monthYm))} – ${ymToMonthLabel(monthYm)}`;
     else if (dateFrom && dateTo) headerSubtitle = `מציג: ${formatDateIL(dateFrom)} – ${formatDateIL(dateTo)}`;
     else if (dateFrom) headerSubtitle = `מציג: מתאריך ${formatDateIL(dateFrom)}`;
     else if (dateTo) headerSubtitle = `מציג: עד ${formatDateIL(dateTo)}`;
-    else headerSubtitle = `ברירת מחדל: ${ymToMonthLabel(prevMonth(currentYm()))} + ${ymToMonthLabel(currentYm())}`;
+    else headerSubtitle = 'מציג: כל התקופה';
 
     const exportBtn = `<button type="button" class="ds-btn ds-btn--sm" data-export-csv>ייצוא CSV</button>`;
     const syncBtn = isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-sync-finance title="סנכרון נתוני כספים">↻ סנכרון</button>` : '';
@@ -801,11 +816,22 @@ export const financeScreen = {
         btn.disabled = true;
         if (statusEl) statusEl.textContent = '';
         try {
-          await api.saveActivity({
-            source_sheet: row.source_sheet || '',
-            source_row_id: String(uid),
-            changes: { finance_status: statusVal, finance_notes: notesVal }
-          });
+          /* Use dedicated saveFinanceRow for status/notes edits */
+          const saveFn = typeof api.saveFinanceRow === 'function' ? api.saveFinanceRow : null;
+          if (saveFn) {
+            await saveFn({
+              source_row_id: String(uid),
+              source_sheet: row.source_sheet || '',
+              finance_status: statusVal,
+              finance_notes: notesVal
+            });
+          } else {
+            await api.saveActivity({
+              source_sheet: row.source_sheet || '',
+              source_row_id: String(uid),
+              changes: { finance_status: statusVal, finance_notes: notesVal }
+            });
+          }
           if (statusEl) statusEl.textContent = 'נשמר ✓';
           showToast('הנתונים נשמרו', 'success', 2000);
           clearScreenDataCache();

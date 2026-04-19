@@ -126,6 +126,10 @@ function buildRoutesFromPermission_(permission, role) {
     if (route === 'end-dates') {
       return endDatesViewYes_(permission);
     }
+    /* Admin screens: admin always has them (returned above); reviewer gets them */
+    if (route === 'admin-home' || route === 'admin-settings' || route === 'admin-lists') {
+      return role === 'admin' || role === 'operations_reviewer';
+    }
     var flag = map[route];
     if (!flag) return false;
     return yesNo_(permission[flag]) === 'yes';
