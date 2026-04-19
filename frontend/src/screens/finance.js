@@ -380,6 +380,8 @@ function buildCardsView(rows, canEdit) {
     const uid = escapeHtml(row.RowID);
     const fst = String(row.finance_status || '').trim();
     const amt = rowAmount(row);
+    const cardPrice = parseFloat(row.price) || 0;
+    const cardSessions = parseFloat(row.sessions) || 0;
     const statusOpts = canEdit ? ['', 'open', 'closed'].map((v) =>
       `<option value="${v}" ${String(row.finance_status || '') === v ? 'selected' : ''}>${v === '' ? '— ללא —' : hebrewFinanceStatus(v)}</option>`
     ).join('') : '';
@@ -410,6 +412,8 @@ function buildCardsView(rows, canEdit) {
         ${row.authority ? `<span class="ds-muted">${escapeHtml(row.authority)}</span>` : ''}
         ${row.activity_manager ? `<span>${escapeHtml(row.activity_manager)}</span>` : ''}
         ${row.end_date ? `<span>סיום: ${formatDateIL(row.end_date)}</span>` : ''}
+        ${cardPrice > 0 ? `<span>מחיר: ${formatILS(cardPrice)}</span>` : ''}
+        ${cardSessions > 0 ? `<span>מפגשים: ${cardSessions}</span>` : ''}
         ${amt > 0 ? `<span class="ds-finance-card__amount">${formatILS(amt)}</span>` : ''}
       </div>
       ${row.finance_notes ? `<p class="ds-finance-card__notes ds-muted">${escapeHtml(row.finance_notes)}</p>` : ''}
