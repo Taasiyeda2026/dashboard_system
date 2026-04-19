@@ -251,7 +251,7 @@ export const permissionsScreen = {
       })}
     `);
   },
-  bind({ root, data, api, ui, rerender }) {
+  bind({ root, data, api, ui, rerender, clearScreenDataCache }) {
     bindPageListTools(root);
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
 
@@ -282,6 +282,7 @@ export const permissionsScreen = {
               try {
                 await api.addUser({ user_id, full_name, entry_code, display_role });
                 if (statusEl) statusEl.textContent = 'המשתמש נוצר בהצלחה';
+                clearScreenDataCache?.();
                 if (typeof rerender === 'function') await rerender();
               } catch (error) {
                 if (statusEl) statusEl.textContent = translateApiErrorForUser(error?.message);
@@ -327,6 +328,7 @@ export const permissionsScreen = {
               try {
                 await api.savePermission(payload);
                 if (statusEl) statusEl.textContent = 'נשמר בהצלחה';
+                clearScreenDataCache?.();
                 if (typeof rerender === 'function') await rerender();
               } catch (error) {
                 if (statusEl) statusEl.textContent = translateApiErrorForUser(error?.message);

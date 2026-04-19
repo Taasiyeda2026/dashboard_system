@@ -233,7 +233,7 @@ export const financeScreen = {
       })}
     `);
   },
-  bind({ root, data, ui, api, state, rerender }) {
+  bind({ root, data, ui, api, state, rerender, clearScreenDataCache }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const canEdit = state?.user?.display_role !== 'instructor';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -293,6 +293,7 @@ export const financeScreen = {
           await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
           if (statusEl) statusEl.textContent = 'נשמר';
           ui?.closeAll();
+          clearScreenDataCache?.();
           if (typeof rerender === 'function') await rerender();
         } catch (err) {
           if (statusEl) statusEl.textContent = translateApiErrorForUser(err?.message);
