@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { hebrewPermissionField, hebrewRole, translateApiErrorForUser, hebrewColumn } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 
 function sortedPermissionEditorKeys(row) {
   const keys = Object.keys(row).filter((k) => {
@@ -46,6 +47,10 @@ function fieldEditorMarkup(row, key, canEdit) {
 function renderUserBlock(row, canEdit) {
   const keys = sortedPermissionEditorKeys(row);
   const uid = escapeHtml(row.user_id);
+  const searchHay = [row.full_name, row.user_id, row.display_role, hebrewRole(row.display_role), row.display_role2]
+    .filter(Boolean)
+    .join(' ');
+  const roleKey = String(row.display_role || '').trim();
   const grid = keys
     .map((k) => {
       if (k.startsWith('view_') || k.startsWith('can_')) {
@@ -76,7 +81,7 @@ function renderUserBlock(row, canEdit) {
     ? ''
     : `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-save-permission data-user-id="${uid}">שמירה</button>`;
 
-  return `<details class="ds-perm-card" data-perm-user="${uid}">
+  return `<details class="ds-perm-card" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}">
     <summary>${escapeHtml(row.full_name || '')} <span class="ds-muted">(${uid})</span> · ${escapeHtml(hebrewRole(row.display_role))}</summary>
     <div class="ds-perm-body">
       <p><strong>${escapeHtml(hebrewColumn('display_role'))}:</strong> ${roleDisplay}</p>
@@ -99,8 +104,14 @@ export const permissionsScreen = {
         ? dsEmptyState('לא נמצאו שורות הרשאה')
         : `<div class="ds-perm-stack" dir="rtl">${safeRows.map((row) => renderUserBlock(row, canEdit)).join('')}</div>`;
 
+    const roleFilters = [...new Set(safeRows.map((r) => String(r.display_role || '').trim()).filter(Boolean))].map((r) => ({
+      value: r,
+      label: hebrewRole(r)
+    }));
+
     return dsScreenStack(`
       ${dsPageHeader('הרשאות', 'ניהול גישה — תואם לגיליון permissions')}
+      ${safeRows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש משתמש…', filterLabel: 'תפקיד', filters: roleFilters }) : ''}
       ${dsCard({
         title: 'משתמשים והרשאות',
         badge: `${safeRows.length} משתמשים`,
@@ -111,6 +122,7 @@ export const permissionsScreen = {
     `);
   },
   bind({ root, api, rerender }) {
+    bindPageListTools(root);
     root.querySelectorAll('[data-save-permission]').forEach((button) =>
       button.addEventListener('click', async () => {
         const userId = button.dataset.userId;

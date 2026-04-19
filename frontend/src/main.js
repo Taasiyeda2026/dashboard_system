@@ -57,6 +57,9 @@ function applyBootstrapFromLoginData(data) {
   }
 }
 
+/** מסכים שנשארים ב־routes מהשרת אך מוסרים מסרגל הצד (גישה חלופית מתוך מסכים אחרים). */
+const SIDEBAR_ROUTE_EXCLUDE = new Set(['instructor-contacts', 'contacts']);
+
 const screenLabels = {
   dashboard: 'לוח בקרה',
   activities: 'פעילויות',
@@ -100,6 +103,7 @@ function shellUserRoleLine() {
 
 function shell(content) {
   const nav = state.routes
+    .filter((route) => !SIDEBAR_ROUTE_EXCLUDE.has(route))
     .map(
       (route) =>
         `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`

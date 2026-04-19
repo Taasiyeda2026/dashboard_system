@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { UI_ACTIVITY_FAMILY_LONG, UI_ACTIVITY_FAMILY_SHORT } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 
 function goActivitiesDrill(state, patch) {
   state.route = 'activities';
@@ -17,6 +18,13 @@ function filterKpiCards(cards, showOnlyNonzero) {
   return list.filter((c) => Number(c.value || 0) > 0);
 }
 
+/** תוויות תצוגה ל־KPI — ללא שינוי מפתחות action מהשרת */
+function kpiSubtitleDisplay(card) {
+  if (card.id === 'short') return 'חד-יומיות';
+  if (card.id === 'long') return 'תוכניות';
+  return card.subtitle || '';
+}
+
 export const dashboardScreen = {
   load: ({ api }) => api.dashboard(),
   render(data) {
@@ -27,12 +35,15 @@ export const dashboardScreen = {
     const managerCards = managers
       .map((row) => {
         const meta = `${UI_ACTIVITY_FAMILY_SHORT}: ${row.total_short} · ${UI_ACTIVITY_FAMILY_LONG}: ${row.total_long} · סה״כ: ${row.total}`;
-        return dsInteractiveCard({
-          variant: 'mini',
-          action: `manager|${encodeURIComponent(row.activity_manager)}`,
-          title: row.activity_manager,
-          meta
-        });
+        const searchHay = `${row.activity_manager} ${meta}`;
+        return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="">
+          ${dsInteractiveCard({
+            variant: 'mini',
+            action: `manager|${encodeURIComponent(row.activity_manager)}`,
+            title: row.activity_manager,
+            meta
+          })}
+        </div>`;
       })
       .join('');
 
@@ -42,19 +53,24 @@ export const dashboardScreen = {
 
     const kpiHtml = kpiCards.length
       ? kpiCards
-          .map((k) =>
-            dsInteractiveCard({
+          .map((k) => {
+            const sub = kpiSubtitleDisplay(k);
+            const searchHay = `${k.title || ''} ${sub}`.trim();
+            return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="">
+            ${dsInteractiveCard({
               variant: 'kpi',
               action: k.action,
               title: k.title,
-              subtitle: k.subtitle
-            })
-          )
+              subtitle: sub
+            })}
+          </div>`;
+          })
           .join('')
       : '<p class="ds-muted">אין כרטיסי KPI להצגה (לפי מסנן &quot;ערך בלבד&quot;).</p>';
 
     return dsScreenStack(`
       ${dsPageHeader('לוח בקרה', 'תמונת מצב כללית — לחיצה מעבירה לעבודה')}
+      ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש בכרטיסים…', filters: [] })}
       <div class="ds-kpi-grid">${kpiHtml}</div>
       ${dsCard({
         title: 'פילוח לפי אחראי פעילות',
@@ -65,6 +81,7 @@ export const dashboardScreen = {
     `);
   },
   bind({ root, ui, state, rerender }) {
+    bindPageListTools(root);
     ui.bindInteractiveCards(root, (action) => {
       if (action === 'kpi|short') {
         goActivitiesDrill(state, { activityQuickFamily: 'short' });

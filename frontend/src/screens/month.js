@@ -1,5 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsScreenStack, dsCard, dsInteractiveCard } from './shared/layout.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityRowDetailHtml } from './shared/activity-detail-html.js';
 
 const HEBREW_MONTHS = [
@@ -147,15 +148,20 @@ export const monthScreen = {
       const extra = [isToday ? 'is-cal-today' : '', warn ? 'is-month-warn' : ''].filter(Boolean).join(' ');
       const subtitle = n > 0 ? activityDotsMeta(n) : '';
       const meta = n > 0 ? `${n} פעילויות` : 'ללא';
+      const hay = (Array.isArray(cell.items) ? cell.items : [])
+        .map((it) => [it.activity_name, it.RowID, it.instructor_name, it.instructor_name_2].filter(Boolean).join(' '))
+        .join(' ');
       slots.push(
-        dsInteractiveCard({
+        `<div class="ds-cal-slot-hit" data-list-item data-search="${escapeHtml(hay)}" data-filter="">
+        ${dsInteractiveCard({
           variant: 'day-cell',
           action: `monthcell|${dayNum}`,
           title: String(dayNum),
           subtitle,
           meta,
           extraClass: extra.trim()
-        })
+        })}
+      </div>`
       );
     }
 
@@ -169,6 +175,7 @@ export const monthScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('חודש', 'לוח חודש — לחיצה על יום לפתיחת פירוט')}
+      ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש לפי שם פעילות ביום…', filters: [] })}
       ${dsCard({
         title: monthTitleHebrew(spec),
         badge: `${dim} ימים · ${monthKeyDisplay}`,
@@ -178,6 +185,7 @@ export const monthScreen = {
     `);
   },
   bind({ root, ui, data, state }) {
+    bindPageListTools(root, { mode: 'dim' });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;

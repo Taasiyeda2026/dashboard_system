@@ -16,6 +16,7 @@ import {
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 
 const TABLE_COLUMNS = ['RowID', 'activity_name', 'school', 'funding', 'end_date', 'finance_status', 'status'];
 
@@ -25,9 +26,18 @@ export const financeScreen = {
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
 
-    const body = rows.map(
-      (row) => `
-      <tr class="ds-data-row" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${TABLE_COLUMNS.map((column) => {
+    const finOpts = [...new Set(rows.map((r) => String(r.finance_status || '').trim()).filter(Boolean))].map((st) => ({
+      value: st,
+      label: hebrewFinanceStatus(st)
+    }));
+
+    const body = rows.map((row) => {
+      const searchHay = TABLE_COLUMNS.map((c) => String(row?.[c] ?? '')).join(' ');
+      const fst = String(row.finance_status || '').trim();
+      return `
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(
+        fst
+      )}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${TABLE_COLUMNS.map((column) => {
         if (column === 'finance_status') {
           const label = hebrewFinanceStatus(row.finance_status);
           return `<td>${dsStatusChip(label, financeStatusVariant(row.finance_status))}</td>`;
@@ -35,8 +45,8 @@ export const financeScreen = {
         const val = row?.[column] ?? '';
         return `<td>${escapeHtml(String(val))}</td>`;
       }).join('')}</tr>
-    `
-    );
+    `;
+    });
 
     const tableBlock =
       rows.length === 0
@@ -50,19 +60,26 @@ export const financeScreen = {
       rows.length === 0
         ? dsEmptyState('לא נמצאו רשומות')
         : `<div class="ds-compact-list">${rows
-            .map((row) =>
-              dsInteractiveCard({
+            .map((row) => {
+              const fst = String(row.finance_status || '').trim();
+              const searchHay = [row.RowID, row.activity_name, row.school, row.funding, row.end_date, row.finance_status, row.status]
+                .filter(Boolean)
+                .join(' ');
+              return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(fst)}">
+              ${dsInteractiveCard({
                 variant: 'session',
                 action: `finance:${row.RowID}`,
                 title: `${row.RowID} · ${row.activity_name || '—'}`,
                 subtitle: hebrewFinanceStatus(row.finance_status || 'open'),
                 meta: row.end_date ? `סיום: ${row.end_date}` : ''
-              })
-            )
+              })}
+            </div>`;
+            })
             .join('')}</div>`;
 
     return dsScreenStack(`
       ${dsPageHeader('כספים', 'פעילויות שהסתיימו עד היום — לפי הגדרות המערכת')}
+      ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש ברשימה…', filterLabel: 'סטטוס כספים', filters: finOpts }) : ''}
       ${dsCard({
         title: 'רשימת כספים',
         badge: `${rows.length} שורות`,
@@ -72,6 +89,7 @@ export const financeScreen = {
     `);
   },
   bind({ root, data, ui, api, state, rerender }) {
+    bindPageListTools(root);
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const canEdit = state?.user?.display_role !== 'instructor';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
