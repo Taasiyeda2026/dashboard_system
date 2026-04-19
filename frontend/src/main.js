@@ -302,7 +302,13 @@ function fastRerenderScreen(screen, routeAtBind) {
 }
 
 function clearScreenDataCache() {
-  delete state.screenDataCache[screenDataCacheKey()];
+  if (state.route === 'activities') {
+    Object.keys(state.screenDataCache).forEach((key) => {
+      if (key.startsWith('activities:')) delete state.screenDataCache[key];
+    });
+  } else {
+    delete state.screenDataCache[screenDataCacheKey()];
+  }
 }
 
 function bindScreen(screen, screenRoot, data) {
