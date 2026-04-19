@@ -4,6 +4,38 @@ import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState, dsStatusChip, dsKpiG
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { showToast } from './shared/toast.js';
 
+const UI_LAYER_ID = 'ds-shared-ui-layer';
+
+function showConfirmModal(ui, { title = 'אישור פעולה', message = '', confirmLabel = 'אישור', confirmClass = 'ds-btn--danger', onConfirm } = {}) {
+  if (!ui) return;
+  const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
+  const actionsHtml = `
+    <button type="button" class="ds-btn ds-btn--ghost" data-confirm-cancel>ביטול</button>
+    <button type="button" class="ds-btn ${confirmClass}" data-confirm-ok>${escapeHtml(confirmLabel)}</button>
+  `;
+  ui.openModal({
+    title,
+    content: `<p style="margin:0;line-height:1.6;direction:rtl">${safeMessage}</p>`,
+    actions: actionsHtml,
+    onClose: () => {}
+  });
+  const layer = document.getElementById(UI_LAYER_ID);
+  if (!layer) return;
+  const okBtn = layer.querySelector('[data-confirm-ok]');
+  const cancelBtn = layer.querySelector('[data-confirm-cancel]');
+  if (okBtn) {
+    okBtn.addEventListener('click', () => {
+      ui.closeModal();
+      if (typeof onConfirm === 'function') onConfirm();
+    }, { once: true });
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      ui.closeModal();
+    }, { once: true });
+  }
+}
+
 const KEY_PERM_FLAGS = [
   'can_add_activity',
   'can_edit_direct',
@@ -376,72 +408,90 @@ export const permissionsScreen = {
     }
 
     root.querySelectorAll('[data-deactivate-user]').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const userId = btn.dataset.userId;
         const row = safeRows.find((r) => String(r.user_id) === String(userId));
         const name = row?.full_name || userId;
-        if (!window.confirm(`האם להשבית את המשתמש/ת "${name}"?\nהמשתמש/ת לא יוכל/תוכל להתחבר למערכת לאחר מכן.`)) return;
-
-        btn.classList.add('is-loading');
-        btn.disabled = true;
-        try {
-          await api.deactivateUser(userId);
-          clearScreenDataCache?.();
-          if (typeof rerender === 'function') await rerender();
-          showToast(`המשתמש/ת "${name}" הושבת/ה בהצלחה`, 'success');
-        } catch (error) {
-          showToast(translateApiErrorForUser(error?.message), 'error');
-          btn.classList.remove('is-loading');
-          btn.disabled = false;
-        }
+        showConfirmModal(ui, {
+          title: 'השבתת משתמש/ת',
+          message: `האם להשבית את המשתמש/ת "${name}"?\nהמשתמש/ת לא יוכל/תוכל להתחבר למערכת לאחר מכן.`,
+          confirmLabel: 'השבת',
+          confirmClass: 'ds-btn--danger',
+          onConfirm: async () => {
+            btn.classList.add('is-loading');
+            btn.disabled = true;
+            try {
+              await api.deactivateUser(userId);
+              clearScreenDataCache?.();
+              if (typeof rerender === 'function') await rerender();
+              showToast(`המשתמש/ת "${name}" הושבת/ה בהצלחה`, 'success');
+            } catch (error) {
+              showToast(translateApiErrorForUser(error?.message), 'error');
+              btn.classList.remove('is-loading');
+              btn.disabled = false;
+            }
+          }
+        });
       });
     });
 
     root.querySelectorAll('[data-reactivate-user]').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const userId = btn.dataset.userId;
         const row = safeRows.find((r) => String(r.user_id) === String(userId));
         const name = row?.full_name || userId;
-        if (!window.confirm(`האם להפעיל מחדש את המשתמש/ת "${name}"?`)) return;
-
-        btn.classList.add('is-loading');
-        btn.disabled = true;
-        try {
-          await api.reactivateUser(userId);
-          clearScreenDataCache?.();
-          if (typeof rerender === 'function') await rerender();
-          showToast(`המשתמש/ת "${name}" הופעל/ה מחדש בהצלחה`, 'success');
-        } catch (error) {
-          showToast(translateApiErrorForUser(error?.message), 'error');
-          btn.classList.remove('is-loading');
-          btn.disabled = false;
-        }
+        showConfirmModal(ui, {
+          title: 'הפעלה מחדש של משתמש/ת',
+          message: `האם להפעיל מחדש את המשתמש/ת "${name}"?`,
+          confirmLabel: 'הפעל',
+          confirmClass: 'ds-btn--success',
+          onConfirm: async () => {
+            btn.classList.add('is-loading');
+            btn.disabled = true;
+            try {
+              await api.reactivateUser(userId);
+              clearScreenDataCache?.();
+              if (typeof rerender === 'function') await rerender();
+              showToast(`המשתמש/ת "${name}" הופעל/ה מחדש בהצלחה`, 'success');
+            } catch (error) {
+              showToast(translateApiErrorForUser(error?.message), 'error');
+              btn.classList.remove('is-loading');
+              btn.disabled = false;
+            }
+          }
+        });
       });
     });
 
     root.querySelectorAll('[data-delete-user]').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const userId = btn.dataset.userId;
         const row = safeRows.find((r) => String(r.user_id) === String(userId));
         const name = row?.full_name || userId;
         const isTargetAdmin = row?.display_role === 'admin';
         const adminWarning = isTargetAdmin ? '\n\n⚠️ שים לב: משתמש/ת זה/זו הוא/היא מנהל/ת המערכת!' : '';
-        if (!window.confirm(`פעולה זו תמחק לצמיתות את המשתמש/ת "${name}" מגיליון ההרשאות.\nלא ניתן לבטל פעולה זו. להמשיך?${adminWarning}`)) return;
-
-        btn.classList.add('is-loading');
-        btn.disabled = true;
-        try {
-          await api.deleteUser(userId);
-          clearScreenDataCache?.();
-          if (typeof rerender === 'function') await rerender();
-        } catch (error) {
-          showToast(translateApiErrorForUser(error?.message), 'error');
-          btn.classList.remove('is-loading');
-          btn.disabled = false;
-        }
+        showConfirmModal(ui, {
+          title: 'מחיקת משתמש/ת',
+          message: `פעולה זו תמחק לצמיתות את המשתמש/ת "${name}" מגיליון ההרשאות.\nלא ניתן לבטל פעולה זו. להמשיך?${adminWarning}`,
+          confirmLabel: 'מחק',
+          confirmClass: 'ds-btn--danger',
+          onConfirm: async () => {
+            btn.classList.add('is-loading');
+            btn.disabled = true;
+            try {
+              await api.deleteUser(userId);
+              clearScreenDataCache?.();
+              if (typeof rerender === 'function') await rerender();
+            } catch (error) {
+              showToast(translateApiErrorForUser(error?.message), 'error');
+              btn.classList.remove('is-loading');
+              btn.disabled = false;
+            }
+          }
+        });
       });
     });
 
