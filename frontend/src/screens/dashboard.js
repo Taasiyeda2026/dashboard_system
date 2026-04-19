@@ -76,21 +76,32 @@ export const dashboardScreen = {
 
     const managerCards = managers
       .map((row) => {
-        const meta = `${UI_ACTIVITY_FAMILY_SHORT}: ${row.total_short} · ${UI_ACTIVITY_FAMILY_LONG}: ${row.total_long}`;
-        const searchHay = `${row.activity_manager} ${meta}`;
+        const searchHay = `${row.activity_manager} ${row.total_short} ${row.total_long} ${row.num_instructors ?? ''}`;
+        const stats = [
+          { label: UI_ACTIVITY_FAMILY_SHORT,   value: row.total_short    ?? 0 },
+          { label: UI_ACTIVITY_FAMILY_LONG,    value: row.total_long     ?? 0 },
+          { label: 'מדריכים',                  value: row.num_instructors ?? 0 },
+          { label: 'סיומי קורסים',             value: row.course_endings  ?? 0 },
+          { label: 'כספים פתוחים',             value: row.finance_open    ?? 0 },
+          { label: 'חריגות',                   value: row.exceptions      ?? 0 },
+        ];
+        const statsHtml = stats
+          .map((s) => `<div class="ds-manager-stat">
+              <span class="ds-manager-stat__value">${escapeHtml(String(s.value))}</span>
+              <span class="ds-manager-stat__label">${escapeHtml(s.label)}</span>
+            </div>`)
+          .join('');
         return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="">
-          ${dsInteractiveCard({
-            variant: 'mini',
-            action: `manager|${encodeURIComponent(row.activity_manager)}`,
-            title: row.activity_manager,
-            meta
-          })}
+          <button type="button" class="ds-manager-card" data-card-action="manager|${encodeURIComponent(row.activity_manager)}">
+            <p class="ds-manager-card__name">${escapeHtml(row.activity_manager)}</p>
+            <div class="ds-manager-stats">${statsHtml}</div>
+          </button>
         </div>`;
       })
       .join('');
 
     const managersBlock = managers.length
-      ? `<div class="ds-mini-grid">${managerCards}</div>`
+      ? `<div class="ds-manager-grid">${managerCards}</div>`
       : '<div class="ds-empty"><p class="ds-empty__msg">אין נתונים להצגה</p></div>';
 
     const kpiHtml = kpiCards.length

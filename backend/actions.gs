@@ -112,6 +112,26 @@ function actionDashboard_(user, payload) {
     byManager[manager].total += 1;
   });
 
+  // Compute per-manager extended stats
+  Object.keys(byManager).forEach(function(manager) {
+    var mShort = shortRows.filter(function(r) { return (text_(r.activity_manager) || 'unassigned') === manager; });
+    var mLong = longRows.filter(function(r) { return (text_(r.activity_manager) || 'unassigned') === manager; });
+    var mCombined = mShort.concat(mLong);
+    byManager[manager].num_instructors = countUniqueOperationalInstructors_(mCombined);
+    byManager[manager].course_endings = mLong.filter(function(r) {
+      return text_(r.activity_type) === 'course' && text_(r.end_date).slice(0, 7) === ym;
+    }).length;
+    byManager[manager].finance_open = mCombined.filter(function(r) {
+      return normalizeFinance_(r.finance_status) === 'open';
+    }).length;
+    byManager[manager].exceptions = mLong.filter(function(r) {
+      if (!text_(r.emp_id) && !text_(r.emp_id_2)) return true;
+      if (!text_(r.start_date)) return true;
+      if (text_(r.end_date) > getLateEndDateCutoff_()) return true;
+      return false;
+    }).length;
+  });
+
   var courseEndings = longRows.filter(function(row) {
     return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === ym;
   }).length;
@@ -196,7 +216,7 @@ function actionDashboard_(user, payload) {
       id: 'endings',
       action: 'kpi|endings',
       title: String(courseEndings),
-      subtitle: 'מסיימים החודש',
+      subtitle: 'סיומי קורסים',
       value: courseEndings
     }
   ];
