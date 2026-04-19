@@ -169,9 +169,9 @@ function shell(content) {
               aria-expanded="${drawerExpanded}"
               aria-label="פתיחת תפריט ניווט"
             >
-              ☰
+              <span aria-hidden="true">☰</span>
             </button>
-            <p class="shell-top__mobile-brand">תעשיידע</p>
+            <p class="shell-top__mobile-brand">${screenLabels[state.route] || 'תעשיידע'}</p>
           </div>
           <div class="shell-top__end">
             <button type="button" class="ds-btn ds-btn--danger ds-btn--sm" id="logoutBtn">התנתקות</button>
@@ -254,6 +254,10 @@ function updateNavActiveClasses() {
   document.querySelectorAll('[data-route]').forEach((btn) => {
     btn.classList.toggle('is-active', btn.dataset.route === state.route);
   });
+  const mobileBrand = document.querySelector('.shell-top__mobile-brand');
+  if (mobileBrand) {
+    mobileBrand.textContent = screenLabels[state.route] || 'תעשיידע';
+  }
 }
 
 /**
