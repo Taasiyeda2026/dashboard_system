@@ -713,24 +713,27 @@ select {
   border: 1px solid var(--ds-card-interactive-border);
   background: var(--ds-card-interactive-bg);
   border-radius: var(--ds-radius-sm);
-  box-shadow: var(--ds-shadow-xs);
+  box-shadow: var(--ds-shadow-sm);
   min-height: 44px;
   padding: var(--ds-space-2) var(--ds-space-3);
   display: flex;
   flex-direction: column;
   gap: var(--ds-space-1);
-  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+  transition: border-color 0.12s ease, background 0.12s ease,
+    box-shadow 0.14s ease, transform 0.08s ease;
 }
 
 .ds-interactive-card:hover:not(:disabled) {
   border-color: var(--ds-border-strong);
   background: var(--ds-interactive-hover);
-  box-shadow: var(--ds-shadow-sm);
+  box-shadow: var(--ds-shadow-md);
+  transform: translateY(-1px);
 }
 
 .ds-interactive-card:active:not(:disabled) {
   background: var(--ds-interactive-active);
   transform: translateY(1px);
+  box-shadow: var(--ds-shadow-xs);
 }
 
 .ds-interactive-card:focus-visible {
@@ -834,7 +837,7 @@ select {
   background: var(--ds-surface);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);
-  box-shadow: var(--ds-shadow-sm);
+  box-shadow: var(--ds-shadow-md);
   overflow: hidden;
 }
 
@@ -843,10 +846,11 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: var(--ds-space-3);
-  min-height: 36px;
-  padding: var(--ds-space-2) var(--ds-space-3);
-  background: #f1f3f6;
+  min-height: 40px;
+  padding: var(--ds-space-2) var(--ds-space-4);
+  background: #edf1f8;
   border-bottom: 1px solid var(--ds-border);
+  border-top: 3px solid rgba(26, 51, 88, 0.18);
 }
 
 .ds-card__title {
@@ -962,11 +966,14 @@ select {
 
 .ds-btn:hover:not(:disabled) {
   border-color: var(--ds-border-strong);
-  box-shadow: var(--ds-shadow-xs);
+  box-shadow: var(--ds-shadow-sm);
+  background: var(--ds-interactive-hover);
 }
 
 .ds-btn:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(1px) scale(0.99);
+  background: var(--ds-interactive-active);
+  box-shadow: none;
 }
 
 .ds-btn:focus-visible {
@@ -986,6 +993,13 @@ select {
   color: #fff;
 }
 
+.ds-btn--primary:active:not(:disabled) {
+  background: #0e2136;
+  border-color: #0e2136;
+  color: #fff;
+  box-shadow: none;
+}
+
 .ds-btn--danger {
   background: var(--ds-danger-soft);
   border-color: var(--ds-danger-border);
@@ -994,6 +1008,11 @@ select {
 
 .ds-btn--danger:hover:not(:disabled) {
   filter: brightness(0.97);
+}
+
+.ds-btn--danger:active:not(:disabled) {
+  filter: brightness(0.92);
+  box-shadow: none;
 }
 
 .ds-btn--sm {
@@ -1654,8 +1673,8 @@ span.ds-chip {
 /* ——— Mini summary grid (dashboard managers) ——— */
 .ds-mini-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: var(--ds-space-2);
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--ds-space-3);
 }
 
 .ds-mini-card {

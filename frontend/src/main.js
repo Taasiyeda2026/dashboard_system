@@ -218,14 +218,31 @@ function screenDataCacheKey() {
 }
 
 /**
- * Returns cached data immediately if available.
+ * מסכים שבהם הנתונים משתנים לעיתים תכופות — TTL קצר יותר.
+ * שאר המסכים מקבלים TTL של 15 דקות.
+ */
+const SCREEN_CACHE_TTL_MS = {
+  dashboard: 5 * 60 * 1000,
+  activities: 5 * 60 * 1000,
+  week: 8 * 60 * 1000,
+  month: 8 * 60 * 1000,
+  exceptions: 8 * 60 * 1000,
+};
+const DEFAULT_CACHE_TTL_MS = 15 * 60 * 1000;
+
+function screenCacheTtl() {
+  return SCREEN_CACHE_TTL_MS[state.route] ?? DEFAULT_CACHE_TTL_MS;
+}
+
+/**
+ * Returns cached data immediately if available and fresh (within TTL).
  * Deduplicates in-flight requests so rapid navigation doesn't fire duplicate API calls.
  */
 async function loadScreenDataWithCache(screen) {
   if (!screen.load) return {};
   const key = screenDataCacheKey();
   const hit = state.screenDataCache[key];
-  if (hit) return hit.data;
+  if (hit && Date.now() - hit.t < screenCacheTtl()) return hit.data;
 
   if (inflightRequests.has(key)) return inflightRequests.get(key);
 
@@ -268,7 +285,8 @@ function updateNavActiveClasses() {
 function fastRerenderScreen(screen, routeAtBind) {
   if (state.route !== routeAtBind) { render(); return; }
   const key = screenDataCacheKey();
-  const hit = state.screenDataCache[key];
+  const raw = state.screenDataCache[key];
+  const hit = raw && Date.now() - raw.t < screenCacheTtl() ? raw : null;
   if (!hit) { render(); return; }
   const screenRoot = document.getElementById('screenRoot');
   if (!screenRoot) { render(); return; }
@@ -295,7 +313,8 @@ function rerenderActivitiesViewOnly(screen, screenRoot) {
     return;
   }
   const key = screenDataCacheKey();
-  const hit = state.screenDataCache[key];
+  const raw = state.screenDataCache[key];
+  const hit = raw && Date.now() - raw.t < screenCacheTtl() ? raw : null;
   if (!hit) {
     render();
     return;
@@ -375,7 +394,8 @@ async function mountScreen() {
   if (!screen) throw new Error('מסך לא זמין');
 
   const cacheKey = screenDataCacheKey();
-  const cacheEntry = screen.load ? state.screenDataCache[cacheKey] : null;
+  const rawEntry = screen.load ? state.screenDataCache[cacheKey] : null;
+  const cacheEntry = rawEntry && Date.now() - rawEntry.t < screenCacheTtl() ? rawEntry : null;
 
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
 
@@ -393,7 +413,7 @@ async function mountScreen() {
     }
     await flushPaint();
   } else if (cacheEntry) {
-    // Shell exists + cache hit: render immediately, no loading state, no flushPaint
+    // Shell exists + fresh cache hit: render immediately, no loading state, no flushPaint
     updateNavActiveClasses();
     const screenRoot = document.getElementById('screenRoot');
     if (screenRoot) {
