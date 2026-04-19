@@ -29,7 +29,7 @@ const ADMIN_SECTION_ROUTES = ['admin-settings', 'admin-lists', 'permissions'];
 const HIGHLIGHT_ROUTES = ['finance', 'activities', 'dashboard', 'exceptions'];
 
 export const adminHomeScreen = {
-  load: ({ api }) => api.permissions(),
+  load: ({ api }) => api.permissions().catch(() => ({ rows: [], error: 'permissions_denied' })),
 
   render(data, { state } = {}) {
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];

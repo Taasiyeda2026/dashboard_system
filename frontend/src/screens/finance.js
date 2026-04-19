@@ -396,6 +396,7 @@ function buildCardsView(rows, canEdit) {
       </div>
       <div class="ds-finance-card__meta">
         ${row.school ? `<span>${escapeHtml(row.school)}</span>` : ''}
+        ${row.authority ? `<span class="ds-muted">${escapeHtml(row.authority)}</span>` : ''}
         ${row.activity_manager ? `<span>${escapeHtml(row.activity_manager)}</span>` : ''}
         ${row.end_date ? `<span>סיום: ${formatDateIL(row.end_date)}</span>` : ''}
         ${amt > 0 ? `<span class="ds-finance-card__amount">${formatILS(amt)}</span>` : ''}
