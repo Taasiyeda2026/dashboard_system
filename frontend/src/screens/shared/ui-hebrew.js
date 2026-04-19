@@ -216,7 +216,9 @@ const API_ERROR_HE = {
   server_error: 'שגיאת שרת — נסו שוב מאוחר יותר',
   network_error: 'בעיית תקשורת — בדקו את החיבור לאינטרנט',
   offline: 'אין חיבור לרשת',
-  user_already_exists: 'מזהה המשתמש כבר קיים במערכת'
+  user_already_exists: 'מזהה המשתמש כבר קיים במערכת',
+  user_not_found: 'המשתמש/ת לא נמצא/ה במערכת',
+  cannot_deactivate_self: 'לא ניתן להשבית את עצמך'
 };
 
 /** Maps common API English errors to Hebrew; leaves Hebrew messages unchanged. */

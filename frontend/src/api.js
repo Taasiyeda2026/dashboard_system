@@ -9,6 +9,7 @@ const MUTATING_ACTIONS = {
   reviewEditRequest: true,
   savePermission: true,
   addUser: true,
+  deactivateUser: true,
   savePrivateNote: true
 };
 
@@ -76,6 +77,7 @@ export const api = {
   reviewEditRequest: (request_id, status) => request('reviewEditRequest', { request_id, status }),
   savePermission: (row) => request('savePermission', { row }),
   addUser: (row) => request('addUser', { row }),
+  deactivateUser: (user_id) => request('deactivateUser', { user_id }),
   savePrivateNote: (a, b, c) => {
     if (typeof a === 'object' && a !== null) {
       return request('savePrivateNote', {

@@ -159,7 +159,7 @@ function buildEditDrawerHtml(row) {
   </div>`;
 }
 
-function renderUserBlock(row, canEdit) {
+function renderUserBlock(row, canEdit, isAdmin, currentUserId) {
   const uid = escapeHtml(row.user_id);
   const searchHay = [row.full_name, row.user_id, row.display_role, hebrewRole(row.display_role), row.display_role2]
     .filter(Boolean)
@@ -180,11 +180,18 @@ function renderUserBlock(row, canEdit) {
 
   const activeLabel = String(row.active || '').toLowerCase() === 'yes' ? 'פעיל/ה' : 'לא פעיל/ה';
   const activeKind = String(row.active || '').toLowerCase() === 'yes' ? 'success' : 'neutral';
+  const isActive = String(row.active || '').toLowerCase() === 'yes';
 
   const flagGrid = buildPermFlagGrid(row, keys);
   const editBtn = canEdit
     ? `<button type="button" class="ds-btn ds-btn--sm" data-edit-perm data-user-id="${uid}">עריכת הרשאות</button>`
     : '';
+  const isSelf = String(row.user_id) === String(currentUserId);
+  const deactivateBtn = isAdmin && isActive && !isSelf
+    ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-deactivate-user data-user-id="${uid}">השבת</button>`
+    : '';
+
+  const actionBtns = [editBtn, deactivateBtn].filter(Boolean).join('');
 
   return `<details class="ds-perm-card" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}">
     <summary>
@@ -196,7 +203,7 @@ function renderUserBlock(row, canEdit) {
       <p class="ds-perm-uid ds-muted">${uid}</p>
       ${textFields}
       ${flagGrid}
-      ${editBtn ? `<div class="ds-perm-actions">${editBtn}</div>` : ''}
+      ${actionBtns ? `<div class="ds-perm-actions">${actionBtns}</div>` : ''}
     </div>
   </details>`;
 }
@@ -227,7 +234,7 @@ export const permissionsScreen = {
     const body =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו שורות הרשאה')
-        : `<div class="ds-perm-stack" dir="rtl">${safeRows.map((row) => renderUserBlock(row, canEdit)).join('')}</div>`;
+        : `<div class="ds-perm-stack" dir="rtl">${safeRows.map((row) => renderUserBlock(row, canEdit, isAdmin, state?.user?.user_id)).join('')}</div>`;
 
     const roleFilters = [...new Set(safeRows.map((r) => String(r.display_role || '').trim()).filter(Boolean))].map((r) => ({
       value: r,
@@ -294,6 +301,28 @@ export const permissionsScreen = {
         });
       });
     }
+
+    root.querySelectorAll('[data-deactivate-user]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const userId = btn.dataset.userId;
+        const row = safeRows.find((r) => String(r.user_id) === String(userId));
+        const name = row?.full_name || userId;
+        if (!window.confirm(`האם להשבית את המשתמש/ת "${name}"?\nהמשתמש/ת לא יוכל/תוכל להתחבר למערכת לאחר מכן.`)) return;
+
+        btn.classList.add('is-loading');
+        btn.disabled = true;
+        try {
+          await api.deactivateUser(userId);
+          clearScreenDataCache?.();
+          if (typeof rerender === 'function') await rerender();
+        } catch (error) {
+          window.alert(translateApiErrorForUser(error?.message));
+          btn.classList.remove('is-loading');
+          btn.disabled = false;
+        }
+      });
+    });
 
     root.querySelectorAll('[data-edit-perm]').forEach((btn) => {
       btn.addEventListener('click', () => {
