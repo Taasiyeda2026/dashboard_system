@@ -2042,6 +2042,30 @@ select[data-role-select]:focus-visible {
   box-shadow: var(--ds-focus-ring);
 }
 
+.ds-dash-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+  padding: var(--ds-space-2) 0;
+  margin-bottom: var(--ds-space-1);
+}
+
+.ds-dash-month-nav__label {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--ds-text);
+  min-width: 10rem;
+  text-align: center;
+}
+
+.ds-dash-month-nav__ym {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--ds-text-muted);
+}
+
 .ds-page-shortcuts {
   margin: 0 0 var(--ds-space-2);
   display: flex;

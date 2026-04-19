@@ -175,7 +175,9 @@ function buildContext() {
 
   const week = parseResponse(context.doPost(toEvent({ action: 'week', token: reviewLogin.data.token })));
   const month = parseResponse(context.doPost(toEvent({ action: 'month', token: reviewLogin.data.token })));
-  const dashboard = parseResponse(context.doPost(toEvent({ action: 'dashboard', token: reviewLogin.data.token })));
+  const dashboard = parseResponse(
+    context.doPost(toEvent({ action: 'dashboard', token: reviewLogin.data.token, month: '2026-04' }))
+  );
   assert.ok(Array.isArray(week.data.days));
   assert.ok(Array.isArray(month.data.cells));
   assert.equal(typeof dashboard.data.totals.short, 'number');
