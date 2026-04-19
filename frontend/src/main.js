@@ -301,6 +301,10 @@ function fastRerenderScreen(screen, routeAtBind) {
   bindScreen(screen, screenRoot, hit.data);
 }
 
+function clearScreenDataCache() {
+  delete state.screenDataCache[screenDataCacheKey()];
+}
+
 function bindScreen(screen, screenRoot, data) {
   const routeAtBind = state.route;
   screen.bind?.({
@@ -310,7 +314,8 @@ function bindScreen(screen, screenRoot, data) {
     api,
     ui,
     rerender: () => fastRerenderScreen(screen, routeAtBind),
-    rerenderActivitiesView: () => rerenderActivitiesViewOnly(screen, screenRoot)
+    rerenderActivitiesView: () => rerenderActivitiesViewOnly(screen, screenRoot),
+    clearScreenDataCache
   });
 }
 

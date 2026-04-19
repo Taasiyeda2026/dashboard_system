@@ -273,7 +273,7 @@ export const activitiesScreen = {
           })}
     `);
   },
-  bind({ root, data, state, rerender, rerenderActivitiesView, ui, api }) {
+  bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
     bindPageListTools(root);
     root.querySelectorAll('[data-goto-route]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -308,6 +308,7 @@ export const activitiesScreen = {
           await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
           if (statusEl) statusEl.textContent = 'נשמר';
           ui?.closeAll();
+          clearScreenDataCache?.();
           if (typeof rerender === 'function') await rerender();
         } catch (err) {
           if (statusEl) statusEl.textContent = translateApiErrorForUser(err?.message);
