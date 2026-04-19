@@ -8,6 +8,8 @@ export const state = {
   activityQuickFamily: '',
   activityQuickManager: '',
   activityEndingCurrentMonth: false,
+  /** לוח בקרה: חודש מוצג בפורמט YYYY-MM; ריק = ייטען חודש נוכחי בכניסה */
+  dashboardMonthYm: '',
   activityView: 'compact',
   financeFilter: '',
   /** הגדרות UI ממקור הנתונים (bootstrap / login) */
@@ -31,6 +33,7 @@ export function setSession(session) {
     state.activityQuickFamily = '';
     state.activityQuickManager = '';
     state.activityEndingCurrentMonth = false;
+    state.dashboardMonthYm = '';
     state.clientSettings = {};
     state.screenDataCache = {};
     localStorage.removeItem('dashboard_token');

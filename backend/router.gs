@@ -21,7 +21,7 @@ function handlePost_(e) {
     var handlers = {
       login: function() { return actionLogin_(payload); },
       bootstrap: function() { return actionBootstrap_(user); },
-      dashboard: function() { return actionDashboard_(user); },
+      dashboard: function() { return actionDashboard_(user, payload); },
       activities: function() { return actionActivities_(user, payload); },
       week: function() { return actionWeek_(user, payload); },
       month: function() { return actionMonth_(user, payload); },

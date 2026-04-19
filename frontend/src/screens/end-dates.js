@@ -9,6 +9,7 @@ import {
   dsInteractiveCard
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 
 const COLS = ['RowID', 'activity_name', 'activity_type', 'activity_manager', 'authority', 'school', 'start_date', 'end_date', 'status'];
 
@@ -18,15 +19,26 @@ export const endDatesScreen = {
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
 
-    const body = rows.map(
-      (row) => `
-      <tr class="ds-data-row">${COLS.map((c) => {
+    const typeFilters = [...new Set(rows.map((r) => String(r.activity_type || '').trim()).filter(Boolean))].map((t) => ({
+      value: t,
+      label: visibleActivityCategoryLabel(t)
+    }));
+
+    const body = rows.map((row) => {
+      const rawType = String(row.activity_type || '').trim();
+      const searchHay = COLS.map((c) => {
+        let v = row?.[c] ?? '';
+        if (c === 'activity_type') v = visibleActivityCategoryLabel(v);
+        return String(v || '');
+      }).join(' ');
+      return `
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}">${COLS.map((c) => {
         let v = row?.[c] ?? '';
         if (c === 'activity_type') v = visibleActivityCategoryLabel(v);
         return `<td>${escapeHtml(String(v || '—'))}</td>`;
       }).join('')}</tr>
-    `
-    );
+    `;
+    });
 
     const tableBlock =
       rows.length === 0
@@ -40,19 +52,26 @@ export const endDatesScreen = {
       rows.length === 0
         ? dsEmptyState('לא נמצאו רשומות עם תאריך סיום')
         : `<div class="ds-compact-list">${rows
-            .map((row) =>
-              dsInteractiveCard({
+            .map((row) => {
+              const rawType = String(row.activity_type || '').trim();
+              const searchHay = [row.RowID, row.activity_name, row.end_date, visibleActivityCategoryLabel(row.activity_type)]
+                .filter(Boolean)
+                .join(' ');
+              return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}">
+              ${dsInteractiveCard({
                 variant: 'session',
                 action: `noop:${row.RowID}`,
                 title: `${row.RowID} · ${row.activity_name || '—'}`,
                 subtitle: `סיום: ${row.end_date || '—'}`,
                 meta: visibleActivityCategoryLabel(row.activity_type)
-              })
-            )
+              })}
+            </div>`;
+            })
             .join('')}</div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('תאריכי סיום', 'פעילויות ארוכות לפי תאריך סיום')}
+      ${dsPageHeader('תאריכי סיום', 'תוכניות לפי תאריך סיום')}
+      ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש ברשימה…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({
         title: 'רשימת סיומים',
         badge: `${rows.length} שורות`,
@@ -61,5 +80,7 @@ export const endDatesScreen = {
       })}
     `);
   },
-  bind() {}
+  bind({ root }) {
+    bindPageListTools(root);
+  }
 };

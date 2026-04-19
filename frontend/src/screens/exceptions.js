@@ -11,6 +11,7 @@ import {
   dsStatusChip
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 
 function exceptionDrawerHtml(row) {
   const typeLabel = hebrewExceptionType(row.exception_type);
@@ -57,15 +58,22 @@ export const exceptionsScreen = {
       )
       .join('');
 
-    const rows = safeRows.map(
-      (row, idx) => `
-      <tr class="ds-data-row" data-exc-idx="${idx}" role="button" tabindex="0"><td>${escapeHtml(row.RowID)}</td><td>${dsStatusChip(hebrewExceptionType(row.exception_type), exceptionTypeVariant(row.exception_type))}</td><td>${escapeHtml(row.activity_name || '—')}</td><td>${escapeHtml(row.end_date || '—')}</td></tr>`
-    );
+    const excFilters = [...new Set(safeRows.map((r) => String(r.exception_type || '').trim()).filter(Boolean))].map((t) => ({
+      value: t,
+      label: hebrewExceptionType(t)
+    }));
+
+    const rows = safeRows.map((row, idx) => {
+      const et = String(row.exception_type || '').trim();
+      const searchHay = [row.RowID, hebrewExceptionType(row.exception_type), row.activity_name, row.end_date].join(' ');
+      return `
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(et)}" data-exc-idx="${idx}" role="button" tabindex="0"><td>${escapeHtml(row.RowID)}</td><td>${dsStatusChip(hebrewExceptionType(row.exception_type), exceptionTypeVariant(row.exception_type))}</td><td>${escapeHtml(row.activity_name || '—')}</td><td>${escapeHtml(row.end_date || '—')}</td></tr>`;
+    });
 
     const summaryChips = `
-      <span class="ds-chip ds-chip--status ds-chip--status-warning">חסר מדריך: ${counts.missing_instructor}</span>
-      <span class="ds-chip ds-chip--status ds-chip--status-warning">חסר תאריך התחלה: ${counts.missing_start_date}</span>
-      <span class="ds-chip ds-chip--status ds-chip--status-danger">תאריך סיום מאוחר: ${counts.late_end_date}</span>
+      <span class="ds-chip ds-chip--status ds-chip--status-warning"><span aria-hidden="true">⚠️</span> חסר מדריך: ${counts.missing_instructor}</span>
+      <span class="ds-chip ds-chip--status ds-chip--status-warning"><span aria-hidden="true">📅</span> חסר תאריך התחלה: ${counts.missing_start_date}</span>
+      <span class="ds-chip ds-chip--status ds-chip--status-danger"><span aria-hidden="true">⏱️</span> תאריך סיום מאוחר: ${counts.late_end_date}</span>
     `;
 
     const tableBlock =
@@ -80,15 +88,19 @@ export const exceptionsScreen = {
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו חריגות')
         : `<div class="ds-compact-list">${safeRows
-            .map((row, idx) =>
-              dsInteractiveCard({
+            .map((row, idx) => {
+              const et = String(row.exception_type || '').trim();
+              const searchHay = [row.RowID, hebrewExceptionType(row.exception_type), row.activity_name, row.end_date].join(' ');
+              return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(et)}">
+              ${dsInteractiveCard({
                 variant: 'session',
                 action: `exception:${idx}`,
                 title: `${hebrewExceptionType(row.exception_type)}`,
                 subtitle: row.activity_name || '—',
                 meta: `RowID ${row.RowID} · סיום ${row.end_date || '—'}`
-              })
-            )
+              })}
+            </div>`;
+            })
             .join('')}</div>`;
 
     return dsScreenStack(`

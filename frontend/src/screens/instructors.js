@@ -9,6 +9,7 @@ import {
   dsInteractiveCard,
   dsStatusChip
 } from './shared/layout.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { isNarrowViewport } from './shared/responsive.js';
 
 function cellDisplay(column, value) {
@@ -75,9 +76,12 @@ export const instructorsScreen = {
       )
       .join('');
 
-    const body = rows.map(
-      (row) => `
-      <tr class="ds-data-row" data-row-id="${escapeHtml(row.emp_id)}" role="button" tabindex="0">${columns
+    const body = rows.map((row) => {
+      const searchHay = columns.map((column) => String(cellDisplay(column, row?.[column]) ?? '')).join(' ');
+      return `
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="" data-row-id="${escapeHtml(
+        row.emp_id
+      )}" role="button" tabindex="0">${columns
         .map((column) => {
           const raw = row?.[column];
           if (column === 'active') {
@@ -87,8 +91,8 @@ export const instructorsScreen = {
           }
           return `<td>${escapeHtml(cellDisplay(column, raw))}</td>`;
         })
-        .join('')}</tr>`
-    );
+        .join('')}</tr>`;
+    });
 
     const tableBlock =
       rows.length === 0
@@ -102,16 +106,26 @@ export const instructorsScreen = {
       rows.length === 0
         ? dsEmptyState('לא נמצאו רשומות')
         : `<div class="ds-compact-list">${rows
-            .map((row) =>
-              dsInteractiveCard({
+            .map((row) => {
+              const searchHay = [row.emp_id, row.full_name, row.mobile, row.email, row.employment_type]
+                .filter(Boolean)
+                .join(' ');
+              return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="">
+              ${dsInteractiveCard({
                 variant: 'session',
                 action: `instructor:${encodeURIComponent(row.emp_id)}`,
                 title: `${row.emp_id} · ${row.full_name || '—'}`,
                 subtitle: cellDisplay('employment_type', row.employment_type),
                 meta: row.mobile || row.email || ''
-              })
-            )
+              })}
+            </div>`;
+            })
             .join('')}</div>`;
+
+    const instructorContactsShortcut =
+      Array.isArray(state?.routes) && state.routes.includes('instructor-contacts')
+        ? `<p class="ds-page-shortcuts"><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-goto-route="instructor-contacts"><span aria-hidden="true">📇</span> אנשי קשר מדריכים</button></p>`
+        : '';
 
     return dsScreenStack(`
       ${dsPageHeader('מדריכים', 'פרטי העסקה וקשר')}

@@ -16,8 +16,9 @@ import {
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 
-const TABLE_COLUMNS = ['RowID', 'activity_name', 'school', 'funding', 'end_date', 'finance_status', 'status'];
+const TABLE_COLUMNS = ['RowID', 'activity_name', 'emp_id', 'emp_id_2', 'school', 'funding', 'end_date', 'finance_status', 'status'];
 
 function applySearch(rows, q) {
   if (!q) return rows;
@@ -52,9 +53,18 @@ export const financeScreen = {
       )
       .join('');
 
-    const body = rows.map(
-      (row) => `
-      <tr class="ds-data-row" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${TABLE_COLUMNS.map((column) => {
+    const finOpts = [...new Set(rows.map((r) => String(r.finance_status || '').trim()).filter(Boolean))].map((st) => ({
+      value: st,
+      label: hebrewFinanceStatus(st)
+    }));
+
+    const body = rows.map((row) => {
+      const searchHay = TABLE_COLUMNS.map((c) => String(row?.[c] ?? '')).join(' ');
+      const fst = String(row.finance_status || '').trim();
+      return `
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(
+        fst
+      )}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${TABLE_COLUMNS.map((column) => {
         if (column === 'finance_status') {
           const label = hebrewFinanceStatus(row.finance_status);
           return `<td>${dsStatusChip(label, financeStatusVariant(row.finance_status))}</td>`;
@@ -62,8 +72,8 @@ export const financeScreen = {
         const val = row?.[column] ?? '';
         return `<td>${escapeHtml(String(val))}</td>`;
       }).join('')}</tr>
-    `
-    );
+    `;
+    });
 
     const tableBlock =
       rows.length === 0
@@ -77,15 +87,31 @@ export const financeScreen = {
       rows.length === 0
         ? dsEmptyState('לא נמצאו רשומות')
         : `<div class="ds-compact-list">${rows
-            .map((row) =>
-              dsInteractiveCard({
+            .map((row) => {
+              const fst = String(row.finance_status || '').trim();
+              const searchHay = [
+                row.RowID,
+                row.activity_name,
+                row.emp_id,
+                row.emp_id_2,
+                row.school,
+                row.funding,
+                row.end_date,
+                row.finance_status,
+                row.status
+              ]
+                .filter(Boolean)
+                .join(' ');
+              return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(fst)}">
+              ${dsInteractiveCard({
                 variant: 'session',
                 action: `finance:${row.RowID}`,
                 title: `${row.RowID} · ${row.activity_name || '—'}`,
                 subtitle: hebrewFinanceStatus(row.finance_status || 'open'),
                 meta: row.end_date ? `סיום: ${row.end_date}` : ''
-              })
-            )
+              })}
+            </div>`;
+            })
             .join('')}</div>`;
 
     return dsScreenStack(`

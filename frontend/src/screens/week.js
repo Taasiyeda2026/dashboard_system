@@ -1,5 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityRowDetailHtml } from './shared/activity-detail-html.js';
 
 function localYmd() {
@@ -11,13 +12,18 @@ function localYmd() {
 }
 
 function weekItemMeta(item, hideEmpIds) {
+  const id1 = String(item.emp_id || '').trim();
+  const id2 = String(item.emp_id_2 || '').trim();
+  const ids = [id1, id2].filter(Boolean).join(' · ');
   const names = [item.instructor_name, item.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
-  if (names) return `מדריך: ${names}`;
-  if (!hideEmpIds) {
-    const ids = [item.emp_id, item.emp_id_2].filter((x) => x && String(x).trim()).join(' · ');
+  if (hideEmpIds) {
+    if (names) return `מדריך: ${names}`;
     if (ids) return `מזהה: ${ids}`;
+    return 'ללא מזהה מדריך';
   }
-  return `מזהה: ${item.RowID || ''}`;
+  if (ids) return names ? `מזהה: ${ids} (${names})` : `מזהה: ${ids}`;
+  if (names) return `תצוגה: ${names}`;
+  return `מזהה שורה: ${item.RowID || ''}`;
 }
 
 function weekDrawerHtml(item, date, hideEmpIds) {
@@ -43,14 +49,28 @@ export const weekScreen = {
         const dow = d.weekday_label || '';
         const sessionBlocks = items.length
           ? items
-              .map((item) =>
-                dsInteractiveCard({
+              .map((item) => {
+                const hay = [
+                  item.activity_name,
+                  item.RowID,
+                  item.instructor_name,
+                  item.instructor_name_2,
+                  item.emp_id,
+                  item.emp_id_2,
+                  d.date,
+                  dow
+                ]
+                  .filter(Boolean)
+                  .join(' ');
+                return `<div class="ds-week-session-wrap" data-list-item data-search="${escapeHtml(hay)}" data-filter="">
+                ${dsInteractiveCard({
                   variant: 'session',
                   action: `weeksession|${encodeURIComponent(d.date)}|${encodeURIComponent(item.RowID)}`,
                   title: item.activity_name || 'ללא שם',
                   meta: weekItemMeta(item, hideEmpIds)
-                })
-              )
+                })}
+              </div>`;
+              })
               .join('')
           : '<p class="ds-muted ds-week-empty">אין פריטים</p>';
         return `
@@ -71,10 +91,12 @@ export const weekScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('שבוע', 'לוח עבודה — לחיצה על פריט לפתיחת פירוט')}
+      ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפריטי השבוע…', filters: [] })}
       <div class="ds-week-board" role="region" aria-label="לוח שבוע">${body}</div>
     `);
   },
   bind({ root, ui, data, state }) {
+    bindPageListTools(root);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     ui.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('weeksession|')) return;

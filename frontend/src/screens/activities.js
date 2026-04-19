@@ -18,6 +18,7 @@ import {
   dsInteractiveCard,
   dsStatusChip
 } from './shared/layout.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 
 const SHORT_TYPES = new Set(['workshop', 'tour', 'after_school', 'escape_room']);
@@ -107,12 +108,32 @@ export const activitiesScreen = {
     const compactView = forceCompact || state?.activityView === 'compact';
     const searchVal = escapeHtml(state.activitySearch || '');
 
+    const financeOpts = [
+      ...new Set(allRows.map((r) => String(r.finance_status || '').trim()).filter(Boolean))
+    ].map((st) => ({ value: st, label: hebrewFinanceStatus(st) }));
+
     const tableRows = safeRows
       .map((row) => {
         const emp1 = hideEmpIds ? '' : `<td>${escapeHtml(row.emp_id || '—')}</td>`;
         const emp2 = hideEmpIds ? '' : `<td>${escapeHtml(row.emp_id_2 || '—')}</td>`;
+        const rowSearch = [
+          row.RowID,
+          row.activity_name,
+          row.start_date,
+          row.end_date,
+          row.activity_manager,
+          visibleActivityCategoryLabel(row.activity_type),
+          hebrewFinanceStatus(row.finance_status),
+          row.emp_id,
+          row.emp_id_2,
+          canSeePrivateNotes ? row.private_note : ''
+        ]
+          .filter(Boolean)
+          .join(' ');
         return `
-      <tr class="ds-data-row" data-row-id="${escapeHtml(row.RowID)}">
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="${escapeHtml(
+        row.finance_status || ''
+      )}" data-row-id="${escapeHtml(row.RowID)}">
         <td>${escapeHtml(row.RowID)}</td>
         <td>${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</td>
         <td>${escapeHtml(row.activity_name || '—')}</td>
@@ -127,15 +148,27 @@ export const activitiesScreen = {
       .join('');
 
     const compactRows = safeRows
-      .map((row) =>
-        dsInteractiveCard({
+      .map((row) => {
+        const rowSearch = [
+          row.RowID,
+          row.activity_name,
+          row.start_date,
+          row.end_date,
+          visibleActivityCategoryLabel(row.activity_type),
+          hebrewFinanceStatus(row.finance_status)
+        ]
+          .filter(Boolean)
+          .join(' ');
+        return `<div data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="${escapeHtml(row.finance_status || '')}">
+        ${dsInteractiveCard({
           action: `activity:${row.RowID}`,
           title: `${row.RowID} · ${visibleActivityCategoryLabel(row.activity_type)}`,
           subtitle: row.activity_name || 'פעילות ללא שם',
           meta: `${hebrewFinanceStatus(row.finance_status || 'open')} · ${row.start_date || '—'} עד ${row.end_date || '—'}`,
           variant: 'session'
-        })
-      )
+        })}
+      </div>`;
+      })
       .join('');
 
     const thPrivate = canSeePrivateNotes ? `<th>${hebrewColumn('private_note')}</th>` : '';
@@ -185,6 +218,11 @@ export const activitiesScreen = {
 
     const compactSection = safeRows.length === 0 ? dsEmptyState('לא נמצאו פעילויות למסנן זה') : `<div class="ds-compact-list">${compactRows}</div>`;
 
+    const contactsShortcut =
+      Array.isArray(state?.routes) && state.routes.includes('contacts')
+        ? `<p class="ds-page-shortcuts"><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-goto-route="contacts"><span aria-hidden="true">🏫</span> אנשי קשר</button></p>`
+        : '';
+
     return dsScreenStack(`
       ${dsPageHeader('פעילויות', 'סינון, בחירה ופתיחת פירוט פעילות')}
       <div class="ds-screen-top-row">
@@ -208,7 +246,7 @@ export const activitiesScreen = {
           ${dsFilterBar(financeChips || '<span class="ds-muted">אין סטטוסי כספים זמינים</span>')}
         </div>
         <div class="ds-filter-group">
-          <span class="ds-filter-label">משפחת פעילות (מקומי)</span>
+          <span class="ds-filter-label">לפי משך (מקומי)</span>
           ${dsFilterBar(familyChips)}
         </div>
       </div>
@@ -237,6 +275,12 @@ export const activitiesScreen = {
     `);
   },
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api }) {
+    bindPageListTools(root);
+    root.querySelector('[data-goto-route="contacts"]')?.addEventListener('click', () => {
+      state.route = 'contacts';
+      rerender?.();
+    });
+
     const filteredRows = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const canEditActivity = state?.user?.display_role !== 'instructor';

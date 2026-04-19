@@ -79,6 +79,9 @@ function applyBootstrapFromLoginData(data) {
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
 }
 
+/** מסכים שנשארים ב־routes מהשרת אך מוסרים מסרגל הצד (גישה חלופית מתוך מסכים אחרים). */
+const SIDEBAR_ROUTE_EXCLUDE = new Set(['instructor-contacts', 'contacts']);
+
 const screenLabels = {
   dashboard: 'לוח בקרה',
   activities: 'פעילויות',
@@ -206,6 +209,10 @@ function closeMobileNav() {
 function screenDataCacheKey() {
   if (state.route === 'activities') {
     return `activities:${state.activityTab || 'all'}:${state.activityFinanceStatus || ''}`;
+  }
+  if (state.route === 'dashboard') {
+    const ym = state.dashboardMonthYm && /^\d{4}-\d{2}$/.test(state.dashboardMonthYm) ? state.dashboardMonthYm : 'default';
+    return `dashboard:${ym}`;
   }
   return state.route;
 }

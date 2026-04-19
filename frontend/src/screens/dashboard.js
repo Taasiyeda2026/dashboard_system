@@ -1,6 +1,42 @@
 import { escapeHtml } from './shared/html.js';
 import { UI_ACTIVITY_FAMILY_LONG, UI_ACTIVITY_FAMILY_SHORT } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
+import { clearScreenDataCache } from '../state.js';
+
+const HEBREW_MONTHS = [
+  'ינואר',
+  'פברואר',
+  'מרץ',
+  'אפריל',
+  'מאי',
+  'יוני',
+  'יולי',
+  'אוגוסט',
+  'ספטמבר',
+  'אוקטובר',
+  'נובמבר',
+  'דצמבר'
+];
+
+function currentMonthYm() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function shiftYm(ym, deltaMonths) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + deltaMonths, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function hebrewMonthTitle(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return ym || '';
+  const mo = Number(m[2]);
+  const name = mo >= 1 && mo <= 12 ? HEBREW_MONTHS[mo - 1] : m[2];
+  return `${name} ${m[1]}`;
+}
 
 function goActivitiesDrill(state, patch) {
   state.route = 'activities';
@@ -17,22 +53,43 @@ function filterKpiCards(cards, showOnlyNonzero) {
   return list.filter((c) => Number(c.value || 0) > 0);
 }
 
+/** תוויות תצוגה ל־KPI — ללא שינוי מפתחות action מהשרת */
+function kpiSubtitleDisplay(card) {
+  if (card.id === 'short') return 'חד-יומיות';
+  if (card.id === 'long') return 'תוכניות';
+  return card.subtitle || '';
+}
+
 export const dashboardScreen = {
-  load: ({ api }) => api.dashboard(),
+  async load({ api, state }) {
+    let ym = state.dashboardMonthYm;
+    if (!ym || !/^\d{4}-\d{2}$/.test(ym)) {
+      ym = currentMonthYm();
+    }
+    state.dashboardMonthYm = ym;
+    return api.dashboard({ month: ym });
+  },
   render(data) {
+    const ym = data?.month || currentMonthYm();
+    const curYm = currentMonthYm();
+    const canGoNext = ym < curYm;
+
     const managers = Array.isArray(data.by_activity_manager) ? data.by_activity_manager : [];
     const showOnly = !!data?.show_only_nonzero_kpis;
     const kpiCards = filterKpiCards(data?.kpi_cards, showOnly);
 
     const managerCards = managers
       .map((row) => {
-        const meta = `${UI_ACTIVITY_FAMILY_SHORT}: ${row.total_short} · ${UI_ACTIVITY_FAMILY_LONG}: ${row.total_long} · סה״כ: ${row.total}`;
-        return dsInteractiveCard({
-          variant: 'mini',
-          action: `manager|${encodeURIComponent(row.activity_manager)}`,
-          title: row.activity_manager,
-          meta
-        });
+        const meta = `${UI_ACTIVITY_FAMILY_SHORT}: ${row.total_short} · ${UI_ACTIVITY_FAMILY_LONG}: ${row.total_long}`;
+        const searchHay = `${row.activity_manager} ${meta}`;
+        return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="">
+          ${dsInteractiveCard({
+            variant: 'mini',
+            action: `manager|${encodeURIComponent(row.activity_manager)}`,
+            title: row.activity_manager,
+            meta
+          })}
+        </div>`;
       })
       .join('');
 
@@ -42,19 +99,33 @@ export const dashboardScreen = {
 
     const kpiHtml = kpiCards.length
       ? kpiCards
-          .map((k) =>
-            dsInteractiveCard({
+          .map((k) => {
+            const sub = kpiSubtitleDisplay(k);
+            const searchHay = `${k.title || ''} ${sub}`.trim();
+            return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="">
+            ${dsInteractiveCard({
               variant: 'kpi',
               action: k.action,
               title: k.title,
-              subtitle: k.subtitle
-            })
-          )
+              subtitle: sub
+            })}
+          </div>`;
+          })
           .join('')
       : '<p class="ds-muted">אין כרטיסי KPI להצגה (לפי מסנן &quot;ערך בלבד&quot;).</p>';
 
+    const monthNav = `<div class="ds-dash-month-nav" dir="rtl" aria-label="בחירת חודש לתצוגה">
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם">◀</button>
+      <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}<span class="ds-dash-month-nav__ym"> · ${escapeHtml(ym)}</span></span>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא" ${
+        canGoNext ? '' : 'disabled'
+      }>▶</button>
+    </div>`;
+
     return dsScreenStack(`
-      ${dsPageHeader('לוח בקרה', 'תמונת מצב כללית — לחיצה מעבירה לעבודה')}
+      ${dsPageHeader('לוח בקרה', 'כל הסיכומים לפי חודש — חצים לשינוי חודש')}
+      ${monthNav}
+      ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש בכרטיסים…', filters: [] })}
       <div class="ds-kpi-grid">${kpiHtml}</div>
       ${dsCard({
         title: 'פילוח לפי אחראי פעילות',
@@ -65,6 +136,23 @@ export const dashboardScreen = {
     `);
   },
   bind({ root, ui, state, rerender }) {
+    bindPageListTools(root);
+
+    const applyYm = (nextYm) => {
+      state.dashboardMonthYm = nextYm;
+      clearScreenDataCache();
+      rerender();
+    };
+
+    root.querySelector('[data-dash-month-prev]')?.addEventListener('click', () => {
+      applyYm(shiftYm(state.dashboardMonthYm || currentMonthYm(), -1));
+    });
+    root.querySelector('[data-dash-month-next]')?.addEventListener('click', () => {
+      const cur = currentMonthYm();
+      const next = shiftYm(state.dashboardMonthYm || cur, 1);
+      if (next <= cur) applyYm(next);
+    });
+
     ui.bindInteractiveCards(root, (action) => {
       if (action === 'kpi|short') {
         goActivitiesDrill(state, { activityQuickFamily: 'short' });

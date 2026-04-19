@@ -9,6 +9,7 @@ import {
   dsInteractiveCard,
   dsStatusChip
 } from './shared/layout.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { isNarrowViewport } from './shared/responsive.js';
 
 function cellDisplay(column, value) {
@@ -76,9 +77,13 @@ export const instructorContactsScreen = {
       )
       .join('');
 
-    const body = rows.map(
-      (row) => `
-      <tr class="ds-data-row" data-row-id="${escapeHtml(row.emp_id)}" role="button" tabindex="0">${columns
+    const body = rows.map((row) => {
+      const searchHay = columns.map((c) => String(cellDisplay(c, row?.[c]) ?? '')).join(' ');
+      const act = String(row?.active || '').toLowerCase();
+      return `
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(act)}" data-row-id="${escapeHtml(
+        row.emp_id
+      )}" role="button" tabindex="0">${columns
         .map((column) => {
           const raw = row?.[column];
           if (column === 'active') {
@@ -88,8 +93,8 @@ export const instructorContactsScreen = {
           }
           return `<td>${escapeHtml(cellDisplay(column, raw))}</td>`;
         })
-        .join('')}</tr>`
-    );
+        .join('')}</tr>`;
+    });
 
     const tableBlock =
       rows.length === 0
@@ -103,16 +108,25 @@ export const instructorContactsScreen = {
       rows.length === 0
         ? dsEmptyState('לא נמצאו רשומות')
         : `<div class="ds-compact-list">${rows
-            .map((row) =>
-              dsInteractiveCard({
+            .map((row) => {
+              const act = String(row?.active || '').toLowerCase();
+              const searchHay = [row.emp_id, row.full_name, row.mobile, row.email, row.employment_type].filter(Boolean).join(' ');
+              return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(act)}">
+              ${dsInteractiveCard({
                 variant: 'session',
                 action: `icontact:${encodeURIComponent(row.emp_id)}`,
                 title: `${row.emp_id} · ${row.full_name || '—'}`,
                 subtitle: cellDisplay('employment_type', row.employment_type),
                 meta: row.mobile || row.email || ''
-              })
-            )
+              })}
+            </div>`;
+            })
             .join('')}</div>`;
+
+    const activeFilters = [
+      { value: 'yes', label: 'פעילים בלבד' },
+      { value: 'no', label: 'לא פעילים' }
+    ];
 
     return dsScreenStack(`
       ${dsPageHeader('אנשי קשר מדריכים', 'נתונים מגיליון contacts_instructors')}
