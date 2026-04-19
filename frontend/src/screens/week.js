@@ -1,7 +1,8 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
-import { activityRowDetailHtml } from './shared/activity-detail-html.js';
+import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { translateApiErrorForUser } from './shared/ui-hebrew.js';
 
 function localYmd() {
   const d = new Date();
@@ -26,13 +27,13 @@ function weekItemMeta(item, hideEmpIds) {
   return `מזהה שורה: ${item.RowID || ''}`;
 }
 
-function weekDrawerHtml(item, date, hideEmpIds) {
-  const base = activityRowDetailHtml(item, { privateNote: null, hideEmpIds: !!hideEmpIds });
-  const cut = base.lastIndexOf('</div>');
-  const head = cut >= 0 ? base.slice(0, cut) : base;
-  return `${head}
+function weekDrawerHtml(item, date, hideEmpIds, canEdit) {
+  const full = activityWorkDrawerHtml(item, { privateNote: null, canEdit: !!canEdit, hideEmpIds: !!hideEmpIds });
+  const cut = full.lastIndexOf('</div>');
+  if (cut < 0) return full;
+  return `${full.slice(0, cut)}
       <p><strong>יום בלוח:</strong> ${escapeHtml(date)}</p>
-    </div>`;
+    ${full.slice(cut)}`;
 }
 
 function weekRangeLabel(days) {
@@ -127,9 +128,39 @@ export const weekScreen = {
       <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
   },
-  bind({ root, ui, data, state, rerender, clearScreenDataCache }) {
+  bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
     bindPageListTools(root);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const canEditActivity = state?.user?.display_role !== 'instructor';
+
+    function bindActivityEditForm(contentRoot) {
+      const form = contentRoot.querySelector('[data-edit-activity]');
+      if (!form || !api) return;
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const statusEl = form.querySelector('.ds-activity-edit-status');
+        const sourceSheet = form.getAttribute('data-source-sheet') || '';
+        const sourceRowId = form.getAttribute('data-row-id') || '';
+        const fd = new FormData(form);
+        const changes = {
+          status: String(fd.get('status') ?? '').trim(),
+          notes: String(fd.get('notes') ?? '').trim(),
+          finance_status: String(fd.get('finance_status') ?? '').trim(),
+          finance_notes: String(fd.get('finance_notes') ?? '').trim(),
+          start_date: String(fd.get('start_date') ?? '').trim(),
+          end_date: String(fd.get('end_date') ?? '').trim()
+        };
+        try {
+          await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
+          if (statusEl) statusEl.textContent = 'נשמר';
+          ui?.closeAll();
+          clearScreenDataCache?.();
+          if (typeof rerender === 'function') await rerender();
+        } catch (err) {
+          if (statusEl) statusEl.textContent = translateApiErrorForUser(err?.message);
+        }
+      });
+    }
 
     root.querySelector('[data-week-prev]')?.addEventListener('click', () => {
       state.weekOffset = (state.weekOffset || 0) - 1;
@@ -157,7 +188,8 @@ export const weekScreen = {
       }
       ui.openDrawer({
         title: item.activity_name || 'פעילות',
-        content: weekDrawerHtml(item, date, hideEmpIds)
+        content: weekDrawerHtml(item, date, hideEmpIds, canEditActivity),
+        onOpen: canEditActivity ? bindActivityEditForm : undefined
       });
     });
   }

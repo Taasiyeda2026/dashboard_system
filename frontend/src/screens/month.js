@@ -1,7 +1,8 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsScreenStack, dsCard, dsInteractiveCard } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
-import { activityRowDetailHtml } from './shared/activity-detail-html.js';
+import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { translateApiErrorForUser } from './shared/ui-hebrew.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -84,7 +85,7 @@ function activityDotsMeta(n) {
   return `●●●●● +${n - 5}`;
 }
 
-function monthDayDrawerBody(cell, hideEmpIds) {
+function monthDayDrawerBody(cell, hideEmpIds, canEdit) {
   const items = Array.isArray(cell?.items) ? cell.items : [];
   if (!items.length) {
     return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(cell?.date || '')}</p>`;
@@ -94,7 +95,7 @@ function monthDayDrawerBody(cell, hideEmpIds) {
       (it) => `
     <section class="ds-cal-drawer-block" aria-label="${escapeHtml(it.activity_name || 'פעילות')}">
       <h3 class="ds-cal-drawer-block__title">${escapeHtml(it.activity_name || 'פעילות')}</h3>
-      ${activityRowDetailHtml(it, { privateNote: null, hideEmpIds: !!hideEmpIds })}
+      ${activityWorkDrawerHtml(it, { privateNote: null, canEdit: !!canEdit, hideEmpIds: !!hideEmpIds })}
     </section>`
     )
     .join('');
@@ -210,9 +211,40 @@ export const monthScreen = {
       })}
     `);
   },
-  bind({ root, ui, data, state, rerender, clearScreenDataCache }) {
+  bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
     bindPageListTools(root, { mode: 'dim' });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const canEditActivity = state?.user?.display_role !== 'instructor';
+
+    function bindActivityEditForm(contentRoot) {
+      contentRoot.querySelectorAll('[data-edit-activity]').forEach((form) => {
+        if (!api) return;
+        form.addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          const statusEl = form.querySelector('.ds-activity-edit-status');
+          const sourceSheet = form.getAttribute('data-source-sheet') || '';
+          const sourceRowId = form.getAttribute('data-row-id') || '';
+          const fd = new FormData(form);
+          const changes = {
+            status: String(fd.get('status') ?? '').trim(),
+            notes: String(fd.get('notes') ?? '').trim(),
+            finance_status: String(fd.get('finance_status') ?? '').trim(),
+            finance_notes: String(fd.get('finance_notes') ?? '').trim(),
+            start_date: String(fd.get('start_date') ?? '').trim(),
+            end_date: String(fd.get('end_date') ?? '').trim()
+          };
+          try {
+            await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
+            if (statusEl) statusEl.textContent = 'נשמר';
+            ui?.closeAll();
+            clearScreenDataCache?.();
+            if (typeof rerender === 'function') await rerender();
+          } catch (err) {
+            if (statusEl) statusEl.textContent = translateApiErrorForUser(err?.message);
+          }
+        });
+      });
+    }
 
     const currentYm = data?.month || '';
     root.querySelector('[data-month-prev]')?.addEventListener('click', () => {
@@ -242,7 +274,8 @@ export const monthScreen = {
       const n = Array.isArray(cell.items) ? cell.items.length : 0;
       ui.openDrawer({
         title: `יום ${d} · ${cell.date || ''}`,
-        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(cell, hideEmpIds)}`
+        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(cell, hideEmpIds, canEditActivity)}`,
+        onOpen: canEditActivity ? bindActivityEditForm : undefined
       });
     });
   }
