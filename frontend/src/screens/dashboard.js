@@ -78,12 +78,10 @@ export const dashboardScreen = {
       .map((row) => {
         const searchHay = `${row.activity_manager} ${row.total_short} ${row.total_long} ${row.num_instructors ?? ''}`;
         const stats = [
-          { label: UI_ACTIVITY_FAMILY_SHORT,   value: row.total_short    ?? 0 },
-          { label: UI_ACTIVITY_FAMILY_LONG,    value: row.total_long     ?? 0 },
-          { label: 'מדריכים',                  value: row.num_instructors ?? 0 },
-          { label: 'סיומי קורסים',             value: row.course_endings  ?? 0 },
-          { label: 'כספים פתוחים',             value: row.finance_open    ?? 0 },
-          { label: 'חריגות',                   value: row.exceptions      ?? 0 },
+          { label: 'פעילים החודש', value: (row.total_short ?? 0) + (row.total_long ?? 0) },
+          { label: 'מדריכים',      value: row.num_instructors ?? 0 },
+          { label: 'דורשים טיפול', value: row.exceptions      ?? 0 },
+          { label: 'סיומי קורסים', value: row.course_endings  ?? 0 },
         ];
         const statsHtml = stats
           .map((s) => `<div class="ds-manager-stat">

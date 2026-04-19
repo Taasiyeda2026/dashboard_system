@@ -1067,13 +1067,20 @@ function buildOperationalInstructorsPayloadRows_() {
   var ids = collectUniqueOperationalEmpIds_(combined);
   var enrich = readInstructorContactsEnrichmentMap_();
   var displayNameFromActivity = {};
+  var activityCount = {};
   combined.forEach(function(row) {
     var e1 = text_(row.emp_id);
     var n1 = text_(row.instructor_name);
-    if (e1 && n1 && !displayNameFromActivity[e1]) displayNameFromActivity[e1] = n1;
+    if (e1) {
+      if (n1 && !displayNameFromActivity[e1]) displayNameFromActivity[e1] = n1;
+      activityCount[e1] = (activityCount[e1] || 0) + 1;
+    }
     var e2 = text_(row.emp_id_2);
     var n2 = text_(row.instructor_name_2);
-    if (e2 && n2 && !displayNameFromActivity[e2]) displayNameFromActivity[e2] = n2;
+    if (e2) {
+      if (n2 && !displayNameFromActivity[e2]) displayNameFromActivity[e2] = n2;
+      activityCount[e2] = (activityCount[e2] || 0) + 1;
+    }
   });
   return ids.map(function(empId) {
     var c = enrich[empId];
@@ -1087,7 +1094,8 @@ function buildOperationalInstructorsPayloadRows_() {
       address: c ? text_(c.address) : '',
       employment_type: c ? text_(c.employment_type) : '',
       direct_manager: c ? text_(c.direct_manager) : '',
-      active: c ? yesNo_(c.active) : 'yes'
+      active: c ? yesNo_(c.active) : 'yes',
+      activity_count: activityCount[empId] || 0
     };
   });
 }
