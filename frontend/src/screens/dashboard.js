@@ -101,13 +101,14 @@ export const dashboardScreen = {
       ? kpiCards
           .map((k) => {
             const sub = kpiSubtitleDisplay(k);
-            const searchHay = `${k.title || ''} ${sub}`.trim();
+            const searchHay = `${k.title || ''} ${sub} ${k.value ?? ''}`.trim();
             return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="">
             ${dsInteractiveCard({
               variant: 'kpi',
               action: k.action,
               title: k.title,
-              subtitle: sub
+              value: k.value != null ? String(k.value) : '',
+              meta: sub
             })}
           </div>`;
           })
