@@ -259,17 +259,21 @@ function buildGroupedTable(rows, canEdit, canView) {
     getGroupSortKey(a).localeCompare(getGroupSortKey(b), 'he')
   );
 
-  /* Columns: name | school | authority | manager | amount | funding | status | notes | actions
+  /* Columns: name | school | authority | manager | price | sessions | amount | funding | status | notes | actions
      Notes and actions are shown for all canView users (read-only for non-editors) */
   const hasNotesCol = canView;
   const hasActionsCol = canView;
-  const BASE_COLS = 7 + (hasNotesCol ? 1 : 0) + (hasActionsCol ? 1 : 0);
+  const BASE_COLS = 9 + (hasNotesCol ? 1 : 0) + (hasActionsCol ? 1 : 0);
 
   const tbody = sortedKeys.map((key) => {
     const gRows = groups[key];
     const gOpen = gRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open').length;
     const gClosed = gRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed').length;
-    const gTotal = gRows.reduce((s, r) => s + rowAmount(r), 0);
+    const gTotal = gRows.reduce((s, r) => {
+      const p = parseFloat(r.price) || 0;
+      const sess = parseFloat(r.sessions) || 0;
+      return s + (sess > 0 ? p * sess : p);
+    }, 0);
 
     const statusMini = [
       gOpen > 0 ? `<span class="ds-finance-group-chip ds-finance-group-chip--open">${gOpen} פתוח</span>` : '',
@@ -292,7 +296,6 @@ function buildGroupedTable(rows, canEdit, canView) {
       const statusOpts = ['', 'open', 'closed'].map((v) =>
         `<option value="${v}" ${String(row.finance_status || '') === v ? 'selected' : ''}>${v === '' ? '— ללא —' : hebrewFinanceStatus(v)}</option>`
       ).join('');
-      const amt = rowAmount(row);
       const statusCell = canEdit
         ? `<td class="ds-finance-status-cell"><select class="ds-input ds-input--sm ds-finance-status-select" data-inline-status="${uid}">${statusOpts}</select></td>`
         : `<td>${dsStatusChip(hebrewFinanceStatus(row.finance_status), financeStatusVariant(row.finance_status))}</td>`;
@@ -324,12 +327,18 @@ function buildGroupedTable(rows, canEdit, canView) {
 
       const datesExpandRow = buildDatesExpandRowHtml(row, BASE_COLS);
 
+      const price = parseFloat(row.price) || 0;
+      const sessions = parseFloat(row.sessions) || 0;
+      const calcAmount = sessions > 0 ? price * sessions : price;
+
       return `<tr class="ds-data-row" data-row-id="${uid}">
         <td>${escapeHtml(row.activity_name || '—')}</td>
         <td>${escapeHtml(row.school || '—')}</td>
         <td>${escapeHtml(row.authority || '—')}</td>
         <td>${escapeHtml(row.activity_manager || '—')}</td>
-        <td style="text-align:left;">${formatILS(amt)}</td>
+        <td style="text-align:left;">${price > 0 ? formatILS(price) : '—'}</td>
+        <td style="text-align:center;">${sessions > 0 ? sessions : '—'}</td>
+        <td style="text-align:left;">${calcAmount > 0 ? formatILS(calcAmount) : '—'}</td>
         <td>${escapeHtml(row.funding || '—')}</td>
         ${statusCell}
         ${notesCell}
@@ -349,7 +358,9 @@ function buildGroupedTable(rows, canEdit, canView) {
       <th>בית ספר</th>
       <th>רשות</th>
       <th>מנהל קורס</th>
-      <th>סכום גבייה</th>
+      <th>מחיר</th>
+      <th>מפגשים</th>
+      <th>סכום</th>
       <th>מימון</th>
       <th>סטטוס</th>
       ${notesHead}
