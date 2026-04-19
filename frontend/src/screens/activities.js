@@ -176,7 +176,6 @@ export const activitiesScreen = {
       <tr class="ds-data-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="${escapeHtml(
         row.finance_status || ''
       )}" data-row-id="${escapeHtml(row.RowID)}">
-        <td>${escapeHtml(row.RowID)}</td>
         <td>${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</td>
         <td>${escapeHtml(row.activity_name || '—')}</td>
         <td>${escapeHtml(row.start_date || '—')}</td>
@@ -204,7 +203,7 @@ export const activitiesScreen = {
         return `<div data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="${escapeHtml(row.finance_status || '')}">
         ${dsInteractiveCard({
           action: `activity:${row.RowID}`,
-          title: `${row.RowID} · ${visibleActivityCategoryLabel(row.activity_type)}`,
+          title: visibleActivityCategoryLabel(row.activity_type),
           subtitle: row.activity_name || 'פעילות ללא שם',
           meta: `${hebrewFinanceStatus(row.finance_status || 'open')} · ${row.start_date || '—'} עד ${row.end_date || '—'}`,
           variant: 'session'
@@ -268,7 +267,7 @@ export const activitiesScreen = {
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות למסנן זה')
         : dsTableWrap(`<table class="ds-table ds-table--interactive">
-                <thead><tr><th>${hebrewColumn('RowID')}</th><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>התחלה</th><th>סיום</th>${thEmp}<th>${hebrewColumn('finance_status')}</th>${thPrivate}</tr></thead>
+                <thead><tr><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>התחלה</th><th>סיום</th>${thEmp}<th>${hebrewColumn('finance_status')}</th>${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`);
 

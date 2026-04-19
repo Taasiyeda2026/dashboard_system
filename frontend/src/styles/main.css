@@ -1253,11 +1253,50 @@ span.ds-chip {
 
 /* ——— Compact list rows (activities) ——— */
 .ds-compact-list {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--ds-space-2);
+}
+
+@media (max-width: 1100px) {
+  .ds-compact-list { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (max-width: 820px) {
+  .ds-compact-list { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .ds-compact-list { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* compact-list grid cells: card fills the slot height */
+.ds-compact-list > [data-list-item] {
   display: flex;
-  flex-direction: column;
-  gap: var(--ds-space-1);
-  max-width: 36rem;
-  margin-inline: auto;
+}
+
+.ds-compact-list > [data-list-item] > .ds-interactive-card {
+  flex: 1;
+}
+
+/* session cards inside the compact grid — tighter sizing */
+.ds-compact-list .ds-interactive-card--session {
+  min-height: unset;
+  padding: var(--ds-space-2);
+  gap: 2px;
+}
+
+.ds-compact-list .ds-interactive-card__title {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.ds-compact-list .ds-interactive-card__subtitle {
+  font-size: 0.72rem;
+}
+
+.ds-compact-list .ds-interactive-card__meta {
+  font-size: 0.65rem;
 }
 
 .ds-compact-row {
