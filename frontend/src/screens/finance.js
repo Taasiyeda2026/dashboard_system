@@ -453,7 +453,9 @@ const LS = {
   statusFilter: 'finance_status_filter',
   monthYm: 'finance_month_ym',
   tab: 'finance_tab',
-  viewMode: 'finance_view_mode'
+  viewMode: 'finance_view_mode',
+  mgrSortCol: 'finance_mgr_sort_col',
+  mgrSortDir: 'finance_mgr_sort_dir'
 };
 
 function loadStateFromStorage(state) {
@@ -464,7 +466,9 @@ function loadStateFromStorage(state) {
     financeStatusFilter: LS.statusFilter,
     financeMonthYm: LS.monthYm,
     financeTab: LS.tab,
-    financeViewMode: LS.viewMode
+    financeViewMode: LS.viewMode,
+    managerBreakdownSortCol: LS.mgrSortCol,
+    managerBreakdownSortDir: LS.mgrSortDir
   };
   Object.entries(map).forEach(([stateKey, lsKey]) => {
     if (!state[stateKey]) {
@@ -761,7 +765,7 @@ export const financeScreen = {
       rerender();
     });
 
-    /* Manager sort */
+    /* Manager sort — persist chosen column + direction to localStorage */
     root.querySelectorAll('[data-mgr-sort-col]').forEach((th) => {
       th.addEventListener('click', () => {
         const col = th.dataset.mgrSortCol;
@@ -771,6 +775,8 @@ export const financeScreen = {
           state.managerBreakdownSortCol = col;
           state.managerBreakdownSortDir = 'desc';
         }
+        localStorage.setItem(LS.mgrSortCol, state.managerBreakdownSortCol);
+        localStorage.setItem(LS.mgrSortDir, state.managerBreakdownSortDir);
         rerender();
       });
     });
