@@ -174,7 +174,10 @@ function shell(content) {
             <p class="shell-top__mobile-brand">${screenLabels[state.route] || 'תעשיידע'}</p>
           </div>
           <div class="shell-top__end">
-            <button type="button" class="ds-btn ds-btn--danger ds-btn--sm" id="logoutBtn">התנתקות</button>
+            <button type="button" class="shell-logout-btn" id="logoutBtn" aria-label="התנתקות">
+              <span class="shell-logout-btn__icon" aria-hidden="true">⏻</span>
+              <span class="shell-logout-btn__label">התנתקות</span>
+            </button>
           </div>
         </header>
         <div class="shell-stage">
