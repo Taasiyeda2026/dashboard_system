@@ -293,17 +293,29 @@ export const financeScreen = {
         </span>
         ${(dateFrom || dateTo) ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-clear-dates style="white-space:nowrap;">נקה תאריכים</button>` : ''}
       </div>
-      ${dsCard({
-        title: 'רשימת כספים',
-        body: narrow ? compact : tableBlock,
-        padded: rows.length === 0 || narrow
-      })}
+      <div data-finance-data-area>
+        ${dsCard({
+          title: 'רשימת כספים',
+          body: narrow ? compact : tableBlock,
+          padded: rows.length === 0 || narrow
+        })}
+      </div>
     `);
   },
   bind({ root, data, ui, api, state, rerender, clearScreenDataCache = () => {} }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const canEdit = state?.user?.display_role !== 'instructor';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+
+    function showDataAreaLoading() {
+      const area = root.querySelector('[data-finance-data-area]');
+      if (area) {
+        area.innerHTML = '<div class="ds-loading-card" dir="rtl" role="status" aria-live="polite"><div class="ds-spinner" aria-hidden="true"></div><p>טוען נתונים...</p></div>';
+      }
+      root.querySelectorAll('.ds-kpi__value').forEach((el) => {
+        el.style.opacity = '0.35';
+      });
+    }
 
     root.querySelector('#finance-search')?.addEventListener('input', (ev) => {
       state.financeSearch = ev.target.value || '';
@@ -320,6 +332,7 @@ export const financeScreen = {
     root.querySelector('#finance-date-from')?.addEventListener('change', (ev) => {
       state.financeDateFrom = ev.target.value || '';
       saveDatesToStorage(state.financeDateFrom, state.financeDateTo);
+      showDataAreaLoading();
       clearScreenDataCache();
       rerender();
     });
@@ -327,6 +340,7 @@ export const financeScreen = {
     root.querySelector('#finance-date-to')?.addEventListener('change', (ev) => {
       state.financeDateTo = ev.target.value || '';
       saveDatesToStorage(state.financeDateFrom, state.financeDateTo);
+      showDataAreaLoading();
       clearScreenDataCache();
       rerender();
     });
@@ -335,6 +349,7 @@ export const financeScreen = {
       state.financeDateFrom = '';
       state.financeDateTo = '';
       saveDatesToStorage('', '');
+      showDataAreaLoading();
       clearScreenDataCache();
       rerender();
     });
