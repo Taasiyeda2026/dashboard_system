@@ -425,11 +425,17 @@ function actionExceptions_(user) {
   };
 }
 
-function actionFinance_(user) {
+function actionFinance_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
   var today = formatDate_(new Date());
   var rule = text_(readActiveSettingsMap_().finance_display_rule);
+  var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  var dateFrom = text_((payload || {}).date_from || '');
+  var dateTo = text_((payload || {}).date_to || '');
+  if (dateFrom && !DATE_RE.test(dateFrom)) dateFrom = '';
+  if (dateTo && !DATE_RE.test(dateTo)) dateTo = '';
+
   var rows = allActivities_().filter(function(row) {
     if (rule === 'ended_until_today') {
       var e = text_(row.end_date || row.start_date);
@@ -437,6 +443,16 @@ function actionFinance_(user) {
     }
     return true;
   });
+
+  if (dateFrom || dateTo) {
+    rows = rows.filter(function(row) {
+      var d = text_(row.end_date || row.start_date);
+      if (!d) return false;
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    });
+  }
 
   var mappedRows = rows.map(function(row) {
     return {

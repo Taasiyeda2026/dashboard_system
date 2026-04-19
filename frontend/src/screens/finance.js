@@ -74,7 +74,10 @@ function exportToCsv(rows) {
 }
 
 export const financeScreen = {
-  load: ({ api }) => api.finance(),
+  load: ({ api, state }) => api.finance({
+    date_from: state?.financeDateFrom || '',
+    date_to: state?.financeDateTo || ''
+  }),
   render(data, { state } = {}) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
@@ -86,12 +89,6 @@ export const financeScreen = {
     let rows = applySearch(allRows, searchQ);
     if (statusFilter) {
       rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
-    }
-    if (dateFrom) {
-      rows = rows.filter((r) => r.end_date && String(r.end_date) >= dateFrom);
-    }
-    if (dateTo) {
-      rows = rows.filter((r) => r.end_date && String(r.end_date) <= dateTo);
     }
 
     const agg = data?.aggregates;
@@ -233,7 +230,7 @@ export const financeScreen = {
       })}
     `);
   },
-  bind({ root, data, ui, api, state, rerender, clearScreenDataCache }) {
+  bind({ root, data, ui, api, state, rerender, clearScreenDataCache = () => {} }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const canEdit = state?.user?.display_role !== 'instructor';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -252,23 +249,21 @@ export const financeScreen = {
 
     root.querySelector('#finance-date-from')?.addEventListener('change', (ev) => {
       state.financeDateFrom = ev.target.value || '';
+      clearScreenDataCache();
       rerender();
     });
 
     root.querySelector('#finance-date-to')?.addEventListener('change', (ev) => {
       state.financeDateTo = ev.target.value || '';
+      clearScreenDataCache();
       rerender();
     });
 
     root.querySelector('[data-export-csv]')?.addEventListener('click', () => {
       const searchQ = state?.financeSearch || '';
       const statusFilter = state?.financeStatusFilter || '';
-      const dateFrom = state?.financeDateFrom || '';
-      const dateTo = state?.financeDateTo || '';
       let rows = applySearch(allRows, searchQ);
       if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
-      if (dateFrom) rows = rows.filter((r) => r.end_date && String(r.end_date) >= dateFrom);
-      if (dateTo) rows = rows.filter((r) => r.end_date && String(r.end_date) <= dateTo);
       exportToCsv(rows);
     });
 

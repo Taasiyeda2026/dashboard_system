@@ -210,6 +210,11 @@ function screenDataCacheKey() {
   if (state.route === 'activities') {
     return `activities:${state.activityTab || 'all'}:${state.activityFinanceStatus || ''}`;
   }
+  if (state.route === 'finance') {
+    const df = state.financeDateFrom || '';
+    const dt = state.financeDateTo || '';
+    return `finance:${df}:${dt}`;
+  }
   if (state.route === 'dashboard') {
     const ym = state.dashboardMonthYm && /^\d{4}-\d{2}$/.test(state.dashboardMonthYm) ? state.dashboardMonthYm : 'default';
     return `dashboard:${ym}`;
@@ -305,6 +310,10 @@ function clearScreenDataCache() {
   if (state.route === 'activities') {
     Object.keys(state.screenDataCache).forEach((key) => {
       if (key.startsWith('activities:')) delete state.screenDataCache[key];
+    });
+  } else if (state.route === 'finance') {
+    Object.keys(state.screenDataCache).forEach((key) => {
+      if (key.startsWith('finance:')) delete state.screenDataCache[key];
     });
   } else {
     delete state.screenDataCache[screenDataCacheKey()];
