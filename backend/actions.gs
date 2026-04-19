@@ -182,9 +182,13 @@ function actionActivities_(user, payload) {
   }
   var activityTypeCounts = {};
   typeKeys.forEach(function(t) {
-    activityTypeCounts[t] = allRows.filter(function(r) {
-      return text_(r.activity_type) === t;
-    }).length;
+    activityTypeCounts[t] = 0;
+  });
+  allRows.forEach(function(r) {
+    var t = text_(r.activity_type);
+    if (Object.prototype.hasOwnProperty.call(activityTypeCounts, t)) {
+      activityTypeCounts[t] += 1;
+    }
   });
 
   var activityType = text_(payload.activity_type || 'all');
@@ -249,6 +253,8 @@ function actionWeek_(user) {
   var startDay = getWeekStartDay_();
   var anchor = startOfWeekContaining_(today, startDay);
   var showSat = settingShowShabbat_();
+  var calRows = visibleActivitiesForUser_(user);
+  var meetingsMap = buildMeetingsMap_();
 
   var days = [];
   for (var i = 0; i < 7; i++) {
@@ -261,7 +267,7 @@ function actionWeek_(user) {
     days.push({
       date: key,
       weekday_label: hebrewWeekdayLabel_(dow),
-      items: activitiesOnCalendarDate_(user, key)
+      items: activityItemsForCalendarDate_(calRows, meetingsMap, key)
     });
   }
 
@@ -279,6 +285,8 @@ function actionMonth_(user) {
   var year = now.getFullYear();
   var month = now.getMonth();
   var daysInMonth = new Date(year, month + 1, 0).getDate();
+  var calRows = visibleActivitiesForUser_(user);
+  var meetingsMap = buildMeetingsMap_();
 
   var cells = [];
   for (var i = 1; i <= daysInMonth; i++) {
@@ -287,7 +295,7 @@ function actionMonth_(user) {
     cells.push({
       day: i,
       date: key,
-      items: activitiesOnCalendarDate_(user, key)
+      items: activityItemsForCalendarDate_(calRows, meetingsMap, key)
     });
   }
 
@@ -854,12 +862,22 @@ function allActivities_() {
 }
 
 function visibleActivitiesForUser_(user) {
-  if (user.display_role !== 'instructor') return allActivities_();
-
-  var empId = text_(user.emp_id || user.user_id);
-  return allActivities_().filter(function(row) {
-    return text_(row.emp_id) === empId || text_(row.emp_id_2) === empId;
-  });
+  if (__rqCache_ && __rqCache_.visibleActivitiesForUserCache) {
+    return __rqCache_.visibleActivitiesForUserCache;
+  }
+  var result;
+  if (user.display_role !== 'instructor') {
+    result = allActivities_();
+  } else {
+    var empId = text_(user.emp_id || user.user_id);
+    result = allActivities_().filter(function(row) {
+      return text_(row.emp_id) === empId || text_(row.emp_id_2) === empId;
+    });
+  }
+  if (__rqCache_) {
+    __rqCache_.visibleActivitiesForUserCache = result;
+  }
+  return result;
 }
 
 function buildLongRows_() {
@@ -1154,15 +1172,14 @@ function buildClientSettingsPayload_() {
   };
 }
 
-function activitiesOnCalendarDate_(user, dateKey) {
-  var rows = visibleActivitiesForUser_(user);
-  var map = buildMeetingsMap_();
+/** פריטי לוח שנה ליום אחד — rows ו-meetingsMap מחושבים פעם אחת לכל בקשת week/month */
+function activityItemsForCalendarDate_(rows, meetingsMap, dateKey) {
   var out = [];
   var seen = {};
   rows.forEach(function(row) {
     var include = false;
     if (text_(row.source_sheet) === CONFIG.SHEETS.DATA_LONG) {
-      var dlist = map[row.RowID] || [];
+      var dlist = meetingsMap[row.RowID] || [];
       if (dlist.length) {
         include = dlist.indexOf(dateKey) >= 0;
       } else {

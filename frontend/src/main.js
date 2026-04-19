@@ -2,7 +2,6 @@ import { api } from './api.js';
 import { state, setSession } from './state.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
-import { dsSkeletonLines } from './screens/shared/layout.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { loginScreen } from './screens/login.js';
 import { dashboardScreen } from './screens/dashboard.js';
@@ -35,28 +34,6 @@ function flushPaint() {
       requestAnimationFrame(resolve);
     });
   });
-}
-
-function renderPostLoginLoadingHtml() {
-  return `
-    <div class="login-shell" dir="rtl">
-      <section class="login-card login-card--post-auth" aria-busy="true">
-        <div class="login-brand">
-          <img
-            class="login-logo"
-            src="${loginLogoSrc}"
-            alt="תעשיידע"
-            width="200"
-            height="86"
-            decoding="async"
-          />
-        </div>
-        <p class="login-loading-heading" role="status">טוען את המערכת...</p>
-        <p class="login-loading-sub">מכינים את המסך הראשון, נא להמתין</p>
-        ${dsSkeletonLines(3)}
-      </section>
-    </div>
-  `;
 }
 
 function screenLoadingMarkup() {
@@ -148,12 +125,6 @@ function shell(content) {
           <span class="shell-brand__name">תעשיידע</span>
         </div>
         <nav class="shell-nav">${nav}</nav>
-        <div class="shell-sidebar__footer">
-          <div class="shell-user">
-            <span class="shell-user__name">${displayName}</span>
-            <span class="shell-user__role">${roleLine}</span>
-          </div>
-        </div>
       </aside>
       <div class="shell-main">
         <header class="shell-top">
@@ -302,16 +273,20 @@ async function mountScreen() {
   const screen = screens[state.route];
   if (!screen) throw new Error('מסך לא זמין');
 
+  const cacheKey = screenDataCacheKey();
+  const cacheEntry = screen.load ? state.screenDataCache[cacheKey] : null;
+
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
 
   if (!shellExists) {
-    app.innerHTML = shell(screenLoadingMarkup());
+    const shellBody = cacheEntry ? screen.render(cacheEntry.data, { state }) : screenLoadingMarkup();
+    app.innerHTML = shell(shellBody);
     bindShell();
     await flushPaint();
   } else {
     setShellNavBusy(true);
     const sr = document.getElementById('screenRoot');
-    if (sr) sr.innerHTML = screenLoadingMarkup();
+    if (sr && !cacheEntry) sr.innerHTML = screenLoadingMarkup();
     updateNavActiveClasses();
     await flushPaint();
   }
@@ -366,8 +341,6 @@ async function render() {
           const data = await api.login(userId, code);
           setSession({ token: data.token, user: data.user });
           applyBootstrapFromLoginData(data);
-          app.innerHTML = renderPostLoginLoadingHtml();
-          await flushPaint();
           await restoreSession();
           await render();
         } catch (error) {
