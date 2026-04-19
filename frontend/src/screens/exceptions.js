@@ -25,12 +25,38 @@ function exceptionDrawerHtml(row) {
     </div>`;
 }
 
+function applySearch(rows, q) {
+  if (!q) return rows;
+  const lq = q.toLowerCase();
+  return rows.filter(
+    (r) =>
+      String(r.activity_name || '').toLowerCase().includes(lq) ||
+      String(r.RowID || '').toLowerCase().includes(lq) ||
+      hebrewExceptionType(r.exception_type).includes(lq)
+  );
+}
+
 export const exceptionsScreen = {
   load: ({ api }) => api.exceptions(),
-  render(data) {
-    const safeRows = Array.isArray(data?.rows) ? data.rows : [];
+  render(data, { state } = {}) {
+    const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const counts = data?.counts || { missing_instructor: 0, missing_start_date: 0, late_end_date: 0 };
     const narrow = isNarrowViewport();
+    const searchQ = state?.exceptionsSearch || '';
+    const typeFilter = state?.exceptionsTypeFilter || '';
+
+    let safeRows = applySearch(allRows, searchQ);
+    if (typeFilter) {
+      safeRows = safeRows.filter((r) => String(r.exception_type || '') === typeFilter);
+    }
+
+    const exTypes = [...new Set(allRows.map((r) => String(r.exception_type || '')).filter(Boolean))];
+    const typeChips = [{ val: '', label: 'הכל' }, ...exTypes.map((t) => ({ val: t, label: hebrewExceptionType(t) }))]
+      .map(
+        (c) =>
+          `<button type="button" class="ds-chip ${c.val === typeFilter ? 'is-active' : ''}" data-type-filter="${escapeHtml(c.val)}">${escapeHtml(c.label)}</button>`
+      )
+      .join('');
 
     const excFilters = [...new Set(safeRows.map((r) => String(r.exception_type || '').trim()).filter(Boolean))].map((t) => ({
       value: t,
@@ -79,8 +105,18 @@ export const exceptionsScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('חריגות', 'נתונים הדורשים טיפול')}
+      <div class="ds-screen-top-row">
+        <input
+          id="exceptions-search"
+          type="search"
+          class="ds-search-input"
+          placeholder="חיפוש חריגה..."
+          value="${escapeHtml(searchQ)}"
+          dir="rtl"
+        />
+      </div>
       ${dsFilterBar(summaryChips)}
-      ${safeRows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש בחריגות…', filterLabel: 'סוג חריגה', filters: excFilters }) : ''}
+      <div class="ds-filter-bar" role="toolbar">${typeChips}</div>
       ${dsCard({
         title: 'רשימת חריגות',
         badge: `${safeRows.length} שורות`,
@@ -89,12 +125,23 @@ export const exceptionsScreen = {
       })}
     `);
   },
-  bind({ root, data, ui }) {
-    bindPageListTools(root);
-    const safeRows = Array.isArray(data?.rows) ? data.rows : [];
+  bind({ root, data, ui, state, rerender }) {
+    const allRows = Array.isArray(data?.rows) ? data.rows : [];
+
+    root.querySelector('#exceptions-search')?.addEventListener('input', (ev) => {
+      state.exceptionsSearch = ev.target.value || '';
+      rerender();
+    });
+
+    root.querySelectorAll('[data-type-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.exceptionsTypeFilter = btn.dataset.typeFilter || '';
+        rerender();
+      });
+    });
 
     const openAt = (idx) => {
-      const hit = safeRows[idx];
+      const hit = allRows[idx];
       if (!hit || !ui) return;
       ui.openDrawer({
         title: `חריגה · ${hit.RowID}`,
