@@ -219,7 +219,9 @@ const API_ERROR_HE = {
   offline: 'אין חיבור לרשת',
   user_already_exists: 'מזהה המשתמש כבר קיים במערכת',
   user_not_found: 'המשתמש/ת לא נמצא/ה במערכת',
-  cannot_deactivate_self: 'לא ניתן להשבית את עצמך'
+  cannot_deactivate_self: 'לא ניתן להשבית את עצמך',
+  cannot_delete_self: 'לא ניתן למחוק את עצמך',
+  cannot_delete_active_user: 'ניתן למחוק משתמש/ת לא פעיל/ה בלבד'
 };
 
 /** Maps common API English errors to Hebrew; leaves Hebrew messages unchanged. */

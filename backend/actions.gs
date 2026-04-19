@@ -1016,6 +1016,28 @@ function actionDeactivateUser_(user, payload) {
   };
 }
 
+function actionDeleteUser_(user, payload) {
+  requireAnyRole_(user, ['admin']);
+
+  var userId = text_(payload.user_id);
+  if (!userId) throw new Error('user_id is required');
+
+  if (userId === text_(user.user_id)) throw new Error('cannot_delete_self');
+
+  var existing = getPermissionRow_(userId);
+  if (!existing || !text_(existing.user_id)) throw new Error('user_not_found');
+
+  if (text_(existing.active).toLowerCase() === 'yes') throw new Error('cannot_delete_active_user');
+
+  deleteRowsByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', userId);
+
+  scriptCacheInvalidateDataViews_();
+  return {
+    deleted: true,
+    user_id: userId
+  };
+}
+
 function actionSavePrivateNote_(user, payload) {
   var permission = getPermissionRow_(user.user_id);
   if (yesNo_(permission.can_review_requests) !== 'yes' || user.display_role !== 'operations_reviewer') {
