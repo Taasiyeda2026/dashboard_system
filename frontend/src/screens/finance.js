@@ -19,11 +19,38 @@ import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 
 const TABLE_COLUMNS = ['RowID', 'activity_name', 'school', 'funding', 'end_date', 'finance_status', 'status'];
 
+function applySearch(rows, q) {
+  if (!q) return rows;
+  const lq = q.toLowerCase();
+  return rows.filter(
+    (r) =>
+      String(r.activity_name || '').toLowerCase().includes(lq) ||
+      String(r.RowID || '').toLowerCase().includes(lq) ||
+      String(r.school || '').toLowerCase().includes(lq) ||
+      hebrewFinanceStatus(r.finance_status).toLowerCase().includes(lq)
+  );
+}
+
 export const financeScreen = {
   load: ({ api }) => api.finance(),
-  render(data) {
-    const rows = Array.isArray(data?.rows) ? data.rows : [];
+  render(data, { state } = {}) {
+    const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
+    const searchQ = state?.financeSearch || '';
+    const statusFilter = state?.financeStatusFilter || '';
+
+    let rows = applySearch(allRows, searchQ);
+    if (statusFilter) {
+      rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
+    }
+
+    const statuses = [...new Set(allRows.map((r) => String(r.finance_status || '')).filter(Boolean))];
+    const statusChips = [{ val: '', label: 'הכל' }, ...statuses.map((s) => ({ val: s, label: hebrewFinanceStatus(s) }))]
+      .map(
+        (c) =>
+          `<button type="button" class="ds-chip ${c.val === statusFilter ? 'is-active' : ''}" data-status-filter="${escapeHtml(c.val)}">${escapeHtml(c.label)}</button>`
+      )
+      .join('');
 
     const body = rows.map(
       (row) => `
@@ -63,6 +90,17 @@ export const financeScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('כספים', 'פעילויות שהסתיימו עד היום — לפי הגדרות המערכת')}
+      <div class="ds-screen-top-row">
+        <input
+          id="finance-search"
+          type="search"
+          class="ds-search-input"
+          placeholder="חיפוש..."
+          value="${escapeHtml(searchQ)}"
+          dir="rtl"
+        />
+      </div>
+      <div class="ds-filter-bar" role="toolbar">${statusChips}</div>
       ${dsCard({
         title: 'רשימת כספים',
         badge: `${rows.length} שורות`,
@@ -72,9 +110,21 @@ export const financeScreen = {
     `);
   },
   bind({ root, data, ui, api, state, rerender }) {
-    const rows = Array.isArray(data?.rows) ? data.rows : [];
+    const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const canEdit = state?.user?.display_role !== 'instructor';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+
+    root.querySelector('#finance-search')?.addEventListener('input', (ev) => {
+      state.financeSearch = ev.target.value || '';
+      rerender();
+    });
+
+    root.querySelectorAll('[data-status-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.financeStatusFilter = btn.dataset.statusFilter || '';
+        rerender();
+      });
+    });
 
     function bindFinanceEditForm(contentRoot) {
       const form = contentRoot.querySelector('[data-edit-activity]');
@@ -116,7 +166,7 @@ export const financeScreen = {
     root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
       rowNode.addEventListener('click', () => {
         const rowId = rowNode.dataset.rowId;
-        const hit = rows.find((r) => String(r.RowID) === String(rowId));
+        const hit = allRows.find((r) => String(r.RowID) === String(rowId));
         openDrawer(hit);
       });
       rowNode.addEventListener('keydown', (event) => {
@@ -130,7 +180,7 @@ export const financeScreen = {
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('finance:')) return;
       const rowId = action.slice('finance:'.length);
-      const hit = rows.find((r) => String(r.RowID) === String(rowId));
+      const hit = allRows.find((r) => String(r.RowID) === String(rowId));
       openDrawer(hit);
     });
   }

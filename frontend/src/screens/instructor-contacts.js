@@ -37,13 +37,44 @@ function instructorContactDrawerHtml(row, columns) {
   return `<div class="ds-details-grid" dir="rtl">${lines}</div>`;
 }
 
+function applySearch(rows, q) {
+  if (!q) return rows;
+  const lq = q.toLowerCase();
+  return rows.filter(
+    (r) =>
+      String(r.full_name || '').toLowerCase().includes(lq) ||
+      String(r.emp_id || '').toLowerCase().includes(lq) ||
+      String(r.email || '').toLowerCase().includes(lq) ||
+      String(r.mobile || '').toLowerCase().includes(lq) ||
+      hebrewEmploymentType(r.employment_type).toLowerCase().includes(lq)
+  );
+}
+
 /** אנשי קשר של מדריכים — לפי גיליון contacts_instructors במקור הנתונים (צפייה בלבד). */
 export const instructorContactsScreen = {
   load: ({ api }) => api.instructorContacts(),
-  render(data) {
+  render(data, { state } = {}) {
     const columns = ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'];
-    const rows = Array.isArray(data?.rows) ? data.rows : [];
+    const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
+    const searchQ = state?.instrContactsSearch || '';
+    const activeFilter = state?.instrContactsActiveFilter || '';
+
+    let rows = applySearch(allRows, searchQ);
+    if (activeFilter) {
+      rows = rows.filter((r) => String(r.active || '').toLowerCase() === activeFilter);
+    }
+
+    const activeChips = [
+      { val: '', label: 'הכל' },
+      { val: 'yes', label: 'פעיל' },
+      { val: 'no', label: 'לא פעיל' }
+    ]
+      .map(
+        (c) =>
+          `<button type="button" class="ds-chip ${c.val === activeFilter ? 'is-active' : ''}" data-active-filter="${c.val}">${escapeHtml(c.label)}</button>`
+      )
+      .join('');
 
     const body = rows.map(
       (row) => `
@@ -85,6 +116,17 @@ export const instructorContactsScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('אנשי קשר מדריכים', 'נתונים מגיליון contacts_instructors')}
+      <div class="ds-screen-top-row">
+        <input
+          id="instr-contacts-search"
+          type="search"
+          class="ds-search-input"
+          placeholder="חיפוש..."
+          value="${escapeHtml(searchQ)}"
+          dir="rtl"
+        />
+      </div>
+      <div class="ds-filter-bar" role="toolbar">${activeChips}</div>
       ${dsCard({
         title: 'מדריכים',
         badge: `${rows.length} שורות`,
@@ -93,12 +135,24 @@ export const instructorContactsScreen = {
       })}
     `);
   },
-  bind({ root, data, ui }) {
-    const rows = Array.isArray(data?.rows) ? data.rows : [];
+  bind({ root, data, state, ui, rerender }) {
+    const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const columns = ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'];
 
+    root.querySelector('#instr-contacts-search')?.addEventListener('input', (ev) => {
+      state.instrContactsSearch = ev.target.value || '';
+      rerender();
+    });
+
+    root.querySelectorAll('[data-active-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.instrContactsActiveFilter = btn.dataset.activeFilter || '';
+        rerender();
+      });
+    });
+
     const openRow = (empId) => {
-      const hit = rows.find((r) => String(r.emp_id) === String(empId));
+      const hit = allRows.find((r) => String(r.emp_id) === String(empId));
       if (!hit || !ui) return;
       ui.openDrawer({
         title: `מדריך/ה · ${hit.full_name || hit.emp_id}`,
