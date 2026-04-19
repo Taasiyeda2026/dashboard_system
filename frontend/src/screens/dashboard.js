@@ -74,7 +74,9 @@ export const dashboardScreen = {
     const curYm = currentMonthYm();
     const canGoNext = ym < curYm;
 
-    const managers = Array.isArray(data.by_activity_manager) ? data.by_activity_manager : [];
+    const managers = (Array.isArray(data.by_activity_manager) ? data.by_activity_manager : []).filter(
+      (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned'
+    );
     const showOnly = !!data?.show_only_nonzero_kpis;
     const kpiCards = filterKpiCards(data?.kpi_cards, showOnly);
 
