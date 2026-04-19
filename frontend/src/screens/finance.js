@@ -164,7 +164,30 @@ export const financeScreen = {
       )
       .join('');
 
-    const managerBreakdown = (agg?.byManager) ? agg.byManager : buildManagerBreakdown(allRows);
+    const mgrSortCol = state?.managerBreakdownSortCol || 'total';
+    const mgrSortDir = state?.managerBreakdownSortDir || 'desc';
+
+    const rawManagerBreakdown = (agg?.byManager) ? agg.byManager : buildManagerBreakdown(allRows);
+    const managerBreakdown = [...rawManagerBreakdown].sort((a, b) => {
+      let av = a[mgrSortCol];
+      let bv = b[mgrSortCol];
+      if (mgrSortCol === 'mgr') {
+        av = String(av || '');
+        bv = String(bv || '');
+        return mgrSortDir === 'asc' ? av.localeCompare(bv, 'he') : bv.localeCompare(av, 'he');
+      }
+      av = Number(av) || 0;
+      bv = Number(bv) || 0;
+      return mgrSortDir === 'asc' ? av - bv : bv - av;
+    });
+
+    function mgrTh(label, col, centerAlign) {
+      const isActive = mgrSortCol === col;
+      const indicator = isActive ? (mgrSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+      const style = `cursor:pointer;user-select:none;white-space:nowrap;${centerAlign ? 'text-align:center;' : ''}${isActive ? 'text-decoration:underline dotted;' : ''}`;
+      return `<th data-mgr-sort-col="${escapeHtml(col)}" style="${style}" title="מיין לפי ${escapeHtml(label)}">${escapeHtml(label)}${indicator}</th>`;
+    }
+
     const managerTableRows = managerBreakdown.map((m) => `
       <tr>
         <td>${escapeHtml(m.mgr)}</td>
@@ -182,14 +205,14 @@ export const financeScreen = {
       badge: `${managerBreakdown.length} מנהלים`,
       body: dsTableWrap(`<table class="ds-table">
         <thead><tr>
-          <th>מנהל פעילות</th>
-          <th style="text-align:center;">סה"כ</th>
-          <th style="text-align:center;">פתוח</th>
-          <th style="text-align:center;">סכום פתוח</th>
-          <th style="text-align:center;">סגור</th>
-          <th style="text-align:center;">סכום סגור</th>
-          <th style="text-align:center;">סה"כ סכום</th>
-          ${totalOther > 0 ? '<th style="text-align:center;">אחר</th>' : ''}
+          ${mgrTh('מנהל פעילות', 'mgr', false)}
+          ${mgrTh('סה"כ', 'total', true)}
+          ${mgrTh('פתוח', 'open', true)}
+          ${mgrTh('סכום פתוח', 'amountOpen', true)}
+          ${mgrTh('סגור', 'closed', true)}
+          ${mgrTh('סכום סגור', 'amountClosed', true)}
+          ${mgrTh('סה"כ סכום', 'amountTotal', true)}
+          ${totalOther > 0 ? mgrTh('אחר', 'other', true) : ''}
         </tr></thead>
         <tbody>${managerTableRows}</tbody>
       </table>`),
@@ -359,6 +382,19 @@ export const financeScreen = {
       showDataAreaLoading();
       clearScreenDataCache();
       rerender();
+    });
+
+    root.querySelectorAll('[data-mgr-sort-col]').forEach((th) => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.mgrSortCol;
+        if (state.managerBreakdownSortCol === col) {
+          state.managerBreakdownSortDir = state.managerBreakdownSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.managerBreakdownSortCol = col;
+          state.managerBreakdownSortDir = 'desc';
+        }
+        rerender();
+      });
     });
 
     root.querySelector('[data-export-csv]')?.addEventListener('click', () => {
