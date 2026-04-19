@@ -18,7 +18,9 @@ import {
 import { isNarrowViewport } from './shared/responsive.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 
-const TABLE_COLUMNS = ['RowID', 'activity_name', 'activity_manager', 'school', 'funding', 'end_date', 'finance_status'];
+const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+
+const TABLE_COLUMNS = ['activity_name', 'activity_manager', 'school', 'funding', 'end_date', 'finance_status'];
 
 function applySearch(rows, q) {
   if (!q) return rows;
@@ -29,8 +31,33 @@ function applySearch(rows, q) {
       String(r.RowID || '').toLowerCase().includes(lq) ||
       String(r.school || '').toLowerCase().includes(lq) ||
       String(r.activity_manager || '').toLowerCase().includes(lq) ||
+      String(r.funding || '').toLowerCase().includes(lq) ||
       hebrewFinanceStatus(r.finance_status).toLowerCase().includes(lq)
   );
+}
+
+function applyMonthFilter(rows, ymStr) {
+  if (!ymStr) return rows;
+  return rows.filter((r) => {
+    const d = String(r.end_date || '');
+    return d.startsWith(ymStr);
+  });
+}
+
+function applyTabFilter(rows, tab) {
+  if (!tab || tab === 'active') {
+    return rows.filter((r) => {
+      const arch = String(r.is_archived || r.archive || '').toLowerCase();
+      return arch !== 'yes' && arch !== 'true' && arch !== '1';
+    });
+  }
+  if (tab === 'archive') {
+    return rows.filter((r) => {
+      const arch = String(r.is_archived || r.archive || '').toLowerCase();
+      return arch === 'yes' || arch === 'true' || arch === '1';
+    });
+  }
+  return rows;
 }
 
 function buildManagerBreakdown(rows) {
@@ -58,7 +85,40 @@ function formatILS(amount) {
   return '₪' + Number(amount).toLocaleString('he-IL', { maximumFractionDigits: 0 });
 }
 
-function exportToCsv(rows) {
+function formatDateIL(isoDate) {
+  if (!isoDate) return '';
+  const [y, m, d] = String(isoDate).split('-');
+  if (!y || !m || !d) return isoDate;
+  return `${d}/${m}/${y}`;
+}
+
+function ymToMonthLabel(ymStr) {
+  if (!ymStr || !/^\d{4}-\d{2}$/.test(ymStr)) return '';
+  const [y, m] = ymStr.split('-');
+  return `${HE_MONTHS[parseInt(m, 10) - 1]} ${y}`;
+}
+
+function prevMonth(ymStr) {
+  if (!ymStr) {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+  const [y, m] = ymStr.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function nextMonth(ymStr) {
+  if (!ymStr) {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+  const [y, m] = ymStr.split('-').map(Number);
+  const d = new Date(y, m, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function exportToCsv(rows, label) {
   const cols = ['RowID', 'activity_name', 'activity_manager', 'school', 'funding', 'price', 'sessions', 'amount', 'start_date', 'end_date', 'finance_status', 'finance_notes', 'status'];
   const headers = cols.map((c) => hebrewColumn(c));
   const lines = [headers.join(',')];
@@ -83,7 +143,7 @@ function exportToCsv(rows) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'כספים.csv';
+  a.download = `כספים${label ? '-' + label : ''}.csv`;
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
@@ -93,58 +153,166 @@ const LS_DATE_FROM = 'finance_date_from';
 const LS_DATE_TO = 'finance_date_to';
 const LS_SEARCH = 'finance_search';
 const LS_STATUS_FILTER = 'finance_status_filter';
+const LS_MONTH_YM = 'finance_month_ym';
+const LS_TAB = 'finance_tab';
 
-function loadDatesFromStorage(state) {
+function loadStateFromStorage(state) {
   if (!state.financeDateFrom) {
-    const storedFrom = localStorage.getItem(LS_DATE_FROM);
-    if (storedFrom) state.financeDateFrom = storedFrom;
+    const v = localStorage.getItem(LS_DATE_FROM);
+    if (v) state.financeDateFrom = v;
   }
   if (!state.financeDateTo) {
-    const storedTo = localStorage.getItem(LS_DATE_TO);
-    if (storedTo) state.financeDateTo = storedTo;
+    const v = localStorage.getItem(LS_DATE_TO);
+    if (v) state.financeDateTo = v;
   }
   if (!state.financeSearch) {
-    const storedSearch = localStorage.getItem(LS_SEARCH);
-    if (storedSearch) state.financeSearch = storedSearch;
+    const v = localStorage.getItem(LS_SEARCH);
+    if (v) state.financeSearch = v;
   }
   if (!state.financeStatusFilter) {
-    const storedStatus = localStorage.getItem(LS_STATUS_FILTER);
-    if (storedStatus) state.financeStatusFilter = storedStatus;
+    const v = localStorage.getItem(LS_STATUS_FILTER);
+    if (v) state.financeStatusFilter = v;
+  }
+  if (!state.financeMonthYm) {
+    const v = localStorage.getItem(LS_MONTH_YM);
+    if (v) state.financeMonthYm = v;
+  }
+  if (!state.financeTab) {
+    const v = localStorage.getItem(LS_TAB);
+    if (v) state.financeTab = v;
   }
 }
 
-function saveDatesToStorage(dateFrom, dateTo) {
-  if (dateFrom) {
-    localStorage.setItem(LS_DATE_FROM, dateFrom);
-  } else {
-    localStorage.removeItem(LS_DATE_FROM);
-  }
-  if (dateTo) {
-    localStorage.setItem(LS_DATE_TO, dateTo);
-  } else {
-    localStorage.removeItem(LS_DATE_TO);
-  }
+function saveDatesToStorage(from, to) {
+  from ? localStorage.setItem(LS_DATE_FROM, from) : localStorage.removeItem(LS_DATE_FROM);
+  to ? localStorage.setItem(LS_DATE_TO, to) : localStorage.removeItem(LS_DATE_TO);
 }
 
-function saveSearchToStorage(search) {
-  if (search) {
-    localStorage.setItem(LS_SEARCH, search);
-  } else {
-    localStorage.removeItem(LS_SEARCH);
-  }
+function saveToStorage(key, val) {
+  val ? localStorage.setItem(key, val) : localStorage.removeItem(key);
 }
 
-function saveStatusFilterToStorage(statusFilter) {
-  if (statusFilter) {
-    localStorage.setItem(LS_STATUS_FILTER, statusFilter);
-  } else {
-    localStorage.removeItem(LS_STATUS_FILTER);
+function buildGroupedTable(rows, statusFilter) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  function rowHtml(row) {
+    const fst = String(row.finance_status || '').trim();
+    if (statusFilter && fst !== statusFilter) return '';
+    const price = parseFloat(row.price) || 0;
+    const sessions = parseFloat(row.sessions) || 0;
+    const amount = sessions > 0 ? price * sessions : price;
+    return `<tr class="ds-data-row" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">
+      <td>${escapeHtml(row.activity_name || '—')}</td>
+      <td>${escapeHtml(row.activity_manager || '—')}</td>
+      <td>${escapeHtml(row.school || '—')}</td>
+      <td>${formatDateIL(row.end_date)}</td>
+      <td>${formatILS(price)}</td>
+      <td style="text-align:center;">${sessions > 0 ? sessions : '—'}</td>
+      <td>${formatILS(amount)}</td>
+      <td>${dsStatusChip(hebrewFinanceStatus(row.finance_status), financeStatusVariant(row.finance_status))}</td>
+    </tr>`;
   }
+
+  const groups = {};
+  rows.forEach((r) => {
+    const funding = String(r.funding || '').trim() || 'לא מוגדר';
+    if (!groups[funding]) groups[funding] = [];
+    groups[funding].push(r);
+  });
+
+  const sortedFundings = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'he'));
+
+  const tbody = sortedFundings.map((funding) => {
+    const gRows = groups[funding];
+    const visibleRows = statusFilter ? gRows.filter((r) => String(r.finance_status || '') === statusFilter) : gRows;
+    if (visibleRows.length === 0) return '';
+
+    const gOpen = gRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open').length;
+    const gClosed = gRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed').length;
+    const gTotal = gRows.reduce((s, r) => {
+      const price = parseFloat(r.price) || 0;
+      const sessions = parseFloat(r.sessions) || 0;
+      return s + (sessions > 0 ? price * sessions : price);
+    }, 0);
+
+    const statusMini = [
+      gOpen > 0 ? `<span class="ds-finance-group-chip ds-finance-group-chip--open">${gOpen} פתוח</span>` : '',
+      gClosed > 0 ? `<span class="ds-finance-group-chip ds-finance-group-chip--closed">${gClosed} סגור</span>` : ''
+    ].filter(Boolean).join('');
+
+    const groupHeader = `<tr class="ds-finance-group-header">
+      <td colspan="8">
+        <span class="ds-finance-group-title">${escapeHtml(funding)}</span>
+        <span class="ds-finance-group-meta">${visibleRows.length} פעילויות · ${formatILS(gTotal)}</span>
+        <span class="ds-finance-group-chips">${statusMini}</span>
+      </td>
+    </tr>`;
+
+    const dataRows = visibleRows.map(rowHtml).join('');
+    return groupHeader + dataRows;
+  }).join('');
+
+  if (!tbody.trim()) return dsEmptyState('לא נמצאו רשומות');
+
+  return dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--grouped">
+    <thead><tr>
+      <th>${hebrewColumn('activity_name')}</th>
+      <th>${hebrewColumn('activity_manager')}</th>
+      <th>${hebrewColumn('school')}</th>
+      <th>${hebrewColumn('end_date')}</th>
+      <th>${hebrewColumn('price')}</th>
+      <th>${hebrewColumn('sessions')}</th>
+      <th>${hebrewColumn('amount')}</th>
+      <th>${hebrewColumn('finance_status')}</th>
+    </tr></thead>
+    <tbody>${tbody}</tbody>
+  </table>`);
+}
+
+function buildMeetingsPanel(row) {
+  const today = new Date().toISOString().slice(0, 10);
+  const dates = [];
+  for (let i = 1; i <= 35; i++) {
+    const key = `Date${i}`;
+    const val = String(row[key] || '').trim();
+    if (val) dates.push({ num: i, val });
+  }
+  if (dates.length === 0) return '';
+
+  const chips = dates.map(({ num, val }) => {
+    let kind = '';
+    let isoVal = val;
+    const parts = val.split('/');
+    if (parts.length === 3) {
+      isoVal = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+    const isPast = isoVal < today;
+    kind = isPast ? 'past' : 'future';
+    return `<span class="ds-date-chip ds-date-chip--${kind}" title="פגישה ${num}">${escapeHtml(val)}</span>`;
+  }).join('');
+
+  const past = dates.filter(({ val }) => {
+    const parts = val.split('/');
+    const isoVal = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` : val;
+    return isoVal < today;
+  }).length;
+  const future = dates.length - past;
+
+  return `<details class="ds-meetings-panel" open>
+    <summary class="ds-meetings-panel__summary">
+      תאריכי פגישות
+      <span class="ds-meetings-panel__counts">
+        ${past > 0 ? `<span class="ds-date-count ds-date-count--past">${past} עברו</span>` : ''}
+        ${future > 0 ? `<span class="ds-date-count ds-date-count--future">${future} עתידיות</span>` : ''}
+      </span>
+    </summary>
+    <div class="ds-meetings-panel__body">${chips}</div>
+  </details>`;
 }
 
 export const financeScreen = {
   load: ({ api, state }) => {
-    loadDatesFromStorage(state);
+    loadStateFromStorage(state);
     return api.finance({
       date_from: state?.financeDateFrom || '',
       date_to: state?.financeDateTo || ''
@@ -157,32 +325,54 @@ export const financeScreen = {
     const statusFilter = state?.financeStatusFilter || '';
     const dateFrom = state?.financeDateFrom || '';
     const dateTo = state?.financeDateTo || '';
+    const activeTab = state?.financeTab || 'active';
+    const monthYm = state?.financeMonthYm || '';
 
-    let rows = applySearch(allRows, searchQ);
+    const hasArchived = allRows.some((r) => {
+      const arch = String(r.is_archived || r.archive || '').toLowerCase();
+      return arch === 'yes' || arch === 'true' || arch === '1';
+    });
+
+    let rows = hasArchived ? applyTabFilter(allRows, activeTab) : allRows;
+    rows = applyMonthFilter(rows, monthYm);
+    rows = applySearch(rows, searchQ);
     if (statusFilter) {
       rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
     }
 
     const agg = data?.aggregates;
+    const visibleOpen = rows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open').length;
+    const visibleClosed = rows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed').length;
     const totalOpen = agg ? agg.totalOpen : allRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open').length;
     const totalClosed = agg ? agg.totalClosed : allRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed').length;
     const totalOther = agg ? agg.totalOther : allRows.length - totalOpen - totalClosed;
 
-    const amountOpen = agg?.amountOpen ?? null;
-    const amountClosed = agg?.amountClosed ?? null;
-    const amountTotal = agg?.amountTotal ?? null;
+    const amountOpen = rows.reduce((s, r) => {
+      const price = parseFloat(r.price) || 0;
+      const sessions = parseFloat(r.sessions) || 0;
+      const amt = sessions > 0 ? price * sessions : price;
+      return String(r.finance_status || '').toLowerCase() === 'open' ? s + amt : s;
+    }, 0);
+    const amountClosed = rows.reduce((s, r) => {
+      const price = parseFloat(r.price) || 0;
+      const sessions = parseFloat(r.sessions) || 0;
+      const amt = sessions > 0 ? price * sessions : price;
+      return String(r.finance_status || '').toLowerCase() === 'closed' ? s + amt : s;
+    }, 0);
+    const amountTotal = rows.reduce((s, r) => {
+      const price = parseFloat(r.price) || 0;
+      const sessions = parseFloat(r.sessions) || 0;
+      return s + (sessions > 0 ? price * sessions : price);
+    }, 0);
 
     const kpis = [
-      { label: 'סה"כ פעילויות', value: String(agg ? agg.total : allRows.length) },
-      { label: 'פתוח (מספר)', value: String(totalOpen) },
-      { label: 'פתוח (סכום)', value: amountOpen !== null ? formatILS(amountOpen) : '—' },
-      { label: 'סגור (מספר)', value: String(totalClosed) },
-      { label: 'סגור (סכום)', value: amountClosed !== null ? formatILS(amountClosed) : '—' },
-      { label: 'סה"כ סכום', value: amountTotal !== null ? formatILS(amountTotal) : '—' },
-      ...(totalOther > 0 ? [{ label: 'אחר', value: String(totalOther) }] : [])
+      { label: 'סה"כ פעילויות', value: String(rows.length) },
+      { label: 'פתוח', value: String(visibleOpen), hint: formatILS(amountOpen) },
+      { label: 'סגור', value: String(visibleClosed), hint: formatILS(amountClosed) },
+      { label: 'סה"כ סכום', value: formatILS(amountTotal) }
     ];
 
-    const statuses = [...new Set(allRows.map((r) => String(r.finance_status || '')).filter(Boolean))];
+    const statuses = [...new Set(rows.map((r) => String(r.finance_status || '')).filter(Boolean))];
     const statusChips = [{ val: '', label: 'הכל' }, ...statuses.map((s) => ({ val: s, label: hebrewFinanceStatus(s) }))]
       .map(
         (c) =>
@@ -193,7 +383,7 @@ export const financeScreen = {
     const mgrSortCol = state?.managerBreakdownSortCol || 'total';
     const mgrSortDir = state?.managerBreakdownSortDir || 'desc';
 
-    const rawManagerBreakdown = (agg?.byManager) ? agg.byManager : buildManagerBreakdown(allRows);
+    const rawManagerBreakdown = (agg?.byManager) ? agg.byManager : buildManagerBreakdown(rows);
     const managerBreakdown = [...rawManagerBreakdown].sort((a, b) => {
       let av = a[mgrSortCol];
       let bv = b[mgrSortCol];
@@ -223,7 +413,6 @@ export const financeScreen = {
         <td style="text-align:center;">${dsStatusChip(String(m.closed), 'success')}</td>
         <td style="text-align:center;">${formatILS(m.amountClosed)}</td>
         <td style="text-align:center;">${formatILS(m.amountTotal)}</td>
-        ${totalOther > 0 ? `<td style="text-align:center;">${m.other > 0 ? m.other : '—'}</td>` : ''}
       </tr>`).join('');
 
     const managerTable = managerBreakdown.length === 0 ? '' : dsCard({
@@ -238,37 +427,13 @@ export const financeScreen = {
           ${mgrTh('סגור', 'closed', true)}
           ${mgrTh('סכום סגור', 'amountClosed', true)}
           ${mgrTh('סה"כ סכום', 'amountTotal', true)}
-          ${totalOther > 0 ? mgrTh('אחר', 'other', true) : ''}
         </tr></thead>
         <tbody>${managerTableRows}</tbody>
       </table>`),
       padded: false
     });
 
-    const body = rows.map((row) => {
-      const searchHay = TABLE_COLUMNS.map((c) => String(row?.[c] ?? '')).join(' ');
-      const fst = String(row.finance_status || '').trim();
-      return `
-      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(
-        fst
-      )}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${TABLE_COLUMNS.map((column) => {
-        if (column === 'finance_status') {
-          const label = hebrewFinanceStatus(row.finance_status);
-          return `<td>${dsStatusChip(label, financeStatusVariant(row.finance_status))}</td>`;
-        }
-        const val = row?.[column] ?? '';
-        return `<td>${escapeHtml(String(val))}</td>`;
-      }).join('')}</tr>
-    `;
-    });
-
-    const tableBlock =
-      rows.length === 0
-        ? dsEmptyState('לא נמצאו רשומות')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive">
-            <thead><tr>${TABLE_COLUMNS.map((column) => `<th>${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
-            <tbody>${body.join('')}</tbody>
-          </table>`);
+    const groupedTable = buildGroupedTable(rows, '');
 
     const compact =
       rows.length === 0
@@ -276,14 +441,13 @@ export const financeScreen = {
         : `<div class="ds-compact-list">${rows
             .map((row) => {
               const fst = String(row.finance_status || '').trim();
-              const searchHay = TABLE_COLUMNS.map((c) => String(row?.[c] ?? '')).join(' ');
-              return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(fst)}">
+              return `<div data-list-item data-filter="${escapeHtml(fst)}">
               ${dsInteractiveCard({
                 variant: 'session',
                 action: `finance:${row.RowID}`,
-                title: `${row.RowID} · ${row.activity_name || '—'}`,
-                subtitle: hebrewFinanceStatus(row.finance_status || 'open'),
-                meta: row.end_date ? `סיום: ${row.end_date}` : ''
+                title: `${row.activity_name || '—'}`,
+                subtitle: `${hebrewFinanceStatus(row.finance_status || 'open')} · ${row.school || ''}`,
+                meta: row.end_date ? `סיום: ${formatDateIL(row.end_date)}` : ''
               })}
             </div>`;
             })
@@ -291,26 +455,36 @@ export const financeScreen = {
 
     const exportBtn = `<button type="button" class="ds-btn ds-btn--sm" data-export-csv>ייצוא CSV</button>`;
 
-    function formatDateIL(isoDate) {
-      if (!isoDate) return '';
-      const [y, m, d] = isoDate.split('-');
-      if (!y || !m || !d) return isoDate;
-      return `${d}/${m}/${y}`;
-    }
-
     let headerSubtitle;
-    if (dateFrom && dateTo) {
+    if (monthYm) {
+      headerSubtitle = `מציג: ${ymToMonthLabel(monthYm)}`;
+    } else if (dateFrom && dateTo) {
       headerSubtitle = `מציג: ${formatDateIL(dateFrom)} – ${formatDateIL(dateTo)}`;
     } else if (dateFrom) {
       headerSubtitle = `מציג: מתאריך ${formatDateIL(dateFrom)}`;
     } else if (dateTo) {
       headerSubtitle = `מציג: עד ${formatDateIL(dateTo)}`;
     } else {
-      headerSubtitle = 'פעילויות שהסתיימו עד היום — לפי הגדרות המערכת';
+      headerSubtitle = 'פעילויות לפי תאריך סיום — לפי הגדרות המערכת';
     }
+
+    const tabsHtml = hasArchived ? `<div class="ds-finance-tabs" dir="rtl">
+      <button type="button" class="ds-finance-tab ${activeTab === 'active' ? 'is-active' : ''}" data-finance-tab="active">פעילות</button>
+      <button type="button" class="ds-finance-tab ${activeTab === 'archive' ? 'is-active' : ''}" data-finance-tab="archive">ארכיון</button>
+      <button type="button" class="ds-finance-tab ${activeTab === 'all' ? 'is-active' : ''}" data-finance-tab="all">הכל</button>
+    </div>` : '';
+
+    const monthNavHtml = `<div class="ds-month-nav" dir="rtl">
+      <button type="button" class="ds-month-nav__btn" data-month-prev title="חודש קודם">◀</button>
+      <span class="ds-month-nav__label" data-month-label>${monthYm ? ymToMonthLabel(monthYm) : 'כל התקופה'}</span>
+      <button type="button" class="ds-month-nav__btn" data-month-next title="חודש הבא">▶</button>
+      ${monthYm ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-month-clear>כל התקופה</button>` : ''}
+    </div>`;
 
     return dsScreenStack(`
       ${dsPageHeader('כספים', headerSubtitle)}
+      ${tabsHtml}
+      ${monthNavHtml}
       ${dsKpiGrid(kpis)}
       ${managerTable}
       <div class="ds-screen-top-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -352,7 +526,7 @@ export const financeScreen = {
       <div data-finance-data-area>
         ${dsCard({
           title: 'רשימת כספים',
-          body: narrow ? compact : tableBlock,
+          body: narrow ? compact : groupedTable,
           padded: rows.length === 0 || narrow
         })}
       </div>
@@ -373,23 +547,51 @@ export const financeScreen = {
       });
     }
 
+    root.querySelectorAll('[data-finance-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.financeTab = btn.dataset.financeTab || 'active';
+        saveToStorage(LS_TAB, state.financeTab);
+        rerender();
+      });
+    });
+
+    root.querySelector('[data-month-prev]')?.addEventListener('click', () => {
+      state.financeMonthYm = prevMonth(state.financeMonthYm || '');
+      saveToStorage(LS_MONTH_YM, state.financeMonthYm);
+      rerender();
+    });
+
+    root.querySelector('[data-month-next]')?.addEventListener('click', () => {
+      state.financeMonthYm = nextMonth(state.financeMonthYm || '');
+      saveToStorage(LS_MONTH_YM, state.financeMonthYm);
+      rerender();
+    });
+
+    root.querySelector('[data-month-clear]')?.addEventListener('click', () => {
+      state.financeMonthYm = '';
+      saveToStorage(LS_MONTH_YM, '');
+      rerender();
+    });
+
     root.querySelector('#finance-search')?.addEventListener('input', (ev) => {
       state.financeSearch = ev.target.value || '';
-      saveSearchToStorage(state.financeSearch);
+      saveToStorage(LS_SEARCH, state.financeSearch);
       rerender();
     });
 
     root.querySelectorAll('[data-status-filter]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.financeStatusFilter = btn.dataset.statusFilter || '';
-        saveStatusFilterToStorage(state.financeStatusFilter);
+        saveToStorage(LS_STATUS_FILTER, state.financeStatusFilter);
         rerender();
       });
     });
 
     root.querySelector('#finance-date-from')?.addEventListener('change', (ev) => {
       state.financeDateFrom = ev.target.value || '';
+      state.financeMonthYm = '';
       saveDatesToStorage(state.financeDateFrom, state.financeDateTo);
+      saveToStorage(LS_MONTH_YM, '');
       showDataAreaLoading();
       clearScreenDataCache();
       rerender();
@@ -397,7 +599,9 @@ export const financeScreen = {
 
     root.querySelector('#finance-date-to')?.addEventListener('change', (ev) => {
       state.financeDateTo = ev.target.value || '';
+      state.financeMonthYm = '';
       saveDatesToStorage(state.financeDateFrom, state.financeDateTo);
+      saveToStorage(LS_MONTH_YM, '');
       showDataAreaLoading();
       clearScreenDataCache();
       rerender();
@@ -428,10 +632,23 @@ export const financeScreen = {
     root.querySelector('[data-export-csv]')?.addEventListener('click', () => {
       const searchQ = state?.financeSearch || '';
       const statusFilter = state?.financeStatusFilter || '';
-      let rows = applySearch(allRows, searchQ);
+      const monthYm = state?.financeMonthYm || '';
+      const activeTab = state?.financeTab || 'active';
+      const hasArchived = allRows.some((r) => {
+        const arch = String(r.is_archived || r.archive || '').toLowerCase();
+        return arch === 'yes' || arch === 'true' || arch === '1';
+      });
+      let rows = hasArchived ? applyTabFilter(allRows, activeTab) : allRows;
+      rows = applyMonthFilter(rows, monthYm);
+      rows = applySearch(rows, searchQ);
       if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
-      exportToCsv(rows);
+      const label = monthYm ? ymToMonthLabel(monthYm) : '';
+      exportToCsv(rows, label);
     });
+
+    function buildFinanceMeetingsSection(row) {
+      return buildMeetingsPanel(row);
+    }
 
     function bindFinanceEditForm(contentRoot) {
       const form = contentRoot.querySelector('[data-edit-activity]');
@@ -464,9 +681,12 @@ export const financeScreen = {
 
     const openDrawer = (hit) => {
       if (!hit || !ui) return;
+      const meetingsHtml = buildFinanceMeetingsSection(hit);
+      const baseHtml = activityWorkDrawerHtml(hit, { privateNote: null, canEdit, hideEmpIds });
+      const fullHtml = meetingsHtml ? baseHtml + meetingsHtml : baseHtml;
       ui.openDrawer({
-        title: `כספים · ${hit.RowID}`,
-        content: activityWorkDrawerHtml(hit, { privateNote: null, canEdit, hideEmpIds }),
+        title: `כספים · ${hit.activity_name || hit.RowID}`,
+        content: fullHtml,
         onOpen: canEdit ? bindFinanceEditForm : undefined
       });
     };

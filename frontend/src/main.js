@@ -16,6 +16,9 @@ import { contactsScreen } from './screens/contacts.js';
 import { endDatesScreen } from './screens/end-dates.js';
 import { myDataScreen } from './screens/my-data.js';
 import { permissionsScreen } from './screens/permissions.js';
+import { adminHomeScreen } from './screens/admin-home.js';
+import { adminSettingsScreen } from './screens/admin-settings.js';
+import { adminListsScreen } from './screens/admin-lists.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc = new URL('../assets/logo1.png', import.meta.url).href;
@@ -94,7 +97,10 @@ const screenLabels = {
   contacts: 'אנשי קשר',
   'end-dates': 'תאריכי סיום',
   'my-data': 'הנתונים שלי',
-  permissions: 'הרשאות'
+  permissions: 'הרשאות',
+  'admin-home': 'בית — ניהול',
+  'admin-settings': 'הגדרות מערכת',
+  'admin-lists': 'ניהול רשימות'
 };
 
 const screens = {
@@ -109,7 +115,10 @@ const screens = {
   contacts: contactsScreen,
   'end-dates': endDatesScreen,
   'my-data': myDataScreen,
-  permissions: permissionsScreen
+  permissions: permissionsScreen,
+  'admin-home': adminHomeScreen,
+  'admin-settings': adminSettingsScreen,
+  'admin-lists': adminListsScreen
 };
 
 const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts', 'week', 'month', 'exceptions', 'instructors']);
