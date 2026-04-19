@@ -28,7 +28,8 @@ const MUTATING_ACTIONS = {
   deactivateUser: true,
   reactivateUser: true,
   deleteUser: true,
-  savePrivateNote: true
+  savePrivateNote: true,
+  saveFinanceRow: true
 };
 
 async function request(action, payload = {}) {
@@ -98,6 +99,9 @@ export const api = {
   deactivateUser: (user_id) => request('deactivateUser', { user_id }),
   reactivateUser: (user_id) => request('reactivateUser', { user_id }),
   deleteUser: (user_id) => request('deleteUser', { user_id }),
+  adminSettings: () => request('adminSettings'),
+  adminLists: () => request('adminLists'),
+  saveFinanceRow: (payload) => request('saveFinanceRow', payload),
   savePrivateNote: (a, b, c) => {
     if (typeof a === 'object' && a !== null) {
       return request('savePrivateNote', {

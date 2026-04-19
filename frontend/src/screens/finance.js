@@ -243,7 +243,8 @@ function buildGroupedTable(rows, canEdit) {
     getGroupSortKey(a).localeCompare(getGroupSortKey(b), 'he')
   );
 
-  const hasAuthority = rows.some((r) => r.authority);
+  /* Base columns: name | authority | manager | date | amount | status | notes | actions */
+  const BASE_COLS = 6 + (canEdit ? 2 : 0); /* name+authority+manager+date+amount+status [+notes+actions] */
 
   const tbody = sortedKeys.map((key) => {
     const gRows = groups[key];
@@ -256,19 +257,16 @@ function buildGroupedTable(rows, canEdit) {
       gClosed > 0 ? `<span class="ds-finance-group-chip ds-finance-group-chip--closed">${gClosed} סגור</span>` : ''
     ].filter(Boolean).join('');
 
-    const colSpan = 8 + (hasAuthority ? 1 : 0) + (canEdit ? 1 : 0);
     const groupHeader = `<tr class="ds-finance-group-header">
-      <td colspan="${colSpan}">
+      <td colspan="${BASE_COLS}">
         <span class="ds-finance-group-title">${escapeHtml(key)}</span>
         <span class="ds-finance-group-meta">${gRows.length} פעילויות · ${formatILS(gTotal)}</span>
         <span class="ds-finance-group-chips">${statusMini}</span>
       </td>
     </tr>`;
 
-    const colCount = 9 + (hasAuthority ? 1 : 0) + (canEdit ? 1 : 0);
     const dataRows = gRows.map((row) => {
       const uid = escapeHtml(row.RowID);
-      const authCol = hasAuthority ? `<td>${escapeHtml(row.authority || '—')}</td>` : '';
       const hasDates = Array.from({ length: 35 }, (_, i) => row[`Date${i + 1}`]).some(Boolean);
 
       /* Status cell: editable select or read-only chip */
@@ -280,11 +278,15 @@ function buildGroupedTable(rows, canEdit) {
         ? `<td class="ds-finance-status-cell"><select class="ds-input ds-input--sm ds-finance-status-select" data-inline-status="${uid}">${statusOpts}</select></td>`
         : `<td>${dsStatusChip(hebrewFinanceStatus(row.finance_status), financeStatusVariant(row.finance_status))}</td>`;
 
-      /* Actions cell: notes input + save + dates + export (editors only) */
+      /* Notes column (editors only) */
+      const notesCell = canEdit
+        ? `<td class="ds-finance-notes-cell"><input type="text" class="ds-input ds-input--sm ds-finance-notes-input" data-inline-notes="${uid}"
+            value="${escapeHtml(String(row.finance_notes || ''))}" placeholder="הערות..." title="הערות כספים" /></td>`
+        : '';
+
+      /* Actions cell: save + dates + export (editors only) */
       const actionsCell = canEdit ? `<td class="ds-finance-actions-cell">
         <div class="ds-finance-row-actions">
-          <input type="text" class="ds-input ds-input--sm ds-finance-notes-input" data-inline-notes="${uid}"
-            value="${escapeHtml(String(row.finance_notes || ''))}" placeholder="הערות..." title="הערות כספים" />
           <button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-finance-save-btn" data-inline-save="${uid}" title="שמור">💾</button>
           ${hasDates ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dates-toggle="${uid}" title="תאריכי פגישות">תאריכים ▾</button>` : ''}
           <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-export-row="${uid}" title="ייצוא שורה">↓</button>
@@ -292,18 +294,16 @@ function buildGroupedTable(rows, canEdit) {
         </div>
       </td>` : '';
 
-      const datesExpandRow = buildDatesExpandRowHtml(row, colCount);
+      const datesExpandRow = buildDatesExpandRowHtml(row, BASE_COLS);
 
       return `<tr class="ds-data-row" data-row-id="${uid}">
         <td>${escapeHtml(row.activity_name || '—')}</td>
+        <td>${escapeHtml(row.authority || '—')}</td>
         <td>${escapeHtml(row.activity_manager || '—')}</td>
-        <td>${escapeHtml(row.school || '—')}</td>
-        ${authCol}
-        <td>${escapeHtml(row.funding || '—')}</td>
         <td>${formatDateIL(row.end_date)}</td>
-        <td style="text-align:center;">${parseFloat(row.sessions) > 0 ? row.sessions : '—'}</td>
         <td style="text-align:left;">${formatILS(amt)}</td>
         ${statusCell}
+        ${notesCell}
         ${actionsCell}
       </tr>${datesExpandRow}`;
     }).join('');
@@ -311,20 +311,18 @@ function buildGroupedTable(rows, canEdit) {
     return groupHeader + dataRows;
   }).join('');
 
-  const authHead = hasAuthority ? '<th>גורם מממן</th>' : '';
-  const actionsHead = canEdit ? '<th class="ds-finance-actions-head">פעולות / הערות</th>' : '';
+  const notesHead = canEdit ? '<th>הערות</th>' : '';
+  const actionsHead = canEdit ? '<th class="ds-finance-actions-head">פעולות</th>' : '';
 
   return dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--grouped">
     <thead><tr>
       <th>שם פעילות</th>
+      <th>גורם מממן</th>
       <th>מנהל פעילות</th>
-      <th>בית ספר</th>
-      ${authHead}
-      <th>מימון</th>
       <th>תאריך סיום</th>
-      <th>מפגשים</th>
       <th>סכום גבייה</th>
       <th>סטטוס</th>
+      ${notesHead}
       ${actionsHead}
     </tr></thead>
     <tbody>${tbody}</tbody>
@@ -468,8 +466,8 @@ export const financeScreen = {
     const canEdit = state?.user?.display_role !== 'instructor';
     const isAdmin = state?.user?.display_role === 'admin';
 
-    /* Non-admins never see archived rows; admins use the tab filter */
-    let rows = isAdmin ? applyTabFilter(allRows, activeTab) : applyTabFilter(allRows, 'active');
+    /* Users with edit access can see archived rows via tab filter */
+    let rows = canEdit ? applyTabFilter(allRows, activeTab) : applyTabFilter(allRows, 'active');
     rows = applyMonthFilter(rows, monthYm, dateFrom, dateTo);
     rows = applySearch(rows, searchQ);
     if (statusFilter) {
@@ -544,8 +542,8 @@ export const financeScreen = {
       padded: false
     });
 
-    /* Tabs — show ארכיון if user is admin (regardless of current data) */
-    const showArchiveTab = isAdmin;
+    /* Tabs — show ארכיון if user has edit permissions (admin/reviewer/authorized) */
+    const showArchiveTab = canEdit;
     const tabsHtml = showArchiveTab ? `<div class="ds-finance-tabs" dir="rtl">
       <button type="button" class="ds-finance-tab ${activeTab === 'active' ? 'is-active' : ''}" data-finance-tab="active">פעילות</button>
       <button type="button" class="ds-finance-tab ${activeTab === 'archive' ? 'is-active' : ''}" data-finance-tab="archive">ארכיון</button>

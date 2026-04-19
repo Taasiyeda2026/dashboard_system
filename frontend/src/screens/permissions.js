@@ -160,34 +160,21 @@ function buildEditDrawerHtml(row) {
   </div>`;
 }
 
-function renderUserBlock(row, canEdit, isAdmin, currentUserId) {
+function renderUserRow(row, canEdit, isAdmin, currentUserId) {
   const uid = escapeHtml(row.user_id);
   const searchHay = [row.full_name, row.user_id, row.display_role, hebrewRole(row.display_role), row.display_role2]
     .filter(Boolean)
     .join(' ');
   const roleKey = String(row.display_role || '').trim();
-  const keys = sortedPermissionEditorKeys(row);
-
-  const textFields = keys
-    .filter((k) => !k.startsWith('view_') && !k.startsWith('can_'))
-    .map((k) => {
-      const val = escapeHtml(String(row[k] ?? ''));
-      return `<div class="ds-perm-field">
-        <span class="ds-muted">${escapeHtml(hebrewPermissionField(k))}</span>
-        <span>${val}</span>
-      </div>`;
-    })
-    .join('');
-
-  const activeLabel = String(row.active || '').toLowerCase() === 'yes' ? 'פעיל/ה' : 'לא פעיל/ה';
-  const activeKind = String(row.active || '').toLowerCase() === 'yes' ? 'success' : 'neutral';
   const isActive = String(row.active || '').toLowerCase() === 'yes';
-
-  const flagGrid = buildPermFlagGrid(row, keys);
-  const editBtn = canEdit
-    ? `<button type="button" class="ds-btn ds-btn--sm" data-edit-perm data-user-id="${uid}">עריכת הרשאות</button>`
-    : '';
+  const activeLabel = isActive ? 'פעיל/ה' : 'לא פעיל/ה';
+  const activeKind = isActive ? 'success' : 'neutral';
   const isSelf = String(row.user_id) === String(currentUserId);
+
+  const editBtn = canEdit
+    ? `<button type="button" class="ds-btn ds-btn--sm" data-edit-perm data-user-id="${uid}" title="עריכת הרשאות">עריכה</button>`
+    : '';
+  const expandBtn = `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-expand-perm data-user-id="${uid}" aria-expanded="false" title="הצג הרשאות">▾ הרשאות</button>`;
   const deactivateBtn = isAdmin && isActive && !isSelf
     ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-deactivate-user data-user-id="${uid}">השבת</button>`
     : '';
@@ -198,21 +185,36 @@ function renderUserBlock(row, canEdit, isAdmin, currentUserId) {
     ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-delete-user data-user-id="${uid}">מחק</button>`
     : '';
 
-  const actionBtns = [editBtn, deactivateBtn, reactivateBtn, deleteBtn].filter(Boolean).join('');
+  const actionBtns = [expandBtn, editBtn, deactivateBtn, reactivateBtn, deleteBtn].filter(Boolean).join(' ');
 
-  return `<details class="ds-perm-card" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}">
-    <summary>
-      <span class="ds-perm-summary-name">${escapeHtml(row.full_name || uid)}</span>
-      ${dsStatusChip(hebrewRole(row.display_role), roleChipKind(row.display_role))}
-      ${dsStatusChip(activeLabel, activeKind)}
-    </summary>
-    <div class="ds-perm-body">
-      <p class="ds-perm-uid ds-muted">${uid}</p>
-      ${textFields}
-      ${flagGrid}
-      ${actionBtns ? `<div class="ds-perm-actions">${actionBtns}</div>` : ''}
-    </div>
-  </details>`;
+  return `<tr class="ds-perm-row" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}">
+    <td style="font-weight:600;">${escapeHtml(row.full_name || uid)}</td>
+    <td class="ds-muted" style="font-size:0.75rem;">${uid}</td>
+    <td>${dsStatusChip(hebrewRole(row.display_role), roleChipKind(row.display_role))}</td>
+    <td>${dsStatusChip(activeLabel, activeKind)}</td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${actionBtns}</div></td>
+  </tr>`;
+}
+
+function renderExpandRow(row) {
+  const uid = escapeHtml(row.user_id);
+  const keys = sortedPermissionEditorKeys(row);
+  const textFields = keys
+    .filter((k) => !k.startsWith('view_') && !k.startsWith('can_'))
+    .map((k) => {
+      const val = escapeHtml(String(row[k] ?? ''));
+      return `<div class="ds-perm-field"><span class="ds-muted">${escapeHtml(hebrewPermissionField(k))}</span><span>${val || '—'}</span></div>`;
+    })
+    .join('');
+  const flagGrid = buildPermFlagGrid(row, keys);
+  return `<tr class="ds-perm-expand-row" id="perm-expand-${uid}" hidden>
+    <td colspan="5" style="padding:var(--ds-space-3,12px) var(--ds-space-4,16px);background:var(--ds-surface-subtle,#f7f8f9);">
+      <div class="ds-perm-body" dir="rtl">
+        ${textFields ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">${textFields}</div>` : ''}
+        ${flagGrid}
+      </div>
+    </td>
+  </tr>`;
 }
 
 export const permissionsScreen = {
@@ -238,10 +240,17 @@ export const permissionsScreen = {
       ...(instructorCount > 0 ? [{ label: 'מדריכים', value: String(instructorCount) }] : [])
     ];
 
+    const rowPairs = safeRows.map((row) =>
+      renderUserRow(row, canEdit, isAdmin, state?.user?.user_id) + renderExpandRow(row)
+    ).join('');
+
     const body =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו שורות הרשאה')
-        : `<div class="ds-perm-stack" dir="rtl">${safeRows.map((row) => renderUserBlock(row, canEdit, isAdmin, state?.user?.user_id)).join('')}</div>`;
+        : `<div class="ds-table-wrap" dir="rtl"><table class="ds-table ds-perm-table">
+            <thead><tr><th>שם מלא</th><th>מ"ש</th><th>תפקיד</th><th>סטטוס</th><th style="text-align:start;">פעולות</th></tr></thead>
+            <tbody>${rowPairs}</tbody>
+          </table></div>`;
 
     const roleFilters = [...new Set(safeRows.map((r) => String(r.display_role || '').trim()).filter(Boolean))].map((r) => ({
       value: r,
@@ -301,7 +310,7 @@ export const permissionsScreen = {
                 try {
                   const freshData = await api.permissions();
                   const newRow = (freshData?.rows || []).find((r) => String(r.user_id) === String(user_id));
-                  if (newRow) openEditDrawer(newRow);
+                  if (newRow) openEditModal(newRow);
                 } catch (autoOpenErr) {
                   console.warn('[permissions] Could not auto-open edit drawer after user creation:', autoOpenErr);
                 }
@@ -383,53 +392,73 @@ export const permissionsScreen = {
       });
     });
 
-    function openEditDrawer(row) {
+    /* Expand/collapse permission detail rows */
+    root.querySelectorAll('[data-expand-perm]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const userId = btn.dataset.userId;
+        const expandRow = root.querySelector(`#perm-expand-${CSS.escape(userId)}`);
+        if (!expandRow) return;
+        const isOpen = !expandRow.hidden;
+        expandRow.hidden = isOpen;
+        btn.setAttribute('aria-expanded', String(!isOpen));
+        btn.textContent = isOpen ? '▾ הרשאות' : '▴ הרשאות';
+      });
+    });
+
+    function openEditModal(row) {
       if (!row || !ui) return;
       const userId = String(row.user_id);
-      ui.openDrawer({
+      const contentHtml = buildEditDrawerHtml(row);
+      ui.openModal({
         title: `עריכת הרשאות — ${row.full_name || userId}`,
-        content: buildEditDrawerHtml(row),
-        onOpen: (contentNode) => {
-          const statusEl = contentNode.querySelector('.ds-perm-save-status');
-          const saveBtn = contentNode.querySelector('[data-save-permission]');
-          if (!saveBtn) return;
+        content: contentHtml,
+        onClose: () => {}
+      });
+      /* Bind save inside modal after it opens */
+      requestAnimationFrame(() => {
+        const modalContent = document.querySelector('.ds-modal__content');
+        if (!modalContent) return;
+        const statusEl = modalContent.querySelector('.ds-perm-save-status');
+        const saveBtn = modalContent.querySelector('[data-save-permission]');
+        if (!saveBtn) return;
 
-          saveBtn.addEventListener('click', async () => {
-            const display_role = contentNode.querySelector(`[data-role-select][data-user-id="${userId}"]`)?.value;
-            const active = contentNode.querySelector(`[data-active-toggle][data-user-id="${userId}"]`)?.checked
-              ? 'yes'
-              : 'no';
+        saveBtn.addEventListener('click', async () => {
+          const display_role = modalContent.querySelector(`[data-role-select][data-user-id="${userId}"]`)?.value;
+          const active = modalContent.querySelector(`[data-active-toggle][data-user-id="${userId}"]`)?.checked
+            ? 'yes'
+            : 'no';
 
-            const payload = { user_id: userId, display_role, active };
-            contentNode.querySelectorAll('[data-perm-field]').forEach((el) => {
-              const field = el.getAttribute('data-perm-field');
-              if (!field) return;
-              if (el.type === 'checkbox') payload[field] = el.checked ? 'yes' : 'no';
-              else payload[field] = String(el.value || '').trim();
-            });
-
-            saveBtn.classList.add('is-loading');
-            if (statusEl) statusEl.textContent = '';
-            try {
-              await api.savePermission(payload);
-              if (statusEl) statusEl.textContent = 'נשמר בהצלחה';
-              clearScreenDataCache?.();
-              if (typeof rerender === 'function') await rerender();
-            } catch (error) {
-              if (statusEl) statusEl.textContent = translateApiErrorForUser(error?.message);
-            } finally {
-              saveBtn.classList.remove('is-loading');
-            }
+          const payload = { user_id: userId, display_role, active };
+          modalContent.querySelectorAll('[data-perm-field]').forEach((el) => {
+            const field = el.getAttribute('data-perm-field');
+            if (!field) return;
+            if (el.type === 'checkbox') payload[field] = el.checked ? 'yes' : 'no';
+            else payload[field] = String(el.value || '').trim();
           });
-        }
+
+          saveBtn.classList.add('is-loading');
+          if (statusEl) statusEl.textContent = '';
+          try {
+            await api.savePermission(payload);
+            if (statusEl) statusEl.textContent = 'נשמר בהצלחה';
+            clearScreenDataCache?.();
+            if (typeof rerender === 'function') await rerender();
+          } catch (error) {
+            if (statusEl) statusEl.textContent = translateApiErrorForUser(error?.message);
+          } finally {
+            saveBtn.classList.remove('is-loading');
+          }
+        });
       });
     }
 
     root.querySelectorAll('[data-edit-perm]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const userId = btn.dataset.userId;
         const row = safeRows.find((r) => String(r.user_id) === String(userId));
-        openEditDrawer(row);
+        openEditModal(row);
       });
     });
   }

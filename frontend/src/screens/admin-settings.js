@@ -50,7 +50,11 @@ export const adminSettingsScreen = {
     }));
 
     const apiEntries = Array.isArray(apiSettings)
-      ? apiSettings
+      ? apiSettings.map((e) => ({
+          key: e.key ?? e.setting_key ?? e.setting ?? e.name ?? '',
+          value: e.value ?? e.setting_value ?? e.val ?? '',
+          description: e.description ?? e.desc ?? ''
+        }))
       : Object.entries(apiSettings).map(([key, value]) => ({ key, value }));
 
     const clientSettingsBlock = csEntries.length > 0

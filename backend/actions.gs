@@ -1567,3 +1567,65 @@ function countActiveByType_(rows, todayIso, activityType) {
     return text_(row.activity_type) === activityType && isActivityActiveBySpec_(row, todayIso);
   }).length;
 }
+
+/* ── Admin Settings ────────────────────────────────────────────────────────── */
+function actionAdminSettings_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  var rows = [];
+  try {
+    var sheet = getSpreadsheet_().getSheetByName(CONFIG.SHEETS.SETTINGS);
+    if (sheet) {
+      rows = readRows_(CONFIG.SHEETS.SETTINGS);
+    }
+  } catch(e) {}
+  return { rows: rows };
+}
+
+/* ── Admin Lists ────────────────────────────────────────────────────────────── */
+function actionAdminLists_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  var rows = [];
+  try {
+    var sheet = getSpreadsheet_().getSheetByName(CONFIG.SHEETS.LISTS);
+    if (sheet) {
+      rows = readRows_(CONFIG.SHEETS.LISTS);
+    }
+  } catch(e) {}
+
+  /* If rows have a list_name column, group by it; otherwise return raw rows */
+  var hasListName = rows.length > 0 && rows[0].hasOwnProperty('list_name');
+  if (hasListName) {
+    var grouped = {};
+    rows.forEach(function(r) {
+      var listName = text_(r.list_name).toLowerCase();
+      var val = text_(r.value || r.display_value || r.val || '');
+      if (!listName || !val) return;
+      if (!grouped[listName]) grouped[listName] = [];
+      grouped[listName].push(val);
+    });
+    return {
+      schools: grouped['schools'] || grouped['school'] || [],
+      fundings: grouped['fundings'] || grouped['funding'] || [],
+      authorities: grouped['authorities'] || grouped['authority'] || [],
+      activity_types: grouped['activity_types'] || grouped['activity_type'] || [],
+      managers: grouped['managers'] || grouped['manager'] || [],
+      raw: rows
+    };
+  }
+  return { rows: rows, raw: rows };
+}
+
+/* ── Save Finance Row (status + notes) ─────────────────────────────────────── */
+function actionSaveFinanceRow_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  var sourceRowId = text_(payload.source_row_id || payload.RowID);
+  var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT));
+  if (!sourceRowId) throw new Error('source_row_id is required');
+  var changes = {};
+  if (payload.finance_status !== undefined) changes.finance_status = text_(payload.finance_status);
+  if (payload.finance_notes !== undefined) changes.finance_notes = text_(payload.finance_notes);
+  if (Object.keys(changes).length === 0) throw new Error('no changes provided');
+  updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
+  scriptCacheInvalidateDataViews_();
+  return { saved: true, source_row_id: sourceRowId };
+}

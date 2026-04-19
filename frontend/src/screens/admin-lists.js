@@ -75,14 +75,19 @@ export const adminListsScreen = {
 
     let lists;
     if (source === 'api') {
-      /* adminLists API returns data directly */
-      lists = {
-        schools: Array.isArray(inner?.schools) ? inner.schools : [],
-        fundings: Array.isArray(inner?.fundings) ? inner.fundings : [],
-        authorities: Array.isArray(inner?.authorities) ? inner.authorities : [],
-        activity_types: Array.isArray(inner?.activity_types) ? inner.activity_types : [],
-        managers: Array.isArray(inner?.managers) ? inner.managers : []
-      };
+      /* adminLists API returns structured data or raw rows */
+      if (Array.isArray(inner?.schools) || Array.isArray(inner?.fundings)) {
+        lists = {
+          schools: Array.isArray(inner?.schools) ? inner.schools : [],
+          fundings: Array.isArray(inner?.fundings) ? inner.fundings : [],
+          authorities: Array.isArray(inner?.authorities) ? inner.authorities : [],
+          activity_types: Array.isArray(inner?.activity_types) ? inner.activity_types : [],
+          managers: Array.isArray(inner?.managers) ? inner.managers : []
+        };
+      } else {
+        /* Raw rows fallback: extract from activities-like data */
+        lists = extractLists(inner?.raw ? { rows: inner.raw } : inner);
+      }
     } else {
       /* Extract from activities data */
       lists = extractLists(inner);

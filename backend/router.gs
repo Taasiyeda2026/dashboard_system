@@ -42,7 +42,10 @@ function handlePost_(e) {
       deactivateUser: function() { return actionDeactivateUser_(user, payload); },
       reactivateUser: function() { return actionReactivateUser_(user, payload); },
       deleteUser: function() { return actionDeleteUser_(user, payload); },
-      savePrivateNote: function() { return actionSavePrivateNote_(user, payload); }
+      savePrivateNote: function() { return actionSavePrivateNote_(user, payload); },
+      adminSettings: function() { return actionAdminSettings_(user, payload); },
+      adminLists: function() { return actionAdminLists_(user, payload); },
+      saveFinanceRow: function() { return actionSaveFinanceRow_(user, payload); }
     };
 
     if (!handlers[action]) {
