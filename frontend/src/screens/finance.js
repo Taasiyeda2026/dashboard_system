@@ -259,11 +259,11 @@ function buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir) {
     getGroupSortKey(a).localeCompare(getGroupSortKey(b), 'he')
   );
 
-  /* Columns: name | school | authority | manager | price | sessions | amount | funding | status | notes | actions
+  /* Columns: name | school | authority | manager | price | sessions | amount | end_date | funding | status | notes | actions
      Notes and actions are shown for all canView users (read-only for non-editors) */
   const hasNotesCol = canView;
   const hasActionsCol = canView;
-  const BASE_COLS = 9 + (hasNotesCol ? 1 : 0) + (hasActionsCol ? 1 : 0);
+  const BASE_COLS = 10 + (hasNotesCol ? 1 : 0) + (hasActionsCol ? 1 : 0);
 
   function tableTh(label, col, align) {
     const active = tableSortCol === col;
@@ -277,9 +277,21 @@ function buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir) {
     const rawGRows = groups[key];
     const gRows = tableSortCol
       ? [...rawGRows].sort((a, b) => {
-          const av = parseFloat(a[tableSortCol]) || 0;
-          const bv = parseFloat(b[tableSortCol]) || 0;
-          return tableSortDir === 'asc' ? av - bv : bv - av;
+          let av, bv;
+          if (tableSortCol === 'amount') {
+            const calcAmt = (r) => { const p = parseFloat(r.price) || 0; const s = parseFloat(r.sessions) || 0; return s > 0 ? p * s : p; };
+            av = calcAmt(a);
+            bv = calcAmt(b);
+            return tableSortDir === 'asc' ? av - bv : bv - av;
+          } else if (tableSortCol === 'end_date') {
+            av = String(a.end_date || '');
+            bv = String(b.end_date || '');
+            return tableSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+          } else {
+            av = parseFloat(a[tableSortCol]) || 0;
+            bv = parseFloat(b[tableSortCol]) || 0;
+            return tableSortDir === 'asc' ? av - bv : bv - av;
+          }
         })
       : rawGRows;
     const gOpen = gRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open').length;
@@ -354,6 +366,7 @@ function buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir) {
         <td style="text-align:left;">${price > 0 ? formatILS(price) : '—'}</td>
         <td style="text-align:center;">${sessions > 0 ? sessions : '—'}</td>
         <td style="text-align:left;">${calcAmount > 0 ? formatILS(calcAmount) : '—'}</td>
+        <td>${row.end_date ? formatDateIL(row.end_date) : '—'}</td>
         <td>${escapeHtml(row.funding || '—')}</td>
         ${statusCell}
         ${notesCell}
@@ -375,7 +388,8 @@ function buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir) {
       <th>מנהל קורס</th>
       ${tableTh('מחיר', 'price', 'left')}
       ${tableTh('מפגשים', 'sessions', 'center')}
-      <th>סכום</th>
+      ${tableTh('סכום', 'amount', 'left')}
+      ${tableTh('תאריך סיום', 'end_date', '')}
       <th>מימון</th>
       <th>סטטוס</th>
       ${notesHead}
