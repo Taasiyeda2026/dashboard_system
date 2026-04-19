@@ -235,8 +235,26 @@ export const financeScreen = {
 
     const exportBtn = `<button type="button" class="ds-btn ds-btn--sm" data-export-csv>ייצוא CSV</button>`;
 
+    function formatDateIL(isoDate) {
+      if (!isoDate) return '';
+      const [y, m, d] = isoDate.split('-');
+      if (!y || !m || !d) return isoDate;
+      return `${d}/${m}/${y}`;
+    }
+
+    let headerSubtitle;
+    if (dateFrom && dateTo) {
+      headerSubtitle = `מציג: ${formatDateIL(dateFrom)} – ${formatDateIL(dateTo)}`;
+    } else if (dateFrom) {
+      headerSubtitle = `מציג: מתאריך ${formatDateIL(dateFrom)}`;
+    } else if (dateTo) {
+      headerSubtitle = `מציג: עד ${formatDateIL(dateTo)}`;
+    } else {
+      headerSubtitle = 'פעילויות שהסתיימו עד היום — לפי הגדרות המערכת';
+    }
+
     return dsScreenStack(`
-      ${dsPageHeader('כספים', 'פעילויות שהסתיימו עד היום — לפי הגדרות המערכת')}
+      ${dsPageHeader('כספים', headerSubtitle)}
       ${dsKpiGrid(kpis)}
       ${managerTable}
       <div class="ds-screen-top-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
