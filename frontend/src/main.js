@@ -520,6 +520,15 @@ function schedulePrefetch(currentRoute) {
 }
 
 function bindShell() {
+  /* Allow any screen to navigate programmatically via custom event */
+  document.addEventListener('app:navigate', (e) => {
+    const route = e?.detail?.route;
+    if (!route || !state.routes.includes(route)) return;
+    closeMobileNav();
+    state.route = route;
+    render();
+  });
+
   document.querySelectorAll('[data-route]').forEach((button) => {
     button.addEventListener('click', () => {
       closeMobileNav();

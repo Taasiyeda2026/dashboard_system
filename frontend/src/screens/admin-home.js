@@ -131,9 +131,8 @@ export const adminHomeScreen = {
       card.addEventListener('click', () => {
         const target = card.dataset.adminNav;
         if (!target) return;
-        /* Use any rendered nav button — the shell renders one per route in state.routes */
-        const btn = document.querySelector(`[data-route="${target}"]`);
-        if (btn) btn.click();
+        /* Dispatch app:navigate so the shell handles it — works for hidden routes too */
+        document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: target } }));
       });
     });
   }

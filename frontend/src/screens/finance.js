@@ -491,10 +491,10 @@ export const financeScreen = {
     const activeTab = state?.financeTab || 'active';
     const monthYm = state?.financeMonthYm || '';
     const viewMode = state?.financeViewMode || (narrow ? 'cards' : 'table');
-    const canEdit = state?.user?.display_role !== 'instructor';
+    const canEdit = ['admin', 'operations_reviewer'].includes(state?.user?.display_role);
     const isAdmin = state?.user?.display_role === 'admin';
 
-    /* Users with edit access can see archived rows via tab filter */
+    /* Admin/reviewer can see all tabs; others see active only */
     let rows = canEdit ? applyTabFilter(allRows, activeTab) : applyTabFilter(allRows, 'active');
     rows = applyMonthFilter(rows, monthYm, dateFrom, dateTo);
     rows = applySearch(rows, searchQ);
@@ -649,7 +649,7 @@ export const financeScreen = {
 
   bind({ root, data, ui, api, state, rerender, clearScreenDataCache = () => {} }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const canEdit = state?.user?.display_role !== 'instructor';
+    const canEdit = ['admin', 'operations_reviewer'].includes(state?.user?.display_role);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 
     function showDataAreaLoading() {

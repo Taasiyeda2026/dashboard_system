@@ -1619,7 +1619,7 @@ function actionAdminLists_(user, payload) {
 
 /* ── Save Finance Row (status + notes) ─────────────────────────────────────── */
 function actionSaveFinanceRow_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operations_reviewer']);
   var sourceRowId = text_(payload.source_row_id || payload.RowID);
   var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT));
   if (!sourceRowId) throw new Error('source_row_id is required');
