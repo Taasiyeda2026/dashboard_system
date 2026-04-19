@@ -9,72 +9,108 @@ import {
   dsEmptyState
 } from './shared/layout.js';
 
-function buildControlCard({ title, value, subtitle, kind = 'neutral', action }) {
-  const chipHtml = kind !== 'neutral' ? dsStatusChip(String(value), kind) : '';
-  const bigVal = chipHtml ? '' : `<p class="ds-admin-ctrl-value">${escapeHtml(String(value))}</p>`;
-  const subHtml = subtitle ? `<p class="ds-admin-ctrl-sub">${escapeHtml(subtitle)}</p>` : '';
-  const actionAttr = action ? ` data-admin-nav="${escapeHtml(action)}"` : '';
-  return `<div class="ds-admin-ctrl-card${action ? ' ds-admin-ctrl-card--link' : ''}"${actionAttr}>
-    <p class="ds-admin-ctrl-title">${escapeHtml(title)}</p>
-    ${bigVal}
-    ${chipHtml}
-    ${subHtml}
-  </div>`;
-}
+const SCREEN_META = {
+  dashboard:        { label: 'לוח בקרה',          icon: '📊' },
+  activities:       { label: 'פעילויות',            icon: '📋' },
+  finance:          { label: 'כספים',               icon: '💰' },
+  permissions:      { label: 'הרשאות',              icon: '🔑' },
+  'admin-home':     { label: 'בית — ניהול',         icon: '🏠' },
+  'admin-settings': { label: 'הגדרות מערכת',        icon: '⚙️' },
+  'admin-lists':    { label: 'ניהול רשימות',         icon: '📝' },
+  exceptions:       { label: 'חריגות',              icon: '⚠️' },
+  instructors:      { label: 'מדריכים',             icon: '👥' },
+  'end-dates':      { label: 'תאריכי סיום',          icon: '📅' },
+  'my-data':        { label: 'הנתונים שלי',          icon: '👤' },
+  week:             { label: 'שבוע',                icon: '📆' },
+  month:            { label: 'חודש',                icon: '🗓️' }
+};
+
+const ADMIN_SECTION_ROUTES = ['admin-settings', 'admin-lists', 'permissions'];
+const HIGHLIGHT_ROUTES = ['finance', 'activities', 'dashboard', 'exceptions'];
 
 export const adminHomeScreen = {
   load: ({ api }) => api.permissions(),
+
   render(data, { state } = {}) {
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
+    const routes = Array.isArray(state?.routes) ? state.routes : [];
+
+    /* KPIs from permissions data */
     const activeCount = safeRows.filter((r) => String(r.active || '').toLowerCase() === 'yes').length;
     const inactiveCount = safeRows.length - activeCount;
     const adminCount = safeRows.filter((r) => r.display_role === 'admin').length;
     const reviewerCount = safeRows.filter((r) => r.display_role === 'operations_reviewer').length;
-    const instructorCount = safeRows.filter((r) => r.display_role === 'instructor').length;
-    const authorizedCount = safeRows.filter((r) => r.display_role === 'authorized_user').length;
 
     const kpis = [
       { label: 'סה"כ משתמשים', value: String(safeRows.length) },
       { label: 'פעילים', value: String(activeCount) },
       { label: 'לא פעילים', value: String(inactiveCount) },
-      { label: 'מנהלים', value: String(adminCount) }
+      { label: 'מנהלים', value: String(adminCount) },
+      ...(reviewerCount > 0 ? [{ label: 'בקרי תפעול', value: String(reviewerCount) }] : [])
     ];
 
-    const roleBreakdownRows = [
-      { role: 'admin', label: 'מנהל/ת', count: adminCount },
-      { role: 'operations_reviewer', label: 'בקר/ת תפעול', count: reviewerCount },
-      { role: 'authorized_user', label: 'משתמש/ת מורשה', count: authorizedCount },
-      { role: 'instructor', label: 'מדריך/ה', count: instructorCount }
+    /* Navigation cards — only for routes the user has access to */
+    function navCard(route) {
+      if (!routes.includes(route)) return '';
+      const meta = SCREEN_META[route] || { label: route, icon: '▶' };
+      return `<button type="button" class="ds-admin-ctrl-card ds-admin-ctrl-card--link" data-admin-nav="${escapeHtml(route)}">
+        <span class="ds-admin-ctrl-icon">${meta.icon}</span>
+        <span class="ds-admin-ctrl-title">${escapeHtml(meta.label)}</span>
+      </button>`;
+    }
+
+    const adminCards = ADMIN_SECTION_ROUTES.map(navCard).filter(Boolean).join('');
+    const highlightCards = HIGHLIGHT_ROUTES.map(navCard).filter(Boolean).join('');
+
+    const adminSection = adminCards
+      ? `<div class="ds-admin-section">
+          <p class="ds-admin-section-heading">כלי ניהול</p>
+          <div class="ds-admin-ctrl-grid">${adminCards}</div>
+        </div>`
+      : '';
+
+    const highlightSection = highlightCards
+      ? `<div class="ds-admin-section">
+          <p class="ds-admin-section-heading">מסכים מהירים</p>
+          <div class="ds-admin-ctrl-grid">${highlightCards}</div>
+        </div>`
+      : '';
+
+    /* Role breakdown table */
+    const roleRows = [
+      { role: 'admin', count: adminCount },
+      { role: 'operations_reviewer', count: reviewerCount },
+      { role: 'authorized_user', count: safeRows.filter((r) => r.display_role === 'authorized_user').length },
+      { role: 'instructor', count: safeRows.filter((r) => r.display_role === 'instructor').length }
     ].filter((r) => r.count > 0);
 
-    const roleTable = roleBreakdownRows.length === 0 ? dsEmptyState('אין נתוני משתמשים') :
-      `<table class="ds-table" style="max-width:420px;">
-        <thead><tr><th>תפקיד</th><th style="text-align:center;">כמות</th></tr></thead>
-        <tbody>
-          ${roleBreakdownRows.map((r) => `<tr>
-            <td>${escapeHtml(r.label)}</td>
-            <td style="text-align:center;">${r.count}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`;
+    const roleTable = roleRows.length === 0
+      ? dsEmptyState('אין נתוני משתמשים')
+      : `<table class="ds-table" style="max-width:360px;">
+          <thead><tr><th>תפקיד</th><th style="text-align:center;">כמות</th><th style="text-align:center;">פעילים</th></tr></thead>
+          <tbody>
+            ${roleRows.map((r) => {
+              const active = safeRows.filter((u) => u.display_role === r.role && String(u.active || '').toLowerCase() === 'yes').length;
+              return `<tr>
+                <td>${escapeHtml(hebrewRole(r.role))}</td>
+                <td style="text-align:center;">${r.count}</td>
+                <td style="text-align:center;">${dsStatusChip(String(active), active === r.count ? 'success' : 'warning')}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
 
-    const ctrlGrid = `<div class="ds-admin-ctrl-grid">
-      ${buildControlCard({ title: 'משתמשים והרשאות', value: safeRows.length, subtitle: `${activeCount} פעילים`, action: 'permissions' })}
-      ${buildControlCard({ title: 'הגדרות מערכת', value: '→', subtitle: 'ניהול הגדרות', action: 'admin-settings' })}
-      ${buildControlCard({ title: 'רשימות', value: '→', subtitle: 'ניהול רשימות', action: 'admin-lists' })}
-      ${buildControlCard({ title: 'כספים', value: '→', subtitle: 'מסך כספים', action: 'finance' })}
-    </div>`;
-
+    /* Recently inactive users */
     const recentInactive = safeRows
       .filter((r) => String(r.active || '').toLowerCase() !== 'yes')
-      .slice(0, 5);
+      .slice(0, 8);
 
     const inactiveSection = recentInactive.length === 0 ? '' : dsCard({
       title: 'משתמשים לא פעילים',
-      badge: `${inactiveCount}`,
-      body: `<div class="ds-perm-stack" dir="rtl" style="padding:var(--ds-space-3);">${recentInactive.map((r) => `
-        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--ds-border);">
-          <span style="font-weight:600;font-size:0.9rem;">${escapeHtml(r.full_name || r.user_id)}</span>
+      badge: String(inactiveCount),
+      body: `<div style="padding:var(--ds-space-3);display:flex;flex-direction:column;gap:6px;">
+        ${recentInactive.map((r) => `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--ds-border);">
+          <span style="font-weight:600;font-size:0.88rem;flex:1;">${escapeHtml(r.full_name || r.user_id)}</span>
           ${dsStatusChip(hebrewRole(r.display_role), 'neutral')}
         </div>`).join('')}
       </div>`,
@@ -84,19 +120,20 @@ export const adminHomeScreen = {
     return dsScreenStack(`
       ${dsPageHeader('בית — ניהול', 'לוח בקרה למנהלי מערכת')}
       ${dsKpiGrid(kpis)}
-      ${dsCard({ title: 'ניווט מהיר', body: ctrlGrid, padded: true })}
+      ${dsCard({ title: 'ניווט', body: adminSection + highlightSection || dsEmptyState('אין מסכים נגישים'), padded: !(adminSection || highlightSection) })}
       ${dsCard({ title: 'התפלגות תפקידים', body: roleTable, padded: true })}
       ${inactiveSection}
     `);
   },
+
   bind({ root, state }) {
     root.querySelectorAll('[data-admin-nav]').forEach((card) => {
       card.addEventListener('click', () => {
         const target = card.dataset.adminNav;
-        if (target && state.routes?.includes(target)) {
-          state.route = target;
-          window.dispatchEvent(new CustomEvent('ds:navigate', { detail: { route: target } }));
-          document.querySelector(`[data-route="${target}"]`)?.click();
+        if (target) {
+          const btn = document.querySelector(`[data-route="${target}"]`);
+          if (btn) btn.click();
+          else { state.route = target; window.dispatchEvent(new CustomEvent('ds:navigate', { detail: { route: target } })); }
         }
       });
     });

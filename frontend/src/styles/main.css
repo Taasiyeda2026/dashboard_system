@@ -3461,3 +3461,126 @@ select[data-role-select]:focus-visible {
   opacity: 0.45;
   text-decoration: line-through;
 }
+
+/* ——— View toggle (table / cards) ——— */
+.ds-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ds-view-toggle__btn {
+  border: none;
+  background: var(--ds-surface);
+  color: var(--ds-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 500;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease, color 0.12s ease;
+  white-space: nowrap;
+}
+
+.ds-view-toggle__btn + .ds-view-toggle__btn {
+  border-right: 1px solid var(--ds-border);
+}
+
+.ds-view-toggle__btn:hover:not(.is-active) {
+  background: var(--ds-surface-subtle);
+}
+
+.ds-view-toggle__btn.is-active {
+  background: var(--ds-accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ——— Finance inline edit row ——— */
+.ds-finance-inline-edit-cell {
+  padding: 0 !important;
+  background: var(--ds-surface-subtle);
+  border-top: none !important;
+}
+
+.ds-finance-inline-form {
+  padding: var(--ds-space-2) var(--ds-space-3) var(--ds-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+}
+
+.ds-finance-inline-fields {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+
+.ds-finance-inline-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ds-text-muted);
+}
+
+.ds-finance-inline-label--notes {
+  flex: 1;
+  min-width: 180px;
+}
+
+.ds-finance-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  padding-top: 18px;
+}
+
+.ds-finance-inline-status {
+  font-size: 0.76rem;
+}
+
+.ds-finance-edit-toggle {
+  min-height: unset !important;
+  height: 28px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.ds-finance-edit-toggle.is-active {
+  background: var(--ds-accent-soft);
+  border-color: var(--ds-accent);
+  color: var(--ds-accent);
+}
+
+/* ——— Admin home: section headings ——— */
+.ds-admin-section {
+  margin-bottom: var(--ds-space-3);
+}
+
+.ds-admin-section:last-child {
+  margin-bottom: 0;
+}
+
+.ds-admin-section-heading {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ds-text-muted);
+  margin: 0 0 var(--ds-space-2);
+}
+
+.ds-admin-ctrl-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.ds-admin-ctrl-card {
+  align-items: flex-start;
+}
