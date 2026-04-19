@@ -3584,3 +3584,50 @@ select[data-role-select]:focus-visible {
 .ds-admin-ctrl-card {
   align-items: flex-start;
 }
+
+/* ——— Finance in-row editing ——— */
+.ds-finance-status-cell {
+  min-width: 100px;
+}
+
+.ds-finance-status-select {
+  width: 100%;
+  min-width: 80px;
+}
+
+.ds-finance-actions-head {
+  min-width: 220px;
+}
+
+.ds-finance-actions-cell {
+  padding: 6px 8px !important;
+  vertical-align: middle;
+}
+
+.ds-finance-row-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ds-finance-notes-input {
+  flex: 1;
+  min-width: 100px;
+  font-size: 0.78rem !important;
+  height: 28px;
+  padding: 2px 6px !important;
+}
+
+.ds-finance-save-btn {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.ds-finance-dates-row td {
+  background: var(--ds-surface-subtle);
+  padding: var(--ds-space-2) var(--ds-space-3) !important;
+  border-top: none !important;
+}
