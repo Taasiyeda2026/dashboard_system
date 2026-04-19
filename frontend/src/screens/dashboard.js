@@ -121,17 +121,27 @@ export const dashboardScreen = {
     return dsScreenStack(`
       ${dsPageHeader('לוח בקרה')}
       ${monthNav}
-      <div class="ds-kpi-grid">${kpiHtml}</div>
-      ${dsCard({
-        title: 'פילוח לפי מנהל פעילויות',
-        body: managersBlock,
-        padded: true
-      })}
+      <div data-dash-data-area>
+        <div class="ds-kpi-grid">${kpiHtml}</div>
+        ${dsCard({
+          title: 'פילוח לפי מנהל פעילויות',
+          body: managersBlock,
+          padded: true
+        })}
+      </div>
     `);
   },
   bind({ root, ui, state, rerender, clearScreenDataCache }) {
+    function showDataAreaLoading() {
+      const area = root.querySelector('[data-dash-data-area]');
+      if (area) {
+        area.innerHTML = '<div class="ds-loading-card" dir="rtl" role="status"><div class="ds-spinner" aria-hidden="true"></div><p>טוען נתונים...</p></div>';
+      }
+    }
+
     const applyYm = (nextYm) => {
       state.dashboardMonthYm = nextYm;
+      showDataAreaLoading();
       clearScreenDataCache?.();
       rerender();
     };
