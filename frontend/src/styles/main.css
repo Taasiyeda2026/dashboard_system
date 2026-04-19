@@ -66,9 +66,10 @@
   --ds-session-card-bg: var(--ds-surface);
   --ds-session-card-border: var(--ds-border);
 
-  --ds-radius-sm: 3px;
-  --ds-radius-md: 4px;
-  --ds-radius-lg: 6px;
+  --ds-radius-sm: 6px;
+  --ds-radius-md: 10px;
+  --ds-radius-lg: 14px;
+  --ds-radius-xl: 18px;
   --ds-radius-full: 999px;
 
   --ds-space-1: 4px;
@@ -78,12 +79,12 @@
   --ds-space-5: 20px;
   --ds-space-6: 28px;
 
-  --ds-shadow-xs: none;
-  --ds-shadow-sm: none;
-  --ds-shadow-md: none;
-  --ds-shadow-lg: 0 4px 16px rgba(15, 23, 42, 0.14);
+  --ds-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --ds-shadow-sm: 0 1px 4px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --ds-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.10), 0 2px 4px rgba(15, 23, 42, 0.06);
+  --ds-shadow-lg: 0 8px 28px rgba(15, 23, 42, 0.16), 0 4px 8px rgba(15, 23, 42, 0.08);
 
-  --ds-sidebar-w: 212px;
+  --ds-sidebar-w: 228px;
   --ds-topbar-h: 54px;
 
   /* Legacy aliases used in older markup paths */
@@ -115,7 +116,7 @@ body {
 
 body {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: var(--ds-shell);
+  background: linear-gradient(165deg, #0b0d12 0%, #131826 45%, #0b0d12 100%);
   color: var(--ds-text);
   direction: rtl;
   text-align: right;
@@ -437,7 +438,7 @@ select {
   padding: var(--ds-space-2) var(--ds-space-3);
   background: var(--ds-surface);
   border-bottom: 1px solid var(--ds-border);
-  box-shadow: none;
+  box-shadow: var(--ds-shadow-xs);
 }
 
 .shell-top__start,
@@ -711,19 +712,19 @@ select {
   border: 1px solid var(--ds-card-interactive-border);
   background: var(--ds-card-interactive-bg);
   border-radius: var(--ds-radius-sm);
-  box-shadow: none;
+  box-shadow: var(--ds-shadow-xs);
   min-height: 44px;
   padding: var(--ds-space-2) var(--ds-space-3);
   display: flex;
   flex-direction: column;
   gap: var(--ds-space-1);
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
 }
 
 .ds-interactive-card:hover:not(:disabled) {
   border-color: var(--ds-border-strong);
   background: var(--ds-interactive-hover);
-  box-shadow: none;
+  box-shadow: var(--ds-shadow-sm);
 }
 
 .ds-interactive-card:active:not(:disabled) {
@@ -808,7 +809,7 @@ select {
   background: var(--ds-surface);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);
-  box-shadow: none;
+  box-shadow: var(--ds-shadow-sm);
   overflow: hidden;
 }
 
@@ -863,12 +864,13 @@ select {
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);
   padding: var(--ds-space-2) var(--ds-space-3);
-  box-shadow: none;
-  transition: border-color 0.12s ease;
+  box-shadow: var(--ds-shadow-sm);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .ds-kpi:hover {
   border-color: var(--ds-border-strong);
+  box-shadow: var(--ds-shadow-md);
 }
 
 .ds-kpi__label {
@@ -904,7 +906,7 @@ select {
   background: var(--ds-surface-subtle);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-sm);
-  box-shadow: none;
+  box-shadow: var(--ds-shadow-xs);
 }
 
 .ds-toolbar {
