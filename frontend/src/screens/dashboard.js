@@ -1,7 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { UI_ACTIVITY_FAMILY_LONG, UI_ACTIVITY_FAMILY_SHORT } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
-import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { clearScreenDataCache } from '../state.js';
 
 const HEBREW_MONTHS = [
@@ -76,24 +74,22 @@ export const dashboardScreen = {
 
     const managerCards = managers
       .map((row) => {
-        const searchHay = `${row.activity_manager} ${row.total_short} ${row.total_long} ${row.num_instructors ?? ''}`;
+        const mgr = encodeURIComponent(row.activity_manager);
         const stats = [
-          { label: 'פעילים החודש', value: (row.total_short ?? 0) + (row.total_long ?? 0) },
-          { label: 'מדריכים',      value: row.num_instructors ?? 0 },
-          { label: 'דורשים טיפול', value: row.exceptions      ?? 0 },
-          { label: 'סיומי קורסים', value: row.course_endings  ?? 0 },
+          { label: 'פעילים החודש', value: (row.total_short ?? 0) + (row.total_long ?? 0), action: `mstat|${mgr}|active` },
+          { label: 'מדריכים',      value: row.num_instructors ?? 0,                         action: `mstat|${mgr}|instructors` },
+          { label: 'דורשים טיפול', value: row.exceptions      ?? 0,                         action: `mstat|${mgr}|exceptions` },
+          { label: 'סיומי קורסים', value: row.course_endings  ?? 0,                         action: `mstat|${mgr}|endings` },
         ];
         const statsHtml = stats
-          .map((s) => `<div class="ds-manager-stat">
-              <span class="ds-manager-stat__value">${escapeHtml(String(s.value))}</span>
+          .map((s) => `<button type="button" class="ds-manager-stat" data-card-action="${escapeHtml(s.action)}">
               <span class="ds-manager-stat__label">${escapeHtml(s.label)}</span>
-            </div>`)
+              <span class="ds-manager-stat__value">${escapeHtml(String(s.value))}</span>
+            </button>`)
           .join('');
-        return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="">
-          <button type="button" class="ds-manager-card" data-card-action="manager|${encodeURIComponent(row.activity_manager)}">
-            <p class="ds-manager-card__name">${escapeHtml(row.activity_manager)}</p>
-            <div class="ds-manager-stats">${statsHtml}</div>
-          </button>
+        return `<div class="ds-manager-card">
+          <p class="ds-manager-card__name">${escapeHtml(row.activity_manager)}</p>
+          <div class="ds-manager-stats">${statsHtml}</div>
         </div>`;
       })
       .join('');
@@ -119,17 +115,16 @@ export const dashboardScreen = {
       : '<p class="ds-muted">אין כרטיסי KPI להצגה (לפי מסנן &quot;ערך בלבד&quot;).</p>';
 
     const monthNav = `<div class="ds-dash-month-nav" dir="rtl" aria-label="בחירת חודש לתצוגה">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם">◀</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם">▶</button>
       <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}</span>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא" ${
         canGoNext ? '' : 'disabled'
-      }>▶</button>
+      }>◀</button>
     </div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('לוח בקרה', 'כל הסיכומים לפי חודש — חצים לשינוי חודש')}
+      ${dsPageHeader('לוח בקרה')}
       ${monthNav}
-      ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש בכרטיסים…', filters: [] })}
       <div class="ds-kpi-grid">${kpiHtml}</div>
       ${dsCard({
         title: 'פילוח לפי מנהל פעילויות',
@@ -139,8 +134,6 @@ export const dashboardScreen = {
     `);
   },
   bind({ root, ui, state, rerender }) {
-    bindPageListTools(root);
-
     const applyYm = (nextYm) => {
       state.dashboardMonthYm = nextYm;
       clearScreenDataCache();
@@ -228,6 +221,24 @@ export const dashboardScreen = {
         goActivitiesDrill(state, { activityQuickManager: name });
         ui.closeAll();
         rerender();
+        return;
+      }
+      if (action.startsWith('mstat|')) {
+        const parts = action.split('|');
+        const name = decodeURIComponent(parts[1] || '');
+        const kind = parts[2] || 'active';
+        if (kind === 'active') {
+          goActivitiesDrill(state, { activityQuickManager: name });
+        } else if (kind === 'instructors') {
+          state.route = 'instructors';
+        } else if (kind === 'exceptions') {
+          state.route = 'exceptions';
+        } else if (kind === 'endings') {
+          goActivitiesDrill(state, { activityQuickManager: name, activityEndingCurrentMonth: true });
+        }
+        ui.closeAll();
+        rerender();
+        return;
       }
     });
   }
