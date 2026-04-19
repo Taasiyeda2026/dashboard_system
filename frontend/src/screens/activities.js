@@ -363,7 +363,8 @@ export const activitiesScreen = {
     root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
       rowNode.tabIndex = 0;
       rowNode.setAttribute('role', 'button');
-      rowNode.addEventListener('click', () => {
+      rowNode.addEventListener('click', (ev) => {
+        ev.stopPropagation();
         const rowId = rowNode.dataset.rowId;
         const hit = filteredRows.find((row) => row.RowID === rowId);
         if (!hit || !ui) return;

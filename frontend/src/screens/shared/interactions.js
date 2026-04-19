@@ -249,6 +249,7 @@ export function createSharedInteractionLayer() {
       button.dataset.cardBound = 'yes';
       button.addEventListener('click', (event) => {
         event.preventDefault();
+        event.stopPropagation();
         const action = button.dataset.cardAction || '';
         if (!action || typeof onAction !== 'function') return;
         onAction(action, button);

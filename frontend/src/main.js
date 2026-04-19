@@ -475,32 +475,48 @@ function bindShell() {
   });
 }
 
+let _isRendering = false;
+let _pendingRender = false;
+
 async function render() {
-  if (!state.token) {
-    lastRenderedRoute = null;
-    isMobileNavOpen = false;
-    document.body.classList.remove('is-shell-nav-open');
-    ui.closeAll();
-    app.innerHTML = loginScreen.render();
-    loginScreen.bind({
-      root: app,
-      onLogin: async (userId, code, errorNode) => {
-        try {
-          const data = await api.login(userId, code);
-          setSession({ token: data.token, user: data.user });
-          applyBootstrapFromLoginData(data);
-          await restoreSession();
-          await render();
-        } catch (error) {
-          if (errorNode) errorNode.textContent = error.message;
-          throw error;
-        }
-      }
-    });
+  if (_isRendering) {
+    _pendingRender = true;
     return;
   }
-
-  await mountScreen();
+  _isRendering = true;
+  _pendingRender = false;
+  try {
+    if (!state.token) {
+      lastRenderedRoute = null;
+      isMobileNavOpen = false;
+      document.body.classList.remove('is-shell-nav-open');
+      ui.closeAll();
+      app.innerHTML = loginScreen.render();
+      loginScreen.bind({
+        root: app,
+        onLogin: async (userId, code, errorNode) => {
+          try {
+            const data = await api.login(userId, code);
+            setSession({ token: data.token, user: data.user });
+            applyBootstrapFromLoginData(data);
+            await restoreSession();
+            await render();
+          } catch (error) {
+            if (errorNode) errorNode.textContent = error.message;
+            throw error;
+          }
+        }
+      });
+      return;
+    }
+    await mountScreen();
+  } finally {
+    _isRendering = false;
+    if (_pendingRender) {
+      _pendingRender = false;
+      render().catch(() => {});
+    }
+  }
 }
 
 
