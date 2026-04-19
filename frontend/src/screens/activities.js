@@ -320,13 +320,11 @@ export const activitiesScreen = {
       ${compactView
         ? dsCard({
             title: 'רשימת פעילויות',
-            badge: `${safeRows.length} שורות`,
             body: compactSection,
             padded: true
           })
         : dsCard({
             title: 'רשימת פעילויות',
-            badge: `${safeRows.length} שורות`,
             body: tableSection,
             padded: false
           })}

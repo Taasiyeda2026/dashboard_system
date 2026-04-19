@@ -119,7 +119,6 @@ export const exceptionsScreen = {
       <div class="ds-filter-bar" role="toolbar">${typeChips}</div>
       ${dsCard({
         title: 'רשימת חריגות',
-        badge: `${safeRows.length} שורות`,
         body: narrow ? compact : tableBlock,
         padded: safeRows.length === 0 || narrow
       })}

@@ -277,7 +277,6 @@ export const financeScreen = {
       </div>
       ${dsCard({
         title: 'רשימת כספים',
-        badge: `${rows.length} שורות`,
         body: narrow ? compact : tableBlock,
         padded: rows.length === 0 || narrow
       })}

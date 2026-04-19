@@ -78,7 +78,6 @@ export const myDataScreen = {
       ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפעילויות שלי…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({
         title: 'הפעילויות שלי',
-        badge: `${rows.length} שורות`,
         body: narrow ? compactCards : tableBlock,
         padded: rows.length === 0 || narrow
       })}

@@ -74,7 +74,6 @@ export const endDatesScreen = {
       ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש ברשימה…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({
         title: 'רשימת סיומים',
-        badge: `${rows.length} שורות`,
         body: narrow ? compact : tableBlock,
         padded: rows.length === 0 || narrow
       })}
