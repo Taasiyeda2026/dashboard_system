@@ -110,6 +110,7 @@ const COLUMN_LABELS = {
   start_date: 'תאריך התחלה',
   end_date: 'תאריך סיום',
   activity_type: 'סוג פעילות',
+  activity_manager: 'מנהל פעילויות',
   user_id: 'מזהה משתמש',
   default_view: 'מסך ברירת מחדל',
   display_role: 'תפקיד',

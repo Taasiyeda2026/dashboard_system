@@ -253,7 +253,7 @@ export const activitiesScreen = {
       ${dsToolbar(`
         <label class="compact-toggle"><input id="toggle-view" type="checkbox" ${compactView ? 'checked' : ''} ${forceCompact ? 'disabled' : ''} /> תצוגה קומפקטית</label>
         ${hasAnyFilter ? '<button type="button" class="ds-btn ds-btn--sm" data-clear-filters>ניקוי מסננים</button>' : ''}
-        ${state.activityQuickManager ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">אחראי: ${escapeHtml(state.activityQuickManager)}</span>` : ''}
+        ${state.activityQuickManager ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">מנהל פעילויות: ${escapeHtml(state.activityQuickManager)}</span>` : ''}
         ${state.activityEndingCurrentMonth ? '<span class="ds-chip ds-chip--status ds-chip--status-neutral">מסיימי קורס החודש</span>' : ''}
         ${state.activityQuickFamily === 'short' ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">משפחה: ${FAMILY_LABEL_SHORT}</span>` : ''}
         ${state.activityQuickFamily === 'long' ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">משפחה: ${FAMILY_LABEL_LONG}</span>` : ''}

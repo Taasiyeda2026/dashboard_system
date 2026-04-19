@@ -20,7 +20,7 @@ export function activityRowDetailHtml(row, { privateNote = null, hideEmpIds = fa
       <p><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '—')}</p>
       <p><strong>RowID:</strong> ${escapeHtml(String(row.RowID || ''))}</p>
       <p><strong>סוג פעילות:</strong> ${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</p>
-      <p><strong>אחראי פעילות:</strong> ${escapeHtml(row.activity_manager || '—')}</p>
+      <p><strong>מנהל פעילויות:</strong> ${escapeHtml(row.activity_manager || '—')}</p>
       <p><strong>תאריכים:</strong> ${escapeHtml(row.start_date || '—')} עד ${escapeHtml(row.end_date || '—')}</p>
       <p><strong>מדריכים:</strong> ${escapeHtml(instLine)}</p>
       <p><strong>סטטוס כספי:</strong> ${finChip}</p>

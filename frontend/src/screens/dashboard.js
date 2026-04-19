@@ -129,7 +129,7 @@ export const dashboardScreen = {
       ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש בכרטיסים…', filters: [] })}
       <div class="ds-kpi-grid">${kpiHtml}</div>
       ${dsCard({
-        title: 'פילוח לפי אחראי פעילות',
+        title: 'פילוח לפי מנהל פעילויות',
         badge: `${managers.length} רשומות`,
         body: managersBlock,
         padded: true
