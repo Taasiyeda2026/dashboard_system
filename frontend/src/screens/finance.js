@@ -427,6 +427,8 @@ function buildCardsView(rows, canEdit) {
         ${row.authority ? `<span class="ds-muted">${escapeHtml(row.authority)}</span>` : ''}
         ${row.activity_manager ? `<span>${escapeHtml(row.activity_manager)}</span>` : ''}
         ${row.end_date ? `<span>סיום: ${formatDateIL(row.end_date)}</span>` : ''}
+        ${row.funding ? `<span>מימון: ${escapeHtml(row.funding)}</span>` : ''}
+        ${row.Payer ? `<span>משלם: ${escapeHtml(row.Payer)}</span>` : ''}
         ${cardPrice > 0 ? `<span>מחיר: ${formatILS(cardPrice)}</span>` : ''}
         ${cardSessions > 0 ? `<span>מפגשים: ${cardSessions}</span>` : ''}
         ${amt > 0 ? `<span class="ds-finance-card__amount">${formatILS(amt)}</span>` : ''}
