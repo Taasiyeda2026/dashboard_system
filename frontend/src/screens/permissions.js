@@ -3,38 +3,7 @@ import { hebrewPermissionField, hebrewRole, translateApiErrorForUser, hebrewColu
 import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState, dsStatusChip, dsKpiGrid } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { showToast } from './shared/toast.js';
-
-const UI_LAYER_ID = 'ds-shared-ui-layer';
-
-function showConfirmModal(ui, { title = 'אישור פעולה', message = '', confirmLabel = 'אישור', confirmClass = 'ds-btn--danger', onConfirm } = {}) {
-  if (!ui) return;
-  const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
-  const actionsHtml = `
-    <button type="button" class="ds-btn ds-btn--ghost" data-confirm-cancel>ביטול</button>
-    <button type="button" class="ds-btn ${confirmClass}" data-confirm-ok>${escapeHtml(confirmLabel)}</button>
-  `;
-  ui.openModal({
-    title,
-    content: `<p style="margin:0;line-height:1.6;direction:rtl">${safeMessage}</p>`,
-    actions: actionsHtml,
-    onClose: () => {}
-  });
-  const layer = document.getElementById(UI_LAYER_ID);
-  if (!layer) return;
-  const okBtn = layer.querySelector('[data-confirm-ok]');
-  const cancelBtn = layer.querySelector('[data-confirm-cancel]');
-  if (okBtn) {
-    okBtn.addEventListener('click', () => {
-      ui.closeModal();
-      if (typeof onConfirm === 'function') onConfirm();
-    }, { once: true });
-  }
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      ui.closeModal();
-    }, { once: true });
-  }
-}
+import { showConfirmModal } from './shared/interactions.js';
 
 const KEY_PERM_FLAGS = [
   'can_add_activity',
