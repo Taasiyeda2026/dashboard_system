@@ -214,6 +214,13 @@ function screenDataCacheKey() {
     const ym = state.dashboardMonthYm && /^\d{4}-\d{2}$/.test(state.dashboardMonthYm) ? state.dashboardMonthYm : 'default';
     return `dashboard:${ym}`;
   }
+  if (state.route === 'week') {
+    return `week:${state.weekOffset || 0}`;
+  }
+  if (state.route === 'month') {
+    const ym = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : 'current';
+    return `month:${ym}`;
+  }
   return state.route;
 }
 

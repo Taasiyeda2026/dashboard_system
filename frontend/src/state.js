@@ -10,6 +10,10 @@ export const state = {
   activityEndingCurrentMonth: false,
   /** לוח בקרה: חודש מוצג בפורמט YYYY-MM; ריק = ייטען חודש נוכחי בכניסה */
   dashboardMonthYm: '',
+  /** מסך שבוע: הזזה בשבועות מהשבוע הנוכחי (0 = שבוע נוכחי, -1 = קודם, +1 = הבא) */
+  weekOffset: 0,
+  /** מסך חודש: חודש מוצג בפורמט YYYY-MM; ריק = חודש נוכחי */
+  monthYm: '',
   activityView: 'compact',
   financeFilter: '',
   /** הגדרות UI ממקור הנתונים (bootstrap / login) */
@@ -34,6 +38,8 @@ export function setSession(session) {
     state.activityQuickManager = '';
     state.activityEndingCurrentMonth = false;
     state.dashboardMonthYm = '';
+    state.weekOffset = 0;
+    state.monthYm = '';
     state.clientSettings = {};
     state.screenDataCache = {};
     localStorage.removeItem('dashboard_token');

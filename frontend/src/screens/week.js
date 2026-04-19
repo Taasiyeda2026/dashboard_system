@@ -35,12 +35,21 @@ function weekDrawerHtml(item, date, hideEmpIds) {
     </div>`;
 }
 
+function weekRangeLabel(days) {
+  if (!days || days.length === 0) return '';
+  const first = days[0]?.date || '';
+  const last = days[days.length - 1]?.date || '';
+  if (!first) return '';
+  return first === last ? first : `${first} — ${last}`;
+}
+
 export const weekScreen = {
-  load: ({ api }) => api.week(),
+  load: ({ api, state }) => api.week({ week_offset: state.weekOffset || 0 }),
   render(data, { state }) {
     const safeDays = Array.isArray(data?.days) ? data.days : [];
     const todayIso = localYmd();
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const weekOffset = state.weekOffset || 0;
 
     const columns = safeDays
       .map((d, idx) => {
@@ -89,15 +98,38 @@ export const weekScreen = {
       columns ||
       `<div class="ds-empty"><p class="ds-empty__msg">אין נתוני שבוע זמינים</p></div>`;
 
+    const rangeLabel = weekRangeLabel(safeDays);
+    const isCurrentWeek = weekOffset === 0;
+    const navLabel = isCurrentWeek
+      ? `שבוע נוכחי${rangeLabel ? ` · ${rangeLabel}` : ''}`
+      : weekOffset < 0
+        ? `${Math.abs(weekOffset)} שבועות אחורה${rangeLabel ? ` · ${rangeLabel}` : ''}`
+        : `${weekOffset} שבועות קדימה${rangeLabel ? ` · ${rangeLabel}` : ''}`;
+
     return dsScreenStack(`
       ${dsPageHeader('שבוע', 'לוח עבודה — לחיצה על פריט לפתיחת פירוט')}
+      <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">→ שבוע קודם</button>
+        <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
+        <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">שבוע הבא ←</button>
+      </nav>
       ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפריטי השבוע…', filters: [] })}
       <div class="ds-week-board" role="region" aria-label="לוח שבוע">${body}</div>
     `);
   },
-  bind({ root, ui, data, state }) {
+  bind({ root, ui, data, state, rerender }) {
     bindPageListTools(root);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+
+    root.querySelector('[data-week-prev]')?.addEventListener('click', () => {
+      state.weekOffset = (state.weekOffset || 0) - 1;
+      rerender?.();
+    });
+    root.querySelector('[data-week-next]')?.addEventListener('click', () => {
+      state.weekOffset = (state.weekOffset || 0) + 1;
+      rerender?.();
+    });
+
     ui.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('weeksession|')) return;
       const rest = action.slice('weeksession|'.length);

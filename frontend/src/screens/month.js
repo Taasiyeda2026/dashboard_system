@@ -101,8 +101,17 @@ function monthDayDrawerBody(cell, hideEmpIds) {
   return `<div class="ds-cal-drawer-stack">${blocks}</div>`;
 }
 
+function shiftMonthYm(ym, delta) {
+  const d = ym && /^\d{4}-\d{2}$/.test(ym) ? new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1, 1) : new Date();
+  d.setMonth(d.getMonth() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export const monthScreen = {
-  load: ({ api }) => api.month(),
+  load: ({ api, state }) => {
+    const ym = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : '';
+    return api.month(ym ? { ym } : {});
+  },
   render(data, { state }) {
     const spec = inferMonthSpec(data || {});
     const y = spec.y;
@@ -172,22 +181,39 @@ export const monthScreen = {
         <div class="ds-cal-grid" role="grid" aria-label="לוח חודש">${slots.join('')}</div>
       </div>`;
 
-    const monthKeyDisplay = data?.month ? escapeHtml(data.month) : `${y}-${String(mo).padStart(2, '0')}`;
+    const currentYm = data?.month || `${y}-${String(mo).padStart(2, '0')}`;
+    const monthTitle = monthTitleHebrew(spec);
 
     return dsScreenStack(`
       ${dsPageHeader('חודש', 'לוח חודש — לחיצה על יום לפתיחת פירוט')}
+      <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">→ חודש קודם</button>
+        <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
+        <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">חודש הבא ←</button>
+      </nav>
       ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש לפי שם פעילות ביום…', filters: [] })}
       ${dsCard({
-        title: monthTitleHebrew(spec),
-        badge: `${dim} ימים · ${monthKeyDisplay}`,
+        title: monthTitle,
+        badge: `${dim} ימים · ${escapeHtml(currentYm)}`,
         body: gridHtml,
-        padded: true
+        padded: false
       })}
     `);
   },
-  bind({ root, ui, data, state }) {
+  bind({ root, ui, data, state, rerender }) {
     bindPageListTools(root, { mode: 'dim' });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+
+    const currentYm = data?.month || '';
+    root.querySelector('[data-month-prev]')?.addEventListener('click', () => {
+      state.monthYm = shiftMonthYm(currentYm || state.monthYm, -1);
+      rerender?.();
+    });
+    root.querySelector('[data-month-next]')?.addEventListener('click', () => {
+      state.monthYm = shiftMonthYm(currentYm || state.monthYm, 1);
+      rerender?.();
+    });
+
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;
       const dayNum = action.split('|')[1];

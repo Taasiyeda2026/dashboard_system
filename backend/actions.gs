@@ -295,12 +295,13 @@ function actionActivities_(user, payload) {
   };
 }
 
-function actionWeek_(user) {
+function actionWeek_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
 
   var today = new Date();
   var startDay = getWeekStartDay_();
-  var anchor = startOfWeekContaining_(today, startDay);
+  var weekOffset = parseInt((payload && payload.week_offset) || 0, 10) || 0;
+  var anchor = shiftDate_(startOfWeekContaining_(today, startDay), weekOffset * 7);
   var showSat = settingShowShabbat_();
   var calRows = visibleActivitiesForUser_(user);
   var meetingsMap = buildMeetingsMap_();
@@ -323,16 +324,24 @@ function actionWeek_(user) {
   return {
     days: days,
     week_starts_on: startDay,
-    show_shabbat: showSat
+    show_shabbat: showSat,
+    week_offset: weekOffset
   };
 }
 
-function actionMonth_(user) {
+function actionMonth_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
 
   var now = new Date();
-  var year = now.getFullYear();
-  var month = now.getMonth();
+  var ym = text_(payload && payload.ym).slice(0, 7);
+  var year, month;
+  if (/^\d{4}-\d{2}$/.test(ym)) {
+    year = parseInt(ym.slice(0, 4), 10);
+    month = parseInt(ym.slice(5, 7), 10) - 1;
+  } else {
+    year = now.getFullYear();
+    month = now.getMonth();
+  }
   var daysInMonth = new Date(year, month + 1, 0).getDate();
   var calRows = visibleActivitiesForUser_(user);
   var meetingsMap = buildMeetingsMap_();
@@ -348,8 +357,9 @@ function actionMonth_(user) {
     });
   }
 
+  var mm = month + 1;
   return {
-    month: formatDate_(new Date()).slice(0, 7),
+    month: year + '-' + (mm < 10 ? '0' : '') + mm,
     cells: cells,
     hide_saturday: !settingShowShabbat_()
   };
