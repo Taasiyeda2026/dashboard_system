@@ -437,7 +437,7 @@ function exportToExcel(rows, label) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `כספים${label ? '-' + label : ''}.xls`;
+  a.download = `כספים${label ? '_' + label : ''}.xls`;
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
@@ -798,14 +798,13 @@ export const financeScreen = {
       rows = applySearch(rows, searchQ);
       if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
 
-      /* Build filename: date-range label takes priority over month label */
+      /* Build filename: include date range when a from/to filter is active;
+         month selection alone does not change the base filename (כספים.xls) */
       let exportLabel = '';
       if (dateFrom || dateTo) {
         const fmt = (iso) => iso ? iso.split('-').reverse().join('-') : '';
         const parts = [fmt(dateFrom), fmt(dateTo)].filter(Boolean);
         exportLabel = parts.join('_');
-      } else if (monthYm) {
-        exportLabel = ymToMonthLabel(monthYm);
       }
       exportToExcel(rows, exportLabel);
     });
