@@ -2786,6 +2786,13 @@ select[data-role-select]:focus-visible {
   flex-wrap: wrap;
 }
 
+.ds-screen-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-1) 0;
+}
+
 /* ——— Contacts: school grouping + inline expand ——— */
 .ci-list {
   display: flex;

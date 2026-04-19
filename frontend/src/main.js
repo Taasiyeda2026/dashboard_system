@@ -112,7 +112,7 @@ const screens = {
   permissions: permissionsScreen
 };
 
-const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts']);
+const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts', 'week', 'month', 'exceptions', 'instructors']);
 
 function shellUserDisplayName() {
   const fn = state.user?.full_name != null ? String(state.user.full_name).trim() : '';

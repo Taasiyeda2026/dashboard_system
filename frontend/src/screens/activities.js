@@ -217,10 +217,17 @@ export const activitiesScreen = {
 
     const compactSection = safeRows.length === 0 ? dsEmptyState('לא נמצאו פעילויות למסנן זה') : `<div class="ds-compact-list">${compactRows}</div>`;
 
-    const contactsShortcut =
-      Array.isArray(state?.routes) && state.routes.includes('contacts')
-        ? `<p class="ds-page-shortcuts"><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-goto-route="contacts"><span aria-hidden="true">🏫</span> אנשי קשר</button></p>`
-        : '';
+    const userRoutes = Array.isArray(state?.routes) ? state.routes : [];
+    const shortcutDefs = [
+      { route: 'week',        label: 'שבוע',     icon: '📅' },
+      { route: 'month',       label: 'חודש',     icon: '📆' },
+      { route: 'exceptions',  label: 'חריגות',   icon: '⚠️' },
+      { route: 'instructors', label: 'מדריכים',  icon: '👥' },
+    ];
+    const shortcutsHtml = shortcutDefs
+      .filter((d) => userRoutes.includes(d.route))
+      .map((d) => `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-goto-route="${d.route}"><span aria-hidden="true">${d.icon}</span> ${escapeHtml(d.label)}</button>`)
+      .join('');
 
     return dsScreenStack(`
       ${dsPageHeader('פעילויות', 'סינון, בחירה ופתיחת פירוט פעילות')}
@@ -233,8 +240,8 @@ export const activitiesScreen = {
           value="${searchVal}"
           dir="rtl"
         />
-        <button type="button" class="ds-btn ds-btn--sm" data-goto-contacts>📋 אנשי קשר</button>
       </div>
+      ${shortcutsHtml ? `<div class="ds-screen-shortcuts" dir="rtl">${shortcutsHtml}</div>` : ''}
       <div class="ds-filter-row" dir="rtl">
         ${filterButtons}
         ${financeChips ? `<span class="ds-filter-row__sep" aria-hidden="true"></span>${financeChips}` : ''}
@@ -267,9 +274,11 @@ export const activitiesScreen = {
   },
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api }) {
     bindPageListTools(root);
-    root.querySelector('[data-goto-route="contacts"]')?.addEventListener('click', () => {
-      state.route = 'contacts';
-      rerender?.();
+    root.querySelectorAll('[data-goto-route]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.gotoRoute;
+        if (target) { state.route = target; rerender?.(); }
+      });
     });
 
     const filteredRows = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state);
@@ -312,11 +321,6 @@ export const activitiesScreen = {
       } else {
         rerender();
       }
-    });
-
-    root.querySelector('[data-goto-contacts]')?.addEventListener('click', () => {
-      state.route = 'contacts';
-      rerender();
     });
 
     root.querySelectorAll('[data-tab]').forEach((node) => {
