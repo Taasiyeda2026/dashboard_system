@@ -74,21 +74,6 @@ function getPermissionRow_(userId) {
 function buildRoutesFromPermission_(permission, role) {
   if (role === 'instructor') return ['my-data'];
 
-  var map = {
-    dashboard: 'view_dashboard',
-    activities: 'view_activities',
-    week: 'view_week',
-    month: 'view_month',
-    instructors: 'view_instructors',
-    'instructor-contacts': '__instructor_contacts__',
-    exceptions: 'view_exceptions',
-    'my-data': '__my_data__',
-    contacts: '__school_contacts__',
-    finance: 'view_finance',
-    'end-dates': '__end_dates__',
-    permissions: 'view_permissions'
-  };
-
   var allRoutes = [
     'dashboard',
     'activities',
@@ -103,6 +88,23 @@ function buildRoutesFromPermission_(permission, role) {
     'my-data',
     'permissions'
   ];
+
+  if (role === 'admin') return allRoutes;
+
+  var map = {
+    dashboard: 'view_dashboard',
+    activities: 'view_activities',
+    week: 'view_week',
+    month: 'view_month',
+    instructors: 'view_instructors',
+    'instructor-contacts': '__instructor_contacts__',
+    exceptions: 'view_exceptions',
+    'my-data': '__my_data__',
+    contacts: '__school_contacts__',
+    finance: 'view_finance',
+    'end-dates': '__end_dates__',
+    permissions: 'view_permissions'
+  };
 
   return allRoutes.filter(function(route) {
     if (route === 'permissions') {
