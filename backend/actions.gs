@@ -991,6 +991,23 @@ function actionAddUser_(user, payload) {
     instructor: {}
   };
 
+  // Apply per-flag overrides from the settings sheet.
+  // Any row with setting_key "role_defaults.<role>.<flag>" and setting_value "yes"/"no"
+  // overrides the hardcoded default for that role+flag combination.
+  var settingsMap = readActiveSettingsMap_();
+  var nonAdminRoles = ['operations_reviewer', 'authorized_user', 'instructor'];
+  nonAdminRoles.forEach(function(role) {
+    var base = nonAdminRoleDefaults[role] || {};
+    var prefix = 'role_defaults.' + role + '.';
+    Object.keys(settingsMap).forEach(function(k) {
+      if (k.indexOf(prefix) === 0) {
+        var flag = k.slice(prefix.length);
+        base[flag] = yesNo_(settingsMap[k]) === 'yes' ? 'yes' : 'no';
+      }
+    });
+    nonAdminRoleDefaults[role] = base;
+  });
+
   var isAdmin = resolvedRole === 'admin';
   var nonAdminDefaults = nonAdminRoleDefaults[resolvedRole] || {};
 
