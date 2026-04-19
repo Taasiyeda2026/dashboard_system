@@ -14,6 +14,40 @@ const KEY_PERM_FLAGS = [
   'view_permissions'
 ];
 
+// Mirrors the hardcoded nonAdminRoleDefaults in backend/actions.gs.
+// Used only for the live preview in the add-user drawer.
+const ROLE_DEFAULTS_PREVIEW = {
+  admin: null, // null = all flags
+  operations_reviewer: [
+    'view_dashboard', 'view_activities', 'view_week', 'view_month',
+    'view_instructors', 'view_exceptions', 'view_finance',
+    'view_edit_requests', 'view_final_approvals',
+    'can_edit_direct', 'can_review_requests'
+  ],
+  authorized_user: [
+    'view_dashboard', 'view_activities', 'view_week', 'view_month',
+    'can_add_activity', 'can_edit_direct'
+  ],
+  instructor: []
+};
+
+function buildRolePreviewHtml(role) {
+  const flags = ROLE_DEFAULTS_PREVIEW[role];
+  if (flags === null) {
+    return `<p class="ds-perm-section-label ds-perm-section-label--sub" style="margin-top:var(--space-2,8px)">ברירת מחדל: כל ההרשאות (מנהל/ת מערכת)</p>`;
+  }
+  if (!flags || flags.length === 0) {
+    return `<p class="ds-perm-section-label ds-perm-section-label--sub ds-muted" style="margin-top:var(--space-2,8px)">ברירת מחדל: ללא הרשאות</p>`;
+  }
+  const chips = flags.map((f) =>
+    `<span class="ds-perm-flag ds-perm-flag--on" title="${escapeHtml(hebrewPermissionField(f))}">${escapeHtml(hebrewPermissionField(f))}</span>`
+  ).join('');
+  return `<div style="margin-top:var(--space-2,8px)">
+    <p class="ds-perm-section-label ds-perm-section-label--sub">ברירת מחדל לתפקיד זה:</p>
+    <div class="ds-perm-flag-grid" style="margin-top:var(--space-1,4px)">${chips}</div>
+  </div>`;
+}
+
 function sortedPermissionEditorKeys(row) {
   const keys = Object.keys(row).filter((k) => {
     if (k === 'user_id' || k === 'display_role') return false;
@@ -85,6 +119,7 @@ function buildAddUserDrawerHtml() {
           <option value="admin">מנהל/ת</option>
         </select>
       </div>
+      <div data-role-preview>${buildRolePreviewHtml('instructor')}</div>
     </div>
     <div class="ds-perm-actions">
       <button type="button" class="ds-btn ds-btn--primary" data-add-user-submit>הוספה</button>
@@ -287,6 +322,15 @@ export const permissionsScreen = {
           onOpen: (contentNode) => {
             const statusEl = contentNode.querySelector('.ds-perm-save-status');
             const submitBtn = contentNode.querySelector('[data-add-user-submit]');
+            const roleSelect = contentNode.querySelector('#new-display-role');
+            const previewEl = contentNode.querySelector('[data-role-preview]');
+
+            if (roleSelect && previewEl) {
+              roleSelect.addEventListener('change', () => {
+                previewEl.innerHTML = buildRolePreviewHtml(roleSelect.value);
+              });
+            }
+
             if (!submitBtn) return;
 
             submitBtn.addEventListener('click', async () => {
