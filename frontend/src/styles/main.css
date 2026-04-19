@@ -2042,7 +2042,8 @@ span.ds-chip {
 }
 
 .ds-manager-stat__label {
-  font-size: 0.62rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--ds-text-muted);
   line-height: 1.3;
   text-align: center;

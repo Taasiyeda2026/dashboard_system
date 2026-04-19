@@ -99,26 +99,23 @@ export const dashboardScreen = {
 
     const kpiHtml = kpiCards.length
       ? kpiCards
-          .map((k) => {
-            const searchHay = `${k.title || ''} ${k.value ?? ''}`.trim();
-            return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="">
-            ${dsInteractiveCard({
+          .map((k) =>
+            dsInteractiveCard({
               variant: 'kpi',
               action: k.action,
               title: k.title,
               value: k.value != null ? String(k.value) : ''
-            })}
-          </div>`;
-          })
+            })
+          )
           .join('')
       : '<p class="ds-muted">אין כרטיסי KPI להצגה (לפי מסנן &quot;ערך בלבד&quot;).</p>';
 
     const monthNav = `<div class="ds-dash-month-nav" dir="rtl" aria-label="בחירת חודש לתצוגה">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם">▶</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם">◀</button>
       <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}</span>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא" ${
         canGoNext ? '' : 'disabled'
-      }>◀</button>
+      }>▶</button>
     </div>`;
 
     return dsScreenStack(`
