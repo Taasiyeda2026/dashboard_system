@@ -786,16 +786,28 @@ export const financeScreen = {
       const searchQ = state?.financeSearch || '';
       const statusFilter = state?.financeStatusFilter || '';
       const monthYm = state?.financeMonthYm || '';
+      const dateFrom = state?.financeDateFrom || '';
+      const dateTo = state?.financeDateTo || '';
       const activeTab = state?.financeTab || 'active';
       const isAdminExport = state?.user?.display_role === 'admin';
       let rows = isAdminExport ? applyTabFilter(allRows, activeTab) : allRows.filter((r) => {
         const arch = String(r.is_archived || r.archive || '').toLowerCase();
         return arch !== 'yes' && arch !== 'true' && arch !== '1';
       });
-      rows = applyMonthFilter(rows, monthYm);
+      rows = applyMonthFilter(rows, monthYm, dateFrom, dateTo);
       rows = applySearch(rows, searchQ);
       if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
-      exportToExcel(rows, monthYm ? ymToMonthLabel(monthYm) : '');
+
+      /* Build filename: date-range label takes priority over month label */
+      let exportLabel = '';
+      if (dateFrom || dateTo) {
+        const fmt = (iso) => iso ? iso.split('-').reverse().join('-') : '';
+        const parts = [fmt(dateFrom), fmt(dateTo)].filter(Boolean);
+        exportLabel = parts.join('_');
+      } else if (monthYm) {
+        exportLabel = ymToMonthLabel(monthYm);
+      }
+      exportToExcel(rows, exportLabel);
     });
 
     /* Sync button (admin/reviewer only — invalidates server cache and rerenders) */
