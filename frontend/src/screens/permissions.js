@@ -2,6 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { hebrewPermissionField, hebrewRole, translateApiErrorForUser, hebrewColumn } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState, dsStatusChip, dsKpiGrid } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
+import { showToast } from './shared/toast.js';
 
 const KEY_PERM_FLAGS = [
   'can_add_activity',
@@ -351,6 +352,7 @@ export const permissionsScreen = {
           await api.reactivateUser(userId);
           clearScreenDataCache?.();
           if (typeof rerender === 'function') await rerender();
+          showToast(`המשתמש/ת "${name}" הופעל/ה מחדש בהצלחה`, 'success');
         } catch (error) {
           window.alert(translateApiErrorForUser(error?.message));
           btn.classList.remove('is-loading');

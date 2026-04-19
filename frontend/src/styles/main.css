@@ -3102,6 +3102,44 @@ select[data-role-select]:focus-visible {
   color: var(--ds-text);
 }
 
+/* ——— Toast notifications ——— */
+.ds-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  z-index: 9999;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+}
+
+.ds-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.ds-toast--success {
+  background: var(--ds-success, #22863a);
+  color: #fff;
+}
+
+.ds-toast--error {
+  background: #c0392b;
+  color: #fff;
+}
+
+.ds-toast--info {
+  background: var(--ds-accent, #2a5db0);
+  color: #fff;
+}
+
 /* ——— Mobile chip size fix: keep 44px touch targets ——— */
 @media (max-width: 760px) {
   .ds-chip {
