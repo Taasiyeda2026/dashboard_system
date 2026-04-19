@@ -992,18 +992,30 @@ function actionAddUser_(user, payload) {
   };
 
   // Apply per-flag overrides from the settings sheet.
-  // Any row with setting_key "role_defaults.<role>.<flag>" and setting_value "yes"/"no"
-  // overrides the hardcoded default for that role+flag combination.
+  //
+  // Format: add a row in the "settings" sheet with:
+  //   setting_key   = role_defaults.<role>.<flag>   e.g. role_defaults.authorized_user.view_finance
+  //   setting_value = yes  (or anything else for "no")
+  //   active        = yes
+  //
+  // Supported roles:  operations_reviewer | authorized_user | instructor
+  // Supported flags:  any column whose name starts with "view_" or "can_"
+  //                   e.g. view_finance, view_dashboard, can_edit_direct, …
+  //
+  // Only keys that match a known flag prefix (view_ / can_) are applied;
+  // unrecognised keys are silently ignored to prevent silent misconfiguration
+  // from typos. setting_value is treated as yes/no only (yesNo_ normalises it).
   var settingsMap = readActiveSettingsMap_();
   var nonAdminRoles = ['operations_reviewer', 'authorized_user', 'instructor'];
   nonAdminRoles.forEach(function(role) {
     var base = nonAdminRoleDefaults[role] || {};
     var prefix = 'role_defaults.' + role + '.';
     Object.keys(settingsMap).forEach(function(k) {
-      if (k.indexOf(prefix) === 0) {
-        var flag = k.slice(prefix.length);
-        base[flag] = yesNo_(settingsMap[k]) === 'yes' ? 'yes' : 'no';
-      }
+      if (k.indexOf(prefix) !== 0) return;
+      var flag = k.slice(prefix.length);
+      // Only allow known permission column prefixes to guard against typos
+      if (flag.indexOf('view_') !== 0 && flag.indexOf('can_') !== 0) return;
+      base[flag] = yesNo_(settingsMap[k]) === 'yes' ? 'yes' : 'no';
     });
     nonAdminRoleDefaults[role] = base;
   });
