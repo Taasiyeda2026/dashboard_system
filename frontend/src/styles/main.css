@@ -1469,7 +1469,8 @@ span.ds-chip {
   min-height: 44px;
   display: flex;
   align-items: center;
-  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+  gap: var(--ds-space-1) var(--ds-space-2);
   padding: var(--ds-space-1) 0;
   line-height: 1.35;
 }
@@ -1551,6 +1552,102 @@ span.ds-chip {
 .ds-perm-grid .ds-input--sm {
   width: 100%;
   max-width: 12rem;
+}
+
+/* ——— Permissions: summary layout ——— */
+.ds-perm-summary-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--ds-text);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-perm-uid {
+  font-size: 0.76rem;
+  color: var(--ds-text-muted);
+  margin: 0 0 var(--ds-space-1);
+}
+
+.ds-perm-card summary .ds-chip {
+  min-width: 0;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  min-height: 26px;
+  flex-shrink: 0;
+}
+
+.ds-chip--perm {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  min-height: 26px;
+  background: var(--ds-accent-soft);
+  border-color: rgba(26, 51, 88, 0.2);
+  color: var(--ds-accent);
+  border-radius: var(--ds-radius-full);
+  border: 1px solid rgba(26, 51, 88, 0.2);
+}
+
+.ds-perm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1);
+  margin-top: var(--ds-space-1);
+}
+
+.ds-perm-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+  margin-top: var(--ds-space-3);
+  padding-top: var(--ds-space-2);
+  border-top: 1px solid var(--ds-border);
+}
+
+.ds-perm-save-status {
+  font-size: 0.8rem;
+  color: var(--ds-success);
+  margin: 0;
+}
+
+/* ——— Permissions: edit drawer ——— */
+.ds-perm-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-4);
+}
+
+.ds-perm-edit-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-3);
+}
+
+.ds-perm-section-label {
+  margin: 0 0 var(--ds-space-1);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ds-text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  border-bottom: 1px solid var(--ds-border);
+  padding-bottom: var(--ds-space-1);
+}
+
+.ds-perm-bool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--ds-space-1) var(--ds-space-3);
+}
+
+@media (max-width: 480px) {
+  .ds-perm-bool-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ——— Calendar / week navigation bar ——— */
