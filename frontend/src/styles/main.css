@@ -1016,7 +1016,7 @@ select {
 }
 
 .ds-btn--sm {
-  min-height: 36px;
+  min-height: 40px;
   padding: 6px 10px;
   font-size: 0.78rem;
 }
@@ -1450,20 +1450,70 @@ span.ds-chip {
 }
 
 .ds-perm-card {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  background: var(--ds-surface, #fff);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-2) var(--ds-space-4);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-sm);
+  transition: border-color 0.12s ease;
+}
+
+.ds-perm-card[open] {
+  border-color: var(--ds-border-strong);
 }
 
 .ds-perm-card summary {
   cursor: pointer;
   font-weight: 600;
   list-style: none;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-1) 0;
+  line-height: 1.35;
 }
 
 .ds-perm-card summary::-webkit-details-marker {
   display: none;
+}
+
+.ds-perm-card summary::before {
+  content: '▸';
+  font-size: 0.72rem;
+  color: var(--ds-text-muted);
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.ds-perm-card[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.ds-perm-body {
+  padding-top: var(--ds-space-3);
+  border-top: 1px solid var(--ds-border);
+  margin-top: var(--ds-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+}
+
+.ds-perm-body p {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.ds-perm-field {
+  font-size: 0.84rem;
+  color: var(--ds-text-secondary);
+}
+
+.ds-perm-field .ds-muted {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--ds-text-muted);
+  margin-bottom: 3px;
 }
 
 .ds-perm-grid {
@@ -1478,6 +1528,24 @@ span.ds-chip {
   align-items: center;
   gap: 0.35rem;
   font-size: 0.9rem;
+}
+
+.ds-perm-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: 0.84rem;
+  cursor: pointer;
+  min-height: 40px;
+  padding: var(--ds-space-1) 0;
+  color: var(--ds-text-secondary);
+}
+
+.ds-perm-check input[type='checkbox'] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 .ds-perm-grid .ds-input--sm {
