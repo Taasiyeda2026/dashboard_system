@@ -54,7 +54,7 @@ function applySearch(rows, q) {
 export const instructorsScreen = {
   load: ({ api }) => api.instructors(),
   render(data, { state } = {}) {
-    const columns = ['emp_id', 'full_name', 'mobile', 'email', 'employment_type', 'direct_manager', 'active'];
+    const columns = ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'];
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
     const searchQ = state?.instructorsSearch || '';
@@ -151,7 +151,7 @@ export const instructorsScreen = {
   },
   bind({ root, data, state, ui, rerender }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const columns = ['emp_id', 'full_name', 'mobile', 'email', 'employment_type', 'direct_manager', 'active'];
+    const columns = ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'];
 
     root.querySelector('#instructors-search')?.addEventListener('input', (ev) => {
       state.instructorsSearch = ev.target.value || '';

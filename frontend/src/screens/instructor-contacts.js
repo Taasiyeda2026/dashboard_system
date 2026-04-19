@@ -142,7 +142,7 @@ export const instructorContactsScreen = {
       </div>
       <div class="ds-filter-bar" role="toolbar">${activeChips}</div>
       ${dsCard({
-        title: 'מדריכים',
+        title: 'אנשי קשר מדריכים',
         badge: `${rows.length} שורות`,
         body: narrow ? compact : tableBlock,
         padded: rows.length === 0 || narrow
