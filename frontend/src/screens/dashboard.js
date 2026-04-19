@@ -53,12 +53,6 @@ function filterKpiCards(cards, showOnlyNonzero) {
   return list.filter((c) => Number(c.value || 0) > 0);
 }
 
-/** תוויות תצוגה ל־KPI — ללא שינוי מפתחות action מהשרת */
-function kpiSubtitleDisplay(card) {
-  if (card.id === 'short') return 'חד-יומיות';
-  if (card.id === 'long') return 'תוכניות';
-  return card.subtitle || '';
-}
 
 export const dashboardScreen = {
   async load({ api, state }) {
@@ -102,15 +96,13 @@ export const dashboardScreen = {
     const kpiHtml = kpiCards.length
       ? kpiCards
           .map((k) => {
-            const sub = kpiSubtitleDisplay(k);
-            const searchHay = `${k.title || ''} ${sub} ${k.value ?? ''}`.trim();
+            const searchHay = `${k.title || ''} ${k.value ?? ''}`.trim();
             return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="">
             ${dsInteractiveCard({
               variant: 'kpi',
               action: k.action,
               title: k.title,
-              value: k.value != null ? String(k.value) : '',
-              meta: sub
+              value: k.value != null ? String(k.value) : ''
             })}
           </div>`;
           })
@@ -119,7 +111,7 @@ export const dashboardScreen = {
 
     const monthNav = `<div class="ds-dash-month-nav" dir="rtl" aria-label="בחירת חודש לתצוגה">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם">◀</button>
-      <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}<span class="ds-dash-month-nav__ym"> · ${escapeHtml(ym)}</span></span>
+      <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}</span>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא" ${
         canGoNext ? '' : 'disabled'
       }>▶</button>
@@ -132,7 +124,6 @@ export const dashboardScreen = {
       <div class="ds-kpi-grid">${kpiHtml}</div>
       ${dsCard({
         title: 'פילוח לפי מנהל פעילויות',
-        badge: `${managers.length} רשומות`,
         body: managersBlock,
         padded: true
       })}
