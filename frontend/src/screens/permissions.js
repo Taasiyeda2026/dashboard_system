@@ -14,32 +14,38 @@ const KEY_PERM_FLAGS = [
   'view_permissions'
 ];
 
-// Mirrors the hardcoded nonAdminRoleDefaults in backend/actions.gs.
-// Used only for the live preview in the add-user drawer.
-const ROLE_DEFAULTS_PREVIEW = {
-  admin: null, // null = all flags
-  operations_reviewer: [
-    'view_dashboard', 'view_activities', 'view_week', 'view_month',
-    'view_instructors', 'view_exceptions', 'view_finance',
-    'view_edit_requests', 'view_final_approvals',
-    'can_edit_direct', 'can_review_requests'
-  ],
-  authorized_user: [
-    'view_dashboard', 'view_activities', 'view_week', 'view_month',
-    'can_add_activity', 'can_edit_direct'
-  ],
-  instructor: []
+// Hardcoded fallback matching backend/actions.gs nonAdminRoleDefaults.
+// Same { flag: 'yes'/'no' } format as data.roleDefaults from the server.
+// Used only when server data is unavailable (rare, e.g. stale cache transition).
+const ROLE_DEFAULTS_FALLBACK = {
+  operations_reviewer: {
+    view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
+    view_instructors: 'yes', view_exceptions: 'yes', view_finance: 'yes',
+    view_edit_requests: 'yes', view_final_approvals: 'yes',
+    can_edit_direct: 'yes', can_review_requests: 'yes'
+  },
+  authorized_user: {
+    view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
+    can_add_activity: 'yes', can_edit_direct: 'yes'
+  },
+  instructor: {}
 };
 
-function buildRolePreviewHtml(role) {
-  const flags = ROLE_DEFAULTS_PREVIEW[role];
-  if (flags === null) {
+/**
+ * Renders the role-defaults preview snippet.
+ * @param {string} role - e.g. 'authorized_user'
+ * @param {Object|null} roleDefaults - server-computed roleDefaults map, or null to use fallback
+ */
+function buildRolePreviewHtml(role, roleDefaults) {
+  if (role === 'admin') {
     return `<p class="ds-perm-section-label ds-perm-section-label--sub" style="margin-top:var(--space-2,8px)">ברירת מחדל: כל ההרשאות (מנהל/ת מערכת)</p>`;
   }
-  if (!flags || flags.length === 0) {
+  const source = (roleDefaults && roleDefaults[role]) ? roleDefaults[role] : (ROLE_DEFAULTS_FALLBACK[role] || {});
+  const grantedFlags = Object.keys(source).filter((f) => source[f] === 'yes');
+  if (grantedFlags.length === 0) {
     return `<p class="ds-perm-section-label ds-perm-section-label--sub ds-muted" style="margin-top:var(--space-2,8px)">ברירת מחדל: ללא הרשאות</p>`;
   }
-  const chips = flags.map((f) =>
+  const chips = grantedFlags.map((f) =>
     `<span class="ds-perm-flag ds-perm-flag--on" title="${escapeHtml(hebrewPermissionField(f))}">${escapeHtml(hebrewPermissionField(f))}</span>`
   ).join('');
   return `<div style="margin-top:var(--space-2,8px)">
@@ -94,7 +100,7 @@ function buildPermFlagGrid(row, keys) {
   return `<div class="ds-perm-flag-grid">${chips}</div>`;
 }
 
-function buildAddUserDrawerHtml() {
+function buildAddUserDrawerHtml(roleDefaults) {
   return `<div class="ds-perm-edit-form" dir="rtl">
     <div class="ds-perm-edit-section">
       <p class="ds-perm-section-label">פרטי משתמש חדש</p>
@@ -119,7 +125,7 @@ function buildAddUserDrawerHtml() {
           <option value="admin">מנהל/ת</option>
         </select>
       </div>
-      <div data-role-preview>${buildRolePreviewHtml('instructor')}</div>
+      <div data-role-preview>${buildRolePreviewHtml('instructor', roleDefaults)}</div>
     </div>
     <div class="ds-perm-actions">
       <button type="button" class="ds-btn ds-btn--primary" data-add-user-submit>הוספה</button>
@@ -318,7 +324,7 @@ export const permissionsScreen = {
       addUserBtn.addEventListener('click', () => {
         ui.openDrawer({
           title: 'הוסף משתמש חדש',
-          content: buildAddUserDrawerHtml(),
+          content: buildAddUserDrawerHtml(data?.roleDefaults),
           onOpen: (contentNode) => {
             const statusEl = contentNode.querySelector('.ds-perm-save-status');
             const submitBtn = contentNode.querySelector('[data-add-user-submit]');
@@ -327,7 +333,7 @@ export const permissionsScreen = {
 
             if (roleSelect && previewEl) {
               roleSelect.addEventListener('change', () => {
-                previewEl.innerHTML = buildRolePreviewHtml(roleSelect.value);
+                previewEl.innerHTML = buildRolePreviewHtml(roleSelect.value, data?.roleDefaults);
               });
             }
 

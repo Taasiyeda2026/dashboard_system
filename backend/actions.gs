@@ -641,6 +641,42 @@ function actionMyData_(user) {
   return { rows: allActivities_() };
 }
 
+/**
+ * Computes effective non-admin role defaults, merging hardcoded baseline with
+ * any active overrides in the settings sheet (role_defaults.<role>.<flag>).
+ * Returns { operations_reviewer: {...}, authorized_user: {...}, instructor: {} }
+ * where each value is a flag-name → 'yes'/'no' object.
+ */
+function computeNonAdminRoleDefaults_() {
+  var defaults = {
+    operations_reviewer: {
+      view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
+      view_instructors: 'yes', view_exceptions: 'yes', view_finance: 'yes',
+      view_edit_requests: 'yes', view_final_approvals: 'yes',
+      can_edit_direct: 'yes', can_review_requests: 'yes'
+    },
+    authorized_user: {
+      view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
+      can_add_activity: 'yes', can_edit_direct: 'yes'
+    },
+    instructor: {}
+  };
+  var settingsMap = readActiveSettingsMap_();
+  var nonAdminRoles = ['operations_reviewer', 'authorized_user', 'instructor'];
+  nonAdminRoles.forEach(function(role) {
+    var base = defaults[role] || {};
+    var prefix = 'role_defaults.' + role + '.';
+    Object.keys(settingsMap).forEach(function(k) {
+      if (k.indexOf(prefix) !== 0) return;
+      var flag = k.slice(prefix.length);
+      if (flag.indexOf('view_') !== 0 && flag.indexOf('can_') !== 0) return;
+      base[flag] = yesNo_(settingsMap[k]) === 'yes' ? 'yes' : 'no';
+    });
+    defaults[role] = base;
+  });
+  return defaults;
+}
+
 function actionPermissions_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer']);
   var permission = getPermissionRow_(user.user_id);
@@ -650,6 +686,9 @@ function actionPermissions_(user) {
 
   var cachedPerm = scriptCacheGetJson_(SCRIPT_CACHE_KEY_PERMISSIONS_LIST);
   if (cachedPerm) {
+    // roleDefaults is always computed fresh (not stored in script cache) so that
+    // settings-sheet overrides are reflected without waiting for cache expiry.
+    cachedPerm.roleDefaults = computeNonAdminRoleDefaults_();
     return cachedPerm;
   }
 
@@ -679,6 +718,8 @@ function actionPermissions_(user) {
     })
   };
   scriptCachePutJson_(SCRIPT_CACHE_KEY_PERMISSIONS_LIST, result, CONFIG.SCRIPT_CACHE_SECONDS);
+  // Add roleDefaults after caching (not stored in script cache — always fresh)
+  result.roleDefaults = computeNonAdminRoleDefaults_();
   return result;
 }
 
@@ -977,48 +1018,7 @@ function actionAddUser_(user, payload) {
 
   var resolvedRole = normalizeRole_(text_(row.display_role || 'instructor'));
 
-  var nonAdminRoleDefaults = {
-    operations_reviewer: {
-      view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
-      view_instructors: 'yes', view_exceptions: 'yes', view_finance: 'yes',
-      view_edit_requests: 'yes', view_final_approvals: 'yes',
-      can_edit_direct: 'yes', can_review_requests: 'yes'
-    },
-    authorized_user: {
-      view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
-      can_add_activity: 'yes', can_edit_direct: 'yes'
-    },
-    instructor: {}
-  };
-
-  // Apply per-flag overrides from the settings sheet.
-  //
-  // Format: add a row in the "settings" sheet with:
-  //   setting_key   = role_defaults.<role>.<flag>   e.g. role_defaults.authorized_user.view_finance
-  //   setting_value = yes  (or anything else for "no")
-  //   active        = yes
-  //
-  // Supported roles:  operations_reviewer | authorized_user | instructor
-  // Supported flags:  any column whose name starts with "view_" or "can_"
-  //                   e.g. view_finance, view_dashboard, can_edit_direct, …
-  //
-  // Only keys that match a known flag prefix (view_ / can_) are applied;
-  // unrecognised keys are silently ignored to prevent silent misconfiguration
-  // from typos. setting_value is treated as yes/no only (yesNo_ normalises it).
-  var settingsMap = readActiveSettingsMap_();
-  var nonAdminRoles = ['operations_reviewer', 'authorized_user', 'instructor'];
-  nonAdminRoles.forEach(function(role) {
-    var base = nonAdminRoleDefaults[role] || {};
-    var prefix = 'role_defaults.' + role + '.';
-    Object.keys(settingsMap).forEach(function(k) {
-      if (k.indexOf(prefix) !== 0) return;
-      var flag = k.slice(prefix.length);
-      // Only allow known permission column prefixes to guard against typos
-      if (flag.indexOf('view_') !== 0 && flag.indexOf('can_') !== 0) return;
-      base[flag] = yesNo_(settingsMap[k]) === 'yes' ? 'yes' : 'no';
-    });
-    nonAdminRoleDefaults[role] = base;
-  });
+  var nonAdminRoleDefaults = computeNonAdminRoleDefaults_();
 
   var isAdmin = resolvedRole === 'admin';
   var nonAdminDefaults = nonAdminRoleDefaults[resolvedRole] || {};
