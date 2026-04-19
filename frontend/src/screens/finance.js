@@ -1018,7 +1018,9 @@ export const financeScreen = {
     const openDrawer = (hit) => {
       if (!hit || !ui) return;
       const meetingsHtml = buildMeetingsDatesHtml(hit);
-      const baseHtml = activityWorkDrawerHtml(hit, { privateNote: null, canEdit, hideEmpIds });
+      const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+      const privateNote = showPrivateNote ? hit.private_note || '—' : null;
+      const baseHtml = activityWorkDrawerHtml(hit, { privateNote, canEdit, hideEmpIds });
       ui.openDrawer({
         title: `כספים · ${hit.activity_name || hit.RowID}`,
         content: baseHtml + (meetingsHtml ? `<div style="padding:var(--ds-space-3)">${meetingsHtml}</div>` : ''),
