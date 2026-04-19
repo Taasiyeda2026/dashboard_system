@@ -376,7 +376,9 @@ export const permissionsScreen = {
         const userId = btn.dataset.userId;
         const row = safeRows.find((r) => String(r.user_id) === String(userId));
         const name = row?.full_name || userId;
-        if (!window.confirm(`פעולה זו תמחק לצמיתות את המשתמש/ת "${name}" מגיליון ההרשאות.\nלא ניתן לבטל פעולה זו. להמשיך?`)) return;
+        const isTargetAdmin = row?.display_role === 'admin';
+        const adminWarning = isTargetAdmin ? '\n\n⚠️ שים לב: משתמש/ת זה/זו הוא/היא מנהל/ת המערכת!' : '';
+        if (!window.confirm(`פעולה זו תמחק לצמיתות את המשתמש/ת "${name}" מגיליון ההרשאות.\nלא ניתן לבטל פעולה זו. להמשיך?${adminWarning}`)) return;
 
         btn.classList.add('is-loading');
         btn.disabled = true;
