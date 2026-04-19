@@ -445,9 +445,39 @@ async function mountScreen() {
     screenRoot.innerHTML = screen.render(data, { state });
     bindScreen(screen, screenRoot, data);
     if (routeChanged) lastRenderedRoute = state.route;
+    schedulePrefetch(state.route);
   } finally {
     setShellNavBusy(false);
   }
+}
+
+/** Prefetch adjacent screens in the background after the current screen renders. */
+const PREFETCH_MAP = {
+  dashboard:   ['exceptions', 'instructors', 'instructor-contacts'],
+  activities:  ['exceptions', 'instructors'],
+  week:        ['month'],
+  month:       ['week'],
+  instructors: ['instructor-contacts'],
+};
+let _prefetchTimer;
+function schedulePrefetch(currentRoute) {
+  clearTimeout(_prefetchTimer);
+  _prefetchTimer = setTimeout(() => {
+    const targets = PREFETCH_MAP[currentRoute] || [];
+    for (const route of targets) {
+      if (!state.routes.includes(route)) continue;
+      const key = route;
+      const hit = state.screenDataCache[key];
+      if (hit && Date.now() - hit.t < (SCREEN_CACHE_TTL_MS[route] ?? DEFAULT_CACHE_TTL_MS)) continue;
+      if (inflightRequests.has(key)) continue;
+      const s = screens[route];
+      if (!s?.load) continue;
+      const p = s.load({ api, state })
+        .then((data) => { state.screenDataCache[key] = { data, t: Date.now() }; inflightRequests.delete(key); })
+        .catch(() => { inflightRequests.delete(key); });
+      inflightRequests.set(key, p);
+    }
+  }, 800);
 }
 
 function bindShell() {

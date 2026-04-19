@@ -119,9 +119,11 @@ export const instructorsScreen = {
   bind({ root, data, state, ui, rerender }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
 
+    let _searchTimer;
     root.querySelector('#instructors-search')?.addEventListener('input', (ev) => {
       state.instructorsSearch = ev.target.value || '';
-      rerender();
+      clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(() => rerender(), 220);
     });
 
     root.querySelector('[data-goto-instructor-contacts]')?.addEventListener('click', () => {

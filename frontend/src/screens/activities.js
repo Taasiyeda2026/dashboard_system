@@ -315,13 +315,17 @@ export const activitiesScreen = {
       });
     }
 
+    let _searchTimer;
     root.querySelector('#activity-search')?.addEventListener('input', (ev) => {
       state.activitySearch = ev.target.value || '';
-      if (typeof rerenderActivitiesView === 'function') {
-        rerenderActivitiesView();
-      } else {
-        rerender();
-      }
+      clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(() => {
+        if (typeof rerenderActivitiesView === 'function') {
+          rerenderActivitiesView();
+        } else {
+          rerender();
+        }
+      }, 220);
     });
 
     root.querySelectorAll('[data-tab]').forEach((node) => {
@@ -365,27 +369,33 @@ export const activitiesScreen = {
       }
     });
 
-    root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
-      rowNode.tabIndex = 0;
-      rowNode.setAttribute('role', 'button');
-      rowNode.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        const rowId = rowNode.dataset.rowId;
-        const hit = filteredRows.find((row) => row.RowID === rowId);
-        if (!hit || !ui) return;
-        ui.openDrawer({
-          title: `פירוט פעילות ${hit.RowID}`,
-          content: activityDrawerContent(hit, canSeePrivateNotes, canEditActivity, hideEmpIds),
-          onOpen: bindActivityEditForm
-        });
-      });
-      rowNode.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          rowNode.click();
-        }
-      });
+    root.querySelectorAll('.ds-data-row').forEach((n) => {
+      n.tabIndex = 0;
+      n.setAttribute('role', 'button');
     });
+    if (root._rowAbort) root._rowAbort.abort();
+    root._rowAbort = new AbortController();
+    const rowSig = { signal: root._rowAbort.signal };
+    root.addEventListener('click', (ev) => {
+      const rowNode = ev.target.closest('.ds-data-row');
+      if (!rowNode) return;
+      ev.stopPropagation();
+      const rowId = rowNode.dataset.rowId;
+      const hit = filteredRows.find((row) => row.RowID === rowId);
+      if (!hit || !ui) return;
+      ui.openDrawer({
+        title: `פירוט פעילות ${hit.RowID}`,
+        content: activityDrawerContent(hit, canSeePrivateNotes, canEditActivity, hideEmpIds),
+        onOpen: bindActivityEditForm
+      });
+    }, rowSig);
+    root.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      const rowNode = ev.target.closest('.ds-data-row');
+      if (!rowNode) return;
+      ev.preventDefault();
+      rowNode.click();
+    }, rowSig);
 
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('activity:')) return;
