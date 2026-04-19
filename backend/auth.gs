@@ -86,7 +86,10 @@ function buildRoutesFromPermission_(permission, role) {
     'finance',
     'end-dates',
     'my-data',
-    'permissions'
+    'permissions',
+    'admin-home',
+    'admin-settings',
+    'admin-lists'
   ];
 
   if (role === 'admin') return allRoutes;

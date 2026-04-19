@@ -455,7 +455,10 @@ function actionFinance_(user, payload) {
   }
 
   var mappedRows = rows.map(function(row) {
-    return {
+    var price = parseFloat(row.price) || 0;
+    var sessions = parseFloat(row.sessions) || 0;
+    var amount = sessions > 0 ? price * sessions : price;
+    var mapped = {
       RowID: row.RowID,
       source_sheet: row.source_sheet,
       activity_name: row.activity_name,
@@ -473,9 +476,20 @@ function actionFinance_(user, payload) {
       funding: text_(row.funding),
       start_date: text_(row.start_date),
       end_date: text_(row.end_date || row.start_date),
-      price: row.price,
-      sessions: row.sessions
+      price: price,
+      sessions: sessions,
+      amount: amount,
+      is_archived: text_(row.is_archived || row.archive || ''),
+      Payer: text_(row.Payer || row.payer || ''),
+      Payment: parseFloat(row.Payment || row.payment || '') || 0
     };
+    /* Include session date columns Date1–Date35 when present */
+    for (var di = 1; di <= 35; di++) {
+      var dk = 'Date' + di;
+      var dv = text_(row[dk] || '');
+      if (dv) mapped[dk] = dv;
+    }
+    return mapped;
   });
 
   var totalOpen = 0, totalClosed = 0, totalOther = 0;

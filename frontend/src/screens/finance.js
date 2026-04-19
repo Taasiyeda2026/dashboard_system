@@ -39,7 +39,16 @@ function applySearch(rows, q) {
   );
 }
 
-function applyMonthFilter(rows, ymStr) {
+function applyMonthFilter(rows, ymStr, dateFrom, dateTo) {
+  /* When no month or date filter is set: default to current + previous month */
+  if (!ymStr && !dateFrom && !dateTo) {
+    const cur = currentYm();
+    const prev = prevMonth(cur);
+    return rows.filter((r) => {
+      const ym = String(r.end_date || '').slice(0, 7);
+      return ym === cur || ym === prev;
+    });
+  }
   if (!ymStr) return rows;
   return rows.filter((r) => String(r.end_date || '').startsWith(ymStr));
 }
@@ -106,10 +115,12 @@ function formatDateIL(isoDate) {
   return `${d}/${m}/${y}`;
 }
 
-/* Row amount: prefer explicit Payment field if present (future-proof);
-   otherwise compute from price × sessions — matches backend/actions.gs:488. */
+/* Row amount: prefer backend-computed `amount` or explicit Payment field;
+   otherwise compute from price × sessions — matches backend/actions.gs. */
 function rowAmount(row) {
-  const explicit = parseFloat(row.Payment || row.payment_amount || row.payment) || 0;
+  const backendAmt = parseFloat(row.amount) || 0;
+  if (backendAmt > 0) return backendAmt;
+  const explicit = parseFloat(row.Payment || row.payment_amount) || 0;
   if (explicit > 0) return explicit;
   const price = parseFloat(row.price) || 0;
   const sessions = parseFloat(row.sessions) || 0;
@@ -264,6 +275,7 @@ function buildGroupedTable(rows, canEdit) {
       const statusOpts = ['', 'open', 'closed'].map((v) =>
         `<option value="${v}" ${String(row.finance_status || '') === v ? 'selected' : ''}>${v === '' ? '— ללא —' : hebrewFinanceStatus(v)}</option>`
       ).join('');
+      const amt = rowAmount(row);
       const statusCell = canEdit
         ? `<td class="ds-finance-status-cell"><select class="ds-input ds-input--sm ds-finance-status-select" data-inline-status="${uid}">${statusOpts}</select></td>`
         : `<td>${dsStatusChip(hebrewFinanceStatus(row.finance_status), financeStatusVariant(row.finance_status))}</td>`;
@@ -289,8 +301,8 @@ function buildGroupedTable(rows, canEdit) {
         ${authCol}
         <td>${escapeHtml(row.funding || '—')}</td>
         <td>${formatDateIL(row.end_date)}</td>
-        <td>${formatILS(parseFloat(row.price) || 0)}</td>
         <td style="text-align:center;">${parseFloat(row.sessions) > 0 ? row.sessions : '—'}</td>
+        <td style="text-align:left;">${formatILS(amt)}</td>
         ${statusCell}
         ${actionsCell}
       </tr>${datesExpandRow}`;
@@ -310,8 +322,8 @@ function buildGroupedTable(rows, canEdit) {
       ${authHead}
       <th>מימון</th>
       <th>תאריך סיום</th>
-      <th>מחיר</th>
       <th>מפגשים</th>
+      <th>סכום גבייה</th>
       <th>סטטוס</th>
       ${actionsHead}
     </tr></thead>
@@ -322,23 +334,46 @@ function buildGroupedTable(rows, canEdit) {
 /* ————————————————————————————————
    Cards view (mobile / toggle)
 ———————————————————————————————— */
-function buildCardsView(rows) {
+function buildCardsView(rows, canEdit) {
   if (rows.length === 0) return dsEmptyState('לא נמצאו רשומות');
   const sorted = sortRows(rows);
-  return `<div class="ds-compact-list">${sorted.map((row) => {
+  return `<div class="ds-finance-cards-list">${sorted.map((row) => {
+    const uid = escapeHtml(row.RowID);
     const fst = String(row.finance_status || '').trim();
     const amt = rowAmount(row);
-    return `<div data-list-item data-filter="${escapeHtml(fst)}">
-      ${dsInteractiveCard({
-        variant: 'session',
-        action: `finance:${row.RowID}`,
-        title: row.activity_name || '—',
-        subtitle: `${hebrewFinanceStatus(row.finance_status)} · ${row.school || ''}`,
-        meta: [
-          row.end_date ? `סיום: ${formatDateIL(row.end_date)}` : '',
-          amt > 0 ? formatILS(amt) : ''
-        ].filter(Boolean).join(' · ')
-      })}
+    const statusOpts = canEdit ? ['', 'open', 'closed'].map((v) =>
+      `<option value="${v}" ${String(row.finance_status || '') === v ? 'selected' : ''}>${v === '' ? '— ללא —' : hebrewFinanceStatus(v)}</option>`
+    ).join('') : '';
+    const editDetails = canEdit ? `<details class="ds-finance-card-details">
+      <summary class="ds-finance-card-details__trigger">עריכה ▾</summary>
+      <div class="ds-finance-card-details__body" dir="rtl">
+        <label class="ds-finance-inline-label">סטטוס
+          <select class="ds-input ds-input--sm" data-inline-status="${uid}">${statusOpts}</select>
+        </label>
+        <label class="ds-finance-inline-label ds-finance-inline-label--notes">הערות
+          <input type="text" class="ds-input ds-input--sm" data-inline-notes="${uid}"
+            value="${escapeHtml(String(row.finance_notes || ''))}" placeholder="הערות..." />
+        </label>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-inline-save="${uid}">💾 שמור</button>
+          <span class="ds-finance-inline-status ds-muted" data-inline-msg="${uid}" role="status" aria-live="polite"></span>
+        </div>
+      </div>
+    </details>` : '';
+
+    return `<div class="ds-finance-card" data-list-item data-filter="${escapeHtml(fst)}" data-row-id="${uid}" dir="rtl">
+      <div class="ds-finance-card__header">
+        <span class="ds-finance-card__name">${escapeHtml(row.activity_name || '—')}</span>
+        ${dsStatusChip(hebrewFinanceStatus(row.finance_status), financeStatusVariant(row.finance_status))}
+      </div>
+      <div class="ds-finance-card__meta">
+        ${row.school ? `<span>${escapeHtml(row.school)}</span>` : ''}
+        ${row.activity_manager ? `<span>${escapeHtml(row.activity_manager)}</span>` : ''}
+        ${row.end_date ? `<span>סיום: ${formatDateIL(row.end_date)}</span>` : ''}
+        ${amt > 0 ? `<span class="ds-finance-card__amount">${formatILS(amt)}</span>` : ''}
+      </div>
+      ${row.finance_notes ? `<p class="ds-finance-card__notes ds-muted">${escapeHtml(row.finance_notes)}</p>` : ''}
+      ${editDetails}
     </div>`;
   }).join('')}</div>`;
 }
@@ -347,7 +382,7 @@ function buildCardsView(rows) {
    CSV export
 ———————————————————————————————— */
 function exportToCsv(rows, label) {
-  const cols = ['RowID', 'activity_name', 'activity_manager', 'school', 'authority', 'funding', 'price', 'sessions', 'amount', 'start_date', 'end_date', 'finance_status', 'finance_notes', 'status'];
+  const cols = ['RowID', 'activity_name', 'activity_manager', 'school', 'authority', 'funding', 'Payer', 'price', 'sessions', 'amount', 'Payment', 'start_date', 'end_date', 'finance_status', 'finance_notes', 'status'];
   const headers = cols.map((c) => hebrewColumn(c) || c);
   const lines = [headers.join(',')];
   rows.forEach((row) => {
@@ -435,7 +470,7 @@ export const financeScreen = {
 
     /* Non-admins never see archived rows; admins use the tab filter */
     let rows = isAdmin ? applyTabFilter(allRows, activeTab) : applyTabFilter(allRows, 'active');
-    rows = applyMonthFilter(rows, monthYm);
+    rows = applyMonthFilter(rows, monthYm, dateFrom, dateTo);
     rows = applySearch(rows, searchQ);
     if (statusFilter) {
       rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
@@ -538,13 +573,13 @@ export const financeScreen = {
     else if (dateFrom && dateTo) headerSubtitle = `מציג: ${formatDateIL(dateFrom)} – ${formatDateIL(dateTo)}`;
     else if (dateFrom) headerSubtitle = `מציג: מתאריך ${formatDateIL(dateFrom)}`;
     else if (dateTo) headerSubtitle = `מציג: עד ${formatDateIL(dateTo)}`;
-    else headerSubtitle = 'פעילויות לפי תאריך סיום';
+    else headerSubtitle = `ברירת מחדל: ${ymToMonthLabel(prevMonth(currentYm()))} + ${ymToMonthLabel(currentYm())}`;
 
     const exportBtn = `<button type="button" class="ds-btn ds-btn--sm" data-export-csv>ייצוא CSV</button>`;
     const syncBtn = isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-sync-finance title="סנכרון נתוני כספים">↻ סנכרון</button>` : '';
 
     const dataBody = viewMode === 'cards'
-      ? buildCardsView(rows)
+      ? buildCardsView(rows, canEdit)
       : buildGroupedTable(rows, canEdit);
 
     return dsScreenStack(`
@@ -835,6 +870,16 @@ export const financeScreen = {
       });
       rowNode.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); rowNode.click(); }
+      });
+    });
+
+    /* Finance card view — click header area to open drawer */
+    root.querySelectorAll('.ds-finance-card').forEach((card) => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('details,select,input,button')) return;
+        const rowId = card.dataset.rowId;
+        const hit = allRows.find((r) => String(r.RowID) === String(rowId));
+        openDrawer(hit);
       });
     });
 

@@ -126,15 +126,14 @@ export const adminHomeScreen = {
     `);
   },
 
-  bind({ root, state }) {
+  bind({ root }) {
     root.querySelectorAll('[data-admin-nav]').forEach((card) => {
       card.addEventListener('click', () => {
         const target = card.dataset.adminNav;
-        if (target) {
-          const btn = document.querySelector(`[data-route="${target}"]`);
-          if (btn) btn.click();
-          else { state.route = target; window.dispatchEvent(new CustomEvent('ds:navigate', { detail: { route: target } })); }
-        }
+        if (!target) return;
+        /* Use any rendered nav button — the shell renders one per route in state.routes */
+        const btn = document.querySelector(`[data-route="${target}"]`);
+        if (btn) btn.click();
       });
     });
   }
