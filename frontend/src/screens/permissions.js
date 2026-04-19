@@ -291,6 +291,13 @@ export const permissionsScreen = {
                 if (statusEl) statusEl.textContent = 'המשתמש נוצר בהצלחה';
                 clearScreenDataCache?.();
                 if (typeof rerender === 'function') await rerender();
+                try {
+                  const freshData = await api.permissions();
+                  const newRow = (freshData?.rows || []).find((r) => String(r.user_id) === String(user_id));
+                  if (newRow) openEditDrawer(newRow);
+                } catch (autoOpenErr) {
+                  console.warn('[permissions] Could not auto-open edit drawer after user creation:', autoOpenErr);
+                }
               } catch (error) {
                 if (statusEl) statusEl.textContent = translateApiErrorForUser(error?.message);
               } finally {
@@ -324,49 +331,53 @@ export const permissionsScreen = {
       });
     });
 
+    function openEditDrawer(row) {
+      if (!row || !ui) return;
+      const userId = String(row.user_id);
+      ui.openDrawer({
+        title: `עריכת הרשאות — ${row.full_name || userId}`,
+        content: buildEditDrawerHtml(row),
+        onOpen: (contentNode) => {
+          const statusEl = contentNode.querySelector('.ds-perm-save-status');
+          const saveBtn = contentNode.querySelector('[data-save-permission]');
+          if (!saveBtn) return;
+
+          saveBtn.addEventListener('click', async () => {
+            const display_role = contentNode.querySelector(`[data-role-select][data-user-id="${userId}"]`)?.value;
+            const active = contentNode.querySelector(`[data-active-toggle][data-user-id="${userId}"]`)?.checked
+              ? 'yes'
+              : 'no';
+
+            const payload = { user_id: userId, display_role, active };
+            contentNode.querySelectorAll('[data-perm-field]').forEach((el) => {
+              const field = el.getAttribute('data-perm-field');
+              if (!field) return;
+              if (el.type === 'checkbox') payload[field] = el.checked ? 'yes' : 'no';
+              else payload[field] = String(el.value || '').trim();
+            });
+
+            saveBtn.classList.add('is-loading');
+            if (statusEl) statusEl.textContent = '';
+            try {
+              await api.savePermission(payload);
+              if (statusEl) statusEl.textContent = 'נשמר בהצלחה';
+              clearScreenDataCache?.();
+              if (typeof rerender === 'function') await rerender();
+            } catch (error) {
+              if (statusEl) statusEl.textContent = translateApiErrorForUser(error?.message);
+            } finally {
+              saveBtn.classList.remove('is-loading');
+            }
+          });
+        }
+      });
+    }
+
     root.querySelectorAll('[data-edit-perm]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const userId = btn.dataset.userId;
         const row = safeRows.find((r) => String(r.user_id) === String(userId));
-        if (!row || !ui) return;
-
-        ui.openDrawer({
-          title: `עריכת הרשאות — ${row.full_name || userId}`,
-          content: buildEditDrawerHtml(row),
-          onOpen: (contentNode) => {
-            const statusEl = contentNode.querySelector('.ds-perm-save-status');
-            const saveBtn = contentNode.querySelector('[data-save-permission]');
-            if (!saveBtn) return;
-
-            saveBtn.addEventListener('click', async () => {
-              const display_role = contentNode.querySelector(`[data-role-select][data-user-id="${userId}"]`)?.value;
-              const active = contentNode.querySelector(`[data-active-toggle][data-user-id="${userId}"]`)?.checked
-                ? 'yes'
-                : 'no';
-
-              const payload = { user_id: userId, display_role, active };
-              contentNode.querySelectorAll('[data-perm-field]').forEach((el) => {
-                const field = el.getAttribute('data-perm-field');
-                if (!field) return;
-                if (el.type === 'checkbox') payload[field] = el.checked ? 'yes' : 'no';
-                else payload[field] = String(el.value || '').trim();
-              });
-
-              saveBtn.classList.add('is-loading');
-              if (statusEl) statusEl.textContent = '';
-              try {
-                await api.savePermission(payload);
-                if (statusEl) statusEl.textContent = 'נשמר בהצלחה';
-                clearScreenDataCache?.();
-                if (typeof rerender === 'function') await rerender();
-              } catch (error) {
-                if (statusEl) statusEl.textContent = translateApiErrorForUser(error?.message);
-              } finally {
-                saveBtn.classList.remove('is-loading');
-              }
-            });
-          }
-        });
+        openEditDrawer(row);
       });
     });
   }
