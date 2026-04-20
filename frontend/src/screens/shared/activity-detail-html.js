@@ -39,7 +39,7 @@ function meetingScheduleHtml(row) {
     })
     .join('');
   return `
-    <div class="ds-detail-date-stack">
+    <div class="ds-detail-date-stack ds-detail-date-stack--narrow">
       <p><strong>כל התאריכים:</strong></p>
       <ul class="ds-meeting-list">${items}</ul>
     </div>`;
@@ -244,14 +244,13 @@ export function activityRowDetailHtml(
   return `
     <div class="ds-details-grid" dir="rtl">
       <p><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '—')}</p>
+      <p><strong>מדריך/ה:</strong> ${escapeHtml(names || instLine)}</p>
       ${hideRowId ? '' : `<p><strong>מזהה שורה:</strong> ${escapeHtml(String(row.RowID || ''))}</p>`}
       ${hideActivityNo ? '' : `<p><strong>מספר פעילות:</strong> ${escapeHtml(String(row.activity_no || '—'))}</p>`}
-      <p><strong>סוג פעילות:</strong> ${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</p>
       <p><strong>בית ספר:</strong> ${escapeHtml(row.school || '—')}</p>
       <p><strong>רשות:</strong> ${escapeHtml(row.authority || '—')}</p>
-      <p><strong>מנהל פעילויות:</strong> ${escapeHtml(row.activity_manager || '—')}</p>
       <p><strong>שעות:</strong> ${escapeHtml(activityHoursLabel(row))}</p>
-      <div class="ds-detail-date-stack">
+      <div class="ds-detail-date-stack ds-detail-date-stack--narrow">
         <p><strong>סטטוס ותאריכים:</strong></p>
         <div class="ds-date-badges">
           <span class="ds-chip ds-chip--status ds-chip--status-${statusClass}">${escapeHtml(statusText)}</span>
@@ -261,8 +260,7 @@ export function activityRowDetailHtml(
       </div>
       <p><strong>בוצעו מפגשים:</strong> ${escapeHtml(`${done}/${total}`)}</p>
       ${scheduleLine}
-      <p><strong>מדריכים:</strong> ${escapeHtml(instLine)}</p>
-      <p><strong>הערות מדריך:</strong> ${escapeHtml(row.notes || '—')}</p>
+      <p><strong>מנהל פעילויות:</strong> ${escapeHtml(row.activity_manager || '—')}</p>
       ${financeLine}
       ${operationNoteLine}
     </div>`;
@@ -286,9 +284,12 @@ export function activityWorkDrawerHtml(
 ) {
   const base = activityRowDetailHtml(row, { privateNote, hideEmpIds, hideRowId, hideActivityNo, showFinance });
   if (!canEdit) return base;
+
   const src = escapeHtml(String(row.source_sheet || '').trim());
   const rid = escapeHtml(String(row.RowID || '').trim());
   const allFieldsEditable = !!settings?.all_data_fields_editable;
+  const sessions = Math.max(1, Math.min(Number(row.sessions) || 1, 35));
+
   var fields = allFieldsEditable ? EDITABLE_FIELDS_ALL.slice() : EDITABLE_FIELDS_BASIC.slice();
   if (!showFinanceFields) {
     fields = fields.filter(function(fieldName) {
@@ -305,15 +306,32 @@ export function activityWorkDrawerHtml(
       return fieldName !== 'activity_no';
     });
   }
-  const editorFieldsHtml = fields
-    .map(function(fieldName) {
-      return editorInputHtml(fieldName, row[fieldName], settings);
-    })
-    .join('');
-  return `${base}
-    <form class="ds-stack ds-activity-editor" data-edit-activity data-source-sheet="${src}" data-row-id="${rid}">
+
+  var editorFieldsHtml = '';
+  fields.forEach(function(fieldName) {
+    var m = /^Date(\d+)$/.exec(fieldName);
+    if (m) {
+      var dateNum = parseInt(m[1], 10);
+      var inputHtml = editorInputHtml(fieldName, row[fieldName], settings);
+      if (dateNum > sessions) {
+        editorFieldsHtml += '<div class="ds-date-extra-wrap" data-date-extra hidden>' + inputHtml + '</div>';
+      } else {
+        editorFieldsHtml += inputHtml;
+      }
+    } else {
+      editorFieldsHtml += editorInputHtml(fieldName, row[fieldName], settings);
+    }
+  });
+
+  const toggleBtn = `<div class="ds-edit-toggle-bar" dir="rtl">
+    <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-edit-toggle-btn" data-toggle-edit aria-expanded="false">✏️ עריכה</button>
+  </div>`;
+
+  return `${toggleBtn}${base}
+    <form class="ds-stack ds-activity-editor" data-edit-activity data-source-sheet="${src}" data-row-id="${rid}" hidden>
       <h3 class="ds-activity-editor__title">✏️ עריכה</h3>
       ${editorFieldsHtml}
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-add-date-btn" data-add-date>+ תאריך</button>
       <button type="submit" class="ds-btn ds-btn--primary ds-activity-editor__submit">💾 שמירה</button>
       <p class="ds-muted ds-activity-edit-status" role="status"></p>
     </form>`;

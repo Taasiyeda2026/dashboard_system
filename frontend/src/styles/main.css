@@ -1410,6 +1410,10 @@ span.ds-chip {
   background: linear-gradient(170deg, #ffffff 0%, var(--ds-pastel-sand) 100%);
 }
 
+.ds-detail-date-stack--narrow {
+  max-width: 22rem;
+}
+
 .ds-date-badges {
   display: flex;
   flex-wrap: wrap;
@@ -2734,6 +2738,24 @@ select.ds-input {
   font-size: 0.73rem;
   font-weight: 700;
   color: var(--ds-text-muted);
+}
+
+.ds-edit-toggle-bar {
+  margin-bottom: 0.5rem;
+}
+
+.ds-edit-toggle-btn {
+  font-size: 0.78rem;
+  padding: 3px 10px;
+}
+
+.ds-add-date-btn {
+  align-self: flex-start;
+  font-size: 0.78rem;
+}
+
+.ds-date-extra-wrap[hidden] {
+  display: none;
 }
 
 .ds-activity-editor {

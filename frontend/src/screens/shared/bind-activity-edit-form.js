@@ -9,6 +9,40 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
  */
 export function bindActivityEditForm(contentRoot, { api, ui, clearScreenDataCache, rerender }) {
   if (!api) return;
+
+  contentRoot.querySelectorAll('[data-toggle-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = contentRoot.querySelector('[data-edit-activity]');
+      if (!form) return;
+      const isHidden = form.hasAttribute('hidden');
+      if (isHidden) {
+        form.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+        btn.textContent = '✖ סגור עריכה';
+      } else {
+        form.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.textContent = '✏️ עריכה';
+      }
+    });
+  });
+
+  contentRoot.querySelectorAll('[data-add-date]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.closest('[data-edit-activity]');
+      if (!form) return;
+      const next = form.querySelector('[data-date-extra][hidden]');
+      if (!next) {
+        btn.disabled = true;
+        return;
+      }
+      next.removeAttribute('hidden');
+      if (!form.querySelector('[data-date-extra][hidden]')) {
+        btn.disabled = true;
+      }
+    });
+  });
+
   contentRoot.querySelectorAll('[data-edit-activity]').forEach((form) => {
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
@@ -20,6 +54,7 @@ export function bindActivityEditForm(contentRoot, { api, ui, clearScreenDataCach
       form.querySelectorAll('[name]').forEach((el) => {
         const name = el.getAttribute('name');
         if (!name) return;
+        if (el.closest('[hidden]')) return;
         if (el.type === 'checkbox') {
           changes[name] = el.checked ? 'yes' : 'no';
           return;
