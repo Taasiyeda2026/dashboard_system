@@ -16,14 +16,17 @@ export function bindActivityEditForm(contentRoot, { api, ui, clearScreenDataCach
       const sourceSheet = form.getAttribute('data-source-sheet') || '';
       const sourceRowId = form.getAttribute('data-row-id') || '';
       const fd = new FormData(form);
-      const changes = {
-        status: String(fd.get('status') ?? '').trim(),
-        notes: String(fd.get('notes') ?? '').trim(),
-        finance_status: String(fd.get('finance_status') ?? '').trim(),
-        finance_notes: String(fd.get('finance_notes') ?? '').trim(),
-        start_date: String(fd.get('start_date') ?? '').trim(),
-        end_date: String(fd.get('end_date') ?? '').trim()
+      const changes = {};
+      const addField = (fieldName) => {
+        if (!form.querySelector(`[name="${fieldName}"]`)) return;
+        changes[fieldName] = String(fd.get(fieldName) ?? '').trim();
       };
+      addField('status');
+      addField('notes');
+      addField('finance_status');
+      addField('finance_notes');
+      addField('start_date');
+      addField('end_date');
       try {
         await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
         if (statusEl) statusEl.textContent = 'נשמר';

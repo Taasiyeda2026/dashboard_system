@@ -569,6 +569,18 @@ select {
   margin-inline: auto;
 }
 
+/* Instructors page: fit view without page scroll; compact at 80%. */
+.app-shell.route-instructors .shell-stage {
+  overflow: hidden;
+}
+
+.app-shell.route-instructors .screen-root {
+  zoom: 0.8;
+  width: 125%;
+  max-width: none;
+  transform-origin: top center;
+}
+
 .app-shell.is-route-loading .shell-nav__btn:disabled {
   pointer-events: none;
 }
@@ -1460,7 +1472,8 @@ span.ds-chip {
 .ds-week-col__head {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
   gap: 1px;
   padding: var(--ds-space-1) var(--ds-space-2);
   border-bottom: 1px solid var(--ds-border);
@@ -2076,20 +2089,10 @@ span.ds-chip {
 /* ——— Manager breakdown cards (dashboard) ——— */
 .ds-manager-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 240px));
   gap: var(--ds-space-2);
-}
-
-@media (min-width: 640px) {
-  .ds-manager-grid { grid-template-columns: repeat(3, 1fr); }
-}
-
-@media (min-width: 960px) {
-  .ds-manager-grid { grid-template-columns: repeat(4, 1fr); }
-}
-
-@media (min-width: 1280px) {
-  .ds-manager-grid { grid-template-columns: repeat(5, 1fr); }
+  justify-content: center;
+  margin-inline: auto;
 }
 
 .ds-manager-card {

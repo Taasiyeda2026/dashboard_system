@@ -179,10 +179,15 @@ export function createSharedInteractionLayer() {
     drawerOpen = false;
     drawer.setAttribute('aria-hidden', 'true');
 
-    if (onDrawerClose) onDrawerClose();
+    const cb = onDrawerClose;
     onDrawerClose = null;
-
-    syncLayerClasses();
+    try {
+      if (cb) cb();
+    } catch (_err) {
+      // Safety: never leave the drawer layer stuck open.
+    } finally {
+      syncLayerClasses();
+    }
   }
 
   function openModal({ title = 'פעולה', content = '', actions = '', onClose } = {}) {
@@ -226,18 +231,32 @@ export function createSharedInteractionLayer() {
     modalOpen = false;
     modal.setAttribute('aria-hidden', 'true');
 
-    if (onModalClose) onModalClose();
+    const cb = onModalClose;
     onModalClose = null;
-
-    syncLayerClasses();
+    try {
+      if (cb) cb();
+    } catch (_err) {
+      // Safety: never leave the modal layer stuck open.
+    } finally {
+      syncLayerClasses();
+    }
   }
 
   function closeAll() {
+    const root = ensureHost();
     closeModal();
     closeDrawer();
-    if (host && document.body.contains(host)) {
-      host.classList.remove('is-drawer-open', 'is-modal-open', 'is-backdrop-visible');
-      const backdrop = host.querySelector('.ds-ui-backdrop');
+    drawerOpen = false;
+    modalOpen = false;
+    onDrawerClose = null;
+    onModalClose = null;
+    if (root && document.body.contains(root)) {
+      root.classList.remove('is-drawer-open', 'is-modal-open', 'is-backdrop-visible');
+      const drawer = root.querySelector('.ds-drawer');
+      if (drawer) drawer.setAttribute('aria-hidden', 'true');
+      const modal = root.querySelector('.ds-modal');
+      if (modal) modal.setAttribute('aria-hidden', 'true');
+      const backdrop = root.querySelector('.ds-ui-backdrop');
       if (backdrop) backdrop.hidden = true;
     }
   }

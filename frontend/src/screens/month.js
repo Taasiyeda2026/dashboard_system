@@ -199,6 +199,9 @@ export const monthScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('חודש', '')}
+      <div class="ds-screen-shortcuts" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-back-activities>חזור</button>
+      </div>
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">▶ חודש קודם</button>
         <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
@@ -216,6 +219,10 @@ export const monthScreen = {
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
     bindPageListTools(root, { mode: 'dim' });
+    root.querySelector('[data-back-activities]')?.addEventListener('click', () => {
+      state.route = 'activities';
+      rerender?.();
+    });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
@@ -224,12 +231,17 @@ export const monthScreen = {
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
 
     const currentYm = data?.month || '';
+    const resolveBaseYm = () => {
+      if (/^\d{4}-\d{2}$/.test(String(state.monthYm || ''))) return state.monthYm;
+      if (/^\d{4}-\d{2}$/.test(String(currentYm || ''))) return currentYm;
+      return `${spec.y}-${String(spec.mo).padStart(2, '0')}`;
+    };
     root.querySelector('[data-month-prev]')?.addEventListener('click', () => {
-      state.monthYm = shiftMonthYm(currentYm || state.monthYm, -1);
+      state.monthYm = shiftMonthYm(resolveBaseYm(), -1);
       rerender?.();
     });
     root.querySelector('[data-month-next]')?.addEventListener('click', () => {
-      state.monthYm = shiftMonthYm(currentYm || state.monthYm, 1);
+      state.monthYm = shiftMonthYm(resolveBaseYm(), 1);
       rerender?.();
     });
 

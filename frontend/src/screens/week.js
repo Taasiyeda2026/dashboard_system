@@ -12,19 +12,9 @@ function localYmd() {
   return `${y}-${m}-${day}`;
 }
 
-function weekItemMeta(item, hideEmpIds) {
-  const id1 = String(item.emp_id || '').trim();
-  const id2 = String(item.emp_id_2 || '').trim();
-  const ids = [id1, id2].filter(Boolean).join(' · ');
+function weekItemMeta(item) {
   const names = [item.instructor_name, item.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
-  if (hideEmpIds) {
-    if (names) return `מדריך: ${names}`;
-    if (ids) return `מזהה: ${ids}`;
-    return 'ללא מזהה מדריך';
-  }
-  if (ids) return names ? `מזהה: ${ids} (${names})` : `מזהה: ${ids}`;
-  if (names) return `תצוגה: ${names}`;
-  return `מזהה שורה: ${item.RowID || ''}`;
+  return names ? `מדריך: ${names}` : 'ללא מדריך';
 }
 
 function weekDrawerHtml(item, date, hideEmpIds, canEdit, showPrivateNote) {
@@ -50,7 +40,6 @@ export const weekScreen = {
   render(data, { state }) {
     const safeDays = Array.isArray(data?.days) ? data.days : [];
     const todayIso = localYmd();
-    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const weekOffset = state.weekOffset || 0;
 
     const columns = safeDays
@@ -78,7 +67,7 @@ export const weekScreen = {
                   variant: 'session',
                   action: `weeksession|${encodeURIComponent(d.date)}|${encodeURIComponent(item.RowID)}`,
                   title: item.activity_name || 'ללא שם',
-                  meta: weekItemMeta(item, hideEmpIds)
+                  meta: weekItemMeta(item)
                 })}
               </div>`;
               })
@@ -89,7 +78,7 @@ export const weekScreen = {
         <header class="ds-week-col__head">
           <span class="ds-week-col__dow">${escapeHtml(dow || `יום ${idx + 1}`)}</span>
           <span class="ds-week-col__date">${escapeHtml(d.date)}</span>
-          <span class="ds-week-col__count">${items.length}</span>
+          <span class="ds-week-col__count">${escapeHtml(`${items.length} פעילויות`)}</span>
         </header>
         <div class="ds-week-col__body">${sessionBlocks}</div>
       </section>`;
@@ -106,7 +95,7 @@ export const weekScreen = {
       ? `שבוע נוכחי${rangeLabel ? ` · ${rangeLabel}` : ''}`
       : weekOffset < 0
         ? `${Math.abs(weekOffset)} שבועות אחורה${rangeLabel ? ` · ${rangeLabel}` : ''}`
-        : `${weekOffset} שבועות קדימה${rangeLabel ? ` · ${rangeLabel}` : ''}`;
+        : `${rangeLabel || 'שבוע'}`;
 
     const uniqueActivities = new Set(safeDays.flatMap((d) => (d.items || []).map((it) => it.RowID))).size;
     const activeDays = safeDays.filter((d) => (d.items || []).length > 0).length;
@@ -119,6 +108,9 @@ export const weekScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('שבוע', '')}
+      <div class="ds-screen-shortcuts" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-back-activities>חזור</button>
+      </div>
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">▶ שבוע קודם</button>
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
@@ -131,6 +123,10 @@ export const weekScreen = {
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
     bindPageListTools(root);
+    root.querySelector('[data-back-activities]')?.addEventListener('click', () => {
+      state.route = 'activities';
+      rerender?.();
+    });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';

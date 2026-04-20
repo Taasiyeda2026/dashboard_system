@@ -150,7 +150,7 @@ function shell(content) {
   const drawerExpanded = isMobileNavOpen ? 'true' : 'false';
 
   return `
-    <div class="app-shell${drawerClass}" dir="rtl">
+    <div class="app-shell${drawerClass} route-${escapeHtml(String(state.route || ''))}" data-current-route="${escapeHtml(String(state.route || ''))}" dir="rtl">
       <button type="button" class="shell-backdrop" data-mobile-close aria-label="סגירת תפריט"></button>
       <aside class="shell-sidebar" aria-label="ניווט ראשי" id="mobileNavDrawer" aria-hidden="${drawerHidden}">
         <div class="shell-sidebar__mobile-head">
@@ -292,6 +292,15 @@ function setShellNavBusy(busy) {
 }
 
 function updateNavActiveClasses() {
+  const shellNode = document.querySelector('.app-shell');
+  if (shellNode) {
+    Array.from(shellNode.classList).forEach((cls) => {
+      if (cls.startsWith('route-')) shellNode.classList.remove(cls);
+    });
+    const routeClass = `route-${String(state.route || '')}`;
+    shellNode.classList.add(routeClass);
+    shellNode.setAttribute('data-current-route', String(state.route || ''));
+  }
   document.querySelectorAll('[data-route]').forEach((btn) => {
     btn.classList.toggle('is-active', btn.dataset.route === state.route);
   });
@@ -484,39 +493,9 @@ async function mountScreen() {
     screenRoot.innerHTML = screen.render(data, { state });
     bindScreen(screen, screenRoot, data);
     if (routeChanged) lastRenderedRoute = state.route;
-    schedulePrefetch(state.route);
   } finally {
     setShellNavBusy(false);
   }
-}
-
-/** Prefetch adjacent screens in the background after the current screen renders. */
-const PREFETCH_MAP = {
-  dashboard:   ['exceptions', 'instructors', 'instructor-contacts'],
-  activities:  ['exceptions', 'instructors'],
-  week:        ['month'],
-  month:       ['week'],
-  instructors: ['instructor-contacts'],
-};
-let _prefetchTimer;
-function schedulePrefetch(currentRoute) {
-  clearTimeout(_prefetchTimer);
-  _prefetchTimer = setTimeout(() => {
-    const targets = PREFETCH_MAP[currentRoute] || [];
-    for (const route of targets) {
-      if (!state.routes.includes(route)) continue;
-      const key = route;
-      const hit = state.screenDataCache[key];
-      if (hit && Date.now() - hit.t < (SCREEN_CACHE_TTL_MS[route] ?? DEFAULT_CACHE_TTL_MS)) continue;
-      if (inflightRequests.has(key)) continue;
-      const s = screens[route];
-      if (!s?.load) continue;
-      const p = s.load({ api, state })
-        .then((data) => { state.screenDataCache[key] = { data, t: Date.now() }; inflightRequests.delete(key); })
-        .catch(() => { inflightRequests.delete(key); });
-      inflightRequests.set(key, p);
-    }
-  }, 800);
 }
 
 function bindShell() {
