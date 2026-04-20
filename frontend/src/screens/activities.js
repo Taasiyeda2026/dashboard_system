@@ -1,10 +1,8 @@
 import { escapeHtml } from './shared/html.js';
 import {
-  hebrewFinanceStatus,
   hebrewColumn,
   visibleActivityCategoryLabel,
-  ACTIVITY_TAB_ORDER,
-  financeStatusVariant
+  ACTIVITY_TAB_ORDER
 } from './shared/ui-hebrew.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import {
@@ -14,8 +12,7 @@ import {
   dsScreenStack,
   dsTableWrap,
   dsEmptyState,
-  dsInteractiveCard,
-  dsStatusChip
+  dsInteractiveCard
 } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
@@ -122,19 +119,24 @@ function applyClientFilters(rows, state) {
 
 function activityDrawerContent(row, canSeePrivateNotes, canEdit, hideEmpIds) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
-  return activityWorkDrawerHtml(row, { privateNote, canEdit, hideEmpIds: !!hideEmpIds });
+  return activityWorkDrawerHtml(row, {
+    privateNote,
+    canEdit,
+    hideEmpIds: !!hideEmpIds,
+    showFinance: false,
+    showFinanceFields: false,
+    statusSelect: true
+  });
 }
 
 export const activitiesScreen = {
   async load({ api, state }) {
     const requested = state.activityTab || 'all';
-    const financeStatus = state.activityFinanceStatus || '';
-
-    let data = await api.activities({ activity_type: requested, finance_status: financeStatus });
+    let data = await api.activities({ activity_type: requested });
     const allowed = visibleTabsFromCounts(data.activity_type_counts);
     if (allowed.indexOf(requested) < 0) {
       state.activityTab = 'all';
-      data = await api.activities({ activity_type: 'all', finance_status: financeStatus });
+      data = await api.activities({ activity_type: 'all' });
     }
     return data;
   },
@@ -143,16 +145,11 @@ export const activitiesScreen = {
     const safeRows = applyClientFilters(allRows, state);
     const counts = data?.activity_type_counts || {};
     const visibleTabs = visibleTabsFromCounts(counts);
-    const financeStatuses = Array.isArray(data?.filters?.finance_statuses) ? data.filters.finance_statuses : [];
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const forceCompact = typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches;
     const compactView = forceCompact || state?.activityView === 'compact';
     const searchVal = escapeHtml(state.activitySearch || '');
-
-    const financeOpts = [
-      ...new Set(allRows.map((r) => String(r.finance_status || '').trim()).filter(Boolean))
-    ].map((st) => ({ value: st, label: hebrewFinanceStatus(st) }));
 
     const tableRows = safeRows
       .map((row) => {
@@ -163,9 +160,10 @@ export const activitiesScreen = {
           row.activity_name,
           row.start_date,
           row.end_date,
+          row.school,
+          row.authority,
           row.activity_manager,
           visibleActivityCategoryLabel(row.activity_type),
-          hebrewFinanceStatus(row.finance_status),
           row.emp_id,
           row.emp_id_2,
           canSeePrivateNotes ? row.private_note : ''
@@ -173,15 +171,14 @@ export const activitiesScreen = {
           .filter(Boolean)
           .join(' ');
         return `
-      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="${escapeHtml(
-        row.finance_status || ''
-      )}" data-row-id="${escapeHtml(row.RowID)}">
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
         <td>${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</td>
         <td>${escapeHtml(row.activity_name || '—')}</td>
+        <td>${escapeHtml(row.school || '—')}</td>
+        <td>${escapeHtml(row.authority || '—')}</td>
         <td>${escapeHtml(row.start_date || '—')}</td>
         <td>${escapeHtml(row.end_date || '—')}</td>
         ${emp1}${emp2}
-        <td>${dsStatusChip(hebrewFinanceStatus(row.finance_status || 'open'), financeStatusVariant(row.finance_status))}</td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
     `;
@@ -193,19 +190,19 @@ export const activitiesScreen = {
         const rowSearch = [
           row.RowID,
           row.activity_name,
+          row.school,
+          row.authority,
           row.start_date,
-          row.end_date,
-          visibleActivityCategoryLabel(row.activity_type),
-          hebrewFinanceStatus(row.finance_status)
+          row.end_date
         ]
           .filter(Boolean)
           .join(' ');
-        return `<div data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="${escapeHtml(row.finance_status || '')}">
+        return `<div data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="">
         ${dsInteractiveCard({
           action: `activity:${row.RowID}`,
-          title: visibleActivityCategoryLabel(row.activity_type),
-          subtitle: row.activity_name || 'פעילות ללא שם',
-          meta: `${hebrewFinanceStatus(row.finance_status || 'open')} · ${row.start_date || '—'} עד ${row.end_date || '—'}`,
+          title: row.activity_name || 'פעילות ללא שם',
+          subtitle: row.school || 'ללא בית ספר',
+          meta: row.authority || 'ללא רשות',
           variant: 'session'
         })}
       </div>`;
@@ -246,16 +243,8 @@ export const activitiesScreen = {
       )
       .join('');
 
-    const financeChips = financeStatuses
-      .map(
-        (status) =>
-          `<button type="button" class="ds-chip--tab ${status === (state.activityFinanceStatus || '') ? 'is-active' : ''}" data-finance="${status}">${escapeHtml(hebrewFinanceStatus(status))}</button>`
-      )
-      .join('');
-
     const hasAnyFilter = Boolean(
       (state.activityTab && state.activityTab !== 'all') ||
-        state.activityFinanceStatus ||
         state.activityQuickFamily ||
         state.activityQuickManager ||
         state.activityEndingCurrentMonth ||
@@ -267,7 +256,7 @@ export const activitiesScreen = {
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות למסנן זה')
         : dsTableWrap(`<table class="ds-table ds-table--interactive">
-                <thead><tr><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>התחלה</th><th>סיום</th>${thEmp}<th>${hebrewColumn('finance_status')}</th>${thPrivate}</tr></thead>
+                <thead><tr><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>בית ספר</th><th>רשות</th><th>התחלה</th><th>סיום</th>${thEmp}${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`);
 
@@ -302,7 +291,6 @@ export const activitiesScreen = {
       <div class="ds-filter-row ds-filter-row--quick" dir="rtl">${quickFilterChips}</div>
       <div class="ds-filter-row" dir="rtl">
         ${filterButtons}
-        ${financeChips ? `<span class="ds-filter-row__sep" aria-hidden="true"></span>${financeChips}` : ''}
         <span class="ds-filter-row__sep" aria-hidden="true"></span>
         ${familyChips}
       </div>
@@ -366,14 +354,6 @@ export const activitiesScreen = {
       });
     });
 
-    root.querySelectorAll('[data-finance]').forEach((node) => {
-      node.addEventListener('click', () => {
-        const next = node.dataset.finance || '';
-        state.activityFinanceStatus = state.activityFinanceStatus === next ? '' : next;
-        rerender();
-      });
-    });
-
     root.querySelectorAll('[data-family]').forEach((node) => {
       node.addEventListener('click', () => {
         state.activityQuickFamily = node.dataset.family || '';
@@ -391,7 +371,6 @@ export const activitiesScreen = {
 
     root.querySelector('[data-clear-filters]')?.addEventListener('click', () => {
       state.activityTab = 'all';
-      state.activityFinanceStatus = '';
       state.activityQuickFamily = '';
       state.activityQuickManager = '';
       state.activityEndingCurrentMonth = false;

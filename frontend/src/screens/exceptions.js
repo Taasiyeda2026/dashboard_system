@@ -105,6 +105,9 @@ export const exceptionsScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('חריגות', 'נתונים הדורשים טיפול')}
+      <div class="ds-screen-shortcuts" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-back-activities>חזור</button>
+      </div>
       <div class="ds-screen-top-row">
         <input
           id="exceptions-search"
@@ -126,6 +129,10 @@ export const exceptionsScreen = {
   },
   bind({ root, data, ui, state, rerender, clearScreenDataCache }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
+    root.querySelector('[data-back-activities]')?.addEventListener('click', () => {
+      state.route = 'activities';
+      rerender?.();
+    });
 
     root.querySelector('#exceptions-search')?.addEventListener('input', (ev) => {
       state.exceptionsSearch = ev.target.value || '';

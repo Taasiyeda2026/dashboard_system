@@ -39,6 +39,47 @@ const MUTATING_ACTIONS = {
   syncFinance: true
 };
 
+const READ_ACTIONS = {
+  bootstrap: true,
+  dashboard: true,
+  activities: true,
+  week: true,
+  month: true,
+  exceptions: true,
+  finance: true,
+  instructors: true,
+  instructorContacts: true,
+  contacts: true,
+  endDates: true,
+  myData: true,
+  permissions: true,
+  adminSettings: true,
+  adminLists: true
+};
+
+const API_TIMEOUT_MS_READ = 20000;
+const API_TIMEOUT_MS_WRITE = 30000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function postWithTimeout(action, payload, tokenAtCallTime) {
+  const timeoutMs = READ_ACTIONS[action] ? API_TIMEOUT_MS_READ : API_TIMEOUT_MS_WRITE;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(config.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ action, token: tokenAtCallTime, ...payload }),
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function request(action, payload = {}) {
   if (!config.apiUrl) {
     throw new Error('חסר קישור API. עדכנו frontend/src/config.js או window.__DASHBOARD_CONFIG__.');
@@ -48,13 +89,18 @@ async function request(action, payload = {}) {
 
   let response;
   try {
-    response = await fetch(config.apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ action, token: tokenAtCallTime, ...payload })
-    });
+    response = await postWithTimeout(action, payload, tokenAtCallTime);
   } catch {
-    throw new Error(translateApiErrorForUser('network_error'));
+    if (READ_ACTIONS[action]) {
+      try {
+        await sleep(250);
+        response = await postWithTimeout(action, payload, tokenAtCallTime);
+      } catch {
+        throw new Error(translateApiErrorForUser('network_error'));
+      }
+    } else {
+      throw new Error(translateApiErrorForUser('network_error'));
+    }
   }
 
   let json;

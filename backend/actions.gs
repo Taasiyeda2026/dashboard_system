@@ -245,6 +245,8 @@ function actionActivities_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
   var allRows = allActivities_();
+  var meetingsByRow = buildMeetingsMap_();
+  var today = formatDate_(new Date());
   var typeKeys = listValuesForName_('activity_type');
   if (!typeKeys.length) {
     typeKeys = ['course', 'workshop', 'after_school', 'escape_room', 'tour'];
@@ -279,6 +281,27 @@ function actionActivities_(user, payload) {
     rows: rows.map(function(row) {
       var noteKey = row.source_sheet + '|' + row.RowID;
       var noteRow = noteMap[noteKey];
+      var meetingDates = (meetingsByRow[row.RowID] || []).slice();
+      if (!meetingDates.length) {
+        var fallbackStart = text_(row.start_date);
+        var fallbackEnd = text_(row.end_date || row.start_date);
+        if (fallbackStart) meetingDates.push(fallbackStart);
+        if (fallbackEnd && fallbackEnd !== fallbackStart) meetingDates.push(fallbackEnd);
+      }
+      meetingDates = meetingDates.filter(function(v, i, arr) {
+        return !!v && arr.indexOf(v) === i;
+      }).sort();
+      var computedStartDate = meetingDates.length ? meetingDates[0] : text_(row.start_date);
+      var computedEndDate = meetingDates.length ? meetingDates[meetingDates.length - 1] : text_(row.end_date || row.start_date);
+      var meetingSchedule = meetingDates.map(function(dateKey) {
+        return {
+          date: dateKey,
+          performed: dateKey <= today ? 'yes' : 'no'
+        };
+      });
+      var meetingsDone = meetingSchedule.filter(function(item) {
+        return item.performed === 'yes';
+      }).length;
       return {
         RowID: row.RowID,
         source_sheet: row.source_sheet,
@@ -297,12 +320,17 @@ function actionActivities_(user, payload) {
         instructor_name: row.instructor_name,
         emp_id_2: row.emp_id_2,
         instructor_name_2: row.instructor_name_2,
-        start_date: row.start_date,
-        end_date: row.end_date,
+        start_date: computedStartDate,
+        end_date: computedEndDate,
         status: row.status,
         notes: row.notes,
         finance_status: row.finance_status,
         finance_notes: row.finance_notes,
+        meeting_dates: meetingDates,
+        meeting_schedule: meetingSchedule,
+        meetings_total: meetingSchedule.length,
+        meetings_done: meetingsDone,
+        meetings_remaining: Math.max(meetingSchedule.length - meetingsDone, 0),
         private_note: user.display_role === 'operations_reviewer' && noteRow && yesNo_(noteRow.active) === 'yes'
           ? text_(noteRow.note_text)
           : ''

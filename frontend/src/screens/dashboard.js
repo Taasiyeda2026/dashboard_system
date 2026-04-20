@@ -75,10 +75,9 @@ export const dashboardScreen = {
       .map((row) => {
         const mgr = encodeURIComponent(row.activity_manager);
         const stats = [
-          { label: 'פעילים החודש', value: (row.total_short ?? 0) + (row.total_long ?? 0), action: `mstat|${mgr}|active` },
-          { label: 'מדריכים',      value: row.num_instructors ?? 0,                         action: `mstat|${mgr}|instructors` },
-          { label: 'דורשים טיפול', value: row.exceptions      ?? 0,                         action: `mstat|${mgr}|exceptions` },
-          { label: 'סיומי קורסים', value: row.course_endings  ?? 0,                         action: `mstat|${mgr}|endings` },
+          { label: 'מדריכים',      value: row.num_instructors ?? 0,                        action: `mstat|${mgr}|instructors` },
+          { label: 'תוכניות',      value: row.total_long      ?? 0,                        action: `mstat|${mgr}|long` },
+          { label: 'סיומי קורסים', value: row.course_endings  ?? 0,                        action: `mstat|${mgr}|endings` },
         ];
         const statsHtml = stats
           .map((s) => `<button type="button" class="ds-manager-stat" data-card-action="${escapeHtml(s.action)}">
@@ -103,8 +102,8 @@ export const dashboardScreen = {
             dsInteractiveCard({
               variant: 'kpi',
               action: k.action,
-              title: k.title,
-              value: k.value != null ? String(k.value) : ''
+              title: k.subtitle || k.title || '',
+              value: k.value != null ? String(k.value) : String(k.title || '')
             })
           )
           .join('')
@@ -238,13 +237,11 @@ export const dashboardScreen = {
       if (action.startsWith('mstat|')) {
         const parts = action.split('|');
         const name = decodeURIComponent(parts[1] || '');
-        const kind = parts[2] || 'active';
-        if (kind === 'active') {
-          goActivitiesDrill(state, { activityQuickManager: name });
-        } else if (kind === 'instructors') {
+        const kind = parts[2] || 'long';
+        if (kind === 'instructors') {
           state.route = 'instructors';
-        } else if (kind === 'exceptions') {
-          state.route = 'exceptions';
+        } else if (kind === 'long') {
+          goActivitiesDrill(state, { activityQuickManager: name, activityQuickFamily: 'long' });
         } else if (kind === 'endings') {
           goActivitiesDrill(state, { activityQuickManager: name, activityEndingCurrentMonth: true });
         }

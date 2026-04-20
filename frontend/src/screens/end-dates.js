@@ -71,6 +71,9 @@ export const endDatesScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('תאריכי סיום', 'תוכניות לפי תאריך סיום')}
+      <div class="ds-screen-shortcuts" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-back-activities>חזור</button>
+      </div>
       ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש ברשימה…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({
         title: 'רשימת סיומים',
@@ -79,7 +82,11 @@ export const endDatesScreen = {
       })}
     `);
   },
-  bind({ root, rerender, clearScreenDataCache }) {
+  bind({ root, state, rerender }) {
     bindPageListTools(root);
+    root.querySelector('[data-back-activities]')?.addEventListener('click', () => {
+      state.route = 'activities';
+      rerender?.();
+    });
   }
 };
