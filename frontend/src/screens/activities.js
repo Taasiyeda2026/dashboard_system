@@ -275,20 +275,6 @@ export const activitiesScreen = {
 
     const compactSection = safeRows.length === 0 ? dsEmptyState('לא נמצאו פעילויות למסנן זה') : `<div class="ds-compact-list">${compactRows}</div>`;
 
-    const userRoutes = Array.isArray(state?.routes) ? state.routes : [];
-    const shortcutDefs = [
-      { route: 'week',        label: 'שבוע',         icon: '📅' },
-      { route: 'month',       label: 'חודש',         icon: '📆' },
-      { route: 'exceptions',  label: 'חריגות',       icon: '⚠️' },
-      { route: 'instructors', label: 'מדריכים',      icon: '👥' },
-      { route: 'end-dates',   label: 'תאריכי סיום',  icon: '🗓️' },
-      { route: 'contacts',    label: 'אנשי קשר',    icon: '🏫' },
-    ];
-    const shortcutsHtml = shortcutDefs
-      .filter((d) => userRoutes.includes(d.route))
-      .map((d) => `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-goto-route="${d.route}"><span aria-hidden="true">${d.icon}</span> ${escapeHtml(d.label)}</button>`)
-      .join('');
-
     return dsScreenStack(`
       ${dsPageHeader('פעילויות', 'סינון, בחירה ופתיחת פירוט פעילות')}
       <div class="ds-screen-top-row">
@@ -301,7 +287,6 @@ export const activitiesScreen = {
           dir="rtl"
         />
       </div>
-      ${shortcutsHtml ? `<div class="ds-screen-shortcuts" dir="rtl">${shortcutsHtml}</div>` : ''}
       <div class="ds-filter-row ds-filter-row--quick" dir="rtl">${quickFilterChips}</div>
       <div class="ds-filter-row" dir="rtl">
         ${filterButtons}
@@ -338,12 +323,6 @@ export const activitiesScreen = {
   },
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
     bindPageListTools(root);
-    root.querySelectorAll('[data-goto-route]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const target = btn.dataset.gotoRoute;
-        if (target) { state.route = target; rerender?.(); }
-      });
-    });
 
     const filteredRows = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
