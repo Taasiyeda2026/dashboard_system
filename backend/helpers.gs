@@ -1,6 +1,11 @@
 function text_(value) {
   if (value === null || value === undefined) return '';
   if (Object.prototype.toString.call(value) === '[object Date]') {
+    // Google Sheets stores time-only values as dates anchored to Dec 30, 1899.
+    // Detect those and format as HH:mm instead of a date string.
+    if (value.getFullYear() <= 1900) {
+      return Utilities.formatDate(value, Session.getScriptTimeZone(), 'HH:mm');
+    }
     return formatDate_(value);
   }
   return String(value).trim();

@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { formatDateHe } from './shared/format-date.js';
 import {
   hebrewColumn,
   visibleActivityCategoryLabel,
@@ -188,8 +189,8 @@ export const activitiesScreen = {
         <td>${escapeHtml(row.activity_name || '—')}</td>
         <td>${escapeHtml(row.school || '—')}</td>
         <td>${escapeHtml(row.authority || '—')}</td>
-        <td>${escapeHtml(row.start_date || '—')}</td>
-        <td>${escapeHtml(row.end_date || '—')}</td>
+        <td>${escapeHtml(formatDateHe(row.start_date) || '—')}</td>
+        <td>${escapeHtml(formatDateHe(row.end_date) || '—')}</td>
         ${emp1}${emp2}
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>

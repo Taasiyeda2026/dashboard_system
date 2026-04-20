@@ -3,6 +3,7 @@ import { dsPageHeader, dsScreenStack, dsCard, dsInteractiveCard } from './shared
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
+import { formatDateHe } from './shared/format-date.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -94,7 +95,7 @@ function activityDotsMeta(n) {
 function monthDayDrawerBody(cell, hideEmpIds, hideRowId, hideActivityNo, canEdit, showPrivateNote, settings) {
   const items = Array.isArray(cell?.items) ? cell.items : [];
   if (!items.length) {
-    return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(cell?.date || '')}</p>`;
+    return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(formatDateHe(cell?.date) || '')}</p>`;
   }
   const blocks = items
     .map(
@@ -283,7 +284,7 @@ export const monthScreen = {
       const cellItems = monthCellItems(cell, itemsById);
       const n = cellItems.length;
       ui.openDrawer({
-        title: `יום ${d} · ${cell.date || ''}`,
+        title: `יום ${d} · ${formatDateHe(cell.date) || ''}`,
         content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(
           cell,
           hideEmpIds,

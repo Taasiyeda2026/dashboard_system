@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { formatDateHe } from './shared/format-date.js';
 import { hebrewExceptionType, hebrewColumn, exceptionTypeVariant } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
@@ -21,7 +22,7 @@ function exceptionDrawerHtml(row, hideRowId) {
       ${hideRowId ? '' : `<p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>`}
       <p><strong>${escapeHtml(hebrewColumn('exception_type'))}:</strong> ${typeChip}</p>
       <p><strong>${escapeHtml(hebrewColumn('activity_name'))}:</strong> ${escapeHtml(row.activity_name || '—')}</p>
-      <p><strong>${escapeHtml(hebrewColumn('end_date'))}:</strong> ${escapeHtml(row.end_date || '—')}</p>
+      <p><strong>${escapeHtml(hebrewColumn('end_date'))}:</strong> ${escapeHtml(formatDateHe(row.end_date) || '—')}</p>
     </div>`;
 }
 
@@ -68,7 +69,7 @@ export const exceptionsScreen = {
       const et = String(row.exception_type || '').trim();
       const searchHay = [hideRowId ? '' : row.RowID, hebrewExceptionType(row.exception_type), row.activity_name, row.end_date].join(' ');
       return `
-      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(et)}" data-exc-idx="${idx}" role="button" tabindex="0">${hideRowId ? '' : `<td>${escapeHtml(row.RowID)}</td>`}<td>${dsStatusChip(hebrewExceptionType(row.exception_type), exceptionTypeVariant(row.exception_type))}</td><td>${escapeHtml(row.activity_name || '—')}</td><td>${escapeHtml(row.end_date || '—')}</td></tr>`;
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(et)}" data-exc-idx="${idx}" role="button" tabindex="0">${hideRowId ? '' : `<td>${escapeHtml(row.RowID)}</td>`}<td>${dsStatusChip(hebrewExceptionType(row.exception_type), exceptionTypeVariant(row.exception_type))}</td><td>${escapeHtml(row.activity_name || '—')}</td><td>${escapeHtml(formatDateHe(row.end_date) || '—')}</td></tr>`;
     });
 
     const summaryChips = `

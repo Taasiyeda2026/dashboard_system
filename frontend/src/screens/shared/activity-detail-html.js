@@ -1,5 +1,6 @@
 import { escapeHtml } from './html.js';
 import { visibleActivityCategoryLabel } from './ui-hebrew.js';
+import { formatDateHe } from './format-date.js';
 
 function statusLabel(status) {
   const v = String(status || '').trim().toLowerCase();
@@ -29,7 +30,7 @@ function meetingScheduleHtml(row) {
   }
   const items = schedule
     .map((item) => {
-      const d = escapeHtml(String(item?.date || ''));
+      const d = escapeHtml(formatDateHe(String(item?.date || '')));
       const done = String(item?.performed || '').toLowerCase() === 'yes';
       return `<li class="ds-meeting-list__item">
         <span class="ds-meeting-list__date">${d}</span>
@@ -238,8 +239,8 @@ export function activityRowDetailHtml(
   const total = Number(row.meetings_total || 0);
   const statusText = statusLabel(row.status);
   const statusClass = statusKind(row.status);
-  const startDate = escapeHtml(row.start_date || '—');
-  const endDate = escapeHtml(row.end_date || '—');
+  const startDate = escapeHtml(formatDateHe(row.start_date) || '—');
+  const endDate = escapeHtml(formatDateHe(row.end_date) || '—');
   return `
     <div class="ds-details-grid" dir="rtl">
       <p><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '—')}</p>

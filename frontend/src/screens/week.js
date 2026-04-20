@@ -3,6 +3,7 @@ import { dsPageHeader, dsScreenStack, dsInteractiveCard } from './shared/layout.
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
+import { formatDateHe } from './shared/format-date.js';
 
 function localYmd() {
   const d = new Date();
@@ -14,7 +15,7 @@ function localYmd() {
 
 function weekItemMeta(item) {
   const names = [item.instructor_name, item.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
-  return names ? `מדריך: ${names}` : 'ללא מדריך';
+  return names || 'ללא מדריך';
 }
 
 function weekDrawerHtml(item, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, showPrivateNote, settings) {
@@ -30,7 +31,7 @@ function weekDrawerHtml(item, date, hideEmpIds, hideRowId, hideActivityNo, canEd
   const cut = full.lastIndexOf('</div>');
   if (cut < 0) return full;
   return `${full.slice(0, cut)}
-      <p><strong>יום בלוח:</strong> ${escapeHtml(date)}</p>
+      <p><strong>יום בלוח:</strong> ${escapeHtml(formatDateHe(date))}</p>
     ${full.slice(cut)}`;
 }
 
@@ -39,7 +40,9 @@ function weekRangeLabel(days) {
   const first = days[0]?.date || '';
   const last = days[days.length - 1]?.date || '';
   if (!first) return '';
-  return first === last ? first : `${first} — ${last}`;
+  const fmtFirst = formatDateHe(first);
+  const fmtLast = formatDateHe(last);
+  return first === last ? fmtFirst : `${fmtFirst} — ${fmtLast}`;
 }
 
 function weekDayItems(day, itemsById) {
@@ -91,7 +94,7 @@ export const weekScreen = {
       <section class="ds-week-col${isToday ? ' is-today' : ''}" aria-label="${escapeHtml(d.date)}">
         <header class="ds-week-col__head">
           <span class="ds-week-col__dow">${escapeHtml(dow || `יום ${idx + 1}`)}</span>
-          <span class="ds-week-col__date">${escapeHtml(d.date)}</span>
+          <span class="ds-week-col__date">${escapeHtml(formatDateHe(d.date))}</span>
           <span class="ds-week-col__count">${escapeHtml(`${items.length} פעילויות`)}</span>
         </header>
         <div class="ds-week-col__body">${sessionBlocks}</div>
