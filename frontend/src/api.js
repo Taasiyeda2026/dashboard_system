@@ -52,9 +52,7 @@ const READ_ACTIONS = {
   contacts: true,
   endDates: true,
   myData: true,
-  permissions: true,
-  adminSettings: true,
-  adminLists: true
+  permissions: true
 };
 
 const API_TIMEOUT_MS_READ = 20000;
@@ -154,8 +152,6 @@ export const api = {
   deactivateUser: (user_id) => request('deactivateUser', { user_id }),
   reactivateUser: (user_id) => request('reactivateUser', { user_id }),
   deleteUser: (user_id) => request('deleteUser', { user_id }),
-  adminSettings: () => request('adminSettings'),
-  adminLists: () => request('adminLists'),
   saveFinanceRow: (payload) => request('saveFinanceRow', payload),
   syncFinance: () => request('syncFinance', {}),
   savePrivateNote: (a, b, c) => {

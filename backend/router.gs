@@ -43,8 +43,6 @@ function handlePost_(e) {
       reactivateUser: function() { return actionReactivateUser_(user, payload); },
       deleteUser: function() { return actionDeleteUser_(user, payload); },
       savePrivateNote: function() { return actionSavePrivateNote_(user, payload); },
-      adminSettings: function() { return actionAdminSettings_(user, payload); },
-      adminLists: function() { return actionAdminLists_(user, payload); },
       saveFinanceRow: function() { return actionSaveFinanceRow_(user, payload); },
       syncFinance: function() { return actionSyncFinance_(user, payload); }
     };
@@ -91,9 +89,7 @@ function isReadActionCacheable_(action, user) {
     contacts: true,
     endDates: true,
     myData: true,
-    permissions: true,
-    adminSettings: true,
-    adminLists: true
+    permissions: true
   };
   return !!map[action];
 }

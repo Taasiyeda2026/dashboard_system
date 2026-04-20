@@ -15,8 +15,6 @@ const SCREEN_META = {
   finance:          { label: 'כספים',               icon: '💰' },
   permissions:      { label: 'הרשאות',              icon: '🔑' },
   'admin-home':     { label: 'בית — ניהול',         icon: '🏠' },
-  'admin-settings': { label: 'הגדרות מערכת',        icon: '⚙️' },
-  'admin-lists':    { label: 'ניהול רשימות',         icon: '📝' },
   exceptions:       { label: 'חריגות',              icon: '⚠️' },
   instructors:      { label: 'מדריכים',             icon: '👥' },
   'end-dates':      { label: 'תאריכי סיום',          icon: '📅' },
@@ -25,7 +23,7 @@ const SCREEN_META = {
   month:            { label: 'חודש',                icon: '🗓️' }
 };
 
-const ADMIN_SECTION_ROUTES = ['admin-settings', 'admin-lists', 'permissions'];
+const ADMIN_SECTION_ROUTES = ['permissions'];
 const HIGHLIGHT_ROUTES = ['finance', 'activities', 'dashboard', 'exceptions'];
 
 export const adminHomeScreen = {
