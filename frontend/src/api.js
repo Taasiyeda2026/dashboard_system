@@ -2,20 +2,41 @@ import { config } from './config.js';
 import { state, setSession, clearScreenDataCache } from './state.js';
 import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 
+/**
+ * Actions that modify server-side data.
+ *
+ * After any of these actions succeeds, clearScreenDataCache() is called
+ * automatically (see bottom of request()). This wipes the entire
+ * state.screenDataCache so that every screen — activities, finance,
+ * permissions, exceptions, end-dates, instructors, my-data, week, month,
+ * dashboard, etc. — fetches fresh data on its next render.
+ *
+ * Calendar views (week, month, dashboard) are therefore always stale-safe:
+ * any admin action (deactivateUser, reactivateUser, deleteUser, savePermission,
+ * addUser) or finance mutation (saveFinanceRow, syncFinance, saveActivity)
+ * triggers a full cache wipe, ensuring calendar screens never show stale data
+ * after a mutation elsewhere in the app.
+ *
+ * Screens that expose their own save forms (activities.js, finance.js,
+ * permissions.js) additionally call the bind-injected clearScreenDataCache?.()
+ * right before rerender() as a belt-and-suspenders guard for their targeted
+ * route cache keys. Read-only screens (exceptions, end-dates, instructors,
+ * my-data, week, month, contacts, instructor-contacts) have no save handlers
+ * and rely solely on this centralised clear, which is sufficient.
+ */
 const MUTATING_ACTIONS = {
   saveActivity: true,
   addActivity: true,
   submitEditRequest: true,
   reviewEditRequest: true,
   savePermission: true,
-  savePrivateNote: true
-};
-
-const MUTATION_INVALIDATION_TARGETS = {
-  // Note edit affects activities list payload only.
-  savePrivateNote: ['activities:'],
-  // Submiting request does not mutate primary activity datasets.
-  submitEditRequest: []
+  addUser: true,
+  deactivateUser: true,
+  reactivateUser: true,
+  deleteUser: true,
+  savePrivateNote: true,
+  saveFinanceRow: true,
+  syncFinance: true
 };
 
 const READ_ACTIONS = {
@@ -31,34 +52,16 @@ const READ_ACTIONS = {
   contacts: true,
   endDates: true,
   myData: true,
-  permissions: true
+  permissions: true,
+  adminSettings: true,
+  adminLists: true
 };
 
-const API_TIMEOUT_MS_READ = 12000;
-const API_TIMEOUT_MS_WRITE = 18000;
-const READ_RETRY_DELAY_MS = 250;
+const API_TIMEOUT_MS_READ = 20000;
+const API_TIMEOUT_MS_WRITE = 30000;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function makeApiError(code, fallbackMessage) {
-  const normalized = String(code || '').toLowerCase().trim() || 'unknown_error';
-  const err = new Error(translateApiErrorForUser(normalized || fallbackMessage || 'server_error'));
-  err.code = normalized;
-  err.userMessage = translateApiErrorForUser(normalized || fallbackMessage || 'server_error');
-  return err;
-}
-
-function normalizeBackendErrorCode(raw) {
-  return String(raw || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_');
-}
-
-function shouldRetryReadError(errorCode) {
-  return errorCode === 'network_error' || errorCode === 'timeout' || errorCode === 'server_error';
 }
 
 async function postWithTimeout(action, payload, tokenAtCallTime) {
@@ -72,11 +75,6 @@ async function postWithTimeout(action, payload, tokenAtCallTime) {
       body: JSON.stringify({ action, token: tokenAtCallTime, ...payload }),
       signal: controller.signal
     });
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw makeApiError('timeout');
-    }
-    throw makeApiError('network_error');
   } finally {
     clearTimeout(timer);
   }
@@ -86,63 +84,41 @@ async function request(action, payload = {}) {
   if (!config.apiUrl) {
     throw new Error('חסר קישור API. עדכנו frontend/src/config.js או window.__DASHBOARD_CONFIG__.');
   }
+
   const tokenAtCallTime = state.token;
-  const maxAttempts = READ_ACTIONS[action] ? 2 : 1;
 
-  let attempt = 0;
-  while (attempt < maxAttempts) {
-    attempt += 1;
-    try {
-      const response = await postWithTimeout(action, payload, tokenAtCallTime);
-      if (!response.ok) {
-        if (response.status === 401 && state.token === tokenAtCallTime) {
-          setSession(null);
-        }
-        const code = response.status >= 500 ? 'server_error' : 'bad_request';
-        throw makeApiError(code);
-      }
-
-      let json;
+  let response;
+  try {
+    response = await postWithTimeout(action, payload, tokenAtCallTime);
+  } catch {
+    if (READ_ACTIONS[action]) {
       try {
-        json = await response.json();
+        await sleep(250);
+        response = await postWithTimeout(action, payload, tokenAtCallTime);
       } catch {
-        throw makeApiError('server_error');
+        throw new Error(translateApiErrorForUser('network_error'));
       }
-
-      if (!json.ok) {
-        const code = normalizeBackendErrorCode(json.error);
-        if (code === 'unauthorized' && state.token === tokenAtCallTime) {
-          setSession(null);
-        }
-        throw makeApiError(code || 'server_error', json.error);
-      }
-
-      if (MUTATING_ACTIONS[action]) {
-        if (Object.prototype.hasOwnProperty.call(MUTATION_INVALIDATION_TARGETS, action)) {
-          clearScreenDataCache(MUTATION_INVALIDATION_TARGETS[action]);
-        } else {
-          clearScreenDataCache();
-        }
-      }
-      return json.data;
-    } catch (error) {
-      const errorCode = String(error?.code || '').toLowerCase();
-      const canRetry = READ_ACTIONS[action] && attempt < maxAttempts && shouldRetryReadError(errorCode);
-      if (canRetry) {
-        await sleep(READ_RETRY_DELAY_MS);
-        continue;
-      }
-      if (error && typeof error.userMessage === 'string' && error.userMessage) {
-        throw new Error(error.userMessage);
-      }
-      if (errorCode) {
-        throw new Error(translateApiErrorForUser(errorCode));
-      }
-      throw new Error(translateApiErrorForUser('server_error'));
+    } else {
+      throw new Error(translateApiErrorForUser('network_error'));
     }
   }
 
-  throw new Error(translateApiErrorForUser('server_error'));
+  let json;
+  try {
+    json = await response.json();
+  } catch {
+    throw new Error(translateApiErrorForUser('server_error'));
+  }
+  if (!json.ok) {
+    if ((json.error || '').toLowerCase() === 'unauthorized' && state.token === tokenAtCallTime) {
+      setSession(null);
+    }
+    throw new Error(translateApiErrorForUser(json.error));
+  }
+  if (MUTATING_ACTIONS[action]) {
+    clearScreenDataCache();
+  }
+  return json.data;
 }
 
 export const api = {
@@ -153,7 +129,7 @@ export const api = {
   week: (params) => request('week', params || {}),
   month: (params) => request('month', params || {}),
   exceptions: () => request('exceptions'),
-  finance: () => request('finance'),
+  finance: (params) => request('finance', params || {}),
   instructors: () => request('instructors'),
   instructorContacts: () => request('instructorContacts'),
   contacts: () => request('contacts'),
@@ -174,6 +150,14 @@ export const api = {
   submitEditRequest: (source_row_id, changes) => request('submitEditRequest', { source_row_id, changes }),
   reviewEditRequest: (request_id, status) => request('reviewEditRequest', { request_id, status }),
   savePermission: (row) => request('savePermission', { row }),
+  addUser: (row) => request('addUser', { row }),
+  deactivateUser: (user_id) => request('deactivateUser', { user_id }),
+  reactivateUser: (user_id) => request('reactivateUser', { user_id }),
+  deleteUser: (user_id) => request('deleteUser', { user_id }),
+  adminSettings: () => request('adminSettings'),
+  adminLists: () => request('adminLists'),
+  saveFinanceRow: (payload) => request('saveFinanceRow', payload),
+  syncFinance: () => request('syncFinance', {}),
   savePrivateNote: (a, b, c) => {
     if (typeof a === 'object' && a !== null) {
       return request('savePrivateNote', {

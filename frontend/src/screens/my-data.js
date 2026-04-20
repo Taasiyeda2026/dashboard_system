@@ -9,6 +9,7 @@ import {
   dsInteractiveCard
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityRowDetailHtml } from './shared/activity-detail-html.js';
 
 export const myDataScreen = {
@@ -18,15 +19,30 @@ export const myDataScreen = {
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
 
-    const body = rows.map((row) => `
-      <tr class="ds-data-row" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${columns
+    const typeFilters = [...new Set(rows.map((r) => String(r.activity_type || '').trim()).filter(Boolean))].map((t) => ({
+      value: t,
+      label: hebrewActivityType(t)
+    }));
+
+    const body = rows.map((row) => {
+      const rawType = String(row.activity_type || '').trim();
+      const searchHay = columns
+        .map((column) => {
+          let val = row?.[column] ?? '';
+          if (column === 'activity_type') val = hebrewActivityType(val);
+          return String(val);
+        })
+        .join(' ');
+      return `
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${columns
         .map((column) => {
           let val = row?.[column] ?? '';
           if (column === 'activity_type') val = hebrewActivityType(val);
           return `<td>${escapeHtml(val)}</td>`;
         })
         .join('')}</tr>
-    `);
+    `;
+    });
 
     const tableBlock =
       rows.length === 0
@@ -40,28 +56,35 @@ export const myDataScreen = {
       rows.length === 0
         ? dsEmptyState('לא נמצאו רשומות')
         : `<div class="ds-compact-list">${rows
-            .map((row) =>
-              dsInteractiveCard({
+            .map((row) => {
+              const rawType = String(row.activity_type || '').trim();
+              const searchHay = [row.RowID, row.activity_name, row.start_date, row.end_date, hebrewActivityType(row.activity_type)]
+                .filter(Boolean)
+                .join(' ');
+              return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}">
+              ${dsInteractiveCard({
                 variant: 'session',
                 action: `mydata:${row.RowID}`,
                 title: `${row.RowID} · ${row.activity_name || 'פעילות'}`,
                 subtitle: `${row.start_date || '—'} → ${row.end_date || '—'}`,
                 meta: hebrewActivityType(row.activity_type)
-              })
-            )
+              })}
+            </div>`;
+            })
             .join('')}</div>`;
 
     return dsScreenStack(`
       ${dsPageHeader('הנתונים שלי', 'הפעילויות המשויכות אליך')}
+      ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפעילויות שלי…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({
         title: 'הפעילויות שלי',
-        badge: `${rows.length} שורות`,
         body: narrow ? compactCards : tableBlock,
         padded: rows.length === 0 || narrow
       })}
     `);
   },
-  bind({ root, data, ui, state }) {
+  bind({ root, data, ui, state, rerender, clearScreenDataCache }) {
+    bindPageListTools(root);
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const rowById = new Map(rows.map((row) => [String(row.RowID), row]));
 

@@ -4,123 +4,146 @@ import {
   dsPageHeader,
   dsCard,
   dsScreenStack,
-  dsTableWrap,
   dsEmptyState,
-  dsInteractiveCard,
   dsStatusChip
 } from './shared/layout.js';
-import { isNarrowViewport } from './shared/responsive.js';
+const AVATAR_PALETTE = [
+  '#ef4444','#f97316','#eab308','#22c55e',
+  '#3b82f6','#8b5cf6','#ec4899','#14b8a6',
+  '#f43f5e','#a855f7','#0ea5e9','#10b981'
+];
 
-function cellDisplay(column, value) {
-  if (column === 'active') {
-    const v = String(value || '').toLowerCase();
-    if (v === 'yes') return 'כן';
-    if (v === 'no') return 'לא';
-  }
-  if (column === 'employment_type') return hebrewEmploymentType(value);
-  return value ?? '';
+function avatarColor(seed) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) & 0x7fffffff;
+  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
 }
 
-function instructorContactDrawerHtml(row, columns) {
-  const lines = columns
-    .map((col) => {
-      const raw = row?.[col] ?? '';
-      if (col === 'active') {
-        const label = cellDisplay(col, raw);
-        const kind = String(raw || '').toLowerCase() === 'yes' ? 'success' : 'neutral';
-        return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${dsStatusChip(label, kind)}</p>`;
-      }
-      const val = cellDisplay(col, raw);
-      return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${escapeHtml(String(val || '—'))}</p>`;
-    })
-    .join('');
+function avatarInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return parts[0][0] + parts[1][0];
+  if (parts.length === 1) return parts[0].slice(0, 2);
+  return '??';
+}
+
+function drawerHtml(row) {
+  const columns = ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'];
+  const lines = columns.map((col) => {
+    const raw = row?.[col] ?? '';
+    if (col === 'active') {
+      const label = String(raw).toLowerCase() === 'yes' ? 'כן' : 'לא';
+      const kind = String(raw).toLowerCase() === 'yes' ? 'success' : 'neutral';
+      return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${dsStatusChip(label, kind)}</p>`;
+    }
+    const val = col === 'employment_type' ? hebrewEmploymentType(raw) : (raw || '—');
+    return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${escapeHtml(String(val))}</p>`;
+  }).join('');
   return `<div class="ds-details-grid" dir="rtl">${lines}</div>`;
+}
+
+function applySearch(rows, q) {
+  if (!q) return rows;
+  const lq = q.toLowerCase();
+  return rows.filter((r) =>
+    String(r.full_name || '').toLowerCase().includes(lq) ||
+    String(r.emp_id || '').toLowerCase().includes(lq) ||
+    String(r.email || '').toLowerCase().includes(lq) ||
+    String(r.mobile || '').toLowerCase().includes(lq) ||
+    hebrewEmploymentType(r.employment_type).toLowerCase().includes(lq)
+  );
+}
+
+function renderContactCard(row) {
+  const name = row.full_name || row.emp_id || '—';
+  const initials = avatarInitials(name);
+  const color = avatarColor(row.emp_id || name);
+  const role = hebrewEmploymentType(row.employment_type) || '';
+  const phone = row.mobile || row.email || '';
+  const activeClass = String(row.active || '').toLowerCase() === 'no' ? ' ds-person-card--inactive' : '';
+  const phoneHtml = phone
+    ? `<span class="ds-person-phone" aria-label="טלפון">📞 ${escapeHtml(phone)}</span>`
+    : '';
+  return `
+    <button type="button" class="ds-person-card ds-person-card--contact${activeClass}" data-card-action="icontact:${encodeURIComponent(row.emp_id)}">
+      <span class="ds-person-avatar" style="background:${color}" aria-hidden="true">${escapeHtml(initials)}</span>
+      <span class="ds-person-name">${escapeHtml(name)}</span>
+      ${role ? `<span class="ds-person-meta">${escapeHtml(role)}</span>` : ''}
+      ${phoneHtml}
+    </button>`;
 }
 
 /** אנשי קשר של מדריכים — לפי גיליון contacts_instructors במקור הנתונים (צפייה בלבד). */
 export const instructorContactsScreen = {
   load: ({ api }) => api.instructorContacts(),
-  render(data) {
-    const columns = ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'];
-    const rows = Array.isArray(data?.rows) ? data.rows : [];
-    const narrow = isNarrowViewport();
+  render(data, { state } = {}) {
+    const allRows = Array.isArray(data?.rows) ? data.rows : [];
+    const searchQ = state?.instrContactsSearch || '';
+    const activeFilter = state?.instrContactsActiveFilter || '';
 
-    const body = rows.map(
-      (row) => `
-      <tr class="ds-data-row" data-row-id="${escapeHtml(row.emp_id)}" role="button" tabindex="0">${columns
-        .map((column) => {
-          const raw = row?.[column];
-          if (column === 'active') {
-            const label = cellDisplay(column, raw);
-            const kind = String(raw || '').toLowerCase() === 'yes' ? 'success' : 'neutral';
-            return `<td>${dsStatusChip(label, kind)}</td>`;
-          }
-          return `<td>${escapeHtml(cellDisplay(column, raw))}</td>`;
-        })
-        .join('')}</tr>`
-    );
+    let rows = applySearch(allRows, searchQ);
+    if (activeFilter) {
+      rows = rows.filter((r) => String(r.active || '').toLowerCase() === activeFilter);
+    }
 
-    const tableBlock =
-      rows.length === 0
-        ? dsEmptyState('לא נמצאו רשומות')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive">
-            <thead><tr>${columns.map((column) => `<th>${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
-            <tbody>${body.join('')}</tbody>
-          </table>`);
+    const activeChips = [
+      { val: '', label: 'הכל' },
+      { val: 'yes', label: 'פעיל' },
+      { val: 'no', label: 'לא פעיל' }
+    ].map((c) =>
+      `<button type="button" class="ds-chip ${c.val === activeFilter ? 'is-active' : ''}" data-active-filter="${c.val}">${escapeHtml(c.label)}</button>`
+    ).join('');
 
-    const compact =
-      rows.length === 0
-        ? dsEmptyState('לא נמצאו רשומות')
-        : `<div class="ds-compact-list">${rows
-            .map((row) =>
-              dsInteractiveCard({
-                variant: 'session',
-                action: `icontact:${encodeURIComponent(row.emp_id)}`,
-                title: `${row.emp_id} · ${row.full_name || '—'}`,
-                subtitle: cellDisplay('employment_type', row.employment_type),
-                meta: row.mobile || row.email || ''
-              })
-            )
-            .join('')}</div>`;
+    const cardsHtml = rows.length === 0
+      ? dsEmptyState('לא נמצאו אנשי קשר')
+      : `<div class="ds-person-grid">${rows.map(renderContactCard).join('')}</div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('אנשי קשר מדריכים', 'נתונים מגיליון contacts_instructors')}
+      ${dsPageHeader('אנשי קשר מדריכים', 'נתונים מגיליון אנשי הקשר')}
+      <div class="ds-screen-top-row">
+        <input
+          id="instr-contacts-search"
+          type="search"
+          class="ds-search-input"
+          placeholder="חיפוש..."
+          value="${escapeHtml(searchQ)}"
+          dir="rtl"
+        />
+      </div>
+      <div class="ds-filter-bar" role="toolbar">${activeChips}</div>
       ${dsCard({
-        title: 'מדריכים',
-        badge: `${rows.length} שורות`,
-        body: narrow ? compact : tableBlock,
-        padded: rows.length === 0 || narrow
+        title: `אנשי קשר מדריכים · ${rows.length}`,
+        body: cardsHtml,
+        padded: rows.length === 0
       })}
     `);
   },
-  bind({ root, data, ui }) {
-    const rows = Array.isArray(data?.rows) ? data.rows : [];
-    const columns = ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'];
-    const rowById = new Map(rows.map((row) => [String(row.emp_id), row]));
+  bind({ root, data, state, ui, rerender, clearScreenDataCache }) {
+    const allRows = Array.isArray(data?.rows) ? data.rows : [];
 
-    const openRow = (empId) => {
-      const hit = rowById.get(String(empId));
-      if (!hit || !ui) return;
-      ui.openDrawer({
-        title: `מדריך/ה · ${hit.full_name || hit.emp_id}`,
-        content: instructorContactDrawerHtml(hit, columns)
-      });
-    };
+    root.querySelector('#instr-contacts-search')?.addEventListener('input', (ev) => {
+      state.instrContactsSearch = ev.target.value || '';
+      rerender();
+    });
 
-    root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
-      rowNode.addEventListener('click', () => openRow(rowNode.dataset.rowId));
-      rowNode.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          openRow(rowNode.dataset.rowId);
-        }
+    root.querySelectorAll('[data-active-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.instrContactsActiveFilter = btn.dataset.activeFilter || '';
+        rerender();
       });
     });
 
+    const openRow = (empId) => {
+      const hit = allRows.find((r) => String(r.emp_id) === String(empId));
+      if (!hit || !ui) return;
+      ui.openDrawer({
+        title: hit.full_name || hit.emp_id,
+        content: drawerHtml(hit)
+      });
+    };
+
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('icontact:')) return;
-      const id = decodeURIComponent(action.slice('icontact:'.length));
-      openRow(id);
+      openRow(decodeURIComponent(action.slice('icontact:'.length)));
     });
   }
 };

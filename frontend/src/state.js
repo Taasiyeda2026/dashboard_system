@@ -8,12 +8,12 @@ export const state = {
   activityQuickFamily: '',
   activityQuickManager: '',
   activityEndingCurrentMonth: false,
-  /** מסך שבוע: היסט/קדימה בשבועות */
-  weekOffset: 0,
-  /** מסך חודש: חודש מוצג בפורמט YYYY-MM */
-  monthYm: '',
-  /** לוח בקרה: חודש מוצג בפורמט YYYY-MM; ריק = חודש נוכחי */
+  /** לוח בקרה: חודש מוצג בפורמט YYYY-MM; ריק = ייטען חודש נוכחי בכניסה */
   dashboardMonthYm: '',
+  /** מסך שבוע: הזזה בשבועות מהשבוע הנוכחי (0 = שבוע נוכחי, -1 = קודם, +1 = הבא) */
+  weekOffset: 0,
+  /** מסך חודש: חודש מוצג בפורמט YYYY-MM; ריק = חודש נוכחי */
+  monthYm: '',
   activityView: 'compact',
   financeFilter: '',
   /** הגדרות UI ממקור הנתונים (bootstrap / login) */
@@ -22,23 +22,8 @@ export const state = {
   screenDataCache: {}
 };
 
-export function clearScreenDataCache(targets) {
-  if (!targets) {
-    state.screenDataCache = {};
-    return;
-  }
-  const list = Array.isArray(targets) ? targets : [targets];
-  if (!list.length) return;
-
-  Object.keys(state.screenDataCache).forEach((key) => {
-    const shouldDelete = list.some((target) => {
-      const t = String(target || '');
-      if (!t) return false;
-      if (t.endsWith(':')) return key.startsWith(t);
-      return key === t || key.startsWith(`${t}:`);
-    });
-    if (shouldDelete) delete state.screenDataCache[key];
-  });
+export function clearScreenDataCache() {
+  state.screenDataCache = {};
 }
 
 export function setSession(session) {
@@ -52,14 +37,13 @@ export function setSession(session) {
     state.activityQuickFamily = '';
     state.activityQuickManager = '';
     state.activityEndingCurrentMonth = false;
+    state.dashboardMonthYm = '';
     state.weekOffset = 0;
     state.monthYm = '';
-    state.dashboardMonthYm = '';
     state.clientSettings = {};
     state.screenDataCache = {};
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
-    localStorage.removeItem('dashboard_routes');
     return;
   }
   state.token = session.token;

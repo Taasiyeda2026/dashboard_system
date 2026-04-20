@@ -1,15 +1,21 @@
 /* Service worker at repository root so scope covers the whole GitHub Pages site. */
-const CACHE_VERSION = 15;
+const CACHE_VERSION = 54;
 const CACHE = `internal-dashboard-v${CACHE_VERSION}`;
 
 const APP_SHELL = [
   './index.html',
-  './frontend/src/styles/main.css',
   './frontend/src/main.js',
+  './frontend/src/api.js',
+  './frontend/src/state.js',
+  './frontend/src/config.js',
+  './frontend/src/screens/shared/interactions.js',
+  './frontend/src/styles/main.css',
   './frontend/public/manifest.json',
   './frontend/assets/logo1.png',
+  './frontend/assets/logo2.png',
   './frontend/assets/apple-touch-icon.png',
-  './frontend/assets/favicon.ico',
+  './frontend/assets/favicon-32.png',
+  './frontend/assets/favicon-16.png',
   './frontend/assets/pwa/icon-192.png',
   './frontend/assets/pwa/icon-512.png',
   './frontend/assets/pwa/icon-maskable-512.png'
@@ -21,10 +27,10 @@ function sameOrigin(url) {
 
 function shouldHandleFetch(request, url) {
   if (request.mode === 'navigate') return true;
-  const dest = request.destination;
-  if (dest === 'script' || dest === 'style' || dest === 'image') return true;
-  const p = url.pathname.toLowerCase();
-  if (dest === 'manifest' || (p.endsWith('.json') && p.includes('manifest'))) return true;
+  const p = url.pathname;
+  if (p.endsWith('.js') || p.endsWith('.css')) return true;
+  if (p.endsWith('.png') || p.endsWith('.ico') || p.endsWith('.svg')) return true;
+  if (p.endsWith('.json') && p.includes('manifest')) return true;
   if (p.endsWith('index.html')) return true;
   return false;
 }
@@ -48,23 +54,15 @@ async function networkFirst(request, cache) {
   }
 }
 
-async function cacheFirst(request, cache) {
-  const cached = await cache.match(request);
-  if (cached) return cached;
-  const response = await fetch(request);
-  if (response && response.ok && response.type === 'basic' && sameOrigin(new URL(request.url))) {
-    cache.put(request, response.clone()).catch(() => {});
-  }
-  return response;
-}
-
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then(async (cache) => {
       for (const url of APP_SHELL) {
         try {
           await cache.add(url);
-        } catch (e) {}
+        } catch (e) {
+          console.warn('[SW] precache skip', url, e);
+        }
       }
       self.skipWaiting();
     })
@@ -89,14 +87,7 @@ self.addEventListener('fetch', (event) => {
 
   if (!shouldHandleFetch(request, url)) return;
 
-  if (request.mode !== 'navigate' && url.pathname.includes('/api/')) return;
-
   event.respondWith(
-    caches.open(CACHE).then((cache) => {
-      if (request.mode === 'navigate') {
-        return networkFirst(request, cache);
-      }
-      return cacheFirst(request, cache);
-    })
+    caches.open(CACHE).then((cache) => networkFirst(request, cache))
   );
 });

@@ -141,7 +141,13 @@ export function createSharedInteractionLayer() {
     setBackdropVisible(drawerOpen || modalOpen);
   }
 
-  function openDrawer({ title = 'פרטים', content = '', onClose, onOpen } = {}) {
+  function openDrawer({ title = '', content = '', onClose, onOpen } = {}) {
+    if (!String(content || '').trim()) {
+      if (typeof console !== 'undefined') {
+        console.warn('[openDrawer] Blocked: called with no content.', new Error().stack);
+      }
+      return;
+    }
     const root = ensureHost();
     const drawer = root.querySelector('.ds-drawer');
     const titleNode = root.querySelector('.ds-drawer__title');
@@ -179,13 +185,24 @@ export function createSharedInteractionLayer() {
     drawerOpen = false;
     drawer.setAttribute('aria-hidden', 'true');
 
-    if (onDrawerClose) onDrawerClose();
+    const cb = onDrawerClose;
     onDrawerClose = null;
-
-    syncLayerClasses();
+    try {
+      if (cb) cb();
+    } catch (_err) {
+      // Safety: never leave the drawer layer stuck open.
+    } finally {
+      syncLayerClasses();
+    }
   }
 
-  function openModal({ title = 'פעולה', content = '', actions = '', onClose } = {}) {
+  function openModal({ title = '', content = '', actions = '', onClose } = {}) {
+    if (!String(content || '').trim() && !String(actions || '').trim() && !title) {
+      if (typeof console !== 'undefined') {
+        console.warn('[openModal] Blocked: called with no content, no actions, and no title.', new Error().stack);
+      }
+      return;
+    }
     const root = ensureHost();
     const modal = root.querySelector('.ds-modal');
     const titleNode = root.querySelector('.ds-modal__title');
@@ -226,18 +243,32 @@ export function createSharedInteractionLayer() {
     modalOpen = false;
     modal.setAttribute('aria-hidden', 'true');
 
-    if (onModalClose) onModalClose();
+    const cb = onModalClose;
     onModalClose = null;
-
-    syncLayerClasses();
+    try {
+      if (cb) cb();
+    } catch (_err) {
+      // Safety: never leave the modal layer stuck open.
+    } finally {
+      syncLayerClasses();
+    }
   }
 
   function closeAll() {
+    const root = ensureHost();
     closeModal();
     closeDrawer();
-    if (host && document.body.contains(host)) {
-      host.classList.remove('is-drawer-open', 'is-modal-open', 'is-backdrop-visible');
-      const backdrop = host.querySelector('.ds-ui-backdrop');
+    drawerOpen = false;
+    modalOpen = false;
+    onDrawerClose = null;
+    onModalClose = null;
+    if (root && document.body.contains(root)) {
+      root.classList.remove('is-drawer-open', 'is-modal-open', 'is-backdrop-visible');
+      const drawer = root.querySelector('.ds-drawer');
+      if (drawer) drawer.setAttribute('aria-hidden', 'true');
+      const modal = root.querySelector('.ds-modal');
+      if (modal) modal.setAttribute('aria-hidden', 'true');
+      const backdrop = root.querySelector('.ds-ui-backdrop');
       if (backdrop) backdrop.hidden = true;
     }
   }
@@ -249,6 +280,7 @@ export function createSharedInteractionLayer() {
       button.dataset.cardBound = 'yes';
       button.addEventListener('click', (event) => {
         event.preventDefault();
+        event.stopPropagation();
         const action = button.dataset.cardAction || '';
         if (!action || typeof onAction !== 'function') return;
         onAction(action, button);
@@ -270,4 +302,34 @@ export function createSharedInteractionLayer() {
       return modalOpen;
     }
   };
+}
+
+export function showConfirmModal(ui, { title = 'אישור פעולה', message = '', confirmLabel = 'אישור', confirmClass = 'ds-btn--danger', onConfirm } = {}) {
+  if (!ui) return;
+  const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
+  const actionsHtml = `
+    <button type="button" class="ds-btn ds-btn--ghost" data-confirm-cancel>ביטול</button>
+    <button type="button" class="ds-btn ${confirmClass}" data-confirm-ok>${escapeHtml(confirmLabel)}</button>
+  `;
+  ui.openModal({
+    title,
+    content: `<p style="margin:0;line-height:1.6;direction:rtl">${safeMessage}</p>`,
+    actions: actionsHtml,
+    onClose: () => {}
+  });
+  const layer = document.getElementById(UI_LAYER_ID);
+  if (!layer) return;
+  const okBtn = layer.querySelector('[data-confirm-ok]');
+  const cancelBtn = layer.querySelector('[data-confirm-cancel]');
+  if (okBtn) {
+    okBtn.addEventListener('click', () => {
+      ui.closeModal();
+      if (typeof onConfirm === 'function') onConfirm();
+    }, { once: true });
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      ui.closeModal();
+    }, { once: true });
+  }
 }

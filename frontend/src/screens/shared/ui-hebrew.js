@@ -1,7 +1,7 @@
 /** Visible UI strings only (Hebrew). Internal API values stay English where required. */
 
 /** Display names for short vs long activity families (UI only; not API/sheet keys). */
-export const UI_ACTIVITY_FAMILY_SHORT = 'סדנאות וסיורים';
+export const UI_ACTIVITY_FAMILY_SHORT = 'חד-יומיות';
 export const UI_ACTIVITY_FAMILY_LONG = 'תוכניות';
 
 export const HEBREW_ROLE = {
@@ -110,6 +110,7 @@ const COLUMN_LABELS = {
   start_date: 'תאריך התחלה',
   end_date: 'תאריך סיום',
   activity_type: 'סוג פעילות',
+  activity_manager: 'מנהל פעילויות',
   user_id: 'מזהה משתמש',
   default_view: 'מסך ברירת מחדל',
   display_role: 'תפקיד',
@@ -121,6 +122,7 @@ const COLUMN_LABELS = {
   finance_notes: 'הערות כספים',
   sessions: 'מפגשים',
   price: 'מחיר',
+  amount: 'סכום',
   source_sheet: 'גיליון מקור'
 };
 
@@ -218,7 +220,12 @@ const API_ERROR_HE = {
   request_timeout: 'הבקשה נמשכה יותר מהצפוי — נסו שוב',
   server_error: 'שגיאת שרת — נסו שוב מאוחר יותר',
   network_error: 'בעיית תקשורת — בדקו את החיבור לאינטרנט',
-  offline: 'אין חיבור לרשת'
+  offline: 'אין חיבור לרשת',
+  user_already_exists: 'מזהה המשתמש כבר קיים במערכת',
+  user_not_found: 'המשתמש/ת לא נמצא/ה במערכת',
+  cannot_deactivate_self: 'לא ניתן להשבית את עצמך',
+  cannot_delete_self: 'לא ניתן למחוק את עצמך',
+  cannot_delete_active_user: 'ניתן למחוק משתמש/ת לא פעיל/ה בלבד'
 };
 
 /** Maps common API English errors to Hebrew; leaves Hebrew messages unchanged. */
