@@ -44,10 +44,17 @@ function goActivitiesDrill(state, patch) {
   state.activityEndingCurrentMonth = !!patch.activityEndingCurrentMonth;
 }
 
+function goFinanceDrill(state, patch = {}) {
+  state.route = 'finance';
+  state.financeTab = patch.financeTab ?? 'active';
+  state.financeStatusFilter = patch.financeStatusFilter ?? '';
+}
+
 function filterKpiCards(cards, showOnlyNonzero) {
   const list = Array.isArray(cards) ? cards : [];
-  if (!showOnlyNonzero) return list;
-  return list.filter((c) => Number(c.value || 0) > 0);
+  const actionable = list.filter((c) => c && c.action);
+  if (!showOnlyNonzero) return actionable;
+  return actionable.filter((c) => Number(c.value || 0) > 0);
 }
 
 
@@ -121,7 +128,7 @@ export const dashboardScreen = {
       ${dsPageHeader('לוח בקרה')}
       ${monthNav}
       <div data-dash-data-area>
-        <div class="ds-kpi-grid">${kpiHtml}</div>
+        <div class="ds-kpi-grid ds-dashboard-kpi-grid">${kpiHtml}</div>
         ${dsCard({
           title: 'פילוח לפי מנהל פעילויות',
           body: managersBlock,
@@ -216,7 +223,7 @@ export const dashboardScreen = {
         return;
       }
       if (action === 'kpi|finance_open') {
-        state.route = 'finance';
+        goFinanceDrill(state, { financeStatusFilter: 'open' });
         ui.closeAll();
         rerender();
         return;

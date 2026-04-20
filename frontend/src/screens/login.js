@@ -1,7 +1,7 @@
 const loginLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 export const loginScreen = {
-  render(initialError = '') {
+  render(initialError = '', systemTitle = 'דשבורד תעשיידע') {
     return `
       <div class="login-shell" dir="rtl">
         <section class="login-card">
@@ -9,7 +9,7 @@ export const loginScreen = {
             <img
               class="login-logo"
               src="${loginLogoSrc}"
-              alt="תעשיידע"
+              alt="לוגו המערכת"
               width="200"
               height="86"
               decoding="async"
@@ -17,7 +17,7 @@ export const loginScreen = {
           </div>
           <header class="ds-page-header ds-page-header--login" aria-labelledby="loginHeading">
             <h1 id="loginHeading" class="ds-page-header__title">כניסה למערכת</h1>
-            <p class="ds-page-header__subtitle">דשבורד תעשיידע — התחברות מאובטחת</p>
+            <p class="ds-page-header__subtitle">${systemTitle} — התחברות מאובטחת</p>
           </header>
 
           <form id="loginForm" class="login-form">

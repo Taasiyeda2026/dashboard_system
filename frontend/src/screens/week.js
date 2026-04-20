@@ -17,9 +17,16 @@ function weekItemMeta(item) {
   return names ? `מדריך: ${names}` : 'ללא מדריך';
 }
 
-function weekDrawerHtml(item, date, hideEmpIds, canEdit, showPrivateNote) {
+function weekDrawerHtml(item, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, showPrivateNote, settings) {
   const privateNote = showPrivateNote ? item.private_note || '—' : null;
-  const full = activityWorkDrawerHtml(item, { privateNote, canEdit: !!canEdit, hideEmpIds: !!hideEmpIds });
+  const full = activityWorkDrawerHtml(item, {
+    privateNote,
+    canEdit: !!canEdit,
+    hideEmpIds: !!hideEmpIds,
+    hideRowId: !!hideRowId,
+    hideActivityNo: !!hideActivityNo,
+    settings: settings || {}
+  });
   const cut = full.lastIndexOf('</div>');
   if (cut < 0) return full;
   return `${full.slice(0, cut)}
@@ -104,9 +111,11 @@ export const weekScreen = {
         ? `${Math.abs(weekOffset)} שבועות אחורה${rangeLabel ? ` · ${rangeLabel}` : ''}`
         : `${rangeLabel || 'שבוע'}`;
 
-    const uniqueActivities = new Set(safeDays.flatMap((d) => (d.items || []).map((it) => it.RowID))).size;
-    const activeDays = safeDays.filter((d) => (d.items || []).length > 0).length;
-    const totalSessions = safeDays.reduce((sum, d) => sum + (d.items || []).length, 0);
+    const uniqueActivities = new Set(
+      safeDays.flatMap((d) => weekDayItems(d, itemsById).map((it) => it.RowID))
+    ).size;
+    const activeDays = safeDays.filter((d) => weekDayItems(d, itemsById).length > 0).length;
+    const totalSessions = safeDays.reduce((sum, d) => sum + weekDayItems(d, itemsById).length, 0);
     const kpiRow = `<div class="ds-mini-kpi-row">
       <span class="ds-mini-kpi"><strong>${uniqueActivities}</strong> פעילויות</span>
       <span class="ds-mini-kpi"><strong>${activeDays}</strong> ימים פעילים</span>
@@ -135,6 +144,8 @@ export const weekScreen = {
       rerender?.();
     });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
 
@@ -168,7 +179,16 @@ export const weekScreen = {
       }
       ui.openDrawer({
         title: item.activity_name || 'פעילות',
-        content: weekDrawerHtml(item, date, hideEmpIds, canEditActivity, showPrivateNote),
+        content: weekDrawerHtml(
+          item,
+          date,
+          hideEmpIds,
+          hideRowId,
+          hideActivityNo,
+          canEditActivity,
+          showPrivateNote,
+          state?.clientSettings || {}
+        ),
         onOpen: canEditActivity ? bindActivityEditForm : undefined
       });
     });

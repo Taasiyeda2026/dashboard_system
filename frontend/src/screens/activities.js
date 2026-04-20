@@ -17,6 +17,8 @@ import {
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 
+const ACTIVITY_VIEW_LS = 'dashboard_activity_view';
+
 const SHORT_TYPES = new Set(['workshop', 'tour', 'after_school', 'escape_room']);
 
 const FAMILY_LABEL_SHORT = 'חד-יומיות';
@@ -117,20 +119,28 @@ function applyClientFilters(rows, state) {
   return out;
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, hideEmpIds) {
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
     canEdit,
     hideEmpIds: !!hideEmpIds,
+    hideRowId,
+    hideActivityNo,
+    settings,
     showFinance: false,
-    showFinanceFields: false,
-    statusSelect: true
+    showFinanceFields: false
   });
 }
 
 export const activitiesScreen = {
   async load({ api, state }) {
+    try {
+      const v = typeof localStorage !== 'undefined' ? localStorage.getItem(ACTIVITY_VIEW_LS) : null;
+      if (v === 'table' || v === 'compact') state.activityView = v;
+    } catch (_e) {
+      /* ignore */
+    }
     const requested = state.activityTab || 'all';
     let data = await api.activities({ activity_type: requested });
     const allowed = visibleTabsFromCounts(data.activity_type_counts);
@@ -147,6 +157,8 @@ export const activitiesScreen = {
     const visibleTabs = visibleTabsFromCounts(counts);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const forceCompact = typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches;
     const compactView = forceCompact || state?.activityView === 'compact';
     const searchVal = escapeHtml(state.activitySearch || '');
@@ -156,7 +168,7 @@ export const activitiesScreen = {
         const emp1 = hideEmpIds ? '' : `<td>${escapeHtml(row.emp_id || '—')}</td>`;
         const emp2 = hideEmpIds ? '' : `<td>${escapeHtml(row.emp_id_2 || '—')}</td>`;
         const rowSearch = [
-          row.RowID,
+          hideRowId ? '' : row.RowID,
           row.activity_name,
           row.start_date,
           row.end_date,
@@ -164,8 +176,8 @@ export const activitiesScreen = {
           row.authority,
           row.activity_manager,
           visibleActivityCategoryLabel(row.activity_type),
-          row.emp_id,
-          row.emp_id_2,
+          hideEmpIds ? '' : row.emp_id,
+          hideEmpIds ? '' : row.emp_id_2,
           canSeePrivateNotes ? row.private_note : ''
         ]
           .filter(Boolean)
@@ -188,7 +200,7 @@ export const activitiesScreen = {
     const compactRows = safeRows
       .map((row) => {
         const rowSearch = [
-          row.RowID,
+          hideRowId ? '' : row.RowID,
           row.activity_name,
           row.school,
           row.authority,
@@ -295,7 +307,12 @@ export const activitiesScreen = {
         ${familyChips}
       </div>
       ${dsToolbar(`
-        <label class="compact-toggle"><input id="toggle-view" type="checkbox" ${compactView ? 'checked' : ''} ${forceCompact ? 'disabled' : ''} /> תצוגה קומפקטית</label>
+        <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
+          <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${
+            forceCompact ? 'disabled title="במסך צר מוצגות תיבות קומפקטיות"' : ''
+          }>☰ טבלה</button>
+          <button type="button" class="ds-view-toggle__btn ${compactView ? 'is-active' : ''}" data-activity-view="compact">⊞ תיבות</button>
+        </div>
         ${hasAnyFilter ? '<button type="button" class="ds-btn ds-btn--sm" data-clear-filters>ניקוי מסננים</button>' : ''}
         ${state.activityQuickManager ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">מנהל פעילויות: ${escapeHtml(state.activityQuickManager)}</span>` : ''}
         ${state.activityEndingCurrentMonth ? '<span class="ds-chip ds-chip--status ds-chip--status-neutral">מסיימי קורס החודש</span>' : ''}
@@ -330,6 +347,8 @@ export const activitiesScreen = {
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
@@ -379,13 +398,20 @@ export const activitiesScreen = {
       rerender();
     });
 
-    root.querySelector('#toggle-view')?.addEventListener('change', (event) => {
-      state.activityView = event.target.checked ? 'compact' : 'table';
-      if (typeof rerenderActivitiesView === 'function') {
-        rerenderActivitiesView();
-      } else {
-        rerender();
-      }
+    root.querySelectorAll('[data-activity-view]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        const next = btn.getAttribute('data-activity-view');
+        if (next !== 'table' && next !== 'compact') return;
+        state.activityView = next;
+        try {
+          localStorage.setItem(ACTIVITY_VIEW_LS, state.activityView);
+        } catch (_e) {
+          /* ignore */
+        }
+        if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
+        else rerender();
+      });
     });
 
     root.querySelectorAll('.ds-data-row').forEach((n) => {
@@ -403,8 +429,16 @@ export const activitiesScreen = {
       const hit = filteredRows.find((row) => row.RowID === rowId);
       if (!hit || !ui) return;
       ui.openDrawer({
-        title: `פירוט פעילות ${hit.RowID}`,
-        content: activityDrawerContent(hit, canSeePrivateNotes, canEditActivity, hideEmpIds),
+        title: hideRowId ? 'פירוט פעילות' : `פירוט פעילות ${hit.RowID}`,
+        content: activityDrawerContent(
+          hit,
+          canSeePrivateNotes,
+          canEditActivity,
+          hideEmpIds,
+          hideRowId,
+          hideActivityNo,
+          state?.clientSettings || {}
+        ),
         onOpen: bindActivityEditForm
       });
     }, rowSig);
@@ -422,8 +456,16 @@ export const activitiesScreen = {
       const row = filteredRows.find((r) => r.RowID === rowId);
       if (!row) return;
       ui.openDrawer({
-        title: `פירוט פעילות ${row.RowID}`,
-        content: activityDrawerContent(row, canSeePrivateNotes, canEditActivity, hideEmpIds),
+        title: hideRowId ? 'פירוט פעילות' : `פירוט פעילות ${row.RowID}`,
+        content: activityDrawerContent(
+          row,
+          canSeePrivateNotes,
+          canEditActivity,
+          hideEmpIds,
+          hideRowId,
+          hideActivityNo,
+          state?.clientSettings || {}
+        ),
         onOpen: bindActivityEditForm
       });
     });

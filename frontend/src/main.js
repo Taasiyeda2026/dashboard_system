@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { state, setSession } from './state.js';
+import { state, setSession, defaultClientSettings } from './state.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
@@ -69,7 +69,7 @@ function applyBootstrapFromLoginData(data) {
       ? data.default_route
       : state.routes[0] || 'my-data';
   if (data.client_settings && typeof data.client_settings === 'object') {
-    state.clientSettings = { ...data.client_settings };
+    state.clientSettings = { ...defaultClientSettings(), ...data.client_settings };
   }
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
 }
@@ -111,6 +111,16 @@ const screens = {
 
 const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts', 'week', 'month', 'exceptions', 'instructors']);
 
+function systemNameRaw() {
+  return String(state?.clientSettings?.system_name || 'Dashboard Taasiyeda').trim() || 'Dashboard Taasiyeda';
+}
+
+function systemNameDisplay() {
+  const raw = systemNameRaw();
+  if (raw === 'Dashboard Taasiyeda') return 'דשבורד תעשיידע';
+  return raw;
+}
+
 function shellUserDisplayName() {
   const fn = state.user?.full_name != null ? String(state.user.full_name).trim() : '';
   return escapeHtml(fn || 'משתמש');
@@ -137,17 +147,19 @@ function shell(content) {
   const drawerHidden = !isDesktopViewport() && !isMobileNavOpen ? 'true' : 'false';
   const drawerExpanded = isMobileNavOpen ? 'true' : 'false';
 
+  const systemName = escapeHtml(systemNameDisplay());
+
   return `
     <div class="app-shell${drawerClass} route-${escapeHtml(String(state.route || ''))}" data-current-route="${escapeHtml(String(state.route || ''))}" dir="rtl">
       <button type="button" class="shell-backdrop" data-mobile-close aria-label="סגירת תפריט"></button>
       <aside class="shell-sidebar" aria-label="ניווט ראשי" id="mobileNavDrawer" aria-hidden="${drawerHidden}">
         <div class="shell-sidebar__mobile-head">
-          <span class="shell-sidebar__mobile-brand">תעשיידע</span>
+          <span class="shell-sidebar__mobile-brand">${systemName}</span>
           <button type="button" class="shell-close-btn" data-mobile-close aria-label="סגירת תפריט">✕</button>
         </div>
         <div class="shell-brand">
           <img class="shell-brand__mark" src="${loginLogoSrc}" alt="" width="120" height="52" decoding="async" />
-          <span class="shell-brand__name">תעשיידע</span>
+          <span class="shell-brand__name">${systemName}</span>
         </div>
         <div class="shell-sidebar__user" aria-label="משתמש מחובר">
           <span class="shell-sidebar__user-name">${displayName}</span>
@@ -168,7 +180,7 @@ function shell(content) {
             >
               <span aria-hidden="true">☰</span>
             </button>
-            <p class="shell-top__mobile-brand">${screenLabels[state.route] || 'תעשיידע'}</p>
+            <p class="shell-top__mobile-brand">${screenLabels[state.route] || systemName}</p>
           </div>
           <div class="shell-top__end">
             <button type="button" class="shell-logout-btn" id="logoutBtn" aria-label="התנתקות">
@@ -294,8 +306,13 @@ function updateNavActiveClasses() {
   });
   const mobileBrand = document.querySelector('.shell-top__mobile-brand');
   if (mobileBrand) {
-    mobileBrand.textContent = screenLabels[state.route] || 'תעשיידע';
+    mobileBrand.textContent = screenLabels[state.route] || systemNameDisplay();
   }
+  document.body.classList.toggle('pref-compact-layout', !!state?.clientSettings?.compact_layout_preferred);
+  document.body.classList.toggle('pref-narrow-boxes', !!state?.clientSettings?.narrow_boxes_preferred);
+  document.body.classList.toggle('pref-emoji-ui', !!state?.clientSettings?.prefer_emoji_over_wide_boxes);
+  document.body.classList.toggle('pref-hebrew-only', !!state?.clientSettings?.hebrew_only_headers);
+  document.title = systemNameRaw();
 }
 
 /**
@@ -380,7 +397,7 @@ async function restoreSession() {
       ? bootstrap.default_route
       : state.routes[0] || 'my-data';
   if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
-    state.clientSettings = { ...bootstrap.client_settings };
+    state.clientSettings = { ...defaultClientSettings(), ...bootstrap.client_settings };
   }
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
   if (bootstrap.profile && state.user) {
@@ -511,7 +528,7 @@ async function render() {
       isMobileNavOpen = false;
       document.body.classList.remove('is-shell-nav-open');
       ui.closeAll();
-      app.innerHTML = loginScreen.render(escapeHtml(loginInlineError));
+      app.innerHTML = loginScreen.render(escapeHtml(loginInlineError), escapeHtml(systemNameDisplay()));
       loginScreen.bind({
         root: app,
         onLogin: async (userId, code, errorNode) => {
