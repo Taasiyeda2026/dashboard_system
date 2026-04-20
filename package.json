@@ -1,0 +1,16 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "description": "מערכת ניהול פנימית מבוססת:",
+  "main": "sw.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/interactions.test.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jsdom": "^29.0.2"
+  }
+}

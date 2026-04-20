@@ -35,6 +35,14 @@
 ## הרצה מקומית
 השרת מוגדר עם `npx serve . -l 5000` על פורט 5000.
 
+## בדיקות אוטומטיות
+```
+npm test        # בדיקות יחידה לשכבת האינטראקציות (openDrawer / openModal / closeAll)
+```
+- קובץ הבדיקות: `tests/interactions.test.mjs`
+- מריץ 18 בדיקות על `createSharedInteractionLayer` באמצעות jsdom
+- `npm test` מחזיר exit code 0 בהצלחה, 1 בכישלון
+
 ## חוקי עבודה
 - **עברית בלבד** בכל הממשק, הסברים ותוכן
 - **לא להשתמש בפיצ'רים ייחודיים של Replit** (DB, Secrets, Deployments וכו')
