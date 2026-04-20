@@ -952,7 +952,8 @@ function computeNonAdminRoleDefaults_() {
 function actionPermissions_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer']);
   var permission = getPermissionRow_(user.user_id);
-  if (yesNo_(permission.view_permissions) !== 'yes') {
+  // Admin always has access; for operations_reviewer require explicit flag
+  if (user.display_role !== 'admin' && yesNo_(permission.view_permissions) !== 'yes') {
     throw new Error('Forbidden');
   }
 

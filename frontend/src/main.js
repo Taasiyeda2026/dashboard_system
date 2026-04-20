@@ -507,6 +507,16 @@ async function mountScreen() {
     screenRoot.innerHTML = screen.render(data, { state });
     bindScreen(screen, screenRoot, data);
     if (routeChanged) lastRenderedRoute = state.route;
+  } catch (err) {
+    const screenRoot = document.getElementById('screenRoot');
+    if (screenRoot) {
+      const msg = translateApiErrorForUser(err?.message) || 'אירעה שגיאה בטעינת הדף';
+      screenRoot.innerHTML = `<div class="ds-loading-card" dir="rtl" role="alert">
+        <p style="color:var(--ds-color-danger,#c0392b);font-weight:600;">⚠ שגיאה בטעינת הדף</p>
+        <p>${msg}</p>
+        <button type="button" class="ds-btn ds-btn--sm" style="margin-top:8px" onclick="window.location.reload()">נסה שוב</button>
+      </div>`;
+    }
   } finally {
     setShellNavBusy(false);
   }
