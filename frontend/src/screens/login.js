@@ -17,7 +17,7 @@ export const loginScreen = {
           </div>
           <header class="ds-page-header ds-page-header--login" aria-labelledby="loginHeading">
             <h1 id="loginHeading" class="ds-page-header__title">כניסה למערכת</h1>
-            <p class="ds-page-header__subtitle">${systemTitle} — התחברות מאובטחת</p>
+            <p class="ds-page-header__subtitle">${systemTitle}</p>
           </header>
 
           <form id="loginForm" class="login-form">

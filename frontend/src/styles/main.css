@@ -2514,7 +2514,7 @@ span.ds-chip {
 
 .login-card .login-form input {
   width: 100%;
-  max-width: 280px;
+  max-width: 168px;
   margin-inline: auto;
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-sm);
