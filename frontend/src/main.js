@@ -180,6 +180,7 @@ function applySettingsToRoutes(routes, settings = state.clientSettings) {
   const seen = new Set();
   return (Array.isArray(routes) ? routes : []).filter((route) => {
     if (!route || blocked.has(route) || seen.has(route)) return false;
+    if (!screens[route]) return false;
     seen.add(route);
     return true;
   });
@@ -195,8 +196,9 @@ function isAllowedRoute(route) {
 }
 
 function resolveAllowedDefaultRoute(preferred, routes) {
-  if (preferred && Array.isArray(routes) && routes.includes(preferred)) return preferred;
-  return (Array.isArray(routes) && routes[0]) || 'my-data';
+  const knownRoutes = Array.isArray(routes) ? routes.filter((r) => !!screens[r]) : [];
+  if (preferred && screens[preferred] && knownRoutes.includes(preferred)) return preferred;
+  return knownRoutes[0] || 'my-data';
 }
 
 function systemNameRaw() {
@@ -550,7 +552,14 @@ async function mountScreen() {
     closeMobileNav();
   }
 
-  const screen = screens[state.route];
+  let screen = screens[state.route];
+  if (!screen) {
+    const fallback = effectiveRoutes().find((r) => screens[r]);
+    if (fallback) {
+      state.route = fallback;
+      screen = screens[fallback];
+    }
+  }
   if (!screen) throw new Error('מסך לא זמין');
 
   const cacheKey = screenDataCacheKey();
