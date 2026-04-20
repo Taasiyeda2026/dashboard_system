@@ -66,6 +66,212 @@ function countActiveByTypeInYm_(rows, ym, activityType) {
   }).length;
 }
 
+function parseCsvSetting_(raw) {
+  var t = text_(raw);
+  if (!t) return [];
+  if (t.charAt(0) === '[') {
+    try {
+      var parsed = JSON.parse(t);
+      if (Object.prototype.toString.call(parsed) === '[object Array]') {
+        return parsed.map(text_).filter(Boolean);
+      }
+    } catch (e) {}
+  }
+  return t.split(',').map(function(v) { return text_(v); }).filter(Boolean);
+}
+
+function normalizeActivitySourceName_(value) {
+  var t = text_(value).toLowerCase();
+  if (t === 'data_short' || t === 'short') return CONFIG.SHEETS.DATA_SHORT;
+  if (t === 'data_long' || t === 'long') return CONFIG.SHEETS.DATA_LONG;
+  return '';
+}
+
+function getSettingText_(key, fallback) {
+  var map = readActiveSettingsMap_();
+  var v = text_(map[key]);
+  return v || text_(fallback);
+}
+
+function getSettingBool_(key, defaultValue) {
+  var map = readActiveSettingsMap_();
+  if (!Object.prototype.hasOwnProperty.call(map, key)) return !!defaultValue;
+  return yesNo_(map[key]) === 'yes';
+}
+
+function configuredActivitySources_(settingKey, fallbackSources) {
+  var map = readActiveSettingsMap_();
+  var configured = parseCsvSetting_(map[settingKey]);
+  var out = [];
+  configured.forEach(function(src) {
+    var normalized = normalizeActivitySourceName_(src);
+    if (normalized && out.indexOf(normalized) < 0) out.push(normalized);
+  });
+  if (!out.length) {
+    (fallbackSources || [CONFIG.SHEETS.DATA_SHORT, CONFIG.SHEETS.DATA_LONG]).forEach(function(src) {
+      var normalized = normalizeActivitySourceName_(src);
+      if (normalized && out.indexOf(normalized) < 0) out.push(normalized);
+    });
+  }
+  return out;
+}
+
+function configuredProgramActivityTypes_() {
+  var list = parseCsvSetting_(readActiveSettingsMap_().program_activity_types);
+  return list.length ? list : (CONFIG.DEFAULT_PROGRAM_ACTIVITY_TYPES || ['course', 'after_school']);
+}
+
+function configuredOneDayActivityTypes_() {
+  var list = parseCsvSetting_(readActiveSettingsMap_().one_day_activity_types);
+  return list.length ? list : (CONFIG.DEFAULT_ONE_DAY_ACTIVITY_TYPES || ['workshop', 'tour', 'escape_room']);
+}
+
+function configuredExceptionPriority_() {
+  var allowed = {
+    missing_instructor: true,
+    missing_start_date: true,
+    late_end_date: true
+  };
+  var list = parseCsvSetting_(readActiveSettingsMap_().exceptions_priority)
+    .map(function(v) { return text_(v).toLowerCase(); })
+    .filter(function(v) { return !!allowed[v]; });
+  if (!list.length) {
+    list = ['missing_instructor', 'missing_start_date', 'late_end_date'];
+  }
+  var unique = [];
+  list.forEach(function(v) {
+    if (unique.indexOf(v) < 0) unique.push(v);
+  });
+  return unique;
+}
+
+function rowExceptionTypes_(row) {
+  var out = [];
+  if (!text_(row.emp_id) && !text_(row.emp_id_2)) out.push('missing_instructor');
+  if (!text_(row.start_date)) out.push('missing_start_date');
+  if (text_(row.end_date) > getLateEndDateCutoff_()) out.push('late_end_date');
+  return out;
+}
+
+function primaryExceptionForRow_(row) {
+  var types = rowExceptionTypes_(row);
+  if (!types.length) return '';
+  var rule = getSettingText_('exceptions_primary_rule', 'first_by_priority');
+  if (rule === 'first_found') {
+    return types[0];
+  }
+  var priority = configuredExceptionPriority_();
+  for (var i = 0; i < priority.length; i++) {
+    if (types.indexOf(priority[i]) >= 0) return priority[i];
+  }
+  return types[0];
+}
+
+function configuredDropdownSourceSheet_() {
+  var fromSettings = text_(readActiveSettingsMap_().dropdown_source_sheet);
+  return fromSettings || CONFIG.SHEETS.LISTS;
+}
+
+function configuredInstructorsSources_() {
+  return configuredActivitySources_('instructors_screen_sources', [CONFIG.SHEETS.DATA_SHORT, CONFIG.SHEETS.DATA_LONG]);
+}
+
+function configuredActivitiesSources_() {
+  return configuredActivitySources_('activities_data_sources', [CONFIG.SHEETS.DATA_SHORT, CONFIG.SHEETS.DATA_LONG]);
+}
+
+function configuredInstructorContactsSourceSheet_() {
+  var v = text_(readActiveSettingsMap_().instructor_contacts_source);
+  return v || CONFIG.SHEETS.CONTACTS_INSTRUCTORS;
+}
+
+function configuredSchoolContactsSourceSheet_() {
+  var v = text_(readActiveSettingsMap_().school_contacts_source);
+  return v || CONFIG.SHEETS.SCHOOLS;
+}
+
+function normalizeDateTextToIso_(value) {
+  if (value === null || value === undefined || value === '') return '';
+  var t = text_(value);
+  if (!t) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  var m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/.exec(t);
+  if (m) {
+    var d = ('0' + parseInt(m[1], 10)).slice(-2);
+    var mo = ('0' + parseInt(m[2], 10)).slice(-2);
+    var y = m[3];
+    var iso = y + '-' + mo + '-' + d;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  }
+  return '';
+}
+
+function activityDateColumnsFromRow_(row) {
+  var out = [];
+  for (var i = 1; i <= 35; i++) {
+    var key = 'Date' + i;
+    var iso = normalizeDateTextToIso_(row[key]);
+    if (!iso) continue;
+    out.push(iso);
+  }
+  return out;
+}
+
+function activityStartDateFromRow_(row) {
+  return normalizeDateTextToIso_(row.Date1);
+}
+
+function activityEndDateFromRow_(row) {
+  var dates = activityDateColumnsFromRow_(row);
+  if (!dates.length) return '';
+  dates.sort();
+  return dates[dates.length - 1];
+}
+
+function appendDateColumnsToMappedRow_(mapped, sourceRow) {
+  for (var i = 1; i <= 35; i++) {
+    var key = 'Date' + i;
+    mapped[key] = normalizeDateTextToIso_(sourceRow[key]);
+  }
+  mapped.start_date = activityStartDateFromRow_(sourceRow);
+  mapped.end_date = activityEndDateFromRow_(sourceRow);
+  return mapped;
+}
+
+function dateColumnsPatchFromActivityPayload_(activity) {
+  var patch = {};
+  var hasExplicitDateCols = false;
+  for (var i = 1; i <= 35; i++) {
+    var key = 'Date' + i;
+    if (Object.prototype.hasOwnProperty.call(activity || {}, key)) {
+      patch[key] = normalizeDateTextToIso_(activity[key]);
+      hasExplicitDateCols = true;
+    }
+  }
+  if (!hasExplicitDateCols) {
+    patch.Date1 = normalizeDateTextToIso_(activity && activity.start_date);
+    if (normalizeDateTextToIso_(activity && activity.end_date) && normalizeDateTextToIso_(activity && activity.end_date) !== patch.Date1) {
+      patch.Date2 = normalizeDateTextToIso_(activity && activity.end_date);
+    }
+  }
+  return patch;
+}
+
+function dateColumnsPatchFromChanges_(changes) {
+  var patch = {};
+  var hasDateColumns = false;
+  Object.keys(changes || {}).forEach(function(key) {
+    if (/^Date([1-9]|[12]\d|3[0-5])$/.test(key)) {
+      patch[key] = normalizeDateTextToIso_(changes[key]);
+      hasDateColumns = true;
+    }
+  });
+  if (!hasDateColumns && Object.prototype.hasOwnProperty.call(changes || {}, 'start_date')) {
+    patch.Date1 = normalizeDateTextToIso_(changes.start_date);
+  }
+  return patch;
+}
+
 function actionDashboard_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
@@ -73,18 +279,26 @@ function actionDashboard_(user, payload) {
 
   var shortAll = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
   var longAll = buildLongRows_();
-  var shortRows = shortAll.filter(function(row) {
+  var shortRowsBySource = shortAll.filter(function(row) {
     return activityOverlapsYm_(row, ym);
   });
-  var longRows = longAll.filter(function(row) {
+  var longRowsBySource = longAll.filter(function(row) {
     return activityOverlapsYm_(row, ym);
   });
 
-  var combined = shortRows.concat(longRows);
+  var combined = shortRowsBySource.concat(longRowsBySource);
+  var oneDayTypes = configuredOneDayActivityTypes_();
+  var programTypes = configuredProgramActivityTypes_();
+  var shortRows = combined.filter(function(row) {
+    return oneDayTypes.indexOf(text_(row.activity_type)) >= 0;
+  });
+  var longRows = combined.filter(function(row) {
+    return programTypes.indexOf(text_(row.activity_type)) >= 0;
+  });
   var uniqueInstructorCount = countUniqueOperationalInstructors_(combined);
 
   var byManager = {};
-  shortRows.forEach(function(row) {
+  combined.forEach(function(row) {
     var manager = text_(row.activity_manager) || 'unassigned';
     if (!byManager[manager]) {
       byManager[manager] = {
@@ -94,22 +308,14 @@ function actionDashboard_(user, payload) {
         total: 0
       };
     }
-    byManager[manager].total_short += 1;
-    byManager[manager].total += 1;
-  });
-
-  longRows.forEach(function(row) {
-    var manager = text_(row.activity_manager) || 'unassigned';
-    if (!byManager[manager]) {
-      byManager[manager] = {
-        activity_manager: manager,
-        total_short: 0,
-        total_long: 0,
-        total: 0
-      };
+    var t = text_(row.activity_type);
+    if (oneDayTypes.indexOf(t) >= 0) {
+      byManager[manager].total_short += 1;
+      byManager[manager].total += 1;
+    } else if (programTypes.indexOf(t) >= 0) {
+      byManager[manager].total_long += 1;
+      byManager[manager].total += 1;
     }
-    byManager[manager].total_long += 1;
-    byManager[manager].total += 1;
   });
 
   // Compute per-manager extended stats
@@ -125,10 +331,7 @@ function actionDashboard_(user, payload) {
       return normalizeFinance_(r.finance_status) === 'open';
     }).length;
     byManager[manager].exceptions = mLong.filter(function(r) {
-      if (!text_(r.emp_id) && !text_(r.emp_id_2)) return true;
-      if (!text_(r.start_date)) return true;
-      if (text_(r.end_date) > getLateEndDateCutoff_()) return true;
-      return false;
+      return !!primaryExceptionForRow_(r);
     }).length;
   });
 
@@ -142,20 +345,12 @@ function actionDashboard_(user, payload) {
 
   var exceptionSum = 0;
   longRows.forEach(function(row) {
-    var t = '';
-    if (!text_(row.emp_id) && !text_(row.emp_id_2)) {
-      t = 'x';
-    } else if (!text_(row.start_date)) {
-      t = 'x';
-    } else if (text_(row.end_date) > getLateEndDateCutoff_()) {
-      t = 'x';
-    }
-    if (t) exceptionSum += 1;
+    if (primaryExceptionForRow_(row)) exceptionSum += 1;
   });
 
   var kpi_cards = [
-    { id: 'short', action: 'kpi|short', title: String(shortRows.length), subtitle: 'פעילויות קצרות', value: shortRows.length },
-    { id: 'long', action: 'kpi|long', title: String(longRows.length), subtitle: 'פעילויות ארוכות', value: longRows.length },
+    { id: 'short', action: 'kpi|short', title: String(shortRows.length), subtitle: 'חד-יומי', value: shortRows.length },
+    { id: 'long', action: 'kpi|long', title: String(longRows.length), subtitle: 'תוכניות', value: longRows.length },
     {
       id: 'active_courses',
       action: 'kpi|active_courses',
@@ -245,11 +440,10 @@ function actionActivities_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
   var allRows = allActivities_();
-  var meetingsByRow = buildMeetingsMap_();
   var today = formatDate_(new Date());
   var typeKeys = listValuesForName_('activity_type');
   if (!typeKeys.length) {
-    typeKeys = ['course', 'workshop', 'after_school', 'escape_room', 'tour'];
+    typeKeys = configuredProgramActivityTypes_().concat(configuredOneDayActivityTypes_());
   }
   var activityTypeCounts = {};
   typeKeys.forEach(function(t) {
@@ -281,18 +475,12 @@ function actionActivities_(user, payload) {
     rows: rows.map(function(row) {
       var noteKey = row.source_sheet + '|' + row.RowID;
       var noteRow = noteMap[noteKey];
-      var meetingDates = (meetingsByRow[row.RowID] || []).slice();
-      if (!meetingDates.length) {
-        var fallbackStart = text_(row.start_date);
-        var fallbackEnd = text_(row.end_date || row.start_date);
-        if (fallbackStart) meetingDates.push(fallbackStart);
-        if (fallbackEnd && fallbackEnd !== fallbackStart) meetingDates.push(fallbackEnd);
-      }
+      var meetingDates = activityDateColumnsFromRow_(row).slice();
       meetingDates = meetingDates.filter(function(v, i, arr) {
         return !!v && arr.indexOf(v) === i;
       }).sort();
-      var computedStartDate = meetingDates.length ? meetingDates[0] : text_(row.start_date);
-      var computedEndDate = meetingDates.length ? meetingDates[meetingDates.length - 1] : text_(row.end_date || row.start_date);
+      var computedStartDate = normalizeDateTextToIso_(row.Date1);
+      var computedEndDate = meetingDates.length ? meetingDates[meetingDates.length - 1] : '';
       var meetingSchedule = meetingDates.map(function(dateKey) {
         return {
           date: dateKey,
@@ -331,6 +519,41 @@ function actionActivities_(user, payload) {
         meetings_total: meetingSchedule.length,
         meetings_done: meetingsDone,
         meetings_remaining: Math.max(meetingSchedule.length - meetingsDone, 0),
+        Date1: normalizeDateTextToIso_(row.Date1),
+        Date2: normalizeDateTextToIso_(row.Date2),
+        Date3: normalizeDateTextToIso_(row.Date3),
+        Date4: normalizeDateTextToIso_(row.Date4),
+        Date5: normalizeDateTextToIso_(row.Date5),
+        Date6: normalizeDateTextToIso_(row.Date6),
+        Date7: normalizeDateTextToIso_(row.Date7),
+        Date8: normalizeDateTextToIso_(row.Date8),
+        Date9: normalizeDateTextToIso_(row.Date9),
+        Date10: normalizeDateTextToIso_(row.Date10),
+        Date11: normalizeDateTextToIso_(row.Date11),
+        Date12: normalizeDateTextToIso_(row.Date12),
+        Date13: normalizeDateTextToIso_(row.Date13),
+        Date14: normalizeDateTextToIso_(row.Date14),
+        Date15: normalizeDateTextToIso_(row.Date15),
+        Date16: normalizeDateTextToIso_(row.Date16),
+        Date17: normalizeDateTextToIso_(row.Date17),
+        Date18: normalizeDateTextToIso_(row.Date18),
+        Date19: normalizeDateTextToIso_(row.Date19),
+        Date20: normalizeDateTextToIso_(row.Date20),
+        Date21: normalizeDateTextToIso_(row.Date21),
+        Date22: normalizeDateTextToIso_(row.Date22),
+        Date23: normalizeDateTextToIso_(row.Date23),
+        Date24: normalizeDateTextToIso_(row.Date24),
+        Date25: normalizeDateTextToIso_(row.Date25),
+        Date26: normalizeDateTextToIso_(row.Date26),
+        Date27: normalizeDateTextToIso_(row.Date27),
+        Date28: normalizeDateTextToIso_(row.Date28),
+        Date29: normalizeDateTextToIso_(row.Date29),
+        Date30: normalizeDateTextToIso_(row.Date30),
+        Date31: normalizeDateTextToIso_(row.Date31),
+        Date32: normalizeDateTextToIso_(row.Date32),
+        Date33: normalizeDateTextToIso_(row.Date33),
+        Date34: normalizeDateTextToIso_(row.Date34),
+        Date35: normalizeDateTextToIso_(row.Date35),
         private_note: user.display_role === 'operations_reviewer' && noteRow && yesNo_(noteRow.active) === 'yes'
           ? text_(noteRow.note_text)
           : ''
@@ -351,6 +574,8 @@ function actionWeek_(user, payload) {
   var weekOffset = parseInt((payload && payload.week_offset) || 0, 10) || 0;
   var anchor = shiftDate_(startOfWeekContaining_(today, startDay), weekOffset * 7);
   var showSat = settingShowShabbat_();
+  var hideSatColumn = getSettingBool_('week_hide_saturday_column', false);
+  if (hideSatColumn) showSat = false;
   var calRows = visibleActivitiesForUser_(user);
   var meetingsMap = buildMeetingsMap_();
   var fromDate = formatDate_(anchor);
@@ -379,6 +604,7 @@ function actionWeek_(user, payload) {
     items_by_id: itemsById,
     week_starts_on: startDay,
     show_shabbat: showSat,
+    week_hide_saturday_column: hideSatColumn,
     week_offset: weekOffset
   };
 }
@@ -422,7 +648,7 @@ function actionMonth_(user, payload) {
     month: year + '-' + (mm < 10 ? '0' : '') + mm,
     cells: cells,
     items_by_id: itemsById,
-    hide_saturday: !settingShowShabbat_()
+    hide_saturday: false
   };
 }
 
@@ -438,15 +664,7 @@ function actionExceptions_(user) {
   var result = [];
 
   rows.forEach(function(row) {
-    var exceptionType = '';
-    if (!text_(row.emp_id) && !text_(row.emp_id_2)) {
-      exceptionType = 'missing_instructor';
-    } else if (!text_(row.start_date)) {
-      exceptionType = 'missing_start_date';
-    } else if (text_(row.end_date) > getLateEndDateCutoff_()) {
-      exceptionType = 'late_end_date';
-    }
-
+    var exceptionType = primaryExceptionForRow_(row);
     if (!exceptionType) return;
 
     counts[exceptionType] += 1;
@@ -461,7 +679,7 @@ function actionExceptions_(user) {
   return {
     rows: result,
     counts: counts,
-    priority: ['missing_instructor', 'missing_start_date', 'late_end_date']
+    priority: configuredExceptionPriority_()
   };
 }
 
@@ -469,7 +687,8 @@ function actionFinance_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
   var today = formatDate_(new Date());
-  var rule = text_(readActiveSettingsMap_().finance_display_rule);
+  var rule = getSettingText_('finance_display_rule', CONFIG.DEFAULT_FINANCE_DISPLAY_RULE || 'ended_until_today');
+  var groupingRule = getSettingText_('finance_grouping_rule', CONFIG.DEFAULT_FINANCE_GROUPING_RULE || 'gafen_by_school_else_funding');
   var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   var dateFrom = text_((payload || {}).date_from || '');
   var dateTo = text_((payload || {}).date_to || '');
@@ -560,6 +779,7 @@ function actionFinance_(user, payload) {
 
   return {
     rows: mappedRows,
+    finance_grouping_rule: groupingRule,
     aggregates: {
       total: mappedRows.length,
       totalOpen: totalOpen,
@@ -589,7 +809,7 @@ function actionContacts_(user) {
     throw new Error('Forbidden');
   }
 
-  var schoolRows = readRows_(CONFIG.SHEETS.SCHOOLS).map(function(row) {
+  var schoolRows = readRows_(configuredSchoolContactsSourceSheet_()).map(function(row) {
     return {
       kind: 'school',
       emp_id: '',
@@ -614,7 +834,7 @@ function actionInstructorContacts_(user) {
   }
 
   return {
-    rows: readRows_(CONFIG.SHEETS.CONTACTS_INSTRUCTORS).map(function(row) {
+    rows: readRows_(configuredInstructorContactsSourceSheet_()).map(function(row) {
       return {
         emp_id: text_(row.emp_id),
         full_name: text_(row.full_name),
@@ -693,13 +913,16 @@ function computeNonAdminRoleDefaults_() {
       view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
       view_instructors: 'yes', view_exceptions: 'yes', view_finance: 'yes',
       view_edit_requests: 'yes', view_final_approvals: 'yes',
-      can_edit_direct: 'yes', can_review_requests: 'yes'
+      can_edit_direct: 'yes', can_add_activity: 'yes', can_review_requests: 'yes'
     },
     authorized_user: {
       view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
-      can_add_activity: 'yes', can_edit_direct: 'yes'
+      can_add_activity: 'no', can_edit_direct: 'no'
     },
-    instructor: {}
+    instructor: {
+      can_edit_direct: 'no',
+      can_add_activity: 'no'
+    }
   };
   var settingsMap = readActiveSettingsMap_();
   var nonAdminRoles = ['operations_reviewer', 'authorized_user', 'instructor'];
@@ -794,6 +1017,7 @@ function actionAddActivity_(user, payload) {
     finance_status: normalizeFinance_(activity.finance_status),
     finance_notes: text_(activity.finance_notes)
   };
+  var dateCols = dateColumnsPatchFromActivityPayload_(activity);
 
   if (targetSheet === CONFIG.SHEETS.DATA_SHORT) {
     appendRow_(targetSheet, {
@@ -813,11 +1037,45 @@ function actionAddActivity_(user, payload) {
       instructor_name: common.instructor_name,
       emp_id_2: text_(activity.emp_id_2),
       instructor_name_2: text_(activity.instructor_name_2),
-      start_date: text_(activity.start_date),
+      Date1: dateCols.Date1 || '',
+      Date2: dateCols.Date2 || '',
       status: common.status,
       notes: common.notes,
       finance_status: common.finance_status,
-      finance_notes: common.finance_notes
+      finance_notes: common.finance_notes,
+      Date3: dateCols.Date3 || '',
+      Date4: dateCols.Date4 || '',
+      Date5: dateCols.Date5 || '',
+      Date6: dateCols.Date6 || '',
+      Date7: dateCols.Date7 || '',
+      Date8: dateCols.Date8 || '',
+      Date9: dateCols.Date9 || '',
+      Date10: dateCols.Date10 || '',
+      Date11: dateCols.Date11 || '',
+      Date12: dateCols.Date12 || '',
+      Date13: dateCols.Date13 || '',
+      Date14: dateCols.Date14 || '',
+      Date15: dateCols.Date15 || '',
+      Date16: dateCols.Date16 || '',
+      Date17: dateCols.Date17 || '',
+      Date18: dateCols.Date18 || '',
+      Date19: dateCols.Date19 || '',
+      Date20: dateCols.Date20 || '',
+      Date21: dateCols.Date21 || '',
+      Date22: dateCols.Date22 || '',
+      Date23: dateCols.Date23 || '',
+      Date24: dateCols.Date24 || '',
+      Date25: dateCols.Date25 || '',
+      Date26: dateCols.Date26 || '',
+      Date27: dateCols.Date27 || '',
+      Date28: dateCols.Date28 || '',
+      Date29: dateCols.Date29 || '',
+      Date30: dateCols.Date30 || '',
+      Date31: dateCols.Date31 || '',
+      Date32: dateCols.Date32 || '',
+      Date33: dateCols.Date33 || '',
+      Date34: dateCols.Date34 || '',
+      Date35: dateCols.Date35 || ''
     });
   } else {
     appendRow_(targetSheet, {
@@ -835,19 +1093,46 @@ function actionAddActivity_(user, payload) {
       end_time: common.end_time,
       emp_id: common.emp_id,
       instructor_name: common.instructor_name,
-      start_date: text_(activity.start_date),
-      end_date: text_(activity.end_date),
+      Date1: dateCols.Date1 || '',
       status: common.status,
       notes: common.notes,
       finance_status: common.finance_status,
-      finance_notes: common.finance_notes
+      finance_notes: common.finance_notes,
+      Date2: dateCols.Date2 || '',
+      Date3: dateCols.Date3 || '',
+      Date4: dateCols.Date4 || '',
+      Date5: dateCols.Date5 || '',
+      Date6: dateCols.Date6 || '',
+      Date7: dateCols.Date7 || '',
+      Date8: dateCols.Date8 || '',
+      Date9: dateCols.Date9 || '',
+      Date10: dateCols.Date10 || '',
+      Date11: dateCols.Date11 || '',
+      Date12: dateCols.Date12 || '',
+      Date13: dateCols.Date13 || '',
+      Date14: dateCols.Date14 || '',
+      Date15: dateCols.Date15 || '',
+      Date16: dateCols.Date16 || '',
+      Date17: dateCols.Date17 || '',
+      Date18: dateCols.Date18 || '',
+      Date19: dateCols.Date19 || '',
+      Date20: dateCols.Date20 || '',
+      Date21: dateCols.Date21 || '',
+      Date22: dateCols.Date22 || '',
+      Date23: dateCols.Date23 || '',
+      Date24: dateCols.Date24 || '',
+      Date25: dateCols.Date25 || '',
+      Date26: dateCols.Date26 || '',
+      Date27: dateCols.Date27 || '',
+      Date28: dateCols.Date28 || '',
+      Date29: dateCols.Date29 || '',
+      Date30: dateCols.Date30 || '',
+      Date31: dateCols.Date31 || '',
+      Date32: dateCols.Date32 || '',
+      Date33: dateCols.Date33 || '',
+      Date34: dateCols.Date34 || '',
+      Date35: dateCols.Date35 || ''
     });
-
-    if (Array.isArray(activity.meetings) && activity.meetings.length) {
-      setMeetings_(rowId, activity.meetings);
-    } else {
-      setMeetingsFromRange_(rowId, text_(activity.start_date), text_(activity.end_date));
-    }
   }
 
   scriptCacheInvalidateDataViews_();
@@ -866,6 +1151,13 @@ function actionSaveActivity_(user, payload) {
   if (!sourceRowId) throw new Error('source_row_id is required');
 
   var permission = getPermissionRow_(user.user_id);
+  if (user.display_role === 'instructor') {
+    throw new Error('Forbidden');
+  }
+  var datePatch = dateColumnsPatchFromChanges_(changes);
+  Object.keys(datePatch).forEach(function(k) {
+    changes[k] = datePatch[k];
+  });
   if (!effectiveCanEditDirect_(permission, user.display_role)) {
     return actionSubmitEditRequest_(user, {
       source_sheet: sourceSheet,
@@ -876,14 +1168,6 @@ function actionSaveActivity_(user, payload) {
 
   updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
 
-  if (sourceSheet === CONFIG.SHEETS.DATA_LONG) {
-    if (Array.isArray(changes.meetings)) {
-      setMeetings_(sourceRowId, changes.meetings);
-    } else if (changes.start_date || changes.end_date) {
-      setMeetingsFromRange_(sourceRowId, text_(changes.start_date), text_(changes.end_date));
-    }
-  }
-
   scriptCacheInvalidateDataViews_();
   return {
     updated: true,
@@ -893,11 +1177,18 @@ function actionSaveActivity_(user, payload) {
 }
 
 function actionSubmitEditRequest_(user, payload) {
-  requireAnyRole_(user, ['authorized_user', 'instructor']);
+  requireAnyRole_(user, ['authorized_user']);
+  if (user.display_role === 'instructor') {
+    throw new Error('Forbidden');
+  }
 
   var sourceRowId = text_(payload.source_row_id || payload.RowID);
   var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT));
   var changes = payload.changes || {};
+  var datePatch = dateColumnsPatchFromChanges_(changes);
+  Object.keys(datePatch).forEach(function(k) {
+    changes[k] = datePatch[k];
+  });
 
   if (!sourceRowId) throw new Error('source_row_id is required');
   if (sourceRowId.indexOf('SHORT-') !== 0 && sourceRowId.indexOf('LONG-') !== 0) {
@@ -934,6 +1225,10 @@ function actionSubmitEditRequest_(user, payload) {
 
 function actionReviewEditRequest_(user, payload) {
   var permission = getPermissionRow_(user.user_id);
+  var approvalTarget = getSettingText_('approval_target_role', 'operations_reviewer');
+  if (approvalTarget && text_(user.display_role) !== approvalTarget) {
+    throw new Error('Forbidden');
+  }
   if (yesNo_(permission.can_review_requests) !== 'yes') {
     throw new Error('Forbidden');
   }
@@ -1215,7 +1510,14 @@ function allActivities_() {
   if (__rqCache_ && Object.prototype.hasOwnProperty.call(__rqCache_, 'allActivities')) {
     return __rqCache_.allActivities;
   }
-  var list = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_).concat(buildLongRows_());
+  var list = [];
+  configuredActivitiesSources_().forEach(function(sheetName) {
+    if (sheetName === CONFIG.SHEETS.DATA_SHORT) {
+      list = list.concat(readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_));
+    } else if (sheetName === CONFIG.SHEETS.DATA_LONG) {
+      list = list.concat(buildLongRows_());
+    }
+  });
   if (__rqCache_) {
     __rqCache_.allActivities = list;
   }
@@ -1245,17 +1547,7 @@ function buildLongRows_() {
   if (__rqCache_ && __rqCache_.buildLongRows) {
     return __rqCache_.buildLongRows;
   }
-  var rows = readRows_(CONFIG.SHEETS.DATA_LONG).map(mapLongRow_);
-  var meetingsByRow = buildMeetingsMap_();
-
-  var built = rows.map(function(row) {
-    var dates = meetingsByRow[row.RowID] || [];
-    if (dates.length) {
-      row.start_date = dates[0];
-      row.end_date = dates[dates.length - 1];
-    }
-    return row;
-  });
+  var built = readRows_(CONFIG.SHEETS.DATA_LONG).map(mapLongRow_);
   if (__rqCache_) {
     __rqCache_.buildLongRows = built;
   }
@@ -1263,7 +1555,7 @@ function buildLongRows_() {
 }
 
 function mapShortRow_(row) {
-  return {
+  return appendDateColumnsToMappedRow_({
     source_sheet: CONFIG.SHEETS.DATA_SHORT,
     RowID: text_(row.RowID),
     activity_manager: text_(row.activity_manager),
@@ -1281,17 +1573,15 @@ function mapShortRow_(row) {
     instructor_name: text_(row.instructor_name),
     emp_id_2: text_(row.emp_id_2),
     instructor_name_2: text_(row.instructor_name_2),
-    start_date: text_(row.start_date),
-    end_date: text_(row.end_date) || text_(row.start_date),
     status: text_(row.status),
     notes: text_(row.notes),
     finance_status: normalizeFinance_(row.finance_status),
     finance_notes: text_(row.finance_notes)
-  };
+  }, row);
 }
 
 function mapLongRow_(row) {
-  return {
+  return appendDateColumnsToMappedRow_({
     source_sheet: CONFIG.SHEETS.DATA_LONG,
     RowID: text_(row.RowID),
     activity_manager: text_(row.activity_manager),
@@ -1309,13 +1599,11 @@ function mapLongRow_(row) {
     instructor_name: text_(row.instructor_name),
     emp_id_2: text_(row.emp_id_2),
     instructor_name_2: text_(row.instructor_name_2),
-    start_date: text_(row.start_date),
-    end_date: text_(row.end_date),
     status: text_(row.status),
     notes: text_(row.notes),
     finance_status: normalizeFinance_(row.finance_status),
     finance_notes: text_(row.finance_notes)
-  };
+  }, row);
 }
 
 /** מזהי מדריך/ה תפעוליים ייחודיים מתוך שורות פעילות — רק emp_id ו-emp_id_2. */
@@ -1336,7 +1624,7 @@ function countUniqueOperationalInstructors_(activityRows) {
 
 /** מפת העשרה: emp_id -> שורה בגיליון contacts_instructors (תצוגה / פרטי קשר בלבד). */
 function readInstructorContactsEnrichmentMap_() {
-  var rows = readRows_(CONFIG.SHEETS.CONTACTS_INSTRUCTORS);
+  var rows = readRows_(configuredInstructorContactsSourceSheet_());
   var map = {};
   rows.forEach(function(row) {
     var id = text_(row.emp_id);
@@ -1351,7 +1639,14 @@ function readInstructorContactsEnrichmentMap_() {
  * עם שדות תצוגה מהעשרה אופציונלית מ-contacts_instructors או משמות בפעילות.
  */
 function buildOperationalInstructorsPayloadRows_() {
-  var combined = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_).concat(buildLongRows_());
+  var combined = [];
+  configuredInstructorsSources_().forEach(function(sheetName) {
+    if (sheetName === CONFIG.SHEETS.DATA_SHORT) {
+      combined = combined.concat(readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_));
+    } else if (sheetName === CONFIG.SHEETS.DATA_LONG) {
+      combined = combined.concat(buildLongRows_());
+    }
+  });
   var ids = collectUniqueOperationalEmpIds_(combined);
   var enrich = readInstructorContactsEnrichmentMap_();
   var displayNameFromActivity = {};
@@ -1533,7 +1828,7 @@ function updateEditRequestRows_(requestId, patch) {
 
 function listValuesForName_(listName) {
   var target = text_(listName);
-  var rows = readRows_(CONFIG.SHEETS.LISTS);
+  var rows = readRows_(configuredDropdownSourceSheet_());
   var out = [];
   rows.forEach(function(row) {
     if (text_(row.list_name) !== target) return;
@@ -1593,13 +1888,76 @@ function hebrewWeekdayLabel_(jsDay) {
   return names[jsDay] || '';
 }
 
+function buildDropdownOptionsMap_() {
+  var rows = readRows_(configuredDropdownSourceSheet_());
+  var out = {};
+  rows.forEach(function(row) {
+    var listName = text_(row.list_name);
+    var value = text_(row.value || row.display_value || row.val);
+    if (!listName || !value) return;
+    if (!out[listName]) out[listName] = [];
+    if (out[listName].indexOf(value) < 0) out[listName].push(value);
+  });
+  return out;
+}
+
 function buildClientSettingsPayload_() {
   var m = readActiveSettingsMap_();
+  var roleDefaults = computeNonAdminRoleDefaults_();
+  var roleDefaultsBool = {
+    operations_reviewer: {
+      can_edit_direct: (roleDefaults.operations_reviewer || {}).can_edit_direct === 'yes',
+      can_add_activity: (roleDefaults.operations_reviewer || {}).can_add_activity === 'yes'
+    },
+    authorized_user: {
+      can_edit_direct: (roleDefaults.authorized_user || {}).can_edit_direct === 'yes',
+      can_add_activity: (roleDefaults.authorized_user || {}).can_add_activity === 'yes'
+    },
+    instructor: {
+      can_edit_direct: (roleDefaults.instructor || {}).can_edit_direct === 'yes',
+      can_add_activity: (roleDefaults.instructor || {}).can_add_activity === 'yes'
+    }
+  };
   return {
+    system_name: getSettingText_('system_name', CONFIG.SYSTEM_NAME || 'Dashboard Taasiyeda'),
+    data_start_row: getDataStartRow_(),
+    activities_data_sources: configuredActivitiesSources_(),
+    instructors_screen_sources: configuredInstructorsSources_(),
+    instructor_contacts_source: configuredInstructorContactsSourceSheet_(),
+    school_contacts_source: configuredSchoolContactsSourceSheet_(),
+    program_activity_types: configuredProgramActivityTypes_(),
+    one_day_activity_types: configuredOneDayActivityTypes_(),
+    finance_display_rule: getSettingText_('finance_display_rule', CONFIG.DEFAULT_FINANCE_DISPLAY_RULE || 'ended_until_today'),
+    finance_grouping_rule: getSettingText_('finance_grouping_rule', CONFIG.DEFAULT_FINANCE_GROUPING_RULE || 'gafen_by_school_else_funding'),
+    week_start_day: getWeekStartDay_(),
+    show_shabbat: settingShowShabbat_(),
+    week_hide_saturday_column: getSettingBool_('week_hide_saturday_column', false),
+    late_end_date_cutoff: getLateEndDateCutoff_(),
+    show_only_nonzero_kpis: getSettingBool_('show_only_nonzero_kpis', true),
+    use_status_with_dates: getSettingBool_('use_status_with_dates', true),
     hide_emp_id_on_screens: yesNo_(m.hide_emp_id_on_screens) === 'yes',
     hide_activity_no_on_screens: yesNo_(m.hide_activity_no_on_screens) === 'yes',
-    week_start_day: getWeekStartDay_(),
-    show_shabbat: settingShowShabbat_()
+    hide_row_id_in_ui: getSettingBool_('hide_row_id_in_ui', true),
+    hebrew_only_headers: getSettingBool_('hebrew_only_headers', true),
+    exceptions_priority: configuredExceptionPriority_(),
+    exceptions_primary_rule: getSettingText_('exceptions_primary_rule', 'first_by_priority'),
+    all_data_fields_editable: getSettingBool_('all_data_fields_editable', true),
+    constrained_fields_use_dropdown: getSettingBool_('constrained_fields_use_dropdown', true),
+    dropdown_source_sheet: configuredDropdownSourceSheet_(),
+    dropdown_options: buildDropdownOptionsMap_(),
+    instructors_read_only: getSettingBool_('instructors_read_only', true),
+    admin_direct_edit: getSettingBool_('admin_direct_edit', true),
+    operations_direct_edit: getSettingBool_('operations_direct_edit', true),
+    admin_can_add_rows: getSettingBool_('admin_can_add_rows', true),
+    operations_can_add_rows: getSettingBool_('operations_can_add_rows', true),
+    non_admin_edits_require_approval: getSettingBool_('non_admin_edits_require_approval', true),
+    approval_target_role: getSettingText_('approval_target_role', 'operations_reviewer'),
+    operations_default_view_key: getSettingText_('operations_default_view_key', 'view_operations_data'),
+    admin_default_view_key: getSettingText_('admin_default_view_key', 'view_admin'),
+    compact_layout_preferred: getSettingBool_('compact_layout_preferred', true),
+    narrow_boxes_preferred: getSettingBool_('narrow_boxes_preferred', true),
+    prefer_emoji_over_wide_boxes: getSettingBool_('prefer_emoji_over_wide_boxes', true),
+    role_defaults: roleDefaultsBool
   };
 }
 
@@ -1634,16 +1992,14 @@ function buildCalendarIndexForDateRange_(rows, meetingsMap, fromDate, toDate) {
       byDate[dateKey].push(rowId);
     };
 
-    if (text_(row.source_sheet) === CONFIG.SHEETS.DATA_LONG) {
-      var dlist = meetingsMap[rowId] || [];
-      if (dlist.length) {
-        dlist.forEach(addRowToDate);
-        return;
-      }
+    var dlist = activityDateColumnsFromRow_(row);
+    if (dlist.length) {
+      dlist.forEach(addRowToDate);
+      return;
     }
 
-    var startIso = text_(row.start_date);
-    var endIso = text_(row.end_date || row.start_date);
+    var startIso = normalizeDateTextToIso_(row.Date1);
+    var endIso = activityEndDateFromRow_(row);
     eachIsoDateInIntersection_(startIso, endIso, fromIso, toIso, addRowToDate);
   });
 
@@ -1714,9 +2070,9 @@ function actionAdminLists_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer']);
   var rows = [];
   try {
-    var sheet = getSpreadsheet_().getSheetByName(CONFIG.SHEETS.LISTS);
+    var sheet = getSpreadsheet_().getSheetByName(configuredDropdownSourceSheet_());
     if (sheet) {
-      rows = readRows_(CONFIG.SHEETS.LISTS);
+      rows = readRows_(configuredDropdownSourceSheet_());
     }
   } catch(e) {}
 

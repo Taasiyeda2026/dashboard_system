@@ -15,9 +15,13 @@ const COLS = ['RowID', 'activity_name', 'activity_type', 'activity_manager', 'au
 
 export const endDatesScreen = {
   load: ({ api }) => api.endDates(),
-  render(data) {
+  render(data, { state } = {}) {
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const cols = hideRowId
+      ? ['activity_name', 'activity_type', 'activity_manager', 'authority', 'school', 'start_date', 'end_date', 'status']
+      : COLS;
 
     const typeFilters = [...new Set(rows.map((r) => String(r.activity_type || '').trim()).filter(Boolean))].map((t) => ({
       value: t,
@@ -26,13 +30,13 @@ export const endDatesScreen = {
 
     const body = rows.map((row) => {
       const rawType = String(row.activity_type || '').trim();
-      const searchHay = COLS.map((c) => {
+      const searchHay = cols.map((c) => {
         let v = row?.[c] ?? '';
         if (c === 'activity_type') v = visibleActivityCategoryLabel(v);
         return String(v || '');
       }).join(' ');
       return `
-      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}">${COLS.map((c) => {
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}">${cols.map((c) => {
         let v = row?.[c] ?? '';
         if (c === 'activity_type') v = visibleActivityCategoryLabel(v);
         return `<td>${escapeHtml(String(v || '—'))}</td>`;
@@ -44,7 +48,7 @@ export const endDatesScreen = {
       rows.length === 0
         ? dsEmptyState('לא נמצאו רשומות עם תאריך סיום')
         : dsTableWrap(`<table class="ds-table">
-            <thead><tr>${COLS.map((c) => `<th>${escapeHtml(hebrewColumn(c))}</th>`).join('')}</tr></thead>
+            <thead><tr>${cols.map((c) => `<th>${escapeHtml(hebrewColumn(c))}</th>`).join('')}</tr></thead>
             <tbody>${body.join('')}</tbody>
           </table>`);
 
@@ -61,7 +65,7 @@ export const endDatesScreen = {
               ${dsInteractiveCard({
                 variant: 'session',
                 action: `noop:${row.RowID}`,
-                title: `${row.RowID} · ${row.activity_name || '—'}`,
+                title: hideRowId ? `${row.activity_name || '—'}` : `${row.RowID} · ${row.activity_name || '—'}`,
                 subtitle: `סיום: ${row.end_date || '—'}`,
                 meta: visibleActivityCategoryLabel(row.activity_type)
               })}

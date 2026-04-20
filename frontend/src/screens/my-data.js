@@ -14,8 +14,11 @@ import { activityRowDetailHtml } from './shared/activity-detail-html.js';
 
 export const myDataScreen = {
   load: ({ api }) => api.myData(),
-  render(data) {
-    const columns = ['RowID', 'activity_name', 'start_date', 'end_date', 'activity_type'];
+  render(data, { state } = {}) {
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const columns = hideRowId
+      ? ['activity_name', 'start_date', 'end_date', 'activity_type']
+      : ['RowID', 'activity_name', 'start_date', 'end_date', 'activity_type'];
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const narrow = isNarrowViewport();
 
@@ -65,7 +68,7 @@ export const myDataScreen = {
               ${dsInteractiveCard({
                 variant: 'session',
                 action: `mydata:${row.RowID}`,
-                title: `${row.RowID} · ${row.activity_name || 'פעילות'}`,
+                title: hideRowId ? `${row.activity_name || 'פעילות'}` : `${row.RowID} · ${row.activity_name || 'פעילות'}`,
                 subtitle: `${row.start_date || '—'} → ${row.end_date || '—'}`,
                 meta: hebrewActivityType(row.activity_type)
               })}
@@ -94,9 +97,11 @@ export const myDataScreen = {
         const hit = rowById.get(String(rowId));
         if (!hit || !ui) return;
         const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+        const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+        const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
         ui.openDrawer({
-          title: `פירוט ${hit.RowID}`,
-          content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds })
+          title: hideRowId ? 'פירוט פעילות' : `פירוט ${hit.RowID}`,
+          content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo })
         });
       });
       rowNode.addEventListener('keydown', (event) => {
@@ -113,9 +118,11 @@ export const myDataScreen = {
       const hit = rowById.get(String(rowId));
       if (!hit) return;
       const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+      const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+      const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
       ui.openDrawer({
-        title: `פירוט ${hit.RowID}`,
-        content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds })
+        title: hideRowId ? 'פירוט פעילות' : `פירוט ${hit.RowID}`,
+        content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo })
       });
     });
   }

@@ -91,7 +91,7 @@ function activityDotsMeta(n) {
   return `●●●●● +${n - 5}`;
 }
 
-function monthDayDrawerBody(cell, hideEmpIds, canEdit, showPrivateNote) {
+function monthDayDrawerBody(cell, hideEmpIds, hideRowId, hideActivityNo, canEdit, showPrivateNote, settings) {
   const items = Array.isArray(cell?.items) ? cell.items : [];
   if (!items.length) {
     return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(cell?.date || '')}</p>`;
@@ -103,7 +103,14 @@ function monthDayDrawerBody(cell, hideEmpIds, canEdit, showPrivateNote) {
         return `
     <section class="ds-cal-drawer-block" aria-label="${escapeHtml(it.activity_name || 'פעילות')}">
       <h3 class="ds-cal-drawer-block__title">${escapeHtml(it.activity_name || 'פעילות')}</h3>
-      ${activityWorkDrawerHtml(it, { privateNote, canEdit: !!canEdit, hideEmpIds: !!hideEmpIds })}
+      ${activityWorkDrawerHtml(it, {
+        privateNote,
+        canEdit: !!canEdit,
+        hideEmpIds: !!hideEmpIds,
+        hideRowId: !!hideRowId,
+        hideActivityNo: !!hideActivityNo,
+        settings: settings || {}
+      })}
     </section>`;
       }
     )
@@ -139,6 +146,8 @@ export const monthScreen = {
     const todayIso = localYmd();
     const hideSaturday = !!data?.hide_saturday;
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
 
     const weekdayRow = HEBREW_WEEKDAY_SHORT.map(
       (label) => `<div class="ds-cal-wd" role="columnheader">${escapeHtml(label)}</div>`
@@ -196,9 +205,11 @@ export const monthScreen = {
     const currentYm = data?.month || `${y}-${String(mo).padStart(2, '0')}`;
     const monthTitle = monthTitleHebrew(spec);
 
-    const uniqueActs = new Set(safeCells.flatMap((c) => (c.items || []).map((it) => it.RowID))).size;
-    const activeDaysCount = safeCells.filter((c) => (c.items || []).length > 0).length;
-    const totalEvents = safeCells.reduce((s, c) => s + (c.items || []).length, 0);
+    const uniqueActs = new Set(
+      safeCells.flatMap((c) => monthCellItems(c, itemsById).map((it) => it.RowID))
+    ).size;
+    const activeDaysCount = safeCells.filter((c) => monthCellItems(c, itemsById).length > 0).length;
+    const totalEvents = safeCells.reduce((s, c) => s + monthCellItems(c, itemsById).length, 0);
     const monthKpiRow = `<div class="ds-mini-kpi-row">
       <span class="ds-mini-kpi"><strong>${uniqueActs}</strong> פעילויות</span>
       <span class="ds-mini-kpi"><strong>${activeDaysCount}</strong> ימים פעילים</span>
@@ -273,7 +284,15 @@ export const monthScreen = {
       const n = cellItems.length;
       ui.openDrawer({
         title: `יום ${d} · ${cell.date || ''}`,
-        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(cell, hideEmpIds, canEditActivity, showPrivateNote)}`,
+        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(
+          cell,
+          hideEmpIds,
+          hideRowId,
+          hideActivityNo,
+          canEditActivity,
+          showPrivateNote,
+          state?.clientSettings || {}
+        )}`,
         onOpen: canEditActivity ? bindActivityEditForm : undefined
       });
     });

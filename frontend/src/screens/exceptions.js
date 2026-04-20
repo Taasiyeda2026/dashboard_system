@@ -13,12 +13,12 @@ import {
 import { isNarrowViewport } from './shared/responsive.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 
-function exceptionDrawerHtml(row) {
+function exceptionDrawerHtml(row, hideRowId) {
   const typeLabel = hebrewExceptionType(row.exception_type);
   const typeChip = dsStatusChip(typeLabel, exceptionTypeVariant(row.exception_type));
   return `
     <div class="ds-details-grid" dir="rtl">
-      <p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>
+      ${hideRowId ? '' : `<p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>`}
       <p><strong>${escapeHtml(hebrewColumn('exception_type'))}:</strong> ${typeChip}</p>
       <p><strong>${escapeHtml(hebrewColumn('activity_name'))}:</strong> ${escapeHtml(row.activity_name || '—')}</p>
       <p><strong>${escapeHtml(hebrewColumn('end_date'))}:</strong> ${escapeHtml(row.end_date || '—')}</p>
@@ -44,6 +44,7 @@ export const exceptionsScreen = {
     const narrow = isNarrowViewport();
     const searchQ = state?.exceptionsSearch || '';
     const typeFilter = state?.exceptionsTypeFilter || '';
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
 
     let safeRows = applySearch(allRows, searchQ);
     if (typeFilter) {
@@ -65,9 +66,9 @@ export const exceptionsScreen = {
 
     const rows = safeRows.map((row, idx) => {
       const et = String(row.exception_type || '').trim();
-      const searchHay = [row.RowID, hebrewExceptionType(row.exception_type), row.activity_name, row.end_date].join(' ');
+      const searchHay = [hideRowId ? '' : row.RowID, hebrewExceptionType(row.exception_type), row.activity_name, row.end_date].join(' ');
       return `
-      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(et)}" data-exc-idx="${idx}" role="button" tabindex="0"><td>${escapeHtml(row.RowID)}</td><td>${dsStatusChip(hebrewExceptionType(row.exception_type), exceptionTypeVariant(row.exception_type))}</td><td>${escapeHtml(row.activity_name || '—')}</td><td>${escapeHtml(row.end_date || '—')}</td></tr>`;
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(et)}" data-exc-idx="${idx}" role="button" tabindex="0">${hideRowId ? '' : `<td>${escapeHtml(row.RowID)}</td>`}<td>${dsStatusChip(hebrewExceptionType(row.exception_type), exceptionTypeVariant(row.exception_type))}</td><td>${escapeHtml(row.activity_name || '—')}</td><td>${escapeHtml(row.end_date || '—')}</td></tr>`;
     });
 
     const summaryChips = `
@@ -80,7 +81,7 @@ export const exceptionsScreen = {
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו חריגות')
         : dsTableWrap(`<table class="ds-table ds-table--interactive">
-            <thead><tr><th>${escapeHtml(hebrewColumn('RowID'))}</th><th>${escapeHtml(hebrewColumn('exception_type'))}</th><th>${escapeHtml(hebrewColumn('activity_name'))}</th><th>${escapeHtml(hebrewColumn('end_date'))}</th></tr></thead>
+            <thead><tr>${hideRowId ? '' : `<th>${escapeHtml(hebrewColumn('RowID'))}</th>`}<th>${escapeHtml(hebrewColumn('exception_type'))}</th><th>${escapeHtml(hebrewColumn('activity_name'))}</th><th>${escapeHtml(hebrewColumn('end_date'))}</th></tr></thead>
             <tbody>${rows.join('')}</tbody>
           </table>`);
 
@@ -90,14 +91,14 @@ export const exceptionsScreen = {
         : `<div class="ds-compact-list">${safeRows
             .map((row, idx) => {
               const et = String(row.exception_type || '').trim();
-              const searchHay = [row.RowID, hebrewExceptionType(row.exception_type), row.activity_name, row.end_date].join(' ');
+              const searchHay = [hideRowId ? '' : row.RowID, hebrewExceptionType(row.exception_type), row.activity_name, row.end_date].join(' ');
               return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(et)}">
               ${dsInteractiveCard({
                 variant: 'session',
                 action: `exception:${idx}`,
                 title: `${hebrewExceptionType(row.exception_type)}`,
                 subtitle: row.activity_name || '—',
-                meta: `RowID ${row.RowID} · סיום ${row.end_date || '—'}`
+                meta: hideRowId ? `סיום ${row.end_date || '—'}` : `מזהה ${row.RowID} · סיום ${row.end_date || '—'}`
               })}
             </div>`;
             })
@@ -129,6 +130,7 @@ export const exceptionsScreen = {
   },
   bind({ root, data, ui, state, rerender, clearScreenDataCache }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     root.querySelector('[data-back-activities]')?.addEventListener('click', () => {
       state.route = 'activities';
       rerender?.();
@@ -150,8 +152,8 @@ export const exceptionsScreen = {
       const hit = allRows[idx];
       if (!hit || !ui) return;
       ui.openDrawer({
-        title: `חריגה · ${hit.RowID}`,
-        content: exceptionDrawerHtml(hit)
+        title: hideRowId ? 'חריגה' : `חריגה · ${hit.RowID}`,
+        content: exceptionDrawerHtml(hit, hideRowId)
       });
     };
 

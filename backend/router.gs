@@ -4,7 +4,7 @@ function handleGet_() {
   return jsonResponse_({
     ok: validation.ok,
     data: {
-      service: 'dashboard-system',
+      service: getSettingText_('system_name', CONFIG.SYSTEM_NAME || 'Dashboard Taasiyeda'),
       status: validation.ok ? 'ready' : 'missing_sheets',
       missing_sheets: validation.missing
     }

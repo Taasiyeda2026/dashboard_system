@@ -8,6 +8,13 @@ function statusLabel(status) {
   return v ? status : '—';
 }
 
+function statusKind(status) {
+  const v = String(status || '').trim().toLowerCase();
+  if (v === 'closed') return 'success';
+  if (v === 'open') return 'warning';
+  return 'neutral';
+}
+
 function activityHoursLabel(row) {
   const s = String(row.start_time || '').trim();
   const e = String(row.end_time || '').trim();
@@ -24,18 +31,200 @@ function meetingScheduleHtml(row) {
     .map((item) => {
       const d = escapeHtml(String(item?.date || ''));
       const done = String(item?.performed || '').toLowerCase() === 'yes';
-      return `<li>${d} <span class="ds-muted">(${done ? 'בוצע' : 'טרם בוצע'})</span></li>`;
+      return `<li class="ds-meeting-list__item">
+        <span class="ds-meeting-list__date">${d}</span>
+        <span class="ds-meeting-list__state">${done ? 'בוצע' : 'טרם בוצע'}</span>
+      </li>`;
     })
     .join('');
   return `
-    <div>
+    <div class="ds-detail-date-stack">
       <p><strong>כל התאריכים:</strong></p>
-      <ul class="ds-stack" style="margin:.25rem 0 0;padding-inline-start:1.1rem">${items}</ul>
+      <ul class="ds-meeting-list">${items}</ul>
     </div>`;
 }
 
+const EDITABLE_FIELDS_ALL = [
+  'activity_manager',
+  'authority',
+  'school',
+  'activity_type',
+  'activity_no',
+  'activity_name',
+  'sessions',
+  'price',
+  'funding',
+  'start_time',
+  'end_time',
+  'emp_id',
+  'instructor_name',
+  'emp_id_2',
+  'instructor_name_2',
+  'Date1',
+  'Date2',
+  'Date3',
+  'Date4',
+  'Date5',
+  'Date6',
+  'Date7',
+  'Date8',
+  'Date9',
+  'Date10',
+  'Date11',
+  'Date12',
+  'Date13',
+  'Date14',
+  'Date15',
+  'Date16',
+  'Date17',
+  'Date18',
+  'Date19',
+  'Date20',
+  'Date21',
+  'Date22',
+  'Date23',
+  'Date24',
+  'Date25',
+  'Date26',
+  'Date27',
+  'Date28',
+  'Date29',
+  'Date30',
+  'Date31',
+  'Date32',
+  'Date33',
+  'Date34',
+  'Date35',
+  'status',
+  'notes',
+  'finance_status',
+  'finance_notes'
+];
+
+const EDITABLE_FIELDS_BASIC = ['status', 'notes', 'finance_status', 'finance_notes'];
+
+const FIELD_LABELS = {
+  activity_manager: 'מנהל פעילות',
+  authority: 'רשות',
+  school: 'בית ספר',
+  activity_type: 'סוג פעילות',
+  activity_no: 'מספר פעילות',
+  activity_name: 'שם פעילות',
+  sessions: 'כמות מפגשים',
+  price: 'מחיר',
+  funding: 'מימון',
+  start_time: 'שעת התחלה',
+  end_time: 'שעת סיום',
+  emp_id: 'מזהה מדריך 1',
+  instructor_name: 'שם מדריך 1',
+  emp_id_2: 'מזהה מדריך 2',
+  instructor_name_2: 'שם מדריך 2',
+  start_date: 'תאריך התחלה',
+  end_date: 'תאריך סיום',
+  Date1: 'תאריך 1',
+  Date2: 'תאריך 2',
+  Date3: 'תאריך 3',
+  Date4: 'תאריך 4',
+  Date5: 'תאריך 5',
+  Date6: 'תאריך 6',
+  Date7: 'תאריך 7',
+  Date8: 'תאריך 8',
+  Date9: 'תאריך 9',
+  Date10: 'תאריך 10',
+  Date11: 'תאריך 11',
+  Date12: 'תאריך 12',
+  Date13: 'תאריך 13',
+  Date14: 'תאריך 14',
+  Date15: 'תאריך 15',
+  Date16: 'תאריך 16',
+  Date17: 'תאריך 17',
+  Date18: 'תאריך 18',
+  Date19: 'תאריך 19',
+  Date20: 'תאריך 20',
+  Date21: 'תאריך 21',
+  Date22: 'תאריך 22',
+  Date23: 'תאריך 23',
+  Date24: 'תאריך 24',
+  Date25: 'תאריך 25',
+  Date26: 'תאריך 26',
+  Date27: 'תאריך 27',
+  Date28: 'תאריך 28',
+  Date29: 'תאריך 29',
+  Date30: 'תאריך 30',
+  Date31: 'תאריך 31',
+  Date32: 'תאריך 32',
+  Date33: 'תאריך 33',
+  Date34: 'תאריך 34',
+  Date35: 'תאריך 35',
+  status: 'סטטוס',
+  notes: 'הערות',
+  finance_status: 'סטטוס כספים',
+  finance_notes: 'הערות כספים'
+};
+
+function settingsDropdownListName(fieldName) {
+  var map = {
+    activity_type: 'activity_type',
+    funding: 'funding',
+    authority: 'authority',
+    school: 'school',
+    activity_manager: 'activity_manager',
+    status: 'status',
+    finance_status: 'finance_status'
+  };
+  return map[fieldName] || fieldName;
+}
+
+function isListBasedField(fieldName) {
+  return [
+    'activity_type',
+    'funding',
+    'authority',
+    'school',
+    'activity_manager',
+    'status',
+    'finance_status'
+  ].indexOf(fieldName) >= 0;
+}
+
+function editorInputHtml(fieldName, rawValue, settings) {
+  var value = String(rawValue ?? '');
+  var safeValue = escapeHtml(value);
+  var label = FIELD_LABELS[fieldName] || fieldName;
+  var dropdownOptions = settings?.dropdown_options || {};
+  var listName = settingsDropdownListName(fieldName);
+  var options = Array.isArray(dropdownOptions[listName]) ? dropdownOptions[listName] : [];
+  var isDateColumn = /^Date([1-9]|[12]\d|3[0-5])$/.test(fieldName);
+  var canUseDropdown = !!settings?.constrained_fields_use_dropdown && !isDateColumn && (options.length > 0 || isListBasedField(fieldName));
+
+  if (canUseDropdown) {
+    var opts = ['<option value="">—</option>']
+      .concat(
+        options.map(function(optionVal) {
+          var v = String(optionVal || '');
+          var selected = v === value ? ' selected' : '';
+          return '<option value="' + escapeHtml(v) + '"' + selected + '>' + escapeHtml(v) + '</option>';
+        })
+      )
+      .join('');
+    return '<label class="ds-field"><span class="ds-field__label">' + escapeHtml(label) + '</span><select name="' + escapeHtml(fieldName) + '" class="ds-input">' + opts + '</select></label>';
+  }
+
+  if (fieldName === 'notes' || fieldName === 'finance_notes') {
+    return '<label class="ds-field"><span class="ds-field__label">' + escapeHtml(label) + '</span><textarea name="' + escapeHtml(fieldName) + '" class="ds-input" rows="2">' + safeValue + '</textarea></label>';
+  }
+
+  var inputType = 'text';
+  if (fieldName === 'start_date' || fieldName === 'end_date' || isDateColumn) inputType = 'date';
+  if (fieldName === 'sessions' || fieldName === 'price') inputType = 'number';
+  return '<label class="ds-field"><span class="ds-field__label">' + escapeHtml(label) + '</span><input name="' + escapeHtml(fieldName) + '" class="ds-input" type="' + inputType + '" value="' + safeValue + '" /></label>';
+}
+
 /** Detail block for a raw activity row (week/month/my-data style fields). */
-export function activityRowDetailHtml(row, { privateNote = null, hideEmpIds = false, showFinance = true } = {}) {
+export function activityRowDetailHtml(
+  row,
+  { privateNote = null, hideEmpIds = false, hideRowId = false, hideActivityNo = false, showFinance = true } = {}
+) {
   const id1 = String(row.emp_id || '').trim();
   const id2 = String(row.emp_id_2 || '').trim();
   const ids = [id1, id2].filter(Boolean).join(' · ') || '—';
@@ -47,19 +236,30 @@ export function activityRowDetailHtml(row, { privateNote = null, hideEmpIds = fa
   const scheduleLine = meetingScheduleHtml(row);
   const done = Number(row.meetings_done || 0);
   const total = Number(row.meetings_total || 0);
+  const statusText = statusLabel(row.status);
+  const statusClass = statusKind(row.status);
+  const startDate = escapeHtml(row.start_date || '—');
+  const endDate = escapeHtml(row.end_date || '—');
   return `
     <div class="ds-details-grid" dir="rtl">
       <p><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '—')}</p>
-      <p><strong>RowID:</strong> ${escapeHtml(String(row.RowID || ''))}</p>
+      ${hideRowId ? '' : `<p><strong>מזהה שורה:</strong> ${escapeHtml(String(row.RowID || ''))}</p>`}
+      ${hideActivityNo ? '' : `<p><strong>מספר פעילות:</strong> ${escapeHtml(String(row.activity_no || '—'))}</p>`}
       <p><strong>סוג פעילות:</strong> ${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</p>
       <p><strong>בית ספר:</strong> ${escapeHtml(row.school || '—')}</p>
       <p><strong>רשות:</strong> ${escapeHtml(row.authority || '—')}</p>
       <p><strong>מנהל פעילויות:</strong> ${escapeHtml(row.activity_manager || '—')}</p>
       <p><strong>שעות:</strong> ${escapeHtml(activityHoursLabel(row))}</p>
-      <p><strong>תאריכים:</strong> ${escapeHtml(row.start_date || '—')} עד ${escapeHtml(row.end_date || '—')}</p>
+      <div class="ds-detail-date-stack">
+        <p><strong>סטטוס ותאריכים:</strong></p>
+        <div class="ds-date-badges">
+          <span class="ds-chip ds-chip--status ds-chip--status-${statusClass}">${escapeHtml(statusText)}</span>
+          <span class="ds-date-pill">📅 התחלה: ${startDate}</span>
+          <span class="ds-date-pill">🏁 סיום: ${endDate}</span>
+        </div>
+      </div>
       <p><strong>בוצעו מפגשים:</strong> ${escapeHtml(`${done}/${total}`)}</p>
       ${scheduleLine}
-      <p><strong>סטטוס פעילות:</strong> ${escapeHtml(statusLabel(row.status))}</p>
       <p><strong>מדריכים:</strong> ${escapeHtml(instLine)}</p>
       <p><strong>הערות מדריך:</strong> ${escapeHtml(row.notes || '—')}</p>
       ${financeLine}
@@ -72,38 +272,48 @@ export function activityRowDetailHtml(row, { privateNote = null, hideEmpIds = fa
  */
 export function activityWorkDrawerHtml(
   row,
-  { privateNote = null, canEdit = false, hideEmpIds = false, showFinance = true, statusSelect = false, showFinanceFields = true } = {}
+  {
+    privateNote = null,
+    canEdit = false,
+    hideEmpIds = false,
+    hideRowId = false,
+    hideActivityNo = false,
+    showFinance = true,
+    showFinanceFields = true,
+    settings = {}
+  } = {}
 ) {
-  const base = activityRowDetailHtml(row, { privateNote, hideEmpIds, showFinance });
+  const base = activityRowDetailHtml(row, { privateNote, hideEmpIds, hideRowId, hideActivityNo, showFinance });
   if (!canEdit) return base;
   const src = escapeHtml(String(row.source_sheet || '').trim());
   const rid = escapeHtml(String(row.RowID || '').trim());
-  const stRaw = String(row.status ?? '').trim().toLowerCase();
-  const st = escapeHtml(stRaw === 'closed' ? 'closed' : 'open');
-  const notes = escapeHtml(String(row.notes ?? ''));
-  const sd = escapeHtml(String(row.start_date ?? ''));
-  const ed = escapeHtml(String(row.end_date ?? ''));
-  const fin = escapeHtml(String(row.finance_status || 'open'));
-  const finNotes = escapeHtml(String(row.finance_notes ?? ''));
-  const statusInputHtml = statusSelect
-    ? `<select name="status" class="ds-input">
-          <option value="open" ${st === 'open' ? 'selected' : ''}>פתוח</option>
-          <option value="closed" ${st === 'closed' ? 'selected' : ''}>סגור</option>
-        </select>`
-    : `<input name="status" class="ds-input" type="text" value="${escapeHtml(String(row.status ?? ''))}" />`;
-  const financeEditHtml = showFinanceFields
-    ? `<label class="ds-field" style="display:block;margin:.35rem 0">סטטוס כספים (open/closed)<br/><input name="finance_status" class="ds-input" type="text" value="${fin}" /></label>
-      <label class="ds-field" style="display:block;margin:.35rem 0">הערות כספים<br/><textarea name="finance_notes" class="ds-input" rows="2">${finNotes}</textarea></label>`
-    : '';
+  const allFieldsEditable = !!settings?.all_data_fields_editable;
+  var fields = allFieldsEditable ? EDITABLE_FIELDS_ALL.slice() : EDITABLE_FIELDS_BASIC.slice();
+  if (!showFinanceFields) {
+    fields = fields.filter(function(fieldName) {
+      return fieldName !== 'finance_status' && fieldName !== 'finance_notes';
+    });
+  }
+  if (hideEmpIds) {
+    fields = fields.filter(function(fieldName) {
+      return fieldName !== 'emp_id' && fieldName !== 'emp_id_2';
+    });
+  }
+  if (hideActivityNo) {
+    fields = fields.filter(function(fieldName) {
+      return fieldName !== 'activity_no';
+    });
+  }
+  const editorFieldsHtml = fields
+    .map(function(fieldName) {
+      return editorInputHtml(fieldName, row[fieldName], settings);
+    })
+    .join('');
   return `${base}
-    <form class="ds-stack ds-activity-editor" data-edit-activity data-source-sheet="${src}" data-row-id="${rid}" style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(0,0,0,.08)">
-      <h3 class="ds-muted" style="margin:0 0 .5rem">עריכה</h3>
-      <label class="ds-field" style="display:block;margin:.35rem 0">סטטוס<br/>${statusInputHtml}</label>
-      <label class="ds-field" style="display:block;margin:.35rem 0">הערות<br/><textarea name="notes" class="ds-input" rows="2">${notes}</textarea></label>
-      ${financeEditHtml}
-      <label class="ds-field" style="display:block;margin:.35rem 0">תאריך התחלה<br/><input name="start_date" class="ds-input" type="text" value="${sd}" /></label>
-      <label class="ds-field" style="display:block;margin:.35rem 0">תאריך סיום<br/><input name="end_date" class="ds-input" type="text" value="${ed}" /></label>
-      <button type="submit" class="ds-btn ds-btn--primary" style="margin-top:.5rem">שמירה</button>
+    <form class="ds-stack ds-activity-editor" data-edit-activity data-source-sheet="${src}" data-row-id="${rid}">
+      <h3 class="ds-activity-editor__title">✏️ עריכה</h3>
+      ${editorFieldsHtml}
+      <button type="submit" class="ds-btn ds-btn--primary ds-activity-editor__submit">💾 שמירה</button>
       <p class="ds-muted ds-activity-edit-status" role="status"></p>
     </form>`;
 }

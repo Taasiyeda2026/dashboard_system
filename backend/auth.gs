@@ -140,7 +140,14 @@ function buildRoutesFromPermission_(permission, role) {
 }
 
 function defaultRouteForRole_(role) {
-  return role === 'instructor' ? 'my-data' : 'dashboard';
+  if (role === 'instructor') return 'my-data';
+  if (role === 'operations_reviewer') {
+    return viewKeyToRouteId_(getSettingText_('operations_default_view_key', 'view_operations_data')) || 'dashboard';
+  }
+  if (role === 'admin') {
+    return viewKeyToRouteId_(getSettingText_('admin_default_view_key', 'view_admin')) || 'dashboard';
+  }
+  return 'dashboard';
 }
 
 /** מיושר לערכי default_view בגיליון permissions (למשל view_dashboard) */
@@ -176,7 +183,7 @@ function viewKeyToRouteId_(viewKey) {
     view_finance: 'finance',
     permissions: 'permissions',
     view_permissions: 'permissions',
-    view_admin: 'dashboard',
+    view_admin: 'admin-home',
     view_edit_requests: 'permissions',
     view_final_approvals: 'permissions'
   };
@@ -234,17 +241,24 @@ function hasWorkViewForEdit_(permission) {
 
 function effectiveCanEditDirect_(permission, role) {
   if (role === 'instructor') return false;
-  if (role === 'admin') return true;
+  if (role === 'admin') return getSettingBool_('admin_direct_edit', true);
+  if (role === 'operations_reviewer') {
+    return getSettingBool_('operations_direct_edit', true);
+  }
+  if (getSettingBool_('non_admin_edits_require_approval', true)) return false;
   var explicit = text_(permission.can_edit_direct).toLowerCase();
   if (explicit === 'yes') return true;
   if (explicit === 'no') return false;
-  return hasWorkViewForEdit_(permission);
+  return false;
 }
 
 function effectiveCanAddActivity_(permission, role) {
   if (role === 'instructor') return false;
+  if (role === 'admin') return getSettingBool_('admin_can_add_rows', true);
+  if (role === 'operations_reviewer') return getSettingBool_('operations_can_add_rows', true);
+  if (getSettingBool_('non_admin_edits_require_approval', true)) return false;
   var explicit = text_(permission.can_add_activity).toLowerCase();
   if (explicit === 'yes') return true;
   if (explicit === 'no') return false;
-  return yesNo_(permission.view_activities) === 'yes';
+  return false;
 }

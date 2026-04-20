@@ -26,9 +26,10 @@ function avatarInitials(name) {
   return '??';
 }
 
-function instructorDrawerHtml(row) {
+function instructorDrawerHtml(row, hideEmpIds) {
   const columns = ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'];
   const lines = columns.map((col) => {
+    if (hideEmpIds && col === 'emp_id') return '';
     const raw = row?.[col] ?? '';
     if (col === 'active') {
       const label = String(raw).toLowerCase() === 'yes' ? 'כן' : 'לא';
@@ -118,6 +119,7 @@ export const instructorsScreen = {
   },
   bind({ root, data, state, ui, rerender, clearScreenDataCache }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
+    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 
     let _searchTimer;
     root.querySelector('#instructors-search')?.addEventListener('input', (ev) => {
@@ -143,7 +145,7 @@ export const instructorsScreen = {
       if (!hit || !ui) return;
       ui.openDrawer({
         title: hit.full_name || hit.emp_id,
-        content: instructorDrawerHtml(hit)
+        content: instructorDrawerHtml(hit, hideEmpIds)
       });
     };
 

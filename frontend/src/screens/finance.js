@@ -17,6 +17,7 @@ import {
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { showToast } from './shared/toast.js';
 
 const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -91,11 +92,11 @@ function sortRows(rows) {
 ———————————————————————————————— */
 function isGafenFunding(fundingVal) {
   const f = String(fundingVal || '').trim();
-  return f.includes('גפ') || f.toLowerCase().includes('gafan') || f.toLowerCase().includes('gafn') || f.toLowerCase().includes('gafen');
+  return f === 'גפן';
 }
 
-function getGroupKey(row) {
-  if (isGafenFunding(row.funding)) {
+function getGroupKey(row, groupingRule) {
+  if (groupingRule === 'gafen_by_school_else_funding' && isGafenFunding(row.funding)) {
     return `בי"ס: ${String(row.school || '').trim() || 'לא מוגדר'}`;
   }
   return String(row.funding || '').trim() || 'לא מוגדר';
@@ -244,13 +245,13 @@ function buildDatesExpandRowHtml(row, colCount) {
 /* ————————————————————————————————
    Grouped table rendering
 ———————————————————————————————— */
-function buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir) {
+function buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir, groupingRule) {
   if (rows.length === 0) return dsEmptyState('לא נמצאו רשומות');
 
   const sorted = sortRows(rows);
   const groups = {};
   sorted.forEach((r) => {
-    const key = getGroupKey(r);
+    const key = getGroupKey(r, groupingRule);
     if (!groups[key]) groups[key] = [];
     groups[key].push(r);
   });
@@ -609,6 +610,7 @@ export const financeScreen = {
     const canEdit = ['admin', 'operations_reviewer'].includes(state?.user?.display_role);
     const canView = state?.user?.display_role !== 'instructor';
     const isAdmin = state?.user?.display_role === 'admin';
+    const groupingRule = state?.clientSettings?.finance_grouping_rule || data?.finance_grouping_rule || 'gafen_by_school_else_funding';
 
     /* Admin/reviewer can see all tabs; others see active only */
     let baseRows = canEdit ? applyTabFilter(allRows, activeTab) : applyTabFilter(allRows, 'active');
@@ -730,7 +732,7 @@ export const financeScreen = {
 
     const dataBody = viewMode === 'cards'
       ? buildCardsView(rows, canEdit)
-      : buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir);
+      : buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir, groupingRule);
 
     return dsScreenStack(`
       ${dsPageHeader('כספים', headerSubtitle)}
@@ -773,6 +775,8 @@ export const financeScreen = {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const canEdit = ['admin', 'operations_reviewer'].includes(state?.user?.display_role);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
 
     function showDataAreaLoading() {
       const area = root.querySelector('[data-finance-data-area]');
@@ -1048,43 +1052,24 @@ export const financeScreen = {
     });
 
     /* Row click → drawer */
-    function bindFinanceEditForm(contentRoot) {
-      const form = contentRoot.querySelector('[data-edit-activity]');
-      if (!form || !api) return;
-      form.addEventListener('submit', async (ev) => {
-        ev.preventDefault();
-        const statusEl = form.querySelector('.ds-activity-edit-status');
-        const sourceSheet = form.getAttribute('data-source-sheet') || '';
-        const sourceRowId = form.getAttribute('data-row-id') || '';
-        const fd = new FormData(form);
-        const changes = {
-          status: String(fd.get('status') ?? '').trim(),
-          notes: String(fd.get('notes') ?? '').trim(),
-          finance_status: String(fd.get('finance_status') ?? '').trim(),
-          finance_notes: String(fd.get('finance_notes') ?? '').trim(),
-          start_date: String(fd.get('start_date') ?? '').trim(),
-          end_date: String(fd.get('end_date') ?? '').trim()
-        };
-        try {
-          await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
-          if (statusEl) statusEl.textContent = 'נשמר';
-          ui?.closeAll();
-          clearScreenDataCache?.();
-          if (typeof rerender === 'function') await rerender();
-        } catch (err) {
-          if (statusEl) statusEl.textContent = translateApiErrorForUser(err?.message);
-        }
-      });
-    }
+    const bindFinanceEditForm = (contentRoot) =>
+      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
 
     const openDrawer = (hit) => {
       if (!hit || !ui) return;
       const meetingsHtml = buildMeetingsDatesHtml(hit);
       const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
       const privateNote = showPrivateNote ? hit.private_note || '—' : null;
-      const baseHtml = activityWorkDrawerHtml(hit, { privateNote, canEdit, hideEmpIds });
+      const baseHtml = activityWorkDrawerHtml(hit, {
+        privateNote,
+        canEdit,
+        hideEmpIds,
+        hideRowId,
+        hideActivityNo,
+        settings: state?.clientSettings || {}
+      });
       ui.openDrawer({
-        title: `כספים · ${hit.activity_name || hit.RowID}`,
+        title: `כספים · ${hit.activity_name || 'פעילות'}`,
         content: baseHtml + (meetingsHtml ? `<div style="padding:var(--ds-space-3)">${meetingsHtml}</div>` : ''),
         onOpen: canEdit ? bindFinanceEditForm : undefined
       });

@@ -15,33 +15,16 @@ const KEY_PERM_FLAGS = [
   'view_permissions'
 ];
 
-// Hardcoded fallback matching backend/actions.gs nonAdminRoleDefaults.
-// Same { flag: 'yes'/'no' } format as data.roleDefaults from the server.
-// Used only when server data is unavailable (rare, e.g. stale cache transition).
-const ROLE_DEFAULTS_FALLBACK = {
-  operations_reviewer: {
-    view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
-    view_instructors: 'yes', view_exceptions: 'yes', view_finance: 'yes',
-    view_edit_requests: 'yes', view_final_approvals: 'yes',
-    can_edit_direct: 'yes', can_review_requests: 'yes'
-  },
-  authorized_user: {
-    view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
-    can_add_activity: 'yes', can_edit_direct: 'yes'
-  },
-  instructor: {}
-};
-
 /**
  * Renders the role-defaults preview snippet.
  * @param {string} role - e.g. 'authorized_user'
- * @param {Object|null} roleDefaults - server-computed roleDefaults map, or null to use fallback
+ * @param {Object|null} roleDefaults - server-computed roleDefaults map
  */
 function buildRolePreviewHtml(role, roleDefaults) {
   if (role === 'admin') {
     return `<p class="ds-perm-section-label ds-perm-section-label--sub" style="margin-top:var(--space-2,8px)">ברירת מחדל: כל ההרשאות (מנהל/ת מערכת)</p>`;
   }
-  const source = (roleDefaults && roleDefaults[role]) ? roleDefaults[role] : (ROLE_DEFAULTS_FALLBACK[role] || {});
+  const source = (roleDefaults && roleDefaults[role]) ? roleDefaults[role] : {};
   const grantedFlags = Object.keys(source).filter((f) => source[f] === 'yes');
   if (grantedFlags.length === 0) {
     return `<p class="ds-perm-section-label ds-perm-section-label--sub ds-muted" style="margin-top:var(--space-2,8px)">ברירת מחדל: ללא הרשאות</p>`;

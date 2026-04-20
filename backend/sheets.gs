@@ -101,6 +101,9 @@ function readActiveSettingsMap_() {
 }
 
 function getDataStartRow_() {
+  var raw = text_(readActiveSettingsMap_().data_start_row);
+  var n = parseInt(raw, 10);
+  if (!isNaN(n) && n >= 1) return n;
   return CONFIG.DATA_START_ROW;
 }
 

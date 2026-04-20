@@ -1,3 +1,24 @@
+function defaultClientSettings() {
+  return {
+    system_name: 'Dashboard Taasiyeda',
+    week_start_day: 0,
+    show_shabbat: true,
+    week_hide_saturday_column: false,
+    show_only_nonzero_kpis: true,
+    use_status_with_dates: true,
+    hide_emp_id_on_screens: true,
+    hide_activity_no_on_screens: true,
+    hide_row_id_in_ui: true,
+    hebrew_only_headers: true,
+    all_data_fields_editable: true,
+    constrained_fields_use_dropdown: true,
+    compact_layout_preferred: true,
+    narrow_boxes_preferred: true,
+    prefer_emoji_over_wide_boxes: true,
+    dropdown_options: {}
+  };
+}
+
 export const state = {
   token: localStorage.getItem('dashboard_token') || '',
   user: JSON.parse(localStorage.getItem('dashboard_user') || 'null'),
@@ -14,10 +35,11 @@ export const state = {
   weekOffset: 0,
   /** מסך חודש: חודש מוצג בפורמט YYYY-MM; ריק = חודש נוכחי */
   monthYm: '',
-  activityView: 'compact',
+  /** פעילויות: `table` | `compact` — נשמר בלוקאל סטורג' במסך הפעילויות */
+  activityView: 'table',
   financeFilter: '',
   /** הגדרות UI ממקור הנתונים (bootstrap / login) */
-  clientSettings: {},
+  clientSettings: defaultClientSettings(),
   /** @type {Record<string, { data: unknown, t: number }>} */
   screenDataCache: {}
 };
@@ -40,7 +62,7 @@ export function setSession(session) {
     state.dashboardMonthYm = '';
     state.weekOffset = 0;
     state.monthYm = '';
-    state.clientSettings = {};
+    state.clientSettings = defaultClientSettings();
     state.screenDataCache = {};
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
@@ -52,3 +74,5 @@ export function setSession(session) {
   localStorage.setItem('dashboard_token', session.token);
   localStorage.setItem('dashboard_user', JSON.stringify(session.user));
 }
+
+export { defaultClientSettings };
