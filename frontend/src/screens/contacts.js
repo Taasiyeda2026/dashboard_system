@@ -1,13 +1,11 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewColumn, hebrewContactKind } from './shared/ui-hebrew.js';
+import { hebrewColumn } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 
-const DETAIL_COLUMNS = ['kind', 'emp_id', 'full_name', 'authority', 'school', 'contact_name', 'phone', 'mobile', 'email'];
+const DETAIL_COLUMNS = ['authority', 'school', 'contact_name', 'phone', 'mobile', 'email'];
 
 function cellVal(row, column) {
-  let val = row?.[column] ?? '';
-  if (column === 'kind') val = hebrewContactKind(val);
-  return val;
+  return row?.[column] ?? '';
 }
 
 function contactDetailHtml(row) {
@@ -23,29 +21,23 @@ function contactDetailHtml(row) {
 
 function groupBySchool(rows) {
   const schools = new Map();
-  const general = [];
   for (const row of rows) {
     const school = String(row.school || '').trim();
-    if (school) {
-      if (!schools.has(school)) schools.set(school, []);
-      schools.get(school).push(row);
-    } else {
-      general.push(row);
-    }
+    if (!school) continue;
+    if (!schools.has(school)) schools.set(school, []);
+    schools.get(school).push(row);
   }
-  return { schools, general };
+  return schools;
 }
 
 function renderContactRow(row, idx) {
-  const kind = escapeHtml(String(cellVal(row, 'kind') || ''));
-  const name = escapeHtml(row.full_name || row.contact_name || '—');
+  const name = escapeHtml(row.contact_name || '—');
   const phone = escapeHtml(row.phone || row.mobile || '');
   const email = escapeHtml(row.email || '');
   const meta = [phone, email].filter(Boolean).join(' · ');
   return `
     <div class="ci-row" data-contact-idx="${idx}" role="button" tabindex="0" aria-expanded="false">
       <div class="ci-row__main">
-        <span class="ci-row__kind">${kind}</span>
         <span class="ci-row__name">${name}</span>
         ${meta ? `<span class="ci-row__meta">${meta}</span>` : ''}
         <span class="ci-row__toggle" aria-hidden="true">&#9658;</span>
@@ -62,14 +54,12 @@ function applySearch(rows, q) {
   const lq = q.toLowerCase();
   return rows.filter(
     (r) =>
-      String(r.full_name || '').toLowerCase().includes(lq) ||
       String(r.contact_name || '').toLowerCase().includes(lq) ||
       String(r.school || '').toLowerCase().includes(lq) ||
       String(r.authority || '').toLowerCase().includes(lq) ||
       String(r.phone || '').includes(lq) ||
       String(r.mobile || '').includes(lq) ||
-      String(r.email || '').toLowerCase().includes(lq) ||
-      hebrewContactKind(r.kind).includes(lq)
+      String(r.email || '').toLowerCase().includes(lq)
   );
 }
 
@@ -78,22 +68,9 @@ export const contactsScreen = {
   render(data, { state } = {}) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const searchQ = state?.contactsSearch || '';
-    const kindFilter = state?.contactsKindFilter || '';
-
-    let rows = applySearch(allRows, searchQ);
-    if (kindFilter) {
-      rows = rows.filter((r) => String(r.kind || '') === kindFilter);
-    }
-
-    const kinds = [...new Set(allRows.map((r) => String(r.kind || '')).filter(Boolean))];
-    const kindChips = [{ val: '', label: 'הכל' }, ...kinds.map((k) => ({ val: k, label: hebrewContactKind(k) }))]
-      .map(
-        (k) =>
-          `<button type="button" class="ds-chip ${k.val === kindFilter ? 'is-active' : ''}" data-kind-filter="${escapeHtml(k.val)}">${escapeHtml(k.label)}</button>`
-      )
-      .join('');
-
-    const { schools, general } = groupBySchool(rows);
+    const schoolRows = allRows.filter((row) => String(row.school || '').trim());
+    const rows = applySearch(schoolRows, searchQ);
+    const schools = groupBySchool(rows);
 
     let bodyHtml = '';
 
@@ -111,20 +88,10 @@ export const contactsScreen = {
           </div>
         `;
       });
-
-      if (general.length > 0) {
-        const rowsHtml = general.map((r) => renderContactRow(r, globalIdx++)).join('');
-        bodyHtml += `
-          <div class="ci-school-block">
-            <div class="ci-school-head">&#128203; גורמים כלליים <span class="ci-count">${general.length}</span></div>
-            <div class="ci-school-rows">${rowsHtml}</div>
-          </div>
-        `;
-      }
     }
 
     return dsScreenStack(`
-      ${dsPageHeader('אנשי קשר', 'בתי ספר, רשויות וגורמים כלליים')}
+      ${dsPageHeader('אנשי קשר בתי ספר', 'רשימת אנשי קשר לפי בית ספר')}
       <div class="ds-screen-top-row">
         <input
           id="contacts-search"
@@ -135,9 +102,8 @@ export const contactsScreen = {
           dir="rtl"
         />
       </div>
-      <div class="ds-filter-bar" role="toolbar">${kindChips}</div>
       ${dsCard({
-        title: 'אנשי קשר',
+        title: 'אנשי קשר בתי ספר',
         badge: `${rows.length} רשומות`,
         body: `<div class="ci-list">${bodyHtml}</div>`,
         padded: false
@@ -148,13 +114,6 @@ export const contactsScreen = {
     root.querySelector('#contacts-search')?.addEventListener('input', (ev) => {
       state.contactsSearch = ev.target.value || '';
       rerender();
-    });
-
-    root.querySelectorAll('[data-kind-filter]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.contactsKindFilter = btn.dataset.kindFilter || '';
-        rerender();
-      });
     });
 
     root.querySelectorAll('.ci-row').forEach((rowEl) => {
