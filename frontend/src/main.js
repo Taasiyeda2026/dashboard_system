@@ -588,6 +588,12 @@ async function render() {
       return;
     }
     await mountScreen();
+  } catch (err) {
+    if (!state.token) {
+      _pendingRender = true;
+    } else {
+      throw err;
+    }
   } finally {
     _isRendering = false;
     if (_pendingRender) {
