@@ -3527,6 +3527,12 @@ select.ds-input {
   gap: var(--ds-space-3);
 }
 
+.ds-admin-ctrl-grid--3col {
+  grid-template-columns: repeat(3, 1fr);
+  max-width: 560px;
+  margin: 0 auto;
+}
+
 .ds-admin-ctrl-card {
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);

@@ -19,8 +19,7 @@ const SCREEN_META = {
   month:            { label: 'חודש',                    icon: '🗓️' }
 };
 
-const ADMIN_TOOL_ROUTES = ['permissions'];
-const NAV_ROUTES = ['dashboard', 'activities', 'finance', 'exceptions'];
+const ALL_ROUTES = ['dashboard', 'activities', 'finance', 'exceptions', 'permissions'];
 
 export const adminHomeScreen = {
   load: () => Promise.resolve({}),
@@ -28,38 +27,25 @@ export const adminHomeScreen = {
   render(data, { state } = {}) {
     const routes = Array.isArray(state?.routes) ? state.routes : [];
 
-    function navCard(route) {
-      if (!routes.includes(route)) return '';
-      const meta = SCREEN_META[route] || { label: route, icon: '▶' };
-      return `<button type="button" class="ds-admin-ctrl-card ds-admin-ctrl-card--link" data-admin-nav="${escapeHtml(route)}">
-        <span class="ds-admin-ctrl-icon">${meta.icon}</span>
-        <span class="ds-admin-ctrl-title">${escapeHtml(meta.label)}</span>
-      </button>`;
-    }
+    const cards = ALL_ROUTES
+      .filter((r) => routes.includes(r))
+      .map((route) => {
+        const meta = SCREEN_META[route] || { label: route, icon: '▶' };
+        return `<button type="button" class="ds-admin-ctrl-card ds-admin-ctrl-card--link" data-admin-nav="${escapeHtml(route)}">
+          <span class="ds-admin-ctrl-icon">${meta.icon}</span>
+          <span class="ds-admin-ctrl-title">${escapeHtml(meta.label)}</span>
+        </button>`;
+      })
+      .join('');
 
-    const toolCards = ADMIN_TOOL_ROUTES.map(navCard).filter(Boolean).join('');
-    const navCards = NAV_ROUTES.map(navCard).filter(Boolean).join('');
-
-    const toolSection = toolCards
-      ? `<div class="ds-admin-section">
-          <p class="ds-admin-section-heading">כלי ניהול</p>
-          <div class="ds-admin-ctrl-grid">${toolCards}</div>
-        </div>`
-      : '';
-
-    const navSection = navCards
-      ? `<div class="ds-admin-section">
-          <p class="ds-admin-section-heading">ניווט</p>
-          <div class="ds-admin-ctrl-grid">${navCards}</div>
-        </div>`
-      : '';
-
-    const body = toolSection + navSection || dsEmptyState('אין מסכים נגישים');
+    const body = cards
+      ? `<div class="ds-admin-ctrl-grid ds-admin-ctrl-grid--3col">${cards}</div>`
+      : dsEmptyState('אין מסכים נגישים');
 
     return dsScreenStack(`
       ${dsPageHeader('לוח בקרה – מנהל מערכת')}
       <div style="display:flex;justify-content:center;">
-        ${dsCard({ title: 'ניווט וכלי ניהול', body, padded: !(toolSection || navSection) })}
+        ${dsCard({ title: '', body, padded: !!cards })}
       </div>
     `);
   },
