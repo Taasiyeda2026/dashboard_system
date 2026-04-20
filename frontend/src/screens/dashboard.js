@@ -50,11 +50,13 @@ function goFinanceDrill(state, patch = {}) {
   state.financeStatusFilter = patch.financeStatusFilter ?? '';
 }
 
+const ALWAYS_SHOW_KPI_IDS = new Set(['exceptions']);
+
 function filterKpiCards(cards, showOnlyNonzero) {
   const list = Array.isArray(cards) ? cards : [];
   const actionable = list.filter((c) => c && c.action);
   if (!showOnlyNonzero) return actionable;
-  return actionable.filter((c) => Number(c.value || 0) > 0);
+  return actionable.filter((c) => ALWAYS_SHOW_KPI_IDS.has(c.id) || Number(c.value || 0) > 0);
 }
 
 // ─── Admin section (merged from admin-home) ──────────────────────────────────
