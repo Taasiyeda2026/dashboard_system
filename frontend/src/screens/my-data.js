@@ -63,11 +63,12 @@ export const myDataScreen = {
   },
   bind({ root, data, ui, state }) {
     const rows = Array.isArray(data?.rows) ? data.rows : [];
+    const rowById = new Map(rows.map((row) => [String(row.RowID), row]));
 
     root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
       rowNode.addEventListener('click', () => {
         const rowId = rowNode.dataset.rowId;
-        const hit = rows.find((r) => String(r.RowID) === String(rowId));
+        const hit = rowById.get(String(rowId));
         if (!hit || !ui) return;
         const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
         ui.openDrawer({
@@ -86,7 +87,7 @@ export const myDataScreen = {
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('mydata:')) return;
       const rowId = action.slice('mydata:'.length);
-      const hit = rows.find((r) => String(r.RowID) === String(rowId));
+      const hit = rowById.get(String(rowId));
       if (!hit) return;
       const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
       ui.openDrawer({

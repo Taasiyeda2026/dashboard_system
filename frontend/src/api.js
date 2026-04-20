@@ -11,47 +11,147 @@ const MUTATING_ACTIONS = {
   savePrivateNote: true
 };
 
+const MUTATION_INVALIDATION_TARGETS = {
+  // Note edit affects activities list payload only.
+  savePrivateNote: ['activities:'],
+  // Submiting request does not mutate primary activity datasets.
+  submitEditRequest: []
+};
+
+const READ_ACTIONS = {
+  bootstrap: true,
+  dashboard: true,
+  activities: true,
+  week: true,
+  month: true,
+  exceptions: true,
+  finance: true,
+  instructors: true,
+  instructorContacts: true,
+  contacts: true,
+  endDates: true,
+  myData: true,
+  permissions: true
+};
+
+const API_TIMEOUT_MS_READ = 12000;
+const API_TIMEOUT_MS_WRITE = 18000;
+const READ_RETRY_DELAY_MS = 250;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function makeApiError(code, fallbackMessage) {
+  const normalized = String(code || '').toLowerCase().trim() || 'unknown_error';
+  const err = new Error(translateApiErrorForUser(normalized || fallbackMessage || 'server_error'));
+  err.code = normalized;
+  err.userMessage = translateApiErrorForUser(normalized || fallbackMessage || 'server_error');
+  return err;
+}
+
+function normalizeBackendErrorCode(raw) {
+  return String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
+function shouldRetryReadError(errorCode) {
+  return errorCode === 'network_error' || errorCode === 'timeout' || errorCode === 'server_error';
+}
+
+async function postWithTimeout(action, payload, tokenAtCallTime) {
+  const timeoutMs = READ_ACTIONS[action] ? API_TIMEOUT_MS_READ : API_TIMEOUT_MS_WRITE;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(config.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ action, token: tokenAtCallTime, ...payload }),
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw makeApiError('timeout');
+    }
+    throw makeApiError('network_error');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function request(action, payload = {}) {
   if (!config.apiUrl) {
     throw new Error('חסר קישור API. עדכנו frontend/src/config.js או window.__DASHBOARD_CONFIG__.');
   }
+  const tokenAtCallTime = state.token;
+  const maxAttempts = READ_ACTIONS[action] ? 2 : 1;
 
-  let response;
-  try {
-    response = await fetch(config.apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ action, token: state.token, ...payload })
-    });
-  } catch {
-    throw new Error(translateApiErrorForUser('network_error'));
-  }
+  let attempt = 0;
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    try {
+      const response = await postWithTimeout(action, payload, tokenAtCallTime);
+      if (!response.ok) {
+        if (response.status === 401 && state.token === tokenAtCallTime) {
+          setSession(null);
+        }
+        const code = response.status >= 500 ? 'server_error' : 'bad_request';
+        throw makeApiError(code);
+      }
 
-  let json;
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error(translateApiErrorForUser('server_error'));
-  }
-  if (!json.ok) {
-    if ((json.error || '').toLowerCase() === 'unauthorized') {
-      setSession(null);
+      let json;
+      try {
+        json = await response.json();
+      } catch {
+        throw makeApiError('server_error');
+      }
+
+      if (!json.ok) {
+        const code = normalizeBackendErrorCode(json.error);
+        if (code === 'unauthorized' && state.token === tokenAtCallTime) {
+          setSession(null);
+        }
+        throw makeApiError(code || 'server_error', json.error);
+      }
+
+      if (MUTATING_ACTIONS[action]) {
+        if (Object.prototype.hasOwnProperty.call(MUTATION_INVALIDATION_TARGETS, action)) {
+          clearScreenDataCache(MUTATION_INVALIDATION_TARGETS[action]);
+        } else {
+          clearScreenDataCache();
+        }
+      }
+      return json.data;
+    } catch (error) {
+      const errorCode = String(error?.code || '').toLowerCase();
+      const canRetry = READ_ACTIONS[action] && attempt < maxAttempts && shouldRetryReadError(errorCode);
+      if (canRetry) {
+        await sleep(READ_RETRY_DELAY_MS);
+        continue;
+      }
+      if (error && typeof error.userMessage === 'string' && error.userMessage) {
+        throw new Error(error.userMessage);
+      }
+      if (errorCode) {
+        throw new Error(translateApiErrorForUser(errorCode));
+      }
+      throw new Error(translateApiErrorForUser('server_error'));
     }
-    throw new Error(translateApiErrorForUser(json.error));
   }
-  if (MUTATING_ACTIONS[action]) {
-    clearScreenDataCache();
-  }
-  return json.data;
+
+  throw new Error(translateApiErrorForUser('server_error'));
 }
 
 export const api = {
   login: (user_id, entry_code) => request('login', { user_id, entry_code }),
   bootstrap: () => request('bootstrap'),
-  dashboard: () => request('dashboard'),
+  dashboard: (filters) => request('dashboard', filters || {}),
   activities: (filters) => request('activities', filters),
-  week: () => request('week'),
-  month: () => request('month'),
+  week: (params) => request('week', params || {}),
+  month: (params) => request('month', params || {}),
   exceptions: () => request('exceptions'),
   finance: () => request('finance'),
   instructors: () => request('instructors'),

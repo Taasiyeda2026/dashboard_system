@@ -95,9 +95,10 @@ export const instructorsScreen = {
   bind({ root, data, ui }) {
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const columns = ['emp_id', 'full_name', 'mobile', 'email', 'employment_type', 'direct_manager', 'active'];
+    const rowById = new Map(rows.map((row) => [String(row.emp_id), row]));
 
     const openInstructor = (empId) => {
-      const hit = rows.find((r) => String(r.emp_id) === String(empId));
+      const hit = rowById.get(String(empId));
       if (!hit || !ui) return;
       ui.openDrawer({
         title: `${hit.full_name || hit.emp_id}`,

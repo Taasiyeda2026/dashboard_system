@@ -16,22 +16,67 @@ function actionBootstrap_(user) {
   };
 }
 
-function actionDashboard_(user) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+function dashboardPayloadYm_(payload) {
+  var m = text_(payload && payload.month).slice(0, 7);
+  if (/^\d{4}-\d{2}$/.test(m)) return m;
+  return formatDate_(new Date()).slice(0, 7);
+}
 
-  var cachedDash = scriptCacheGetJson_(SCRIPT_CACHE_KEY_DASHBOARD);
+function ymBounds_(ym) {
+  var parts = String(ym || '').split('-');
+  var y = parseInt(parts[0], 10);
+  var mo = parseInt(parts[1], 10);
+  var tz = Session.getScriptTimeZone();
+  if (!y || !mo || mo < 1 || mo > 12) {
+    var today = formatDate_(new Date());
+    return { first: today.slice(0, 8) + '01', last: today };
+  }
+  var first = Utilities.formatDate(new Date(y, mo - 1, 1), tz, 'yyyy-MM-dd');
+  var last = Utilities.formatDate(new Date(y, mo, 0), tz, 'yyyy-MM-dd');
+  return { first: first, last: last };
+}
+
+function activityOverlapsYm_(row, ym) {
+  var b = ymBounds_(ym);
+  var s = text_(row.start_date);
+  var e = text_(row.end_date || row.start_date);
+  if (!s) return false;
+  if (!e) e = s;
+  return s <= b.last && e >= b.first;
+}
+
+function dashboardActivityRefIso_(ym) {
+  var today = formatDate_(new Date());
+  var curYm = today.slice(0, 7);
+  var b = ymBounds_(ym);
+  if (ym === curYm) return today;
+  if (ym < curYm) return b.last;
+  return b.first;
+}
+
+function actionDashboard_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var ym = dashboardPayloadYm_(payload || {});
+  var cacheKey = [SCRIPT_CACHE_KEY_DASHBOARD, dataViewsCacheVersion_(), ym].join(':');
+
+  var cachedDash = scriptCacheGetJson_(cacheKey);
   if (cachedDash) {
     return cachedDash;
   }
 
-  var shortRows = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
-  var longRows = buildLongRows_();
+  var shortAll = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
+  var longAll = buildLongRows_();
+  var shortRows = shortAll.filter(function(row) {
+    return activityOverlapsYm_(row, ym);
+  });
+  var longRows = longAll.filter(function(row) {
+    return activityOverlapsYm_(row, ym);
+  });
   var instructorRows = readRows_(CONFIG.SHEETS.INSTRUCTORS).filter(function(row) {
     return yesNo_(row.active) === 'yes';
   });
 
-  var currentMonth = formatDate_(new Date()).slice(0, 7);
-  var todayIso = formatDate_(new Date());
+  var refIso = dashboardActivityRefIso_(ym);
   var combined = shortRows.concat(longRows);
 
   var byManager = {};
@@ -64,24 +109,36 @@ function actionDashboard_(user) {
   });
 
   var courseEndings = longRows.filter(function(row) {
-    return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === currentMonth;
+    return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === ym;
   }).length;
 
-  var financeOpenCount = combined.filter(function(row) {
-    return normalizeFinance_(row.finance_status) === 'open';
-  }).length;
-
+  var activeByType = {
+    course: 0,
+    workshop: 0,
+    tour: 0,
+    after_school: 0,
+    escape_room: 0
+  };
+  var financeOpenCount = 0;
   var exceptionSum = 0;
-  longRows.forEach(function(row) {
-    var t = '';
-    if (!text_(row.emp_id)) {
-      t = 'x';
-    } else if (!text_(row.start_date)) {
-      t = 'x';
-    } else if (text_(row.end_date) > getLateEndDateCutoff_()) {
-      t = 'x';
+  combined.forEach(function(row) {
+    if (normalizeFinance_(row.finance_status) === 'open') {
+      financeOpenCount += 1;
     }
-    if (t) exceptionSum += 1;
+    if (Object.prototype.hasOwnProperty.call(activeByType, text_(row.activity_type)) &&
+        isActivityActiveBySpec_(row, refIso)) {
+      activeByType[text_(row.activity_type)] += 1;
+    }
+  });
+
+  longRows.forEach(function(row) {
+    if (!text_(row.emp_id)) {
+      exceptionSum += 1;
+    } else if (!text_(row.start_date)) {
+      exceptionSum += 1;
+    } else if (text_(row.end_date) > getLateEndDateCutoff_()) {
+      exceptionSum += 1;
+    }
   });
 
   var kpi_cards = [
@@ -90,37 +147,37 @@ function actionDashboard_(user) {
     {
       id: 'active_courses',
       action: 'kpi|active_courses',
-      title: String(countActiveByType_(combined, todayIso, 'course')),
+      title: String(activeByType.course),
       subtitle: 'קורסים פעילים',
-      value: countActiveByType_(combined, todayIso, 'course')
+      value: activeByType.course
     },
     {
       id: 'active_workshops',
       action: 'kpi|active_workshops',
-      title: String(countActiveByType_(combined, todayIso, 'workshop')),
+      title: String(activeByType.workshop),
       subtitle: 'סדנאות פעילות',
-      value: countActiveByType_(combined, todayIso, 'workshop')
+      value: activeByType.workshop
     },
     {
       id: 'active_tours',
       action: 'kpi|active_tours',
-      title: String(countActiveByType_(combined, todayIso, 'tour')),
+      title: String(activeByType.tour),
       subtitle: 'סיורים פעילים',
-      value: countActiveByType_(combined, todayIso, 'tour')
+      value: activeByType.tour
     },
     {
       id: 'active_after_school',
       action: 'kpi|active_after_school',
-      title: String(countActiveByType_(combined, todayIso, 'after_school')),
+      title: String(activeByType.after_school),
       subtitle: 'אפטרסקול פעיל',
-      value: countActiveByType_(combined, todayIso, 'after_school')
+      value: activeByType.after_school
     },
     {
       id: 'active_escape_room',
       action: 'kpi|active_escape_room',
-      title: String(countActiveByType_(combined, todayIso, 'escape_room')),
+      title: String(activeByType.escape_room),
       subtitle: 'חדרי בריחה פעילים',
-      value: countActiveByType_(combined, todayIso, 'escape_room')
+      value: activeByType.escape_room
     },
     {
       id: 'finance_open',
@@ -153,6 +210,7 @@ function actionDashboard_(user) {
   ];
 
   var result = {
+    month: ym,
     totals: {
       total_short_activities: shortRows.length,
       total_long_activities: longRows.length,
@@ -168,7 +226,7 @@ function actionDashboard_(user) {
     kpi_cards: kpi_cards,
     show_only_nonzero_kpis: settingYes_('show_only_nonzero_kpis')
   };
-  scriptCachePutJson_(SCRIPT_CACHE_KEY_DASHBOARD, result, CONFIG.SCRIPT_CACHE_SECONDS);
+  scriptCachePutJson_(cacheKey, result, CONFIG.SCRIPT_CACHE_SECONDS);
   return result;
 }
 
@@ -246,12 +304,13 @@ function actionActivities_(user, payload) {
   };
 }
 
-function actionWeek_(user) {
+function actionWeek_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
 
   var today = new Date();
   var startDay = getWeekStartDay_();
-  var anchor = startOfWeekContaining_(today, startDay);
+  var weekOffset = parseInt((payload && payload.week_offset) || 0, 10) || 0;
+  var anchor = shiftDate_(startOfWeekContaining_(today, startDay), weekOffset * 7);
   var showSat = settingShowShabbat_();
   var calRows = visibleActivitiesForUser_(user);
   var meetingsMap = buildMeetingsMap_();
@@ -274,16 +333,26 @@ function actionWeek_(user) {
   return {
     days: days,
     week_starts_on: startDay,
-    show_shabbat: showSat
+    show_shabbat: showSat,
+    week_offset: weekOffset
   };
 }
 
-function actionMonth_(user) {
+function actionMonth_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
 
   var now = new Date();
-  var year = now.getFullYear();
-  var month = now.getMonth();
+  var ym = text_(payload && payload.ym).slice(0, 7);
+  var ymMatch = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(ym);
+  var year;
+  var month;
+  if (ymMatch) {
+    year = parseInt(ymMatch[1], 10);
+    month = parseInt(ymMatch[2], 10) - 1;
+  } else {
+    year = now.getFullYear();
+    month = now.getMonth();
+  }
   var daysInMonth = new Date(year, month + 1, 0).getDate();
   var calRows = visibleActivitiesForUser_(user);
   var meetingsMap = buildMeetingsMap_();
@@ -299,8 +368,9 @@ function actionMonth_(user) {
     });
   }
 
+  var mm = month + 1;
   return {
-    month: formatDate_(new Date()).slice(0, 7),
+    month: year + '-' + (mm < 10 ? '0' : '') + mm,
     cells: cells,
     hide_saturday: !settingShowShabbat_()
   };

@@ -81,3 +81,42 @@
 - שכבת אינטראקציה משותפת (drawer/modal) נמצאת ב־`frontend/src/screens/shared/interactions.js` ומוזנת מ־`main.js` ל־`bind` של מסכים (`ui`).
 - בשינוי סכימה/שדות ב־Sheets, יש לעדכן mapping מתאים ב־`backend/actions.gs` ו־`backend/sheets.gs`.
 - לשחרור frontend: להריץ בדיקה מקומית, לוודא טעינת manifest+SW, ולעדכן cache version במידת הצורך כדי למנוע shell מיושן.
+
+## מפת תחזוקה קריטית (לאחר שלבי 1–6)
+
+### קבצים קריטיים לביצועים ויציבות
+
+- `frontend/src/main.js` — routing, mount/render flow, screen cache key/TTL, in-flight request dedup, shell loading/error states.
+- `frontend/src/api.js` — timeout/retry/error policy, unauthorized handling, write invalidation policy.
+- `frontend/src/state.js` — session state, cache state, route-specific view params (`dashboardMonthYm`, `weekOffset`, `monthYm`).
+- `frontend/src/screens/dashboard.js` — חודש בדשבורד (local month navigation, area-only loading, per-month cache usage).
+- `frontend/src/screens/activities.js` — heavy list interactions, filter/rerender flow, drawer edit flow.
+- `frontend/src/screens/week.js` + `frontend/src/screens/month.js` — calendar navigation params and cache key alignment.
+- `backend/router.gs` — API action dispatch and payload passthrough.
+- `backend/actions.gs` — business aggregation logic (`dashboard`, `week`, `month`) and role-dependent filtering.
+- `backend/script-cache.gs` — script cache keys/versioning/invalidation.
+- `backend/sheets.gs` — read/write behavior and request-scope cache layer.
+
+### אם המערכת שוב נהיית איטית — איפה בודקים קודם
+
+1. האם `screenDataCacheKey()` תואם לכל state רלוונטי (למשל חודש/שבוע/מסננים).
+2. האם יש cache hit עם TTL טרי לפני fetch (ב־`loadScreenDataWithCache`).
+3. האם נוצרת כפילות בקשות בזמן ניווט מהיר (בדיקת `inflightRequests`).
+4. האם `clearScreenDataCache` מנקה רחב מדי בעקבות פעולת write.
+5. האם `actionDashboard_`/`actionWeek_`/`actionMonth_` מקבלים payload מלא מה־router.
+6. האם script cache ב־Apps Script מחזיר payload מתאים לפי key/version.
+
+### אזורים רגישים במיוחד לרגרסיה
+
+- מעבר חודש בדשבורד: cache key + render חלקי + race guards.
+- ניווט שבוע/חודש: התאמה בין state, API params, ו־backend payload.
+- unauthorized באמצע session: מעבר נקי ל־login ללא shell שבור.
+- invalidate אחרי save: הימנעות מ־stale data מצד אחד, והימנעות ממחיקה אגרסיבית מצד שני.
+- bind/rebind במסכי רשימות: לא להצמיד listeners גלובליים חוזרים בלי guard.
+
+### מה לא לשנות בלי בדיקת רגרסיה מלאה
+
+- חוזה payload של `dashboard/week/month` בין frontend ל־backend.
+- לוגיקת timeout/retry ב־`frontend/src/api.js`.
+- state keys שמשפיעים על cache keys במסכים.
+- `setSession(null)` וזרימת restore/login במצבי unauthorized.

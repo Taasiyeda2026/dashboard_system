@@ -73,12 +73,19 @@ export const activitiesScreen = {
   async load({ api, state }) {
     const requested = state.activityTab || 'all';
     const financeStatus = state.activityFinanceStatus || '';
+    const allCacheKey = `activities:all:${financeStatus}`;
+    const allCached = state.screenDataCache?.[allCacheKey];
+    const allCacheFresh = !!(allCached && typeof allCached.t === 'number' && Date.now() - allCached.t < 5 * 60 * 1000);
 
     let data = await api.activities({ activity_type: requested, finance_status: financeStatus });
     const allowed = visibleTabsFromCounts(data.activity_type_counts);
     if (allowed.indexOf(requested) < 0) {
       state.activityTab = 'all';
-      data = await api.activities({ activity_type: 'all', finance_status: financeStatus });
+      if (allCacheFresh) {
+        data = allCached.data;
+      } else {
+        data = await api.activities({ activity_type: 'all', finance_status: financeStatus });
+      }
     }
     return data;
   },
@@ -219,7 +226,9 @@ export const activitiesScreen = {
     `);
   },
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api }) {
+    const rerenderLocal = typeof rerenderActivitiesView === 'function' ? rerenderActivitiesView : rerender;
     const filteredRows = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state);
+    const rowById = new Map(filteredRows.map((row) => [String(row.RowID), row]));
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -270,7 +279,7 @@ export const activitiesScreen = {
     root.querySelectorAll('[data-family]').forEach((node) => {
       node.addEventListener('click', () => {
         state.activityQuickFamily = node.dataset.family || '';
-        rerender();
+        rerenderLocal();
       });
     });
 
@@ -280,7 +289,7 @@ export const activitiesScreen = {
       state.activityQuickFamily = '';
       state.activityQuickManager = '';
       state.activityEndingCurrentMonth = false;
-      rerender();
+      rerenderLocal();
     });
 
     root.querySelector('#toggle-view')?.addEventListener('change', (event) => {
@@ -297,7 +306,7 @@ export const activitiesScreen = {
       rowNode.setAttribute('role', 'button');
       rowNode.addEventListener('click', () => {
         const rowId = rowNode.dataset.rowId;
-        const hit = filteredRows.find((row) => row.RowID === rowId);
+        const hit = rowById.get(String(rowId));
         if (!hit || !ui) return;
         ui.openDrawer({
           title: `פירוט פעילות ${hit.RowID}`,
@@ -316,7 +325,7 @@ export const activitiesScreen = {
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('activity:')) return;
       const rowId = action.replace('activity:', '');
-      const row = filteredRows.find((r) => r.RowID === rowId);
+      const row = rowById.get(String(rowId));
       if (!row) return;
       ui.openDrawer({
         title: `פירוט פעילות ${row.RowID}`,

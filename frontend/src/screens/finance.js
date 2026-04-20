@@ -73,6 +73,7 @@ export const financeScreen = {
   },
   bind({ root, data, ui, api, state, rerender }) {
     const rows = Array.isArray(data?.rows) ? data.rows : [];
+    const rowById = new Map(rows.map((row) => [String(row.RowID), row]));
     const canEdit = state?.user?.display_role !== 'instructor';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 
@@ -116,7 +117,7 @@ export const financeScreen = {
     root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
       rowNode.addEventListener('click', () => {
         const rowId = rowNode.dataset.rowId;
-        const hit = rows.find((r) => String(r.RowID) === String(rowId));
+        const hit = rowById.get(String(rowId));
         openDrawer(hit);
       });
       rowNode.addEventListener('keydown', (event) => {
@@ -130,7 +131,7 @@ export const financeScreen = {
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('finance:')) return;
       const rowId = action.slice('finance:'.length);
-      const hit = rows.find((r) => String(r.RowID) === String(rowId));
+      const hit = rowById.get(String(rowId));
       openDrawer(hit);
     });
   }

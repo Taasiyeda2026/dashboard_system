@@ -30,7 +30,7 @@ function weekDrawerHtml(item, date, hideEmpIds) {
 }
 
 export const weekScreen = {
-  load: ({ api }) => api.week(),
+  load: ({ api, state }) => api.week({ week_offset: Number(state?.weekOffset || 0) }),
   render(data, { state }) {
     const safeDays = Array.isArray(data?.days) ? data.days : [];
     const todayIso = localYmd();
@@ -68,14 +68,29 @@ export const weekScreen = {
     const body =
       columns ||
       `<div class="ds-empty"><p class="ds-empty__msg">אין נתוני שבוע זמינים</p></div>`;
+    const weekOffset = Number(state?.weekOffset || 0);
+    const weekLabel = weekOffset === 0 ? 'שבוע נוכחי' : weekOffset < 0 ? `${Math.abs(weekOffset)} שבועות אחורה` : `${weekOffset} שבועות קדימה`;
 
     return dsScreenStack(`
       ${dsPageHeader('שבוע', 'לוח עבודה — לחיצה על פריט לפתיחת פירוט')}
+      <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">▶ שבוע קודם</button>
+        <span class="ds-cal-nav__label">${escapeHtml(weekLabel)}</span>
+        <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">שבוע הבא ◀</button>
+      </nav>
       <div class="ds-week-board" role="region" aria-label="לוח שבוע">${body}</div>
     `);
   },
-  bind({ root, ui, data, state }) {
+  bind({ root, ui, data, state, rerender }) {
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    root.querySelector('[data-week-prev]')?.addEventListener('click', () => {
+      state.weekOffset = Number(state.weekOffset || 0) - 1;
+      rerender?.();
+    });
+    root.querySelector('[data-week-next]')?.addEventListener('click', () => {
+      state.weekOffset = Number(state.weekOffset || 0) + 1;
+      rerender?.();
+    });
     ui.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('weeksession|')) return;
       const rest = action.slice('weeksession|'.length);
