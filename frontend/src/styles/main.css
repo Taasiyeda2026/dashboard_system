@@ -1017,6 +1017,22 @@ select {
   box-shadow: var(--ds-shadow-sm);
 }
 
+.ds-filter-bar--managers {
+  background: linear-gradient(160deg, #fdf8f3 0%, #faf4ed 100%);
+}
+
+.ds-filter-bar__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ds-text-muted);
+  white-space: nowrap;
+}
+
+.ds-chip__count {
+  opacity: 0.75;
+  font-weight: 400;
+}
+
 .ds-toolbar {
   display: flex;
   flex-wrap: wrap;
