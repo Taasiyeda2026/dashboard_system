@@ -47,6 +47,20 @@ function activityOverlapsYm_(row, ym) {
   return s <= b.last && e >= b.first;
 }
 
+/**
+ * Returns true when the row has at least one session date (Date1-Date35)
+ * that falls inside the given YYYY-MM month.
+ * Used for long-type programs on the dashboard so that only programs with
+ * an actual meeting in the month are counted (not just range-overlap).
+ */
+function activityHasSessionInYm_(row, ym) {
+  for (var i = 1; i <= 35; i++) {
+    var d = text_(row['Date' + i]);
+    if (d && d.slice(0, 7) === ym) return true;
+  }
+  return false;
+}
+
 /** יום ייחוס ל"פעיל" בתוך חודש — היום בחודש הנוכחי, אחרון בחודש שעבר, ראשון בחודש עתידי */
 function dashboardActivityRefIso_(ym) {
   var today = formatDate_(new Date());
@@ -294,7 +308,7 @@ function actionDashboard_(user, payload) {
     return activityOverlapsYm_(row, ym);
   });
   var longRowsBySource = longAll.filter(function(row) {
-    return activityOverlapsYm_(row, ym);
+    return activityHasSessionInYm_(row, ym);
   });
 
   var combined = shortRowsBySource.concat(longRowsBySource);
