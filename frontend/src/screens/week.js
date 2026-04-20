@@ -47,6 +47,79 @@ function weekDayItems(day, itemsById) {
   return ids.map((id) => itemsById?.[id]).filter(Boolean);
 }
 
+/**
+ * Group items by primary instructor key so multiple activities by the same
+ * instructor on the same day can be collapsed into an accordion.
+ */
+function groupItemsByInstructor(items) {
+  const groups = new Map();
+  const order = [];
+  items.forEach((item) => {
+    const key =
+      String(item.emp_id || '').trim() ||
+      String(item.instructor_name || '').trim() ||
+      `__nokey__${item.RowID}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
+    groups.get(key).push(item);
+  });
+  return order.map((k) => groups.get(k));
+}
+
+function renderWeekGroup(group, date, dow) {
+  const main = group[0];
+  const extras = group.slice(1);
+
+  const hayParts = group
+    .flatMap((item) => [
+      item.activity_name,
+      item.RowID,
+      item.instructor_name,
+      item.instructor_name_2,
+      item.emp_id,
+      item.emp_id_2,
+      date,
+      dow
+    ])
+    .filter(Boolean);
+  const hay = escapeHtml(hayParts.join(' '));
+
+  const mainCard = dsInteractiveCard({
+    variant: 'session',
+    action: `weeksession|${encodeURIComponent(date)}|${encodeURIComponent(main.RowID)}`,
+    title: main.activity_name || 'ללא שם',
+    meta: weekItemMeta(main)
+  });
+
+  if (extras.length === 0) {
+    return `<div class="ds-week-session-wrap" data-list-item data-search="${hay}" data-filter="">${mainCard}</div>`;
+  }
+
+  const totalCount = group.length;
+  const extraCards = extras
+    .map((item) =>
+      dsInteractiveCard({
+        variant: 'session',
+        action: `weeksession|${encodeURIComponent(date)}|${encodeURIComponent(item.RowID)}`,
+        title: item.activity_name || 'ללא שם',
+        meta: weekItemMeta(item)
+      })
+    )
+    .join('');
+
+  return `<div class="ds-week-session-wrap ds-week-session-group" data-list-item data-search="${hay}" data-filter="">
+    <div class="ds-week-group__main-wrap">
+      ${mainCard}
+      <button type="button" class="ds-week-group__badge" data-group-toggle data-group-count="${totalCount}" aria-expanded="false">(${totalCount})</button>
+    </div>
+    <div class="ds-week-group__extra" hidden>
+      ${extraCards}
+    </div>
+  </div>`;
+}
+
 export const weekScreen = {
   load: ({ api, state }) => api.week({ week_offset: state.weekOffset || 0 }),
   render(data, { state }) {
@@ -60,31 +133,9 @@ export const weekScreen = {
         const items = weekDayItems(d, itemsById);
         const isToday = d.date === todayIso;
         const dow = d.weekday_label || '';
+        const groups = groupItemsByInstructor(items);
         const sessionBlocks = items.length
-          ? items
-              .map((item) => {
-                const hay = [
-                  item.activity_name,
-                  item.RowID,
-                  item.instructor_name,
-                  item.instructor_name_2,
-                  item.emp_id,
-                  item.emp_id_2,
-                  d.date,
-                  dow
-                ]
-                  .filter(Boolean)
-                  .join(' ');
-                return `<div class="ds-week-session-wrap" data-list-item data-search="${escapeHtml(hay)}" data-filter="">
-                ${dsInteractiveCard({
-                  variant: 'session',
-                  action: `weeksession|${encodeURIComponent(d.date)}|${encodeURIComponent(item.RowID)}`,
-                  title: item.activity_name || 'ללא שם',
-                  meta: weekItemMeta(item)
-                })}
-              </div>`;
-              })
-              .join('')
+          ? groups.map((group) => renderWeekGroup(group, d.date, dow)).join('')
           : '<p class="ds-muted ds-week-empty">אין פריטים</p>';
         return `
       <section class="ds-week-col${isToday ? ' is-today' : ''}" aria-label="${escapeHtml(d.date)}">
@@ -158,6 +209,22 @@ export const weekScreen = {
     root.querySelector('[data-week-next]')?.addEventListener('click', () => {
       state.weekOffset = (state.weekOffset || 0) + 1;
       rerender?.();
+    });
+
+    root.addEventListener('click', (ev) => {
+      const badge = ev.target.closest('[data-group-toggle]');
+      if (!badge) return;
+      ev.stopPropagation();
+      ev.preventDefault();
+      const groupEl = badge.closest('.ds-week-session-group');
+      if (!groupEl) return;
+      const extra = groupEl.querySelector('.ds-week-group__extra');
+      if (!extra) return;
+      const isOpen = !extra.hasAttribute('hidden');
+      extra.toggleAttribute('hidden', isOpen);
+      badge.setAttribute('aria-expanded', String(!isOpen));
+      const count = badge.dataset.groupCount || '';
+      badge.textContent = isOpen ? `(${count})` : '▲';
     });
 
     ui.bindInteractiveCards(root, (action) => {

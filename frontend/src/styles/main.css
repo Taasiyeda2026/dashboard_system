@@ -2018,6 +2018,65 @@ span.ds-chip {
   width: 100%;
 }
 
+/* Smaller font on session cards inside week columns */
+.ds-week-col .ds-interactive-card--session .ds-interactive-card__title {
+  font-size: 0.77rem;
+}
+
+.ds-week-col .ds-interactive-card--session .ds-interactive-card__meta {
+  font-size: 0.68rem;
+}
+
+/* Accordion group for same-instructor sessions on the same day */
+.ds-week-session-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ds-week-group__main-wrap {
+  position: relative;
+}
+
+.ds-week-group__badge {
+  position: absolute;
+  inset-inline-end: 5px;
+  bottom: 5px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 10px;
+  background: var(--ds-accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: 1;
+  transition: background 0.12s, opacity 0.12s;
+  pointer-events: auto;
+}
+
+.ds-week-group__badge:hover {
+  background: color-mix(in srgb, var(--ds-accent) 80%, #000);
+}
+
+.ds-week-group__extra {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-inline-start: 6px;
+  border-inline-start: 2px solid color-mix(in srgb, var(--ds-accent) 30%, var(--ds-border));
+}
+
+.ds-week-group__extra[hidden] {
+  display: none;
+}
+
+/* extra bottom padding so badge doesn't overlap the last line of text */
+.ds-week-group__main-wrap .ds-interactive-card--session {
+  padding-bottom: 1.4rem;
+}
+
 .ds-cal-slot--empty {
   min-height: 3rem;
   border-radius: var(--ds-radius-sm);
