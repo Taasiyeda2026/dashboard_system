@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewColumn, hebrewEmploymentType } from './shared/ui-hebrew.js';
+import { hebrewColumn, hebrewEmploymentType, hebrewInstructorsSourcesLabel, hebrewSheetLabel } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
   dsCard,
@@ -79,6 +79,11 @@ export const instructorsScreen = {
     const searchQ = state?.instructorsSearch || '';
     const activeFilter = state?.instructorsActiveFilter || '';
 
+    const sources = state?.clientSettings?.instructors_screen_sources;
+    const contactsSource = state?.clientSettings?.instructor_contacts_source;
+    const sourcesLabel = hebrewInstructorsSourcesLabel(sources);
+    const contactsLabel = hebrewSheetLabel(contactsSource || 'contacts_instructors');
+
     let rows = applySearch(allRows, searchQ);
     if (activeFilter) {
       rows = rows.filter((r) => String(r.active || '').toLowerCase() === activeFilter);
@@ -96,8 +101,15 @@ export const instructorsScreen = {
       ? dsEmptyState('לא נמצאו מדריכים')
       : `<div class="ds-person-grid">${rows.map(renderInstructorCard).join('')}</div>`;
 
+    const sourcesBanner = `<div class="ds-info-banner" dir="rtl">
+      <span>📋 <strong>מקור נתונים:</strong> מדריכים שמופיעים ב${escapeHtml(sourcesLabel)}</span>
+      <span class="ds-info-banner__sep">|</span>
+      <span>📇 <strong>פרטי קשר:</strong> ${escapeHtml(contactsLabel)}</span>
+    </div>`;
+
     return dsScreenStack(`
-      ${dsPageHeader('מדריכים', 'רשימת מדריכים לפי פעילויות')}
+      ${dsPageHeader('מדריכים', 'מדריכים בפעילויות — מועשר מגיליון אנשי קשר')}
+      ${sourcesBanner}
       <div class="ds-screen-top-row">
         <input
           id="instructors-search"

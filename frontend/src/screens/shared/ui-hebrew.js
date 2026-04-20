@@ -232,6 +232,41 @@ const API_ERROR_HE = {
   cannot_delete_active_user: 'ניתן למחוק משתמש/ת לא פעיל/ה בלבד'
 };
 
+/**
+ * Maps an internal sheet key (e.g. 'data_short', 'data_long', 'contacts_instructors')
+ * to a short Hebrew label for display in screen sub-headers.
+ */
+const SHEET_LABEL_HE = {
+  data_short:           'פעילויות (קצרות)',
+  data_long:            'פעילויות (ארוכות)',
+  contacts_instructors: 'אנשי קשר מדריכים',
+  contacts_schools:     'אנשי קשר מוסדות',
+  activity_meetings:    'מפגשים',
+  permissions:          'הרשאות',
+  settings:             'הגדרות',
+  lists:                'רשימות'
+};
+
+export function hebrewSheetLabel(sheetName) {
+  if (!sheetName) return '';
+  const k = String(sheetName).trim().toLowerCase();
+  return SHEET_LABEL_HE[k] || sheetName;
+}
+
+/**
+ * Given an array of instructors_screen_sources (sheet keys), return a
+ * human-readable Hebrew description of the data origin.
+ */
+export function hebrewInstructorsSourcesLabel(sources) {
+  const arr = Array.isArray(sources) ? sources : [];
+  const hasShort = arr.some((s) => String(s).toLowerCase() === 'data_short');
+  const hasLong  = arr.some((s) => String(s).toLowerCase() === 'data_long');
+  if (hasShort && hasLong) return 'פעילויות קצרות ואורכות';
+  if (hasShort) return 'פעילויות קצרות בלבד';
+  if (hasLong)  return 'פעילויות ארוכות בלבד';
+  return arr.map(hebrewSheetLabel).join(', ') || 'כל הפעילויות';
+}
+
 /** Maps common API English errors to Hebrew; leaves Hebrew messages unchanged. */
 export function translateApiErrorForUser(message) {
   if (message === undefined || message === null || message === '') return API_ERROR_HE.server_error;

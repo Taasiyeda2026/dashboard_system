@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewColumn, hebrewEmploymentType } from './shared/ui-hebrew.js';
+import { hebrewColumn, hebrewEmploymentType, hebrewSheetLabel } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
   dsCard,
@@ -81,6 +81,10 @@ export const instructorContactsScreen = {
     const searchQ = state?.instrContactsSearch || '';
     const activeFilter = state?.instrContactsActiveFilter || '';
 
+    const contactsSource = state?.clientSettings?.instructor_contacts_source;
+    const contactsLabel = hebrewSheetLabel(contactsSource || 'contacts_instructors');
+    const sourceSheetName = escapeHtml(contactsSource || 'contacts_instructors');
+
     let rows = applySearch(allRows, searchQ);
     if (activeFilter) {
       rows = rows.filter((r) => String(r.active || '').toLowerCase() === activeFilter);
@@ -98,8 +102,17 @@ export const instructorContactsScreen = {
       ? dsEmptyState('לא נמצאו אנשי קשר')
       : `<div class="ds-person-grid">${rows.map(renderContactCard).join('')}</div>`;
 
+    const sourcesBanner = `<div class="ds-info-banner" dir="rtl">
+      <span>📇 <strong>מקור נתונים:</strong> ${escapeHtml(contactsLabel)}</span>
+      <span class="ds-info-banner__sep">|</span>
+      <span class="ds-muted">גיליון: <code>${sourceSheetName}</code></span>
+      <span class="ds-info-banner__sep">|</span>
+      <span class="ds-muted">רשימה עצמאית — אינה נגזרת מפעילויות</span>
+    </div>`;
+
     return dsScreenStack(`
-      ${dsPageHeader('אנשי קשר מדריכים', 'נתונים מגיליון אנשי הקשר')}
+      ${dsPageHeader('אנשי קשר מדריכים', 'ספר כתובות — לא תלוי בפעילויות')}
+      ${sourcesBanner}
       <div class="ds-screen-top-row">
         <input
           id="instr-contacts-search"

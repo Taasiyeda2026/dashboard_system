@@ -3579,6 +3579,18 @@ select.ds-input {
   font-size: 0.82rem;
   line-height: 1.5;
   margin-bottom: var(--ds-space-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  background: var(--ds-surface-subtle, #f7f8f9);
+  border: 1px solid var(--ds-border);
+  color: var(--ds-text-muted);
+}
+.ds-info-banner__sep {
+  color: var(--ds-border-strong, #ccc);
+  font-weight: 300;
+  padding: 0 2px;
 }
 
 .ds-info-banner--warning {
