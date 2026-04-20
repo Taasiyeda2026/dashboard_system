@@ -44,12 +44,14 @@ async function request(action, payload = {}) {
     throw new Error('חסר קישור API. עדכנו frontend/src/config.js או window.__DASHBOARD_CONFIG__.');
   }
 
+  const tokenAtCallTime = state.token;
+
   let response;
   try {
     response = await fetch(config.apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ action, token: state.token, ...payload })
+      body: JSON.stringify({ action, token: tokenAtCallTime, ...payload })
     });
   } catch {
     throw new Error(translateApiErrorForUser('network_error'));
@@ -62,7 +64,7 @@ async function request(action, payload = {}) {
     throw new Error(translateApiErrorForUser('server_error'));
   }
   if (!json.ok) {
-    if ((json.error || '').toLowerCase() === 'unauthorized') {
+    if ((json.error || '').toLowerCase() === 'unauthorized' && state.token === tokenAtCallTime) {
       setSession(null);
     }
     throw new Error(translateApiErrorForUser(json.error));
