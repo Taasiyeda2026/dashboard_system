@@ -2260,20 +2260,21 @@ span.ds-chip {
 /* ——— Person cards (instructors / contacts) ——— */
 .ds-person-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--ds-space-3);
-  padding: var(--ds-space-3);
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-2);
+  overflow-x: hidden;
 }
 
 @media (min-width: 640px) {
   .ds-person-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(6, 1fr);
   }
 }
 
 @media (min-width: 960px) {
   .ds-person-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(8, 1fr);
   }
 }
 
@@ -2281,8 +2282,8 @@ span.ds-chip {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--ds-space-1);
-  padding: var(--ds-space-3) var(--ds-space-2);
+  gap: 4px;
+  padding: var(--ds-space-2) var(--ds-space-1);
   background: var(--ds-surface);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);
@@ -2290,6 +2291,7 @@ span.ds-chip {
   cursor: pointer;
   transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
   width: 100%;
+  min-width: 0;
   text-align: center;
 }
 
@@ -2307,10 +2309,10 @@ span.ds-chip {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  font-size: 1rem;
+  font-size: 0.62rem;
   font-weight: 800;
   color: #fff;
   flex-shrink: 0;
@@ -2318,15 +2320,19 @@ span.ds-chip {
 }
 
 .ds-person-name {
-  font-size: 0.82rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: var(--ds-text);
-  line-height: 1.3;
+  line-height: 1.2;
   word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
 }
 
 .ds-person-meta {
-  font-size: 0.72rem;
+  font-size: 0.63rem;
   color: var(--ds-text-muted);
   line-height: 1.2;
 }
