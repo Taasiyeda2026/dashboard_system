@@ -1401,6 +1401,46 @@ span.ds-chip {
   color: var(--ds-text);
 }
 
+/* ——— Exception field highlights (in detail drawer) ——— */
+.ds-exc-field--missing,
+.ds-exc-field--late {
+  border-radius: var(--ds-radius-sm);
+  padding: 4px 8px;
+}
+
+.ds-exc-field--missing {
+  background: color-mix(in srgb, #ef4444 9%, transparent);
+  border-inline-start: 3px solid #ef4444;
+}
+
+.ds-exc-field--late {
+  background: color-mix(in srgb, #f97316 9%, transparent);
+  border-inline-start: 3px solid #f97316;
+}
+
+.ds-exc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-inline-start: 6px;
+  vertical-align: middle;
+}
+
+.ds-exc-badge--missing {
+  background: color-mix(in srgb, #ef4444 16%, transparent);
+  color: #ef4444;
+}
+
+.ds-exc-badge--late {
+  background: color-mix(in srgb, #f97316 16%, transparent);
+  color: #f97316;
+}
+
+/* ——— */
 .ds-detail-date-stack {
   display: grid;
   gap: 6px;
