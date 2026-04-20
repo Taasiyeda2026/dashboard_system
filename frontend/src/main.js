@@ -63,19 +63,15 @@ function saveRoutesToStorage(routes, defaultRoute, clientSettings) {
 
 function applyBootstrapFromLoginData(data) {
   if (!data || !Array.isArray(data.routes) || !data.routes.length) return;
-  state.routes = data.routes;
-  state.route =
-    data.default_route && data.routes.includes(data.default_route)
-      ? data.default_route
-      : state.routes[0] || 'my-data';
   if (data.client_settings && typeof data.client_settings === 'object') {
     state.clientSettings = { ...defaultClientSettings(), ...data.client_settings };
   }
+  const effectiveRoutes = applySettingsToRoutes(data.routes, state.clientSettings);
+  state.routes = effectiveRoutes;
+  state.effectiveRoutes = effectiveRoutes;
+  state.route = resolveAllowedDefaultRoute(data.default_route, effectiveRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
 }
-
-/** מסכים שנשארים ב־routes מהשרת אך מוסרים מסרגל הצד (גישה חלופית מתוך מסכים אחרים). */
-const SIDEBAR_ROUTE_EXCLUDE = new Set(['instructor-contacts', 'contacts']);
 
 const screenLabels = {
   dashboard: 'לוח בקרה',
@@ -109,7 +105,44 @@ const screens = {
   'admin-home': adminHomeScreen
 };
 
-const NAV_HIDDEN_ROUTES = new Set(['permissions', 'end-dates']);
+function navSidebarHiddenRoutesSet() {
+  const list = state?.clientSettings?.navigation?.sidebar_hidden_routes;
+  return new Set(Array.isArray(list) ? list : []);
+}
+
+function navContextualRoutesSet() {
+  const list = state?.clientSettings?.navigation?.contextual_only_routes;
+  return new Set(Array.isArray(list) ? list : []);
+}
+
+function navDisabledRoutesSet(settings = state.clientSettings) {
+  const list = settings?.navigation?.disabled_routes;
+  return new Set(Array.isArray(list) ? list : []);
+}
+
+function applySettingsToRoutes(routes, settings = state.clientSettings) {
+  const blocked = navDisabledRoutesSet(settings);
+  const seen = new Set();
+  return (Array.isArray(routes) ? routes : []).filter((route) => {
+    if (!route || blocked.has(route) || seen.has(route)) return false;
+    seen.add(route);
+    return true;
+  });
+}
+
+function effectiveRoutes() {
+  if (Array.isArray(state.effectiveRoutes) && state.effectiveRoutes.length) return state.effectiveRoutes;
+  return Array.isArray(state.routes) ? state.routes : [];
+}
+
+function isAllowedRoute(route) {
+  return !!route && effectiveRoutes().includes(route);
+}
+
+function resolveAllowedDefaultRoute(preferred, routes) {
+  if (preferred && Array.isArray(routes) && routes.includes(preferred)) return preferred;
+  return (Array.isArray(routes) && routes[0]) || 'my-data';
+}
 
 function systemNameRaw() {
   return String(state?.clientSettings?.system_name || 'Dashboard Taasiyeda').trim() || 'Dashboard Taasiyeda';
@@ -133,8 +166,10 @@ function shellUserRoleLine() {
 }
 
 function shell(content) {
-  const nav = state.routes
-    .filter((route) => !NAV_HIDDEN_ROUTES.has(route))
+  const hiddenSet = navSidebarHiddenRoutesSet();
+  const contextualSet = navContextualRoutesSet();
+  const nav = effectiveRoutes()
+    .filter((route) => !hiddenSet.has(route) && !contextualSet.has(route))
     .map(
       (route) =>
         `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`
@@ -391,14 +426,13 @@ async function restoreSession() {
   if (state.routes.length) return;
 
   const bootstrap = await api.bootstrap();
-  state.routes = bootstrap.routes || [];
-  state.route =
-    bootstrap.default_route && state.routes.includes(bootstrap.default_route)
-      ? bootstrap.default_route
-      : state.routes[0] || 'my-data';
   if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
     state.clientSettings = { ...defaultClientSettings(), ...bootstrap.client_settings };
   }
+  const normalizedRoutes = applySettingsToRoutes(bootstrap.routes || [], state.clientSettings);
+  state.routes = normalizedRoutes;
+  state.effectiveRoutes = normalizedRoutes;
+  state.route = resolveAllowedDefaultRoute(bootstrap.default_route, normalizedRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
   if (bootstrap.profile && state.user) {
     const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
@@ -414,8 +448,8 @@ async function mountScreen() {
     isMobileNavOpen = false;
     document.body.classList.remove('is-shell-nav-open');
   }
-  if (!state.routes.length) await restoreSession();
-  if (!state.routes.includes(state.route)) state.route = state.routes[0] || 'my-data';
+  if (!effectiveRoutes().length) await restoreSession();
+  if (!isAllowedRoute(state.route)) state.route = resolveAllowedDefaultRoute('', state.routes);
 
   const routeChanged = lastRenderedRoute !== state.route;
   if (routeChanged) {
@@ -482,7 +516,7 @@ function bindShell() {
   /* Allow any screen to navigate programmatically via custom event */
   document.addEventListener('app:navigate', (e) => {
     const route = e?.detail?.route;
-    if (!route || !state.routes.includes(route)) return;
+    if (!isAllowedRoute(route)) return;
     closeMobileNav();
     state.route = route;
     render();
@@ -491,7 +525,9 @@ function bindShell() {
   document.querySelectorAll('[data-route]').forEach((button) => {
     button.addEventListener('click', () => {
       closeMobileNav();
-      state.route = button.dataset.route;
+      const route = button.dataset.route;
+      if (!isAllowedRoute(route)) return;
+      state.route = route;
       render();
     });
   });

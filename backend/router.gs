@@ -51,6 +51,25 @@ function handlePost_(e) {
       throw new Error('Unknown action: ' + action);
     }
 
+    var ACTION_ROUTE_MAP = {
+      dashboard: 'dashboard',
+      activities: 'activities',
+      week: 'week',
+      month: 'month',
+      exceptions: 'exceptions',
+      finance: 'finance',
+      instructors: 'instructors',
+      instructorContacts: 'instructor-contacts',
+      contacts: 'contacts',
+      endDates: 'end-dates',
+      myData: 'my-data',
+      permissions: 'permissions'
+    };
+    var routeForAction = ACTION_ROUTE_MAP[action];
+    if (routeForAction && !canUserAccessRoute_(user, routeForAction)) {
+      throw new Error('Forbidden');
+    }
+
     if (isReadActionCacheable_(action, user)) {
       var readKey = buildReadActionCacheKey_(action, user, payload);
       var readHit = scriptCacheGetJson_(readKey);

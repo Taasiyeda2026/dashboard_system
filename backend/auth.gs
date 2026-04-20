@@ -30,7 +30,7 @@ function actionLogin_(payload) {
     CONFIG.SESSION_CACHE_SECONDS
   );
 
-  var routes = buildRoutesFromPermission_(matchByUser, role);
+  var routes = effectiveRoutesForUser_(matchByUser, role);
   var preferred = text_(matchByUser.default_view) || defaultRouteForRole_(role);
   var defaultRoute = resolveDefaultRoute_(preferred, routes, role);
 
@@ -75,10 +75,8 @@ function getPermissionRow_(userId) {
   return match || {};
 }
 
-function buildRoutesFromPermission_(permission, role) {
-  if (role === 'instructor') return ['my-data'];
-
-  var allRoutes = [
+function allKnownRoutes_() {
+  return [
     'dashboard',
     'activities',
     'week',
@@ -93,6 +91,33 @@ function buildRoutesFromPermission_(permission, role) {
     'permissions',
     'admin-home'
   ];
+}
+
+function parseRoutesCsvSetting_(key, fallbackRoutes) {
+  var raw = getSettingText_(key, '');
+  if (!raw) return (fallbackRoutes || []).slice();
+  var known = allKnownRoutes_();
+  var out = [];
+  raw.split(',').forEach(function(v) {
+    var route = text_(v);
+    if (!route || known.indexOf(route) < 0) return;
+    if (out.indexOf(route) < 0) out.push(route);
+  });
+  return out.length ? out : (fallbackRoutes || []).slice();
+}
+
+function buildNavigationSettings_() {
+  return {
+    disabled_routes: parseRoutesCsvSetting_('disabled_routes', []),
+    sidebar_hidden_routes: parseRoutesCsvSetting_('sidebar_hidden_routes', []),
+    contextual_only_routes: parseRoutesCsvSetting_('contextual_only_routes', [])
+  };
+}
+
+function buildRoutesFromPermission_(permission, role) {
+  if (role === 'instructor') return ['my-data'];
+
+  var allRoutes = allKnownRoutes_();
 
   if (role === 'admin') return allRoutes;
 
@@ -137,6 +162,19 @@ function buildRoutesFromPermission_(permission, role) {
     if (!flag) return false;
     return yesNo_(permission[flag]) === 'yes';
   });
+}
+
+function computeEffectiveRoutes_(permission, role) {
+  var permitted = buildRoutesFromPermission_(permission, role);
+  var nav = buildNavigationSettings_();
+  var blocked = nav.disabled_routes || [];
+  return permitted.filter(function(route) {
+    return blocked.indexOf(route) < 0;
+  });
+}
+
+function effectiveRoutesForUser_(permission, role) {
+  return computeEffectiveRoutes_(permission, role);
 }
 
 function defaultRouteForRole_(role) {
@@ -205,6 +243,14 @@ function resolveDefaultRoute_(preferred, routes, role) {
     }
   }
   return routes[0] || 'my-data';
+}
+
+function canUserAccessRoute_(user, route) {
+  var r = text_(route);
+  if (!r) return false;
+  var permission = getPermissionRow_(user.user_id);
+  var effective = effectiveRoutesForUser_(permission, user.display_role);
+  return effective.indexOf(r) >= 0;
 }
 
 function instructorContactsViewYes_(permission) {
