@@ -1,7 +1,8 @@
 /** Short-lived CacheService entries for heavy read-only payloads (invalidated on writes). */
 
-var SCRIPT_CACHE_KEY_DASHBOARD = 'pc:dashboard:v1';
+var SCRIPT_CACHE_KEY_DASHBOARD = 'pc:dashboard:v2';
 var SCRIPT_CACHE_KEY_PERMISSIONS_LIST = 'pc:permissions:v2';
+var SCRIPT_CACHE_KEY_DATA_VIEWS_VERSION = 'pc:data-views-version:v1';
 
 function scriptCacheGetJson_(key) {
   try {
@@ -26,7 +27,31 @@ function scriptCachePutJson_(key, value, seconds) {
 function scriptCacheInvalidateDataViews_() {
   try {
     var c = CacheService.getScriptCache();
+    bumpDataViewsCacheVersion_();
     c.remove(SCRIPT_CACHE_KEY_DASHBOARD);
     c.remove(SCRIPT_CACHE_KEY_PERMISSIONS_LIST);
+  } catch (e) {}
+}
+
+function dataViewsCacheVersion_() {
+  try {
+    var c = CacheService.getScriptCache();
+    var existing = c.get(SCRIPT_CACHE_KEY_DATA_VIEWS_VERSION);
+    if (existing) return existing;
+    var fresh = String(new Date().getTime());
+    c.put(SCRIPT_CACHE_KEY_DATA_VIEWS_VERSION, fresh, 21600);
+    return fresh;
+  } catch (e) {
+    return '0';
+  }
+}
+
+function bumpDataViewsCacheVersion_() {
+  try {
+    CacheService.getScriptCache().put(
+      SCRIPT_CACHE_KEY_DATA_VIEWS_VERSION,
+      String(new Date().getTime()),
+      21600
+    );
   } catch (e) {}
 }

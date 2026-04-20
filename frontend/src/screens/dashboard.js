@@ -1,6 +1,39 @@
 import { escapeHtml } from './shared/html.js';
-import { UI_ACTIVITY_FAMILY_LONG, UI_ACTIVITY_FAMILY_SHORT } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
+
+const HEBREW_MONTHS = [
+  'ינואר',
+  'פברואר',
+  'מרץ',
+  'אפריל',
+  'מאי',
+  'יוני',
+  'יולי',
+  'אוגוסט',
+  'ספטמבר',
+  'אוקטובר',
+  'נובמבר',
+  'דצמבר'
+];
+
+function currentMonthYm() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function shiftYm(ym, deltaMonths) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + deltaMonths, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function hebrewMonthTitle(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return ym || '';
+  const mo = Number(m[2]);
+  const name = mo >= 1 && mo <= 12 ? HEBREW_MONTHS[mo - 1] : m[2];
+  return `${name} ${m[1]}`;
+}
 
 function goActivitiesDrill(state, patch) {
   state.route = 'activities';
@@ -17,27 +50,50 @@ function filterKpiCards(cards, showOnlyNonzero) {
   return list.filter((c) => Number(c.value || 0) > 0);
 }
 
+
 export const dashboardScreen = {
-  load: ({ api }) => api.dashboard(),
+  async load({ api, state }) {
+    let ym = state.dashboardMonthYm;
+    if (!ym || !/^\d{4}-\d{2}$/.test(ym)) {
+      ym = currentMonthYm();
+    }
+    state.dashboardMonthYm = ym;
+    return api.dashboard({ month: ym });
+  },
   render(data) {
-    const managers = Array.isArray(data.by_activity_manager) ? data.by_activity_manager : [];
+    const ym = data?.month || currentMonthYm();
+    const curYm = currentMonthYm();
+    const canGoNext = ym < curYm;
+
+    const managers = (Array.isArray(data.by_activity_manager) ? data.by_activity_manager : []).filter(
+      (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned'
+    );
     const showOnly = !!data?.show_only_nonzero_kpis;
     const kpiCards = filterKpiCards(data?.kpi_cards, showOnly);
 
     const managerCards = managers
       .map((row) => {
-        const meta = `${UI_ACTIVITY_FAMILY_SHORT}: ${row.total_short} · ${UI_ACTIVITY_FAMILY_LONG}: ${row.total_long} · סה״כ: ${row.total}`;
-        return dsInteractiveCard({
-          variant: 'mini',
-          action: `manager|${encodeURIComponent(row.activity_manager)}`,
-          title: row.activity_manager,
-          meta
-        });
+        const mgr = encodeURIComponent(row.activity_manager);
+        const stats = [
+          { label: 'מדריכים',      value: row.num_instructors ?? 0,                        action: `mstat|${mgr}|instructors` },
+          { label: 'תוכניות',      value: row.total_long      ?? 0,                        action: `mstat|${mgr}|long` },
+          { label: 'סיומי קורסים', value: row.course_endings  ?? 0,                        action: `mstat|${mgr}|endings` },
+        ];
+        const statsHtml = stats
+          .map((s) => `<button type="button" class="ds-manager-stat" data-card-action="${escapeHtml(s.action)}">
+              <span class="ds-manager-stat__label">${escapeHtml(s.label)}</span>
+              <span class="ds-manager-stat__value">${escapeHtml(String(s.value))}</span>
+            </button>`)
+          .join('');
+        return `<div class="ds-manager-card">
+          <p class="ds-manager-card__name">${escapeHtml(row.activity_manager)}</p>
+          <div class="ds-manager-stats">${statsHtml}</div>
+        </div>`;
       })
       .join('');
 
     const managersBlock = managers.length
-      ? `<div class="ds-mini-grid">${managerCards}</div>`
+      ? `<div class="ds-manager-grid">${managerCards}</div>`
       : '<div class="ds-empty"><p class="ds-empty__msg">אין נתונים להצגה</p></div>';
 
     const kpiHtml = kpiCards.length
@@ -46,25 +102,64 @@ export const dashboardScreen = {
             dsInteractiveCard({
               variant: 'kpi',
               action: k.action,
-              title: k.title,
-              subtitle: k.subtitle
+              title: k.subtitle || k.title || '',
+              value: k.value != null ? String(k.value) : String(k.title || '')
             })
           )
           .join('')
       : '<p class="ds-muted">אין כרטיסי KPI להצגה (לפי מסנן &quot;ערך בלבד&quot;).</p>';
 
+    const monthNav = `<div class="ds-dash-month-nav" dir="rtl" aria-label="בחירת חודש לתצוגה">
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם">◀</button>
+      <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}</span>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא" ${
+        canGoNext ? '' : 'disabled'
+      }>▶</button>
+    </div>`;
+
     return dsScreenStack(`
-      ${dsPageHeader('לוח בקרה', 'תמונת מצב כללית — לחיצה מעבירה לעבודה')}
-      <div class="ds-kpi-grid">${kpiHtml}</div>
-      ${dsCard({
-        title: 'פילוח לפי אחראי פעילות',
-        badge: `${managers.length} רשומות`,
-        body: managersBlock,
-        padded: true
-      })}
+      ${dsPageHeader('לוח בקרה')}
+      ${monthNav}
+      <div data-dash-data-area>
+        <div class="ds-kpi-grid">${kpiHtml}</div>
+        ${dsCard({
+          title: 'פילוח לפי מנהל פעילויות',
+          body: managersBlock,
+          padded: true
+        })}
+      </div>
     `);
   },
-  bind({ root, ui, state, rerender }) {
+  bind({ root, ui, state, api, rerender, clearScreenDataCache }) {
+    function showDataAreaLoading() {
+      const area = root.querySelector('[data-dash-data-area]');
+      if (area) {
+        area.innerHTML = '<div class="ds-loading-card" dir="rtl" role="status"><div class="ds-spinner" aria-hidden="true"></div><p>טוען נתונים...</p></div>';
+      }
+    }
+
+    const applyYm = async (nextYm) => {
+      state.dashboardMonthYm = nextYm;
+      showDataAreaLoading();
+      try {
+        const data = await api.dashboard({ month: nextYm });
+        const cacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(nextYm) ? nextYm : 'default'}`;
+        state.screenDataCache[cacheKey] = { data, t: Date.now() };
+      } catch (_err) {
+        clearScreenDataCache?.();
+      }
+      rerender();
+    };
+
+    root.querySelector('[data-dash-month-prev]')?.addEventListener('click', () => {
+      applyYm(shiftYm(state.dashboardMonthYm || currentMonthYm(), -1));
+    });
+    root.querySelector('[data-dash-month-next]')?.addEventListener('click', () => {
+      const cur = currentMonthYm();
+      const next = shiftYm(state.dashboardMonthYm || cur, 1);
+      if (next <= cur) applyYm(next);
+    });
+
     ui.bindInteractiveCards(root, (action) => {
       if (action === 'kpi|short') {
         goActivitiesDrill(state, { activityQuickFamily: 'short' });
@@ -137,6 +232,22 @@ export const dashboardScreen = {
         goActivitiesDrill(state, { activityQuickManager: name });
         ui.closeAll();
         rerender();
+        return;
+      }
+      if (action.startsWith('mstat|')) {
+        const parts = action.split('|');
+        const name = decodeURIComponent(parts[1] || '');
+        const kind = parts[2] || 'long';
+        if (kind === 'instructors') {
+          state.route = 'instructors';
+        } else if (kind === 'long') {
+          goActivitiesDrill(state, { activityQuickManager: name, activityQuickFamily: 'long' });
+        } else if (kind === 'endings') {
+          goActivitiesDrill(state, { activityQuickManager: name, activityEndingCurrentMonth: true });
+        }
+        ui.closeAll();
+        rerender();
+        return;
       }
     });
   }

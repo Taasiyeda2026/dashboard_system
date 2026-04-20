@@ -16,23 +16,72 @@ function actionBootstrap_(user) {
   };
 }
 
-function actionDashboard_(user) {
+/** חודש בקשה YYYY-MM — ברירת מחדל חודש נוכחי */
+function dashboardPayloadYm_(payload) {
+  var m = text_(payload && payload.month).slice(0, 7);
+  if (/^\d{4}-\d{2}$/.test(m)) return m;
+  return formatDate_(new Date()).slice(0, 7);
+}
+
+function ymBounds_(ym) {
+  var parts = String(ym || '').split('-');
+  var y = parseInt(parts[0], 10);
+  var mo = parseInt(parts[1], 10);
+  var tz = Session.getScriptTimeZone();
+  if (!y || !mo || mo < 1 || mo > 12) {
+    var today = formatDate_(new Date());
+    return { first: today.slice(0, 8) + '01', last: today };
+  }
+  var first = Utilities.formatDate(new Date(y, mo - 1, 1), tz, 'yyyy-MM-dd');
+  var last = Utilities.formatDate(new Date(y, mo, 0), tz, 'yyyy-MM-dd');
+  return { first: first, last: last };
+}
+
+/** פעילות עם טווח תאריכים שחופף לחודש ym (כולל קצה) */
+function activityOverlapsYm_(row, ym) {
+  var b = ymBounds_(ym);
+  var s = text_(row.start_date);
+  var e = text_(row.end_date || row.start_date);
+  if (!s) return false;
+  if (!e) e = s;
+  return s <= b.last && e >= b.first;
+}
+
+/** יום ייחוס ל"פעיל" בתוך חודש — היום בחודש הנוכחי, אחרון בחודש שעבר, ראשון בחודש עתידי */
+function dashboardActivityRefIso_(ym) {
+  var today = formatDate_(new Date());
+  var curYm = today.slice(0, 7);
+  var b = ymBounds_(ym);
+  if (ym === curYm) return today;
+  if (ym < curYm) return b.last;
+  return b.first;
+}
+
+function countActiveByTypeInYm_(rows, ym, activityType) {
+  var ref = dashboardActivityRefIso_(ym);
+  return rows.filter(function(row) {
+    return activityOverlapsYm_(row, ym) &&
+      text_(row.activity_type) === activityType &&
+      isActivityActiveBySpec_(row, ref);
+  }).length;
+}
+
+function actionDashboard_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
-  var cachedDash = scriptCacheGetJson_(SCRIPT_CACHE_KEY_DASHBOARD);
-  if (cachedDash) {
-    return cachedDash;
-  }
+  var ym = dashboardPayloadYm_(payload || {});
 
-  var shortRows = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
-  var longRows = buildLongRows_();
-  var instructorRows = readRows_(CONFIG.SHEETS.INSTRUCTORS).filter(function(row) {
-    return yesNo_(row.active) === 'yes';
+  var shortAll = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
+  var longAll = buildLongRows_();
+  var shortRows = shortAll.filter(function(row) {
+    return activityOverlapsYm_(row, ym);
+  });
+  var longRows = longAll.filter(function(row) {
+    return activityOverlapsYm_(row, ym);
   });
 
-  var currentMonth = formatDate_(new Date()).slice(0, 7);
-  var todayIso = formatDate_(new Date());
   var combined = shortRows.concat(longRows);
+  var uniqueInstructorCount = countUniqueOperationalInstructors_(combined);
 
   var byManager = {};
   shortRows.forEach(function(row) {
@@ -63,8 +112,28 @@ function actionDashboard_(user) {
     byManager[manager].total += 1;
   });
 
+  // Compute per-manager extended stats
+  Object.keys(byManager).forEach(function(manager) {
+    var mShort = shortRows.filter(function(r) { return (text_(r.activity_manager) || 'unassigned') === manager; });
+    var mLong = longRows.filter(function(r) { return (text_(r.activity_manager) || 'unassigned') === manager; });
+    var mCombined = mShort.concat(mLong);
+    byManager[manager].num_instructors = countUniqueOperationalInstructors_(mCombined);
+    byManager[manager].course_endings = mLong.filter(function(r) {
+      return text_(r.activity_type) === 'course' && text_(r.end_date).slice(0, 7) === ym;
+    }).length;
+    byManager[manager].finance_open = mCombined.filter(function(r) {
+      return normalizeFinance_(r.finance_status) === 'open';
+    }).length;
+    byManager[manager].exceptions = mLong.filter(function(r) {
+      if (!text_(r.emp_id) && !text_(r.emp_id_2)) return true;
+      if (!text_(r.start_date)) return true;
+      if (text_(r.end_date) > getLateEndDateCutoff_()) return true;
+      return false;
+    }).length;
+  });
+
   var courseEndings = longRows.filter(function(row) {
-    return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === currentMonth;
+    return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === ym;
   }).length;
 
   var financeOpenCount = combined.filter(function(row) {
@@ -74,7 +143,7 @@ function actionDashboard_(user) {
   var exceptionSum = 0;
   longRows.forEach(function(row) {
     var t = '';
-    if (!text_(row.emp_id)) {
+    if (!text_(row.emp_id) && !text_(row.emp_id_2)) {
       t = 'x';
     } else if (!text_(row.start_date)) {
       t = 'x';
@@ -90,37 +159,37 @@ function actionDashboard_(user) {
     {
       id: 'active_courses',
       action: 'kpi|active_courses',
-      title: String(countActiveByType_(combined, todayIso, 'course')),
+      title: String(countActiveByTypeInYm_(combined, ym, 'course')),
       subtitle: 'קורסים פעילים',
-      value: countActiveByType_(combined, todayIso, 'course')
+      value: countActiveByTypeInYm_(combined, ym, 'course')
     },
     {
       id: 'active_workshops',
       action: 'kpi|active_workshops',
-      title: String(countActiveByType_(combined, todayIso, 'workshop')),
+      title: String(countActiveByTypeInYm_(combined, ym, 'workshop')),
       subtitle: 'סדנאות פעילות',
-      value: countActiveByType_(combined, todayIso, 'workshop')
+      value: countActiveByTypeInYm_(combined, ym, 'workshop')
     },
     {
       id: 'active_tours',
       action: 'kpi|active_tours',
-      title: String(countActiveByType_(combined, todayIso, 'tour')),
+      title: String(countActiveByTypeInYm_(combined, ym, 'tour')),
       subtitle: 'סיורים פעילים',
-      value: countActiveByType_(combined, todayIso, 'tour')
+      value: countActiveByTypeInYm_(combined, ym, 'tour')
     },
     {
       id: 'active_after_school',
       action: 'kpi|active_after_school',
-      title: String(countActiveByType_(combined, todayIso, 'after_school')),
+      title: String(countActiveByTypeInYm_(combined, ym, 'after_school')),
       subtitle: 'אפטרסקול פעיל',
-      value: countActiveByType_(combined, todayIso, 'after_school')
+      value: countActiveByTypeInYm_(combined, ym, 'after_school')
     },
     {
       id: 'active_escape_room',
       action: 'kpi|active_escape_room',
-      title: String(countActiveByType_(combined, todayIso, 'escape_room')),
+      title: String(countActiveByTypeInYm_(combined, ym, 'escape_room')),
       subtitle: 'חדרי בריחה פעילים',
-      value: countActiveByType_(combined, todayIso, 'escape_room')
+      value: countActiveByTypeInYm_(combined, ym, 'escape_room')
     },
     {
       id: 'finance_open',
@@ -139,24 +208,25 @@ function actionDashboard_(user) {
     {
       id: 'instructors',
       action: 'kpi|instructors',
-      title: String(instructorRows.length),
+      title: String(uniqueInstructorCount),
       subtitle: 'מדריכים פעילים',
-      value: instructorRows.length
+      value: uniqueInstructorCount
     },
     {
       id: 'endings',
       action: 'kpi|endings',
       title: String(courseEndings),
-      subtitle: 'מסיימים החודש',
+      subtitle: 'סיומי קורסים',
       value: courseEndings
     }
   ];
 
   var result = {
+    month: ym,
     totals: {
       total_short_activities: shortRows.length,
       total_long_activities: longRows.length,
-      total_instructors: instructorRows.length,
+      total_instructors: uniqueInstructorCount,
       total_course_endings_current_month: courseEndings,
       /** תאימות לאחור לבדיקות / לקוחות ישנים */
       short: shortRows.length,
@@ -168,7 +238,6 @@ function actionDashboard_(user) {
     kpi_cards: kpi_cards,
     show_only_nonzero_kpis: settingYes_('show_only_nonzero_kpis')
   };
-  scriptCachePutJson_(SCRIPT_CACHE_KEY_DASHBOARD, result, CONFIG.SCRIPT_CACHE_SECONDS);
   return result;
 }
 
@@ -176,6 +245,8 @@ function actionActivities_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
   var allRows = allActivities_();
+  var meetingsByRow = buildMeetingsMap_();
+  var today = formatDate_(new Date());
   var typeKeys = listValuesForName_('activity_type');
   if (!typeKeys.length) {
     typeKeys = ['course', 'workshop', 'after_school', 'escape_room', 'tour'];
@@ -210,6 +281,27 @@ function actionActivities_(user, payload) {
     rows: rows.map(function(row) {
       var noteKey = row.source_sheet + '|' + row.RowID;
       var noteRow = noteMap[noteKey];
+      var meetingDates = (meetingsByRow[row.RowID] || []).slice();
+      if (!meetingDates.length) {
+        var fallbackStart = text_(row.start_date);
+        var fallbackEnd = text_(row.end_date || row.start_date);
+        if (fallbackStart) meetingDates.push(fallbackStart);
+        if (fallbackEnd && fallbackEnd !== fallbackStart) meetingDates.push(fallbackEnd);
+      }
+      meetingDates = meetingDates.filter(function(v, i, arr) {
+        return !!v && arr.indexOf(v) === i;
+      }).sort();
+      var computedStartDate = meetingDates.length ? meetingDates[0] : text_(row.start_date);
+      var computedEndDate = meetingDates.length ? meetingDates[meetingDates.length - 1] : text_(row.end_date || row.start_date);
+      var meetingSchedule = meetingDates.map(function(dateKey) {
+        return {
+          date: dateKey,
+          performed: dateKey <= today ? 'yes' : 'no'
+        };
+      });
+      var meetingsDone = meetingSchedule.filter(function(item) {
+        return item.performed === 'yes';
+      }).length;
       return {
         RowID: row.RowID,
         source_sheet: row.source_sheet,
@@ -228,12 +320,17 @@ function actionActivities_(user, payload) {
         instructor_name: row.instructor_name,
         emp_id_2: row.emp_id_2,
         instructor_name_2: row.instructor_name_2,
-        start_date: row.start_date,
-        end_date: row.end_date,
+        start_date: computedStartDate,
+        end_date: computedEndDate,
         status: row.status,
         notes: row.notes,
         finance_status: row.finance_status,
         finance_notes: row.finance_notes,
+        meeting_dates: meetingDates,
+        meeting_schedule: meetingSchedule,
+        meetings_total: meetingSchedule.length,
+        meetings_done: meetingsDone,
+        meetings_remaining: Math.max(meetingSchedule.length - meetingsDone, 0),
         private_note: user.display_role === 'operations_reviewer' && noteRow && yesNo_(noteRow.active) === 'yes'
           ? text_(noteRow.note_text)
           : ''
@@ -292,8 +389,7 @@ function actionMonth_(user, payload) {
   var now = new Date();
   var ym = text_(payload && payload.ym).slice(0, 7);
   var ymMatch = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(ym);
-  var year;
-  var month;
+  var year, month;
   if (ymMatch) {
     year = parseInt(ymMatch[1], 10);
     month = parseInt(ymMatch[2], 10) - 1;
@@ -343,7 +439,7 @@ function actionExceptions_(user) {
 
   rows.forEach(function(row) {
     var exceptionType = '';
-    if (!text_(row.emp_id)) {
+    if (!text_(row.emp_id) && !text_(row.emp_id_2)) {
       exceptionType = 'missing_instructor';
     } else if (!text_(row.start_date)) {
       exceptionType = 'missing_start_date';
@@ -369,11 +465,17 @@ function actionExceptions_(user) {
   };
 }
 
-function actionFinance_(user) {
+function actionFinance_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
   var today = formatDate_(new Date());
   var rule = text_(readActiveSettingsMap_().finance_display_rule);
+  var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  var dateFrom = text_((payload || {}).date_from || '');
+  var dateTo = text_((payload || {}).date_to || '');
+  if (dateFrom && !DATE_RE.test(dateFrom)) dateFrom = '';
+  if (dateTo && !DATE_RE.test(dateTo)) dateTo = '';
+
   var rows = allActivities_().filter(function(row) {
     if (rule === 'ended_until_today') {
       var e = text_(row.end_date || row.start_date);
@@ -382,26 +484,93 @@ function actionFinance_(user) {
     return true;
   });
 
+  if (dateFrom || dateTo) {
+    rows = rows.filter(function(row) {
+      var d = text_(row.end_date || row.start_date);
+      if (!d) return false;
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    });
+  }
+
+  var mappedRows = rows.map(function(row) {
+    var price = parseFloat(row.price) || 0;
+    var sessions = parseFloat(row.sessions) || 0;
+    var amount = sessions > 0 ? price * sessions : price;
+    var mapped = {
+      RowID: row.RowID,
+      source_sheet: row.source_sheet,
+      activity_name: row.activity_name,
+      emp_id: text_(row.emp_id),
+      emp_id_2: text_(row.emp_id_2),
+      instructor_name: text_(row.instructor_name),
+      instructor_name_2: text_(row.instructor_name_2),
+      finance_status: normalizeFinance_(row.finance_status),
+      finance_notes: text_(row.finance_notes),
+      status: text_(row.status),
+      activity_manager: text_(row.activity_manager),
+      authority: text_(row.authority),
+      school: text_(row.school),
+      activity_type: text_(row.activity_type),
+      funding: text_(row.funding),
+      start_date: text_(row.start_date),
+      end_date: text_(row.end_date || row.start_date),
+      price: price,
+      sessions: sessions,
+      amount: amount,
+      is_archived: text_(row.is_archived || row.archive || ''),
+      Payer: text_(row.Payer || row.payer || ''),
+      Payment: parseFloat(row.Payment || row.payment || '') || 0
+    };
+    /* Include session date columns Date1–Date35 when present */
+    for (var di = 1; di <= 35; di++) {
+      var dk = 'Date' + di;
+      var dv = text_(row[dk] || '');
+      if (dv) mapped[dk] = dv;
+    }
+    return mapped;
+  });
+
+  var totalOpen = 0, totalClosed = 0, totalOther = 0;
+  var amountOpen = 0, amountClosed = 0, amountOther = 0;
+  var managerMap = {};
+  mappedRows.forEach(function(r) {
+    var st = String(r.finance_status || '').toLowerCase();
+    /* Prefer actual Payment (collected) over expected price×sessions */
+    var explicitPayment = parseFloat(r.Payment) || 0;
+    var price = parseFloat(r.price) || 0;
+    var sessions = parseFloat(r.sessions) || 0;
+    var amount = explicitPayment > 0 ? explicitPayment : (sessions > 0 ? price * sessions : price);
+
+    if (st === 'open') { totalOpen++; amountOpen += amount; }
+    else if (st === 'closed') { totalClosed++; amountClosed += amount; }
+    else { totalOther++; amountOther += amount; }
+
+    var mgr = String(r.activity_manager || '').trim() || '—';
+    if (!managerMap[mgr]) managerMap[mgr] = { mgr: mgr, total: 0, open: 0, closed: 0, other: 0, amountOpen: 0, amountClosed: 0, amountOther: 0, amountTotal: 0 };
+    managerMap[mgr].total++;
+    managerMap[mgr].amountTotal += amount;
+    if (st === 'open') { managerMap[mgr].open++; managerMap[mgr].amountOpen += amount; }
+    else if (st === 'closed') { managerMap[mgr].closed++; managerMap[mgr].amountClosed += amount; }
+    else { managerMap[mgr].other++; managerMap[mgr].amountOther += amount; }
+  });
+
+  var byManager = Object.keys(managerMap).map(function(k) { return managerMap[k]; }).sort(function(a, b) { return b.total - a.total; });
+
   return {
-    rows: rows.map(function(row) {
-      return {
-        RowID: row.RowID,
-        source_sheet: row.source_sheet,
-        activity_name: row.activity_name,
-        finance_status: normalizeFinance_(row.finance_status),
-        finance_notes: text_(row.finance_notes),
-        status: text_(row.status),
-        activity_manager: text_(row.activity_manager),
-        authority: text_(row.authority),
-        school: text_(row.school),
-        activity_type: text_(row.activity_type),
-        funding: text_(row.funding),
-        start_date: text_(row.start_date),
-        end_date: text_(row.end_date || row.start_date),
-        price: row.price,
-        sessions: row.sessions
-      };
-    })
+    rows: mappedRows,
+    aggregates: {
+      total: mappedRows.length,
+      totalOpen: totalOpen,
+      totalClosed: totalClosed,
+      totalOther: totalOther,
+      amountOpen: amountOpen,
+      amountClosed: amountClosed,
+      amountOther: amountOther,
+      amountTotal: amountOpen + amountClosed + amountOther,
+      byManager: byManager
+    }
   };
 }
 
@@ -409,18 +578,7 @@ function actionInstructors_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
   return {
-    rows: readRows_(CONFIG.SHEETS.INSTRUCTORS).map(function(row) {
-      return {
-        emp_id: text_(row.emp_id),
-        full_name: text_(row.full_name),
-        mobile: text_(row.mobile),
-        email: text_(row.email),
-        address: text_(row.address),
-        employment_type: text_(row.employment_type),
-        direct_manager: text_(row.direct_manager),
-        active: yesNo_(row.active)
-      };
-    })
+    rows: buildOperationalInstructorsPayloadRows_()
   };
 }
 
@@ -456,7 +614,7 @@ function actionInstructorContacts_(user) {
   }
 
   return {
-    rows: readRows_(CONFIG.SHEETS.INSTRUCTORS).map(function(row) {
+    rows: readRows_(CONFIG.SHEETS.CONTACTS_INSTRUCTORS).map(function(row) {
       return {
         emp_id: text_(row.emp_id),
         full_name: text_(row.full_name),
@@ -523,6 +681,42 @@ function actionMyData_(user) {
   return { rows: allActivities_() };
 }
 
+/**
+ * Computes effective non-admin role defaults, merging hardcoded baseline with
+ * any active overrides in the settings sheet (role_defaults.<role>.<flag>).
+ * Returns { operations_reviewer: {...}, authorized_user: {...}, instructor: {} }
+ * where each value is a flag-name → 'yes'/'no' object.
+ */
+function computeNonAdminRoleDefaults_() {
+  var defaults = {
+    operations_reviewer: {
+      view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
+      view_instructors: 'yes', view_exceptions: 'yes', view_finance: 'yes',
+      view_edit_requests: 'yes', view_final_approvals: 'yes',
+      can_edit_direct: 'yes', can_review_requests: 'yes'
+    },
+    authorized_user: {
+      view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
+      can_add_activity: 'yes', can_edit_direct: 'yes'
+    },
+    instructor: {}
+  };
+  var settingsMap = readActiveSettingsMap_();
+  var nonAdminRoles = ['operations_reviewer', 'authorized_user', 'instructor'];
+  nonAdminRoles.forEach(function(role) {
+    var base = defaults[role] || {};
+    var prefix = 'role_defaults.' + role + '.';
+    Object.keys(settingsMap).forEach(function(k) {
+      if (k.indexOf(prefix) !== 0) return;
+      var flag = k.slice(prefix.length);
+      if (flag.indexOf('view_') !== 0 && flag.indexOf('can_') !== 0) return;
+      base[flag] = yesNo_(settingsMap[k]) === 'yes' ? 'yes' : 'no';
+    });
+    defaults[role] = base;
+  });
+  return defaults;
+}
+
 function actionPermissions_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer']);
   var permission = getPermissionRow_(user.user_id);
@@ -532,6 +726,9 @@ function actionPermissions_(user) {
 
   var cachedPerm = scriptCacheGetJson_(SCRIPT_CACHE_KEY_PERMISSIONS_LIST);
   if (cachedPerm) {
+    // roleDefaults is always computed fresh (not stored in script cache) so that
+    // settings-sheet overrides are reflected without waiting for cache expiry.
+    cachedPerm.roleDefaults = computeNonAdminRoleDefaults_();
     return cachedPerm;
   }
 
@@ -561,6 +758,8 @@ function actionPermissions_(user) {
     })
   };
   scriptCachePutJson_(SCRIPT_CACHE_KEY_PERMISSIONS_LIST, result, CONFIG.SCRIPT_CACHE_SECONDS);
+  // Add roleDefaults after caching (not stored in script cache — always fresh)
+  result.roleDefaults = computeNonAdminRoleDefaults_();
   return result;
 }
 
@@ -841,6 +1040,135 @@ function actionSavePermission_(user, payload) {
   };
 }
 
+function actionAddUser_(user, payload) {
+  requireAnyRole_(user, ['admin']);
+
+  var row = payload.row || {};
+  var userId = text_(row.user_id);
+  if (!userId) throw new Error('user_id is required');
+
+  var sheet = getSheet_(CONFIG.SHEETS.PERMISSIONS);
+  var headers = getHeaders_(sheet);
+
+  var existingRows = readRows_(CONFIG.SHEETS.PERMISSIONS);
+  var alreadyExists = existingRows.some(function(r) {
+    return text_(r.user_id) === userId;
+  });
+  if (alreadyExists) throw new Error('user_already_exists');
+
+  var resolvedRole = normalizeRole_(text_(row.display_role || 'instructor'));
+
+  var nonAdminRoleDefaults = computeNonAdminRoleDefaults_();
+
+  var isAdmin = resolvedRole === 'admin';
+  var nonAdminDefaults = nonAdminRoleDefaults[resolvedRole] || {};
+
+  var newRow = {};
+  headers.forEach(function(h) {
+    if (h === 'user_id') {
+      newRow[h] = userId;
+    } else if (h === 'full_name') {
+      newRow[h] = text_(row.full_name || '');
+    } else if (h === 'entry_code') {
+      newRow[h] = text_(row.entry_code || '');
+    } else if (h === 'display_role') {
+      newRow[h] = resolvedRole;
+    } else if (h === 'active') {
+      newRow[h] = 'yes';
+    } else if (h.indexOf('view_') === 0 || h.indexOf('can_') === 0) {
+      newRow[h] = isAdmin ? 'yes' : (nonAdminDefaults[h] || 'no');
+    } else {
+      newRow[h] = '';
+    }
+  });
+
+  upsertRowByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', newRow);
+
+  scriptCacheInvalidateDataViews_();
+  return {
+    created: true,
+    user_id: userId
+  };
+}
+
+function actionDeactivateUser_(user, payload) {
+  requireAnyRole_(user, ['admin']);
+
+  var userId = text_(payload.user_id);
+  if (!userId) throw new Error('user_id is required');
+
+  if (userId === text_(user.user_id)) throw new Error('cannot_deactivate_self');
+
+  var existing = getPermissionRow_(userId);
+  if (!existing || !text_(existing.user_id)) throw new Error('user_not_found');
+
+  var sheet = getSheet_(CONFIG.SHEETS.PERMISSIONS);
+  var headers = getHeaders_(sheet);
+
+  var merged = {};
+  headers.forEach(function(h) {
+    merged[h] = existing[h] !== undefined && existing[h] !== null ? existing[h] : '';
+  });
+  merged.active = 'no';
+
+  upsertRowByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', merged);
+
+  scriptCacheInvalidateDataViews_();
+  return {
+    deactivated: true,
+    user_id: userId
+  };
+}
+
+function actionReactivateUser_(user, payload) {
+  requireAnyRole_(user, ['admin']);
+
+  var userId = text_(payload.user_id);
+  if (!userId) throw new Error('user_id is required');
+
+  var existing = getPermissionRow_(userId);
+  if (!existing || !text_(existing.user_id)) throw new Error('user_not_found');
+
+  var sheet = getSheet_(CONFIG.SHEETS.PERMISSIONS);
+  var headers = getHeaders_(sheet);
+
+  var merged = {};
+  headers.forEach(function(h) {
+    merged[h] = existing[h] !== undefined && existing[h] !== null ? existing[h] : '';
+  });
+  merged.active = 'yes';
+
+  upsertRowByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', merged);
+
+  scriptCacheInvalidateDataViews_();
+  return {
+    reactivated: true,
+    user_id: userId
+  };
+}
+
+function actionDeleteUser_(user, payload) {
+  requireAnyRole_(user, ['admin']);
+
+  var userId = text_(payload.user_id);
+  if (!userId) throw new Error('user_id is required');
+
+  if (userId === text_(user.user_id)) throw new Error('cannot_delete_self');
+
+  var existing = getPermissionRow_(userId);
+  if (!existing || !text_(existing.user_id)) throw new Error('user_not_found');
+
+  if (text_(existing.active).toLowerCase() === 'yes') throw new Error('cannot_delete_active_user');
+
+  deleteRowsByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', userId);
+
+  scriptCacheInvalidateDataViews_();
+  return {
+    deleted: true,
+    user_id: userId
+  };
+}
+
 function actionSavePrivateNote_(user, payload) {
   var permission = getPermissionRow_(user.user_id);
   if (yesNo_(permission.can_review_requests) !== 'yes' || user.display_role !== 'operations_reviewer') {
@@ -970,8 +1298,8 @@ function mapLongRow_(row) {
     end_time: text_(row.end_time),
     emp_id: text_(row.emp_id),
     instructor_name: text_(row.instructor_name),
-    emp_id_2: '',
-    instructor_name_2: '',
+    emp_id_2: text_(row.emp_id_2),
+    instructor_name_2: text_(row.instructor_name_2),
     start_date: text_(row.start_date),
     end_date: text_(row.end_date),
     status: text_(row.status),
@@ -979,6 +1307,76 @@ function mapLongRow_(row) {
     finance_status: normalizeFinance_(row.finance_status),
     finance_notes: text_(row.finance_notes)
   };
+}
+
+/** מזהי מדריך/ה תפעוליים ייחודיים מתוך שורות פעילות — רק emp_id ו-emp_id_2. */
+function collectUniqueOperationalEmpIds_(activityRows) {
+  var seen = {};
+  activityRows.forEach(function(row) {
+    var a = text_(row.emp_id);
+    var b = text_(row.emp_id_2);
+    if (a) seen[a] = true;
+    if (b) seen[b] = true;
+  });
+  return Object.keys(seen).sort();
+}
+
+function countUniqueOperationalInstructors_(activityRows) {
+  return collectUniqueOperationalEmpIds_(activityRows).length;
+}
+
+/** מפת העשרה: emp_id -> שורה בגיליון contacts_instructors (תצוגה / פרטי קשר בלבד). */
+function readInstructorContactsEnrichmentMap_() {
+  var rows = readRows_(CONFIG.SHEETS.CONTACTS_INSTRUCTORS);
+  var map = {};
+  rows.forEach(function(row) {
+    var id = text_(row.emp_id);
+    if (!id) return;
+    if (!map[id]) map[id] = row;
+  });
+  return map;
+}
+
+/**
+ * מסך instructors: ישות תפעולית — רשימת מזהים ייחודיים מ-data_short + data_long,
+ * עם שדות תצוגה מהעשרה אופציונלית מ-contacts_instructors או משמות בפעילות.
+ */
+function buildOperationalInstructorsPayloadRows_() {
+  var combined = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_).concat(buildLongRows_());
+  var ids = collectUniqueOperationalEmpIds_(combined);
+  var enrich = readInstructorContactsEnrichmentMap_();
+  var displayNameFromActivity = {};
+  var activityCount = {};
+  combined.forEach(function(row) {
+    var e1 = text_(row.emp_id);
+    var n1 = text_(row.instructor_name);
+    if (e1) {
+      if (n1 && !displayNameFromActivity[e1]) displayNameFromActivity[e1] = n1;
+      activityCount[e1] = (activityCount[e1] || 0) + 1;
+    }
+    var e2 = text_(row.emp_id_2);
+    var n2 = text_(row.instructor_name_2);
+    if (e2) {
+      if (n2 && !displayNameFromActivity[e2]) displayNameFromActivity[e2] = n2;
+      activityCount[e2] = (activityCount[e2] || 0) + 1;
+    }
+  });
+  return ids.map(function(empId) {
+    var c = enrich[empId];
+    var fromAct = displayNameFromActivity[empId] || '';
+    var fullName = c ? text_(c.full_name) : fromAct;
+    return {
+      emp_id: empId,
+      full_name: fullName,
+      mobile: c ? text_(c.mobile) : '',
+      email: c ? text_(c.email) : '',
+      address: c ? text_(c.address) : '',
+      employment_type: c ? text_(c.employment_type) : '',
+      direct_manager: c ? text_(c.direct_manager) : '',
+      active: c ? yesNo_(c.active) : 'yes',
+      activity_count: activityCount[empId] || 0
+    };
+  });
 }
 
 function buildPrivateNotesMap_() {
@@ -1287,4 +1685,73 @@ function countActiveByType_(rows, todayIso, activityType) {
   return rows.filter(function(row) {
     return text_(row.activity_type) === activityType && isActivityActiveBySpec_(row, todayIso);
   }).length;
+}
+
+/* ── Admin Settings ────────────────────────────────────────────────────────── */
+function actionAdminSettings_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  var rows = [];
+  try {
+    var sheet = getSpreadsheet_().getSheetByName(CONFIG.SHEETS.SETTINGS);
+    if (sheet) {
+      rows = readRows_(CONFIG.SHEETS.SETTINGS);
+    }
+  } catch(e) {}
+  return { rows: rows };
+}
+
+/* ── Admin Lists ────────────────────────────────────────────────────────────── */
+function actionAdminLists_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  var rows = [];
+  try {
+    var sheet = getSpreadsheet_().getSheetByName(CONFIG.SHEETS.LISTS);
+    if (sheet) {
+      rows = readRows_(CONFIG.SHEETS.LISTS);
+    }
+  } catch(e) {}
+
+  /* If rows have a list_name column, group by it; otherwise return raw rows */
+  var hasListName = rows.length > 0 && rows[0].hasOwnProperty('list_name');
+  if (hasListName) {
+    var grouped = {};
+    rows.forEach(function(r) {
+      var listName = text_(r.list_name).toLowerCase();
+      var val = text_(r.value || r.display_value || r.val || '');
+      if (!listName || !val) return;
+      if (!grouped[listName]) grouped[listName] = [];
+      grouped[listName].push(val);
+    });
+    return {
+      schools: grouped['schools'] || grouped['school'] || [],
+      fundings: grouped['fundings'] || grouped['funding'] || [],
+      authorities: grouped['authorities'] || grouped['authority'] || [],
+      activity_types: grouped['activity_types'] || grouped['activity_type'] || [],
+      managers: grouped['managers'] || grouped['manager'] || [],
+      raw: rows
+    };
+  }
+  return { rows: rows, raw: rows };
+}
+
+/* ── Save Finance Row (status + notes) ─────────────────────────────────────── */
+function actionSaveFinanceRow_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  var sourceRowId = text_(payload.source_row_id || payload.RowID);
+  var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT));
+  if (!sourceRowId) throw new Error('source_row_id is required');
+  var changes = {};
+  if (payload.finance_status !== undefined) changes.finance_status = text_(payload.finance_status);
+  if (payload.finance_notes !== undefined) changes.finance_notes = text_(payload.finance_notes);
+  if (Object.keys(changes).length === 0) throw new Error('no changes provided');
+  updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
+  scriptCacheInvalidateDataViews_();
+  return { saved: true, source_row_id: sourceRowId };
+}
+
+/* ── Sync Finance (refresh cache + return timestamp) ───────────────────────── */
+function actionSyncFinance_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  scriptCacheInvalidateDataViews_();
+  return { synced: true, timestamp: new Date().toISOString() };
 }

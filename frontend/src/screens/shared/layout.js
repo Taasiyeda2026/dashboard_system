@@ -79,10 +79,14 @@ export function dsKpiGrid(items) {
 /**
  * Shared clickable card primitive for KPI / mini cards / day cells / session cards.
  * Requires an explicit action key to avoid ambiguous clickable behavior.
+ *
+ * KPI variant: pass `value` (the big number) and `title` (the small label).
+ * Other variants: pass `title` (primary text), optional `subtitle` and `meta`.
  */
 export function dsInteractiveCard({
   action,
   title,
+  value = '',
   subtitle = '',
   meta = '',
   variant = 'mini',
@@ -95,9 +99,25 @@ export function dsInteractiveCard({
   }
   const selectedClass = selected ? ' is-selected' : '';
   const disabledAttr = disabled ? ' disabled aria-disabled="true"' : '';
-  const subtitleHtml = subtitle ? `<p class="ds-interactive-card__subtitle">${escapeHtml(subtitle)}</p>` : '';
-  const metaHtml = meta ? `<p class="ds-interactive-card__meta">${escapeHtml(meta)}</p>` : '';
   const moreClass = extraClass && /^[a-zA-Z0-9_\s-]+$/.test(extraClass) ? ` ${extraClass}` : '';
+
+  let innerHtml;
+  if (variant === 'kpi' && value !== '') {
+    const metaHtml = meta ? `<p class="ds-interactive-card__meta">${escapeHtml(meta)}</p>` : '';
+    innerHtml = `
+      <p class="ds-interactive-card__label">${escapeHtml(title)}</p>
+      <p class="ds-interactive-card__value">${escapeHtml(String(value))}</p>
+      ${metaHtml}
+    `;
+  } else {
+    const subtitleHtml = subtitle ? `<p class="ds-interactive-card__subtitle">${escapeHtml(subtitle)}</p>` : '';
+    const metaHtml = meta ? `<p class="ds-interactive-card__meta">${escapeHtml(meta)}</p>` : '';
+    innerHtml = `
+      <p class="ds-interactive-card__title">${escapeHtml(title)}</p>
+      ${subtitleHtml}
+      ${metaHtml}
+    `;
+  }
 
   return `
     <button
@@ -105,9 +125,7 @@ export function dsInteractiveCard({
       class="ds-interactive-card ds-interactive-card--${escapeHtml(variant)}${selectedClass}${moreClass}"
       data-card-action="${escapeHtml(action)}"${disabledAttr}
     >
-      <p class="ds-interactive-card__title">${escapeHtml(title)}</p>
-      ${subtitleHtml}
-      ${metaHtml}
+      ${innerHtml}
     </button>
   `;
 }

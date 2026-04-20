@@ -1,6 +1,8 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsScreenStack, dsCard, dsInteractiveCard } from './shared/layout.js';
-import { activityRowDetailHtml } from './shared/activity-detail-html.js';
+import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
+import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -74,13 +76,12 @@ function padDayKey(y, mo, dayNum) {
   return `${y}-${String(mo).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
 }
 
-function dayNeedsAttention(items, hideEmpIds) {
+function dayNeedsAttention(items) {
   const list = Array.isArray(items) ? items : [];
   return list.some((it) => {
-    const names = [it.instructor_name, it.instructor_name_2].filter((x) => x && String(x).trim()).join('');
-    if (names) return false;
-    if (hideEmpIds) return true;
-    return !String(it?.emp_id || '').trim();
+    const id1 = String(it?.emp_id || '').trim();
+    const id2 = String(it?.emp_id_2 || '').trim();
+    return !id1 && !id2;
   });
 }
 
@@ -90,25 +91,37 @@ function activityDotsMeta(n) {
   return `●●●●● +${n - 5}`;
 }
 
-function monthDayDrawerBody(cell, hideEmpIds) {
+function monthDayDrawerBody(cell, hideEmpIds, canEdit, showPrivateNote) {
   const items = Array.isArray(cell?.items) ? cell.items : [];
   if (!items.length) {
     return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(cell?.date || '')}</p>`;
   }
   const blocks = items
     .map(
-      (it) => `
+      (it) => {
+        const privateNote = showPrivateNote ? it.private_note || '—' : null;
+        return `
     <section class="ds-cal-drawer-block" aria-label="${escapeHtml(it.activity_name || 'פעילות')}">
       <h3 class="ds-cal-drawer-block__title">${escapeHtml(it.activity_name || 'פעילות')}</h3>
-      ${activityRowDetailHtml(it, { privateNote: null, hideEmpIds: !!hideEmpIds })}
-    </section>`
+      ${activityWorkDrawerHtml(it, { privateNote, canEdit: !!canEdit, hideEmpIds: !!hideEmpIds })}
+    </section>`;
+      }
     )
     .join('');
   return `<div class="ds-cal-drawer-stack">${blocks}</div>`;
 }
 
+function shiftMonthYm(ym, delta) {
+  const d = ym && /^\d{4}-\d{2}$/.test(ym) ? new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1, 1) : new Date();
+  d.setMonth(d.getMonth() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export const monthScreen = {
-  load: ({ api }) => api.month(),
+  load: ({ api, state }) => {
+    const ym = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : '';
+    return api.month(ym ? { ym } : {});
+  },
   render(data, { state }) {
     const spec = inferMonthSpec(data || {});
     const y = spec.y;
@@ -151,19 +164,26 @@ export const monthScreen = {
       const cellItems = monthCellItems(cell, itemsById);
       const n = cellItems.length;
       const isToday = cell.date === todayIso;
-      const warn = dayNeedsAttention(cellItems, hideEmpIds);
+      const warn = dayNeedsAttention(cell.items);
       const extra = [isToday ? 'is-cal-today' : '', warn ? 'is-month-warn' : ''].filter(Boolean).join(' ');
       const subtitle = n > 0 ? activityDotsMeta(n) : '';
       const meta = n > 0 ? `${n} פעילויות` : 'ללא';
+      const hay = (Array.isArray(cell.items) ? cell.items : [])
+        .map((it) =>
+          [it.activity_name, it.RowID, it.emp_id, it.emp_id_2, it.instructor_name, it.instructor_name_2].filter(Boolean).join(' ')
+        )
+        .join(' ');
       slots.push(
-        dsInteractiveCard({
+        `<div class="ds-cal-slot-hit" data-list-item data-search="${escapeHtml(hay)}" data-filter="">
+        ${dsInteractiveCard({
           variant: 'day-cell',
           action: `monthcell|${dayNum}`,
           title: String(dayNum),
           subtitle,
           meta,
           extraClass: extra.trim()
-        })
+        })}
+      </div>`
       );
     }
 
@@ -173,20 +193,66 @@ export const monthScreen = {
         <div class="ds-cal-grid" role="grid" aria-label="לוח חודש">${slots.join('')}</div>
       </div>`;
 
-    const monthKeyDisplay = data?.month ? escapeHtml(data.month) : `${y}-${String(mo).padStart(2, '0')}`;
+    const currentYm = data?.month || `${y}-${String(mo).padStart(2, '0')}`;
+    const monthTitle = monthTitleHebrew(spec);
+
+    const uniqueActs = new Set(safeCells.flatMap((c) => (c.items || []).map((it) => it.RowID))).size;
+    const activeDaysCount = safeCells.filter((c) => (c.items || []).length > 0).length;
+    const totalEvents = safeCells.reduce((s, c) => s + (c.items || []).length, 0);
+    const monthKpiRow = `<div class="ds-mini-kpi-row">
+      <span class="ds-mini-kpi"><strong>${uniqueActs}</strong> פעילויות</span>
+      <span class="ds-mini-kpi"><strong>${activeDaysCount}</strong> ימים פעילים</span>
+      <span class="ds-mini-kpi"><strong>${totalEvents}</strong> אירועים</span>
+    </div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('חודש', 'לוח חודש — לחיצה על יום לפתיחת פירוט')}
+      ${dsPageHeader('חודש', '')}
+      <div class="ds-screen-shortcuts" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-back-activities>חזור</button>
+      </div>
+      <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">▶ חודש קודם</button>
+        <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
+        <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">חודש הבא ◀</button>
+      </nav>
+      ${monthKpiRow}
+      ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש לפי שם פעילות ביום…', filters: [] })}
       ${dsCard({
-        title: monthTitleHebrew(spec),
-        badge: `${dim} ימים · ${monthKeyDisplay}`,
+        title: 'לוח חודשי',
+        badge: `${dim} ימים · ${escapeHtml(currentYm)}`,
         body: gridHtml,
-        padded: true
+        padded: false
       })}
     `);
   },
-  bind({ root, ui, data, state }) {
+  bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
+    bindPageListTools(root, { mode: 'dim' });
+    root.querySelector('[data-back-activities]')?.addEventListener('click', () => {
+      state.route = 'activities';
+      rerender?.();
+    });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const canEditActivity = state?.user?.display_role !== 'instructor';
+    const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+
+    const bindActivityEditForm = (contentRoot) =>
+      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
+
+    const currentYm = data?.month || '';
+    const resolveBaseYm = () => {
+      if (/^\d{4}-\d{2}$/.test(String(state.monthYm || ''))) return state.monthYm;
+      if (/^\d{4}-\d{2}$/.test(String(currentYm || ''))) return currentYm;
+      return `${spec.y}-${String(spec.mo).padStart(2, '0')}`;
+    };
+    root.querySelector('[data-month-prev]')?.addEventListener('click', () => {
+      state.monthYm = shiftMonthYm(resolveBaseYm(), -1);
+      rerender?.();
+    });
+    root.querySelector('[data-month-next]')?.addEventListener('click', () => {
+      state.monthYm = shiftMonthYm(resolveBaseYm(), 1);
+      rerender?.();
+    });
+
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;
       const dayNum = action.split('|')[1];
@@ -207,7 +273,8 @@ export const monthScreen = {
       const n = cellItems.length;
       ui.openDrawer({
         title: `יום ${d} · ${cell.date || ''}`,
-        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody({ ...cell, items: cellItems }, hideEmpIds)}`
+        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(cell, hideEmpIds, canEditActivity, showPrivateNote)}`,
+        onOpen: canEditActivity ? bindActivityEditForm : undefined
       });
     });
   }
