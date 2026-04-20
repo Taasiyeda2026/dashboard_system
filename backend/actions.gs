@@ -1030,6 +1030,11 @@ function actionSavePermission_(user, payload) {
   if (headers.indexOf('active') >= 0) {
     merged.active = Object.prototype.hasOwnProperty.call(row, 'active') ? yesNo_(row.active) : yesNo_(existing.active);
   }
+  if (headers.indexOf('default_view') >= 0) {
+    var mergedRole = normalizeRole_(text_(merged.display_role) || internalRoleFromPermissionRow_(existing));
+    var mergedRoutes = buildRoutesFromPermission_(merged, mergedRole);
+    merged.default_view = resolveDefaultRoute_(text_(merged.default_view), mergedRoutes, mergedRole);
+  }
 
   upsertRowByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', merged);
 
@@ -1081,6 +1086,10 @@ function actionAddUser_(user, payload) {
       newRow[h] = '';
     }
   });
+  if (headers.indexOf('default_view') >= 0) {
+    var newUserRoutes = buildRoutesFromPermission_(newRow, resolvedRole);
+    newRow.default_view = resolveDefaultRoute_(text_(row.default_view), newUserRoutes, resolvedRole);
+  }
 
   upsertRowByKey_(CONFIG.SHEETS.PERMISSIONS, 'user_id', newRow);
 

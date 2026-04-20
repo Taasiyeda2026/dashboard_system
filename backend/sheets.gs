@@ -6,7 +6,8 @@ function beginRequestCache_() {
     ss: null,
     sheetByName: {},
     readRows: {},
-    headers: {}
+    headers: {},
+    sheetMeta: {}
   };
 }
 
@@ -14,6 +15,9 @@ function invalidateReadRowsCache_(sheetName) {
   if (!__rqCache_ || !sheetName) return;
   if (__rqCache_.readRows) {
     delete __rqCache_.readRows[sheetName];
+  }
+  if (__rqCache_.sheetMeta) {
+    delete __rqCache_.sheetMeta[sheetName];
   }
   delete __rqCache_.meetingsMap;
   delete __rqCache_.buildLongRows;
@@ -41,6 +45,15 @@ function getSpreadsheet_() {
 function readActiveSettingsMap_() {
   if (__rqCache_ && __rqCache_.settingsMap) {
     return __rqCache_.settingsMap;
+  }
+  var version = dataViewsCacheVersion_();
+  var cacheKey = 'pc:settings-map:' + version;
+  var cached = scriptCacheGetJson_(cacheKey);
+  if (cached && typeof cached === 'object') {
+    if (__rqCache_) {
+      __rqCache_.settingsMap = cached;
+    }
+    return cached;
   }
   var map = {};
   try {
@@ -83,6 +96,7 @@ function readActiveSettingsMap_() {
   if (__rqCache_) {
     __rqCache_.settingsMap = map;
   }
+  scriptCachePutJson_(cacheKey, map, CONFIG.SCRIPT_CACHE_SECONDS || 300);
   return map;
 }
 
@@ -108,13 +122,29 @@ function getHeaders_(sheet) {
   if (__rqCache_ && __rqCache_.headers[sheetKey]) {
     return __rqCache_.headers[sheetKey];
   }
-  var lastCol = sheet.getLastColumn();
+  var meta = getSheetMeta_(sheet);
+  var lastCol = meta.lastCol;
   if (!lastCol) throw new Error('Missing headers in sheet: ' + sheet.getName());
   var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
   if (__rqCache_) {
     __rqCache_.headers[sheetKey] = headers;
   }
   return headers;
+}
+
+function getSheetMeta_(sheet) {
+  var sheetKey = sheet.getName();
+  if (__rqCache_ && __rqCache_.sheetMeta && __rqCache_.sheetMeta[sheetKey]) {
+    return __rqCache_.sheetMeta[sheetKey];
+  }
+  var meta = {
+    lastRow: sheet.getLastRow(),
+    lastCol: sheet.getLastColumn()
+  };
+  if (__rqCache_ && __rqCache_.sheetMeta) {
+    __rqCache_.sheetMeta[sheetKey] = meta;
+  }
+  return meta;
 }
 
 function getRows_(sheetName) {
@@ -128,8 +158,9 @@ function readRows_(sheetName) {
   }
 
   var sheet = getSheet_(sheetName);
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
+  var meta = getSheetMeta_(sheet);
+  var lastRow = meta.lastRow;
+  var lastCol = meta.lastCol;
   var dataStart = getDataStartRow_();
   if (lastRow < dataStart) {
     if (__rqCache_) {
@@ -138,7 +169,7 @@ function readRows_(sheetName) {
     return [];
   }
 
-  var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
+  var headers = getHeaders_(sheet);
   var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, lastCol).getValues();
 
   var result = values.filter(function(row) {

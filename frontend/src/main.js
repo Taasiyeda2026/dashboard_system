@@ -17,8 +17,6 @@ import { endDatesScreen } from './screens/end-dates.js';
 import { myDataScreen } from './screens/my-data.js';
 import { permissionsScreen } from './screens/permissions.js';
 import { adminHomeScreen } from './screens/admin-home.js';
-import { adminSettingsScreen } from './screens/admin-settings.js';
-import { adminListsScreen } from './screens/admin-lists.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc = new URL('../assets/logo1.png', import.meta.url).href;
@@ -51,7 +49,7 @@ function screenLoadingMarkup() {
   `;
 }
 
-/* ——— Route cache in localStorage (avoids extra bootstrap call on refresh) ——— */
+/* ——— Route snapshot in localStorage (diagnostic only) ——— */
 function saveRoutesToStorage(routes, defaultRoute, clientSettings) {
   try {
     localStorage.setItem('dashboard_routes', JSON.stringify({
@@ -60,13 +58,6 @@ function saveRoutesToStorage(routes, defaultRoute, clientSettings) {
       clientSettings: clientSettings || {}
     }));
   } catch {}
-}
-
-function loadRoutesFromStorage() {
-  try {
-    const raw = localStorage.getItem('dashboard_routes');
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
 }
 
 function applyBootstrapFromLoginData(data) {
@@ -98,9 +89,7 @@ const screenLabels = {
   'end-dates': 'תאריכי סיום',
   'my-data': 'הנתונים שלי',
   permissions: 'הרשאות',
-  'admin-home': 'בית — ניהול',
-  'admin-settings': 'הגדרות מערכת',
-  'admin-lists': 'ניהול רשימות'
+  'admin-home': 'בית — ניהול'
 };
 
 const screens = {
@@ -116,9 +105,7 @@ const screens = {
   'end-dates': endDatesScreen,
   'my-data': myDataScreen,
   permissions: permissionsScreen,
-  'admin-home': adminHomeScreen,
-  'admin-settings': adminSettingsScreen,
-  'admin-lists': adminListsScreen
+  'admin-home': adminHomeScreen
 };
 
 const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts', 'week', 'month', 'exceptions', 'instructors']);
@@ -378,44 +365,19 @@ function rerenderActivitiesViewOnly(screen, screenRoot) {
 
 /**
  * Restores session on page refresh.
- * Uses cached routes from localStorage to avoid a blocking bootstrap API call.
- * The bootstrap call runs in the background to refresh permissions/profile.
+ * Permissions are authoritative on the server, so refresh is always
+ * bootstrap-driven (no route restore from localStorage).
  */
 async function restoreSession() {
   if (!state.token) return;
   if (state.routes.length) return;
 
-  const saved = loadRoutesFromStorage();
-  if (saved?.routes?.length) {
-    state.routes = saved.routes;
-    state.route = saved.defaultRoute || state.routes[0] || 'my-data';
-    if (saved.clientSettings && typeof saved.clientSettings === 'object') {
-      state.clientSettings = { ...saved.clientSettings };
-    }
-    // Non-blocking background refresh
-    api.bootstrap().then((b) => {
-      if (b.routes?.length) {
-        state.routes = b.routes;
-        saveRoutesToStorage(b.routes, b.default_route, b.client_settings);
-      }
-      if (b.client_settings && typeof b.client_settings === 'object') {
-        state.clientSettings = { ...b.client_settings };
-      }
-      if (b.profile && state.user) {
-        const fn = b.profile.full_name != null ? String(b.profile.full_name).trim() : '';
-        if (fn) state.user.full_name = fn;
-        state.user.display_role2 =
-          b.profile.display_role2 != null ? String(b.profile.display_role2) : '';
-        localStorage.setItem('dashboard_user', JSON.stringify(state.user));
-      }
-    }).catch(() => {});
-    return;
-  }
-
-  // First ever login on this device: blocking bootstrap call
   const bootstrap = await api.bootstrap();
   state.routes = bootstrap.routes || [];
-  state.route = bootstrap.default_route || state.routes[0] || 'my-data';
+  state.route =
+    bootstrap.default_route && state.routes.includes(bootstrap.default_route)
+      ? bootstrap.default_route
+      : state.routes[0] || 'my-data';
   if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
     state.clientSettings = { ...bootstrap.client_settings };
   }

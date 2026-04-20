@@ -87,9 +87,7 @@ function buildRoutesFromPermission_(permission, role) {
     'end-dates',
     'my-data',
     'permissions',
-    'admin-home',
-    'admin-settings',
-    'admin-lists'
+    'admin-home'
   ];
 
   if (role === 'admin') return allRoutes;
@@ -126,14 +124,10 @@ function buildRoutesFromPermission_(permission, role) {
     if (route === 'end-dates') {
       return endDatesViewYes_(permission);
     }
-    /* Admin screens: admin always has them (returned above).
-       Reviewer gets admin-home/permissions only when view_permissions=yes (data aligned).
-       admin-settings/admin-lists are open to all reviewers. */
+    /* Admin screen: admin always has it (returned above).
+       Reviewer gets admin-home only when view_permissions=yes (data aligned). */
     if (route === 'admin-home') {
       return role === 'operations_reviewer' && yesNo_(permission.view_permissions) === 'yes';
-    }
-    if (route === 'admin-settings' || route === 'admin-lists') {
-      return role === 'admin' || role === 'operations_reviewer';
     }
     var flag = map[route];
     if (!flag) return false;
