@@ -2018,6 +2018,13 @@ span.ds-chip {
   width: 100%;
 }
 
+/* Month day-drawer: stacked session cards (same style as week column) */
+.ds-month-day-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+}
+
 /* Smaller font on session cards inside week columns */
 .ds-week-col .ds-interactive-card--session .ds-interactive-card__title {
   font-size: 0.77rem;

@@ -92,31 +92,80 @@ function activityDotsMeta(n) {
   return `●●●●● +${n - 5}`;
 }
 
-function monthDayDrawerBody(cell, hideEmpIds, hideRowId, hideActivityNo, canEdit, showPrivateNote, settings) {
-  const items = Array.isArray(cell?.items) ? cell.items : [];
-  if (!items.length) {
-    return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(formatDateHe(cell?.date) || '')}</p>`;
+function itemMeta(item) {
+  const names = [item.instructor_name, item.instructor_name_2]
+    .filter((x) => x && String(x).trim())
+    .join(' · ');
+  return names || 'ללא מדריך';
+}
+
+/** Group items by primary instructor so multiple activities by the same
+ *  instructor on the same day are shown as an accordion. */
+function groupItemsByInstructor(items) {
+  const groups = new Map();
+  const order = [];
+  items.forEach((item) => {
+    const key =
+      String(item.emp_id || '').trim() ||
+      String(item.instructor_name || '').trim() ||
+      `__nokey__${item.RowID}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
+    groups.get(key).push(item);
+  });
+  return order.map((k) => groups.get(k));
+}
+
+/** Render one instructor-group as a card (or accordion) for the day drawer. */
+function renderDayGroup(group, date) {
+  const main = group[0];
+  const extras = group.slice(1);
+
+  const mainCard = dsInteractiveCard({
+    variant: 'session',
+    action: `monthsession|${encodeURIComponent(date)}|${encodeURIComponent(main.RowID)}`,
+    title: main.activity_name || 'ללא שם',
+    meta: itemMeta(main)
+  });
+
+  if (extras.length === 0) {
+    return `<div class="ds-week-session-wrap">${mainCard}</div>`;
   }
-  const blocks = items
-    .map(
-      (it) => {
-        const privateNote = showPrivateNote ? it.private_note || '—' : null;
-        return `
-    <section class="ds-cal-drawer-block" aria-label="${escapeHtml(it.activity_name || 'פעילות')}">
-      <h3 class="ds-cal-drawer-block__title">${escapeHtml(it.activity_name || 'פעילות')}</h3>
-      ${activityWorkDrawerHtml(it, {
-        privateNote,
-        canEdit: !!canEdit,
-        hideEmpIds: !!hideEmpIds,
-        hideRowId: !!hideRowId,
-        hideActivityNo: !!hideActivityNo,
-        settings: settings || {}
-      })}
-    </section>`;
-      }
+
+  const totalCount = group.length;
+  const extraCards = extras
+    .map((item) =>
+      dsInteractiveCard({
+        variant: 'session',
+        action: `monthsession|${encodeURIComponent(date)}|${encodeURIComponent(item.RowID)}`,
+        title: item.activity_name || 'ללא שם',
+        meta: itemMeta(item)
+      })
     )
     .join('');
-  return `<div class="ds-cal-drawer-stack">${blocks}</div>`;
+
+  return `<div class="ds-week-session-wrap ds-week-session-group">
+    <div class="ds-week-group__main-wrap">
+      ${mainCard}
+      <button type="button" class="ds-week-group__badge" data-group-toggle data-group-count="${totalCount}" aria-expanded="false">(${totalCount})</button>
+    </div>
+    <div class="ds-week-group__extra" hidden>
+      ${extraCards}
+    </div>
+  </div>`;
+}
+
+/** Day drawer content: list of session cards (week-style). */
+function monthDayCardsHtml(items, date) {
+  if (!items.length) {
+    return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(formatDateHe(date) || '')}</p>`;
+  }
+  const groups = groupItemsByInstructor(items);
+  return `<div class="ds-month-day-cards" dir="rtl">
+    ${groups.map((g) => renderDayGroup(g, date)).join('')}
+  </div>`;
 }
 
 function shiftMonthYm(ym, delta) {
@@ -146,9 +195,6 @@ export const monthScreen = {
     const byDay = cellMapFromCells(safeCells);
     const todayIso = localYmd();
     const hideSaturday = !!data?.hide_saturday;
-    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
-    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
-    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
 
     const weekdayRow = HEBREW_WEEKDAY_SHORT.map(
       (label) => `<div class="ds-cal-wd" role="columnheader">${escapeHtml(label)}</div>`
@@ -244,14 +290,64 @@ export const monthScreen = {
       rerender?.();
     });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
 
+    /** Bind the accordion toggles and activity card clicks inside a day drawer. */
+    const bindDayDrawer = (contentRoot) => {
+      contentRoot.addEventListener('click', (ev) => {
+        const badge = ev.target.closest('[data-group-toggle]');
+        if (!badge) return;
+        ev.stopPropagation();
+        ev.preventDefault();
+        const groupEl = badge.closest('.ds-week-session-group');
+        if (!groupEl) return;
+        const extra = groupEl.querySelector('.ds-week-group__extra');
+        if (!extra) return;
+        const isOpen = !extra.hasAttribute('hidden');
+        extra.toggleAttribute('hidden', isOpen);
+        badge.setAttribute('aria-expanded', String(!isOpen));
+        const count = badge.dataset.groupCount || '';
+        badge.textContent = isOpen ? `(${count})` : '▲';
+      });
+
+      ui.bindInteractiveCards(contentRoot, (action) => {
+        if (!action.startsWith('monthsession|')) return;
+        const parts = action.split('|');
+        const date = decodeURIComponent(parts[1] || '');
+        const rowId = decodeURIComponent(parts[2] || '');
+        const cells = Array.isArray(data?.cells) ? data.cells : [];
+        const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
+        const allItems = cells.flatMap((c) => monthCellItems(c, itemsById));
+        const item = allItems.find((it) => String(it.RowID) === String(rowId));
+        if (!item) {
+          ui.openDrawer({ title: 'פעילות', content: '<p class="ds-muted">לא נמצאו נתונים</p>' });
+          return;
+        }
+        const privateNote = showPrivateNote ? item.private_note || '—' : null;
+        ui.openDrawer({
+          title: item.activity_name || 'פעילות',
+          content: activityWorkDrawerHtml(item, {
+            privateNote,
+            canEdit: canEditActivity,
+            hideEmpIds,
+            hideRowId,
+            hideActivityNo,
+            settings: state?.clientSettings || {}
+          }),
+          onOpen: canEditActivity ? bindActivityEditForm : undefined
+        });
+      });
+    };
+
     const currentYm = data?.month || '';
     const resolveBaseYm = () => {
+      const spec = inferMonthSpec(data || {});
       if (/^\d{4}-\d{2}$/.test(String(state.monthYm || ''))) return state.monthYm;
       if (/^\d{4}-\d{2}$/.test(String(currentYm || ''))) return currentYm;
       return `${spec.y}-${String(spec.mo).padStart(2, '0')}`;
@@ -282,19 +378,12 @@ export const monthScreen = {
         item_ids: []
       };
       const cellItems = monthCellItems(cell, itemsById);
-      const n = cellItems.length;
+      if (!cellItems.length) return;
+
       ui.openDrawer({
-        title: `יום ${d} · ${formatDateHe(cell.date) || ''}`,
-        content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(
-          cell,
-          hideEmpIds,
-          hideRowId,
-          hideActivityNo,
-          canEditActivity,
-          showPrivateNote,
-          state?.clientSettings || {}
-        )}`,
-        onOpen: canEditActivity ? bindActivityEditForm : undefined
+        title: `${formatDateHe(cell.date) || `יום ${d}`} · ${cellItems.length} פעילויות`,
+        content: monthDayCardsHtml(cellItems, cell.date),
+        onOpen: bindDayDrawer
       });
     });
   }
