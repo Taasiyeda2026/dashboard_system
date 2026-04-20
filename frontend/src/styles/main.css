@@ -660,7 +660,7 @@ select {
   border-radius: var(--ds-radius-lg);
   box-shadow: var(--ds-shadow-lg);
   transform: translateY(108%);
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 24px);
@@ -708,11 +708,13 @@ select {
     transform: translate(-50%, calc(-50% + 24px));
     width: min(92vw, 540px);
     max-height: min(82vh, 680px);
+    opacity: 0;
   }
 
   .ds-ui-layer.is-modal-open .ds-modal {
     transform: translate(-50%, -50%);
     pointer-events: auto;
+    opacity: 1;
   }
 }
 
