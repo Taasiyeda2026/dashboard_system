@@ -141,7 +141,13 @@ export function createSharedInteractionLayer() {
     setBackdropVisible(drawerOpen || modalOpen);
   }
 
-  function openDrawer({ title = 'פרטים', content = '', onClose, onOpen } = {}) {
+  function openDrawer({ title = '', content = '', onClose, onOpen } = {}) {
+    if (!String(content || '').trim() && !title) {
+      if (typeof console !== 'undefined') {
+        console.warn('[openDrawer] Blocked: called with no content and no title.', new Error().stack);
+      }
+      return;
+    }
     const root = ensureHost();
     const drawer = root.querySelector('.ds-drawer');
     const titleNode = root.querySelector('.ds-drawer__title');
@@ -190,7 +196,13 @@ export function createSharedInteractionLayer() {
     }
   }
 
-  function openModal({ title = 'פעולה', content = '', actions = '', onClose } = {}) {
+  function openModal({ title = '', content = '', actions = '', onClose } = {}) {
+    if (!String(content || '').trim() && !String(actions || '').trim() && !title) {
+      if (typeof console !== 'undefined') {
+        console.warn('[openModal] Blocked: called with no content, no actions, and no title.', new Error().stack);
+      }
+      return;
+    }
     const root = ensureHost();
     const modal = root.querySelector('.ds-modal');
     const titleNode = root.querySelector('.ds-modal__title');
