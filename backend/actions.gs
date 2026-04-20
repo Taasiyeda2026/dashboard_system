@@ -246,15 +246,21 @@ function actionActivities_(user, payload) {
   };
 }
 
-function actionWeek_(user) {
+function actionWeek_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
 
   var today = new Date();
   var startDay = getWeekStartDay_();
-  var anchor = startOfWeekContaining_(today, startDay);
+  var weekOffset = parseInt((payload && payload.week_offset) || 0, 10) || 0;
+  var anchor = shiftDate_(startOfWeekContaining_(today, startDay), weekOffset * 7);
   var showSat = settingShowShabbat_();
   var calRows = visibleActivitiesForUser_(user);
   var meetingsMap = buildMeetingsMap_();
+  var fromDate = formatDate_(anchor);
+  var toDate = formatDate_(shiftDate_(anchor, 6));
+  var calendarIndex = buildCalendarIndexForDateRange_(calRows, meetingsMap, fromDate, toDate);
+  var itemsById = calendarIndex.items_by_id;
+  var byDate = calendarIndex.by_date;
 
   var days = [];
   for (var i = 0; i < 7; i++) {
@@ -267,26 +273,42 @@ function actionWeek_(user) {
     days.push({
       date: key,
       weekday_label: hebrewWeekdayLabel_(dow),
-      items: activityItemsForCalendarDate_(calRows, meetingsMap, key)
+      item_ids: byDate[key] || []
     });
   }
 
   return {
     days: days,
+    items_by_id: itemsById,
     week_starts_on: startDay,
-    show_shabbat: showSat
+    show_shabbat: showSat,
+    week_offset: weekOffset
   };
 }
 
-function actionMonth_(user) {
+function actionMonth_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
 
   var now = new Date();
-  var year = now.getFullYear();
-  var month = now.getMonth();
+  var ym = text_(payload && payload.ym).slice(0, 7);
+  var ymMatch = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(ym);
+  var year;
+  var month;
+  if (ymMatch) {
+    year = parseInt(ymMatch[1], 10);
+    month = parseInt(ymMatch[2], 10) - 1;
+  } else {
+    year = now.getFullYear();
+    month = now.getMonth();
+  }
   var daysInMonth = new Date(year, month + 1, 0).getDate();
   var calRows = visibleActivitiesForUser_(user);
   var meetingsMap = buildMeetingsMap_();
+  var monthStart = formatDate_(new Date(year, month, 1));
+  var monthEnd = formatDate_(new Date(year, month, daysInMonth));
+  var calendarIndex = buildCalendarIndexForDateRange_(calRows, meetingsMap, monthStart, monthEnd);
+  var itemsById = calendarIndex.items_by_id;
+  var byDate = calendarIndex.by_date;
 
   var cells = [];
   for (var i = 1; i <= daysInMonth; i++) {
@@ -295,13 +317,15 @@ function actionMonth_(user) {
     cells.push({
       day: i,
       date: key,
-      items: activityItemsForCalendarDate_(calRows, meetingsMap, key)
+      item_ids: byDate[key] || []
     });
   }
 
+  var mm = month + 1;
   return {
-    month: formatDate_(new Date()).slice(0, 7),
+    month: year + '-' + (mm < 10 ? '0' : '') + mm,
     cells: cells,
+    items_by_id: itemsById,
     hide_saturday: !settingShowShabbat_()
   };
 }
@@ -1174,30 +1198,78 @@ function buildClientSettingsPayload_() {
 
 /** פריטי לוח שנה ליום אחד — rows ו-meetingsMap מחושבים פעם אחת לכל בקשת week/month */
 function activityItemsForCalendarDate_(rows, meetingsMap, dateKey) {
-  var out = [];
-  var seen = {};
+  var indexed = buildCalendarIndexForDateRange_(rows, meetingsMap, dateKey, dateKey);
+  var ids = indexed.by_date[dateKey] || [];
+  return ids.map(function(id) {
+    return indexed.items_by_id[id];
+  }).filter(Boolean);
+}
+
+function buildCalendarIndexForDateRange_(rows, meetingsMap, fromDate, toDate) {
+  var fromIso = text_(fromDate);
+  var toIso = text_(toDate);
+  var byDate = {};
+  var itemsById = {};
+  if (!fromIso || !toIso || fromIso > toIso) {
+    return { by_date: byDate, items_by_id: itemsById };
+  }
+
   rows.forEach(function(row) {
-    var include = false;
+    var rowId = text_(row.RowID);
+    if (!rowId) return;
+    itemsById[rowId] = row;
+
+    var seenDate = {};
+    var addRowToDate = function(dateKey) {
+      if (!dateKey || dateKey < fromIso || dateKey > toIso || seenDate[dateKey]) return;
+      seenDate[dateKey] = true;
+      if (!byDate[dateKey]) byDate[dateKey] = [];
+      byDate[dateKey].push(rowId);
+    };
+
     if (text_(row.source_sheet) === CONFIG.SHEETS.DATA_LONG) {
-      var dlist = meetingsMap[row.RowID] || [];
+      var dlist = meetingsMap[rowId] || [];
       if (dlist.length) {
-        include = dlist.indexOf(dateKey) >= 0;
-      } else {
-        var s = text_(row.start_date);
-        var e = text_(row.end_date || row.start_date);
-        include = !!s && dateKey >= s && dateKey <= e;
+        dlist.forEach(addRowToDate);
+        return;
       }
-    } else {
-      var s2 = text_(row.start_date);
-      var e2 = text_(row.end_date || row.start_date);
-      include = !!s2 && dateKey >= s2 && dateKey <= e2;
     }
-    if (include && !seen[row.RowID]) {
-      seen[row.RowID] = true;
-      out.push(row);
-    }
+
+    var startIso = text_(row.start_date);
+    var endIso = text_(row.end_date || row.start_date);
+    eachIsoDateInIntersection_(startIso, endIso, fromIso, toIso, addRowToDate);
   });
-  return out;
+
+  return {
+    by_date: byDate,
+    items_by_id: itemsById
+  };
+}
+
+function eachIsoDateInIntersection_(startIso, endIso, minIso, maxIso, onDate) {
+  var startKey = text_(startIso);
+  var endKey = text_(endIso);
+  if (!startKey) return;
+  if (!endKey) endKey = startKey;
+
+  var fromIso = startKey > minIso ? startKey : minIso;
+  var toIso = endKey < maxIso ? endKey : maxIso;
+  if (!fromIso || !toIso || fromIso > toIso) return;
+
+  var cursor = dateFromIso_(fromIso);
+  if (!cursor) return;
+  while (true) {
+    var key = formatDate_(cursor);
+    if (key > toIso) break;
+    onDate(key);
+    cursor = shiftDate_(cursor, 1);
+  }
+}
+
+function dateFromIso_(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text_(iso));
+  if (!m) return null;
+  return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
 }
 
 function isActivityActiveBySpec_(row, todayIso) {

@@ -29,16 +29,23 @@ function weekDrawerHtml(item, date, hideEmpIds) {
     </div>`;
 }
 
+function weekDayItems(day, itemsById) {
+  if (Array.isArray(day?.items)) return day.items;
+  const ids = Array.isArray(day?.item_ids) ? day.item_ids : [];
+  return ids.map((id) => itemsById?.[id]).filter(Boolean);
+}
+
 export const weekScreen = {
   load: ({ api }) => api.week(),
   render(data, { state }) {
     const safeDays = Array.isArray(data?.days) ? data.days : [];
+    const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
     const todayIso = localYmd();
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 
     const columns = safeDays
       .map((d, idx) => {
-        const items = Array.isArray(d.items) ? d.items : [];
+        const items = weekDayItems(d, itemsById);
         const isToday = d.date === todayIso;
         const dow = d.weekday_label || '';
         const sessionBlocks = items.length
@@ -84,8 +91,9 @@ export const weekScreen = {
       const date = decodeURIComponent(rest.slice(0, sep));
       const rowId = decodeURIComponent(rest.slice(sep + 1));
       const days = Array.isArray(data?.days) ? data.days : [];
+      const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
       const day = days.find((x) => x.date === date);
-      const items = day && Array.isArray(day.items) ? day.items : [];
+      const items = weekDayItems(day, itemsById);
       const item = items.find((x) => String(x.RowID) === String(rowId));
       if (!item) {
         ui.openDrawer({ title: 'פריט', content: '<p class="ds-muted">לא נמצאו נתונים</p>' });
