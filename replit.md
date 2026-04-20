@@ -35,6 +35,11 @@
 ## הרצה מקומית
 השרת מוגדר עם `npx serve . -l 5000` על פורט 5000.
 
+## תכונות אחרונות
+- **אבחון גיליונות**: מסך "לוח בקרה – מנהל מערכת" כולל כפתור "בדיקת גיליונות" שקורא ל-`actionListSheets_` ומציג את כל הגיליונות, עמודותיהם, ואם הם תואמים למה שהמערכת מצפה
+- **תמיכה ב-start_date**: `activityStartDateFromRow_` ו-`activityEndDateFromRow_` תומכים כעת בעמודות `start_date`/`end_date` ישירות בגיליון (fallback כשאין עמודות Date1-Date35)
+- **CACHE_VERSION**: 55
+
 ## בדיקות אוטומטיות
 ```
 npm test        # בדיקות יחידה לשכבת האינטראקציות (openDrawer / openModal / closeAll)

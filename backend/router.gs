@@ -44,7 +44,8 @@ function handlePost_(e) {
       deleteUser: function() { return actionDeleteUser_(user, payload); },
       savePrivateNote: function() { return actionSavePrivateNote_(user, payload); },
       saveFinanceRow: function() { return actionSaveFinanceRow_(user, payload); },
-      syncFinance: function() { return actionSyncFinance_(user, payload); }
+      syncFinance: function() { return actionSyncFinance_(user, payload); },
+      listSheets: function() { return actionListSheets_(user); }
     };
 
     if (!handlers[action]) {

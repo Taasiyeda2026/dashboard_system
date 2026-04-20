@@ -52,7 +52,8 @@ const READ_ACTIONS = {
   contacts: true,
   endDates: true,
   myData: true,
-  permissions: true
+  permissions: true,
+  listSheets: true
 };
 
 const API_TIMEOUT_MS_READ = 20000;
@@ -163,5 +164,6 @@ export const api = {
       });
     }
     return request('savePrivateNote', { source_sheet: a, source_row_id: b, note: c });
-  }
+  },
+  listSheets: () => request('listSheets')
 };

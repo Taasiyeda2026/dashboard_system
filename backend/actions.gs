@@ -218,12 +218,12 @@ function activityDateColumnsFromRow_(row) {
 }
 
 function activityStartDateFromRow_(row) {
-  return normalizeDateTextToIso_(row.Date1);
+  return normalizeDateTextToIso_(row.Date1) || normalizeDateTextToIso_(row.start_date);
 }
 
 function activityEndDateFromRow_(row) {
   var dates = activityDateColumnsFromRow_(row);
-  if (!dates.length) return '';
+  if (!dates.length) return normalizeDateTextToIso_(row.end_date) || '';
   dates.sort();
   return dates[dates.length - 1];
 }
@@ -2181,4 +2181,62 @@ function actionSyncFinance_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer']);
   scriptCacheInvalidateDataViews_();
   return { synced: true, timestamp: new Date().toISOString() };
+}
+
+/* ── List Sheets — diagnostic for admin ─────────────────────────────────────── */
+function actionListSheets_(user) {
+  requireAnyRole_(user, ['admin']);
+  var ss = getSpreadsheet_();
+  var allSheets = ss.getSheets();
+
+  var EXPECTED_COLS = {
+    data_short: ['RowID', 'activity_manager', 'authority', 'school', 'activity_type',
+                 'activity_no', 'activity_name', 'sessions', 'price', 'funding',
+                 'start_time', 'end_time', 'emp_id', 'instructor_name',
+                 'status', 'notes', 'finance_status', 'finance_notes'],
+    data_long: ['RowID', 'activity_manager', 'authority', 'school', 'activity_type',
+                'activity_no', 'activity_name', 'sessions', 'price', 'funding',
+                'start_time', 'end_time', 'emp_id', 'instructor_name',
+                'status', 'notes', 'finance_status', 'finance_notes'],
+    permissions: ['user_id', 'full_name', 'display_role', 'entry_code'],
+    settings: ['setting_key', 'setting_value', 'active']
+  };
+
+  var sheets = allSheets.map(function(sheet) {
+    var name = sheet.getName();
+    var lastCol = sheet.getLastColumn();
+    var lastRow = sheet.getLastRow();
+    var headers = [];
+    if (lastCol > 0) {
+      headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
+    }
+    var expected = EXPECTED_COLS[name];
+    var missingCols = [];
+    var extraCols = [];
+    if (expected) {
+      missingCols = expected.filter(function(c) { return headers.indexOf(c) < 0; });
+      extraCols = headers.filter(function(c) { return c && expected.indexOf(c) < 0; });
+    }
+    return {
+      name: name,
+      headers: headers,
+      row_count: Math.max(0, lastRow - CONFIG.DATA_START_ROW),
+      is_system_sheet: !!expected,
+      missing_cols: missingCols,
+      extra_cols: extraCols,
+      ok: !!expected && missingCols.length === 0
+    };
+  });
+
+  var requiredSheetNames = Object.values(CONFIG.SHEETS);
+  var missingSheets = requiredSheetNames.filter(function(name) {
+    return !allSheets.some(function(s) { return s.getName() === name; });
+  });
+
+  return {
+    sheets: sheets,
+    missing_required_sheets: missingSheets,
+    data_start_row: getDataStartRow_(),
+    activities_data_sources: configuredActivitiesSources_()
+  };
 }
