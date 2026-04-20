@@ -621,12 +621,14 @@ select {
   display: flex;
   flex-direction: column;
   transform: translateX(104%);
-  transition: transform 0.2s ease;
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease;
   pointer-events: none;
 }
 
 .ds-ui-layer.is-drawer-open .ds-drawer {
   transform: translateX(0);
+  opacity: 1;
   pointer-events: auto;
 }
 
