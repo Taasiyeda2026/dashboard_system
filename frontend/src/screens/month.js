@@ -66,6 +66,12 @@ function cellMapFromCells(cells) {
   return map;
 }
 
+function monthCellItems(cell, itemsById) {
+  if (Array.isArray(cell?.items)) return cell.items;
+  const ids = Array.isArray(cell?.item_ids) ? cell.item_ids : [];
+  return ids.map((id) => itemsById?.[id]).filter(Boolean);
+}
+
 function padDayKey(y, mo, dayNum) {
   return `${y}-${String(mo).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
 }
@@ -128,6 +134,7 @@ export const monthScreen = {
     const slotCount = rowCount * 7;
 
     const safeCells = Array.isArray(data?.cells) ? data.cells : [];
+    const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
     const byDay = cellMapFromCells(safeCells);
     const todayIso = localYmd();
     const hideSaturday = !!data?.hide_saturday;
@@ -152,9 +159,10 @@ export const monthScreen = {
       const cell = byDay[dayNum] || {
         day: dayNum,
         date: padDayKey(y, mo, dayNum),
-        items: []
+        item_ids: []
       };
-      const n = Array.isArray(cell.items) ? cell.items.length : 0;
+      const cellItems = monthCellItems(cell, itemsById);
+      const n = cellItems.length;
       const isToday = cell.date === todayIso;
       const warn = dayNeedsAttention(cell.items);
       const extra = [isToday ? 'is-cal-today' : '', warn ? 'is-month-warn' : ''].filter(Boolean).join(' ');
@@ -249,6 +257,7 @@ export const monthScreen = {
       if (!action.startsWith('monthcell|')) return;
       const dayNum = action.split('|')[1];
       const cells = Array.isArray(data?.cells) ? data.cells : [];
+      const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
       const spec = inferMonthSpec(data || {});
       const dim = daysInMonth1Based(spec.y, spec.mo);
       const d = Number(dayNum);
@@ -258,9 +267,10 @@ export const monthScreen = {
       const cell = byDay[d] || {
         day: d,
         date: padDayKey(spec.y, spec.mo, d),
-        items: []
+        item_ids: []
       };
-      const n = Array.isArray(cell.items) ? cell.items.length : 0;
+      const cellItems = monthCellItems(cell, itemsById);
+      const n = cellItems.length;
       ui.openDrawer({
         title: `יום ${d} · ${cell.date || ''}`,
         content: `<p class="ds-muted">${n} פעילויות ביום זה</p>${monthDayDrawerBody(cell, hideEmpIds, canEditActivity, showPrivateNote)}`,
