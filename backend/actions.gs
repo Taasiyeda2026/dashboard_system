@@ -218,11 +218,22 @@ function activityDateColumnsFromRow_(row) {
 }
 
 function activityStartDateFromRow_(row) {
-  return normalizeDateTextToIso_(row.Date1) || normalizeDateTextToIso_(row.start_date);
+  var src = getSettingText_('activity_start_date_source', 'Date1');
+  var fromSrc = normalizeDateTextToIso_(row[src]);
+  return fromSrc || normalizeDateTextToIso_(row.start_date) || '';
 }
 
 function activityEndDateFromRow_(row) {
+  var rule = getSettingText_('activity_end_date_rule', 'last_valid_date_from_date_columns');
   var dates = activityDateColumnsFromRow_(row);
+  if (rule === 'last_valid_date_from_date_columns') {
+    // לפי ה-settings: תאריך סיום = התאריך האחרון התקין מבין עמודות Date1-Date35.
+    // אין fallback לעמודת end_date — אם אין עמודות תאריך תקינות, תאריך הסיום ריק.
+    if (!dates.length) return '';
+    dates.sort();
+    return dates[dates.length - 1];
+  }
+  // כלל אחר / לאחורה תואם
   if (!dates.length) return normalizeDateTextToIso_(row.end_date) || '';
   dates.sort();
   return dates[dates.length - 1];
@@ -1997,6 +2008,9 @@ function buildClientSettingsPayload_() {
     hebrew_only_headers: getSettingBool_('hebrew_only_headers', true),
     exceptions_priority: configuredExceptionPriority_(),
     exceptions_primary_rule: getSettingText_('exceptions_primary_rule', 'first_by_priority'),
+    activity_end_date_rule: getSettingText_('activity_end_date_rule', 'last_valid_date_from_date_columns'),
+    activity_start_date_source: getSettingText_('activity_start_date_source', 'Date1'),
+    ignore_empty_invalid_dates_in_date_calc: getSettingBool_('ignore_empty_invalid_dates_in_date_calc', true),
     all_data_fields_editable: getSettingBool_('all_data_fields_editable', true),
     constrained_fields_use_dropdown: getSettingBool_('constrained_fields_use_dropdown', true),
     dropdown_source_sheet: configuredDropdownSourceSheet_(),

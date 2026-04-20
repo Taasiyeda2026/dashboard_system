@@ -1,0 +1,50 @@
+setting_key	setting_value	value_type	notes	active
+מפתח הגדרה	ערך הגדרה	סוג ערך	הערות	פעיל
+system_name	Dashboard Taasiyeda	text	שם המערכת הנוכחי; תיעוד/תצוגה כללית	yes
+data_start_row	3	number	שורת התחלת נתונים בכל הגיליונות	yes
+activities_data_sources	data_long,data_short	csv	כל מסכי הפעילות נגזרים משני הגיליונות האלה	yes
+instructors_screen_sources	data_long,data_short	csv	עמוד מדריכים מציג נתוני פעילות מתוך long+short	yes
+instructor_contacts_source	contacts_instructors	text	עמוד אנשי קשר מדריכים נפרד ומבוסס רק על גיליון זה	yes
+school_contacts_source	contacts_schools	text	עמוד אנשי קשר בתי ספר נפרד ומבוסס רק על גיליון זה	yes
+program_activity_types	course,after_school	csv	תוכניות כולל קורסים + אפטרסקול	yes
+one_day_activity_types	workshop,tour,escape_room	csv	חד יומי כולל סדנאות, סיורים וחדר בריחה	yes
+finance_display_rule	ended_until_today	enum	במסך כספים מוצגים רק מה שהסתיים עד היום לפי end_date	yes
+finance_grouping_rule	גפן:school;other:funding	rule	אם ערך המימון הוא גפן הריכוז לפי בית ספר, בכל ערך אחר הריכוז לפי מימון	yes
+week_start_day	0	number	0=ראשון	yes
+show_shabbat	no	boolean	אין להציג שבת בתצוגת שבוע; יש להסתיר את עמודת שבת	yes
+week_hide_saturday_column	yes	boolean	כלל עסקי: בתצוגת שבוע להסתיר את עמודת שבת	yes
+late_end_date_cutoff	2026-06-15	date	סף חריגה לתאריך סיום מאוחר	yes
+show_only_nonzero_kpis	yes	boolean	הצג רק KPI עם ערך	yes
+use_status_with_dates	yes	boolean	שימוש בסטטוס יחד עם תאריכים	yes
+hide_emp_id_on_screens	yes	boolean	הסתרת מזהי עובד במסכים	yes
+hide_activity_no_on_screens	yes	boolean	הסתרת מספר פעילות במסכים	yes
+hide_row_id_in_ui	yes	boolean	לא מראים מזהה שורות; זה מאחורי הקלעים בלבד	yes
+hebrew_only_headers	yes	boolean	הסתרת כל כותרות האנגלית והצגה רק בעברית	yes
+exceptions_priority	missing_instructor,missing_start_date,late_end_date	csv	סדר קדימות חריגות; אם יש כמה חריגות לרשומה אחת מציגים רק את המובילה	yes
+exceptions_primary_rule	first_match_by_priority	enum	כלל הכרעה לרשומה עם כמה חריגות	yes
+all_data_fields_editable	yes	boolean	כל הנתונים יכולים להיות לעריכה, בכפוף להרשאות	yes
+constrained_fields_use_dropdown	yes	boolean	כל שדה שמבוסס על רשימה קיימת לא ניתן לעריכה חופשית וחייב רשימה נפתחת	yes
+dropdown_source_sheet	lists	text	שדות מבוססי רשימה נשענים על גיליון lists	yes
+instructors_read_only	yes	boolean	מדריך = צפייה בלבד, ללא עריכה	yes
+instructor_can_edit	no	boolean	מדריך אינו עורך כלל	yes
+admin_direct_edit	yes	boolean	אדמין עורך ישירות בדאטה ללא שליחת אישור	yes
+operations_direct_edit	yes	boolean	תפעול עורך ישירות בדאטה ללא שליחת אישור	yes
+admin_can_add_rows	yes	boolean	אדמין יכול להוסיף נתונים ורשומות ישירות	yes
+operations_can_add_rows	yes	boolean	תפעול יכול להוסיף נתונים ורשומות ישירות	yes
+non_admin_edits_require_approval	yes	boolean	כל משתמש שאינו אדמין/תפעול עורך דרך בקשת אישור בלבד	yes
+approval_target_role	operations_reviewer	text	העריכות נשלחות אל תפעול לאישור והעברה לדאטה	yes
+operations_default_view_key	view_operations_data	text	ערך ייחוס עבור default_view/הרשאות של תפעול	yes
+admin_default_view_key	view_admin	text	ערך ייחוס עבור default_view/הרשאות של אדמין	yes
+compact_layout_preferred	yes	boolean	תיבות ברוחב צר; עדיפות למבנה קומפקטי	yes
+narrow_boxes_preferred	yes	boolean	העדפה לרכיבים צרים ולא תיבות רחבות	yes
+prefer_emoji_over_wide_boxes	yes	boolean	איפה שניתן לעשות אימוג'י ולא תיבה רחבה - מאושר	yes
+role_defaults.operations_reviewer.can_edit_direct	yes	boolean	תפעול עם עריכה ישירה	yes
+role_defaults.operations_reviewer.can_add_activity	yes	boolean	תפעול יכול להוסיף פעילות ישירות	yes
+role_defaults.authorized_user.can_edit_direct	no	boolean	משתמשים רגילים לא מעדכנים ישירות דאטה	yes
+role_defaults.authorized_user.can_add_activity	no	boolean	הוספה ישירה שמורה לאדמין/תפעול	yes
+role_defaults.instructor.can_edit_direct	no	boolean	מדיניות: מדריך ללא עריכה	yes
+role_defaults.instructor.can_add_activity	no	boolean	מדיניות: מדריך ללא הוספה	yes
+activity_start_date_source	Date1	text	תאריך התחלה של פעילות נקבע לפי Date1	yes
+activity_end_date_rule	last_valid_date_from_date_columns	enum	תאריך סיום מחושב מתוך שדות התאריכים, לפי התאריך האחרון התקין ברשומה	yes
+activity_date_columns	Date1-Date35	text	טווח שדות התאריכים שמשמש לחישוב תאריך התחלה ותאריך סיום	yes
+ignore_empty_invalid_dates_in_date_calc	yes	boolean	בחישוב תאריכים יש להתעלם מתאים ריקים או מערכים לא תקינים	yes
