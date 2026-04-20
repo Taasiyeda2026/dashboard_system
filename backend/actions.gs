@@ -469,17 +469,24 @@ function actionActivities_(user, payload) {
   });
 
   var noteMap = buildPrivateNotesMap_();
+  var activitiesMeetingsMap = buildMeetingsMap_();
 
   return {
     activity_type_counts: activityTypeCounts,
     rows: rows.map(function(row) {
       var noteKey = row.source_sheet + '|' + row.RowID;
       var noteRow = noteMap[noteKey];
-      var meetingDates = activityDateColumnsFromRow_(row).slice();
-      meetingDates = meetingDates.filter(function(v, i, arr) {
-        return !!v && arr.indexOf(v) === i;
-      }).sort();
-      var computedStartDate = normalizeDateTextToIso_(row.Date1);
+      /* activity_meetings כמקור אמת לתאריכים; fallback לעמודות Date1-Date35 */
+      var meetingsFromSheet = activitiesMeetingsMap[text_(row.RowID)];
+      var meetingDates;
+      if (meetingsFromSheet && meetingsFromSheet.length) {
+        meetingDates = meetingsFromSheet.slice().sort();
+      } else {
+        meetingDates = activityDateColumnsFromRow_(row).filter(function(v, i, arr) {
+          return !!v && arr.indexOf(v) === i;
+        }).sort();
+      }
+      var computedStartDate = meetingDates.length ? meetingDates[0] : normalizeDateTextToIso_(row.Date1);
       var computedEndDate = meetingDates.length ? meetingDates[meetingDates.length - 1] : '';
       var meetingSchedule = meetingDates.map(function(dateKey) {
         return {
@@ -856,7 +863,8 @@ function actionEndDates_(user) {
     throw new Error('Forbidden');
   }
 
-  var rows = buildLongRows_()
+  var longRows = enrichRowsWithMeetings_(buildLongRows_().slice());
+  var rows = longRows
     .filter(function(row) {
       return !!text_(row.end_date);
     })
@@ -1506,6 +1514,25 @@ function actionSavePrivateNote_(user, payload) {
   };
 }
 
+/**
+ * מחשב מחדש start_date ו-end_date לפי גיליון activity_meetings כמקור אמת.
+ * תאריך התחלה = הרשומה הקטנה ביותר (meeting_no=1 בפועל לאחר מיון).
+ * תאריך סיום = הרשומה הגדולה ביותר (תאריך אחרון תקין).
+ * כשאין רשומות בגיליון — נשארים הערכים המחושבים מ-Date1-Date35.
+ */
+function enrichRowsWithMeetings_(rows) {
+  var meetingsMap = buildMeetingsMap_();
+  rows.forEach(function(row) {
+    var dates = meetingsMap[text_(row.RowID)];
+    if (dates && dates.length) {
+      var sorted = dates.slice().sort();
+      row.start_date = sorted[0];
+      row.end_date = sorted[sorted.length - 1];
+    }
+  });
+  return rows;
+}
+
 function allActivities_() {
   if (__rqCache_ && Object.prototype.hasOwnProperty.call(__rqCache_, 'allActivities')) {
     return __rqCache_.allActivities;
@@ -1518,6 +1545,7 @@ function allActivities_() {
       list = list.concat(buildLongRows_());
     }
   });
+  enrichRowsWithMeetings_(list);
   if (__rqCache_) {
     __rqCache_.allActivities = list;
   }
