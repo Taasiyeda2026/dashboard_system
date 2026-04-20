@@ -2330,7 +2330,7 @@ span.ds-chip {
 /* ——— Person cards (instructors / contacts) ——— */
 .ds-person-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--ds-space-2);
   padding: var(--ds-space-2);
   overflow-x: hidden;
@@ -2338,13 +2338,7 @@ span.ds-chip {
 
 @media (min-width: 640px) {
   .ds-person-grid {
-    grid-template-columns: repeat(6, 1fr);
-  }
-}
-
-@media (min-width: 960px) {
-  .ds-person-grid {
-    grid-template-columns: repeat(8, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
