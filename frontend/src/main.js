@@ -29,6 +29,64 @@ const ui = createSharedInteractionLayer();
 /** In-flight API request dedup: prevents duplicate calls when navigating quickly. */
 const inflightRequests = new Map();
 
+// ─── LocalStorage screen-data cache ───────────────────────────────────────
+// Keys include a user-id prefix so different users on the same browser don't
+// share data. Entries survive page reloads so the first navigation after a
+// refresh shows cached content immediately (stale-while-revalidate handles
+// the async refresh in the background).
+const SCREEN_CACHE_STORAGE_PREFIX = 'ds_screen_cache_v1';
+const SCREEN_CACHE_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours — after this ignore stored entry
+
+function _storageKey() {
+  const uid = state.user?.user_id || 'anon';
+  return `${SCREEN_CACHE_STORAGE_PREFIX}:${uid}`;
+}
+
+function persistCacheEntry(key, entry) {
+  try {
+    const raw = localStorage.getItem(_storageKey());
+    const stored = raw ? JSON.parse(raw) : {};
+    stored[key] = entry;
+    localStorage.setItem(_storageKey(), JSON.stringify(stored));
+  } catch { /* quota or serialization error — silently ignore */ }
+}
+
+function persistCacheDelete(key) {
+  try {
+    const raw = localStorage.getItem(_storageKey());
+    if (!raw) return;
+    const stored = JSON.parse(raw);
+    delete stored[key];
+    localStorage.setItem(_storageKey(), JSON.stringify(stored));
+  } catch { /* ignore */ }
+}
+
+function restoreScreenCacheFromStorage() {
+  try {
+    const raw = localStorage.getItem(_storageKey());
+    if (!raw) return;
+    const stored = JSON.parse(raw);
+    const now = Date.now();
+    let changed = false;
+    Object.entries(stored).forEach(([k, v]) => {
+      if (!v || !v.t) return;
+      if (now - v.t > SCREEN_CACHE_MAX_AGE_MS) { delete stored[k]; changed = true; return; }
+      if (!state.screenDataCache[k]) {
+        state.screenDataCache[k] = v;
+      }
+    });
+    if (changed) localStorage.setItem(_storageKey(), JSON.stringify(stored));
+  } catch { /* ignore */ }
+}
+
+function clearStorageCache() {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(SCREEN_CACHE_STORAGE_PREFIX))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch { /* ignore */ }
+}
+
 function isDesktopViewport() {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 960px)').matches;
 }
@@ -307,7 +365,9 @@ async function loadScreenDataWithCache(screen) {
 
   const p = screen.load({ api, state })
     .then((data) => {
-      state.screenDataCache[screenDataCacheKey()] = { data, t: Date.now() };
+      const entry = { data, t: Date.now() };
+      state.screenDataCache[screenDataCacheKey()] = entry;
+      persistCacheEntry(screenDataCacheKey(), entry);
       inflightRequests.delete(key);
       return data;
     })
@@ -317,6 +377,34 @@ async function loadScreenDataWithCache(screen) {
     });
   inflightRequests.set(key, p);
   return p;
+}
+
+/**
+ * Background refresh — fetches fresh data after showing stale cache.
+ * Updates UI silently if the user is still on the same screen.
+ */
+async function backgroundRefreshScreen(screen, cacheKey) {
+  if (!screen.load) return;
+  if (inflightRequests.has(cacheKey)) return;
+  delete state.screenDataCache[cacheKey];
+  try {
+    const p = screen.load({ api, state });
+    inflightRequests.set(cacheKey, p);
+    const data = await p;
+    inflightRequests.delete(cacheKey);
+    const entry = { data, t: Date.now() };
+    state.screenDataCache[cacheKey] = entry;
+    persistCacheEntry(cacheKey, entry);
+    if (screenDataCacheKey() === cacheKey) {
+      const screenRoot = document.getElementById('screenRoot');
+      if (screenRoot) {
+        screenRoot.innerHTML = screen.render(data, { state });
+        bindScreen(screen, screenRoot, data);
+      }
+    }
+  } catch {
+    inflightRequests.delete(cacheKey);
+  }
 }
 
 function setShellNavBusy(busy) {
@@ -368,22 +456,27 @@ function fastRerenderScreen(screen, routeAtBind) {
 }
 
 function clearScreenDataCache() {
+  const deletedKeys = [];
   if (state.route === 'activities') {
     Object.keys(state.screenDataCache).forEach((key) => {
-      if (key.startsWith('activities:')) delete state.screenDataCache[key];
+      if (key.startsWith('activities:')) { delete state.screenDataCache[key]; deletedKeys.push(key); }
     });
   } else if (state.route === 'finance') {
     Object.keys(state.screenDataCache).forEach((key) => {
-      if (key.startsWith('finance:')) delete state.screenDataCache[key];
+      if (key.startsWith('finance:')) { delete state.screenDataCache[key]; deletedKeys.push(key); }
     });
   } else {
-    delete state.screenDataCache[screenDataCacheKey()];
+    const k = screenDataCacheKey();
+    delete state.screenDataCache[k];
+    deletedKeys.push(k);
   }
   Object.keys(state.screenDataCache).forEach((key) => {
-    if (key.startsWith('dashboard:')) delete state.screenDataCache[key];
-    if (key.startsWith('week:')) delete state.screenDataCache[key];
-    if (key.startsWith('month:')) delete state.screenDataCache[key];
+    if (key.startsWith('dashboard:') || key.startsWith('week:') || key.startsWith('month:')) {
+      delete state.screenDataCache[key];
+      deletedKeys.push(key);
+    }
   });
+  deletedKeys.forEach(persistCacheDelete);
 }
 
 function bindScreen(screen, screenRoot, data) {
@@ -425,6 +518,7 @@ async function restoreSession() {
   if (!state.token) return;
   if (state.routes.length) return;
 
+  restoreScreenCacheFromStorage();
   const bootstrap = await api.bootstrap();
   if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
     state.clientSettings = { ...defaultClientSettings(), ...bootstrap.client_settings };
@@ -464,35 +558,37 @@ async function mountScreen() {
 
   const cacheKey = screenDataCacheKey();
   const rawEntry = screen.load ? state.screenDataCache[cacheKey] : null;
-  const cacheEntry = rawEntry && Date.now() - rawEntry.t < screenCacheTtl() ? rawEntry : null;
+  const isStale = rawEntry && Date.now() - rawEntry.t >= screenCacheTtl();
 
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
 
   if (!shellExists) {
-    // First mount: build shell HTML
-    const shellBody = cacheEntry ? screen.render(cacheEntry.data, { state }) : screenLoadingMarkup();
+    // First mount: build shell HTML.
+    // Use any available entry (fresh or stale) to paint immediately.
+    const shellBody = rawEntry ? screen.render(rawEntry.data, { state }) : screenLoadingMarkup();
     app.innerHTML = shell(shellBody);
     bindShell();
-    if (cacheEntry) {
-      // Already rendered inside shell — just bind, no API call needed
+    if (rawEntry) {
       const screenRoot = document.getElementById('screenRoot');
-      if (screenRoot) bindScreen(screen, screenRoot, cacheEntry.data);
+      if (screenRoot) bindScreen(screen, screenRoot, rawEntry.data);
       if (routeChanged) lastRenderedRoute = state.route;
+      if (isStale) backgroundRefreshScreen(screen, cacheKey);
       return;
     }
     await flushPaint();
-  } else if (cacheEntry) {
-    // Shell exists + fresh cache hit: render immediately, no loading state, no flushPaint
+  } else if (rawEntry) {
+    // Shell exists + have any data (fresh or stale): render immediately, no spinner.
     updateNavActiveClasses();
     const screenRoot = document.getElementById('screenRoot');
     if (screenRoot) {
-      screenRoot.innerHTML = screen.render(cacheEntry.data, { state });
-      bindScreen(screen, screenRoot, cacheEntry.data);
+      screenRoot.innerHTML = screen.render(rawEntry.data, { state });
+      bindScreen(screen, screenRoot, rawEntry.data);
     }
     if (routeChanged) lastRenderedRoute = state.route;
+    if (isStale) backgroundRefreshScreen(screen, cacheKey);
     return;
   } else {
-    // Shell exists, no cache: show loading spinner
+    // No data at all: show loading spinner and fetch.
     setShellNavBusy(true);
     const sr = document.getElementById('screenRoot');
     if (sr) sr.innerHTML = screenLoadingMarkup();
@@ -552,6 +648,7 @@ function bindShell() {
 
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
     ui.closeAll();
+    clearStorageCache();
     setSession(null);
     localStorage.removeItem('dashboard_routes');
     render();
