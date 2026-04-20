@@ -15,6 +15,11 @@ function defaultClientSettings() {
     compact_layout_preferred: true,
     narrow_boxes_preferred: true,
     prefer_emoji_over_wide_boxes: true,
+    navigation: {
+      disabled_routes: [],
+      sidebar_hidden_routes: [],
+      contextual_only_routes: []
+    },
     dropdown_options: {}
   };
 }
@@ -24,6 +29,7 @@ export const state = {
   user: JSON.parse(localStorage.getItem('dashboard_user') || 'null'),
   route: 'login',
   routes: [],
+  effectiveRoutes: [],
   activityTab: 'all',
   activityFinanceStatus: '',
   activityQuickFamily: '',
@@ -53,6 +59,7 @@ export function setSession(session) {
     state.token = '';
     state.user = null;
     state.routes = [];
+    state.effectiveRoutes = [];
     state.route = 'login';
     state.activityTab = 'all';
     state.activityFinanceStatus = '';

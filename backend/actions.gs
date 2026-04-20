@@ -1,6 +1,6 @@
 function actionBootstrap_(user) {
   var permission = getPermissionRow_(user.user_id);
-  var routes = buildRoutesFromPermission_(permission, user.display_role);
+  var routes = effectiveRoutesForUser_(permission, user.display_role);
   var preferred = text_(permission.default_view) || defaultRouteForRole_(user.display_role);
   var defaultRoute = resolveDefaultRoute_(preferred, routes, user.display_role);
 
@@ -1336,7 +1336,7 @@ function actionSavePermission_(user, payload) {
   }
   if (headers.indexOf('default_view') >= 0) {
     var mergedRole = normalizeRole_(text_(merged.display_role) || internalRoleFromPermissionRow_(existing));
-    var mergedRoutes = buildRoutesFromPermission_(merged, mergedRole);
+    var mergedRoutes = effectiveRoutesForUser_(merged, mergedRole);
     merged.default_view = resolveDefaultRoute_(text_(merged.default_view), mergedRoutes, mergedRole);
   }
 
@@ -1391,7 +1391,7 @@ function actionAddUser_(user, payload) {
     }
   });
   if (headers.indexOf('default_view') >= 0) {
-    var newUserRoutes = buildRoutesFromPermission_(newRow, resolvedRole);
+    var newUserRoutes = effectiveRoutesForUser_(newRow, resolvedRole);
     newRow.default_view = resolveDefaultRoute_(text_(row.default_view), newUserRoutes, resolvedRole);
   }
 
@@ -1957,6 +1957,7 @@ function buildDropdownOptionsMap_() {
 
 function buildClientSettingsPayload_() {
   var m = readActiveSettingsMap_();
+  var navigation = buildNavigationSettings_();
   var roleDefaults = computeNonAdminRoleDefaults_();
   var roleDefaultsBool = {
     operations_reviewer: {
@@ -2008,6 +2009,7 @@ function buildClientSettingsPayload_() {
     approval_target_role: getSettingText_('approval_target_role', 'operations_reviewer'),
     operations_default_view_key: getSettingText_('operations_default_view_key', 'view_operations_data'),
     admin_default_view_key: getSettingText_('admin_default_view_key', 'view_admin'),
+    navigation: navigation,
     compact_layout_preferred: getSettingBool_('compact_layout_preferred', true),
     narrow_boxes_preferred: getSettingBool_('narrow_boxes_preferred', true),
     prefer_emoji_over_wide_boxes: getSettingBool_('prefer_emoji_over_wide_boxes', true),
