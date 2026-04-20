@@ -88,8 +88,7 @@ function allKnownRoutes_() {
     'finance',
     'end-dates',
     'my-data',
-    'permissions',
-    'admin-home'
+    'permissions'
   ];
 }
 
@@ -152,11 +151,6 @@ function buildRoutesFromPermission_(permission, role) {
     }
     if (route === 'end-dates') {
       return endDatesViewYes_(permission);
-    }
-    /* Admin screen: admin always has it (returned above).
-       Reviewer gets admin-home only when view_permissions=yes (data aligned). */
-    if (route === 'admin-home') {
-      return role === 'operations_reviewer' && yesNo_(permission.view_permissions) === 'yes';
     }
     var flag = map[route];
     if (!flag) return false;
@@ -221,7 +215,7 @@ function viewKeyToRouteId_(viewKey) {
     view_finance: 'finance',
     permissions: 'permissions',
     view_permissions: 'permissions',
-    view_admin: 'admin-home',
+    view_admin: 'dashboard',
     view_edit_requests: 'permissions',
     view_final_approvals: 'permissions'
   };

@@ -16,7 +16,6 @@ import { contactsScreen } from './screens/contacts.js';
 import { endDatesScreen } from './screens/end-dates.js';
 import { myDataScreen } from './screens/my-data.js';
 import { permissionsScreen } from './screens/permissions.js';
-import { adminHomeScreen } from './screens/admin-home.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc = new URL('../assets/logo1.png', import.meta.url).href;
@@ -143,8 +142,7 @@ const screenLabels = {
   contacts: 'אנשי קשר',
   'end-dates': 'תאריכי סיום',
   'my-data': 'הנתונים שלי',
-  permissions: 'הרשאות',
-  'admin-home': 'לוח בקרה – מנהל מערכת'
+  permissions: 'הרשאות'
 };
 
 const screens = {
@@ -159,8 +157,7 @@ const screens = {
   contacts: contactsScreen,
   'end-dates': endDatesScreen,
   'my-data': myDataScreen,
-  permissions: permissionsScreen,
-  'admin-home': adminHomeScreen
+  permissions: permissionsScreen
 };
 
 function navSidebarHiddenRoutesSet() {
