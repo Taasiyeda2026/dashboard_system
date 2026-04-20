@@ -1,7 +1,7 @@
 const loginLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 export const loginScreen = {
-  render() {
+  render(initialError = '') {
     return `
       <div class="login-shell" dir="rtl">
         <section class="login-card">
@@ -39,7 +39,7 @@ export const loginScreen = {
             <button type="submit" class="login-submit">התחברות</button>
           </form>
 
-          <p id="loginError" class="error"></p>
+          <p id="loginError" class="error">${initialError}</p>
         </section>
       </div>
     `;

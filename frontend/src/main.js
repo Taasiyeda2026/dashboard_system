@@ -23,6 +23,7 @@ const loginLogoSrc = new URL('../assets/logo1.png', import.meta.url).href;
 
 let isMobileNavOpen = false;
 let lastRenderedRoute = null;
+let loginInlineError = '';
 const ui = createSharedInteractionLayer();
 
 /** In-flight API request dedup: prevents duplicate calls when navigating quickly. */
@@ -510,18 +511,33 @@ async function render() {
       isMobileNavOpen = false;
       document.body.classList.remove('is-shell-nav-open');
       ui.closeAll();
-      app.innerHTML = loginScreen.render();
+      app.innerHTML = loginScreen.render(escapeHtml(loginInlineError));
       loginScreen.bind({
         root: app,
         onLogin: async (userId, code, errorNode) => {
+          loginInlineError = '';
+          const clearRoutesSnapshot = () => localStorage.removeItem('dashboard_routes');
+          const rollbackToLogin = (message) => {
+            setSession(null);
+            clearRoutesSnapshot();
+            loginInlineError = message;
+          };
           try {
             const data = await api.login(userId, code);
             setSession({ token: data.token, user: data.user });
             applyBootstrapFromLoginData(data);
-            await restoreSession();
-            await render();
+            try {
+              await restoreSession();
+              await mountScreen();
+              loginInlineError = '';
+            } catch {
+              rollbackToLogin('כשל בטעינת נתוני משתמש אחרי התחברות');
+              await render();
+            }
           } catch (error) {
-            if (errorNode) errorNode.textContent = error.message;
+            const msg = translateApiErrorForUser(error?.message);
+            if (errorNode) errorNode.textContent = msg;
+            rollbackToLogin(msg);
             throw error;
           }
         }
@@ -574,12 +590,7 @@ if ('serviceWorker' in navigator) {
 }
 
 render().catch((error) => {
-  const msg = translateApiErrorForUser(error?.message);
-  app.innerHTML = `
-    <div class="login-shell" dir="rtl">
-      <section class="login-card ds-error-page panel--error">
-        <h2>שגיאה</h2>
-        <p>${escapeHtml(msg)}</p>
-      </section>
-    </div>`;
+  loginInlineError = translateApiErrorForUser(error?.message);
+  setSession(null);
+  render().catch(() => {});
 });

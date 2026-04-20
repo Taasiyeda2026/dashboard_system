@@ -211,11 +211,15 @@ const API_ERROR_HE = {
   'not found': 'הפריט לא נמצא',
   not_found: 'הפריט לא נמצא',
   bad_request: 'הבקשה אינה תקינה',
+  'user_id is required': 'יש להזין מזהה משתמש',
   invalid_credentials: 'מזהה משתמש או קוד כניסה שגויים',
-  invalid_or_inactive_code: 'קוד כניסה שגוי או לא פעיל',
+  user_inactive: 'המשתמש אינו פעיל',
+  invalid_or_inactive_code: 'מזהה משתמש או קוד כניסה שגויים',
   entry_code_is_required: 'יש להזין קוד כניסה',
+  'entry_code is required': 'יש להזין קוד כניסה',
   invalid_user: 'מזהה משתמש או קוד כניסה שגויים',
   login_failed: 'ההתחברות נכשלה',
+  bootstrap_failed: 'כשל בטעינת נתוני משתמש אחרי התחברות',
   timeout: 'הבקשה נמשכה יותר מהצפוי — נסו שוב',
   request_timeout: 'הבקשה נמשכה יותר מהצפוי — נסו שוב',
   server_error: 'שגיאת שרת — נסו שוב מאוחר יותר',
@@ -230,7 +234,7 @@ const API_ERROR_HE = {
 
 /** Maps common API English errors to Hebrew; leaves Hebrew messages unchanged. */
 export function translateApiErrorForUser(message) {
-  if (message === undefined || message === null || message === '') return 'אירעה שגיאה';
+  if (message === undefined || message === null || message === '') return API_ERROR_HE.server_error;
   const raw = String(message).trim();
   if (/[\u0590-\u05FF]/.test(raw)) return raw;
   const key = raw.toLowerCase();
@@ -238,5 +242,5 @@ export function translateApiErrorForUser(message) {
   if (key.includes('timeout') || key.includes('timed_out')) return API_ERROR_HE.timeout;
   if (/^5\d\d\b/.test(key) || key.includes('internal')) return API_ERROR_HE.server_error;
   if (key.includes('network') || key.includes('fetch')) return API_ERROR_HE.network_error;
-  return 'אירעה שגיאה';
+  return API_ERROR_HE.server_error;
 }

@@ -1,22 +1,26 @@
 function actionLogin_(payload) {
+  var userId = text_(payload.user_id || payload.userId);
   var entryCode = text_(payload.entry_code || payload.entryCode);
+  if (!userId) throw new Error('user_id is required');
   if (!entryCode) throw new Error('entry_code is required');
 
   var permissionRows = readRows_(CONFIG.SHEETS.PERMISSIONS);
-  var match = permissionRows.find(function(row) {
-    return text_(row.entry_code) === entryCode && yesNo_(row.active) === 'yes';
+  var matchByUser = permissionRows.find(function(row) {
+    return text_(row.user_id) === userId;
   });
 
-  if (!match) throw new Error('Invalid or inactive code');
+  if (!matchByUser) throw new Error('invalid_credentials');
+  if (yesNo_(matchByUser.active) !== 'yes') throw new Error('user_inactive');
+  if (text_(matchByUser.entry_code) !== entryCode) throw new Error('invalid_credentials');
 
-  var role = normalizeRole_(internalRoleFromPermissionRow_(match));
+  var role = normalizeRole_(internalRoleFromPermissionRow_(matchByUser));
   var user = {
-    user_id: text_(match.user_id),
-    full_name: text_(match.full_name),
+    user_id: text_(matchByUser.user_id),
+    full_name: text_(matchByUser.full_name),
     display_role: role,
-    display_role2: text_(match.display_role2),
-    default_view: text_(match.default_view),
-    emp_id: text_(match.user_id)
+    display_role2: text_(matchByUser.display_role2),
+    default_view: text_(matchByUser.default_view),
+    emp_id: text_(matchByUser.user_id)
   };
 
   var token = Utilities.getUuid();
@@ -26,8 +30,8 @@ function actionLogin_(payload) {
     CONFIG.SESSION_CACHE_SECONDS
   );
 
-  var routes = buildRoutesFromPermission_(match, role);
-  var preferred = text_(match.default_view) || defaultRouteForRole_(role);
+  var routes = buildRoutesFromPermission_(matchByUser, role);
+  var preferred = text_(matchByUser.default_view) || defaultRouteForRole_(role);
   var defaultRoute = resolveDefaultRoute_(preferred, routes, role);
 
   return {

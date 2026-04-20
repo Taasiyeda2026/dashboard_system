@@ -59,12 +59,12 @@ sw.js                  ← service worker (PWA)
    ```html
    <script>
      window.__DASHBOARD_CONFIG__ = {
-      apiUrl: 'https://script.google.com/macros/s/AKfycbyO8lelLfZEpFAlLji5f6qO5tR7I5uoQK5FfMf2y1XWJj5UreSS4ddEtkKDPzKT7YiwMw/exec'
+      apiUrl: '<YOUR_APPS_SCRIPT_EXEC_URL>'
      };
    </script>
    ```
 2. **query param** — לבדיקות/dev:
-   `?apiUrl=https://script.google.com/macros/s/AKfycbyO8lelLfZEpFAlLji5f6qO5tR7I5uoQK5FfMf2y1XWJj5UreSS4ddEtkKDPzKT7YiwMw/exec`
+   `?apiUrl=<YOUR_APPS_SCRIPT_EXEC_URL>`
 3. **DEFAULT_API_URL** ב-`frontend/src/config.js` — ברירת מחדל לייצור.
 
 ### הרצה מקומית
