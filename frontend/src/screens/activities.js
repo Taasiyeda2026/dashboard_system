@@ -238,7 +238,7 @@ export const activitiesScreen = {
       .join('');
 
     const familyChips = [
-      { key: '', label: 'כל המשפחות' },
+      { key: '', label: 'הכל' },
       { key: 'short', label: FAMILY_LABEL_SHORT },
       { key: 'long', label: FAMILY_LABEL_LONG }
     ]
@@ -276,11 +276,12 @@ export const activitiesScreen = {
 
     const userRoutes = Array.isArray(state?.routes) ? state.routes : [];
     const shortcutDefs = [
-      { route: 'week',        label: 'שבוע',       icon: '📅' },
-      { route: 'month',       label: 'חודש',       icon: '📆' },
-      { route: 'exceptions',  label: 'חריגות',     icon: '⚠️' },
-      { route: 'instructors', label: 'מדריכים',    icon: '👥' },
-      { route: 'contacts',    label: 'אנשי קשר',  icon: '🏫' },
+      { route: 'week',        label: 'שבוע',         icon: '📅' },
+      { route: 'month',       label: 'חודש',         icon: '📆' },
+      { route: 'exceptions',  label: 'חריגות',       icon: '⚠️' },
+      { route: 'instructors', label: 'מדריכים',      icon: '👥' },
+      { route: 'end-dates',   label: 'תאריכי סיום',  icon: '🗓️' },
+      { route: 'contacts',    label: 'אנשי קשר',    icon: '🏫' },
     ];
     const shortcutsHtml = shortcutDefs
       .filter((d) => userRoutes.includes(d.route))

@@ -58,6 +58,19 @@ function filterKpiCards(cards, showOnlyNonzero) {
 }
 
 
+function renderAdminNavBar(state) {
+  const routes = Array.isArray(state?.routes) ? state.routes : [];
+  const adminRoutes = [
+    { route: 'admin-home', label: 'ניהול מערכת', icon: '🏠' },
+    { route: 'permissions', label: 'הרשאות', icon: '🔑' }
+  ].filter((r) => routes.includes(r.route));
+  if (!adminRoutes.length) return '';
+  const btns = adminRoutes
+    .map((r) => `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-goto-route="${escapeHtml(r.route)}"><span aria-hidden="true">${r.icon}</span> ${escapeHtml(r.label)}</button>`)
+    .join('');
+  return `<div class="ds-screen-shortcuts ds-screen-shortcuts--admin" dir="rtl">${btns}</div>`;
+}
+
 export const dashboardScreen = {
   async load({ api, state }) {
     let ym = state.dashboardMonthYm;
@@ -67,7 +80,7 @@ export const dashboardScreen = {
     state.dashboardMonthYm = ym;
     return api.dashboard({ month: ym });
   },
-  render(data) {
+  render(data, { state } = {}) {
     const ym = data?.month || currentMonthYm();
     const curYm = currentMonthYm();
     const canGoNext = ym < curYm;
@@ -124,8 +137,12 @@ export const dashboardScreen = {
       }>▶</button>
     </div>`;
 
+    const isAdmin = state?.user?.display_role === 'admin';
+    const adminNavBar = isAdmin ? renderAdminNavBar(state) : '';
+
     return dsScreenStack(`
       ${dsPageHeader('לוח בקרה')}
+      ${adminNavBar}
       ${monthNav}
       <div data-dash-data-area>
         <div class="ds-kpi-grid ds-dashboard-kpi-grid">${kpiHtml}</div>
@@ -138,6 +155,13 @@ export const dashboardScreen = {
     `);
   },
   bind({ root, ui, state, api, rerender, clearScreenDataCache }) {
+    root.querySelectorAll('[data-goto-route]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.gotoRoute;
+        if (!target) return;
+        document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: target } }));
+      });
+    });
     function showDataAreaLoading() {
       const area = root.querySelector('[data-dash-data-area]');
       if (area) {

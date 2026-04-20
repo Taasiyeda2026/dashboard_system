@@ -90,7 +90,7 @@ const screenLabels = {
   'end-dates': 'תאריכי סיום',
   'my-data': 'הנתונים שלי',
   permissions: 'הרשאות',
-  'admin-home': 'בית — ניהול'
+  'admin-home': 'לוח בקרה – מנהל מערכת'
 };
 
 const screens = {
@@ -109,7 +109,7 @@ const screens = {
   'admin-home': adminHomeScreen
 };
 
-const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts', 'week', 'month', 'exceptions', 'instructors']);
+const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts', 'week', 'month', 'exceptions', 'instructors', 'permissions', 'end-dates']);
 
 function systemNameRaw() {
   return String(state?.clientSettings?.system_name || 'Dashboard Taasiyeda').trim() || 'Dashboard Taasiyeda';
