@@ -109,7 +109,7 @@ const screens = {
   'admin-home': adminHomeScreen
 };
 
-const NAV_HIDDEN_ROUTES = new Set(['contacts', 'instructor-contacts', 'week', 'month', 'exceptions', 'instructors', 'permissions', 'end-dates']);
+const NAV_HIDDEN_ROUTES = new Set(['permissions', 'end-dates']);
 
 function systemNameRaw() {
   return String(state?.clientSettings?.system_name || 'Dashboard Taasiyeda').trim() || 'Dashboard Taasiyeda';

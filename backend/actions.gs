@@ -480,14 +480,15 @@ function actionActivities_(user, payload) {
       var meetingsFromSheet = activitiesMeetingsMap[text_(row.RowID)];
       var meetingDates;
       if (meetingsFromSheet && meetingsFromSheet.length) {
-        meetingDates = meetingsFromSheet.slice().sort();
+        meetingDates = meetingsFromSheet.slice();
       } else {
         meetingDates = activityDateColumnsFromRow_(row).filter(function(v, i, arr) {
           return !!v && arr.indexOf(v) === i;
         }).sort();
       }
-      var computedStartDate = meetingDates.length ? meetingDates[0] : normalizeDateTextToIso_(row.Date1);
-      var computedEndDate = meetingDates.length ? meetingDates[meetingDates.length - 1] : '';
+      var dateRange = meetingDateRangeFromList_(meetingDates);
+      var computedStartDate = dateRange.start || normalizeDateTextToIso_(row.Date1);
+      var computedEndDate = dateRange.end || '';
       var meetingSchedule = meetingDates.map(function(dateKey) {
         return {
           date: dateKey,
@@ -1525,12 +1526,23 @@ function enrichRowsWithMeetings_(rows) {
   rows.forEach(function(row) {
     var dates = meetingsMap[text_(row.RowID)];
     if (dates && dates.length) {
-      var sorted = dates.slice().sort();
-      row.start_date = sorted[0];
-      row.end_date = sorted[sorted.length - 1];
+      var range = meetingDateRangeFromList_(dates);
+      row.start_date = range.start;
+      row.end_date = range.end;
     }
   });
   return rows;
+}
+
+function meetingDateRangeFromList_(dates) {
+  var list = (dates || []).map(function(v) { return text_(v); }).filter(Boolean);
+  if (!list.length) return { start: '', end: '' };
+  var start = list[0];
+  var end = list[0];
+  list.forEach(function(v) {
+    if (v > end) end = v;
+  });
+  return { start: start, end: end };
 }
 
 function allActivities_() {
@@ -1764,16 +1776,30 @@ function buildMeetingsMap_() {
   });
 
   var map = {};
+  var byMeetingNo = {};
   rows.forEach(function(row) {
     var key = text_(row.source_row_id);
     var date = text_(row.meeting_date);
+    var meetingNo = parseInt(text_(row.meeting_no), 10);
     if (!key || !date) return;
     if (!map[key]) map[key] = [];
     map[key].push(date);
+    if (!byMeetingNo[key]) byMeetingNo[key] = {};
+    if (meetingNo > 0 && (!byMeetingNo[key][meetingNo] || date < byMeetingNo[key][meetingNo])) {
+      byMeetingNo[key][meetingNo] = date;
+    }
   });
 
   Object.keys(map).forEach(function(key) {
-    map[key].sort();
+    var uniq = {};
+    map[key].forEach(function(date) { uniq[date] = true; });
+    var allDates = Object.keys(uniq).sort();
+    var firstMeetingDate = byMeetingNo[key] && byMeetingNo[key][1] ? byMeetingNo[key][1] : '';
+    if (firstMeetingDate && allDates.indexOf(firstMeetingDate) >= 0) {
+      map[key] = [firstMeetingDate].concat(allDates.filter(function(d) { return d !== firstMeetingDate; }));
+    } else {
+      map[key] = allDates;
+    }
   });
 
   if (__rqCache_) {
@@ -2020,14 +2046,20 @@ function buildCalendarIndexForDateRange_(rows, meetingsMap, fromDate, toDate) {
       byDate[dateKey].push(rowId);
     };
 
+    var meetingDates = meetingsMap && meetingsMap[rowId];
+    if (meetingDates && meetingDates.length) {
+      meetingDates.forEach(addRowToDate);
+      return;
+    }
+
     var dlist = activityDateColumnsFromRow_(row);
     if (dlist.length) {
       dlist.forEach(addRowToDate);
       return;
     }
 
-    var startIso = normalizeDateTextToIso_(row.Date1);
-    var endIso = activityEndDateFromRow_(row);
+    var startIso = text_(row.start_date) || normalizeDateTextToIso_(row.Date1);
+    var endIso = text_(row.end_date) || activityEndDateFromRow_(row);
     eachIsoDateInIntersection_(startIso, endIso, fromIso, toIso, addRowToDate);
   });
 

@@ -142,9 +142,9 @@ export function createSharedInteractionLayer() {
   }
 
   function openDrawer({ title = '', content = '', onClose, onOpen } = {}) {
-    if (!String(content || '').trim()) {
+    if (!String(content || '').trim() && !String(title || '').trim()) {
       if (typeof console !== 'undefined') {
-        console.warn('[openDrawer] Blocked: called with no content.', new Error().stack);
+        console.warn('[openDrawer] Blocked: called with no title and no content.', new Error().stack);
       }
       return;
     }
