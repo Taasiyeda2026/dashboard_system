@@ -2678,18 +2678,42 @@ span.ds-chip {
 /* כותרת מסך התחברות — אותה היררכיה כמו dsPageHeader */
 .ds-page-header--login {
   text-align: center;
-  padding-bottom: var(--ds-space-3);
-  margin: 0 auto var(--ds-space-2);
-  border-bottom: 1px solid var(--ds-border);
+  padding: 0;
+  margin: 0 auto var(--ds-space-3);
   width: 60%;
+  background: none;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .ds-page-header--login .ds-page-header__title {
-  font-size: 1.08rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--ds-text-muted);
+  letter-spacing: 0.02em;
 }
 
 .ds-page-header--login .ds-page-header__subtitle {
-  margin-top: var(--ds-space-2);
+  margin-top: var(--ds-space-1);
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--ds-text);
+  display: inline-block;
+  padding-bottom: var(--ds-space-2);
+  position: relative;
+}
+
+.ds-page-header--login .ds-page-header__subtitle::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(to left, transparent, var(--ds-accent), transparent);
+  border-radius: 2px;
 }
 
 .login-form {
