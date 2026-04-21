@@ -323,9 +323,8 @@ function shell(content) {
           </div>
           ${headerNavHtml ? `<nav class="shell-header-nav" aria-label="ניווט מהיר">${headerNavHtml}</nav>` : ''}
           <div class="shell-top__end">
-            <button type="button" class="shell-logout-btn" id="logoutBtn" aria-label="התנתקות">
-              <span class="shell-logout-btn__icon" aria-hidden="true">⏻</span>
-              <span class="shell-logout-btn__label">התנתקות</span>
+            <button type="button" class="shell-logout-btn" id="logoutBtn" aria-label="התנתקות" title="התנתקות">
+              <span aria-hidden="true">⏻</span>
             </button>
           </div>
         </header>
