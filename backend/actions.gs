@@ -257,6 +257,21 @@ function actionDashboard_(user, payload) {
   });
   var uniqueInstructorCount = countUniqueOperationalInstructors_(combined);
 
+  // תוכניות פעילות: סטטוס פתוח (לא סגור), ללא חריגות, ועם מפגש בחודש זה או תאריך סיום >= היום.
+  var todayIso = formatDate_(new Date());
+  var activeLongRows = longRows.filter(function(row) {
+    if (text_(row.status) === 'סגור') return false;
+    if (primaryExceptionForRow_(row)) return false;
+    var rowDates = dashMeetingsMap[text_(row.RowID)];
+    var normalizedDates = [];
+    if (rowDates && Array.isArray(rowDates)) {
+      normalizedDates = rowDates.map(function(d) { return text_(d); }).filter(Boolean);
+    }
+    var hasSessionInYm = normalizedDates.some(function(d) { return d.slice(0, 7) === ym; });
+    var endOnOrAfterToday = text_(row.end_date) >= todayIso;
+    return hasSessionInYm || endOnOrAfterToday;
+  });
+
   var byManager = {};
   combined.forEach(function(row) {
     var manager = text_(row.activity_manager) || 'unassigned';
@@ -295,6 +310,10 @@ function actionDashboard_(user, payload) {
     byManager[manager].exceptions = mLong.filter(function(r) {
       return !!primaryExceptionForRow_(r);
     }).length;
+    // תוכניות פעילות: לפי ההגדרה החדשה (סטטוס פתוח, ללא חריגות, מפגש בחודש או סיום >= היום)
+    byManager[manager].total_long = activeLongRows.filter(function(r) {
+      return (text_(r.activity_manager) || 'unassigned') === manager;
+    }).length;
   });
 
   var courseEndings = longRows.filter(function(row) {
@@ -312,7 +331,7 @@ function actionDashboard_(user, payload) {
 
   var kpi_cards_all = [
     { id: 'short', action: 'kpi|short', title: String(shortRows.length), subtitle: 'חד-יומי', value: shortRows.length },
-    { id: 'long', action: 'kpi|long', title: String(longRows.length), subtitle: 'תוכניות', value: longRows.length },
+    { id: 'long', action: 'kpi|long', title: String(activeLongRows.length), subtitle: 'תוכניות', value: activeLongRows.length },
     {
       id: 'active_courses',
       action: 'kpi|active_courses',
@@ -388,12 +407,12 @@ function actionDashboard_(user, payload) {
     can_view_finance: canViewFinance,
     totals: {
       total_short_activities: shortRows.length,
-      total_long_activities: longRows.length,
+      total_long_activities: activeLongRows.length,
       total_instructors: uniqueInstructorCount,
       total_course_endings_current_month: courseEndings,
       /** תאימות לאחור לבדיקות / לקוחות ישנים */
       short: shortRows.length,
-      long: longRows.length
+      long: activeLongRows.length
     },
     by_activity_manager: Object.keys(byManager).sort().map(function(key) {
       return byManager[key];
