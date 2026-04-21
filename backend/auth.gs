@@ -142,7 +142,7 @@ function buildRoutesFromPermission_(permission, role) {
   return allRoutes.filter(function(route) {
     if (route === 'permissions') {
       if (!(role === 'admin' || role === 'operations_reviewer')) return false;
-      return yesNo_(permission.view_permissions) === 'yes';
+      return permYes_(permission, 'view_permissions');
     }
     if (route === 'my-data') {
       return myDataViewYes_(permission);
@@ -158,7 +158,7 @@ function buildRoutesFromPermission_(permission, role) {
     }
     var flag = map[route];
     if (!flag) return false;
-    return yesNo_(permission[flag]) === 'yes';
+    return permYes_(permission, flag);
   });
 }
 
@@ -251,24 +251,29 @@ function canUserAccessRoute_(user, route) {
   return effective.indexOf(r) >= 0;
 }
 
+/** בדיקת הרשאה מפורשת — רק 'yes' מפורש מעניק גישה; ריק/null = אין גישה */
+function permYes_(permission, field) {
+  return text_(permission[field]).toLowerCase() === 'yes';
+}
+
 function instructorContactsViewYes_(permission) {
-  if (yesNo_(permission.view_contacts_instructors) === 'yes') return true;
-  if (yesNo_(permission['view_contacts_instructors 2']) === 'yes') return true;
+  if (permYes_(permission, 'view_contacts_instructors')) return true;
+  if (permYes_(permission, 'view_contacts_instructors 2')) return true;
   return false;
 }
 
 function schoolContactsViewYes_(permission) {
-  return yesNo_(permission.view_contacts) === 'yes';
+  return permYes_(permission, 'view_contacts');
 }
 
 function endDatesViewYes_(permission) {
-  return yesNo_(permission.view_end_dates) === 'yes';
+  return permYes_(permission, 'view_end_dates');
 }
 
 function myDataViewYes_(permission) {
   return (
-    yesNo_(permission.view_my_data) === 'yes' ||
-    yesNo_(permission.view_operations_data) === 'yes'
+    permYes_(permission, 'view_my_data') ||
+    permYes_(permission, 'view_operations_data')
   );
 }
 
