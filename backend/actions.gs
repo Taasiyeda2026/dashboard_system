@@ -324,9 +324,11 @@ function actionDashboard_(user, payload) {
     return normalizeFinance_(row.finance_status) === 'open';
   }).length : 0;
 
+  // סופרים רק חריגות "פעילות": מפגש אחרי late_end_date_cutoff.
+  // "ללא מדריך" ו"ללא תאריך התחלה" הן רשומות לא-פעילות ואינן נכללות במונה.
   var exceptionSum = 0;
   longRows.forEach(function(row) {
-    if (primaryExceptionForRow_(row)) exceptionSum += 1;
+    if (primaryExceptionForRow_(row) === 'late_end_date') exceptionSum += 1;
   });
 
   var kpi_cards_all = [
