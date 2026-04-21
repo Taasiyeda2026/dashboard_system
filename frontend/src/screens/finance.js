@@ -593,7 +593,11 @@ export const financeScreen = {
     loadStateFromStorage(state);
     return api.finance({
       date_from: state?.financeDateFrom || '',
-      date_to: state?.financeDateTo || ''
+      date_to: state?.financeDateTo || '',
+      search: state?.financeSearch || '',
+      status: state?.financeStatusFilter || '',
+      tab: state?.financeTab || 'active',
+      month: state?.financeMonthYm || ''
     });
   },
 
@@ -631,10 +635,7 @@ export const financeScreen = {
     ];
 
     /* Display rows: apply search and status on top of the month window */
-    let rows = applySearch(kpiRows, searchQ);
-    if (statusFilter) {
-      rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
-    }
+    let rows = kpiRows;
 
     /* Status filter chips */
     const statuses = [...new Set(rows.map((r) => String(r.finance_status || '')).filter(Boolean))];
@@ -1054,9 +1055,10 @@ export const financeScreen = {
     /* Row click → drawer */
     const bindFinanceEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
+    const detailCache = new Map();
+    const loadingDetailMarkup = '<div class="ds-loading-card" dir="rtl"><p>טוען פירוט כספים…</p></div>';
 
-    const openDrawer = (hit) => {
-      if (!hit || !ui) return;
+    const openDrawerWithRow = (hit) => {
       const meetingsHtml = buildMeetingsDatesHtml(hit);
       const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
       const privateNote = showPrivateNote ? hit.private_note || '—' : null;
@@ -1075,12 +1077,28 @@ export const financeScreen = {
       });
     };
 
+    const openDrawer = async (summaryRow) => {
+      if (!summaryRow || !ui) return;
+      ui.openDrawer({
+        title: `כספים · ${summaryRow.activity_name || 'פעילות'}`,
+        content: loadingDetailMarkup
+      });
+      const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
+      let row = detailCache.get(cacheKey);
+      if (!row) {
+        const rsp = await api.financeDetail(summaryRow.RowID, summaryRow.source_sheet);
+        row = rsp?.row || summaryRow;
+        detailCache.set(cacheKey, row);
+      }
+      openDrawerWithRow(row);
+    };
+
     root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
       rowNode.addEventListener('click', (e) => {
         if (e.target.closest('[data-inline-save],[data-dates-toggle],[data-export-row],[data-inline-status],[data-inline-notes]')) return;
         const rowId = rowNode.dataset.rowId;
         const hit = allRows.find((r) => String(r.RowID) === String(rowId));
-        openDrawer(hit);
+        openDrawer(hit).catch(() => {});
       });
       rowNode.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); rowNode.click(); }
@@ -1093,7 +1111,7 @@ export const financeScreen = {
         if (e.target.closest('details,select,input,button')) return;
         const rowId = card.dataset.rowId;
         const hit = allRows.find((r) => String(r.RowID) === String(rowId));
-        openDrawer(hit);
+        openDrawer(hit).catch(() => {});
       });
     });
 
@@ -1101,7 +1119,7 @@ export const financeScreen = {
       if (!action.startsWith('finance:')) return;
       const rowId = action.slice('finance:'.length);
       const hit = allRows.find((r) => String(r.RowID) === String(rowId));
-      openDrawer(hit);
+      openDrawer(hit).catch(() => {});
     });
   },
 

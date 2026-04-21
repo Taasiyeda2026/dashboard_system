@@ -346,12 +346,15 @@ function closeMobileNav() {
 
 function screenDataCacheKey() {
   if (state.route === 'activities') {
-    return `activities:${state.activityTab || 'all'}:${state.activityFinanceStatus || ''}`;
+    return `activities:${state.activityTab || 'all'}:${state.activityFinanceStatus || ''}:${state.activitySearch || ''}:${state.activityQuickFamily || ''}:${state.activityQuickManager || ''}:${state.activityEndingCurrentMonth ? '1' : '0'}`;
   }
   if (state.route === 'finance') {
     const df = state.financeDateFrom || '';
     const dt = state.financeDateTo || '';
-    return `finance:${df}:${dt}`;
+    return `finance:${df}:${dt}:${state.financeSearch || ''}:${state.financeStatusFilter || ''}:${state.financeTab || 'active'}:${state.financeMonthYm || ''}`;
+  }
+  if (state.route === 'operations') {
+    return `operations:${state.operationsSearch || ''}:${state.operationsActivityType || ''}`;
   }
   if (state.route === 'dashboard') {
     const ym = state.dashboardMonthYm && /^\d{4}-\d{2}$/.test(state.dashboardMonthYm) ? state.dashboardMonthYm : 'default';
