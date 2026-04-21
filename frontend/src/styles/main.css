@@ -471,7 +471,47 @@ select {
 
 .shell-top__end {
   flex: 0 0 auto;
-  margin-inline-start: auto;
+}
+
+/* ——— Header quick-nav (admin) ——— */
+.shell-header-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  flex: 1;
+  justify-content: center;
+}
+
+.shell-header-nav__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ds-radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 1.15rem;
+  color: var(--ds-text-muted);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
+  cursor: pointer;
+}
+
+.shell-header-nav__btn:hover {
+  background: rgba(26, 51, 88, 0.07);
+  border-color: rgba(26, 51, 88, 0.12);
+  color: var(--ds-text);
+}
+
+.shell-header-nav__btn.is-active {
+  background: rgba(26, 51, 88, 0.1);
+  border-color: rgba(26, 51, 88, 0.18);
+  color: var(--ds-text);
+  font-weight: 600;
+}
+
+.shell-header-nav__btn:active {
+  transform: translateY(1px);
 }
 
 /* ——— Apple-style logout button ——— */
@@ -975,10 +1015,10 @@ select {
 
 /* Dashboard KPI cards: compact, balanced, centered */
 .ds-dashboard-kpi-grid {
-  grid-template-columns: repeat(auto-fit, minmax(130px, 170px));
+  grid-template-columns: repeat(auto-fit, minmax(100px, 130px));
   justify-content: center;
   margin-inline: auto;
-  max-width: 980px;
+  max-width: 720px;
 }
 
 @media (min-width: 720px) {

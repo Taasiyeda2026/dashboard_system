@@ -275,6 +275,19 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
+  const HEADER_NAV_ROUTES = ['dashboard', 'activities', 'finance', 'exceptions', 'permissions'];
+  const HEADER_NAV_ICONS  = { dashboard: '📊', activities: '📋', finance: '💰', exceptions: '⚠️', permissions: '🔑' };
+  const isAdmin = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
+  const availableRoutes = effectiveRoutes();
+  const headerNavHtml = isAdmin
+    ? HEADER_NAV_ROUTES
+        .filter((r) => availableRoutes.includes(r))
+        .map((r) => `<button type="button" class="shell-header-nav__btn${r === state.route ? ' is-active' : ''}" data-route="${r}" aria-label="${screenLabels[r] || r}" title="${screenLabels[r] || r}">
+          <span aria-hidden="true">${HEADER_NAV_ICONS[r] || '▶'}</span>
+        </button>`)
+        .join('')
+    : '';
+
   return `
     <div class="app-shell${drawerClass} route-${escapeHtml(String(state.route || ''))}" data-current-route="${escapeHtml(String(state.route || ''))}" dir="rtl">
       <button type="button" class="shell-backdrop" data-mobile-close aria-label="סגירת תפריט"></button>
@@ -308,6 +321,7 @@ function shell(content) {
             </button>
             <p class="shell-top__mobile-brand">${screenLabels[state.route] || systemName}</p>
           </div>
+          ${headerNavHtml ? `<nav class="shell-header-nav" aria-label="ניווט מהיר">${headerNavHtml}</nav>` : ''}
           <div class="shell-top__end">
             <button type="button" class="shell-logout-btn" id="logoutBtn" aria-label="התנתקות">
               <span class="shell-logout-btn__icon" aria-hidden="true">⏻</span>
