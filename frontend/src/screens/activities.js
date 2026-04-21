@@ -20,11 +20,11 @@ import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 const ACTIVITY_VIEW_LS = 'dashboard_activity_view';
 
 const ACT_SUBNAV = [
-  { route: 'week',        label: 'תצוגת שבוע' },
-  { route: 'month',       label: 'תצוגת חודש' },
-  { route: 'instructors', label: 'מדריכים' },
-  { route: 'end-dates',   label: 'דרכי סיום' },
-  { route: 'exceptions',  label: 'חריגות' },
+  { route: 'week',        label: 'שבוע',         icon: '📅' },
+  { route: 'month',       label: 'חודש',          icon: '🗓️' },
+  { route: 'end-dates',   label: 'תאריכי סיום',  icon: '🏁' },
+  { route: 'exceptions',  label: 'חריגות',        icon: '⚠️' },
+  { route: 'instructors', label: 'מדריכים',       icon: '👥' },
 ];
 
 function hasRowException(row) {
@@ -174,14 +174,18 @@ export const activitiesScreen = {
         : `<div class="ds-compact-list">${compactRows}</div>`;
 
     const availableRoutes = new Set(Array.isArray(state.routes) ? state.routes : []);
-    const subNavHtml = ACT_SUBNAV
-      .filter((item) => availableRoutes.has(item.route))
-      .map((item) => `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-act-subnav="${escapeHtml(item.route)}">${escapeHtml(item.label)}</button>`)
+    const subNavItems = ACT_SUBNAV.filter((item) => availableRoutes.has(item.route));
+    const subNavHtml = subNavItems
+      .map((item) => `
+        <button type="button" class="ds-act-nav-item" data-act-subnav="${escapeHtml(item.route)}" dir="rtl">
+          <span class="ds-act-nav-item__icon" aria-hidden="true">${item.icon}</span>
+          <span class="ds-act-nav-item__label">${escapeHtml(item.label)}</span>
+        </button>`)
       .join('');
 
     return dsScreenStack(`
       ${dsPageHeader('פעילויות', '')}
-      ${subNavHtml ? `<div class="ds-act-subnav" dir="rtl">${subNavHtml}</div>` : ''}
+      ${subNavHtml ? `<div class="ds-act-nav-grid" dir="rtl">${subNavHtml}</div>` : ''}
       ${dsToolbar(`
         <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
           <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${

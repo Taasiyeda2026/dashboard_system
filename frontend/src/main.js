@@ -249,11 +249,14 @@ function shellUserRoleLine() {
   return escapeHtml(hebrewRole(state.user?.display_role || state.user?.role));
 }
 
+// ניווט אל מסכים אלו מתבצע ממסך הפעילויות בלבד — לא מוצגים בסרגל הצד
+const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions']);
+
 function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
   const nav = effectiveRoutes()
-    .filter((route) => !hiddenSet.has(route) && !contextualSet.has(route))
+    .filter((route) => !hiddenSet.has(route) && !contextualSet.has(route) && !ACTIVITIES_CHILD_ROUTES.has(route))
     .map(
       (route) =>
         `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`
@@ -268,8 +271,8 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
-  const HEADER_NAV_ROUTES = ['dashboard', 'activities', 'finance', 'exceptions', 'permissions'];
-  const HEADER_NAV_ICONS  = { dashboard: '📊', activities: '📋', finance: '💰', exceptions: '⚠️', permissions: '🔑' };
+  const HEADER_NAV_ROUTES = ['dashboard', 'activities', 'finance', 'permissions'];
+  const HEADER_NAV_ICONS  = { dashboard: '📊', activities: '📋', finance: '💰', permissions: '🔑' };
   const isAdmin = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
   const availableRoutes = effectiveRoutes();
   const headerNavHtml = isAdmin
