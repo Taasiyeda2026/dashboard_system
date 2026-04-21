@@ -648,17 +648,6 @@ select {
   margin-inline: auto;
 }
 
-/* Instructors page: fit view without page scroll; compact at 80%. */
-.app-shell.route-instructors .shell-stage {
-  overflow: hidden;
-}
-
-.app-shell.route-instructors .screen-root {
-  zoom: 0.8;
-  width: 125%;
-  max-width: none;
-  transform-origin: top center;
-}
 
 .app-shell.is-route-loading .shell-nav__btn:disabled {
   pointer-events: none;
