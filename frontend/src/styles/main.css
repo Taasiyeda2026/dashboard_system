@@ -949,6 +949,11 @@ select {
   color: var(--ds-accent);
 }
 
+.ds-kpi--exceptions-alert .ds-interactive-card__value,
+.ds-kpi--exceptions-alert:hover:not(:disabled) .ds-interactive-card__value {
+  color: #e03131;
+}
+
 .ds-interactive-card--day-cell {
   min-height: 56px;
 }

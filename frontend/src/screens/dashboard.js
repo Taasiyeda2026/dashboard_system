@@ -118,7 +118,8 @@ export const dashboardScreen = {
               variant: 'kpi',
               action: k.action,
               title: k.subtitle || k.title || '',
-              value: k.value != null ? String(k.value) : String(k.title || '')
+              value: k.value != null ? String(k.value) : String(k.title || ''),
+              extraClass: (k.id === 'exceptions' && Number(k.value || 0) > 0) ? 'ds-kpi--exceptions-alert' : ''
             })
           )
           .join('')
