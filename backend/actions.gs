@@ -300,6 +300,10 @@ function dateColumnsPatchFromChanges_(changes) {
 function actionDashboard_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
+  var permission = getPermissionRow_(user.user_id);
+  var canViewFinance = user.display_role === 'admin' ||
+    yesNo_(permission.view_finance) === 'yes';
+
   var ym = dashboardPayloadYm_(payload || {});
 
   var shortAll = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
@@ -352,9 +356,11 @@ function actionDashboard_(user, payload) {
     byManager[manager].course_endings = mLong.filter(function(r) {
       return text_(r.activity_type) === 'course' && text_(r.end_date).slice(0, 7) === ym;
     }).length;
-    byManager[manager].finance_open = mCombined.filter(function(r) {
-      return normalizeFinance_(r.finance_status) === 'open';
-    }).length;
+    if (canViewFinance) {
+      byManager[manager].finance_open = mCombined.filter(function(r) {
+        return normalizeFinance_(r.finance_status) === 'open';
+      }).length;
+    }
     byManager[manager].exceptions = mLong.filter(function(r) {
       return !!primaryExceptionForRow_(r);
     }).length;
@@ -364,16 +370,16 @@ function actionDashboard_(user, payload) {
     return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === ym;
   }).length;
 
-  var financeOpenCount = combined.filter(function(row) {
+  var financeOpenCount = canViewFinance ? combined.filter(function(row) {
     return normalizeFinance_(row.finance_status) === 'open';
-  }).length;
+  }).length : 0;
 
   var exceptionSum = 0;
   longRows.forEach(function(row) {
     if (primaryExceptionForRow_(row)) exceptionSum += 1;
   });
 
-  var kpi_cards = [
+  var kpi_cards_all = [
     { id: 'short', action: 'kpi|short', title: String(shortRows.length), subtitle: 'חד-יומי', value: shortRows.length },
     { id: 'long', action: 'kpi|long', title: String(longRows.length), subtitle: 'תוכניות', value: longRows.length },
     {
@@ -416,7 +422,8 @@ function actionDashboard_(user, payload) {
       action: 'kpi|finance_open',
       title: String(financeOpenCount),
       subtitle: 'כספים פתוחים',
-      value: financeOpenCount
+      value: financeOpenCount,
+      requires_finance: true
     },
     {
       id: 'exceptions',
@@ -441,8 +448,13 @@ function actionDashboard_(user, payload) {
     }
   ];
 
+  var kpi_cards = canViewFinance
+    ? kpi_cards_all
+    : kpi_cards_all.filter(function(c) { return !c.requires_finance; });
+
   var result = {
     month: ym,
+    can_view_finance: canViewFinance,
     totals: {
       total_short_activities: shortRows.length,
       total_long_activities: longRows.length,

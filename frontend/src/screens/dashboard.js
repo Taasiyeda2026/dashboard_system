@@ -199,6 +199,7 @@ export const dashboardScreen = {
     );
     const showOnly = !!data?.show_only_nonzero_kpis;
     const kpiCards = filterKpiCards(data?.kpi_cards, showOnly);
+    const canViewFinance = !!data?.can_view_finance;
 
     const managerCards = managers
       .map((row) => {
@@ -208,6 +209,9 @@ export const dashboardScreen = {
           { label: 'תוכניות',      value: row.total_long      ?? 0, action: `mstat|${mgr}|long` },
           { label: 'סיומי קורסים', value: row.course_endings  ?? 0, action: `mstat|${mgr}|endings` },
         ];
+        if (canViewFinance) {
+          stats.push({ label: 'כספים פתוחים', value: row.finance_open ?? 0, action: `mstat|${mgr}|finance_open` });
+        }
         const statsHtml = stats
           .map((s) => `<button type="button" class="ds-manager-stat" data-card-action="${escapeHtml(s.action)}">
               <span class="ds-manager-stat__label">${escapeHtml(s.label)}</span>
@@ -403,6 +407,8 @@ export const dashboardScreen = {
           goActivitiesDrill(state, { activityQuickManager: name, activityQuickFamily: 'long' });
         } else if (kind === 'endings') {
           goActivitiesDrill(state, { activityQuickManager: name, activityEndingCurrentMonth: true });
+        } else if (kind === 'finance_open') {
+          goFinanceDrill(state, { financeStatusFilter: 'open' });
         }
         ui.closeAll();
         rerender();
