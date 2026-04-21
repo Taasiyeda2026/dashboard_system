@@ -4,20 +4,23 @@
 1. פתחו פרויקט Apps Script.
 2. העתיקו את כל קבצי backend/*.gs לפרויקט (שמות קבצים זהים):
    - Code.gs
-   - actions.gs
-   - auth.gs
    - config.gs
    - helpers.gs
-   - router.gs
    - script-cache.gs
+   - settings.gs      ← חדש (הועתק מ-actions.gs; חייב להיכלל!)
    - sheets.gs
+   - auth.gs
+   - router.gs
+   - actions.gs
 3. ב-config.gs עדכנו CONFIG.SPREADSHEET_ID לגיליון היעד.
 4. שמרו, פריסה > ניהול פריסות > פריסה מחדש של ה-Web App (אם משתמשים ב-web app).
 5. בדקו את כתובת /exec (או ה-URL המלא של הפריסה).
 
 תלות בין קבצים (Apps Script טוען הכול לגלובל):
 - Code.gs -> router.gs -> שאר המודולים.
-- auth.gs קורא ל-buildClientSettingsPayload_ (מוגדר ב-actions.gs) — וודאו ששני הקבצים קיימים באותו פרויקט.
+- auth.gs קורא ל-getSettingText_ (settings.gs) ול-buildClientSettingsPayload_ (actions.gs).
+- router.gs קורא ל-getSettingText_ (settings.gs).
+- settings.gs תלוי ב-helpers.gs, config.gs, sheets.gs בלבד — קובץ עצמאי קטן.
 - sheets.gs משתמש ב-yesNo_ מ-helpers.gs וב-CONFIG מ-config.gs.
 
 ================================================================================
