@@ -40,7 +40,7 @@ export const state = {
   /** מסך שבוע: הזזה בשבועות מהשבוע הנוכחי (0 = שבוע נוכחי, -1 = קודם, +1 = הבא) */
   weekOffset: 0,
   /** מסך חודש: חודש מוצג בפורמט YYYY-MM; ריק = חודש נוכחי */
-  monthYm: '',
+  monthYm: localStorage.getItem('dashboard_calendar_month_ym') || '',
   /** פעילויות: `table` | `compact` — נשמר בלוקאל סטורג' במסך הפעילויות */
   activityView: 'table',
   financeFilter: '',
@@ -73,6 +73,7 @@ export function setSession(session) {
     state.screenDataCache = {};
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
+    localStorage.removeItem('dashboard_calendar_month_ym');
     return;
   }
   state.token = session.token;

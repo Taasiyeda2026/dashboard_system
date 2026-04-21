@@ -354,10 +354,12 @@ export const monthScreen = {
     };
     root.querySelector('[data-month-prev]')?.addEventListener('click', () => {
       state.monthYm = shiftMonthYm(resolveBaseYm(), -1);
+      try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
       rerender?.();
     });
     root.querySelector('[data-month-next]')?.addEventListener('click', () => {
       state.monthYm = shiftMonthYm(resolveBaseYm(), 1);
+      try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
       rerender?.();
     });
 
