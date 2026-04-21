@@ -5,21 +5,19 @@ import {
   dsPageHeader,
   dsCard,
   dsScreenStack,
-  dsTableWrap,
   dsEmptyState,
   dsFilterBar,
-  dsInteractiveCard,
   dsStatusChip
 } from './shared/layout.js';
-import { isNarrowViewport } from './shared/responsive.js';
 
 const MISSING_BADGE = `<span class="ds-exc-badge ds-exc-badge--missing">⚠️ חסר</span>`;
 const LATE_BADGE    = `<span class="ds-exc-badge ds-exc-badge--late">⏱️ מאוחר</span>`;
 
-function fieldRow(label, value, cls, badge) {
-  const display = value ? escapeHtml(String(value)) : '<em style="color:var(--ds-text-muted)">—</em>';
-  const clsAttr = cls ? ` class="${cls}"` : '';
-  return `<p${clsAttr}><strong>${escapeHtml(label)}:</strong> ${display}${badge || ''}</p>`;
+function fieldRow(label, value, badge) {
+  const display = (value !== undefined && value !== null && value !== '')
+    ? escapeHtml(String(value))
+    : '<em style="color:var(--ds-text-muted)">—</em>';
+  return `<p><strong>${escapeHtml(label)}:</strong> ${display}${badge || ''}</p>`;
 }
 
 function exceptionDrawerHtml(row, hideRowId) {
@@ -30,19 +28,29 @@ function exceptionDrawerHtml(row, hideRowId) {
   const isMissingStartDate  = et === 'missing_start_date';
   const isLateEndDate       = et === 'late_end_date';
 
-  const instructor = row.instructor_name || row.instructor || '';
-  const startDate  = formatDateHe(row.start_date) || row.start_date || '';
-  const endDate    = formatDateHe(row.end_date)   || row.end_date   || '';
-  const manager    = row.activity_manager || '';
+  const instructor  = row.instructor_name  || '';
+  const instructor2 = row.instructor_name_2 || '';
+  const startDate   = formatDateHe(row.start_date) || row.start_date || '';
+  const endDate     = formatDateHe(row.end_date)   || row.end_date   || '';
 
   return `<div class="ds-details-grid" dir="rtl">
     ${hideRowId ? '' : `<p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>`}
     <p><strong>סוג חריגה:</strong> ${typeChip}</p>
-    ${fieldRow(hebrewColumn('activity_name'),    row.activity_name || '', '', '')}
-    ${fieldRow(hebrewColumn('activity_manager'), manager,    '', '')}
-    ${fieldRow('מדריך',                          instructor, isMissingInstructor ? 'ds-exc-field--missing' : '', isMissingInstructor ? MISSING_BADGE : '')}
-    ${fieldRow(hebrewColumn('start_date'),        startDate,  isMissingStartDate  ? 'ds-exc-field--missing' : '', isMissingStartDate  ? MISSING_BADGE : '')}
-    ${fieldRow(hebrewColumn('end_date'),          endDate,    isLateEndDate       ? 'ds-exc-field--late'    : '', isLateEndDate       ? LATE_BADGE    : '')}
+    ${fieldRow(hebrewColumn('activity_name'),    row.activity_name)}
+    ${fieldRow(hebrewColumn('activity_type'),    row.activity_type)}
+    ${fieldRow(hebrewColumn('authority'),        row.authority)}
+    ${fieldRow(hebrewColumn('school'),           row.school)}
+    ${fieldRow(hebrewColumn('activity_manager'), row.activity_manager)}
+    ${fieldRow('מדריך',
+        instructor  ? (row.emp_id  ? `${instructor} (${row.emp_id})`  : instructor)  : '',
+        isMissingInstructor ? MISSING_BADGE : '')}
+    ${instructor2 ? fieldRow('מדריך 2',
+        row.emp_id_2 ? `${instructor2} (${row.emp_id_2})` : instructor2) : ''}
+    ${fieldRow(hebrewColumn('start_date'),  startDate, isMissingStartDate ? MISSING_BADGE : '')}
+    ${fieldRow(hebrewColumn('end_date'),    endDate,   isLateEndDate      ? LATE_BADGE    : '')}
+    ${fieldRow(hebrewColumn('sessions'),    row.sessions)}
+    ${fieldRow(hebrewColumn('status'),      row.status)}
+    ${row.notes ? fieldRow('הערות', row.notes) : ''}
   </div>`;
 }
 
@@ -53,6 +61,8 @@ function applySearch(rows, q) {
     (r) =>
       String(r.activity_name    || '').toLowerCase().includes(lq) ||
       String(r.RowID            || '').toLowerCase().includes(lq) ||
+      String(r.authority        || '').toLowerCase().includes(lq) ||
+      String(r.school           || '').toLowerCase().includes(lq) ||
       String(r.activity_manager || '').toLowerCase().includes(lq) ||
       hebrewExceptionType(r.exception_type).includes(lq)
   );
@@ -63,11 +73,10 @@ export const exceptionsScreen = {
   render(data, { state } = {}) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const counts = data?.counts || { missing_instructor: 0, missing_start_date: 0, late_end_date: 0 };
-    const narrow = isNarrowViewport();
-    const searchQ          = state?.exceptionsSearch          || '';
-    const typeFilter       = state?.exceptionsTypeFilter       || '';
-    const managerFilter    = state?.exceptionsManagerFilter    || '';
-    const hideRowId        = !!state?.clientSettings?.hide_row_id_in_ui;
+    const searchQ       = state?.exceptionsSearch       || '';
+    const typeFilter    = state?.exceptionsTypeFilter    || '';
+    const managerFilter = state?.exceptionsManagerFilter || '';
+    const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
 
     let safeRows = applySearch(allRows, searchQ);
     if (typeFilter)    safeRows = safeRows.filter((r) => String(r.exception_type    || '') === typeFilter);
@@ -104,52 +113,37 @@ export const exceptionsScreen = {
       <span class="ds-chip ds-chip--status ds-chip--status-danger"><span aria-hidden="true">⏱️</span> תאריך סיום מאוחר: ${counts.late_end_date}</span>
     `;
 
-    /* ── table rows ── */
-    const tableRows = safeRows.map((row, idx) => {
-      const et = String(row.exception_type || '').trim();
-      const mgr = escapeHtml(row.activity_manager || '—');
-      const searchHay = [hideRowId ? '' : row.RowID, hebrewExceptionType(row.exception_type), row.activity_name, row.activity_manager, row.end_date].join(' ');
-      return `
-      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(et)}" data-exc-idx="${idx}" role="button" tabindex="0">
-        ${hideRowId ? '' : `<td>${escapeHtml(row.RowID)}</td>`}
-        <td>${dsStatusChip(hebrewExceptionType(row.exception_type), exceptionTypeVariant(row.exception_type))}</td>
-        <td>${escapeHtml(row.activity_name || '—')}</td>
-        <td class="ds-muted">${mgr}</td>
-        <td>${escapeHtml(formatDateHe(row.end_date) || '—')}</td>
-      </tr>`;
-    });
-
-    const tableBlock =
-      safeRows.length === 0
-        ? dsEmptyState('לא נמצאו חריגות')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive">
-            <thead><tr>
-              ${hideRowId ? '' : `<th>${escapeHtml(hebrewColumn('RowID'))}</th>`}
-              <th>${escapeHtml(hebrewColumn('exception_type'))}</th>
-              <th>${escapeHtml(hebrewColumn('activity_name'))}</th>
-              <th>${escapeHtml(hebrewColumn('activity_manager'))}</th>
-              <th>${escapeHtml(hebrewColumn('end_date'))}</th>
-            </tr></thead>
-            <tbody>${tableRows.join('')}</tbody>
-          </table>`);
-
+    /* ── compact cards (always) ── */
     const compact =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו חריגות')
         : `<div class="ds-compact-list">${safeRows
             .map((row, idx) => {
               const et = String(row.exception_type || '').trim();
-              const mgr = row.activity_manager ? ` · ${row.activity_manager}` : '';
-              const searchHay = [hideRowId ? '' : row.RowID, hebrewExceptionType(row.exception_type), row.activity_name, row.activity_manager, row.end_date].join(' ');
+              const searchHay = [
+                hideRowId ? '' : row.RowID,
+                hebrewExceptionType(row.exception_type),
+                row.activity_name,
+                row.authority,
+                row.school,
+                row.activity_manager
+              ].join(' ');
+
+              const subtitleParts = [row.authority, row.school].filter(Boolean);
+              const subtitleHtml  = subtitleParts.length
+                ? `<p class="ds-interactive-card__subtitle">${escapeHtml(subtitleParts.join(' · '))}</p>`
+                : '';
+              const chipHtml = `<p class="ds-interactive-card__meta">${dsStatusChip(hebrewExceptionType(et), exceptionTypeVariant(et))}</p>`;
+
               return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(et)}">
-              ${dsInteractiveCard({
-                variant: 'session',
-                action: `exception:${idx}`,
-                title: row.activity_name || '—',
-                subtitle: hebrewExceptionType(row.exception_type),
-                meta: (hideRowId ? '' : `מזהה ${row.RowID} · `) + (formatDateHe(row.end_date) || '—') + mgr
-              })}
-            </div>`;
+                <button type="button"
+                  class="ds-interactive-card ds-interactive-card--session"
+                  data-card-action="${escapeHtml(`exception:${idx}`)}">
+                  <p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p>
+                  ${subtitleHtml}
+                  ${chipHtml}
+                </button>
+              </div>`;
             })
             .join('')}</div>`;
 
@@ -173,8 +167,8 @@ export const exceptionsScreen = {
       ${managerChipsHtml}
       ${dsCard({
         title: `חריגות · ${safeRows.length}`,
-        body: narrow ? compact : tableBlock,
-        padded: safeRows.length === 0 || narrow
+        body: compact,
+        padded: safeRows.length === 0
       })}
     `);
   },
@@ -214,16 +208,6 @@ export const exceptionsScreen = {
         content: exceptionDrawerHtml(hit, hideRowId)
       });
     };
-
-    root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
-      rowNode.addEventListener('click', () => openAt(Number(rowNode.dataset.excIdx)));
-      rowNode.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          rowNode.click();
-        }
-      });
-    });
 
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('exception:')) return;

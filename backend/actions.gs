@@ -720,10 +720,23 @@ function actionExceptions_(user) {
 
     counts[exceptionType] += 1;
     result.push({
-      RowID: row.RowID,
-      activity_name: row.activity_name,
-      end_date: row.end_date,
-      exception_type: exceptionType
+      RowID:              row.RowID,
+      activity_name:     row.activity_name,
+      activity_manager:  row.activity_manager,
+      activity_type:     row.activity_type,
+      activity_no:       row.activity_no,
+      authority:         row.authority,
+      school:            row.school,
+      emp_id:            row.emp_id,
+      instructor_name:   row.instructor_name,
+      emp_id_2:          row.emp_id_2,
+      instructor_name_2: row.instructor_name_2,
+      status:            row.status,
+      start_date:        row.start_date,
+      end_date:          row.end_date,
+      sessions:          row.sessions,
+      notes:             row.notes,
+      exception_type:    exceptionType
     });
   });
 
