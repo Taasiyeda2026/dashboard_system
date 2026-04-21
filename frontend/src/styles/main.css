@@ -2679,8 +2679,9 @@ span.ds-chip {
 .ds-page-header--login {
   text-align: center;
   padding-bottom: var(--ds-space-3);
-  margin: 0 0 var(--ds-space-2);
+  margin: 0 auto var(--ds-space-2);
   border-bottom: 1px solid var(--ds-border);
+  width: 60%;
 }
 
 .ds-page-header--login .ds-page-header__title {
