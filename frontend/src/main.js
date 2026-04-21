@@ -255,8 +255,16 @@ const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-da
 function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
+  const isAdminUser = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
+  // לאדמין: הרשאות — מהכותרת בלבד; הנתונים שלי — מוסתר לחלוטין
+  const adminSidebarExclude = isAdminUser ? new Set(['permissions', 'my-data']) : new Set();
   const nav = effectiveRoutes()
-    .filter((route) => !hiddenSet.has(route) && !contextualSet.has(route) && !ACTIVITIES_CHILD_ROUTES.has(route))
+    .filter((route) =>
+      !hiddenSet.has(route) &&
+      !contextualSet.has(route) &&
+      !ACTIVITIES_CHILD_ROUTES.has(route) &&
+      !adminSidebarExclude.has(route)
+    )
     .map(
       (route) =>
         `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`
