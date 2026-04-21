@@ -56,20 +56,6 @@ function currentMonthYm() {
   return `${y}-${m}`;
 }
 
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function weekBounds() {
-  const d = new Date();
-  const sun = new Date(d); sun.setDate(d.getDate() - d.getDay());
-  const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
-  return {
-    from: sun.toISOString().slice(0, 10),
-    to:   sat.toISOString().slice(0, 10)
-  };
-}
-
 function applyClientFilters(rows, state) {
   let out = Array.isArray(rows) ? rows.slice() : [];
 
@@ -90,35 +76,6 @@ function applyClientFilters(rows, state) {
         String(row.activity_type || '').trim() === 'course' &&
         String(row.end_date || '').slice(0, 7) === ym
     );
-  }
-
-  const qf = state.activityQuickFilter || '';
-  if (qf === 'today') {
-    const t = todayIso();
-    out = out.filter((r) => {
-      const s = r.start_date || ''; const e = r.end_date || '9999';
-      return s <= t && e >= t;
-    });
-  } else if (qf === 'this_week') {
-    const { from, to } = weekBounds();
-    out = out.filter((r) => {
-      const s = r.start_date || ''; const e = r.end_date || '9999';
-      return s <= to && e >= from;
-    });
-  } else if (qf === 'this_month') {
-    const ym = currentMonthYm();
-    out = out.filter((r) => {
-      const sYm = (r.start_date || '').slice(0, 7);
-      const eYm = (r.end_date   || '9999-12').slice(0, 7);
-      return sYm <= ym && eYm >= ym;
-    });
-  } else if (qf === 'ending_soon') {
-    const t = todayIso();
-    const soon = new Date(); soon.setDate(soon.getDate() + 21);
-    const soonStr = soon.toISOString().slice(0, 10);
-    out = out.filter((r) => r.end_date && r.end_date >= t && r.end_date <= soonStr);
-  } else if (qf === 'no_instructor') {
-    out = out.filter((r) => !String(r.emp_id || '').trim() && !String(r.emp_id_2 || '').trim());
   }
 
   if (state.activitySearch) {
@@ -240,19 +197,6 @@ export const activitiesScreen = {
     const thPrivate = canSeePrivateNotes ? `<th>${hebrewColumn('private_note')}</th>` : '';
     const thEmp = hideEmpIds ? '' : '<th>מדריך/ה 1 (מזהה)</th><th>מדריך/ה 2 (מזהה)</th>';
 
-    const QUICK_FILTER_DEFS = [
-      { key: 'today',         label: 'היום' },
-      { key: 'this_week',     label: 'השבוע' },
-      { key: 'this_month',    label: 'החודש' },
-      { key: 'ending_soon',   label: 'מסיימים בקרוב' },
-      { key: 'no_instructor', label: 'ללא מדריך' },
-    ];
-    const QF_LABELS = Object.fromEntries(QUICK_FILTER_DEFS.map((f) => [f.key, f.label]));
-    const activeQf = state.activityQuickFilter || '';
-    const quickFilterChips = QUICK_FILTER_DEFS
-      .map((f) => `<button type="button" class="ds-chip ${f.key === activeQf ? 'is-active' : ''}" data-qf="${escapeHtml(f.key)}">${escapeHtml(f.label)}</button>`)
-      .join('');
-
     const familyChips = [
       { key: '', label: 'הכל' },
       { key: 'short', label: FAMILY_LABEL_SHORT },
@@ -276,8 +220,7 @@ export const activitiesScreen = {
         state.activityQuickFamily ||
         state.activityQuickManager ||
         state.activityEndingCurrentMonth ||
-        state.activitySearch ||
-        state.activityQuickFilter
+        state.activitySearch
     );
 
     const tableSection =
@@ -309,7 +252,6 @@ export const activitiesScreen = {
           dir="rtl"
         />
       </div>
-      <div class="ds-filter-row ds-filter-row--quick" dir="rtl">${quickFilterChips}</div>
       <div class="ds-filter-row" dir="rtl">
         ${filterButtons}
         <span class="ds-filter-row__sep" aria-hidden="true"></span>
@@ -327,7 +269,6 @@ export const activitiesScreen = {
         ${state.activityEndingCurrentMonth ? '<span class="ds-chip ds-chip--status ds-chip--status-neutral">מסיימי קורס החודש</span>' : ''}
         ${state.activityQuickFamily === 'short' ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">משפחה: ${FAMILY_LABEL_SHORT}</span>` : ''}
         ${state.activityQuickFamily === 'long' ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">משפחה: ${FAMILY_LABEL_LONG}</span>` : ''}
-        ${state.activityQuickFilter ? `<span class="ds-chip ds-chip--status ds-chip--status-neutral">${escapeHtml(QF_LABELS[state.activityQuickFilter] || state.activityQuickFilter)}</span>` : ''}
         ${forceCompact ? '<span class="ds-muted">במובייל צר מופעלת תצוגה קומפקטית אוטומטית</span>' : ''}
       `)}
       ${compactView
@@ -393,21 +334,12 @@ export const activitiesScreen = {
       });
     });
 
-    root.querySelectorAll('[data-qf]').forEach((node) => {
-      node.addEventListener('click', () => {
-        const next = node.dataset.qf || '';
-        state.activityQuickFilter = state.activityQuickFilter === next ? '' : next;
-        rerender();
-      });
-    });
-
     root.querySelector('[data-clear-filters]')?.addEventListener('click', () => {
       state.activityTab = 'all';
       state.activityQuickFamily = '';
       state.activityQuickManager = '';
       state.activityEndingCurrentMonth = false;
       state.activitySearch = '';
-      state.activityQuickFilter = '';
       rerender();
     });
 
