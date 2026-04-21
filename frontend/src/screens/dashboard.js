@@ -79,9 +79,15 @@ export const dashboardScreen = {
     const showOnly = !!data?.show_only_nonzero_kpis;
     const kpiCards = filterKpiCards(data?.kpi_cards, showOnly);
 
+    const MANAGER_DISPLAY_NAMES = {
+      'גיל נאמן': 'מחוז צפון',
+      'לינוי שמואל מזרחי': 'מחוז דרום',
+    };
+
     const managerCards = managers
       .map((row) => {
         const mgr = encodeURIComponent(row.activity_manager);
+        const displayName = MANAGER_DISPLAY_NAMES[row.activity_manager] || row.activity_manager;
         const stats = [
           { label: 'תוכניות פעילות', value: row.total_long      ?? 0, action: `mstat|${mgr}|long` },
           { label: 'מדריכים פעילים',  value: row.num_instructors ?? 0, action: `mstat|${mgr}|instructors` },
@@ -95,7 +101,7 @@ export const dashboardScreen = {
             </button>`)
           .join('');
         return `<div class="ds-manager-card">
-          <p class="ds-manager-card__name">${escapeHtml(row.activity_manager)}</p>
+          <p class="ds-manager-card__name">${escapeHtml(displayName)}</p>
           <div class="ds-manager-stats">${statsHtml}</div>
         </div>`;
       })
