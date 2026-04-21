@@ -1034,7 +1034,7 @@ function actionOperations_(user, payload) {
   }
   var search = text_((payload || {}).search || '').toLowerCase();
   var activityType = text_((payload || {}).activity_type || '');
-  var rows = allActivitiesSummary_().filter(function(row) {
+  var rows = allActivities_().filter(function(row) {
     if (activityType && text_(row.activity_type) !== activityType) return false;
     if (search) {
       var hay = [row.RowID, row.activity_name, row.activity_type, row.start_date, row.end_date].map(text_).join(' ').toLowerCase();
