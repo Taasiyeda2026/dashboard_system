@@ -257,11 +257,15 @@ function actionDashboard_(user, payload) {
   });
   var uniqueInstructorCount = countUniqueOperationalInstructors_(combined);
 
-  // תוכניות פעילות: סטטוס פתוח (לא סגור), ללא חריגות, ועם מפגש בחודש זה או תאריך סיום >= היום.
+  // תוכניות פעילות: סטטוס פתוח (לא סגור), ועם מפגש בחודש זה או תאריך סיום >= היום.
+  // "ללא מדריך" ו"ללא תאריך התחלה" = לא פעיל → לא נכנסות לספירה.
+  // "מפגש אחרי late_end_date_cutoff" = פעיל → נכנסת לספירה.
+  var INACTIVE_EXCEPTION_TYPES = ['missing_instructor', 'missing_start_date'];
   var todayIso = formatDate_(new Date());
   var activeLongRows = longRows.filter(function(row) {
     if (text_(row.status) === 'סגור') return false;
-    if (primaryExceptionForRow_(row)) return false;
+    var exc = primaryExceptionForRow_(row);
+    if (exc && INACTIVE_EXCEPTION_TYPES.indexOf(exc) >= 0) return false;
     var rowDates = dashMeetingsMap[text_(row.RowID)];
     var normalizedDates = [];
     if (rowDates && Array.isArray(rowDates)) {
@@ -324,11 +328,9 @@ function actionDashboard_(user, payload) {
     return normalizeFinance_(row.finance_status) === 'open';
   }).length : 0;
 
-  // סופרים רק חריגות "פעילות": מפגש אחרי late_end_date_cutoff.
-  // "ללא מדריך" ו"ללא תאריך התחלה" הן רשומות לא-פעילות ואינן נכללות במונה.
   var exceptionSum = 0;
   longRows.forEach(function(row) {
-    if (primaryExceptionForRow_(row) === 'late_end_date') exceptionSum += 1;
+    if (primaryExceptionForRow_(row)) exceptionSum += 1;
   });
 
   var kpi_cards_all = [
