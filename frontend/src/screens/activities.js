@@ -25,6 +25,7 @@ const ACT_SUBNAV = [
   { route: 'end-dates',   label: 'תאריכי סיום',  icon: '🏁' },
   { route: 'exceptions',  label: 'חריגות',        icon: '⚠️' },
   { route: 'instructors', label: 'מדריכים',       icon: '👥' },
+  { route: 'contacts',    label: 'אנשי קשר',      icon: '📇' },
 ];
 
 function hasRowException(row) {

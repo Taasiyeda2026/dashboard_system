@@ -1438,12 +1438,12 @@ span.ds-chip {
 /* ——— Activities sub-navigation grid ——— */
 .ds-act-nav-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: var(--ds-space-2);
   padding: var(--ds-space-1) 0 var(--ds-space-3);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .ds-act-nav-grid { grid-template-columns: repeat(3, 1fr); }
 }
 

@@ -250,7 +250,7 @@ function shellUserRoleLine() {
 }
 
 // ניווט אל מסכים אלו מתבצע ממסך הפעילויות בלבד — לא מוצגים בסרגל הצד
-const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions']);
+const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'contacts']);
 
 function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
