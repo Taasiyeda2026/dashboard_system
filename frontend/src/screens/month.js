@@ -269,9 +269,9 @@ export const monthScreen = {
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-back-activities>חזור</button>
       </div>
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">◀ חודש קודם</button>
+        <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">חודש קודם ▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
-        <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">חודש הבא ▶</button>
+        <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">◀ חודש הבא</button>
       </nav>
       ${monthKpiRow}
       ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש לפי שם פעילות ביום…', filters: [] })}

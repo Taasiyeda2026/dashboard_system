@@ -178,9 +178,9 @@ export const weekScreen = {
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-back-activities>חזור</button>
       </div>
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">◀ שבוע קודם</button>
+        <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">שבוע קודם ▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
-        <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">שבוע הבא ▶</button>
+        <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">◀ שבוע הבא</button>
       </nav>
       ${kpiRow}
       ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפריטי השבוע…', filters: [] })}

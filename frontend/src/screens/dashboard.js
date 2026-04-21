@@ -72,8 +72,6 @@ export const dashboardScreen = {
   },
   render(data, { state } = {}) {
     const ym = data?.month || currentMonthYm();
-    const curYm = currentMonthYm();
-    const canGoNext = ym < curYm;
 
     const managers = (Array.isArray(data.by_activity_manager) ? data.by_activity_manager : []).filter(
       (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned'
@@ -121,11 +119,9 @@ export const dashboardScreen = {
       : '<p class="ds-muted">אין כרטיסי KPI להצגה.</p>';
 
     const monthNav = `<div class="ds-dash-month-nav" dir="rtl" aria-label="בחירת חודש לתצוגה">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם">◀</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם">▶</button>
       <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}</span>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא" ${
-        canGoNext ? '' : 'disabled'
-      }>▶</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא">◀</button>
     </div>`;
 
     return dsScreenStack(`
@@ -167,9 +163,7 @@ export const dashboardScreen = {
       applyYm(shiftYm(state.dashboardMonthYm || currentMonthYm(), -1));
     });
     root.querySelector('[data-dash-month-next]')?.addEventListener('click', () => {
-      const cur = currentMonthYm();
-      const next = shiftYm(state.dashboardMonthYm || cur, 1);
-      if (next <= cur) applyYm(next);
+      applyYm(shiftYm(state.dashboardMonthYm || currentMonthYm(), 1));
     });
 
     ui.bindInteractiveCards(root, (action) => {
