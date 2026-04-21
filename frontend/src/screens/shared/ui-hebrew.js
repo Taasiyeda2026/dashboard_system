@@ -103,7 +103,7 @@ const COLUMN_LABELS = {
   direct_manager: 'מנהל ישיר',
   active: 'פעיל',
   kind: 'סוג',
-  authority: 'גורם מממן',
+  authority: 'רשות',
   school: 'בית ספר',
   contact_name: 'איש קשר',
   phone: 'טלפון',
@@ -190,7 +190,7 @@ export function hebrewEmploymentType(value) {
 
 const HEBREW_CONTACT_KIND = {
   school: 'בית ספר',
-  authority: 'גורם מממן',
+  authority: 'רשות',
   instructor: 'מדריך/ה',
   contact: 'איש קשר',
   vendor: 'ספק',
