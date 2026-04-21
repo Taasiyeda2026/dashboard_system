@@ -487,6 +487,7 @@ function actionActivities_(user, payload) {
     activityTypeCounts[t] = 0;
   });
   allRows.forEach(function(r) {
+    if (text_(r.status) === 'סגור') return;
     var t = text_(r.activity_type);
     if (Object.prototype.hasOwnProperty.call(activityTypeCounts, t)) {
       activityTypeCounts[t] += 1;
@@ -496,6 +497,7 @@ function actionActivities_(user, payload) {
   var activityType = text_(payload.activity_type || 'all');
   var financeStatus = text_(payload.finance_status || '');
   var rows = allRows.filter(function(row) {
+    if (text_(row.status) === 'סגור') return false;
     if (activityType && activityType !== 'all' && text_(row.activity_type) !== activityType) return false;
     if (financeStatus && text_(row.finance_status) !== financeStatus) return false;
     return true;
