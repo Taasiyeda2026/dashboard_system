@@ -1691,6 +1691,13 @@ span.ds-chip {
   flex-shrink: 0;
 }
 
+.ds-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
 .ds-chip--tab {
   background: transparent;
   border: none;
