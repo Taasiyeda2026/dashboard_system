@@ -16,17 +16,9 @@ import {
   dsInteractiveCard
 } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 
 const ACTIVITY_VIEW_LS = 'dashboard_activity_view';
-
-const ACT_SUBNAV = [
-  { route: 'week',        label: 'שבוע',         icon: '📅' },
-  { route: 'month',       label: 'חודש',          icon: '🗓️' },
-  { route: 'end-dates',   label: 'תאריכי סיום',  icon: '🏁' },
-  { route: 'exceptions',  label: 'חריגות',        icon: '⚠️' },
-  { route: 'instructors', label: 'מדריכים',       icon: '👥' },
-  { route: 'contacts',    label: 'אנשי קשר',      icon: '📇' },
-];
 
 function hasRowException(row) {
   const noInstructor = !String(row.emp_id || '').trim() && !String(row.emp_id_2 || '').trim();
@@ -174,19 +166,9 @@ export const activitiesScreen = {
         ? dsEmptyState('לא נמצאו פעילויות')
         : `<div class="ds-compact-list">${compactRows}</div>`;
 
-    const availableRoutes = new Set(Array.isArray(state.routes) ? state.routes : []);
-    const subNavItems = ACT_SUBNAV.filter((item) => availableRoutes.has(item.route));
-    const subNavHtml = subNavItems
-      .map((item) => `
-        <button type="button" class="ds-act-nav-item" data-act-subnav="${escapeHtml(item.route)}" dir="rtl">
-          <span class="ds-act-nav-item__icon" aria-hidden="true">${item.icon}</span>
-          <span class="ds-act-nav-item__label">${escapeHtml(item.label)}</span>
-        </button>`)
-      .join('');
-
     return dsScreenStack(`
       ${dsPageHeader('פעילויות', '')}
-      ${subNavHtml ? `<div class="ds-act-nav-grid" dir="rtl">${subNavHtml}</div>` : ''}
+      ${actNavGridHtml(state)}
       ${dsToolbar(`
         <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
           <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${
@@ -203,15 +185,7 @@ export const activitiesScreen = {
   },
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
-    root.querySelectorAll('[data-act-subnav]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const route = btn.dataset.actSubnav;
-        if (route) {
-          state.route = route;
-          rerender?.();
-        }
-      });
-    });
+    bindActNavGrid(root, { state, rerender });
 
     const filteredRows      = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';

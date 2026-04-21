@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { formatDateHe } from './shared/format-date.js';
 import { hebrewExceptionType, hebrewColumn, exceptionTypeVariant } from './shared/ui-hebrew.js';
 import {
@@ -149,9 +150,7 @@ export const exceptionsScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('חריגות', 'נתונים הדורשים טיפול')}
-      <div class="ds-screen-shortcuts" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-back-activities>חזור</button>
-      </div>
+      ${actNavGridHtml(state)}
       <div class="ds-screen-top-row">
         <input
           id="exceptions-search"
@@ -173,13 +172,9 @@ export const exceptionsScreen = {
     `);
   },
   bind({ root, data, ui, state, rerender }) {
+    bindActNavGrid(root, { state, rerender });
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
-
-    root.querySelector('[data-back-activities]')?.addEventListener('click', () => {
-      state.route = 'activities';
-      rerender?.();
-    });
 
     root.querySelector('#exceptions-search')?.addEventListener('input', (ev) => {
       state.exceptionsSearch = ev.target.value || '';

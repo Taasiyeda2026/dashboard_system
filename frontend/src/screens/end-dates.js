@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn, visibleActivityCategoryLabel } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
@@ -75,9 +76,7 @@ export const endDatesScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('תאריכי סיום', 'תוכניות לפי תאריך סיום')}
-      <div class="ds-screen-shortcuts" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-back-activities>חזור</button>
-      </div>
+      ${actNavGridHtml(state)}
       ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש ברשימה…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({
         title: 'רשימת סיומים',
@@ -87,10 +86,7 @@ export const endDatesScreen = {
     `);
   },
   bind({ root, state, rerender }) {
+    bindActNavGrid(root, { state, rerender });
     bindPageListTools(root);
-    root.querySelector('[data-back-activities]')?.addEventListener('click', () => {
-      state.route = 'activities';
-      rerender?.();
-    });
   }
 };

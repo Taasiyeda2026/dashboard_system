@@ -5,6 +5,7 @@ import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
+import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 
 function localYmd() {
   const d = new Date();
@@ -175,9 +176,7 @@ export const weekScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('שבוע', '')}
-      <div class="ds-screen-shortcuts" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-back-activities>חזור</button>
-      </div>
+      ${actNavGridHtml(state)}
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">שבוע קודם ▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
@@ -189,11 +188,8 @@ export const weekScreen = {
     `);
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
+    bindActNavGrid(root, { state, rerender });
     bindPageListTools(root);
-    root.querySelector('[data-back-activities]')?.addEventListener('click', () => {
-      state.route = 'activities';
-      rerender?.();
-    });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;

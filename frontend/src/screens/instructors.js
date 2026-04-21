@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn, hebrewEmploymentType, hebrewInstructorsSourcesLabel } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
@@ -110,6 +111,7 @@ export const instructorsScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('מדריכים', 'מדריכים בפעילויות לפי סוג')}
+      ${actNavGridHtml(state)}
       ${sourcesBanner}
       <div class="ds-screen-top-row">
         <input
@@ -130,6 +132,7 @@ export const instructorsScreen = {
     `);
   },
   bind({ root, data, state, ui, rerender }) {
+    bindActNavGrid(root, { state, rerender });
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 

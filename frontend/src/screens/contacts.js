@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 
@@ -92,6 +93,7 @@ export const contactsScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('אנשי קשר בתי ספר', 'רשימת אנשי קשר לפי בית ספר')}
+      ${actNavGridHtml(state)}
       <div class="ds-screen-top-row">
         <input
           id="contacts-search"
@@ -111,6 +113,7 @@ export const contactsScreen = {
     `);
   },
   bind({ root, data, state, rerender, clearScreenDataCache }) {
+    bindActNavGrid(root, { state, rerender });
     root.querySelector('#contacts-search')?.addEventListener('input', (ev) => {
       state.contactsSearch = ev.target.value || '';
       rerender();
