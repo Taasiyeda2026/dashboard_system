@@ -291,12 +291,12 @@ function shell(content) {
         </div>
         <div class="shell-brand">
           <img class="shell-brand__mark" src="${systemLogoSrc}" alt="" width="120" height="52" decoding="async" />
-          <span class="shell-brand__name">${systemName}</span>
+          <div class="shell-sidebar__user" aria-label="משתמש מחובר">
+            <span class="shell-sidebar__user-name">${displayName}</span>
+            <span class="shell-sidebar__user-role">${roleLine}</span>
+          </div>
         </div>
-        <div class="shell-sidebar__user" aria-label="משתמש מחובר">
-          <span class="shell-sidebar__user-name">${displayName}</span>
-          <span class="shell-sidebar__user-role">${roleLine}</span>
-        </div>
+        <hr class="shell-sidebar__divider" />
         <nav class="shell-nav">${nav}</nav>
       </aside>
       <div class="shell-main">
