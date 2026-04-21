@@ -151,16 +151,37 @@ async function request(action, payload = {}) {
     }
   }
 
-  let json;
-  let responseText = '';
-  try {
-    responseText = await response.text();
-    json = JSON.parse(responseText);
-  } catch {
-    // eslint-disable-next-line no-console
-    console.error('[api] non-JSON response from server (action=' + action + '):', responseText.slice(0, 500));
-    throw new Error(translateApiErrorForUser('server_error'));
+  let lastResponseText = '';
+
+  async function parseAndValidate(res) {
+    try {
+      lastResponseText = await res.text();
+      return JSON.parse(lastResponseText);
+    } catch {
+      // eslint-disable-next-line no-console
+      console.error('[api] non-JSON response (action=' + action + '):', lastResponseText.slice(0, 500));
+      return null;
+    }
   }
+
+  let json = await parseAndValidate(response);
+
+  // Retry once for read actions: handles GAS cold-start where the first
+  // post-login request gets a non-JSON or ok:false server response.
+  if (READ_ACTIONS[action] && (!json || (!json.ok && (json.error || '').toLowerCase() !== 'unauthorized'))) {
+    // eslint-disable-next-line no-console
+    console.warn('[api] retrying action=' + action + ' after 1.5s (cold-start recovery)');
+    await sleep(1500);
+    try {
+      const retryResponse = await postWithTimeout(action, requestBody);
+      json = await parseAndValidate(retryResponse);
+    } catch {
+      throw new Error(translateApiErrorForUser('network_error'));
+    }
+  }
+
+  if (!json) throw new Error(translateApiErrorForUser('server_error'));
+
   if (!json.ok) {
     if ((json.error || '').toLowerCase() === 'unauthorized' && state.token === tokenAtCallTime) {
       setSession(null);
@@ -173,7 +194,7 @@ async function request(action, payload = {}) {
   pushPerfRequest({
     action,
     duration_ms: Math.round(performance.now() - requestStart),
-    payload_bytes: responseText.length,
+    payload_bytes: lastResponseText.length,
     backend_debug: json.data && json.data.debug_perf ? json.data.debug_perf : null
   });
   return json.data;
