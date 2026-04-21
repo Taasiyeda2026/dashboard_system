@@ -211,6 +211,20 @@ export const weekScreen = {
       rerender?.();
     });
 
+    // Pre-fetch adjacent weeks silently into screenDataCache for instant navigation
+    const WEEK_TTL_MS = 8 * 60 * 1000;
+    const currentOffset = state.weekOffset || 0;
+    [currentOffset - 1, currentOffset + 1].forEach((adjOffset) => {
+      const adjKey = `week:${adjOffset}`;
+      const hit = state.screenDataCache?.[adjKey];
+      if (hit && Date.now() - hit.t < WEEK_TTL_MS) return;
+      api.week({ week_offset: adjOffset }).then((d) => {
+        if (!state.screenDataCache[adjKey] || Date.now() - state.screenDataCache[adjKey].t > WEEK_TTL_MS) {
+          state.screenDataCache[adjKey] = { data: d, t: Date.now() };
+        }
+      }).catch(() => {});
+    });
+
     root.addEventListener('click', (ev) => {
       const badge = ev.target.closest('[data-group-toggle]');
       if (!badge) return;
