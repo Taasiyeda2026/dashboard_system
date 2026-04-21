@@ -318,7 +318,31 @@ function actionDashboard_(user, payload) {
   var longRowsBySource = allSummary.filter(function(row) {
     if (programTypes.indexOf(text_(row.activity_type)) < 0) return false;
     var rowDates = dashMeetingsMap[text_(row.RowID)];
-    if (rowDates && rowDates.some(function(d) { return d.slice(0, 7) === ym; })) return true;
+    var normalizedRowDates = [];
+    if (rowDates && Object.prototype.toString.call(rowDates) !== '[object Array]') {
+      scriptCacheDebugMark_(
+        'dashboard_invalid_meetings_map_shape',
+        'row:' + text_(row.RowID),
+        0,
+        'type=' + Object.prototype.toString.call(rowDates)
+      );
+      rowDates = null;
+    } else if (rowDates) {
+      var hadNonStringItem = false;
+      normalizedRowDates = rowDates.map(function(d) {
+        if (Object.prototype.toString.call(d) !== '[object String]') hadNonStringItem = true;
+        return text_(d);
+      }).filter(Boolean);
+      if (hadNonStringItem) {
+        scriptCacheDebugMark_(
+          'dashboard_invalid_meetings_map_item',
+          'row:' + text_(row.RowID),
+          0,
+          'sample=' + text_(rowDates[0])
+        );
+      }
+    }
+    if (normalizedRowDates.some(function(d) { return d.slice(0, 7) === ym; })) return true;
     return activityOverlapsYm_(row, ym);
   });
 
