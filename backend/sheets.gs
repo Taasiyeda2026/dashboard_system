@@ -154,6 +154,64 @@ function getRows_(sheetName) {
   return readRows_(sheetName);
 }
 
+function readRowsProjected_(sheetName, projectedHeaders) {
+  var normalized = (projectedHeaders || []).map(text_).filter(Boolean);
+  if (!normalized.length) return readRows_(sheetName);
+  var cacheKey = sheetName + '|proj|' + normalized.join(',');
+  if (__rqCache_ && __rqCache_.readRows[cacheKey]) {
+    trackSheetReadPerf_({
+      sheet: sheetName,
+      rows: __rqCache_.readRows[cacheKey].length,
+      cols: normalized.length,
+      duration_ms: 0,
+      projected: true,
+      from_cache: true
+    });
+    return __rqCache_.readRows[cacheKey];
+  }
+
+  var sheet = getSheet_(sheetName);
+  var meta = getSheetMeta_(sheet);
+  var lastRow = meta.lastRow;
+  var dataStart = getDataStartRow_();
+  if (lastRow < dataStart) return [];
+
+  var headers = getHeaders_(sheet);
+  var projectedIndexes = [];
+  normalized.forEach(function(h) {
+    var idx = headers.indexOf(h);
+    if (idx >= 0 && projectedIndexes.indexOf(idx) < 0) projectedIndexes.push(idx);
+  });
+  if (!projectedIndexes.length) return [];
+  projectedIndexes.sort(function(a, b) { return a - b; });
+  var maxIdx = projectedIndexes[projectedIndexes.length - 1];
+
+  var readStartMs = perfNowMs_();
+  var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, maxIdx + 1).getValues();
+  var readDurationMs = perfNowMs_() - readStartMs;
+  var projected = values.filter(function(row) {
+    return row.some(function(cell) { return text_(cell) !== ''; });
+  }).map(function(row) {
+    var item = {};
+    projectedIndexes.forEach(function(idx) {
+      item[headers[idx]] = row[idx];
+    });
+    return item;
+  });
+  if (__rqCache_) {
+    __rqCache_.readRows[cacheKey] = projected;
+  }
+  trackSheetReadPerf_({
+    sheet: sheetName,
+    rows: values.length,
+    cols: maxIdx + 1,
+    duration_ms: readDurationMs,
+    projected: true,
+    from_cache: false
+  });
+  return projected;
+}
+
 function readRows_(sheetName) {
   var cacheKey = sheetName;
   if (__rqCache_ && __rqCache_.readRows[cacheKey]) {
