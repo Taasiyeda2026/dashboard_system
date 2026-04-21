@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { state, setSession, defaultClientSettings } from './state.js';
+import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
@@ -61,21 +62,12 @@ function recordRenderPerf(route, phase, durationMs, extra = {}) {
 // share data. Entries survive page reloads so the first navigation after a
 // refresh shows cached content immediately (stale-while-revalidate handles
 // the async refresh in the background).
-const SCREEN_CACHE_STORAGE_PREFIX = 'ds_screen_cache_v1';
+// persistCacheEntry and SCREEN_CACHE_STORAGE_PREFIX are imported from ./cache-persist.js
 const SCREEN_CACHE_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours — after this ignore stored entry
 
 function _storageKey() {
   const uid = state.user?.user_id || 'anon';
   return `${SCREEN_CACHE_STORAGE_PREFIX}:${uid}`;
-}
-
-function persistCacheEntry(key, entry) {
-  try {
-    const raw = localStorage.getItem(_storageKey());
-    const stored = raw ? JSON.parse(raw) : {};
-    stored[key] = entry;
-    localStorage.setItem(_storageKey(), JSON.stringify(stored));
-  } catch { /* quota or serialization error — silently ignore */ }
 }
 
 function persistCacheDelete(key) {

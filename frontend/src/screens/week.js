@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { persistCacheEntry } from '../cache-persist.js';
 import { dsPageHeader, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
@@ -220,7 +221,9 @@ export const weekScreen = {
       if (hit && Date.now() - hit.t < WEEK_TTL_MS) return;
       api.week({ week_offset: adjOffset }).then((d) => {
         if (!state.screenDataCache[adjKey] || Date.now() - state.screenDataCache[adjKey].t > WEEK_TTL_MS) {
-          state.screenDataCache[adjKey] = { data: d, t: Date.now() };
+          const entry = { data: d, t: Date.now() };
+          state.screenDataCache[adjKey] = entry;
+          persistCacheEntry(adjKey, entry);
         }
       }).catch(() => {});
     });
