@@ -306,23 +306,23 @@ function actionDashboard_(user, payload) {
 
   var ym = dashboardPayloadYm_(payload || {});
 
-  var shortAll = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
-  var longAll = buildLongRows_();
-  // meetingsMap used as fallback when data_long has no Date1-Date35 columns
-  var dashMeetingsMap = buildMeetingsMap_();
-  var shortRowsBySource = shortAll.filter(function(row) {
-    return activityOverlapsYm_(row, ym);
-  });
-  var longRowsBySource = longAll.filter(function(row) {
-    if (activityHasSessionInYm_(row, ym)) return true;
-    var rowDates = dashMeetingsMap[text_(row.RowID)];
-    return !!(rowDates && rowDates.some(function(d) { return d.slice(0, 7) === ym; }));
-  });
-
-  enrichRowsWithMeetings_(longRowsBySource);
-  var combined = shortRowsBySource.concat(longRowsBySource);
+  var allSummary = allActivitiesSummary_();
   var oneDayTypes = configuredOneDayActivityTypes_();
   var programTypes = configuredProgramActivityTypes_();
+  // meetingsMap already populated inside allActivitiesSummary_() — __rqCache_ hit
+  var dashMeetingsMap = buildMeetingsMap_();
+  var shortRowsBySource = allSummary.filter(function(row) {
+    if (oneDayTypes.indexOf(text_(row.activity_type)) < 0) return false;
+    return activityOverlapsYm_(row, ym);
+  });
+  var longRowsBySource = allSummary.filter(function(row) {
+    if (programTypes.indexOf(text_(row.activity_type)) < 0) return false;
+    var rowDates = dashMeetingsMap[text_(row.RowID)];
+    if (rowDates && rowDates.some(function(d) { return d.slice(0, 7) === ym; })) return true;
+    return activityOverlapsYm_(row, ym);
+  });
+
+  var combined = shortRowsBySource.concat(longRowsBySource);
   var shortRows = combined.filter(function(row) {
     return oneDayTypes.indexOf(text_(row.activity_type)) >= 0;
   });
@@ -676,7 +676,7 @@ function actionWeek_(user, payload) {
   var showSat = settingShowShabbat_();
   var hideSatColumn = getSettingBool_('week_hide_saturday_column', false);
   if (hideSatColumn) showSat = false;
-  var calRows = visibleActivitiesForUser_(user);
+  var calRows = visibleActivitiesSummaryForUser_(user);
   var meetingsMap = buildMeetingsMap_();
   var fromDate = formatDate_(anchor);
   var toDate = formatDate_(shiftDate_(anchor, 6));
@@ -724,7 +724,7 @@ function actionMonth_(user, payload) {
     month = now.getMonth();
   }
   var daysInMonth = new Date(year, month + 1, 0).getDate();
-  var calRows = visibleActivitiesForUser_(user);
+  var calRows = visibleActivitiesSummaryForUser_(user);
   var meetingsMap = buildMeetingsMap_();
   var monthStart = formatDate_(new Date(year, month, 1));
   var monthEnd = formatDate_(new Date(year, month, daysInMonth));
@@ -1996,6 +1996,30 @@ function visibleActivitiesForUser_(user) {
   return result;
 }
 
+/**
+ * כמו visibleActivitiesForUser_ אבל משתמש ב-allActivitiesSummary_() (projected read)
+ * במקום allActivities_() (full read). מתאים למסכי תצוגה בלבד (week, month) שאינם
+ * זקוקים ל-Date2-Date35 ישירות — meetingsMap מטפל בהם.
+ */
+function visibleActivitiesSummaryForUser_(user) {
+  if (__rqCache_ && __rqCache_.visibleActivitiesSummaryForUserCache) {
+    return __rqCache_.visibleActivitiesSummaryForUserCache;
+  }
+  var result;
+  if (user.display_role !== 'instructor') {
+    result = allActivitiesSummary_();
+  } else {
+    var empId = text_(user.emp_id || user.user_id);
+    result = allActivitiesSummary_().filter(function(row) {
+      return text_(row.emp_id) === empId || text_(row.emp_id_2) === empId;
+    });
+  }
+  if (__rqCache_) {
+    __rqCache_.visibleActivitiesSummaryForUserCache = result;
+  }
+  return result;
+}
+
 function buildLongRows_() {
   if (__rqCache_ && __rqCache_.buildLongRows) {
     return __rqCache_.buildLongRows;
@@ -2184,6 +2208,13 @@ function buildMeetingsMap_() {
   if (__rqCache_ && __rqCache_.meetingsMap) {
     return __rqCache_.meetingsMap;
   }
+  var version = dataViewsCacheVersion_();
+  var cacheKey = 'pc:meetings-map:' + version;
+  var cached = scriptCacheGetJson_(cacheKey);
+  if (cached && typeof cached === 'object' && !Array.isArray(cached)) {
+    if (__rqCache_) __rqCache_.meetingsMap = cached;
+    return cached;
+  }
   var rows = readRows_(CONFIG.SHEETS.MEETINGS).filter(function(row) {
     return yesNo_(row.active) === 'yes';
   });
@@ -2215,6 +2246,7 @@ function buildMeetingsMap_() {
     }
   });
 
+  scriptCachePutJson_(cacheKey, map, CONFIG.SCRIPT_CACHE_SECONDS || 120);
   if (__rqCache_) {
     __rqCache_.meetingsMap = map;
   }
