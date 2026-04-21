@@ -1345,6 +1345,25 @@ span.ds-chip {
   min-height: 44px;
 }
 
+/* equal-width columns */
+.ds-table--equal-cols {
+  table-layout: fixed;
+}
+.ds-table--equal-cols th,
+.ds-table--equal-cols td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* activities sub-navigation row (contextual screens) */
+.ds-act-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0 8px;
+}
+
 /* ——— Compact list rows (activities) ——— */
 .ds-compact-list {
   display: grid;
@@ -1367,6 +1386,18 @@ span.ds-chip {
 /* compact-list grid cells: card fills the slot height */
 .ds-compact-list > [data-list-item] {
   display: flex;
+  position: relative;
+}
+
+/* exception indicator dot on compact cards */
+.ds-exc-dot {
+  position: absolute;
+  top: 3px;
+  inset-inline-start: 3px;
+  z-index: 2;
+  font-size: 0.7em;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .ds-compact-list > [data-list-item] > .ds-interactive-card {

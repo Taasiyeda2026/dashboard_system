@@ -20,6 +20,20 @@ import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 
 const ACTIVITY_VIEW_LS = 'dashboard_activity_view';
 
+const ACT_SUBNAV = [
+  { route: 'week',        label: 'תצוגת שבוע' },
+  { route: 'month',       label: 'תצוגת חודש' },
+  { route: 'instructors', label: 'מדריכים' },
+  { route: 'end-dates',   label: 'דרכי סיום' },
+  { route: 'exceptions',  label: 'חריגות' },
+];
+
+function hasRowException(row) {
+  const noInstructor = !String(row.emp_id || '').trim() && !String(row.emp_id_2 || '').trim();
+  const noStartDate  = !String(row.start_date || '').trim();
+  return noInstructor || noStartDate;
+}
+
 const SHORT_TYPES = new Set(['workshop', 'tour', 'after_school', 'escape_room']);
 
 const FAMILY_LABEL_SHORT = 'חד-יומיות';
@@ -210,8 +224,9 @@ export const activitiesScreen = {
         ]
           .filter(Boolean)
           .join(' ');
+        const excBadge = hasRowException(row) ? '<span class="ds-exc-dot" title="חריגה">⚠️</span>' : '';
         return `<div data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="">
-        ${dsInteractiveCard({
+        ${excBadge}${dsInteractiveCard({
           action: `activity:${row.RowID}`,
           title: row.activity_name || 'פעילות ללא שם',
           subtitle: row.school || 'ללא בית ספר',
@@ -268,15 +283,22 @@ export const activitiesScreen = {
     const tableSection =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות למסנן זה')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive">
+        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--equal-cols">
                 <thead><tr><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>בית ספר</th><th>רשות</th><th>התחלה</th><th>סיום</th>${thEmp}${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`);
 
     const compactSection = safeRows.length === 0 ? dsEmptyState('לא נמצאו פעילויות למסנן זה') : `<div class="ds-compact-list">${compactRows}</div>`;
 
+    const availableRoutes = new Set(Array.isArray(state.routes) ? state.routes : []);
+    const subNavHtml = ACT_SUBNAV
+      .filter((item) => availableRoutes.has(item.route))
+      .map((item) => `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-act-subnav="${escapeHtml(item.route)}">${escapeHtml(item.label)}</button>`)
+      .join('');
+
     return dsScreenStack(`
-      ${dsPageHeader('פעילויות', 'סינון, בחירה ופתיחת פירוט פעילות')}
+      ${dsPageHeader('פעילויות', '')}
+      ${subNavHtml ? `<div class="ds-act-subnav" dir="rtl">${subNavHtml}</div>` : ''}
       <div class="ds-screen-top-row">
         <input
           id="activity-search"
@@ -323,6 +345,16 @@ export const activitiesScreen = {
   },
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
     bindPageListTools(root);
+
+    root.querySelectorAll('[data-act-subnav]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const route = btn.dataset.actSubnav;
+        if (route) {
+          state.route = route;
+          rerender?.();
+        }
+      });
+    });
 
     const filteredRows = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';

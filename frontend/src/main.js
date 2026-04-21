@@ -171,9 +171,11 @@ function navSidebarHiddenRoutesSet() {
   return new Set(Array.isArray(list) ? list : []);
 }
 
+const DEFAULT_CONTEXTUAL_ROUTES = ['week', 'month', 'instructors', 'end-dates', 'exceptions'];
+
 function navContextualRoutesSet() {
   const list = state?.clientSettings?.navigation?.contextual_only_routes;
-  return new Set(Array.isArray(list) ? list : []);
+  return new Set(Array.isArray(list) ? list : DEFAULT_CONTEXTUAL_ROUTES);
 }
 
 function navDisabledRoutesSet(settings = state.clientSettings) {

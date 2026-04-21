@@ -112,7 +112,7 @@ function renderWeekGroup(group, date, dow) {
   return `<div class="ds-week-session-wrap ds-week-session-group" data-list-item data-search="${hay}" data-filter="">
     <div class="ds-week-group__main-wrap">
       ${mainCard}
-      <button type="button" class="ds-week-group__badge" data-group-toggle data-group-count="${totalCount}" aria-expanded="false">(${totalCount})</button>
+      <button type="button" class="ds-week-group__badge" data-group-toggle data-group-count="${totalCount}" aria-expanded="false">${totalCount}</button>
     </div>
     <div class="ds-week-group__extra" hidden>
       ${extraCards}
@@ -224,7 +224,7 @@ export const weekScreen = {
       extra.toggleAttribute('hidden', isOpen);
       badge.setAttribute('aria-expanded', String(!isOpen));
       const count = badge.dataset.groupCount || '';
-      badge.textContent = isOpen ? `(${count})` : '▲';
+      badge.textContent = isOpen ? count : '▲';
     });
 
     ui.bindInteractiveCards(root, (action) => {

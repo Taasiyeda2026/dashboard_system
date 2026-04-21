@@ -222,8 +222,8 @@ export const monthScreen = {
       const isToday = cell.date === todayIso;
       const warn = dayNeedsAttention(cell.items);
       const extra = [isToday ? 'is-cal-today' : '', warn ? 'is-month-warn' : ''].filter(Boolean).join(' ');
-      const subtitle = n > 0 ? activityDotsMeta(n) : '';
-      const meta = n > 0 ? `${n} פעילויות` : 'ללא';
+      const subtitle = '';
+      const meta = n > 0 ? `${n} פעילויות` : '';
       const hay = (Array.isArray(cell.items) ? cell.items : [])
         .map((it) =>
           [it.activity_name, it.RowID, it.emp_id, it.emp_id_2, it.instructor_name, it.instructor_name_2].filter(Boolean).join(' ')
