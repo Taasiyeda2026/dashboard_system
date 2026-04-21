@@ -1009,6 +1009,16 @@ select {
   gap: var(--ds-space-2);
 }
 
+/* Dashboard content wrapper — aligns all sections to same max-width */
+.ds-dashboard-wrap {
+  max-width: 720px;
+  margin-inline: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-3);
+}
+
 /* Dashboard KPI cards: compact, balanced, centered */
 .ds-dashboard-kpi-grid {
   grid-template-columns: repeat(auto-fit, minmax(100px, 130px));

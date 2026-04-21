@@ -131,20 +131,24 @@ export const dashboardScreen = {
     </div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('לוח בקרה')}
-      ${monthNav}
-      <div data-dash-data-area>
-        <div class="ds-kpi-grid ds-dashboard-kpi-grid">${kpiHtml}</div>
-        <div style="margin-top: 1.5rem"></div>
-        ${dsCard({
-          title: 'פעילויות לפי מנהל פעילות',
-          body: managersBlock,
-          padded: true
-        })}
+      <div class="ds-dashboard-wrap">
+        ${dsPageHeader('לוח בקרה')}
+        ${monthNav}
+        <div data-dash-data-area>
+          <div class="ds-kpi-grid ds-dashboard-kpi-grid">${kpiHtml}</div>
+          <div style="margin-top: var(--ds-space-3)"></div>
+          ${dsCard({
+            title: 'פעילויות לפי מחוזות',
+            body: managersBlock,
+            padded: true
+          })}
+        </div>
       </div>
     `);
   },
   bind({ root, ui, state, api, rerender, clearScreenDataCache }) {
+    const DASHBOARD_TTL_MS = 5 * 60 * 1000;
+
     function showDataAreaLoading() {
       const area = root.querySelector('[data-dash-data-area]');
       if (area) {
@@ -152,13 +156,35 @@ export const dashboardScreen = {
       }
     }
 
+    function prefetchAdjacentDashboard(baseYm) {
+      [shiftYm(baseYm, -1), shiftYm(baseYm, 1)].forEach((adjYm) => {
+        const adjKey = `dashboard:${adjYm}`;
+        const hit = state.screenDataCache[adjKey];
+        if (hit && Date.now() - hit.t < DASHBOARD_TTL_MS) return;
+        api.dashboard({ month: adjYm }).then((d) => {
+          if (!state.screenDataCache[adjKey] || Date.now() - state.screenDataCache[adjKey].t > DASHBOARD_TTL_MS) {
+            state.screenDataCache[adjKey] = { data: d, t: Date.now() };
+          }
+        }).catch(() => {});
+      });
+    }
+
     const applyYm = async (nextYm) => {
       state.dashboardMonthYm = nextYm;
+      const cacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(nextYm) ? nextYm : 'default'}`;
+
+      const cached = state.screenDataCache[cacheKey];
+      if (cached?.data && Date.now() - cached.t < DASHBOARD_TTL_MS) {
+        rerender();
+        prefetchAdjacentDashboard(nextYm);
+        return;
+      }
+
       showDataAreaLoading();
       try {
         const data = await api.dashboard({ month: nextYm });
-        const cacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(nextYm) ? nextYm : 'default'}`;
         state.screenDataCache[cacheKey] = { data, t: Date.now() };
+        prefetchAdjacentDashboard(nextYm);
       } catch (_err) {
         clearScreenDataCache?.();
       }
@@ -171,6 +197,9 @@ export const dashboardScreen = {
     root.querySelector('[data-dash-month-next]')?.addEventListener('click', () => {
       applyYm(shiftYm(state.dashboardMonthYm || currentMonthYm(), 1));
     });
+
+    // Pre-fetch adjacent months silently after initial render
+    prefetchAdjacentDashboard(state.dashboardMonthYm || currentMonthYm());
 
     ui.bindInteractiveCards(root, (action) => {
       if (action === 'kpi|long') {
