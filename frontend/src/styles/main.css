@@ -477,41 +477,74 @@ select {
 .shell-header-nav {
   display: flex;
   align-items: center;
-  gap: var(--ds-space-1);
+  gap: var(--ds-space-2);
   flex: 1;
   justify-content: center;
+  overflow: visible;
 }
 
 .shell-header-nav__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
+  width: 40px;
   height: 36px;
   border-radius: var(--ds-radius-sm);
-  border: 1px solid transparent;
-  background: transparent;
+  border: 1px solid rgba(26, 51, 88, 0.13);
+  background: linear-gradient(160deg, rgba(255,255,255,0.82) 0%, rgba(237,246,255,0.72) 100%);
+  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.10), 0 1px 1px rgba(255,255,255,0.7) inset;
   font-size: 1.15rem;
   color: var(--ds-text-muted);
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
+  position: relative;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease,
+    box-shadow 0.18s ease, transform 0.08s ease;
   cursor: pointer;
 }
 
+.shell-header-nav__btn::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%) scaleX(0);
+  width: 60%;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--ds-accent);
+  transition: transform 0.18s ease, opacity 0.18s ease;
+  opacity: 0;
+}
+
 .shell-header-nav__btn:hover {
-  background: rgba(26, 51, 88, 0.07);
-  border-color: rgba(26, 51, 88, 0.12);
+  background: linear-gradient(160deg, rgba(255,255,255,0.95) 0%, rgba(232,238,246,0.9) 100%);
+  border-color: rgba(26, 51, 88, 0.22);
   color: var(--ds-text);
+  box-shadow: 0 3px 8px rgba(26, 51, 88, 0.14), 0 1px 2px rgba(255,255,255,0.8) inset;
+  transform: translateY(-1px);
 }
 
 .shell-header-nav__btn.is-active {
-  background: rgba(26, 51, 88, 0.1);
-  border-color: rgba(26, 51, 88, 0.18);
-  color: var(--ds-text);
+  background: linear-gradient(160deg, rgba(232,238,246,0.98) 0%, rgba(208,224,248,0.88) 100%);
+  border-color: rgba(26, 51, 88, 0.28);
+  color: var(--ds-accent);
+  box-shadow: 0 1px 2px rgba(26, 51, 88, 0.18), 0 2px 6px rgba(26, 51, 88, 0.12),
+    inset 0 1px 3px rgba(26, 51, 88, 0.10);
   font-weight: 600;
 }
 
-.shell-header-nav__btn:active {
+.shell-header-nav__btn.is-active::after {
+  transform: translateX(-50%) scaleX(1);
+  opacity: 1;
+}
+
+.shell-header-nav__btn:active:not(.is-active) {
   transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(26, 51, 88, 0.10), inset 0 1px 3px rgba(26, 51, 88, 0.12);
+}
+
+.shell-header-nav__btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26, 51, 88, 0.22), 0 1px 3px rgba(26, 51, 88, 0.10);
 }
 
 /* ——— Apple-style logout button ——— */
