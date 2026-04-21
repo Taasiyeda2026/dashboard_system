@@ -481,7 +481,7 @@ function actionDashboard_(user, payload) {
 function actionActivities_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
-  var allRows = allActivities_();
+  var allRows = allActivitiesSummary_();
   var today = formatDate_(new Date());
   var typeKeys = listValuesForName_('activity_type');
   if (!typeKeys.length) {
@@ -499,12 +499,34 @@ function actionActivities_(user, payload) {
     }
   });
 
-  var activityType = text_(payload.activity_type || 'all');
+  var activityType = text_(payload.activity_type || payload.tab || 'all');
   var financeStatus = text_(payload.finance_status || '');
+  var search = text_(payload.search || '').toLowerCase();
+  var manager = text_(payload.manager || '');
+  var family = text_(payload.family || '');
+  var endingCurrentMonth = yesNo_(payload.ending_current_month || 'no') === 'yes';
+  var monthFilter = text_(payload.month || formatDate_(new Date()).slice(0, 7));
   var rows = allRows.filter(function(row) {
     if (text_(row.status) === 'סגור') return false;
     if (activityType && activityType !== 'all' && text_(row.activity_type) !== activityType) return false;
     if (financeStatus && text_(row.finance_status) !== financeStatus) return false;
+    if (manager && text_(row.activity_manager) !== manager) return false;
+    if (family === 'short' && configuredOneDayActivityTypes_().indexOf(text_(row.activity_type)) < 0) return false;
+    if (family === 'long' && configuredProgramActivityTypes_().indexOf(text_(row.activity_type)) < 0) return false;
+    if (endingCurrentMonth &&
+      !(text_(row.activity_type) === 'course' && text_(row.end_date || '').slice(0, 7) === monthFilter)) return false;
+    if (search) {
+      var hay = [
+        row.RowID,
+        row.activity_name,
+        row.school,
+        row.authority,
+        row.activity_manager,
+        row.emp_id,
+        row.emp_id_2
+      ].map(text_).join(' ').toLowerCase();
+      if (hay.indexOf(search) < 0) return false;
+    }
     return true;
   });
 
@@ -518,104 +540,119 @@ function actionActivities_(user, payload) {
   return {
     activity_type_counts: activityTypeCounts,
     rows: rows.map(function(row) {
-      var noteKey = row.source_sheet + '|' + row.RowID;
-      var noteRow = noteMap[noteKey];
-      /* activity_meetings כמקור אמת לתאריכים; fallback לעמודות Date1-Date35 */
-      var meetingsFromSheet = activitiesMeetingsMap[text_(row.RowID)];
-      var meetingDates;
-      if (meetingsFromSheet && meetingsFromSheet.length) {
-        meetingDates = meetingsFromSheet.slice();
-      } else {
-        meetingDates = activityDateColumnsFromRow_(row).filter(function(v, i, arr) {
-          return !!v && arr.indexOf(v) === i;
-        }).sort();
-      }
-      var dateRange = meetingDateRangeFromList_(meetingDates);
-      var computedStartDate = dateRange.start || normalizeDateTextToIso_(row.Date1);
-      var computedEndDate = dateRange.end || '';
-      var meetingSchedule = meetingDates.map(function(dateKey) {
-        return {
-          date: dateKey,
-          performed: dateKey <= today ? 'yes' : 'no'
-        };
-      });
-      var meetingsDone = meetingSchedule.filter(function(item) {
-        return item.performed === 'yes';
-      }).length;
-      return {
-        RowID: row.RowID,
-        source_sheet: row.source_sheet,
-        activity_manager: row.activity_manager,
-        authority: row.authority,
-        school: row.school,
-        activity_type: row.activity_type,
-        activity_no: row.activity_no,
-        activity_name: row.activity_name,
-        sessions: row.sessions,
-        price: row.price,
-        funding: row.funding,
-        start_time: row.start_time,
-        end_time: row.end_time,
-        emp_id: row.emp_id,
-        instructor_name: row.instructor_name,
-        emp_id_2: row.emp_id_2,
-        instructor_name_2: row.instructor_name_2,
-        start_date: computedStartDate,
-        end_date: computedEndDate,
-        status: row.status,
-        notes: row.notes,
-        finance_status: row.finance_status,
-        finance_notes: row.finance_notes,
-        meeting_dates: meetingDates,
-        meeting_schedule: meetingSchedule,
-        meetings_total: meetingSchedule.length,
-        meetings_done: meetingsDone,
-        meetings_remaining: Math.max(meetingSchedule.length - meetingsDone, 0),
-        Date1: normalizeDateTextToIso_(row.Date1),
-        Date2: normalizeDateTextToIso_(row.Date2),
-        Date3: normalizeDateTextToIso_(row.Date3),
-        Date4: normalizeDateTextToIso_(row.Date4),
-        Date5: normalizeDateTextToIso_(row.Date5),
-        Date6: normalizeDateTextToIso_(row.Date6),
-        Date7: normalizeDateTextToIso_(row.Date7),
-        Date8: normalizeDateTextToIso_(row.Date8),
-        Date9: normalizeDateTextToIso_(row.Date9),
-        Date10: normalizeDateTextToIso_(row.Date10),
-        Date11: normalizeDateTextToIso_(row.Date11),
-        Date12: normalizeDateTextToIso_(row.Date12),
-        Date13: normalizeDateTextToIso_(row.Date13),
-        Date14: normalizeDateTextToIso_(row.Date14),
-        Date15: normalizeDateTextToIso_(row.Date15),
-        Date16: normalizeDateTextToIso_(row.Date16),
-        Date17: normalizeDateTextToIso_(row.Date17),
-        Date18: normalizeDateTextToIso_(row.Date18),
-        Date19: normalizeDateTextToIso_(row.Date19),
-        Date20: normalizeDateTextToIso_(row.Date20),
-        Date21: normalizeDateTextToIso_(row.Date21),
-        Date22: normalizeDateTextToIso_(row.Date22),
-        Date23: normalizeDateTextToIso_(row.Date23),
-        Date24: normalizeDateTextToIso_(row.Date24),
-        Date25: normalizeDateTextToIso_(row.Date25),
-        Date26: normalizeDateTextToIso_(row.Date26),
-        Date27: normalizeDateTextToIso_(row.Date27),
-        Date28: normalizeDateTextToIso_(row.Date28),
-        Date29: normalizeDateTextToIso_(row.Date29),
-        Date30: normalizeDateTextToIso_(row.Date30),
-        Date31: normalizeDateTextToIso_(row.Date31),
-        Date32: normalizeDateTextToIso_(row.Date32),
-        Date33: normalizeDateTextToIso_(row.Date33),
-        Date34: normalizeDateTextToIso_(row.Date34),
-        Date35: normalizeDateTextToIso_(row.Date35),
-        private_note: user.display_role === 'operations_reviewer' && noteRow && yesNo_(noteRow.active) === 'yes'
-          ? text_(noteRow.note_text)
-          : ''
-      };
+      return mapActivitySummaryRowForList_(row, user, noteMap, activitiesMeetingsMap, today);
     }),
     filters: {
       activity_types: activityTypesForFilters_(),
       finance_statuses: financeStatusesForFilters_()
     }
   };
+}
+
+function mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today) {
+  var noteKey = row.source_sheet + '|' + row.RowID;
+  var noteRow = noteMap[noteKey];
+  var meetingsFromSheet = meetingsMap[text_(row.RowID)];
+  var meetingDates = (meetingsFromSheet && meetingsFromSheet.length
+    ? meetingsFromSheet.slice()
+    : activityDateColumnsFromRow_(row).filter(function(v, i, arr) {
+      return !!v && arr.indexOf(v) === i;
+    }).sort());
+  var dateRange = meetingDateRangeFromList_(meetingDates);
+  var computedStartDate = dateRange.start || normalizeDateTextToIso_(row.Date1);
+  var computedEndDate = dateRange.end || '';
+  return {
+    RowID: row.RowID,
+    source_sheet: row.source_sheet,
+    activity_manager: row.activity_manager,
+    authority: row.authority,
+    school: row.school,
+    activity_type: row.activity_type,
+    activity_name: row.activity_name,
+    emp_id: row.emp_id,
+    emp_id_2: row.emp_id_2,
+    start_date: computedStartDate,
+    end_date: computedEndDate,
+    status: row.status,
+    finance_status: row.finance_status,
+    meetings_total: meetingDates.length,
+    meetings_done: meetingDates.filter(function(dateKey) { return dateKey <= today; }).length,
+    meetings_remaining: meetingDates.filter(function(dateKey) { return dateKey > today; }).length,
+    private_note: user.display_role === 'operations_reviewer' && noteRow && yesNo_(noteRow.active) === 'yes'
+      ? text_(noteRow.note_text)
+      : ''
+  };
+}
+
+function mapActivityDetailRowForDrawer_(row, user) {
+  var noteMap = buildPrivateNotesMap_();
+  var meetingsMap = buildMeetingsMap_();
+  var today = formatDate_(new Date());
+  var summary = mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today);
+  var meetingsFromSheet = meetingsMap[text_(row.RowID)];
+  var meetingDates = (meetingsFromSheet && meetingsFromSheet.length
+    ? meetingsFromSheet.slice()
+    : activityDateColumnsFromRow_(row).filter(function(v, i, arr) {
+      return !!v && arr.indexOf(v) === i;
+    }).sort());
+  var meetingSchedule = meetingDates.map(function(dateKey) {
+    return { date: dateKey, performed: dateKey <= today ? 'yes' : 'no' };
+  });
+  var detail = {
+    RowID: summary.RowID,
+    source_sheet: summary.source_sheet,
+    activity_manager: summary.activity_manager,
+    authority: summary.authority,
+    school: summary.school,
+    activity_type: summary.activity_type,
+    activity_no: row.activity_no,
+    activity_name: summary.activity_name,
+    sessions: row.sessions,
+    price: row.price,
+    funding: row.funding,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    emp_id: row.emp_id,
+    instructor_name: row.instructor_name,
+    emp_id_2: row.emp_id_2,
+    instructor_name_2: row.instructor_name_2,
+    start_date: summary.start_date,
+    end_date: summary.end_date,
+    status: summary.status,
+    notes: row.notes,
+    finance_status: row.finance_status,
+    finance_notes: row.finance_notes,
+    private_note: summary.private_note,
+    meeting_dates: meetingDates,
+    meeting_schedule: meetingSchedule,
+    meetings_total: summary.meetings_total,
+    meetings_done: summary.meetings_done,
+    meetings_remaining: summary.meetings_remaining
+  };
+  for (var i = 1; i <= 35; i++) {
+    detail['Date' + i] = normalizeDateTextToIso_(row['Date' + i]);
+  }
+  return detail;
+}
+
+function findActivityRowById_(sourceRowId, sourceSheet) {
+  var rowId = text_(sourceRowId);
+  if (!rowId) throw new Error('source_row_id is required');
+  var rows = allActivities_();
+  var found = rows.find(function(row) {
+    if (sourceSheet && text_(row.source_sheet) !== text_(sourceSheet)) return false;
+    return text_(row.RowID) === rowId;
+  });
+  if (!found) throw new Error('Row not found: ' + rowId);
+  return found;
+}
+
+function actionActivityDetail_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var sourceRowId = text_((payload || {}).source_row_id || (payload || {}).RowID);
+  var sourceSheet = text_((payload || {}).source_sheet);
+  var row = findActivityRowById_(sourceRowId, sourceSheet);
+  return { row: mapActivityDetailRowForDrawer_(row, user) };
 }
 
 function actionWeek_(user, payload) {
@@ -744,10 +781,14 @@ function actionFinance_(user, payload) {
   var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   var dateFrom = text_((payload || {}).date_from || '');
   var dateTo = text_((payload || {}).date_to || '');
+  var search = text_((payload || {}).search || '').toLowerCase();
+  var statusFilter = text_((payload || {}).status || '');
+  var tab = text_((payload || {}).tab || 'active');
+  var monthYm = text_((payload || {}).month || '');
   if (dateFrom && !DATE_RE.test(dateFrom)) dateFrom = '';
   if (dateTo && !DATE_RE.test(dateTo)) dateTo = '';
 
-  var rows = allActivities_().filter(function(row) {
+  var rows = allActivitiesSummary_().filter(function(row) {
     if (rule === 'ended_until_today') {
       var e = text_(row.end_date || row.start_date);
       return !!e && e <= today;
@@ -764,6 +805,33 @@ function actionFinance_(user, payload) {
       return true;
     });
   }
+
+  if (monthYm && /^\d{4}-\d{2}$/.test(monthYm)) {
+    var p = monthYm.split('-');
+    var yy = parseInt(p[0], 10);
+    var mm = parseInt(p[1], 10);
+    var prev = new Date(yy, mm - 2, 1);
+    var prevYm = Utilities.formatDate(prev, Session.getScriptTimeZone(), 'yyyy-MM');
+    rows = rows.filter(function(row) {
+      var ym = text_(row.end_date || '').slice(0, 7);
+      return ym === monthYm || ym === prevYm;
+    });
+  }
+
+  rows = rows.filter(function(row) {
+    var isArchived = text_(row.is_archived || row.archive).toLowerCase();
+    if (tab === 'active' && (isArchived === 'yes' || isArchived === 'true' || isArchived === '1')) return false;
+    if (tab === 'archive' && !(isArchived === 'yes' || isArchived === 'true' || isArchived === '1')) return false;
+    if (statusFilter && text_(normalizeFinance_(row.finance_status)) !== statusFilter) return false;
+    if (search) {
+      var hay = [
+        row.RowID, row.activity_name, row.school, row.activity_manager,
+        row.funding, row.authority, row.Payer
+      ].map(text_).join(' ').toLowerCase();
+      if (hay.indexOf(search) < 0) return false;
+    }
+    return true;
+  });
 
   var mappedRows = rows.map(function(row) {
     var price = parseFloat(row.price) || 0;
@@ -794,12 +862,6 @@ function actionFinance_(user, payload) {
       Payer: text_(row.Payer || row.payer || ''),
       Payment: parseFloat(row.Payment || row.payment || '') || 0
     };
-    /* Include session date columns Date1–Date35 when present */
-    for (var di = 1; di <= 35; di++) {
-      var dk = 'Date' + di;
-      var dv = text_(row[dk] || '');
-      if (dv) mapped[dk] = dv;
-    }
     return mapped;
   });
 
@@ -844,6 +906,16 @@ function actionFinance_(user, payload) {
       byManager: byManager
     }
   };
+}
+
+function actionFinanceDetail_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var sourceRowId = text_((payload || {}).source_row_id || (payload || {}).RowID);
+  var sourceSheet = text_((payload || {}).source_sheet);
+  var row = findActivityRowById_(sourceRowId, sourceSheet);
+  var mapped = mapActivityDetailRowForDrawer_(row, user);
+  mapped.finance_status = normalizeFinance_(mapped.finance_status);
+  return { row: mapped };
 }
 
 function actionInstructors_(user) {
@@ -954,13 +1026,44 @@ function actionMyData_(user) {
   return { rows: allActivities_() };
 }
 
-function actionOperations_(user) {
+function actionOperations_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
   if (yesNo_(permission.view_operations_data) !== 'yes' && user.display_role !== 'admin') {
     throw new Error('Forbidden');
   }
-  return { rows: allActivities_() };
+  var search = text_((payload || {}).search || '').toLowerCase();
+  var activityType = text_((payload || {}).activity_type || '');
+  var rows = allActivitiesSummary_().filter(function(row) {
+    if (activityType && text_(row.activity_type) !== activityType) return false;
+    if (search) {
+      var hay = [row.RowID, row.activity_name, row.activity_type, row.start_date, row.end_date].map(text_).join(' ').toLowerCase();
+      if (hay.indexOf(search) < 0) return false;
+    }
+    return true;
+  }).map(function(row) {
+    return {
+      RowID: row.RowID,
+      source_sheet: row.source_sheet,
+      activity_name: row.activity_name,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      activity_type: row.activity_type
+    };
+  });
+  return { rows: rows };
+}
+
+function actionOperationsDetail_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var permission = getPermissionRow_(user.user_id);
+  if (yesNo_(permission.view_operations_data) !== 'yes' && user.display_role !== 'admin') {
+    throw new Error('Forbidden');
+  }
+  var sourceRowId = text_((payload || {}).source_row_id || (payload || {}).RowID);
+  var sourceSheet = text_((payload || {}).source_sheet);
+  var row = findActivityRowById_(sourceRowId, sourceSheet);
+  return { row: mapActivityDetailRowForDrawer_(row, user) };
 }
 
 function actionEditRequests_(user) {
@@ -1670,6 +1773,97 @@ function allActivities_() {
   if (__rqCache_) {
     __rqCache_.allActivities = list;
   }
+  return list;
+}
+
+function projectedActivityColumnsForSummary_() {
+  return [
+    'RowID',
+    'activity_manager',
+    'authority',
+    'school',
+    'activity_type',
+    'activity_no',
+    'activity_name',
+    'sessions',
+    'price',
+    'funding',
+    'start_time',
+    'end_time',
+    'emp_id',
+    'instructor_name',
+    'emp_id_2',
+    'instructor_name_2',
+    'start_date',
+    'end_date',
+    'status',
+    'notes',
+    'finance_status',
+    'finance_notes',
+    'is_archived',
+    'archive',
+    'Payer',
+    'Payment',
+    'Date1'
+  ];
+}
+
+function allActivitiesSummary_() {
+  if (__rqCache_ && Object.prototype.hasOwnProperty.call(__rqCache_, 'allActivitiesSummary')) {
+    return __rqCache_.allActivitiesSummary;
+  }
+  var version = dataViewsCacheVersion_();
+  var cacheKey = 'pc:activities-summary:' + version;
+  var cached = scriptCacheGetJson_(cacheKey);
+  if (cached && Object.prototype.toString.call(cached) === '[object Array]') {
+    if (__rqCache_) {
+      __rqCache_.allActivitiesSummary = cached;
+    }
+    return cached;
+  }
+  var list = [];
+  var cols = projectedActivityColumnsForSummary_();
+  configuredActivitiesSources_().forEach(function(sheetName) {
+    if (sheetName !== CONFIG.SHEETS.DATA_SHORT && sheetName !== CONFIG.SHEETS.DATA_LONG) return;
+    var rows = readRowsProjected_(sheetName, cols).map(function(row) {
+      return {
+        source_sheet: sheetName,
+        RowID: text_(row.RowID),
+        activity_manager: text_(row.activity_manager),
+        authority: text_(row.authority),
+        school: text_(row.school),
+        activity_type: text_(row.activity_type),
+        activity_no: text_(row.activity_no),
+        activity_name: text_(row.activity_name),
+        sessions: text_(row.sessions),
+        price: text_(row.price),
+        funding: text_(row.funding),
+        start_time: text_(row.start_time),
+        end_time: text_(row.end_time),
+        emp_id: text_(row.emp_id),
+        instructor_name: text_(row.instructor_name),
+        emp_id_2: text_(row.emp_id_2),
+        instructor_name_2: text_(row.instructor_name_2),
+        start_date: normalizeDateTextToIso_(row.start_date) || normalizeDateTextToIso_(row.Date1),
+        end_date: normalizeDateTextToIso_(row.end_date) || normalizeDateTextToIso_(row.start_date) || normalizeDateTextToIso_(row.Date1),
+        status: text_(row.status),
+        notes: text_(row.notes),
+        finance_status: normalizeFinance_(row.finance_status),
+        finance_notes: text_(row.finance_notes),
+        is_archived: text_(row.is_archived || row.archive || ''),
+        archive: text_(row.archive || row.is_archived || ''),
+        Payer: text_(row.Payer || ''),
+        Payment: text_(row.Payment || ''),
+        Date1: normalizeDateTextToIso_(row.Date1)
+      };
+    });
+    list = list.concat(rows);
+  });
+  enrichRowsWithMeetings_(list);
+  if (__rqCache_) {
+    __rqCache_.allActivitiesSummary = list;
+  }
+  scriptCachePutJson_(cacheKey, list, CONFIG.SCRIPT_CACHE_SECONDS || 120);
   return list;
 }
 

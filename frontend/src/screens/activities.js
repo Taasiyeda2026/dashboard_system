@@ -114,17 +114,24 @@ export const activitiesScreen = {
       /* ignore */
     }
     const requested = state.activityTab || 'all';
-    let data = await api.activities({ activity_type: requested });
+    const req = {
+      activity_type: requested,
+      search: state.activitySearch || '',
+      manager: state.activityQuickManager || '',
+      family: state.activityQuickFamily || '',
+      ending_current_month: state.activityEndingCurrentMonth ? 'yes' : 'no'
+    };
+    let data = await api.activities(req);
     const allowed = visibleTabsFromCounts(data.activity_type_counts);
     if (allowed.indexOf(requested) < 0) {
       state.activityTab = 'all';
-      data = await api.activities({ activity_type: 'all' });
+      data = await api.activities({ ...req, activity_type: 'all' });
     }
     return data;
   },
   render(data, { state }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const safeRows = applyClientFilters(allRows, state);
+    const safeRows = allRows;
     const counts = data?.activity_type_counts || {};
     const visibleTabs = visibleTabsFromCounts(counts);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
@@ -306,17 +313,46 @@ export const activitiesScreen = {
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
+    const detailCache = new Map();
+    const loadingDetailMarkup = '<div class="ds-loading-card" dir="rtl"><p>טוען פירוט פעילות…</p></div>';
+
+    async function loadDetailRow(summaryRow) {
+      const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
+      if (detailCache.has(cacheKey)) return detailCache.get(cacheKey);
+      const rsp = await api.activityDetail(summaryRow.RowID, summaryRow.source_sheet);
+      const row = rsp?.row || summaryRow;
+      detailCache.set(cacheKey, row);
+      return row;
+    }
+
+    async function openActivityDetail(summaryRow) {
+      if (!summaryRow || !ui) return;
+      ui.openDrawer({
+        title: hideRowId ? 'פירוט פעילות' : `פירוט פעילות ${summaryRow.RowID}`,
+        content: loadingDetailMarkup
+      });
+      const row = await loadDetailRow(summaryRow);
+      ui.openDrawer({
+        title: hideRowId ? 'פירוט פעילות' : `פירוט פעילות ${row.RowID}`,
+        content: activityDrawerContent(
+          row,
+          canSeePrivateNotes,
+          canEditActivity,
+          hideEmpIds,
+          hideRowId,
+          hideActivityNo,
+          state?.clientSettings || {}
+        ),
+        onOpen: bindActivityEditForm
+      });
+    }
 
     let _searchTimer;
     root.querySelector('#activity-search')?.addEventListener('input', (ev) => {
       state.activitySearch = ev.target.value || '';
       clearTimeout(_searchTimer);
       _searchTimer = setTimeout(() => {
-        if (typeof rerenderActivitiesView === 'function') {
-          rerenderActivitiesView();
-        } else {
-          rerender();
-        }
+        rerender();
       }, 220);
     });
 
@@ -373,19 +409,7 @@ export const activitiesScreen = {
       const rowId = rowNode.dataset.rowId;
       const hit = filteredRows.find((row) => row.RowID === rowId);
       if (!hit || !ui) return;
-      ui.openDrawer({
-        title: hideRowId ? 'פירוט פעילות' : `פירוט פעילות ${hit.RowID}`,
-        content: activityDrawerContent(
-          hit,
-          canSeePrivateNotes,
-          canEditActivity,
-          hideEmpIds,
-          hideRowId,
-          hideActivityNo,
-          state?.clientSettings || {}
-        ),
-        onOpen: bindActivityEditForm
-      });
+      openActivityDetail(hit).catch(() => {});
     }, rowSig);
     root.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Enter' && ev.key !== ' ') return;
@@ -400,19 +424,7 @@ export const activitiesScreen = {
       const rowId = action.replace('activity:', '');
       const row = filteredRows.find((r) => r.RowID === rowId);
       if (!row) return;
-      ui.openDrawer({
-        title: hideRowId ? 'פירוט פעילות' : `פירוט פעילות ${row.RowID}`,
-        content: activityDrawerContent(
-          row,
-          canSeePrivateNotes,
-          canEditActivity,
-          hideEmpIds,
-          hideRowId,
-          hideActivityNo,
-          state?.clientSettings || {}
-        ),
-        onOpen: bindActivityEditForm
-      });
+      openActivityDetail(row).catch(() => {});
     });
   }
 };

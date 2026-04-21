@@ -16,6 +16,7 @@ function handlePost_(e) {
     beginRequestCache_();
     var payload = parsePayload_(e);
     var action = text_(payload.action);
+    beginRequestPerf_(action, payload);
     var user = action === 'login' ? null : requireAuth_(payload.token);
 
     var handlers = {
@@ -23,16 +24,19 @@ function handlePost_(e) {
       bootstrap: function() { return actionBootstrap_(user); },
       dashboard: function() { return actionDashboard_(user, payload); },
       activities: function() { return actionActivities_(user, payload); },
+      activityDetail: function() { return actionActivityDetail_(user, payload); },
       week: function() { return actionWeek_(user, payload); },
       month: function() { return actionMonth_(user, payload); },
       exceptions: function() { return actionExceptions_(user, payload); },
       finance: function() { return actionFinance_(user, payload); },
+      financeDetail: function() { return actionFinanceDetail_(user, payload); },
       instructors: function() { return actionInstructors_(user, payload); },
       instructorContacts: function() { return actionInstructorContacts_(user, payload); },
       contacts: function() { return actionContacts_(user, payload); },
       endDates: function() { return actionEndDates_(user, payload); },
       myData: function() { return actionMyData_(user, payload); },
-      operations: function() { return actionOperations_(user); },
+      operations: function() { return actionOperations_(user, payload); },
+      operationsDetail: function() { return actionOperationsDetail_(user, payload); },
       editRequests: function() { return actionEditRequests_(user); },
       permissions: function() { return actionPermissions_(user, payload); },
       addActivity: function() { return actionAddActivity_(user, payload); },
@@ -57,16 +61,19 @@ function handlePost_(e) {
     var ACTION_ROUTE_MAP = {
       dashboard: 'dashboard',
       activities: 'activities',
+      activityDetail: 'activities',
       week: 'week',
       month: 'month',
       exceptions: 'exceptions',
       finance: 'finance',
+      financeDetail: 'finance',
       instructors: 'instructors',
       instructorContacts: 'instructor-contacts',
       contacts: 'contacts',
       endDates: 'end-dates',
       myData: 'my-data',
       operations: 'operations',
+      operationsDetail: 'operations',
       editRequests: 'edit-requests',
       permissions: 'permissions'
     };
@@ -79,21 +86,39 @@ function handlePost_(e) {
       var readKey = buildReadActionCacheKey_(action, user, payload);
       var readHit = scriptCacheGetJson_(readKey);
       if (readHit !== null) {
-        return jsonResponse_({ ok: true, data: readHit });
+        markRequestPerf_('cache_lookup_done');
+        return jsonResponse_({ ok: true, data: readHit }, {
+          action: action,
+          cache_hit: true
+        });
       }
+      markRequestPerf_('cache_lookup_done');
       var readData = handlers[action]();
+      markRequestPerf_('action_done');
       scriptCachePutJson_(readKey, readData, CONFIG.SCRIPT_CACHE_SECONDS || 90);
-      return jsonResponse_({ ok: true, data: readData });
+      return jsonResponse_({ ok: true, data: readData }, {
+        action: action,
+        cache_hit: false
+      });
     }
 
+    markRequestPerf_('action_start');
+    var writeData = handlers[action]();
+    markRequestPerf_('action_done');
     return jsonResponse_({
       ok: true,
-      data: handlers[action]()
+      data: writeData
+    }, {
+      action: action,
+      cache_hit: false
     });
   } catch (error) {
     return jsonResponse_({
       ok: false,
       error: error && error.message ? error.message : 'Unexpected error'
+    }, {
+      action: (__rqPerf_ && __rqPerf_.action) || 'unknown',
+      errored: true
     });
   }
 }
@@ -103,17 +128,20 @@ function isReadActionCacheable_(action, user) {
   var map = {
     bootstrap: true,
     dashboard: true,
-    activities: true,
+    activities: false,
+    activityDetail: true,
     week: true,
     month: true,
     exceptions: true,
-    finance: true,
+    finance: false,
+    financeDetail: true,
     instructors: true,
     instructorContacts: true,
     contacts: true,
     endDates: true,
     myData: true,
     operations: true,
+    operationsDetail: true,
     editRequests: true,
     permissions: true
   };

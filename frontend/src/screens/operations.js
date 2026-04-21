@@ -13,7 +13,10 @@ import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.
 import { activityRowDetailHtml } from './shared/activity-detail-html.js';
 
 export const operationsScreen = {
-  load: ({ api }) => api.operations(),
+  load: ({ api, state }) => api.operations({
+    search: state?.operationsSearch || '',
+    activity_type: state?.operationsActivityType || ''
+  }),
   render(data, { state } = {}) {
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const columns = hideRowId
@@ -86,25 +89,54 @@ export const operationsScreen = {
       })}
     `);
   },
-  bind({ root, data, state, ui }) {
+  bind({ root, data, state, ui, api, rerender }) {
     if (!root) return;
     bindPageListTools(root);
+    root.querySelector('[data-page-q]')?.addEventListener('input', (ev) => {
+      state.operationsSearch = ev.target.value || '';
+      clearTimeout(root._opsSearchTimer);
+      root._opsSearchTimer = setTimeout(() => {
+        rerender?.();
+      }, 220);
+    });
+    root.querySelector('[data-page-f]')?.addEventListener('change', (ev) => {
+      state.operationsActivityType = ev.target.value || '';
+      rerender?.();
+    });
 
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const rowById = new Map(rows.map((row) => [String(row.RowID), row]));
+    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
+    const detailCache = new Map();
+    const loadingDetailMarkup = '<div class="ds-loading-card" dir="rtl"><p>טוען פירוט פעילות…</p></div>';
+
+    async function openOperationDetail(summaryRow) {
+      if (!summaryRow || !ui) return;
+      ui.openDrawer({
+        title: hideRowId ? 'פירוט פעילות' : `פירוט ${summaryRow.RowID}`,
+        content: loadingDetailMarkup
+      });
+      const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
+      let hit = detailCache.get(cacheKey);
+      if (!hit) {
+        const rsp = await api.operationsDetail(summaryRow.RowID, summaryRow.source_sheet);
+        hit = rsp?.row || summaryRow;
+        detailCache.set(cacheKey, hit);
+      }
+      ui.openDrawer({
+        title: hideRowId ? 'פירוט פעילות' : `פירוט ${hit.RowID}`,
+        content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo })
+      });
+    }
 
     root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
       rowNode.addEventListener('click', () => {
         const rowId = rowNode.dataset.rowId;
         const hit = rowById.get(String(rowId));
         if (!hit || !ui) return;
-        const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
-        const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
-        const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-        ui.openDrawer({
-          title: hideRowId ? 'פירוט פעילות' : `פירוט ${hit.RowID}`,
-          content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo })
-        });
+        openOperationDetail(hit).catch(() => {});
       });
       rowNode.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -119,13 +151,7 @@ export const operationsScreen = {
       const rowId = action.slice('operations:'.length);
       const hit = rowById.get(String(rowId));
       if (!hit) return;
-      const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
-      const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
-      const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-      ui.openDrawer({
-        title: hideRowId ? 'פירוט פעילות' : `פירוט ${hit.RowID}`,
-        content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo })
-      });
+      openOperationDetail(hit).catch(() => {});
     });
   }
 };
