@@ -1896,13 +1896,25 @@ function writeSummaryRowsToCache_(version, sheetName, rows) {
   if (putResult && putResult.ok) return;
 
   var chunkSize = 200;
-  var chunkCount = Math.ceil(rows.length / chunkSize);
-  for (var i = 0; i < chunkCount; i++) {
-    var chunk = rows.slice(i * chunkSize, (i + 1) * chunkSize);
-    var chunkPut = scriptCachePutJson_(baseKey + ':chunk:' + i, chunk, ttl);
-    if (!chunkPut || !chunkPut.ok) return;
+  var MIN_CHUNK_SIZE = 10;
+  while (chunkSize >= MIN_CHUNK_SIZE) {
+    var chunkCount = Math.ceil(rows.length / chunkSize);
+    var allOk = true;
+    for (var i = 0; i < chunkCount; i++) {
+      var chunk = rows.slice(i * chunkSize, (i + 1) * chunkSize);
+      var chunkPut = scriptCachePutJson_(baseKey + ':chunk:' + i, chunk, ttl);
+      if (!chunkPut || !chunkPut.ok) {
+        allOk = false;
+        break;
+      }
+    }
+    if (allOk) {
+      scriptCachePutJson_(baseKey, { chunk_count: chunkCount }, ttl);
+      return;
+    }
+    chunkSize = Math.floor(chunkSize / 2);
   }
-  scriptCachePutJson_(baseKey, { chunk_count: chunkCount }, ttl);
+  scriptCacheDebugMark_('summary_cache_write_failed', baseKey, JSON.stringify(rows).length);
 }
 
 function allActivitiesSummary_() {
