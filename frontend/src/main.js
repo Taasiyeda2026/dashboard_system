@@ -515,10 +515,62 @@ function rerenderActivitiesViewOnly(screen, screenRoot) {
 }
 
 /**
- * Restores session on page refresh.
- * Permissions are authoritative on the server, so refresh is always
- * bootstrap-driven (no route restore from localStorage).
+ * Synchronously restores routes + screen cache from localStorage.
+ * Returns true when routes were successfully loaded.
+ * Used for instant paint on page refresh — bootstrap then runs in the background.
  */
+function tryRestoreRoutesInstant() {
+  if (!state.token) return false;
+  if (state.routes.length) return true;
+  try {
+    const raw = localStorage.getItem('dashboard_routes');
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    if (!saved || !Array.isArray(saved.routes) || !saved.routes.length) return false;
+    if (saved.clientSettings && typeof saved.clientSettings === 'object') {
+      state.clientSettings = { ...defaultClientSettings(), ...saved.clientSettings };
+    }
+    const effectiveR = applySettingsToRoutes(saved.routes, state.clientSettings);
+    state.routes = effectiveR;
+    state.effectiveRoutes = effectiveR;
+    state.route = resolveAllowedDefaultRoute(saved.defaultRoute || '', effectiveR);
+    restoreScreenCacheFromStorage();
+    return true;
+  } catch { return false; }
+}
+
+/**
+ * Fetches a fresh bootstrap in the background and silently updates state.
+ * Called after instant-restore so permissions/profile stay up to date.
+ * If the current route is no longer allowed after the update, re-renders.
+ */
+function backgroundSyncBootstrap() {
+  if (!state.token) return;
+  api.bootstrap().then((bootstrap) => {
+    if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
+      state.clientSettings = { ...defaultClientSettings(), ...bootstrap.client_settings };
+    }
+    const normalizedRoutes = applySettingsToRoutes(bootstrap.routes || [], state.clientSettings);
+    state.routes = normalizedRoutes;
+    state.effectiveRoutes = normalizedRoutes;
+    const newDefault = resolveAllowedDefaultRoute(bootstrap.default_route, normalizedRoutes);
+    saveRoutesToStorage(state.routes, newDefault, state.clientSettings);
+    if (bootstrap.profile && state.user) {
+      const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
+      if (fn) state.user.full_name = fn;
+      state.user.display_role2 =
+        bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
+      localStorage.setItem('dashboard_user', JSON.stringify(state.user));
+    }
+    if (!isAllowedRoute(state.route)) {
+      state.route = newDefault;
+      render().catch(() => {});
+    } else {
+      updateNavActiveClasses();
+    }
+  }).catch(() => {});
+}
+
 async function restoreSession() {
   if (!state.token) return;
   if (state.routes.length) return;
@@ -547,7 +599,13 @@ async function mountScreen() {
     isMobileNavOpen = false;
     document.body.classList.remove('is-shell-nav-open');
   }
-  if (!effectiveRoutes().length) await restoreSession();
+  if (!effectiveRoutes().length) {
+    if (tryRestoreRoutesInstant()) {
+      backgroundSyncBootstrap();
+    } else {
+      await restoreSession();
+    }
+  }
   if (!isAllowedRoute(state.route)) state.route = resolveAllowedDefaultRoute('', state.routes);
 
   const routeChanged = lastRenderedRoute !== state.route;
