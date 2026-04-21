@@ -638,13 +638,24 @@ function mapActivityDetailRowForDrawer_(row, user) {
 function findActivityRowById_(sourceRowId, sourceSheet) {
   var rowId = text_(sourceRowId);
   if (!rowId) throw new Error('source_row_id is required');
-  var rows = allActivities_();
-  var found = rows.find(function(row) {
-    if (sourceSheet && text_(row.source_sheet) !== text_(sourceSheet)) return false;
-    return text_(row.RowID) === rowId;
-  });
-  if (!found) throw new Error('Row not found: ' + rowId);
-  return found;
+  var sourceCandidates = [];
+  if (sourceSheet) {
+    sourceCandidates = [text_(sourceSheet)];
+  } else {
+    sourceCandidates = configuredActivitiesSources_().filter(function(name) {
+      return name === CONFIG.SHEETS.DATA_SHORT || name === CONFIG.SHEETS.DATA_LONG;
+    });
+  }
+  var cols = projectedActivityColumnsForDetail_();
+  for (var i = 0; i < sourceCandidates.length; i++) {
+    var sheetName = sourceCandidates[i];
+    var rows = readRowsProjected_(sheetName, cols);
+    for (var j = 0; j < rows.length; j++) {
+      if (text_(rows[j].RowID) !== rowId) continue;
+      return mapProjectedActivityDetailRow_(sheetName, rows[j]);
+    }
+  }
+  throw new Error('Row not found: ' + rowId);
 }
 
 function actionActivityDetail_(user, payload) {
@@ -1034,7 +1045,7 @@ function actionOperations_(user, payload) {
   }
   var search = text_((payload || {}).search || '').toLowerCase();
   var activityType = text_((payload || {}).activity_type || '');
-  var rows = allActivities_().filter(function(row) {
+  var rows = allActivitiesSummary_().filter(function(row) {
     if (activityType && text_(row.activity_type) !== activityType) return false;
     if (search) {
       var hay = [row.RowID, row.activity_name, row.activity_type, row.start_date, row.end_date].map(text_).join(' ').toLowerCase();
@@ -1808,23 +1819,109 @@ function projectedActivityColumnsForSummary_() {
   ];
 }
 
+function projectedActivityColumnsForDetail_() {
+  var base = projectedActivityColumnsForSummary_().slice();
+  [
+    'source_sheet',
+    'Date2', 'Date3', 'Date4', 'Date5', 'Date6', 'Date7', 'Date8', 'Date9',
+    'Date10', 'Date11', 'Date12', 'Date13', 'Date14', 'Date15', 'Date16', 'Date17', 'Date18', 'Date19',
+    'Date20', 'Date21', 'Date22', 'Date23', 'Date24', 'Date25', 'Date26', 'Date27', 'Date28', 'Date29',
+    'Date30', 'Date31', 'Date32', 'Date33', 'Date34', 'Date35'
+  ].forEach(function(col) {
+    if (base.indexOf(col) < 0) base.push(col);
+  });
+  return base;
+}
+
+function mapProjectedActivityDetailRow_(sheetName, row) {
+  var out = {
+    source_sheet: sheetName,
+    RowID: text_(row.RowID),
+    activity_manager: text_(row.activity_manager),
+    authority: text_(row.authority),
+    school: text_(row.school),
+    activity_type: text_(row.activity_type),
+    activity_no: text_(row.activity_no),
+    activity_name: text_(row.activity_name),
+    sessions: text_(row.sessions),
+    price: text_(row.price),
+    funding: text_(row.funding),
+    start_time: text_(row.start_time),
+    end_time: text_(row.end_time),
+    emp_id: text_(row.emp_id),
+    instructor_name: text_(row.instructor_name),
+    emp_id_2: text_(row.emp_id_2),
+    instructor_name_2: text_(row.instructor_name_2),
+    start_date: normalizeDateTextToIso_(row.start_date) || normalizeDateTextToIso_(row.Date1),
+    end_date: normalizeDateTextToIso_(row.end_date) || normalizeDateTextToIso_(row.start_date) || normalizeDateTextToIso_(row.Date1),
+    status: text_(row.status),
+    notes: text_(row.notes),
+    finance_status: normalizeFinance_(row.finance_status),
+    finance_notes: text_(row.finance_notes),
+    is_archived: text_(row.is_archived || row.archive || ''),
+    archive: text_(row.archive || row.is_archived || ''),
+    Payer: text_(row.Payer || ''),
+    Payment: text_(row.Payment || '')
+  };
+  for (var i = 1; i <= 35; i++) {
+    out['Date' + i] = normalizeDateTextToIso_(row['Date' + i]);
+  }
+  return out;
+}
+
+function summaryCacheKeyForSheet_(version, sheetName) {
+  return 'pc:activities-summary:' + version + ':' + sheetName;
+}
+
+function readSummaryRowsFromCache_(version, sheetName) {
+  var baseKey = summaryCacheKeyForSheet_(version, sheetName);
+  var direct = scriptCacheGetJson_(baseKey);
+  if (Object.prototype.toString.call(direct) === '[object Array]') return direct;
+  if (!direct || !direct.chunk_count) return null;
+  var total = parseInt(direct.chunk_count, 10) || 0;
+  if (total <= 0) return null;
+  var merged = [];
+  for (var i = 0; i < total; i++) {
+    var chunk = scriptCacheGetJson_(baseKey + ':chunk:' + i);
+    if (Object.prototype.toString.call(chunk) !== '[object Array]') return null;
+    merged = merged.concat(chunk);
+  }
+  return merged;
+}
+
+function writeSummaryRowsToCache_(version, sheetName, rows) {
+  var baseKey = summaryCacheKeyForSheet_(version, sheetName);
+  var ttl = CONFIG.SCRIPT_CACHE_SECONDS || 120;
+  var putResult = scriptCachePutJson_(baseKey, rows, ttl);
+  if (putResult && putResult.ok) return;
+
+  var chunkSize = 200;
+  var chunkCount = Math.ceil(rows.length / chunkSize);
+  for (var i = 0; i < chunkCount; i++) {
+    var chunk = rows.slice(i * chunkSize, (i + 1) * chunkSize);
+    var chunkPut = scriptCachePutJson_(baseKey + ':chunk:' + i, chunk, ttl);
+    if (!chunkPut || !chunkPut.ok) return;
+  }
+  scriptCachePutJson_(baseKey, { chunk_count: chunkCount }, ttl);
+}
+
 function allActivitiesSummary_() {
   if (__rqCache_ && Object.prototype.hasOwnProperty.call(__rqCache_, 'allActivitiesSummary')) {
     return __rqCache_.allActivitiesSummary;
   }
   var version = dataViewsCacheVersion_();
-  var cacheKey = 'pc:activities-summary:' + version;
-  var cached = scriptCacheGetJson_(cacheKey);
-  if (cached && Object.prototype.toString.call(cached) === '[object Array]') {
-    if (__rqCache_) {
-      __rqCache_.allActivitiesSummary = cached;
-    }
-    return cached;
-  }
   var list = [];
   var cols = projectedActivityColumnsForSummary_();
-  configuredActivitiesSources_().forEach(function(sheetName) {
-    if (sheetName !== CONFIG.SHEETS.DATA_SHORT && sheetName !== CONFIG.SHEETS.DATA_LONG) return;
+  var sourceSheets = configuredActivitiesSources_().filter(function(sheetName) {
+    return sheetName === CONFIG.SHEETS.DATA_SHORT || sheetName === CONFIG.SHEETS.DATA_LONG;
+  });
+
+  sourceSheets.forEach(function(sheetName) {
+    var cachedRows = readSummaryRowsFromCache_(version, sheetName);
+    if (cachedRows) {
+      list = list.concat(cachedRows);
+      return;
+    }
     var rows = readRowsProjected_(sheetName, cols).map(function(row) {
       return {
         source_sheet: sheetName,
@@ -1857,13 +1954,14 @@ function allActivitiesSummary_() {
         Date1: normalizeDateTextToIso_(row.Date1)
       };
     });
+    writeSummaryRowsToCache_(version, sheetName, rows);
     list = list.concat(rows);
   });
+
   enrichRowsWithMeetings_(list);
   if (__rqCache_) {
     __rqCache_.allActivitiesSummary = list;
   }
-  scriptCachePutJson_(cacheKey, list, CONFIG.SCRIPT_CACHE_SECONDS || 120);
   return list;
 }
 
