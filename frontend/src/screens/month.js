@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { dsPageHeader, dsScreenStack, dsCard, dsInteractiveCard } from './shared/layout.js';
+import { dsScreenStack, dsCard, dsInteractiveCard } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
@@ -265,7 +265,6 @@ export const monthScreen = {
     </div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('חודש', '')}
       ${actNavGridHtml(state)}
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">חודש קודם ▶</button>

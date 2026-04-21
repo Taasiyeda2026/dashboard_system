@@ -1,6 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { persistCacheEntry } from '../cache-persist.js';
-import { dsPageHeader, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
+import { dsScreenStack, dsInteractiveCard } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
@@ -175,7 +175,6 @@ export const weekScreen = {
     </div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('שבוע', '')}
       ${actNavGridHtml(state)}
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">שבוע קודם ▶</button>

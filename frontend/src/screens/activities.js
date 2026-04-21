@@ -7,7 +7,6 @@ import {
 } from './shared/ui-hebrew.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import {
-  dsPageHeader,
   dsToolbar,
   dsCard,
   dsScreenStack,
@@ -167,7 +166,6 @@ export const activitiesScreen = {
         : `<div class="ds-compact-list">${compactRows}</div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('פעילויות', '')}
       ${actNavGridHtml(state)}
       ${dsToolbar(`
         <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">

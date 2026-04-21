@@ -3,7 +3,6 @@ import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { formatDateHe } from './shared/format-date.js';
 import { hebrewExceptionType, hebrewColumn, exceptionTypeVariant } from './shared/ui-hebrew.js';
 import {
-  dsPageHeader,
   dsCard,
   dsScreenStack,
   dsEmptyState,
@@ -149,7 +148,6 @@ export const exceptionsScreen = {
             .join('')}</div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('חריגות', 'נתונים הדורשים טיפול')}
       ${actNavGridHtml(state)}
       <div class="ds-screen-top-row">
         <input

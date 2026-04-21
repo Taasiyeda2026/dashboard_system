@@ -2,7 +2,6 @@ import { escapeHtml } from './shared/html.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn, hebrewEmploymentType, hebrewInstructorsSourcesLabel } from './shared/ui-hebrew.js';
 import {
-  dsPageHeader,
   dsCard,
   dsScreenStack,
   dsEmptyState,
@@ -110,7 +109,6 @@ export const instructorsScreen = {
     </div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('מדריכים', 'מדריכים בפעילויות לפי סוג')}
       ${actNavGridHtml(state)}
       ${sourcesBanner}
       <div class="ds-screen-top-row">

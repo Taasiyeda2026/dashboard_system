@@ -2,7 +2,6 @@ import { escapeHtml } from './shared/html.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn, visibleActivityCategoryLabel } from './shared/ui-hebrew.js';
 import {
-  dsPageHeader,
   dsCard,
   dsScreenStack,
   dsTableWrap,
@@ -75,7 +74,6 @@ export const endDatesScreen = {
             .join('')}</div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('תאריכי סיום', 'תוכניות לפי תאריך סיום')}
       ${actNavGridHtml(state)}
       ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש ברשימה…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({

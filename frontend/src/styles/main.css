@@ -1476,6 +1476,19 @@ span.ds-chip {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
+.ds-act-nav-item.is-active {
+  background: var(--ds-primary, #1971c2);
+  border-color: var(--ds-primary, #1971c2);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+  cursor: default;
+}
+
+.ds-act-nav-item.is-active .ds-act-nav-item__label {
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
 .ds-act-nav-item__icon {
   font-size: 1.35rem;
   line-height: 1;

@@ -1,7 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn } from './shared/ui-hebrew.js';
-import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
+import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 
 const DETAIL_COLUMNS = ['authority', 'school', 'contact_name', 'phone', 'mobile', 'email'];
 
@@ -92,7 +92,6 @@ export const contactsScreen = {
     }
 
     return dsScreenStack(`
-      ${dsPageHeader('אנשי קשר בתי ספר', 'רשימת אנשי קשר לפי בית ספר')}
       ${actNavGridHtml(state)}
       <div class="ds-screen-top-row">
         <input
