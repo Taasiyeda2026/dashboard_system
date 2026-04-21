@@ -308,13 +308,18 @@ function actionDashboard_(user, payload) {
 
   var shortAll = readRows_(CONFIG.SHEETS.DATA_SHORT).map(mapShortRow_);
   var longAll = buildLongRows_();
+  // meetingsMap used as fallback when data_long has no Date1-Date35 columns
+  var dashMeetingsMap = buildMeetingsMap_();
   var shortRowsBySource = shortAll.filter(function(row) {
     return activityOverlapsYm_(row, ym);
   });
   var longRowsBySource = longAll.filter(function(row) {
-    return activityHasSessionInYm_(row, ym);
+    if (activityHasSessionInYm_(row, ym)) return true;
+    var rowDates = dashMeetingsMap[text_(row.RowID)];
+    return !!(rowDates && rowDates.some(function(d) { return d.slice(0, 7) === ym; }));
   });
 
+  enrichRowsWithMeetings_(longRowsBySource);
   var combined = shortRowsBySource.concat(longRowsBySource);
   var oneDayTypes = configuredOneDayActivityTypes_();
   var programTypes = configuredProgramActivityTypes_();
