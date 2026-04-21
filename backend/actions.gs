@@ -260,12 +260,17 @@ function actionDashboard_(user, payload) {
   // תוכניות פעילות: סטטוס פתוח (לא סגור), ועם מפגש בחודש זה או תאריך סיום >= היום.
   // "ללא מדריך" ו"ללא תאריך התחלה" = לא פעיל → לא נכנסות לספירה.
   // "מפגש אחרי late_end_date_cutoff" = פעיל → נכנסת לספירה.
+  // בודקים את כל סוגי החריגות של השורה (לא רק הראשית), כדי שתוכנית עם
+  // missing_instructor ו-late_end_date גם יחד תיחשב כ"לא פעיל".
   var INACTIVE_EXCEPTION_TYPES = ['missing_instructor', 'missing_start_date'];
   var todayIso = formatDate_(new Date());
   var activeLongRows = longRows.filter(function(row) {
     if (text_(row.status) === 'סגור') return false;
-    var exc = primaryExceptionForRow_(row);
-    if (exc && INACTIVE_EXCEPTION_TYPES.indexOf(exc) >= 0) return false;
+    var allExcTypes = rowExceptionTypes_(row);
+    var hasInactiveExc = allExcTypes.some(function(e) {
+      return INACTIVE_EXCEPTION_TYPES.indexOf(e) >= 0;
+    });
+    if (hasInactiveExc) return false;
     var rowDates = dashMeetingsMap[text_(row.RowID)];
     var normalizedDates = [];
     if (rowDates && Array.isArray(rowDates)) {
