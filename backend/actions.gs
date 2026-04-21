@@ -704,7 +704,9 @@ function actionMonth_(user, payload) {
 function actionExceptions_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
-  var rows = buildLongRows_();
+  // enrichRowsWithMeetings_ מעדכן end_date לתאריך המפגש האחרון האמיתי מגיליון activity_meetings,
+  // כך שבדיקת late_end_date תזהה נכון קורסים עם מפגשים מעבר ל-late_end_date_cutoff.
+  var rows = enrichRowsWithMeetings_(buildLongRows_().slice());
   var counts = {
     missing_instructor: 0,
     missing_start_date: 0,
