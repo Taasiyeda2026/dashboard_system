@@ -6,7 +6,6 @@ import { performance } from 'node:perf_hooks';
 import { dashboardScreen } from '../frontend/src/screens/dashboard.js';
 import { activitiesScreen } from '../frontend/src/screens/activities.js';
 import { financeScreen } from '../frontend/src/screens/finance.js';
-import { operationsScreen } from '../frontend/src/screens/operations.js';
 
 class MockSheet {
   constructor(name, values) {
@@ -95,14 +94,14 @@ function buildSheets() {
         'view_admin', 'view_dashboard', 'view_activities', 'view_week', 'view_month',
         'view_instructors', 'view_exceptions', 'view_my_data', 'view_contacts',
         'view_finance', 'view_permissions', 'can_request_edit', 'can_edit_direct',
-        'can_add_activity', 'can_review_requests', 'view_operations_data', 'active'
+        'can_add_activity', 'can_review_requests', 'active'
       ],
       [[
         'U-REVIEW', 'CODE-REVIEW', 'Ops Reviewer', 'operations reviewer', '', 'dashboard',
         'yes', 'yes', 'yes', 'yes', 'yes',
         'yes', 'yes', 'yes', 'yes',
         'yes', 'yes', 'yes', 'yes',
-        'yes', 'yes', 'yes', 'yes'
+        'yes', 'yes', 'yes'
       ]]
     )),
     settings: new MockSheet('settings', mkSheet(
@@ -171,7 +170,7 @@ function renderMs(screen, data, state) {
 function runAction(context, token, action, payload = {}) {
   const rsp = parseResponse(context.doPost(toEvent({ action, token, debug_perf: true, ...payload })));
   if (!rsp.ok) throw new Error(`${action} failed: ${rsp.error}`);
-  return { data: rsp.data, perf: rsp.data?.debug_perf || null };
+  return rsp.data;
 }
 
 function main() {
@@ -187,7 +186,6 @@ function main() {
   const dashboard = runAction(context, token, 'dashboard', { month: '2026-04' });
   const activities = runAction(context, token, 'activities', { activity_type: 'all' });
   const finance = runAction(context, token, 'finance', {});
-  const operations = runAction(context, token, 'operations', {});
 
   const screenState = {
     route: 'dashboard',
@@ -199,32 +197,22 @@ function main() {
 
   const summary = {
     dashboard: {
-      backend_ms: dashboard.perf.total_ms,
-      sheets_read_ms: dashboard.perf.sheets_total_ms,
-      payload_bytes: dashboard.perf.response_size_bytes,
-      render_ms: renderMs(dashboardScreen, dashboard.data, { ...screenState, route: 'dashboard' }),
-      cache_hit: !!dashboard.perf.cache_hit
+      backend_ms: dashboard.debug_perf.total_ms,
+      sheets_read_ms: dashboard.debug_perf.sheets_total_ms,
+      payload_bytes: dashboard.debug_perf.response_size_bytes,
+      render_ms: renderMs(dashboardScreen, dashboard, { ...screenState, route: 'dashboard' })
     },
     activities: {
-      backend_ms: activities.perf.total_ms,
-      sheets_read_ms: activities.perf.sheets_total_ms,
-      payload_bytes: activities.perf.response_size_bytes,
-      render_ms: renderMs(activitiesScreen, activities.data, { ...screenState, route: 'activities', activityTab: 'all' }),
-      cache_hit: !!activities.perf.cache_hit
+      backend_ms: activities.debug_perf.total_ms,
+      sheets_read_ms: activities.debug_perf.sheets_total_ms,
+      payload_bytes: activities.debug_perf.response_size_bytes,
+      render_ms: renderMs(activitiesScreen, activities, { ...screenState, route: 'activities', activityTab: 'all' })
     },
     finance: {
-      backend_ms: finance.perf.total_ms,
-      sheets_read_ms: finance.perf.sheets_total_ms,
-      payload_bytes: finance.perf.response_size_bytes,
-      render_ms: renderMs(financeScreen, finance.data, { ...screenState, route: 'finance' }),
-      cache_hit: !!finance.perf.cache_hit
-    },
-    operations: {
-      backend_ms: operations.perf.total_ms,
-      sheets_read_ms: operations.perf.sheets_total_ms,
-      payload_bytes: operations.perf.response_size_bytes,
-      render_ms: renderMs(operationsScreen, operations.data, { ...screenState, route: 'operations' }),
-      cache_hit: !!operations.perf.cache_hit
+      backend_ms: finance.debug_perf.total_ms,
+      sheets_read_ms: finance.debug_perf.sheets_total_ms,
+      payload_bytes: finance.debug_perf.response_size_bytes,
+      render_ms: renderMs(financeScreen, finance, { ...screenState, route: 'finance' })
     }
   };
 
