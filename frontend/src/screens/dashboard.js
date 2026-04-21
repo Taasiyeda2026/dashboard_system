@@ -133,6 +133,7 @@ export const dashboardScreen = {
       ${monthNav}
       <div data-dash-data-area>
         <div class="ds-kpi-grid ds-dashboard-kpi-grid">${kpiHtml}</div>
+        <div style="margin-top: 1.5rem"></div>
         ${dsCard({
           title: 'פעילויות לפי מנהל פעילות',
           body: managersBlock,
