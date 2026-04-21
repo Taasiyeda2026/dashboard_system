@@ -1720,7 +1720,11 @@ function enrichRowsWithMeetings_(rows) {
     if (dates && dates.length) {
       var range = meetingDateRangeFromList_(dates);
       row.start_date = range.start;
-      row.end_date = range.end;
+      // שימור ה-end_date המקורי אם הוא מאוחר יותר מהמפגש האחרון,
+      // כדי שקורס עם תאריך סיום מאוחר לא יאבד את החריגה late_end_date
+      // רק בגלל שהמפגשים הרשומים עדיין לא הגיעו לאותו תאריך.
+      var origEnd = text_(row.end_date);
+      row.end_date = (range.end > origEnd) ? range.end : origEnd;
     }
   });
   return rows;
