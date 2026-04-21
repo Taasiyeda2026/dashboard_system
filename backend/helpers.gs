@@ -77,8 +77,83 @@ function parsePayload_(e) {
   return JSON.parse(raw || '{}');
 }
 
-function jsonResponse_(payload) {
+var __rqPerf_ = null;
+
+function perfNowMs_() {
+  return new Date().getTime();
+}
+
+function beginRequestPerf_(action, payload) {
+  var debugFlag = payload && (
+    payload.debug_perf === true ||
+    text_(payload.debug_perf) === '1' ||
+    text_(payload.debug_perf).toLowerCase() === 'true'
+  );
+  __rqPerf_ = {
+    enabled: !!debugFlag,
+    action: text_(action),
+    started_ms: perfNowMs_(),
+    marks: [{ label: 'request_start', at_ms: perfNowMs_() }],
+    sheet_reads: [],
+    sheets_total_ms: 0
+  };
+}
+
+function markRequestPerf_(label) {
+  if (!__rqPerf_ || !__rqPerf_.enabled) return;
+  __rqPerf_.marks.push({ label: text_(label), at_ms: perfNowMs_() });
+}
+
+function trackSheetReadPerf_(meta) {
+  if (!__rqPerf_ || !__rqPerf_.enabled) return;
+  var item = {
+    sheet: text_(meta.sheet),
+    rows: Number(meta.rows || 0),
+    cols: Number(meta.cols || 0),
+    duration_ms: Number(meta.duration_ms || 0),
+    projected: !!meta.projected,
+    from_cache: !!meta.from_cache
+  };
+  __rqPerf_.sheet_reads.push(item);
+  __rqPerf_.sheets_total_ms += item.duration_ms;
+}
+
+function buildPerfPayload_(responsePayload, meta) {
+  if (!__rqPerf_ || !__rqPerf_.enabled) return null;
+  var endMs = perfNowMs_();
+  var marks = __rqPerf_.marks.slice();
+  marks.push({ label: 'response_start', at_ms: endMs });
+  var stepDurations = [];
+  for (var i = 1; i < marks.length; i++) {
+    stepDurations.push({
+      step: marks[i - 1].label + '→' + marks[i].label,
+      duration_ms: marks[i].at_ms - marks[i - 1].at_ms
+    });
+  }
+  var responseSize = JSON.stringify(responsePayload || {}).length;
+  return {
+    action: text_((meta && meta.action) || __rqPerf_.action),
+    cache_hit: !!(meta && meta.cache_hit),
+    errored: !!(meta && meta.errored),
+    total_ms: endMs - __rqPerf_.started_ms,
+    sheets_total_ms: __rqPerf_.sheets_total_ms,
+    sheet_reads: __rqPerf_.sheet_reads,
+    steps: stepDurations,
+    response_size_bytes: responseSize
+  };
+}
+
+function jsonResponse_(payload, perfMeta) {
+  var body = payload || {};
+  var perf = buildPerfPayload_(body, perfMeta);
+  if (perf) {
+    if (body.ok && body.data && typeof body.data === 'object') {
+      body.data.debug_perf = perf;
+    } else {
+      body.debug_perf = perf;
+    }
+  }
   return ContentService
-    .createTextOutput(JSON.stringify(payload))
+    .createTextOutput(JSON.stringify(body))
     .setMimeType(ContentService.MimeType.JSON);
 }

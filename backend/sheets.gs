@@ -157,6 +157,14 @@ function getRows_(sheetName) {
 function readRows_(sheetName) {
   var cacheKey = sheetName;
   if (__rqCache_ && __rqCache_.readRows[cacheKey]) {
+    trackSheetReadPerf_({
+      sheet: sheetName,
+      rows: __rqCache_.readRows[cacheKey].length,
+      cols: 0,
+      duration_ms: 0,
+      projected: false,
+      from_cache: true
+    });
     return __rqCache_.readRows[cacheKey];
   }
 
@@ -173,7 +181,9 @@ function readRows_(sheetName) {
   }
 
   var headers = getHeaders_(sheet);
+  var readStartMs = perfNowMs_();
   var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, lastCol).getValues();
+  var readDurationMs = perfNowMs_() - readStartMs;
 
   var result = values.filter(function(row) {
     return row.some(function(cell) { return text_(cell) !== ''; });
@@ -188,6 +198,14 @@ function readRows_(sheetName) {
   if (__rqCache_) {
     __rqCache_.readRows[cacheKey] = result;
   }
+  trackSheetReadPerf_({
+    sheet: sheetName,
+    rows: values.length,
+    cols: lastCol,
+    duration_ms: readDurationMs,
+    projected: false,
+    from_cache: false
+  });
   return result;
 }
 

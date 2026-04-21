@@ -16,6 +16,7 @@ function handlePost_(e) {
     beginRequestCache_();
     var payload = parsePayload_(e);
     var action = text_(payload.action);
+    beginRequestPerf_(action, payload);
     var user = action === 'login' ? null : requireAuth_(payload.token);
 
     var handlers = {
@@ -79,21 +80,39 @@ function handlePost_(e) {
       var readKey = buildReadActionCacheKey_(action, user, payload);
       var readHit = scriptCacheGetJson_(readKey);
       if (readHit !== null) {
-        return jsonResponse_({ ok: true, data: readHit });
+        markRequestPerf_('cache_lookup_done');
+        return jsonResponse_({ ok: true, data: readHit }, {
+          action: action,
+          cache_hit: true
+        });
       }
+      markRequestPerf_('cache_lookup_done');
       var readData = handlers[action]();
+      markRequestPerf_('action_done');
       scriptCachePutJson_(readKey, readData, CONFIG.SCRIPT_CACHE_SECONDS || 90);
-      return jsonResponse_({ ok: true, data: readData });
+      return jsonResponse_({ ok: true, data: readData }, {
+        action: action,
+        cache_hit: false
+      });
     }
 
+    markRequestPerf_('action_start');
+    var writeData = handlers[action]();
+    markRequestPerf_('action_done');
     return jsonResponse_({
       ok: true,
-      data: handlers[action]()
+      data: writeData
+    }, {
+      action: action,
+      cache_hit: false
     });
   } catch (error) {
     return jsonResponse_({
       ok: false,
       error: error && error.message ? error.message : 'Unexpected error'
+    }, {
+      action: (__rqPerf_ && __rqPerf_.action) || 'unknown',
+      errored: true
     });
   }
 }
