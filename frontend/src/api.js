@@ -157,6 +157,8 @@ async function request(action, payload = {}) {
     responseText = await response.text();
     json = JSON.parse(responseText);
   } catch {
+    // eslint-disable-next-line no-console
+    console.error('[api] non-JSON response from server (action=' + action + '):', responseText.slice(0, 500));
     throw new Error(translateApiErrorForUser('server_error'));
   }
   if (!json.ok) {
