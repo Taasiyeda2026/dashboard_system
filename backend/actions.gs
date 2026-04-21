@@ -935,6 +935,70 @@ function actionMyData_(user) {
   return { rows: allActivities_() };
 }
 
+function actionOperations_(user) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var permission = getPermissionRow_(user.user_id);
+  if (yesNo_(permission.view_operations_data) !== 'yes' && user.display_role !== 'admin') {
+    throw new Error('Forbidden');
+  }
+  return { rows: allActivities_() };
+}
+
+function actionEditRequests_(user) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var permission = getPermissionRow_(user.user_id);
+  var canReview = user.display_role === 'admin' ||
+    (user.display_role === 'operations_reviewer' && yesNo_(permission.can_review_requests) === 'yes');
+
+  var rows = readRows_(CONFIG.SHEETS.EDIT_REQUESTS).filter(function(r) {
+    return yesNo_(r.active) === 'yes';
+  });
+
+  if (!canReview) {
+    var myId = text_(user.user_id);
+    rows = rows.filter(function(r) {
+      return text_(r.requested_by_user_id) === myId;
+    });
+  }
+
+  var groups = {};
+  var order = [];
+  rows.forEach(function(r) {
+    var rid = text_(r.request_id);
+    if (!groups[rid]) {
+      groups[rid] = {
+        request_id: rid,
+        source_sheet: text_(r.source_sheet),
+        source_row_id: text_(r.source_row_id),
+        requested_by_user_id: text_(r.requested_by_user_id),
+        requested_by_name: text_(r.requested_by_name),
+        requested_at: text_(r.requested_at),
+        status: text_(r.status),
+        reviewed_at: text_(r.reviewed_at),
+        reviewed_by: text_(r.reviewed_by),
+        reviewer_notes: text_(r.reviewer_notes),
+        fields: []
+      };
+      order.push(rid);
+    }
+    groups[rid].fields.push({
+      field_name: text_(r.field_name),
+      old_value: text_(r.old_value),
+      new_value: text_(r.new_value)
+    });
+  });
+
+  var result = order.map(function(rid) { return groups[rid]; });
+  result.sort(function(a, b) {
+    return (b.requested_at || '').localeCompare(a.requested_at || '');
+  });
+
+  return {
+    groups: result,
+    canReview: canReview
+  };
+}
+
 /**
  * Computes effective non-admin role defaults, merging hardcoded baseline with
  * any active overrides in the settings sheet (role_defaults.<role>.<flag>).

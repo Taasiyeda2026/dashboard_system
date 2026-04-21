@@ -52,6 +52,8 @@ const READ_ACTIONS = {
   contacts: true,
   endDates: true,
   myData: true,
+  operations: true,
+  editRequests: true,
   permissions: true,
   listSheets: true
 };
@@ -134,6 +136,8 @@ export const api = {
   contacts: () => request('contacts'),
   endDates: () => request('endDates'),
   myData: () => request('myData'),
+  operations: () => request('operations'),
+  editRequests: () => request('editRequests'),
   permissions: () => request('permissions'),
   addActivity: (target, data) => {
     if (typeof target === 'object' && target !== null && data === undefined) {

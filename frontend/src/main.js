@@ -15,6 +15,8 @@ import { instructorContactsScreen } from './screens/instructor-contacts.js';
 import { contactsScreen } from './screens/contacts.js';
 import { endDatesScreen } from './screens/end-dates.js';
 import { myDataScreen } from './screens/my-data.js';
+import { operationsScreen } from './screens/operations.js';
+import { editRequestsScreen } from './screens/edit-requests.js';
 import { permissionsScreen } from './screens/permissions.js';
 
 const app = document.getElementById('app');
@@ -142,6 +144,8 @@ const screenLabels = {
   contacts: 'אנשי קשר',
   'end-dates': 'תאריכי סיום',
   'my-data': 'הנתונים שלי',
+  operations: 'תפעול',
+  'edit-requests': 'בקשות עריכה',
   permissions: 'הרשאות'
 };
 
@@ -157,6 +161,8 @@ const screens = {
   contacts: contactsScreen,
   'end-dates': endDatesScreen,
   'my-data': myDataScreen,
+  operations: operationsScreen,
+  'edit-requests': editRequestsScreen,
   permissions: permissionsScreen
 };
 

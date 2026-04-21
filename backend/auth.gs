@@ -88,6 +88,8 @@ function allKnownRoutes_() {
     'finance',
     'end-dates',
     'my-data',
+    'operations',
+    'edit-requests',
     'permissions'
   ];
 }
@@ -132,6 +134,8 @@ function buildRoutesFromPermission_(permission, role) {
     contacts: '__school_contacts__',
     finance: 'view_finance',
     'end-dates': '__end_dates__',
+    operations: 'view_operations_data',
+    'edit-requests': 'view_edit_requests',
     permissions: 'view_permissions'
   };
 
@@ -201,7 +205,7 @@ function viewKeyToRouteId_(viewKey) {
     my_data: 'my-data',
     'my-data': 'my-data',
     view_my_data: 'my-data',
-    view_operations_data: 'my-data',
+    view_operations_data: 'operations',
     instructor_contacts: 'instructor-contacts',
     'instructor-contacts': 'instructor-contacts',
     view_contacts_instructors: 'instructor-contacts',
@@ -216,7 +220,7 @@ function viewKeyToRouteId_(viewKey) {
     permissions: 'permissions',
     view_permissions: 'permissions',
     view_admin: 'dashboard',
-    view_edit_requests: 'permissions',
+    view_edit_requests: 'edit-requests',
     view_final_approvals: 'permissions'
   };
   return table[k] || '';

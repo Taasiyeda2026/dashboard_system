@@ -32,6 +32,8 @@ function handlePost_(e) {
       contacts: function() { return actionContacts_(user, payload); },
       endDates: function() { return actionEndDates_(user, payload); },
       myData: function() { return actionMyData_(user, payload); },
+      operations: function() { return actionOperations_(user); },
+      editRequests: function() { return actionEditRequests_(user); },
       permissions: function() { return actionPermissions_(user, payload); },
       addActivity: function() { return actionAddActivity_(user, payload); },
       saveActivity: function() { return actionSaveActivity_(user, payload); },
@@ -64,6 +66,8 @@ function handlePost_(e) {
       contacts: 'contacts',
       endDates: 'end-dates',
       myData: 'my-data',
+      operations: 'operations',
+      editRequests: 'edit-requests',
       permissions: 'permissions'
     };
     var routeForAction = ACTION_ROUTE_MAP[action];
@@ -109,6 +113,8 @@ function isReadActionCacheable_(action, user) {
     contacts: true,
     endDates: true,
     myData: true,
+    operations: true,
+    editRequests: true,
     permissions: true
   };
   return !!map[action];
