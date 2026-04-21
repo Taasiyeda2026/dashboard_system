@@ -21,7 +21,8 @@ import { editRequestsScreen } from './screens/edit-requests.js';
 import { permissionsScreen } from './screens/permissions.js';
 
 const app = document.getElementById('app');
-const loginLogoSrc = new URL('../assets/logo1.png', import.meta.url).href;
+const loginLogoSrc  = new URL('../assets/logo1.png',      import.meta.url).href;
+const systemLogoSrc = new URL('../assets/logo_system.png', import.meta.url).href;
 
 let isMobileNavOpen = false;
 let lastRenderedRoute = null;
@@ -289,7 +290,7 @@ function shell(content) {
           <button type="button" class="shell-close-btn" data-mobile-close aria-label="סגירת תפריט">✕</button>
         </div>
         <div class="shell-brand">
-          <img class="shell-brand__mark" src="${loginLogoSrc}" alt="" width="120" height="52" decoding="async" />
+          <img class="shell-brand__mark" src="${systemLogoSrc}" alt="" width="120" height="52" decoding="async" />
           <span class="shell-brand__name">${systemName}</span>
         </div>
         <div class="shell-sidebar__user" aria-label="משתמש מחובר">
