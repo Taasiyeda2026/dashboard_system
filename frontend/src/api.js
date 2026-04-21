@@ -43,16 +43,19 @@ const READ_ACTIONS = {
   bootstrap: true,
   dashboard: true,
   activities: true,
+  activityDetail: true,
   week: true,
   month: true,
   exceptions: true,
   finance: true,
+  financeDetail: true,
   instructors: true,
   instructorContacts: true,
   contacts: true,
   endDates: true,
   myData: true,
   operations: true,
+  operationsDetail: true,
   editRequests: true,
   permissions: true,
   listSheets: true
@@ -60,12 +63,48 @@ const READ_ACTIONS = {
 
 const API_TIMEOUT_MS_READ = 20000;
 const API_TIMEOUT_MS_WRITE = 30000;
+const PERF_MAX_REQUESTS = 150;
+
+function isPerfDebugEnabled() {
+  try {
+    if (typeof window !== 'undefined' && window.__DEBUG_PERF__ === true) return true;
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('debug_perf') === '1') return true;
+  } catch { /* ignore */ }
+  return false;
+}
+
+function getPerfStore() {
+  if (typeof window === 'undefined') return null;
+  if (!window.__dsPerf) {
+    window.__dsPerf = { requests: [], renders: [], screens: {} };
+    window.__resetDsPerf = () => {
+      window.__dsPerf = { requests: [], renders: [], screens: {} };
+    };
+  }
+  return window.__dsPerf;
+}
+
+function pushPerfRequest(entry) {
+  const store = getPerfStore();
+  if (!store) return;
+  store.requests.push(entry);
+  if (store.requests.length > PERF_MAX_REQUESTS) store.requests.splice(0, store.requests.length - PERF_MAX_REQUESTS);
+  const stats = store.screens[entry.action] || { count: 0, total_ms: 0, max_ms: 0 };
+  stats.count += 1;
+  stats.total_ms += entry.duration_ms || 0;
+  stats.max_ms = Math.max(stats.max_ms, entry.duration_ms || 0);
+  store.screens[entry.action] = stats;
+  if (entry.duration_ms >= 1500 || (entry.payload_bytes || 0) >= 200000) {
+    // eslint-disable-next-line no-console
+    console.warn('[perf][api] heavy request', entry);
+  }
+}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function postWithTimeout(action, payload, tokenAtCallTime) {
+async function postWithTimeout(action, requestBody) {
   const timeoutMs = READ_ACTIONS[action] ? API_TIMEOUT_MS_READ : API_TIMEOUT_MS_WRITE;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -73,7 +112,7 @@ async function postWithTimeout(action, payload, tokenAtCallTime) {
     return await fetch(config.apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ action, token: tokenAtCallTime, ...payload }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal
     });
   } finally {
@@ -88,14 +127,22 @@ async function request(action, payload = {}) {
 
   const tokenAtCallTime = state.token;
 
+  const requestBody = {
+    action,
+    token: tokenAtCallTime,
+    ...payload
+  };
+  if (isPerfDebugEnabled()) requestBody.debug_perf = true;
+
+  const requestStart = performance.now();
   let response;
   try {
-    response = await postWithTimeout(action, payload, tokenAtCallTime);
+    response = await postWithTimeout(action, requestBody);
   } catch {
     if (READ_ACTIONS[action]) {
       try {
         await sleep(250);
-        response = await postWithTimeout(action, payload, tokenAtCallTime);
+        response = await postWithTimeout(action, requestBody);
       } catch {
         throw new Error(translateApiErrorForUser('network_error'));
       }
@@ -105,8 +152,10 @@ async function request(action, payload = {}) {
   }
 
   let json;
+  let responseText = '';
   try {
-    json = await response.json();
+    responseText = await response.text();
+    json = JSON.parse(responseText);
   } catch {
     throw new Error(translateApiErrorForUser('server_error'));
   }
@@ -119,6 +168,12 @@ async function request(action, payload = {}) {
   if (MUTATING_ACTIONS[action]) {
     clearScreenDataCache();
   }
+  pushPerfRequest({
+    action,
+    duration_ms: Math.round(performance.now() - requestStart),
+    payload_bytes: responseText.length,
+    backend_debug: json.data && json.data.debug_perf ? json.data.debug_perf : null
+  });
   return json.data;
 }
 
@@ -127,16 +182,19 @@ export const api = {
   bootstrap: () => request('bootstrap'),
   dashboard: (filters) => request('dashboard', filters || {}),
   activities: (filters) => request('activities', filters),
+  activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
   week: (params) => request('week', params || {}),
   month: (params) => request('month', params || {}),
   exceptions: () => request('exceptions'),
   finance: (params) => request('finance', params || {}),
+  financeDetail: (source_row_id, source_sheet) => request('financeDetail', { source_row_id, source_sheet }),
   instructors: () => request('instructors'),
   instructorContacts: () => request('instructorContacts'),
   contacts: () => request('contacts'),
   endDates: () => request('endDates'),
   myData: () => request('myData'),
-  operations: () => request('operations'),
+  operations: (params) => request('operations', params || {}),
+  operationsDetail: (source_row_id, source_sheet) => request('operationsDetail', { source_row_id, source_sheet }),
   editRequests: () => request('editRequests'),
   permissions: () => request('permissions'),
   addActivity: (target, data) => {

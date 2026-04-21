@@ -29,6 +29,32 @@ const ui = createSharedInteractionLayer();
 
 /** In-flight API request dedup: prevents duplicate calls when navigating quickly. */
 const inflightRequests = new Map();
+const PERF_MAX_RENDERS = 150;
+
+function recordRenderPerf(route, phase, durationMs, extra = {}) {
+  if (typeof window === 'undefined') return;
+  if (!window.__dsPerf) {
+    window.__dsPerf = { requests: [], renders: [], screens: {} };
+    window.__resetDsPerf = () => {
+      window.__dsPerf = { requests: [], renders: [], screens: {} };
+    };
+  }
+  const entry = {
+    route: String(route || 'unknown'),
+    phase: String(phase || 'render'),
+    duration_ms: Math.round(durationMs),
+    at: new Date().toISOString(),
+    ...extra
+  };
+  window.__dsPerf.renders.push(entry);
+  if (window.__dsPerf.renders.length > PERF_MAX_RENDERS) {
+    window.__dsPerf.renders.splice(0, window.__dsPerf.renders.length - PERF_MAX_RENDERS);
+  }
+  if (entry.duration_ms >= 120) {
+    // eslint-disable-next-line no-console
+    console.warn('[perf][render] heavy render', entry);
+  }
+}
 
 // ─── LocalStorage screen-data cache ───────────────────────────────────────
 // Keys include a user-id prefix so different users on the same browser don't
@@ -320,12 +346,15 @@ function closeMobileNav() {
 
 function screenDataCacheKey() {
   if (state.route === 'activities') {
-    return `activities:${state.activityTab || 'all'}:${state.activityFinanceStatus || ''}`;
+    return `activities:${state.activityTab || 'all'}:${state.activityFinanceStatus || ''}:${state.activitySearch || ''}:${state.activityQuickFamily || ''}:${state.activityQuickManager || ''}:${state.activityEndingCurrentMonth ? '1' : '0'}`;
   }
   if (state.route === 'finance') {
     const df = state.financeDateFrom || '';
     const dt = state.financeDateTo || '';
-    return `finance:${df}:${dt}`;
+    return `finance:${df}:${dt}:${state.financeSearch || ''}:${state.financeStatusFilter || ''}:${state.financeTab || 'active'}:${state.financeMonthYm || ''}`;
+  }
+  if (state.route === 'operations') {
+    return `operations:${state.operationsSearch || ''}:${state.operationsActivityType || ''}`;
   }
   if (state.route === 'dashboard') {
     const ym = state.dashboardMonthYm && /^\d{4}-\d{2}$/.test(state.dashboardMonthYm) ? state.dashboardMonthYm : 'default';
@@ -405,8 +434,12 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     if (screenDataCacheKey() === cacheKey) {
       const screenRoot = document.getElementById('screenRoot');
       if (screenRoot) {
+        const renderStart = performance.now();
         screenRoot.innerHTML = screen.render(data, { state });
         bindScreen(screen, screenRoot, data);
+        recordRenderPerf(state.route, 'background-refresh-render', performance.now() - renderStart, {
+          cache_key: cacheKey
+        });
       }
     }
   } catch {
@@ -451,6 +484,7 @@ function updateNavActiveClasses() {
  * Falls back to full render() if cache is missing or route has changed.
  */
 function fastRerenderScreen(screen, routeAtBind) {
+  const perfStart = performance.now();
   if (state.route !== routeAtBind) { render(); return; }
   const key = screenDataCacheKey();
   const raw = state.screenDataCache[key];
@@ -460,6 +494,7 @@ function fastRerenderScreen(screen, routeAtBind) {
   if (!screenRoot) { render(); return; }
   screenRoot.innerHTML = screen.render(hit.data, { state });
   bindScreen(screen, screenRoot, hit.data);
+  recordRenderPerf(routeAtBind, 'fast-rerender', performance.now() - perfStart, { cache_key: key });
 }
 
 function clearScreenDataCache() {
@@ -597,6 +632,7 @@ async function restoreSession() {
 }
 
 async function mountScreen() {
+  const mountStartMs = performance.now();
   if (isDesktopViewport()) {
     isMobileNavOpen = false;
     document.body.classList.remove('is-shell-nav-open');
@@ -641,14 +677,21 @@ async function mountScreen() {
     app.innerHTML = shell(shellBody);
     bindShell();
     if (rawEntry) {
+      const renderStart = performance.now();
       const screenRoot = document.getElementById('screenRoot');
       if (screenRoot) bindScreen(screen, screenRoot, rawEntry.data);
+      recordRenderPerf(state.route, 'first-mount-cached', performance.now() - renderStart, {
+        cache_key: cacheKey,
+        stale: !!isStale
+      });
       if (routeChanged) lastRenderedRoute = state.route;
       if (isStale) backgroundRefreshScreen(screen, cacheKey);
+      recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
       return;
     }
     await flushPaint();
   } else if (rawEntry) {
+    const renderStart = performance.now();
     // Shell exists + have any data (fresh or stale): render immediately, no spinner.
     updateNavActiveClasses();
     const screenRoot = document.getElementById('screenRoot');
@@ -656,8 +699,13 @@ async function mountScreen() {
       screenRoot.innerHTML = screen.render(rawEntry.data, { state });
       bindScreen(screen, screenRoot, rawEntry.data);
     }
+    recordRenderPerf(state.route, 'shell-cached', performance.now() - renderStart, {
+      cache_key: cacheKey,
+      stale: !!isStale
+    });
     if (routeChanged) lastRenderedRoute = state.route;
     if (isStale) backgroundRefreshScreen(screen, cacheKey);
+    recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
     return;
   } else {
     // No data at all: show loading spinner and fetch.
@@ -670,10 +718,14 @@ async function mountScreen() {
 
   try {
     const data = await loadScreenDataWithCache(screen);
+    const renderStart = performance.now();
     const screenRoot = document.getElementById('screenRoot');
     if (!screenRoot) throw new Error('אזור התצוגה לא זמין');
     screenRoot.innerHTML = screen.render(data, { state });
     bindScreen(screen, screenRoot, data);
+    recordRenderPerf(state.route, 'fresh-data-render', performance.now() - renderStart, {
+      cache_key: cacheKey
+    });
     if (routeChanged) lastRenderedRoute = state.route;
   } catch (err) {
     const screenRoot = document.getElementById('screenRoot');
@@ -687,6 +739,7 @@ async function mountScreen() {
     }
   } finally {
     setShellNavBusy(false);
+    recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
   }
 }
 
