@@ -15,7 +15,7 @@ export const loginScreen = {
               decoding="async"
             />
           </div>
-          <header class="ds-page-header ds-page-header--login" aria-labelledby="loginHeading">
+          <header class="ds-page-header ds-page-header--login opacity-[0.99] border-t-[0.385723px] border-r-[0.385723px] border-b-[0.385723px] border-l-[0.385723px]" aria-labelledby="loginHeading">
             <h1 id="loginHeading" class="ds-page-header__title">כניסה למערכת</h1>
             <p class="ds-page-header__subtitle">${systemTitle}</p>
           </header>
