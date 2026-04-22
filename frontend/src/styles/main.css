@@ -3468,6 +3468,12 @@ select.ds-input {
   cursor: wait;
 }
 
+.ds-summary-btn.is-active {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
 .ds-summary-panel {
   margin-top: 12px;
   background: #ffffff;

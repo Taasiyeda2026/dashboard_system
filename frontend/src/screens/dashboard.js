@@ -141,12 +141,8 @@ export const dashboardScreen = {
         return `<div class="ds-manager-card">
           <div class="ds-manager-card__head">
             <p class="ds-manager-card__name">${escapeHtml(displayName)}</p>
-            <button type="button" class="ds-summary-btn" data-summary-target="${summaryTarget}" aria-label="סיכום">סיכום</button>
           </div>
           <div class="ds-manager-stats">${statsHtml}</div>
-          <div class="ds-summary-panel" data-summary-panel="${summaryTarget}" hidden>
-            <div class="ds-summary-panel__content"></div>
-          </div>
         </div>`;
       })
       .join('');
@@ -221,9 +217,21 @@ export const dashboardScreen = {
       const content = panel?.querySelector('.ds-summary-panel__content');
       const btn = getSummaryBtn(target);
       if (!panel || !content) return;
-      panel.hidden = false;
-      content.innerHTML = htmlText;
-      if (btn) btn.hidden = true;
+      const isOpen = !panel.hidden;
+      if (isOpen) {
+        panel.hidden = true;
+        if (btn) {
+          btn.textContent = 'סיכום';
+          btn.classList.remove('is-active');
+        }
+      } else {
+        panel.hidden = false;
+        content.innerHTML = htmlText;
+        if (btn) {
+          btn.textContent = 'סגור ✕';
+          btn.classList.add('is-active');
+        }
+      }
       toggleSummaryButton(target, false);
     }
 
