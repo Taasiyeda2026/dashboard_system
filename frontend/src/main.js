@@ -164,7 +164,7 @@ const screenLabels = {
   'end-dates': 'תאריכי סיום',
   'my-data': 'הנתונים שלי',
   operations: 'תפעול',
-  'edit-requests': 'בקשות עריכה',
+  'edit-requests': 'אישורים',
   permissions: 'הרשאות'
 };
 
