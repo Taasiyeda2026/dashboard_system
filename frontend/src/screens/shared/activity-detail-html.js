@@ -4,19 +4,19 @@ import { formatDateHe } from './format-date.js';
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 
 const ACTIVITY_TYPE_PILL_LABEL = {
-  course:       'קורס',
+  course: 'קורס',
   after_school: 'חוג אפטרסקול',
-  workshop:     'סדנה',
-  tour:         'סיור',
-  escape_room:  'חדר בריחה'
+  workshop: 'סדנה',
+  tour: 'סיור',
+  escape_room: 'חדר בריחה',
 };
 
 const ACTIVITY_NAME_LABEL = {
-  course:       'שם קורס',
+  course: 'שם קורס',
   after_school: 'שם חוג אפטרסקול',
-  workshop:     'שם סדנה',
-  tour:         'שם סיור',
-  escape_room:  'שם פעילות'
+  workshop: 'שם סדנה',
+  tour: 'שם סיור',
+  escape_room: 'שם פעילות',
 };
 
 function activityTypeLabel(type) {
@@ -40,7 +40,9 @@ function statusText(status) {
 }
 
 function toOptions(values) {
-  return (Array.isArray(values) ? values : []).map((v) => String(v || '').trim()).filter(Boolean);
+  return (Array.isArray(values) ? values : [])
+    .map((v) => String(v || '').trim())
+    .filter(Boolean);
 }
 
 function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '—', attrs = '' }) {
@@ -48,62 +50,80 @@ function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '�
   const normalized = toOptions(options);
   const all = normalized.includes(safeValue) || !safeValue ? normalized : [safeValue, ...normalized];
   const opts = [`<option value="">${escapeHtml(placeholder)}</option>`]
-    .concat(all.map((o) => `<option value="${escapeHtml(o)}"${o === safeValue ? ' selected' : ''}>${escapeHtml(o)}</option>`))
+    .concat(
+      all.map((o) => {
+        const selected = o === safeValue ? ' selected' : '';
+        return `<option value="${escapeHtml(o)}"${selected}>${escapeHtml(o)}</option>`;
+      })
+    )
     .join('');
-  return `<select class="${klass}" name="${escapeHtml(name)}" ${attrs}>${opts}</select>`;
+  return `<select class="${escapeHtml(klass)}" name="${escapeHtml(name)}" ${attrs}>${opts}</select>`;
 }
 
-function activityNameSelectHtml(name, value, options) {
-  const safeValue = String(value || '');
-  const all = Array.isArray(options) ? options.slice() : [];
-  if (safeValue && !all.some((o) => String(o?.label || '') === safeValue)) {
-    all.unshift({ label: safeValue, activity_no: '' });
+function inputHtml({ name, value, type = 'text', klass = 'ds-input', attrs = '' }) {
+  return `<input class="${escapeHtml(klass)}" name="${escapeHtml(name)}" type="${escapeHtml(type)}" value="${escapeHtml(String(value || ''))}" ${attrs}>`;
+}
+
+function textareaHtml({ name, value, klass = 'ds-input', rows = 3, attrs = '' }) {
+  return `<textarea class="${escapeHtml(klass)}" name="${escapeHtml(name)}" rows="${rows}" ${attrs}>${escapeHtml(String(value || ''))}</textarea>`;
+}
+
+function activityNameSelectHtml(name, value, options, activityType) {
+  const safeValue = String(value || '').trim();
+  const filtered = (Array.isArray(options) ? options : []).filter((o) => {
+    const parent = String(o?.parent_value || o?.activity_type || '').trim();
+    return !parent || parent === activityType;
+  });
+  const all = filtered.slice();
+  if (safeValue && !all.some((o) => String(o?.label || '').trim() === safeValue)) {
+    all.unshift({ label: safeValue, activity_no: '', parent_value: activityType });
   }
-  const opts = ['<option value="">—</option>']
-    .concat(all.map((o) => {
-      const label = String(o?.label || '');
-      const selected = label === safeValue ? ' selected' : '';
-      const actNo = String(o?.activity_no || '');
-      const actType = String(o?.parent_value || o?.activity_type || '');
-      return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-activity-type="${escapeHtml(actType)}"${selected}>${escapeHtml(label)}</option>`;
-    }))
+  const opts = [`<option value="">—</option>`]
+    .concat(
+      all.map((o) => {
+        const label = String(o?.label || '').trim();
+        const selected = label === safeValue ? ' selected' : '';
+        const actNo = String(o?.activity_no || '').trim();
+        const actType = String(o?.parent_value || o?.activity_type || activityType || '').trim();
+        return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-activity-type="${escapeHtml(actType)}"${selected}>${escapeHtml(label)}</option>`;
+      })
+    )
     .join('');
-  return `<select class="ds-input" name="${escapeHtml(name)}" data-activity-name>${opts}</select>`;
+  return `<select class="ds-input" name="${escapeHtml(name)}" data-role="activity-name-select" data-activity-name>${opts}</select>`;
 }
 
 function autoEndDate(row) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   if (!schedule.length) return '';
-  const dates = schedule
-    .map((item) => String(item?.date || '').trim())
-    .filter(Boolean)
-    .sort();
-  return dates[dates.length - 1] || '';
+  return String(schedule[schedule.length - 1]?.date || '').trim();
 }
 
-function meetingStats(schedule) {
-  const list = Array.isArray(schedule) ? schedule : [];
-  const done = list.filter((item) => String(item?.performed || '').toLowerCase() === 'yes').length;
-  return { done, total: list.length };
-}
-
-function weekdayShortHe(iso) {
+function shortWeekdayFromIso(iso) {
   const value = String(iso || '').trim();
-  if (!value) return '';
-  const date = new Date(`${value}T12:00:00`);
-  if (Number.isNaN(date.getTime())) return '';
+  if (!value) return '—';
+  const d = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return '—';
   const map = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
-  return map[date.getDay()] || '';
+  return map[d.getDay()] || '—';
 }
 
-function fieldViewEdit(label, viewHtml, editHtml, editing = false) {
-  const labelHtml = String(label || '').trim()
-    ? `<span class="ds-field__label">${escapeHtml(label)}</span>`
-    : '';
-  if (editing) {
-    return `<div class="ds-field-row">${labelHtml}<div data-edit-only>${editHtml}</div></div>`;
-  }
-  return `<div class="ds-field-row">${labelHtml}<div data-view-only>${viewHtml}</div></div>`;
+function fieldViewEdit(label, viewHtml, editHtml) {
+  return `
+    <div class="activity-drawer__field">
+      <div class="activity-drawer__label">${escapeHtml(label)}</div>
+      <div class="activity-drawer__view" data-mode="view">${viewHtml}</div>
+      <div class="activity-drawer__edit" data-mode="edit">${editHtml}</div>
+    </div>
+  `;
+}
+
+function fieldViewOnly(label, viewHtml) {
+  return `
+    <div class="activity-drawer__field">
+      <div class="activity-drawer__label">${escapeHtml(label)}</div>
+      <div class="activity-drawer__view" data-mode="view">${viewHtml}</div>
+    </div>
+  `;
 }
 
 function headerHtml(row, { mode = 'single', summaryDate = '' } = {}) {
@@ -112,273 +132,326 @@ function headerHtml(row, { mode = 'single', summaryDate = '' } = {}) {
     const main = rows[0] || {};
     const instructorName = fallback(main.instructor_name || main.instructor_name_2 || 'ללא מדריך');
     const dateLabel = formatDateHe(summaryDate) || fallback(summaryDate);
-    return `<div class="ds-drawer__header--activity">
-      <div class="ds-drawer__header-top">
-        <button class="ds-icon-btn" data-ui-close-drawer aria-label="סגירה">✕</button>
+    return `
+      <div class="activity-drawer__header">
+        <button type="button" class="activity-drawer__close" data-action="close-drawer" data-ui-close-drawer aria-label="סגירה">✕</button>
+        <h2 class="activity-drawer__title">${escapeHtml(instructorName)}</h2>
+        <div class="activity-drawer__meta">${escapeHtml(`${dateLabel} · ${rows.length} פעילויות`)}</div>
       </div>
-      <h2 class="ds-drawer__title">${escapeHtml(instructorName)}</h2>
-      <div class="ds-drawer__header-meta">${escapeHtml(`${dateLabel} · ${rows.length} פעילויות`)}</div>
-    </div>`;
+    `;
   }
-  return `<div class="ds-drawer__header--activity">
-    <div class="ds-drawer__header-top">
-      <span class="ds-activity-type-pill">${escapeHtml(activityTypeLabel(row?.activity_type))}</span>
-      <button class="ds-icon-btn" data-ui-close-drawer aria-label="סגירה">✕</button>
+  return `
+    <div class="activity-drawer__header">
+      <div class="activity-drawer__header-top">
+        <span class="activity-drawer__pill">${escapeHtml(activityTypeLabel(row?.activity_type))}</span>
+        <button type="button" class="activity-drawer__close" data-action="close-drawer" data-ui-close-drawer aria-label="סגירה">✕</button>
+      </div>
+      <h2 class="activity-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
+      <div class="activity-drawer__meta">
+        <span class="activity-drawer__status">${escapeHtml(statusText(row?.status))}</span>
+        <span>${escapeHtml(fallback(row?.school))} · ${escapeHtml(fallback(row?.authority))}</span>
+      </div>
     </div>
-    <h2 class="ds-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
-    <div class="ds-drawer__header-meta">
-      <span class="ds-status-pill ds-status-pill--subtle">${escapeHtml(statusText(row?.status))}</span>
-      <span class="ds-drawer__school">${escapeHtml(fallback(row?.school))} · ${escapeHtml(fallback(row?.authority))}</span>
-    </div>
-  </div>`;
+  `;
 }
 
-function blockPeople(row, { settings = {}, editing = false } = {}) {
+function blockPeople(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
   const managers = toOptions(options.activity_manager);
   const instructors = toOptions(options.instructor_name);
   const activityType = String(row.activity_type || '').trim();
   const twoInstructors = activityType === 'workshop';
-
-  const managerField = fieldViewEdit('מנהל פעילות',
-    `<span>${escapeHtml(fallback(row.activity_manager))}</span>`,
-    selectHtml({ name: 'activity_manager', value: row.activity_manager, options: managers }),
-    editing);
-
   const instructorFields = twoInstructors
-    ? `${fieldViewEdit('מדריך/ה 1', `<span>${escapeHtml(fallback(row.instructor_name))}</span>`, selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors }), editing)}
-       ${fieldViewEdit('מדריך/ה 2', `<span>${escapeHtml(fallback(row.instructor_name_2))}</span>`, selectHtml({ name: 'instructor_name_2', value: row.instructor_name_2, options: instructors }), editing)}`
-    : fieldViewEdit('מדריך/ה',
-        `<span>${escapeHtml(fallback(row.instructor_name))}</span>`,
-        selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors }),
-        editing);
-
-  return `<section class="ds-drawer-block ds-drawer-block--people">
-    <h3 class="ds-drawer-block__title">👤</h3>
-    <div class="ds-field-grid ds-field-grid--2">
-      ${managerField}
-      ${instructorFields}
-    </div>
-  </section>`;
+    ? `
+      ${fieldViewEdit(
+        'מדריך/ה 1',
+        `${escapeHtml(fallback(row.instructor_name))}`,
+        selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors })
+      )}
+      ${fieldViewEdit(
+        'מדריך/ה 2',
+        `${escapeHtml(fallback(row.instructor_name_2))}`,
+        selectHtml({ name: 'instructor_name_2', value: row.instructor_name_2, options: instructors })
+      )}
+    `
+    : fieldViewEdit(
+        'מדריך/ה',
+        `${escapeHtml(fallback(row.instructor_name))}`,
+        selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors })
+      );
+  return `
+    <section class="activity-drawer__section">
+      <h3 class="activity-drawer__section-title">👤</h3>
+      <div class="activity-drawer__grid activity-drawer__grid--two">
+        ${fieldViewEdit(
+          'מנהל פעילות',
+          `${escapeHtml(fallback(row.activity_manager))}`,
+          selectHtml({ name: 'activity_manager', value: row.activity_manager, options: managers })
+        )}
+        ${instructorFields}
+      </div>
+    </section>
+  `;
 }
 
-function blockContent(row, { settings = {}, editing = false } = {}) {
+function blockContent(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
   const fundings = toOptions(options.funding);
   const grades = toOptions(options.grade);
+  const allActivityNames = Array.isArray(options.activity_names) ? options.activity_names : [];
   const activityType = String(row.activity_type || '').trim();
   const nameLabel = activityNameLabel(activityType);
-
-  const allActivityNames = Array.isArray(options.activity_names) ? options.activity_names : [];
-  const filteredNamesByType = allActivityNames.filter((o) => {
-    const sourceType = String(o?.parent_value || o?.activity_type || '').trim();
-    return sourceType === activityType;
-  });
-  const filteredNames = filteredNamesByType.length ? filteredNamesByType : allActivityNames;
-
   const gradeVal = String(row.grade || '').trim();
   const classGroupVal = String(row.class_group || '').trim();
   const classLabel = [gradeVal, classGroupVal].filter(Boolean).join(' / ') || '—';
-
-  const startTime = String(row.start_time || '').trim();
-  const endTime = String(row.end_time || '').trim();
-  const firstMeetingDate = (Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [])
-    .map((item) => String(item?.date || '').trim())
-    .filter(Boolean)
-    .sort()[0] || '';
-  const dayLabel = weekdayShortHe(firstMeetingDate) || '';
-  const hoursLabel = startTime && endTime ? `${startTime}–${endTime}` : '';
-
-  const viewSummaryItems = [
-    row.funding && String(row.funding).trim() ? { label: 'מימון', value: row.funding } : null,
-    classLabel && classLabel !== '—' ? { label: 'כיתה', value: classLabel } : null,
-    hoursLabel ? { label: 'שעות', value: hoursLabel } : null,
-    dayLabel ? { label: 'יום', value: dayLabel } : null,
-  ].filter(Boolean);
-
-  const viewSummaryHtml = viewSummaryItems.length
-    ? viewSummaryItems.map((f) => `<div class="ds-field-row"><span class="ds-field__label">${escapeHtml(f.label)}</span><span class="ds-field__value">${escapeHtml(String(f.value))}</span></div>`).join('')
-    : '<p class="ds-muted" style="margin:0;font-size:0.82rem">—</p>';
-
-  return `<section class="ds-drawer-block">
-    <h3 class="ds-drawer-block__title">📚</h3>
-    <div data-view-only class="ds-field-grid ds-field-grid--2 ds-field-grid--compact">
-      ${viewSummaryHtml}
-    </div>
-    <div data-edit-only hidden class="ds-drawer-content-edit-grid">
-      <div class="ds-field-row ds-field-row--span2"><span class="ds-field__label">${escapeHtml(nameLabel)}</span>${activityNameSelectHtml('activity_name', row.activity_name, filteredNames)}</div>
-      <div class="ds-field-row"><span class="ds-field__label">מימון</span>${selectHtml({ name: 'funding', value: row.funding, options: fundings })}</div>
-      <div class="ds-field-row"><span class="ds-field__label">מחיר</span><input class="ds-input" type="number" name="price" value="${escapeHtml(String(row.price || ''))}"></div>
-      <div class="ds-field-row"><span class="ds-field__label">בית ספר</span><input class="ds-input" type="text" name="school" value="${escapeHtml(String(row.school || ''))}"></div>
-      <div class="ds-field-row"><span class="ds-field__label">רשות</span><input class="ds-input" type="text" name="authority" value="${escapeHtml(String(row.authority || ''))}"></div>
-      <div class="ds-field-row"><span class="ds-field__label">שכבה</span>${selectHtml({ name: 'grade', value: row.grade, options: grades })}</div>
-      <div class="ds-field-row"><span class="ds-field__label">קבוצה / כיתה</span><input class="ds-input" type="text" name="class_group" value="${escapeHtml(String(row.class_group || ''))}"></div>
-      <div class="ds-field-grid ds-field-grid--2 ds-field-row--span2">
-        <div class="ds-field-row"><span class="ds-field__label">שעת התחלה</span><input class="ds-input" type="time" name="start_time" value="${escapeHtml(startTime)}"></div>
-        <div class="ds-field-row"><span class="ds-field__label">שעת סיום</span><input class="ds-input" type="time" name="end_time" value="${escapeHtml(endTime)}"></div>
+  const firstMeetingDate = Array.isArray(row.meeting_schedule) && row.meeting_schedule.length
+    ? String(row.meeting_schedule[0]?.date || '').trim()
+    : String(row.start_date || '').trim();
+  const hoursLabel =
+    String(row.start_time || '').trim() && String(row.end_time || '').trim()
+      ? `${String(row.start_time).trim()}-${String(row.end_time).trim()}`
+      : '—';
+  const dayLabel = shortWeekdayFromIso(firstMeetingDate);
+  return `
+    <section class="activity-drawer__section">
+      <h3 class="activity-drawer__section-title">📚</h3>
+      <div class="activity-drawer__view-grid activity-drawer__grid activity-drawer__grid--two" data-mode="view">
+        ${fieldViewOnly('מימון', escapeHtml(fallback(row.funding)))}
+        ${fieldViewOnly('כיתה', escapeHtml(classLabel))}
+        ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
+        ${fieldViewOnly('יום', escapeHtml(dayLabel))}
       </div>
-    </div>
-  </section>`;
+      <div class="activity-drawer__edit-grid activity-drawer__grid activity-drawer__grid--two" data-mode="edit">
+        <div class="activity-drawer__field activity-drawer__field--full">
+          <div class="activity-drawer__label">${escapeHtml(nameLabel)}</div>
+          ${activityNameSelectHtml('activity_name', row.activity_name, allActivityNames, activityType)}
+        </div>
+        <div class="activity-drawer__field">
+          <div class="activity-drawer__label">מימון</div>
+          ${selectHtml({ name: 'funding', value: row.funding, options: fundings })}
+        </div>
+        <div class="activity-drawer__field">
+          <div class="activity-drawer__label">מחיר</div>
+          ${inputHtml({ name: 'price', value: row.price })}
+        </div>
+        <div class="activity-drawer__field">
+          <div class="activity-drawer__label">בית ספר</div>
+          ${inputHtml({ name: 'school', value: row.school })}
+        </div>
+        <div class="activity-drawer__field">
+          <div class="activity-drawer__label">רשות</div>
+          ${inputHtml({ name: 'authority', value: row.authority })}
+        </div>
+        <div class="activity-drawer__field">
+          <div class="activity-drawer__label">שכבה</div>
+          ${selectHtml({ name: 'grade', value: row.grade, options: grades })}
+        </div>
+        <div class="activity-drawer__field">
+          <div class="activity-drawer__label">קבוצה / כיתה</div>
+          ${inputHtml({ name: 'class_group', value: row.class_group })}
+        </div>
+        <div class="activity-drawer__field">
+          <div class="activity-drawer__label">שעת התחלה</div>
+          ${inputHtml({ name: 'start_time', value: row.start_time, type: 'time' })}
+        </div>
+        <div class="activity-drawer__field">
+          <div class="activity-drawer__label">שעת סיום</div>
+          ${inputHtml({ name: 'end_time', value: row.end_time, type: 'time' })}
+        </div>
+      </div>
+    </section>
+  `;
 }
 
-function blockDates(row, { canEdit = false, editing = false } = {}) {
+function blockDates(row, { canEdit = false } = {}) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
-  const normalizedSchedule = isOnce ? schedule.slice(0, 1) : schedule;
-  const hasMoreDatesToggle = !isOnce && normalizedSchedule.length > 6;
-  const computedEnd = autoEndDate({ meeting_schedule: normalizedSchedule });
-  const { done, total } = meetingStats(normalizedSchedule);
-  const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-
-  const datePickers = normalizedSchedule.map((item, i) => `<div class="ds-date-pick-cell">
-    <span class="ds-date-pick-cell__head"><span>מפגש ${i + 1}</span><span class="ds-date-pick-cell__dot" aria-hidden="true"></span></span>
-    <input class="ds-input ds-input--date" type="date" name="meeting_date_${i}" data-meeting-idx="${i}" value="${escapeHtml(String(item?.date || ''))}">
-    <span class="ds-date-pick-cell__weekday">${escapeHtml(weekdayShortHe(item?.date) || '')}</span>
-  </div>`).join('');
-
-  const chainToggle = isOnce ? '' : `<div class="ds-chain-toggle" data-chain-toggle>
-    <button type="button" class="ds-chain-btn is-active" data-chain-mode="chain">🔗 שרשרת</button>
-    <button type="button" class="ds-chain-btn" data-chain-mode="single">📍 בודד</button>
-  </div>`;
-
-  const addMeetingBtn = isOnce ? '' : `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-add-meeting-btn" data-add-meeting>➕ הוסף מפגש</button>`;
-
-  const viewChips = normalizedSchedule.map((item, i) => {
-    const isDone = String(item?.performed || '').toLowerCase() === 'yes';
-    return `<span class="ds-date-chip${isDone ? ' is-done' : ''}" data-date-card ${i > 5 ? 'hidden' : ''}>
-      <span class="ds-date-chip__value">${escapeHtml(formatDateHe(item?.date || ''))}</span>
-      <span class="ds-date-chip__weekday">${escapeHtml(weekdayShortHe(item?.date || ''))}</span>
-      <span class="ds-date-chip__dot" aria-hidden="true"></span>
-    </span>`;
-  }).join('') || '<span class="ds-muted">—</span>';
-
-  return `<section class="ds-drawer-block">
-    <div class="ds-block-head">
-      <h3 class="ds-drawer-block__title">📅</h3>
-      ${canEdit ? '<button type="button" class="ds-btn ds-btn--sm" data-view-only data-action-edit>✏️ עריכה</button>' : ''}
-      ${canEdit ? `<div data-edit-only data-edit-actions hidden class="ds-edit-actions">
-          ${chainToggle}
-          ${addMeetingBtn}
-          <button type="submit" class="ds-btn ds-btn--sm ds-btn--primary">💾 שמור</button>
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-action-cancel>ביטול</button>
-          <p class="ds-muted ds-activity-edit-status" role="status"></p>
-        </div>` : ''}
-    </div>
-    <div data-view-only class="ds-progress-bar-wrap">
-      <span class="ds-progress-text ds-progress-text--pct">${progressPct}%</span>
-      <div class="ds-progress-bar"><div class="ds-progress-bar__fill" style="width:${progressPct}%"></div></div>
-      <span class="ds-progress-text">${done} מתוך ${total} מפגשים בוצעו</span>
-    </div>
-    <div class="ds-end-date-row">
-      <span class="ds-end-date-row__label">🏁 תאריך סיום</span>
-      <strong class="ds-end-date-prominent" data-computed-end-display>${escapeHtml(formatDateHe(computedEnd) || '—')}</strong>
-      <span class="ds-end-date-row__hint">מחושב אוטומטית לפי המפגש האחרון</span>
-    </div>
-    <div data-view-only class="ds-dates-grid ds-dates-grid--3col">${viewChips}</div>
-    ${hasMoreDatesToggle ? '<button type="button" data-view-only class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>' : ''}
-    <div data-edit-only hidden class="ds-dates-edit-section">
-      <div class="ds-dates-grid ds-dates-grid--2col" data-meeting-dates-edit>${datePickers}</div>
-    </div>
-  </section>`;
-}
-
-function blockNotes(row, { privateNote = null, showPrivateNote = false, editing = false } = {}) {
-  const operationalPrivateNote = String(row.operations_private_notes || '').trim();
-  const notesValue = String(row.notes || '').trim();
-
-  if (editing) {
-    const notesLabelHtml = `<span class="ds-field__label">הערות</span>`;
-    const notesEditHtml = `<textarea class="ds-input" rows="2" name="notes">${escapeHtml(String(row.notes || ''))}</textarea>`;
-    const notesFieldHtml = `<div class="ds-field-row">${notesLabelHtml}${notesEditHtml}</div>`;
-
-    const privateSection = showPrivateNote
-      ? `<div class="ds-private-note-section">
-          <span class="ds-private-note-badge" aria-label="הערה פרטית">🔒</span>
-          <div class="ds-field-row">
-            <textarea class="ds-input" rows="2" name="operations_private_notes">${escapeHtml(String(operationalPrivateNote))}</textarea>
-          </div>
-        </div>`
-      : '';
-
-    return `<section class="ds-drawer-block">
-      <h3 class="ds-drawer-block__title">📝</h3>
-      ${notesFieldHtml}
-      ${privateSection}
-    </section>`;
-  }
-
-  const notesViewHtml = notesValue ? `<span class="ds-field__value">${escapeHtml(notesValue)}</span>` : '';
-  const notesLabelHtml = notesViewHtml ? `<span class="ds-field__label">הערות</span>` : '';
-  const notesFieldHtml = `<div class="ds-field-row">
-    ${notesLabelHtml}
-    ${notesViewHtml}
-  </div>`;
-
-  const privateSection = showPrivateNote && operationalPrivateNote
-    ? `<div class="ds-private-note-section">
-        <span class="ds-private-note-badge" aria-label="הערה פרטית">🔒</span>
-        <div class="ds-field-row">
-          <span class="ds-field__value">${escapeHtml(operationalPrivateNote)}</span>
-        </div>
-      </div>`
-    : '';
-
-  return `<section class="ds-drawer-block">
-    <h3 class="ds-drawer-block__title">📝</h3>
-    ${notesFieldHtml}
-    ${privateSection}
-  </section>`;
-}
-
-function singleForm(row, { settings = {}, privateNote = null, canEdit = false, showPrivateNote = false, idx = 0, editing = false }) {
   const computedEnd = autoEndDate(row);
-  return `<form class="ds-activity-drawer-form" data-edit-activity
+  const done = Number(row?.meetings_done || 0);
+  const total = Number(row?.meetings_total || schedule.length || 0);
+  const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const viewChips = (isOnce ? schedule.slice(0, 1) : schedule)
+    .map((item) => {
+      const isDone = String(item?.performed || '').toLowerCase() === 'yes';
+      return `
+        <div class="activity-drawer__date-chip ${isDone ? 'is-done' : ''}" data-date-card>
+          <span>${escapeHtml(formatDateHe(item?.date || ''))}</span>
+          <span class="activity-drawer__weekday">${escapeHtml(shortWeekdayFromIso(item?.date || ''))}</span>
+        </div>
+      `;
+    })
+    .join('') || '<div class="activity-drawer__date-chip">—</div>';
+  const editDates = isOnce ? schedule.slice(0, 1) : schedule;
+  const datePickers = editDates
+    .map((item, i) => `
+      <div class="activity-drawer__date-card" data-meeting-index="${i}">
+        <div class="activity-drawer__date-card-top">
+          <span class="activity-drawer__meeting-index">מפגש ${i + 1}</span>
+          <span class="activity-drawer__weekday">${escapeHtml(shortWeekdayFromIso(item?.date || ''))}</span>
+        </div>
+        ${inputHtml({
+          name: `meeting_date_${i}`,
+          value: String(item?.date || ''),
+          type: 'date',
+          attrs: `data-role="meeting-date" data-meeting-index="${i}" data-meeting-idx="${i}"`,
+        })}
+        <input type="hidden" name="meeting_performed_${i}" value="${escapeHtml(String(item?.performed || 'no'))}">
+      </div>
+    `)
+    .join('');
+  const chainToggle = isOnce
+    ? ''
+    : `
+      <div class="activity-drawer__date-mode" data-mode="edit" data-chain-toggle>
+        <button type="button" class="activity-drawer__toggle" data-date-mode="single" data-chain-mode="single">בודד</button>
+        <button type="button" class="activity-drawer__toggle is-active" data-date-mode="chain" data-chain-mode="chain">שרשרת</button>
+      </div>
+    `;
+  const addMeetingBtn = isOnce
+    ? ''
+    : `<button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-add-meeting data-mode="edit">➕ הוסף מפגש</button>`;
+  const moreBtn = !isOnce && schedule.length > 6
+    ? `<button type="button" class="activity-drawer__more" data-action="toggle-more" data-action-toggle-dates data-mode="view">+עוד</button>`
+    : '';
+  return `
+    <section class="activity-drawer__section">
+      <div class="activity-drawer__section-head">
+        <h3 class="activity-drawer__section-title">📅</h3>
+        ${canEdit ? '<button type="button" class="activity-drawer__action" data-action="start-edit" data-action-edit data-mode="view">✏️ עריכה</button>' : ''}
+      </div>
+      <div class="activity-drawer__progress" data-mode="view">
+        <div class="activity-drawer__progress-meta">
+          <span>${done} מתוך ${total} מפגשים</span>
+          <span>${progressPct}%</span>
+        </div>
+        <div class="activity-drawer__progress-track">
+          <div class="activity-drawer__progress-fill" style="width:${progressPct}%"></div>
+        </div>
+      </div>
+      <div class="activity-drawer__end-date" data-mode="view">
+        <span>🏁 תאריך סיום</span>
+        <strong data-computed-end-display>${escapeHtml(formatDateHe(computedEnd) || '—')}</strong>
+      </div>
+      <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view">
+        ${viewChips}
+      </div>
+      ${moreBtn}
+      <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit>
+        ${datePickers}
+      </div>
+      ${chainToggle}
+      ${addMeetingBtn}
+      <div class="activity-drawer__edit-actions" data-mode="edit" data-edit-actions>
+        <button type="submit" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">שמור</button>
+        <button type="button" class="activity-drawer__action" data-action="cancel-edit" data-action-cancel>ביטול</button>
+        <p class="ds-activity-edit-status ds-muted" role="status"></p>
+      </div>
+    </section>
+  `;
+}
+
+function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
+  const privateValue =
+    privateNote !== null && privateNote !== undefined
+      ? privateNote
+      : row.operations_private_notes;
+  const privateSection = showPrivateNote
+    ? `
+      <div class="activity-drawer__private">
+        <div class="activity-drawer__private-badge">🔒</div>
+        ${fieldViewEdit(
+          'הערה תפעולית',
+          `${escapeHtml(fallback(privateValue))}`,
+          textareaHtml({ name: 'operations_private_notes', value: String(privateValue || ''), rows: 2 })
+        )}
+      </div>
+    `
+    : '';
+  return `
+    <section class="activity-drawer__section">
+      <h3 class="activity-drawer__section-title">📝</h3>
+      ${fieldViewEdit(
+        'הערות',
+        `${escapeHtml(fallback(row.notes))}`,
+        textareaHtml({ name: 'notes', value: String(row.notes || ''), rows: 2 })
+      )}
+      ${privateSection}
+    </section>
+  `;
+}
+
+function singleForm(row, { settings = {}, privateNote = null, canEdit = false, showPrivateNote = false, idx = 0 } = {}) {
+  const computedEnd = autoEndDate(row);
+  const activityType = String(row.activity_type || '').trim();
+  return `
+    <form class="activity-drawer__form" data-drawer-form data-activity-form data-edit-activity
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
       data-row-id="${escapeHtml(String(row.RowID || ''))}"
-      data-activity-form
       data-auto-end-date="${escapeHtml(computedEnd)}"
-      data-is-once="${ONCE_TYPES.includes(String(row.activity_type || '').trim()) ? 'yes' : 'no'}"
-      data-editing="${editing ? 'yes' : 'no'}">
-    <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
-    ${blockPeople(row, { settings, editing })}
-    ${blockContent(row, { settings, editing })}
-    ${blockDates(row, { canEdit, editing })}
-    ${blockNotes(row, { privateNote, showPrivateNote, editing })}
-    <input type="hidden" name="_activity_idx" value="${idx}">
-  </form>`;
+      data-is-once="${ONCE_TYPES.includes(activityType) ? 'yes' : 'no'}">
+      <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
+      <input type="hidden" name="_activity_idx" value="${idx}">
+      ${blockPeople(row, { settings })}
+      ${blockContent(row, { settings })}
+      ${blockDates(row, { canEdit })}
+      ${blockNotes(row, { privateNote, showPrivateNote })}
+    </form>
+  `;
 }
 
-export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo = true } = {}) {
-  return `<div class="ds-details-grid" dir="rtl">
-    <p><strong>שם פעילות:</strong> ${escapeHtml(fallback(row.activity_name))}</p>
-    <p><strong>סוג פעילות:</strong> ${escapeHtml(activityTypeLabel(row.activity_type))}</p>
-    <p><strong>בית ספר:</strong> ${escapeHtml(fallback(row.school))}</p>
-    <p><strong>רשות:</strong> ${escapeHtml(fallback(row.authority))}</p>
-    <p><strong>שכבה:</strong> ${escapeHtml(fallback(row.grade))}</p>
-    <p><strong>קבוצה/כיתה:</strong> ${escapeHtml(fallback(row.class_group))}</p>
-    ${privateNote === null ? '' : `<p><strong>הערה תפעולית:</strong> ${escapeHtml(fallback(privateNote))}</p>`}
-  </div>`;
+export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo = false } = {}) {
+  return `
+    <div>שם פעילות: ${escapeHtml(fallback(row.activity_name))}</div>
+    <div>סוג פעילות: ${escapeHtml(activityTypeLabel(row.activity_type))}</div>
+    ${hideActivityNo ? '' : `<div>מספר פעילות: ${escapeHtml(fallback(row.activity_no))}</div>`}
+    <div>בית ספר: ${escapeHtml(fallback(row.school))}</div>
+    <div>רשות: ${escapeHtml(fallback(row.authority))}</div>
+    <div>שכבה: ${escapeHtml(fallback(row.grade))}</div>
+    <div>קבוצה/כיתה: ${escapeHtml(fallback(row.class_group))}</div>
+    ${privateNote === null ? '' : `<div>הערה תפעולית: ${escapeHtml(fallback(privateNote))}</div>`}
+  `;
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
   const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, settings = {} } = opts;
-
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
-    const body = rows.map((item, idx) => `<details class="ds-activity-accordion" ${idx === 0 ? 'open' : ''}>
-      <summary class="ds-activity-accordion__summary">
-        <span class="ds-activity-accordion__name">${escapeHtml(fallback(item.activity_name))}</span>
-        <span class="ds-activity-accordion__meta">${escapeHtml(`${activityTypeLabel(item.activity_type)} · ${fallback(item.school)}`)}</span>
-        <span class="ds-activity-accordion__chevron">›</span>
-      </summary>
-      <div class="ds-activity-accordion__body">
-        ${singleForm(item, { settings, privateNote, canEdit, showPrivateNote: privateNote !== null, idx })}
+    const body = rows
+      .map((item, idx) => `
+        <div class="activity-drawer__summary-item">
+          <div class="activity-drawer__summary-head">
+            <strong>${escapeHtml(fallback(item.activity_name))}</strong>
+            <span>${escapeHtml(`${activityTypeLabel(item.activity_type)} · ${fallback(item.school)}`)}</span>
+          </div>
+          ${singleForm(item, {
+            settings,
+            privateNote,
+            canEdit,
+            showPrivateNote: privateNote !== null,
+            idx,
+          })}
+        </div>
+      `)
+      .join('');
+    return `
+      ${headerHtml(rows, { mode: 'summary', summaryDate })}
+      <div class="activity-drawer__body">
+        ${body || '<div class="activity-drawer__empty">אין נתונים</div>'}
       </div>
-    </details>`).join('');
-    return `${headerHtml(rows, { mode: 'summary', summaryDate })}<div class="ds-stack">${body || '<p class="ds-muted">אין נתונים</p>'}</div>`;
+    `;
   }
-
   const one = row || {};
-  return `${headerHtml(one)}${singleForm(one, { settings, privateNote, canEdit, showPrivateNote: privateNote !== null, idx: 0 })}`;
+  return `
+    ${headerHtml(one)}
+    <div class="activity-drawer__body">
+      ${singleForm(one, {
+        settings,
+        privateNote,
+        canEdit,
+        showPrivateNote: privateNote !== null,
+        idx: 0,
+      })}
+    </div>
+  `;
 }
