@@ -142,9 +142,11 @@ export const weekScreen = {
         return `
       <section class="ds-week-col${isToday ? ' is-today' : ''}" aria-label="${escapeHtml(d.date)}">
         <header class="ds-week-col__head">
-          <span class="ds-week-col__dow">${escapeHtml(dow || `יום ${idx + 1}`)}</span>
+          <div class="ds-week-col__head-top">
+            <span class="ds-week-col__dow">${escapeHtml(dow || `יום ${idx + 1}`)}</span>
+            <span class="ds-week-col__count">${items.length}</span>
+          </div>
           <span class="ds-week-col__date">${escapeHtml(formatDateHe(d.date))}</span>
-          <span class="ds-week-col__count">${escapeHtml(`${items.length} פעילויות`)}</span>
         </header>
         <div class="ds-week-col__body">${sessionBlocks}</div>
       </section>`;

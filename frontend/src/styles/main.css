@@ -1828,6 +1828,15 @@ span.ds-chip {
   border-bottom: 1px solid rgba(26, 51, 88, 0.1);
   background: linear-gradient(180deg, var(--ds-surface-subtle) 0%, rgba(246, 247, 249, 0.4) 100%);
   border-radius: var(--ds-radius-md) var(--ds-radius-md) 0 0;
+  flex-shrink: 0;
+}
+
+.ds-week-col__head-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
 }
 
 .ds-week-col.is-today .ds-week-col__head {
@@ -1855,15 +1864,18 @@ span.ds-chip {
 }
 
 .ds-week-col__count {
-  display: inline-block;
-  font-size: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
   font-weight: 700;
   color: var(--ds-text-muted);
   background: rgba(26, 51, 88, 0.07);
   border-radius: var(--ds-radius-full);
-  padding: 1px 6px;
-  margin-top: 1px;
-  line-height: 1.6;
+  padding: 0 5px;
+  min-width: 18px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .ds-week-col.is-today .ds-week-col__count {
@@ -1877,6 +1889,14 @@ span.ds-chip {
   display: flex;
   flex-direction: column;
   gap: var(--ds-space-1);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+@media (min-width: 960px) {
+  .ds-week-col__body {
+    max-height: 340px;
+  }
 }
 
 .ds-week-empty {
