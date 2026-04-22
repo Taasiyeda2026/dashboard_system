@@ -6100,6 +6100,32 @@ select.ds-input {
   gap: 6px;
 }
 
+.activity-drawer__date-card-top-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.activity-drawer__date-remove {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.activity-drawer__date-remove:hover {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
 .activity-drawer__meeting-index {
   font-size: 0.72rem;
   color: #64748b;

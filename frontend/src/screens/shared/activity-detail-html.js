@@ -282,12 +282,18 @@ function blockDates(row, { canEdit = false } = {}) {
     })
     .join('') || '<div class="activity-drawer__date-chip">—</div>';
   const editDates = isOnce ? schedule.slice(0, 1) : schedule;
+  const removeMeetingBtn = isOnce
+    ? ''
+    : `<button type="button" class="activity-drawer__date-remove" data-action="remove-meeting" aria-label="הסר מפגש">🗑</button>`;
   const datePickers = editDates
     .map((item, i) => `
       <div class="activity-drawer__date-card" data-meeting-index="${i}">
         <div class="activity-drawer__date-card-top">
           <span class="activity-drawer__meeting-index">מפגש ${i + 1}</span>
-          <span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>
+          <span class="activity-drawer__date-card-top-aside">
+            ${removeMeetingBtn}
+            <span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>
+          </span>
         </div>
         ${inputHtml({
           name: `meeting_date_${i}`,

@@ -65,7 +65,7 @@ function getChainMode(form) {
   return active ? String(active.dataset.dateMode || 'single') : 'single';
 }
 
-function buildMeetingPickerCell(idx, dateValue) {
+function buildMeetingPickerCell(form, idx, dateValue) {
   const cell = document.createElement('div');
   cell.className = 'activity-drawer__date-card';
   cell.dataset.meetingIndex = String(idx);
@@ -74,10 +74,17 @@ function buildMeetingPickerCell(idx, dateValue) {
     const d = new Date(`${dateValue}T12:00:00`);
     return Number.isNaN(d.getTime()) ? '' : ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'][d.getDay()] || '';
   })();
+  const isOnce = form?.dataset?.isOnce === 'yes';
+  const removeBtn = isOnce
+    ? ''
+    : `<button type="button" class="activity-drawer__date-remove" data-action="remove-meeting" aria-label="הסר מפגש">🗑</button>`;
   cell.innerHTML = `
     <div class="activity-drawer__date-card-top">
       <span class="activity-drawer__meeting-index">מפגש ${idx + 1}</span>
-      <span class="activity-drawer__weekday">${dayLetter}</span>
+      <span class="activity-drawer__date-card-top-aside">
+        ${removeBtn}
+        <span class="activity-drawer__weekday">${dayLetter}</span>
+      </span>
     </div>
     <input class="ds-input" type="date" name="meeting_date_${idx}" data-role="meeting-date" data-meeting-index="${idx}" data-meeting-idx="${idx}" value="${escapeHtml(String(dateValue || ''))}">
     <input type="hidden" name="meeting_performed_${idx}" value="no">`;
@@ -96,6 +103,38 @@ function updateMeetingWeekdays(form) {
     const d = new Date(`${picker.value}T12:00:00`);
     label.textContent = Number.isNaN(d.getTime()) ? '' : (['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'][d.getDay()] || '');
   });
+}
+
+function syncMeetingRemoveButtons(form) {
+  const grid = form.querySelector('[data-meeting-dates-edit]');
+  if (!grid) return;
+  const cards = grid.querySelectorAll(':scope > .activity-drawer__date-card');
+  const hideRemove = form.dataset.isOnce === 'yes' || cards.length <= 1;
+  cards.forEach((card) => {
+    const btn = card.querySelector('[data-action="remove-meeting"]');
+    if (btn) btn.toggleAttribute('hidden', hideRemove);
+  });
+}
+
+function reindexMeetingDateCards(form) {
+  const grid = form.querySelector('[data-meeting-dates-edit]');
+  if (!grid) return;
+  const cards = Array.from(grid.querySelectorAll(':scope > .activity-drawer__date-card'));
+  cards.forEach((card, i) => {
+    card.dataset.meetingIndex = String(i);
+    const idxLabel = card.querySelector('.activity-drawer__meeting-index');
+    if (idxLabel) idxLabel.textContent = `מפגש ${i + 1}`;
+    const dateInput = card.querySelector('input[data-meeting-idx]');
+    const perfInput = card.querySelector('input[type="hidden"][name^="meeting_performed_"]');
+    if (dateInput) {
+      dateInput.name = `meeting_date_${i}`;
+      dateInput.setAttribute('data-meeting-index', String(i));
+      dateInput.dataset.meetingIndex = String(i);
+      dateInput.dataset.meetingIdx = String(i);
+    }
+    if (perfInput) perfInput.name = `meeting_performed_${i}`;
+  });
+  syncMeetingRemoveButtons(form);
 }
 
 function updateMoreDatesToggle(form) {
@@ -120,10 +159,19 @@ function updateMoreDatesToggle(form) {
   editCards.forEach((card) => {
     card.hidden = false;
   });
+
+  syncMeetingRemoveButtons(form);
 }
 
 export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, rerender }) {
   if (!api || !contentRoot) return;
+
+  if (contentRoot._activityEditAbort) {
+    contentRoot._activityEditAbort.abort();
+  }
+  const abortController = new AbortController();
+  contentRoot._activityEditAbort = abortController;
+  const { signal } = abortController;
 
   async function saveActivityForm(form) {
     const statusEl = form.querySelector('.ds-activity-edit-status');
@@ -162,95 +210,124 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
     }
   }
 
-  contentRoot.addEventListener('click', (ev) => {
-    const form = ev.target.closest('[data-drawer-form]');
-    if (!form) return;
+  contentRoot.addEventListener(
+    'click',
+    (ev) => {
+      const form = ev.target.closest('[data-drawer-form]');
+      if (!form) return;
 
-    if (ev.target.closest('[data-action="start-edit"]')) {
-      setEditMode(form, true);
-      return;
-    }
-
-    if (ev.target.closest('[data-action="cancel-edit"]')) {
-      form.reset();
-      form.dataset.datesExpanded = 'no';
-      setStatus(form.querySelector('.ds-activity-edit-status'), '', '');
-      updateMeetingWeekdays(form);
-      updateMoreDatesToggle(form);
-      updateEndDateDisplay(form);
-      setEditMode(form, false);
-      return;
-    }
-
-    if (ev.target.closest('[data-action="save-edit"]')) {
-      ev.preventDefault();
-      void saveActivityForm(form);
-      return;
-    }
-
-    const chainBtn = ev.target.closest('[data-date-mode]');
-    if (chainBtn) {
-      const toggle = chainBtn.closest('[data-chain-toggle]');
-      if (toggle) {
-        toggle.querySelectorAll('[data-date-mode]').forEach((b) => b.classList.remove('is-active'));
-        chainBtn.classList.add('is-active');
+      if (ev.target.closest('[data-action="start-edit"]')) {
+        setEditMode(form, true);
+        return;
       }
-      return;
-    }
 
-    if (ev.target.closest('[data-action="add-meeting"]')) {
-      const grid = form.querySelector('[data-meeting-dates-edit]');
-      if (!grid) return;
-      if (form.dataset.isOnce === 'yes') return;
-      const allPickers = Array.from(grid.querySelectorAll('input[data-meeting-idx]'));
-      const currentCount = allPickers.length;
-      const lastDate = allPickers.length ? allPickers[allPickers.length - 1].value : '';
-      const nextDate = lastDate ? addDays(lastDate, 7) : '';
-      const cell = buildMeetingPickerCell(currentCount, nextDate);
-      grid.appendChild(cell);
-      updateMeetingWeekdays(form);
-      updateMoreDatesToggle(form);
-      updateEndDateDisplay(form);
-      return;
-    }
+      if (ev.target.closest('[data-action="cancel-edit"]')) {
+        form.reset();
+        form.dataset.datesExpanded = 'no';
+        setStatus(form.querySelector('.ds-activity-edit-status'), '', '');
+        updateMeetingWeekdays(form);
+        updateMoreDatesToggle(form);
+        updateEndDateDisplay(form);
+        setEditMode(form, false);
+        return;
+      }
 
-    if (ev.target.closest('[data-action="toggle-more"]')) {
-      form.dataset.datesExpanded = form.dataset.datesExpanded === 'yes' ? 'no' : 'yes';
-      updateMoreDatesToggle(form);
-    }
-  });
+      if (ev.target.closest('[data-action="save-edit"]')) {
+        ev.preventDefault();
+        void saveActivityForm(form);
+        return;
+      }
+
+      const chainBtn = ev.target.closest('[data-date-mode]');
+      if (chainBtn) {
+        const toggle = chainBtn.closest('[data-chain-toggle]');
+        if (toggle) {
+          toggle.querySelectorAll('[data-date-mode]').forEach((b) => b.classList.remove('is-active'));
+          chainBtn.classList.add('is-active');
+        }
+        return;
+      }
+
+      if (ev.target.closest('[data-action="remove-meeting"]')) {
+        if (form.dataset.isOnce === 'yes') return;
+        const grid = form.querySelector('[data-meeting-dates-edit]');
+        const cell = ev.target.closest('.activity-drawer__date-card');
+        if (!grid || !cell || !grid.contains(cell)) return;
+        const cards = grid.querySelectorAll(':scope > .activity-drawer__date-card');
+        if (cards.length <= 1) return;
+        cell.remove();
+        reindexMeetingDateCards(form);
+        updateMeetingWeekdays(form);
+        updateMoreDatesToggle(form);
+        updateEndDateDisplay(form);
+        return;
+      }
+
+      if (ev.target.closest('[data-action="add-meeting"]')) {
+        const grid = form.querySelector('[data-meeting-dates-edit]');
+        if (!grid) return;
+        if (form.dataset.isOnce === 'yes') return;
+        const allPickers = Array.from(grid.querySelectorAll('input[data-meeting-idx]'));
+        const currentCount = allPickers.length;
+        const lastDate = allPickers.length ? allPickers[allPickers.length - 1].value : '';
+        const nextDate = lastDate ? addDays(lastDate, 7) : '';
+        const cell = buildMeetingPickerCell(form, currentCount, nextDate);
+        grid.appendChild(cell);
+        reindexMeetingDateCards(form);
+        updateMeetingWeekdays(form);
+        updateMoreDatesToggle(form);
+        updateEndDateDisplay(form);
+        return;
+      }
+
+      if (ev.target.closest('[data-action="toggle-more"]')) {
+        form.dataset.datesExpanded = form.dataset.datesExpanded === 'yes' ? 'no' : 'yes';
+        updateMoreDatesToggle(form);
+      }
+    },
+    { signal }
+  );
 
   contentRoot.querySelectorAll('[data-drawer-form]').forEach((form) => {
     setEditMode(form, false);
     form.dataset.datesExpanded = 'no';
+    reindexMeetingDateCards(form);
     updateMeetingWeekdays(form);
     updateMoreDatesToggle(form);
     updateEndDateDisplay(form);
 
-    form.addEventListener('change', (ev) => {
-      const nameEl = ev.target.closest('[data-role="activity-name-select"]');
-      if (nameEl) {
-        const autoNo = detectActivityNoByName(form, String(nameEl.value || ''));
-        const hidden = form.querySelector('[data-activity-no]');
-        if (hidden && autoNo) hidden.value = autoNo;
-      }
-
-      const datePicker = ev.target.closest('input[data-meeting-idx]');
-      if (datePicker) {
-        const idx = Number(datePicker.dataset.meetingIdx);
-        if (getChainMode(form) === 'chain') {
-          const oldDate = datePicker.dataset.prevValue || '';
-          applyChainShift(form, idx, oldDate, datePicker.value);
+    form.addEventListener(
+      'change',
+      (ev) => {
+        const nameEl = ev.target.closest('[data-role="activity-name-select"]');
+        if (nameEl) {
+          const autoNo = detectActivityNoByName(form, String(nameEl.value || ''));
+          const hidden = form.querySelector('[data-activity-no]');
+          if (hidden && autoNo) hidden.value = autoNo;
         }
-        datePicker.dataset.prevValue = datePicker.value;
-        updateMeetingWeekdays(form);
-        updateEndDateDisplay(form);
-      }
-    });
 
-    form.addEventListener('focusin', (ev) => {
-      const datePicker = ev.target.closest('input[data-meeting-idx]');
-      if (datePicker) datePicker.dataset.prevValue = datePicker.value;
-    });
+        const datePicker = ev.target.closest('input[data-meeting-idx]');
+        if (datePicker) {
+          const idx = Number(datePicker.dataset.meetingIdx);
+          if (getChainMode(form) === 'chain') {
+            const oldDate = datePicker.dataset.prevValue || '';
+            applyChainShift(form, idx, oldDate, datePicker.value);
+          }
+          datePicker.dataset.prevValue = datePicker.value;
+          updateMeetingWeekdays(form);
+          updateEndDateDisplay(form);
+        }
+      },
+      { signal }
+    );
+
+    form.addEventListener(
+      'focusin',
+      (ev) => {
+        const datePicker = ev.target.closest('input[data-meeting-idx]');
+        if (datePicker) datePicker.dataset.prevValue = datePicker.value;
+      },
+      { signal }
+    );
   });
 }
