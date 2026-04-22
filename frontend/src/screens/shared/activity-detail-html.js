@@ -232,6 +232,7 @@ function blockDates(row, { canEdit = false, editing = false } = {}) {
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
   const visibleSchedule = isOnce ? schedule.slice(0, 1) : schedule;
+  const hasMoreDatesToggle = !isOnce && visibleSchedule.length > 6;
   const computedEnd = autoEndDate({ meeting_schedule: visibleSchedule });
   const { done, total } = meetingStats(visibleSchedule);
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
@@ -300,6 +301,12 @@ function blockDates(row, { canEdit = false, editing = false } = {}) {
     <div class="ds-end-date-row">
       <span class="ds-end-date-row__label">🏁 תאריך סיום</span>
       <strong class="ds-end-date-prominent" data-computed-end-display>${escapeHtml(formatDateHe(computedEnd) || '—')}</strong>
+      <span data-edit-only hidden class="ds-end-date-row__hint">מחושב אוטומטית לפי המפגש האחרון</span>
+    </div>
+    <div data-view-only class="ds-dates-grid ds-dates-grid--3col">${viewChips}</div>
+    ${hasMoreDatesToggle ? '<button type="button" data-view-only class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>' : ''}
+    <div data-edit-only hidden class="ds-dates-edit-section">
+      <div class="ds-dates-grid ds-dates-grid--2col" data-meeting-dates-edit>${datePickers}</div>
     </div>
     <div class="ds-dates-grid ds-dates-grid--3col">${viewChips}</div>
     ${isOnce ? '' : '<button type="button" class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>'}
