@@ -86,14 +86,6 @@ function meetingStats(schedule) {
   return { done, total: list.length };
 }
 
-function weekdayHe(iso) {
-  const value = String(iso || '').trim();
-  if (!value) return '';
-  const date = new Date(`${value}T12:00:00`);
-  if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(date);
-}
-
 function weekdayShortHe(iso) {
   const value = String(iso || '').trim();
   if (!value) return '';
@@ -308,8 +300,6 @@ function blockDates(row, { canEdit = false, editing = false } = {}) {
     <div data-edit-only hidden class="ds-dates-edit-section">
       <div class="ds-dates-grid ds-dates-grid--2col" data-meeting-dates-edit>${datePickers}</div>
     </div>
-    <div class="ds-dates-grid ds-dates-grid--3col">${viewChips}</div>
-    ${isOnce ? '' : '<button type="button" class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>'}
   </section>`;
 }
 
@@ -379,7 +369,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, s
   </form>`;
 }
 
-export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo = false } = {}) {
+export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo = true } = {}) {
   return `<div class="ds-details-grid" dir="rtl">
     <p><strong>שם פעילות:</strong> ${escapeHtml(fallback(row.activity_name))}</p>
     <p><strong>סוג פעילות:</strong> ${escapeHtml(activityTypeLabel(row.activity_type))}</p>
