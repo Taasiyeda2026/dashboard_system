@@ -8,8 +8,8 @@ import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
  * After mutating actions succeed, cache invalidation runs automatically
  * (see bottom of request()).
  *
- * Heavy mutations trigger full cache invalidation; lightweight mutations
- * only clear related screens for faster post-save navigation.
+ * Mutations clear only related route caches (not full wipe), so navigation
+ * stays fast while still showing fresh data where needed.
  *
  * Screens that expose their own save forms (activities.js, finance.js,
  * permissions.js) additionally call the bind-injected clearScreenDataCache?.()
@@ -60,28 +60,26 @@ const API_TIMEOUT_MS_WRITE = 30000;
 const PERF_MAX_REQUESTS = 150;
 
 function invalidateScreenDataByAction(action) {
-  const heavyMutations = new Set([
-    'saveActivity',
-    'addActivity',
-    'submitEditRequest',
-    'reviewEditRequest',
-    'saveFinanceRow',
-    'syncFinance',
-    'addUser',
-    'deactivateUser',
-    'reactivateUser',
-    'deleteUser'
-  ]);
   const targetedMutations = {
+    saveActivity: ['activities:', 'week:', 'month:', 'dashboard:'],
+    addActivity: ['activities:', 'week:', 'month:', 'dashboard:'],
+    submitEditRequest: ['activities:', 'edit-requests', 'week:', 'month:', 'dashboard:'],
+    reviewEditRequest: ['edit-requests', 'activities:', 'dashboard:'],
+    saveFinanceRow: ['finance:', 'dashboard:'],
+    syncFinance: ['finance:', 'dashboard:'],
+    addUser: ['permissions', 'dashboard:'],
+    deactivateUser: ['permissions', 'dashboard:'],
+    reactivateUser: ['permissions', 'dashboard:'],
+    deleteUser: ['permissions', 'dashboard:'],
     savePrivateNote: ['activities:', 'operations:'],
     savePermission: ['permissions']
   };
-  if (heavyMutations.has(action)) {
+  const prefixes = targetedMutations[action];
+  if (!prefixes || !prefixes.length) return;
+  if (prefixes.includes('*')) {
     clearScreenDataCache();
     return;
   }
-  const prefixes = targetedMutations[action];
-  if (!prefixes || !prefixes.length) return;
   Object.keys(state.screenDataCache || {}).forEach((key) => {
     if (prefixes.some((prefix) => key === prefix || key.startsWith(prefix))) {
       delete state.screenDataCache[key];
