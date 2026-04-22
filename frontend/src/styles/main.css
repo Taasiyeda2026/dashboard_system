@@ -3805,6 +3805,293 @@ select.ds-input {
   color: var(--ds-text);
 }
 
+/* ——— Contacts page — expandable cards ——— */
+
+.contacts-list-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Instructor cards ── */
+.ci-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ci-card {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+  overflow: hidden;
+  background: var(--ds-surface);
+  transition: box-shadow 0.12s;
+}
+
+.ci-card:hover {
+  box-shadow: 0 1px 5px rgba(0,0,0,0.08);
+}
+
+.ci-card[open] {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.09);
+}
+
+.ci-card--inactive {
+  opacity: 0.6;
+}
+
+.ci-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-size: 0.85rem;
+  background: var(--ds-surface-subtle);
+}
+
+.ci-card__head::-webkit-details-marker { display: none; }
+
+.ci-card[open] .ci-card__head {
+  background: var(--ds-surface);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.ci-card__chevron {
+  color: var(--ds-text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: transform 0.18s ease;
+  flex-shrink: 0;
+}
+
+.ci-card[open] .ci-card__chevron {
+  transform: rotate(90deg);
+}
+
+.ci-card__name {
+  font-weight: 600;
+  color: var(--ds-text);
+  flex: 1;
+  min-width: 0;
+}
+
+.ci-card__badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--ds-text-muted);
+  background: var(--ds-muted-bg);
+  border: 1px solid var(--ds-muted-border);
+  border-radius: var(--ds-radius-full);
+  padding: 1px 6px;
+  margin-inline-start: 6px;
+  vertical-align: middle;
+}
+
+.ci-card__phone {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--ds-text-secondary);
+  flex-shrink: 0;
+  direction: ltr;
+}
+
+/* ── Detail field rows (shared: instructor + school) ── */
+.ci-detail {
+  padding: 10px 14px;
+  background: var(--ds-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ci-df {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.ci-df__icon {
+  font-size: 0.82rem;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  color: var(--ds-text-muted);
+}
+
+.ci-df__label {
+  color: var(--ds-text-muted);
+  font-weight: 500;
+  min-width: 74px;
+  flex-shrink: 0;
+}
+
+.ci-df__value {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  color: var(--ds-text);
+  flex-wrap: wrap;
+}
+
+.ci-dv {
+  word-break: break-all;
+}
+
+/* ── Copy-email button ── */
+.ci-copy-btn {
+  background: none;
+  border: 1px solid var(--ds-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--ds-text-muted);
+  padding: 1px 5px;
+  line-height: 1.4;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.ci-copy-btn:hover {
+  background: var(--ds-interactive-hover);
+  color: var(--ds-accent);
+  border-color: var(--ds-accent);
+}
+
+/* ── School cards ── */
+.sc-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sc-card {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+  overflow: hidden;
+  background: var(--ds-surface);
+  transition: box-shadow 0.12s;
+}
+
+.sc-card:hover {
+  box-shadow: 0 1px 5px rgba(0,0,0,0.08);
+}
+
+.sc-card[open] {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.09);
+}
+
+.sc-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-size: 0.85rem;
+  background: var(--ds-surface-subtle);
+}
+
+.sc-card__head::-webkit-details-marker { display: none; }
+
+.sc-card[open] .sc-card__head {
+  background: var(--ds-surface);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.sc-card__chevron {
+  color: var(--ds-text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: transform 0.18s ease;
+  flex-shrink: 0;
+}
+
+.sc-card[open] .sc-card__chevron {
+  transform: rotate(90deg);
+}
+
+.sc-card__school-icon {
+  margin-inline-end: 4px;
+}
+
+.sc-card__name {
+  font-weight: 600;
+  color: var(--ds-text);
+  flex: 1;
+  min-width: 0;
+}
+
+.sc-card__auth {
+  font-size: 0.74rem;
+  color: var(--ds-text-secondary);
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
+.sc-card__count {
+  font-size: 0.72rem;
+  background: var(--ds-muted-bg);
+  border: 1px solid var(--ds-muted-border);
+  border-radius: var(--ds-radius-full);
+  padding: 1px 8px;
+  color: var(--ds-text-secondary);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.sc-card__body {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sc-person {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--ds-border);
+}
+
+.sc-person:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* ── Contacts copy toast ── */
+.contacts-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  z-index: 9999;
+  background: var(--ds-shell);
+  color: var(--ds-shell-text);
+  padding: 8px 22px;
+  border-radius: var(--ds-radius-full);
+  font-size: 0.82rem;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.contacts-toast--show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* ——— Toast notifications ——— */
 .ds-toast {
   position: fixed;
