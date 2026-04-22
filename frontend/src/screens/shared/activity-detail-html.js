@@ -49,6 +49,8 @@ const EDITABLE_FIELDS_ALL = [
   'activity_manager',
   'authority',
   'school',
+  'grade',
+  'class_group',
   'activity_type',
   'activity_no',
   'activity_name',
@@ -108,6 +110,8 @@ const FIELD_LABELS = {
   activity_manager: 'מנהל פעילות',
   authority: 'רשות',
   school: 'בית ספר',
+  grade: 'שכבה',
+  class_group: 'כיתה',
   activity_type: 'סוג פעילות',
   activity_no: 'מספר פעילות',
   activity_name: 'שם פעילות',
@@ -165,6 +169,7 @@ const FIELD_LABELS = {
 
 const LIST_FIELDS = [
   'activity_type',
+  'grade',
   'funding',
   'authority',
   'school',
@@ -176,6 +181,7 @@ const LIST_FIELDS = [
 function settingsDropdownListName(fieldName) {
   var map = {
     activity_type: 'activity_type',
+    grade: 'grade',
     funding: 'funding',
     authority: 'authority',
     school: 'school',
@@ -194,6 +200,9 @@ function isListBasedField(fieldName) {
  * Returns dropdown options for a field, constrained by source sheet for activity_type.
  */
 function resolveDropdownOptions(fieldName, settings, sourceSheet) {
+  if (fieldName === 'grade') {
+    return ['א\'', 'ב\'', 'ג\'', 'ד\'', 'ה\'', 'ו\'', 'ז\'', 'ח\'', 'ט\'', 'י\'', 'י\"א', 'י\"ב'];
+  }
   var dropdownOptions = settings?.dropdown_options || {};
   var listName = settingsDropdownListName(fieldName);
   var allOptions = Array.isArray(dropdownOptions[listName]) ? dropdownOptions[listName] : [];
@@ -285,6 +294,9 @@ export function activityRowDetailHtml(
   const srcBadge     = srcLbl
     ? `<span class="ds-tag ds-tag--source">${srcLbl}</span>`
     : '';
+  const grade = String(row.grade || '').trim();
+  const classGroup = String(row.class_group || '').trim();
+  const classDisplay = [grade, classGroup].filter(Boolean).join(' ');
 
   return `
     <div class="ds-details-grid" dir="rtl">
@@ -294,6 +306,7 @@ export function activityRowDetailHtml(
       ${hideRowId ? '' : `<p><strong>מזהה שורה:</strong> ${escapeHtml(String(row.RowID || ''))}</p>`}
       ${hideActivityNo ? '' : `<p><strong>מספר פעילות:</strong> ${escapeHtml(String(row.activity_no || '—'))}</p>`}
       <p><strong>בית ספר:</strong> ${escapeHtml(row.school || '—')}</p>
+      ${classDisplay ? `<p><strong>שכבה/כיתה:</strong> ${escapeHtml(classDisplay)}</p>` : ''}
       <p><strong>רשות:</strong> ${escapeHtml(row.authority || '—')}</p>
       <p><strong>שעות:</strong> ${escapeHtml(activityHoursLabel(row))}</p>
       <div class="ds-detail-date-stack ds-detail-date-stack--narrow">

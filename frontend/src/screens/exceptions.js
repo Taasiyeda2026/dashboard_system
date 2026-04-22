@@ -24,6 +24,9 @@ function exceptionDrawerHtml(row, hideRowId) {
   const instructor2 = row.instructor_name_2 || '';
   const startDate   = formatDateHe(row.start_date) || row.start_date || '';
   const endDate     = formatDateHe(row.end_date)   || row.end_date   || '';
+  const grade = String(row.grade || '').trim();
+  const classGroup = String(row.class_group || '').trim();
+  const classDisplay = [grade, classGroup].filter(Boolean).join(' ');
 
   return `<div class="ds-details-grid" dir="rtl">
     ${hideRowId ? '' : `<p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>`}
@@ -32,6 +35,7 @@ function exceptionDrawerHtml(row, hideRowId) {
     ${fieldRow(hebrewColumn('activity_type'),    row.activity_type)}
     ${fieldRow(hebrewColumn('authority'),        row.authority)}
     ${fieldRow(hebrewColumn('school'),           row.school)}
+    ${classDisplay ? fieldRow('שכבה/כיתה', classDisplay) : ''}
     ${fieldRow(hebrewColumn('activity_manager'), row.activity_manager)}
     ${fieldRow('מדריך',
         instructor  ? (row.emp_id  ? `${instructor} (${row.emp_id})`  : instructor)  : '')}

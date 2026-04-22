@@ -105,6 +105,8 @@ const COLUMN_LABELS = {
   kind: 'סוג',
   authority: 'רשות',
   school: 'בית ספר',
+  grade: 'שכבה',
+  class_group: 'כיתה',
   contact_name: 'איש קשר',
   phone: 'טלפון',
   start_date: 'תאריך התחלה',
