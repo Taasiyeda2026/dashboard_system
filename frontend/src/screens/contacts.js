@@ -133,41 +133,64 @@ function schoolPersonHtml(row) {
   </div>`;
 }
 
-function groupBySchool(rows) {
-  const map = new Map();
+function groupByAuthorityThenSchool(rows) {
+  const authMap = new Map();
   for (const row of rows) {
-    const key = String(row.school || '').trim() || '—';
-    if (!map.has(key)) map.set(key, { authority: row.authority || '', rows: [] });
-    map.get(key).rows.push(row);
+    const authority = String(row.authority || '').trim() || '—';
+    if (!authMap.has(authority)) authMap.set(authority, []);
+    authMap.get(authority).push(row);
   }
-  return new Map([...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he')));
+  const sorted = new Map([...authMap.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he')));
+  const result = new Map();
+  sorted.forEach((authRows, authority) => {
+    const schoolMap = new Map();
+    for (const row of authRows) {
+      const school = String(row.school || '').trim() || '—';
+      if (!schoolMap.has(school)) schoolMap.set(school, []);
+      schoolMap.get(school).push(row);
+    }
+    result.set(authority, new Map([...schoolMap.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he'))));
+  });
+  return result;
 }
 
-function renderSchoolCard(schoolName, { authority, rows }) {
+function renderSchoolCard(schoolName, rows) {
   const personsHtml = rows.map(schoolPersonHtml).filter(Boolean).join('');
   if (!personsHtml) return '';
-
   const countLabel = rows.length === 1 ? '1 איש קשר' : `${rows.length} אנשי קשר`;
+  return `<details class="sc-card">
+    <summary class="sc-card__head">
+      <span class="sc-card__chevron" aria-hidden="true">›</span>
+      <span class="sc-card__school-icon" aria-hidden="true">🏫</span>
+      <span class="sc-card__name">${escapeHtml(schoolName)}</span>
+      <span class="sc-card__count">${escapeHtml(countLabel)}</span>
+    </summary>
+    <div class="sc-card__body">${personsHtml}</div>
+  </details>`;
+}
 
-  return `
-    <details class="sc-card">
-      <summary class="sc-card__head">
-        <span class="sc-card__chevron" aria-hidden="true">›</span>
-        <span class="sc-card__school-icon" aria-hidden="true">🏫</span>
-        <span class="sc-card__name">${escapeHtml(schoolName)}</span>
-        ${authority ? `<span class="sc-card__auth">${escapeHtml(String(authority))}</span>` : ''}
-        <span class="sc-card__count">${escapeHtml(countLabel)}</span>
-      </summary>
-      <div class="sc-card__body">${personsHtml}</div>
-    </details>`;
+function renderAuthorityGroup(authority, schoolsMap) {
+  let schoolsHtml = '';
+  schoolsMap.forEach((rows, schoolName) => { schoolsHtml += renderSchoolCard(schoolName, rows); });
+  if (!schoolsHtml) return '';
+  const schoolCount = schoolsMap.size;
+  const countLabel = schoolCount === 1 ? '1 בית ספר' : `${schoolCount} בתי ספר`;
+  return `<div class="sc-authority-group">
+    <div class="sc-authority-head">
+      <span class="sc-authority-icon" aria-hidden="true">🏛️</span>
+      <span class="sc-authority-name">${escapeHtml(authority)}</span>
+      <span class="sc-authority-count">${escapeHtml(countLabel)}</span>
+    </div>
+    <div class="sc-school-grid">${schoolsHtml}</div>
+  </div>`;
 }
 
 function schoolTabHtml(rows, searchQ) {
   const filtered = applySchoolSearch(rows, searchQ);
   if (filtered.length === 0) return { filtered, body: dsEmptyState('לא נמצאו אנשי קשר') };
-  const groups = groupBySchool(filtered);
+  const authorityGroups = groupByAuthorityThenSchool(filtered);
   let html = '';
-  groups.forEach((g, name) => { html += renderSchoolCard(name, g); });
+  authorityGroups.forEach((schoolsMap, authority) => { html += renderAuthorityGroup(authority, schoolsMap); });
   return { filtered, body: `<div class="sc-card-list">${html}</div>` };
 }
 

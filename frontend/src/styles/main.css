@@ -4212,7 +4212,52 @@ select.ds-input {
 .sc-card-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 20px;
+}
+
+.sc-authority-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sc-authority-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px 8px;
+  border-bottom: 2px solid var(--ds-border);
+}
+
+.sc-authority-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.sc-authority-name {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--ds-text);
+  flex: 1;
+  min-width: 0;
+}
+
+.sc-authority-count {
+  font-size: 0.72rem;
+  color: var(--ds-text-secondary);
+  background: var(--ds-muted-bg);
+  border: 1px solid var(--ds-muted-border);
+  border-radius: var(--ds-radius-full);
+  padding: 1px 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.sc-school-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 6px;
+  align-items: start;
 }
 
 .sc-card {
