@@ -138,7 +138,7 @@ export const weekScreen = {
           ? groups.map((group) => renderWeekGroup(group, d.date, dow)).join('')
           : '<p class="ds-muted ds-week-empty">אין פריטים</p>';
         return `
-      <section class="ds-week-col${isToday ? ' is-today' : ''}" aria-label="${escapeHtml(d.date)}">
+      <section class="ds-week-col${isToday ? ' is-today' : ''}" data-day-idx="${idx}" aria-label="${escapeHtml(d.date)}">
         <header class="ds-week-col__head">
           <div class="ds-week-col__head-top">
             <span class="ds-week-col__dow">${escapeHtml(dow || `יום ${idx + 1}`)}</span>
