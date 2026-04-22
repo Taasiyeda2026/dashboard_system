@@ -2700,48 +2700,6 @@ function actionAdminSettings_(user, payload) {
   return { rows: rows };
 }
 
-/* ── Admin Lists ────────────────────────────────────────────────────────────── */
-function actionAdminLists_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer']);
-  var rows = [];
-  try {
-    var sheet = getSpreadsheet_().getSheetByName(configuredDropdownSourceSheet_());
-    if (sheet) {
-      rows = readRows_(configuredDropdownSourceSheet_());
-    }
-  } catch(e) {}
-
-  /* If rows have a list_name column, group by it; otherwise return raw rows */
-  var hasListName = rows.length > 0 && rows[0].hasOwnProperty('list_name');
-  if (hasListName) {
-    var grouped = {};
-    rows.forEach(function(r) {
-      var listName = listKey_(r.list_name);
-      var val = text_(r.value || r.display_value || r.val || '');
-      if (!listName) return;
-      if (listName === 'activity_name') {
-        return;
-      }
-      if (!val) return;
-      if (!grouped[listName]) grouped[listName] = [];
-      if (grouped[listName].indexOf(val) < 0) grouped[listName].push(val);
-    });
-    var dropdownMap = buildDropdownOptionsMapFromRows_(rows);
-    return {
-      schools: grouped['schools'] || grouped['school'] || [],
-      fundings: grouped['fundings'] || grouped['funding'] || [],
-      authorities: grouped['authorities'] || grouped['authority'] || [],
-      activity_types: grouped['activity_types'] || grouped['activity_type'] || [],
-      managers: grouped['managers'] || grouped['manager'] || [],
-      lists_by_name: grouped,
-      activity_names: dropdownMap.activity_names || [],
-      dropdown_options: dropdownMap,
-      raw: rows
-    };
-  }
-  return { rows: rows, raw: rows };
-}
-
 /* ── Save Finance Row (status + notes) ─────────────────────────────────────── */
 function actionSaveFinanceRow_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer']);

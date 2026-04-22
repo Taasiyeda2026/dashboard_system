@@ -39,7 +39,6 @@ function handlePost_(e) {
       operationsDetail: function() { return actionOperationsDetail_(user, payload); },
       editRequests: function() { return actionEditRequests_(user); },
       permissions: function() { return actionPermissions_(user, payload); },
-      adminLists: function() { return actionAdminLists_(user, payload); },
       addActivity: function() { return actionAddActivity_(user, payload); },
       saveActivity: function() { return actionSaveActivity_(user, payload); },
       submitEditRequest: function() { return actionSubmitEditRequest_(user, payload); },
@@ -76,8 +75,7 @@ function handlePost_(e) {
       operations: 'operations',
       operationsDetail: 'operations',
       editRequests: 'edit-requests',
-      permissions: 'permissions',
-      adminLists: 'lists'
+      permissions: 'permissions'
     };
     var routeForAction = ACTION_ROUTE_MAP[action];
     if (routeForAction && !canUserAccessRoute_(user, routeForAction)) {
@@ -145,8 +143,7 @@ function isReadActionCacheable_(action, user) {
     operations: true,
     operationsDetail: true,
     editRequests: true,
-    permissions: true,
-    adminLists: true
+    permissions: true
   };
   return !!map[action];
 }
