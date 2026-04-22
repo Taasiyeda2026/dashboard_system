@@ -27,10 +27,17 @@ function groupByInstructor(rows) {
   return new Map([...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he')));
 }
 
-function applySearch(rows, q) {
-  if (!q) return rows;
+const ACTIVE_STATUS = 'פעיל';
+
+function isActiveRow(row) {
+  return String(row.status || '').trim() === ACTIVE_STATUS;
+}
+
+function applySearch(rows, q, activeOnly) {
+  let out = activeOnly ? rows.filter(isActiveRow) : rows;
+  if (!q) return out;
   const lq = q.toLowerCase();
-  return rows.filter((r) =>
+  return out.filter((r) =>
     String(r.instructor_name || '').toLowerCase().includes(lq) ||
     String(r.instructor_name_2 || '').toLowerCase().includes(lq) ||
     String(r.activity_name || '').toLowerCase().includes(lq) ||
@@ -62,6 +69,14 @@ function activityDrawerHtml(row) {
   return `<div class="ds-details-grid" dir="rtl">${lines}</div>`;
 }
 
+function statusBadge(status) {
+  const s = String(status || '').trim();
+  if (!s) return '';
+  const isActive = s === ACTIVE_STATUS;
+  const cls = isActive ? 'ci-status ci-status--active' : 'ci-status ci-status--inactive';
+  return `<span class="${cls}">${escapeHtml(s)}</span>`;
+}
+
 function renderActivityRow(row) {
   const name = escapeHtml(row.activity_name || '—');
   const school = escapeHtml(row.school || '—');
@@ -72,6 +87,7 @@ function renderActivityRow(row) {
       <div class="ci-row__main">
         <span class="ci-row__name">${name}</span>
         ${meta ? `<span class="ci-row__meta">${meta}</span>` : ''}
+        ${statusBadge(row.status)}
         <span class="ci-row__toggle" aria-hidden="true">&#9658;</span>
       </div>
     </div>`;
@@ -94,13 +110,20 @@ export const instructorsScreen = {
   load: ({ api }) => api.instructors(),
   render(data, { state } = {}) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const searchQ = state?.instructorsSearch || '';
-    const filtered = applySearch(allRows, searchQ);
+    const searchQ  = state?.instructorsSearch || '';
+    const activeOnly = state?.instructorsActiveOnly !== false;
+    const filtered = applySearch(allRows, searchQ, activeOnly);
     const groups = groupByInstructor(filtered);
 
+    const activeCount = allRows.filter(isActiveRow).length;
+    const totalCount  = allRows.length;
+
     const bodyHtml = filtered.length === 0
-      ? dsEmptyState(searchQ ? 'לא נמצאו פעילויות לחיפוש זה' : 'אין פעילויות')
+      ? dsEmptyState(searchQ || activeOnly ? 'לא נמצאו פעילויות לסינון זה' : 'אין פעילויות')
       : `<div class="ci-list">${renderGroups(groups)}</div>`;
+
+    const activeLbl = activeOnly ? 'פעילים בלבד' : 'כולל לא פעילים';
+    const activeChk = activeOnly ? 'checked' : '';
 
     return dsScreenStack(`
       ${actNavGridHtml(state)}
@@ -113,9 +136,13 @@ export const instructorsScreen = {
           value="${escapeHtml(searchQ)}"
           dir="rtl"
         />
+        <label class="ds-toggle-label" dir="rtl">
+          <input type="checkbox" id="instructors-active-only" ${activeChk} />
+          ${escapeHtml(activeLbl)}
+        </label>
       </div>
       ${dsCard({
-        title: `מדריכים · ${groups.size} | פעילויות · ${filtered.length}`,
+        title: `מדריכים · ${groups.size} | פעילויות · ${filtered.length}${activeOnly && totalCount !== activeCount ? ` (מתוך ${totalCount})` : ''}`,
         body: bodyHtml,
         padded: filtered.length === 0
       })}
@@ -124,6 +151,11 @@ export const instructorsScreen = {
   bind({ root, data, state, ui, rerender }) {
     bindActNavGrid(root, { state, rerender });
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
+
+    root.querySelector('#instructors-active-only')?.addEventListener('change', (ev) => {
+      state.instructorsActiveOnly = ev.target.checked;
+      rerender();
+    });
 
     let _searchTimer;
     root.querySelector('#instructors-search')?.addEventListener('input', (ev) => {

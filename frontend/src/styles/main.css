@@ -3469,6 +3469,39 @@ select.ds-input {
   flex-wrap: wrap;
 }
 
+.ds-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  user-select: none;
+  color: var(--ds-text-secondary);
+  white-space: nowrap;
+}
+
+.ci-status {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-inline-start: 4px;
+  vertical-align: middle;
+}
+
+.ci-status--active {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.ci-status--inactive {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
 .ds-screen-shortcuts {
   display: flex;
   flex-wrap: wrap;

@@ -902,9 +902,7 @@ function actionInstructors_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
   var all = allActivitiesSummary_();
   return {
-    rows: all.filter(function(row) {
-      return text_(row.status) === 'פעיל';
-    }).map(function(row) {
+    rows: all.map(function(row) {
       return {
         RowID:              row.RowID,
         source_sheet:       row.source_sheet,
