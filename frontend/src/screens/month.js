@@ -221,8 +221,14 @@ export const monthScreen = {
       const cellItems = monthCellItems(cell, itemsById);
       const n = cellItems.length;
       const isToday = cell.date === todayIso;
+      const isShabbat = cellDate.getDay() === 6;
       const warn = dayNeedsAttention(cell.items);
-      const extra = [isToday ? 'is-cal-today' : '', warn ? 'is-month-warn' : ''].filter(Boolean).join(' ');
+      const extra = [
+        isToday ? 'is-cal-today' : '',
+        warn ? 'is-month-warn' : '',
+        isShabbat ? 'is-shabbat' : '',
+        n > 0 ? 'has-activities' : 'is-no-activities'
+      ].filter(Boolean).join(' ');
       const subtitle = '';
       const meta = n > 0 ? `${n} פעילויות` : '';
       const hay = (Array.isArray(cell.items) ? cell.items : [])
