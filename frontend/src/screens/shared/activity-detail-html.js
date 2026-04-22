@@ -270,7 +270,7 @@ function blockDates(row, { canEdit = false } = {}) {
 }
 
 function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
-  const operationalPrivateNote = privateNote || row.operations_private_notes || row.private_note || row.note_text || '';
+  const operationalPrivateNote = row.operations_private_notes || String(privateNote || '').trim() || '';
   const privateSection = showPrivateNote
     ? `<div class="ds-private-note-section">
         <span class="ds-private-note-badge" aria-label="הערה פרטית">🔒</span>
