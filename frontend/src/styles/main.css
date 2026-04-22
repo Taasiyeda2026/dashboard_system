@@ -1356,6 +1356,22 @@ span.ds-chip {
   vertical-align: middle;
 }
 
+.ds-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  vertical-align: middle;
+  line-height: 1.6;
+}
+
+.ds-tag--source {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
 /* ——— Tables ——— */
 .ds-table-wrap {
   overflow-x: auto;

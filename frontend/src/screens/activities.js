@@ -25,21 +25,29 @@ function hasRowException(row) {
   return noInstructor || noStartDate;
 }
 
-const SHORT_TYPES = new Set(['workshop', 'tour', 'after_school', 'escape_room']);
+const DEFAULT_ONE_DAY_TYPES = ['workshop', 'tour', 'escape_room'];
+const DEFAULT_PROGRAM_TYPES = ['course', 'after_school'];
 
 const FAMILY_LABEL_SHORT = 'חד-יומיות';
 const FAMILY_LABEL_LONG  = 'תוכניות';
 
-function isShortFamily(row) {
-  return SHORT_TYPES.has(String(row?.activity_type || '').trim());
+function resolveOneDayTypes(settings) {
+  return Array.isArray(settings?.one_day_activity_types) && settings.one_day_activity_types.length
+    ? settings.one_day_activity_types
+    : DEFAULT_ONE_DAY_TYPES;
 }
 
-function applyClientFilters(rows, state) {
+function isShortFamily(row, oneDayTypes) {
+  return oneDayTypes.includes(String(row?.activity_type || '').trim());
+}
+
+function applyClientFilters(rows, state, settings) {
   let out = Array.isArray(rows) ? rows.slice() : [];
+  const oneDayTypes = resolveOneDayTypes(settings);
   if (state.activityQuickFamily === 'short') {
-    out = out.filter((row) => isShortFamily(row));
+    out = out.filter((row) => isShortFamily(row, oneDayTypes));
   } else if (state.activityQuickFamily === 'long') {
-    out = out.filter((row) => !isShortFamily(row));
+    out = out.filter((row) => !isShortFamily(row, oneDayTypes));
   }
   return out;
 }
@@ -71,7 +79,7 @@ export const activitiesScreen = {
 
   render(data, { state }) {
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
-    const safeRows      = applyClientFilters(allRows, state);
+    const safeRows      = applyClientFilters(allRows, state, state?.clientSettings);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
@@ -185,7 +193,7 @@ export const activitiesScreen = {
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
     bindActNavGrid(root, { state, rerender });
 
-    const filteredRows      = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state);
+    const filteredRows      = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state, state?.clientSettings);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const canEditActivity   = state?.user?.display_role !== 'instructor';
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;

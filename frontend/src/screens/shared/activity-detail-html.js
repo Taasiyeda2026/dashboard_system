@@ -1,5 +1,5 @@
 import { escapeHtml } from './html.js';
-import { visibleActivityCategoryLabel } from './ui-hebrew.js';
+import { visibleActivityCategoryLabel, hebrewSheetLabel } from './ui-hebrew.js';
 import { formatDateHe } from './format-date.js';
 
 function statusLabel(status) {
@@ -280,9 +280,16 @@ export function activityRowDetailHtml(
   const statusClass = statusKind(row.status);
   const startDate = escapeHtml(formatDateHe(row.start_date) || '—');
   const endDate = escapeHtml(formatDateHe(row.end_date) || '—');
+  const actTypeLbl   = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
+  const srcLbl       = escapeHtml(hebrewSheetLabel(row.source_sheet));
+  const srcBadge     = srcLbl
+    ? `<span class="ds-tag ds-tag--source">${srcLbl}</span>`
+    : '';
+
   return `
     <div class="ds-details-grid" dir="rtl">
       <p><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '—')}</p>
+      <p><strong>סוג פעילות:</strong> ${actTypeLbl}${srcBadge ? ' ' + srcBadge : ''}</p>
       <p><strong>מדריך/ה:</strong> ${escapeHtml(names || instLine)}</p>
       ${hideRowId ? '' : `<p><strong>מזהה שורה:</strong> ${escapeHtml(String(row.RowID || ''))}</p>`}
       ${hideActivityNo ? '' : `<p><strong>מספר פעילות:</strong> ${escapeHtml(String(row.activity_no || '—'))}</p>`}

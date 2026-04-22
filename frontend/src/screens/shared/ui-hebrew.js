@@ -240,8 +240,8 @@ const API_ERROR_HE = {
  * to a short Hebrew label for display in screen sub-headers.
  */
 const SHEET_LABEL_HE = {
-  data_short:           'פעילויות (קצרות)',
-  data_long:            'פעילויות (ארוכות)',
+  data_short:           'חד-יומיות',
+  data_long:            'תוכניות',
   contacts_instructors: 'אנשי קשר מדריכים',
   contacts_schools:     'אנשי קשר מוסדות',
   activity_meetings:    'מפגשים',
@@ -264,9 +264,9 @@ export function hebrewInstructorsSourcesLabel(sources) {
   const arr = Array.isArray(sources) ? sources : [];
   const hasShort = arr.some((s) => String(s).toLowerCase() === 'data_short');
   const hasLong  = arr.some((s) => String(s).toLowerCase() === 'data_long');
-  if (hasShort && hasLong) return 'פעילויות קצרות ואורכות';
-  if (hasShort) return 'פעילויות קצרות בלבד';
-  if (hasLong)  return 'פעילויות ארוכות בלבד';
+  if (hasShort && hasLong) return 'חד-יומיות ותוכניות';
+  if (hasShort) return 'חד-יומיות בלבד';
+  if (hasLong)  return 'תוכניות בלבד';
   return arr.map(hebrewSheetLabel).join(', ') || 'כל הפעילויות';
 }
 
