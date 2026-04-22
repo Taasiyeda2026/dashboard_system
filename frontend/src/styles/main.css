@@ -1890,6 +1890,19 @@ span.ds-chip {
   line-height: 1.2;
 }
 
+.ds-week-col__holiday {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.09);
+  border-radius: var(--ds-radius-full);
+  padding: 1px 6px;
+  line-height: 1.4;
+  text-align: center;
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
 .ds-week-col__count {
   display: inline-flex;
   align-items: center;
@@ -2459,9 +2472,18 @@ span.ds-chip {
 }
 
 .ds-cal-grid .ds-interactive-card--day-cell .ds-interactive-card__subtitle {
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  color: var(--ds-accent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.09);
+  border-radius: var(--ds-radius-full);
+  padding: 0 5px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 /* TODAY — בולט וחזק */

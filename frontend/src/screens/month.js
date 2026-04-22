@@ -5,6 +5,7 @@ import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
+import { getHolidayLabel } from './shared/holidays.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -229,7 +230,8 @@ export const monthScreen = {
         isShabbat ? 'is-shabbat' : '',
         n > 0 ? 'has-activities' : 'is-no-activities'
       ].filter(Boolean).join(' ');
-      const subtitle = '';
+      const holiday = getHolidayLabel(cell.date);
+      const subtitle = holiday || '';
       const meta = n > 0 ? `${n} פעילויות` : '';
       const hay = (Array.isArray(cell.items) ? cell.items : [])
         .map((it) =>

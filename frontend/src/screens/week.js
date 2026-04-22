@@ -4,6 +4,7 @@ import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
+import { getHolidayLabel } from './shared/holidays.js';
 
 function localYmd() {
   const d = new Date();
@@ -137,6 +138,7 @@ export const weekScreen = {
         const sessionBlocks = items.length
           ? groups.map((group) => renderWeekGroup(group, d.date, dow)).join('')
           : '<p class="ds-muted ds-week-empty">אין פריטים</p>';
+        const holiday = getHolidayLabel(d.date);
         return `
       <section class="ds-week-col${isToday ? ' is-today' : ''}" data-day-idx="${idx}" aria-label="${escapeHtml(d.date)}">
         <header class="ds-week-col__head">
@@ -145,6 +147,7 @@ export const weekScreen = {
             <span class="ds-week-col__count">${items.length}</span>
           </div>
           <span class="ds-week-col__date">${escapeHtml(formatDateHe(d.date))}</span>
+          ${holiday ? `<span class="ds-week-col__holiday">${escapeHtml(holiday)}</span>` : ''}
         </header>
         <div class="ds-week-col__body">${sessionBlocks}</div>
       </section>`;
