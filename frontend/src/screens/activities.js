@@ -213,6 +213,16 @@ export const activitiesScreen = {
       return row;
     }
 
+    function hideShellHeader(contentRoot) {
+      const shellHdr = contentRoot.closest('.ds-drawer')?.querySelector(':scope > header');
+      if (shellHdr) shellHdr.hidden = true;
+    }
+
+    function makeOnOpen(contentRoot) {
+      hideShellHeader(contentRoot);
+      bindActivityEditForm(contentRoot);
+    }
+
     async function openActivityDetail(summaryRow) {
       if (!summaryRow || !ui) return;
       const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
@@ -229,7 +239,11 @@ export const activitiesScreen = {
           hideActivityNo,
           state?.clientSettings || {}
         ),
-        onOpen: bindActivityEditForm
+        onOpen: makeOnOpen,
+        onClose: () => {
+          const shellHdr = document.querySelector('.ds-drawer > header');
+          if (shellHdr) shellHdr.hidden = false;
+        }
       });
       if (cached) return;
       try {
@@ -245,7 +259,11 @@ export const activitiesScreen = {
             hideActivityNo,
             state?.clientSettings || {}
           ),
-          onOpen: bindActivityEditForm
+          onOpen: makeOnOpen,
+          onClose: () => {
+            const shellHdr = document.querySelector('.ds-drawer > header');
+            if (shellHdr) shellHdr.hidden = false;
+          }
         });
       } catch {}
     }
