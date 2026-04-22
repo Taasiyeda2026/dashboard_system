@@ -22,16 +22,17 @@ function internalRoleFromPermissionRow_(row) {
 function normalizeRole_(value) {
   var raw = text_(value).toLowerCase();
   var role = raw.replace(/\s+/g, ' ').trim();
-  if (role === 'admin') return 'admin';
+  if (role === 'admin' || role === 'מנהל' || role === 'מנהלת') return 'admin';
   if (role === 'finance') return 'finance';
   if (role === 'operations_reviewer' || role === 'operations reviewer') return 'operations_reviewer';
-  if (role === 'authorized_user' || role === 'authorized user') return 'authorized_user';
-  if (role === 'instructor') return 'instructor';
+  if (role === 'authorized_user' || role === 'authorized user' || role === 'משתמש מורשה' || role === 'משתמשת מורשה') return 'authorized_user';
+  if (role === 'instructor' || role === 'מדריך' || role === 'מדריכה') return 'instructor';
   if (role === 'operation manager' || role === 'operations manager') return 'operation_manager';
   if (role === 'activities manager') return 'activities_manager';
   if (role === 'domain manager') return 'domain_manager';
   if (role === 'manager instructor') return 'manager_instructor';
-  throw new Error('Invalid role: ' + raw);
+  // תפקיד לא מזוהה — fallback ל-authorized_user (מניעת קריסה בהתחברות)
+  return 'authorized_user';
 }
 
 function isAuthorizedUserTier_(role) {
