@@ -10,7 +10,7 @@ function setEditMode(form, editing) {
   form.querySelectorAll('[data-view-only]').forEach((el) => el.toggleAttribute('hidden', editing));
   form.querySelectorAll('[data-edit-only]').forEach((el) => el.toggleAttribute('hidden', !editing));
   form.querySelectorAll('[data-edit-actions]').forEach((el) => el.toggleAttribute('hidden', !editing));
-  const editBtn = form.querySelector('[data-action-edit]');
+  const editBtn = form.querySelector('[data-action="start-edit"]');
   if (editBtn) editBtn.toggleAttribute('hidden', editing);
   updateMoreDatesToggle(form);
 }
@@ -23,7 +23,7 @@ function setStatus(statusEl, kind, text) {
 }
 
 function detectActivityNoByName(form, activityName) {
-  const sel = form.querySelector('[data-activity-name]');
+  const sel = form.querySelector('[data-role="activity-name-select"]');
   if (!sel) return '';
   const opt = Array.from(sel.options).find((o) => o.value === activityName);
   return opt ? String(opt.dataset.activityNo || '') : '';
@@ -31,8 +31,8 @@ function detectActivityNoByName(form, activityName) {
 
 function addDays(dateStr, days) {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (isNaN(d)) return '';
+  const d = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
@@ -61,8 +61,8 @@ function applyChainShift(form, changedIdx, _oldDate, newDate) {
 }
 
 function getChainMode(form) {
-  const active = form.querySelector('[data-chain-toggle] [data-chain-mode].is-active');
-  return active ? String(active.dataset.chainMode || 'single') : 'single';
+  const active = form.querySelector('[data-chain-toggle] [data-date-mode].is-active');
+  return active ? String(active.dataset.dateMode || 'single') : 'single';
 }
 
 function buildMeetingPickerCell(idx, dateValue) {
@@ -105,7 +105,7 @@ function updateMoreDatesToggle(form) {
   const editCards = Array.from(form.querySelectorAll('[data-meeting-dates-edit] .activity-drawer__date-card'));
   const overflow = Math.max(0, viewCards.length - 6);
 
-  const buttons = Array.from(form.querySelectorAll('[data-action-toggle-dates]'));
+  const buttons = Array.from(form.querySelectorAll('[data-action="toggle-more"]'));
   buttons.forEach((button) => {
     button.hidden = isEditing || isOnce || overflow === 0;
     if (!button.hidden) {
@@ -125,16 +125,53 @@ function updateMoreDatesToggle(form) {
 export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, rerender }) {
   if (!api || !contentRoot) return;
 
+  async function saveActivityForm(form) {
+    const statusEl = form.querySelector('.ds-activity-edit-status');
+    const submitBtn = form.querySelector('[data-action="save-edit"]');
+    const sourceSheet = form.getAttribute('data-source-sheet') || '';
+    const sourceRowId = form.getAttribute('data-row-id') || '';
+    const changes = {};
+
+    form.querySelectorAll('[name]').forEach((el) => {
+      const name = el.getAttribute('name');
+      if (!name || name.startsWith('_')) return;
+      if (el.closest('[hidden]')) return;
+      changes[name] = String(el.value ?? '').trim();
+    });
+
+    try {
+      setStatus(statusEl, 'is-pending', 'שומר...');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('is-loading');
+      }
+
+      await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
+      setStatus(statusEl, 'is-success', '✅ נשמר בהצלחה');
+      showToast('✅ נשמר בהצלחה', 'success', 2500);
+      setEditMode(form, false);
+      clearScreenDataCache?.();
+      if (typeof rerender === 'function') await rerender();
+    } catch (err) {
+      setStatus(statusEl, 'is-error', `⚠️ ${translateApiErrorForUser(err?.message)}`);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('is-loading');
+      }
+    }
+  }
+
   contentRoot.addEventListener('click', (ev) => {
-    const form = ev.target.closest('[data-activity-form]');
+    const form = ev.target.closest('[data-drawer-form]');
     if (!form) return;
 
-    if (ev.target.closest('[data-action-edit]')) {
+    if (ev.target.closest('[data-action="start-edit"]')) {
       setEditMode(form, true);
       return;
     }
 
-    if (ev.target.closest('[data-action-cancel]')) {
+    if (ev.target.closest('[data-action="cancel-edit"]')) {
       form.reset();
       form.dataset.datesExpanded = 'no';
       setStatus(form.querySelector('.ds-activity-edit-status'), '', '');
@@ -145,17 +182,23 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
       return;
     }
 
-    const chainBtn = ev.target.closest('[data-chain-mode]');
+    if (ev.target.closest('[data-action="save-edit"]')) {
+      ev.preventDefault();
+      void saveActivityForm(form);
+      return;
+    }
+
+    const chainBtn = ev.target.closest('[data-date-mode]');
     if (chainBtn) {
       const toggle = chainBtn.closest('[data-chain-toggle]');
       if (toggle) {
-        toggle.querySelectorAll('[data-chain-mode]').forEach((b) => b.classList.remove('is-active'));
+        toggle.querySelectorAll('[data-date-mode]').forEach((b) => b.classList.remove('is-active'));
         chainBtn.classList.add('is-active');
       }
       return;
     }
 
-    if (ev.target.closest('[data-add-meeting]')) {
+    if (ev.target.closest('[data-action="add-meeting"]')) {
       const grid = form.querySelector('[data-meeting-dates-edit]');
       if (!grid) return;
       if (form.dataset.isOnce === 'yes') return;
@@ -171,13 +214,13 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
       return;
     }
 
-    if (ev.target.closest('[data-action-toggle-dates]')) {
+    if (ev.target.closest('[data-action="toggle-more"]')) {
       form.dataset.datesExpanded = form.dataset.datesExpanded === 'yes' ? 'no' : 'yes';
       updateMoreDatesToggle(form);
     }
   });
 
-  contentRoot.querySelectorAll('[data-activity-form]').forEach((form) => {
+  contentRoot.querySelectorAll('[data-drawer-form]').forEach((form) => {
     setEditMode(form, false);
     form.dataset.datesExpanded = 'no';
     updateMeetingWeekdays(form);
@@ -185,7 +228,7 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
     updateEndDateDisplay(form);
 
     form.addEventListener('change', (ev) => {
-      const nameEl = ev.target.closest('[data-activity-name]');
+      const nameEl = ev.target.closest('[data-role="activity-name-select"]');
       if (nameEl) {
         const autoNo = detectActivityNoByName(form, String(nameEl.value || ''));
         const hidden = form.querySelector('[data-activity-no]');
@@ -208,44 +251,6 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
     form.addEventListener('focusin', (ev) => {
       const datePicker = ev.target.closest('input[data-meeting-idx]');
       if (datePicker) datePicker.dataset.prevValue = datePicker.value;
-    });
-
-    form.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const statusEl = form.querySelector('.ds-activity-edit-status');
-      const submitBtn = form.querySelector('button[type="submit"]');
-      const sourceSheet = form.getAttribute('data-source-sheet') || '';
-      const sourceRowId = form.getAttribute('data-row-id') || '';
-      const changes = {};
-
-      form.querySelectorAll('[name]').forEach((el) => {
-        const name = el.getAttribute('name');
-        if (!name || name.startsWith('_')) return;
-        if (el.closest('[hidden]')) return;
-        changes[name] = String(el.value ?? '').trim();
-      });
-
-      try {
-        setStatus(statusEl, 'is-pending', 'שומר...');
-        if (submitBtn) {
-          submitBtn.disabled = true;
-          submitBtn.classList.add('is-loading');
-        }
-
-        await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
-        setStatus(statusEl, 'is-success', '✅ נשמר בהצלחה');
-        showToast('✅ נשמר בהצלחה', 'success', 2500);
-        setEditMode(form, false);
-        clearScreenDataCache?.();
-        if (typeof rerender === 'function') await rerender();
-      } catch (err) {
-        setStatus(statusEl, 'is-error', `⚠️ ${translateApiErrorForUser(err?.message)}`);
-      } finally {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.classList.remove('is-loading');
-        }
-      }
     });
   });
 }

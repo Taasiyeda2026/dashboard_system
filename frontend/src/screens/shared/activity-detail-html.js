@@ -89,7 +89,7 @@ function activityNameSelectHtml(name, value, options, activityType) {
       })
     )
     .join('');
-  return `<select class="ds-input" name="${escapeHtml(name)}" data-role="activity-name-select" data-activity-name>${opts}</select>`;
+  return `<select class="ds-input" name="${escapeHtml(name)}" data-role="activity-name-select">${opts}</select>`;
 }
 
 function autoEndDate(row) {
@@ -304,21 +304,21 @@ function blockDates(row, { canEdit = false } = {}) {
     ? ''
     : `
       <div class="activity-drawer__date-mode" data-mode="edit" data-chain-toggle>
-        <button type="button" class="activity-drawer__toggle" data-date-mode="single" data-chain-mode="single">בודד</button>
-        <button type="button" class="activity-drawer__toggle is-active" data-date-mode="chain" data-chain-mode="chain">שרשרת</button>
+        <button type="button" class="activity-drawer__toggle" data-date-mode="single">בודד</button>
+        <button type="button" class="activity-drawer__toggle is-active" data-date-mode="chain">שרשרת</button>
       </div>
     `;
   const addMeetingBtn = isOnce
     ? ''
-    : `<button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-add-meeting data-mode="edit">➕ הוסף מפגש</button>`;
+    : `<button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-mode="edit">➕ הוסף מפגש</button>`;
   const moreBtn = !isOnce && schedule.length > 6
-    ? `<button type="button" class="activity-drawer__more" data-action="toggle-more" data-action-toggle-dates data-mode="view">+עוד</button>`
+    ? `<button type="button" class="activity-drawer__more" data-action="toggle-more" data-mode="view">+עוד</button>`
     : '';
   return `
     <section class="activity-drawer__section">
       <div class="activity-drawer__section-head">
         <h3 class="activity-drawer__section-title">📅</h3>
-        ${canEdit ? '<button type="button" class="activity-drawer__action" data-action="start-edit" data-action-edit data-mode="view">✏️ עריכה</button>' : ''}
+        ${canEdit ? '<button type="button" class="activity-drawer__action" data-action="start-edit" data-mode="view">✏️ עריכה</button>' : ''}
       </div>
       <div class="activity-drawer__progress" data-mode="view">
         <div class="activity-drawer__progress-meta">
@@ -342,9 +342,9 @@ function blockDates(row, { canEdit = false } = {}) {
       </div>
       ${chainToggle}
       ${addMeetingBtn}
-      <div class="activity-drawer__edit-actions" data-mode="edit" data-edit-actions>
-        <button type="submit" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">שמור</button>
-        <button type="button" class="activity-drawer__action" data-action="cancel-edit" data-action-cancel>ביטול</button>
+      <div class="activity-drawer__edit-actions" data-mode="edit">
+        <button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">שמור</button>
+        <button type="button" class="activity-drawer__action" data-action="cancel-edit">ביטול</button>
         <p class="ds-activity-edit-status ds-muted" role="status"></p>
       </div>
     </section>
@@ -385,7 +385,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, s
   const computedEnd = autoEndDate(row);
   const activityType = String(row.activity_type || '').trim();
   return `
-    <form class="activity-drawer__form" data-drawer-form data-activity-form data-edit-activity
+    <form class="activity-drawer__form" data-drawer-form
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
       data-row-id="${escapeHtml(String(row.RowID || ''))}"
       data-auto-end-date="${escapeHtml(computedEnd)}"
