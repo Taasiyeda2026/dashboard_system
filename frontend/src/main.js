@@ -249,8 +249,8 @@ function shellUserRoleLine() {
   return escapeHtml(hebrewRole(state.user?.display_role || state.user?.role));
 }
 
-// ניווט אל מסכים אלו מתבצע ממסך הפעילויות בלבד — לא מוצגים בסרגל הצד
-const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'contacts']);
+// מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
+const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'contacts', 'instructor-contacts']);
 
 function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
