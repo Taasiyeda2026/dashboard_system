@@ -58,18 +58,18 @@ function renderContactCard(row) {
   const name = row.full_name || row.emp_id || '—';
   const initials = avatarInitials(name);
   const color = avatarColor(row.emp_id || name);
-  const role = hebrewEmploymentType(row.employment_type) || '';
   const phone = row.mobile || row.email || '';
   const activeClass = String(row.active || '').toLowerCase() === 'no' ? ' ds-person-card--inactive' : '';
   const phoneHtml = phone
-    ? `<span class="ds-person-phone" aria-label="טלפון">📞 ${escapeHtml(phone)}</span>`
+    ? `<span class="ds-person-phone">${escapeHtml(phone)}</span>`
     : '';
   return `
     <button type="button" class="ds-person-card ds-person-card--contact${activeClass}" data-card-action="icontact:${encodeURIComponent(row.emp_id)}">
       <span class="ds-person-avatar" style="background:${color}" aria-hidden="true">${escapeHtml(initials)}</span>
-      <span class="ds-person-name">${escapeHtml(name)}</span>
-      ${role ? `<span class="ds-person-meta">${escapeHtml(role)}</span>` : ''}
-      ${phoneHtml}
+      <span class="ds-person-card__info">
+        <span class="ds-person-name">${escapeHtml(name)}</span>
+        ${phoneHtml}
+      </span>
     </button>`;
 }
 
