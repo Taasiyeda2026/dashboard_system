@@ -98,13 +98,12 @@ function autoEndDate(row) {
   return String(schedule[schedule.length - 1]?.date || '').trim();
 }
 
-function shortWeekdayFromIso(iso) {
-  const value = String(iso || '').trim();
-  if (!value) return '—';
-  const d = new Date(`${value}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return '—';
+function fmtWeekdayShort(iso) {
+  if (!iso) return '—';
+  const date = new Date(`${iso}T12:00:00`);
   const map = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
-  return map[d.getDay()] || '—';
+  if (Number.isNaN(date.getTime())) return '—';
+  return map[date.getDay()] || '—';
 }
 
 function fieldViewEdit(label, viewHtml, editHtml) {
@@ -211,7 +210,7 @@ function blockContent(row, { settings = {} } = {}) {
     String(row.start_time || '').trim() && String(row.end_time || '').trim()
       ? `${String(row.start_time).trim()}-${String(row.end_time).trim()}`
       : '—';
-  const dayLabel = shortWeekdayFromIso(firstMeetingDate);
+  const dayLabel = fmtWeekdayShort(firstMeetingDate);
   return `
     <section class="activity-drawer__section">
       <h3 class="activity-drawer__section-title">📚</h3>
@@ -277,7 +276,7 @@ function blockDates(row, { canEdit = false } = {}) {
       return `
         <div class="activity-drawer__date-chip ${isDone ? 'is-done' : ''}" data-date-card>
           <span>${escapeHtml(formatDateHe(item?.date || ''))}</span>
-          <span class="activity-drawer__weekday">${escapeHtml(shortWeekdayFromIso(item?.date || ''))}</span>
+          <span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>
         </div>
       `;
     })
@@ -288,7 +287,7 @@ function blockDates(row, { canEdit = false } = {}) {
       <div class="activity-drawer__date-card" data-meeting-index="${i}">
         <div class="activity-drawer__date-card-top">
           <span class="activity-drawer__meeting-index">מפגש ${i + 1}</span>
-          <span class="activity-drawer__weekday">${escapeHtml(shortWeekdayFromIso(item?.date || ''))}</span>
+          <span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>
         </div>
         ${inputHtml({
           name: `meeting_date_${i}`,
@@ -312,7 +311,7 @@ function blockDates(row, { canEdit = false } = {}) {
     ? ''
     : `<button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-mode="edit">➕ הוסף מפגש</button>`;
   const moreBtn = !isOnce && schedule.length > 6
-    ? `<button type="button" class="activity-drawer__more" data-action="toggle-more" data-mode="view">+עוד</button>`
+    ? `<div data-mode="view"><button type="button" class="activity-drawer__more" data-action="toggle-more">+עוד</button></div>`
     : '';
   return `
     <section class="activity-drawer__section">
@@ -404,7 +403,6 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
   return `
     <div>שם פעילות: ${escapeHtml(fallback(row.activity_name))}</div>
     <div>סוג פעילות: ${escapeHtml(activityTypeLabel(row.activity_type))}</div>
-    ${hideActivityNo ? '' : `<div>מספר פעילות: ${escapeHtml(fallback(row.activity_no))}</div>`}
     <div>בית ספר: ${escapeHtml(fallback(row.school))}</div>
     <div>רשות: ${escapeHtml(fallback(row.authority))}</div>
     <div>שכבה: ${escapeHtml(fallback(row.grade))}</div>
