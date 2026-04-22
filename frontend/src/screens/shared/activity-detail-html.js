@@ -1,396 +1,260 @@
 import { escapeHtml } from './html.js';
-import { visibleActivityCategoryLabel, hebrewSheetLabel } from './ui-hebrew.js';
+import { visibleActivityCategoryLabel } from './ui-hebrew.js';
 import { formatDateHe } from './format-date.js';
 
-function statusLabel(status) {
-  const v = String(status || '').trim().toLowerCase();
-  if (v === 'open') return 'פתוח';
-  if (v === 'closed') return 'סגור';
-  return v ? status : '—';
+const FUNDING_OPTIONS = [
+  'רמי שני', 'גפן', 'אדמה', 'היי-דרוז', 'מתנ"ס', 'ויצו', 'מ.ר.ק', 'רשות', 'מארוול',
+  'תעשיינים צפון', 'בנק הפועלים', 'אסם', 'על-בד'
+];
+
+const GRADE_OPTIONS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ז׳', 'ח׳', 'ט׳', 'י׳', 'י״א', 'י״ב'];
+
+const ACTIVITY_CATALOG = [
+  { label: 'ביומימיקרי', parent_value: 'course', activity_no: '6089' },
+  { label: 'ביומימיקרי לחטיבה', parent_value: 'course', activity_no: '53828' },
+  { label: 'בינה מלאכותית', parent_value: 'course', activity_no: '9545' },
+  { label: 'השמיים אינם הגבול', parent_value: 'course', activity_no: '57646' },
+  { label: 'טכנולוגיות החלל', parent_value: 'course', activity_no: '57651' },
+  { label: 'יישומי AI', parent_value: 'course', activity_no: '53819' },
+  { label: 'מנהיגות ירוקה', parent_value: 'course', activity_no: '90001' },
+  { label: 'פורצות דרך', parent_value: 'course', activity_no: '3604' },
+  { label: 'פרימיום', parent_value: 'course', activity_no: '90004' },
+  { label: 'רוקחים עולם', parent_value: 'course', activity_no: '46091' },
+  { label: 'תלמידים להייטק', parent_value: 'after_school', activity_no: '90002' },
+  { label: 'מייקרים', parent_value: 'after_school', activity_no: '90003' },
+  { label: 'תמיר - המחזור מתחיל בבית', parent_value: 'workshop', activity_no: '60025' },
+  { label: 'תמיר - חדר בריחה קווסט', parent_value: 'workshop', activity_no: '60026' },
+  { label: 'תמיר - איפה דדי', parent_value: 'workshop', activity_no: '60027' },
+  { label: 'התנסות בתעשייה', parent_value: 'tour', activity_no: '13990' },
+  { label: 'חדר בריחה ביומימיקרי', parent_value: 'escape_room', activity_no: '1001' }
+];
+
+function fallback(v) {
+  return String(v || '').trim() || '—';
 }
 
-function statusKind(status) {
-  const v = String(status || '').trim().toLowerCase();
-  if (v === 'closed') return 'success';
-  if (v === 'open') return 'warning';
-  return 'neutral';
+function isProgram(row) {
+  return String(row?.source_sheet || '').toLowerCase().includes('long');
 }
 
-function activityHoursLabel(row) {
-  const s = String(row.start_time || '').trim();
-  const e = String(row.end_time || '').trim();
-  if (s && e) return `${s} - ${e}`;
-  return s || e || '—';
+function normStatus(v) {
+  return String(v || '').trim().toLowerCase() === 'closed' ? 'closed' : 'open';
 }
 
-function meetingScheduleHtml(row) {
-  const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
-  if (!schedule.length) {
-    return '<p><strong>כל התאריכים:</strong> —</p>';
-  }
-  const items = schedule
-    .map((item) => {
-      const d = escapeHtml(formatDateHe(String(item?.date || '')));
-      const done = String(item?.performed || '').toLowerCase() === 'yes';
-      return `<li class="ds-meeting-list__item">
-        <span class="ds-meeting-list__date">${d}</span>
-        <span class="ds-meeting-list__state">${done ? 'בוצע' : 'טרם בוצע'}</span>
-      </li>`;
-    })
+function statusText(status) {
+  return normStatus(status) === 'closed' ? 'הסתיים' : 'פתוח';
+}
+
+function toOptions(values) {
+  return (Array.isArray(values) ? values : []).map((v) => String(v || '').trim()).filter(Boolean);
+}
+
+function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '—', attrs = '' }) {
+  const safeValue = String(value || '');
+  const normalized = toOptions(options);
+  const all = normalized.includes(safeValue) || !safeValue ? normalized : [safeValue, ...normalized];
+  const opts = [`<option value="">${escapeHtml(placeholder)}</option>`]
+    .concat(all.map((o) => `<option value="${escapeHtml(o)}"${o === safeValue ? ' selected' : ''}>${escapeHtml(o)}</option>`))
     .join('');
-  return `
-    <div class="ds-detail-date-stack ds-detail-date-stack--narrow">
-      <p><strong>כל התאריכים:</strong></p>
-      <ul class="ds-meeting-list">${items}</ul>
+  return `<select class="${klass}" name="${escapeHtml(name)}" ${attrs}>${opts}</select>`;
+}
+
+function activityNameSelectHtml(name, value, options) {
+  const safeValue = String(value || '');
+  const all = Array.isArray(options) ? options.slice() : [];
+  if (safeValue && !all.some((o) => o.label === safeValue)) {
+    all.unshift({ label: safeValue, activity_no: '' });
+  }
+  const opts = ['<option value="">—</option>']
+    .concat(all.map((o) => {
+      const label = String(o?.label || '');
+      const selected = label === safeValue ? ' selected' : '';
+      const activityNo = String(o?.activity_no || '');
+      return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(activityNo)}"${selected}>${escapeHtml(label)}</option>`;
+    }))
+    .join('');
+  return `<select class="ds-input" name="${escapeHtml(name)}" data-activity-name>${opts}</select>`;
+}
+
+function headerHtml(row, { mode = 'single', summaryDate = '' } = {}) {
+  if (mode === 'summary') {
+    const rows = Array.isArray(row) ? row : [];
+    const main = rows[0] || {};
+    const instructorName = fallback(main.instructor_name || main.instructor_name_2 || 'ללא מדריך');
+    const dateLabel = formatDateHe(summaryDate) || fallback(summaryDate);
+    return `<div class="ds-drawer__header ds-drawer__header--activity">
+      <button class="ds-icon-btn" data-ui-close-drawer aria-label="סגירה">✕</button>
+      <h2 class="ds-drawer__title">${escapeHtml(instructorName)}</h2>
+      <div class="ds-drawer__header-meta">${escapeHtml(`${dateLabel} · ${rows.length} פעילויות`)}</div>
     </div>`;
-}
-
-const EDITABLE_FIELDS_ALL = [
-  'activity_manager',
-  'authority',
-  'school',
-  'grade',
-  'class_group',
-  'activity_type',
-  'activity_no',
-  'activity_name',
-  'sessions',
-  'price',
-  'funding',
-  'start_time',
-  'end_time',
-  'emp_id',
-  'instructor_name',
-  'emp_id_2',
-  'instructor_name_2',
-  'Date1',
-  'Date2',
-  'Date3',
-  'Date4',
-  'Date5',
-  'Date6',
-  'Date7',
-  'Date8',
-  'Date9',
-  'Date10',
-  'Date11',
-  'Date12',
-  'Date13',
-  'Date14',
-  'Date15',
-  'Date16',
-  'Date17',
-  'Date18',
-  'Date19',
-  'Date20',
-  'Date21',
-  'Date22',
-  'Date23',
-  'Date24',
-  'Date25',
-  'Date26',
-  'Date27',
-  'Date28',
-  'Date29',
-  'Date30',
-  'Date31',
-  'Date32',
-  'Date33',
-  'Date34',
-  'Date35',
-  'status',
-  'notes',
-  'finance_status',
-  'finance_notes'
-];
-
-const EDITABLE_FIELDS_BASIC = ['status', 'notes', 'finance_status', 'finance_notes'];
-
-const FIELD_LABELS = {
-  activity_manager: 'מנהל פעילות',
-  authority: 'רשות',
-  school: 'בית ספר',
-  grade: 'שכבה',
-  class_group: 'כיתה',
-  activity_type: 'סוג פעילות',
-  activity_no: 'מספר פעילות',
-  activity_name: 'שם פעילות',
-  sessions: 'כמות מפגשים',
-  price: 'מחיר',
-  funding: 'מימון',
-  start_time: 'שעת התחלה',
-  end_time: 'שעת סיום',
-  emp_id: 'מזהה מדריך 1',
-  instructor_name: 'שם מדריך 1',
-  emp_id_2: 'מזהה מדריך 2',
-  instructor_name_2: 'שם מדריך 2',
-  start_date: 'תאריך התחלה',
-  end_date: 'תאריך סיום',
-  Date1: 'תאריך 1',
-  Date2: 'תאריך 2',
-  Date3: 'תאריך 3',
-  Date4: 'תאריך 4',
-  Date5: 'תאריך 5',
-  Date6: 'תאריך 6',
-  Date7: 'תאריך 7',
-  Date8: 'תאריך 8',
-  Date9: 'תאריך 9',
-  Date10: 'תאריך 10',
-  Date11: 'תאריך 11',
-  Date12: 'תאריך 12',
-  Date13: 'תאריך 13',
-  Date14: 'תאריך 14',
-  Date15: 'תאריך 15',
-  Date16: 'תאריך 16',
-  Date17: 'תאריך 17',
-  Date18: 'תאריך 18',
-  Date19: 'תאריך 19',
-  Date20: 'תאריך 20',
-  Date21: 'תאריך 21',
-  Date22: 'תאריך 22',
-  Date23: 'תאריך 23',
-  Date24: 'תאריך 24',
-  Date25: 'תאריך 25',
-  Date26: 'תאריך 26',
-  Date27: 'תאריך 27',
-  Date28: 'תאריך 28',
-  Date29: 'תאריך 29',
-  Date30: 'תאריך 30',
-  Date31: 'תאריך 31',
-  Date32: 'תאריך 32',
-  Date33: 'תאריך 33',
-  Date34: 'תאריך 34',
-  Date35: 'תאריך 35',
-  status: 'סטטוס',
-  notes: 'הערות',
-  finance_status: 'סטטוס כספים',
-  finance_notes: 'הערות כספים'
-};
-
-const LIST_FIELDS = [
-  'activity_type',
-  'grade',
-  'funding',
-  'authority',
-  'school',
-  'activity_manager',
-  'status',
-  'finance_status'
-];
-
-function settingsDropdownListName(fieldName) {
-  var map = {
-    activity_type: 'activity_type',
-    grade: 'grade',
-    funding: 'funding',
-    authority: 'authority',
-    school: 'school',
-    activity_manager: 'activity_manager',
-    status: 'status',
-    finance_status: 'finance_status'
-  };
-  return map[fieldName] || fieldName;
-}
-
-function isListBasedField(fieldName) {
-  return LIST_FIELDS.indexOf(fieldName) >= 0;
-}
-
-/**
- * Returns dropdown options for a field, constrained by source sheet for activity_type.
- */
-function resolveDropdownOptions(fieldName, settings, sourceSheet) {
-  if (fieldName === 'grade') {
-    return ['א\'', 'ב\'', 'ג\'', 'ד\'', 'ה\'', 'ו\'', 'ז\'', 'ח\'', 'ט\'', 'י\'', 'י\"א', 'י\"ב'];
   }
-  var dropdownOptions = settings?.dropdown_options || {};
-  var listName = settingsDropdownListName(fieldName);
-  var allOptions = Array.isArray(dropdownOptions[listName]) ? dropdownOptions[listName] : [];
-
-  if (fieldName === 'activity_type' && sourceSheet) {
-    var src = String(sourceSheet).toLowerCase();
-    var programTypes = Array.isArray(settings?.program_activity_types)
-      ? settings.program_activity_types
-      : ['course', 'after_school'];
-    var oneDayTypes = Array.isArray(settings?.one_day_activity_types)
-      ? settings.one_day_activity_types
-      : ['workshop', 'tour', 'escape_room'];
-
-    var validTypes;
-    if (src.includes('long')) {
-      validTypes = programTypes;
-    } else if (src.includes('short')) {
-      validTypes = oneDayTypes;
-    }
-    if (validTypes && validTypes.length > 0) {
-      if (allOptions.length > 0) {
-        return allOptions.filter(function(o) { return validTypes.indexOf(String(o)) >= 0; });
-      }
-      return validTypes;
-    }
-  }
-
-  return allOptions;
+  return `<div class="ds-drawer__header ds-drawer__header--activity">
+    <span class="ds-activity-type-badge">${escapeHtml(visibleActivityCategoryLabel(row?.activity_type))}</span>
+    <button class="ds-icon-btn" data-ui-close-drawer aria-label="סגירה">✕</button>
+    <h2 class="ds-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
+    <div class="ds-drawer__header-meta">
+      <span class="ds-status-pill ds-status-pill--subtle">${escapeHtml(statusText(row?.status))}</span>
+      <span class="ds-drawer__school">${escapeHtml(`${fallback(row?.school)} · ${fallback(row?.authority)}`)}</span>
+    </div>
+  </div>`;
 }
 
-/**
- * Renders a single editable field as an HTML input/select/textarea.
- * List-based fields always render as <select> dropdowns.
- */
-function editorInputHtml(fieldName, rawValue, settings, sourceSheet) {
-  var value = String(rawValue ?? '');
-  var safeValue = escapeHtml(value);
-  var label = FIELD_LABELS[fieldName] || fieldName;
-  var isDateColumn = /^Date([1-9]|[12]\d|3[0-5])$/.test(fieldName);
-  var isList = isListBasedField(fieldName) && !isDateColumn;
-  var options = isList ? resolveDropdownOptions(fieldName, settings, sourceSheet) : [];
-
-  if (isList) {
-    var currentIncluded = value && options.indexOf(value) < 0;
-    var opts = ['<option value="">—</option>']
-      .concat(
-        (currentIncluded ? [value] : []).concat(options).map(function(optionVal) {
-          var v = String(optionVal || '');
-          var selected = v === value ? ' selected' : '';
-          return '<option value="' + escapeHtml(v) + '"' + selected + '>' + escapeHtml(v) + '</option>';
-        })
-      )
-      .join('');
-    return '<label class="ds-field"><span class="ds-field__label">' + escapeHtml(label) + '</span><select name="' + escapeHtml(fieldName) + '" class="ds-input">' + opts + '</select></label>';
-  }
-
-  if (fieldName === 'notes' || fieldName === 'finance_notes') {
-    return '<label class="ds-field"><span class="ds-field__label">' + escapeHtml(label) + '</span><textarea name="' + escapeHtml(fieldName) + '" class="ds-input" rows="2">' + safeValue + '</textarea></label>';
-  }
-
-  var inputType = 'text';
-  if (fieldName === 'start_date' || fieldName === 'end_date' || isDateColumn) inputType = 'date';
-  if (fieldName === 'sessions' || fieldName === 'price') inputType = 'number';
-  return '<label class="ds-field"><span class="ds-field__label">' + escapeHtml(label) + '</span><input name="' + escapeHtml(fieldName) + '" class="ds-input" type="' + inputType + '" value="' + safeValue + '" /></label>';
+function meetingChips(row) {
+  const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
+  const shown = schedule.slice(0, 6);
+  const rest = Math.max(0, schedule.length - shown.length);
+  const chips = shown.map((item) => {
+    const done = String(item?.performed || '').toLowerCase() === 'yes';
+    return `<span class="ds-date-chip ${done ? 'is-done' : ''}">${escapeHtml(formatDateHe(item?.date || ''))}</span>`;
+  }).join('');
+  const more = rest > 0 ? `<button type="button" class="ds-link-btn" data-toggle-more>${rest} עוד ▾</button>` : '';
+  const extra = rest > 0 ? `<div class="ds-date-chip-row" data-more-dates hidden>${schedule.slice(6).map((item) => {
+    const done = String(item?.performed || '').toLowerCase() === 'yes';
+    return `<span class="ds-date-chip ${done ? 'is-done' : ''}">${escapeHtml(formatDateHe(item?.date || ''))}</span>`;
+  }).join('')}</div>` : '';
+  return `<div class="ds-date-chip-row">${chips || '<span class="ds-muted">—</span>'}${more}</div>${extra}`;
 }
 
-/** Detail block for a raw activity row (week/month/my-data style fields). */
-export function activityRowDetailHtml(
-  row,
-  { privateNote = null, hideEmpIds = false, hideRowId = false, hideActivityNo = false, showFinance = true } = {}
-) {
-  const id1 = String(row.emp_id || '').trim();
-  const id2 = String(row.emp_id_2 || '').trim();
-  const ids = [id1, id2].filter(Boolean).join(' · ') || '—';
-  const names = [row.instructor_name, row.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
-  const instLine = hideEmpIds ? names || '—' : names ? `${ids} (${names})` : ids;
-  const operationNoteLine =
-    privateNote === null ? '' : `<p><strong>הערות תפעול:</strong> ${escapeHtml(privateNote)}</p>`;
-  const financeLine = showFinance ? `<p><strong>סטטוס כספי:</strong> ${escapeHtml(String(row.finance_status || '—'))}</p>` : '';
-  const scheduleLine = meetingScheduleHtml(row);
-  const done = Number(row.meetings_done || 0);
-  const total = Number(row.meetings_total || 0);
-  const statusText = statusLabel(row.status);
-  const statusClass = statusKind(row.status);
-  const startDate = escapeHtml(formatDateHe(row.start_date) || '—');
-  const endDate = escapeHtml(formatDateHe(row.end_date) || '—');
-  const actTypeLbl   = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
-  const srcLbl       = escapeHtml(hebrewSheetLabel(row.source_sheet));
-  const srcBadge     = srcLbl
-    ? `<span class="ds-tag ds-tag--source">${srcLbl}</span>`
+function meetingProgress(row) {
+  const done = Number(row?.meetings_done || 0);
+  const total = Number(row?.meetings_total || 0);
+  return `${done} מתוך ${total} מפגשים בוצעו`;
+}
+
+function autoEndDate(row) {
+  const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
+  if (!schedule.length) return '';
+  return String(schedule[schedule.length - 1]?.date || '').trim();
+}
+
+function fieldViewEdit(label, viewHtml, editHtml) {
+  return `<div class="ds-field-row"><span class="ds-field__label">${escapeHtml(label)}</span>
+    <div data-view-only>${viewHtml}</div><div data-edit-only hidden>${editHtml}</div></div>`;
+}
+
+function blockActivity(row, { settings = {}, privateNote = null, canEdit = false, showPrivateNote = false, idx = 0 } = {}) {
+  const options = settings?.dropdown_options || {};
+  const managers = toOptions(options.activity_manager);
+  const authorities = toOptions(options.authority);
+  const instructors = toOptions(options.instructor_name);
+  const isLong = isProgram(row);
+  const activityType = String(row.activity_type || '').trim();
+  const courses = ACTIVITY_CATALOG.filter((x) => x.parent_value === (isLong ? 'course' : activityType));
+  const courseOptions = courses.map((c) => ({ label: c.label, activity_no: c.activity_no }));
+  const computedEnd = autoEndDate(row);
+  const manualEnd = String(row.end_date || '').trim() && String(row.end_date || '').trim() !== computedEnd;
+
+  const notesField = fieldViewEdit(
+    'הערות',
+    `<span>${escapeHtml(fallback(row.notes))}</span>`,
+    `<textarea class="ds-input" rows="2" name="notes">${escapeHtml(String(row.notes || ''))}</textarea>`
+  );
+
+  const privateField = showPrivateNote
+    ? `<div class="ds-private-note-section"><span class="ds-private-note-badge">🔒 תפעול בלבד</span>${fieldViewEdit(
+      'הערה תפעולית',
+      `<span>${escapeHtml(fallback(privateNote || row.private_note || row.note_text))}</span>`,
+      `<textarea class="ds-input" rows="2" name="private_note">${escapeHtml(String(row.private_note || row.note_text || ''))}</textarea>`
+    )}</div>`
     : '';
-  const grade = String(row.grade || '').trim();
-  const classGroup = String(row.class_group || '').trim();
-  const classDisplay = [grade, classGroup].filter(Boolean).join(' ');
 
-  return `
-    <div class="ds-details-grid" dir="rtl">
-      <p><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '—')}</p>
-      <p><strong>סוג פעילות:</strong> ${actTypeLbl}${srcBadge ? ' ' + srcBadge : ''}</p>
-      <p><strong>מדריך/ה:</strong> ${escapeHtml(names || instLine)}</p>
-      ${hideRowId ? '' : `<p><strong>מזהה שורה:</strong> ${escapeHtml(String(row.RowID || ''))}</p>`}
-      ${hideActivityNo ? '' : `<p><strong>מספר פעילות:</strong> ${escapeHtml(String(row.activity_no || '—'))}</p>`}
-      <p><strong>בית ספר:</strong> ${escapeHtml(row.school || '—')}</p>
-      ${classDisplay ? `<p><strong>שכבה/כיתה:</strong> ${escapeHtml(classDisplay)}</p>` : ''}
-      <p><strong>רשות:</strong> ${escapeHtml(row.authority || '—')}</p>
-      <p><strong>שעות:</strong> ${escapeHtml(activityHoursLabel(row))}</p>
-      <div class="ds-detail-date-stack ds-detail-date-stack--narrow">
-        <p><strong>סטטוס ותאריכים:</strong></p>
-        <div class="ds-date-badges">
-          <span class="ds-chip ds-chip--status ds-chip--status-${statusClass}">${escapeHtml(statusText)}</span>
-          <span class="ds-date-pill">📅 התחלה: ${startDate}</span>
-          <span class="ds-date-pill">🏁 סיום: ${endDate}</span>
+  return `<form class="ds-activity-drawer-form" data-edit-activity data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}" data-row-id="${escapeHtml(String(row.RowID || ''))}" data-activity-form data-auto-end-date="${escapeHtml(computedEnd)}">
+    <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
+    <section class="ds-drawer-block">
+      <h3 class="ds-drawer-block__title">👤 אנשים</h3>
+      ${fieldViewEdit('מנהל פעילות', `<span>${escapeHtml(fallback(row.activity_manager))}</span>`, selectHtml({ name: 'activity_manager', value: row.activity_manager, options: managers }))}
+      ${isLong
+        ? fieldViewEdit('מדריך/ה', `<span>${escapeHtml(fallback(row.instructor_name))}</span>`, selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors }))
+        : `<div class="ds-field-grid ds-field-grid--2">${fieldViewEdit('מדריך/ה 1', `<span>${escapeHtml(fallback(row.instructor_name))}</span>`, selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors }))}${fieldViewEdit('מדריך/ה 2', `<span>${escapeHtml(fallback(row.instructor_name_2))}</span>`, selectHtml({ name: 'instructor_name_2', value: row.instructor_name_2, options: instructors }))}</div>`}
+    </section>
+
+    <section class="ds-drawer-block">
+      <h3 class="ds-drawer-block__title">📚 פעילות</h3>
+      ${fieldViewEdit(isLong ? 'שם קורס' : 'שם פעילות', `<span>${escapeHtml(fallback(row.activity_name))}</span>`, activityNameSelectHtml('activity_name', row.activity_name, courseOptions))}
+      ${fieldViewEdit('מימון', `<span>${escapeHtml(fallback(row.funding))}</span>`, selectHtml({ name: 'funding', value: row.funding, options: FUNDING_OPTIONS }))}
+      ${fieldViewEdit('בית ספר', `<span>${escapeHtml(fallback(row.school))}</span>`, `<input class="ds-input" type="text" name="school" value="${escapeHtml(String(row.school || ''))}">`)}
+      ${fieldViewEdit('רשות', `<span>${escapeHtml(fallback(row.authority))}</span>`, selectHtml({ name: 'authority', value: row.authority, options: authorities }))}
+      ${fieldViewEdit('שכבה', `<span>${escapeHtml(fallback(row.grade))}</span>`, selectHtml({ name: 'grade', value: row.grade, options: GRADE_OPTIONS }))}
+      ${fieldViewEdit('קבוצה / כיתה', `<span>${escapeHtml(fallback(row.class_group))}</span>`, `<input class="ds-input" type="text" name="class_group" value="${escapeHtml(String(row.class_group || ''))}">`)}
+    </section>
+
+    <section class="ds-drawer-block">
+      <div class="ds-block-head"><h3 class="ds-drawer-block__title">📅 תאריכים ומפגשים</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm" data-action-edit>✏️ עריכה</button>' : ''}</div>
+      <div class="ds-progress-line">${escapeHtml(meetingProgress(row))}</div>
+      <div class="ds-end-date-row ${manualEnd ? 'ds-end-date-row--override' : ''}">
+        <span class="ds-end-date-row__label">תאריך סיום:</span>
+        <span data-view-only>${escapeHtml(formatDateHe(row.end_date || computedEnd) || '—')} ${manualEnd ? '<span class="ds-end-date-row__badge--manual">ידני</span>' : ''}</span>
+        <div data-edit-only hidden class="ds-end-date-edit">
+          <input class="ds-input" type="date" name="end_date" value="${escapeHtml(String(row.end_date || computedEnd || ''))}">
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-reset-end-date ${computedEnd ? '' : 'disabled'}>↺ אוטומטי</button>
         </div>
       </div>
-      <p><strong>בוצעו מפגשים:</strong> ${escapeHtml(`${done}/${total}`)}</p>
-      ${scheduleLine}
-      <p><strong>מנהל פעילויות:</strong> ${escapeHtml(row.activity_manager || '—')}</p>
-      ${financeLine}
-      ${operationNoteLine}
-    </div>`;
+      ${meetingChips(row)}
+      <div class="ds-field-row">
+        <span class="ds-field__label">סטטוס</span>
+        <div data-view-only><span class="ds-status-pill ds-status-pill--subtle">${escapeHtml(statusText(row.status))}</span></div>
+        <div data-edit-only hidden>${selectHtml({ name: 'status', value: normStatus(row.status), options: ['open', 'closed'] })}</div>
+      </div>
+      <div data-edit-actions hidden class="ds-edit-actions">
+        <button type="submit" class="ds-btn ds-btn--primary">💾 שמור</button>
+        <button type="button" class="ds-btn ds-btn--ghost" data-action-cancel>ביטול</button>
+        <p class="ds-muted ds-activity-edit-status" role="status"></p>
+      </div>
+    </section>
+
+    <section class="ds-drawer-block">
+      <h3 class="ds-drawer-block__title">📝 הערות</h3>
+      ${notesField}
+      ${privateField}
+    </section>
+
+    <input type="hidden" name="_activity_idx" value="${idx}">
+  </form>`;
 }
 
-/**
- * פירוט פעילות + טופס עריכה ישיר (ללא כפתור טוגל).
- * כשיש הרשאת עריכה: מוצג פירוט קריאה בלבד ואחריו טופס עריכה ישיר.
- * כשאין הרשאה: פירוט קריאה בלבד בלבד.
- */
-export function activityWorkDrawerHtml(
-  row,
-  {
-    privateNote = null,
-    canEdit = false,
-    hideEmpIds = false,
-    hideRowId = false,
-    hideActivityNo = false,
-    showFinance = true,
-    showFinanceFields = true,
-    settings = {}
-  } = {}
-) {
-  const base = activityRowDetailHtml(row, { privateNote, hideEmpIds, hideRowId, hideActivityNo, showFinance });
-  if (!canEdit) return base;
+export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo = false } = {}) {
+  return `<div class="ds-details-grid" dir="rtl">
+    <p><strong>שם פעילות:</strong> ${escapeHtml(fallback(row.activity_name))}</p>
+    <p><strong>סוג פעילות:</strong> ${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</p>
+    ${hideActivityNo ? '' : `<p><strong>מספר פעילות:</strong> ${escapeHtml(fallback(row.activity_no))}</p>`}
+    <p><strong>בית ספר:</strong> ${escapeHtml(fallback(row.school))}</p>
+    <p><strong>רשות:</strong> ${escapeHtml(fallback(row.authority))}</p>
+    <p><strong>שכבה:</strong> ${escapeHtml(fallback(row.grade))}</p>
+    <p><strong>קבוצה/כיתה:</strong> ${escapeHtml(fallback(row.class_group))}</p>
+    ${privateNote === null ? '' : `<p><strong>הערה תפעולית:</strong> ${escapeHtml(fallback(privateNote))}</p>`}
+  </div>`;
+}
 
-  const src = escapeHtml(String(row.source_sheet || '').trim());
-  const rid = escapeHtml(String(row.RowID || '').trim());
-  const allFieldsEditable = !!settings?.all_data_fields_editable;
-  const sessions = Math.max(1, Math.min(Number(row.sessions) || 1, 35));
-  const sourceSheet = String(row.source_sheet || '').trim();
-
-  var fields = allFieldsEditable ? EDITABLE_FIELDS_ALL.slice() : EDITABLE_FIELDS_BASIC.slice();
-  if (!showFinanceFields) {
-    fields = fields.filter(function(fieldName) {
-      return fieldName !== 'finance_status' && fieldName !== 'finance_notes';
-    });
+export function activityWorkDrawerHtml(row, opts = {}) {
+  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, settings = {}, showFinance = false } = opts;
+  if (showFinance) {
+    // Drawer redesign scope excludes finance fields.
   }
-  if (hideEmpIds) {
-    fields = fields.filter(function(fieldName) {
-      return fieldName !== 'emp_id' && fieldName !== 'emp_id_2';
-    });
-  }
-  if (hideActivityNo) {
-    fields = fields.filter(function(fieldName) {
-      return fieldName !== 'activity_no';
-    });
+  if (mode === 'summary') {
+    const rows = Array.isArray(row) ? row : [];
+    const body = rows.map((item, idx) => `<details class="ds-activity-accordion" ${idx === 0 ? 'open' : ''}>
+      <summary class="ds-activity-accordion__summary">
+        <span class="ds-activity-accordion__name">${escapeHtml(fallback(item.activity_name))}</span>
+        <span class="ds-activity-accordion__meta">${escapeHtml(`${visibleActivityCategoryLabel(item.activity_type)} · ${fallback(item.school)}`)}</span>
+        <span class="ds-activity-accordion__chevron">›</span>
+      </summary>
+      <div class="ds-activity-accordion__body">${blockActivity(item, {
+        settings,
+        privateNote,
+        canEdit,
+        showPrivateNote: privateNote !== null,
+        idx
+      })}</div>
+    </details>`).join('');
+    return `${headerHtml(rows, { mode: 'summary', summaryDate })}<div class="ds-stack">${body || '<p class="ds-muted">אין נתונים</p>'}</div>`;
   }
 
-  var editorFieldsHtml = '';
-  fields.forEach(function(fieldName) {
-    var m = /^Date(\d+)$/.exec(fieldName);
-    if (m) {
-      var dateNum = parseInt(m[1], 10);
-      var inputHtml = editorInputHtml(fieldName, row[fieldName], settings, sourceSheet);
-      if (dateNum > sessions) {
-        editorFieldsHtml += '<div class="ds-date-extra-wrap" data-date-extra hidden>' + inputHtml + '</div>';
-      } else {
-        editorFieldsHtml += inputHtml;
-      }
-    } else {
-      editorFieldsHtml += editorInputHtml(fieldName, row[fieldName], settings, sourceSheet);
-    }
-  });
-
-  return `${base}
-    <form class="ds-stack ds-activity-editor" data-edit-activity data-source-sheet="${src}" data-row-id="${rid}">
-      <h3 class="ds-activity-editor__title">✏️ עריכה</h3>
-      ${editorFieldsHtml}
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-add-date-btn" data-add-date>+ תאריך</button>
-      <button type="submit" class="ds-btn ds-btn--primary ds-activity-editor__submit">💾 שמירה</button>
-      <p class="ds-muted ds-activity-edit-status" role="status"></p>
-    </form>`;
+  const one = row || {};
+  return `${headerHtml(one, { mode: 'single' })}${blockActivity(one, {
+    settings,
+    privateNote,
+    canEdit,
+    showPrivateNote: privateNote !== null,
+    idx: 0
+  })}`;
 }

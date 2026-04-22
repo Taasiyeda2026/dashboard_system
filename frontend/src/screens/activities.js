@@ -217,12 +217,12 @@ export const activitiesScreen = {
     async function openActivityDetail(summaryRow) {
       if (!summaryRow || !ui) return;
       ui.openDrawer({
-        title: hideRowId ? 'פירוט פעילות' : `פירוט פעילות ${summaryRow.RowID}`,
+        title: '',
         content: loadingDetailMarkup
       });
       const row = await loadDetailRow(summaryRow);
       ui.openDrawer({
-        title: hideRowId ? 'פירוט פעילות' : `פירוט פעילות ${row.RowID}`,
+        title: '',
         content: activityDrawerContent(
           row,
           canSeePrivateNotes,

@@ -5029,3 +5029,215 @@ select.ds-input {
   border-block-start: 1px solid var(--ds-border-subtle);
   justify-content: flex-end;
 }
+
+/* Drawer redesign blocks */
+.ds-drawer__header--activity {
+  display: grid;
+  gap: 8px;
+  border-bottom: 1px solid #e8eef6;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.ds-drawer-block {
+  background: #f8fafc;
+  border: 1px solid #e8eef6;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.ds-drawer-block__title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0 0 10px;
+}
+
+.ds-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ds-status-pill--subtle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 0.65rem;
+  font-weight: 500;
+}
+
+.ds-field-row {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.ds-field-grid--2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ds-end-date-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.ds-end-date-row--override {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.ds-end-date-row__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.ds-end-date-row__badge--manual {
+  font-size: 0.65rem;
+  color: #c2410c;
+  font-weight: 600;
+}
+
+.ds-date-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.ds-date-chip {
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+}
+
+.ds-date-chip.is-done {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.ds-link-btn {
+  border: none;
+  background: transparent;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+}
+
+.ds-private-note-section {
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+.ds-private-note-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #7c3aed;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 999px;
+  padding: 1px 7px;
+  display: inline-block;
+  margin-bottom: 6px;
+}
+
+.ds-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.ds-activity-accordion {
+  border: 1px solid #e8eef6;
+  border-radius: 12px;
+  background: #f8fafc;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.ds-activity-accordion[open] {
+  border-color: #c7d7f0;
+  box-shadow: 0 2px 8px rgba(26, 51, 88, 0.07);
+}
+
+.ds-activity-accordion__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  background: #fff;
+}
+
+.ds-activity-accordion__summary::-webkit-details-marker { display: none; }
+
+.ds-activity-accordion[open] .ds-activity-accordion__summary {
+  border-bottom: 1px solid #e8eef6;
+  background: linear-gradient(135deg, #f0f6ff 0%, #f8f5ff 100%);
+}
+
+.ds-activity-accordion__name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1e293b;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-activity-accordion__meta {
+  font-size: 0.72rem;
+  color: #64748b;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ds-activity-accordion__chevron {
+  color: #94a3b8;
+  font-size: 1.1rem;
+  transition: transform 0.18s ease;
+  flex-shrink: 0;
+}
+
+.ds-activity-accordion[open] .ds-activity-accordion__chevron {
+  transform: rotate(90deg);
+}
+
+.ds-activity-accordion__body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ds-field-readonly { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 0.75rem; color: #64748b; font-weight: 600; }
