@@ -358,20 +358,6 @@ export const monthScreen = {
       rerender?.();
     });
 
-    // Pre-fetch adjacent months silently into screenDataCache for instant navigation
-    const MONTH_TTL_MS = 8 * 60 * 1000;
-    const baseYm = resolveBaseYm();
-    [shiftMonthYm(baseYm, -1), shiftMonthYm(baseYm, 1)].forEach((adjYm) => {
-      const adjKey = `month:${adjYm}`;
-      const hit = state.screenDataCache?.[adjKey];
-      if (hit && Date.now() - hit.t < MONTH_TTL_MS) return;
-      api.month({ ym: adjYm }).then((d) => {
-        if (!state.screenDataCache[adjKey] || Date.now() - state.screenDataCache[adjKey].t > MONTH_TTL_MS) {
-          state.screenDataCache[adjKey] = { data: d, t: Date.now() };
-        }
-      }).catch(() => {});
-    });
-
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;
       const dayNum = action.split('|')[1];
