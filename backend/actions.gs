@@ -903,7 +903,7 @@ function actionInstructors_(user) {
   var all = allActivitiesSummary_();
   return {
     rows: all.filter(function(row) {
-      return text_(row.status) !== 'סגור';
+      return text_(row.status) === 'פעיל';
     }).map(function(row) {
       return {
         RowID:              row.RowID,
