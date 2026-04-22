@@ -2656,45 +2656,26 @@ span.ds-chip {
 
 /* ——— Person cards (instructors / contacts) ——— */
 .ds-person-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: var(--ds-space-2);
-  overflow-x: hidden;
-}
-
-@media (min-width: 480px) {
-  .ds-person-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (min-width: 768px) {
-  .ds-person-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-@media (min-width: 1100px) {
-  .ds-person-grid {
-    grid-template-columns: repeat(5, 1fr);
-  }
 }
 
 /* ——— Compact rectangle contact card ——— */
 .ds-person-card {
-  display: flex;
+  display: inline-flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 6px 10px;
   background: var(--ds-surface);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-sm);
   box-shadow: var(--ds-shadow-xs);
   cursor: pointer;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
-  width: 100%;
+  width: 160px;
   min-width: 0;
   text-align: start;
 }
