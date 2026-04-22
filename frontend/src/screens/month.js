@@ -270,8 +270,6 @@ export const monthScreen = {
         <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">◀ חודש הבא</button>
       </nav>
       ${dsCard({
-        title: 'לוח חודשי',
-        badge: `${dim} ימים · ${escapeHtml(currentYm)}`,
         body: gridHtml,
         padded: false
       })}
