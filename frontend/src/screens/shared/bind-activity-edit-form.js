@@ -3,12 +3,12 @@ import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 
 function setEditMode(form, editing) {
+  form.dataset.editing = editing ? 'yes' : 'no';
   form.querySelectorAll('[data-view-only]').forEach((el) => el.toggleAttribute('hidden', editing));
   form.querySelectorAll('[data-edit-only]').forEach((el) => el.toggleAttribute('hidden', !editing));
   form.querySelectorAll('[data-edit-actions]').forEach((el) => el.toggleAttribute('hidden', !editing));
   const editBtn = form.querySelector('[data-action-edit]');
   if (editBtn) editBtn.toggleAttribute('hidden', editing);
-  form.dataset.editing = editing ? 'yes' : 'no';
   updateMoreDatesToggle(form);
 }
 
