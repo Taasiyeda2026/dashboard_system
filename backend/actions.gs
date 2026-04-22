@@ -2324,7 +2324,11 @@ function buildMeetingsMap_() {
     }
   });
 
-  scriptCachePutJson_(cacheKey, map, CONFIG.SCRIPT_CACHE_SECONDS || 120);
+  scriptCachePutJson_(
+    cacheKey,
+    map,
+    CONFIG.MEETINGS_MAP_CACHE_SECONDS || CONFIG.SCRIPT_CACHE_SECONDS || 120
+  );
   if (__rqCache_) {
     __rqCache_.meetingsMap = map;
   }

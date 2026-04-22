@@ -5,17 +5,11 @@ import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 /**
  * Actions that modify server-side data.
  *
- * After any of these actions succeeds, clearScreenDataCache() is called
- * automatically (see bottom of request()). This wipes the entire
- * state.screenDataCache so that every screen — activities, finance,
- * permissions, exceptions, end-dates, instructors, my-data, week, month,
- * dashboard, etc. — fetches fresh data on its next render.
+ * After mutating actions succeed, cache invalidation runs automatically
+ * (see bottom of request()).
  *
- * Calendar views (week, month, dashboard) are therefore always stale-safe:
- * any admin action (deactivateUser, reactivateUser, deleteUser, savePermission,
- * addUser) or finance mutation (saveFinanceRow, syncFinance, saveActivity)
- * triggers a full cache wipe, ensuring calendar screens never show stale data
- * after a mutation elsewhere in the app.
+ * Heavy mutations trigger full cache invalidation; lightweight mutations
+ * only clear related screens for faster post-save navigation.
  *
  * Screens that expose their own save forms (activities.js, finance.js,
  * permissions.js) additionally call the bind-injected clearScreenDataCache?.()
@@ -64,6 +58,36 @@ const READ_ACTIONS = {
 const API_TIMEOUT_MS_READ = 20000;
 const API_TIMEOUT_MS_WRITE = 30000;
 const PERF_MAX_REQUESTS = 150;
+
+function invalidateScreenDataByAction(action) {
+  const heavyMutations = new Set([
+    'saveActivity',
+    'addActivity',
+    'submitEditRequest',
+    'reviewEditRequest',
+    'saveFinanceRow',
+    'syncFinance',
+    'addUser',
+    'deactivateUser',
+    'reactivateUser',
+    'deleteUser'
+  ]);
+  const targetedMutations = {
+    savePrivateNote: ['activities:', 'operations:'],
+    savePermission: ['permissions']
+  };
+  if (heavyMutations.has(action)) {
+    clearScreenDataCache();
+    return;
+  }
+  const prefixes = targetedMutations[action];
+  if (!prefixes || !prefixes.length) return;
+  Object.keys(state.screenDataCache || {}).forEach((key) => {
+    if (prefixes.some((prefix) => key === prefix || key.startsWith(prefix))) {
+      delete state.screenDataCache[key];
+    }
+  });
+}
 
 function isPerfDebugEnabled() {
   try {
@@ -189,7 +213,7 @@ async function request(action, payload = {}) {
     throw new Error(translateApiErrorForUser(json.error));
   }
   if (MUTATING_ACTIONS[action]) {
-    clearScreenDataCache();
+    invalidateScreenDataByAction(action);
   }
   pushPerfRequest({
     action,

@@ -6,7 +6,9 @@ const CONFIG = {
   LATE_END_DATE_CUTOFF: '2026-06-15',
   SESSION_CACHE_SECONDS: 60 * 60 * 8,
   /** Script cache TTL for dashboard / permissions list (seconds). */
-  SCRIPT_CACHE_SECONDS: 300,
+  SCRIPT_CACHE_SECONDS: 1800,
+  /** Meetings map changes less frequently; keep a dedicated longer TTL. */
+  MEETINGS_MAP_CACHE_SECONDS: 3600,
   SHEETS: {
     DATA_SHORT: 'data_short',
     DATA_LONG: 'data_long',

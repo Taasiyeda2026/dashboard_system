@@ -340,15 +340,20 @@ export const monthScreen = {
       if (/^\d{4}-\d{2}$/.test(String(currentYm || ''))) return currentYm;
       return `${spec.y}-${String(spec.mo).padStart(2, '0')}`;
     };
+    let navDebounceTimer = null;
+    const queueMonthShift = (delta) => {
+      if (navDebounceTimer) clearTimeout(navDebounceTimer);
+      navDebounceTimer = setTimeout(() => {
+        state.monthYm = shiftMonthYm(resolveBaseYm(), delta);
+        try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
+        rerender?.();
+      }, 150);
+    };
     root.querySelector('[data-month-prev]')?.addEventListener('click', () => {
-      state.monthYm = shiftMonthYm(resolveBaseYm(), -1);
-      try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
-      rerender?.();
+      queueMonthShift(-1);
     });
     root.querySelector('[data-month-next]')?.addEventListener('click', () => {
-      state.monthYm = shiftMonthYm(resolveBaseYm(), 1);
-      try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
-      rerender?.();
+      queueMonthShift(1);
     });
 
     ui?.bindInteractiveCards(root, (action) => {

@@ -201,13 +201,20 @@ export const weekScreen = {
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
 
+    let navDebounceTimer = null;
+    const queueWeekShift = (delta) => {
+      if (navDebounceTimer) clearTimeout(navDebounceTimer);
+      navDebounceTimer = setTimeout(() => {
+        state.weekOffset = (state.weekOffset || 0) + delta;
+        rerender?.();
+      }, 150);
+    };
+
     root.querySelector('[data-week-prev]')?.addEventListener('click', () => {
-      state.weekOffset = (state.weekOffset || 0) - 1;
-      rerender?.();
+      queueWeekShift(-1);
     });
     root.querySelector('[data-week-next]')?.addEventListener('click', () => {
-      state.weekOffset = (state.weekOffset || 0) + 1;
-      rerender?.();
+      queueWeekShift(1);
     });
 
     root.addEventListener('click', (ev) => {
