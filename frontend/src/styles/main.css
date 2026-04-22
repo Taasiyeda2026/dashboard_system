@@ -5989,6 +5989,11 @@ select.ds-input {
   min-height: 1.2em;
 }
 
+/* Until JS runs, keep edit UI out of layout (HTML also sets hidden on edit blocks) */
+.activity-drawer__form[data-editing="no"] [data-mode="edit"] {
+  display: none !important;
+}
+
 .activity-drawer__view-grid .activity-drawer__field {
   margin: 0;
 }
