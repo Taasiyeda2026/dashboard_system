@@ -1,6 +1,5 @@
 import { escapeHtml } from './shared/html.js';
 import { dsScreenStack, dsInteractiveCard } from './shared/layout.js';
-import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
@@ -171,13 +170,11 @@ export const weekScreen = {
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
         <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">◀ שבוע הבא</button>
       </nav>
-      ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפריטי השבוע…', filters: [] })}
       <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
     bindActNavGrid(root, { state, rerender });
-    bindPageListTools(root);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
