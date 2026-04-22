@@ -74,10 +74,11 @@ function activityNameSelectHtml(name, value, options) {
 function autoEndDate(row) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   if (!schedule.length) return '';
-  return schedule
+  const dates = schedule
     .map((item) => String(item?.date || '').trim())
     .filter(Boolean)
-    .sort()[schedule.length - 1] || '';
+    .sort();
+  return dates[dates.length - 1] || '';
 }
 
 function meetingStats(schedule) {
@@ -169,36 +170,24 @@ function blockContent(row, { settings = {}, editing = false } = {}) {
   const nameLabel = activityNameLabel(activityType);
 
   const allActivityNames = Array.isArray(options.activity_names) ? options.activity_names : [];
-  const filteredNames = allActivityNames.filter((o) => !o.parent_value || o.parent_value === activityType);
+  const filteredNamesByType = allActivityNames.filter((o) => {
+    const sourceType = String(o?.parent_value || o?.activity_type || '').trim();
+    return sourceType === activityType;
+  });
+  const filteredNames = filteredNamesByType.length ? filteredNamesByType : allActivityNames;
 
   const gradeVal = String(row.grade || '').trim();
   const classGroupVal = String(row.class_group || '').trim();
   const classLabel = [gradeVal, classGroupVal].filter(Boolean).join(' / ') || '—';
 
-  const startTime = String(row.start_time || row.start_hour || '').trim();
-  const endTime = String(row.end_time || row.end_hour || '').trim();
-  const firstMeeting = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule[0] : null;
-  const dayLabel = weekdayShortHe(firstMeeting?.date) || '';
+  const startTime = String(row.start_time || '').trim();
+  const endTime = String(row.end_time || '').trim();
+  const firstMeetingDate = (Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [])
+    .map((item) => String(item?.date || '').trim())
+    .filter(Boolean)
+    .sort()[0] || '';
+  const dayLabel = weekdayShortHe(firstMeetingDate) || '';
   const hoursLabel = startTime && endTime ? `${startTime}–${endTime}` : '';
-
-  if (editing) {
-    return `<section class="ds-drawer-block">
-      <h3 class="ds-drawer-block__title">📚</h3>
-      <div class="ds-drawer-content-edit-grid">
-        <div class="ds-field-row ds-field-row--span2"><span class="ds-field__label">${escapeHtml(nameLabel)}</span>${activityNameSelectHtml('activity_name', row.activity_name, filteredNames)}</div>
-        <div class="ds-field-row"><span class="ds-field__label">מימון</span>${selectHtml({ name: 'funding', value: row.funding, options: fundings })}</div>
-        <div class="ds-field-row"><span class="ds-field__label">מחיר</span><input class="ds-input" type="number" name="price" value="${escapeHtml(String(row.price || ''))}"></div>
-        <div class="ds-field-row"><span class="ds-field__label">בית ספר</span><input class="ds-input" type="text" name="school" value="${escapeHtml(String(row.school || ''))}"></div>
-        <div class="ds-field-row"><span class="ds-field__label">רשות</span><input class="ds-input" type="text" name="authority" value="${escapeHtml(String(row.authority || ''))}"></div>
-        <div class="ds-field-row"><span class="ds-field__label">שכבה</span>${selectHtml({ name: 'grade', value: row.grade, options: grades })}</div>
-        <div class="ds-field-row"><span class="ds-field__label">קבוצה / כיתה</span><input class="ds-input" type="text" name="class_group" value="${escapeHtml(String(row.class_group || ''))}"></div>
-        <div class="ds-field-grid ds-field-grid--2 ds-field-row--span2">
-          <div class="ds-field-row"><span class="ds-field__label">שעת התחלה</span><input class="ds-input" type="time" name="start_time" value="${escapeHtml(startTime)}"></div>
-          <div class="ds-field-row"><span class="ds-field__label">שעת סיום</span><input class="ds-input" type="time" name="end_time" value="${escapeHtml(endTime)}"></div>
-        </div>
-      </div>
-    </section>`;
-  }
 
   const viewSummaryItems = [
     row.funding && String(row.funding).trim() ? { label: 'מימון', value: row.funding } : null,
@@ -213,8 +202,21 @@ function blockContent(row, { settings = {}, editing = false } = {}) {
 
   return `<section class="ds-drawer-block">
     <h3 class="ds-drawer-block__title">📚</h3>
-    <div class="ds-field-grid ds-field-grid--2 ds-field-grid--compact">
+    <div data-view-only class="ds-field-grid ds-field-grid--2 ds-field-grid--compact">
       ${viewSummaryHtml}
+    </div>
+    <div data-edit-only hidden class="ds-drawer-content-edit-grid">
+      <div class="ds-field-row ds-field-row--span2"><span class="ds-field__label">${escapeHtml(nameLabel)}</span>${activityNameSelectHtml('activity_name', row.activity_name, filteredNames)}</div>
+      <div class="ds-field-row"><span class="ds-field__label">מימון</span>${selectHtml({ name: 'funding', value: row.funding, options: fundings })}</div>
+      <div class="ds-field-row"><span class="ds-field__label">מחיר</span><input class="ds-input" type="number" name="price" value="${escapeHtml(String(row.price || ''))}"></div>
+      <div class="ds-field-row"><span class="ds-field__label">בית ספר</span><input class="ds-input" type="text" name="school" value="${escapeHtml(String(row.school || ''))}"></div>
+      <div class="ds-field-row"><span class="ds-field__label">רשות</span><input class="ds-input" type="text" name="authority" value="${escapeHtml(String(row.authority || ''))}"></div>
+      <div class="ds-field-row"><span class="ds-field__label">שכבה</span>${selectHtml({ name: 'grade', value: row.grade, options: grades })}</div>
+      <div class="ds-field-row"><span class="ds-field__label">קבוצה / כיתה</span><input class="ds-input" type="text" name="class_group" value="${escapeHtml(String(row.class_group || ''))}"></div>
+      <div class="ds-field-grid ds-field-grid--2 ds-field-row--span2">
+        <div class="ds-field-row"><span class="ds-field__label">שעת התחלה</span><input class="ds-input" type="time" name="start_time" value="${escapeHtml(startTime)}"></div>
+        <div class="ds-field-row"><span class="ds-field__label">שעת סיום</span><input class="ds-input" type="time" name="end_time" value="${escapeHtml(endTime)}"></div>
+      </div>
     </div>
   </section>`;
 }
@@ -223,14 +225,13 @@ function blockDates(row, { canEdit = false, editing = false } = {}) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
-  const visibleSchedule = isOnce ? schedule.slice(0, 1) : schedule;
-  const hasMoreDatesToggle = !isOnce && visibleSchedule.length > 6;
-  const computedEnd = autoEndDate({ meeting_schedule: visibleSchedule });
-  const { done, total } = meetingStats(visibleSchedule);
+  const normalizedSchedule = isOnce ? schedule.slice(0, 1) : schedule;
+  const hasMoreDatesToggle = !isOnce && normalizedSchedule.length > 6;
+  const computedEnd = autoEndDate({ meeting_schedule: normalizedSchedule });
+  const { done, total } = meetingStats(normalizedSchedule);
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
 
-  const editDates = visibleSchedule;
-  const datePickers = editDates.map((item, i) => `<div class="ds-date-pick-cell">
+  const datePickers = normalizedSchedule.map((item, i) => `<div class="ds-date-pick-cell">
     <span class="ds-date-pick-cell__head"><span>מפגש ${i + 1}</span><span class="ds-date-pick-cell__dot" aria-hidden="true"></span></span>
     <input class="ds-input ds-input--date" type="date" name="meeting_date_${i}" data-meeting-idx="${i}" value="${escapeHtml(String(item?.date || ''))}">
     <span class="ds-date-pick-cell__weekday">${escapeHtml(weekdayShortHe(item?.date) || '')}</span>
@@ -243,35 +244,7 @@ function blockDates(row, { canEdit = false, editing = false } = {}) {
 
   const addMeetingBtn = isOnce ? '' : `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-add-meeting-btn" data-add-meeting>➕ הוסף מפגש</button>`;
 
-  if (editing) {
-    return `<section class="ds-drawer-block">
-      <div class="ds-block-head">
-        <h3 class="ds-drawer-block__title">📅</h3>
-        <div class="ds-edit-actions">
-          ${chainToggle}
-          ${addMeetingBtn}
-          <button type="submit" class="ds-btn ds-btn--sm ds-btn--primary">💾 שמור</button>
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-action-cancel>ביטול</button>
-          <p class="ds-muted ds-activity-edit-status" role="status"></p>
-        </div>
-      </div>
-      <div class="ds-progress-bar-wrap">
-        <span class="ds-progress-text ds-progress-text--pct">${progressPct}%</span>
-        <div class="ds-progress-bar"><div class="ds-progress-bar__fill" style="width:${progressPct}%"></div></div>
-        <span class="ds-progress-text">${done} מתוך ${total} מפגשים בוצעו</span>
-      </div>
-      <div class="ds-end-date-row">
-        <span class="ds-end-date-row__label">🏁 תאריך סיום</span>
-        <strong class="ds-end-date-prominent" data-computed-end-display>${escapeHtml(formatDateHe(computedEnd) || '—')}</strong>
-        <span class="ds-end-date-row__hint">מחושב אוטומטית לפי המפגש האחרון</span>
-      </div>
-      <div class="ds-dates-edit-section">
-        <div class="ds-dates-grid ds-dates-grid--2col" data-meeting-dates-edit>${datePickers}</div>
-      </div>
-    </section>`;
-  }
-
-  const viewChips = visibleSchedule.map((item, i) => {
+  const viewChips = normalizedSchedule.map((item, i) => {
     const isDone = String(item?.performed || '').toLowerCase() === 'yes';
     return `<span class="ds-date-chip${isDone ? ' is-done' : ''}" data-date-card ${i > 5 ? 'hidden' : ''}>
       <span class="ds-date-chip__value">${escapeHtml(formatDateHe(item?.date || ''))}</span>
@@ -283,9 +256,16 @@ function blockDates(row, { canEdit = false, editing = false } = {}) {
   return `<section class="ds-drawer-block">
     <div class="ds-block-head">
       <h3 class="ds-drawer-block__title">📅</h3>
-      ${canEdit ? '<button type="button" class="ds-btn ds-btn--sm" data-action-edit>✏️ עריכה</button>' : ''}
+      ${canEdit ? '<button type="button" class="ds-btn ds-btn--sm" data-view-only data-action-edit>✏️ עריכה</button>' : ''}
+      ${canEdit ? `<div data-edit-only data-edit-actions hidden class="ds-edit-actions">
+          ${chainToggle}
+          ${addMeetingBtn}
+          <button type="submit" class="ds-btn ds-btn--sm ds-btn--primary">💾 שמור</button>
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-action-cancel>ביטול</button>
+          <p class="ds-muted ds-activity-edit-status" role="status"></p>
+        </div>` : ''}
     </div>
-    <div class="ds-progress-bar-wrap">
+    <div data-view-only class="ds-progress-bar-wrap">
       <span class="ds-progress-text ds-progress-text--pct">${progressPct}%</span>
       <div class="ds-progress-bar"><div class="ds-progress-bar__fill" style="width:${progressPct}%"></div></div>
       <span class="ds-progress-text">${done} מתוך ${total} מפגשים בוצעו</span>
@@ -293,7 +273,7 @@ function blockDates(row, { canEdit = false, editing = false } = {}) {
     <div class="ds-end-date-row">
       <span class="ds-end-date-row__label">🏁 תאריך סיום</span>
       <strong class="ds-end-date-prominent" data-computed-end-display>${escapeHtml(formatDateHe(computedEnd) || '—')}</strong>
-      <span data-edit-only hidden class="ds-end-date-row__hint">מחושב אוטומטית לפי המפגש האחרון</span>
+      <span class="ds-end-date-row__hint">מחושב אוטומטית לפי המפגש האחרון</span>
     </div>
     <div data-view-only class="ds-dates-grid ds-dates-grid--3col">${viewChips}</div>
     ${hasMoreDatesToggle ? '<button type="button" data-view-only class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>' : ''}
@@ -304,7 +284,7 @@ function blockDates(row, { canEdit = false, editing = false } = {}) {
 }
 
 function blockNotes(row, { privateNote = null, showPrivateNote = false, editing = false } = {}) {
-  const operationalPrivateNote = row.operations_private_notes || String(privateNote || '').trim() || '';
+  const operationalPrivateNote = String(row.operations_private_notes || '').trim();
   const notesValue = String(row.notes || '').trim();
 
   if (editing) {
@@ -373,7 +353,6 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
   return `<div class="ds-details-grid" dir="rtl">
     <p><strong>שם פעילות:</strong> ${escapeHtml(fallback(row.activity_name))}</p>
     <p><strong>סוג פעילות:</strong> ${escapeHtml(activityTypeLabel(row.activity_type))}</p>
-    ${hideActivityNo ? '' : `<p><strong>מספר פעילות:</strong> ${escapeHtml(fallback(row.activity_no))}</p>`}
     <p><strong>בית ספר:</strong> ${escapeHtml(fallback(row.school))}</p>
     <p><strong>רשות:</strong> ${escapeHtml(fallback(row.authority))}</p>
     <p><strong>שכבה:</strong> ${escapeHtml(fallback(row.grade))}</p>
