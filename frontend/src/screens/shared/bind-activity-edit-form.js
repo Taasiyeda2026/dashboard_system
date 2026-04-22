@@ -1,9 +1,12 @@
 import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
+import { escapeHtml } from './html.js';
 
 function setEditMode(form, editing) {
   form.dataset.editing = editing ? 'yes' : 'no';
+  form.querySelectorAll('[data-mode="view"]').forEach((el) => el.toggleAttribute('hidden', editing));
+  form.querySelectorAll('[data-mode="edit"]').forEach((el) => el.toggleAttribute('hidden', !editing));
   form.querySelectorAll('[data-view-only]').forEach((el) => el.toggleAttribute('hidden', editing));
   form.querySelectorAll('[data-edit-only]').forEach((el) => el.toggleAttribute('hidden', !editing));
   form.querySelectorAll('[data-edit-actions]').forEach((el) => el.toggleAttribute('hidden', !editing));
@@ -64,23 +67,27 @@ function getChainMode(form) {
 
 function buildMeetingPickerCell(idx, dateValue) {
   const cell = document.createElement('div');
-  cell.className = 'ds-date-pick-cell';
-  cell.innerHTML = `<span class="ds-date-pick-cell__head"><span>מפגש ${idx + 1}</span><span class="ds-date-pick-cell__dot" aria-hidden="true"></span></span>
-    <input class="ds-input ds-input--date" type="date" name="meeting_date_${idx}" data-meeting-idx="${idx}" value="${dateValue}">
-    <span class="ds-date-pick-cell__weekday"></span>`;
-  const weekday = cell.querySelector('.ds-date-pick-cell__weekday');
-  if (weekday && dateValue) {
+  cell.className = 'activity-drawer__date-card';
+  cell.dataset.meetingIndex = String(idx);
+  const dayLetter = (() => {
+    if (!dateValue) return '';
     const d = new Date(`${dateValue}T12:00:00`);
-    const day = Number.isNaN(d.getTime()) ? '' : ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'][d.getDay()] || '';
-    weekday.textContent = day;
-  }
+    return Number.isNaN(d.getTime()) ? '' : ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'][d.getDay()] || '';
+  })();
+  cell.innerHTML = `
+    <div class="activity-drawer__date-card-top">
+      <span class="activity-drawer__meeting-index">מפגש ${idx + 1}</span>
+      <span class="activity-drawer__weekday">${dayLetter}</span>
+    </div>
+    <input class="ds-input" type="date" name="meeting_date_${idx}" data-role="meeting-date" data-meeting-index="${idx}" data-meeting-idx="${idx}" value="${escapeHtml(String(dateValue || ''))}">
+    <input type="hidden" name="meeting_performed_${idx}" value="no">`;
   return cell;
 }
 
 function updateMeetingWeekdays(form) {
-  form.querySelectorAll('.ds-date-pick-cell').forEach((cell) => {
+  form.querySelectorAll('.activity-drawer__date-card').forEach((cell) => {
     const picker = cell.querySelector('input[data-meeting-idx]');
-    const label = cell.querySelector('.ds-date-pick-cell__weekday');
+    const label = cell.querySelector('.activity-drawer__date-card-top .activity-drawer__weekday');
     if (!picker || !label) return;
     if (!picker.value) {
       label.textContent = '';
@@ -95,7 +102,7 @@ function updateMoreDatesToggle(form) {
   const isEditing = form.dataset.editing === 'yes';
   const isOnce = form.dataset.isOnce === 'yes';
   const viewCards = Array.from(form.querySelectorAll('[data-date-card]'));
-  const editCards = Array.from(form.querySelectorAll('[data-meeting-dates-edit] .ds-date-pick-cell'));
+  const editCards = Array.from(form.querySelectorAll('[data-meeting-dates-edit] .activity-drawer__date-card'));
   const overflow = Math.max(0, viewCards.length - 6);
 
   const buttons = Array.from(form.querySelectorAll('[data-action-toggle-dates]'));
