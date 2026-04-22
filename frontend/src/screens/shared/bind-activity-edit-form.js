@@ -93,13 +93,14 @@ function updateMeetingWeekdays(form) {
 
 function updateMoreDatesToggle(form) {
   const isEditing = form.dataset.editing === 'yes';
+  const isOnce = form.dataset.isOnce === 'yes';
   const viewCards = Array.from(form.querySelectorAll('[data-date-card]'));
   const editCards = Array.from(form.querySelectorAll('[data-meeting-dates-edit] .ds-date-pick-cell'));
   const overflow = Math.max(0, viewCards.length - 6);
 
   const buttons = Array.from(form.querySelectorAll('[data-action-toggle-dates]'));
   buttons.forEach((button) => {
-    button.hidden = isEditing || overflow === 0;
+    button.hidden = isEditing || isOnce || overflow === 0;
     if (!button.hidden) {
       button.textContent = form.dataset.datesExpanded === 'yes' ? 'פחות ▲' : `+${overflow} עוד ▾`;
     }

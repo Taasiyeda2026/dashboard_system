@@ -5488,6 +5488,10 @@ select.ds-input {
   grid-column: 1 / -1;
 }
 
+.ds-drawer-content-edit-grid[hidden] {
+  display: none;
+}
+
 .ds-end-date-row {
   display: flex;
   align-items: center;
@@ -5739,6 +5743,10 @@ select.ds-input {
   flex-direction: column;
   gap: 10px;
   margin-bottom: 10px;
+}
+
+.ds-dates-edit-section[hidden] {
+  display: none;
 }
 
 .ds-date-pick-cell {
