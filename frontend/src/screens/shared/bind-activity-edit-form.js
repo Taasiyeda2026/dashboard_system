@@ -10,23 +10,6 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
 export function bindActivityEditForm(contentRoot, { api, ui, clearScreenDataCache, rerender }) {
   if (!api) return;
 
-  contentRoot.querySelectorAll('[data-toggle-edit]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const form = contentRoot.querySelector('[data-edit-activity]');
-      if (!form) return;
-      const isHidden = form.hasAttribute('hidden');
-      if (isHidden) {
-        form.removeAttribute('hidden');
-        btn.setAttribute('aria-expanded', 'true');
-        btn.textContent = '✖ סגור עריכה';
-      } else {
-        form.setAttribute('hidden', '');
-        btn.setAttribute('aria-expanded', 'false');
-        btn.textContent = '✏️ עריכה';
-      }
-    });
-  });
-
   contentRoot.querySelectorAll('[data-add-date]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const form = btn.closest('[data-edit-activity]');

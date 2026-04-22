@@ -163,6 +163,16 @@ const FIELD_LABELS = {
   finance_notes: 'הערות כספים'
 };
 
+const LIST_FIELDS = [
+  'activity_type',
+  'funding',
+  'authority',
+  'school',
+  'activity_manager',
+  'status',
+  'finance_status'
+];
+
 function settingsDropdownListName(fieldName) {
   var map = {
     activity_type: 'activity_type',
@@ -177,31 +187,60 @@ function settingsDropdownListName(fieldName) {
 }
 
 function isListBasedField(fieldName) {
-  return [
-    'activity_type',
-    'funding',
-    'authority',
-    'school',
-    'activity_manager',
-    'status',
-    'finance_status'
-  ].indexOf(fieldName) >= 0;
+  return LIST_FIELDS.indexOf(fieldName) >= 0;
 }
 
-function editorInputHtml(fieldName, rawValue, settings) {
+/**
+ * Returns dropdown options for a field, constrained by source sheet for activity_type.
+ */
+function resolveDropdownOptions(fieldName, settings, sourceSheet) {
+  var dropdownOptions = settings?.dropdown_options || {};
+  var listName = settingsDropdownListName(fieldName);
+  var allOptions = Array.isArray(dropdownOptions[listName]) ? dropdownOptions[listName] : [];
+
+  if (fieldName === 'activity_type' && sourceSheet) {
+    var src = String(sourceSheet).toLowerCase();
+    var programTypes = Array.isArray(settings?.program_activity_types)
+      ? settings.program_activity_types
+      : ['course', 'after_school'];
+    var oneDayTypes = Array.isArray(settings?.one_day_activity_types)
+      ? settings.one_day_activity_types
+      : ['workshop', 'tour', 'escape_room'];
+
+    var validTypes;
+    if (src.includes('long')) {
+      validTypes = programTypes;
+    } else if (src.includes('short')) {
+      validTypes = oneDayTypes;
+    }
+    if (validTypes && validTypes.length > 0) {
+      if (allOptions.length > 0) {
+        return allOptions.filter(function(o) { return validTypes.indexOf(String(o)) >= 0; });
+      }
+      return validTypes;
+    }
+  }
+
+  return allOptions;
+}
+
+/**
+ * Renders a single editable field as an HTML input/select/textarea.
+ * List-based fields always render as <select> dropdowns.
+ */
+function editorInputHtml(fieldName, rawValue, settings, sourceSheet) {
   var value = String(rawValue ?? '');
   var safeValue = escapeHtml(value);
   var label = FIELD_LABELS[fieldName] || fieldName;
-  var dropdownOptions = settings?.dropdown_options || {};
-  var listName = settingsDropdownListName(fieldName);
-  var options = Array.isArray(dropdownOptions[listName]) ? dropdownOptions[listName] : [];
   var isDateColumn = /^Date([1-9]|[12]\d|3[0-5])$/.test(fieldName);
-  var canUseDropdown = !!settings?.constrained_fields_use_dropdown && !isDateColumn && (options.length > 0 || isListBasedField(fieldName));
+  var isList = isListBasedField(fieldName) && !isDateColumn;
+  var options = isList ? resolveDropdownOptions(fieldName, settings, sourceSheet) : [];
 
-  if (canUseDropdown) {
+  if (isList) {
+    var currentIncluded = value && options.indexOf(value) < 0;
     var opts = ['<option value="">—</option>']
       .concat(
-        options.map(function(optionVal) {
+        (currentIncluded ? [value] : []).concat(options).map(function(optionVal) {
           var v = String(optionVal || '');
           var selected = v === value ? ' selected' : '';
           return '<option value="' + escapeHtml(v) + '"' + selected + '>' + escapeHtml(v) + '</option>';
@@ -267,7 +306,9 @@ export function activityRowDetailHtml(
 }
 
 /**
- * פירוט פעילות + טופס עריכה למשתמשים שאינם מדריכים (הרשאות נאכפות בשרת).
+ * פירוט פעילות + טופס עריכה ישיר (ללא כפתור טוגל).
+ * כשיש הרשאת עריכה: מוצג פירוט קריאה בלבד ואחריו טופס עריכה ישיר.
+ * כשאין הרשאה: פירוט קריאה בלבד בלבד.
  */
 export function activityWorkDrawerHtml(
   row,
@@ -289,6 +330,7 @@ export function activityWorkDrawerHtml(
   const rid = escapeHtml(String(row.RowID || '').trim());
   const allFieldsEditable = !!settings?.all_data_fields_editable;
   const sessions = Math.max(1, Math.min(Number(row.sessions) || 1, 35));
+  const sourceSheet = String(row.source_sheet || '').trim();
 
   var fields = allFieldsEditable ? EDITABLE_FIELDS_ALL.slice() : EDITABLE_FIELDS_BASIC.slice();
   if (!showFinanceFields) {
@@ -312,23 +354,19 @@ export function activityWorkDrawerHtml(
     var m = /^Date(\d+)$/.exec(fieldName);
     if (m) {
       var dateNum = parseInt(m[1], 10);
-      var inputHtml = editorInputHtml(fieldName, row[fieldName], settings);
+      var inputHtml = editorInputHtml(fieldName, row[fieldName], settings, sourceSheet);
       if (dateNum > sessions) {
         editorFieldsHtml += '<div class="ds-date-extra-wrap" data-date-extra hidden>' + inputHtml + '</div>';
       } else {
         editorFieldsHtml += inputHtml;
       }
     } else {
-      editorFieldsHtml += editorInputHtml(fieldName, row[fieldName], settings);
+      editorFieldsHtml += editorInputHtml(fieldName, row[fieldName], settings, sourceSheet);
     }
   });
 
-  const toggleBtn = `<div class="ds-edit-toggle-bar" dir="rtl">
-    <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-edit-toggle-btn" data-toggle-edit aria-expanded="false">✏️ עריכה</button>
-  </div>`;
-
-  return `${toggleBtn}${base}
-    <form class="ds-stack ds-activity-editor" data-edit-activity data-source-sheet="${src}" data-row-id="${rid}" hidden>
+  return `${base}
+    <form class="ds-stack ds-activity-editor" data-edit-activity data-source-sheet="${src}" data-row-id="${rid}">
       <h3 class="ds-activity-editor__title">✏️ עריכה</h3>
       ${editorFieldsHtml}
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-add-date-btn" data-add-date>+ תאריך</button>
