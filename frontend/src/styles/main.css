@@ -92,7 +92,7 @@
   --ds-shadow-float: 0 4px 16px rgba(26, 51, 88, 0.12), 0 12px 32px rgba(26, 51, 88, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06);
   --ds-border-subtle: rgba(26, 51, 88, 0.09);
 
-  --ds-sidebar-w: 228px;
+  --ds-sidebar-w: 160px;
   --ds-topbar-h: 54px;
 
   /* Legacy aliases used in older markup paths */
@@ -212,7 +212,7 @@ select {
     box-shadow: none;
     border-inline-start: none;
     border-inline-end: 1px solid var(--ds-shell-border);
-    padding: var(--ds-space-5) var(--ds-space-4);
+    padding: var(--ds-space-5) var(--ds-space-2);
     overflow-y: hidden;
   }
 }
@@ -273,9 +273,9 @@ select {
 
 .shell-brand__mark {
   display: block;
-  width: 112px;
+  width: 80px;
   height: auto;
-  max-height: 48px;
+  max-height: 40px;
   object-fit: contain;
   opacity: 0.95;
 }
@@ -307,8 +307,8 @@ select {
   color: var(--ds-shell-text);
   border-radius: var(--ds-radius-sm);
   min-height: 40px;
-  padding: 10px 12px;
-  font-size: 0.82rem;
+  padding: 10px 8px;
+  font-size: 0.78rem;
   font-weight: 500;
   text-align: right;
   white-space: normal;
@@ -1801,20 +1801,21 @@ span.ds-chip {
 }
 
 .ds-week-col {
-  border: 1px solid var(--ds-border);
+  border: 1px solid rgba(26, 51, 88, 0.12);
   border-radius: var(--ds-radius-md);
   background: var(--ds-surface);
-  box-shadow: var(--ds-shadow-xs);
+  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.06), 0 4px 10px rgba(26, 51, 88, 0.04);
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 80px;
+  min-height: 100px;
+  transition: box-shadow 0.15s ease;
 }
 
 .ds-week-col.is-today {
-  border-color: rgba(26, 51, 88, 0.35);
-  box-shadow: 0 0 0 1px rgba(26, 51, 88, 0.1);
-  background: var(--ds-surface-raised);
+  border-color: rgba(26, 51, 88, 0.42);
+  box-shadow: 0 0 0 2px rgba(26, 51, 88, 0.08), 0 3px 10px rgba(26, 51, 88, 0.1);
+  background: linear-gradient(180deg, #eef4ff 0%, var(--ds-surface) 38%);
 }
 
 .ds-week-col__head {
@@ -1822,31 +1823,56 @@ span.ds-chip {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 1px;
-  padding: var(--ds-space-1) var(--ds-space-2);
-  border-bottom: 1px solid var(--ds-border);
-  background: var(--ds-surface-subtle);
+  gap: 2px;
+  padding: var(--ds-space-2) var(--ds-space-2) var(--ds-space-1);
+  border-bottom: 1px solid rgba(26, 51, 88, 0.1);
+  background: linear-gradient(180deg, var(--ds-surface-subtle) 0%, rgba(246, 247, 249, 0.4) 100%);
+  border-radius: var(--ds-radius-md) var(--ds-radius-md) 0 0;
+}
+
+.ds-week-col.is-today .ds-week-col__head {
+  background: linear-gradient(180deg, #deeaff 0%, rgba(238, 244, 255, 0.5) 100%);
+  border-bottom-color: rgba(26, 51, 88, 0.18);
 }
 
 .ds-week-col__dow {
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 800;
   color: var(--ds-accent);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ds-week-col.is-today .ds-week-col__dow {
+  color: #1a3358;
 }
 
 .ds-week-col__date {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--ds-text-secondary);
+  line-height: 1.2;
 }
 
 .ds-week-col__count {
-  font-size: 0.7rem;
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
   color: var(--ds-text-muted);
+  background: rgba(26, 51, 88, 0.07);
+  border-radius: var(--ds-radius-full);
+  padding: 1px 6px;
+  margin-top: 1px;
+  line-height: 1.6;
+}
+
+.ds-week-col.is-today .ds-week-col__count {
+  background: rgba(26, 51, 88, 0.13);
+  color: var(--ds-accent);
 }
 
 .ds-week-col__body {
-  padding: var(--ds-space-1);
+  padding: var(--ds-space-2) var(--ds-space-1) var(--ds-space-1);
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1854,8 +1880,12 @@ span.ds-chip {
 }
 
 .ds-week-empty {
-  margin: 0;
-  padding: var(--ds-space-2) 0;
+  margin: auto;
+  padding: var(--ds-space-3) 0 var(--ds-space-2);
+  font-size: 0.72rem;
+  color: var(--ds-border-strong);
+  text-align: center;
+  opacity: 0.7;
 }
 
 /* ——— Week / month ——— */
@@ -2218,22 +2248,23 @@ span.ds-chip {
   justify-content: space-between;
   gap: var(--ds-space-3);
   padding: var(--ds-space-2) var(--ds-space-3);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
+  background: linear-gradient(135deg, rgba(237, 244, 255, 0.9) 0%, var(--ds-surface) 60%);
+  border: 1px solid rgba(26, 51, 88, 0.14);
   border-radius: var(--ds-radius-md);
-  box-shadow: var(--ds-shadow-xs);
+  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.06), 0 3px 8px rgba(26, 51, 88, 0.04);
 }
 
 .ds-cal-nav__label {
-  font-size: 0.86rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  color: var(--ds-text);
+  color: var(--ds-accent);
   text-align: center;
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
 .ds-cal-wrap {
@@ -2284,20 +2315,34 @@ span.ds-chip {
   gap: var(--ds-space-1);
 }
 
-/* Smaller font on session cards inside week columns */
+/* Session cards inside week columns: compact, anchored with accent border */
+.ds-week-col .ds-interactive-card--session {
+  border-inline-start: 3px solid rgba(26, 51, 88, 0.18);
+  padding-inline-start: calc(var(--ds-space-2) - 1px);
+  padding-block: var(--ds-space-1) var(--ds-space-2);
+  border-radius: var(--ds-radius-sm);
+  transition: border-inline-start-color 0.14s ease, box-shadow 0.14s ease, transform 0.1s ease;
+}
+
+.ds-week-col .ds-interactive-card--session:hover:not(:disabled) {
+  border-inline-start-color: var(--ds-accent);
+}
+
 .ds-week-col .ds-interactive-card--session .ds-interactive-card__title {
-  font-size: 0.77rem;
+  font-size: 0.78rem;
+  line-height: 1.3;
 }
 
 .ds-week-col .ds-interactive-card--session .ds-interactive-card__meta {
-  font-size: 0.68rem;
+  font-size: 0.69rem;
+  opacity: 0.82;
 }
 
 /* Accordion group for same-instructor sessions on the same day */
 .ds-week-session-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .ds-week-group__main-wrap {
@@ -2306,32 +2351,35 @@ span.ds-chip {
 
 .ds-week-group__badge {
   position: absolute;
-  inset-inline-end: 5px;
-  bottom: 5px;
-  font-size: 0.62rem;
+  inset-inline-end: 4px;
+  bottom: 4px;
+  font-size: 0.6rem;
   font-weight: 800;
   line-height: 1;
-  padding: 2px 5px;
-  border-radius: 10px;
+  padding: 2px 6px;
+  border-radius: var(--ds-radius-full);
   background: var(--ds-accent);
   color: #fff;
   border: none;
   cursor: pointer;
   z-index: 1;
-  transition: background 0.12s, opacity 0.12s;
+  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.25);
+  transition: background 0.12s, box-shadow 0.12s;
   pointer-events: auto;
 }
 
 .ds-week-group__badge:hover {
   background: color-mix(in srgb, var(--ds-accent) 80%, #000);
+  box-shadow: 0 2px 6px rgba(26, 51, 88, 0.35);
 }
 
 .ds-week-group__extra {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding-inline-start: 6px;
-  border-inline-start: 2px solid color-mix(in srgb, var(--ds-accent) 30%, var(--ds-border));
+  padding-inline-start: 8px;
+  border-inline-start: 2px solid rgba(26, 51, 88, 0.18);
+  margin-inline-start: 2px;
 }
 
 .ds-week-group__extra[hidden] {
@@ -2340,7 +2388,7 @@ span.ds-chip {
 
 /* extra bottom padding so badge doesn't overlap the last line of text */
 .ds-week-group__main-wrap .ds-interactive-card--session {
-  padding-bottom: 1.4rem;
+  padding-bottom: 1.5rem;
 }
 
 .ds-cal-slot--empty {
@@ -3521,22 +3569,37 @@ select.ds-input {
 .ds-mini-kpi-row {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ds-space-3) var(--ds-space-4);
-  padding: var(--ds-space-2) 0;
-  border-bottom: 1px solid var(--ds-border);
-  margin-bottom: var(--ds-space-1);
+  gap: var(--ds-space-2) var(--ds-space-3);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  background: linear-gradient(135deg, rgba(237, 244, 255, 0.6) 0%, rgba(246, 247, 249, 0.5) 100%);
+  border: 1px solid rgba(26, 51, 88, 0.1);
+  border-radius: var(--ds-radius-md);
+  box-shadow: 0 1px 2px rgba(26, 51, 88, 0.04);
 }
 
 .ds-mini-kpi {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--ds-text-muted);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.ds-mini-kpi::after {
+  content: '·';
+  color: var(--ds-border-strong);
+  margin-inline-start: var(--ds-space-1);
+}
+
+.ds-mini-kpi:last-child::after {
+  content: '';
 }
 
 .ds-mini-kpi strong {
   font-size: 1rem;
   font-weight: 800;
-  color: var(--ds-text);
-  margin-left: 3px;
+  color: var(--ds-accent);
+  margin-left: 0;
 }
 
 /* ——— Contacts: school grouping + inline expand ——— */
