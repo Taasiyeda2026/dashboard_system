@@ -2372,7 +2372,7 @@ span.ds-chip {
 .ds-week-group__badge {
   position: absolute;
   inset-inline-end: 4px;
-  bottom: 4px;
+  top: 4px;
   font-size: 0.6rem;
   font-weight: 800;
   line-height: 1;
@@ -2406,10 +2406,6 @@ span.ds-chip {
   display: none;
 }
 
-/* extra bottom padding so badge doesn't overlap the last line of text */
-.ds-week-group__main-wrap .ds-interactive-card--session {
-  padding-bottom: 1.5rem;
-}
 
 .ds-cal-slot--empty {
   min-height: 3rem;
