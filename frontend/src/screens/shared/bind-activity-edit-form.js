@@ -92,18 +92,25 @@ function updateMeetingWeekdays(form) {
 }
 
 function updateMoreDatesToggle(form) {
-  const buttons = Array.from(form.querySelectorAll('[data-action-toggle-dates]'));
-  if (!buttons.length) return;
-  const editCards = Array.from(form.querySelectorAll('[data-meeting-dates-edit] .ds-date-pick-cell'));
+  const isEditing = form.dataset.editing === 'yes';
   const viewCards = Array.from(form.querySelectorAll('[data-date-card]'));
-  const cards = form.dataset.editing === 'yes' ? editCards : viewCards;
-  const overflow = Math.max(0, cards.length - 6);
+  const editCards = Array.from(form.querySelectorAll('[data-meeting-dates-edit] .ds-date-pick-cell'));
+  const overflow = Math.max(0, viewCards.length - 6);
+
+  const buttons = Array.from(form.querySelectorAll('[data-action-toggle-dates]'));
   buttons.forEach((button) => {
-    button.hidden = overflow === 0;
-    button.textContent = form.dataset.datesExpanded === 'yes' ? 'פחות ▲' : `+${overflow} עוד ▾`;
+    button.hidden = isEditing || overflow === 0;
+    if (!button.hidden) {
+      button.textContent = form.dataset.datesExpanded === 'yes' ? 'פחות ▲' : `+${overflow} עוד ▾`;
+    }
   });
-  cards.forEach((card, idx) => {
+
+  viewCards.forEach((card, idx) => {
     card.hidden = form.dataset.datesExpanded === 'yes' ? false : idx >= 6;
+  });
+
+  editCards.forEach((card) => {
+    card.hidden = false;
   });
 }
 

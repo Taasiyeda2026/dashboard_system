@@ -5425,6 +5425,10 @@ select.ds-input {
   margin-bottom: 4px;
 }
 
+.ds-drawer-block .ds-field-row:last-child {
+  margin-bottom: 0;
+}
+
 .ds-drawer-content-edit-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5491,8 +5495,9 @@ select.ds-input {
 }
 
 .ds-date-chip__weekday {
-  color: #94a3b8;
-  font-size: 0.67rem;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 600;
 }
 
 .ds-date-chip.is-done {
@@ -5764,6 +5769,11 @@ select.ds-input {
   margin-top: calc(-1 * var(--_bleed));
   margin-inline: calc(-1 * var(--_bleed));
   margin-bottom: 14px;
+}
+
+/* Hide shell drawer header when activity content renders its own header (eliminates duplicate close button) */
+.ds-drawer:has(.ds-drawer__header--activity) > .ds-drawer__header {
+  display: none;
 }
 
 .ds-dates-more-btn {

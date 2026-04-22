@@ -148,17 +148,23 @@ function blockPeople(row, { settings = {} } = {}) {
   const activityType = String(row.activity_type || '').trim();
   const twoInstructors = activityType === 'workshop';
 
-  const instructorFields = twoInstructors
-    ? `<div class="ds-field-grid ds-field-grid--2">
-        ${fieldViewEdit('מדריך/ה 1', `<span>${escapeHtml(fallback(row.instructor_name))}</span>`, selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors }))}
-        ${fieldViewEdit('מדריך/ה 2', `<span>${escapeHtml(fallback(row.instructor_name_2))}</span>`, selectHtml({ name: 'instructor_name_2', value: row.instructor_name_2, options: instructors }))}
-      </div>`
-    : fieldViewEdit('מדריך/ה', `<span>${escapeHtml(fallback(row.instructor_name))}</span>`, selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors }));
+  const managerField = fieldViewEdit('מנהל פעילות',
+    `<span>${escapeHtml(fallback(row.activity_manager))}</span>`,
+    selectHtml({ name: 'activity_manager', value: row.activity_manager, options: managers }));
 
-  return `<section class="ds-drawer-block">
+  const instructorFields = twoInstructors
+    ? `${fieldViewEdit('מדריך/ה 1', `<span>${escapeHtml(fallback(row.instructor_name))}</span>`, selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors }))}
+       ${fieldViewEdit('מדריך/ה 2', `<span>${escapeHtml(fallback(row.instructor_name_2))}</span>`, selectHtml({ name: 'instructor_name_2', value: row.instructor_name_2, options: instructors }))}`
+    : fieldViewEdit('מדריך/ה',
+        `<span>${escapeHtml(fallback(row.instructor_name))}</span>`,
+        selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors }));
+
+  return `<section class="ds-drawer-block ds-drawer-block--people">
     <h3 class="ds-drawer-block__title">👤</h3>
-    ${fieldViewEdit('מנהל פעילות', `<span>${escapeHtml(fallback(row.activity_manager))}</span>`, selectHtml({ name: 'activity_manager', value: row.activity_manager, options: managers }))}
-    ${instructorFields}
+    <div class="ds-field-grid ds-field-grid--2">
+      ${managerField}
+      ${instructorFields}
+    </div>
   </section>`;
 }
 
@@ -264,7 +270,6 @@ function blockDates(row, { canEdit = false } = {}) {
     ${isOnce ? '' : '<button type="button" data-view-only class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>'}
     <div data-edit-only hidden class="ds-dates-edit-section">
       <div class="ds-dates-grid ds-dates-grid--2col" data-meeting-dates-edit>${datePickers}</div>
-      ${isOnce ? '' : `<button type="button" class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>`}
     </div>
   </section>`;
 }
