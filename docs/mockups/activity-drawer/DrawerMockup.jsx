@@ -843,14 +843,7 @@ export default function DrawerMockup() {
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                     <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 999, padding: "1px 7px" }}>🔒</span>
                   </div>
-                  <Field
-                    label="הערה תפעולית"
-                    name="operations_private_notes"
-                    value={data.operations_private_notes}
-                    editing={editing}
-                    onChange={handleChange}
-                    type="textarea"
-                  />
+                  <Field label="הערה תפעולית" name="operations_private_notes" value={data.operations_private_notes} editing={editing} onChange={handleChange} type="textarea" />
                 </div>
               )}
             </div>
