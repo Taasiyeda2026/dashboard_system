@@ -1,6 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
-import { getHolidayLabel } from './shared/holidays.js';
+import { hebrewActivityType } from './shared/ui-hebrew.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -36,112 +36,40 @@ function hebrewMonthTitle(ym) {
   return `${name} ${m[1]}`;
 }
 
-function formatDateHe(isoDate) {
-  if (!isoDate) return '';
-  const d = new Date(isoDate);
-  if (Number.isNaN(d.getTime())) return isoDate;
-  return d.toLocaleDateString('he-IL');
+function normalizeNames(names) {
+  const unique = [...new Set((Array.isArray(names) ? names : []).map((n) => String(n || '').trim()).filter(Boolean))];
+  return unique.join(', ');
 }
 
-function monthStartIso(ym) {
-  return `${ym}-01`;
-}
+function renderStructuredSummary(summary, ym) {
+  const monthTitle = hebrewMonthTitle(ym);
+  const nextMonthTitle = hebrewMonthTitle(shiftYm(ym, 1));
+  const instructors = normalizeNames(summary?.active_instructors || []);
+  const shortActivities = Array.isArray(summary?.short_activities) ? summary.short_activities : [];
+  const hasShortActivities = shortActivities.length > 0;
 
-function monthEndIso(ym) {
-  const [y, m] = ym.split('-').map(Number);
-  const end = new Date(y, m, 0);
-  return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
-}
+  const shortActivitiesHtml = hasShortActivities
+    ? `<div class="ds-summary-panel__block ds-summary-panel__block--short-activities">
+        <h4 class="ds-summary-panel__inner-title"><strong>פעילויות חד-יומיות בחודש זה</strong></h4>
+        <p class="ds-summary-panel__text">בנוסף, במהלך חודש <strong>${escapeHtml(monthTitle)}</strong> צפויות להתקיים גם פעילויות חד-יומיות.</p>
+        <ul class="ds-summary-panel__list">
+          ${shortActivities
+            .map((item) => `<li><strong>${escapeHtml(hebrewActivityType(item.activity_type || ''))}</strong> – <strong>${escapeHtml(String(item.count || 0))}</strong></li>`)
+            .join('')}
+        </ul>
+      </div>`
+    : '';
 
-function getHolidaysInRange(fromYm, toYm) {
-  const from = monthStartIso(fromYm);
-  const to = monthEndIso(toYm);
-  const days = [];
-  const cursor = new Date(from);
-  const last = new Date(to);
-  while (cursor <= last) {
-    const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-    const label = getHolidayLabel(iso);
-    if (label) days.push({ date: iso, label });
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return days;
-}
-
-function buildNationalPrompt(payload) {
-  const { currentMonth, today, totals, kpiCards, managers, holidays } = payload;
-  const exceptions = Array.isArray(kpiCards) ? (kpiCards.find((k) => k.id === 'exceptions')?.value ?? 0) : 0;
-  return `סיכום מצב ארצי לחודש ${hebrewMonthTitle(currentMonth)}.
-היום: ${formatDateHe(today)}.
-
-נתונים:
-- תוכניות פעילות: ${totals?.total_long ?? 0}
-- מדריכים פעילים: ${totals?.total_instructors ?? 0}
-- חריגות: ${exceptions}
-- סיומי קורסים החודש: ${totals?.total_course_endings_current_month ?? 0}
-
-פירוט מחוזות:
-${(Array.isArray(managers) ? managers : []).map((m) => `${m.activity_manager}: ${m.total_long} תוכניות, ${m.num_instructors} מדריכים, ${m.exceptions} חריגות`).join('\n')}
-
-${holidays.length ? `אירועים בטווח החודשיים הקרובים:\n${holidays.map((h) => `${formatDateHe(h.date)}: ${h.label}`).join('\n')}` : ''}
-
-כתוב סיכום קצר ומדויק למנהל הארצי.`;
-}
-
-function buildManagerPrompt(payload) {
-  const { managerName, currentMonth, today, stats, holidays } = payload;
-  return `סיכום מצב ${managerName} לחודש ${hebrewMonthTitle(currentMonth)}.
-היום: ${formatDateHe(today)}.
-
-נתונים:
-- תוכניות פעילות: ${stats?.total_long ?? 0}
-- מדריכים פעילים: ${stats?.num_instructors ?? 0}
-- חריגות: ${stats?.exceptions ?? 0}
-- סיומי קורסים החודש: ${stats?.course_endings ?? 0}
-
-${holidays.length ? `אירועים בטווח החודשיים הקרובים:\n${holidays.map((h) => `${formatDateHe(h.date)}: ${h.label}`).join('\n')}` : ''}
-
-כתוב סיכום קצר ומדויק למנהל.`;
-}
-
-async function fetchSummary(payload) {
-  const runtimeConfig = (typeof globalThis !== 'undefined' && globalThis.__DASHBOARD_CONFIG__) || {};
-  const apiKey = runtimeConfig.anthropicApiKey || runtimeConfig.claudeApiKey || '';
-  const endpoint = runtimeConfig.anthropicUrl || 'https://api.anthropic.com/v1/messages';
-  const systemPrompt = `אתה עוזר ניהולי של מערכת ניהול פעילויות חינוכיות ארצית בישראל.
-תפקידך: לנתח נתונים ולהפיק סיכום תמציתי למנהל.
-
-חוקים:
-- כתוב עברית בלבד
-- 3–5 משפטים קצרים בלבד. אין כותרות, אין bullets, אין bold
-- ניסוח ישיר, עובדתי, ממוקד — לא שיווקי ולא מחמיא
-- הדגש: מה בולט החודש הנוכחי, מה צפוי החודש הבא, אירועים שדורשים תשומת לב
-- אם יש חגים בטווח — ציין אותם רק אם רלוונטיים לפעילות (סיומים, הפסקות)
-- אם יש חריגות גבוהות — ציין בפשטות את המספר
-- אל תמציא נתונים שלא נמסרו לך`;
-  const userPrompt = payload.type === 'national'
-    ? buildNationalPrompt(payload)
-    : buildManagerPrompt(payload);
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' } : {})
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }]
-      })
-    });
-    if (!response.ok) return 'לא ניתן לייצר סיכום כרגע.';
-    const data = await response.json();
-    return data.content?.[0]?.text || 'לא ניתן לייצר סיכום כרגע.';
-  } catch (_) {
-    return 'לא ניתן לייצר סיכום כרגע.';
-  }
+  return `<div class="ds-summary-panel__structured">
+    <h3 class="ds-summary-panel__title">סיכום חודשי – <strong>${escapeHtml(monthTitle)}</strong></h3>
+    <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(monthTitle)}</strong> מתקיימים <strong>${escapeHtml(String(summary?.active_courses_current_month ?? 0))}</strong> קורסים פעילים. במהלך החודש צפויים להסתיים <strong>${escapeHtml(String(summary?.ending_courses_current_month ?? 0))}</strong> קורסים. המדריכים הפעילים החודש הם: <strong>${escapeHtml(instructors)}</strong>.</p>
+    <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(nextMonthTitle)}</strong> צפויים להיות <strong>${escapeHtml(String(summary?.active_courses_next_month ?? 0))}</strong> קורסים פעילים.</p>
+    <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
+      <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש</strong></h4>
+      <p class="ds-summary-panel__text"><strong>${escapeHtml(String(summary?.missing_instructor_count ?? 0))}</strong> קורסים ללא שיבוץ מדריך, <strong>${escapeHtml(String(summary?.missing_start_date_count ?? 0))}</strong> קורסים ללא תאריך התחלה, ו-<strong>${escapeHtml(String(summary?.late_end_date_count ?? 0))}</strong> קורסים המצויים בסיכון עקב תאריך סיום מאוחר.</p>
+    </div>
+    ${shortActivitiesHtml}
+  </div>`;
 }
 
 function goActivitiesDrill(state, patch) {
@@ -213,14 +141,11 @@ export const dashboardScreen = {
         return `<div class="ds-manager-card">
           <div class="ds-manager-card__head">
             <p class="ds-manager-card__name">${escapeHtml(displayName)}</p>
-            <button type="button" class="ds-summary-btn" data-summary-target="${summaryTarget}" aria-label="סיכום AI">✨ סיכום</button>
+            <button type="button" class="ds-summary-btn" data-summary-target="${summaryTarget}" aria-label="סיכום">סיכום</button>
           </div>
           <div class="ds-manager-stats">${statsHtml}</div>
           <div class="ds-summary-panel" data-summary-panel="${summaryTarget}" hidden>
             <div class="ds-summary-panel__content"></div>
-            <div class="ds-summary-panel__footer">
-              <button type="button" class="ds-summary-refresh" data-summary-refresh="${summaryTarget}">↺ רענן</button>
-            </div>
           </div>
         </div>`;
       })
@@ -256,13 +181,10 @@ export const dashboardScreen = {
         ${monthNav}
         <div data-dash-data-area>
           <div class="ds-dashboard-summary-row">
-            <button type="button" class="ds-summary-btn" data-summary-target="national" aria-label="סיכום AI">✨ סיכום</button>
+            <button type="button" class="ds-summary-btn" data-summary-target="national" aria-label="סיכום">סיכום</button>
           </div>
           <div class="ds-summary-panel" data-summary-panel="national" hidden>
             <div class="ds-summary-panel__content"></div>
-            <div class="ds-summary-panel__footer">
-              <button type="button" class="ds-summary-refresh" data-summary-refresh="national">↺ רענן</button>
-            </div>
           </div>
           <div class="ds-kpi-grid ds-dashboard-kpi-grid">${kpiHtml}</div>
           <div style="margin-top: var(--ds-space-3)"></div>
@@ -277,22 +199,7 @@ export const dashboardScreen = {
   },
   bind({ root, ui, state, api, rerender, clearScreenDataCache, data }) {
     const DASHBOARD_TTL_MS = 5 * 60 * 1000;
-    const summaryCache = new Map();
     const ym = data?.month || state.dashboardMonthYm || currentMonthYm();
-    const nextYm = shiftYm(ym, 1);
-    const todayIso = new Date().toISOString().slice(0, 10);
-    const holidays = getHolidaysInRange(ym, nextYm);
-    const managerRows = Array.isArray(data?.by_activity_manager) ? data.by_activity_manager : [];
-    const nationalPayload = {
-      type: 'national',
-      currentMonth: ym,
-      nextMonth: nextYm,
-      today: todayIso,
-      totals: data?.totals || {},
-      kpiCards: data?.kpi_cards || [],
-      managers: managerRows,
-      holidays
-    };
 
     function getSummaryBtn(target) {
       return [...root.querySelectorAll('.ds-summary-btn[data-summary-target]')]
@@ -309,36 +216,20 @@ export const dashboardScreen = {
       if (btn) btn.disabled = !!disabled;
     }
 
-    function showLoading(target) {
-      const panel = getSummaryPanel(target);
-      const content = panel?.querySelector('.ds-summary-panel__content');
-      if (!panel || !content) return;
-      panel.hidden = false;
-      content.innerHTML = '<span class="ds-summary-loading">מנתח נתונים…</span>';
-      toggleSummaryButton(target, true);
-    }
-
-    function showSummary(target, text) {
+    function showSummary(target, htmlText) {
       const panel = getSummaryPanel(target);
       const content = panel?.querySelector('.ds-summary-panel__content');
       const btn = getSummaryBtn(target);
       if (!panel || !content) return;
       panel.hidden = false;
-      content.textContent = text || 'לא ניתן לייצר סיכום כרגע.';
+      content.innerHTML = htmlText;
       if (btn) btn.hidden = true;
       toggleSummaryButton(target, false);
     }
 
-    async function handleSummaryClick(target, payload, forceRefresh = false) {
-      if (forceRefresh) summaryCache.delete(target);
-      if (summaryCache.has(target)) {
-        showSummary(target, summaryCache.get(target));
-        return;
-      }
-      showLoading(target);
-      const text = await fetchSummary(payload);
-      summaryCache.set(target, text);
-      showSummary(target, text);
+    function handleSummaryClick(target) {
+      const nationalSummary = renderStructuredSummary(data?.summary || {}, ym);
+      showSummary(target, nationalSummary);
     }
 
     function showDataAreaLoading() {
@@ -393,50 +284,7 @@ export const dashboardScreen = {
     root.querySelectorAll('.ds-summary-btn[data-summary-target]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const target = btn.dataset.summaryTarget || '';
-        const managerHit = managerRows.find((r) => String(r.activity_manager || '') === decodeURIComponent(target));
-        const payload = target === 'national'
-          ? nationalPayload
-          : {
-              type: 'manager',
-              managerName: managerHit?.activity_manager || decodeURIComponent(target),
-              currentMonth: ym,
-              nextMonth: nextYm,
-              today: todayIso,
-              stats: {
-                total_long: managerHit?.total_long ?? 0,
-                num_instructors: managerHit?.num_instructors ?? 0,
-                exceptions: managerHit?.exceptions ?? 0,
-                course_endings: managerHit?.course_endings ?? 0
-              },
-              holidays
-            };
-        handleSummaryClick(target, payload).catch(() => {});
-      });
-    });
-
-    root.querySelectorAll('.ds-summary-refresh[data-summary-refresh]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const target = btn.dataset.summaryRefresh || '';
-        const managerHit = managerRows.find((r) => String(r.activity_manager || '') === decodeURIComponent(target));
-        const payload = target === 'national'
-          ? nationalPayload
-          : {
-              type: 'manager',
-              managerName: managerHit?.activity_manager || decodeURIComponent(target),
-              currentMonth: ym,
-              nextMonth: nextYm,
-              today: todayIso,
-              stats: {
-                total_long: managerHit?.total_long ?? 0,
-                num_instructors: managerHit?.num_instructors ?? 0,
-                exceptions: managerHit?.exceptions ?? 0,
-                course_endings: managerHit?.course_endings ?? 0
-              },
-              holidays
-            };
-        const openBtn = getSummaryBtn(target);
-        if (openBtn) openBtn.hidden = false;
-        handleSummaryClick(target, payload, true).catch(() => {});
+        handleSummaryClick(target);
       });
     });
 
