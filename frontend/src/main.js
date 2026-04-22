@@ -494,17 +494,55 @@ async function backgroundRefreshScreen(screen, cacheKey) {
 }
 
 function prefetchFromDashboardIfNeeded() {
-  if (state.route !== 'dashboard') return;
-  const targets = [
-    {
-      key: buildScreenDataCacheKey('activities', { ...state, route: 'activities' }),
-      load: () => api.activities({ activity_type: 'all' })
-    },
-    {
-      key: buildScreenDataCacheKey('week', { ...state, route: 'week', weekOffset: 0 }),
-      load: () => api.week({ week_offset: 0 })
-    }
-  ];
+  const targets = [];
+  if (state.route === 'dashboard') {
+    targets.push(
+      {
+        key: buildScreenDataCacheKey('activities', { ...state, route: 'activities' }),
+        load: () => api.activities({ activity_type: 'all' })
+      },
+      {
+        key: buildScreenDataCacheKey('week', { ...state, route: 'week', weekOffset: 0 }),
+        load: () => api.week({ week_offset: 0 })
+      },
+      {
+        key: buildScreenDataCacheKey('month', { ...state, route: 'month', monthYm: state.monthYm || '' }),
+        load: () => api.month(state.monthYm ? { ym: state.monthYm } : {})
+      }
+    );
+  } else if (state.route === 'week') {
+    const curr = state.weekOffset || 0;
+    targets.push(
+      {
+        key: buildScreenDataCacheKey('week', { ...state, route: 'week', weekOffset: curr - 1 }),
+        load: () => api.week({ week_offset: curr - 1 })
+      },
+      {
+        key: buildScreenDataCacheKey('week', { ...state, route: 'week', weekOffset: curr + 1 }),
+        load: () => api.week({ week_offset: curr + 1 })
+      }
+    );
+  } else if (state.route === 'month') {
+    const base = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : '';
+    const shiftYm = (ym, delta) => {
+      const d = ym ? new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1, 1) : new Date();
+      d.setMonth(d.getMonth() + delta);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+    const prevYm = shiftYm(base, -1);
+    const nextYm = shiftYm(base, 1);
+    targets.push(
+      {
+        key: buildScreenDataCacheKey('month', { ...state, route: 'month', monthYm: prevYm }),
+        load: () => api.month({ ym: prevYm })
+      },
+      {
+        key: buildScreenDataCacheKey('month', { ...state, route: 'month', monthYm: nextYm }),
+        load: () => api.month({ ym: nextYm })
+      }
+    );
+  }
+  if (!targets.length) return;
   targets.forEach((target) => {
     if (state.screenDataCache[target.key]) return;
     if (inflightRequests.has(target.key)) return;

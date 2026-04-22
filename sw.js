@@ -1,5 +1,5 @@
 /* Service worker at repository root so scope covers the whole GitHub Pages site. */
-const CACHE_VERSION = 89;
+const CACHE_VERSION = 90;
 const CACHE = `internal-dashboard-v${CACHE_VERSION}`;
 
 const APP_SHELL = [
@@ -13,8 +13,27 @@ const APP_SHELL = [
   './frontend/src/screens/activities.js',
   './frontend/src/screens/week.js',
   './frontend/src/screens/month.js',
+  './frontend/src/screens/operations.js',
   './frontend/src/screens/finance.js',
+  './frontend/src/screens/exceptions.js',
+  './frontend/src/screens/instructors.js',
+  './frontend/src/screens/instructor-contacts.js',
+  './frontend/src/screens/contacts.js',
+  './frontend/src/screens/end-dates.js',
+  './frontend/src/screens/my-data.js',
+  './frontend/src/screens/edit-requests.js',
+  './frontend/src/screens/permissions.js',
+  './frontend/src/screens/login.js',
+  './frontend/src/screens/shared/html.js',
+  './frontend/src/screens/shared/format-date.js',
   './frontend/src/screens/shared/layout.js',
+  './frontend/src/screens/shared/act-nav-grid.js',
+  './frontend/src/screens/shared/activity-detail-html.js',
+  './frontend/src/screens/shared/bind-activity-edit-form.js',
+  './frontend/src/screens/shared/holidays.js',
+  './frontend/src/screens/shared/page-list-tools.js',
+  './frontend/src/screens/shared/responsive.js',
+  './frontend/src/screens/shared/toast.js',
   './frontend/src/screens/shared/ui-hebrew.js',
   './frontend/src/screens/shared/interactions.js',
   './frontend/src/styles/main.css',

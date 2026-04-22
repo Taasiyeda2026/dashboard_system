@@ -6,6 +6,8 @@ import { formatDateHe } from './shared/format-date.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
 
+const NAV_DEBOUNCE_MS = 150;
+
 const HEBREW_MONTHS = [
   'ינואר',
   'פברואר',
@@ -347,7 +349,7 @@ export const monthScreen = {
         state.monthYm = shiftMonthYm(resolveBaseYm(), delta);
         try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
         rerender?.();
-      }, 150);
+      }, NAV_DEBOUNCE_MS);
     };
     root.querySelector('[data-month-prev]')?.addEventListener('click', () => {
       queueMonthShift(-1);

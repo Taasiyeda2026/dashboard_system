@@ -6,6 +6,8 @@ import { formatDateHe } from './shared/format-date.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
 
+const NAV_DEBOUNCE_MS = 150;
+
 function localYmd() {
   const d = new Date();
   const y = d.getFullYear();
@@ -207,7 +209,7 @@ export const weekScreen = {
       navDebounceTimer = setTimeout(() => {
         state.weekOffset = (state.weekOffset || 0) + delta;
         rerender?.();
-      }, 150);
+      }, NAV_DEBOUNCE_MS);
     };
 
     root.querySelector('[data-week-prev]')?.addEventListener('click', () => {
