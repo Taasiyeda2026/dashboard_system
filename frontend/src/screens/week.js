@@ -19,9 +19,24 @@ function weekItemMeta(item) {
   return names || 'ללא מדריך';
 }
 
-function weekDrawerHtml(item, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, showPrivateNote, settings) {
+function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, showPrivateNote, settings, mode = 'single') {
+  if (mode === 'summary') {
+    const rows = Array.isArray(itemOrItems) ? itemOrItems : [];
+    return activityWorkDrawerHtml(rows, {
+      mode: 'summary',
+      summaryDate: date,
+      privateNote: showPrivateNote ? '—' : null,
+      canEdit: !!canEdit,
+      hideEmpIds: !!hideEmpIds,
+      hideRowId: !!hideRowId,
+      hideActivityNo: !!hideActivityNo,
+      settings: settings || {}
+    });
+  }
+  const item = itemOrItems;
   const privateNote = showPrivateNote ? item.private_note || '—' : null;
-  const full = activityWorkDrawerHtml(item, {
+  return activityWorkDrawerHtml(item, {
+    mode: 'single',
     privateNote,
     canEdit: !!canEdit,
     hideEmpIds: !!hideEmpIds,
@@ -29,7 +44,6 @@ function weekDrawerHtml(item, date, hideEmpIds, hideRowId, hideActivityNo, canEd
     hideActivityNo: !!hideActivityNo,
     settings: settings || {}
   });
-  return `${full}<p dir="rtl" style="margin-top:6px"><strong>יום בלוח:</strong> ${escapeHtml(formatDateHe(date))}</p>`;
 }
 
 function weekRangeLabel(days) {
@@ -228,17 +242,23 @@ export const weekScreen = {
         ui.openDrawer({ title: 'פריט', content: '<p class="ds-muted">לא נמצאו נתונים</p>' });
         return;
       }
+      const groups = groupItemsByInstructor(items);
+      const summaryGroup = groups.find((group) =>
+        group.some((entry) => String(entry.RowID) === String(rowId))
+      ) || [item];
+      const mode = summaryGroup.length > 1 ? 'summary' : 'single';
       ui.openDrawer({
-        title: item.activity_name || 'פעילות',
+        title: '',
         content: weekDrawerHtml(
-          item,
+          mode === 'summary' ? summaryGroup : item,
           date,
           hideEmpIds,
           hideRowId,
           hideActivityNo,
           canEditActivity,
           showPrivateNote,
-          state?.clientSettings || {}
+          state?.clientSettings || {},
+          mode
         ),
         onOpen: canEditActivity ? bindActivityEditForm : undefined
       });
