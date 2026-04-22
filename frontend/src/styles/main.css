@@ -1813,10 +1813,30 @@ span.ds-chip {
 }
 
 .ds-week-col.is-today {
-  border: 2px solid var(--ds-accent);
-  box-shadow: 0 0 0 3px rgba(26, 51, 88, 0.14), 0 4px 16px rgba(26, 51, 88, 0.18);
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.13),
+              0 0 20px rgba(59, 130, 246, 0.13),
+              0 4px 16px rgba(26, 51, 88, 0.07);
   background: linear-gradient(180deg, #deeaff 0%, var(--ds-surface) 46%);
+  position: relative;
+  overflow: visible;
 }
+
+.ds-week-col.is-today::before,
+.ds-week-col.is-today::after {
+  content: '✦';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.55rem;
+  color: #f59e0b;
+  text-shadow: 0 0 5px rgba(245, 158, 11, 0.9), 0 0 14px rgba(245, 158, 11, 0.5);
+  pointer-events: none;
+  z-index: 2;
+  line-height: 1;
+}
+.ds-week-col.is-today::before { top: -7px; }
+.ds-week-col.is-today::after  { bottom: -7px; }
 
 /* צבעים לימות השבוע: כחול, צהוב, ירוק, ורוד, כתום, סגול */
 .ds-week-col[data-day-idx="0"] { background: linear-gradient(180deg, #dbeafe 0%, var(--ds-surface) 44%); border-color: rgba(59,130,246,0.25); }
@@ -1837,8 +1857,10 @@ span.ds-chip {
 /* today מנצח על צבעי הימים */
 .ds-week-col.is-today[data-day-idx] {
   background: linear-gradient(180deg, #deeaff 0%, var(--ds-surface) 46%);
-  border: 2px solid var(--ds-accent);
-  box-shadow: 0 0 0 3px rgba(26, 51, 88, 0.14), 0 4px 16px rgba(26, 51, 88, 0.18);
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.13),
+              0 0 20px rgba(59, 130, 246, 0.13),
+              0 4px 16px rgba(26, 51, 88, 0.07);
 }
 .ds-week-col.is-today[data-day-idx] .ds-week-col__head {
   background: linear-gradient(180deg, #c8daff 0%, rgba(222,234,255,0.5) 100%);
@@ -2486,12 +2508,32 @@ span.ds-chip {
   max-width: 100%;
 }
 
-/* TODAY — בולט וחזק */
+/* TODAY — זוהר עדין + כוכבים */
 .ds-interactive-card.is-cal-today {
-  border: 2px solid var(--ds-accent);
-  box-shadow: 0 0 0 3px rgba(26, 51, 88, 0.15), 0 6px 18px rgba(26, 51, 88, 0.18);
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.13),
+              0 0 18px rgba(59, 130, 246, 0.14),
+              0 4px 14px rgba(26, 51, 88, 0.07);
   background: linear-gradient(165deg, #deeaff 0%, #eef4ff 100%);
+  position: relative;
+  overflow: visible;
 }
+
+.ds-interactive-card.is-cal-today::before,
+.ds-interactive-card.is-cal-today::after {
+  content: '✦';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.5rem;
+  color: #f59e0b;
+  text-shadow: 0 0 5px rgba(245, 158, 11, 0.9), 0 0 12px rgba(245, 158, 11, 0.5);
+  pointer-events: none;
+  z-index: 2;
+  line-height: 1;
+}
+.ds-interactive-card.is-cal-today::before { top: -6px; }
+.ds-interactive-card.is-cal-today::after  { bottom: -6px; }
 .ds-interactive-card.is-cal-today .ds-interactive-card__title {
   color: var(--ds-accent);
   font-size: 1rem;
@@ -2529,7 +2571,7 @@ span.ds-chip {
 .ds-interactive-card.is-cal-today.has-activities,
 .ds-interactive-card.is-cal-today.is-no-activities {
   background: linear-gradient(165deg, #deeaff 0%, #eef4ff 100%);
-  border: 2px solid var(--ds-accent);
+  border: 1px solid rgba(59, 130, 246, 0.22);
   opacity: 1;
 }
 
