@@ -20,19 +20,17 @@ function internalRoleFromPermissionRow_(row) {
 }
 
 function normalizeRole_(value) {
-  var raw = text_(value).toLowerCase();
-  var role = raw.replace(/\s+/g, ' ').trim();
-  if (role === 'admin' || role === 'מנהל' || role === 'מנהלת') return 'admin';
-  if (role === 'finance') return 'finance';
-  if (role === 'operations_reviewer' || role === 'operations reviewer') return 'operations_reviewer';
-  if (role === 'authorized_user' || role === 'authorized user' || role === 'משתמש מורשה' || role === 'משתמשת מורשה') return 'authorized_user';
-  if (role === 'instructor' || role === 'מדריך' || role === 'מדריכה') return 'instructor';
-  if (role === 'operation manager' || role === 'operations manager') return 'operation_manager';
-  if (role === 'activities manager') return 'activities_manager';
-  if (role === 'domain manager') return 'domain_manager';
-  if (role === 'manager instructor') return 'manager_instructor';
-  // תפקיד לא מזוהה — fallback ל-authorized_user (מניעת קריסה בהתחברות)
-  return 'authorized_user';
+  var role = text_(value).toLowerCase().trim();
+  switch (role) {
+    case 'admin':             return 'admin';
+    case 'finance':           return 'finance';
+    case 'operation_manager': return 'operation_manager';
+    case 'activities_manager':return 'activities_manager';
+    case 'domain_manager':    return 'domain_manager';
+    case 'manager_instructor':return 'manager_instructor';
+    case 'instructor':        return 'instructor';
+    default:                  throw new Error('invalid_role');
+  }
 }
 
 function isAuthorizedUserTier_(role) {

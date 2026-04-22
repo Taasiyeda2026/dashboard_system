@@ -217,6 +217,7 @@ const API_ERROR_HE = {
   'user_id is required': 'יש להזין מזהה משתמש',
   invalid_credentials: 'מזהה משתמש או קוד כניסה שגויים',
   user_inactive: 'המשתמש אינו פעיל',
+  invalid_role: 'תפקיד המשתמש אינו מוגדר כראוי — פנה למנהל המערכת',
   invalid_or_inactive_code: 'מזהה משתמש או קוד כניסה שגויים',
   entry_code_is_required: 'יש להזין קוד כניסה',
   'entry_code is required': 'יש להזין קוד כניסה',
