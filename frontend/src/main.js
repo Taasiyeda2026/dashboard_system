@@ -120,6 +120,31 @@ function flushPaint() {
 }
 
 function screenLoadingMarkup() {
+  if (state.route === 'activities') {
+    return `
+      <div class="ds-loading-card" dir="rtl" role="status" aria-live="polite">
+        <p>טוען פעילויות…</p>
+        <div class="ds-skeleton" aria-hidden="true">
+          <div class="ds-skeleton-line"></div>
+          <div class="ds-skeleton-line"></div>
+          <div class="ds-skeleton-line"></div>
+          <div class="ds-skeleton-line ds-skeleton-line--short"></div>
+        </div>
+      </div>
+    `;
+  }
+  if (state.route === 'week') {
+    return `
+      <div class="ds-loading-card" dir="rtl" role="status" aria-live="polite">
+        <p>טוען שבוע…</p>
+        <div class="ds-skeleton" aria-hidden="true">
+          <div class="ds-skeleton-line"></div>
+          <div class="ds-skeleton-line"></div>
+          <div class="ds-skeleton-line"></div>
+        </div>
+      </div>
+    `;
+  }
   return `
     <div class="ds-loading-card" dir="rtl" role="status" aria-live="polite">
       <div class="ds-spinner" aria-hidden="true"></div>
@@ -361,30 +386,34 @@ function closeMobileNav() {
   setMobileNavOpen(false);
 }
 
-function screenDataCacheKey() {
-  if (state.route === 'activities') {
-    return `activities:${state.activityTab || 'all'}:${state.activityFinanceStatus || ''}:${state.activitySearch || ''}:${state.activityQuickFamily || ''}:${state.activityQuickManager || ''}:${state.activityEndingCurrentMonth ? '1' : '0'}`;
+function buildScreenDataCacheKey(route, cacheState = state) {
+  if (route === 'activities') {
+    return `activities:${cacheState.activityTab || 'all'}:${cacheState.activityFinanceStatus || ''}:${cacheState.activitySearch || ''}:${cacheState.activityQuickFamily || ''}:${cacheState.activityQuickManager || ''}:${cacheState.activityEndingCurrentMonth ? '1' : '0'}`;
   }
-  if (state.route === 'finance') {
-    const df = state.financeDateFrom || '';
-    const dt = state.financeDateTo || '';
-    return `finance:${df}:${dt}:${state.financeSearch || ''}:${state.financeStatusFilter || ''}:${state.financeTab || 'active'}:${state.financeMonthYm || ''}`;
+  if (route === 'finance') {
+    const df = cacheState.financeDateFrom || '';
+    const dt = cacheState.financeDateTo || '';
+    return `finance:${df}:${dt}:${cacheState.financeSearch || ''}:${cacheState.financeStatusFilter || ''}:${cacheState.financeTab || 'active'}:${cacheState.financeMonthYm || ''}`;
   }
-  if (state.route === 'operations') {
-    return `operations:${state.operationsSearch || ''}:${state.operationsActivityType || ''}`;
+  if (route === 'operations') {
+    return `operations:${cacheState.operationsSearch || ''}:${cacheState.operationsActivityType || ''}`;
   }
-  if (state.route === 'dashboard') {
-    const ym = state.dashboardMonthYm && /^\d{4}-\d{2}$/.test(state.dashboardMonthYm) ? state.dashboardMonthYm : 'default';
+  if (route === 'dashboard') {
+    const ym = cacheState.dashboardMonthYm && /^\d{4}-\d{2}$/.test(cacheState.dashboardMonthYm) ? cacheState.dashboardMonthYm : 'default';
     return `dashboard:${ym}`;
   }
-  if (state.route === 'week') {
-    return `week:${state.weekOffset || 0}`;
+  if (route === 'week') {
+    return `week:${cacheState.weekOffset || 0}`;
   }
-  if (state.route === 'month') {
-    const ym = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : 'current';
+  if (route === 'month') {
+    const ym = cacheState.monthYm && /^\d{4}-\d{2}$/.test(cacheState.monthYm) ? cacheState.monthYm : 'current';
     return `month:${ym}`;
   }
-  return state.route;
+  return route;
+}
+
+function screenDataCacheKey() {
+  return buildScreenDataCacheKey(state.route, state);
 }
 
 /**
@@ -462,6 +491,35 @@ async function backgroundRefreshScreen(screen, cacheKey) {
   } catch {
     inflightRequests.delete(cacheKey);
   }
+}
+
+function prefetchFromDashboardIfNeeded() {
+  if (state.route !== 'dashboard') return;
+  const targets = [
+    {
+      key: buildScreenDataCacheKey('activities', { ...state, route: 'activities' }),
+      load: () => api.activities({ activity_type: 'all' })
+    },
+    {
+      key: buildScreenDataCacheKey('week', { ...state, route: 'week', weekOffset: 0 }),
+      load: () => api.week({ week_offset: 0 })
+    }
+  ];
+  targets.forEach((target) => {
+    if (state.screenDataCache[target.key]) return;
+    if (inflightRequests.has(target.key)) return;
+    const request = target.load()
+      .then((data) => {
+        const entry = { data, t: Date.now() };
+        state.screenDataCache[target.key] = entry;
+        persistCacheEntry(target.key, entry);
+      })
+      .catch(() => {})
+      .finally(() => {
+        inflightRequests.delete(target.key);
+      });
+    inflightRequests.set(target.key, request);
+  });
 }
 
 function setShellNavBusy(busy) {
@@ -703,6 +761,7 @@ async function mountScreen() {
       });
       if (routeChanged) lastRenderedRoute = state.route;
       if (isStale) backgroundRefreshScreen(screen, cacheKey);
+      prefetchFromDashboardIfNeeded();
       recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
       return;
     }
@@ -722,6 +781,7 @@ async function mountScreen() {
     });
     if (routeChanged) lastRenderedRoute = state.route;
     if (isStale) backgroundRefreshScreen(screen, cacheKey);
+    prefetchFromDashboardIfNeeded();
     recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
     return;
   } else {
@@ -744,6 +804,7 @@ async function mountScreen() {
       cache_key: cacheKey
     });
     if (routeChanged) lastRenderedRoute = state.route;
+    prefetchFromDashboardIfNeeded();
   } catch (err) {
     const screenRoot = document.getElementById('screenRoot');
     if (screenRoot) {

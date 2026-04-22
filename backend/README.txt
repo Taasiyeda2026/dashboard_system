@@ -15,6 +15,10 @@
 3. ב-config.gs עדכנו CONFIG.SPREADSHEET_ID לגיליון היעד.
 4. שמרו, פריסה > ניהול פריסות > פריסה מחדש של ה-Web App (אם משתמשים ב-web app).
 5. בדקו את כתובת /exec (או ה-URL המלא של הפריסה).
+6. לאחר deploy של שינויי cache משמעותיים (למשל שינוי TTL), מומלץ להריץ חד-פעמית:
+   - Deploy חדש (כך שמפתחות גרסה יתעדכנו), או
+   - פונקציית write שמבצעת bump לגרסת cache (למשל save קטן ב-data views).
+   אין צורך ב-invalidate אגרסיבי אוטומטי.
 
 תלות בין קבצים (Apps Script טוען הכול לגלובל):
 - Code.gs -> router.gs -> שאר המודולים.
@@ -22,6 +26,17 @@
 - router.gs קורא ל-getSettingText_ (settings.gs).
 - settings.gs תלוי ב-helpers.gs, config.gs, sheets.gs בלבד — קובץ עצמאי קטן.
 - sheets.gs משתמש ב-yesNo_ מ-helpers.gs וב-CONFIG מ-config.gs.
+
+================================================================================
+Warmup Trigger (מומלץ לצמצום cold start)
+================================================================================
+לאחר העלאת Code.gs שמכיל keepWarm():
+1. פתחו Apps Script project.
+2. עברו ל-Triggers.
+3. Add Trigger לפונקציה: keepWarm.
+4. Event source: Time-driven.
+5. Type: Every 10 minutes.
+הפונקציה לא מבצעת כתיבה/side-effects — רק warming של סביבת הריצה.
 
 ================================================================================
 א. גיליונות חובה (שמות בדיוק כמו ב-config.gs / CONFIG.SHEETS)

@@ -203,7 +203,7 @@ export const activitiesScreen = {
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
     const detailCache = new Map();
-    const loadingDetailMarkup = '<div class="ds-loading-card" dir="rtl"><p>טוען פירוט פעילות…</p></div>';
+    const loadingDetailMarkup = '<div class="ds-loading-card" dir="rtl"><p>משלים פירוט פעילות…</p></div>';
 
     async function loadDetailRow(summaryRow) {
       const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
@@ -216,15 +216,13 @@ export const activitiesScreen = {
 
     async function openActivityDetail(summaryRow) {
       if (!summaryRow || !ui) return;
-      ui.openDrawer({
-        title: '',
-        content: loadingDetailMarkup
-      });
-      const row = await loadDetailRow(summaryRow);
+      const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
+      const cached = detailCache.get(cacheKey);
+      const initialRow = cached || summaryRow;
       ui.openDrawer({
         title: '',
         content: activityDrawerContent(
-          row,
+          initialRow,
           canSeePrivateNotes,
           canEditActivity,
           hideEmpIds,
@@ -234,6 +232,29 @@ export const activitiesScreen = {
         ),
         onOpen: bindActivityEditForm
       });
+      if (cached) return;
+
+      const contentRoot = document.querySelector('.drawer-content');
+      if (contentRoot) contentRoot.insertAdjacentHTML('beforeend', loadingDetailMarkup);
+      try {
+        const row = await loadDetailRow(summaryRow);
+        ui.openDrawer({
+          title: '',
+          content: activityDrawerContent(
+            row,
+            canSeePrivateNotes,
+            canEditActivity,
+            hideEmpIds,
+            hideRowId,
+            hideActivityNo,
+            state?.clientSettings || {}
+          ),
+          onOpen: bindActivityEditForm
+        });
+      } catch {
+        const loadingNode = document.querySelector('.drawer-content .ds-loading-card');
+        if (loadingNode) loadingNode.remove();
+      }
     }
 
     root.querySelectorAll('[data-family]').forEach((node) => {

@@ -11,3 +11,15 @@ function doGet() {
 function doPost(e) {
   return handlePost_(e);
 }
+
+/**
+ * Warmup entrypoint for time-driven trigger.
+ * Keeps Apps Script runtime warm without any data mutation.
+ */
+function keepWarm() {
+  try {
+    getSpreadsheet_();
+  } catch (e) {
+    // warmup only — intentionally ignored
+  }
+}
