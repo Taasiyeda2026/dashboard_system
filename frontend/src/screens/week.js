@@ -137,7 +137,7 @@ export const weekScreen = {
         const groups = groupItemsByInstructor(items);
         const sessionBlocks = items.length
           ? groups.map((group) => renderWeekGroup(group, d.date, dow)).join('')
-          : '<p class="ds-muted ds-week-empty">אין פריטים</p>';
+          : '';
         const holiday = getHolidayLabel(d.date);
         return `
       <section class="ds-week-col${isToday ? ' is-today' : ''}" data-day-idx="${idx}" aria-label="${escapeHtml(d.date)}">
