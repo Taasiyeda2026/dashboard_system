@@ -2671,12 +2671,20 @@ span.ds-chip {
   padding: var(--ds-space-3) var(--ds-space-3);
 }
 
+.ds-manager-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-2);
+}
+
 .ds-manager-card__name {
-  margin: 0 0 var(--ds-space-3);
+  margin: 0;
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--ds-text);
-  text-align: center;
+  text-align: right;
 }
 
 .ds-manager-stats {
@@ -3319,6 +3327,86 @@ select.ds-input {
   font-weight: 600;
   font-size: 0.78rem;
   color: var(--ds-text-muted);
+}
+
+.ds-dashboard-summary-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: var(--ds-space-2);
+}
+
+.ds-summary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--ds-radius-full);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.07);
+  color: #6366f1;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.ds-summary-btn:hover {
+  background: rgba(99, 102, 241, 0.14);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.ds-summary-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.ds-summary-panel {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(237,233,254,0.6) 0%, rgba(224,231,255,0.5) 100%);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: var(--ds-radius-md);
+  animation: ds-summary-fadein 0.25s ease;
+}
+
+.ds-summary-panel__content {
+  font-size: 0.84rem;
+  line-height: 1.65;
+  color: var(--ds-text-secondary);
+  direction: rtl;
+  text-align: right;
+}
+
+.ds-summary-panel__footer {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ds-summary-refresh {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ds-summary-refresh:hover {
+  color: #6366f1;
+}
+
+.ds-summary-loading {
+  font-size: 0.8rem;
+  color: #6366f1;
+  font-style: italic;
+}
+
+@keyframes ds-summary-fadein {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .ds-page-shortcuts {
@@ -3984,91 +4072,75 @@ select.ds-input {
 }
 
 /* ── Instructor cards ── */
-.ci-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.ci-person-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 12px;
 }
 
-.ci-card {
+.ci-person-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--ds-surface);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-sm);
-  overflow: hidden;
-  background: var(--ds-surface);
-  transition: box-shadow 0.12s;
-}
-
-.ci-card:hover {
-  box-shadow: 0 1px 5px rgba(0,0,0,0.08);
-}
-
-.ci-card[open] {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.09);
-}
-
-.ci-card--inactive {
-  opacity: 0.6;
-}
-
-.ci-card__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
+  box-shadow: var(--ds-shadow-xs);
   cursor: pointer;
-  list-style: none;
-  user-select: none;
-  font-size: 0.85rem;
-  background: var(--ds-surface-subtle);
+  text-align: right;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.1s ease;
+  font-family: inherit;
+  width: 100%;
 }
 
-.ci-card__head::-webkit-details-marker { display: none; }
-
-.ci-card[open] .ci-card__head {
-  background: var(--ds-surface);
-  border-bottom: 1px solid var(--ds-border);
+.ci-person-card:hover {
+  border-color: color-mix(in srgb, var(--ds-accent) 30%, var(--ds-border));
+  box-shadow: var(--ds-shadow-md);
+  transform: translateY(-2px);
 }
 
-.ci-card__chevron {
-  color: var(--ds-text-muted);
-  font-size: 1.1rem;
-  line-height: 1;
-  transition: transform 0.18s ease;
-  flex-shrink: 0;
+.ci-person-card--inactive {
+  opacity: 0.45;
 }
 
-.ci-card[open] .ci-card__chevron {
-  transform: rotate(90deg);
-}
-
-.ci-card__name {
-  font-weight: 600;
-  color: var(--ds-text);
-  flex: 1;
-  min-width: 0;
-}
-
-.ci-card__badge {
-  display: inline-block;
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: var(--ds-text-muted);
-  background: var(--ds-muted-bg);
-  border: 1px solid var(--ds-muted-border);
-  border-radius: var(--ds-radius-full);
-  padding: 1px 6px;
-  margin-inline-start: 6px;
-  vertical-align: middle;
-}
-
-.ci-card__phone {
+.ci-person-card__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
   font-size: 0.78rem;
-  color: var(--ds-text-secondary);
+  font-weight: 800;
+  color: #fff;
   flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.ci-person-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ci-person-card__name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ds-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ci-person-card__phone {
+  font-size: 0.72rem;
+  color: var(--ds-text-muted);
   direction: ltr;
+  text-align: right;
 }
 
 /* ── Detail field rows (shared: instructor + school) ── */
@@ -4230,13 +4302,52 @@ select.ds-input {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 6px 0;
+  padding: 8px 0;
   border-bottom: 1px dashed var(--ds-border);
 }
 
 .sc-person:last-child {
   border-bottom: none;
   padding-bottom: 0;
+}
+
+.sc-person__top,
+.sc-person__phones,
+.sc-person__email {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sc-person__name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ds-text);
+}
+
+.sc-person__role {
+  font-size: 0.74rem;
+  color: var(--ds-text-muted);
+}
+
+.sc-person__phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.76rem;
+  color: var(--ds-text-secondary);
+  direction: ltr;
+}
+
+.sc-person__email {
+  font-size: 0.76rem;
+}
+
+@media (max-width: 560px) {
+  .ci-person-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* ── Contacts copy toast ── */
