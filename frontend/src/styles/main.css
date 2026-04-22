@@ -1935,7 +1935,7 @@ span.ds-chip {
 
 @media (min-width: 960px) {
   .ds-week-col__body {
-    max-height: 340px;
+    max-height: 440px;
   }
 }
 
