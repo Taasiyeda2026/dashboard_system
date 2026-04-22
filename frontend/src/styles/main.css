@@ -178,14 +178,14 @@ select {
   right: 0;
   z-index: 30;
   width: min(86vw, 320px);
-  background: linear-gradient(180deg, var(--ds-shell-2) 0%, var(--ds-shell) 100%);
+  background: linear-gradient(180deg, #141a28 0%, #101521 100%);
   border-inline-start: 1px solid var(--ds-shell-border);
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--ds-space-3);
   padding: var(--ds-space-4);
-  box-shadow: var(--ds-shadow-lg);
+  box-shadow: 0 8px 18px rgba(6, 10, 20, 0.32);
   transform: translateX(104%);
   transition: transform 0.2s ease;
   overflow-y: auto;
@@ -289,7 +289,7 @@ select {
 .shell-nav {
   display: flex;
   flex-direction: column;
-  gap: var(--ds-space-2);
+  gap: 6px;
   flex: 1;
   min-width: 0;
 }
@@ -302,12 +302,12 @@ select {
 }
 
 .shell-nav__btn {
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--ds-shell-text);
-  border-radius: var(--ds-radius-sm);
-  min-height: 40px;
-  padding: 10px 8px;
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 10px 10px;
   font-size: 0.78rem;
   font-weight: 500;
   text-align: right;
@@ -323,8 +323,8 @@ select {
 }
 
 .shell-nav__btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--ds-shell-border);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .shell-nav__btn:active:not(:disabled) {
@@ -337,11 +337,23 @@ select {
 }
 
 .shell-nav__btn.is-active {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.22);
   color: #fff;
-  box-shadow: var(--ds-shadow-xs);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   font-weight: 600;
+  position: relative;
+}
+
+.shell-nav__btn.is-active::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 6px;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
 }
 
 .shell-nav__btn:disabled {
@@ -476,19 +488,23 @@ select {
   flex: 1;
   justify-content: center;
   overflow: visible;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(26, 51, 88, 0.1);
+  border-radius: 12px;
 }
 
 .shell-header-nav__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 36px;
-  border-radius: var(--ds-radius-sm);
-  border: 1px solid rgba(26, 51, 88, 0.13);
-  background: linear-gradient(160deg, rgba(255,255,255,0.82) 0%, rgba(237,246,255,0.72) 100%);
-  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.10), 0 1px 1px rgba(255,255,255,0.7) inset;
-  font-size: 1.15rem;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(26, 51, 88, 0.14);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(26, 51, 88, 0.08);
+  font-size: 1rem;
   color: var(--ds-text-muted);
   position: relative;
   transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease,
@@ -511,19 +527,17 @@ select {
 }
 
 .shell-header-nav__btn:hover {
-  background: linear-gradient(160deg, rgba(255,255,255,0.95) 0%, rgba(232,238,246,0.9) 100%);
-  border-color: rgba(26, 51, 88, 0.22);
+  background: #f8fbff;
+  border-color: rgba(26, 51, 88, 0.2);
   color: var(--ds-text);
-  box-shadow: 0 3px 8px rgba(26, 51, 88, 0.14), 0 1px 2px rgba(255,255,255,0.8) inset;
-  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.1);
 }
 
 .shell-header-nav__btn.is-active {
-  background: linear-gradient(160deg, rgba(232,238,246,0.98) 0%, rgba(208,224,248,0.88) 100%);
-  border-color: rgba(26, 51, 88, 0.28);
-  color: var(--ds-accent);
-  box-shadow: 0 1px 2px rgba(26, 51, 88, 0.18), 0 2px 6px rgba(26, 51, 88, 0.12),
-    inset 0 1px 3px rgba(26, 51, 88, 0.10);
+  background: var(--ds-accent);
+  border-color: var(--ds-accent);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(26, 51, 88, 0.2);
   font-weight: 600;
 }
 
@@ -1445,7 +1459,11 @@ span.ds-chip {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: var(--ds-space-2);
-  padding: var(--ds-space-1) 0 var(--ds-space-3);
+  padding: var(--ds-space-1);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(26, 51, 88, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(26, 51, 88, 0.06);
 }
 
 @media (max-width: 900px) {
@@ -1458,49 +1476,52 @@ span.ds-chip {
 
 .ds-act-nav-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: var(--ds-space-1);
-  padding: var(--ds-space-3) var(--ds-space-2);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius);
+  gap: 6px;
+  min-height: 42px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid rgba(26, 51, 88, 0.12);
+  border-radius: 10px;
   cursor: pointer;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--ds-text);
   font-family: inherit;
   line-height: 1.2;
-  transition: background 0.12s, box-shadow 0.12s, border-color 0.12s;
+  transition: background 0.12s, box-shadow 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .ds-act-nav-item:hover {
-  background: var(--ds-surface-hover, var(--ds-surface));
-  border-color: var(--ds-primary, var(--ds-border));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  background: #f8fbff;
+  border-color: rgba(26, 51, 88, 0.24);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .ds-act-nav-item.is-active {
-  background: var(--ds-primary, #1971c2);
-  border-color: var(--ds-primary, #1971c2);
+  background: var(--ds-accent);
+  border-color: var(--ds-accent);
   color: #fff;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 2px 6px rgba(26, 51, 88, 0.2);
   cursor: default;
 }
 
 .ds-act-nav-item.is-active .ds-act-nav-item__label {
-  font-weight: 800;
-  font-size: 0.85rem;
+  font-weight: 700;
+  font-size: 0.82rem;
 }
 
 .ds-act-nav-item__icon {
-  font-size: 1.35rem;
+  font-size: 0.96rem;
   line-height: 1;
+  opacity: 0.92;
 }
 
 .ds-act-nav-item__label {
   text-align: center;
+  line-height: 1;
 }
 
 /* ——— Compact list rows (activities) ——— */
@@ -1804,7 +1825,7 @@ span.ds-chip {
   border: 1px solid rgba(26, 51, 88, 0.12);
   border-radius: var(--ds-radius-md);
   background: var(--ds-surface);
-  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.06), 0 4px 10px rgba(26, 51, 88, 0.04);
+  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.05);
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -1813,30 +1834,12 @@ span.ds-chip {
 }
 
 .ds-week-col.is-today {
-  border: 1px solid rgba(59, 130, 246, 0.22);
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.13),
-              0 0 20px rgba(59, 130, 246, 0.13),
-              0 4px 16px rgba(26, 51, 88, 0.07);
-  background: linear-gradient(180deg, #deeaff 0%, var(--ds-surface) 46%);
+  border: 1px solid rgba(59, 130, 246, 0.24);
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.15), 0 1px 4px rgba(26, 51, 88, 0.06);
+  background: linear-gradient(180deg, #edf4ff 0%, var(--ds-surface) 42%);
   position: relative;
-  overflow: visible;
+  overflow: hidden;
 }
-
-.ds-week-col.is-today::before,
-.ds-week-col.is-today::after {
-  content: '✦';
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.55rem;
-  color: #f59e0b;
-  text-shadow: 0 0 5px rgba(245, 158, 11, 0.9), 0 0 14px rgba(245, 158, 11, 0.5);
-  pointer-events: none;
-  z-index: 2;
-  line-height: 1;
-}
-.ds-week-col.is-today::before { top: -7px; }
-.ds-week-col.is-today::after  { bottom: -7px; }
 
 /* צבעים לימות השבוע: כחול, צהוב, ירוק, ורוד, כתום, סגול */
 .ds-week-col[data-day-idx="0"] { background: linear-gradient(180deg, #dbeafe 0%, var(--ds-surface) 44%); border-color: rgba(59,130,246,0.25); }
@@ -1856,14 +1859,12 @@ span.ds-chip {
 
 /* today מנצח על צבעי הימים */
 .ds-week-col.is-today[data-day-idx] {
-  background: linear-gradient(180deg, #deeaff 0%, var(--ds-surface) 46%);
-  border: 1px solid rgba(59, 130, 246, 0.22);
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.13),
-              0 0 20px rgba(59, 130, 246, 0.13),
-              0 4px 16px rgba(26, 51, 88, 0.07);
+  background: linear-gradient(180deg, #edf4ff 0%, var(--ds-surface) 42%);
+  border: 1px solid rgba(59, 130, 246, 0.24);
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.15), 0 1px 4px rgba(26, 51, 88, 0.06);
 }
 .ds-week-col.is-today[data-day-idx] .ds-week-col__head {
-  background: linear-gradient(180deg, #c8daff 0%, rgba(222,234,255,0.5) 100%);
+  background: linear-gradient(180deg, #dbe9ff 0%, rgba(237,244,255,0.6) 100%);
   border-bottom-color: rgba(26, 51, 88, 0.22);
 }
 
@@ -1886,6 +1887,20 @@ span.ds-chip {
   justify-content: center;
   gap: 5px;
   width: 100%;
+}
+
+.ds-week-col__today-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: var(--ds-radius-full);
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  background: rgba(255, 255, 255, 0.75);
+  color: #1d4ed8;
+  font-size: 0.62rem;
+  font-weight: 700;
 }
 
 .ds-week-col.is-today .ds-week-col__head {
@@ -2329,11 +2344,11 @@ span.ds-chip {
   align-items: center;
   justify-content: space-between;
   gap: var(--ds-space-3);
-  padding: var(--ds-space-2) var(--ds-space-3);
-  background: linear-gradient(135deg, rgba(237, 244, 255, 0.9) 0%, var(--ds-surface) 60%);
-  border: 1px solid rgba(26, 51, 88, 0.14);
-  border-radius: var(--ds-radius-md);
-  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.06), 0 3px 8px rgba(26, 51, 88, 0.04);
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid rgba(26, 51, 88, 0.11);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(26, 51, 88, 0.05);
 }
 
 .ds-cal-nav__label {
@@ -2347,6 +2362,57 @@ span.ds-chip {
   text-overflow: ellipsis;
   white-space: nowrap;
   letter-spacing: 0.01em;
+}
+
+.ds-cal-nav .ds-btn.ds-btn--sm {
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border-color: rgba(26, 51, 88, 0.15);
+  background: #f8fbff;
+  color: var(--ds-text-muted);
+  box-shadow: none;
+}
+
+.ds-cal-nav .ds-btn.ds-btn--sm:hover:not(:disabled) {
+  background: #f2f7ff;
+  border-color: rgba(26, 51, 88, 0.24);
+  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.09);
+}
+
+/* ——— Scoped subtle scrollbars (weekly/shell navigation areas) ——— */
+.shell-sidebar,
+.shell-nav,
+.shell-stage,
+.ds-week-col__body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(147, 169, 197, 0.6) rgba(147, 169, 197, 0.14);
+}
+
+.shell-sidebar::-webkit-scrollbar,
+.shell-nav::-webkit-scrollbar,
+.shell-stage::-webkit-scrollbar,
+.ds-week-col__body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.shell-sidebar::-webkit-scrollbar-track,
+.shell-nav::-webkit-scrollbar-track,
+.shell-stage::-webkit-scrollbar-track,
+.ds-week-col__body::-webkit-scrollbar-track {
+  background: rgba(147, 169, 197, 0.14);
+  border-radius: 999px;
+}
+
+.shell-sidebar::-webkit-scrollbar-thumb,
+.shell-nav::-webkit-scrollbar-thumb,
+.shell-stage::-webkit-scrollbar-thumb,
+.ds-week-col__body::-webkit-scrollbar-thumb {
+  background: rgba(147, 169, 197, 0.58);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .ds-cal-wrap {

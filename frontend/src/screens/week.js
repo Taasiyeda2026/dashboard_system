@@ -160,6 +160,7 @@ export const weekScreen = {
         <header class="ds-week-col__head">
           <div class="ds-week-col__head-top">
             <span class="ds-week-col__dow">${escapeHtml(dow || `יום ${idx + 1}`)}</span>
+            ${isToday ? '<span class="ds-week-col__today-badge">היום</span>' : ''}
             <span class="ds-week-col__count">${items.length}</span>
           </div>
           <span class="ds-week-col__date">${escapeHtml(formatDateHe(d.date))}</span>
