@@ -1,132 +1,433 @@
-# Internal Dashboard System (Google Sheets + Apps Script + Vanilla JS)
+# Internal Dashboard System
 
-מערכת ניהול פנימית מבוססת:
+מערכת ניהול פנימית מבוססת Google Sheets + Google Apps Script + Vanilla JS, עם ממשק RTL בעברית, תמיכה ב־PWA, והרצה כאתר סטטי שמדבר מול Web App של Apps Script.
 
-- Frontend: Vanilla JS (ES modules)
+## מה יש במערכת
+
+המערכת כוללת מסכי עבודה ותפעול עבור:
+
+- התחברות והרשאות
+- לוח בקרה
+- פעילויות
+- שבוע
+- חודש
+- חריגות
+- כספים
+- מדריכים
+- אנשי קשר מדריכים
+- אנשי קשר
+- תאריכי סיום
+- הנתונים שלי
+- תפעול
+- אישורים
+- הרשאות
+
+## ארכיטקטורה
+
+- Frontend: Vanilla JS עם ES Modules
 - Backend: Google Apps Script
-- Data source: Google Sheets
-- UI: RTL + עברית, dark shell + light panels
-- PWA: manifest + service worker
+- מקור נתונים: Google Sheets
+- פריסה צד לקוח: אתר סטטי
+- PWA: `manifest.json` + `sw.js`
 
-## מבנה ריפו בפועל
+ה־frontend נטען מ־`index.html`, מרנדר את האפליקציה דרך `frontend/src/main.js`, ומבצע קריאות POST ל־Apps Script דרך `frontend/src/api.js`.
 
+ה־backend נפרס כ־Web App של Apps Script, כאשר `backend/Code.gs` הוא entrypoint שמפנה ל־`router.gs`.
+
+## מבנה הריפו
+
+```text
+.
+├── index.html
+├── package.json
+├── sw.js
+├── frontend/
+│   ├── assets/
+│   ├── public/
+│   │   └── manifest.json
+│   └── src/
+│       ├── api.js
+│       ├── cache-persist.js
+│       ├── config.js
+│       ├── main.js
+│       ├── state.js
+│       ├── styles/
+│       │   └── main.css
+│       └── screens/
+│           ├── login.js
+│           ├── dashboard.js
+│           ├── activities.js
+│           ├── week.js
+│           ├── month.js
+│           ├── exceptions.js
+│           ├── finance.js
+│           ├── instructors.js
+│           ├── instructor-contacts.js
+│           ├── contacts.js
+│           ├── end-dates.js
+│           ├── my-data.js
+│           ├── operations.js
+│           ├── edit-requests.js
+│           ├── permissions.js
+│           └── shared/
+├── backend/
+│   ├── Code.gs
+│   ├── config.gs
+│   ├── helpers.gs
+│   ├── script-cache.gs
+│   ├── settings.gs
+│   ├── sheets.gs
+│   ├── auth.gs
+│   ├── router.gs
+│   ├── actions.gs
+│   └── README.txt
+└── tests/
+    └── interactions.test.mjs
 ```
-frontend/
-  src/
-    config.js          ← מקור יחיד לכתובת ה-API (שנו רק כאן)
-    api.js             ← קריאות API (מייבא config.js בלבד)
-    main.js            ← app shell, ניווט, mobile drawer, routing
-    state.js           ← global state
-    screens/           ← מסכים (login, dashboard, activities, week, month, ...)
-      shared/          ← רכיבים/utils משותפים (interactions, html, ui-hebrew)
-    styles/
-      main.css         ← design tokens + layout + קומפוננטות
-  assets/              ← מדיה (לוגו, PWA icons)
-backend/
-  Code.gs              ← entrypoint (doGet/doPost) → router.gs
-  router.gs            ← ניתוב + handlers
-  actions.gs           ← פעולות API
-  auth.gs              ← אימות והרשאות
-  sheets.gs            ← גישת נתונים ל-Sheets
-  helpers.gs           ← utilities כלליים
-  script-cache.gs      ← cache לביצועים
-  config.gs            ← קונפיגורציית backend (SPREADSHEET_ID וכו')
-index.html             ← נקודת כניסה ל-frontend
-sw.js                  ← service worker (PWA)
-```
 
-## גיליונות נתונים צפויים
+## קבצים מרכזיים
+
+### Frontend
+
+- `index.html`  
+  נקודת הכניסה. טוען את ה־manifest, את ה־CSS הראשי, ואת `frontend/src/main.js`.
+
+- `frontend/src/config.js`  
+  קובע את כתובת ה־API.  
+  סדר העדיפויות הוא:
+  1. `window.__DASHBOARD_CONFIG__.apiUrl`
+  2. `?apiUrl=...`
+  3. `DEFAULT_API_URL`
+
+- `frontend/src/api.js`  
+  שכבת קריאות ה־API. כוללת retry לקריאות read, invalidation ממוקד אחרי mutations, ותרגום שגיאות לממשק.
+
+- `frontend/src/main.js`  
+  app shell, routing, cache מסכים, instant restore, background refresh, prefetch, service worker registration, skeleton loading.
+
+- `frontend/src/state.js`  
+  state גלובלי, token/session, route נוכחי, client settings, ו־screen cache.
+
+- `frontend/src/styles/main.css`  
+  כל ה־design system: tokens, shell, cards, tables, drawers, chips, calendar, skeleton loading, ועוד.
+
+### Backend
+
+- `backend/Code.gs`  
+  entrypoint של Apps Script. כולל `doGet`, `doPost`, וגם `keepWarm()`.
+
+- `backend/router.gs`  
+  ניתוב פעולות API והרשאות גישה למסכים.
+
+- `backend/actions.gs`  
+  לוגיקת הנתונים המרכזית של המערכת.
+
+- `backend/config.gs`  
+  הגדרות מערכת, כולל `SPREADSHEET_ID`, שמות גיליונות, ו־TTL של caches.
+
+- `backend/README.txt`  
+  הוראות Apps Script מפורטות להעלאה, פריסה, trigger חימום, smoke tests ועוד.
+
+## מסכי המערכת בפועל
+
+המסכים שמוגדרים ב־frontend כרגע הם:
+
+- `dashboard`
+- `activities`
+- `week`
+- `month`
+- `exceptions`
+- `finance`
+- `instructors`
+- `instructor-contacts`
+- `contacts`
+- `end-dates`
+- `my-data`
+- `operations`
+- `edit-requests`
+- `permissions`
+
+ה־backend ממפה actions למסכים תואמים, והגישה לכל מסך נבדקת גם לפי route וגם לפי role/permissions.
+
+## מקורות הנתונים ב־Google Sheets
+
+המערכת מצפה לגיליונות הבאים:
 
 - `data_short`
 - `data_long`
 - `activity_meetings`
 - `permissions`
+- `settings`
 - `lists`
 - `contacts_instructors`
 - `contacts_schools`
 - `edit_requests`
 - `operations_private_notes`
 
-## Frontend setup
+אם גיליון נדרש חסר, `handleGet_()` יחזיר סטטוס `missing_sheets`.
 
-### הגדרת API URL
+## הגדרת API URL
 
-**כלל:** כתובת ה-API מוגדרת אך ורק ב-`frontend/src/config.js`. אין URL קשיח בשום קובץ אחר.
+מקור האמת ב־frontend הוא `frontend/src/config.js`.
 
-סדר עדיפויות בקביעת ה-URL:
+אפשר להגדיר API URL בשלוש דרכים:
 
-1. **runtime config** — מומלץ לייצור. הוסיפו לפני `<script type="module">` ב-`index.html`:
-   ```html
-   <script>
-     window.__DASHBOARD_CONFIG__ = {
-      apiUrl: '<YOUR_APPS_SCRIPT_EXEC_URL>'
-     };
-   </script>
-   ```
-2. **query param** — לבדיקות/dev:
-   `?apiUrl=<YOUR_APPS_SCRIPT_EXEC_URL>`
-3. **DEFAULT_API_URL** ב-`frontend/src/config.js` — ברירת מחדל לייצור.
+### 1. runtime config
+מומלץ לייצור כאשר רוצים להחליף endpoint בלי לשנות קוד:
 
-### הרצה מקומית
+```html
+<script>
+  window.__DASHBOARD_CONFIG__ = {
+    apiUrl: 'https://script.google.com/macros/s/.../exec'
+  };
+</script>
+```
+
+את הסקריפט הזה יש לשים לפני טעינת `frontend/src/main.js`.
+
+### 2. query param
+לבדיקות:
+
+```text
+http://localhost:5000/?apiUrl=https://script.google.com/macros/s/.../exec
+```
+
+### 3. DEFAULT_API_URL
+ברירת המחדל שנמצאת בתוך `frontend/src/config.js`.
+
+## הרצה מקומית
+
+אין כאן build step חובה. זה אתר סטטי עם מודולים.
+
+### אפשרות פשוטה
 
 ```bash
 npx serve . -l 5000
-# ואז פתחו: http://localhost:5000
 ```
 
-## Shell וניווט
+או:
 
-### Desktop (≥960px)
-- Sidebar קבוע מצד ימין (RTL), רוחב 228px, עם לוגו ורשימת מסכים
-- ניווט בלחיצה על כפתור המסך — מסך פעיל מודגש
+```bash
+python -m http.server 5000
+```
 
-### Mobile (<960px)
-- **Top bar** עם כפתור המבורגר (☰) + שם המסך הנוכחי + כפתור התנתקות
-- לחיצה על ☰ פותחת **off-canvas drawer** מצד ימין עם backdrop כהה (`is-mobile-nav-open`)
-- סגירה: לחיצה על backdrop, כפתור ✕ בתפריט, מעבר מסך, או מקש Escape
-- `body.is-shell-nav-open` מונע גלילת רקע בזמן שהתפריט פתוח
-- מיושם ב-`main.js` (פונקציות `setMobileNavOpen`, `closeMobileNav`) ו-`styles/main.css`
+ואז לפתוח:
 
-## Design tokens
+```text
+http://localhost:5000
+```
 
-כל ערכי העיצוב מוגדרים ב-`frontend/src/styles/main.css` תחת `:root`:
+## בדיקות
 
-| Token | תפקיד |
-|-------|--------|
-| `--ds-shell` / `--ds-shell-2` | רקע ה-sidebar |
-| `--ds-surface` / `--ds-surface-subtle` | רקע panels/content |
-| `--ds-radius-sm/md/lg/xl` | עיגול פינות (6/10/14/18px) |
-| `--ds-shadow-xs/sm/md/lg` | צלליות |
-| `--ds-accent` | צבע ראשי (כחול כהה) |
-| `--ds-sidebar-w` | רוחב sidebar (228px) |
+יש כרגע test suite מבוסס `node:test` + `jsdom`.
+
+### התקנה
+
+```bash
+npm install
+```
+
+### הרצת בדיקות
+
+```bash
+npm test
+```
+
+כרגע `package.json` כולל:
+
+- `type: module`
+- script של `npm test`
+- תלות `jsdom`
+
+הבדיקות הקיימות בודקות בעיקר את שכבת `interactions.js`, כולל פתיחה/סגירה של drawer ו־modal.
+
+## פריסת Frontend
+
+ה־frontend נבנה כאתר סטטי.
+
+כדי לפרוס:
+
+1. ודאו שהקבצים המעודכנים נמצאים ב־repo
+2. ודאו ש־`frontend/src/config.js` מצביע ל־Web App הנכון, או השתמשו ב־runtime config
+3. אם שיניתם קבצי shell/JS/CSS משמעותיים, העלו את `CACHE_VERSION` ב־`sw.js`
+4. בצעו deploy של האתר הסטטי
+
+## פריסת Backend ל־Apps Script
+
+המקור לפריסה הוא `backend/*.gs`.
+
+### סדר עבודה מומלץ
+
+1. פתחו פרויקט Apps Script
+2. העתיקו את כל הקבצים מתוך `backend/`
+3. ודאו ש־`Code.gs` כולל:
+   - `doGet`
+   - `doPost`
+   - `keepWarm`
+4. עדכנו את `CONFIG.SPREADSHEET_ID` ב־`backend/config.gs`
+5. בצעו Deploy כ־Web App
+6. העתיקו את כתובת `/exec`
+7. עדכנו את ה־frontend
+
+### Warmup trigger
+
+יש תמיכה בפונקציית `keepWarm()` שמבצעת warming בלבד, בלי כתיבה.
+
+מומלץ להגדיר trigger:
+
+- Event source: Time-driven
+- Every 10 minutes
+
+## Cache וביצועים
+
+המערכת כוללת כמה שכבות שיפור ביצועים:
+
+### Backend
+
+- Script cache
+- TTL כללי ב־`CONFIG.SCRIPT_CACHE_SECONDS`
+- TTL ייעודי ל־meetings map דרך `MEETINGS_MAP_CACHE_SECONDS`
+- read cache ל־actions קריאים
+- request-level cache
+- warmup function (`keepWarm()`)
+
+### Frontend
+
+- `inflightRequests` למניעת קריאות כפולות
+- `screenDataCache`
+- persist ל־localStorage
+- instant restore למסלולים ו־cache
+- background refresh
+- prefetch למסכים נפוצים
+- invalidation ממוקד אחרי mutations
+- skeleton loading
+- debounce במסכי week/month
+
+## ניווט וממשק
+
+### Desktop
+
+- sidebar קבוע מימין
+- shell כהה
+- אזור תוכן בהיר
+- כותרת עליונה
+- header quick-nav למשתמשים רלוונטיים
+
+### Mobile
+
+- drawer צד ימין
+- backdrop
+- כפתור hamburger
+- סגירה דרך backdrop / Escape / מעבר מסך
 
 ## PWA
 
-1. ודאו ש-`index.html` טוען את `frontend/public/manifest.json`.
-2. ודאו שבדפדפן מופיע service worker פעיל (`sw.js`) תחת אותו origin.
-3. לאחר שינויי frontend משמעותיים — העלו את `CACHE_VERSION` ב-`sw.js`.
-4. בדקו שהאייקונים ב-manifest נטענים מ-`frontend/assets/pwa/`.
+המערכת כוללת:
 
-## Backend setup (Apps Script)
+- `frontend/public/manifest.json`
+- `sw.js`
+- app shell precache
+- אייקונים מתוך `frontend/assets/pwa/`
 
-1. צרו/פתחו פרויקט Apps Script.
-2. העתיקו את כל הקבצים מתוך `backend/*.gs` לפרויקט.
-3. ודאו שהקבצים כוללים את `Code.gs` עם `doGet/doPost` כ-entrypoint.
-4. עדכנו `CONFIG.SPREADSHEET_ID` בתוך `backend/config.gs`.
-5. ודאו שורת headers תואמת לשמות השדות במערכת.
-6. פרסו כ-Web App (execute as owner + access לפי צורך ארגוני).
-7. העתיקו את כתובת `/exec` ועדכנו `DEFAULT_API_URL` ב-`frontend/src/config.js`.
+כאשר משנים shell או assets חשובים:
 
-### Backend deploy hygiene
+1. לעדכן `CACHE_VERSION`
+2. לפרוס מחדש
+3. לבצע רענון קשיח בדפדפן במידת הצורך
 
-- מקור האמת לקוד backend הוא רק `backend/*.gs`.
-- בכל פריסה ודאו ש-`Code.gs` כולל `doGet/doPost` וש-`router.gs` כולל handlers מעודכנים.
-- לאחר שינוי הרשאות/פעולות — deploy חדש + עדכון URL.
-- שמרו Deployment ID ותאריך בתיעוד הפרויקט.
+## פעולות API עיקריות
 
-## הערות תחזוקה
+ה־backend תומך כרגע בפעולות:
 
-- **API URL** — מקור יחיד: `frontend/src/config.js`. אין לשים URL קשיח בשום קובץ אחר.
-- **שכבת אינטראקציה** — drawer/modal ב-`frontend/src/screens/shared/interactions.js`, מוזן ל-`bind` דרך `ui`.
-- **Cache מסכים** — `state.screenDataCache` מונע קריאות כפולות; logout/reload מנקה cache.
-- **בשינוי סכימה** — עדכנו mapping ב-`backend/actions.gs` ו-`backend/sheets.gs`.
+- `login`
+- `bootstrap`
+- `dashboard`
+- `activities`
+- `activityDetail`
+- `week`
+- `month`
+- `exceptions`
+- `finance`
+- `financeDetail`
+- `instructors`
+- `instructorContacts`
+- `contacts`
+- `endDates`
+- `myData`
+- `operations`
+- `operationsDetail`
+- `editRequests`
+- `permissions`
+- `addActivity`
+- `saveActivity`
+- `submitEditRequest`
+- `reviewEditRequest`
+- `savePermission`
+- `addUser`
+- `deactivateUser`
+- `reactivateUser`
+- `deleteUser`
+- `savePrivateNote`
+- `saveFinanceRow`
+- `syncFinance`
+- `listSheets`
+
+## תחזוקה נכונה
+
+### כשמחליפים URL של Apps Script
+לא מפזרים URL בקבצים שונים. משנים רק ב־`frontend/src/config.js`, או מגדירים runtime config.
+
+### כשמשנים schema בגיליונות
+צריך לעדכן לפי הצורך:
+
+- `backend/actions.gs`
+- `backend/sheets.gs`
+- mappings למסכים הרלוונטיים
+
+### כשמשנים קבצי shell / CSS / shared JS
+בודקים:
+
+- `sw.js`
+- `manifest.json`
+- רענון cache בדפדפן
+
+### כשמשנים הרשאות/מסכים
+בודקים גם:
+
+- `backend/router.gs`
+- `backend/auth.gs`
+- `frontend/src/main.js`
+- `frontend/src/state.js`
+
+## Smoke checklist אחרי deploy
+
+### Backend
+- `doGet` מחזיר `ready`
+- `doPost` פועל
+- כל הגיליונות הנדרשים קיימים
+- `login` עובד
+- `bootstrap` מחזיר routes + profile + client settings
+
+### Frontend
+- טעינת login
+- מעבר למסכים
+- drawer/modal פועלים
+- פעילויות נפתחות
+- שבוע/חודש נטענים
+- service worker נרשם
+- manifest נטען
+- אין שגיאות API בסיסיות
+
+## קבצים שכדאי לא לשכוח
+
+- `README.md` — תיעוד ראשי של הריפו
+- `backend/README.txt` — תיעוד מפורט ל־Apps Script
+- `frontend/src/config.js` — כתובת API
+- `backend/config.gs` — Spreadsheet ID + caches
+- `sw.js` — app shell cache
+- `package.json` — בדיקות Node
+
+## הערה חשובה
+
+הקובץ `backend/README.txt` עדיין חשוב גם אם יש README ראשי.  
+ה־README הראשי צריך להסביר את התמונה המלאה של המערכת, אבל `backend/README.txt` עדיין משמש כתיעוד פרקטי מפורט לפריסת Apps Script, triggers, ורשימת smoke tests.
