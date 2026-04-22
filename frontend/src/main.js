@@ -504,10 +504,6 @@ function prefetchFromDashboardIfNeeded() {
       {
         key: buildScreenDataCacheKey('week', { ...state, route: 'week', weekOffset: 0 }),
         load: () => api.week({ week_offset: 0 })
-      },
-      {
-        key: buildScreenDataCacheKey('month', { ...state, route: 'month', monthYm: state.monthYm || '' }),
-        load: () => api.month(state.monthYm ? { ym: state.monthYm } : {})
       }
     );
   } else if (state.route === 'week') {
