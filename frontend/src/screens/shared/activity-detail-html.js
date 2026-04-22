@@ -185,16 +185,24 @@ function blockContent(row, { settings = {} } = {}) {
   const startTime = String(row.start_time || row.start_hour || '').trim();
   const endTime = String(row.end_time || row.end_hour || '').trim();
   const firstMeeting = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule[0] : null;
-  const dayLabel = weekdayHe(firstMeeting?.date) || '—';
-  const hoursLabel = startTime && endTime ? `${startTime}–${endTime}` : '—';
+  const dayLabel = weekdayShortHe(firstMeeting?.date) || '';
+  const hoursLabel = startTime && endTime ? `${startTime}–${endTime}` : '';
+
+  const viewSummaryItems = [
+    row.funding && String(row.funding).trim() ? { label: 'מימון', value: row.funding } : null,
+    classLabel && classLabel !== '—' ? { label: 'כיתה', value: classLabel } : null,
+    hoursLabel ? { label: 'שעות', value: hoursLabel } : null,
+    dayLabel ? { label: 'יום', value: dayLabel } : null,
+  ].filter(Boolean);
+
+  const viewSummaryHtml = viewSummaryItems.length
+    ? viewSummaryItems.map((f) => `<div class="ds-field-row"><span class="ds-field__label">${escapeHtml(f.label)}</span><span class="ds-field__value">${escapeHtml(String(f.value))}</span></div>`).join('')
+    : '<p class="ds-muted" style="margin:0;font-size:0.82rem">—</p>';
 
   return `<section class="ds-drawer-block">
     <h3 class="ds-drawer-block__title">📚</h3>
     <div data-view-only class="ds-field-grid ds-field-grid--2 ds-field-grid--compact">
-      <div class="ds-field-row"><span class="ds-field__label">מימון</span><span>${escapeHtml(fallback(row.funding))}</span></div>
-      <div class="ds-field-row"><span class="ds-field__label">כיתה</span><span>${escapeHtml(classLabel)}</span></div>
-      <div class="ds-field-row"><span class="ds-field__label">שעות</span><span>${escapeHtml(fallback(hoursLabel))}</span></div>
-      <div class="ds-field-row"><span class="ds-field__label">יום</span><span>${escapeHtml(fallback(dayLabel))}</span></div>
+      ${viewSummaryHtml}
     </div>
     <div data-edit-only hidden class="ds-drawer-content-edit-grid">
       <div class="ds-field-row ds-field-row--span2"><span class="ds-field__label">${escapeHtml(nameLabel)}</span>${activityNameSelectHtml('activity_name', row.activity_name, filteredNames)}</div>
@@ -276,22 +284,30 @@ function blockDates(row, { canEdit = false } = {}) {
 
 function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
   const operationalPrivateNote = row.operations_private_notes || String(privateNote || '').trim() || '';
+  const notesValue = String(row.notes || '').trim();
+
+  const notesViewHtml = notesValue ? `<span class="ds-field__value">${escapeHtml(notesValue)}</span>` : '';
+  const notesEditHtml = `<textarea class="ds-input" rows="2" name="notes">${escapeHtml(String(row.notes || ''))}</textarea>`;
+  const notesLabelHtml = `<span class="ds-field__label">הערות</span>`;
+  const notesFieldHtml = `<div class="ds-field-row">
+    ${notesViewHtml ? notesLabelHtml : ''}
+    <div data-view-only>${notesViewHtml}</div>
+    <div data-edit-only hidden>${notesLabelHtml}${notesEditHtml}</div>
+  </div>`;
+
   const privateSection = showPrivateNote
     ? `<div class="ds-private-note-section">
         <span class="ds-private-note-badge" aria-label="הערה פרטית">🔒</span>
-        ${fieldViewEdit('',
-          `<span>${escapeHtml(fallback(operationalPrivateNote))}</span>`,
-          `<textarea class="ds-input" rows="2" name="operations_private_notes">${escapeHtml(String(operationalPrivateNote))}</textarea>`
-        )}
+        <div class="ds-field-row">
+          <div data-view-only>${operationalPrivateNote ? `<span class="ds-field__value">${escapeHtml(operationalPrivateNote)}</span>` : ''}</div>
+          <div data-edit-only hidden><textarea class="ds-input" rows="2" name="operations_private_notes">${escapeHtml(String(operationalPrivateNote))}</textarea></div>
+        </div>
       </div>`
     : '';
 
   return `<section class="ds-drawer-block">
     <h3 class="ds-drawer-block__title">📝</h3>
-    ${fieldViewEdit('הערות',
-      `<span>${escapeHtml(fallback(row.notes))}</span>`,
-      `<textarea class="ds-input" rows="2" name="notes">${escapeHtml(String(row.notes || ''))}</textarea>`
-    )}
+    ${notesFieldHtml}
     ${privateSection}
   </section>`;
 }

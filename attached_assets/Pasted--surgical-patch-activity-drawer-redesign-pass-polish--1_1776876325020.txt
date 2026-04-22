@@ -1,0 +1,413 @@
+תבצע עכשיו **surgical patch** ל-activity drawer.
+זה **לא redesign פתוח**, לא pass כללי, ולא polish חופשי.
+זה **implementation task עם acceptance criteria קשיחים**.
+
+## Read order — do this first, read-only
+
+1. `docs/prompts/drawer-redesign-prompt.md`
+2. `docs/mockups/activity-drawer/activity-drawer-view.png`
+3. `docs/mockups/activity-drawer/activity-drawer-edit_1.png`
+4. `docs/mockups/activity-drawer/activity-drawer-edit_2.png`
+5. `docs/mockups/activity-drawer/DrawerMockup.jsx`
+
+## Patch scope — modify only these files
+
+* `frontend/src/screens/shared/activity-detail-html.js`
+* `frontend/src/screens/shared/bind-activity-edit-form.js`
+* `frontend/src/styles/main.css`
+
+Do not touch any other file.
+Do not scan the full repo.
+Do not change backend / API / schema.
+Do not add new hardcoded source-of-truth lists.
+
+---
+
+## Objective
+
+Make the real drawer implementation match the approved mockup behaviorally and visually.
+
+Current implementation problems that must be fixed:
+
+1. 📚 and 📅 still feel like legacy form UI, not mockup cards.
+2. Single-date activities lose edit fields because of wrong conditional rendering.
+3. Weekday rendering is wrong/incomplete.
+4. Private operational note is bound to the wrong field.
+5. Footer RowID is still rendered.
+6. Non-program activity selector still uses generic label instead of type-specific label.
+7. View/edit date rendering is not strict enough.
+8. Empty placeholders create visually empty oversized blocks.
+
+---
+
+## Mandatory data mapping
+
+### Activity groups
+
+* `Programs` = `course` + `after_school`
+
+  * main source: `data_long`
+  * meetings source: `activity_meetings`
+
+* `One-day activities` = `workshop` + `tour` + `escape_room`
+
+  * main source: `data_short`
+  * date source: same `data_short`
+  * no `activity_meetings` source for these
+
+### Private note source
+
+* operational private note source = `operations_private_notes`
+
+### Day derivation
+
+Never treat day as editable or as standalone source-of-truth.
+Always derive day from actual stored date.
+
+---
+
+## Rendering contract
+
+## 1. Header
+
+Render exactly:
+
+* activity type pill
+* activity name
+* meta line: status + `school · authority`
+* single close button only
+
+No extra admin metadata.
+No finance metadata.
+
+Type labels must be exactly:
+
+* `course` -> `קורס`
+* `after_school` -> `חוג אפטרסקול`
+* `workshop` -> `סדנה`
+* `tour` -> `סיור`
+* `escape_room` -> `חדר בריחה`
+
+---
+
+## 2. Section structure
+
+Drawer body must render exactly 4 sections, in this order:
+
+* 👤
+* 📚
+* 📅
+* 📝
+
+Section headers are emoji-only.
+Do not render text headers like "אנשים", "פעילות", "תאריכים", "הערות".
+
+---
+
+## 3. 👤 section
+
+Always render:
+
+* activity manager
+
+Instructor rendering rule:
+
+* `workshop` only -> render 2 instructor fields
+* all other types -> render 1 instructor field only
+
+Do not use long/short logic for instructor count.
+
+---
+
+## 4. 📚 section
+
+### View mode
+
+Render only meaningful summary values:
+
+* funding
+* class (combined from grade + class_group)
+* hours
+* day
+
+Do **not** render again:
+
+* activity name
+* school
+* authority
+* grade as separate field
+* class_group as separate field
+* price
+
+Do not render useless placeholders that make the block look empty.
+If a field is missing, prefer not rendering a dead summary item over rendering large empty UI.
+
+### Edit mode
+
+Must render for **all types**, not only for programs:
+
+* type-specific activity selector
+* funding
+* price
+* school
+* authority
+* grade
+* class_group
+* start_time
+* end_time
+
+### Type-specific activity label
+
+Use type-specific label in edit mode for all activity types:
+
+* course -> `שם קורס`
+* after_school -> `שם חוג אפטרסקול`
+* workshop -> `שם סדנה`
+* tour -> `שם סיור`
+* escape_room -> `שם פעילות`
+
+Important:
+Current logic wrongly limits this to `isProgram`.
+Fix it so non-program types also get correct selector + correct label.
+
+### Authority input
+
+`authority` in edit mode must be free text input, not hardcoded dropdown.
+
+### Hours computation
+
+Do not use `row.hours` as display source-of-truth.
+Compute hours from:
+
+* `start_time`
+* `end_time`
+
+Display format example:
+`11:20-12:05`
+
+### Day computation
+
+Do not use `row.day` as display source-of-truth.
+Compute day from actual date:
+
+* Programs: first meeting date from `activity_meetings`
+* One-day activities: single date from `data_short`
+
+Display the summary day in short Hebrew weekday form:
+
+* א
+* ב
+* ג
+* ד
+* ה
+* ו
+* ש
+
+---
+
+## 5. 📅 section
+
+This section must behave like a strict state machine.
+
+### View mode
+
+Render only:
+
+* progress row
+* end-date row
+* compact meeting chips grid
+* one `+עוד / פחות` control only if needed
+
+Do not render in view mode:
+
+* edit cards
+* date inputs
+* chain/single toggle
+* save/cancel buttons
+
+### Edit mode
+
+Render only:
+
+* end-date row (read-only)
+* editable meeting cards grid
+* date picker for each meeting
+* weekday short abbreviation next to each meeting
+* chain/single toggle only when allowed
+* add-meeting button only when allowed
+* save/cancel controls
+
+Do not render in edit mode:
+
+* view chips
+* duplicate `+עוד`
+* mixed view/edit structures together
+
+### End date rule
+
+End date is always derived from the last meeting date.
+Never directly editable.
+
+### Layout rule
+
+* Programs:
+
+  * view = 3 columns
+  * edit = 2 columns
+
+* One-day activities:
+
+  * exactly one date only
+  * no add button
+  * no chain/single toggle
+
+### Weekday rendering per meeting
+
+For every displayed meeting/date, render short weekday abbreviation next to the date:
+
+* א / ב / ג / ד / ה / ו / ש
+
+Current implementation problem to fix:
+
+* view currently renders date only
+* edit currently renders full weekday string
+  Replace both with short weekday abbreviation.
+
+---
+
+## 6. 📝 section
+
+Render:
+
+* regular notes
+* operational private note only for permitted users
+
+Private note must bind to:
+
+* `operations_private_notes`
+
+Do not bind private operational note to:
+
+* `private_note`
+* `note_text`
+  unless those are only compatibility fallbacks and `operations_private_notes` is absent
+
+UI rule:
+
+* private block should use a small `🔒` badge only
+* no oversized empty area
+* no redundant heading text
+
+---
+
+## 7. Remove these from UI completely
+
+Do not render:
+
+* RowID footer
+* footer with sessions/price summary
+* duplicate close buttons
+* duplicate `+עוד`
+* dead placeholders that create oversized empty cards
+
+Current implementation explicitly still renders RowID in footer. Remove that footer block entirely.
+
+---
+
+## 8. Required code-level fixes
+
+Apply these exact implementation corrections:
+
+1. In `activity-detail-html.js`
+
+* remove conditional that hides edit fields for single-date activities:
+
+  * current pattern equivalent to `editing && !isSingleDateActivity`
+  * replace with logic that still renders edit fields for single-date types, while only limiting meeting controls/date count
+
+2. In `activity-detail-html.js`
+
+* make activity selector type-aware for **all** activity types, not only programs
+
+3. In `activity-detail-html.js`
+
+* replace private note binding with `operations_private_notes`
+
+4. In `activity-detail-html.js`
+
+* remove RowID footer render block
+
+5. In `activity-detail-html.js`
+
+* render short weekday abbreviation in:
+
+  * view date chips
+  * edit meeting cards
+
+6. In `bind-activity-edit-form.js`
+
+* keep weekday abbreviation synced when dates change dynamically
+* keep end-date synced from last meeting only
+* preserve one-day-activity restriction
+
+7. In `main.css`
+
+* compact 👤 and 📝 sections
+* reduce empty vertical space
+* make 📚 summary look like summary card, not form scaffold
+* keep 📅 chips compact in view and cards clean in edit
+* no mixed-mode visual artifacts
+
+---
+
+## 9. Acceptance criteria
+
+Do not stop until all are true:
+
+### Text correctness
+
+* `חוג אפטרסקול` exists in UI mapping
+* `שם חוג אפטרסקול` exists in edit label mapping
+
+### Data correctness
+
+* hours are computed from `start_time` + `end_time`
+* day summary is computed from actual first date
+* private operational note uses `operations_private_notes`
+
+### Date rendering correctness
+
+* every displayed meeting/date includes short weekday abbreviation
+* no full weekday names in meeting cards
+* no date chip without weekday abbreviation
+
+### State rendering correctness
+
+* view mode does not render edit cards
+* edit mode does not render view chips
+* `+עוד` appears at most once
+* one-day activities show exactly one meeting
+* programs still support multiple meetings with 3-column view / 2-column edit
+
+### Cleanup correctness
+
+* no RowID footer
+* no duplicate close button
+* no oversized empty summary/note cards caused by placeholder-heavy rendering
+
+---
+
+## 10. Output format
+
+At the end, return only:
+
+1. files changed
+2. exact fixes per file
+3. which acceptance criteria are now satisfied
+4. explicit confirmation of these exact strings / bindings in final code:
+
+* `חוג אפטרסקול`
+* `שם חוג אפטרסקול`
+* `operations_private_notes`
+* computed hours from `start_time` / `end_time`
+* short weekday abbreviation next to each displayed date
