@@ -92,7 +92,7 @@
   --ds-shadow-float: 0 4px 16px rgba(26, 51, 88, 0.12), 0 12px 32px rgba(26, 51, 88, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06);
   --ds-border-subtle: rgba(26, 51, 88, 0.09);
 
-  --ds-sidebar-w: 228px;
+  --ds-sidebar-w: 160px;
   --ds-topbar-h: 54px;
 
   /* Legacy aliases used in older markup paths */
@@ -212,7 +212,7 @@ select {
     box-shadow: none;
     border-inline-start: none;
     border-inline-end: 1px solid var(--ds-shell-border);
-    padding: var(--ds-space-5) var(--ds-space-4);
+    padding: var(--ds-space-5) var(--ds-space-2);
     overflow-y: hidden;
   }
 }
@@ -273,9 +273,9 @@ select {
 
 .shell-brand__mark {
   display: block;
-  width: 112px;
+  width: 80px;
   height: auto;
-  max-height: 48px;
+  max-height: 40px;
   object-fit: contain;
   opacity: 0.95;
 }
@@ -307,8 +307,8 @@ select {
   color: var(--ds-shell-text);
   border-radius: var(--ds-radius-sm);
   min-height: 40px;
-  padding: 10px 12px;
-  font-size: 0.82rem;
+  padding: 10px 8px;
+  font-size: 0.78rem;
   font-weight: 500;
   text-align: right;
   white-space: normal;
