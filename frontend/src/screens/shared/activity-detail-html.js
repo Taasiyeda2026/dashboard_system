@@ -5,7 +5,7 @@ const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 
 const ACTIVITY_TYPE_PILL_LABEL = {
   course:       'קורס',
-  after_school: 'חוג',
+  after_school: 'חוג אפטרסקול',
   workshop:     'סדנה',
   tour:         'סיור',
   escape_room:  'חדר בריחה'
@@ -13,7 +13,7 @@ const ACTIVITY_TYPE_PILL_LABEL = {
 
 const ACTIVITY_NAME_LABEL = {
   course:       'שם קורס',
-  after_school: 'שם חוג',
+  after_school: 'שם חוג אפטרסקול',
   workshop:     'שם סדנה',
   tour:         'שם סיור',
   escape_room:  'שם פעילות'
@@ -74,12 +74,41 @@ function activityNameSelectHtml(name, value, options) {
 function autoEndDate(row) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   if (!schedule.length) return '';
-  return String(schedule[schedule.length - 1]?.date || '').trim();
+  return schedule
+    .map((item) => String(item?.date || '').trim())
+    .filter(Boolean)
+    .sort()[schedule.length - 1] || '';
+}
+
+function meetingStats(schedule) {
+  const list = Array.isArray(schedule) ? schedule : [];
+  const done = list.filter((item) => String(item?.performed || '').toLowerCase() === 'yes').length;
+  return { done, total: list.length };
+}
+
+function weekdayHe(iso) {
+  const value = String(iso || '').trim();
+  if (!value) return '';
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(date);
+}
+
+function weekdayShortHe(iso) {
+  const value = String(iso || '').trim();
+  if (!value) return '';
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  const map = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+  return map[date.getDay()] || '';
 }
 
 function fieldViewEdit(label, viewHtml, editHtml) {
+  const labelHtml = String(label || '').trim()
+    ? `<span class="ds-field__label">${escapeHtml(label)}</span>`
+    : '';
   return `<div class="ds-field-row">
-    <span class="ds-field__label">${escapeHtml(label)}</span>
+    ${labelHtml}
     <div data-view-only>${viewHtml}</div>
     <div data-edit-only hidden>${editHtml}</div>
   </div>`;
@@ -147,29 +176,31 @@ function blockContent(row, { settings = {} } = {}) {
   const classGroupVal = String(row.class_group || '').trim();
   const classLabel = [gradeVal, classGroupVal].filter(Boolean).join(' / ') || '—';
 
-  const hoursRow = String(row.hours || '').trim()
-    ? `<div class="ds-field-row"><span class="ds-field__label">שעות</span><span>${escapeHtml(fallback(row.hours))}</span></div>` : '';
-  const dayRow = String(row.day || '').trim()
-    ? `<div class="ds-field-row"><span class="ds-field__label">יום</span><span>${escapeHtml(fallback(row.day))}</span></div>` : '';
+  const startTime = String(row.start_time || row.start_hour || '').trim();
+  const endTime = String(row.end_time || row.end_hour || '').trim();
+  const firstMeeting = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule[0] : null;
+  const dayLabel = weekdayHe(firstMeeting?.date) || '—';
+  const hoursLabel = startTime && endTime ? `${startTime}–${endTime}` : '—';
 
   return `<section class="ds-drawer-block">
     <h3 class="ds-drawer-block__title">📚</h3>
-    <div data-view-only>
+    <div data-view-only class="ds-field-grid ds-field-grid--2 ds-field-grid--compact">
       <div class="ds-field-row"><span class="ds-field__label">מימון</span><span>${escapeHtml(fallback(row.funding))}</span></div>
       <div class="ds-field-row"><span class="ds-field__label">כיתה</span><span>${escapeHtml(classLabel)}</span></div>
-      ${hoursRow}${dayRow}
+      <div class="ds-field-row"><span class="ds-field__label">שעות</span><span>${escapeHtml(fallback(hoursLabel))}</span></div>
+      <div class="ds-field-row"><span class="ds-field__label">יום</span><span>${escapeHtml(fallback(dayLabel))}</span></div>
     </div>
-    <div data-edit-only hidden>
-      <div class="ds-field-row"><span class="ds-field__label">${escapeHtml(nameLabel)}</span>${activityNameSelectHtml('activity_name', row.activity_name, filteredNames)}</div>
+    <div data-edit-only hidden class="ds-drawer-content-edit-grid">
+      <div class="ds-field-row ds-field-row--span2"><span class="ds-field__label">${escapeHtml(nameLabel)}</span>${activityNameSelectHtml('activity_name', row.activity_name, filteredNames)}</div>
       <div class="ds-field-row"><span class="ds-field__label">מימון</span>${selectHtml({ name: 'funding', value: row.funding, options: fundings })}</div>
       <div class="ds-field-row"><span class="ds-field__label">מחיר</span><input class="ds-input" type="number" name="price" value="${escapeHtml(String(row.price || ''))}"></div>
       <div class="ds-field-row"><span class="ds-field__label">בית ספר</span><input class="ds-input" type="text" name="school" value="${escapeHtml(String(row.school || ''))}"></div>
       <div class="ds-field-row"><span class="ds-field__label">רשות</span><input class="ds-input" type="text" name="authority" value="${escapeHtml(String(row.authority || ''))}"></div>
       <div class="ds-field-row"><span class="ds-field__label">שכבה</span>${selectHtml({ name: 'grade', value: row.grade, options: grades })}</div>
       <div class="ds-field-row"><span class="ds-field__label">קבוצה / כיתה</span><input class="ds-input" type="text" name="class_group" value="${escapeHtml(String(row.class_group || ''))}"></div>
-      <div class="ds-field-grid ds-field-grid--2">
-        <div class="ds-field-row"><span class="ds-field__label">שעת התחלה</span><input class="ds-input" type="text" name="start_hour" value="${escapeHtml(String(row.start_hour || ''))}"></div>
-        <div class="ds-field-row"><span class="ds-field__label">שעת סיום</span><input class="ds-input" type="text" name="end_hour" value="${escapeHtml(String(row.end_hour || ''))}"></div>
+      <div class="ds-field-grid ds-field-grid--2 ds-field-row--span2">
+        <div class="ds-field-row"><span class="ds-field__label">שעת התחלה</span><input class="ds-input" type="time" name="start_time" value="${escapeHtml(startTime)}"></div>
+        <div class="ds-field-row"><span class="ds-field__label">שעת סיום</span><input class="ds-input" type="time" name="end_time" value="${escapeHtml(endTime)}"></div>
       </div>
     </div>
   </section>`;
@@ -179,25 +210,30 @@ function blockDates(row, { canEdit = false } = {}) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
-  const computedEnd = autoEndDate(row);
-  const done = Number(row?.meetings_done || 0);
-  const total = Number(row?.meetings_total || 0);
+  const visibleSchedule = isOnce ? schedule.slice(0, 1) : schedule;
+  const computedEnd = autoEndDate({ meeting_schedule: visibleSchedule });
+  const { done, total } = meetingStats(visibleSchedule);
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
 
-  const viewChips = schedule.map((item) => {
+  const viewChips = visibleSchedule.map((item, i) => {
     const isDone = String(item?.performed || '').toLowerCase() === 'yes';
-    return `<span class="ds-date-chip${isDone ? ' is-done' : ''}">${escapeHtml(formatDateHe(item?.date || ''))}</span>`;
+    return `<span class="ds-date-chip${isDone ? ' is-done' : ''}" data-date-card ${i > 5 ? 'hidden' : ''}>
+      <span class="ds-date-chip__value">${escapeHtml(formatDateHe(item?.date || ''))}</span>
+      <span class="ds-date-chip__weekday">${escapeHtml(weekdayShortHe(item?.date || ''))}</span>
+      <span class="ds-date-chip__dot" aria-hidden="true"></span>
+    </span>`;
   }).join('') || '<span class="ds-muted">—</span>';
 
-  const editDates = isOnce ? schedule.slice(0, 1) : schedule;
+  const editDates = visibleSchedule;
   const datePickers = editDates.map((item, i) => `<div class="ds-date-pick-cell">
-    <span class="ds-field__label">${i + 1}</span>
+    <span class="ds-date-pick-cell__head"><span>מפגש ${i + 1}</span><span class="ds-date-pick-cell__dot" aria-hidden="true"></span></span>
     <input class="ds-input ds-input--date" type="date" name="meeting_date_${i}" data-meeting-idx="${i}" value="${escapeHtml(String(item?.date || ''))}">
+    <span class="ds-date-pick-cell__weekday">${escapeHtml(weekdayShortHe(item?.date) || '')}</span>
   </div>`).join('');
 
   const chainToggle = isOnce ? '' : `<div class="ds-chain-toggle" data-chain-toggle>
-    <button type="button" class="ds-chain-btn is-active" data-chain-mode="single">בודד</button>
-    <button type="button" class="ds-chain-btn" data-chain-mode="chain">שרשרת</button>
+    <button type="button" class="ds-chain-btn is-active" data-chain-mode="chain">🔗 שרשרת</button>
+    <button type="button" class="ds-chain-btn" data-chain-mode="single">📍 בודד</button>
   </div>`;
 
   const addMeetingBtn = isOnce ? '' : `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-add-meeting-btn" data-add-meeting>➕ הוסף מפגש</button>`;
@@ -207,35 +243,40 @@ function blockDates(row, { canEdit = false } = {}) {
       <h3 class="ds-drawer-block__title">📅</h3>
       ${canEdit ? '<button type="button" class="ds-btn ds-btn--sm" data-action-edit>✏️ עריכה</button>' : ''}
     </div>
+    <div data-edit-actions class="ds-edit-actions" hidden>
+      ${chainToggle}
+      ${addMeetingBtn}
+      <button type="submit" class="ds-btn ds-btn--sm ds-btn--primary">💾 שמור</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-action-cancel>ביטול</button>
+      <p class="ds-muted ds-activity-edit-status" role="status"></p>
+    </div>
     <div class="ds-progress-bar-wrap">
+      <span class="ds-progress-text ds-progress-text--pct">${progressPct}%</span>
       <div class="ds-progress-bar"><div class="ds-progress-bar__fill" style="width:${progressPct}%"></div></div>
-      <span class="ds-progress-text">${done} מתוך ${total} מפגשים</span>
+      <span class="ds-progress-text">${done} מתוך ${total} מפגשים בוצעו</span>
     </div>
     <div class="ds-end-date-row">
-      <span class="ds-end-date-row__label">סיום</span>
+      <span class="ds-end-date-row__label">🏁 תאריך סיום</span>
       <strong class="ds-end-date-prominent" data-computed-end-display>${escapeHtml(formatDateHe(computedEnd) || '—')}</strong>
+      <span data-edit-only hidden class="ds-end-date-row__hint">מחושב אוטומטית לפי המפגש האחרון</span>
     </div>
     <div data-view-only class="ds-dates-grid ds-dates-grid--3col">${viewChips}</div>
+    ${isOnce ? '' : '<button type="button" data-view-only class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>'}
     <div data-edit-only hidden class="ds-dates-edit-section">
-      ${chainToggle}
       <div class="ds-dates-grid ds-dates-grid--2col" data-meeting-dates-edit>${datePickers}</div>
-      ${addMeetingBtn}
-    </div>
-    <div data-edit-actions hidden class="ds-edit-actions">
-      <button type="submit" class="ds-btn ds-btn--primary">💾 שמור</button>
-      <button type="button" class="ds-btn ds-btn--ghost" data-action-cancel>ביטול</button>
-      <p class="ds-muted ds-activity-edit-status" role="status"></p>
+      ${isOnce ? '' : `<button type="button" class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>`}
     </div>
   </section>`;
 }
 
 function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
+  const operationalPrivateNote = privateNote || row.operations_private_notes || row.private_note || row.note_text || '';
   const privateSection = showPrivateNote
     ? `<div class="ds-private-note-section">
-        <span class="ds-private-note-badge">🔒</span>
-        ${fieldViewEdit('הערה תפעולית',
-          `<span>${escapeHtml(fallback(privateNote || row.private_note || row.note_text))}</span>`,
-          `<textarea class="ds-input" rows="2" name="private_note">${escapeHtml(String(row.private_note || row.note_text || ''))}</textarea>`
+        <span class="ds-private-note-badge" aria-label="הערה פרטית">🔒</span>
+        ${fieldViewEdit('',
+          `<span>${escapeHtml(fallback(operationalPrivateNote))}</span>`,
+          `<textarea class="ds-input" rows="2" name="operations_private_notes">${escapeHtml(String(operationalPrivateNote))}</textarea>`
         )}
       </div>`
     : '';

@@ -5298,11 +5298,11 @@ select.ds-input {
 .ds-drawer__header--activity {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  border-bottom: 1px solid #e8eef6;
-  padding: 16px 18px;
-  margin-bottom: 4px;
-  background: linear-gradient(135deg, rgba(237,246,255,0.9) 0%, rgba(244,239,255,0.7) 50%, rgba(237,249,243,0.8) 100%);
+  gap: 7px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 16px 18px 13px;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #1e293b 0%, #1f3d61 100%);
 }
 
 .ds-drawer__header-top {
@@ -5312,25 +5312,34 @@ select.ds-input {
   gap: 8px;
 }
 
+.ds-drawer__header--activity .ds-icon-btn {
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #9fb0c8;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
 .ds-activity-type-pill {
   display: inline-flex;
   align-items: center;
-  background: rgba(29, 78, 216, 0.09);
-  color: #1d4ed8;
-  border: 1px solid rgba(29, 78, 216, 0.18);
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.38);
   border-radius: 999px;
-  padding: 2px 10px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
+  padding: 1px 9px;
+  font-size: 0.64rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
 }
 
 .ds-drawer__header--activity .ds-drawer__title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.12rem;
   font-weight: 800;
-  color: #0f172a;
-  line-height: 1.3;
+  color: #f8fafc;
+  line-height: 1.25;
 }
 
 .ds-drawer__header--activity .ds-drawer__header-meta {
@@ -5338,19 +5347,21 @@ select.ds-input {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  color: #94a3b8;
 }
 
 .ds-drawer__header--activity .ds-drawer__school {
-  font-size: 0.75rem;
-  color: #475569;
+  font-size: 0.72rem;
+  color: #94a3b8;
 }
 
 .ds-drawer-block {
-  background: #f8fafc;
-  border: 1px solid #e8eef6;
+  background: #f6f8fb;
+  border: 1px solid #dce5f1;
   border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 14px;
+  padding: 13px 14px;
+  margin-bottom: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .ds-drawer-block__title {
@@ -5359,7 +5370,7 @@ select.ds-input {
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  margin: 0 0 10px;
+  margin: 0 0 9px;
 }
 
 .ds-block-head {
@@ -5367,43 +5378,73 @@ select.ds-input {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .ds-status-pill--subtle {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.08);
   color: #94a3b8;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   padding: 1px 8px;
   font-size: 0.65rem;
   font-weight: 500;
 }
 
+.ds-status-pill--subtle::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #4ade80;
+  opacity: 0.75;
+}
+
+.ds-activity-drawer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
 .ds-field-row {
   display: grid;
   gap: 4px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .ds-field-grid--2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 8px 12px;
+}
+
+.ds-field-grid--compact .ds-field-row {
+  margin-bottom: 4px;
+}
+
+.ds-drawer-content-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.ds-field-row--span2 {
+  grid-column: 1 / -1;
 }
 
 .ds-end-date-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
+  padding: 10px 12px;
+  background: #edf8ff;
+  border: 1px solid #9fd7ff;
   border-radius: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
 .ds-end-date-row--override {
@@ -5432,18 +5473,41 @@ select.ds-input {
 }
 
 .ds-date-chip {
-  border: 1px solid #cbd5e1;
-  background: #f1f5f9;
+  border: 1px solid #d1fae5;
+  background: #f0fdf4;
   color: #475569;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 0.71rem;
+  padding: 5px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  min-height: 30px;
+}
+
+.ds-date-chip__value {
+  font-weight: 600;
+}
+
+.ds-date-chip__weekday {
+  color: #94a3b8;
+  font-size: 0.67rem;
 }
 
 .ds-date-chip.is-done {
   background: #dcfce7;
   border-color: #86efac;
   color: #166534;
+}
+
+.ds-date-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid #22c55e;
+  background: #22c55e;
+  margin-inline-start: auto;
 }
 
 .ds-link-btn {
@@ -5454,21 +5518,21 @@ select.ds-input {
 }
 
 .ds-private-note-section {
-  border-top: 1px dashed #e2e8f0;
-  padding-top: 10px;
-  margin-top: 4px;
+  border-top: 1px dashed #d7dfeb;
+  padding-top: 8px;
+  margin-top: 2px;
 }
 
 .ds-private-note-badge {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 700;
   color: #7c3aed;
-  background: #f5f3ff;
-  border: 1px solid #ddd6fe;
+  background: #f7f5ff;
+  border: 1px solid #e6ddff;
   border-radius: 999px;
-  padding: 1px 7px;
+  padding: 0 6px;
   display: inline-block;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .ds-edit-actions {
@@ -5476,7 +5540,7 @@ select.ds-input {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 10px;
+  margin-bottom: 12px;
 }
 
 .ds-activity-accordion {
@@ -5552,14 +5616,16 @@ select.ds-input {
 .ds-progress-bar-wrap {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 7px;
+  margin-bottom: 9px;
+  flex-wrap: wrap;
 }
 
 .ds-progress-bar {
   flex: 1;
-  height: 6px;
-  background: #e2e8f0;
+  min-width: 110px;
+  height: 5px;
+  background: #dbe5f1;
   border-radius: 999px;
   overflow: hidden;
 }
@@ -5573,22 +5639,32 @@ select.ds-input {
 }
 
 .ds-progress-text {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: #64748b;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
+.ds-progress-text--pct {
+  color: #6366f1;
+  font-weight: 700;
+}
+
 .ds-end-date-prominent {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 800;
   color: #0f172a;
 }
 
+.ds-end-date-row__hint {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
 .ds-dates-grid {
   display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .ds-dates-grid--3col {
@@ -5597,6 +5673,11 @@ select.ds-input {
 
 .ds-dates-grid--2col {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ds-dates-grid--3col .ds-date-chip,
+.ds-dates-grid--2col .ds-date-chip {
+  width: 100%;
 }
 
 .ds-dates-edit-section {
@@ -5609,23 +5690,44 @@ select.ds-input {
 .ds-date-pick-cell {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 9px 10px;
 }
 
-.ds-date-pick-cell .ds-field__label {
-  font-size: 0.65rem;
+.ds-date-pick-cell__head {
+  font-size: 0.71rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+}
+
+.ds-date-pick-cell__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.ds-date-pick-cell__weekday {
   color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .ds-input--date {
-  font-size: 0.78rem;
-  padding: 4px 6px;
+  font-size: 0.76rem;
+  padding: 4px 7px;
 }
 
 /* Chain toggle */
 .ds-chain-toggle {
   display: inline-flex;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #d1ddef;
   border-radius: 8px;
   overflow: hidden;
   align-self: flex-start;
@@ -5634,8 +5736,8 @@ select.ds-input {
 .ds-chain-btn {
   border: none;
   background: transparent;
-  padding: 4px 12px;
-  font-size: 0.72rem;
+  padding: 4px 10px;
+  font-size: 0.7rem;
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
@@ -5643,7 +5745,7 @@ select.ds-input {
 }
 
 .ds-chain-btn.is-active {
-  background: #1d4ed8;
+  background: #2f4eb3;
   color: #fff;
 }
 
@@ -5662,4 +5764,13 @@ select.ds-input {
   margin-top: calc(-1 * var(--_bleed));
   margin-inline: calc(-1 * var(--_bleed));
   margin-bottom: 14px;
+}
+
+.ds-dates-more-btn {
+  align-self: flex-start;
+  color: #7c8db0;
+  border: 1px dashed #cfdae9;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.71rem;
 }

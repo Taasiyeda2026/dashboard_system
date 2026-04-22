@@ -9,6 +9,7 @@ function setEditMode(form, editing) {
   const editBtn = form.querySelector('[data-action-edit]');
   if (editBtn) editBtn.toggleAttribute('hidden', editing);
   form.dataset.editing = editing ? 'yes' : 'no';
+  updateMoreDatesToggle(form);
 }
 
 function setStatus(statusEl, kind, text) {
@@ -33,34 +34,26 @@ function addDays(dateStr, days) {
   return d.toISOString().slice(0, 10);
 }
 
-function dateDeltaDays(fromStr, toStr) {
-  if (!fromStr || !toStr) return 0;
-  const a = new Date(fromStr);
-  const b = new Date(toStr);
-  if (isNaN(a) || isNaN(b)) return 0;
-  return Math.round((b - a) / 86400000);
-}
-
 function updateEndDateDisplay(form) {
   const pickers = Array.from(form.querySelectorAll('input[data-meeting-idx]'));
-  let maxDate = '';
-  pickers.forEach((p) => {
-    if (p.value && (!maxDate || p.value > maxDate)) maxDate = p.value;
-  });
+  const last = pickers[pickers.length - 1];
+  const maxDate = last ? String(last.value || '') : '';
   const display = form.querySelector('[data-computed-end-display]');
   if (display) display.textContent = maxDate ? (formatDateHe(maxDate) || maxDate) : '—';
   form.dataset.autoEndDate = maxDate;
 }
 
-function applyChainShift(form, changedIdx, oldDate, newDate) {
-  const pickers = Array.from(form.querySelectorAll('input[data-meeting-idx]'));
-  const delta = dateDeltaDays(oldDate, newDate);
-  if (!delta) return;
+function applyChainShift(form, changedIdx, _oldDate, newDate) {
+  if (!newDate) return;
+  const pickers = Array.from(form.querySelectorAll('input[data-meeting-idx]')).sort(
+    (a, b) => Number(a.dataset.meetingIdx) - Number(b.dataset.meetingIdx)
+  );
+  if (!pickers.length) return;
   pickers.forEach((p) => {
     const idx = Number(p.dataset.meetingIdx);
-    if (idx > changedIdx && p.value) {
-      p.value = addDays(p.value, delta) || p.value;
-    }
+    if (idx <= changedIdx) return;
+    const daysAfterChanged = (idx - changedIdx) * 7;
+    p.value = addDays(newDate, daysAfterChanged) || p.value;
   });
 }
 
@@ -72,9 +65,46 @@ function getChainMode(form) {
 function buildMeetingPickerCell(idx, dateValue) {
   const cell = document.createElement('div');
   cell.className = 'ds-date-pick-cell';
-  cell.innerHTML = `<span class="ds-field__label">${idx + 1}</span>
-    <input class="ds-input ds-input--date" type="date" name="meeting_date_${idx}" data-meeting-idx="${idx}" value="${dateValue}">`;
+  cell.innerHTML = `<span class="ds-date-pick-cell__head"><span>מפגש ${idx + 1}</span><span class="ds-date-pick-cell__dot" aria-hidden="true"></span></span>
+    <input class="ds-input ds-input--date" type="date" name="meeting_date_${idx}" data-meeting-idx="${idx}" value="${dateValue}">
+    <span class="ds-date-pick-cell__weekday"></span>`;
+  const weekday = cell.querySelector('.ds-date-pick-cell__weekday');
+  if (weekday && dateValue) {
+    const d = new Date(`${dateValue}T12:00:00`);
+    const day = Number.isNaN(d.getTime()) ? '' : ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'][d.getDay()] || '';
+    weekday.textContent = day;
+  }
   return cell;
+}
+
+function updateMeetingWeekdays(form) {
+  form.querySelectorAll('.ds-date-pick-cell').forEach((cell) => {
+    const picker = cell.querySelector('input[data-meeting-idx]');
+    const label = cell.querySelector('.ds-date-pick-cell__weekday');
+    if (!picker || !label) return;
+    if (!picker.value) {
+      label.textContent = '';
+      return;
+    }
+    const d = new Date(`${picker.value}T12:00:00`);
+    label.textContent = Number.isNaN(d.getTime()) ? '' : (['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'][d.getDay()] || '');
+  });
+}
+
+function updateMoreDatesToggle(form) {
+  const buttons = Array.from(form.querySelectorAll('[data-action-toggle-dates]'));
+  if (!buttons.length) return;
+  const editCards = Array.from(form.querySelectorAll('[data-meeting-dates-edit] .ds-date-pick-cell'));
+  const viewCards = Array.from(form.querySelectorAll('[data-date-card]'));
+  const cards = form.dataset.editing === 'yes' ? editCards : viewCards;
+  const overflow = Math.max(0, cards.length - 6);
+  buttons.forEach((button) => {
+    button.hidden = overflow === 0;
+    button.textContent = form.dataset.datesExpanded === 'yes' ? 'פחות ▲' : `+${overflow} עוד ▾`;
+  });
+  cards.forEach((card, idx) => {
+    card.hidden = form.dataset.datesExpanded === 'yes' ? false : idx >= 6;
+  });
 }
 
 export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, rerender }) {
@@ -91,7 +121,11 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
 
     if (ev.target.closest('[data-action-cancel]')) {
       form.reset();
+      form.dataset.datesExpanded = 'no';
       setStatus(form.querySelector('.ds-activity-edit-status'), '', '');
+      updateMeetingWeekdays(form);
+      updateMoreDatesToggle(form);
+      updateEndDateDisplay(form);
       setEditMode(form, false);
       return;
     }
@@ -109,19 +143,31 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
     if (ev.target.closest('[data-add-meeting]')) {
       const grid = form.querySelector('[data-meeting-dates-edit]');
       if (!grid) return;
+      if (form.dataset.isOnce === 'yes') return;
       const allPickers = Array.from(grid.querySelectorAll('input[data-meeting-idx]'));
       const currentCount = allPickers.length;
       const lastDate = allPickers.length ? allPickers[allPickers.length - 1].value : '';
       const nextDate = lastDate ? addDays(lastDate, 7) : '';
       const cell = buildMeetingPickerCell(currentCount, nextDate);
       grid.appendChild(cell);
+      updateMeetingWeekdays(form);
+      updateMoreDatesToggle(form);
       updateEndDateDisplay(form);
       return;
+    }
+
+    if (ev.target.closest('[data-action-toggle-dates]')) {
+      form.dataset.datesExpanded = form.dataset.datesExpanded === 'yes' ? 'no' : 'yes';
+      updateMoreDatesToggle(form);
     }
   });
 
   contentRoot.querySelectorAll('[data-activity-form]').forEach((form) => {
     setEditMode(form, false);
+    form.dataset.datesExpanded = 'no';
+    updateMeetingWeekdays(form);
+    updateMoreDatesToggle(form);
+    updateEndDateDisplay(form);
 
     form.addEventListener('change', (ev) => {
       const nameEl = ev.target.closest('[data-activity-name]');
@@ -139,6 +185,7 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
           applyChainShift(form, idx, oldDate, datePicker.value);
         }
         datePicker.dataset.prevValue = datePicker.value;
+        updateMeetingWeekdays(form);
         updateEndDateDisplay(form);
       }
     });
