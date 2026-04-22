@@ -521,6 +521,8 @@ function mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today) {
     activity_manager: row.activity_manager,
     authority: row.authority,
     school: row.school,
+    grade: row.grade,
+    class_group: row.class_group,
     activity_type: row.activity_type,
     activity_name: row.activity_name,
     emp_id: row.emp_id,
@@ -558,6 +560,8 @@ function mapActivityDetailRowForDrawer_(row, user) {
     activity_manager: summary.activity_manager,
     authority: summary.authority,
     school: summary.school,
+    grade: text_(row.grade),
+    class_group: text_(row.class_group),
     activity_type: summary.activity_type,
     activity_no: row.activity_no,
     activity_name: summary.activity_name,
@@ -732,6 +736,8 @@ function actionExceptions_(user) {
       activity_no:       row.activity_no,
       authority:         row.authority,
       school:            row.school,
+      grade:             text_(row.grade),
+      class_group:       text_(row.class_group),
       emp_id:            row.emp_id,
       instructor_name:   row.instructor_name,
       emp_id_2:          row.emp_id_2,
@@ -806,7 +812,7 @@ function actionFinance_(user, payload) {
     if (search) {
       var hay = [
         row.RowID, row.activity_name, row.school, row.activity_manager,
-        row.funding, row.authority, row.Payer
+        row.funding, row.authority, row.Payer, row.grade, row.class_group
       ].map(text_).join(' ').toLowerCase();
       if (hay.indexOf(search) < 0) return false;
     }
@@ -831,6 +837,8 @@ function actionFinance_(user, payload) {
       activity_manager: text_(row.activity_manager),
       authority: text_(row.authority),
       school: text_(row.school),
+      grade: text_(row.grade),
+      class_group: text_(row.class_group),
       activity_type: text_(row.activity_type),
       funding: text_(row.funding),
       start_date: text_(row.start_date),
@@ -1096,7 +1104,7 @@ function actionOperations_(user, payload) {
   var rows = allActivitiesSummary_().filter(function(row) {
     if (activityType && text_(row.activity_type) !== activityType) return false;
     if (search) {
-      var hay = [row.RowID, row.activity_name, row.activity_type, row.start_date, row.end_date].map(text_).join(' ').toLowerCase();
+      var hay = [row.RowID, row.activity_name, row.activity_type, row.start_date, row.end_date, row.grade, row.class_group].map(text_).join(' ').toLowerCase();
       if (hay.indexOf(search) < 0) return false;
     }
     return true;
@@ -1105,6 +1113,8 @@ function actionOperations_(user, payload) {
       RowID: row.RowID,
       source_sheet: row.source_sheet,
       activity_name: row.activity_name,
+      grade: text_(row.grade),
+      class_group: text_(row.class_group),
       start_date: row.start_date,
       end_date: row.end_date,
       activity_type: row.activity_type
@@ -1282,6 +1292,8 @@ function actionAddActivity_(user, payload) {
     activity_manager: text_(activity.activity_manager),
     authority: text_(activity.authority),
     school: text_(activity.school),
+    grade: text_(activity.grade),
+    class_group: text_(activity.class_group),
     activity_type: text_(activity.activity_type),
     activity_no: text_(activity.activity_no),
     activity_name: text_(activity.activity_name),
@@ -1305,6 +1317,8 @@ function actionAddActivity_(user, payload) {
       activity_manager: common.activity_manager,
       authority: common.authority,
       school: common.school,
+      grade: common.grade,
+      class_group: common.class_group,
       activity_type: common.activity_type,
       activity_no: common.activity_no,
       activity_name: common.activity_name,
@@ -1363,6 +1377,8 @@ function actionAddActivity_(user, payload) {
       activity_manager: common.activity_manager,
       authority: common.authority,
       school: common.school,
+      grade: common.grade,
+      class_group: common.class_group,
       activity_type: common.activity_type,
       activity_no: common.activity_no,
       activity_name: common.activity_name,
@@ -1845,6 +1861,8 @@ function projectedActivityColumnsForSummary_() {
     'activity_manager',
     'authority',
     'school',
+    'grade',
+    'class_group',
     'activity_type',
     'activity_no',
     'activity_name',
@@ -1892,6 +1910,8 @@ function mapProjectedActivityDetailRow_(sheetName, row) {
     activity_manager: text_(row.activity_manager),
     authority: text_(row.authority),
     school: text_(row.school),
+    grade: text_(row.grade),
+    class_group: text_(row.class_group),
     activity_type: text_(row.activity_type),
     activity_no: text_(row.activity_no),
     activity_name: text_(row.activity_name),
@@ -1993,6 +2013,8 @@ function allActivitiesSummary_() {
         activity_manager: text_(row.activity_manager),
         authority: text_(row.authority),
         school: text_(row.school),
+        grade: text_(row.grade),
+        class_group: text_(row.class_group),
         activity_type: text_(row.activity_type),
         activity_no: text_(row.activity_no),
         activity_name: text_(row.activity_name),
@@ -2090,6 +2112,8 @@ function mapShortRow_(row) {
     activity_manager: text_(row.activity_manager),
     authority: text_(row.authority),
     school: text_(row.school),
+    grade: text_(row.grade),
+    class_group: text_(row.class_group),
     activity_type: text_(row.activity_type),
     activity_no: text_(row.activity_no),
     activity_name: text_(row.activity_name),
@@ -2116,6 +2140,8 @@ function mapLongRow_(row) {
     activity_manager: text_(row.activity_manager),
     authority: text_(row.authority),
     school: text_(row.school),
+    grade: text_(row.grade),
+    class_group: text_(row.class_group),
     activity_type: text_(row.activity_type),
     activity_no: text_(row.activity_no),
     activity_name: text_(row.activity_name),
@@ -2643,11 +2669,11 @@ function actionListSheets_(user) {
 
   var EXPECTED_COLS = {
     data_short: ['RowID', 'activity_manager', 'authority', 'school', 'activity_type',
-                 'activity_no', 'activity_name', 'sessions', 'price', 'funding',
+                 'grade', 'class_group', 'activity_no', 'activity_name', 'sessions', 'price', 'funding',
                  'start_time', 'end_time', 'emp_id', 'instructor_name',
                  'status', 'notes', 'finance_status', 'finance_notes'],
     data_long: ['RowID', 'activity_manager', 'authority', 'school', 'activity_type',
-                'activity_no', 'activity_name', 'sessions', 'price', 'funding',
+                'grade', 'class_group', 'activity_no', 'activity_name', 'sessions', 'price', 'funding',
                 'start_time', 'end_time', 'emp_id', 'instructor_name',
                 'status', 'notes', 'finance_status', 'finance_notes'],
     permissions: ['user_id', 'full_name', 'display_role', 'entry_code'],
