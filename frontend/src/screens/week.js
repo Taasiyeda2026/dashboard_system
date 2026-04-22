@@ -1,5 +1,4 @@
 import { escapeHtml } from './shared/html.js';
-import { persistCacheEntry } from '../cache-persist.js';
 import { dsScreenStack, dsInteractiveCard } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
@@ -207,22 +206,6 @@ export const weekScreen = {
     root.querySelector('[data-week-next]')?.addEventListener('click', () => {
       state.weekOffset = (state.weekOffset || 0) + 1;
       rerender?.();
-    });
-
-    // Pre-fetch adjacent weeks silently into screenDataCache for instant navigation
-    const WEEK_TTL_MS = 8 * 60 * 1000;
-    const currentOffset = state.weekOffset || 0;
-    [currentOffset - 1, currentOffset + 1].forEach((adjOffset) => {
-      const adjKey = `week:${adjOffset}`;
-      const hit = state.screenDataCache?.[adjKey];
-      if (hit && Date.now() - hit.t < WEEK_TTL_MS) return;
-      api.week({ week_offset: adjOffset }).then((d) => {
-        if (!state.screenDataCache[adjKey] || Date.now() - state.screenDataCache[adjKey].t > WEEK_TTL_MS) {
-          const entry = { data: d, t: Date.now() };
-          state.screenDataCache[adjKey] = entry;
-          persistCacheEntry(adjKey, entry);
-        }
-      }).catch(() => {});
     });
 
     root.addEventListener('click', (ev) => {
