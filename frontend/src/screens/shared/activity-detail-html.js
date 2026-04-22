@@ -225,6 +225,7 @@ function blockDates(row, { canEdit = false } = {}) {
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
   const visibleSchedule = isOnce ? schedule.slice(0, 1) : schedule;
+  const hasMoreDatesToggle = !isOnce && visibleSchedule.length > 6;
   const computedEnd = autoEndDate({ meeting_schedule: visibleSchedule });
   const { done, total } = meetingStats(visibleSchedule);
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
@@ -275,7 +276,7 @@ function blockDates(row, { canEdit = false } = {}) {
       <span data-edit-only hidden class="ds-end-date-row__hint">מחושב אוטומטית לפי המפגש האחרון</span>
     </div>
     <div data-view-only class="ds-dates-grid ds-dates-grid--3col">${viewChips}</div>
-    ${isOnce ? '' : '<button type="button" data-view-only class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>'}
+    ${hasMoreDatesToggle ? '<button type="button" data-view-only class="ds-link-btn ds-dates-more-btn" data-action-toggle-dates hidden>+0 עוד ▾</button>' : ''}
     <div data-edit-only hidden class="ds-dates-edit-section">
       <div class="ds-dates-grid ds-dates-grid--2col" data-meeting-dates-edit>${datePickers}</div>
     </div>
@@ -283,7 +284,7 @@ function blockDates(row, { canEdit = false } = {}) {
 }
 
 function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
-  const operationalPrivateNote = row.operations_private_notes || String(privateNote || '').trim() || '';
+  const operationalPrivateNote = String(row.operations_private_notes || '').trim();
   const notesValue = String(row.notes || '').trim();
 
   const notesViewHtml = notesValue ? `<span class="ds-field__value">${escapeHtml(notesValue)}</span>` : '';
