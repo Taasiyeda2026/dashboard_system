@@ -17,7 +17,7 @@ import {
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 
-const ACTIVITY_VIEW_LS = 'dashboard_activity_view';
+const ACTIVITY_VIEW_LS = 'dashboard_activity_view_v2';
 
 function hasRowException(row) {
   const noInstructor = !String(row.emp_id || '').trim() && !String(row.emp_id_2 || '').trim();

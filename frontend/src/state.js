@@ -42,7 +42,7 @@ export const state = {
   /** מסך חודש: חודש מוצג בפורמט YYYY-MM; ריק = חודש נוכחי */
   monthYm: localStorage.getItem('dashboard_calendar_month_ym') || '',
   /** פעילויות: `table` | `compact` — נשמר בלוקאל סטורג' במסך הפעילויות */
-  activityView: 'table',
+  activityView: 'compact',
   financeFilter: '',
   /** הגדרות UI ממקור הנתונים (bootstrap / login) */
   clientSettings: defaultClientSettings(),
