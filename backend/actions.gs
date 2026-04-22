@@ -37,6 +37,16 @@ function ymBounds_(ym) {
   return { first: first, last: last };
 }
 
+function shiftYm_(ym, deltaMonths) {
+  var parts = String(ym || '').split('-');
+  var y = parseInt(parts[0], 10);
+  var mo = parseInt(parts[1], 10);
+  var shifted = new Date(y, mo - 1 + deltaMonths, 1);
+  var year = shifted.getFullYear();
+  var month = ('0' + (shifted.getMonth() + 1)).slice(-2);
+  return year + '-' + month;
+}
+
 /** פעילות עם טווח תאריכים שחופף לחודש ym (כולל קצה) */
 function activityOverlapsYm_(row, ym) {
   var b = ymBounds_(ym);
@@ -207,6 +217,7 @@ function actionDashboard_(user, payload) {
     yesNo_(permission.view_finance) === 'yes';
 
   var ym = dashboardPayloadYm_(payload || {});
+  var nextYm = shiftYm_(ym, 1);
 
   var allSummary = allActivitiesSummary_();
   var oneDayTypes = configuredOneDayActivityTypes_();
@@ -338,6 +349,30 @@ function actionDashboard_(user, payload) {
     if (primaryExceptionForRow_(row)) exceptionSum += 1;
   });
 
+  var missingInstructorCount = 0;
+  var missingStartDateCount = 0;
+  var lateEndDateCount = 0;
+  longRows.forEach(function(row) {
+    var exceptionTypes = rowExceptionTypes_(row);
+    if (exceptionTypes.indexOf('missing_instructor') >= 0) missingInstructorCount += 1;
+    if (exceptionTypes.indexOf('missing_start_date') >= 0) missingStartDateCount += 1;
+    if (exceptionTypes.indexOf('late_end_date') >= 0) lateEndDateCount += 1;
+  });
+
+  var shortActivitiesByType = {};
+  shortRowsBySource.forEach(function(row) {
+    if (text_(row.source_sheet) !== CONFIG.SHEETS.DATA_SHORT) return;
+    var activityType = text_(row.activity_type);
+    if (!activityType) return;
+    shortActivitiesByType[activityType] = (shortActivitiesByType[activityType] || 0) + 1;
+  });
+  var shortActivitiesSummary = Object.keys(shortActivitiesByType).sort().map(function(typeKey) {
+    return {
+      activity_type: typeKey,
+      count: shortActivitiesByType[typeKey]
+    };
+  });
+
   var kpi_cards_all = [
     { id: 'short', action: 'kpi|short', title: String(shortRows.length), subtitle: 'חד-יומי', value: shortRows.length },
     { id: 'long', action: 'kpi|long', title: String(activeLongRows.length), subtitle: 'תוכניות', value: activeLongRows.length },
@@ -426,6 +461,16 @@ function actionDashboard_(user, payload) {
     by_activity_manager: Object.keys(byManager).sort().map(function(key) {
       return byManager[key];
     }),
+    summary: {
+      active_courses_current_month: countActiveByTypeInYm_(combined, ym, 'course'),
+      ending_courses_current_month: courseEndings,
+      active_courses_next_month: countActiveByTypeInYm_(allSummary, nextYm, 'course'),
+      active_instructors: collectUniqueInstructorNames_(combined),
+      missing_instructor_count: missingInstructorCount,
+      missing_start_date_count: missingStartDateCount,
+      late_end_date_count: lateEndDateCount,
+      short_activities: shortActivitiesSummary
+    },
     kpi_cards: kpi_cards,
     show_only_nonzero_kpis: settingYes_('show_only_nonzero_kpis')
   };
@@ -2175,6 +2220,17 @@ function collectUniqueOperationalEmpIds_(activityRows) {
 
 function countUniqueOperationalInstructors_(activityRows) {
   return collectUniqueOperationalEmpIds_(activityRows).length;
+}
+
+function collectUniqueInstructorNames_(activityRows) {
+  var seen = {};
+  activityRows.forEach(function(row) {
+    var primaryName = text_(row.instructor_name) || text_(row.emp_id);
+    var secondaryName = text_(row.instructor_name_2) || text_(row.emp_id_2);
+    if (primaryName) seen[primaryName] = true;
+    if (secondaryName) seen[secondaryName] = true;
+  });
+  return Object.keys(seen).sort();
 }
 
 /** מפת העשרה: emp_id -> שורה בגיליון contacts_instructors (תצוגה / פרטי קשר בלבד). */
