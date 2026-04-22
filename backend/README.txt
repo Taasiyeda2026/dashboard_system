@@ -106,7 +106,7 @@ edit_requests:
 - כל ה-handlers ב-router.gs חייבים להתאים ל-action ב-frontend (api.js).
 
 פעולות backend (router): login, bootstrap, dashboard, activities, week, month, exceptions,
-finance, instructors, instructorContacts, contacts, endDates, myData, permissions,
+finance, instructors, instructorContacts, contacts, endDates, myData, permissions, adminLists,
 addActivity, saveActivity, submitEditRequest, reviewEditRequest, savePermission, savePrivateNote.
 
 ================================================================================

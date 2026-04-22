@@ -19,6 +19,7 @@ import { myDataScreen } from './screens/my-data.js';
 import { operationsScreen } from './screens/operations.js';
 import { editRequestsScreen } from './screens/edit-requests.js';
 import { permissionsScreen } from './screens/permissions.js';
+import { listsScreen } from './screens/lists.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc  = new URL('../assets/logo1.png',      import.meta.url).href;
@@ -190,7 +191,8 @@ const screenLabels = {
   'my-data': 'הנתונים שלי',
   operations: 'תפעול',
   'edit-requests': 'אישורים',
-  permissions: 'הרשאות'
+  permissions: 'הרשאות',
+  lists: 'רשימות'
 };
 
 const screens = {
@@ -207,7 +209,8 @@ const screens = {
   'my-data': myDataScreen,
   operations: operationsScreen,
   'edit-requests': editRequestsScreen,
-  permissions: permissionsScreen
+  permissions: permissionsScreen,
+  lists: listsScreen
 };
 
 function navSidebarHiddenRoutesSet() {
@@ -304,8 +307,8 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
-  const HEADER_NAV_ROUTES = ['dashboard', 'activities', 'finance', 'permissions'];
-  const HEADER_NAV_ICONS  = { dashboard: '📊', activities: '📋', finance: '💰', permissions: '🔑' };
+  const HEADER_NAV_ROUTES = ['dashboard', 'activities', 'finance', 'lists', 'permissions'];
+  const HEADER_NAV_ICONS  = { dashboard: '📊', activities: '📋', finance: '💰', lists: '📑', permissions: '🔑' };
   const isAdmin = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
   const availableRoutes = effectiveRoutes();
   const headerNavHtml = isAdmin

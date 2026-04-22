@@ -90,7 +90,8 @@ function allKnownRoutes_() {
     'my-data',
     'operations',
     'edit-requests',
-    'permissions'
+    'permissions',
+    'lists'
   ];
 }
 
@@ -140,6 +141,10 @@ function buildRoutesFromPermission_(permission, role) {
   };
 
   return allRoutes.filter(function(route) {
+    if (route === 'lists') {
+      if (!(role === 'admin' || role === 'operations_reviewer')) return false;
+      return permYes_(permission, 'view_lists');
+    }
     if (route === 'permissions') {
       if (!(role === 'admin' || role === 'operations_reviewer')) return false;
       return permYes_(permission, 'view_permissions');
@@ -219,6 +224,8 @@ function viewKeyToRouteId_(viewKey) {
     view_finance: 'finance',
     permissions: 'permissions',
     view_permissions: 'permissions',
+    view_lists: 'lists',
+    lists: 'lists',
     view_admin: 'dashboard',
     view_edit_requests: 'edit-requests',
     view_final_approvals: 'permissions'

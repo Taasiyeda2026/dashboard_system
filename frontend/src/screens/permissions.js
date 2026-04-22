@@ -12,6 +12,7 @@ const KEY_PERM_FLAGS = [
   'can_review_requests',
   'view_finance',
   'view_admin',
+  'view_lists',
   'view_permissions'
 ];
 

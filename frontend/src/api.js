@@ -52,6 +52,7 @@ const READ_ACTIONS = {
   operationsDetail: true,
   editRequests: true,
   permissions: true,
+  adminLists: true,
   listSheets: true
 };
 
@@ -242,6 +243,7 @@ export const api = {
   operationsDetail: (source_row_id, source_sheet) => request('operationsDetail', { source_row_id, source_sheet }),
   editRequests: () => request('editRequests'),
   permissions: () => request('permissions'),
+  adminLists: () => request('adminLists'),
   addActivity: (target, data) => {
     if (typeof target === 'object' && target !== null && data === undefined) {
       return request('addActivity', { activity: target });

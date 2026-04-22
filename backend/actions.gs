@@ -2480,17 +2480,52 @@ function hebrewWeekdayLabel_(jsDay) {
   return names[jsDay] || '';
 }
 
-function buildDropdownOptionsMap_() {
-  var rows = readRows_(configuredDropdownSourceSheet_());
-  var out = {};
-  rows.forEach(function(row) {
-    var listName = text_(row.list_name);
-    var value = text_(row.value || row.display_value || row.val);
-    if (!listName || !value) return;
-    if (!out[listName]) out[listName] = [];
-    if (out[listName].indexOf(value) < 0) out[listName].push(value);
+function listKey_(name) {
+  return text_(name).toLowerCase();
+}
+
+function buildActivityNameOptionsFromListRows_(rows) {
+  var out = [];
+  var seen = {};
+  (rows || []).forEach(function(row) {
+    var label = text_(row.label || row.activity_name || row.value);
+    if (!label) return;
+    var parent = text_(row.parent_value || row.activity_type);
+    var actNo = text_(row.activity_no);
+    var sig = label + '\t' + actNo + '\t' + parent;
+    if (seen[sig]) return;
+    seen[sig] = true;
+    out.push({
+      label: label,
+      activity_no: actNo,
+      parent_value: parent,
+      activity_type: text_(row.activity_type || row.parent_value || parent)
+    });
   });
   return out;
+}
+
+function buildDropdownOptionsMapFromRows_(rows) {
+  var out = {};
+  var activityNameRows = [];
+  (rows || []).forEach(function(row) {
+    var key = listKey_(row.list_name);
+    var value = text_(row.value || row.display_value || row.val);
+    if (!key) return;
+    if (key === 'activity_name') {
+      activityNameRows.push(row);
+      return;
+    }
+    if (!value) return;
+    if (!out[key]) out[key] = [];
+    if (out[key].indexOf(value) < 0) out[key].push(value);
+  });
+  out.activity_names = buildActivityNameOptionsFromListRows_(activityNameRows);
+  return out;
+}
+
+function buildDropdownOptionsMap_() {
+  return buildDropdownOptionsMapFromRows_(readRows_(configuredDropdownSourceSheet_()));
 }
 
 function buildClientSettingsPayload_() {
@@ -2681,18 +2716,26 @@ function actionAdminLists_(user, payload) {
   if (hasListName) {
     var grouped = {};
     rows.forEach(function(r) {
-      var listName = text_(r.list_name).toLowerCase();
+      var listName = listKey_(r.list_name);
       var val = text_(r.value || r.display_value || r.val || '');
-      if (!listName || !val) return;
+      if (!listName) return;
+      if (listName === 'activity_name') {
+        return;
+      }
+      if (!val) return;
       if (!grouped[listName]) grouped[listName] = [];
-      grouped[listName].push(val);
+      if (grouped[listName].indexOf(val) < 0) grouped[listName].push(val);
     });
+    var dropdownMap = buildDropdownOptionsMapFromRows_(rows);
     return {
       schools: grouped['schools'] || grouped['school'] || [],
       fundings: grouped['fundings'] || grouped['funding'] || [],
       authorities: grouped['authorities'] || grouped['authority'] || [],
       activity_types: grouped['activity_types'] || grouped['activity_type'] || [],
       managers: grouped['managers'] || grouped['manager'] || [],
+      lists_by_name: grouped,
+      activity_names: dropdownMap.activity_names || [],
+      dropdown_options: dropdownMap,
       raw: rows
     };
   }
