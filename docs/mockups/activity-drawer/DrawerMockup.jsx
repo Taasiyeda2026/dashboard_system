@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-const PROGRAM_TYPES = ["course", "after_school"];
 const SINGLE_DATE_ACTIVITY_TYPES = ["workshop", "tour", "escape_room"];
 
 // רשימת פעילויות רשמית לפי המיפוי שסופק
@@ -104,7 +103,7 @@ const MOCK = {
   notes: "כיתה ז׳ — עדכן תאריכים לפי לוח בית הספר",
   grade: "ז׳",
   class_group: "כיתה ז׳2",
-  private_note: "שימו לב — בית הספר ביקש לדחות שני מפגשים לאחר הפסח",
+  operations_private_notes: "שימו לב — בית הספר ביקש לדחות שני מפגשים לאחר הפסח",
   meeting_schedule: [
     { date: "2026-01-09", performed: "yes" },
     { date: "2026-01-16", performed: "yes" },
@@ -127,10 +126,12 @@ function fmt(iso) {
   return `${d}/${m}/${y}`;
 }
 
-function fmtWeekday(iso) {
+function fmtWeekdayShort(iso) {
   if (!iso) return "—";
   const date = new Date(`${iso}T12:00:00`);
-  return new Intl.DateTimeFormat("he-IL", { weekday: "long" }).format(date);
+  const day = date.getDay(); // 0=Sun ... 6=Sat
+  const map = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
+  return map[day] || "—";
 }
 
 function addDays(iso, days) {
@@ -142,7 +143,7 @@ function addDays(iso, days) {
 if (typeof console !== "undefined") {
   console.assert(fmt("2026-01-09") === "09/01/2026", "fmt should format dd/mm/yyyy");
   console.assert(addDays("2026-01-09", 7) === "2026-01-16", "addDays should add 7 days");
-  console.assert(fmtWeekday("2026-01-09").length > 0, "fmtWeekday should return a weekday");
+  console.assert(fmtWeekdayShort("2026-01-09").length > 0, "fmtWeekdayShort should return a short weekday");
 }
 
 function StatusPill({ value, onChange, editing }) {
@@ -258,21 +259,19 @@ function Field({ label, value, editing, name, onChange, type = "text", options, 
   );
 }
 
-function ActivityPickerField({ activityType, activityKey, activityName, activityNo, editing, onChange }) {
+function ActivityPickerField({ activityType, activityKey, editing, onChange }) {
   const options = ACTIVITIES_LIST.filter((a) => a.type === activityType);
-
   if (!editing) return null;
-
-  const fieldLabel = activityType === "course"
-    ? "שם קורס"
-    : activityType === "after_school"
-      ? "שם חוג אפטרסקול"
-      : activityType === "workshop"
-        ? "שם סדנה"
-        : activityType === "tour"
-          ? "שם סיור"
-          : "שם פעילות";
-
+  const fieldLabel =
+    activityType === "course"
+      ? "שם קורס"
+      : activityType === "after_school"
+        ? "שם חוג אפטרסקול"
+        : activityType === "workshop"
+          ? "שם סדנה"
+          : activityType === "tour"
+            ? "שם סיור"
+            : "שם פעילות";
   return (
     <div style={{ display: "grid", gap: 3, gridColumn: "1 / -1" }}>
       <span
@@ -286,47 +285,24 @@ function ActivityPickerField({ activityType, activityKey, activityName, activity
       >
         {fieldLabel}
       </span>
-
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <select
-          value={activityKey}
-          onChange={(e) => {
-            const picked = ACTIVITIES_LIST.find((a) => a.value === e.target.value);
-            if (!picked) return;
-            onChange("activity_key", picked.value);
-            onChange("activity_name", picked.label);
-            onChange("activity_no", String(picked.no));
-          }}
-          style={{ ...inputBase, flex: 1 }}
-        >
-          <option value="">— בחר —</option>
-          {options.map((a) => (
-            <option key={a.value} value={a.value}>
-              {a.label}
-            </option>
-          ))}
-        </select>
-
-        {activityNo && (
-          <span
-            style={{
-              background: "#f1f5f9",
-              border: "1px solid #e2e8f0",
-              borderRadius: 8,
-              padding: "6px 10px",
-              fontSize: "0.75rem",
-              color: "#64748b",
-              fontWeight: 600,
-              whiteSpace: "nowrap",
-              flexShrink: 0,
-            }}
-          >
-            # {activityNo}
-          </span>
-        )}
-      </div>
-
-      <span style={{ fontSize: "0.65rem", color: "#94a3b8", fontStyle: "italic" }}>מספר הקורס מתמלא אוטומטית</span>
+      <select
+        value={activityKey}
+        onChange={(e) => {
+          const picked = ACTIVITIES_LIST.find((a) => a.value === e.target.value);
+          if (!picked) return;
+          onChange("activity_key", picked.value);
+          onChange("activity_name", picked.label);
+          onChange("activity_no", String(picked.no));
+        }}
+        style={inputBase}
+      >
+        <option value="">— בחר —</option>
+        {options.map((a) => (
+          <option key={a.value} value={a.value}>
+            {a.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -416,7 +392,6 @@ export default function DrawerMockup() {
   const [dateEditMode, setDateEditMode] = useState("chain");
 
   const canSeePrivateNotes = userRole === "operations_reviewer";
-  const isProgram = PROGRAM_TYPES.includes(data.activity_type);
   const isSingleDateActivity = SINGLE_DATE_ACTIVITY_TYPES.includes(data.activity_type);
   const isWorkshop = data.activity_type === "workshop";
   const done = data.meeting_schedule.filter((m) => m.performed === "yes").length;
@@ -431,8 +406,8 @@ export default function DrawerMockup() {
     ? data.meeting_schedule
     : data.meeting_schedule.slice(0, 6);
 
-  const activityDay = fmtWeekday(firstMeetingDate);
-  const activityHours = data.start_time && data.end_time ? `${data.start_time}–${data.end_time}` : "—";
+  const activityDay = fmtWeekdayShort(firstMeetingDate);
+  const activityHours = data.start_time && data.end_time ? `${data.start_time}-${data.end_time}` : "—";
   const activityClass = [data.grade, data.class_group].filter(Boolean).join(" · ") || "—";
 
   function handleChange(name, value) {
@@ -684,16 +659,29 @@ export default function DrawerMockup() {
                 <ActivityPickerField
                   activityType={data.activity_type}
                   activityKey={data.activity_key}
-                  activityName={data.activity_name}
-                  activityNo={data.activity_no}
                   editing={editing}
                   onChange={handleChange}
                 />
               )}
-
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
-                <Field label="מימון" name="funding" value={data.funding} editing={editing} onChange={handleChange} />
-                {editing && <Field label="מחיר" name="price" value={data.price} editing={editing} onChange={handleChange} type="number" />}
+                <Field
+                  label="מימון"
+                  name="funding"
+                  value={data.funding}
+                  editing={editing}
+                  onChange={handleChange}
+                  options={FUNDING_OPTIONS}
+                />
+                {editing && (
+                  <Field
+                    label="מחיר"
+                    name="price"
+                    value={data.price}
+                    editing={editing}
+                    onChange={handleChange}
+                    type="number"
+                  />
+                )}
                 {!editing && (
                   <>
                     <Field label="כיתה" value={activityClass} editing={false} />
@@ -705,7 +693,7 @@ export default function DrawerMockup() {
                   <>
                     <Field label="בית ספר" name="school" value={data.school} editing={editing} onChange={handleChange} />
                     <Field label="רשות" name="authority" value={data.authority} editing={editing} onChange={handleChange} />
-                    <Field label="שכבה" name="grade" value={data.grade} editing={editing} onChange={handleChange} />
+                    <Field label="שכבה" name="grade" value={data.grade} editing={editing} onChange={handleChange} options={GRADE_OPTIONS} />
                     <Field label="קבוצה / כיתה" name="class_group" value={data.class_group} editing={editing} onChange={handleChange} />
                     <Field label="שעת התחלה" name="start_time" value={data.start_time} editing={editing} onChange={handleChange} type="time" />
                     <Field label="שעת סיום" name="end_time" value={data.end_time} editing={editing} onChange={handleChange} type="time" />
@@ -761,33 +749,95 @@ export default function DrawerMockup() {
               {editing && <span style={{ fontSize: "0.68rem", color: "#64748b" }}>מחושב אוטומטית לפי המפגש האחרון</span>}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: editing ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))", gap: 8 }}>
-              {visibleDates.map((m, i) => (
-                editing ? (
-                  <div key={`${m.date}-${i}`} style={{ display: "flex", flexDirection: "column", gap: 6, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "8px 10px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <MeetingDot done={m.performed === "yes"} />
-                      <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700 }}>מפגש {i + 1}</span>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: editing ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))",
+                gap: 8,
+              }}
+            >
+              {visibleDates.map((m, i) => {
+                const actualIndex = i;
+                const weekdayShort = fmtWeekdayShort(m.date);
+                return editing ? (
+                  <div
+                    key={`${m.date}-${i}`}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 10,
+                      padding: "8px 10px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <MeetingDot done={m.performed === "yes"} />
+                        <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700 }}>
+                          מפגש {actualIndex + 1}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700 }}>
+                        {weekdayShort}
+                      </span>
                     </div>
-                    <input type="date" value={m.date} onChange={(e) => handleMeetingDateChange(i, e.target.value)} style={{ ...inputBase, padding: "4px 8px", fontSize: "0.78rem" }} />
-                    <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>{fmtWeekday(m.date)}</span>
+                    <input
+                      type="date"
+                      value={m.date}
+                      onChange={(e) => handleMeetingDateChange(actualIndex, e.target.value)}
+                      style={{ ...inputBase, padding: "4px 8px", fontSize: "0.78rem" }}
+                    />
+                    <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                      {fmt(m.date)}
+                    </span>
                   </div>
                 ) : (
-                  <div key={`${m.date}-${i}`} style={{ display: "flex", alignItems: "center", gap: 4, background: m.performed === "yes" ? "#f0fdf4" : "#f8fafc", border: `1px solid ${m.performed === "yes" ? "#bbf7d0" : "#e2e8f0"}`, borderRadius: 8, padding: "6px 8px", fontSize: "0.72rem", color: m.performed === "yes" ? "#15803d" : "#64748b", fontWeight: 500 }}>
-                    <MeetingDot done={m.performed === "yes"} />
-                    <span>{fmt(m.date)}</span>
+                  <div
+                    key={`${m.date}-${i}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      background: m.performed === "yes" ? "#f0fdf4" : "#f8fafc",
+                      border: `1px solid ${m.performed === "yes" ? "#bbf7d0" : "#e2e8f0"}`,
+                      borderRadius: 8,
+                      padding: "6px 8px",
+                      fontSize: "0.72rem",
+                      color: m.performed === "yes" ? "#15803d" : "#64748b",
+                      fontWeight: 500,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <MeetingDot done={m.performed === "yes"} />
+                      <span>{fmt(m.date)}</span>
+                    </div>
+                    <span style={{ fontWeight: 700 }}>{weekdayShort}</span>
                   </div>
-                )
-              ))}
+                );
+              })}
             </div>
-
-            {!isSingleDateActivity && data.meeting_schedule.length > 6 && (
-              <button onClick={() => setShowAllDates((current) => !current)} style={{ marginTop: 8, background: "transparent", border: "1px dashed #c7d2e0", borderRadius: 8, padding: "3px 10px", fontSize: "0.72rem", color: "#6366f1", fontWeight: 600, cursor: "pointer" }}>
+            {!editing && !isSingleDateActivity && data.meeting_schedule.length > 6 && (
+              <button
+                onClick={() => setShowAllDates((current) => !current)}
+                style={{
+                  marginTop: 8,
+                  background: "transparent",
+                  border: "1px dashed #c7d2e0",
+                  borderRadius: 8,
+                  padding: "3px 10px",
+                  fontSize: "0.72rem",
+                  color: "#6366f1",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
                 {showAllDates ? "פחות ▲" : `+${data.meeting_schedule.length - 6} עוד ▾`}
               </button>
             )}
-
-            {editing && (
+            {editing && !isSingleDateActivity && (
               <span style={{ display: "block", marginTop: 8, fontSize: "0.68rem", color: "#94a3b8" }}>
                 במצב 🔗 שרשרת שינוי תאריך יעדכן את כל המפגשים שאחריו בקפיצות של שבוע. במצב 📍 בודד כל תאריך משתנה רק לעצמו.
               </span>
@@ -803,7 +853,14 @@ export default function DrawerMockup() {
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                     <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 999, padding: "1px 7px" }}>🔒</span>
                   </div>
-                  <Field label="הערה תפעולית" name="private_note" value={data.private_note} editing={editing} onChange={handleChange} type="textarea" />
+                  <Field
+                    label="הערה תפעולית"
+                    name="operations_private_notes"
+                    value={data.operations_private_notes}
+                    editing={editing}
+                    onChange={handleChange}
+                    type="textarea"
+                  />
                 </div>
               )}
             </div>
