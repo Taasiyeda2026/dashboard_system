@@ -41,12 +41,27 @@ function normalizeNames(names) {
   return unique.join(', ');
 }
 
-function renderStructuredSummary(summary, ym) {
+const MANAGER_DISPLAY_NAMES = {
+  'גיל נאמן':               'מחוז צפון',
+  'לינוי שמואל מזרחי':      'מחוז דרום',
+};
+
+function renderStructuredSummary(summary, ym, byManager) {
   const monthTitle = hebrewMonthTitle(ym);
   const nextMonthTitle = hebrewMonthTitle(shiftYm(ym, 1));
   const instructors = normalizeNames(summary?.active_instructors || []);
   const shortActivities = Array.isArray(summary?.short_activities) ? summary.short_activities : [];
   const hasShortActivities = shortActivities.length > 0;
+
+  const districtRows = (Array.isArray(byManager) ? byManager : []).filter(
+    (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned'
+  );
+  const districtHtml = districtRows.length
+    ? `<p class="ds-summary-panel__text ds-summary-panel__text--districts">${districtRows.map((row) => {
+        const name = MANAGER_DISPLAY_NAMES[row.activity_manager] || escapeHtml(row.activity_manager);
+        return `<strong>${escapeHtml(name)}</strong>: <strong>${escapeHtml(String(row.total_long ?? 0))}</strong> קורסים פעילים`;
+      }).join(' · ')}</p>`
+    : '';
 
   const shortActivitiesHtml = hasShortActivities
     ? `<div class="ds-summary-panel__block ds-summary-panel__block--short-activities">
@@ -63,6 +78,7 @@ function renderStructuredSummary(summary, ym) {
   return `<div class="ds-summary-panel__structured">
     <h3 class="ds-summary-panel__title">סיכום חודשי – <strong>${escapeHtml(monthTitle)}</strong></h3>
     <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(monthTitle)}</strong> מתקיימים <strong>${escapeHtml(String(summary?.active_courses_current_month ?? 0))}</strong> קורסים פעילים. במהלך החודש צפויים להסתיים <strong>${escapeHtml(String(summary?.ending_courses_current_month ?? 0))}</strong> קורסים. המדריכים הפעילים החודש הם: <strong>${escapeHtml(instructors)}</strong>.</p>
+    ${districtHtml}
     <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(nextMonthTitle)}</strong> צפויים להיות <strong>${escapeHtml(String(summary?.active_courses_next_month ?? 0))}</strong> קורסים פעילים.</p>
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
       <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש</strong></h4>
@@ -116,15 +132,9 @@ export const dashboardScreen = {
     const showOnly = !!data?.show_only_nonzero_kpis;
     const kpiCards = filterKpiCards(data?.kpi_cards, showOnly);
 
-    const MANAGER_DISPLAY_NAMES = {
-      'גיל נאמן': 'מחוז צפון',
-      'לינוי שמואל מזרחי': 'מחוז דרום',
-    };
-
     const managerCards = managers
       .map((row) => {
         const mgr = encodeURIComponent(row.activity_manager);
-        const summaryTarget = encodeURIComponent(row.activity_manager);
         const displayName = MANAGER_DISPLAY_NAMES[row.activity_manager] || row.activity_manager;
         const stats = [
           { label: 'תוכניות פעילות', value: row.total_long      ?? 0, action: `mstat|${mgr}|long` },
@@ -236,7 +246,7 @@ export const dashboardScreen = {
     }
 
     function handleSummaryClick(target) {
-      const nationalSummary = renderStructuredSummary(data?.summary || {}, ym);
+      const nationalSummary = renderStructuredSummary(data?.summary || {}, ym, data?.by_activity_manager);
       showSummary(target, nationalSummary);
     }
 
