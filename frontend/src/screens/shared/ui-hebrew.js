@@ -123,7 +123,10 @@ const COLUMN_LABELS = {
   sessions: 'מפגשים',
   price: 'מחיר',
   amount: 'סכום',
-  source_sheet: 'גיליון מקור'
+  source_sheet: 'גיליון מקור',
+  instructor_name: 'שם מדריך',
+  instructor_name_2: 'שם מדריך נוסף',
+  notes: 'הערות'
 };
 
 export function hebrewColumn(key) {

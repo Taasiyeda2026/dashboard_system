@@ -3553,6 +3553,10 @@ select.ds-input {
   background: var(--ds-interactive-selected);
 }
 
+.ci-row--inactive {
+  opacity: 0.55;
+}
+
 .ci-row__main {
   display: flex;
   align-items: center;

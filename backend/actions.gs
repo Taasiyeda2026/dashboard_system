@@ -900,9 +900,31 @@ function actionFinanceDetail_(user, payload) {
 
 function actionInstructors_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
-
+  var all = allActivitiesSummary_();
   return {
-    rows: buildOperationalInstructorsPayloadRows_()
+    rows: all.filter(function(row) {
+      return text_(row.status) !== 'סגור';
+    }).map(function(row) {
+      return {
+        RowID:              row.RowID,
+        source_sheet:       row.source_sheet,
+        activity_name:      row.activity_name,
+        activity_type:      row.activity_type,
+        school:             row.school,
+        authority:          row.authority,
+        activity_manager:   row.activity_manager,
+        start_date:         row.start_date,
+        end_date:           row.end_date,
+        status:             row.status,
+        finance_status:     row.finance_status,
+        sessions:           row.sessions,
+        emp_id:             row.emp_id,
+        instructor_name:    row.instructor_name,
+        emp_id_2:           row.emp_id_2,
+        instructor_name_2:  row.instructor_name_2,
+        notes:              row.notes
+      };
+    })
   };
 }
 

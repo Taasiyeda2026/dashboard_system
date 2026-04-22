@@ -1,80 +1,93 @@
 import { escapeHtml } from './shared/html.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
-import { hebrewColumn, hebrewEmploymentType, hebrewInstructorsSourcesLabel } from './shared/ui-hebrew.js';
-import {
-  dsCard,
-  dsScreenStack,
-  dsEmptyState,
-  dsStatusChip
-} from './shared/layout.js';
+import { hebrewColumn, hebrewActivityType, hebrewFinanceStatus } from './shared/ui-hebrew.js';
+import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 
-const AVATAR_PALETTE = [
-  '#ef4444','#f97316','#eab308','#22c55e',
-  '#3b82f6','#8b5cf6','#ec4899','#14b8a6',
-  '#f43f5e','#a855f7','#0ea5e9','#10b981'
-];
+const NO_INSTRUCTOR_LABEL = 'ללא מדריך';
 
-function avatarColor(seed) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) & 0x7fffffff;
-  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
+function rowKey(row) {
+  return encodeURIComponent(String(row.RowID || '') + '|' + String(row.source_sheet || ''));
 }
 
-function avatarInitials(name) {
-  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return parts[0][0] + parts[1][0];
-  if (parts.length === 1) return parts[0].slice(0, 2);
-  return '??';
+function findRowByKey(allRows, key) {
+  const decoded = decodeURIComponent(key);
+  const sep = decoded.indexOf('|');
+  const rid = decoded.slice(0, sep);
+  const src = decoded.slice(sep + 1);
+  return allRows.find((r) => String(r.RowID) === rid && String(r.source_sheet || '') === src) || null;
 }
 
-function instructorDrawerHtml(row, hideEmpIds) {
-  const columns = ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'];
-  const lines = columns.map((col) => {
-    if (hideEmpIds && col === 'emp_id') return '';
-    const raw = row?.[col] ?? '';
-    if (col === 'active') {
-      const label = String(raw).toLowerCase() === 'yes' ? 'כן' : 'לא';
-      const kind = String(raw).toLowerCase() === 'yes' ? 'success' : 'neutral';
-      return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${dsStatusChip(label, kind)}</p>`;
-    }
-    const val = col === 'employment_type' ? hebrewEmploymentType(raw) : (raw || '—');
-    return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${escapeHtml(String(val))}</p>`;
-  }).join('');
-  const dataLong = row?.data_long ?? 0;
-  const dataShort = row?.data_short ?? 0;
-  return `<div class="ds-details-grid" dir="rtl">
-    <p><strong>תוכניות (ארוכות):</strong> ${escapeHtml(String(dataLong))}</p>
-    <p><strong>חד-יומיות:</strong> ${escapeHtml(String(dataShort))}</p>
-    ${lines}
-  </div>`;
+function groupByInstructor(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = String(row.instructor_name || '').trim() || NO_INSTRUCTOR_LABEL;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  return new Map([...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he')));
 }
 
 function applySearch(rows, q) {
   if (!q) return rows;
   const lq = q.toLowerCase();
   return rows.filter((r) =>
-    String(r.full_name || '').toLowerCase().includes(lq) ||
-    String(r.emp_id || '').toLowerCase().includes(lq) ||
-    String(r.email || '').toLowerCase().includes(lq) ||
-    String(r.mobile || '').toLowerCase().includes(lq) ||
-    hebrewEmploymentType(r.employment_type).toLowerCase().includes(lq)
+    String(r.instructor_name || '').toLowerCase().includes(lq) ||
+    String(r.instructor_name_2 || '').toLowerCase().includes(lq) ||
+    String(r.activity_name || '').toLowerCase().includes(lq) ||
+    String(r.school || '').toLowerCase().includes(lq) ||
+    String(r.authority || '').toLowerCase().includes(lq)
   );
 }
 
-function renderInstructorCard(row) {
-  const name = row.full_name || row.emp_id || '—';
-  const initials = avatarInitials(name);
-  const color = avatarColor(row.emp_id || name);
-  const dataLong = row.data_long ?? 0;
-  const dataShort = row.data_short ?? 0;
-  const activeClass = String(row.active || '').toLowerCase() === 'no' ? ' ds-person-card--inactive' : '';
+function activityDrawerHtml(row) {
+  const fields = [
+    ['activity_name', row.activity_name],
+    ['activity_type', hebrewActivityType(row.activity_type)],
+    ['school', row.school],
+    ['authority', row.authority],
+    ['activity_manager', row.activity_manager],
+    ['start_date', row.start_date],
+    ['end_date', row.end_date],
+    ['status', row.status],
+    ['finance_status', hebrewFinanceStatus(row.finance_status)],
+    ['sessions', row.sessions],
+    ['instructor_name', row.instructor_name],
+    ['instructor_name_2', row.instructor_name_2],
+    ['notes', row.notes],
+  ];
+  const lines = fields
+    .filter(([, v]) => v && String(v).trim() && String(v) !== '—')
+    .map(([k, v]) => `<p><strong>${escapeHtml(hebrewColumn(k))}:</strong> ${escapeHtml(String(v))}</p>`)
+    .join('');
+  return `<div class="ds-details-grid" dir="rtl">${lines}</div>`;
+}
+
+function renderActivityRow(row) {
+  const name = escapeHtml(row.activity_name || '—');
+  const school = escapeHtml(row.school || '—');
+  const authority = escapeHtml(row.authority || '');
+  const meta = [school, authority].filter(Boolean).join(' · ');
   return `
-    <button type="button" class="ds-person-card${activeClass}" data-card-action="instructor:${encodeURIComponent(row.emp_id)}">
-      <span class="ds-person-avatar" style="background:${color}" aria-hidden="true">${escapeHtml(initials)}</span>
-      <span class="ds-person-name">${escapeHtml(name)}</span>
-      <span class="ds-person-meta">תוכניות: ${escapeHtml(String(dataLong))}</span>
-      <span class="ds-person-meta">חד-יומיות: ${escapeHtml(String(dataShort))}</span>
-    </button>`;
+    <div class="ci-row" data-instr-row="${rowKey(row)}" role="button" tabindex="0">
+      <div class="ci-row__main">
+        <span class="ci-row__name">${name}</span>
+        ${meta ? `<span class="ci-row__meta">${meta}</span>` : ''}
+        <span class="ci-row__toggle" aria-hidden="true">&#9658;</span>
+      </div>
+    </div>`;
+}
+
+function renderGroups(groups) {
+  let html = '';
+  groups.forEach((rows, instructorName) => {
+    const rowsHtml = rows.map((r) => renderActivityRow(r)).join('');
+    html += `
+      <div class="ci-school-block">
+        <div class="ci-school-head">👥 ${escapeHtml(instructorName)} <span class="ci-count">${rows.length}</span></div>
+        <div class="ci-school-rows">${rowsHtml}</div>
+      </div>`;
+  });
+  return html;
 }
 
 export const instructorsScreen = {
@@ -82,57 +95,35 @@ export const instructorsScreen = {
   render(data, { state } = {}) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const searchQ = state?.instructorsSearch || '';
-    const activeFilter = state?.instructorsActiveFilter || '';
+    const filtered = applySearch(allRows, searchQ);
+    const groups = groupByInstructor(filtered);
 
-    const sources = state?.clientSettings?.instructors_screen_sources;
-    const sourcesLabel = hebrewInstructorsSourcesLabel(sources);
-
-    let rows = applySearch(allRows, searchQ);
-    if (activeFilter) {
-      rows = rows.filter((r) => String(r.active || '').toLowerCase() === activeFilter);
-    }
-
-    const activeChips = [
-      { val: '', label: 'הכל' },
-      { val: 'yes', label: 'פעיל' },
-      { val: 'no', label: 'לא פעיל' }
-    ].map((c) =>
-      `<button type="button" class="ds-chip ${c.val === activeFilter ? 'is-active' : ''}" data-active-filter="${c.val}">${escapeHtml(c.label)}</button>`
-    ).join('');
-
-    const cardsHtml = rows.length === 0
-      ? dsEmptyState('לא נמצאו מדריכים')
-      : `<div class="ds-person-grid">${rows.map(renderInstructorCard).join('')}</div>`;
-
-    const sourcesBanner = `<div class="ds-info-banner" dir="rtl">
-      <span>📋 <strong>מקור נתונים:</strong> מדריכים שמופיעים ב${escapeHtml(sourcesLabel)}</span>
-    </div>`;
+    const bodyHtml = filtered.length === 0
+      ? dsEmptyState(searchQ ? 'לא נמצאו פעילויות לחיפוש זה' : 'אין פעילויות')
+      : `<div class="ci-list">${renderGroups(groups)}</div>`;
 
     return dsScreenStack(`
       ${actNavGridHtml(state)}
-      ${sourcesBanner}
       <div class="ds-screen-top-row">
         <input
           id="instructors-search"
           type="search"
           class="ds-search-input"
-          placeholder="חיפוש מדריך..."
+          placeholder="חיפוש לפי מדריך / פעילות / בית ספר / רשות..."
           value="${escapeHtml(searchQ)}"
           dir="rtl"
         />
       </div>
-      <div class="ds-filter-bar" role="toolbar">${activeChips}</div>
       ${dsCard({
-        title: `מדריכים · ${rows.length}`,
-        body: cardsHtml,
-        padded: rows.length === 0
+        title: `מדריכים · ${groups.size} | פעילויות · ${filtered.length}`,
+        body: bodyHtml,
+        padded: filtered.length === 0
       })}
     `);
   },
   bind({ root, data, state, ui, rerender }) {
     bindActNavGrid(root, { state, rerender });
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 
     let _searchTimer;
     root.querySelector('#instructors-search')?.addEventListener('input', (ev) => {
@@ -141,25 +132,18 @@ export const instructorsScreen = {
       _searchTimer = setTimeout(() => rerender(), 220);
     });
 
-    root.querySelectorAll('[data-active-filter]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.instructorsActiveFilter = btn.dataset.activeFilter || '';
-        rerender();
+    root.querySelectorAll('[data-instr-row]').forEach((rowEl) => {
+      const key = rowEl.dataset.instrRow;
+      const open = () => {
+        const row = findRowByKey(allRows, key);
+        if (!row || !ui) return;
+        const title = [row.activity_name, row.school].filter(Boolean).join(' — ');
+        ui.openDrawer({ title, content: activityDrawerHtml(row) });
+      };
+      rowEl.addEventListener('click', open);
+      rowEl.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); }
       });
-    });
-
-    const openInstructor = (empId) => {
-      const hit = allRows.find((r) => String(r.emp_id) === String(empId));
-      if (!hit || !ui) return;
-      ui.openDrawer({
-        title: hit.full_name || hit.emp_id,
-        content: instructorDrawerHtml(hit, hideEmpIds)
-      });
-    };
-
-    ui?.bindInteractiveCards(root, (action) => {
-      if (!action.startsWith('instructor:')) return;
-      openInstructor(decodeURIComponent(action.slice('instructor:'.length)));
     });
   }
 };
