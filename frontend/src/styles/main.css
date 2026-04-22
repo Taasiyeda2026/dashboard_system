@@ -1818,21 +1818,21 @@ span.ds-chip {
   background: linear-gradient(180deg, #deeaff 0%, var(--ds-surface) 46%);
 }
 
-/* צבעים לימות השבוע */
-.ds-week-col[data-day-idx="0"] { background: linear-gradient(180deg, #edf2ff 0%, var(--ds-surface) 44%); border-color: rgba(99,102,241,0.2); }
-.ds-week-col[data-day-idx="1"] { background: linear-gradient(180deg, #e8f8f5 0%, var(--ds-surface) 44%); border-color: rgba(20,184,166,0.2); }
-.ds-week-col[data-day-idx="2"] { background: linear-gradient(180deg, #fef3e2 0%, var(--ds-surface) 44%); border-color: rgba(234,179,8,0.2); }
-.ds-week-col[data-day-idx="3"] { background: linear-gradient(180deg, #fce8f3 0%, var(--ds-surface) 44%); border-color: rgba(219,39,119,0.2); }
-.ds-week-col[data-day-idx="4"] { background: linear-gradient(180deg, #fffbeb 0%, var(--ds-surface) 44%); border-color: rgba(245,158,11,0.2); }
-.ds-week-col[data-day-idx="5"] { background: linear-gradient(180deg, #f0fdf4 0%, var(--ds-surface) 44%); border-color: rgba(34,197,94,0.2); }
+/* צבעים לימות השבוע: כחול, צהוב, ירוק, ורוד, כתום, סגול */
+.ds-week-col[data-day-idx="0"] { background: linear-gradient(180deg, #dbeafe 0%, var(--ds-surface) 44%); border-color: rgba(59,130,246,0.25); }
+.ds-week-col[data-day-idx="1"] { background: linear-gradient(180deg, #fef9c3 0%, var(--ds-surface) 44%); border-color: rgba(234,179,8,0.25); }
+.ds-week-col[data-day-idx="2"] { background: linear-gradient(180deg, #dcfce7 0%, var(--ds-surface) 44%); border-color: rgba(34,197,94,0.25); }
+.ds-week-col[data-day-idx="3"] { background: linear-gradient(180deg, #fce7f3 0%, var(--ds-surface) 44%); border-color: rgba(236,72,153,0.25); }
+.ds-week-col[data-day-idx="4"] { background: linear-gradient(180deg, #ffedd5 0%, var(--ds-surface) 44%); border-color: rgba(249,115,22,0.25); }
+.ds-week-col[data-day-idx="5"] { background: linear-gradient(180deg, #ede9fe 0%, var(--ds-surface) 44%); border-color: rgba(124,58,237,0.25); }
 
 /* כותרות בצבע תואם */
-.ds-week-col[data-day-idx="0"] .ds-week-col__head { background: linear-gradient(180deg, #dde6ff 0%, rgba(237,242,255,0.5) 100%); border-bottom-color: rgba(99,102,241,0.18); }
-.ds-week-col[data-day-idx="1"] .ds-week-col__head { background: linear-gradient(180deg, #ccf0e9 0%, rgba(232,248,245,0.5) 100%); border-bottom-color: rgba(20,184,166,0.18); }
-.ds-week-col[data-day-idx="2"] .ds-week-col__head { background: linear-gradient(180deg, #fde9c0 0%, rgba(254,243,226,0.5) 100%); border-bottom-color: rgba(234,179,8,0.18); }
-.ds-week-col[data-day-idx="3"] .ds-week-col__head { background: linear-gradient(180deg, #facfe6 0%, rgba(252,232,243,0.5) 100%); border-bottom-color: rgba(219,39,119,0.18); }
-.ds-week-col[data-day-idx="4"] .ds-week-col__head { background: linear-gradient(180deg, #fde8a0 0%, rgba(255,251,235,0.5) 100%); border-bottom-color: rgba(245,158,11,0.18); }
-.ds-week-col[data-day-idx="5"] .ds-week-col__head { background: linear-gradient(180deg, #bbf7d0 0%, rgba(240,253,244,0.5) 100%); border-bottom-color: rgba(34,197,94,0.18); }
+.ds-week-col[data-day-idx="0"] .ds-week-col__head { background: linear-gradient(180deg, #bfdbfe 0%, rgba(219,234,254,0.5) 100%); border-bottom-color: rgba(59,130,246,0.22); }
+.ds-week-col[data-day-idx="1"] .ds-week-col__head { background: linear-gradient(180deg, #fde68a 0%, rgba(254,249,195,0.5) 100%); border-bottom-color: rgba(234,179,8,0.22); }
+.ds-week-col[data-day-idx="2"] .ds-week-col__head { background: linear-gradient(180deg, #a7f3d0 0%, rgba(220,252,231,0.5) 100%); border-bottom-color: rgba(34,197,94,0.22); }
+.ds-week-col[data-day-idx="3"] .ds-week-col__head { background: linear-gradient(180deg, #fbcfe8 0%, rgba(252,231,243,0.5) 100%); border-bottom-color: rgba(236,72,153,0.22); }
+.ds-week-col[data-day-idx="4"] .ds-week-col__head { background: linear-gradient(180deg, #fed7aa 0%, rgba(255,237,213,0.5) 100%); border-bottom-color: rgba(249,115,22,0.22); }
+.ds-week-col[data-day-idx="5"] .ds-week-col__head { background: linear-gradient(180deg, #ddd6fe 0%, rgba(237,233,254,0.5) 100%); border-bottom-color: rgba(124,58,237,0.22); }
 
 /* today מנצח על צבעי הימים */
 .ds-week-col.is-today[data-day-idx] {
