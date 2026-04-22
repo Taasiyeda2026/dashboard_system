@@ -1,6 +1,5 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
-import { hebrewActivityType } from './shared/ui-hebrew.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -49,9 +48,6 @@ const MANAGER_DISPLAY_NAMES = {
 function renderStructuredSummary(summary, ym, byManager) {
   const monthTitle     = hebrewMonthTitle(ym);
   const nextMonthTitle = hebrewMonthTitle(shiftYm(ym, 1));
-  const instructorNames = normalizeNames(summary?.active_instructors || []);
-  const shortActivities = Array.isArray(summary?.short_activities) ? summary.short_activities : [];
-  const hasShortActivities = shortActivities.length > 0;
 
   const activeCurrent = escapeHtml(String(summary?.active_courses_current_month ?? 0));
   const endingCurrent = escapeHtml(String(summary?.ending_courses_current_month ?? 0));
@@ -60,49 +56,39 @@ function renderStructuredSummary(summary, ym, byManager) {
   const missingDate   = escapeHtml(String(summary?.missing_start_date_count ?? 0));
   const lateEnd       = escapeHtml(String(summary?.late_end_date_count ?? 0));
 
-  // ── District line ────────────────────────────────────────────────────────
   const districtRows = (Array.isArray(byManager) ? byManager : []).filter(
     (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned'
   );
-  const districtLine = districtRows.length
-    ? `<p class="ds-summary-panel__text ds-summary-panel__text--districts">${
-        districtRows.map((row) => {
-          const name = MANAGER_DISPLAY_NAMES[row.activity_manager] || row.activity_manager;
-          return `<strong>${escapeHtml(name)}</strong>: <strong>${escapeHtml(String(row.total_long ?? 0))}</strong> קורסים פעילים`;
-        }).join(' &nbsp;·&nbsp; ')
-      }</p>`
-    : '';
 
-  // ── Short activities ─────────────────────────────────────────────────────
-  const shortActivitiesHtml = hasShortActivities
-    ? `<div class="ds-summary-panel__block ds-summary-panel__block--short-activities">
-        <h4 class="ds-summary-panel__inner-title"><strong>פעילויות חד-יומיות בחודש זה</strong></h4>
-        <ul class="ds-summary-panel__list">
-          ${shortActivities.map((item) =>
-            `<li><strong>${escapeHtml(hebrewActivityType(item.activity_type || ''))}</strong> – <strong>${escapeHtml(String(item.count || 0))}</strong></li>`
-          ).join('')}
-        </ul>
-      </div>`
-    : '';
+  const districtByName = districtRows.reduce((acc, row) => {
+    const label = MANAGER_DISPLAY_NAMES[row.activity_manager] || row.activity_manager;
+    acc[label] = row;
+    return acc;
+  }, {});
+  const northRow = districtByName['מחוז צפון'] || {};
+  const southRow = districtByName['מחוז דרום'] || {};
+  const northActive = escapeHtml(String(northRow.total_long ?? 0));
+  const southActive = escapeHtml(String(southRow.total_long ?? 0));
+
+  const byManagerInstructorNames = summary?.active_instructors_by_manager || {};
+  const northInstructors = normalizeNames(byManagerInstructorNames['מחוז צפון'] || byManagerInstructorNames['גיל נאמן'] || []);
+  const southInstructors = normalizeNames(byManagerInstructorNames['מחוז דרום'] || byManagerInstructorNames['לינוי שמואל מזרחי'] || []);
 
   return `<div class="ds-summary-panel__structured">
     <h3 class="ds-summary-panel__title">סיכום חודשי – <strong>${escapeHtml(monthTitle)}</strong></h3>
 
-    <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(monthTitle)}</strong> מתקיימים <strong>${activeCurrent}</strong> קורסים פעילים.<br>
-    במהלך החודש צפויים להסתיים <strong>${endingCurrent}</strong> קורסים.</p>
+    <p class="ds-summary-panel__text">ב<strong>${escapeHtml(monthTitle)}</strong> יש קורסים פעילים (<strong>${activeCurrent}</strong>).</p>
+    <p class="ds-summary-panel__text">במהלך <strong>${escapeHtml(monthTitle)}</strong> צפויים להסתיים קורסים (<strong>${endingCurrent}</strong>).</p>
+    <p class="ds-summary-panel__text ds-summary-panel__text--districts">מחוז צפון: קורסים פעילים (<strong>${northActive}</strong>) · מחוז דרום: קורסים פעילים (<strong>${southActive}</strong>)</p>
+    <p class="ds-summary-panel__text">ב<strong>${escapeHtml(nextMonthTitle)}</strong> צפויים להיות קורסים פעילים (<strong>${activeNext}</strong>).</p>
 
-    <p class="ds-summary-panel__text">המדריכים הפעילים החודש: <strong>${escapeHtml(instructorNames)}</strong>.</p>
-
-    ${districtLine}
-
-    <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(nextMonthTitle)}</strong> צפויים להיות <strong>${activeNext}</strong> קורסים פעילים.</p>
+    <h4 class="ds-summary-panel__inner-title"><strong>המדריכים הפעילים החודש:</strong></h4>
+    <p class="ds-summary-panel__text">במחוז צפון: <strong>${escapeHtml(northInstructors || '—')}</strong> · במחוז דרום: <strong>${escapeHtml(southInstructors || '—')}</strong></p>
 
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
       <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש</strong></h4>
-      <p class="ds-summary-panel__text"><strong>${missingInstr}</strong> קורסים ללא שיבוץ מדריך · <strong>${missingDate}</strong> קורסים ללא תאריך התחלה · <strong>${lateEnd}</strong> בסיכון סיום.</p>
+      <p class="ds-summary-panel__text">קורסים ללא שיבוץ מדריך (<strong>${missingInstr}</strong>) · קורסים ללא תאריך התחלה (<strong>${missingDate}</strong>) · קורסים בסיכון עקב תאריך סיום מאוחר (<strong>${lateEnd}</strong>)</p>
     </div>
-
-    ${shortActivitiesHtml}
   </div>`;
 }
 
