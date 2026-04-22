@@ -900,54 +900,113 @@ function actionFinanceDetail_(user, payload) {
 
 function actionInstructors_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+
   var all = allActivitiesSummary_();
-  return {
-    rows: all.map(function(row) {
-      return {
-        RowID:              row.RowID,
-        source_sheet:       row.source_sheet,
-        activity_name:      row.activity_name,
-        activity_type:      row.activity_type,
-        school:             row.school,
-        authority:          row.authority,
-        activity_manager:   row.activity_manager,
-        start_date:         row.start_date,
-        end_date:           row.end_date,
-        status:             row.status,
-        finance_status:     row.finance_status,
-        sessions:           row.sessions,
-        emp_id:             row.emp_id,
-        instructor_name:    row.instructor_name,
-        emp_id_2:           row.emp_id_2,
-        instructor_name_2:  row.instructor_name_2,
-        notes:              row.notes
+  var ym = formatDate_(new Date()).slice(0, 7);
+  var programTypes = configuredProgramActivityTypes_();
+  var oneDayTypes  = configuredOneDayActivityTypes_();
+  var enrichMap    = readInstructorContactsEnrichmentMap_();
+
+  var instructorMap = {};
+
+  function ensureInstructor(empId, nameFromActivity) {
+    if (!empId) return;
+    if (!instructorMap[empId]) {
+      var contact  = enrichMap[empId];
+      var fullName = contact ? text_(contact.full_name) : (nameFromActivity || empId);
+      instructorMap[empId] = {
+        emp_id:          empId,
+        full_name:       fullName,
+        programs_count:  0,
+        one_day_count:   0,
+        latest_end_date: ''
       };
-    })
-  };
+    }
+    if (!instructorMap[empId].full_name && nameFromActivity) {
+      instructorMap[empId].full_name = nameFromActivity;
+    }
+  }
+
+  all.forEach(function(row) {
+    var e1 = text_(row.emp_id);
+    var e2 = text_(row.emp_id_2);
+    ensureInstructor(e1, text_(row.instructor_name));
+    ensureInstructor(e2, text_(row.instructor_name_2));
+
+    var isActive  = activityOverlapsYm_(row, ym);
+    var actType   = text_(row.activity_type);
+    var isProgram = programTypes.indexOf(actType) >= 0;
+    var isOneDay  = oneDayTypes.indexOf(actType)  >= 0;
+    var endDate   = text_(row.end_date);
+
+    [e1, e2].forEach(function(empId) {
+      if (!empId || !instructorMap[empId]) return;
+      var inst = instructorMap[empId];
+      if (isActive) {
+        if (isProgram) inst.programs_count++;
+        if (isOneDay)  inst.one_day_count++;
+      }
+      if (endDate && (!inst.latest_end_date || endDate > inst.latest_end_date)) {
+        inst.latest_end_date = endDate;
+      }
+    });
+  });
+
+  var rows = Object.keys(instructorMap)
+    .map(function(id) { return instructorMap[id]; })
+    .sort(function(a, b) {
+      return String(a.full_name || a.emp_id || '').localeCompare(
+        String(b.full_name || b.emp_id || ''), 'he');
+    });
+
+  return { rows: rows, ym: ym, program_types: programTypes, one_day_types: oneDayTypes };
 }
 
 function actionContacts_(user) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
-  if (!schoolContactsViewYes_(permission)) {
+  var canViewInstructors = instructorContactsViewYes_(permission);
+  var canViewSchools     = schoolContactsViewYes_(permission);
+
+  if (!canViewInstructors && !canViewSchools) {
     throw new Error('Forbidden');
   }
 
-  var schoolRows = readRows_(configuredSchoolContactsSourceSheet_()).map(function(row) {
-    return {
-      kind: 'school',
-      emp_id: '',
-      full_name: '',
-      authority: text_(row.authority),
-      school: text_(row.school),
-      contact_name: text_(row.contact_name),
-      phone: text_(row.phone),
-      mobile: text_(row.mobile),
-      email: text_(row.email)
-    };
-  });
+  var instructorRows = canViewInstructors
+    ? readRows_(configuredInstructorContactsSourceSheet_()).map(function(row) {
+        return {
+          emp_id:          text_(row.emp_id),
+          full_name:       text_(row.full_name),
+          mobile:          text_(row.mobile),
+          email:           text_(row.email),
+          address:         text_(row.address),
+          employment_type: text_(row.employment_type),
+          direct_manager:  text_(row.direct_manager),
+          active:          yesNo_(row.active)
+        };
+      })
+    : [];
 
-  return { rows: schoolRows };
+  var schoolRows = canViewSchools
+    ? readRows_(configuredSchoolContactsSourceSheet_()).map(function(row) {
+        return {
+          authority:    text_(row.authority),
+          school:       text_(row.school),
+          contact_name: text_(row.contact_name),
+          phone:        text_(row.phone),
+          mobile:       text_(row.mobile),
+          email:        text_(row.email),
+          notes:        text_(row.notes || '')
+        };
+      })
+    : [];
+
+  return {
+    instructor_rows:      instructorRows,
+    school_rows:          schoolRows,
+    can_view_instructors: canViewInstructors,
+    can_view_schools:     canViewSchools
+  };
 }
 
 function actionInstructorContacts_(user) {

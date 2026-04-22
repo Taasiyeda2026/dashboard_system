@@ -151,7 +151,7 @@ function buildRoutesFromPermission_(permission, role) {
       return instructorContactsViewYes_(permission);
     }
     if (route === 'contacts') {
-      return schoolContactsViewYes_(permission);
+      return instructorContactsViewYes_(permission) || schoolContactsViewYes_(permission);
     }
     if (route === 'end-dates') {
       return endDatesViewYes_(permission);
