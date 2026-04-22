@@ -129,9 +129,8 @@ function fmt(iso) {
 function fmtWeekdayShort(iso) {
   if (!iso) return "—";
   const date = new Date(`${iso}T12:00:00`);
-  const day = date.getDay(); // 0=Sun ... 6=Sat
   const map = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
-  return map[day] || "—";
+  return map[date.getDay()] || "—";
 }
 
 function addDays(iso, days) {
@@ -143,7 +142,7 @@ function addDays(iso, days) {
 if (typeof console !== "undefined") {
   console.assert(fmt("2026-01-09") === "09/01/2026", "fmt should format dd/mm/yyyy");
   console.assert(addDays("2026-01-09", 7) === "2026-01-16", "addDays should add 7 days");
-  console.assert(fmtWeekdayShort("2026-01-09").length > 0, "fmtWeekdayShort should return a short weekday");
+  console.assert(fmtWeekdayShort("2026-01-09").length > 0, "fmtWeekdayShort should return a weekday");
 }
 
 function StatusPill({ value, onChange, editing }) {
