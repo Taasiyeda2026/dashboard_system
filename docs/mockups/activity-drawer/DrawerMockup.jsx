@@ -258,19 +258,21 @@ function Field({ label, value, editing, name, onChange, type = "text", options, 
   );
 }
 
-function ActivityPickerField({ activityType, activityKey, editing, onChange }) {
+function ActivityPickerField({ activityType, activityKey, activityName, activityNo, editing, onChange }) {
   const options = ACTIVITIES_LIST.filter((a) => a.type === activityType);
+
   if (!editing) return null;
-  const fieldLabel =
-    activityType === "course"
-      ? "שם קורס"
-      : activityType === "after_school"
-        ? "שם חוג אפטרסקול"
-        : activityType === "workshop"
-          ? "שם סדנה"
-          : activityType === "tour"
-            ? "שם סיור"
-            : "שם פעילות";
+
+  const fieldLabel = activityType === "course"
+    ? "שם קורס"
+    : activityType === "after_school"
+      ? "שם חוג אפטרסקול"
+      : activityType === "workshop"
+        ? "שם סדנה"
+        : activityType === "tour"
+          ? "שם סיור"
+          : "שם פעילות";
+
   return (
     <div style={{ display: "grid", gap: 3, gridColumn: "1 / -1" }}>
       <span
@@ -284,6 +286,7 @@ function ActivityPickerField({ activityType, activityKey, editing, onChange }) {
       >
         {fieldLabel}
       </span>
+
       <select
         value={activityKey}
         onChange={(e) => {
@@ -658,29 +661,17 @@ export default function DrawerMockup() {
                 <ActivityPickerField
                   activityType={data.activity_type}
                   activityKey={data.activity_key}
+                  activityName={data.activity_name}
+                  activityNo={data.activity_no}
                   editing={editing}
                   onChange={handleChange}
                 />
               )}
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
-                <Field
-                  label="מימון"
-                  name="funding"
-                  value={data.funding}
-                  editing={editing}
-                  onChange={handleChange}
-                  options={FUNDING_OPTIONS}
-                />
-                {editing && (
-                  <Field
-                    label="מחיר"
-                    name="price"
-                    value={data.price}
-                    editing={editing}
-                    onChange={handleChange}
-                    type="number"
-                  />
-                )}
+                <Field label="מימון" name="funding" value={data.funding} editing={editing} onChange={handleChange} options={FUNDING_OPTIONS} />
+                {editing && <Field label="מחיר" name="price" value={data.price} editing={editing} onChange={handleChange} type="number" />}
+
                 {!editing && (
                   <>
                     <Field label="כיתה" value={activityClass} editing={false} />
@@ -688,6 +679,7 @@ export default function DrawerMockup() {
                     <Field label="יום" value={activityDay} editing={false} />
                   </>
                 )}
+
                 {editing && (
                   <>
                     <Field label="בית ספר" name="school" value={data.school} editing={editing} onChange={handleChange} />
@@ -758,6 +750,7 @@ export default function DrawerMockup() {
               {visibleDates.map((m, i) => {
                 const actualIndex = i;
                 const weekdayShort = fmtWeekdayShort(m.date);
+
                 return editing ? (
                   <div
                     key={`${m.date}-${i}`}
@@ -774,23 +767,19 @@ export default function DrawerMockup() {
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <MeetingDot done={m.performed === "yes"} />
-                        <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700 }}>
-                          מפגש {actualIndex + 1}
-                        </span>
+                        <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700 }}>מפגש {actualIndex + 1}</span>
                       </div>
-                      <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700 }}>
-                        {weekdayShort}
-                      </span>
+                      <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700 }}>{weekdayShort}</span>
                     </div>
+
                     <input
                       type="date"
                       value={m.date}
                       onChange={(e) => handleMeetingDateChange(actualIndex, e.target.value)}
                       style={{ ...inputBase, padding: "4px 8px", fontSize: "0.78rem" }}
                     />
-                    <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
-                      {fmt(m.date)}
-                    </span>
+
+                    <span style={{ fontSize: "0.72rem", color: "#64748b" }}>{fmt(m.date)}</span>
                   </div>
                 ) : (
                   <div
@@ -818,6 +807,7 @@ export default function DrawerMockup() {
                 );
               })}
             </div>
+
             {!editing && !isSingleDateActivity && data.meeting_schedule.length > 6 && (
               <button
                 onClick={() => setShowAllDates((current) => !current)}
@@ -836,6 +826,7 @@ export default function DrawerMockup() {
                 {showAllDates ? "פחות ▲" : `+${data.meeting_schedule.length - 6} עוד ▾`}
               </button>
             )}
+
             {editing && !isSingleDateActivity && (
               <span style={{ display: "block", marginTop: 8, fontSize: "0.68rem", color: "#94a3b8" }}>
                 במצב 🔗 שרשרת שינוי תאריך יעדכן את כל המפגשים שאחריו בקפיצות של שבוע. במצב 📍 בודד כל תאריך משתנה רק לעצמו.
