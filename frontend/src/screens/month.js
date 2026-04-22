@@ -1,6 +1,5 @@
 import { escapeHtml } from './shared/html.js';
 import { dsScreenStack, dsCard, dsInteractiveCard } from './shared/layout.js';
-import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
@@ -261,17 +260,6 @@ export const monthScreen = {
     const currentYm = data?.month || `${y}-${String(mo).padStart(2, '0')}`;
     const monthTitle = monthTitleHebrew(spec);
 
-    const uniqueActs = new Set(
-      safeCells.flatMap((c) => monthCellItems(c, itemsById).map((it) => it.RowID))
-    ).size;
-    const activeDaysCount = safeCells.filter((c) => monthCellItems(c, itemsById).length > 0).length;
-    const totalEvents = safeCells.reduce((s, c) => s + monthCellItems(c, itemsById).length, 0);
-    const monthKpiRow = `<div class="ds-mini-kpi-row">
-      <span class="ds-mini-kpi"><strong>${uniqueActs}</strong> פעילויות</span>
-      <span class="ds-mini-kpi"><strong>${activeDaysCount}</strong> ימים פעילים</span>
-      <span class="ds-mini-kpi"><strong>${totalEvents}</strong> אירועים</span>
-    </div>`;
-
     return dsScreenStack(`
       ${actNavGridHtml(state)}
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
@@ -279,8 +267,6 @@ export const monthScreen = {
         <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
         <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">◀ חודש הבא</button>
       </nav>
-      ${monthKpiRow}
-      ${dsPageListToolsBar({ searchPlaceholder: 'חיפוש לפי שם פעילות ביום…', filters: [] })}
       ${dsCard({
         title: 'לוח חודשי',
         badge: `${dim} ימים · ${escapeHtml(currentYm)}`,
@@ -291,7 +277,6 @@ export const monthScreen = {
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
     bindActNavGrid(root, { state, rerender });
-    bindPageListTools(root, { mode: 'dim' });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
