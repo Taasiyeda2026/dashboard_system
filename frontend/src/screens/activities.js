@@ -573,7 +573,7 @@ export const activitiesScreen = {
     if (canAddActivity && ui) {
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
-      addBtn.className = 'ds-btn ds-btn--primary ds-btn--sm';
+      addBtn.className = 'ds-btn ds-btn--primary ds-btn--sm ds-btn--compact';
       addBtn.textContent = '➕ הוספת פעילות';
       const toolbar = root.querySelector('.ds-toolbar');
       if (toolbar) toolbar.appendChild(addBtn);
