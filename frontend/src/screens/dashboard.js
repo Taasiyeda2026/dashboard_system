@@ -286,9 +286,11 @@ export const dashboardScreen = {
           if (!state.screenDataCache[adjKey] || Date.now() - state.screenDataCache[adjKey].t > DASHBOARD_TTL_MS) {
             putDashboardCache(adjKey, d);
           }
-          api.dashboard({ month: adjYm }).then((full) => {
-            putDashboardCache(adjKey, full);
-          }).catch(() => {});
+          if (d._is_snapshot) {
+            api.dashboard({ month: adjYm }).then((full) => {
+              state.screenDataCache[adjKey] = { data: full, t: Date.now() };
+            }).catch(() => {});
+          }
         }).catch(() => {});
       });
     }
@@ -307,17 +309,16 @@ export const dashboardScreen = {
       showDataAreaLoading();
       let snapshotLoaded = false;
       try {
-        const snap = await api.dashboardSnapshot({ month: nextYm });
-        putDashboardCache(cacheKey, snap);
-        snapshotLoaded = true;
-        rerender();
-        try {
-          const full = await api.dashboard({ month: nextYm });
-          putDashboardCache(cacheKey, full);
-          prefetchAdjacentDashboard(nextYm);
-        } catch (_hydrateErr) {
-          console.warn('[dashboard] full hydration failed; keeping snapshot');
-          if (!snapshotLoaded) clearScreenDataCache?.();
+        const snapshotData = await api.dashboardSnapshot({ month: nextYm });
+        state.screenDataCache[cacheKey] = { data: snapshotData, t: Date.now() };
+        prefetchAdjacentDashboard(nextYm);
+        if (snapshotData._is_snapshot) {
+          api.dashboard({ month: nextYm }).then((fullData) => {
+            state.screenDataCache[cacheKey] = { data: fullData, t: Date.now() };
+            if ((state.dashboardMonthYm || currentMonthYm()) === nextYm) {
+              rerender();
+            }
+          }).catch(() => {});
         }
       } catch (_err) {
         if (!snapshotLoaded) clearScreenDataCache?.();
@@ -338,6 +339,21 @@ export const dashboardScreen = {
         handleSummaryClick(target);
       });
     });
+
+    // Background full-hydration when initial render came from snapshot
+    if (data._is_snapshot) {
+      const hydrateYm = ym;
+      const hydrateCacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(hydrateYm) ? hydrateYm : 'default'}`;
+      api.dashboard({ month: hydrateYm }).then((fullData) => {
+        state.screenDataCache[hydrateCacheKey] = { data: fullData, t: Date.now() };
+        if (state.route === 'dashboard' && (state.dashboardMonthYm || currentMonthYm()) === hydrateYm) {
+          rerender();
+        }
+      }).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn('[dashboard] background hydration failed, keeping snapshot', err?.message);
+      });
+    }
 
     // Pre-fetch adjacent months silently after initial render
     prefetchAdjacentDashboard(state.dashboardMonthYm || currentMonthYm());

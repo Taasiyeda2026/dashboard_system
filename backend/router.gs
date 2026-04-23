@@ -127,6 +127,18 @@ function handlePost_(e) {
       }
     }
     markRequestPerf_('action_done');
+
+    var SNAPSHOT_INVALIDATING_ACTIONS_ = {
+      addActivity: true,
+      saveActivity: true,
+      reviewEditRequest: true,
+      saveFinanceRow: true,
+      syncFinance: true
+    };
+    if (SNAPSHOT_INVALIDATING_ACTIONS_[action]) {
+      try { updateDashboardRefreshControl_('pending', 'refresh_needed'); } catch (_e) {}
+    }
+
     return jsonResponse_({
       ok: true,
       data: writeData

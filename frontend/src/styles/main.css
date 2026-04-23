@@ -4537,60 +4537,109 @@ select.ds-input {
 }
 
 .sc-card__body {
-  padding: 10px 14px;
-  display: flex;
-  flex-direction: column;
+  padding: 12px 14px 14px;
+}
+
+.sc-contact-section-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ds-text-muted);
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+
+.sc-contact-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 8px;
 }
 
 .sc-person {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 0;
-  border-bottom: 1px dashed var(--ds-border);
+  gap: 6px;
+  background: var(--ds-surface-subtle);
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  padding: 9px 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  min-width: 0;
 }
 
-.sc-person:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.sc-person__top,
-.sc-person__phones,
-.sc-person__email {
+.sc-person__top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .sc-person__name {
-  font-size: 0.82rem;
+  font-size: 0.9rem;
+  line-height: 1.35;
   font-weight: 700;
   color: var(--ds-text);
+  flex: 1;
+  min-width: 0;
 }
 
 .sc-person__actions {
   margin-inline-start: auto;
+  flex-shrink: 0;
 }
 
 .sc-person__role {
-  font-size: 0.74rem;
-  color: var(--ds-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--ds-text-secondary);
 }
 
-.sc-person__phone {
+.sc-person__contact-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sc-person__contact-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.76rem;
+  gap: 6px;
+  font-size: 0.78rem;
   color: var(--ds-text-secondary);
-  direction: ltr;
+  min-width: 0;
 }
 
-.sc-person__email {
-  font-size: 0.76rem;
+.sc-person__contact-item--mobile {
+  letter-spacing: 0.01em;
+}
+
+.sc-person__contact-item--email .ci-dv {
+  overflow-wrap: anywhere;
+}
+
+.sc-person__contact-sep {
+  color: var(--ds-text-muted);
+  font-size: 0.68rem;
+}
+
+@media (max-width: 760px) {
+  .sc-school-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sc-contact-list {
+    grid-template-columns: 1fr;
+  }
+
+  .sc-person__contact-sep {
+    display: none;
+  }
+
+  .sc-person__contact-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
 }
 
 @media (max-width: 560px) {
