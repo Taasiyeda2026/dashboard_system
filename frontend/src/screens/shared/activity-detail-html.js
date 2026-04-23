@@ -32,7 +32,9 @@ function fallback(v) {
 }
 
 function normStatus(v) {
-  return String(v || '').trim().toLowerCase() === 'closed' ? 'closed' : 'open';
+  const raw = String(v || '').trim().toLowerCase();
+  if (raw === 'closed' || raw === 'סגור') return 'closed';
+  return 'open';
 }
 
 function statusText(status) {
@@ -197,8 +199,14 @@ function headerHtml(row, { mode = 'single', summaryDate = '' } = {}) {
 
 function blockPeople(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
-  const managers = toOptions(options.activity_manager);
-  const instructors = toOptions(options.instructor_name);
+  const roleBasedPeople = mergeListStrings(options, [
+    'instructor_name',
+    'instructor_names',
+    'activity_manager',
+    'activity_managers'
+  ]);
+  const managers = roleBasedPeople.length ? roleBasedPeople : toOptions(options.activity_manager);
+  const instructors = roleBasedPeople.length ? roleBasedPeople : toOptions(options.instructor_name);
   const activityType = String(row.activity_type || '').trim();
   const twoInstructors = activityType === 'workshop';
   const instructorFields = twoInstructors
@@ -257,10 +265,16 @@ function blockContent(row, { settings = {} } = {}) {
       ? `${String(row.start_time).trim()}-${String(row.end_time).trim()}`
       : '—';
   const dayLabel = fmtWeekdayShort(firstMeetingDate);
+  const statusOptions = [
+    { value: 'פעיל', label: 'פעיל' },
+    { value: 'סגור', label: 'סגור' }
+  ];
+  const normalizedStatus = normStatus(row.status) === 'closed' ? 'סגור' : 'פעיל';
   return `
     <section class="activity-drawer__section">
       <h3 class="activity-drawer__section-title">📚</h3>
       <div class="activity-drawer__view-grid activity-drawer__grid activity-drawer__grid--two" data-mode="view">
+        ${fieldViewOnly('סטטוס', escapeHtml(statusText(row.status)))}
         ${fieldViewOnly('מימון', escapeHtml(fallback(row.funding)))}
         ${fieldViewOnly('כיתה', escapeHtml(classLabel))}
         ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
@@ -278,6 +292,15 @@ function blockContent(row, { settings = {} } = {}) {
               ? selectHtml({ name: 'funding', value: row.funding, options: fundings })
               : inputHtml({ name: 'funding', value: row.funding })
           }
+        </div>
+        <div class="activity-drawer__field">
+          <div class="activity-drawer__label">סטטוס</div>
+          ${selectHtml({
+            name: 'status',
+            value: normalizedStatus,
+            options: statusOptions.map((o) => o.value),
+            placeholder: 'פעיל'
+          })}
         </div>
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">מחיר</div>
@@ -374,9 +397,6 @@ function blockDates(row, { canEdit = false } = {}) {
   const addMeetingBtn = isOnce
     ? ''
     : `<button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-mode="edit" hidden>➕ הוסף מפגש</button>`;
-  const moreBtn = !isOnce && schedule.length > 6
-    ? `<div data-mode="view"><button type="button" class="activity-drawer__more" data-action="toggle-more">+עוד</button></div>`
-    : '';
   return `
     <section class="activity-drawer__section">
       <div class="activity-drawer__section-head">
@@ -399,7 +419,6 @@ function blockDates(row, { canEdit = false } = {}) {
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view">
         ${viewChips}
       </div>
-      ${moreBtn}
       <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
         ${datePickers}
       </div>
