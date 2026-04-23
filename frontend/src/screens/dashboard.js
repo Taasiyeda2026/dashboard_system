@@ -288,7 +288,7 @@ export const dashboardScreen = {
           }
           if (d._is_snapshot) {
             api.dashboard({ month: adjYm }).then((full) => {
-              state.screenDataCache[adjKey] = { data: full, t: Date.now() };
+              putDashboardCache(adjKey, full);
             }).catch(() => {});
           }
         }).catch(() => {});
@@ -310,11 +310,12 @@ export const dashboardScreen = {
       let snapshotLoaded = false;
       try {
         const snapshotData = await api.dashboardSnapshot({ month: nextYm });
-        state.screenDataCache[cacheKey] = { data: snapshotData, t: Date.now() };
+        putDashboardCache(cacheKey, snapshotData);
+        snapshotLoaded = true;
         prefetchAdjacentDashboard(nextYm);
         if (snapshotData._is_snapshot) {
           api.dashboard({ month: nextYm }).then((fullData) => {
-            state.screenDataCache[cacheKey] = { data: fullData, t: Date.now() };
+            putDashboardCache(cacheKey, fullData);
             if ((state.dashboardMonthYm || currentMonthYm()) === nextYm) {
               rerender();
             }
@@ -345,7 +346,7 @@ export const dashboardScreen = {
       const hydrateYm = ym;
       const hydrateCacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(hydrateYm) ? hydrateYm : 'default'}`;
       api.dashboard({ month: hydrateYm }).then((fullData) => {
-        state.screenDataCache[hydrateCacheKey] = { data: fullData, t: Date.now() };
+        putDashboardCache(hydrateCacheKey, fullData);
         if (state.route === 'dashboard' && (state.dashboardMonthYm || currentMonthYm()) === hydrateYm) {
           rerender();
         }

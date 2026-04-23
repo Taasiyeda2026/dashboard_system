@@ -31,6 +31,43 @@ var BY_MANAGER_SNAPSHOT_HEADERS_ = [
 ];
 
 var REFRESH_CONTROL_HEADERS_ = ['key', 'value', 'label_he'];
+var SUMMARY_SNAPSHOT_LABELS_HE_ = [
+  'חודש',
+  'תווית חודש',
+  'עודכן בתאריך',
+  'סך פעילויות חד-יומיות',
+  'סך תוכניות',
+  'קורסים פעילים בחודש נוכחי',
+  'סדנאות פעילות בחודש נוכחי',
+  'סיורים פעילים בחודש נוכחי',
+  'צהרונים פעילים בחודש נוכחי',
+  'חדרי בריחה פעילים בחודש נוכחי',
+  'כספים פתוחים',
+  'חריגות',
+  'מדריכים פעילים',
+  'סיומי קורסים בחודש נוכחי',
+  'קורסים פעילים בחודש הבא',
+  'ללא מדריך',
+  'ללא תאריך התחלה',
+  'תאריך סיום מאוחר',
+  'שמות מדריכים פעילים צפון',
+  'שמות מדריכים פעילים דרום'
+];
+var BY_MANAGER_SNAPSHOT_LABELS_HE_ = [
+  'חודש',
+  'מנהל פעילות',
+  'שם תצוגה מנהל',
+  'חד-יומי',
+  'תוכניות',
+  'סך הכול',
+  'מספר מדריכים',
+  'סיומי קורסים',
+  'כספים פתוחים',
+  'חריגות',
+  'שמות מדריכים פעילים',
+  'עודכן בתאריך'
+];
+var REFRESH_CONTROL_LABELS_HE_ = ['מפתח', 'ערך', 'תווית'];
 
 var SNAPSHOT_MANAGER_DISPLAY_NAMES_ = {
   'גיל נאמן':          'מחוז צפון',
@@ -39,30 +76,22 @@ var SNAPSHOT_MANAGER_DISPLAY_NAMES_ = {
 
 // ─── header helpers ───────────────────────────────────────────────────────────
 
-function ensureSnapshotSheetHeaders_(sheetName, requiredHeaders) {
+function ensureSnapshotSheetScaffold_(sheetName, englishHeaders, hebrewLabels) {
   var ss = getSpreadsheet_();
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) return false;
 
-  var lastCol = sheet.getLastColumn();
-  var existingHeaders = [];
-  if (lastCol > 0) {
-    existingHeaders = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
+  var headerLen = englishHeaders.length;
+  var maxCol = Math.max(sheet.getLastColumn(), headerLen);
+  if (maxCol > headerLen) {
+    sheet.getRange(CONFIG.HEADER_ROW, headerLen + 1, 1, maxCol - headerLen).clearContent();
   }
+  sheet.getRange(CONFIG.HEADER_ROW, 1, 1, headerLen).setValues([englishHeaders]);
 
-  var nonEmpty = existingHeaders.filter(Boolean);
-  var missingHeaders = requiredHeaders.filter(function(h) {
-    return nonEmpty.indexOf(h) < 0;
-  });
-  if (missingHeaders.length === 0) return true;
-
-  if (nonEmpty.length === 0) {
-    sheet.getRange(CONFIG.HEADER_ROW, 1, 1, requiredHeaders.length).setValues([requiredHeaders]);
-  } else {
-    var nextCol = nonEmpty.length + 1;
-    missingHeaders.forEach(function(h, i) {
-      sheet.getRange(CONFIG.HEADER_ROW, nextCol + i).setValue(h);
-    });
+  var row2 = sheet.getRange(CONFIG.HEADER_ROW + 1, 1, 1, maxCol).getValues()[0];
+  var row2IsEmpty = row2.every(function(v) { return text_(v) === ''; });
+  if (row2IsEmpty) {
+    sheet.getRange(CONFIG.HEADER_ROW + 1, 1, 1, hebrewLabels.length).setValues([hebrewLabels]);
   }
 
   if (__rqCache_) {
@@ -98,6 +127,14 @@ function actionDashboardSnapshot_(user, payload) {
   if (ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT)) {
     var allByMgr = readRows_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT);
     byManagerRows = allByMgr.filter(function(r) { return text_(r.month_ym) === ym; });
+  }
+
+  if (!snap || !ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT)) {
+    var fullData = actionDashboard_(user, payload);
+    if (fullData && typeof fullData === 'object') {
+      fullData._is_snapshot = false;
+    }
+    return fullData;
   }
 
   var s = snap || {};
@@ -262,7 +299,11 @@ function refreshDashboardSnapshots_() {
 
     var status  = errors.length === 0 ? 'ok' : 'partial';
     var message = errors.length === 0 ? 'all months updated' : errors.join('; ');
-    updateDashboardRefreshControl_(status, message);
+    try {
+      updateDashboardRefreshControl_(status, message);
+    } finally {
+      bumpDataViewsCacheVersion_();
+    }
   } finally {
     if (!hadCache) {
       __rqCache_ = null;
@@ -274,7 +315,7 @@ function refreshDashboardSnapshots_() {
 
 function writeDashboardSummarySnapshotRow_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT;
-  ensureSnapshotSheetHeaders_(sheetName, SUMMARY_SNAPSHOT_HEADERS_);
+  ensureSnapshotSheetScaffold_(sheetName, SUMMARY_SNAPSHOT_HEADERS_, SUMMARY_SNAPSHOT_LABELS_HE_);
 
   var summary = fullData.summary || {};
   var totals  = fullData.totals  || {};
@@ -335,7 +376,7 @@ function canViewFinanceFromKpis_(kpiAll, fullData) {
 
 function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT;
-  ensureSnapshotSheetHeaders_(sheetName, BY_MANAGER_SNAPSHOT_HEADERS_);
+  ensureSnapshotSheetScaffold_(sheetName, BY_MANAGER_SNAPSHOT_HEADERS_, BY_MANAGER_SNAPSHOT_LABELS_HE_);
 
   deleteRowsByKey_(sheetName, 'month_ym', ym);
 
@@ -368,7 +409,7 @@ function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
 
 function updateDashboardRefreshControl_(status, message) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_REFRESH_CONTROL;
-  ensureSnapshotSheetHeaders_(sheetName, REFRESH_CONTROL_HEADERS_);
+  ensureSnapshotSheetScaffold_(sheetName, REFRESH_CONTROL_HEADERS_, REFRESH_CONTROL_LABELS_HE_);
 
   var now = new Date().toISOString();
   var entries = [
