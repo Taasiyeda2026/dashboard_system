@@ -6186,18 +6186,6 @@ select.ds-input {
   color: #6366f1;
 }
 
-.activity-drawer__more {
-  margin-top: 6px;
-  background: transparent;
-  border: 1px dashed #c7d2e0;
-  border-radius: 8px;
-  padding: 3px 10px;
-  font-size: 0.72rem;
-  color: #6366f1;
-  font-weight: 600;
-  cursor: pointer;
-}
-
 .activity-drawer__edit-actions {
   display: flex;
   align-items: center;

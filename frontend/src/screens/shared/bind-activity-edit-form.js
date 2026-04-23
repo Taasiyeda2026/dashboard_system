@@ -12,7 +12,7 @@ function setEditMode(form, editing) {
   form.querySelectorAll('[data-edit-actions]').forEach((el) => el.toggleAttribute('hidden', !editing));
   const editBtn = form.querySelector('[data-action="start-edit"]');
   if (editBtn) editBtn.toggleAttribute('hidden', editing);
-  updateMoreDatesToggle(form);
+  syncMeetingRemoveButtons(form);
 }
 
 function setStatus(statusEl, kind, text) {
@@ -138,23 +138,7 @@ function reindexMeetingDateCards(form) {
 }
 
 function updateMoreDatesToggle(form) {
-  const isEditing = form.dataset.editing === 'yes';
-  const isOnce = form.dataset.isOnce === 'yes';
-  const viewCards = Array.from(form.querySelectorAll('[data-date-card]'));
   const editCards = Array.from(form.querySelectorAll('[data-meeting-dates-edit] .activity-drawer__date-card'));
-  const overflow = Math.max(0, viewCards.length - 6);
-
-  const buttons = Array.from(form.querySelectorAll('[data-action="toggle-more"]'));
-  buttons.forEach((button) => {
-    button.hidden = isEditing || isOnce || overflow === 0;
-    if (!button.hidden) {
-      button.textContent = form.dataset.datesExpanded === 'yes' ? 'פחות ▲' : `+${overflow} עוד ▾`;
-    }
-  });
-
-  viewCards.forEach((card, idx) => {
-    card.hidden = form.dataset.datesExpanded === 'yes' ? false : idx >= 6;
-  });
 
   editCards.forEach((card) => {
     card.hidden = false;
@@ -223,7 +207,6 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
 
       if (ev.target.closest('[data-action="cancel-edit"]')) {
         form.reset();
-        form.dataset.datesExpanded = 'no';
         setStatus(form.querySelector('.ds-activity-edit-status'), '', '');
         updateMeetingWeekdays(form);
         updateMoreDatesToggle(form);
@@ -280,17 +263,12 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
         return;
       }
 
-      if (ev.target.closest('[data-action="toggle-more"]')) {
-        form.dataset.datesExpanded = form.dataset.datesExpanded === 'yes' ? 'no' : 'yes';
-        updateMoreDatesToggle(form);
-      }
     },
     { signal }
   );
 
   contentRoot.querySelectorAll('[data-drawer-form]').forEach((form) => {
     setEditMode(form, false);
-    form.dataset.datesExpanded = 'no';
     reindexMeetingDateCards(form);
     updateMeetingWeekdays(form);
     updateMoreDatesToggle(form);

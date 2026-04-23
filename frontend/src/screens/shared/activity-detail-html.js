@@ -397,9 +397,6 @@ function blockDates(row, { canEdit = false } = {}) {
   const addMeetingBtn = isOnce
     ? ''
     : `<button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-mode="edit" hidden>➕ הוסף מפגש</button>`;
-  const moreBtn = !isOnce && schedule.length > 6
-    ? `<div data-mode="view"><button type="button" class="activity-drawer__more" data-action="toggle-more">+עוד</button></div>`
-    : '';
   return `
     <section class="activity-drawer__section">
       <div class="activity-drawer__section-head">
@@ -422,7 +419,6 @@ function blockDates(row, { canEdit = false } = {}) {
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view">
         ${viewChips}
       </div>
-      ${moreBtn}
       <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
         ${datePickers}
       </div>
