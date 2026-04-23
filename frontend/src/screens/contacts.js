@@ -121,30 +121,32 @@ function applySchoolSearch(rows, q) {
 }
 
 function schoolPersonHtml(row) {
-  const name = row.contact_name ? escapeHtml(String(row.contact_name)) : '—';
-  const role = row.role ? escapeHtml(String(row.role)) : '';
-  const phonePrimary = row.phone ? escapeHtml(String(row.phone)) : '';
-  const mobile = row.mobile && row.mobile !== row.phone ? escapeHtml(String(row.mobile)) : '';
+  const name = row.contact_name ? escapeHtml(String(row.contact_name)) : '';
+  const role = row.contact_role ? escapeHtml(String(row.contact_role)) : '';
+  const mobile = row.mobile ? escapeHtml(String(row.mobile)) : '';
   const email = row.email ? escapeHtml(String(row.email)) : '';
-  if (!name && !phonePrimary && !mobile && !email) return '';
+  if (!name && !role && !mobile && !email) return '';
+
+  const contactItems = [
+    mobile ? `<span class="sc-person__contact-item sc-person__contact-item--mobile" dir="ltr">${mobile}</span>` : '',
+    email ? `<span class="sc-person__contact-item sc-person__contact-item--email" dir="ltr"><span class="ci-dv">${email}</span>${copyBtn(email, 'העתק מייל')}</span>` : ''
+  ].filter(Boolean).join('<span class="sc-person__contact-sep" aria-hidden="true">•</span>');
+
   const editBtn = actionBtn('edit-school', {
     _row_index: row._row_index,
     authority: row.authority,
     school: row.school,
     contact_name: row.contact_name
   }, '✎');
-  return `<div class="sc-person">
+
+  return `<article class="sc-person">
     <div class="sc-person__top">
-      <span class="sc-person__name">${name}</span>
-      ${role ? `<span class="sc-person__role">${role}</span>` : ''}
+      ${name ? `<div class="sc-person__name">${name}</div>` : ''}
       <span class="sc-person__actions">${editBtn}</span>
     </div>
-    <div class="sc-person__phones">
-      ${phonePrimary ? `<span class="sc-person__phone"><span aria-hidden="true">☎</span>${phonePrimary}</span>` : ''}
-      ${mobile ? `<span class="sc-person__phone"><span aria-hidden="true">📱</span>${mobile}</span>` : ''}
-    </div>
-    ${email ? `<div class="sc-person__email"><span class="ci-dv">${email}</span>${copyBtn(email, 'העתק מייל')}</div>` : ''}
-  </div>`;
+    ${role ? `<div class="sc-person__role">${role}</div>` : ''}
+    ${contactItems ? `<div class="sc-person__contact-row">${contactItems}</div>` : ''}
+  </article>`;
 }
 
 function groupByAuthorityThenSchool(rows) {
@@ -179,7 +181,10 @@ function renderSchoolCard(schoolName, rows) {
       <span class="sc-card__name">${escapeHtml(schoolName)}</span>
       <span class="sc-card__count">${escapeHtml(countLabel)}</span>
     </summary>
-    <div class="sc-card__body">${personsHtml}</div>
+    <div class="sc-card__body">
+      <div class="sc-contact-section-title">אנשי קשר</div>
+      <div class="sc-contact-list">${personsHtml}</div>
+    </div>
   </details>`;
 }
 
