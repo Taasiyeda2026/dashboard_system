@@ -23,3 +23,11 @@ function keepWarm() {
     // warmup only — intentionally ignored
   }
 }
+
+/**
+ * Time-driven trigger entrypoint for rebuilding dashboard snapshots.
+ * Set up as a separate trigger — do not add snapshot logic inside keepWarm.
+ */
+function refreshDashboardSnapshotsTrigger() {
+  refreshDashboardSnapshots_();
+}

@@ -125,7 +125,7 @@ export const dashboardScreen = {
       ym = currentMonthYm();
     }
     state.dashboardMonthYm = ym;
-    return api.dashboard({ month: ym });
+    return api.dashboardSnapshot({ month: ym });
   },
   render(data, { state } = {}) {
     const ym = data?.month || currentMonthYm();
@@ -266,9 +266,14 @@ export const dashboardScreen = {
         const adjKey = `dashboard:${adjYm}`;
         const hit = state.screenDataCache[adjKey];
         if (hit && Date.now() - hit.t < DASHBOARD_TTL_MS) return;
-        api.dashboard({ month: adjYm }).then((d) => {
+        api.dashboardSnapshot({ month: adjYm }).then((d) => {
           if (!state.screenDataCache[adjKey] || Date.now() - state.screenDataCache[adjKey].t > DASHBOARD_TTL_MS) {
             state.screenDataCache[adjKey] = { data: d, t: Date.now() };
+          }
+          if (d._is_snapshot) {
+            api.dashboard({ month: adjYm }).then((full) => {
+              state.screenDataCache[adjKey] = { data: full, t: Date.now() };
+            }).catch(() => {});
           }
         }).catch(() => {});
       });
@@ -287,9 +292,17 @@ export const dashboardScreen = {
 
       showDataAreaLoading();
       try {
-        const data = await api.dashboard({ month: nextYm });
-        state.screenDataCache[cacheKey] = { data, t: Date.now() };
+        const snapshotData = await api.dashboardSnapshot({ month: nextYm });
+        state.screenDataCache[cacheKey] = { data: snapshotData, t: Date.now() };
         prefetchAdjacentDashboard(nextYm);
+        if (snapshotData._is_snapshot) {
+          api.dashboard({ month: nextYm }).then((fullData) => {
+            state.screenDataCache[cacheKey] = { data: fullData, t: Date.now() };
+            if ((state.dashboardMonthYm || currentMonthYm()) === nextYm) {
+              rerender();
+            }
+          }).catch(() => {});
+        }
       } catch (_err) {
         clearScreenDataCache?.();
       }
@@ -309,6 +322,21 @@ export const dashboardScreen = {
         handleSummaryClick(target);
       });
     });
+
+    // Background full-hydration when initial render came from snapshot
+    if (data._is_snapshot) {
+      const hydrateYm = ym;
+      const hydrateCacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(hydrateYm) ? hydrateYm : 'default'}`;
+      api.dashboard({ month: hydrateYm }).then((fullData) => {
+        state.screenDataCache[hydrateCacheKey] = { data: fullData, t: Date.now() };
+        if (state.route === 'dashboard' && (state.dashboardMonthYm || currentMonthYm()) === hydrateYm) {
+          rerender();
+        }
+      }).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn('[dashboard] background hydration failed, keeping snapshot', err?.message);
+      });
+    }
 
     // Pre-fetch adjacent months silently after initial render
     prefetchAdjacentDashboard(state.dashboardMonthYm || currentMonthYm());
