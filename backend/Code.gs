@@ -26,6 +26,7 @@ function keepWarm() {
 
 function refreshDashboardSnapshots() {
   return refreshDashboardSnapshots_();
+}
 /**
  * Time-driven trigger entrypoint for rebuilding dashboard snapshots.
  * Set up as a separate trigger — do not add snapshot logic inside keepWarm.
