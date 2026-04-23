@@ -1070,8 +1070,9 @@ function actionContacts_(user) {
   }
 
   var instructorRows = canViewInstructors
-    ? readRows_(configuredInstructorContactsSourceSheet_()).map(function(row) {
+    ? readRows_(configuredInstructorContactsSourceSheet_()).map(function(row, idx) {
         return {
+          _row_index: idx,
           emp_id:          text_(row.emp_id),
           full_name:       text_(row.full_name),
           mobile:          text_(row.mobile),
@@ -1085,11 +1086,13 @@ function actionContacts_(user) {
     : [];
 
   var schoolRows = canViewSchools
-    ? readRows_(configuredSchoolContactsSourceSheet_()).map(function(row) {
+    ? readRows_(configuredSchoolContactsSourceSheet_()).map(function(row, idx) {
         return {
+          _row_index: idx,
           authority:    text_(row.authority),
           school:       text_(row.school),
           contact_name: text_(row.contact_name),
+          role:         text_(row.role),
           phone:        text_(row.phone),
           mobile:       text_(row.mobile),
           email:        text_(row.email),
@@ -1104,6 +1107,107 @@ function actionContacts_(user) {
     can_view_instructors: canViewInstructors,
     can_view_schools:     canViewSchools
   };
+}
+
+function canManageContacts_(user, kind) {
+  if (!user) return false;
+  if (user.display_role === 'admin' || user.display_role === 'operations_reviewer') return true;
+  var permission = getPermissionRow_(user.user_id);
+  if (kind === 'instructor') return instructorContactsViewYes_(permission);
+  if (kind === 'school') return schoolContactsViewYes_(permission);
+  return false;
+}
+
+function updateRowByIndex_(sheetName, rowIndex, changes) {
+  var sheet = getSheet_(sheetName);
+  var headers = getHeaders_(sheet);
+  var rows = readRows_(sheetName);
+  var idx = parseInt(text_(rowIndex), 10);
+  if (isNaN(idx) || idx < 0 || idx >= rows.length) throw new Error('Row not found');
+  var updated = {};
+  headers.forEach(function(header) {
+    updated[header] = Object.prototype.hasOwnProperty.call(changes, header)
+      ? changes[header]
+      : rows[idx][header];
+  });
+  var rowNumber = getDataStartRow_() + idx;
+  var values = headers.map(function(header) { return updated[header]; });
+  sheet.getRange(rowNumber, 1, 1, headers.length).setValues([values]);
+  invalidateReadRowsCache_(sheetName);
+}
+
+function actionAddContact_(user, payload) {
+  var kind = text_((payload || {}).kind).toLowerCase();
+  if (kind !== 'instructor' && kind !== 'school') throw new Error('invalid contact kind');
+  if (!canManageContacts_(user, kind)) throw new Error('Forbidden');
+  var row = payload.row || {};
+  if (kind === 'instructor') {
+    var sheetName = configuredInstructorContactsSourceSheet_();
+    var empId = text_(row.emp_id || row.user_id);
+    if (!empId) throw new Error('emp_id is required');
+    appendRow_(sheetName, {
+      emp_id: empId,
+      full_name: text_(row.full_name),
+      mobile: text_(row.mobile),
+      email: text_(row.email),
+      address: text_(row.address),
+      employment_type: text_(row.employment_type),
+      direct_manager: text_(row.direct_manager),
+      active: yesNo_(row.active || 'yes')
+    });
+    scriptCacheInvalidateDataViews_();
+    return { saved: true, kind: kind };
+  }
+  var schoolSheet = configuredSchoolContactsSourceSheet_();
+  appendRow_(schoolSheet, {
+    authority: text_(row.authority),
+    school: text_(row.school),
+    contact_name: text_(row.contact_name),
+    role: text_(row.role),
+    phone: text_(row.phone),
+    mobile: text_(row.mobile),
+    email: text_(row.email),
+    notes: text_(row.notes)
+  });
+  scriptCacheInvalidateDataViews_();
+  return { saved: true, kind: kind };
+}
+
+function actionSaveContact_(user, payload) {
+  var kind = text_((payload || {}).kind).toLowerCase();
+  if (kind !== 'instructor' && kind !== 'school') throw new Error('invalid contact kind');
+  if (!canManageContacts_(user, kind)) throw new Error('Forbidden');
+  var row = payload.row || {};
+  var rowIndex = (payload || {}).row_index;
+  if (rowIndex === undefined || rowIndex === null || text_(rowIndex) === '') {
+    throw new Error('row_index is required');
+  }
+  if (kind === 'instructor') {
+    updateRowByIndex_(configuredInstructorContactsSourceSheet_(), rowIndex, {
+      emp_id: text_(row.emp_id),
+      full_name: text_(row.full_name),
+      mobile: text_(row.mobile),
+      email: text_(row.email),
+      address: text_(row.address),
+      employment_type: text_(row.employment_type),
+      direct_manager: text_(row.direct_manager),
+      active: yesNo_(row.active || 'yes')
+    });
+    scriptCacheInvalidateDataViews_();
+    return { saved: true, kind: kind };
+  }
+  updateRowByIndex_(configuredSchoolContactsSourceSheet_(), rowIndex, {
+    authority: text_(row.authority),
+    school: text_(row.school),
+    contact_name: text_(row.contact_name),
+    role: text_(row.role),
+    phone: text_(row.phone),
+    mobile: text_(row.mobile),
+    email: text_(row.email),
+    notes: text_(row.notes)
+  });
+  scriptCacheInvalidateDataViews_();
+  return { saved: true, kind: kind };
 }
 
 function actionInstructorContacts_(user) {

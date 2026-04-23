@@ -21,6 +21,8 @@ import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 const MUTATING_ACTIONS = {
   saveActivity: true,
   addActivity: true,
+  addContact: true,
+  saveContact: true,
   submitEditRequest: true,
   reviewEditRequest: true,
   savePermission: true,
@@ -242,6 +244,8 @@ export const api = {
   operationsDetail: (source_row_id, source_sheet) => request('operationsDetail', { source_row_id, source_sheet }),
   editRequests: () => request('editRequests'),
   permissions: () => request('permissions'),
+  addContact: (payload) => request('addContact', payload),
+  saveContact: (payload) => request('saveContact', payload),
   addActivity: (target, data) => {
     if (typeof target === 'object' && target !== null && data === undefined) {
       return request('addActivity', { activity: target });

@@ -4565,6 +4565,10 @@ select.ds-input {
   color: var(--ds-text);
 }
 
+.sc-person__actions {
+  margin-inline-start: auto;
+}
+
 .sc-person__role {
   font-size: 0.74rem;
   color: var(--ds-text-muted);
