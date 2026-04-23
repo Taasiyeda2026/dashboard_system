@@ -119,9 +119,17 @@ function addActivityModalHtml(settings) {
     : [];
   const rosterUsers = parseRosterUsers(settings);
   const rosterNames = rosterUsers.map((u) => u.name);
+  const managerRoleUsers = Array.isArray(settings?.dropdown_options?.activities_manager_users)
+    ? settings.dropdown_options.activities_manager_users
+    : [];
+  const managerRoleNames = managerRoleUsers
+    .map((u) => String(u?.name || '').trim())
+    .filter(Boolean);
   const fundingOptions = mergeOptions(settings, ['funding', 'fundings']);
   const gradeOptions = mergeOptions(settings, ['grade', 'grades']);
-  const managerOptions = rosterNames.length ? rosterNames : mergeOptions(settings, ['activity_manager', 'activity_managers']);
+  const managerOptions = managerRoleNames.length
+    ? managerRoleNames
+    : mergeOptions(settings, ['activity_manager', 'activity_managers']);
   const instructorOptions = rosterNames.length ? rosterNames : mergeOptions(settings, ['instructor_name', 'instructor_names']);
   const initialFamily = 'long';
   const initialTypes = programTypes.length ? programTypes : allTypes;
@@ -565,7 +573,7 @@ export const activitiesScreen = {
     if (canAddActivity && ui) {
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
-      addBtn.className = 'ds-btn ds-btn--primary ds-btn--sm';
+      addBtn.className = 'ds-btn ds-btn--primary ds-btn--sm ds-btn--compact';
       addBtn.textContent = '➕ הוספת פעילות';
       const toolbar = root.querySelector('.ds-toolbar');
       if (toolbar) toolbar.appendChild(addBtn);

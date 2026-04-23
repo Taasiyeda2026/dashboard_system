@@ -819,6 +819,7 @@ function actionExceptions_(user) {
     counts[exceptionType] += 1;
     result.push({
       RowID:              row.RowID,
+      source_sheet:       text_(row.source_sheet || CONFIG.SHEETS.DATA_LONG),
       activity_name:     row.activity_name,
       activity_manager:  row.activity_manager,
       activity_type:     row.activity_type,
@@ -2730,11 +2731,13 @@ function buildDropdownOptionsMapFromRows_(rows) {
   return out;
 }
 
-function instructorRosterFromPermissions_() {
+function roleRosterFromPermissions_() {
   var rows = readRows_(CONFIG.SHEETS.PERMISSIONS);
-  var names = [];
-  var users = [];
-  var seen = {};
+  var instructorNames = [];
+  var managerNames = [];
+  var instructorUsers = [];
+  var seenInstructors = {};
+  var seenManagers = {};
   rows.forEach(function(row) {
     if (yesNo_(row.active) === 'no') return;
     var role = '';
@@ -2743,27 +2746,42 @@ function instructorRosterFromPermissions_() {
     } catch (_e) {
       role = '';
     }
-    if (role !== 'instructor') return;
     var name = text_(row.full_name || row.user_id);
     var empId = text_(row.user_id);
     if (!name) return;
-    if (seen[name]) return;
-    seen[name] = true;
-    names.push(name);
-    users.push({ name: name, emp_id: empId });
+    if (role === 'instructor') {
+      if (!seenInstructors[name]) {
+        seenInstructors[name] = true;
+        instructorNames.push(name);
+      }
+      instructorUsers.push({ name: name, emp_id: empId });
+      return;
+    }
+    if (role === 'activities_manager') {
+      if (!seenManagers[name]) {
+        seenManagers[name] = true;
+        managerNames.push(name);
+      }
+    }
   });
-  return { names: names, users: users };
+  return {
+    instructor_names: instructorNames,
+    activity_manager_names: managerNames,
+    instructor_users: instructorUsers
+  };
 }
 
 function buildDropdownOptionsMap_() {
   var out = buildDropdownOptionsMapFromRows_(readRows_(configuredDropdownSourceSheet_()));
-  var roster = instructorRosterFromPermissions_();
-  var instructors = roster.names || [];
+  var roster = roleRosterFromPermissions_();
+  var instructors = roster.instructor_names || [];
+  var managers = roster.activity_manager_names || [];
   if (instructors.length) {
     out.instructor_name = instructors.slice();
-    // Product rule: activity manager uses the same instructor list from permissions.
-    out.activity_manager = instructors.slice();
-    out.instructor_users = (roster.users || []).slice();
+    out.instructor_users = (roster.instructor_users || []).slice();
+  }
+  if (managers.length) {
+    out.activity_manager = managers.slice();
   }
   return out;
 }

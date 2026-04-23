@@ -1239,6 +1239,12 @@ select {
   font-size: 0.78rem;
 }
 
+.ds-btn--compact {
+  min-height: 34px;
+  padding: 4px 8px;
+  font-size: 0.73rem;
+}
+
 .ds-btn:disabled {
   opacity: 0.65;
   background: var(--ds-muted-bg);
