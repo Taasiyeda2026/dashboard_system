@@ -23,6 +23,7 @@ function handlePost_(e) {
       login: function() { return actionLogin_(payload); },
       bootstrap: function() { return actionBootstrap_(user); },
       dashboard: function() { return actionDashboard_(user, payload); },
+      dashboardSnapshot: function() { return actionDashboardSnapshot_(user, payload); },
       activities: function() { return actionActivities_(user, payload); },
       activityDetail: function() { return actionActivityDetail_(user, payload); },
       week: function() { return actionWeek_(user, payload); },
@@ -62,6 +63,7 @@ function handlePost_(e) {
 
     var ACTION_ROUTE_MAP = {
       dashboard: 'dashboard',
+      dashboardSnapshot: 'dashboard',
       activities: 'activities',
       activityDetail: 'activities',
       week: 'week',
@@ -108,6 +110,22 @@ function handlePost_(e) {
 
     markRequestPerf_('action_start');
     var writeData = handlers[action]();
+    if (action === 'addActivity' ||
+        action === 'saveActivity' ||
+        action === 'reviewEditRequest' ||
+        action === 'saveFinanceRow' ||
+        action === 'syncFinance') {
+      try {
+        refreshDashboardSnapshots_(user);
+      } catch (snapshotErr) {
+        try {
+          updateDashboardRefreshControl_(
+            'error',
+            snapshotErr && snapshotErr.message ? snapshotErr.message : String(snapshotErr)
+          );
+        } catch (_e) {}
+      }
+    }
     markRequestPerf_('action_done');
     return jsonResponse_({
       ok: true,
@@ -132,6 +150,7 @@ function isReadActionCacheable_(action, user) {
   var map = {
     bootstrap: true,
     dashboard: true,
+    dashboardSnapshot: true,
     activities: true,
     activityDetail: true,
     week: true,

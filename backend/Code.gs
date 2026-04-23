@@ -23,3 +23,7 @@ function keepWarm() {
     // warmup only — intentionally ignored
   }
 }
+
+function refreshDashboardSnapshots() {
+  return refreshDashboardSnapshots_();
+}

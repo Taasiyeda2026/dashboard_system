@@ -38,6 +38,7 @@ const MUTATING_ACTIONS = {
 const READ_ACTIONS = {
   bootstrap: true,
   dashboard: true,
+  dashboardSnapshot: true,
   activities: true,
   activityDetail: true,
   week: true,
@@ -228,6 +229,7 @@ export const api = {
   login: (user_id, entry_code) => request('login', { user_id, entry_code }),
   bootstrap: () => request('bootstrap'),
   dashboard: (filters) => request('dashboard', filters || {}),
+  dashboardSnapshot: (filters) => request('dashboardSnapshot', filters || {}),
   activities: (filters) => request('activities', filters),
   activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
   week: (params) => request('week', params || {}),
