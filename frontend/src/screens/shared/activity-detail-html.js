@@ -45,6 +45,47 @@ function toOptions(values) {
     .filter(Boolean);
 }
 
+/** Merge string lists from dropdown_options for alternate sheet keys (e.g. school vs schools). */
+function mergeListStrings(map, keys) {
+  const out = [];
+  const seen = new Set();
+  if (!map || typeof map !== 'object') return out;
+  keys.forEach((k) => {
+    const arr = map[k];
+    if (!Array.isArray(arr)) return;
+    arr.forEach((v) => {
+      const s = String(v ?? '').trim();
+      if (!s || seen.has(s)) return;
+      seen.add(s);
+      out.push(s);
+    });
+  });
+  return out;
+}
+
+function normalizeActivityNameOptions(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  raw.forEach((o) => {
+    if (typeof o === 'string') {
+      const label = String(o || '').trim();
+      if (label) out.push({ label, activity_no: '', parent_value: '', activity_type: '' });
+      return;
+    }
+    if (o && typeof o === 'object') {
+      const label = String(o.label || o.activity_name || o.value || '').trim();
+      if (!label) return;
+      out.push({
+        label,
+        activity_no: String(o.activity_no || '').trim(),
+        parent_value: String(o.parent_value || o.activity_type || '').trim(),
+        activity_type: String(o.activity_type || o.parent_value || '').trim()
+      });
+    }
+  });
+  return out;
+}
+
 function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '—', attrs = '' }) {
   const safeValue = String(value || '');
   const normalized = toOptions(options);
@@ -195,9 +236,14 @@ function blockPeople(row, { settings = {} } = {}) {
 
 function blockContent(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
-  const fundings = toOptions(options.funding);
-  const grades = toOptions(options.grade);
-  const allActivityNames = Array.isArray(options.activity_names) ? options.activity_names : [];
+  const constrainDropdowns = settings.constrained_fields_use_dropdown !== false;
+  const fundings = mergeListStrings(options, ['funding', 'fundings']);
+  const grades = mergeListStrings(options, ['grade', 'grades']);
+  const schools = mergeListStrings(options, ['school', 'schools']);
+  const authorities = mergeListStrings(options, ['authority', 'authorities']);
+  const allActivityNames = normalizeActivityNameOptions(
+    Array.isArray(options.activity_names) ? options.activity_names : []
+  );
   const activityType = String(row.activity_type || '').trim();
   const nameLabel = activityNameLabel(activityType);
   const gradeVal = String(row.grade || '').trim();
@@ -227,7 +273,11 @@ function blockContent(row, { settings = {} } = {}) {
         </div>
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">מימון</div>
-          ${selectHtml({ name: 'funding', value: row.funding, options: fundings })}
+          ${
+            constrainDropdowns && fundings.length
+              ? selectHtml({ name: 'funding', value: row.funding, options: fundings })
+              : inputHtml({ name: 'funding', value: row.funding })
+          }
         </div>
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">מחיר</div>
@@ -235,11 +285,19 @@ function blockContent(row, { settings = {} } = {}) {
         </div>
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">בית ספר</div>
-          ${inputHtml({ name: 'school', value: row.school })}
+          ${
+            constrainDropdowns && schools.length
+              ? selectHtml({ name: 'school', value: row.school, options: schools })
+              : inputHtml({ name: 'school', value: row.school })
+          }
         </div>
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">רשות</div>
-          ${inputHtml({ name: 'authority', value: row.authority })}
+          ${
+            constrainDropdowns && authorities.length
+              ? selectHtml({ name: 'authority', value: row.authority, options: authorities })
+              : inputHtml({ name: 'authority', value: row.authority })
+          }
         </div>
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">שכבה</div>
