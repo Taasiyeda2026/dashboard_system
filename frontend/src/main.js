@@ -706,6 +706,7 @@ function backgroundSyncBootstrap() {
       if (fn) state.user.full_name = fn;
       state.user.display_role2 =
         bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
+      state.user.can_add_activity = !!bootstrap.can_add_activity;
       localStorage.setItem('dashboard_user', JSON.stringify(state.user));
     }
     if (!isAllowedRoute(state.route)) {
@@ -736,6 +737,7 @@ async function restoreSession() {
     if (fn) state.user.full_name = fn;
     state.user.display_role2 =
       bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
+    state.user.can_add_activity = !!bootstrap.can_add_activity;
     localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   }
 }
