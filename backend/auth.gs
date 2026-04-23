@@ -14,13 +14,15 @@ function actionLogin_(payload) {
   if (text_(matchByUser.entry_code) !== entryCode) throw new Error('invalid_credentials');
 
   var role = normalizeRole_(internalRoleFromPermissionRow_(matchByUser));
+  var canAddActivity = effectiveCanAddActivity_(matchByUser, role);
   var user = {
     user_id: text_(matchByUser.user_id),
     full_name: text_(matchByUser.full_name),
     display_role: role,
     display_role2: text_(matchByUser.display_role2),
     default_view: text_(matchByUser.default_view),
-    emp_id: text_(matchByUser.user_id)
+    emp_id: text_(matchByUser.user_id),
+    can_add_activity: !!canAddActivity
   };
 
   var token = Utilities.getUuid();

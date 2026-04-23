@@ -3393,6 +3393,58 @@ select.ds-input {
   margin-top: 0.35rem;
 }
 
+.ds-add-activity-modal__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ds-add-activity-modal__mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ds-add-activity-modal__form {
+  display: grid;
+  gap: 10px;
+}
+
+.ds-add-activity-modal__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ds-add-activity-modal__field {
+  display: grid;
+  gap: 4px;
+}
+
+.ds-add-activity-modal__field--full {
+  grid-column: 1 / -1;
+}
+
+.ds-add-activity-modal__field label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ds-text-secondary);
+}
+
+.ds-add-activity-modal__status {
+  min-height: 1.05rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.ds-add-activity-modal__status.is-error {
+  color: var(--ds-danger);
+}
+
+.ds-add-activity-modal__status.is-success {
+  color: var(--ds-success);
+}
+
 .ds-activity-edit-status {
   margin: 2px 0 0;
   font-size: 0.76rem;
@@ -4511,6 +4563,10 @@ select.ds-input {
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--ds-text);
+}
+
+.sc-person__actions {
+  margin-inline-start: auto;
 }
 
 .sc-person__role {

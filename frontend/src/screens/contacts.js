@@ -2,6 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn, hebrewEmploymentType } from './shared/ui-hebrew.js';
 import { dsScreenStack, dsEmptyState, dsStatusChip } from './shared/layout.js';
+import { showToast } from './shared/toast.js';
 
 const AVATAR_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e',
@@ -14,6 +15,10 @@ const AVATAR_COLORS = [
 function copyBtn(email, label = 'העתק מייל') {
   if (!email) return '';
   return `<button type="button" class="ci-copy-btn" data-copy-email="${escapeHtml(email)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">⎘</button>`;
+}
+
+function actionBtn(action, payload, label) {
+  return `<button type="button" class="ci-copy-btn" data-contact-action="${escapeHtml(action)}" data-contact-payload="${escapeHtml(encodeURIComponent(JSON.stringify(payload || {})))}" aria-label="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
 }
 
 /* ─── Instructor contacts ─── */
@@ -82,6 +87,7 @@ function renderInstrCard(row) {
   const initials = escapeHtml(avatarInitials(nameRaw));
   const bg = avatarColor(row.emp_id || nameRaw);
 
+  const actions = `<span class="ci-person-card__actions">${actionBtn('edit-instr', { emp_id: row.emp_id }, '✎')}</span>`;
   return `
     <button type="button" class="ci-person-card${isInactive ? ' ci-person-card--inactive' : ''}"
       data-card-action="icontact:${encodeURIComponent(row.emp_id || '')}">
@@ -90,6 +96,7 @@ function renderInstrCard(row) {
         <span class="ci-person-card__name">${name}</span>
         <span class="ci-person-card__phone">${phone || '—'}</span>
       </span>
+      ${actions}
     </button>`;
 }
 
@@ -120,10 +127,17 @@ function schoolPersonHtml(row) {
   const mobile = row.mobile && row.mobile !== row.phone ? escapeHtml(String(row.mobile)) : '';
   const email = row.email ? escapeHtml(String(row.email)) : '';
   if (!name && !phonePrimary && !mobile && !email) return '';
+  const editBtn = actionBtn('edit-school', {
+    _row_index: row._row_index,
+    authority: row.authority,
+    school: row.school,
+    contact_name: row.contact_name
+  }, '✎');
   return `<div class="sc-person">
     <div class="sc-person__top">
       <span class="sc-person__name">${name}</span>
       ${role ? `<span class="sc-person__role">${role}</span>` : ''}
+      <span class="sc-person__actions">${editBtn}</span>
     </div>
     <div class="sc-person__phones">
       ${phonePrimary ? `<span class="sc-person__phone"><span aria-hidden="true">☎</span>${phonePrimary}</span>` : ''}
@@ -185,6 +199,45 @@ function renderAuthorityGroup(authority, schoolsMap) {
   </div>`;
 }
 
+function instructorFormHtml(row = {}) {
+  return `
+    <div class="ds-perm-edit-form" dir="rtl">
+      <div class="ds-perm-field"><span class="ds-muted">מזהה מדריך</span><input class="ds-input ds-input--sm" name="emp_id" value="${escapeHtml(String(row.emp_id || ''))}" ${row.emp_id ? 'readonly' : ''}></div>
+      <div class="ds-perm-field"><span class="ds-muted">שם מלא</span><input class="ds-input ds-input--sm" name="full_name" value="${escapeHtml(String(row.full_name || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">נייד</span><input class="ds-input ds-input--sm" name="mobile" value="${escapeHtml(String(row.mobile || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">אימייל</span><input class="ds-input ds-input--sm" name="email" value="${escapeHtml(String(row.email || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">כתובת</span><input class="ds-input ds-input--sm" name="address" value="${escapeHtml(String(row.address || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">סוג העסקה</span><select class="ds-input ds-input--sm" name="employment_type">
+        <option value="">—</option>
+        <option value="full_time" ${String(row.employment_type || '') === 'full_time' ? 'selected' : ''}>משרה מלאה</option>
+        <option value="part_time" ${String(row.employment_type || '') === 'part_time' ? 'selected' : ''}>משרה חלקית</option>
+      </select></div>
+      <div class="ds-perm-field"><span class="ds-muted">מנהל ישיר</span><input class="ds-input ds-input--sm" name="direct_manager" value="${escapeHtml(String(row.direct_manager || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">פעיל</span><select class="ds-input ds-input--sm" name="active">
+        <option value="yes" ${String(row.active || 'yes').toLowerCase() === 'yes' ? 'selected' : ''}>כן</option>
+        <option value="no" ${String(row.active || '').toLowerCase() === 'no' ? 'selected' : ''}>לא</option>
+      </select></div>
+      <p class="ds-muted" data-contact-form-status role="status"></p>
+    </div>
+  `;
+}
+
+function schoolFormHtml(row = {}) {
+  return `
+    <div class="ds-perm-edit-form" dir="rtl">
+      <div class="ds-perm-field"><span class="ds-muted">רשות</span><input class="ds-input ds-input--sm" name="authority" value="${escapeHtml(String(row.authority || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">בית ספר</span><input class="ds-input ds-input--sm" name="school" value="${escapeHtml(String(row.school || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">שם איש קשר</span><input class="ds-input ds-input--sm" name="contact_name" value="${escapeHtml(String(row.contact_name || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">תפקיד</span><input class="ds-input ds-input--sm" name="role" value="${escapeHtml(String(row.role || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">טלפון</span><input class="ds-input ds-input--sm" name="phone" value="${escapeHtml(String(row.phone || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">נייד</span><input class="ds-input ds-input--sm" name="mobile" value="${escapeHtml(String(row.mobile || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">אימייל</span><input class="ds-input ds-input--sm" name="email" value="${escapeHtml(String(row.email || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">הערות</span><textarea class="ds-input ds-input--sm" name="notes" rows="2">${escapeHtml(String(row.notes || ''))}</textarea></div>
+      <p class="ds-muted" data-contact-form-status role="status"></p>
+    </div>
+  `;
+}
+
 function schoolTabHtml(rows, searchQ) {
   const filtered = applySchoolSearch(rows, searchQ);
   if (filtered.length === 0) return { filtered, body: dsEmptyState('לא נמצאו אנשי קשר') };
@@ -235,14 +288,16 @@ export const contactsScreen = {
       <div class="ds-chip-group" dir="rtl">${tabBtns}</div>
       <div class="ds-screen-top-row">
         ${searchInput}
+        <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-contact-action="add-${tab === 'instr' ? 'instr' : 'school'}">➕ הוספה</button>
       </div>
       <div class="contacts-list-wrap" dir="rtl">${listHtml}</div>
     `);
   },
 
-  bind({ root, data, state, ui, rerender }) {
+  bind({ root, data, state, ui, rerender, api }) {
     bindActNavGrid(root, { state, rerender });
     const instrRows = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
+    const schoolRows = Array.isArray(data?.school_rows) ? data.school_rows : [];
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 
     root.querySelectorAll('[data-contacts-tab]').forEach((btn) => {
@@ -267,11 +322,146 @@ export const contactsScreen = {
         ev.preventDefault();
         ev.stopPropagation();
         const email = btn.dataset.copyEmail;
-        const doToast = () => showToast('המייל הועתק ✓');
+        const doToast = () => showToast('המייל הועתק ✓', 'success', 1200);
         if (navigator.clipboard?.writeText) {
           navigator.clipboard.writeText(email).then(doToast).catch(() => fallbackCopy(email, doToast));
         } else {
           fallbackCopy(email, doToast);
+        }
+      });
+    });
+
+    const decodePayload = (node) => {
+      const raw = String(node?.dataset?.contactPayload || '');
+      if (!raw) return {};
+      try {
+        return JSON.parse(decodeURIComponent(raw));
+      } catch {
+        return {};
+      }
+    };
+
+    const openInstructorEditor = (row, isCreate = false) => {
+      if (!ui) return;
+      const target = row || {};
+      ui.openModal({
+        title: isCreate ? 'הוספת איש קשר מדריך' : 'עריכת איש קשר מדריך',
+        content: instructorFormHtml(target),
+        actions: `<button type="button" class="ds-btn ds-btn--primary" data-save-contact="instr">${isCreate ? 'הוספה' : 'שמירה'}</button>
+                  <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>`
+      });
+      const saveBtn = document.querySelector('[data-save-contact="instr"]');
+      if (!saveBtn) return;
+      saveBtn.onclick = async () => {
+        const modal = document.querySelector('.ds-modal__content');
+        if (!modal) return;
+        const statusEl = modal.querySelector('[data-contact-form-status]');
+        const get = (name) => String(modal.querySelector(`[name="${name}"]`)?.value || '').trim();
+        const payload = {
+          emp_id: get('emp_id'),
+          full_name: get('full_name'),
+          mobile: get('mobile'),
+          email: get('email'),
+          address: get('address'),
+          employment_type: get('employment_type'),
+          direct_manager: get('direct_manager'),
+          active: get('active') || 'yes'
+        };
+        if (!payload.emp_id) {
+          if (statusEl) statusEl.textContent = 'יש להזין מזהה מדריך';
+          return;
+        }
+        try {
+          saveBtn.disabled = true;
+          if (statusEl) statusEl.textContent = 'שומר...';
+          await (isCreate
+            ? api.addContact({ kind: 'instructor', row: payload })
+            : api.saveContact({ kind: 'instructor', row_index: target._row_index, row: payload }));
+          showToast('✅ נשמר בהצלחה', 'success', 1800);
+          ui.closeModal();
+          rerender();
+        } catch (err) {
+          if (statusEl) statusEl.textContent = `שגיאה: ${String(err?.message || '')}`;
+        } finally {
+          saveBtn.disabled = false;
+        }
+      };
+    };
+
+    const openSchoolEditor = (row, isCreate = false) => {
+      if (!ui) return;
+      const target = row || {};
+      ui.openModal({
+        title: isCreate ? 'הוספת איש קשר בית ספר' : 'עריכת איש קשר בית ספר',
+        content: schoolFormHtml(target),
+        actions: `<button type="button" class="ds-btn ds-btn--primary" data-save-contact="school">${isCreate ? 'הוספה' : 'שמירה'}</button>
+                  <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>`
+      });
+      const saveBtn = document.querySelector('[data-save-contact="school"]');
+      if (!saveBtn) return;
+      saveBtn.onclick = async () => {
+        const modal = document.querySelector('.ds-modal__content');
+        if (!modal) return;
+        const statusEl = modal.querySelector('[data-contact-form-status]');
+        const get = (name) => String(modal.querySelector(`[name="${name}"]`)?.value || '').trim();
+        const payload = {
+          authority: get('authority'),
+          school: get('school'),
+          contact_name: get('contact_name'),
+          role: get('role'),
+          phone: get('phone'),
+          mobile: get('mobile'),
+          email: get('email'),
+          notes: get('notes'),
+          _row_index: target._row_index
+        };
+        if (!payload.authority || !payload.school || !payload.contact_name) {
+          if (statusEl) statusEl.textContent = 'יש להזין לפחות רשות, בית ספר ושם איש קשר';
+          return;
+        }
+        try {
+          saveBtn.disabled = true;
+          if (statusEl) statusEl.textContent = 'שומר...';
+          await (isCreate
+            ? api.addContact({ kind: 'school', row: payload })
+            : api.saveContact({ kind: 'school', row_index: target._row_index, row: payload }));
+          showToast('✅ נשמר בהצלחה', 'success', 1800);
+          ui.closeModal();
+          rerender();
+        } catch (err) {
+          if (statusEl) statusEl.textContent = `שגיאה: ${String(err?.message || '')}`;
+        } finally {
+          saveBtn.disabled = false;
+        }
+      };
+    };
+
+    root.querySelectorAll('[data-contact-action]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const action = btn.dataset.contactAction;
+        if (action === 'add-instr') {
+          openInstructorEditor({}, true);
+          return;
+        }
+        if (action === 'add-school') {
+          openSchoolEditor({}, true);
+          return;
+        }
+        if (action === 'edit-instr') {
+          const payload = decodePayload(btn);
+          const hit = instrRows.find((r) => String(r.emp_id || '') === String(payload.emp_id || ''));
+          if (hit) openInstructorEditor(hit, false);
+          return;
+        }
+        if (action === 'edit-school') {
+          const payload = decodePayload(btn);
+          const idx = Number(payload._row_index);
+          const hit = Number.isFinite(idx)
+            ? schoolRows.find((r) => Number(r._row_index) === idx)
+            : null;
+          if (hit) openSchoolEditor(hit, false);
         }
       });
     });
@@ -301,16 +491,3 @@ function fallbackCopy(text, cb) {
   cb?.();
 }
 
-function showToast(msg) {
-  const existing = document.querySelector('.contacts-toast');
-  if (existing) existing.remove();
-  const el = document.createElement('div');
-  el.className = 'contacts-toast';
-  el.textContent = msg;
-  document.body.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('contacts-toast--show'));
-  setTimeout(() => {
-    el.classList.remove('contacts-toast--show');
-    setTimeout(() => el.remove(), 300);
-  }, 1800);
-}

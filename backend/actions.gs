@@ -8,6 +8,7 @@ function actionBootstrap_(user) {
     role: user.display_role,
     default_route: defaultRoute,
     routes: routes,
+    can_add_activity: effectiveCanAddActivity_(permission, user.display_role),
     profile: {
       full_name: text_(permission.full_name),
       display_role2: text_(permission.display_role2)
@@ -479,6 +480,8 @@ function actionDashboard_(user, payload) {
 
 function actionActivities_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var permission = getPermissionRow_(user.user_id);
+  var canAddActivity = effectiveCanAddActivity_(permission, user.display_role);
 
   var allRows = allActivitiesSummary_();
   var today = formatDate_(new Date());
@@ -541,6 +544,7 @@ function actionActivities_(user, payload) {
     rows: rows.map(function(row) {
       return mapActivitySummaryRowForList_(row, user, noteMap, activitiesMeetingsMap, today);
     }),
+    can_add_activity: canAddActivity,
     filters: {
       activity_types: activityTypesForFilters_(),
       finance_statuses: financeStatusesForFilters_()
@@ -667,6 +671,46 @@ function actionActivityDetail_(user, payload) {
   var sourceSheet = text_((payload || {}).source_sheet);
   var row = findActivityRowById_(sourceRowId, sourceSheet);
   return { row: mapActivityDetailRowForDrawer_(row, user) };
+}
+
+function actionAddActivityOptions_(user) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var permission = getPermissionRow_(user.user_id);
+  if (!effectiveCanAddActivity_(permission, user.display_role)) {
+    throw new Error('Forbidden');
+  }
+  var settings = buildClientSettingsPayload_();
+  var opts = settings.dropdown_options || {};
+  return {
+    one_day_activity_types: settings.one_day_activity_types || configuredOneDayActivityTypes_(),
+    program_activity_types: settings.program_activity_types || configuredProgramActivityTypes_(),
+    dropdown_options: {
+      activity_type: opts.activity_type || opts.activity_types || [],
+      activity_names: opts.activity_names || [],
+      activity_manager: opts.activity_manager || [],
+      instructor_name: opts.instructor_name || [],
+      instructor_users: opts.instructor_users || [],
+      funding: opts.funding || opts.fundings || [],
+      grade: opts.grade || opts.grades || []
+    }
+  };
+}
+
+function actionActivityDraftOptions_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  var permission = getPermissionRow_(user.user_id);
+  if (!effectiveCanAddActivity_(permission, user.display_role)) {
+    throw new Error('Forbidden');
+  }
+  var settings = buildClientSettingsPayload_();
+  var opts = settings.dropdown_options || {};
+  return {
+    one_day_activity_types: configuredOneDayActivityTypes_(),
+    program_activity_types: configuredProgramActivityTypes_(),
+    dropdown_options: opts,
+    constrained_fields_use_dropdown: settings.constrained_fields_use_dropdown !== false,
+    can_add_activity: true
+  };
 }
 
 function actionWeek_(user, payload) {
@@ -1026,8 +1070,9 @@ function actionContacts_(user) {
   }
 
   var instructorRows = canViewInstructors
-    ? readRows_(configuredInstructorContactsSourceSheet_()).map(function(row) {
+    ? readRows_(configuredInstructorContactsSourceSheet_()).map(function(row, idx) {
         return {
+          _row_index: idx,
           emp_id:          text_(row.emp_id),
           full_name:       text_(row.full_name),
           mobile:          text_(row.mobile),
@@ -1041,11 +1086,13 @@ function actionContacts_(user) {
     : [];
 
   var schoolRows = canViewSchools
-    ? readRows_(configuredSchoolContactsSourceSheet_()).map(function(row) {
+    ? readRows_(configuredSchoolContactsSourceSheet_()).map(function(row, idx) {
         return {
+          _row_index: idx,
           authority:    text_(row.authority),
           school:       text_(row.school),
           contact_name: text_(row.contact_name),
+          role:         text_(row.role),
           phone:        text_(row.phone),
           mobile:       text_(row.mobile),
           email:        text_(row.email),
@@ -1060,6 +1107,107 @@ function actionContacts_(user) {
     can_view_instructors: canViewInstructors,
     can_view_schools:     canViewSchools
   };
+}
+
+function canManageContacts_(user, kind) {
+  if (!user) return false;
+  if (user.display_role === 'admin' || user.display_role === 'operations_reviewer') return true;
+  var permission = getPermissionRow_(user.user_id);
+  if (kind === 'instructor') return instructorContactsViewYes_(permission);
+  if (kind === 'school') return schoolContactsViewYes_(permission);
+  return false;
+}
+
+function updateRowByIndex_(sheetName, rowIndex, changes) {
+  var sheet = getSheet_(sheetName);
+  var headers = getHeaders_(sheet);
+  var rows = readRows_(sheetName);
+  var idx = parseInt(text_(rowIndex), 10);
+  if (isNaN(idx) || idx < 0 || idx >= rows.length) throw new Error('Row not found');
+  var updated = {};
+  headers.forEach(function(header) {
+    updated[header] = Object.prototype.hasOwnProperty.call(changes, header)
+      ? changes[header]
+      : rows[idx][header];
+  });
+  var rowNumber = getDataStartRow_() + idx;
+  var values = headers.map(function(header) { return updated[header]; });
+  sheet.getRange(rowNumber, 1, 1, headers.length).setValues([values]);
+  invalidateReadRowsCache_(sheetName);
+}
+
+function actionAddContact_(user, payload) {
+  var kind = text_((payload || {}).kind).toLowerCase();
+  if (kind !== 'instructor' && kind !== 'school') throw new Error('invalid contact kind');
+  if (!canManageContacts_(user, kind)) throw new Error('Forbidden');
+  var row = payload.row || {};
+  if (kind === 'instructor') {
+    var sheetName = configuredInstructorContactsSourceSheet_();
+    var empId = text_(row.emp_id || row.user_id);
+    if (!empId) throw new Error('emp_id is required');
+    appendRow_(sheetName, {
+      emp_id: empId,
+      full_name: text_(row.full_name),
+      mobile: text_(row.mobile),
+      email: text_(row.email),
+      address: text_(row.address),
+      employment_type: text_(row.employment_type),
+      direct_manager: text_(row.direct_manager),
+      active: yesNo_(row.active || 'yes')
+    });
+    scriptCacheInvalidateDataViews_();
+    return { saved: true, kind: kind };
+  }
+  var schoolSheet = configuredSchoolContactsSourceSheet_();
+  appendRow_(schoolSheet, {
+    authority: text_(row.authority),
+    school: text_(row.school),
+    contact_name: text_(row.contact_name),
+    role: text_(row.role),
+    phone: text_(row.phone),
+    mobile: text_(row.mobile),
+    email: text_(row.email),
+    notes: text_(row.notes)
+  });
+  scriptCacheInvalidateDataViews_();
+  return { saved: true, kind: kind };
+}
+
+function actionSaveContact_(user, payload) {
+  var kind = text_((payload || {}).kind).toLowerCase();
+  if (kind !== 'instructor' && kind !== 'school') throw new Error('invalid contact kind');
+  if (!canManageContacts_(user, kind)) throw new Error('Forbidden');
+  var row = payload.row || {};
+  var rowIndex = (payload || {}).row_index;
+  if (rowIndex === undefined || rowIndex === null || text_(rowIndex) === '') {
+    throw new Error('row_index is required');
+  }
+  if (kind === 'instructor') {
+    updateRowByIndex_(configuredInstructorContactsSourceSheet_(), rowIndex, {
+      emp_id: text_(row.emp_id),
+      full_name: text_(row.full_name),
+      mobile: text_(row.mobile),
+      email: text_(row.email),
+      address: text_(row.address),
+      employment_type: text_(row.employment_type),
+      direct_manager: text_(row.direct_manager),
+      active: yesNo_(row.active || 'yes')
+    });
+    scriptCacheInvalidateDataViews_();
+    return { saved: true, kind: kind };
+  }
+  updateRowByIndex_(configuredSchoolContactsSourceSheet_(), rowIndex, {
+    authority: text_(row.authority),
+    school: text_(row.school),
+    contact_name: text_(row.contact_name),
+    role: text_(row.role),
+    phone: text_(row.phone),
+    mobile: text_(row.mobile),
+    email: text_(row.email),
+    notes: text_(row.notes)
+  });
+  scriptCacheInvalidateDataViews_();
+  return { saved: true, kind: kind };
 }
 
 function actionInstructorContacts_(user) {
@@ -1332,6 +1480,57 @@ function actionAddActivity_(user, payload) {
   var targetSheet = source === 'long' ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT;
   var rowId = nextId_(targetSheet, targetSheet === CONFIG.SHEETS.DATA_LONG ? 'LONG-' : 'SHORT-');
 
+  var dropdowns = buildDropdownOptionsMap_();
+  var roster = Array.isArray(dropdowns.instructor_users) ? dropdowns.instructor_users : [];
+  var oneDayTypes = configuredOneDayActivityTypes_();
+  var programTypes = configuredProgramActivityTypes_();
+  var selectedType = text_(activity.activity_type);
+  var isOneDay = oneDayTypes.indexOf(selectedType) >= 0;
+  var isProgram = programTypes.indexOf(selectedType) >= 0;
+
+  function empIdForInstructorName_(name) {
+    var target = text_(name);
+    if (!target) return '';
+    for (var i = 0; i < roster.length; i++) {
+      var it = roster[i] || {};
+      if (text_(it.name) === target) return text_(it.emp_id);
+    }
+    return '';
+  }
+
+  function meetingScheduleFromPayload_(baseStartDate, sessionsRaw) {
+    var start = normalizeDateTextToIso_(baseStartDate);
+    if (!start) return [];
+    var count = parseInt(text_(sessionsRaw), 10);
+    if (isNaN(count) || count < 1) count = 1;
+    if (count > 35) count = 35;
+    if (isOneDay) count = 1;
+    var out = [];
+    var d = dateFromIso_(start);
+    if (!d) return [];
+    for (var i = 0; i < count; i++) {
+      out.push({
+        source_row_id: rowId,
+        meeting_no: String(i + 1),
+        meeting_date: formatDate_(d),
+        notes: '',
+        active: 'yes'
+      });
+      d = shiftDate_(d, 7);
+    }
+    return out;
+  }
+
+  var dateCols = dateColumnsPatchFromActivityPayload_(activity);
+  var instructorName1 = text_(activity.instructor_name);
+  var instructorName2 = text_(activity.instructor_name_2);
+  var derivedEmpId1 = empIdForInstructorName_(instructorName1);
+  var derivedEmpId2 = empIdForInstructorName_(instructorName2);
+  var firstStartDate = normalizeDateTextToIso_(activity.start_date || dateCols.Date1);
+  var plannedMeetings = meetingScheduleFromPayload_(firstStartDate, activity.sessions);
+  var meetingsTotal = plannedMeetings.length;
+  var autoEndDate = meetingsTotal ? text_(plannedMeetings[meetingsTotal - 1].meeting_date) : '';
+
   var common = {
     RowID: rowId,
     activity_manager: text_(activity.activity_manager),
@@ -1342,19 +1541,18 @@ function actionAddActivity_(user, payload) {
     activity_type: text_(activity.activity_type),
     activity_no: text_(activity.activity_no),
     activity_name: text_(activity.activity_name),
-    sessions: text_(activity.sessions),
+    sessions: text_(isOneDay ? '1' : (meetingsTotal ? String(meetingsTotal) : activity.sessions)),
     price: text_(activity.price),
     funding: text_(activity.funding),
     start_time: text_(activity.start_time),
     end_time: text_(activity.end_time),
-    emp_id: text_(activity.emp_id),
-    instructor_name: text_(activity.instructor_name),
-    status: text_(activity.status || 'active'),
+    emp_id: text_(derivedEmpId1 || activity.emp_id),
+    instructor_name: instructorName1,
+    status: 'פעיל',
     notes: text_(activity.notes),
     finance_status: normalizeFinance_(activity.finance_status),
     finance_notes: text_(activity.finance_notes)
   };
-  var dateCols = dateColumnsPatchFromActivityPayload_(activity);
 
   if (targetSheet === CONFIG.SHEETS.DATA_SHORT) {
     appendRow_(targetSheet, {
@@ -1374,10 +1572,10 @@ function actionAddActivity_(user, payload) {
       end_time: common.end_time,
       emp_id: common.emp_id,
       instructor_name: common.instructor_name,
-      emp_id_2: text_(activity.emp_id_2),
-      instructor_name_2: text_(activity.instructor_name_2),
-      Date1: dateCols.Date1 || '',
-      Date2: dateCols.Date2 || '',
+      emp_id_2: text_(derivedEmpId2 || activity.emp_id_2),
+      instructor_name_2: instructorName2,
+      Date1: firstStartDate || dateCols.Date1 || '',
+      Date2: (isOneDay ? '' : (autoEndDate || dateCols.Date2 || '')),
       status: common.status,
       notes: common.notes,
       finance_status: common.finance_status,
@@ -1434,12 +1632,12 @@ function actionAddActivity_(user, payload) {
       end_time: common.end_time,
       emp_id: common.emp_id,
       instructor_name: common.instructor_name,
-      Date1: dateCols.Date1 || '',
+      Date1: firstStartDate || dateCols.Date1 || '',
       status: common.status,
       notes: common.notes,
       finance_status: common.finance_status,
       finance_notes: common.finance_notes,
-      Date2: dateCols.Date2 || '',
+      Date2: autoEndDate || dateCols.Date2 || '',
       Date3: dateCols.Date3 || '',
       Date4: dateCols.Date4 || '',
       Date5: dateCols.Date5 || '',
@@ -1474,6 +1672,10 @@ function actionAddActivity_(user, payload) {
       Date34: dateCols.Date34 || '',
       Date35: dateCols.Date35 || ''
     });
+  }
+
+  if (plannedMeetings.length) {
+    setMeetings_(rowId, plannedMeetings);
   }
 
   scriptCacheInvalidateDataViews_();
@@ -2528,9 +2730,10 @@ function buildDropdownOptionsMapFromRows_(rows) {
   return out;
 }
 
-function instructorNamesFromPermissions_() {
+function instructorRosterFromPermissions_() {
   var rows = readRows_(CONFIG.SHEETS.PERMISSIONS);
-  var out = [];
+  var names = [];
+  var users = [];
   var seen = {};
   rows.forEach(function(row) {
     if (yesNo_(row.active) === 'no') return;
@@ -2542,20 +2745,25 @@ function instructorNamesFromPermissions_() {
     }
     if (role !== 'instructor') return;
     var name = text_(row.full_name || row.user_id);
-    if (!name || seen[name]) return;
+    var empId = text_(row.user_id);
+    if (!name) return;
+    if (seen[name]) return;
     seen[name] = true;
-    out.push(name);
+    names.push(name);
+    users.push({ name: name, emp_id: empId });
   });
-  return out;
+  return { names: names, users: users };
 }
 
 function buildDropdownOptionsMap_() {
   var out = buildDropdownOptionsMapFromRows_(readRows_(configuredDropdownSourceSheet_()));
-  var instructors = instructorNamesFromPermissions_();
+  var roster = instructorRosterFromPermissions_();
+  var instructors = roster.names || [];
   if (instructors.length) {
     out.instructor_name = instructors.slice();
     // Product rule: activity manager uses the same instructor list from permissions.
     out.activity_manager = instructors.slice();
+    out.instructor_users = (roster.users || []).slice();
   }
   return out;
 }
