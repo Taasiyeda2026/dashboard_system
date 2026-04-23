@@ -1499,6 +1499,10 @@ function actionSaveActivity_(user, payload) {
   Object.keys(datePatch).forEach(function(k) {
     changes[k] = datePatch[k];
   });
+  if (Object.prototype.hasOwnProperty.call(changes, 'status')) {
+    var rawStatus = text_(changes.status).toLowerCase();
+    changes.status = (rawStatus === 'closed' || rawStatus === 'סגור') ? 'סגור' : 'פעיל';
+  }
   if (!effectiveCanEditDirect_(permission, user.display_role)) {
     return actionSubmitEditRequest_(user, {
       source_sheet: sourceSheet,
@@ -2524,8 +2528,36 @@ function buildDropdownOptionsMapFromRows_(rows) {
   return out;
 }
 
+function instructorNamesFromPermissions_() {
+  var rows = readRows_(CONFIG.SHEETS.PERMISSIONS);
+  var out = [];
+  var seen = {};
+  rows.forEach(function(row) {
+    if (yesNo_(row.active) === 'no') return;
+    var role = '';
+    try {
+      role = normalizeRole_(internalRoleFromPermissionRow_(row));
+    } catch (_e) {
+      role = '';
+    }
+    if (role !== 'instructor') return;
+    var name = text_(row.full_name || row.user_id);
+    if (!name || seen[name]) return;
+    seen[name] = true;
+    out.push(name);
+  });
+  return out;
+}
+
 function buildDropdownOptionsMap_() {
-  return buildDropdownOptionsMapFromRows_(readRows_(configuredDropdownSourceSheet_()));
+  var out = buildDropdownOptionsMapFromRows_(readRows_(configuredDropdownSourceSheet_()));
+  var instructors = instructorNamesFromPermissions_();
+  if (instructors.length) {
+    out.instructor_name = instructors.slice();
+    // Product rule: activity manager uses the same instructor list from permissions.
+    out.activity_manager = instructors.slice();
+  }
+  return out;
 }
 
 function buildClientSettingsPayload_() {
