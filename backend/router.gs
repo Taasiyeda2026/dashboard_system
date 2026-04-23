@@ -110,6 +110,22 @@ function handlePost_(e) {
 
     markRequestPerf_('action_start');
     var writeData = handlers[action]();
+    if (action === 'addActivity' ||
+        action === 'saveActivity' ||
+        action === 'reviewEditRequest' ||
+        action === 'saveFinanceRow' ||
+        action === 'syncFinance') {
+      try {
+        refreshDashboardSnapshots_(user);
+      } catch (snapshotErr) {
+        try {
+          updateDashboardRefreshControl_(
+            'error',
+            snapshotErr && snapshotErr.message ? snapshotErr.message : String(snapshotErr)
+          );
+        } catch (_e) {}
+      }
+    }
     markRequestPerf_('action_done');
 
     var SNAPSHOT_INVALIDATING_ACTIONS_ = {

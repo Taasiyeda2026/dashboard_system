@@ -210,6 +210,22 @@ export const dashboardScreen = {
   bind({ root, ui, state, api, rerender, clearScreenDataCache, data }) {
     const DASHBOARD_TTL_MS = 5 * 60 * 1000;
     const ym = data?.month || state.dashboardMonthYm || currentMonthYm();
+    function putDashboardCache(cacheKey, payload) {
+      const existing = state.screenDataCache[cacheKey];
+      if (!existing) {
+        state.screenDataCache[cacheKey] = { data: payload, t: Date.now() };
+        return;
+      }
+      const existingIsSnapshot = !!existing.data?._is_snapshot;
+      const nextIsSnapshot = !!payload?._is_snapshot;
+      if (!nextIsSnapshot) {
+        state.screenDataCache[cacheKey] = { data: payload, t: Date.now() };
+        return;
+      }
+      if (existingIsSnapshot) {
+        state.screenDataCache[cacheKey] = { data: payload, t: Date.now() };
+      }
+    }
 
     function getSummaryBtn(target) {
       return [...root.querySelectorAll('.ds-summary-btn[data-summary-target]')]
@@ -268,7 +284,7 @@ export const dashboardScreen = {
         if (hit && Date.now() - hit.t < DASHBOARD_TTL_MS) return;
         api.dashboardSnapshot({ month: adjYm }).then((d) => {
           if (!state.screenDataCache[adjKey] || Date.now() - state.screenDataCache[adjKey].t > DASHBOARD_TTL_MS) {
-            state.screenDataCache[adjKey] = { data: d, t: Date.now() };
+            putDashboardCache(adjKey, d);
           }
           if (d._is_snapshot) {
             api.dashboard({ month: adjYm }).then((full) => {
@@ -291,6 +307,7 @@ export const dashboardScreen = {
       }
 
       showDataAreaLoading();
+      let snapshotLoaded = false;
       try {
         const snapshotData = await api.dashboardSnapshot({ month: nextYm });
         state.screenDataCache[cacheKey] = { data: snapshotData, t: Date.now() };
@@ -304,7 +321,7 @@ export const dashboardScreen = {
           }).catch(() => {});
         }
       } catch (_err) {
-        clearScreenDataCache?.();
+        if (!snapshotLoaded) clearScreenDataCache?.();
       }
       rerender();
     };
