@@ -2,6 +2,8 @@ import { escapeHtml } from './shared/html.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { formatDateHe } from './shared/format-date.js';
 import { hebrewExceptionType, hebrewColumn } from './shared/ui-hebrew.js';
+import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import {
   dsCard,
   dsScreenStack,
@@ -14,6 +16,20 @@ function fieldRow(label, value) {
     ? escapeHtml(String(value))
     : '<em style="color:var(--ds-text-muted)">—</em>';
   return `<p><strong>${escapeHtml(label)}:</strong> ${display}</p>`;
+}
+
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
+  const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
+  return activityWorkDrawerHtml(row, {
+    privateNote,
+    canEdit,
+    hideEmpIds: !!hideEmpIds,
+    hideRowId,
+    hideActivityNo,
+    settings,
+    showFinance: false,
+    showFinanceFields: false
+  });
 }
 
 function exceptionDrawerHtml(row, hideRowId) {
@@ -88,18 +104,94 @@ export const exceptionsScreen = {
       })}
     `);
   },
-  bind({ root, data, ui, state, rerender }) {
+  bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
     bindActNavGrid(root, { state, rerender });
     const allRows   = Array.isArray(data?.rows) ? data.rows : [];
+    const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
+    const canEditActivity = state?.user?.display_role !== 'instructor';
+    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
+
+    const bindActivityEditForm = (contentRoot) =>
+      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
+    const detailCache = new Map();
+
+    async function loadDetailRow(summaryRow) {
+      const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
+      if (detailCache.has(cacheKey)) return detailCache.get(cacheKey);
+      const rsp = await api.activityDetail(summaryRow.RowID, summaryRow.source_sheet);
+      const row = rsp?.row || summaryRow;
+      detailCache.set(cacheKey, row);
+      return row;
+    }
+
+    function hideShellHeader(contentRoot) {
+      const shellHdr = contentRoot.closest('.ds-drawer')?.querySelector(':scope > header');
+      if (shellHdr) shellHdr.hidden = true;
+    }
+
+    function makeOnOpen(contentRoot) {
+      hideShellHeader(contentRoot);
+      bindActivityEditForm(contentRoot);
+    }
+
+    async function openActivityDetail(summaryRow) {
+      if (!summaryRow || !ui) return;
+      const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
+      const cached = detailCache.get(cacheKey);
+      const initialRow = cached || summaryRow;
+      ui.openDrawer({
+        title: '',
+        content: activityDrawerContent(
+          initialRow,
+          canSeePrivateNotes,
+          canEditActivity,
+          hideEmpIds,
+          hideRowId,
+          hideActivityNo,
+          state?.clientSettings || {}
+        ),
+        onOpen: makeOnOpen,
+        onClose: () => {
+          const shellHdr = document.querySelector('.ds-drawer > header');
+          if (shellHdr) shellHdr.hidden = false;
+        }
+      });
+      if (cached) return;
+      try {
+        const row = await loadDetailRow(summaryRow);
+        ui.openDrawer({
+          title: '',
+          content: activityDrawerContent(
+            row,
+            canSeePrivateNotes,
+            canEditActivity,
+            hideEmpIds,
+            hideRowId,
+            hideActivityNo,
+            state?.clientSettings || {}
+          ),
+          onOpen: makeOnOpen,
+          onClose: () => {
+            const shellHdr = document.querySelector('.ds-drawer > header');
+            if (shellHdr) shellHdr.hidden = false;
+          }
+        });
+      } catch {}
+    }
 
     const openAt = (idx) => {
       const hit = allRows[idx];
       if (!hit || !ui) return;
-      ui.openDrawer({
-        title: hit.activity_name || (hideRowId ? 'חריגה' : `חריגה · ${hit.RowID}`),
-        content: exceptionDrawerHtml(hit, hideRowId)
-      });
+      if (!api) {
+        ui.openDrawer({
+          title: hit.activity_name || (hideRowId ? 'חריגה' : `חריגה · ${hit.RowID}`),
+          content: exceptionDrawerHtml(hit, hideRowId)
+        });
+        return;
+      }
+      void openActivityDetail(hit);
     };
 
     ui?.bindInteractiveCards(root, (action) => {

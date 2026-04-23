@@ -819,6 +819,7 @@ function actionExceptions_(user) {
     counts[exceptionType] += 1;
     result.push({
       RowID:              row.RowID,
+      source_sheet:       text_(row.source_sheet || CONFIG.SHEETS.DATA_LONG),
       activity_name:     row.activity_name,
       activity_manager:  row.activity_manager,
       activity_type:     row.activity_type,
