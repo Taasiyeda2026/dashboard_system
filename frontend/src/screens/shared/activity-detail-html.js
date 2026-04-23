@@ -199,14 +199,8 @@ function headerHtml(row, { mode = 'single', summaryDate = '' } = {}) {
 
 function blockPeople(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
-  const roleBasedPeople = mergeListStrings(options, [
-    'instructor_name',
-    'instructor_names',
-    'activity_manager',
-    'activity_managers'
-  ]);
-  const managers = roleBasedPeople.length ? roleBasedPeople : toOptions(options.activity_manager);
-  const instructors = roleBasedPeople.length ? roleBasedPeople : toOptions(options.instructor_name);
+  const managers = mergeListStrings(options, ['activity_manager', 'activity_managers']);
+  const instructors = mergeListStrings(options, ['instructor_name', 'instructor_names']);
   const activityType = String(row.activity_type || '').trim();
   const twoInstructors = activityType === 'workshop';
   const instructorFields = twoInstructors
