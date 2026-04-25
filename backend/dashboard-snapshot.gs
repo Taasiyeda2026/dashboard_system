@@ -118,8 +118,9 @@ function actionDashboardSnapshot_(user, payload) {
   var byManagerRows = [];
 
   var ss = getSpreadsheet_();
+  var hasSummarySnapshotSheet = !!ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT);
 
-  if (ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT)) {
+  if (hasSummarySnapshotSheet) {
     var summaryRows = readRows_(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT);
     snap = summaryRows.find(function(r) { return text_(r.month_ym) === ym; }) || null;
   }
@@ -129,12 +130,25 @@ function actionDashboardSnapshot_(user, payload) {
     byManagerRows = allByMgr.filter(function(r) { return text_(r.month_ym) === ym; });
   }
 
-  if (!snap || !ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT)) {
-    var fullData = actionDashboard_(user, payload);
-    if (fullData && typeof fullData === 'object') {
-      fullData._is_snapshot = false;
+  if (!snap || !hasSummarySnapshotSheet) {
+    if (payload && payload.force_full === true) {
+      var fullData = actionDashboard_(user, payload);
+      if (fullData && typeof fullData === 'object') {
+        fullData._is_snapshot = false;
+      }
+      return fullData;
     }
-    return fullData;
+    return {
+      month: ym,
+      _is_snapshot: false,
+      _is_snapshot_missing: true,
+      can_view_finance: canViewFinance,
+      totals: {},
+      summary: {},
+      by_activity_manager: [],
+      kpi_cards: [],
+      show_only_nonzero_kpis: true
+    };
   }
 
   var s = snap || {};
