@@ -36,6 +36,75 @@ const PERF_MAX_RENDERS = 150;
 
 /** Timer handle for deferred prefetch — cancelled on every new navigation. */
 let prefetchTimer = null;
+let prefetchIdleId = null;
+let firstAuthenticatedRenderTimerStarted = false;
+let firstLoadTimerStarted = false;
+let firstDashboardSnapshotTimerStarted = false;
+let firstPrefetchTimerStarted = false;
+let fastRerenderVersion = 0;
+const activeConsoleTimers = new Set();
+
+function beginPerfTimer(label) {
+  if (!label || typeof console === 'undefined' || typeof console.time !== 'function') return;
+  if (activeConsoleTimers.has(label)) return;
+  activeConsoleTimers.add(label);
+  console.time(label);
+}
+
+function endPerfTimer(label) {
+  if (!label || typeof console === 'undefined' || typeof console.timeEnd !== 'function') return;
+  if (!activeConsoleTimers.has(label)) return;
+  activeConsoleTimers.delete(label);
+  console.timeEnd(label);
+}
+
+function scheduleRender() {
+  beginPerfTimer('login:scheduleRender');
+  const complete = () => {
+    endPerfTimer('login:scheduleRender');
+    render().catch(() => {});
+  };
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(complete);
+    return;
+  }
+  setTimeout(complete, 0);
+}
+
+function cancelPrefetchSchedule() {
+  clearTimeout(prefetchTimer);
+  prefetchTimer = null;
+  if (typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function' && prefetchIdleId != null) {
+    window.cancelIdleCallback(prefetchIdleId);
+  }
+  prefetchIdleId = null;
+}
+
+function schedulePostLoginPrefetch() {
+  cancelPrefetchSchedule();
+  const run = () => {
+    prefetchTimer = null;
+    prefetchIdleId = null;
+    if (!state.token) return;
+    if (!firstPrefetchTimerStarted) {
+      firstPrefetchTimerStarted = true;
+      beginPerfTimer('prefetch:firstRun');
+      try {
+        prefetchFromDashboardIfNeeded();
+      } finally {
+        endPerfTimer('prefetch:firstRun');
+      }
+      return;
+    }
+    prefetchFromDashboardIfNeeded();
+  };
+
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    prefetchIdleId = window.requestIdleCallback(run, { timeout: 5000 });
+    return;
+  }
+  prefetchTimer = setTimeout(run, 5000);
+}
 
 function recordRenderPerf(route, phase, durationMs, extra = {}) {
   if (typeof window === 'undefined') return;
@@ -602,6 +671,7 @@ function updateNavActiveClasses() {
  * (same screen root) to avoid full-shell reload/spinner.
  */
 async function fastRerenderScreen(screen, routeAtBind) {
+  const rerenderVersion = ++fastRerenderVersion;
   const perfStart = performance.now();
   if (state.route !== routeAtBind) { render(); return; }
   const key = screenDataCacheKey();
@@ -614,6 +684,7 @@ async function fastRerenderScreen(screen, routeAtBind) {
     const requestedKey = key;
     try {
       const data = await loadScreenDataWithCache(screen);
+      if (rerenderVersion !== fastRerenderVersion) return;
       if (state.route !== routeAtBind) return;
       if (screenDataCacheKey() !== requestedKey) return;
       screenRoot.innerHTML = screen.render(data, { state });
@@ -768,8 +839,7 @@ async function restoreSession() {
 
 async function mountScreen() {
   const mountStartMs = performance.now();
-  clearTimeout(prefetchTimer);
-  prefetchTimer = null;
+  cancelPrefetchSchedule();
   if (isDesktopViewport()) {
     isMobileNavOpen = false;
     document.body.classList.remove('is-shell-nav-open');
@@ -806,6 +876,11 @@ async function mountScreen() {
   const isStale = rawEntry && Date.now() - rawEntry.t >= screenCacheTtl();
 
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
+  const firstAuthenticatedMount = !!(state.token && !hasMountedAuthenticatedShell);
+  if (firstAuthenticatedMount && !firstAuthenticatedRenderTimerStarted) {
+    firstAuthenticatedRenderTimerStarted = true;
+    beginPerfTimer('login:firstAuthenticatedRender');
+  }
 
   if (!shellExists) {
     // First mount: build shell HTML.
@@ -856,7 +931,18 @@ async function mountScreen() {
   }
 
   try {
+    if (firstAuthenticatedMount && !firstLoadTimerStarted) {
+      firstLoadTimerStarted = true;
+      beginPerfTimer('screen:firstLoad');
+    }
+    if (firstAuthenticatedMount && state.route === 'dashboard' && !firstDashboardSnapshotTimerStarted) {
+      firstDashboardSnapshotTimerStarted = true;
+      beginPerfTimer('dashboardSnapshot:firstLoad');
+    }
     const data = await loadScreenDataWithCache(screen);
+    if (firstAuthenticatedMount && state.route === 'dashboard') {
+      endPerfTimer('dashboardSnapshot:firstLoad');
+    }
     const renderStart = performance.now();
     const screenRoot = document.getElementById('screenRoot');
     if (!screenRoot) throw new Error('אזור התצוגה לא זמין');
@@ -868,6 +954,9 @@ async function mountScreen() {
     if (routeChanged) lastRenderedRoute = state.route;
     maybePrefetchFromDashboard();
   } catch (err) {
+    if (firstAuthenticatedMount && state.route === 'dashboard') {
+      endPerfTimer('dashboardSnapshot:firstLoad');
+    }
     const screenRoot = document.getElementById('screenRoot');
     if (screenRoot) {
       const msg = translateApiErrorForUser(err?.message) || 'אירעה שגיאה בטעינת הדף';
@@ -880,9 +969,9 @@ async function mountScreen() {
   } finally {
     if (!hasMountedAuthenticatedShell) {
       hasMountedAuthenticatedShell = true;
-      setTimeout(() => {
-        if (state.token) prefetchFromDashboardIfNeeded();
-      }, 1200);
+      endPerfTimer('login:firstAuthenticatedRender');
+      endPerfTimer('screen:firstLoad');
+      schedulePostLoginPrefetch();
     }
     setShellNavBusy(false);
     recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
@@ -954,18 +1043,35 @@ async function render() {
             clearRoutesSnapshot();
             loginInlineError = message;
           };
+          beginPerfTimer('login:total');
           try {
+            beginPerfTimer('login:api.login');
             const data = await api.login(userId, code);
+            endPerfTimer('login:api.login');
             hasMountedAuthenticatedShell = false;
+            firstAuthenticatedRenderTimerStarted = false;
+            firstLoadTimerStarted = false;
+            firstDashboardSnapshotTimerStarted = false;
+            firstPrefetchTimerStarted = false;
+            beginPerfTimer('login:setSession');
             setSession({ token: data.token, user: data.user });
+            endPerfTimer('login:setSession');
+            beginPerfTimer('login:applyBootstrap');
             applyBootstrapFromLoginData(data);
+            endPerfTimer('login:applyBootstrap');
             loginInlineError = '';
-            _pendingRender = true;
+            scheduleRender();
           } catch (error) {
+            endPerfTimer('login:api.login');
+            endPerfTimer('login:setSession');
+            endPerfTimer('login:applyBootstrap');
+            endPerfTimer('login:scheduleRender');
             const msg = translateApiErrorForUser(error?.message);
             if (errorNode) errorNode.textContent = msg;
             rollbackToLogin(msg);
             throw error;
+          } finally {
+            endPerfTimer('login:total');
           }
         }
       });
