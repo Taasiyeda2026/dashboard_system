@@ -446,9 +446,10 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
+  const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data']) : new Set();
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
-    routes: effectiveRoutes()
+    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r))
   });
 
   return `
