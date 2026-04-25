@@ -22,7 +22,8 @@ function actionLogin_(payload) {
     display_role2: text_(matchByUser.display_role2),
     default_view: text_(matchByUser.default_view),
     emp_id: text_(matchByUser.user_id),
-    can_add_activity: !!canAddActivity
+    can_add_activity: !!canAddActivity,
+    can_view_finance: role === 'admin' || yesNo_(matchByUser.view_finance) === 'yes'
   };
 
   var token = Utilities.getUuid();
