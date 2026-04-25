@@ -226,7 +226,7 @@ function restoreScreenCacheFromStorage() {
     let changed = false;
     Object.entries(stored).forEach(([k, v]) => {
       if (!v || !v.t) return;
-        if (MEMORY_ONLY_CACHE_PREFIXES.some((prefix) => k.startsWith(prefix))) {
+      if (MEMORY_ONLY_CACHE_PREFIXES.some((prefix) => k.startsWith(prefix))) {
         delete stored[k];
         changed = true;
         return;
@@ -656,7 +656,7 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     inflightRequests.delete(cacheKey);
     const entry = { data, t: Date.now() };
     state.screenDataCache[cacheKey] = entry;
-    persistCacheEntry(cacheKey, entry);
+    maybePersistScreenCacheEntry(cacheKey, entry);
     if (
       activeNavigationToken === guardedToken &&
       state.route === guardedRoute &&
