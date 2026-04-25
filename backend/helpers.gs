@@ -26,8 +26,13 @@ function isNormalizedEmptyValue_(value) {
   return compact === '-' ||
     compact === '—' ||
     compact === 'לא שובץ' ||
+    compact === 'לא משובץ' ||
     compact === 'טרם שובץ' ||
-    compact === 'לא נקבע';
+    compact === 'לא נקבע' ||
+    compact === 'אין' ||
+    compact === 'none' ||
+    compact === 'null' ||
+    compact === 'undefined';
 }
 
 function isValidIsoDateString_(value) {

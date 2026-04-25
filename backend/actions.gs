@@ -101,7 +101,7 @@ function rowExceptionTypes_(row) {
   var hasInstructor1 = !isNormalizedEmptyValue_(row && row.instructor_name) || !isNormalizedEmptyValue_(row && row.emp_id);
   var hasInstructor2 = !isNormalizedEmptyValue_(row && row.instructor_name_2) || !isNormalizedEmptyValue_(row && row.emp_id_2);
   if (!hasInstructor1 && !hasInstructor2) out.push('missing_instructor');
-  if (!normalizeDateTextToIso_(row && row.start_date)) out.push('missing_start_date');
+  if (!activityStartDateFromRow_(row)) out.push('missing_start_date');
   if (text_(row.end_date) > getLateEndDateCutoff_()) out.push('late_end_date');
   return out;
 }
@@ -122,9 +122,23 @@ function primaryExceptionForRow_(row) {
 
 function normalizeDateTextToIso_(value) {
   if (isNormalizedEmptyValue_(value)) return '';
+  if (Object.prototype.toString.call(value) === '[object Number]' && !isNaN(value)) {
+    var serialDate = new Date(1899, 11, 30);
+    serialDate.setDate(serialDate.getDate() + Number(value));
+    return isNaN(serialDate.getTime()) ? '' : formatDate_(serialDate);
+  }
   var t = text_(value);
   if (!t) return '';
+  t = t.replace(/[T\s]\d{1,2}:\d{2}(:\d{2})?.*$/, '');
   if (isValidIsoDateString_(t)) return t;
+  var ymd = /^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/.exec(t);
+  if (ymd) {
+    var yy = ymd[1];
+    var mmo = ('0' + parseInt(ymd[2], 10)).slice(-2);
+    var dd = ('0' + parseInt(ymd[3], 10)).slice(-2);
+    var ymdIso = yy + '-' + mmo + '-' + dd;
+    if (isValidIsoDateString_(ymdIso)) return ymdIso;
+  }
   var m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/.exec(t);
   if (m) {
     var d = ('0' + parseInt(m[1], 10)).slice(-2);
@@ -133,7 +147,61 @@ function normalizeDateTextToIso_(value) {
     var iso = y + '-' + mo + '-' + d;
     if (isValidIsoDateString_(iso)) return iso;
   }
+  var dmy2 = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2})$/.exec(t);
+  if (dmy2) {
+    var d2 = ('0' + parseInt(dmy2[1], 10)).slice(-2);
+    var mo2 = ('0' + parseInt(dmy2[2], 10)).slice(-2);
+    var yy2 = parseInt(dmy2[3], 10);
+    var y2 = String(yy2 >= 70 ? 1900 + yy2 : 2000 + yy2);
+    var iso2 = y2 + '-' + mo2 + '-' + d2;
+    if (isValidIsoDateString_(iso2)) return iso2;
+  }
   return '';
+}
+
+function activityLastValidDateColumnFromRow_(row) {
+  var latest = '';
+  var latestCol = '';
+  for (var i = 1; i <= 35; i++) {
+    var key = 'Date' + i;
+    var iso = normalizeDateTextToIso_(row && row[key]);
+    if (!iso) continue;
+    if (!latest || iso > latest) {
+      latest = iso;
+      latestCol = key;
+    }
+  }
+  return { date: latest, column: latestCol };
+}
+
+function buildControlMetricDebugRow_(row, ym, cutoff) {
+  var lastValid = activityLastValidDateColumnFromRow_(row);
+  var computedStartDate = activityStartDateFromRow_(row);
+  var computedEndDate = activityEndDateFromRow_(row);
+  var exceptionTypes = rowExceptionTypes_(row);
+  return {
+    RowID: text_(row.RowID),
+    source_sheet: text_(row.source_sheet),
+    activity_type: text_(row.activity_type),
+    status: text_(row.status),
+    instructor_name: row && row.instructor_name,
+    instructor_name_2: row && row.instructor_name_2,
+    emp_id: row && row.emp_id,
+    emp_id_2: row && row.emp_id_2,
+    start_date: row && row.start_date,
+    Date1: row && row.Date1,
+    computed_start_date: computedStartDate,
+    computed_end_date: computedEndDate,
+    raw_end_date: row && row.end_date,
+    last_valid_Date_column: lastValid.column,
+    late_end_date_cutoff: cutoff,
+    is_missing_instructor: exceptionTypes.indexOf('missing_instructor') >= 0,
+    is_missing_start_date: exceptionTypes.indexOf('missing_start_date') >= 0,
+    is_excluded_status: isExcludedStatusForControl_(row && row.status),
+    overlaps_dashboard_month: activityOverlapsYm_(row, ym),
+    is_program_activity_type: configuredProgramActivityTypes_().indexOf(text_(row.activity_type)) >= 0,
+    exception_types: exceptionTypes
+  };
 }
 
 function activityDateColumnsFromRow_(row) {
@@ -362,8 +430,15 @@ function actionDashboard_(user, payload) {
   });
   var missingInstructorExamples = [];
   var missingStartDateExamples = [];
+  var controlMetricDebugRows = [];
+  var lateEndDateCutoff = getLateEndDateCutoff_();
   relevantLongRows.forEach(function(row) {
     var exceptionTypes = rowExceptionTypes_(row);
+    var needsControlDebug = exceptionTypes.indexOf('missing_instructor') >= 0 ||
+      exceptionTypes.indexOf('missing_start_date') >= 0;
+    if (needsControlDebug && controlMetricDebugRows.length < 5) {
+      controlMetricDebugRows.push(buildControlMetricDebugRow_(row, ym, lateEndDateCutoff));
+    }
     if (exceptionTypes.indexOf('missing_instructor') >= 0) {
       missingInstructorCount += 1;
       if (missingInstructorExamples.length < 5) {
@@ -390,12 +465,15 @@ function actionDashboard_(user, payload) {
     if (exceptionTypes.indexOf('late_end_date') >= 0) lateEndDateCount += 1;
   });
   console.log('[dashboard][control-metrics-debug]', JSON.stringify({
+    month_ym: ym,
+    late_end_date_cutoff: lateEndDateCutoff,
     total_records: totalLongRows,
     relevant_records: relevantLongRows.length,
     missing_instructor_records: missingInstructorCount,
     missing_start_date_records: missingStartDateCount,
     missing_instructor_examples: missingInstructorExamples,
-    missing_start_date_examples: missingStartDateExamples
+    missing_start_date_examples: missingStartDateExamples,
+    control_metric_rows: controlMetricDebugRows
   }));
 
   var shortActivitiesByType = {};
