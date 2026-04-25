@@ -27,7 +27,7 @@ var BY_MANAGER_SNAPSHOT_HEADERS_ = [
   'month_ym', 'activity_manager', 'manager_display_name',
   'total_short', 'total_long', 'total', 'num_instructors',
   'course_endings', 'finance_open', 'exceptions',
-  'active_instructors_names', 'updated_at'
+  'active_instructors_names', 'updated_at', 'snapshot_key'
 ];
 
 var REFRESH_CONTROL_HEADERS_ = ['key', 'value', 'label_he'];
@@ -65,7 +65,8 @@ var BY_MANAGER_SNAPSHOT_LABELS_HE_ = [
   'כספים פתוחים',
   'חריגות',
   'שמות מדריכים פעילים',
-  'עודכן בתאריך'
+  'עודכן בתאריך',
+  'מפתח snapshot'
 ];
 var REFRESH_CONTROL_LABELS_HE_ = ['מפתח', 'ערך', 'תווית'];
 
@@ -290,6 +291,11 @@ function buildDashboardSnapshotKpis_(snapshot, canViewFinance) {
 // ─── C. refreshDashboardSnapshots_ ───────────────────────────────────────────
 
 function refreshDashboardSnapshots_() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) {
+    return { skipped: true, reason: 'snapshot_refresh_already_running' };
+  }
+
   var hadCache = !!__rqCache_;
   if (!hadCache) {
     beginRequestCache_();
@@ -322,6 +328,7 @@ function refreshDashboardSnapshots_() {
     if (!hadCache) {
       __rqCache_ = null;
     }
+    lock.releaseLock();
   }
 }
 
@@ -340,6 +347,7 @@ function markDashboardSnapshotsRefreshNeeded_(reason) {
 function writeDashboardSummarySnapshotRow_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT;
   ensureSnapshotSheetScaffold_(sheetName, SUMMARY_SNAPSHOT_HEADERS_, SUMMARY_SNAPSHOT_LABELS_HE_);
+  dedupeRowsByKeyKeepingLatest_(sheetName, 'month_ym');
 
   var summary = fullData.summary || {};
   var totals  = fullData.totals  || {};
@@ -401,8 +409,7 @@ function canViewFinanceFromKpis_(kpiAll, fullData) {
 function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT;
   ensureSnapshotSheetScaffold_(sheetName, BY_MANAGER_SNAPSHOT_HEADERS_, BY_MANAGER_SNAPSHOT_LABELS_HE_);
-
-  deleteRowsByKey_(sheetName, 'month_ym', ym);
+  dedupeDashboardByManagerSnapshotByKey_();
 
   var byManager = Array.isArray(fullData.by_activity_manager) ? fullData.by_activity_manager : [];
   var updatedAt = formatDate_(new Date());
@@ -410,6 +417,7 @@ function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
   byManager.forEach(function(row) {
     var manager = text_(row.activity_manager);
     if (!manager || manager === 'unassigned') return;
+    var snapshotKey = buildDashboardByManagerSnapshotKey_(ym, manager);
     var displayName = SNAPSHOT_MANAGER_DISPLAY_NAMES_[manager] || manager;
     var rowObj = {
       month_ym:               ym,
@@ -423,10 +431,13 @@ function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
       finance_open:           row.finance_open   || 0,
       exceptions:             row.exceptions     || 0,
       active_instructors_names: text_(row.active_instructors_names) || '',
-      updated_at:             updatedAt
+      updated_at:             updatedAt,
+      snapshot_key:           snapshotKey
     };
-    appendRow_(sheetName, rowObj);
+    upsertRowByKey_(sheetName, 'snapshot_key', rowObj);
   });
+
+  dedupeDashboardByManagerSnapshotByKey_();
 }
 
 // ─── F. updateDashboardRefreshControl_ ───────────────────────────────────────
@@ -434,6 +445,7 @@ function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
 function updateDashboardRefreshControl_(status, message) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_REFRESH_CONTROL;
   ensureSnapshotSheetScaffold_(sheetName, REFRESH_CONTROL_HEADERS_, REFRESH_CONTROL_LABELS_HE_);
+  dedupeRowsByKeyKeepingLatest_(sheetName, 'key');
 
   var now = new Date().toISOString();
   var entries = [
@@ -445,4 +457,80 @@ function updateDashboardRefreshControl_(status, message) {
   entries.forEach(function(entry) {
     upsertRowByKey_(sheetName, 'key', entry);
   });
+}
+
+function buildDashboardByManagerSnapshotKey_(ym, manager) {
+  return text_(ym) + '|' + text_(manager);
+}
+
+function dedupeRowsByKeyKeepingLatest_(sheetName, keyField) {
+  var sheet = getSheet_(sheetName);
+  var headers = getHeaders_(sheet);
+  var keyIndex = headers.indexOf(keyField);
+  if (keyIndex < 0) return;
+
+  var dataStart = getDataStartRow_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < dataStart) return;
+
+  var seen = {};
+  for (var rowNum = lastRow; rowNum >= dataStart; rowNum--) {
+    var key = text_(sheet.getRange(rowNum, keyIndex + 1).getValue());
+    if (!key) continue;
+    if (seen[key]) {
+      sheet.deleteRow(rowNum);
+      continue;
+    }
+    seen[key] = true;
+  }
+  invalidateReadRowsCache_(sheetName);
+}
+
+function dedupeDashboardByManagerSnapshotByKey_() {
+  var sheetName = CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT;
+  var sheet = getSheet_(sheetName);
+  var headers = getHeaders_(sheet);
+  var monthIndex = headers.indexOf('month_ym');
+  var managerIndex = headers.indexOf('activity_manager');
+  var snapshotKeyIndex = headers.indexOf('snapshot_key');
+  if (monthIndex < 0 || managerIndex < 0 || snapshotKeyIndex < 0) return;
+
+  var dataStart = getDataStartRow_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < dataStart) return;
+
+  var seen = {};
+  for (var rowNum = lastRow; rowNum >= dataStart; rowNum--) {
+    var monthYm = text_(sheet.getRange(rowNum, monthIndex + 1).getValue());
+    var manager = text_(sheet.getRange(rowNum, managerIndex + 1).getValue());
+    var snapshotKey = text_(sheet.getRange(rowNum, snapshotKeyIndex + 1).getValue());
+    var computedKey = snapshotKey || buildDashboardByManagerSnapshotKey_(monthYm, manager);
+    if (!computedKey || computedKey === '|') continue;
+
+    if (!snapshotKey) {
+      sheet.getRange(rowNum, snapshotKeyIndex + 1).setValue(computedKey);
+    }
+
+    if (seen[computedKey]) {
+      sheet.deleteRow(rowNum);
+      continue;
+    }
+    seen[computedKey] = true;
+  }
+  invalidateReadRowsCache_(sheetName);
+}
+
+function getSnapshotRefreshDiagnostics_() {
+  var allTriggers = ScriptApp.getProjectTriggers();
+  var snapshotTriggers = allTriggers.filter(function(t) {
+    return t.getHandlerFunction && t.getHandlerFunction() === 'refreshDashboardSnapshotsTrigger';
+  });
+
+  return {
+    project_trigger_count: allTriggers.length,
+    refresh_snapshot_trigger_count: snapshotTriggers.length,
+    refresh_snapshot_trigger_ids: snapshotTriggers.map(function(t) {
+      return t.getUniqueId ? t.getUniqueId() : '';
+    })
+  };
 }
