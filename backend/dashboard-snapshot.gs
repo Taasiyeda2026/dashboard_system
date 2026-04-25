@@ -104,6 +104,13 @@ function ensureSnapshotSheetScaffold_(sheetName, englishHeaders, hebrewLabels) {
   return true;
 }
 
+function normalizeSnapshotMonthYm_(value) {
+  var t = text_(value).trim();
+  if (t.charAt(0) === "'") t = t.slice(1);
+  if (!t) return '';
+  return t.slice(0, 7);
+}
+
 // ─── A. actionDashboardSnapshot_ ─────────────────────────────────────────────
 
 function actionDashboardSnapshot_(user, payload) {
@@ -123,12 +130,16 @@ function actionDashboardSnapshot_(user, payload) {
 
   if (hasSummarySnapshotSheet) {
     var summaryRows = readRows_(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT);
-    snap = summaryRows.find(function(r) { return text_(r.month_ym) === ym; }) || null;
+    snap = summaryRows.find(function(r) {
+      return normalizeSnapshotMonthYm_(r.month_ym) === ym;
+    }) || null;
   }
 
   if (ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT)) {
     var allByMgr = readRows_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT);
-    byManagerRows = allByMgr.filter(function(r) { return text_(r.month_ym) === ym; });
+    byManagerRows = allByMgr.filter(function(r) {
+      return normalizeSnapshotMonthYm_(r.month_ym) === ym;
+    });
   }
 
   if (!snap || !hasSummarySnapshotSheet) {
@@ -347,7 +358,7 @@ function markDashboardSnapshotsRefreshNeeded_(reason) {
 function writeDashboardSummarySnapshotRow_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT;
   ensureSnapshotSheetScaffold_(sheetName, SUMMARY_SNAPSHOT_HEADERS_, SUMMARY_SNAPSHOT_LABELS_HE_);
-  dedupeRowsByKeyKeepingLatest_(sheetName, 'month_ym');
+  dedupeDashboardSummarySnapshotByMonth_();
 
   var summary = fullData.summary || {};
   var totals  = fullData.totals  || {};
@@ -371,7 +382,7 @@ function writeDashboardSummarySnapshotRow_(ym, fullData) {
   var exceptions  = counts['exceptions'] || 0;
 
   var rowObj = {
-    month_ym:                          ym,
+    month_ym:                          "'" + normalizeSnapshotMonthYm_(ym),
     month_label:                       ym,
     updated_at:                        formatDate_(new Date()),
     total_short_activities:            totals.total_short_activities || totals.short || 0,
@@ -394,6 +405,7 @@ function writeDashboardSummarySnapshotRow_(ym, fullData) {
   };
 
   upsertRowByKey_(sheetName, 'month_ym', rowObj);
+  dedupeDashboardSummarySnapshotByMonth_();
 }
 
 function canViewFinanceFromKpis_(kpiAll, fullData) {
@@ -420,7 +432,7 @@ function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
     var snapshotKey = buildDashboardByManagerSnapshotKey_(ym, manager);
     var displayName = SNAPSHOT_MANAGER_DISPLAY_NAMES_[manager] || manager;
     var rowObj = {
-      month_ym:               ym,
+      month_ym:               normalizeSnapshotMonthYm_(ym),
       activity_manager:       manager,
       manager_display_name:   displayName,
       total_short:            row.total_short    || 0,
@@ -460,7 +472,7 @@ function updateDashboardRefreshControl_(status, message) {
 }
 
 function buildDashboardByManagerSnapshotKey_(ym, manager) {
-  return text_(ym) + '|' + text_(manager);
+  return normalizeSnapshotMonthYm_(ym) + '|' + text_(manager);
 }
 
 function dedupeRowsByKeyKeepingLatest_(sheetName, keyField) {
@@ -501,13 +513,18 @@ function dedupeDashboardByManagerSnapshotByKey_() {
 
   var seen = {};
   for (var rowNum = lastRow; rowNum >= dataStart; rowNum--) {
-    var monthYm = text_(sheet.getRange(rowNum, monthIndex + 1).getValue());
+    var monthYm = normalizeSnapshotMonthYm_(sheet.getRange(rowNum, monthIndex + 1).getValue());
     var manager = text_(sheet.getRange(rowNum, managerIndex + 1).getValue());
     var snapshotKey = text_(sheet.getRange(rowNum, snapshotKeyIndex + 1).getValue());
-    var computedKey = snapshotKey || buildDashboardByManagerSnapshotKey_(monthYm, manager);
+    var normalizedSnapshotKey = '';
+    if (snapshotKey) {
+      var keyParts = snapshotKey.split('|');
+      normalizedSnapshotKey = buildDashboardByManagerSnapshotKey_(keyParts[0], keyParts.slice(1).join('|'));
+    }
+    var computedKey = normalizedSnapshotKey || buildDashboardByManagerSnapshotKey_(monthYm, manager);
     if (!computedKey || computedKey === '|') continue;
 
-    if (!snapshotKey) {
+    if (snapshotKey !== computedKey) {
       sheet.getRange(rowNum, snapshotKeyIndex + 1).setValue(computedKey);
     }
 
@@ -516,6 +533,36 @@ function dedupeDashboardByManagerSnapshotByKey_() {
       continue;
     }
     seen[computedKey] = true;
+  }
+  invalidateReadRowsCache_(sheetName);
+}
+
+function dedupeDashboardSummarySnapshotByMonth_() {
+  var sheetName = CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT;
+  var sheet = getSheet_(sheetName);
+  var headers = getHeaders_(sheet);
+  var monthIndex = headers.indexOf('month_ym');
+  if (monthIndex < 0) return;
+
+  var dataStart = getDataStartRow_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < dataStart) return;
+
+  var seen = {};
+  for (var rowNum = lastRow; rowNum >= dataStart; rowNum--) {
+    var monthYm = normalizeSnapshotMonthYm_(sheet.getRange(rowNum, monthIndex + 1).getValue());
+    if (!monthYm) continue;
+
+    var normalizedCellValue = "'" + monthYm;
+    if (text_(sheet.getRange(rowNum, monthIndex + 1).getValue()) !== normalizedCellValue) {
+      sheet.getRange(rowNum, monthIndex + 1).setValue(normalizedCellValue);
+    }
+
+    if (seen[monthYm]) {
+      sheet.deleteRow(rowNum);
+      continue;
+    }
+    seen[monthYm] = true;
   }
   invalidateReadRowsCache_(sheetName);
 }
