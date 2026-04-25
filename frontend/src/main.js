@@ -417,7 +417,7 @@ function shellUserRoleLine() {
 }
 
 // מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
-const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'contacts', 'instructor-contacts']);
+const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'instructor-contacts']);
 
 function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
