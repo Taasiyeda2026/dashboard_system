@@ -18,6 +18,7 @@ import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 
 const ACTIVITY_VIEW_LS = 'dashboard_activity_view_v2';
+const inflightActivityDetailRequests = new Map();
 
 function hasRowException(row) {
   const noInstructor = !String(row.emp_id || '').trim() && !String(row.emp_id_2 || '').trim();
@@ -235,16 +236,18 @@ function putCachedActivityDetail(summaryRow, row, s) {
 
 export const activitiesScreen = {
   async load({ api, state }) {
+    console.time('activities:load');
     try {
       const v = typeof localStorage !== 'undefined' ? localStorage.getItem(ACTIVITY_VIEW_LS) : null;
       if (v === 'table' || v === 'compact') state.activityView = v;
     } catch (_e) {
       /* ignore */
     }
-    return api.activities({ activity_type: 'all' });
+    return api.activities({ activity_type: 'all' }).finally(() => console.timeEnd('activities:load'));
   },
 
   render(data, { state }) {
+    console.time('activities:render');
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
     const safeRows      = applyClientFilters(allRows, state, state?.clientSettings);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
@@ -340,7 +343,7 @@ export const activitiesScreen = {
         ? dsEmptyState('לא נמצאו פעילויות')
         : `<div class="ds-compact-list">${compactRows}</div>`;
 
-    return dsScreenStack(`
+    const html = dsScreenStack(`
       ${actNavGridHtml(state)}
       ${dsToolbar(`
         <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
@@ -355,6 +358,8 @@ export const activitiesScreen = {
         ? dsCard({ title: 'רשימת פעילויות', body: compactSection, padded: true })
         : dsCard({ title: 'רשימת פעילויות', body: tableSection,   padded: false })}
     `);
+    console.timeEnd('activities:render');
+    return html;
   },
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
@@ -372,7 +377,18 @@ export const activitiesScreen = {
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
 
     async function loadDetailRow(summaryRow) {
-      const rsp = await api.activityDetail(summaryRow.RowID, summaryRow.source_sheet);
+      const key = activityDetailCacheKey(summaryRow);
+      let request = inflightActivityDetailRequests.get(key);
+      if (!request) {
+        console.time('activityDetail:load');
+        request = api.activityDetail(summaryRow.RowID, summaryRow.source_sheet)
+          .finally(() => {
+            console.timeEnd('activityDetail:load');
+            inflightActivityDetailRequests.delete(key);
+          });
+        inflightActivityDetailRequests.set(key, request);
+      }
+      const rsp = await request;
       const row = rsp?.row || summaryRow;
       putCachedActivityDetail(summaryRow, row, state);
       return row;

@@ -6,6 +6,7 @@ import { formatDateHe } from './shared/format-date.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
 
+const inflightActivityDetailRequests = new Map();
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -200,10 +201,12 @@ function patchCachedActivityDetail({ sourceSheet, sourceRowId, changes }, s) {
 
 export const monthScreen = {
   load: ({ api, state }) => {
+    console.time('month:load');
     const ym = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : '';
-    return api.month(ym ? { ym } : {});
+    return api.month(ym ? { ym } : {}).finally(() => console.timeEnd('month:load'));
   },
   render(data, { state }) {
+    console.time('month:render');
     const spec = inferMonthSpec(data || {});
     const y = spec.y;
     const mo = spec.mo;
@@ -283,7 +286,7 @@ export const monthScreen = {
     const currentYm = data?.month || `${y}-${String(mo).padStart(2, '0')}`;
     const monthTitle = monthTitleHebrew(spec);
 
-    return dsScreenStack(`
+    const html = dsScreenStack(`
       ${actNavGridHtml(state)}
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">חודש קודם ▶</button>
@@ -295,6 +298,8 @@ export const monthScreen = {
         padded: false
       })}
     `);
+    console.timeEnd('month:render');
+    return html;
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
     bindActNavGrid(root, { state, rerender });
@@ -366,7 +371,18 @@ export const monthScreen = {
           return;
         }
         openItem(item);
-        api.activityDetail(item.RowID, item.source_sheet).then((rsp) => {
+        const detailKey = activityDetailCacheKey(item);
+        let request = inflightActivityDetailRequests.get(detailKey);
+        if (!request) {
+          console.time('activityDetail:load');
+          request = api.activityDetail(item.RowID, item.source_sheet)
+            .finally(() => {
+              console.timeEnd('activityDetail:load');
+              inflightActivityDetailRequests.delete(detailKey);
+            });
+          inflightActivityDetailRequests.set(detailKey, request);
+        }
+        request.then((rsp) => {
           const full = rsp?.row || item;
           putCachedActivityDetail(item, full, state);
           openItem(full);
