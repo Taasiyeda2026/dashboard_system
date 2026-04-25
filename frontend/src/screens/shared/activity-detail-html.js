@@ -276,7 +276,6 @@ function blockContent(row, { settings = {} } = {}) {
     String(row.start_time || '').trim() && String(row.end_time || '').trim()
       ? `${String(row.start_time).trim()}-${String(row.end_time).trim()}`
       : '—';
-  const dayLabel = fmtWeekdayShort(firstMeetingDate);
   const statusOptions = [
     { value: 'פעיל', label: 'פעיל' },
     { value: 'סגור', label: 'סגור' }
@@ -290,7 +289,6 @@ function blockContent(row, { settings = {} } = {}) {
         ${fieldViewOnly('מימון', escapeHtml(fallback(row.funding)))}
         ${fieldViewOnly('כיתה', escapeHtml(classLabel))}
         ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
-        ${fieldViewOnly('יום', escapeHtml(dayLabel))}
       </div>
       <div class="activity-drawer__edit-grid activity-drawer__grid activity-drawer__grid--two" data-mode="edit" hidden>
         <div class="activity-drawer__field activity-drawer__field--full">
