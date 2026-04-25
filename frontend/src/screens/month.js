@@ -5,8 +5,35 @@ import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bin
 import { formatDateHe } from './shared/format-date.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
+import {
+  ensureActivityListFilters,
+  prepareRowsForSearch,
+  applyLocalFilters,
+  filtersToolbarHtml,
+  bindLocalFilters
+} from './shared/activity-list-filters.js';
 
 const inflightActivityDetailRequests = new Map();
+const MONTH_SCOPE = 'calendar';
+const CALENDAR_FILTER_FIELDS = [
+  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'instructor', label: 'מדריך', getValues: (row) => [row?.instructor_name, row?.instructor_name_2] },
+  { key: 'activity_name', label: 'תוכנית' },
+  { key: 'authority', label: 'רשות' },
+  { key: 'funding', label: 'מימון' },
+  { key: 'school', label: 'בית ספר' }
+];
+const CALENDAR_SEARCH_FIELDS = [
+  'RowID',
+  'activity_name',
+  'activity_manager',
+  'instructor_name',
+  'instructor_name_2',
+  'authority',
+  'school',
+  'funding',
+  'status'
+];
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -217,6 +244,13 @@ export const monthScreen = {
 
     const safeCells = Array.isArray(data?.cells) ? data.cells : [];
     const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
+    const filterState = ensureActivityListFilters(state, MONTH_SCOPE);
+    const allItems = Object.values(itemsById || {});
+    prepareRowsForSearch(allItems, CALENDAR_SEARCH_FIELDS);
+    const toolbarHtml = filtersToolbarHtml(MONTH_SCOPE, allItems, state, {
+      filterFields: CALENDAR_FILTER_FIELDS,
+      searchPlaceholder: 'חיפוש פעילויות בלוח החודש…'
+    });
     const byDay = cellMapFromCells(safeCells);
     const todayIso = localYmd();
     const hideSaturday = !!data?.hide_saturday;
@@ -242,7 +276,7 @@ export const monthScreen = {
         date: padDayKey(y, mo, dayNum),
         item_ids: []
       };
-      const cellItems = monthCellItems(cell, itemsById);
+      const cellItems = applyLocalFilters(monthCellItems(cell, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
       const n = cellItems.length;
       const isToday = cell.date === todayIso;
       const isShabbat = cellDate.getDay() === 6;
@@ -291,6 +325,7 @@ export const monthScreen = {
         <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
         <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">◀ חודש הבא</button>
       </nav>
+      ${toolbarHtml}
       ${dsCard({
         body: gridHtml,
         padded: false
@@ -307,6 +342,7 @@ export const monthScreen = {
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+    bindLocalFilters(root, state, MONTH_SCOPE, rerender, { debounceMs: 300 });
     const cells = Array.isArray(data?.cells) ? data.cells : [];
     const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
     const allItemsByRowId = new Map();
@@ -435,7 +471,8 @@ export const monthScreen = {
         date: padDayKey(spec.y, spec.mo, d),
         item_ids: []
       };
-      const cellItems = monthCellItems(cell, itemsById);
+      const filterState = ensureActivityListFilters(state, MONTH_SCOPE);
+      const cellItems = applyLocalFilters(monthCellItems(cell, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
       if (!cellItems.length) return;
 
       ui.openDrawer({

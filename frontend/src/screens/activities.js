@@ -16,9 +16,38 @@ import {
 } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
+import {
+  ensureActivityListFilters,
+  prepareRowsForSearch,
+  applyLocalFilters,
+  filtersToolbarHtml,
+  bindLocalFilters,
+  splitVisibleRows
+} from './shared/activity-list-filters.js';
 
 const ACTIVITY_VIEW_LS = 'dashboard_activity_view_v2';
 const inflightActivityDetailRequests = new Map();
+const ACTIVITIES_SCOPE = 'activities';
+const ACTIVITY_FILTER_FIELDS = [
+  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'instructor', label: 'מדריך', getValues: (row) => [row?.instructor_name, row?.instructor_name_2] },
+  { key: 'activity_name', label: 'תוכנית' },
+  { key: 'authority', label: 'רשות' },
+  { key: 'funding', label: 'מימון' },
+  { key: 'school', label: 'בית ספר' }
+];
+const ACTIVITY_SEARCH_FIELDS = [
+  'RowID',
+  'activity_name',
+  'activity_manager',
+  'instructor_name',
+  'instructor_name_2',
+  'authority',
+  'school',
+  'funding',
+  'status',
+  'activity_type'
+];
 
 function hasRowException(row) {
   const noInstructor = !String(row.emp_id || '').trim() && !String(row.emp_id_2 || '').trim();
@@ -205,6 +234,57 @@ function applyClientFilters(rows, state, settings) {
   return out;
 }
 
+function currentYm() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function shiftYm(ym, delta) {
+  const base = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  const d = base ? new Date(Number(base[1]), Number(base[2]) - 1, 1) : new Date();
+  d.setMonth(d.getMonth() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthBounds(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  return {
+    start: `${y}-${String(mo).padStart(2, '0')}-01`,
+    end: `${y}-${String(mo).padStart(2, '0')}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`
+  };
+}
+
+function activityOverlapsMonth(row, ym) {
+  const bounds = monthBounds(ym);
+  if (!bounds) return true;
+  const meetings = Array.from({ length: 35 }, (_, i) => String(row?.[`Date${i + 1}`] || '').trim()).filter(Boolean);
+  if (meetings.length > 0) return meetings.some((date) => String(date).startsWith(ym));
+  const start = String(row?.start_date || '').trim();
+  const end = String(row?.end_date || start).trim();
+  if (!start && !end) return false;
+  const rowStart = start || end;
+  const rowEnd = end || start;
+  return rowStart <= bounds.end && rowEnd >= bounds.start;
+}
+
+function monthLabel(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return '';
+  return `${m[1]}-${m[2]}`;
+}
+
+function applyActivitiesLocalFilters(rows, state, settings) {
+  const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
+  if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
+  const familyRows = applyClientFilters(rows, state, settings);
+  const monthRows = familyRows.filter((row) => activityOverlapsMonth(row, state.activitiesMonthYm));
+  prepareRowsForSearch(monthRows, ACTIVITY_SEARCH_FIELDS);
+  return applyLocalFilters(monthRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS });
+}
+
 function activityDrawerContent(row, canSeePrivateNotes, canEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
@@ -247,7 +327,10 @@ export const activitiesScreen = {
 
   render(data, { state }) {
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
-    const safeRows      = applyClientFilters(allRows, state, state?.clientSettings);
+    if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
+    const filteredRows  = applyActivitiesLocalFilters(allRows, state, state?.clientSettings);
+    const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
+    const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
@@ -328,18 +411,31 @@ export const activitiesScreen = {
       )
       .join('');
 
+    const toolbarHtml = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
+      searchPlaceholder: 'חיפוש לפי פעילות / מדריך / רשות / בית ספר…',
+      filterFields: ACTIVITY_FILTER_FIELDS
+    });
+    const monthNavHtml = `<nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי פעילויות" dir="rtl">
+      <button type="button" class="ds-btn ds-btn--sm" data-activities-month-prev aria-label="חודש קודם">חודש קודם ▶</button>
+      <span class="ds-cal-nav__label">${escapeHtml(monthLabel(state.activitiesMonthYm))}</span>
+      <button type="button" class="ds-btn ds-btn--sm" data-activities-month-next aria-label="חודש הבא">◀ חודש הבא</button>
+    </nav>`;
+    const loadMoreHtml = hasMore
+      ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ACTIVITIES_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
+      : '';
+
     const tableSection =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--equal-cols">
                 <thead><tr><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>בית ספר</th><th>רשות</th><th>התחלה</th><th>סיום</th>${thEmp}${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
-              </table>`);
+              </table>`) + loadMoreHtml;
 
     const compactSection =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות')
-        : `<div class="ds-compact-list">${compactRows}</div>`;
+        : `<div class="ds-compact-list">${compactRows}</div>${loadMoreHtml}`;
 
     const html = dsScreenStack(`
       ${actNavGridHtml(state)}
@@ -352,9 +448,11 @@ export const activitiesScreen = {
         </div>
         <div class="ds-chip-group" dir="rtl">${familyChips}</div>
       `)}
+      ${monthNavHtml}
+      ${toolbarHtml}
       ${compactView
-        ? dsCard({ title: 'רשימת פעילויות', body: compactSection, padded: true })
-        : dsCard({ title: 'רשימת פעילויות', body: tableSection,   padded: false })}
+        ? dsCard({ title: `רשימת פעילויות · ${total}`, body: compactSection, padded: true })
+        : dsCard({ title: `רשימת פעילויות · ${total}`, body: tableSection,   padded: false })}
     `);
     return html;
   },
@@ -362,7 +460,7 @@ export const activitiesScreen = {
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
     bindActNavGrid(root, { state, rerender });
 
-    const filteredRows      = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state, state?.clientSettings);
+    const filteredRows      = applyActivitiesLocalFilters(Array.isArray(data?.rows) ? data.rows : [], state, state?.clientSettings);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const canEditActivity   = state?.user?.display_role !== 'instructor';
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -446,8 +544,28 @@ export const activitiesScreen = {
     root.querySelectorAll('[data-family]').forEach((node) => {
       node.addEventListener('click', () => {
         state.activityQuickFamily = node.dataset.family || '';
-        rerender();
+        if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
+        else rerender();
       });
+    });
+
+    const rerenderLocal = () => {
+      if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
+      else rerender();
+    };
+    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 300 });
+    root.querySelector('[data-activities-month-prev]')?.addEventListener('click', () => {
+      state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), -1);
+      rerenderLocal();
+    });
+    root.querySelector('[data-activities-month-next]')?.addEventListener('click', () => {
+      state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), 1);
+      rerenderLocal();
+    });
+    root.querySelector(`[data-list-show-more="${ACTIVITIES_SCOPE}"]`)?.addEventListener('click', (ev) => {
+      const next = Number(ev.currentTarget?.dataset?.nextCount || 200);
+      ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = next;
+      rerenderLocal();
     });
 
     if (root._addActivityAbort) root._addActivityAbort.abort();

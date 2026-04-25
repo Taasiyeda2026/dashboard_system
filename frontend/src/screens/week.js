@@ -5,8 +5,35 @@ import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bin
 import { formatDateHe } from './shared/format-date.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
+import {
+  ensureActivityListFilters,
+  prepareRowsForSearch,
+  applyLocalFilters,
+  filtersToolbarHtml,
+  bindLocalFilters
+} from './shared/activity-list-filters.js';
 
 const inflightActivityDetailRequests = new Map();
+const WEEK_SCOPE = 'calendar';
+const CALENDAR_FILTER_FIELDS = [
+  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'instructor', label: 'מדריך', getValues: (row) => [row?.instructor_name, row?.instructor_name_2] },
+  { key: 'activity_name', label: 'תוכנית' },
+  { key: 'authority', label: 'רשות' },
+  { key: 'funding', label: 'מימון' },
+  { key: 'school', label: 'בית ספר' }
+];
+const CALENDAR_SEARCH_FIELDS = [
+  'RowID',
+  'activity_name',
+  'activity_manager',
+  'instructor_name',
+  'instructor_name_2',
+  'authority',
+  'school',
+  'funding',
+  'status'
+];
 
 function localYmd() {
   const d = new Date();
@@ -163,12 +190,19 @@ export const weekScreen = {
   render(data, { state }) {
     const safeDays = Array.isArray(data?.days) ? data.days : [];
     const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
+    const filterState = ensureActivityListFilters(state, WEEK_SCOPE);
+    const allItems = Object.values(itemsById || {});
+    prepareRowsForSearch(allItems, CALENDAR_SEARCH_FIELDS);
     const todayIso = localYmd();
     const weekOffset = state.weekOffset || 0;
+    const toolbarHtml = filtersToolbarHtml(WEEK_SCOPE, allItems, state, {
+      filterFields: CALENDAR_FILTER_FIELDS,
+      searchPlaceholder: 'חיפוש פעילויות בלוח השבוע…'
+    });
 
     const columns = safeDays
       .map((d, idx) => {
-        const items = weekDayItems(d, itemsById);
+        const items = applyLocalFilters(weekDayItems(d, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
         const isToday = d.date === todayIso;
         const dow = d.weekday_label || '';
         const groups = groupItemsByInstructor(items);
@@ -211,6 +245,7 @@ export const weekScreen = {
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
         <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">◀ שבוע הבא</button>
       </nav>
+      ${toolbarHtml}
       <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
     return html;
@@ -224,6 +259,7 @@ export const weekScreen = {
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+    bindLocalFilters(root, state, WEEK_SCOPE, rerender, { debounceMs: 300 });
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });
