@@ -499,8 +499,11 @@ export function activityWorkDrawerHtml(row, opts = {}) {
       .map((item, idx) => `
         <div class="activity-drawer__summary-item">
           <div class="activity-drawer__summary-head">
-            <strong>${escapeHtml(fallback(item.activity_name))}</strong>
-            <span>${escapeHtml(`${activityTypeLabel(item.activity_type)} · ${fallback(item.school)}`)}</span>
+            <span class="activity-drawer__summary-index">${idx + 1}</span>
+            <div class="activity-drawer__summary-head-text">
+              <strong>${escapeHtml(fallback(item.activity_name))}</strong>
+              <span>${escapeHtml(`${activityTypeLabel(item.activity_type)} · ${fallback(item.school)}`)}</span>
+            </div>
           </div>
           ${singleForm(item, {
             settings,
