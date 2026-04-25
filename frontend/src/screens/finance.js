@@ -243,6 +243,193 @@ function buildDatesExpandRowHtml(row, colCount) {
 }
 
 /* ————————————————————————————————
+   Activity active/ended detection
+———————————————————————————————— */
+function isActivityActive(row) {
+  const arch = String(row.is_archived || row.archive || '').toLowerCase();
+  if (arch === 'yes' || arch === 'true' || arch === '1') return false;
+  if (row.end_date) {
+    const today = new Date().toISOString().slice(0, 10);
+    return String(row.end_date) >= today;
+  }
+  return true;
+}
+
+/* ————————————————————————————————
+   Groups layout: build group structure
+   A. גפן → by school+authority (flat)
+   B. רשות → by authority → school
+   C. other → by funding → school
+———————————————————————————————— */
+function buildGroupStructure(rows) {
+  const groups = new Map();
+  let idx = 0;
+
+  sortRows(rows).forEach((row) => {
+    const funding = String(row.funding || '').trim();
+    const school = String(row.school || '').trim() || 'לא מוגדר';
+    const authority = String(row.authority || '').trim() || '';
+
+    if (isGafenFunding(funding)) {
+      const key = `gafen::${school}::${authority}`;
+      if (!groups.has(key)) {
+        groups.set(key, { id: `fg-${idx++}`, label: school, sublabel: authority || null, type: 'gafen', funding, rows: [], subgroups: null });
+      }
+      groups.get(key).rows.push(row);
+    } else if (funding === 'רשות') {
+      const authLabel = authority || 'לא מוגדר';
+      const key = `rasut::${authLabel}`;
+      if (!groups.has(key)) {
+        groups.set(key, { id: `fg-${idx++}`, label: authLabel, sublabel: null, type: 'authority', funding, rows: [], subgroups: new Map() });
+      }
+      const grp = groups.get(key);
+      grp.rows.push(row);
+      if (!grp.subgroups.has(school)) grp.subgroups.set(school, []);
+      grp.subgroups.get(school).push(row);
+    } else {
+      const fundingLabel = funding || 'לא מוגדר';
+      const key = `funding::${fundingLabel}`;
+      if (!groups.has(key)) {
+        groups.set(key, { id: `fg-${idx++}`, label: fundingLabel, sublabel: null, type: 'funding', funding: fundingLabel, rows: [], subgroups: new Map() });
+      }
+      const grp = groups.get(key);
+      grp.rows.push(row);
+      if (!grp.subgroups.has(school)) grp.subgroups.set(school, []);
+      grp.subgroups.get(school).push(row);
+    }
+  });
+
+  return groups;
+}
+
+/* Single activity row for the groups layout */
+function buildActivityRowHtml(row, canEdit) {
+  const uid = escapeHtml(row.RowID);
+  const active = isActivityActive(row);
+
+  const activityBadge = active
+    ? `<span class="ds-fg-badge ds-fg-badge--active">פעיל</span>`
+    : `<span class="ds-fg-badge ds-fg-badge--ended">הסתיים</span>`;
+
+  const fstVal = String(row.finance_status || '').toLowerCase();
+  const financeBadge = fstVal === 'open'
+    ? `<span class="ds-fg-badge ds-fg-badge--open">פתוח</span>`
+    : fstVal === 'closed'
+      ? `<span class="ds-fg-badge ds-fg-badge--closed">סגור</span>`
+      : `<span class="ds-fg-badge ds-fg-badge--no-status">ללא</span>`;
+
+  const endDateHtml = row.end_date
+    ? `<span class="ds-fg-activity__date">סיום: ${formatDateIL(row.end_date)}</span>`
+    : '';
+
+  const notesHtml = row.finance_notes
+    ? `<div class="ds-fg-activity__notes">הערות כספים: ${escapeHtml(row.finance_notes)}</div>`
+    : '';
+
+  let editHtml = '';
+  if (canEdit) {
+    const statusOpts = ['', 'open', 'closed'].map((v) =>
+      `<option value="${v}" ${String(row.finance_status || '') === v ? 'selected' : ''}>${v === '' ? '— ללא —' : hebrewFinanceStatus(v)}</option>`
+    ).join('');
+    editHtml = `<div class="ds-fg-activity__edit" data-fg-edit="${uid}" style="display:none;">
+      <select class="ds-input ds-input--sm ds-finance-status-select" data-inline-status="${uid}">${statusOpts}</select>
+      <input type="text" class="ds-input ds-input--sm ds-finance-notes-input" data-inline-notes="${uid}"
+        value="${escapeHtml(String(row.finance_notes || ''))}" placeholder="הערות כספים..." />
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-finance-save-btn" data-inline-save="${uid}">שמור</button>
+      <span class="ds-finance-inline-status ds-muted" data-inline-msg="${uid}" role="status" aria-live="polite"></span>
+    </div>`;
+  }
+
+  return `<div class="ds-fg-activity" data-row-id="${uid}">
+    <div class="ds-fg-activity__main">
+      <div class="ds-fg-activity__info">
+        <span class="ds-fg-activity__name">${escapeHtml(row.activity_name || '—')}</span>
+        ${endDateHtml}
+      </div>
+      <div class="ds-fg-activity__badges">
+        ${activityBadge}
+        ${financeBadge}
+        ${canEdit ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm ds-fg-activity__edit-btn" data-fg-edit-toggle="${uid}" title="ערוך">✎</button>` : ''}
+      </div>
+    </div>
+    ${notesHtml}
+    ${editHtml}
+  </div>`;
+}
+
+/* Main groups layout: replaces the table in the default view */
+function buildFinanceGroupsLayout(rows, canEdit) {
+  if (rows.length === 0) return dsEmptyState('לא נמצאו פעילויות');
+
+  const groups = buildGroupStructure(rows);
+  const sortedGroups = [...groups.values()].sort((a, b) => {
+    const typeOrder = { gafen: 0, authority: 1, funding: 2 };
+    const ta = typeOrder[a.type] ?? 3;
+    const tb = typeOrder[b.type] ?? 3;
+    if (ta !== tb) return ta - tb;
+    return a.label.localeCompare(b.label, 'he');
+  });
+
+  const groupHtml = sortedGroups.map((grp) => {
+    const gid = grp.id;
+    const gTotal = grp.rows.reduce((s, r) => s + rowAmount(r), 0);
+    const gOpen = grp.rows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open').length;
+    const gClosed = grp.rows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed').length;
+    const gCount = grp.rows.length;
+
+    const statusChipsHtml = [
+      gOpen > 0 ? `<span class="ds-fg-chip ds-fg-chip--open">${gOpen} פתוח</span>` : '',
+      gClosed > 0 ? `<span class="ds-fg-chip ds-fg-chip--closed">${gClosed} סגור</span>` : ''
+    ].filter(Boolean).join('');
+
+    const subtitleHtml = grp.sublabel
+      ? `<span class="ds-fg-card__subtitle">${escapeHtml(grp.sublabel)}</span>`
+      : '';
+
+    const typeBadgeHtml = grp.type === 'gafen'
+      ? `<span class="ds-fg-type-badge ds-fg-type-badge--gafen">גפ"ן</span>`
+      : grp.type === 'authority'
+        ? `<span class="ds-fg-type-badge ds-fg-type-badge--authority">רשות</span>`
+        : `<span class="ds-fg-type-badge ds-fg-type-badge--funding">מימון</span>`;
+
+    let bodyHtml;
+    if (grp.subgroups === null) {
+      bodyHtml = grp.rows.map((r) => buildActivityRowHtml(r, canEdit)).join('');
+    } else {
+      const schoolKeys = [...grp.subgroups.keys()].sort((a, b) => a.localeCompare(b, 'he'));
+      bodyHtml = schoolKeys.map((school) => {
+        const activitiesHtml = grp.subgroups.get(school).map((r) => buildActivityRowHtml(r, canEdit)).join('');
+        return `<div class="ds-fg-subgroup">
+          <div class="ds-fg-subgroup__head">${escapeHtml(school)}</div>
+          <div class="ds-fg-subgroup__rows">${activitiesHtml}</div>
+        </div>`;
+      }).join('');
+    }
+
+    return `<div class="ds-fg-card ds-fg-card--${escapeHtml(grp.type)} is-open" data-fg-id="${escapeHtml(gid)}">
+      <div class="ds-fg-card__head" data-fg-toggle="${escapeHtml(gid)}">
+        <div class="ds-fg-card__title-area">
+          ${typeBadgeHtml}
+          <h3 class="ds-fg-card__title">${escapeHtml(grp.label)}</h3>
+          ${subtitleHtml}
+        </div>
+        <div class="ds-fg-card__info">
+          <span class="ds-fg-card__total">${formatILS(gTotal)}</span>
+          <span class="ds-fg-card__count">${gCount} פעילויות</span>
+          <span class="ds-fg-card__status-chips">${statusChipsHtml}</span>
+        </div>
+        <span class="ds-fg-card__chevron" aria-hidden="true">▾</span>
+      </div>
+      <div class="ds-fg-card__body" data-fg-body="${escapeHtml(gid)}">
+        ${bodyHtml}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="ds-fg-list">${groupHtml}</div>`;
+}
+
+/* ————————————————————————————————
    Grouped table rendering
 ———————————————————————————————— */
 function buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir, groupingRule) {
@@ -575,10 +762,15 @@ function loadStateFromStorage(state) {
       if (v) state[stateKey] = v;
     }
   });
-  /* Default month: current month (shows cur + prev pair via applyMonthFilter) */
-  if (!state.financeMonthYm) {
-    state.financeMonthYm = currentYm();
+  /* Default: show open finance status (main purpose of finance screen) */
+  if (!state.financeStatusFilter) {
+    state.financeStatusFilter = 'open';
   }
+  /* Default tab: all — show both active and archived activities */
+  if (!state.financeTab) {
+    state.financeTab = 'all';
+  }
+  /* No default month filter — show all activities */
 }
 
 function save(key, val) {
@@ -594,9 +786,9 @@ export const financeScreen = {
     return api.finance({
       date_from: state?.financeDateFrom || '',
       date_to: state?.financeDateTo || '',
-      search: state?.financeSearch || '',
-      status: state?.financeStatusFilter || '',
-      tab: state?.financeTab || 'active',
+      search: '',      /* search and status applied client-side for instant filtering */
+      status: '',
+      tab: 'all',      /* load both active and archived — finance screen shows all */
       month: state?.financeMonthYm || ''
     });
   },
@@ -610,14 +802,16 @@ export const financeScreen = {
     const dateTo = state?.financeDateTo || '';
     const activeTab = state?.financeTab || 'active';
     const monthYm = state?.financeMonthYm || '';
-    const viewMode = state?.financeViewMode || (narrow ? 'cards' : 'table');
+    const viewMode = state?.financeViewMode || (narrow ? 'cards' : 'groups');
     const canEdit = ['admin', 'operations_reviewer'].includes(state?.user?.display_role);
     const canView = state?.user?.display_role !== 'instructor';
     const isAdmin = state?.user?.display_role === 'admin';
     const groupingRule = state?.clientSettings?.finance_grouping_rule || data?.finance_grouping_rule || 'gafen_by_school_else_funding';
 
-    /* Admin/reviewer can see all tabs; others see active only */
-    let baseRows = canEdit ? applyTabFilter(allRows, activeTab) : applyTabFilter(allRows, 'active');
+    /* All rows loaded with tab='all'; apply tab filter only if user explicitly chose active/archive */
+    let baseRows = (activeTab && activeTab !== 'all')
+      ? applyTabFilter(allRows, activeTab)
+      : allRows;
 
     /* KPI window: month-filter only — independent of search/status chips */
     const kpiRows = applyMonthFilter(baseRows, monthYm, dateFrom, dateTo);
@@ -634,8 +828,11 @@ export const financeScreen = {
       { label: 'סה"כ סל גבייה', value: formatILS(amountTotal) }
     ];
 
-    /* Display rows: apply search and status on top of the month window */
+    /* Display rows: apply status filter and search client-side on top of the month window */
     let rows = kpiRows;
+    if (statusFilter) {
+      rows = rows.filter((r) => String(r.finance_status || '').toLowerCase() === statusFilter);
+    }
 
     /* Status filter chips */
     const statuses = [...new Set(rows.map((r) => String(r.finance_status || '')).filter(Boolean))];
@@ -691,11 +888,12 @@ export const financeScreen = {
       padded: false
     });
 
-    /* Tabs — show ארכיון if user has edit permissions (admin/reviewer/authorized) */
+    /* Tabs — show filter options for authorized users */
     const showArchiveTab = canEdit;
     const tabsHtml = showArchiveTab ? `<div class="ds-finance-tabs" dir="rtl">
-      <button type="button" class="ds-finance-tab ${activeTab === 'active' ? 'is-active' : ''}" data-finance-tab="active">פעילות</button>
-      <button type="button" class="ds-finance-tab ${activeTab === 'archive' ? 'is-active' : ''}" data-finance-tab="archive">ארכיון</button>
+      <button type="button" class="ds-finance-tab ${!activeTab || activeTab === 'all' ? 'is-active' : ''}" data-finance-tab="all">הכל</button>
+      <button type="button" class="ds-finance-tab ${activeTab === 'active' ? 'is-active' : ''}" data-finance-tab="active">פעילויות בלבד</button>
+      <button type="button" class="ds-finance-tab ${activeTab === 'archive' ? 'is-active' : ''}" data-finance-tab="archive">ארכיון בלבד</button>
     </div>` : '';
 
     /* Month nav — shows a 2-month window */
@@ -713,6 +911,7 @@ export const financeScreen = {
 
     /* View toggle */
     const viewToggleHtml = `<div class="ds-view-toggle" dir="rtl">
+      <button type="button" class="ds-view-toggle__btn ${viewMode === 'groups' ? 'is-active' : ''}" data-view-mode="groups" title="תצוגת ריכוזים">⊡ ריכוזים</button>
       <button type="button" class="ds-view-toggle__btn ${viewMode === 'table' ? 'is-active' : ''}" data-view-mode="table" title="תצוגת טבלה">☰ טבלה</button>
       <button type="button" class="ds-view-toggle__btn ${viewMode === 'cards' ? 'is-active' : ''}" data-view-mode="cards" title="תצוגת כרטיסיות">⊞ כרטיסיות</button>
     </div>`;
@@ -732,9 +931,11 @@ export const financeScreen = {
     const tableSortCol = state?.financeTableSortCol || '';
     const tableSortDir = state?.financeTableSortDir || 'asc';
 
-    const dataBody = viewMode === 'cards'
-      ? buildCardsView(rows, canEdit)
-      : buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir, groupingRule);
+    const dataBody = viewMode === 'table'
+      ? buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir, groupingRule)
+      : viewMode === 'cards'
+        ? buildCardsView(rows, canEdit)
+        : buildFinanceGroupsLayout(rows, canEdit);
 
     return dsScreenStack(`
       ${dsPageHeader('כספים', headerSubtitle)}
@@ -765,10 +966,10 @@ export const financeScreen = {
       </div>
       <div data-finance-data-area>
         ${dsCard({
-          title: 'רשימת כספים',
-          badge: `${rows.length} רשומות`,
+          title: 'ריכוז כספים',
+          badge: `${rows.length} פעילויות`,
           body: dataBody,
-          padded: rows.length === 0 || viewMode === 'cards'
+          padded: rows.length === 0 || viewMode === 'cards' || viewMode === 'groups'
         })}
       </div>
     `);
@@ -826,6 +1027,31 @@ export const financeScreen = {
         state.financeViewMode = btn.dataset.viewMode;
         save(LS.viewMode, state.financeViewMode);
         rerender();
+      });
+    });
+
+    /* Finance group cards — expand / collapse */
+    root.querySelectorAll('[data-fg-toggle]').forEach((head) => {
+      head.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const gid = head.dataset.fgToggle;
+        const card = root.querySelector(`[data-fg-id="${gid}"]`);
+        const body = root.querySelector(`[data-fg-body="${gid}"]`);
+        if (!card || !body) return;
+        const isOpen = !body.hidden;
+        body.hidden = isOpen;
+        card.classList.toggle('is-open', !isOpen);
+      });
+    });
+
+    /* Finance group activity inline edit toggle */
+    root.querySelectorAll('[data-fg-edit-toggle]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const uid = btn.dataset.fgEditToggle;
+        const editPanel = root.querySelector(`[data-fg-edit="${uid}"]`);
+        if (!editPanel) return;
+        editPanel.style.display = editPanel.style.display === 'none' ? '' : 'none';
       });
     });
 
@@ -981,12 +1207,12 @@ export const financeScreen = {
         const freshData = await api.finance({
           date_from: state?.financeDateFrom || '',
           date_to: state?.financeDateTo || '',
-          search: state?.financeSearch || '',
-          status: state?.financeStatusFilter || '',
-          tab: state?.financeTab || 'active',
+          search: '',
+          status: '',
+          tab: 'all',
           month: state?.financeMonthYm || ''
         });
-        const financeKey = `finance:${state.financeDateFrom||''}:${state.financeDateTo||''}:${state.financeSearch||''}:${state.financeStatusFilter||''}:${state.financeTab||'active'}:${state.financeMonthYm||''}`;
+        const financeKey = `finance:${state.financeDateFrom||''}:${state.financeDateTo||''}:::all:${state.financeMonthYm||''}`;
         Object.keys(state.screenDataCache).forEach((k) => {
           if (k.startsWith('finance:')) delete state.screenDataCache[k];
         });
@@ -1097,9 +1323,23 @@ export const financeScreen = {
         hideActivityNo,
         settings: state?.clientSettings || {}
       });
+      /* Finance-specific header: status badges + finance notes prominently */
+      const fstVal = String(hit.finance_status || '').toLowerCase();
+      const fsBadge = fstVal === 'open'
+        ? `<span class="ds-fg-badge ds-fg-badge--open">כספים: פתוח</span>`
+        : fstVal === 'closed'
+          ? `<span class="ds-fg-badge ds-fg-badge--closed">כספים: סגור</span>`
+          : '';
+      const actBadge = isActivityActive(hit)
+        ? `<span class="ds-fg-badge ds-fg-badge--active">פעילות: פעיל</span>`
+        : `<span class="ds-fg-badge ds-fg-badge--ended">פעילות: הסתיים</span>`;
+      const financeHeader = `<div class="ds-fg-drawer-header" dir="rtl">
+        <div class="ds-fg-drawer-header__badges">${actBadge} ${fsBadge}</div>
+        ${hit.finance_notes ? `<div class="ds-fg-drawer-header__notes"><span class="ds-fg-drawer-header__notes-label">הערות כספים:</span> ${escapeHtml(hit.finance_notes)}</div>` : ''}
+      </div>`;
       ui.openDrawer({
         title: `כספים · ${hit.activity_name || 'פעילות'}`,
-        content: baseHtml + (meetingsHtml ? `<div style="padding:var(--ds-space-3)">${meetingsHtml}</div>` : ''),
+        content: financeHeader + baseHtml + (meetingsHtml ? `<div style="padding:var(--ds-space-3)">${meetingsHtml}</div>` : ''),
         onOpen: canEdit ? bindFinanceEditForm : undefined
       });
     };
@@ -1129,6 +1369,16 @@ export const financeScreen = {
       });
       rowNode.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); rowNode.click(); }
+      });
+    });
+
+    /* Finance groups layout — activity row click → drawer */
+    root.querySelectorAll('.ds-fg-activity').forEach((actRow) => {
+      actRow.addEventListener('click', (e) => {
+        if (e.target.closest('[data-fg-edit-toggle],[data-inline-save],[data-inline-status],[data-inline-notes],[data-fg-edit]')) return;
+        const rowId = actRow.dataset.rowId;
+        const hit = allRows.find((r) => String(r.RowID) === String(rowId));
+        openDrawer(hit).catch(() => {});
       });
     });
 
