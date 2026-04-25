@@ -27,6 +27,7 @@ const systemLogoSrc = new URL('../assets/logo_system.png', import.meta.url).href
 let isMobileNavOpen = false;
 let lastRenderedRoute = null;
 let loginInlineError = '';
+let hasMountedAuthenticatedShell = false;
 const ui = createSharedInteractionLayer();
 
 /** In-flight API request dedup: prevents duplicate calls when navigating quickly. */
@@ -559,6 +560,11 @@ function prefetchFromDashboardIfNeeded() {
   });
 }
 
+function maybePrefetchFromDashboard() {
+  if (!hasMountedAuthenticatedShell) return;
+  prefetchFromDashboardIfNeeded();
+}
+
 function setShellNavBusy(busy) {
   document.querySelectorAll('.app-shell [data-route]').forEach((b) => {
     b.disabled = busy;
@@ -802,7 +808,7 @@ async function mountScreen() {
       });
       if (routeChanged) lastRenderedRoute = state.route;
       if (isStale && state.route !== 'finance') backgroundRefreshScreen(screen, cacheKey);
-      prefetchFromDashboardIfNeeded();
+      maybePrefetchFromDashboard();
       recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
       return;
     }
@@ -822,7 +828,7 @@ async function mountScreen() {
     });
     if (routeChanged) lastRenderedRoute = state.route;
     if (isStale && state.route !== 'finance') backgroundRefreshScreen(screen, cacheKey);
-    prefetchFromDashboardIfNeeded();
+    maybePrefetchFromDashboard();
     recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
     return;
   } else {
@@ -845,7 +851,7 @@ async function mountScreen() {
       cache_key: cacheKey
     });
     if (routeChanged) lastRenderedRoute = state.route;
-    prefetchFromDashboardIfNeeded();
+    maybePrefetchFromDashboard();
   } catch (err) {
     const screenRoot = document.getElementById('screenRoot');
     if (screenRoot) {
@@ -857,6 +863,12 @@ async function mountScreen() {
       </div>`;
     }
   } finally {
+    if (!hasMountedAuthenticatedShell) {
+      hasMountedAuthenticatedShell = true;
+      setTimeout(() => {
+        if (state.token) prefetchFromDashboardIfNeeded();
+      }, 1200);
+    }
     setShellNavBusy(false);
     recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
   }
@@ -893,6 +905,7 @@ function bindShell() {
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
     ui.closeAll();
     clearStorageCache();
+    hasMountedAuthenticatedShell = false;
     setSession(null);
     localStorage.removeItem('dashboard_routes');
     render();
@@ -928,16 +941,11 @@ async function render() {
           };
           try {
             const data = await api.login(userId, code);
+            hasMountedAuthenticatedShell = false;
             setSession({ token: data.token, user: data.user });
             applyBootstrapFromLoginData(data);
-            try {
-              await restoreSession();
-              await mountScreen();
-              loginInlineError = '';
-            } catch {
-              rollbackToLogin('כשל בטעינת נתוני משתמש אחרי התחברות');
-              await render();
-            }
+            loginInlineError = '';
+            _pendingRender = true;
           } catch (error) {
             const msg = translateApiErrorForUser(error?.message);
             if (errorNode) errorNode.textContent = msg;
