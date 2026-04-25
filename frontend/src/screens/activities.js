@@ -7,6 +7,7 @@ import {
 } from './shared/ui-hebrew.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import {
+  dsPageHeader,
   dsToolbar,
   dsCard,
   dsScreenStack,
@@ -413,7 +414,9 @@ export const activitiesScreen = {
 
     const toolbarHtml = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
       searchPlaceholder: 'חיפוש לפי פעילות / מדריך / רשות / בית ספר…',
-      filterFields: ACTIVITY_FILTER_FIELDS
+      filterFields: ACTIVITY_FILTER_FIELDS,
+      layout: 'panel',
+      title: 'סינון מתקדם'
     });
     const monthNavHtml = `<nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי פעילויות" dir="rtl">
       <button type="button" class="ds-btn ds-btn--sm" data-activities-month-prev aria-label="חודש קודם">חודש קודם ▶</button>
@@ -437,7 +440,9 @@ export const activitiesScreen = {
         ? dsEmptyState('לא נמצאו פעילויות')
         : `<div class="ds-compact-list">${compactRows}</div>${loadMoreHtml}`;
 
-    const html = dsScreenStack(`
+    const html = dsScreenStack(`<section class="ds-activities-screen">
+      ${dsPageHeader('פעילויות', `ניהול פעילויות לחודש ${monthLabel(state.activitiesMonthYm)}`)}
+      <section class="ds-activities-top-panel">
       ${dsToolbar(`
         <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
           <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${
@@ -448,11 +453,12 @@ export const activitiesScreen = {
         <div class="ds-chip-group" dir="rtl">${familyChips}</div>
       `)}
       ${monthNavHtml}
+      </section>
       ${toolbarHtml}
       ${compactView
         ? dsCard({ title: `רשימת פעילויות · ${total}`, body: compactSection, padded: true })
         : dsCard({ title: `רשימת פעילויות · ${total}`, body: tableSection,   padded: false })}
-    `);
+    </section>`);
     return html;
   },
 
