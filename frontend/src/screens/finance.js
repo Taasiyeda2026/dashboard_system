@@ -803,7 +803,7 @@ export const financeScreen = {
     const activeTab = state?.financeTab || 'active';
     const monthYm = state?.financeMonthYm || '';
     const viewMode = state?.financeViewMode || (narrow ? 'cards' : 'groups');
-    const canEdit = ['admin', 'operations_reviewer'].includes(state?.user?.display_role);
+    const canEdit = ['admin', 'operation_manager'].includes(state?.user?.display_role);
     const canView = state?.user?.display_role !== 'instructor';
     const isAdmin = state?.user?.display_role === 'admin';
     const groupingRule = state?.clientSettings?.finance_grouping_rule || data?.finance_grouping_rule || 'gafen_by_school_else_funding';
@@ -977,7 +977,7 @@ export const financeScreen = {
 
   bind({ root, data, ui, api, state, rerender, clearScreenDataCache = () => {} }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const canEdit = ['admin', 'operations_reviewer'].includes(state?.user?.display_role);
+    const canEdit = ['admin', 'operation_manager'].includes(state?.user?.display_role);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
@@ -1321,11 +1321,12 @@ export const financeScreen = {
 
     const openDrawerWithRow = (hit) => {
       const meetingsHtml = buildMeetingsDatesHtml(hit);
-      const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+      const showPrivateNote = state?.user?.display_role === 'operation_manager';
       const privateNote = showPrivateNote ? hit.private_note || '—' : null;
       const baseHtml = activityWorkDrawerHtml(hit, {
         privateNote,
         canEdit,
+        canDirectEdit: canEdit,
         hideEmpIds,
         hideRowId,
         hideActivityNo,

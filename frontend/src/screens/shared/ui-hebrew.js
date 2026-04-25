@@ -6,7 +6,7 @@ export const UI_ACTIVITY_FAMILY_LONG = 'תוכניות';
 
 export const HEBREW_ROLE = {
   admin: 'מנהל/ת',
-  operations_reviewer: 'בקר/ת תפעול',
+  operation_manager: 'בקר/ת תפעול',
   authorized_user: 'משתמש/ת מורשה',
   instructor: 'מדריך/ה',
   finance: 'כספים',

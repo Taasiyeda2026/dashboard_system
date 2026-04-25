@@ -47,7 +47,7 @@ function weekItemMeta(item) {
   return names || 'ללא מדריך';
 }
 
-function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, showPrivateNote, settings, mode = 'single') {
+function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, canDirectEdit, showPrivateNote, settings, mode = 'single') {
   if (mode === 'summary') {
     const rows = Array.isArray(itemOrItems) ? itemOrItems : [];
     return activityWorkDrawerHtml(rows, {
@@ -55,6 +55,7 @@ function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo
       summaryDate: date,
       privateNote: showPrivateNote ? '—' : null,
       canEdit: !!canEdit,
+      canDirectEdit: !!canDirectEdit,
       hideEmpIds: !!hideEmpIds,
       hideRowId: !!hideRowId,
       hideActivityNo: !!hideActivityNo,
@@ -67,6 +68,7 @@ function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo
     mode: 'single',
     privateNote,
     canEdit: !!canEdit,
+    canDirectEdit: !!canDirectEdit,
     hideEmpIds: !!hideEmpIds,
     hideRowId: !!hideRowId,
     hideActivityNo: !!hideActivityNo,
@@ -254,8 +256,8 @@ export const weekScreen = {
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canEditActivity = state?.user?.display_role !== 'instructor';
-    const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+    const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
+    const showPrivateNote = state?.user?.display_role === 'operation_manager';
     bindLocalFilters(root, state, WEEK_SCOPE, rerender, { debounceMs: 300 });
 
     const bindActivityEditForm = (contentRoot) =>
@@ -320,7 +322,8 @@ export const weekScreen = {
             hideEmpIds,
             hideRowId,
             hideActivityNo,
-            canEditActivity,
+              canEditActivity,
+              !!state?.user?.can_edit_direct,
             showPrivateNote,
             state?.clientSettings || {},
             currMode

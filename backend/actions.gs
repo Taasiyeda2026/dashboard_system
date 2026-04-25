@@ -9,6 +9,8 @@ function actionBootstrap_(user) {
     default_route: defaultRoute,
     routes: routes,
     can_add_activity: effectiveCanAddActivity_(permission, user.display_role),
+    can_edit_direct: effectiveCanEditDirect_(permission, user.display_role),
+    can_request_edit: effectiveCanRequestEdit_(permission, user.display_role),
     profile: {
       full_name: text_(permission.full_name),
       display_role2: text_(permission.display_role2)
@@ -282,7 +284,7 @@ function dateColumnsPatchFromChanges_(changes) {
 }
 
 function actionDashboard_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
 
   var permission = getPermissionRow_(user.user_id);
   var canViewFinance = user.display_role === 'admin' ||
@@ -604,7 +606,7 @@ function actionDashboard_(user, payload) {
 }
 
 function actionActivities_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
   var canAddActivity = effectiveCanAddActivity_(permission, user.display_role);
 
@@ -708,7 +710,7 @@ function mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today) {
     meetings_total: meetingDates.length,
     meetings_done: meetingDates.filter(function(dateKey) { return dateKey <= today; }).length,
     meetings_remaining: meetingDates.filter(function(dateKey) { return dateKey > today; }).length,
-    private_note: user.display_role === 'operations_reviewer' && noteRow && yesNo_(noteRow.active) === 'yes'
+    private_note: user.display_role === 'operation_manager' && noteRow && yesNo_(noteRow.active) === 'yes'
       ? text_(noteRow.note_text)
       : ''
   };
@@ -791,7 +793,7 @@ function findActivityRowById_(sourceRowId, sourceSheet) {
 }
 
 function actionActivityDetail_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var sourceRowId = text_((payload || {}).source_row_id || (payload || {}).RowID);
   var sourceSheet = text_((payload || {}).source_sheet);
   var row = findActivityRowById_(sourceRowId, sourceSheet);
@@ -799,7 +801,7 @@ function actionActivityDetail_(user, payload) {
 }
 
 function actionAddActivityOptions_(user) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
   if (!effectiveCanAddActivity_(permission, user.display_role)) {
     throw new Error('Forbidden');
@@ -822,7 +824,7 @@ function actionAddActivityOptions_(user) {
 }
 
 function actionActivityDraftOptions_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
   if (!effectiveCanAddActivity_(permission, user.display_role)) {
     throw new Error('Forbidden');
@@ -839,7 +841,7 @@ function actionActivityDraftOptions_(user, payload) {
 }
 
 function actionWeek_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
 
   var today = new Date();
   var startDay = getWeekStartDay_();
@@ -882,7 +884,7 @@ function actionWeek_(user, payload) {
 }
 
 function actionMonth_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
 
   var now = new Date();
   var ym = text_(payload && payload.ym).slice(0, 7);
@@ -925,7 +927,7 @@ function actionMonth_(user, payload) {
 }
 
 function actionExceptions_(user) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
 
   // enrichRowsWithMeetings_ מעדכן end_date לתאריך המפגש האחרון האמיתי מגיליון activity_meetings,
   // כך שבדיקת late_end_date תזהה נכון קורסים עם מפגשים מעבר ל-late_end_date_cutoff.
@@ -1000,7 +1002,7 @@ function actionExceptions_(user) {
 }
 
 function actionFinance_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
 
   var today = formatDate_(new Date());
   var rule = getSettingText_('finance_display_rule', CONFIG.DEFAULT_FINANCE_DISPLAY_RULE || 'ended_until_today');
@@ -1138,7 +1140,7 @@ function actionFinance_(user, payload) {
 }
 
 function actionFinanceDetail_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var sourceRowId = text_((payload || {}).source_row_id || (payload || {}).RowID);
   var sourceSheet = text_((payload || {}).source_sheet);
   var row = findActivityRowById_(sourceRowId, sourceSheet);
@@ -1148,7 +1150,7 @@ function actionFinanceDetail_(user, payload) {
 }
 
 function actionInstructors_(user) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
 
   var all = allActivitiesSummary_();
   var ym = formatDate_(new Date()).slice(0, 7);
@@ -1212,7 +1214,7 @@ function actionInstructors_(user) {
 }
 
 function actionContacts_(user) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
   var canViewInstructors = instructorContactsViewYes_(permission);
   var canViewSchools     = schoolContactsViewYes_(permission);
@@ -1263,7 +1265,7 @@ function actionContacts_(user) {
 
 function canManageContacts_(user, kind) {
   if (!user) return false;
-  if (user.display_role === 'admin' || user.display_role === 'operations_reviewer') return true;
+  if (user.display_role === 'admin' || user.display_role === 'operation_manager') return true;
   var permission = getPermissionRow_(user.user_id);
   if (kind === 'instructor') return instructorContactsViewYes_(permission);
   if (kind === 'school') return schoolContactsViewYes_(permission);
@@ -1363,7 +1365,7 @@ function actionSaveContact_(user, payload) {
 }
 
 function actionInstructorContacts_(user) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
   if (!instructorContactsViewYes_(permission)) {
     throw new Error('Forbidden');
@@ -1386,7 +1388,7 @@ function actionInstructorContacts_(user) {
 }
 
 function actionEndDates_(user) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
   if (!endDatesViewYes_(permission)) {
     throw new Error('Forbidden');
@@ -1425,7 +1427,7 @@ function actionEndDates_(user) {
 }
 
 function actionMyData_(user) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user', 'instructor']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
   var permission = getPermissionRow_(user.user_id);
   if (user.display_role !== 'instructor' && !myDataViewYes_(permission)) {
     throw new Error('Forbidden');
@@ -1444,7 +1446,7 @@ function actionMyData_(user) {
 }
 
 function actionOperations_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
   if (yesNo_(permission.view_operations_data) !== 'yes' && user.display_role !== 'admin') {
     throw new Error('Forbidden');
@@ -1474,7 +1476,7 @@ function actionOperations_(user, payload) {
 }
 
 function actionOperationsDetail_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
   if (yesNo_(permission.view_operations_data) !== 'yes' && user.display_role !== 'admin') {
     throw new Error('Forbidden');
@@ -1486,10 +1488,8 @@ function actionOperationsDetail_(user, payload) {
 }
 
 function actionEditRequests_(user) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
-  var permission = getPermissionRow_(user.user_id);
-  var canReview = user.display_role === 'admin' ||
-    (user.display_role === 'operations_reviewer' && yesNo_(permission.can_review_requests) === 'yes');
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
+  var canReview = canDirectWriteRole_(user.display_role);
 
   var rows = readRows_(CONFIG.SHEETS.EDIT_REQUESTS).filter(function(r) {
     return yesNo_(r.active) === 'yes';
@@ -1502,34 +1502,43 @@ function actionEditRequests_(user) {
     });
   }
 
-  var groups = {};
-  var order = [];
-  rows.forEach(function(r) {
-    var rid = text_(r.request_id);
-    if (!groups[rid]) {
-      groups[rid] = {
-        request_id: rid,
-        source_sheet: text_(r.source_sheet),
-        source_row_id: text_(r.source_row_id),
-        requested_by_user_id: text_(r.requested_by_user_id),
-        requested_by_name: text_(r.requested_by_name),
-        requested_at: text_(r.requested_at),
-        status: text_(r.status),
-        reviewed_at: text_(r.reviewed_at),
-        reviewed_by: text_(r.reviewed_by),
-        reviewer_notes: text_(r.reviewer_notes),
-        fields: []
-      };
-      order.push(rid);
+  var result = rows.map(function(r) {
+    var changedFields = parseJsonObject_(r.changed_fields, []);
+    if (!Array.isArray(changedFields)) changedFields = [];
+    var originalValues = parseJsonObject_(r.original_values, {});
+    var requestedValues = parseJsonObject_(r.requested_values, {});
+    if (!changedFields.length && text_(r.field_name)) {
+      changedFields = [text_(r.field_name)];
+      originalValues[text_(r.field_name)] = text_(r.old_value);
+      requestedValues[text_(r.field_name)] = text_(r.new_value);
     }
-    groups[rid].fields.push({
-      field_name: text_(r.field_name),
-      old_value: text_(r.old_value),
-      new_value: text_(r.new_value)
-    });
+    return {
+      request_id: text_(r.request_id),
+      RowID: text_(r.RowID || r.source_row_id),
+      source_sheet: text_(r.source_sheet),
+      source_row_id: text_(r.source_row_id || r.RowID),
+      activity_name: text_(r.activity_name),
+      school: text_(r.school),
+      authority: text_(r.authority),
+      requested_by_user_id: text_(r.requested_by_user_id),
+      requested_by_name: text_(r.requested_by_name),
+      requested_at: text_(r.requested_at),
+      status: text_(r.status),
+      changed_fields: changedFields,
+      original_values: originalValues,
+      requested_values: requestedValues,
+      reviewer_user_id: text_(r.reviewer_user_id || r.reviewed_by),
+      reviewed_at: text_(r.reviewed_at),
+      review_note: text_(r.review_note || r.reviewer_notes),
+      fields: changedFields.map(function(fieldName) {
+        return {
+          field_name: fieldName,
+          old_value: text_(originalValues[fieldName]),
+          new_value: text_(requestedValues[fieldName])
+        };
+      })
+    };
   });
-
-  var result = order.map(function(rid) { return groups[rid]; });
   result.sort(function(a, b) {
     return (b.requested_at || '').localeCompare(a.requested_at || '');
   });
@@ -1543,12 +1552,12 @@ function actionEditRequests_(user) {
 /**
  * Computes effective non-admin role defaults, merging hardcoded baseline with
  * any active overrides in the settings sheet (role_defaults.<role>.<flag>).
- * Returns { operations_reviewer: {...}, authorized_user: {...}, instructor: {} }
+ * Returns { operation_manager: {...}, authorized_user: {...}, instructor: {} }
  * where each value is a flag-name → 'yes'/'no' object.
  */
 function computeNonAdminRoleDefaults_() {
   var defaults = {
-    operations_reviewer: {
+    operation_manager: {
       view_dashboard: 'yes', view_activities: 'yes', view_week: 'yes', view_month: 'yes',
       view_instructors: 'yes', view_exceptions: 'yes', view_finance: 'yes',
       view_edit_requests: 'yes', view_final_approvals: 'yes',
@@ -1564,7 +1573,7 @@ function computeNonAdminRoleDefaults_() {
     }
   };
   var settingsMap = readActiveSettingsMap_();
-  var nonAdminRoles = ['operations_reviewer', 'authorized_user', 'instructor'];
+  var nonAdminRoles = ['operation_manager', 'authorized_user', 'instructor'];
   nonAdminRoles.forEach(function(role) {
     var base = defaults[role] || {};
     var prefix = 'role_defaults.' + role + '.';
@@ -1580,9 +1589,9 @@ function computeNonAdminRoleDefaults_() {
 }
 
 function actionPermissions_(user) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  requireAnyRole_(user, ['admin', 'operation_manager']);
   var permission = getPermissionRow_(user.user_id);
-  // Admin always has access; for operations_reviewer require explicit flag
+  // Admin always has access; for operation_manager require explicit flag
   if (user.display_role !== 'admin' && yesNo_(permission.view_permissions) !== 'yes') {
     throw new Error('Forbidden');
   }
@@ -1863,6 +1872,9 @@ function actionSaveActivity_(user, payload) {
     changes.status = (rawStatus === 'closed' || rawStatus === 'סגור') ? 'סגור' : 'פעיל';
   }
   if (!effectiveCanEditDirect_(permission, user.display_role)) {
+    if (!effectiveCanRequestEdit_(permission, user.display_role)) {
+      throw new Error('Forbidden');
+    }
     return actionSubmitEditRequest_(user, {
       source_sheet: sourceSheet,
       source_row_id: sourceRowId,
@@ -1881,8 +1893,9 @@ function actionSaveActivity_(user, payload) {
 }
 
 function actionSubmitEditRequest_(user, payload) {
-  requireAnyRole_(user, ['authorized_user']);
-  if (user.display_role === 'instructor') {
+  requireAnyRole_(user, ['authorized_user', 'admin', 'operation_manager']);
+  var permission = getPermissionRow_(user.user_id);
+  if (user.display_role === 'instructor' || !effectiveCanRequestEdit_(permission, user.display_role)) {
     throw new Error('Forbidden');
   }
 
@@ -1902,23 +1915,41 @@ function actionSubmitEditRequest_(user, payload) {
   var currentRow = getRowByKey_(sourceSheet, 'RowID', sourceRowId);
   var requestId = 'REQ-' + new Date().getTime();
 
+  var changedFields = [];
+  var originalValues = {};
+  var requestedValues = {};
   Object.keys(changes).forEach(function(fieldName) {
-    appendRow_(CONFIG.SHEETS.EDIT_REQUESTS, {
-      request_id: requestId,
-      source_sheet: sourceSheet,
-      source_row_id: sourceRowId,
-      field_name: fieldName,
-      old_value: text_(currentRow[fieldName]),
-      new_value: text_(changes[fieldName]),
-      requested_by_user_id: text_(user.user_id),
-      requested_by_name: text_(user.full_name),
-      requested_at: new Date().toISOString(),
-      status: 'pending',
-      reviewed_at: '',
-      reviewed_by: '',
-      reviewer_notes: '',
-      active: 'yes'
-    });
+    var oldValue = text_(currentRow[fieldName]);
+    var newValue = text_(changes[fieldName]);
+    if (oldValue === newValue) return;
+    changedFields.push(fieldName);
+    originalValues[fieldName] = oldValue;
+    requestedValues[fieldName] = newValue;
+  });
+  if (!changedFields.length) {
+    throw new Error('No changes to submit');
+  }
+  appendRow_(CONFIG.SHEETS.EDIT_REQUESTS, {
+    request_id: requestId,
+    RowID: sourceRowId,
+    source_sheet: sourceSheet,
+    source_row_id: sourceRowId,
+    activity_name: text_(currentRow.activity_name),
+    school: text_(currentRow.school),
+    authority: text_(currentRow.authority),
+    requested_by_user_id: text_(user.user_id),
+    requested_by_name: text_(user.full_name),
+    requested_at: new Date().toISOString(),
+    status: 'pending',
+    changed_fields: JSON.stringify(changedFields),
+    original_values: JSON.stringify(originalValues),
+    requested_values: JSON.stringify(requestedValues),
+    reviewer_user_id: '',
+    reviewed_by: '',
+    reviewed_at: '',
+    review_note: '',
+    reviewer_notes: '',
+    active: 'yes'
   });
 
   return {
@@ -1928,12 +1959,7 @@ function actionSubmitEditRequest_(user, payload) {
 }
 
 function actionReviewEditRequest_(user, payload) {
-  var permission = getPermissionRow_(user.user_id);
-  var approvalTarget = getSettingText_('approval_target_role', 'operations_reviewer');
-  if (approvalTarget && text_(user.display_role) !== approvalTarget) {
-    throw new Error('Forbidden');
-  }
-  if (yesNo_(permission.can_review_requests) !== 'yes') {
+  if (!canDirectWriteRole_(user.display_role)) {
     throw new Error('Forbidden');
   }
 
@@ -1952,31 +1978,62 @@ function actionReviewEditRequest_(user, payload) {
   });
 
   if (!requestRows.length) throw new Error('Request not found');
+  if (text_(requestRows[0].status) !== 'pending') throw new Error('Request already reviewed');
 
   if (status === 'approved') {
     var sourceSheet = text_(requestRows[0].source_sheet);
-    var sourceRowId = text_(requestRows[0].source_row_id);
+    var sourceRowId = text_(requestRows[0].RowID || requestRows[0].source_row_id);
+    var currentRow = getRowByKey_(sourceSheet, 'RowID', sourceRowId);
+    var changedFields = parseJsonObject_(requestRows[0].changed_fields, []);
+    if (!Array.isArray(changedFields)) changedFields = [];
+    var originalValues = parseJsonObject_(requestRows[0].original_values, {});
+    var requestedValues = parseJsonObject_(requestRows[0].requested_values, {});
     var changes = {};
+    var hasConflict = false;
+    if (!changedFields.length) {
+      requestRows.forEach(function(row) {
+        var field = text_(row.field_name);
+        if (!field) return;
+        changedFields.push(field);
+        originalValues[field] = text_(row.old_value);
+        requestedValues[field] = text_(row.new_value);
+      });
+    }
 
-    requestRows.forEach(function(row) {
-      changes[text_(row.field_name)] = text_(row.new_value);
+    changedFields.forEach(function(fieldName) {
+      var expectedValue = text_(originalValues[fieldName]);
+      var currentValue = text_(currentRow[fieldName]);
+      if (expectedValue !== currentValue) {
+        hasConflict = true;
+        return;
+      }
+      if (!Object.prototype.hasOwnProperty.call(requestedValues, fieldName)) return;
+      changes[fieldName] = text_(requestedValues[fieldName]);
     });
 
-    updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
+    if (hasConflict) {
+      status = 'conflict';
+    } else {
+      updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
 
-    if (sourceSheet === CONFIG.SHEETS.DATA_LONG && (changes.start_date || changes.end_date)) {
-      setMeetingsFromRange_(sourceRowId, text_(changes.start_date), text_(changes.end_date));
+      if (sourceSheet === CONFIG.SHEETS.DATA_LONG && (changes.start_date || changes.end_date)) {
+        setMeetingsFromRange_(sourceRowId, text_(changes.start_date), text_(changes.end_date));
+      }
     }
   }
 
   updateEditRequestRows_(requestId, {
     status: status,
     reviewed_at: new Date().toISOString(),
+    reviewer_user_id: text_(user.user_id),
     reviewed_by: text_(user.user_id),
+    review_note: reviewerNotes,
     reviewer_notes: reviewerNotes
   });
 
-  scriptCacheInvalidateDataViews_();
+  if (status === 'approved') {
+    scriptCacheInvalidateDataViews_();
+  }
   return {
     reviewed: true,
     request_id: requestId,
@@ -1985,7 +2042,7 @@ function actionReviewEditRequest_(user, payload) {
 }
 
 function actionSavePermission_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  requireAnyRole_(user, ['admin', 'operation_manager']);
 
   var row = payload.permission || payload.row || {};
   var userId = text_(row.user_id);
@@ -2179,7 +2236,7 @@ function actionDeleteUser_(user, payload) {
 
 function actionSavePrivateNote_(user, payload) {
   var permission = getPermissionRow_(user.user_id);
-  if (yesNo_(permission.can_review_requests) !== 'yes' || user.display_role !== 'operations_reviewer') {
+  if (yesNo_(permission.can_review_requests) !== 'yes' || user.display_role !== 'operation_manager') {
     throw new Error('Forbidden');
   }
 
@@ -2947,9 +3004,9 @@ function buildClientSettingsPayload_() {
   var navigation = buildNavigationSettings_();
   var roleDefaults = computeNonAdminRoleDefaults_();
   var roleDefaultsBool = {
-    operations_reviewer: {
-      can_edit_direct: (roleDefaults.operations_reviewer || {}).can_edit_direct === 'yes',
-      can_add_activity: (roleDefaults.operations_reviewer || {}).can_add_activity === 'yes'
+    operation_manager: {
+      can_edit_direct: (roleDefaults.operation_manager || {}).can_edit_direct === 'yes',
+      can_add_activity: (roleDefaults.operation_manager || {}).can_add_activity === 'yes'
     },
     authorized_user: {
       can_edit_direct: (roleDefaults.authorized_user || {}).can_edit_direct === 'yes',
@@ -2993,7 +3050,7 @@ function buildClientSettingsPayload_() {
     admin_can_add_rows: getSettingBool_('admin_can_add_rows', true),
     operations_can_add_rows: getSettingBool_('operations_can_add_rows', true),
     non_admin_edits_require_approval: getSettingBool_('non_admin_edits_require_approval', true),
-    approval_target_role: getSettingText_('approval_target_role', 'operations_reviewer'),
+    approval_target_role: getSettingText_('approval_target_role', 'operation_manager'),
     operations_default_view_key: getSettingText_('operations_default_view_key', 'view_operations_data'),
     admin_default_view_key: getSettingText_('admin_default_view_key', 'view_admin'),
     navigation: navigation,
@@ -3103,7 +3160,7 @@ function countActiveByType_(rows, todayIso, activityType) {
 
 /* ── Admin Settings ────────────────────────────────────────────────────────── */
 function actionAdminSettings_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  requireAnyRole_(user, ['admin', 'operation_manager']);
   var rows = [];
   try {
     var sheet = getSpreadsheet_().getSheetByName(CONFIG.SHEETS.SETTINGS);
@@ -3116,7 +3173,7 @@ function actionAdminSettings_(user, payload) {
 
 /* ── Save Finance Row (status + notes) ─────────────────────────────────────── */
 function actionSaveFinanceRow_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  requireAnyRole_(user, ['admin', 'operation_manager']);
   var sourceRowId = text_(payload.source_row_id || payload.RowID);
   var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT));
   if (!sourceRowId) throw new Error('source_row_id is required');
@@ -3131,7 +3188,7 @@ function actionSaveFinanceRow_(user, payload) {
 
 /* ── Sync Finance (refresh cache + return timestamp) ───────────────────────── */
 function actionSyncFinance_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer']);
+  requireAnyRole_(user, ['admin', 'operation_manager']);
   scriptCacheInvalidateDataViews_();
   return { synced: true, timestamp: new Date().toISOString() };
 }

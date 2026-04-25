@@ -284,11 +284,12 @@ function applyActivitiesLocalFilters(rows, state, settings) {
   return applyLocalFilters(monthRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS });
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
     canEdit,
+    canDirectEdit,
     hideEmpIds: !!hideEmpIds,
     hideRowId,
     hideActivityNo,
@@ -330,7 +331,7 @@ export const activitiesScreen = {
     const filteredRows  = applyActivitiesLocalFilters(allRows, state, state?.clientSettings);
     const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
     const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
-    const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
+    const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
@@ -458,8 +459,8 @@ export const activitiesScreen = {
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
 
     const filteredRows      = applyActivitiesLocalFilters(Array.isArray(data?.rows) ? data.rows : [], state, state?.clientSettings);
-    const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
-    const canEditActivity   = state?.user?.display_role !== 'instructor';
+    const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
+    const canEditActivity   = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
@@ -504,6 +505,7 @@ export const activitiesScreen = {
           initialRow,
           canSeePrivateNotes,
           canEditActivity,
+          !!state?.user?.can_edit_direct,
           hideEmpIds,
           hideRowId,
           hideActivityNo,
@@ -524,6 +526,7 @@ export const activitiesScreen = {
             row,
             canSeePrivateNotes,
             canEditActivity,
+            !!state?.user?.can_edit_direct,
             hideEmpIds,
             hideRowId,
             hideActivityNo,
