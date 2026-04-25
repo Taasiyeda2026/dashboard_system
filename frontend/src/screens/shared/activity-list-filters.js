@@ -81,8 +81,8 @@ export function applyLocalFilters(rows, filters, config = {}) {
 function selectHtml(scope, field, filters, optionsMap) {
   const selected = String(filters?.[field.key] || '');
   const options = optionsMap?.[field.key] || [];
-  return `<label class="ds-chip" style="display:flex;align-items:center;gap:6px;">
-    <span>${escapeHtml(field.label)}</span>
+  return `<label class="ds-filter-field">
+    <span class="ds-filter-field__label">${escapeHtml(field.label)}</span>
     <select class="ds-input ds-input--sm" data-filter-scope="${escapeHtml(scope)}" data-filter-field="${escapeHtml(field.key)}">
       <option value="">הכל</option>
       ${options
@@ -101,6 +101,21 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   const optionsMap = collectFilterOptions(rows, filterFields);
   const showSearch = config.search !== false;
   const searchPlaceholder = config.searchPlaceholder || 'חיפוש…';
+
+  const isPanel = config.layout === 'panel';
+  if (isPanel) {
+    const title = config.title ? `<p class="ds-filter-panel__title">${escapeHtml(config.title)}</p>` : '';
+    return `<section class="ds-filter-panel" dir="rtl" data-local-filters="${escapeHtml(scope)}">
+      ${title}
+      <div class="ds-filter-panel__grid">
+        ${showSearch ? `<label class="ds-filter-field ds-filter-field--search"><span class="ds-filter-field__label">חיפוש</span><input type="search" class="ds-input ds-input--sm" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="${escapeHtml(searchPlaceholder)}" /></label>` : ''}
+        ${filterFields.map((field) => selectHtml(scope, field, filters, optionsMap)).join('')}
+        <div class="ds-filter-panel__actions">
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-filter-clear="${escapeHtml(scope)}">ניקוי סינונים</button>
+        </div>
+      </div>
+    </section>`;
+  }
 
   return `<div class="ds-toolbar" dir="rtl" data-local-filters="${escapeHtml(scope)}">
     ${showSearch ? `<input type="search" class="ds-input" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="${escapeHtml(searchPlaceholder)}" />` : ''}
