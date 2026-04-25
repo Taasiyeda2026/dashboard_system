@@ -24,6 +24,11 @@ function defaultClientSettings() {
   };
 }
 
+if (!sessionStorage.getItem('ds_session_alive')) {
+  localStorage.removeItem('dashboard_token');
+  localStorage.removeItem('dashboard_user');
+}
+
 export const state = {
   token: localStorage.getItem('dashboard_token') || '',
   user: JSON.parse(localStorage.getItem('dashboard_user') || 'null'),
@@ -74,6 +79,7 @@ export function setSession(session) {
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
     localStorage.removeItem('dashboard_calendar_month_ym');
+    sessionStorage.removeItem('ds_session_alive');
     return;
   }
   state.token = session.token;
@@ -81,6 +87,7 @@ export function setSession(session) {
   state.screenDataCache = {};
   localStorage.setItem('dashboard_token', session.token);
   localStorage.setItem('dashboard_user', JSON.stringify(session.user));
+  sessionStorage.setItem('ds_session_alive', '1');
 }
 
 export { defaultClientSettings };
