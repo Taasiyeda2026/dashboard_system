@@ -218,6 +218,21 @@ function activityDrawerContent(row, canSeePrivateNotes, canEdit, hideEmpIds, hid
   });
 }
 
+function activityDetailCacheKey(summaryRow) {
+  return `activityDetail:${summaryRow.source_sheet || ''}:${summaryRow.RowID || ''}`;
+}
+
+function getCachedActivityDetail(summaryRow, s) {
+  const entry = s?.screenDataCache?.[activityDetailCacheKey(summaryRow)];
+  return entry ? entry.data : null;
+}
+
+function putCachedActivityDetail(summaryRow, row, s) {
+  if (s?.screenDataCache) {
+    s.screenDataCache[activityDetailCacheKey(summaryRow)] = { data: row, t: Date.now() };
+  }
+}
+
 export const activitiesScreen = {
   async load({ api, state }) {
     try {
@@ -355,14 +370,11 @@ export const activitiesScreen = {
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
-    const detailCache = new Map();
 
     async function loadDetailRow(summaryRow) {
-      const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
-      if (detailCache.has(cacheKey)) return detailCache.get(cacheKey);
       const rsp = await api.activityDetail(summaryRow.RowID, summaryRow.source_sheet);
       const row = rsp?.row || summaryRow;
-      detailCache.set(cacheKey, row);
+      putCachedActivityDetail(summaryRow, row, state);
       return row;
     }
 
@@ -378,8 +390,7 @@ export const activitiesScreen = {
 
     async function openActivityDetail(summaryRow) {
       if (!summaryRow || !ui) return;
-      const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
-      const cached = detailCache.get(cacheKey);
+      const cached = getCachedActivityDetail(summaryRow, state);
       const initialRow = cached || summaryRow;
       ui.openDrawer({
         title: '',
