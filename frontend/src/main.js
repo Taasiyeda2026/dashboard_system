@@ -801,7 +801,7 @@ async function mountScreen() {
         stale: !!isStale
       });
       if (routeChanged) lastRenderedRoute = state.route;
-      if (isStale) backgroundRefreshScreen(screen, cacheKey);
+      if (isStale && state.route !== 'finance') backgroundRefreshScreen(screen, cacheKey);
       prefetchFromDashboardIfNeeded();
       recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
       return;
@@ -821,7 +821,7 @@ async function mountScreen() {
       stale: !!isStale
     });
     if (routeChanged) lastRenderedRoute = state.route;
-    if (isStale) backgroundRefreshScreen(screen, cacheKey);
+    if (isStale && state.route !== 'finance') backgroundRefreshScreen(screen, cacheKey);
     prefetchFromDashboardIfNeeded();
     recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
     return;

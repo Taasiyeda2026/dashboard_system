@@ -726,6 +726,7 @@ export const financeScreen = {
     else headerSubtitle = 'מציג: כל התקופה';
 
     const exportBtn = `<button type="button" class="ds-btn ds-btn--sm" data-export-csv>ייצוא Excel</button>`;
+    const refreshBtn = `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-finance-refresh title="טען נתוני כספים מחדש מהשרת">↻ רענון נתונים</button>`;
     const syncBtn = isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-sync-finance title="סנכרון נתוני כספים">↻ סנכרון</button>` : '';
 
     const tableSortCol = state?.financeTableSortCol || '';
@@ -745,6 +746,7 @@ export const financeScreen = {
         <input id="finance-search" type="search" class="ds-search-input"
           placeholder="חיפוש..." value="${escapeHtml(searchQ)}" dir="rtl" style="flex:1;min-width:160px;" />
         ${viewToggleHtml}
+        ${refreshBtn}
         ${exportBtn}
         ${syncBtn}
       </div>
@@ -969,6 +971,31 @@ export const financeScreen = {
       const filterLabel = filterParts.join(' · ');
 
       exportToExcel(rows, exportLabel, periodLabel, filterLabel);
+    });
+
+    /* Manual refresh button — fetches fresh data, updates cache, rerenders without clearing old view */
+    root.querySelector('[data-finance-refresh]')?.addEventListener('click', async () => {
+      const btn = root.querySelector('[data-finance-refresh]');
+      if (btn) { btn.disabled = true; btn.textContent = '↻ מרענן...'; }
+      try {
+        const freshData = await api.finance({
+          date_from: state?.financeDateFrom || '',
+          date_to: state?.financeDateTo || '',
+          search: state?.financeSearch || '',
+          status: state?.financeStatusFilter || '',
+          tab: state?.financeTab || 'active',
+          month: state?.financeMonthYm || ''
+        });
+        const financeKey = `finance:${state.financeDateFrom||''}:${state.financeDateTo||''}:${state.financeSearch||''}:${state.financeStatusFilter||''}:${state.financeTab||'active'}:${state.financeMonthYm||''}`;
+        Object.keys(state.screenDataCache).forEach((k) => {
+          if (k.startsWith('finance:')) delete state.screenDataCache[k];
+        });
+        state.screenDataCache[financeKey] = { data: freshData, t: Date.now() };
+        rerender();
+      } catch (err) {
+        showToast(translateApiErrorForUser(err?.message), 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '↻ רענון נתונים'; }
+      }
     });
 
     /* Sync button (admin/reviewer only — invalidates server cache and rerenders) */
