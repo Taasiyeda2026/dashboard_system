@@ -97,8 +97,11 @@ function countActiveByTypeInYm_(rows, ym, activityType) {
 
 function rowExceptionTypes_(row) {
   var out = [];
-  if (!text_(row.emp_id) && !text_(row.emp_id_2)) out.push('missing_instructor');
-  if (!text_(row.start_date)) out.push('missing_start_date');
+  if (isExcludedStatusForControl_(row && row.status)) return out;
+  var hasInstructor1 = !isNormalizedEmptyValue_(row && row.instructor_name) || !isNormalizedEmptyValue_(row && row.emp_id);
+  var hasInstructor2 = !isNormalizedEmptyValue_(row && row.instructor_name_2) || !isNormalizedEmptyValue_(row && row.emp_id_2);
+  if (!hasInstructor1 && !hasInstructor2) out.push('missing_instructor');
+  if (!normalizeDateTextToIso_(row && row.start_date)) out.push('missing_start_date');
   if (text_(row.end_date) > getLateEndDateCutoff_()) out.push('late_end_date');
   return out;
 }
@@ -118,17 +121,17 @@ function primaryExceptionForRow_(row) {
 }
 
 function normalizeDateTextToIso_(value) {
-  if (value === null || value === undefined || value === '') return '';
+  if (isNormalizedEmptyValue_(value)) return '';
   var t = text_(value);
   if (!t) return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  if (isValidIsoDateString_(t)) return t;
   var m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/.exec(t);
   if (m) {
     var d = ('0' + parseInt(m[1], 10)).slice(-2);
     var mo = ('0' + parseInt(m[2], 10)).slice(-2);
     var y = m[3];
     var iso = y + '-' + mo + '-' + d;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+    if (isValidIsoDateString_(iso)) return iso;
   }
   return '';
 }
@@ -353,12 +356,47 @@ function actionDashboard_(user, payload) {
   var missingInstructorCount = 0;
   var missingStartDateCount = 0;
   var lateEndDateCount = 0;
-  longRows.forEach(function(row) {
+  var totalLongRows = longRows.length;
+  var relevantLongRows = longRows.filter(function(row) {
+    return !isExcludedStatusForControl_(row && row.status);
+  });
+  var missingInstructorExamples = [];
+  var missingStartDateExamples = [];
+  relevantLongRows.forEach(function(row) {
     var exceptionTypes = rowExceptionTypes_(row);
-    if (exceptionTypes.indexOf('missing_instructor') >= 0) missingInstructorCount += 1;
-    if (exceptionTypes.indexOf('missing_start_date') >= 0) missingStartDateCount += 1;
+    if (exceptionTypes.indexOf('missing_instructor') >= 0) {
+      missingInstructorCount += 1;
+      if (missingInstructorExamples.length < 5) {
+        missingInstructorExamples.push({
+          RowID: text_(row.RowID),
+          instructor_name: row.instructor_name,
+          instructor_name_2: row.instructor_name_2,
+          emp_id: row.emp_id,
+          emp_id_2: row.emp_id_2,
+          status: row.status
+        });
+      }
+    }
+    if (exceptionTypes.indexOf('missing_start_date') >= 0) {
+      missingStartDateCount += 1;
+      if (missingStartDateExamples.length < 5) {
+        missingStartDateExamples.push({
+          RowID: text_(row.RowID),
+          start_date: row.start_date,
+          status: row.status
+        });
+      }
+    }
     if (exceptionTypes.indexOf('late_end_date') >= 0) lateEndDateCount += 1;
   });
+  console.log('[dashboard][control-metrics-debug]', JSON.stringify({
+    total_records: totalLongRows,
+    relevant_records: relevantLongRows.length,
+    missing_instructor_records: missingInstructorCount,
+    missing_start_date_records: missingStartDateCount,
+    missing_instructor_examples: missingInstructorExamples,
+    missing_start_date_examples: missingStartDateExamples
+  }));
 
   var shortActivitiesByType = {};
   shortRowsBySource.forEach(function(row) {
@@ -831,11 +869,34 @@ function actionExceptions_(user) {
   };
   var result = [];
 
-  rows.forEach(function(row) {
+  var relevantRows = rows.filter(function(row) {
+    return !isExcludedStatusForControl_(row && row.status);
+  });
+  var missingInstructorExamples = [];
+  var missingStartDateExamples = [];
+
+  relevantRows.forEach(function(row) {
     var exceptionType = primaryExceptionForRow_(row);
     if (!exceptionType) return;
 
     counts[exceptionType] += 1;
+    if (exceptionType === 'missing_instructor' && missingInstructorExamples.length < 5) {
+      missingInstructorExamples.push({
+        RowID: text_(row.RowID),
+        instructor_name: row.instructor_name,
+        instructor_name_2: row.instructor_name_2,
+        emp_id: row.emp_id,
+        emp_id_2: row.emp_id_2,
+        status: row.status
+      });
+    }
+    if (exceptionType === 'missing_start_date' && missingStartDateExamples.length < 5) {
+      missingStartDateExamples.push({
+        RowID: text_(row.RowID),
+        start_date: row.start_date,
+        status: row.status
+      });
+    }
     result.push({
       RowID:              row.RowID,
       source_sheet:       text_(row.source_sheet || CONFIG.SHEETS.DATA_LONG),
@@ -859,6 +920,15 @@ function actionExceptions_(user) {
       exception_type:    exceptionType
     });
   });
+
+  console.log('[exceptions][control-metrics-debug]', JSON.stringify({
+    total_records: rows.length,
+    relevant_records: relevantRows.length,
+    missing_instructor_records: counts.missing_instructor,
+    missing_start_date_records: counts.missing_start_date,
+    missing_instructor_examples: missingInstructorExamples,
+    missing_start_date_examples: missingStartDateExamples
+  }));
 
   return {
     rows: result,
