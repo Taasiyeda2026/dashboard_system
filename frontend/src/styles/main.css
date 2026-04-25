@@ -4129,8 +4129,17 @@ select.ds-input {
 
 /* ——— Instructor summary rows (מדריכים) ——— */
 .instr-summary-row {
-  cursor: default;
-  pointer-events: none;
+  cursor: pointer;
+  width: 100%;
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  background: var(--ds-surface);
+  padding: 10px 12px;
+  text-align: right;
+}
+
+.instr-summary-row:hover {
+  border-color: color-mix(in srgb, var(--ds-accent) 30%, var(--ds-border));
 }
 
 .instr-count-badges {
@@ -4161,6 +4170,12 @@ select.ds-input {
   background: #fef3c7;
   color: #92400e;
   border: 1px solid #fde68a;
+}
+
+.instr-count-badge--total {
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #bae6fd;
 }
 
 .instr-count-badge__num {
@@ -4455,7 +4470,7 @@ select.ds-input {
 
 .sc-school-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   align-items: start;
 }
@@ -4624,7 +4639,7 @@ select.ds-input {
 
 @media (max-width: 760px) {
   .sc-school-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .sc-contact-list {
@@ -4643,9 +4658,18 @@ select.ds-input {
 }
 
 @media (max-width: 560px) {
+  .sc-school-grid {
+    grid-template-columns: 1fr;
+  }
   .ci-person-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+.ds-contact-edit-form {
+  width: min(720px, 90vw);
+  margin-inline: auto;
+  gap: var(--ds-space-2);
 }
 
 /* ── Contacts copy toast ── */

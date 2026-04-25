@@ -35,16 +35,19 @@ function renderInstructorRow(row) {
   const inactiveClass = hasActivity ? '' : ' ci-row--inactive';
 
   return `
-    <div class="ci-row instr-summary-row${inactiveClass}" dir="rtl">
+    <button type="button" class="ci-row instr-summary-row${inactiveClass}" dir="rtl" data-instructor-card="${escapeHtml(String(row.emp_id || ''))}">
       <div class="ci-row__main">
         <span class="ci-row__name">${name}</span>
         <span class="instr-count-badges">
           ${countBadge(programs, 'תוכניות', 'program')}
           ${countBadge(oneDay, 'חד-יומיות', 'oneday')}
         </span>
+        <span class="instr-count-badges">
+          ${countBadge(total, 'סה״כ פעילות', 'total')}
+        </span>
         ${endDate ? `<span class="instr-end-date">🏁 ${escapeHtml(endDate)}</span>` : ''}
       </div>
-    </div>`;
+    </button>`;
 }
 
 export const instructorsScreen = {
@@ -91,7 +94,7 @@ export const instructorsScreen = {
     `);
   },
 
-  bind({ root, data, state, rerender }) {
+  bind({ root, data, state, rerender, ui, api }) {
     bindActNavGrid(root, { state, rerender });
 
     root.querySelector('#instructors-active-only')?.addEventListener('change', (ev) => {
@@ -104,6 +107,28 @@ export const instructorsScreen = {
       state.instructorsSearch = ev.target.value || '';
       clearTimeout(_searchTimer);
       _searchTimer = setTimeout(() => rerender(), 220);
+    });
+
+    root.querySelectorAll('[data-instructor-card]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const empId = String(btn.dataset.instructorCard || '').trim();
+        if (!empId || !ui) return;
+        ui.openDrawer({ title: 'מדריך', content: '<p class="ds-muted">טוען פעילויות…</p>' });
+        try {
+          const res = await api.activities({ activity_type: 'all' });
+          const allRows = Array.isArray(res?.rows) ? res.rows : [];
+          const rows = allRows.filter((r) => {
+            const active = String(r.status || '').trim() !== 'סגור';
+            return active && (String(r.emp_id || '').trim() === empId || String(r.emp_id_2 || '').trim() === empId);
+          });
+          const list = rows.length
+            ? `<ul class="ds-summary-panel__list">${rows.map((r) => `<li>${escapeHtml(String(r.activity_name || '—'))} · ${escapeHtml(formatDateHe(r.start_date) || '—')}</li>`).join('')}</ul>`
+            : '<p class="ds-muted">אין פעילויות פעילות בחודש הנוכחי.</p>';
+          ui.openDrawer({ title: 'פעילויות מדריך', content: list });
+        } catch (_e) {
+          ui.openDrawer({ title: 'פעילויות מדריך', content: '<p class="ds-muted">טעינת הפעילויות נכשלה.</p>' });
+        }
+      });
     });
   }
 };

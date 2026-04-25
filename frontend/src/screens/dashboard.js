@@ -77,17 +77,19 @@ function renderStructuredSummary(summary, ym, byManager) {
   return `<div class="ds-summary-panel__structured">
     <h3 class="ds-summary-panel__title">סיכום חודשי – <strong>${escapeHtml(monthTitle)}</strong></h3>
 
-    <p class="ds-summary-panel__text">ב<strong>${escapeHtml(monthTitle)}</strong> יש קורסים פעילים (<strong>${activeCurrent}</strong>).</p>
-    <p class="ds-summary-panel__text">במהלך <strong>${escapeHtml(monthTitle)}</strong> צפויים להסתיים קורסים (<strong>${endingCurrent}</strong>).</p>
-    <p class="ds-summary-panel__text ds-summary-panel__text--districts">מחוז צפון: קורסים פעילים (<strong>${northActive}</strong>) · מחוז דרום: קורסים פעילים (<strong>${southActive}</strong>)</p>
-    <p class="ds-summary-panel__text">ב<strong>${escapeHtml(nextMonthTitle)}</strong> צפויים להיות קורסים פעילים (<strong>${activeNext}</strong>).</p>
+    <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(monthTitle)}</strong> יש קורסים (<strong>${activeCurrent}</strong>) קורסים פעילים.</p>
+    <p class="ds-summary-panel__text">במהלך החודש צפויים להסתיים (<strong>${endingCurrent}</strong>) קורסי.</p>
+    <p class="ds-summary-panel__text ds-summary-panel__text--districts">מחוז צפון: (<strong>${northActive}</strong>) קורסים פעילים · מחוז דרום: (<strong>${southActive}</strong>) קורסים פעילים</p>
+    <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(nextMonthTitle)}</strong> צפויים להיות (<strong>${activeNext}</strong>) קורסים פעילים.</p>
 
     <h4 class="ds-summary-panel__inner-title"><strong>המדריכים הפעילים החודש:</strong></h4>
     <p class="ds-summary-panel__text">במחוז צפון: <strong>${escapeHtml(northInstructors || '—')}</strong> · במחוז דרום: <strong>${escapeHtml(southInstructors || '—')}</strong></p>
 
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
-      <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש</strong></h4>
-      <p class="ds-summary-panel__text">קורסים ללא שיבוץ מדריך (<strong>${missingInstr}</strong>) · קורסים ללא תאריך התחלה (<strong>${missingDate}</strong>) · קורסים בסיכון עקב תאריך סיום מאוחר (<strong>${lateEnd}</strong>)</p>
+      <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש:</strong></h4>
+      <p class="ds-summary-panel__text">קורסים ללא שיבוץ מדריך (<strong>${missingInstr}</strong>)</p>
+      <p class="ds-summary-panel__text">קורסים ללא תאריך התחלה (<strong>${missingDate}</strong>)</p>
+      <p class="ds-summary-panel__text">קורסים בסיכון עקב תאריך סיום מאוחר (<strong>${lateEnd}</strong>)</p>
     </div>
   </div>`;
 }

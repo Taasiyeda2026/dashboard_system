@@ -283,8 +283,15 @@ export const monthScreen = {
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
 
+    const detailCache = new Map();
+    const detailKey = (row) => `${String(row?.source_sheet || '')}|${String(row?.RowID || '')}`;
+    const patchDetailCache = ({ sourceSheet, sourceRowId, changes }) => {
+      const key = `${String(sourceSheet || '')}|${String(sourceRowId || '')}`;
+      const hit = detailCache.get(key);
+      if (hit && typeof hit === 'object') Object.assign(hit, changes || {});
+    };
     const bindActivityEditForm = (contentRoot) =>
-      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
+      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: patchDetailCache });
 
     /** Bind the accordion toggles and activity card clicks inside a day drawer. */
     const bindDayDrawer = (contentRoot) => {
@@ -317,19 +324,32 @@ export const monthScreen = {
           ui.openDrawer({ title: 'פעילות', content: '<p class="ds-muted">לא נמצאו נתונים</p>' });
           return;
         }
-        const privateNote = showPrivateNote ? item.private_note || '—' : null;
-        ui.openDrawer({
-          title: item.activity_name || 'פעילות',
-          content: activityWorkDrawerHtml(item, {
-            privateNote,
-            canEdit: canEditActivity,
-            hideEmpIds,
-            hideRowId,
-            hideActivityNo,
-            settings: state?.clientSettings || {}
-          }),
-          onOpen: canEditActivity ? bindActivityEditForm : undefined
-        });
+        const openItem = (row) => {
+          const privateNote = showPrivateNote ? row.private_note || '—' : null;
+          ui.openDrawer({
+            title: row.activity_name || 'פעילות',
+            content: activityWorkDrawerHtml(row, {
+              privateNote,
+              canEdit: canEditActivity,
+              hideEmpIds,
+              hideRowId,
+              hideActivityNo,
+              settings: state?.clientSettings || {}
+            }),
+            onOpen: canEditActivity ? bindActivityEditForm : undefined
+          });
+        };
+        openItem(item);
+        const key = detailKey(item);
+        if (detailCache.has(key)) {
+          openItem(detailCache.get(key));
+          return;
+        }
+        api.activityDetail(item.RowID, item.source_sheet).then((rsp) => {
+          const full = rsp?.row || item;
+          detailCache.set(key, full);
+          openItem(full);
+        }).catch(() => {});
       });
     };
 

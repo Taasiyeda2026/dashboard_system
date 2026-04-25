@@ -113,10 +113,13 @@ function textareaHtml({ name, value, klass = 'ds-input', rows = 3, attrs = '' })
 
 function activityNameSelectHtml(name, value, options, activityType) {
   const safeValue = String(value || '').trim();
-  const filtered = (Array.isArray(options) ? options : []).filter((o) => {
+  const normalizedType = String(activityType || '').trim().toLowerCase();
+  let filtered = (Array.isArray(options) ? options : []).filter((o) => {
     const parent = String(o?.parent_value || o?.activity_type || '').trim();
-    return !parent || parent === activityType;
+    if (!parent) return true;
+    return parent.toLowerCase() === normalizedType;
   });
+  if (!filtered.length) filtered = Array.isArray(options) ? options : [];
   const all = filtered.slice();
   if (safeValue && !all.some((o) => String(o?.label || '').trim() === safeValue)) {
     all.unshift({ label: safeValue, activity_no: '', parent_value: activityType });
