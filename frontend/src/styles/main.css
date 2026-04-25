@@ -1416,8 +1416,9 @@ span.ds-chip {
   min-height: 22px;
   padding: 3px 5px;
   font-size: 0.47rem;
-  gap: 4px;
+  gap: 2px;
   white-space: nowrap;
+  flex-direction: column;
   background: linear-gradient(180deg, #ffffff 0%, #eef3fb 100%);
   border: 1px solid rgba(26, 51, 88, 0.18);
   border-bottom-color: rgba(26, 51, 88, 0.32);
