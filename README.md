@@ -372,6 +372,37 @@ npm test
 - `syncFinance`
 - `listSheets`
 
+
+## תפעול snapshot מקצה לקצה (Apps Script + Sheets)
+
+נוסף סקריפט תפעולי להרצה ידנית מקצה לקצה: `scripts/apps_script_snapshot_ops.mjs`.
+
+### דרישות
+
+- `GOOGLE_OAUTH_ACCESS_TOKEN`
+- `GAS_SCRIPT_ID`
+- `SPREADSHEET_ID`
+
+אופציונלי ל-redeploy של Web App פעיל:
+
+- `REDEPLOY_WEBAPP=true`
+- `WEBAPP_DEPLOYMENT_ID=<deployment id>`
+
+### הרצה
+
+```bash
+GOOGLE_OAUTH_ACCESS_TOKEN=... \
+GAS_SCRIPT_ID=... \
+SPREADSHEET_ID=... \
+node scripts/apps_script_snapshot_ops.mjs
+```
+
+הסקריפט מבצע:
+1. הרצת `refreshDashboardSnapshots` בפרויקט Apps Script.
+2. קריאת `dashboard_refresh_control`.
+3. בדיקה ששני גיליונות snapshot התמלאו.
+4. redeploy (אם הופעל בדגלים המתאימים).
+
 ## תחזוקה נכונה
 
 ### כשמחליפים URL של Apps Script
