@@ -75,6 +75,10 @@ var SNAPSHOT_MANAGER_DISPLAY_NAMES_ = {
   'לינוי שמואל מזרחי': 'מחוז דרום'
 };
 
+var DASHBOARD_SNAPSHOT_PERMISSION_CACHE_PREFIX_ = 'pc:dashboard-snapshot:permission:';
+var DASHBOARD_SNAPSHOT_FLAGS_CACHE_KEY_ = 'pc:dashboard-snapshot:flags:v1';
+var DASHBOARD_SNAPSHOT_FLAGS_CACHE_SECONDS_ = 120;
+
 // ─── header helpers ───────────────────────────────────────────────────────────
 
 function ensureSnapshotSheetScaffold_(sheetName, englishHeaders, hebrewLabels) {
@@ -113,12 +117,85 @@ function normalizeSnapshotMonthYm_(value) {
 
 // ─── A. actionDashboardSnapshot_ ─────────────────────────────────────────────
 
+function readSnapshotRowsFast_(sheetName, projectedHeaders) {
+  var ss = getSpreadsheet_();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return [];
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var dataStart = CONFIG.DATA_START_ROW;
+  if (lastRow < dataStart || !lastCol) return [];
+
+  var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
+  var projected = (projectedHeaders || []).map(text_).filter(Boolean);
+  var indexes = projected.length
+    ? projected.map(function(h) { return headers.indexOf(h); }).filter(function(i) { return i >= 0; })
+    : headers.map(function(_, idx) { return idx; });
+  if (!indexes.length) return [];
+  indexes.sort(function(a, b) { return a - b; });
+
+  var maxIdx = indexes[indexes.length - 1];
+  var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, maxIdx + 1).getValues();
+  return values.filter(function(row) {
+    return row.some(function(cell) { return text_(cell) !== ''; });
+  }).map(function(row) {
+    var item = {};
+    indexes.forEach(function(idx) {
+      item[headers[idx]] = row[idx];
+    });
+    return item;
+  });
+}
+
+function getDashboardSnapshotPermission_(user) {
+  if (user && typeof user.can_view_finance === 'boolean') {
+    return { view_finance: user.can_view_finance ? 'yes' : 'no' };
+  }
+
+  var userId = text_(user && user.user_id);
+  if (!userId) return {};
+  var cacheKey = DASHBOARD_SNAPSHOT_PERMISSION_CACHE_PREFIX_ + userId + ':' + dataViewsCacheVersion_();
+  var cached = scriptCacheGetJson_(cacheKey);
+  if (cached && typeof cached === 'object') return cached;
+
+  var permission = getPermissionRow_(userId) || {};
+  scriptCachePutJson_(cacheKey, permission, DASHBOARD_SNAPSHOT_FLAGS_CACHE_SECONDS_);
+  return permission;
+}
+
+function readDashboardRefreshControlMap_() {
+  var map = {};
+  var rows = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_REFRESH_CONTROL, ['key', 'value']);
+  rows.forEach(function(row) {
+    var key = text_(row.key);
+    if (!key) return;
+    map[key] = row.value;
+  });
+  return map;
+}
+
+function getDashboardSnapshotFlags_() {
+  var cacheKey = DASHBOARD_SNAPSHOT_FLAGS_CACHE_KEY_ + ':' + dataViewsCacheVersion_();
+  var cached = scriptCacheGetJson_(cacheKey);
+  if (cached && typeof cached === 'object') return cached;
+
+  var controlMap = readDashboardRefreshControlMap_();
+  var flags = {
+    show_only_nonzero_kpis: yesNo_(controlMap.show_only_nonzero_kpis) !== 'no'
+  };
+  scriptCachePutJson_(cacheKey, flags, DASHBOARD_SNAPSHOT_FLAGS_CACHE_SECONDS_);
+  return flags;
+}
+
 function actionDashboardSnapshot_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
 
-  var permission = getPermissionRow_(user.user_id);
+  markRequestPerf_('dashboardSnapshot:permission lookup:start');
+  var permission = getDashboardSnapshotPermission_(user);
   var canViewFinance = user.display_role === 'admin' ||
     yesNo_(permission.view_finance) === 'yes';
+  markRequestPerf_('dashboardSnapshot:permission lookup:end');
 
   var ym = dashboardPayloadYm_(payload || {});
 
@@ -129,14 +206,17 @@ function actionDashboardSnapshot_(user, payload) {
   var hasSummarySnapshotSheet = !!ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT);
 
   if (hasSummarySnapshotSheet) {
-    var summaryRows = readRows_(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT);
+    markRequestPerf_('dashboardSnapshot:read summary snapshot:start');
+    var summaryRows = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT, SUMMARY_SNAPSHOT_HEADERS_);
     snap = summaryRows.find(function(r) {
       return normalizeSnapshotMonthYm_(r.month_ym) === ym;
     }) || null;
+    markRequestPerf_('dashboardSnapshot:read summary snapshot:end');
   }
 
   if (ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT)) {
-    var allByMgr = readRows_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT);
+    markRequestPerf_('dashboardSnapshot:read by manager snapshot:start');
+    var allByMgr = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT, BY_MANAGER_SNAPSHOT_HEADERS_);
     var filteredByMgr = allByMgr.filter(function(r) {
       return normalizeSnapshotMonthYm_(r.month_ym) === ym;
     });
@@ -147,6 +227,7 @@ function actionDashboardSnapshot_(user, payload) {
       seenMgrKeys[key] = true;
       return true;
     });
+    markRequestPerf_('dashboardSnapshot:read by manager snapshot:end');
   }
 
   if (!snap || !hasSummarySnapshotSheet) {
@@ -155,8 +236,10 @@ function actionDashboardSnapshot_(user, payload) {
       if (fullData && typeof fullData === 'object') {
         fullData._is_snapshot = false;
       }
+      markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
       return fullData;
     }
+    markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
     return {
       month: ym,
       _is_snapshot: false,
@@ -223,7 +306,13 @@ function actionDashboardSnapshot_(user, payload) {
     late_end_date_count:       lateEnd
   };
 
+  markRequestPerf_('dashboardSnapshot:build kpi cards:start');
   var kpiCards = buildDashboardSnapshotKpis_(snapshotData, canViewFinance);
+  markRequestPerf_('dashboardSnapshot:build kpi cards:end');
+  markRequestPerf_('dashboardSnapshot:settings/show_only_nonzero_kpis:start');
+  var flags = getDashboardSnapshotFlags_();
+  markRequestPerf_('dashboardSnapshot:settings/show_only_nonzero_kpis:end');
+  markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
 
   return {
     month: ym,
@@ -252,7 +341,7 @@ function actionDashboardSnapshot_(user, payload) {
       short_activities:          []
     },
     kpi_cards: kpiCards,
-    show_only_nonzero_kpis: settingYes_('show_only_nonzero_kpis'),
+    show_only_nonzero_kpis: flags.show_only_nonzero_kpis !== false,
     _is_snapshot: true
   };
 }
