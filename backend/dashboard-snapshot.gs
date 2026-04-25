@@ -137,8 +137,15 @@ function actionDashboardSnapshot_(user, payload) {
 
   if (ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT)) {
     var allByMgr = readRows_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT);
-    byManagerRows = allByMgr.filter(function(r) {
+    var filteredByMgr = allByMgr.filter(function(r) {
       return normalizeSnapshotMonthYm_(r.month_ym) === ym;
+    });
+    var seenMgrKeys = {};
+    byManagerRows = filteredByMgr.filter(function(r) {
+      var key = text_(r.activity_manager);
+      if (!key || seenMgrKeys[key]) return false;
+      seenMgrKeys[key] = true;
+      return true;
     });
   }
 

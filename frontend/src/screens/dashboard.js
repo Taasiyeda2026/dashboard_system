@@ -132,8 +132,14 @@ export const dashboardScreen = {
   render(data, { state } = {}) {
     const ym = data?.month || currentMonthYm();
 
+    const _seenMgr = new Set();
     const managers = (Array.isArray(data.by_activity_manager) ? data.by_activity_manager : []).filter(
-      (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned'
+      (row) => {
+        if (!row.activity_manager || row.activity_manager === 'activity_manager' || row.activity_manager === 'unassigned') return false;
+        if (_seenMgr.has(row.activity_manager)) return false;
+        _seenMgr.add(row.activity_manager);
+        return true;
+      }
     );
     const showOnly = !!data?.show_only_nonzero_kpis;
     const kpiCards = filterKpiCards(data?.kpi_cards, showOnly);
