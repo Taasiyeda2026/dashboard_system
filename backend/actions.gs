@@ -447,6 +447,24 @@ function actionDashboard_(user, payload) {
     ? kpi_cards_all
     : kpi_cards_all.filter(function(c) { return !c.requires_finance; });
 
+  var DISTRICT_MANAGER_MAP_ = {
+    'גיל נאמן': 'מחוז צפון',
+    'לינוי שמואל מזרחי': 'מחוז דרום'
+  };
+  var activeInstructorsByManager = {};
+  Object.keys(DISTRICT_MANAGER_MAP_).forEach(function(manager) {
+    var district = DISTRICT_MANAGER_MAP_[manager];
+    var names = {};
+    combined.forEach(function(row) {
+      if ((text_(row.activity_manager) || '') !== manager) return;
+      var n1 = text_(row.instructor_name);
+      var n2 = text_(row.instructor_name_2);
+      if (n1) names[n1] = true;
+      if (n2) names[n2] = true;
+    });
+    activeInstructorsByManager[district] = Object.keys(names).sort();
+  });
+
   var result = {
     month: ym,
     can_view_finance: canViewFinance,
@@ -467,6 +485,7 @@ function actionDashboard_(user, payload) {
       ending_courses_current_month: courseEndings,
       active_courses_next_month: countActiveByTypeInYm_(allSummary, nextYm, 'course'),
       active_instructors: collectUniqueInstructorNames_(combined),
+      active_instructors_by_manager: activeInstructorsByManager,
       missing_instructor_count: missingInstructorCount,
       missing_start_date_count: missingStartDateCount,
       late_end_date_count: lateEndDateCount,

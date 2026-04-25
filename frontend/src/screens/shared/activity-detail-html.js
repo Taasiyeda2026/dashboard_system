@@ -111,6 +111,19 @@ function textareaHtml({ name, value, klass = 'ds-input', rows = 3, attrs = '' })
   return `<textarea class="${escapeHtml(klass)}" name="${escapeHtml(name)}" rows="${rows}" ${attrs}>${escapeHtml(String(value || ''))}</textarea>`;
 }
 
+function resolveActivityNameOptions(settings, activityType) {
+  const opts = (settings && settings.dropdown_options) ? settings.dropdown_options : {};
+  const keys = [
+    'activity_names', 'activity_name',
+    'program_names', 'workshop_names', 'tour_names', 'escape_room_names'
+  ];
+  for (let i = 0; i < keys.length; i++) {
+    const arr = opts[keys[i]];
+    if (Array.isArray(arr) && arr.length > 0) return normalizeActivityNameOptions(arr);
+  }
+  return [];
+}
+
 function activityNameSelectHtml(name, value, options, activityType) {
   const safeValue = String(value || '').trim();
   const normalizedType = String(activityType || '').trim().toLowerCase();
@@ -246,10 +259,12 @@ function blockContent(row, { settings = {} } = {}) {
   const grades = mergeListStrings(options, ['grade', 'grades']);
   const schools = mergeListStrings(options, ['school', 'schools']);
   const authorities = mergeListStrings(options, ['authority', 'authorities']);
-  const allActivityNames = normalizeActivityNameOptions(
-    Array.isArray(options.activity_names) ? options.activity_names : []
-  );
   const activityType = String(row.activity_type || '').trim();
+  const allActivityNames = resolveActivityNameOptions(settings, activityType);
+  if (!allActivityNames.length) {
+    // eslint-disable-next-line no-console
+    console.warn('[activity-edit] activity name options missing from client settings');
+  }
   const nameLabel = activityNameLabel(activityType);
   const gradeVal = String(row.grade || '').trim();
   const classGroupVal = String(row.class_group || '').trim();

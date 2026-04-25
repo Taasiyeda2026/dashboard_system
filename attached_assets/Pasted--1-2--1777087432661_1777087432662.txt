@@ -1,0 +1,185 @@
+בצע תיקון ממוקד לשלושה נושאים בלבד:
+
+1. רשימת הפעילויות במצב עריכה לא נפתחת בפועל
+2. נתוני הסיכום בדשבורד לא מתמלאים נכון
+3. שמות המדריכים במחוז צפון / דרום לא מופיעים בסיכום
+
+חשוב:
+- לא לעשות refactor רחב
+- לא לשנות schema קיים
+- לא לשנות לוגיקה עסקית מעבר לנדרש
+- לא לשנות layout כללי
+- לבצע תיקונים מינימליים, מדויקים, ויציבים
+
+עבוד רק בקבצים:
+- frontend/src/screens/shared/activity-detail-html.js
+- frontend/src/screens/shared/bind-activity-edit-form.js
+- backend/actions.gs
+- backend/dashboard-snapshot.gs
+- ואם חייבים בלבד: backend/settings.gs או המקום שמרכיב client_settings / dropdown_options
+
+==================================================
+1. תיקון רשימת הפעילויות במצב עריכה
+==================================================
+
+הבעיה:
+בשדה "שם פעילות" במצב עריכה, הרשימה לא נפתחת בפועל או נשארת עם ערך יחיד בלבד.
+
+מה לבדוק:
+- ב-activity-detail-html.js השדה נבנה דרך activityNameSelectHtml(...)
+- הוא נשען בעיקר על settings.dropdown_options.activity_names
+- אם activity_names חסר או ריק, ה-select נשאר כמעט בלי אופציות
+
+מה לבצע:
+
+1. צור helper חדש:
+resolveActivityNameOptions(settings, activityType)
+
+ה-helper צריך:
+- לקרוא את settings.dropdown_options
+- לבדוק קודם:
+  activity_names
+- ואם הוא חסר או ריק, לנסות fallback ממקורות נוספים אם קיימים:
+  - activity_name
+  - activity_names
+  - program_names
+  - workshop_names
+  - tour_names
+  - escape_room_names
+- לנרמל את כל האפשרויות לפורמט אחיד:
+  { label, activity_no, parent_value, activity_type }
+
+2. activityNameSelectHtml חייב להשתמש ב-resolveActivityNameOptions(settings, activityType)
+במקום להסתמך רק על מערך activity_names שכבר הוכן מראש.
+
+3. אם אין בכלל אופציות:
+- לשמור לפחות את הערך הנוכחי כאופציה
+- לא לשבור את ה-select
+- לא להחליף ל-input
+- לא להוסיף disabled
+- להוסיף console.warn ברור:
+  [activity-edit] activity name options missing from client settings
+
+4. ודא שבמצב edit השדה תמיד נשאר:
+<select ... data-role="activity-name-select">
+
+5. ב-bind-activity-edit-form.js:
+כאשר נכנסים ל-edit mode,
+אם קיים data-role="activity-name-select" אבל יש בו פחות מ-2 אופציות,
+נסה לבצע refresh קל של האופציות מתוך dataset / settings שכבר מוטמעים ב-DOM אם קיים מקור כזה.
+אם אין מקור, השאר את הערך הנוכחי ו-console.warn.
+
+לא לשנות logic של saveActivity.
+
+==================================================
+2. תיקון נתוני הסיכום בדשבורד
+==================================================
+
+הבעיה:
+בחלק מהסיכום בדשבורד הנתונים לא מתמלאים כמו שצריך, ובמיוחד שמות המדריכים למחוז צפון / דרום נשארים ריקים.
+
+מה קיים כבר:
+- ב-dashboard_summary_snapshot כבר קיימים השדות:
+  north_active_instructors_names
+  south_active_instructors_names
+- ב-dashboard-snapshot.gs כבר יש כתיבה לשדות האלה
+- אבל המקור summary.active_instructors_by_manager לא נבנה נכון ב-actionDashboard_()
+
+מה לבצע:
+
+1. ב-backend/actions.gs
+בתוך actionDashboard_(), הוסף ל-summary שדה חדש:
+active_instructors_by_manager
+
+המבנה הנדרש:
+summary.active_instructors_by_manager = {
+  "מחוז צפון": [...],
+  "מחוז דרום": [...]
+}
+
+2. חשב את השדה הזה מתוך combined שכבר קיים ב-actionDashboard_()
+לא לחשב מחדש את כל הדשבורד.
+
+3. מיפוי שמות:
+- 'גיל נאמן' -> 'מחוז צפון'
+- 'לינוי שמואל מזרחי' -> 'מחוז דרום'
+
+4. כללים:
+- לכלול שמות מדריכים ייחודיים בלבד
+- לקחת גם instructor_name וגם instructor_name_2
+- להתעלם מערכים ריקים
+- לשמור סדר יציב או למיין
+
+==================================================
+3. תיקון כתיבת שמות המדריכים ל-snapshot
+==================================================
+
+ב-backend/dashboard-snapshot.gs:
+
+1. אל תשנה את שמות העמודות
+לא להוסיף שדות חדשים
+לא לשנות schema
+
+2. ודא ש-writeDashboardSummarySnapshotRow_ משתמש ב-summary.active_instructors_by_manager החדש
+
+3. ודא שהשדות הקיימים מתמלאים בפועל:
+- north_active_instructors_names
+- south_active_instructors_names
+
+4. אם קיימת חלוקה למחוזות, כתוב את השמות כמחרוזת מופרדת בפסיקים
+
+==================================================
+4. אל תשבור נתוני חריגות
+==================================================
+
+אסור לפגוע או לשנות לוגיקה קיימת של:
+- missing_instructor_count
+- missing_start_date_count
+- late_end_date_count
+
+הערכים האלה צריכים להמשיך להיכתב ולעבוד כמו היום.
+
+==================================================
+5. אחרי התיקון
+==================================================
+
+1. להריץ:
+refreshDashboardSnapshots_()
+
+2. לבדוק שב-dashboard_summary_snapshot:
+- north_active_instructors_names לא ריק
+- south_active_instructors_names לא ריק
+
+3. להיכנס לדשבורד
+4. לוודא שבסיכום מופיעים שמות מדריכים במקום:
+— / —
+
+5. להיכנס לפעילות במצב עריכה
+6. לוודא ששדה "שם פעילות" נפתח כרשימה אמיתית לבחירה
+
+==================================================
+6. acceptance criteria
+==================================================
+
+ודא:
+1. במצב עריכה, "שם פעילות" הוא select פעיל ונפתח בפועל
+2. אם activity_names חסר, יש fallback אמיתי ממקורות נוספים
+3. אם אין שום מקור, לפחות הערך הנוכחי נשמר בלי לשבור את הטופס
+4. summary.active_instructors_by_manager נוסף ל-actionDashboard_
+5. north_active_instructors_names מתמלא
+6. south_active_instructors_names מתמלא
+7. בדשבורד מופיעים שמות מדריכים במקום —
+8. נתוני החריגות ממשיכים לעבוד ללא שינוי
+
+==================================================
+7. פלט נדרש
+==================================================
+
+בסיום תחזיר רק:
+- אילו קבצים שונו
+- מה תוקן בכל קובץ בשורה אחת
+- האם activity name select עכשיו נבנה עם fallback אמיתי
+- האם summary.active_instructors_by_manager נוסף
+- האם north_active_instructors_names התמלא
+- האם south_active_instructors_names התמלא
+- האם נתוני החריגות נשארו תקינים

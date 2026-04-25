@@ -207,6 +207,11 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
 
       if (ev.target.closest('[data-action="start-edit"]')) {
         setEditMode(form, true);
+        const nameSel = form.querySelector('[data-role="activity-name-select"]');
+        if (nameSel && nameSel.options.length < 2) {
+          // eslint-disable-next-line no-console
+          console.warn('[activity-edit] activity-name-select has fewer than 2 options; dropdown_options.activity_names may be missing from client settings');
+        }
         return;
       }
 
