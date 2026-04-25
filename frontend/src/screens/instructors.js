@@ -1,5 +1,4 @@
 import { escapeHtml } from './shared/html.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { formatDateHe } from './shared/format-date.js';
 import {
@@ -85,7 +84,6 @@ export const instructorsScreen = {
       : `מדריכים · ${filtered.length}`;
 
     return dsScreenStack(`
-      ${actNavGridHtml(state)}
       <div class="ds-screen-top-row">
         ${toolbarHtml}
         <label class="ds-toggle-label" dir="rtl">
@@ -98,7 +96,6 @@ export const instructorsScreen = {
   },
 
   bind({ root, data, state, rerender, ui, api }) {
-    bindActNavGrid(root, { state, rerender });
     bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 300 });
     root.querySelector(`[data-list-show-more="${INSTRUCTORS_SCOPE}"]`)?.addEventListener('click', (ev) => {
       ensureActivityListFilters(state, INSTRUCTORS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);

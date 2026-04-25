@@ -482,78 +482,8 @@ select {
 
 /* ——— Header quick-nav (admin) ——— */
 .shell-header-nav {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-space-2);
   flex: 1;
-  justify-content: center;
-  overflow: visible;
-  padding: 4px;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(26, 51, 88, 0.1);
-  border-radius: 12px;
-}
-
-.shell-header-nav__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  border: 1px solid rgba(26, 51, 88, 0.14);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(26, 51, 88, 0.08);
-  font-size: 1rem;
-  color: var(--ds-text-muted);
-  position: relative;
-  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease,
-    box-shadow 0.18s ease, transform 0.08s ease;
-  cursor: pointer;
-}
-
-.shell-header-nav__btn::after {
-  content: '';
-  position: absolute;
-  bottom: -7px;
-  left: 50%;
-  transform: translateX(-50%) scaleX(0);
-  width: 60%;
-  height: 2.5px;
-  border-radius: 2px;
-  background: var(--ds-accent);
-  transition: transform 0.18s ease, opacity 0.18s ease;
-  opacity: 0;
-}
-
-.shell-header-nav__btn:hover {
-  background: #f8fbff;
-  border-color: rgba(26, 51, 88, 0.2);
-  color: var(--ds-text);
-  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.1);
-}
-
-.shell-header-nav__btn.is-active {
-  background: var(--ds-accent);
-  border-color: var(--ds-accent);
-  color: #fff;
-  box-shadow: 0 2px 6px rgba(26, 51, 88, 0.2);
-  font-weight: 600;
-}
-
-.shell-header-nav__btn.is-active::after {
-  transform: translateX(-50%) scaleX(1);
-  opacity: 1;
-}
-
-.shell-header-nav__btn:active:not(.is-active) {
-  transform: translateY(1px);
-  box-shadow: 0 1px 2px rgba(26, 51, 88, 0.10), inset 0 1px 3px rgba(26, 51, 88, 0.12);
-}
-
-.shell-header-nav__btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(26, 51, 88, 0.22), 0 1px 3px rgba(26, 51, 88, 0.10);
+  min-width: 0;
 }
 
 /* ——— Apple-style logout button ——— */
@@ -1470,6 +1400,37 @@ span.ds-chip {
   border: 1px solid rgba(26, 51, 88, 0.1);
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(26, 51, 88, 0.06);
+}
+
+.ds-act-nav-grid--header {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  align-items: stretch;
+  width: 100%;
+  margin: 0 var(--ds-space-2);
+  padding: 3px;
+}
+
+.ds-act-nav-item--header {
+  min-height: 34px;
+  padding: 5px 8px;
+  font-size: 0.73rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .ds-act-nav-grid--header {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  .ds-act-nav-item--header {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
 }
 
 @media (max-width: 900px) {
@@ -4531,6 +4492,15 @@ select.ds-input {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-bottom: 14px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-border) 80%, transparent);
+}
+
+.sc-authority-group:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .sc-authority-head {
@@ -4767,6 +4737,14 @@ select.ds-input {
   width: min(720px, 90vw);
   margin-inline: auto;
   gap: var(--ds-space-2);
+}
+
+.ds-btn--contact-add {
+  min-height: 30px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  border-radius: 999px;
+  line-height: 1.1;
 }
 
 /* ── Contacts copy toast ── */
