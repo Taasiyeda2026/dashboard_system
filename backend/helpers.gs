@@ -11,6 +11,50 @@ function text_(value) {
   return String(value).trim();
 }
 
+/**
+ * Unified empty-value normalization for control metrics.
+ * Values such as null/undefined/blank/whitespace/"-"/"—"/"לא שובץ"/"טרם שובץ"/"לא נקבע"
+ * are treated as empty.
+ */
+function isNormalizedEmptyValue_(value) {
+  if (value === null || value === undefined) return true;
+  var raw = text_(value);
+  if (!raw) return true;
+  var norm = raw.replace(/\u00A0/g, ' ').trim();
+  if (!norm) return true;
+  var compact = norm.replace(/\s+/g, ' ').toLowerCase();
+  return compact === '-' ||
+    compact === '—' ||
+    compact === 'לא שובץ' ||
+    compact === 'טרם שובץ' ||
+    compact === 'לא נקבע';
+}
+
+function isValidIsoDateString_(value) {
+  var iso = text_(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  var parts = iso.split('-');
+  var y = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  var d = parseInt(parts[2], 10);
+  if (!y || m < 1 || m > 12 || d < 1 || d > 31) return false;
+  var dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && (dt.getMonth() + 1) === m && dt.getDate() === d;
+}
+
+function normalizeStatusForControl_(status) {
+  return text_(status).replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function isExcludedStatusForControl_(status) {
+  var s = normalizeStatusForControl_(status);
+  return s === 'מבוטל' ||
+    s === 'בוטל' ||
+    s === 'הסתיים' ||
+    s === 'לא פעיל' ||
+    s === 'טיוטה';
+}
+
 function yesNo_(value) {
   return text_(value).toLowerCase() === 'no' ? 'no' : 'yes';
 }
