@@ -311,6 +311,16 @@ function refreshDashboardSnapshots_() {
   }
 }
 
+function markDashboardSnapshotsRefreshNeeded_(reason) {
+  var message = text_(reason || 'data changed; refresh required');
+  try {
+    updateDashboardRefreshControl_('pending', message);
+  } finally {
+    // Keep read caches coherent after writes without running full snapshot rebuild inline.
+    bumpDataViewsCacheVersion_();
+  }
+}
+
 // ─── D. writeDashboardSummarySnapshotRow_ ────────────────────────────────────
 
 function writeDashboardSummarySnapshotRow_(ym, fullData) {

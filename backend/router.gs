@@ -116,7 +116,7 @@ function handlePost_(e) {
         action === 'saveFinanceRow' ||
         action === 'syncFinance') {
       try {
-        refreshDashboardSnapshots_();
+        markDashboardSnapshotsRefreshNeeded_('mutation:' + action);
       } catch (snapshotErr) {
         try {
           updateDashboardRefreshControl_(
