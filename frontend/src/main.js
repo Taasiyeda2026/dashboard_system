@@ -226,6 +226,11 @@ function restoreScreenCacheFromStorage() {
     let changed = false;
     Object.entries(stored).forEach(([k, v]) => {
       if (!v || !v.t) return;
+        if (MEMORY_ONLY_CACHE_PREFIXES.some((prefix) => k.startsWith(prefix))) {
+        delete stored[k];
+        changed = true;
+        return;
+      }
       if (now - v.t > SCREEN_CACHE_MAX_AGE_MS) { delete stored[k]; changed = true; return; }
       if (!state.screenDataCache[k]) {
         state.screenDataCache[k] = v;
@@ -574,7 +579,35 @@ const DEFAULT_CACHE_TTL_MS = 15 * 60 * 1000;
 function screenCacheTtl() {
   return SCREEN_CACHE_TTL_MS[state.route] ?? DEFAULT_CACHE_TTL_MS;
 }
+const MEMORY_ONLY_CACHE_PREFIXES = [
+  'activities:',
+  'month:',
+  'week:',
+  'finance:',
+  'activityDetail:',
+  'operations:'
+];
 
+const MAX_PERSISTED_CACHE_ENTRY_BYTES = 80000;
+
+function shouldPersistScreenCacheEntry(key, entry) {
+  const cacheKey = String(key || '');
+
+  if (MEMORY_ONLY_CACHE_PREFIXES.some((prefix) => cacheKey.startsWith(prefix))) {
+    return false;
+  }
+
+  try {
+    return JSON.stringify(entry || {}).length <= MAX_PERSISTED_CACHE_ENTRY_BYTES;
+  } catch {
+    return false;
+  }
+}
+
+function maybePersistScreenCacheEntry(key, entry) {
+  if (!shouldPersistScreenCacheEntry(key, entry)) return;
+  persistCacheEntry(key, entry);
+}
 /**
  * Returns cached data immediately if available and fresh (within TTL).
  * Deduplicates in-flight requests so rapid navigation doesn't fire duplicate API calls.
@@ -594,7 +627,7 @@ async function loadScreenDataWithCache(screen) {
     .then((data) => {
       const entry = { data, t: Date.now() };
       state.screenDataCache[key] = entry;
-      persistCacheEntry(key, entry);
+      maybePersistScreenCacheEntry(key, entry);
       inflightRequests.delete(key);
       return data;
     })
