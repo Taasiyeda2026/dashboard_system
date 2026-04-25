@@ -117,13 +117,37 @@ export const instructorsScreen = {
         try {
           const res = await api.activities({ activity_type: 'all' });
           const allRows = Array.isArray(res?.rows) ? res.rows : [];
-          const rows = allRows.filter((r) => {
-            const active = String(r.status || '').trim() !== 'סגור';
-            return active && (String(r.emp_id || '').trim() === empId || String(r.emp_id_2 || '').trim() === empId);
+          const ym = String(res?.ym || '').slice(0, 7); // "YYYY-MM"
+
+          const myRows = allRows.filter((r) => {
+            if (String(r.status || '').trim() === 'סגור') return false;
+            return String(r.emp_id || '').trim() === empId || String(r.emp_id_2 || '').trim() === empId;
           });
-          const list = rows.length
-            ? `<ul class="ds-summary-panel__list">${rows.map((r) => `<li>${escapeHtml(String(r.activity_name || '—'))} · ${escapeHtml(formatDateHe(r.start_date) || '—')}</li>`).join('')}</ul>`
-            : '<p class="ds-muted">אין פעילויות פעילות בחודש הנוכחי.</p>';
+
+          const items = myRows.flatMap((r) => {
+            const name = escapeHtml(String(r.activity_name || '—'));
+            const isLong = String(r.source_sheet || '').trim() === 'data_long';
+            if (!isLong) {
+              if (ym && !String(r.start_date || '').startsWith(ym)) return [];
+              return [`<li class="instr-act-item">${name}</li>`];
+            }
+            if (ym) {
+              const meetings = [];
+              for (let i = 1; i <= 35; i++) {
+                const d = String(r[`Date${i}`] || '').trim();
+                if (d && d.startsWith(ym)) meetings.push(i);
+              }
+              if (meetings.length === 0) return [];
+              return meetings.map(
+                (n) => `<li class="instr-act-item">${name} <span class="instr-meeting-pill">מפגש ${n}</span></li>`
+              );
+            }
+            return [`<li class="instr-act-item">${name}</li>`];
+          });
+
+          const list = items.length
+            ? `<ul class="ds-summary-panel__list instr-act-list">${items.join('')}</ul>`
+            : '<p class="ds-muted">אין פעילויות בחודש הנוכחי.</p>';
           ui.openDrawer({ title: 'פעילויות מדריך', content: list });
         } catch (_e) {
           ui.openDrawer({ title: 'פעילויות מדריך', content: '<p class="ds-muted">טעינת הפעילויות נכשלה.</p>' });
