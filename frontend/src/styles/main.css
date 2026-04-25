@@ -2422,10 +2422,30 @@ span.ds-chip {
 }
 
 .ds-cal-wrap {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--ds-space-1);
   padding: var(--ds-space-2);
+}
+
+.screen-root.is-month-loading .ds-cal-wrap {
+  opacity: 0.72;
+  transition: opacity 0.14s ease;
+}
+
+.screen-root.is-month-loading .ds-cal-wrap::after {
+  content: 'טוען חודש…';
+  position: absolute;
+  inset: auto 10px 10px auto;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(26, 51, 88, 0.16);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ds-accent);
+  box-shadow: 0 2px 8px rgba(26, 51, 88, 0.1);
 }
 
 .ds-cal-weekdays {
