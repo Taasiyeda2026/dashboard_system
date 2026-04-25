@@ -177,6 +177,24 @@ function shiftMonthYm(ym, delta) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function activityDetailCacheKey(row) {
+  return `activityDetail:${row.source_sheet || ''}:${row.RowID || ''}`;
+}
+function getCachedActivityDetail(row, s) {
+  const entry = s?.screenDataCache?.[activityDetailCacheKey(row)];
+  return entry ? entry.data : null;
+}
+function putCachedActivityDetail(row, fullRow, s) {
+  if (s?.screenDataCache) {
+    s.screenDataCache[activityDetailCacheKey(row)] = { data: fullRow, t: Date.now() };
+  }
+}
+function patchCachedActivityDetail({ sourceSheet, sourceRowId, changes }, s) {
+  const key = `activityDetail:${sourceSheet || ''}:${sourceRowId || ''}`;
+  const entry = s?.screenDataCache?.[key];
+  if (entry?.data && typeof entry.data === 'object') Object.assign(entry.data, changes || {});
+}
+
 export const monthScreen = {
   load: ({ api, state }) => {
     const ym = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : '';
@@ -283,15 +301,8 @@ export const monthScreen = {
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
 
-    const detailCache = new Map();
-    const detailKey = (row) => `${String(row?.source_sheet || '')}|${String(row?.RowID || '')}`;
-    const patchDetailCache = ({ sourceSheet, sourceRowId, changes }) => {
-      const key = `${String(sourceSheet || '')}|${String(sourceRowId || '')}`;
-      const hit = detailCache.get(key);
-      if (hit && typeof hit === 'object') Object.assign(hit, changes || {});
-    };
     const bindActivityEditForm = (contentRoot) =>
-      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: patchDetailCache });
+      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });
 
     /** Bind the accordion toggles and activity card clicks inside a day drawer. */
     const bindDayDrawer = (contentRoot) => {
@@ -339,15 +350,15 @@ export const monthScreen = {
             onOpen: canEditActivity ? bindActivityEditForm : undefined
           });
         };
-        openItem(item);
-        const key = detailKey(item);
-        if (detailCache.has(key)) {
-          openItem(detailCache.get(key));
+        const cached = getCachedActivityDetail(item, state);
+        if (cached) {
+          openItem(cached);
           return;
         }
+        openItem(item);
         api.activityDetail(item.RowID, item.source_sheet).then((rsp) => {
           const full = rsp?.row || item;
-          detailCache.set(key, full);
+          putCachedActivityDetail(item, full, state);
           openItem(full);
         }).catch(() => {});
       });

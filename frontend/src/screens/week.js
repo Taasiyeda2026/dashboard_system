@@ -137,6 +137,24 @@ function renderWeekGroup(group, date, dow) {
   </div>`;
 }
 
+function activityDetailCacheKey(row) {
+  return `activityDetail:${row.source_sheet || ''}:${row.RowID || ''}`;
+}
+function getCachedActivityDetail(row, s) {
+  const entry = s?.screenDataCache?.[activityDetailCacheKey(row)];
+  return entry ? entry.data : null;
+}
+function putCachedActivityDetail(row, fullRow, s) {
+  if (s?.screenDataCache) {
+    s.screenDataCache[activityDetailCacheKey(row)] = { data: fullRow, t: Date.now() };
+  }
+}
+function patchCachedActivityDetail({ sourceSheet, sourceRowId, changes }, s) {
+  const key = `activityDetail:${sourceSheet || ''}:${sourceRowId || ''}`;
+  const entry = s?.screenDataCache?.[key];
+  if (entry?.data && typeof entry.data === 'object') Object.assign(entry.data, changes || {});
+}
+
 export const weekScreen = {
   load: ({ api, state }) => api.week({ week_offset: state.weekOffset || 0 }),
   render(data, { state }) {
@@ -201,15 +219,8 @@ export const weekScreen = {
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
 
-    const detailCache = new Map();
-    const detailKey = (row) => `${String(row?.source_sheet || '')}|${String(row?.RowID || '')}`;
-    const patchDetailCache = ({ sourceSheet, sourceRowId, changes }) => {
-      const key = `${String(sourceSheet || '')}|${String(sourceRowId || '')}`;
-      const hit = detailCache.get(key);
-      if (hit && typeof hit === 'object') Object.assign(hit, changes || {});
-    };
     const bindActivityEditForm = (contentRoot) =>
-      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: patchDetailCache });
+      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });
 
     let navDebounceTimer = null;
     const queueWeekShift = (delta) => {
@@ -281,20 +292,25 @@ export const weekScreen = {
           onOpen: canEditActivity ? bindActivityEditForm : undefined
         });
       };
-      openDrawerWith(summaryGroup, mode);
-      const loadDetails = async () => {
-        const rows = mode === 'summary' ? summaryGroup : [item];
-        const detailed = await Promise.all(rows.map(async (row) => {
-          const key = detailKey(row);
-          if (detailCache.has(key)) return detailCache.get(key);
-          const rsp = await api.activityDetail(row.RowID, row.source_sheet);
-          const full = rsp?.row || row;
-          detailCache.set(key, full);
-          return full;
-        }));
-        openDrawerWith(detailed, mode);
-      };
-      loadDetails().catch(() => {});
+      const rows = mode === 'summary' ? summaryGroup : [item];
+      const allCached = rows.every((row) => !!getCachedActivityDetail(row, state));
+      if (allCached) {
+        openDrawerWith(rows.map((row) => getCachedActivityDetail(row, state)), mode);
+      } else {
+        openDrawerWith(summaryGroup, mode);
+        const loadDetails = async () => {
+          const detailed = await Promise.all(rows.map(async (row) => {
+            const cached = getCachedActivityDetail(row, state);
+            if (cached) return cached;
+            const rsp = await api.activityDetail(row.RowID, row.source_sheet);
+            const full = rsp?.row || row;
+            putCachedActivityDetail(row, full, state);
+            return full;
+          }));
+          openDrawerWith(detailed, mode);
+        };
+        loadDetails().catch(() => {});
+      }
     });
   }
 };

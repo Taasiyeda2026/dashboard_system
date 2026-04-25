@@ -1,0 +1,177 @@
+בצע שיפור ביצועים ממוקד רק למסכי week ו-month, בלי לשנות לוגיקה עסקית ובלי refactor רחב.
+
+עבוד רק בקבצים:
+- frontend/src/screens/week.js
+- frontend/src/screens/month.js
+- frontend/src/api.js
+- ואם חייבים בלבד: frontend/src/main.js
+
+מטרה:
+1. לשמר את המעברים המהירים בין שבועות/חודשים
+2. להפוך פתיחה חוזרת של פרטי פעילות במסכי week/month למהירה ומיידית
+3. להשתמש ב-detail cache מתמשך ב-state.screenDataCache, לא ב-Map מקומי בתוך כל מסך
+
+==================================================
+1. מה לא לשנות
+==================================================
+
+לא לשנות:
+- לוגיקה עסקית של week / month
+- schema של api.week / api.month / api.activityDetail
+- ה-render הקיים של הלוחות
+- ה-accordion/group toggle
+- ה-drawer content HTML
+- actNavGrid
+- month/week navigation behavior
+- prefetch קיים ב-main.js אלא אם יש באג נקודתי
+
+==================================================
+2. week.js — החלפת detailCache מקומי
+==================================================
+
+ב-frontend/src/screens/week.js:
+
+כרגע קיים:
+const detailCache = new Map();
+
+החלף את זה ב-cache מתמשך דרך state.screenDataCache.
+
+צור helpers מקומיים:
+- activityDetailCacheKey(row)
+  מחזיר:
+  activityDetail:<source_sheet>:<RowID>
+
+- getCachedActivityDetail(row, state)
+  מחזיר row מלא מתוך state.screenDataCache אם קיים
+
+- putCachedActivityDetail(row, fullRow, state)
+  שומר בתוך state.screenDataCache במבנה:
+  { data: fullRow, t: Date.now() }
+
+- patchCachedActivityDetail({ sourceSheet, sourceRowId, changes }, state)
+  מעדכן detail cache קיים אחרי edit/save מוצלח
+
+החלף את:
+- detailCache.get(...)
+- detailCache.set(...)
+- patchDetailCache שפועל על Map
+
+לשימוש ב-state.screenDataCache.
+
+==================================================
+3. week.js — open drawer behavior
+==================================================
+
+שמור על ההתנהגות הקיימת:
+- פתיחה מיידית של drawer עם payload ראשוני
+- אחר כך hydration עם activityDetail
+
+אבל שנה כך:
+1. אם יש detail cache ב-state.screenDataCache:
+   - פתח מייד drawer עם detail מלא
+   - אל תבצע api.activityDetail
+2. אם אין detail cache:
+   - פתח drawer כמו היום
+   - טען api.activityDetail
+   - שמור את התוצאה ב-state.screenDataCache
+   - רענן את ה-drawer
+
+חשוב:
+- לא לפתוח drawer ריק
+- לא לשבור mode='summary' ו-mode='single'
+- במצב summary, טען detail לכל row רק אם הוא לא קיים ב-cache
+
+==================================================
+4. month.js — החלפת detailCache מקומי
+==================================================
+
+ב-frontend/src/screens/month.js:
+
+כרגע קיים:
+const detailCache = new Map();
+
+בצע בדיוק אותו דפוס כמו ב-week.js:
+- activityDetailCacheKey(row)
+- getCachedActivityDetail(row, state)
+- putCachedActivityDetail(row, fullRow, state)
+- patchCachedActivityDetail({ sourceSheet, sourceRowId, changes }, state)
+
+והחלף את כל השימושים ב-Map מקומי.
+
+==================================================
+5. month.js — פתיחת פעילות מתוך day drawer
+==================================================
+
+שמור על ה-flow הקיים:
+- monthcell פותח day drawer
+- מתוך day drawer לוחצים על פעילות
+- נפתח drawer של activity detail
+
+אבל שנה כך:
+1. אם detail cache כבר קיים ב-state.screenDataCache:
+   - פתח מייד את פעילות ה-detail המלאה
+   - בלי api.activityDetail נוסף
+2. אם אין cache:
+   - פתח עם הנתון הקיים
+   - טען detail
+   - שמור ב-state.screenDataCache
+   - עדכן drawer
+
+==================================================
+6. api.js — invalidation אחיד
+==================================================
+
+ב-frontend/src/api.js:
+
+ודא שבתוך invalidateScreenDataByAction(action),
+עבור:
+- saveActivity
+- addActivity
+- reviewEditRequest
+
+נמחקים גם כל המפתחות שמתחילים ב:
+activityDetail:
+
+אם זה כבר קיים מהשינוי הקודם עבור activities, לא לשכפל ולא לשנות שוב.
+רק ודא שזה אכן נשאר פעיל ומשמש גם ל-week/month.
+
+==================================================
+7. main.js — שינוי רק אם יש צורך אמיתי
+==================================================
+
+ב-frontend/src/main.js:
+אל תשנה אם אין צורך.
+
+מסך week/month כבר נהנים מ:
+- screenDataCache
+- buildScreenDataCacheKey ל-week ול-month
+- prefetchAdjacent ב-main.js
+
+לכן אל תעשה refactor.
+רק אם מתגלה באג ברור שבו full data ישן דורס חדש, תקן נקודתית.
+
+==================================================
+8. קבלה
+==================================================
+
+ודא את כל אלה:
+
+1. מעבר חוזר למסך week מהיר
+2. מעבר חוזר למסך month מהיר
+3. פתיחה שנייה של אותה פעילות מתוך week נפתחת מיידית
+4. פתיחה שנייה של אותה פעילות מתוך month נפתחת מיידית
+5. מעבר בין מסכים וחזרה לא מוחק מיד את detail cache
+6. אחרי saveActivity / addActivity / reviewEditRequest, detail cache הישן נמחק
+7. אין שינוי בתוכן ה-drawer
+8. אין שינוי בלוגיקה העסקית של week/month
+
+==================================================
+9. פלט נדרש
+==================================================
+
+בסיום תחזיר רק:
+- אילו קבצים שונו
+- מה שונה בכל קובץ בשורה אחת
+- האם week/month משתמשים עכשיו ב-detail cache מתוך state.screenDataCache
+- האם invalidation של activityDetail נשאר פעיל
+- האם פתיחה חוזרת של אותה פעילות אמורה להיות מיידית
