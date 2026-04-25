@@ -189,7 +189,7 @@ function getDashboardSnapshotFlags_() {
 }
 
 function actionDashboardSnapshot_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
 
   markRequestPerf_('dashboardSnapshot:permission lookup:start');
   var permission = getDashboardSnapshotPermission_(user);

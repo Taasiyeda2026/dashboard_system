@@ -353,7 +353,7 @@ function blockContent(row, { settings = {} } = {}) {
   `;
 }
 
-function blockDates(row, { canEdit = false } = {}) {
+function blockDates(row, { canEdit = false, canDirectEdit = false } = {}) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
@@ -435,7 +435,7 @@ function blockDates(row, { canEdit = false } = {}) {
       ${chainToggle}
       ${addMeetingBtn}
       <div class="activity-drawer__edit-actions" data-mode="edit" hidden>
-        <button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">שמור</button>
+        <button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">${canDirectEdit ? 'שמור' : 'שליחה לאישור'}</button>
         <button type="button" class="activity-drawer__action" data-action="cancel-edit">ביטול</button>
         <p class="ds-activity-edit-status ds-muted" role="status"></p>
       </div>
@@ -473,20 +473,21 @@ function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
   `;
 }
 
-function singleForm(row, { settings = {}, privateNote = null, canEdit = false, showPrivateNote = false, idx = 0 } = {}) {
+function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, showPrivateNote = false, idx = 0 } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = String(row.activity_type || '').trim();
   return `
     <form class="activity-drawer__form" data-drawer-form data-editing="no"
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
       data-row-id="${escapeHtml(String(row.RowID || ''))}"
+      data-can-direct-edit="${canDirectEdit ? 'yes' : 'no'}"
       data-auto-end-date="${escapeHtml(computedEnd)}"
       data-is-once="${ONCE_TYPES.includes(activityType) ? 'yes' : 'no'}">
       <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
       <input type="hidden" name="_activity_idx" value="${idx}">
       ${blockPeople(row, { settings })}
       ${blockContent(row, { settings })}
-      ${blockDates(row, { canEdit })}
+      ${blockDates(row, { canEdit, canDirectEdit })}
       ${blockNotes(row, { privateNote, showPrivateNote })}
     </form>
   `;
@@ -505,7 +506,7 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
-  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, settings = {} } = opts;
+  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, settings = {} } = opts;
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const body = rows
@@ -522,6 +523,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
             settings,
             privateNote,
             canEdit,
+            canDirectEdit,
             showPrivateNote: privateNote !== null,
             idx,
           })}
@@ -543,6 +545,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
         settings,
         privateNote,
         canEdit,
+        canDirectEdit,
         showPrivateNote: privateNote !== null,
         idx: 0,
       })}

@@ -337,8 +337,8 @@ export const monthScreen = {
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canEditActivity = state?.user?.display_role !== 'instructor';
-    const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+    const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
+    const showPrivateNote = state?.user?.display_role === 'operation_manager';
     bindLocalFilters(root, state, MONTH_SCOPE, rerender, { debounceMs: 300 });
     const cells = Array.isArray(data?.cells) ? data.cells : [];
     const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
@@ -387,6 +387,7 @@ export const monthScreen = {
             content: activityWorkDrawerHtml(row, {
               privateNote,
               canEdit: canEditActivity,
+              canDirectEdit: !!state?.user?.can_edit_direct,
               hideEmpIds,
               hideRowId,
               hideActivityNo,

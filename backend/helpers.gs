@@ -73,6 +73,7 @@ function normalizeRole_(value) {
   switch (role) {
     case 'admin':             return 'admin';
     case 'finance':           return 'finance';
+    case 'operations_reviewer':
     case 'operation_manager': return 'operation_manager';
     case 'activities_manager':return 'activities_manager';
     case 'domain_manager':    return 'domain_manager';
@@ -80,6 +81,16 @@ function normalizeRole_(value) {
     case 'instructor':        return 'instructor';
     default:                  throw new Error('invalid_role');
   }
+}
+
+function isOperationManagerRole_(role) {
+  var normalized = text_(role).toLowerCase().trim();
+  return normalized === 'operation_manager' || normalized === 'operations_reviewer';
+}
+
+function canDirectWriteRole_(role) {
+  var normalized = normalizeRole_(role);
+  return normalized === 'admin' || normalized === 'operation_manager';
 }
 
 function isAuthorizedUserTier_(role) {
@@ -123,6 +134,16 @@ function shiftDate_(date, days) {
 function parsePayload_(e) {
   var raw = e && e.postData && e.postData.contents ? e.postData.contents : '{}';
   return JSON.parse(raw || '{}');
+}
+
+function parseJsonObject_(raw, fallback) {
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(String(raw));
+  } catch (_e) {
+    return fallback;
+  }
 }
 
 var __rqPerf_ = null;

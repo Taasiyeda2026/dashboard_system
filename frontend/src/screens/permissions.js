@@ -65,7 +65,7 @@ function sortedPermissionEditorKeys(row) {
 
 function roleChipKind(role) {
   if (role === 'admin') return 'danger';
-  if (role === 'operations_reviewer') return 'warning';
+  if (role === 'operation_manager') return 'warning';
   return 'neutral';
 }
 
@@ -105,7 +105,7 @@ function buildAddUserDrawerHtml(roleDefaults) {
         <select class="ds-input ds-input--sm" id="new-display-role">
           <option value="instructor">מדריך/ה</option>
           <option value="authorized_user">משתמש/ת מורשה</option>
-          <option value="operations_reviewer">בקר/ת תפעול</option>
+          <option value="operation_manager">בקר/ת תפעול</option>
           <option value="admin">מנהל/ת</option>
         </select>
       </div>
@@ -160,7 +160,7 @@ function buildEditDrawerHtml(row) {
         <span class="ds-muted">${escapeHtml(hebrewColumn('display_role'))}</span>
         <select data-role-select data-user-id="${uid}" class="ds-input ds-input--sm">
           <option value="admin" ${row.display_role === 'admin' ? 'selected' : ''}>מנהל/ת</option>
-          <option value="operations_reviewer" ${row.display_role === 'operations_reviewer' ? 'selected' : ''}>בקר/ת תפעול</option>
+          <option value="operation_manager" ${row.display_role === 'operation_manager' ? 'selected' : ''}>בקר/ת תפעול</option>
           <option value="authorized_user" ${row.display_role === 'authorized_user' ? 'selected' : ''}>משתמש/ת מורשה</option>
           <option value="instructor" ${row.display_role === 'instructor' ? 'selected' : ''}>מדריך/ה</option>
         </select>
@@ -246,13 +246,13 @@ export const permissionsScreen = {
   load: ({ api }) => api.permissions(),
   render(data, { state }) {
     const canEdit =
-      state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
+      state?.user?.display_role === 'admin' || state?.user?.display_role === 'operation_manager';
     const isAdmin = state?.user?.display_role === 'admin';
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
 
     const activeCount = safeRows.filter((r) => String(r.active || '').toLowerCase() === 'yes').length;
     const adminCount = safeRows.filter((r) => r.display_role === 'admin').length;
-    const reviewerCount = safeRows.filter((r) => r.display_role === 'operations_reviewer').length;
+    const reviewerCount = safeRows.filter((r) => r.display_role === 'operation_manager').length;
     const authorizedCount = safeRows.filter((r) => r.display_role === 'authorized_user').length;
     const instructorCount = safeRows.filter((r) => r.display_role === 'instructor').length;
 

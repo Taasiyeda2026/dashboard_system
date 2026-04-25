@@ -162,6 +162,7 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
     const submitBtn = form.querySelector('[data-action="save-edit"]');
     const sourceSheet = form.getAttribute('data-source-sheet') || '';
     const sourceRowId = form.getAttribute('data-row-id') || '';
+    const canDirectEdit = String(form.dataset.canDirectEdit || '') === 'yes';
     const changes = {};
 
     form.querySelectorAll('[name]').forEach((el) => {
@@ -172,15 +173,15 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
     });
 
     try {
-      setStatus(statusEl, 'is-pending', 'שומר...');
+      setStatus(statusEl, 'is-pending', canDirectEdit ? 'שומר...' : 'שולח לאישור...');
       if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.classList.add('is-loading');
       }
 
       await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
-      setStatus(statusEl, 'is-success', '✅ נשמר בהצלחה');
-      showToast('✅ נשמר בהצלחה', 'success', 2500);
+      setStatus(statusEl, 'is-success', canDirectEdit ? '✅ נשמר בהצלחה' : '✅ בקשת העריכה נשלחה לאישור');
+      showToast(canDirectEdit ? '✅ נשמר בהצלחה' : '✅ בקשת העריכה נשלחה לאישור', 'success', 2500);
       if (typeof onRowSaved === 'function') onRowSaved({ sourceSheet, sourceRowId, changes, form });
       setEditMode(form, false);
       clearScreenDataCache?.();

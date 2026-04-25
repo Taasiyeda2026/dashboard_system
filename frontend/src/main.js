@@ -422,7 +422,7 @@ const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-da
 function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
-  const isAdminUser = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
+  const isAdminUser = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operation_manager';
   // לאדמין: הרשאות — מהכותרת בלבד; הנתונים שלי — מוסתר לחלוטין
   const adminSidebarExclude = isAdminUser ? new Set(['permissions', 'my-data']) : new Set();
   const nav = effectiveRoutes()
@@ -851,6 +851,8 @@ function backgroundSyncBootstrap() {
       state.user.display_role2 =
         bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
       state.user.can_add_activity = !!bootstrap.can_add_activity;
+      state.user.can_edit_direct = !!bootstrap.can_edit_direct;
+      state.user.can_request_edit = !!bootstrap.can_request_edit;
       localStorage.setItem('dashboard_user', JSON.stringify(state.user));
     }
     if (!isAllowedRoute(state.route)) {
@@ -882,6 +884,8 @@ async function restoreSession() {
     state.user.display_role2 =
       bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
     state.user.can_add_activity = !!bootstrap.can_add_activity;
+    state.user.can_edit_direct = !!bootstrap.can_edit_direct;
+    state.user.can_request_edit = !!bootstrap.can_request_edit;
     localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   }
 }
