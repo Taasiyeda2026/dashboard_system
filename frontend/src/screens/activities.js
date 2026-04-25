@@ -236,18 +236,16 @@ function putCachedActivityDetail(summaryRow, row, s) {
 
 export const activitiesScreen = {
   async load({ api, state }) {
-    console.time('activities:load');
     try {
       const v = typeof localStorage !== 'undefined' ? localStorage.getItem(ACTIVITY_VIEW_LS) : null;
       if (v === 'table' || v === 'compact') state.activityView = v;
     } catch (_e) {
       /* ignore */
     }
-    return api.activities({ activity_type: 'all' }).finally(() => console.timeEnd('activities:load'));
+    return api.activities({ activity_type: 'all' });
   },
 
   render(data, { state }) {
-    console.time('activities:render');
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
     const safeRows      = applyClientFilters(allRows, state, state?.clientSettings);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
@@ -358,7 +356,6 @@ export const activitiesScreen = {
         ? dsCard({ title: 'רשימת פעילויות', body: compactSection, padded: true })
         : dsCard({ title: 'רשימת פעילויות', body: tableSection,   padded: false })}
     `);
-    console.timeEnd('activities:render');
     return html;
   },
 
@@ -380,10 +377,8 @@ export const activitiesScreen = {
       const key = activityDetailCacheKey(summaryRow);
       let request = inflightActivityDetailRequests.get(key);
       if (!request) {
-        console.time('activityDetail:load');
         request = api.activityDetail(summaryRow.RowID, summaryRow.source_sheet)
           .finally(() => {
-            console.timeEnd('activityDetail:load');
             inflightActivityDetailRequests.delete(key);
           });
         inflightActivityDetailRequests.set(key, request);

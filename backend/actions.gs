@@ -464,17 +464,7 @@ function actionDashboard_(user, payload) {
     }
     if (exceptionTypes.indexOf('late_end_date') >= 0) lateEndDateCount += 1;
   });
-  console.log('[dashboard][control-metrics-debug]', JSON.stringify({
-    month_ym: ym,
-    late_end_date_cutoff: lateEndDateCutoff,
-    total_records: totalLongRows,
-    relevant_records: relevantLongRows.length,
-    missing_instructor_records: missingInstructorCount,
-    missing_start_date_records: missingStartDateCount,
-    missing_instructor_examples: missingInstructorExamples,
-    missing_start_date_examples: missingStartDateExamples,
-    control_metric_rows: controlMetricDebugRows
-  }));
+
 
   var shortActivitiesByType = {};
   shortRowsBySource.forEach(function(row) {
@@ -999,14 +989,7 @@ function actionExceptions_(user) {
     });
   });
 
-  console.log('[exceptions][control-metrics-debug]', JSON.stringify({
-    total_records: rows.length,
-    relevant_records: relevantRows.length,
-    missing_instructor_records: counts.missing_instructor,
-    missing_start_date_records: counts.missing_start_date,
-    missing_instructor_examples: missingInstructorExamples,
-    missing_start_date_examples: missingStartDateExamples
-  }));
+
 
   return {
     rows: result,

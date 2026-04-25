@@ -337,11 +337,7 @@ function refreshDashboardSnapshots_() {
 
     var status  = errors.length === 0 ? 'ok' : 'partial';
     var message = errors.length === 0 ? 'all months updated' : errors.join('; ');
-    try {
-      updateDashboardRefreshControl_(status, message);
-    } finally {
-      bumpDataViewsCacheVersion_();
-    }
+    updateDashboardRefreshControl_(status, message);
   } finally {
     if (!hadCache) {
       __rqCache_ = null;

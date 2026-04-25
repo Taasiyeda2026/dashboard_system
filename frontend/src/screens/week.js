@@ -158,11 +158,9 @@ function patchCachedActivityDetail({ sourceSheet, sourceRowId, changes }, s) {
 export const weekScreen = {
   load: ({ api, state }) => {
     const offset = state.weekOffset || 0;
-    console.time('week:load');
-    return api.week({ week_offset: offset }).finally(() => console.timeEnd('week:load'));
+    return api.week({ week_offset: offset });
   },
   render(data, { state }) {
-    console.time('week:render');
     const safeDays = Array.isArray(data?.days) ? data.days : [];
     const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
     const todayIso = localYmd();
@@ -215,7 +213,6 @@ export const weekScreen = {
       </nav>
       <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
-    console.timeEnd('week:render');
     return html;
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
@@ -311,10 +308,8 @@ export const weekScreen = {
             const cacheKey = activityDetailCacheKey(row);
             let request = inflightActivityDetailRequests.get(cacheKey);
             if (!request) {
-              console.time('activityDetail:load');
               request = api.activityDetail(row.RowID, row.source_sheet)
                 .finally(() => {
-                  console.timeEnd('activityDetail:load');
                   inflightActivityDetailRequests.delete(cacheKey);
                 });
               inflightActivityDetailRequests.set(cacheKey, request);

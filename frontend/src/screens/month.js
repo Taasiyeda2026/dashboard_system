@@ -201,12 +201,10 @@ function patchCachedActivityDetail({ sourceSheet, sourceRowId, changes }, s) {
 
 export const monthScreen = {
   load: ({ api, state }) => {
-    console.time('month:load');
     const ym = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : '';
-    return api.month(ym ? { ym } : {}).finally(() => console.timeEnd('month:load'));
+    return api.month(ym ? { ym } : {});
   },
   render(data, { state }) {
-    console.time('month:render');
     const spec = inferMonthSpec(data || {});
     const y = spec.y;
     const mo = spec.mo;
@@ -298,7 +296,6 @@ export const monthScreen = {
         padded: false
       })}
     `);
-    console.timeEnd('month:render');
     return html;
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
@@ -374,10 +371,8 @@ export const monthScreen = {
         const detailKey = activityDetailCacheKey(item);
         let request = inflightActivityDetailRequests.get(detailKey);
         if (!request) {
-          console.time('activityDetail:load');
           request = api.activityDetail(item.RowID, item.source_sheet)
             .finally(() => {
-              console.timeEnd('activityDetail:load');
               inflightActivityDetailRequests.delete(detailKey);
             });
           inflightActivityDetailRequests.set(detailKey, request);

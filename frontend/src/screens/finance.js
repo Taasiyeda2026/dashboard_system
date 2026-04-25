@@ -1207,12 +1207,20 @@ export const financeScreen = {
         const freshData = await api.finance({
           date_from: state?.financeDateFrom || '',
           date_to: state?.financeDateTo || '',
-          search: '',
-          status: '',
-          tab: 'all',
+          search: state?.financeSearch || '',
+          status: state?.financeStatusFilter || '',
+          tab: state?.financeTab || 'active',
           month: state?.financeMonthYm || ''
         });
-        const financeKey = `finance:${state.financeDateFrom||''}:${state.financeDateTo||''}:::all:${state.financeMonthYm||''}`;
+        const financeFilters = {
+          dateFrom: state?.financeDateFrom || '',
+          dateTo: state?.financeDateTo || '',
+          search: state?.financeSearch || '',
+          status: state?.financeStatusFilter || '',
+          tab: state?.financeTab || 'active',
+          ym: state?.financeMonthYm || ''
+        };
+        const financeKey = `finance:${JSON.stringify(financeFilters)}`;
         Object.keys(state.screenDataCache).forEach((k) => {
           if (k.startsWith('finance:')) delete state.screenDataCache[k];
         });
