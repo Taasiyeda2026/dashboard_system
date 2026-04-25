@@ -9,7 +9,6 @@ export const ACT_SUBNAV_ITEMS = [
   { route: 'exceptions',          label: 'חריגות',               icon: '⚠️' },
   { route: 'instructors',         label: 'מדריכים',              icon: '👥' },
   { route: 'contacts',            label: 'אנשי קשר',             icon: '📇' },
-  { route: 'instructor-contacts', label: 'אנשי קשר מדריכים',     icon: '🧑‍🏫' },
   { route: 'finance',             label: 'כספים',                icon: '💰' },
   { route: 'permissions',         label: 'הרשאות',               icon: '🔑' },
   { route: 'operations',          label: 'תפעול',                icon: '⚙️' },
