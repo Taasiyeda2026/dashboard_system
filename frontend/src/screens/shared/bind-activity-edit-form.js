@@ -147,7 +147,7 @@ function updateMoreDatesToggle(form) {
   syncMeetingRemoveButtons(form);
 }
 
-export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, rerender }) {
+export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, rerender, onRowSaved }) {
   if (!api || !contentRoot) return;
 
   if (contentRoot._activityEditAbort) {
@@ -181,9 +181,14 @@ export function bindActivityEditForm(contentRoot, { api, clearScreenDataCache, r
       await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
       setStatus(statusEl, 'is-success', '✅ נשמר בהצלחה');
       showToast('✅ נשמר בהצלחה', 'success', 2500);
+      if (typeof onRowSaved === 'function') onRowSaved({ sourceSheet, sourceRowId, changes, form });
       setEditMode(form, false);
       clearScreenDataCache?.();
-      if (typeof rerender === 'function') await rerender();
+      if (typeof rerender === 'function') {
+        requestAnimationFrame(() => {
+          rerender();
+        });
+      }
     } catch (err) {
       setStatus(statusEl, 'is-error', `⚠️ ${translateApiErrorForUser(err?.message)}`);
     } finally {

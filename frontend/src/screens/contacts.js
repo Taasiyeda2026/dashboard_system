@@ -192,32 +192,39 @@ function renderAuthorityGroup(authority, schoolsMap) {
   let schoolsHtml = '';
   schoolsMap.forEach((rows, schoolName) => { schoolsHtml += renderSchoolCard(schoolName, rows); });
   if (!schoolsHtml) return '';
-  const schoolCount = schoolsMap.size;
-  const countLabel = schoolCount === 1 ? '1 בית ספר' : `${schoolCount} בתי ספר`;
   return `<div class="sc-authority-group">
     <div class="sc-authority-head">
       <span class="sc-authority-icon" aria-hidden="true">🏛️</span>
       <span class="sc-authority-name">${escapeHtml(authority)}</span>
-      <span class="sc-authority-count">${escapeHtml(countLabel)}</span>
     </div>
     <div class="sc-school-grid">${schoolsHtml}</div>
   </div>`;
 }
 
-function instructorFormHtml(row = {}) {
+function selectOptionsHtml(values, selected = '', placeholder = '—') {
+  const safe = String(selected || '');
+  const uniq = [...new Set((Array.isArray(values) ? values : []).map((v) => String(v || '').trim()).filter(Boolean))];
+  const merged = safe && !uniq.includes(safe) ? [safe, ...uniq] : uniq;
+  return [`<option value="">${escapeHtml(placeholder)}</option>`]
+    .concat(merged.map((v) => `<option value="${escapeHtml(v)}"${v === safe ? ' selected' : ''}>${escapeHtml(v)}</option>`))
+    .join('');
+}
+
+function instructorFormHtml(row = {}, managerOptions = []) {
+  const employmentOptions = ['תעשיידע', 'מעוף', 'מנפוואר'];
   return `
-    <div class="ds-perm-edit-form" dir="rtl">
+    <div class="ds-perm-edit-form ds-contact-edit-form" dir="rtl">
       <div class="ds-perm-field"><span class="ds-muted">מזהה מדריך</span><input class="ds-input ds-input--sm" name="emp_id" value="${escapeHtml(String(row.emp_id || ''))}" ${row.emp_id ? 'readonly' : ''}></div>
       <div class="ds-perm-field"><span class="ds-muted">שם מלא</span><input class="ds-input ds-input--sm" name="full_name" value="${escapeHtml(String(row.full_name || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">נייד</span><input class="ds-input ds-input--sm" name="mobile" value="${escapeHtml(String(row.mobile || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">אימייל</span><input class="ds-input ds-input--sm" name="email" value="${escapeHtml(String(row.email || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">כתובת</span><input class="ds-input ds-input--sm" name="address" value="${escapeHtml(String(row.address || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">סוג העסקה</span><select class="ds-input ds-input--sm" name="employment_type">
-        <option value="">—</option>
-        <option value="full_time" ${String(row.employment_type || '') === 'full_time' ? 'selected' : ''}>משרה מלאה</option>
-        <option value="part_time" ${String(row.employment_type || '') === 'part_time' ? 'selected' : ''}>משרה חלקית</option>
+        ${selectOptionsHtml(employmentOptions, String(row.employment_type || ''), 'בחרו סוג העסקה')}
       </select></div>
-      <div class="ds-perm-field"><span class="ds-muted">מנהל ישיר</span><input class="ds-input ds-input--sm" name="direct_manager" value="${escapeHtml(String(row.direct_manager || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">מנהל ישיר</span><select class="ds-input ds-input--sm" name="direct_manager">
+        ${selectOptionsHtml(managerOptions, String(row.direct_manager || ''), 'בחרו מנהל')}
+      </select></div>
       <div class="ds-perm-field"><span class="ds-muted">פעיל</span><select class="ds-input ds-input--sm" name="active">
         <option value="yes" ${String(row.active || 'yes').toLowerCase() === 'yes' ? 'selected' : ''}>כן</option>
         <option value="no" ${String(row.active || '').toLowerCase() === 'no' ? 'selected' : ''}>לא</option>
@@ -229,7 +236,7 @@ function instructorFormHtml(row = {}) {
 
 function schoolFormHtml(row = {}) {
   return `
-    <div class="ds-perm-edit-form" dir="rtl">
+    <div class="ds-perm-edit-form ds-contact-edit-form" dir="rtl">
       <div class="ds-perm-field"><span class="ds-muted">רשות</span><input class="ds-input ds-input--sm" name="authority" value="${escapeHtml(String(row.authority || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">בית ספר</span><input class="ds-input ds-input--sm" name="school" value="${escapeHtml(String(row.school || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">שם איש קשר</span><input class="ds-input ds-input--sm" name="contact_name" value="${escapeHtml(String(row.contact_name || ''))}"></div>
@@ -304,6 +311,9 @@ export const contactsScreen = {
     const instrRows = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
     const schoolRows = Array.isArray(data?.school_rows) ? data.school_rows : [];
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const managerOptions = (Array.isArray(state?.clientSettings?.dropdown_options?.activities_manager_users)
+      ? state.clientSettings.dropdown_options.activities_manager_users.map((u) => String(u?.name || '').trim())
+      : []).filter(Boolean);
 
     root.querySelectorAll('[data-contacts-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -312,14 +322,18 @@ export const contactsScreen = {
       });
     });
 
+    let instrSearchTimer;
     root.querySelector('#contacts-instr-search')?.addEventListener('input', (ev) => {
       state.contactsInstrSearch = ev.target.value || '';
-      rerender();
+      clearTimeout(instrSearchTimer);
+      instrSearchTimer = setTimeout(() => rerender(), 180);
     });
 
+    let schoolSearchTimer;
     root.querySelector('#contacts-school-search')?.addEventListener('input', (ev) => {
       state.contactsSchoolSearch = ev.target.value || '';
-      rerender();
+      clearTimeout(schoolSearchTimer);
+      schoolSearchTimer = setTimeout(() => rerender(), 180);
     });
 
     root.querySelectorAll('[data-copy-email]').forEach((btn) => {
@@ -351,7 +365,7 @@ export const contactsScreen = {
       const target = row || {};
       ui.openModal({
         title: isCreate ? 'הוספת איש קשר מדריך' : 'עריכת איש קשר מדריך',
-        content: instructorFormHtml(target),
+        content: instructorFormHtml(target, managerOptions),
         actions: `<button type="button" class="ds-btn ds-btn--primary" data-save-contact="instr">${isCreate ? 'הוספה' : 'שמירה'}</button>
                   <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>`
       });
@@ -495,4 +509,3 @@ function fallbackCopy(text, cb) {
   document.body.removeChild(ta);
   cb?.();
 }
-

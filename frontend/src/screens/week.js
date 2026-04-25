@@ -201,8 +201,15 @@ export const weekScreen = {
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
 
+    const detailCache = new Map();
+    const detailKey = (row) => `${String(row?.source_sheet || '')}|${String(row?.RowID || '')}`;
+    const patchDetailCache = ({ sourceSheet, sourceRowId, changes }) => {
+      const key = `${String(sourceSheet || '')}|${String(sourceRowId || '')}`;
+      const hit = detailCache.get(key);
+      if (hit && typeof hit === 'object') Object.assign(hit, changes || {});
+    };
     const bindActivityEditForm = (contentRoot) =>
-      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
+      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: patchDetailCache });
 
     let navDebounceTimer = null;
     const queueWeekShift = (delta) => {
@@ -257,21 +264,37 @@ export const weekScreen = {
         group.some((entry) => String(entry.RowID) === String(rowId))
       ) || [item];
       const mode = summaryGroup.length > 1 ? 'summary' : 'single';
-      ui.openDrawer({
-        title: '',
-        content: weekDrawerHtml(
-          mode === 'summary' ? summaryGroup : item,
-          date,
-          hideEmpIds,
-          hideRowId,
-          hideActivityNo,
-          canEditActivity,
-          showPrivateNote,
-          state?.clientSettings || {},
-          mode
-        ),
-        onOpen: canEditActivity ? bindActivityEditForm : undefined
-      });
+      const openDrawerWith = (payload, currMode) => {
+        ui.openDrawer({
+          title: '',
+          content: weekDrawerHtml(
+            currMode === 'summary' ? payload : payload[0],
+            date,
+            hideEmpIds,
+            hideRowId,
+            hideActivityNo,
+            canEditActivity,
+            showPrivateNote,
+            state?.clientSettings || {},
+            currMode
+          ),
+          onOpen: canEditActivity ? bindActivityEditForm : undefined
+        });
+      };
+      openDrawerWith(summaryGroup, mode);
+      const loadDetails = async () => {
+        const rows = mode === 'summary' ? summaryGroup : [item];
+        const detailed = await Promise.all(rows.map(async (row) => {
+          const key = detailKey(row);
+          if (detailCache.has(key)) return detailCache.get(key);
+          const rsp = await api.activityDetail(row.RowID, row.source_sheet);
+          const full = rsp?.row || row;
+          detailCache.set(key, full);
+          return full;
+        }));
+        openDrawerWith(detailed, mode);
+      };
+      loadDetails().catch(() => {});
     });
   }
 };

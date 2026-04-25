@@ -135,9 +135,11 @@ export const instructorContactsScreen = {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 
+    let searchTimer;
     root.querySelector('#instr-contacts-search')?.addEventListener('input', (ev) => {
       state.instrContactsSearch = ev.target.value || '';
-      rerender();
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => rerender(), 180);
     });
 
     root.querySelectorAll('[data-active-filter]').forEach((btn) => {
