@@ -2,15 +2,17 @@ import { escapeHtml } from './shared/html.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { formatDateHe } from './shared/format-date.js';
+import {
+  ensureActivityListFilters,
+  prepareRowsForSearch,
+  applyLocalFilters,
+  filtersToolbarHtml,
+  bindLocalFilters,
+  splitVisibleRows
+} from './shared/activity-list-filters.js';
 
-function applySearch(rows, q) {
-  if (!q) return rows;
-  const lq = q.toLowerCase();
-  return rows.filter((r) =>
-    String(r.full_name || '').toLowerCase().includes(lq) ||
-    String(r.emp_id   || '').toLowerCase().includes(lq)
-  );
-}
+const INSTRUCTORS_SCOPE = 'instructors';
+const INSTRUCTOR_FILTER_FIELDS = [{ key: 'activity_manager', label: 'מנהל פעילות' }];
 
 function applyActiveFilter(rows, activeOnly) {
   if (!activeOnly) return rows;
@@ -56,19 +58,27 @@ export const instructorsScreen = {
   render(data, { state } = {}) {
     const allRows  = Array.isArray(data?.rows) ? data.rows : [];
     const ym       = data?.ym || '';
-    const searchQ  = state?.instructorsSearch  || '';
+    prepareRowsForSearch(allRows, ['full_name', 'emp_id', 'activity_manager', 'authority', 'school', 'activity_name']);
+    const filters = ensureActivityListFilters(state, INSTRUCTORS_SCOPE);
     const activeOnly = state?.instructorsActiveOnly !== false;
 
-    const searched  = applySearch(allRows, searchQ);
-    const filtered  = applyActiveFilter(searched, activeOnly);
-    const totalAll  = searched.length;
+    const locallyFiltered = applyLocalFilters(allRows, filters, { filterFields: INSTRUCTOR_FILTER_FIELDS });
+    const filtered  = applyActiveFilter(locallyFiltered, activeOnly);
+    const totalAll  = locallyFiltered.length;
+    const { visible: visibleRows, hasMore, nextCount } = splitVisibleRows(filtered, filters);
+    const toolbarHtml = filtersToolbarHtml(INSTRUCTORS_SCOPE, allRows, state, {
+      filterFields: INSTRUCTOR_FILTER_FIELDS,
+      searchPlaceholder: 'חיפוש לפי שם מדריך / מזהה / מנהל / רשות / בית ספר…'
+    });
 
     const ymLabel = ym ? ym.slice(0, 7) : '';
     const activeChk = activeOnly ? 'checked' : '';
 
-    const bodyHtml = filtered.length === 0
-      ? dsEmptyState(searchQ || activeOnly ? 'לא נמצאו מדריכים לסינון זה' : 'אין נתוני מדריכים')
-      : `<div class="ci-list ci-list--instr-grid">${filtered.map(renderInstructorRow).join('')}</div>`;
+    const bodyHtml = visibleRows.length === 0
+      ? dsEmptyState(filters.q || activeOnly ? 'לא נמצאו מדריכים לסינון זה' : 'אין נתוני מדריכים')
+      : `<div class="ci-list ci-list--instr-grid">${visibleRows.map(renderInstructorRow).join('')}</div>${
+        hasMore ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${INSTRUCTORS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>` : ''
+      }`;
 
     const subtitle = ymLabel
       ? `מדריכים · ${filtered.length}${activeOnly && totalAll !== filtered.length ? ` (מתוך ${totalAll})` : ''} · חודש ${ymLabel}`
@@ -77,14 +87,7 @@ export const instructorsScreen = {
     return dsScreenStack(`
       ${actNavGridHtml(state)}
       <div class="ds-screen-top-row">
-        <input
-          id="instructors-search"
-          type="search"
-          class="ds-search-input"
-          placeholder="חיפוש לפי שם / מזהה..."
-          value="${escapeHtml(searchQ)}"
-          dir="rtl"
-        />
+        ${toolbarHtml}
         <label class="ds-toggle-label" dir="rtl">
           <input type="checkbox" id="instructors-active-only" ${activeChk} />
           פעילים החודש בלבד
@@ -96,17 +99,15 @@ export const instructorsScreen = {
 
   bind({ root, data, state, rerender, ui, api }) {
     bindActNavGrid(root, { state, rerender });
+    bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 300 });
+    root.querySelector(`[data-list-show-more="${INSTRUCTORS_SCOPE}"]`)?.addEventListener('click', (ev) => {
+      ensureActivityListFilters(state, INSTRUCTORS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);
+      rerender();
+    });
 
     root.querySelector('#instructors-active-only')?.addEventListener('change', (ev) => {
       state.instructorsActiveOnly = ev.target.checked;
       rerender();
-    });
-
-    let _searchTimer;
-    root.querySelector('#instructors-search')?.addEventListener('input', (ev) => {
-      state.instructorsSearch = ev.target.value || '';
-      clearTimeout(_searchTimer);
-      _searchTimer = setTimeout(() => rerender(), 220);
     });
 
     root.querySelectorAll('[data-instructor-card]').forEach((btn) => {

@@ -3,12 +3,20 @@ import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn, hebrewEmploymentType } from './shared/ui-hebrew.js';
 import { dsScreenStack, dsEmptyState, dsStatusChip } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
+import {
+  ensureActivityListFilters,
+  prepareRowsForSearch,
+  applyLocalFilters,
+  filtersToolbarHtml,
+  bindLocalFilters
+} from './shared/activity-list-filters.js';
 
 const AVATAR_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e',
   '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6',
   '#f43f5e', '#a855f7'
 ];
+const CONTACTS_SCOPE = 'contacts';
 
 /* ─── Copy button ─── */
 
@@ -35,16 +43,6 @@ function avatarInitials(fullName) {
   if (parts.length >= 2) return parts[0][0] + parts[1][0];
   if (parts.length === 1) return parts[0].slice(0, 2);
   return '??';
-}
-
-function applyInstrSearch(rows, q) {
-  if (!q) return rows;
-  const lq = q.toLowerCase();
-  return rows.filter((r) =>
-    String(r.full_name || '').toLowerCase().includes(lq) ||
-    String(r.mobile   || '').toLowerCase().includes(lq) ||
-    String(r.email    || '').toLowerCase().includes(lq)
-  );
 }
 
 function instrDrawerHtml(row, hideEmpIds) {
@@ -101,7 +99,7 @@ function renderInstrCard(row) {
 }
 
 function instrTabHtml(rows, searchQ) {
-  const filtered = applyInstrSearch(rows, searchQ);
+  const filtered = searchQ ? applyLocalFilters(rows, { q: searchQ }, { filterFields: [] }) : rows;
   const body = filtered.length === 0
     ? dsEmptyState('לא נמצאו אנשי קשר')
     : `<div class="ci-person-grid">${filtered.map((r) => renderInstrCard(r)).join('')}</div>`;
@@ -109,16 +107,6 @@ function instrTabHtml(rows, searchQ) {
 }
 
 /* ─── School contacts ─── */
-
-function applySchoolSearch(rows, q) {
-  if (!q) return rows;
-  const lq = q.toLowerCase();
-  return rows.filter((r) =>
-    String(r.school       || '').toLowerCase().includes(lq) ||
-    String(r.authority    || '').toLowerCase().includes(lq) ||
-    String(r.contact_name || '').toLowerCase().includes(lq)
-  );
-}
 
 function schoolPersonHtml(row) {
   const name = row.contact_name ? escapeHtml(String(row.contact_name)) : '';
@@ -251,7 +239,7 @@ function schoolFormHtml(row = {}) {
 }
 
 function schoolTabHtml(rows, searchQ) {
-  const filtered = applySchoolSearch(rows, searchQ);
+  const filtered = searchQ ? applyLocalFilters(rows, { q: searchQ }, { filterFields: [] }) : rows;
   if (filtered.length === 0) return { filtered, body: dsEmptyState('לא נמצאו אנשי קשר') };
   const authorityGroups = groupByAuthorityThenSchool(filtered);
   let html = '';
@@ -267,11 +255,13 @@ export const contactsScreen = {
   render(data, { state } = {}) {
     const instrRows  = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
     const schoolRows = Array.isArray(data?.school_rows)     ? data.school_rows     : [];
+    prepareRowsForSearch(instrRows, ['full_name', 'contact_name', 'mobile', 'phone', 'email', 'authority', 'school', 'role', 'contact_role']);
+    prepareRowsForSearch(schoolRows, ['full_name', 'contact_name', 'mobile', 'phone', 'email', 'authority', 'school', 'role', 'contact_role']);
+    const filters = ensureActivityListFilters(state, CONTACTS_SCOPE);
     const canViewInstr  = data?.can_view_instructors !== false;
     const canViewSchool = data?.can_view_schools     !== false;
     const tab     = state?.contactsTab || (canViewInstr ? 'instr' : 'school');
-    const instrQ  = state?.contactsInstrSearch  || '';
-    const schoolQ = state?.contactsSchoolSearch || '';
+    const searchQ = filters.q || '';
 
     const tabBtns = [
       canViewInstr  && { key: 'instr',  label: `אנשי קשר מדריכים (${instrRows.length})`  },
@@ -284,16 +274,17 @@ export const contactsScreen = {
     let listHtml    = '';
 
     if (tab === 'instr' && canViewInstr) {
-      const { body } = instrTabHtml(instrRows, instrQ);
-      searchInput = `<input id="contacts-instr-search" type="search" class="ds-search-input"
-        placeholder="חיפוש לפי שם / טלפון / מייל…" value="${escapeHtml(instrQ)}" dir="rtl" />`;
+      const { body } = instrTabHtml(instrRows, searchQ);
       listHtml = body;
     } else if (tab === 'school' && canViewSchool) {
-      const { body } = schoolTabHtml(schoolRows, schoolQ);
-      searchInput = `<input id="contacts-school-search" type="search" class="ds-search-input"
-        placeholder="חיפוש לפי בית ספר / רשות / איש קשר…" value="${escapeHtml(schoolQ)}" dir="rtl" />`;
+      const { body } = schoolTabHtml(schoolRows, searchQ);
       listHtml = body;
     }
+    searchInput = filtersToolbarHtml(CONTACTS_SCOPE, tab === 'instr' ? instrRows : schoolRows, state, {
+      searchPlaceholder: 'חיפוש לפי שם / תפקיד / טלפון / מייל / רשות / בית ספר…',
+      filterFields: [],
+      search: true
+    });
 
     return dsScreenStack(`
       ${actNavGridHtml(state)}
@@ -321,20 +312,7 @@ export const contactsScreen = {
         rerender();
       });
     });
-
-    let instrSearchTimer;
-    root.querySelector('#contacts-instr-search')?.addEventListener('input', (ev) => {
-      state.contactsInstrSearch = ev.target.value || '';
-      clearTimeout(instrSearchTimer);
-      instrSearchTimer = setTimeout(() => rerender(), 180);
-    });
-
-    let schoolSearchTimer;
-    root.querySelector('#contacts-school-search')?.addEventListener('input', (ev) => {
-      state.contactsSchoolSearch = ev.target.value || '';
-      clearTimeout(schoolSearchTimer);
-      schoolSearchTimer = setTimeout(() => rerender(), 180);
-    });
+    bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, { debounceMs: 300 });
 
     root.querySelectorAll('[data-copy-email]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {

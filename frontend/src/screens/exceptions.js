@@ -10,6 +10,23 @@ import {
   dsEmptyState,
   dsStatusChip
 } from './shared/layout.js';
+import {
+  ensureActivityListFilters,
+  prepareRowsForSearch,
+  applyLocalFilters,
+  filtersToolbarHtml,
+  bindLocalFilters,
+  splitVisibleRows
+} from './shared/activity-list-filters.js';
+
+const EXCEPTIONS_SCOPE = 'exceptions';
+const EXCEPTION_FILTER_FIELDS = [
+  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'authority', label: 'רשות' },
+  { key: 'funding', label: 'מימון' },
+  { key: 'school', label: 'בית ספר' },
+  { key: 'exception_type', label: 'סוג חריגה', getOptionLabel: (value) => hebrewExceptionType(value) }
+];
 
 function fieldRow(label, value) {
   const display = (value !== undefined && value !== null && value !== '')
@@ -69,12 +86,23 @@ export const exceptionsScreen = {
   load: ({ api }) => api.exceptions(),
   render(data, { state } = {}) {
     const allRows   = Array.isArray(data?.rows) ? data.rows : [];
+    const filterState = ensureActivityListFilters(state, EXCEPTIONS_SCOPE);
+    prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type']);
+    const filteredRows = applyLocalFilters(allRows, filterState, { filterFields: EXCEPTION_FILTER_FIELDS });
+    const { visible: visibleRows, hasMore, nextCount, total } = splitVisibleRows(filteredRows, filterState);
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const toolbarHtml = filtersToolbarHtml(EXCEPTIONS_SCOPE, allRows, state, {
+      filterFields: EXCEPTION_FILTER_FIELDS,
+      searchPlaceholder: 'חיפוש חריגות…'
+    });
+    const loadMoreHtml = hasMore
+      ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${EXCEPTIONS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
+      : '';
 
     const compact =
-      allRows.length === 0
+      visibleRows.length === 0
         ? dsEmptyState('לא נמצאו חריגות')
-        : `<div class="ds-compact-list">${allRows
+        : `<div class="ds-compact-list">${visibleRows
             .map((row, idx) => {
               const et = String(row.exception_type || '').trim();
               const subtitleParts = [row.authority, row.school].filter(Boolean);
@@ -86,27 +114,33 @@ export const exceptionsScreen = {
               return `<div data-list-item>
                 <button type="button"
                   class="ds-interactive-card ds-interactive-card--session"
-                  data-card-action="${escapeHtml(`exception:${idx}`)}">
+                  data-card-action="${escapeHtml(`exception:${row.RowID}`)}">
                   <p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p>
                   ${subtitleHtml}
                   ${chipHtml}
                 </button>
               </div>`;
             })
-            .join('')}</div>`;
+            .join('')}</div>${loadMoreHtml}`;
 
     return dsScreenStack(`
       ${actNavGridHtml(state)}
+      ${toolbarHtml}
       ${dsCard({
-        title: `חריגות · ${allRows.length}`,
+        title: `חריגות · ${total}`,
         body: compact,
-        padded: allRows.length === 0
+        padded: visibleRows.length === 0
       })}
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
     bindActNavGrid(root, { state, rerender });
     const allRows   = Array.isArray(data?.rows) ? data.rows : [];
+    bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 300 });
+    root.querySelector(`[data-list-show-more="${EXCEPTIONS_SCOPE}"]`)?.addEventListener('click', (ev) => {
+      ensureActivityListFilters(state, EXCEPTIONS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);
+      rerender();
+    });
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -196,7 +230,8 @@ export const exceptionsScreen = {
 
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('exception:')) return;
-      const idx = Number(action.slice('exception:'.length));
+      const rowId = action.slice('exception:'.length);
+      const idx = allRows.findIndex((row) => String(row.RowID) === String(rowId));
       openAt(idx);
     });
   }

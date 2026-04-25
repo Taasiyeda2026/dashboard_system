@@ -974,6 +974,7 @@ function actionExceptions_(user) {
       activity_no:       row.activity_no,
       authority:         row.authority,
       school:            row.school,
+      funding:           row.funding,
       grade:             text_(row.grade),
       class_group:       text_(row.class_group),
       emp_id:            row.emp_id,
