@@ -1,0 +1,189 @@
+בצע שיפור ביצועים ממוקד רק לשני אזורים:
+1. מעבר למסך פעילויות
+2. פתיחת פרטי פעילות
+
+חשוב:
+- לא לשנות לוגיקה עסקית
+- לא לשנות schema
+- לא לעשות refactor רחב
+- לא לגעת ב-dashboard snapshot
+- השינוי צריך להיות מינימלי, יציב, ומבוסס על הקוד הקיים
+
+עבוד רק בקבצים:
+- frontend/src/main.js
+- frontend/src/screens/activities.js
+- frontend/src/api.js
+- backend/actions.gs
+- ואם חייבים בלבד: backend/router.gs
+
+==================================================
+1. מטרה כללית
+==================================================
+
+אני רוצה שהמעבר למסך פעילויות ירגיש מיידי יותר, ושהפתיחה של פרטי פעילות תהיה מהירה יותר.
+
+המצב הקיים:
+- מסך activities טוען את כל הרשימה דרך api.activities({ activity_type: 'all' })
+- פתיחת פרטי פעילות פותחת drawer מיד עם summary ואז מבצעת activityDetail נפרד
+- detail cache כרגע הוא Map מקומי בתוך bind של activities, ולכן לא שורד מעבר מסך / rerender עמוק
+
+המטרה:
+- activities יהיה cache-first + background refresh
+- פרטי פעילות יקבלו cache מתמשך ברמת state.screenDataCache, לא רק Map מקומי
+- אם כבר יש detail cache לפעילות, פתיחת החלון תהיה מיידית בלי קריאת API נוספת
+
+==================================================
+2. שיפור מעבר למסך פעילויות
+==================================================
+
+ב-frontend/src/main.js:
+אל תשנה את המנגנון הכללי.
+השתמש במה שכבר קיים:
+- loadScreenDataWithCache
+- backgroundRefreshScreen
+- screenDataCacheKey
+- fastRerenderScreen
+
+אבל ודא שמסך activities עובד כ-stale-while-revalidate בצורה מלאה:
+
+A. אם יש cache קיים עבור activities:
+- להציג אותו מיד
+- לא לחכות ל-API
+- לבצע backgroundRefreshScreen בלי לחסום render
+
+B. אם אין cache:
+- להשאיר את ה-loading הקיים
+
+C. אל תשנה לוגיקת render של שאר המסכים
+
+המטרה:
+מעבר ראשון למסך activities עדיין יכול להיות טעינה רגילה,
+אבל כל מעבר חוזר למסך צריך להרגיש כמעט מיידי.
+
+==================================================
+3. להוסיף cache מתמשך לפרטי פעילות
+==================================================
+
+ב-frontend/src/screens/activities.js:
+
+כרגע יש:
+const detailCache = new Map();
+
+זה cache מקומי מדי.
+
+שנה את זה כך:
+- שמור detail cache ב-state.screenDataCache
+- השתמש במפתח קבוע לפי:
+  activityDetail:<source_sheet>:<RowID>
+
+צור helper קטן בתוך activities.js:
+- activityDetailCacheKey(summaryRow)
+- getCachedActivityDetail(summaryRow, state)
+- putCachedActivityDetail(summaryRow, row, state)
+
+הכל בצורה פשוטה.
+
+==================================================
+4. שינוי openActivityDetail
+==================================================
+
+ב-openActivityDetail(summaryRow):
+
+שמור על ההתנהגות הקיימת של פתיחה מיידית עם summary.
+
+אבל שנה את הזרימה כך:
+
+1. בדוק קודם cache מתמשך ב-state.screenDataCache
+2. אם יש detail cache:
+   - פתח מיד drawer עם detail מלא
+   - אל תבצע api.activityDetail
+3. אם אין detail cache:
+   - פתח drawer עם summary כמו היום
+   - טען api.activityDetail
+   - כשהתוצאה חוזרת:
+     - שמור ב-state.screenDataCache עם activityDetail cache key
+     - עדכן את drawer
+
+חשוב:
+- לא לשנות את HTML של drawer
+- לא לשנות edit form logic
+- לא לשנות permissions logic
+- לא לשנות close/open behavior
+
+==================================================
+5. לנקות detail cache כשיש שינוי בפעילות
+==================================================
+
+כאשר פעילות נשמרת / משתנה, detail cache שלה חייב להימחק.
+
+ב-frontend/src/api.js:
+בתוך invalidateScreenDataByAction(action),
+עבור פעולות:
+- saveActivity
+- reviewEditRequest
+- addActivity
+
+בנוסף למחיקת prefixes הקיימים,
+מחק גם כל מפתח שמתחיל ב:
+activityDetail:
+
+כך לא יישאר detail ישן אחרי עדכון.
+
+==================================================
+6. לא להכביד על API detail
+==================================================
+
+ב-backend/actions.gs וב-backend/router.gs:
+לא לשנות actionActivityDetail_ לוגית.
+לא לשנות schema.
+לא להוסיף פעולה חדשה.
+
+אבל כן בדוק אם אפשר לשפר קלות את performance בלי לשנות לוגיקה:
+- להמשיך להשתמש ב-read action cache הקיים
+- לא להוסיף חישובים חדשים
+- לא להרחיב payload unnecessarily
+
+כלומר:
+אין שינוי חוזי ל-activityDetail כרגע.
+רק נצילות טובה יותר של cache ב-frontend.
+
+==================================================
+7. prefetch קטן למסך activities
+==================================================
+
+ב-frontend/src/main.js:
+כאשר route הוא dashboard או כשהמשתמש כבר במסך activities,
+אפשר להמשיך להשתמש ב-prefetch קיים, אבל אל תעמיס.
+
+אם יש prefetch ל-activities כבר בדשבורד, השאר.
+אם אין detail prefetch — אל תוסיף prefetch המוני לכל פעילות.
+
+חשוב:
+לא לטעון activityDetail לכל השורות מראש.
+זה יהיה כבד מדי.
+
+==================================================
+8. acceptance criteria
+==================================================
+
+ודא את כל אלה:
+
+1. מעבר חוזר למסך activities מהיר יותר
+2. אם activities כבר נטען פעם אחת, המסך עולה מיד מה-cache ואז מתרענן ברקע
+3. פתיחה ראשונה של פעילות עדיין עשויה לבצע activityDetail
+4. פתיחה שנייה של אותה פעילות באותה session צריכה להיות מיידית
+5. מעבר למסך אחר וחזרה ל-activities לא אמור למחוק detail cache מיד
+6. אחרי saveActivity / addActivity / reviewEditRequest, detail cache הישן נמחק
+7. אין שינוי בתוכן drawer
+8. אין שינוי בלוגיקה עסקית של activities או activityDetail
+
+==================================================
+9. פלט נדרש
+==================================================
+
+בסיום תחזיר רק:
+- אילו קבצים שונו
+- מה שונה בכל קובץ בשורה אחת
+- האם activities עכשיו עובד cache-first
+- האם detail cache של activity נשמר ב-state.screenDataCache
+- האם invalidation של activityDetail נוסף לפעולות save/add/review

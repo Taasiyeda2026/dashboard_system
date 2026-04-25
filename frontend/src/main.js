@@ -33,6 +33,9 @@ const ui = createSharedInteractionLayer();
 const inflightRequests = new Map();
 const PERF_MAX_RENDERS = 150;
 
+/** Timer handle for deferred prefetch — cancelled on every new navigation. */
+let prefetchTimer = null;
+
 function recordRenderPerf(route, phase, durationMs, extra = {}) {
   if (typeof window === 'undefined') return;
   if (!window.__dsPerf) {
@@ -744,6 +747,8 @@ async function restoreSession() {
 
 async function mountScreen() {
   const mountStartMs = performance.now();
+  clearTimeout(prefetchTimer);
+  prefetchTimer = null;
   if (isDesktopViewport()) {
     isMobileNavOpen = false;
     document.body.classList.remove('is-shell-nav-open');
