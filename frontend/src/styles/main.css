@@ -4214,6 +4214,48 @@ select.ds-input {
   white-space: nowrap;
 }
 
+/* ——— Instructors grid layout (ci-list--instr-grid) ——— */
+.ci-list--instr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 230px));
+  gap: 8px;
+  padding: var(--ds-space-2);
+}
+
+.ci-list--instr-grid .ci-row {
+  border-bottom: none;
+  border-radius: 10px;
+}
+
+.ci-list--instr-grid .instr-summary-row {
+  height: 100%;
+  padding: 8px 10px;
+}
+
+.ci-list--instr-grid .ci-row__main {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 0;
+}
+
+.ci-list--instr-grid .ci-row__name {
+  font-size: 0.82rem;
+  flex: unset;
+  width: 100%;
+}
+
+.ci-list--instr-grid .instr-end-date {
+  margin-inline-start: 0;
+  font-size: 0.7rem;
+}
+
+@media (max-width: 600px) {
+  .ci-list--instr-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+}
+
 /* ——— School contacts (אנשי קשר בתי ספר) ——— */
 .sc-list {
   display: flex;

@@ -68,7 +68,7 @@ export const instructorsScreen = {
 
     const bodyHtml = filtered.length === 0
       ? dsEmptyState(searchQ || activeOnly ? 'לא נמצאו מדריכים לסינון זה' : 'אין נתוני מדריכים')
-      : `<div class="ci-list">${filtered.map(renderInstructorRow).join('')}</div>`;
+      : `<div class="ci-list ci-list--instr-grid">${filtered.map(renderInstructorRow).join('')}</div>`;
 
     const subtitle = ymLabel
       ? `מדריכים · ${filtered.length}${activeOnly && totalAll !== filtered.length ? ` (מתוך ${totalAll})` : ''} · חודש ${ymLabel}`
