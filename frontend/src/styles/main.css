@@ -1404,18 +1404,28 @@ span.ds-chip {
 
 .ds-act-nav-grid--header {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
   align-items: stretch;
   width: 100%;
   margin: 0 var(--ds-space-2);
-  padding: 3px;
+  padding: 2px;
+  gap: 5px;
 }
 
 .ds-act-nav-item--header {
-  min-height: 34px;
-  padding: 5px 8px;
-  font-size: 0.73rem;
+  min-height: 22px;
+  padding: 3px 5px;
+  font-size: 0.47rem;
+  gap: 4px;
   white-space: nowrap;
+}
+
+.ds-act-nav-grid--header .ds-act-nav-item__icon {
+  font-size: 0.62rem;
+}
+
+.ds-act-nav-grid--header .ds-act-nav-item.is-active .ds-act-nav-item__label {
+  font-size: 0.47rem;
 }
 
 @media (max-width: 960px) {
