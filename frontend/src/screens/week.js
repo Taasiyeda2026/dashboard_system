@@ -73,8 +73,8 @@ function groupItemsByInstructor(items) {
   const order = [];
   items.forEach((item) => {
     const key =
-      String(item.emp_id || '').trim() ||
       String(item.instructor_name || '').trim() ||
+      String(item.emp_id || '').trim() ||
       `__nokey__${item.RowID}`;
     if (!groups.has(key)) {
       groups.set(key, []);
