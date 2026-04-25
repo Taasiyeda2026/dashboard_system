@@ -34,3 +34,7 @@ function refreshDashboardSnapshots() {
 function refreshDashboardSnapshotsTrigger() {
   refreshDashboardSnapshots_();
 }
+
+function getSnapshotRefreshDiagnostics() {
+  return getSnapshotRefreshDiagnostics_();
+}

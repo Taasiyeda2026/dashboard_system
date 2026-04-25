@@ -383,6 +383,11 @@ npm test
 - `GAS_SCRIPT_ID`
 - `SPREADSHEET_ID`
 
+אופציונלי לאימות idempotency מורחב:
+
+- `SNAPSHOT_REFRESH_RUNS` (ברירת מחדל: `5`)
+- `SYNC_ACTIVE_PROJECT` (ברירת מחדל: `true`, מסנכרן את קבצי `backend/*.gs` לפרויקט Apps Script הפעיל לפני האימות)
+
 אופציונלי ל-redeploy של Web App פעיל:
 
 - `REDEPLOY_WEBAPP=true`
@@ -398,10 +403,15 @@ node scripts/apps_script_snapshot_ops.mjs
 ```
 
 הסקריפט מבצע:
-1. הרצת `refreshDashboardSnapshots` בפרויקט Apps Script.
-2. קריאת `dashboard_refresh_control`.
-3. בדיקה ששני גיליונות snapshot התמלאו.
-4. redeploy (אם הופעל בדגלים המתאימים).
+1. סנכרון `backend/*.gs` לפרויקט Apps Script הפעיל (אם `SYNC_ACTIVE_PROJECT` לא מכובה).
+2. הרצת `refreshDashboardSnapshots` מספר פעמים רצופות (ברירת מחדל: 5).
+3. אימות שאין כפילויות:
+   - `dashboard_summary_snapshot`: שורה אחת לכל `month_ym`
+   - `dashboard_by_manager_snapshot`: שורה אחת לכל `snapshot_key`
+   - `dashboard_refresh_control`: שורה אחת לכל `key`
+4. אימות שאין גידול שורות בין ריצות.
+5. בדיקה שמספר ה-triggers עבור `refreshDashboardSnapshotsTrigger` אינו גדול מ-1.
+6. redeploy (אם הופעל בדגלים המתאימים).
 
 ## תחזוקה נכונה
 
