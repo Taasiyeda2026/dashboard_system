@@ -50,6 +50,10 @@ function scriptCacheDebugMark_(eventName, key, bytes, errorText) {
   } catch (e) {}
 }
 
+function debugScriptCacheLoaded_() {
+  Logger.log('typeof scriptCacheDebugMark_ = ' + typeof scriptCacheDebugMark_);
+}
+
 function scriptCacheInvalidateDataViews_() {
   try {
     var c = CacheService.getScriptCache();
