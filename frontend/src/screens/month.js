@@ -176,6 +176,10 @@ function shiftMonthYm(ym, delta) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function monthCacheKey(ym) {
+  return `month:${ym && /^\d{4}-\d{2}$/.test(String(ym)) ? ym : 'current'}`;
+}
+
 function activityDetailCacheKey(row) {
   return `activityDetail:${row.source_sheet || ''}:${row.RowID || ''}`;
 }
@@ -294,11 +298,21 @@ export const monthScreen = {
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
     bindActNavGrid(root, { state, rerender });
+    root.classList.remove('is-month-loading');
+    root.setAttribute('aria-busy', 'false');
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = state?.user?.display_role !== 'instructor';
     const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+    const cells = Array.isArray(data?.cells) ? data.cells : [];
+    const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
+    const allItemsByRowId = new Map();
+    cells.forEach((cell) => {
+      monthCellItems(cell, itemsById).forEach((item) => {
+        allItemsByRowId.set(String(item?.RowID || ''), item);
+      });
+    });
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });
@@ -326,10 +340,7 @@ export const monthScreen = {
         const parts = action.split('|');
         const date = decodeURIComponent(parts[1] || '');
         const rowId = decodeURIComponent(parts[2] || '');
-        const cells = Array.isArray(data?.cells) ? data.cells : [];
-        const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
-        const allItems = cells.flatMap((c) => monthCellItems(c, itemsById));
-        const item = allItems.find((it) => String(it.RowID) === String(rowId));
+        const item = allItemsByRowId.get(String(rowId));
         if (!item) {
           ui.openDrawer({ title: 'פעילות', content: '<p class="ds-muted">לא נמצאו נתונים</p>' });
           return;
@@ -372,15 +383,30 @@ export const monthScreen = {
     };
     const prevBtn = root.querySelector('[data-month-prev]');
     const nextBtn = root.querySelector('[data-month-next]');
+    const setMonthAreaLoading = (isLoading) => {
+      root.classList.toggle('is-month-loading', !!isLoading);
+      root.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+      if (prevBtn) prevBtn.disabled = !!isLoading;
+      if (nextBtn) nextBtn.disabled = !!isLoading;
+    };
     const doMonthShift = (delta) => {
-      if (prevBtn) prevBtn.disabled = true;
-      if (nextBtn) nextBtn.disabled = true;
-      state.monthYm = shiftMonthYm(resolveBaseYm(), delta);
+      const targetYm = shiftMonthYm(resolveBaseYm(), delta);
+      const targetKey = monthCacheKey(targetYm);
+      const hasCachedTarget = !!state?.screenDataCache?.[targetKey];
+
+      state.monthYm = targetYm;
       try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
+
+      if (hasCachedTarget) {
+        rerender?.();
+        return;
+      }
+
+      setMonthAreaLoading(true);
       rerender?.();
     };
-    prevBtn?.addEventListener('click', () => doMonthShift(-1));
-    nextBtn?.addEventListener('click', () => doMonthShift(1));
+    prevBtn?.addEventListener('click', () => { doMonthShift(-1); });
+    nextBtn?.addEventListener('click', () => { doMonthShift(1); });
 
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;

@@ -598,18 +598,33 @@ function updateNavActiveClasses() {
 
 /**
  * Fast re-render for same-route filter/search changes.
- * Bypasses the full mount cycle when data is already cached.
- * Falls back to full render() if cache is missing or route has changed.
+ * Uses cached data immediately; if cache is missing, fetches in place
+ * (same screen root) to avoid full-shell reload/spinner.
  */
-function fastRerenderScreen(screen, routeAtBind) {
+async function fastRerenderScreen(screen, routeAtBind) {
   const perfStart = performance.now();
   if (state.route !== routeAtBind) { render(); return; }
   const key = screenDataCacheKey();
   const raw = state.screenDataCache[key];
   const hit = raw && Date.now() - raw.t < screenCacheTtl() ? raw : null;
-  if (!hit) { render(); return; }
   const screenRoot = document.getElementById('screenRoot');
   if (!screenRoot) { render(); return; }
+  if (!hit) {
+    if (!screen.load) { render(); return; }
+    const requestedKey = key;
+    try {
+      const data = await loadScreenDataWithCache(screen);
+      if (state.route !== routeAtBind) return;
+      if (screenDataCacheKey() !== requestedKey) return;
+      screenRoot.innerHTML = screen.render(data, { state });
+      bindScreen(screen, screenRoot, data);
+      recordRenderPerf(routeAtBind, 'fast-rerender-fetch', performance.now() - perfStart, { cache_key: requestedKey });
+      maybePrefetchFromDashboard();
+    } catch {
+      render();
+    }
+    return;
+  }
   screenRoot.innerHTML = screen.render(hit.data, { state });
   bindScreen(screen, screenRoot, hit.data);
   recordRenderPerf(routeAtBind, 'fast-rerender', performance.now() - perfStart, { cache_key: key });
