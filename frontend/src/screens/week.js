@@ -3,7 +3,6 @@ import { dsScreenStack, dsInteractiveCard } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
 import {
   ensureActivityListFilters,
@@ -239,7 +238,6 @@ export const weekScreen = {
         : `${rangeLabel || 'שבוע'}`;
 
     const html = dsScreenStack(`
-      ${actNavGridHtml(state)}
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">שבוע קודם ▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
@@ -251,7 +249,6 @@ export const weekScreen = {
     return html;
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
-    bindActNavGrid(root, { state, rerender });
     root.classList.remove('is-week-loading');
     root.setAttribute('aria-busy', 'false');
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;

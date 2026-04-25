@@ -3,7 +3,6 @@ import { dsScreenStack, dsCard, dsInteractiveCard } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
 import {
   ensureActivityListFilters,
@@ -319,7 +318,6 @@ export const monthScreen = {
     const monthTitle = monthTitleHebrew(spec);
 
     const html = dsScreenStack(`
-      ${actNavGridHtml(state)}
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">חודש קודם ▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
@@ -334,7 +332,6 @@ export const monthScreen = {
     return html;
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
-    bindActNavGrid(root, { state, rerender });
     root.classList.remove('is-month-loading');
     root.setAttribute('aria-busy', 'false');
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;

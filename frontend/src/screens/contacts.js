@@ -1,5 +1,4 @@
 import { escapeHtml } from './shared/html.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn, hebrewEmploymentType } from './shared/ui-hebrew.js';
 import { dsScreenStack, dsEmptyState, dsStatusChip } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
@@ -287,18 +286,16 @@ export const contactsScreen = {
     });
 
     return dsScreenStack(`
-      ${actNavGridHtml(state)}
       <div class="ds-chip-group" dir="rtl">${tabBtns}</div>
       <div class="ds-screen-top-row">
         ${searchInput}
-        <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-contact-action="add-${tab === 'instr' ? 'instr' : 'school'}">➕ הוספה</button>
+        <button type="button" class="ds-btn ds-btn--primary ds-btn--sm ds-btn--contact-add" data-contact-action="add-${tab === 'instr' ? 'instr' : 'school'}">+ הוסף</button>
       </div>
       <div class="contacts-list-wrap" dir="rtl">${listHtml}</div>
     `);
   },
 
   bind({ root, data, state, ui, rerender, api }) {
-    bindActNavGrid(root, { state, rerender });
     const instrRows = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
     const schoolRows = Array.isArray(data?.school_rows) ? data.school_rows : [];
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -318,13 +315,14 @@ export const contactsScreen = {
       btn.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        const email = btn.dataset.copyEmail;
-        const doToast = () => showToast('המייל הועתק ✓', 'success', 1200);
-        if (navigator.clipboard?.writeText) {
-          navigator.clipboard.writeText(email).then(doToast).catch(() => fallbackCopy(email, doToast));
-        } else {
-          fallbackCopy(email, doToast);
+        const email = String(btn.dataset.copyEmail || '').trim();
+        if (!email) {
+          showToast('לא ניתן היה להעתיק', 'error', 1800);
+          return;
         }
+        copyEmailToClipboard(email)
+          .then(() => showToast('המייל הועתק', 'success', 1500))
+          .catch(() => showToast('לא ניתן היה להעתיק', 'error', 1800));
       });
     });
 
@@ -476,14 +474,31 @@ export const contactsScreen = {
   }
 };
 
-function fallbackCopy(text, cb) {
+function fallbackCopy(text) {
   const ta = document.createElement('textarea');
   ta.value = text;
   Object.assign(ta.style, { position: 'fixed', opacity: '0', top: '0', left: '0' });
   document.body.appendChild(ta);
   ta.focus();
   ta.select();
-  try { document.execCommand('copy'); } catch (_) { /* ignore */ }
-  document.body.removeChild(ta);
-  cb?.();
+  try {
+    const copied = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!copied;
+  } catch (_) {
+    document.body.removeChild(ta);
+    return false;
+  }
+}
+
+async function copyEmailToClipboard(email) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(email);
+      return;
+    } catch (_) {
+      // fallback below
+    }
+  }
+  if (!fallbackCopy(email)) throw new Error('copy-failed');
 }

@@ -1,5 +1,4 @@
 import { escapeHtml } from './shared/html.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { formatDateHe } from './shared/format-date.js';
 import { hebrewExceptionType, hebrewColumn } from './shared/ui-hebrew.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
@@ -124,7 +123,6 @@ export const exceptionsScreen = {
             .join('')}</div>${loadMoreHtml}`;
 
     return dsScreenStack(`
-      ${actNavGridHtml(state)}
       ${toolbarHtml}
       ${dsCard({
         title: `חריגות · ${total}`,
@@ -134,7 +132,6 @@ export const exceptionsScreen = {
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
-    bindActNavGrid(root, { state, rerender });
     const allRows   = Array.isArray(data?.rows) ? data.rows : [];
     bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 300 });
     root.querySelector(`[data-list-show-more="${EXCEPTIONS_SCOPE}"]`)?.addEventListener('click', (ev) => {

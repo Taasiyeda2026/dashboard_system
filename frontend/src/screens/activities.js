@@ -15,7 +15,6 @@ import {
   dsInteractiveCard
 } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import {
   ensureActivityListFilters,
   prepareRowsForSearch,
@@ -438,7 +437,6 @@ export const activitiesScreen = {
         : `<div class="ds-compact-list">${compactRows}</div>${loadMoreHtml}`;
 
     const html = dsScreenStack(`
-      ${actNavGridHtml(state)}
       ${dsToolbar(`
         <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
           <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${
@@ -458,7 +456,6 @@ export const activitiesScreen = {
   },
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
-    bindActNavGrid(root, { state, rerender });
 
     const filteredRows      = applyActivitiesLocalFilters(Array.isArray(data?.rows) ? data.rows : [], state, state?.clientSettings);
     const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';

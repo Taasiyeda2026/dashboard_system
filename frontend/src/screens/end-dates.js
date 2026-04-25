@@ -1,5 +1,4 @@
 import { escapeHtml } from './shared/html.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn, visibleActivityCategoryLabel } from './shared/ui-hebrew.js';
 import {
   dsCard,
@@ -74,7 +73,6 @@ export const endDatesScreen = {
             .join('')}</div>`;
 
     return dsScreenStack(`
-      ${actNavGridHtml(state)}
       ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש ברשימה…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({
         title: 'רשימת סיומים',
@@ -84,7 +82,6 @@ export const endDatesScreen = {
     `);
   },
   bind({ root, state, rerender }) {
-    bindActNavGrid(root, { state, rerender });
     bindPageListTools(root);
   }
 };
