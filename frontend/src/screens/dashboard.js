@@ -279,24 +279,6 @@ export const dashboardScreen = {
       }
     }
 
-    function prefetchAdjacentDashboard(baseYm) {
-      [shiftYm(baseYm, -1), shiftYm(baseYm, 1)].forEach((adjYm) => {
-        const adjKey = `dashboard:${adjYm}`;
-        const hit = state.screenDataCache[adjKey];
-        if (hit && Date.now() - hit.t < DASHBOARD_TTL_MS) return;
-        api.dashboardSnapshot({ month: adjYm }).then((d) => {
-          if (!state.screenDataCache[adjKey] || Date.now() - state.screenDataCache[adjKey].t > DASHBOARD_TTL_MS) {
-            putDashboardCache(adjKey, d);
-          }
-          if (d._is_snapshot) {
-            api.dashboard({ month: adjYm }).then((full) => {
-              putDashboardCache(adjKey, full);
-            }).catch(() => {});
-          }
-        }).catch(() => {});
-      });
-    }
-
     const applyYm = async (nextYm) => {
       state.dashboardMonthYm = nextYm;
       const cacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(nextYm) ? nextYm : 'default'}`;
@@ -304,7 +286,6 @@ export const dashboardScreen = {
       const cached = state.screenDataCache[cacheKey];
       if (cached?.data && Date.now() - cached.t < DASHBOARD_TTL_MS) {
         rerender();
-        prefetchAdjacentDashboard(nextYm);
         return;
       }
 
@@ -314,15 +295,6 @@ export const dashboardScreen = {
         const snapshotData = await api.dashboardSnapshot({ month: nextYm });
         putDashboardCache(cacheKey, snapshotData);
         snapshotLoaded = true;
-        prefetchAdjacentDashboard(nextYm);
-        if (snapshotData._is_snapshot) {
-          api.dashboard({ month: nextYm }).then((fullData) => {
-            putDashboardCache(cacheKey, fullData);
-            if ((state.dashboardMonthYm || currentMonthYm()) === nextYm) {
-              rerender();
-            }
-          }).catch(() => {});
-        }
       } catch (_err) {
         if (!snapshotLoaded) clearScreenDataCache?.();
       }
@@ -342,24 +314,6 @@ export const dashboardScreen = {
         handleSummaryClick(target);
       });
     });
-
-    // Background full-hydration when initial render came from snapshot
-    if (data._is_snapshot) {
-      const hydrateYm = ym;
-      const hydrateCacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(hydrateYm) ? hydrateYm : 'default'}`;
-      api.dashboard({ month: hydrateYm }).then((fullData) => {
-        putDashboardCache(hydrateCacheKey, fullData);
-        if (state.route === 'dashboard' && (state.dashboardMonthYm || currentMonthYm()) === hydrateYm) {
-          rerender();
-        }
-      }).catch((err) => {
-        // eslint-disable-next-line no-console
-        console.warn('[dashboard] background hydration failed, keeping snapshot', err?.message);
-      });
-    }
-
-    // Pre-fetch adjacent months silently after initial render
-    prefetchAdjacentDashboard(state.dashboardMonthYm || currentMonthYm());
 
     ui.bindInteractiveCards(root, (action) => {
       if (action === 'kpi|long') {
