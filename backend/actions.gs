@@ -1398,7 +1398,7 @@ function actionEndDates_(user) {
       return !!text_(row.end_date);
     })
     .map(function(row) {
-      return {
+      var mapped = {
         RowID: row.RowID,
         activity_name: row.activity_name,
         activity_type: text_(row.activity_type),
@@ -1410,6 +1410,11 @@ function actionEndDates_(user) {
         status: text_(row.status),
         source_sheet: row.source_sheet
       };
+      for (var i = 1; i <= 35; i += 1) {
+        var key = 'Date' + i;
+        mapped[key] = text_(row[key]);
+      }
+      return mapped;
     });
 
   rows.sort(function(a, b) {

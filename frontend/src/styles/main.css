@@ -6880,3 +6880,79 @@ select.ds-input {
 .ds-drawer:has(.activity-drawer__header) > .ds-drawer__header {
   display: none;
 }
+
+/* ——— End dates screen ——— */
+.ds-end-dates__head-tools {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
+
+.ds-end-dates__months {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ds-end-dates__month-title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.ds-end-dates__month-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ds-end-dates__activity {
+  margin-bottom: 0;
+}
+
+.ds-end-dates__summary {
+  align-items: center;
+}
+
+.ds-end-dates__summary-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.ds-end-dates__dates-title {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #334155;
+  font-weight: 700;
+}
+
+.ds-end-dates__dates-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ds-end-dates__date-pill {
+  font-size: 0.76rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1e3a8a;
+  border: 1px solid #d9e6ff;
+}
+
+.ds-end-dates__muted {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 900px) {
+  .ds-end-dates__summary-grid {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}

@@ -64,9 +64,9 @@ const PERF_MAX_REQUESTS = 150;
 
 function invalidateScreenDataByAction(action) {
   const targetedMutations = {
-    saveActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:'],
-    addActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:'],
-    submitEditRequest: ['activities:', 'edit-requests', 'week:', 'month:', 'dashboard:'],
+    saveActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'end-dates'],
+    addActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'end-dates'],
+    submitEditRequest: ['activities:', 'edit-requests', 'week:', 'month:', 'dashboard:', 'end-dates'],
     reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:'],
     saveFinanceRow: ['finance:', 'dashboard:'],
     syncFinance: ['finance:', 'dashboard:'],
