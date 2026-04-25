@@ -92,7 +92,7 @@
   --ds-shadow-float: 0 4px 16px rgba(26, 51, 88, 0.12), 0 12px 32px rgba(26, 51, 88, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06);
   --ds-border-subtle: rgba(26, 51, 88, 0.09);
 
-  --ds-sidebar-w: 160px;
+  --ds-sidebar-w: 120px;
   --ds-topbar-h: 54px;
 
   /* Legacy aliases used in older markup paths */
@@ -1418,6 +1418,43 @@ span.ds-chip {
   font-size: 0.47rem;
   gap: 4px;
   white-space: nowrap;
+  background: linear-gradient(180deg, #ffffff 0%, #eef3fb 100%);
+  border: 1px solid rgba(26, 51, 88, 0.18);
+  border-bottom-color: rgba(26, 51, 88, 0.32);
+  box-shadow:
+    0 2px 0 rgba(26, 51, 88, 0.16),
+    0 1px 3px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transition: background 0.1s, box-shadow 0.1s, transform 0.08s, border-color 0.1s;
+}
+
+.ds-act-nav-item--header:hover:not(:disabled) {
+  background: linear-gradient(180deg, #f4f8ff 0%, #e4ecf8 100%);
+  border-color: rgba(26, 51, 88, 0.28);
+  border-bottom-color: rgba(26, 51, 88, 0.42);
+  box-shadow:
+    0 2px 0 rgba(26, 51, 88, 0.22),
+    0 2px 5px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.ds-act-nav-item--header:active:not(:disabled) {
+  transform: translateY(1px);
+  background: linear-gradient(180deg, #e8eef8 0%, #dde6f5 100%);
+  box-shadow:
+    0 0px 0 rgba(26, 51, 88, 0.12),
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    inset 0 1px 2px rgba(26, 51, 88, 0.08);
+}
+
+.ds-act-nav-item--header.is-active {
+  background: linear-gradient(180deg, var(--ds-accent) 0%, color-mix(in srgb, var(--ds-accent) 85%, #000) 100%);
+  border-color: color-mix(in srgb, var(--ds-accent) 80%, #000);
+  border-bottom-color: color-mix(in srgb, var(--ds-accent) 65%, #000);
+  box-shadow:
+    0 2px 0 color-mix(in srgb, var(--ds-accent) 55%, #000),
+    0 1px 4px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .ds-act-nav-grid--header .ds-act-nav-item__icon {
