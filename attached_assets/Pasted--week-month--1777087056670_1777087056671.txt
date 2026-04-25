@@ -1,0 +1,136 @@
+יש כרגע באג בניווט של week/month:
+- מעבר בין חודשים נופל אחרי פעמיים
+- מעבר בין שבועות נופל אחרי כמה פעמים
+
+זה כבר לא רק performance אלא race condition / stale response overwrite.
+
+בצע תיקון ממוקד בלבד.
+
+עבוד רק בקבצים:
+- frontend/src/main.js
+- frontend/src/screens/week.js
+- frontend/src/screens/month.js
+
+לא לגעת ב-backend.
+לא לשנות לוגיקה עסקית.
+לא לשנות schema.
+לא לעשות refactor רחב.
+
+==================================================
+1. תקן כתיבה ל-cache לפי key יציב
+==================================================
+
+ב-frontend/src/main.js:
+
+ב-loadScreenDataWithCache(screen):
+כרגע נתפס:
+const key = screenDataCacheKey();
+
+אבל בתוך ה-.then נשמר:
+state.screenDataCache[screenDataCacheKey()] = entry;
+persistCacheEntry(screenDataCacheKey(), entry);
+
+זה מסוכן כי state יכול להשתנות בזמן שהבקשה באוויר.
+
+שנה כך:
+- כתוב ל-cache תמיד לפי ה-key שנתפס בתחילת הבקשה
+- persist גם לפי אותו key
+- אל תחשב מחדש screenDataCacheKey() בתוך ה-.then
+
+כלומר:
+const key = screenDataCacheKey();
+...
+.then((data) => {
+  const entry = { data, t: Date.now() };
+  state.screenDataCache[key] = entry;
+  persistCacheEntry(key, entry);
+  ...
+})
+
+בדוק שאין עוד מקומות דומים שבהם response אסינכרוני נכתב לפי state עדכני במקום key שנתפס מראש.
+
+==================================================
+2. הוסף guard של navigation request token ל-week/month
+==================================================
+
+ב-week.js וב-month.js:
+
+צור token/sequence קטן ברמת המודול או state מקומי למסך:
+- כל לחיצה על next/prev מגדילה navigation sequence
+- לפני rerender/טעינה שמור את המספר
+- כאשר הבקשה/הרינדור חוזרים, ודא שרק ה-sequence האחרון רשאי לעדכן
+
+המטרה:
+אם המשתמש לחץ כמה פעמים מהר, תשובה ישנה לא תדרוס מסך חדש.
+
+לא לשנות API.
+לא לשנות structure של data.
+
+==================================================
+3. פשט את הניווט – בלי הצטברות timers ישנים
+==================================================
+
+ב-week.js וב-month.js:
+בדוק את queueWeekShift / queueMonthShift שמבוססים על NAV_DEBOUNCE_MS.
+
+החלף את זה במנגנון בטוח יותר:
+- אם יש nav timer קודם, מבטלים
+- שומרים pending target אחד בלבד
+- מבצעים מעבר רק ליעד האחרון
+- לא מצטברים מעברים ישנים
+
+אפשר גם לשקול להסיר debounce לגמרי אם אין בו צורך, ולעבור לעדכון מיידי עם guard של in-flight/latest-only.
+
+המטרה:
+לחיצה מהירה כמה פעמים לא תייצר מצב שבקשות ישנות חוזרות ומבלבלות את state.
+
+==================================================
+4. נעל זמנית את כפתורי הניווט בזמן מעבר
+==================================================
+
+ב-week.js וב-month.js:
+בזמן שמעבר שבוע/חודש מתבצע:
+- disable זמני ל-next/prev
+- כשהמסך החדש נטען/נרנדר, enable מחדש
+
+אם יש cache מיידי למסך הבא, אפשר לשחרר מהר.
+המטרה היא למנוע spam clicks שיוצרים race.
+
+==================================================
+5. אל תשבור cache/prefetch קיים
+==================================================
+
+ב-main.js:
+השאר את:
+- screenDataCache
+- inflightRequests
+- backgroundRefreshScreen
+- prefetch עבור week/month
+
+אבל ודא ש:
+- full data ישן לא דורס data חדש
+- response ל-week/month תמיד משויך ל-key הנכון
+- מעבר חדש תמיד מנצח מעבר ישן
+
+==================================================
+6. קבלה
+==================================================
+
+ודא:
+1. מעבר בין חודשים 5–6 פעמים רצוף לא נופל
+2. מעבר בין שבועות 5–6 פעמים רצוף לא נופל
+3. month/week מציגים תמיד את התקופה האחרונה שנבחרה, לא תקופה ישנה
+4. אין overwrite של cache תחת key שגוי
+5. לא נשברה לוגיקת drawer/detail
+6. לא נשברה לוגיקת prefetch
+
+==================================================
+7. פלט נדרש
+==================================================
+
+בסיום תחזיר רק:
+- אילו קבצים שונו
+- מה תוקן בכל קובץ בשורה אחת
+- האם cache writes עכשיו משתמשים ב-key יציב
+- האם week/month מוגנים מול stale navigation responses
+- האם בוטל/שופר debounce בעייתי

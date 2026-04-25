@@ -451,8 +451,8 @@ async function loadScreenDataWithCache(screen) {
   const p = screen.load({ api, state })
     .then((data) => {
       const entry = { data, t: Date.now() };
-      state.screenDataCache[screenDataCacheKey()] = entry;
-      persistCacheEntry(screenDataCacheKey(), entry);
+      state.screenDataCache[key] = entry;
+      persistCacheEntry(key, entry);
       inflightRequests.delete(key);
       return data;
     })

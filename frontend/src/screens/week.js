@@ -6,7 +6,6 @@ import { formatDateHe } from './shared/format-date.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
 
-const NAV_DEBOUNCE_MS = 150;
 
 function localYmd() {
   const d = new Date();
@@ -222,21 +221,16 @@ export const weekScreen = {
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });
 
-    let navDebounceTimer = null;
-    const queueWeekShift = (delta) => {
-      if (navDebounceTimer) clearTimeout(navDebounceTimer);
-      navDebounceTimer = setTimeout(() => {
-        state.weekOffset = (state.weekOffset || 0) + delta;
-        rerender?.();
-      }, NAV_DEBOUNCE_MS);
+    const prevBtn = root.querySelector('[data-week-prev]');
+    const nextBtn = root.querySelector('[data-week-next]');
+    const doWeekShift = (delta) => {
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      state.weekOffset = (state.weekOffset || 0) + delta;
+      rerender?.();
     };
-
-    root.querySelector('[data-week-prev]')?.addEventListener('click', () => {
-      queueWeekShift(-1);
-    });
-    root.querySelector('[data-week-next]')?.addEventListener('click', () => {
-      queueWeekShift(1);
-    });
+    prevBtn?.addEventListener('click', () => doWeekShift(-1));
+    nextBtn?.addEventListener('click', () => doWeekShift(1));
 
     root.addEventListener('click', (ev) => {
       const badge = ev.target.closest('[data-group-toggle]');

@@ -6,7 +6,6 @@ import { formatDateHe } from './shared/format-date.js';
 import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
 
-const NAV_DEBOUNCE_MS = 150;
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -371,21 +370,17 @@ export const monthScreen = {
       if (/^\d{4}-\d{2}$/.test(String(currentYm || ''))) return currentYm;
       return `${spec.y}-${String(spec.mo).padStart(2, '0')}`;
     };
-    let navDebounceTimer = null;
-    const queueMonthShift = (delta) => {
-      if (navDebounceTimer) clearTimeout(navDebounceTimer);
-      navDebounceTimer = setTimeout(() => {
-        state.monthYm = shiftMonthYm(resolveBaseYm(), delta);
-        try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
-        rerender?.();
-      }, NAV_DEBOUNCE_MS);
+    const prevBtn = root.querySelector('[data-month-prev]');
+    const nextBtn = root.querySelector('[data-month-next]');
+    const doMonthShift = (delta) => {
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      state.monthYm = shiftMonthYm(resolveBaseYm(), delta);
+      try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
+      rerender?.();
     };
-    root.querySelector('[data-month-prev]')?.addEventListener('click', () => {
-      queueMonthShift(-1);
-    });
-    root.querySelector('[data-month-next]')?.addEventListener('click', () => {
-      queueMonthShift(1);
-    });
+    prevBtn?.addEventListener('click', () => doMonthShift(-1));
+    nextBtn?.addEventListener('click', () => doMonthShift(1));
 
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;
