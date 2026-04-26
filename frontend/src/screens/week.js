@@ -11,6 +11,7 @@ import {
   filtersToolbarHtml,
   bindLocalFilters
 } from './shared/activity-list-filters.js';
+import { getFilterOptionOverrides } from './shared/activity-options.js';
 
 const inflightActivityDetailRequests = new Map();
 const WEEK_SCOPE = 'calendar';
@@ -198,7 +199,8 @@ export const weekScreen = {
     const weekOffset = state.weekOffset || 0;
     const toolbarHtml = filtersToolbarHtml(WEEK_SCOPE, allItems, state, {
       filterFields: CALENDAR_FILTER_FIELDS,
-      searchPlaceholder: 'חיפוש פעילויות בלוח השבוע…'
+      searchPlaceholder: 'חיפוש פעילויות בלוח השבוע…',
+      optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
     });
 
     const columns = safeDays

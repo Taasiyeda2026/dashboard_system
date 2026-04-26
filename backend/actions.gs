@@ -2964,6 +2964,7 @@ function roleRosterFromPermissions_() {
   var instructorNames = [];
   var managerNames = [];
   var instructorUsers = [];
+  var managerUsers = [];
   var seenInstructors = {};
   var seenManagers = {};
   rows.forEach(function(row) {
@@ -2975,8 +2976,8 @@ function roleRosterFromPermissions_() {
       role = '';
     }
     var name = text_(row.full_name || row.user_id);
+    if (!name || name === 'שם מלא') return;
     var empId = text_(row.user_id);
-    if (!name) return;
     if (role === 'instructor') {
       if (!seenInstructors[name]) {
         seenInstructors[name] = true;
@@ -2989,13 +2990,15 @@ function roleRosterFromPermissions_() {
       if (!seenManagers[name]) {
         seenManagers[name] = true;
         managerNames.push(name);
+        managerUsers.push({ name: name, emp_id: empId });
       }
     }
   });
   return {
     instructor_names: instructorNames,
     activity_manager_names: managerNames,
-    instructor_users: instructorUsers
+    instructor_users: instructorUsers,
+    activities_manager_users: managerUsers
   };
 }
 
@@ -3010,6 +3013,7 @@ function buildDropdownOptionsMap_() {
   }
   if (managers.length) {
     out.activity_manager = managers.slice();
+    out.activities_manager_users = (roster.activities_manager_users || []).slice();
   }
   return out;
 }

@@ -24,6 +24,15 @@ import {
   bindLocalFilters,
   splitVisibleRows
 } from './shared/activity-list-filters.js';
+import {
+  getActivityCatalog,
+  getActivityTypesByFamily,
+  getActivityNamesForType,
+  getRosterUsers,
+  getManagerUsers,
+  getFilterOptionOverrides,
+  cleanUnique
+} from './shared/activity-options.js';
 
 const ACTIVITY_VIEW_LS = 'dashboard_activity_view_v2';
 const inflightActivityDetailRequests = new Map();
@@ -55,9 +64,6 @@ function hasRowException(row) {
   return noInstructor || noStartDate;
 }
 
-const DEFAULT_ONE_DAY_TYPES = ['workshop', 'tour', 'escape_room'];
-const DEFAULT_PROGRAM_TYPES = ['course', 'after_school'];
-
 const FAMILY_LABEL_SHORT = 'חד-יומיות';
 const FAMILY_LABEL_LONG  = 'תוכניות';
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
@@ -65,22 +71,6 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
-
-function parseRosterUsers(settings) {
-  const raw = Array.isArray(settings?.dropdown_options?.instructor_users)
-    ? settings.dropdown_options.instructor_users
-    : [];
-  const out = [];
-  const seen = new Set();
-  raw.forEach((item) => {
-    const name = String(item?.name || '').trim();
-    const empId = String(item?.emp_id || '').trim();
-    if (!name || seen.has(name)) return;
-    seen.add(name);
-    out.push({ name, emp_id: empId });
-  });
-  return out;
-}
 
 function optionsHtml(values, selected = '', placeholder = '—') {
   const safeSelected = String(selected || '');
@@ -98,18 +88,6 @@ function optionsHtml(values, selected = '', placeholder = '—') {
       uniq.map((v) => `<option value="${escapeHtml(v)}"${v === safeSelected ? ' selected' : ''}>${escapeHtml(v)}</option>`)
     )
     .join('');
-}
-
-function activityNameOptionsByType(settings, activityType) {
-  const all = Array.isArray(settings?.dropdown_options?.activity_names) ? settings.dropdown_options.activity_names : [];
-  const byType = all.filter((o) => {
-    const parent = String(o?.parent_value || o?.activity_type || '').trim();
-    return !parent || parent === activityType;
-  });
-  return byType.map((o) => ({
-    label: String(o?.label || '').trim(),
-    activity_no: String(o?.activity_no || '').trim()
-  })).filter((o) => o.label);
 }
 
 function decodeJsonAttr(raw, fallback = []) {
@@ -140,21 +118,12 @@ function mergeOptions(settings, keys) {
 
 function addActivityModalHtml(settings) {
   const oneDayTypes = resolveOneDayTypes(settings);
-  const programTypes = Array.isArray(settings?.program_activity_types) && settings.program_activity_types.length
-    ? settings.program_activity_types
-    : DEFAULT_PROGRAM_TYPES;
-  const allTypes = mergeOptions(settings, ['activity_type', 'activity_types']);
-  const allActivityNames = Array.isArray(settings?.dropdown_options?.activity_names)
-    ? settings.dropdown_options.activity_names
-    : [];
-  const rosterUsers = parseRosterUsers(settings);
+  const programTypes = getActivityTypesByFamily(settings, 'long');
+  const allTypes = cleanUnique([...getActivityTypesByFamily(settings, 'short'), ...programTypes]);
+  const allActivityNames = getActivityCatalog(settings);
+  const rosterUsers = getRosterUsers(settings);
   const rosterNames = rosterUsers.map((u) => u.name);
-  const managerRoleUsers = Array.isArray(settings?.dropdown_options?.activities_manager_users)
-    ? settings.dropdown_options.activities_manager_users
-    : [];
-  const managerRoleNames = managerRoleUsers
-    .map((u) => String(u?.name || '').trim())
-    .filter(Boolean);
+  const managerRoleNames = getManagerUsers(settings);
   const fundingOptions = mergeOptions(settings, ['funding', 'fundings']);
   const gradeOptions = mergeOptions(settings, ['grade', 'grades']);
   const managerOptions = managerRoleNames.length
@@ -164,7 +133,7 @@ function addActivityModalHtml(settings) {
   const initialFamily = 'long';
   const initialTypes = programTypes.length ? programTypes : allTypes;
   const initialType = initialTypes[0] || '';
-  const initialActivityNames = activityNameOptionsByType(settings, initialType);
+  const initialActivityNames = getActivityNamesForType(settings, initialType);
   const sessionsList = Array.from({ length: 35 }, (_, i) => String(i + 1));
 
   return `
@@ -206,6 +175,11 @@ function addActivityModalHtml(settings) {
         <label class="ds-activity-add-field" data-field-instructor2 style="display:none"><span>מדריך/ה 2</span><select class="ds-input" name="instructor_name_2" data-add-instructor-2>${optionsHtml(instructorOptions)}</select></label>
         <input type="hidden" name="emp_id_2" value="">
         <label class="ds-activity-add-field"><span>תאריך התחלה</span><input class="ds-input" name="start_date" type="date"></label>
+        <label class="ds-activity-add-field"><span>תדירות</span><select class="ds-input" name="frequency" data-add-frequency>${optionsHtml(['weekly', 'biweekly'], 'weekly', 'בחרו תדירות')}</select></label>
+        <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-date-rows-wrap>
+          <span>תאריכי מפגשים</span>
+          <div class="ds-activity-add-date-rows" data-add-date-rows></div>
+        </div>
         <label class="ds-activity-add-field"><span>הערות</span><textarea class="ds-input" name="notes" rows="2"></textarea></label>
       </div>
       <p class="ds-muted" role="status" data-add-activity-status></p>
@@ -214,9 +188,7 @@ function addActivityModalHtml(settings) {
 }
 
 function resolveOneDayTypes(settings) {
-  return Array.isArray(settings?.one_day_activity_types) && settings.one_day_activity_types.length
-    ? settings.one_day_activity_types
-    : DEFAULT_ONE_DAY_TYPES;
+  return getActivityTypesByFamily(settings, 'short');
 }
 
 function isShortFamily(row, oneDayTypes) {
@@ -410,10 +382,11 @@ export const activitiesScreen = {
     const thEmp     = hideEmpIds ? '' : '<th>מדריך/ה 1 (מזהה)</th><th>מדריך/ה 2 (מזהה)</th>';
 
     const fundingOptions = mergeOptions(state?.clientSettings || {}, ['funding', 'fundings']);
+    const centralOptions = getFilterOptionOverrides(state?.clientSettings || {});
     const toolbarHtml = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
       filterFields: ACTIVITY_FILTER_FIELDS,
       layout: 'panel',
-      optionsOverrides: { funding: fundingOptions }
+      optionsOverrides: { ...centralOptions, funding: fundingOptions }
     });
     const loadMoreHtml = hasMore
       ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ACTIVITIES_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
@@ -613,6 +586,28 @@ export const activitiesScreen = {
         typeSel.innerHTML = optionsHtml(nextTypes, nextTypes[0] || '');
       }
       refreshActivityNameSelect(form);
+      syncSessionDateRows(form);
+    }
+
+    function computeNextSessionDate(baseIso, index, frequency) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(baseIso || ''))) return '';
+      const base = new Date(`${baseIso}T00:00:00`);
+      const stepDays = frequency === 'biweekly' ? 14 : 7;
+      base.setDate(base.getDate() + (index * stepDays));
+      return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+    }
+
+    function syncSessionDateRows(form) {
+      const sessions = Math.max(1, Number(form.querySelector('[data-add-sessions]')?.value || '1'));
+      const container = form.querySelector('[data-add-date-rows]');
+      if (!container) return;
+      const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
+      const frequency = String(form.querySelector('[data-add-frequency]')?.value || 'weekly').trim();
+      const prev = Array.from(container.querySelectorAll('input[data-add-session-date]')).map((input) => String(input.value || '').trim());
+      container.innerHTML = Array.from({ length: sessions }, (_, idx) => {
+        const value = prev[idx] || computeNextSessionDate(startDate, idx, frequency);
+        return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
+      }).join('');
     }
 
     function bindAddActivityForm() {
@@ -622,6 +617,7 @@ export const activitiesScreen = {
       form.dataset.boundAddActivity = 'yes';
 
       updateAddFormByFamily(form);
+      syncSessionDateRows(form);
       form.querySelectorAll('[data-add-family]').forEach((btn) => {
         btn.addEventListener('click', () => {
           form.querySelectorAll('[data-add-family]').forEach((b) => b.classList.remove('is-active'));
@@ -637,6 +633,9 @@ export const activitiesScreen = {
       form.querySelector('[data-add-activity-name]')?.addEventListener('change', () => {
         refreshActivityNameSelect(form);
       }, addActivitySig);
+      form.querySelector('[data-add-sessions]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
+      form.querySelector('[name="start_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
+      form.querySelector('[data-add-frequency]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
     }
 
     document.addEventListener('click', async (ev) => {
@@ -686,6 +685,10 @@ export const activitiesScreen = {
         status: 'פעיל',
         notes: get('notes')
       };
+      const dateInputs = Array.from(form.querySelectorAll('input[data-add-session-date]'));
+      dateInputs.forEach((input, index) => {
+        payload[`Date${index + 1}`] = String(input.value || '').trim();
+      });
       if (!payload.activity_type || !payload.activity_name || !payload.start_date) {
         if (statusEl) statusEl.textContent = 'יש למלא לפחות סוג פעילות, שם פעילות ותאריך התחלה';
         return;

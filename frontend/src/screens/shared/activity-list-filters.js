@@ -148,6 +148,7 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
   let searchTimer;
   searchInput?.addEventListener('input', (ev) => {
     const nextValue = ev.target?.value || '';
+    if (nextValue === String(filters.q || '')) return;
     clearTimeout(searchTimer);
     const apply = () => {
       filters.q = nextValue;
