@@ -5367,10 +5367,10 @@ select.ds-input {
 }
 
 .ds-filter-select-inline {
-  width: 84px;
-  min-width: 84px;
-  max-width: 84px;
-  flex: 0 0 84px;
+  width: 71px;
+  min-width: 71px;
+  max-width: 71px;
+  flex: 0 0 71px;
   font-size: 0.7rem;
   padding-top: 3px;
   padding-bottom: 3px;
