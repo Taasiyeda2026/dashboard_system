@@ -1072,6 +1072,10 @@ function bindShell() {
     const route = e?.detail?.route;
     if (!isAllowedRoute(route)) return;
     closeMobileNav();
+    if (route === 'activities') {
+      state.activityQuickFamily = '';
+      state.activityQuickManager = '';
+    }
     state.route = route;
     render();
   });
@@ -1081,6 +1085,10 @@ function bindShell() {
       closeMobileNav();
       const route = button.dataset.route;
       if (!isAllowedRoute(route)) return;
+      if (route === 'activities') {
+        state.activityQuickFamily = '';
+        state.activityQuickManager = '';
+      }
       state.route = route;
       render();
     });
