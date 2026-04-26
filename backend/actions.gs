@@ -2960,6 +2960,15 @@ function buildActivityNameOptionsFromListRows_(rows) {
   return out;
 }
 
+function isActivityListRow_(key, value) {
+  if (key === 'activity_name' || key === 'activity') return true;
+  // שורה שה-value שלה מתחיל ב-activity_ + מספר היא רשומת פעילות
+  if (/^activity_\d+/i.test(value)) return true;
+  // list_name שמתאים לסוג פעילות מוגדר — program, workshop, after_school, tour, escape_room וכו'
+  var activityTypes = configuredProgramActivityTypes_().concat(configuredOneDayActivityTypes_()).concat(['program']);
+  return activityTypes.indexOf(key) >= 0;
+}
+
 function buildDropdownOptionsMapFromRows_(rows) {
   var out = {};
   var activityNameRows = [];
@@ -2967,7 +2976,7 @@ function buildDropdownOptionsMapFromRows_(rows) {
     var key = listKey_(row.list_name);
     var value = text_(row.value || row.display_value || row.val);
     if (!key) return;
-    if (key === 'activity_name' || key === 'activity') {
+    if (isActivityListRow_(key, value)) {
       activityNameRows.push(row);
       return;
     }
