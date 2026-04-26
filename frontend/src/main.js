@@ -423,8 +423,8 @@ function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
   const isAdminUser = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operation_manager';
-  // לאדמין: הרשאות — מהכותרת בלבד; הנתונים שלי — מוסתר לחלוטין
-  const adminSidebarExclude = isAdminUser ? new Set(['permissions', 'my-data']) : new Set();
+  // לאדמין: הנתונים שלי — מוסתר לחלוטין; הרשאות — בסרגל בלבד
+  const adminSidebarExclude = isAdminUser ? new Set(['my-data']) : new Set();
   const nav = effectiveRoutes()
     .filter((route) =>
       !hiddenSet.has(route) &&
@@ -446,7 +446,7 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
-  const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data']) : new Set();
+  const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data', 'finance', 'permissions']) : new Set();
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
     routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r))
