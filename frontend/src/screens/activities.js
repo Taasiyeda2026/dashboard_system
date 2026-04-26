@@ -8,13 +8,13 @@ import {
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import {
   dsPageHeader,
-  dsToolbar,
   dsCard,
   dsScreenStack,
   dsTableWrap,
   dsEmptyState,
   dsInteractiveCard
 } from './shared/layout.js';
+
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import {
   ensureActivityListFilters,
@@ -345,6 +345,7 @@ export const activitiesScreen = {
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const forceCompact  = typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches;
     const compactView   = forceCompact || state?.activityView === 'compact';
+    const canAddActivity = !!state?.user?.can_add_activity;
 
     const tableRows = safeRows
       .map((row) => {
@@ -408,10 +409,11 @@ export const activitiesScreen = {
     const thPrivate = canSeePrivateNotes ? `<th>${hebrewColumn('private_note')}</th>` : '';
     const thEmp     = hideEmpIds ? '' : '<th>מדריך/ה 1 (מזהה)</th><th>מדריך/ה 2 (מזהה)</th>';
 
+    const fundingOptions = mergeOptions(state?.clientSettings || {}, ['funding', 'fundings']);
     const toolbarHtml = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
-      searchPlaceholder: 'חיפוש לפי פעילות / מדריך / רשות / בית ספר…',
       filterFields: ACTIVITY_FILTER_FIELDS,
-      layout: 'panel'
+      layout: 'panel',
+      optionsOverrides: { funding: fundingOptions }
     });
     const loadMoreHtml = hasMore
       ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ACTIVITIES_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
@@ -430,21 +432,23 @@ export const activitiesScreen = {
         ? dsEmptyState('לא נמצאו פעילויות')
         : `<div class="ds-compact-list">${compactRows}</div>${loadMoreHtml}`;
 
+    const mainToolbar = `<div class="ds-activities-main-toolbar">
+      ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">➕</button>` : ''}
+      <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
+        <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${forceCompact ? 'disabled title="במסך צר מוצגות תיבות קומפקטיות"' : ''} aria-label="טבלה" title="טבלה">☰</button>
+        <button type="button" class="ds-view-toggle__btn ${compactView ? 'is-active' : ''}" data-activity-view="compact" aria-label="תיבות" title="תיבות">⊞</button>
+      </div>
+      <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="🔍" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">🔄</button>
+      <span class="ds-activities-toolbar-sep"></span>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם">▶</button>
+      <span class="ds-cal-nav__label">${escapeHtml(heMonthLabel(state.activitiesMonthYm))}</span>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא">◀</button>
+    </div>`;
+
     const html = dsScreenStack(`<section class="ds-activities-screen">
       <h2 class="ds-activities-page-title">ניהול פעילויות לחודש ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} (${total} פעילויות)</h2>
-      <section class="ds-activities-top-panel">
-      ${dsToolbar(`
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם">▶</button>
-        <span class="ds-cal-nav__label">${escapeHtml(heMonthLabel(state.activitiesMonthYm))}</span>
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא">◀</button>
-        <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
-          <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${
-            forceCompact ? 'disabled title="במסך צר מוצגות תיבות קומפקטיות"' : ''
-          }>☰ טבלה</button>
-          <button type="button" class="ds-view-toggle__btn ${compactView ? 'is-active' : ''}" data-activity-view="compact">⊞ תיבות</button>
-        </div>
-      `)}
-      </section>
+      ${mainToolbar}
       ${toolbarHtml}
       ${compactView
         ? dsCard({ body: compactSection, padded: true })
@@ -542,7 +546,7 @@ export const activitiesScreen = {
       if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
       else rerender();
     };
-    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 0 });
+    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 280 });
     root.querySelector('[data-activities-month-prev]')?.addEventListener('click', () => {
       state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), -1);
       rerenderLocal();
@@ -699,14 +703,8 @@ export const activitiesScreen = {
       }
     }, addActivitySig);
 
-    if (canAddActivity && ui) {
-      const addBtn = document.createElement('button');
-      addBtn.type = 'button';
-      addBtn.className = 'ds-btn ds-btn--primary ds-btn--sm ds-btn--compact';
-      addBtn.textContent = '➕ הוספת פעילות';
-      const toolbar = root.querySelector('.ds-toolbar');
-      if (toolbar) toolbar.appendChild(addBtn);
-
+    const addBtn = root.querySelector('[data-activities-add-btn]');
+    if (canAddActivity && ui && addBtn) {
       addBtn.addEventListener('click', () => {
         ui.openModal({
           title: 'הוספת פעילות',

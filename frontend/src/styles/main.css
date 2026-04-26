@@ -7209,3 +7209,120 @@ select.ds-input {
     gap: 2px;
   }
 }
+
+/* ——— Activities main toolbar: one-row layout ——— */
+.ds-activities-main-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  background: #f8fbff;
+  border: 1px solid rgba(26, 51, 88, 0.1);
+  border-radius: var(--ds-radius-md);
+  box-shadow: var(--ds-shadow-xs);
+  overflow-x: auto;
+}
+
+.ds-activities-main-toolbar .ds-cal-nav__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--ds-text-primary, #1a3358);
+}
+
+.ds-activities-toolbar-sep {
+  flex: 1 1 0;
+  min-width: 4px;
+}
+
+/* compact icon-only button */
+.ds-btn--icon-only {
+  padding: 4px 7px;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+  min-width: 30px;
+}
+
+/* narrow search in main toolbar (35% smaller than base) */
+.ds-activities-search-sm {
+  width: 80px;
+  min-width: 60px;
+  max-width: 100px;
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  padding: 4px 7px;
+}
+
+/* ——— Filter panel: grid-only (no search row) ——— */
+.ds-filter-panel--grid-only {
+  padding: var(--ds-space-2) var(--ds-space-2);
+  box-shadow: 0 4px 12px rgba(26, 51, 88, 0.1), 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* uniform width + depth on all filter selects */
+.ds-filter-select-inline {
+  width: 52px;
+  min-width: 52px;
+  max-width: 52px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(26, 51, 88, 0.2);
+}
+
+/* ——— Add-activity form: compact 2-col layout ——— */
+.ds-activity-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ds-activity-add-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 10px;
+  margin-top: 8px;
+}
+
+.ds-activity-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ds-activity-add-field > span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--ds-text-muted);
+  white-space: nowrap;
+}
+
+.ds-activity-add-field .ds-input {
+  width: 100%;
+  max-width: 100%;
+  min-height: 28px;
+  font-size: 0.77rem;
+  padding: 3px 6px;
+}
+
+select.ds-activity-add-field .ds-input,
+.ds-activity-add-field select.ds-input {
+  min-height: 28px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.ds-activity-add-field textarea.ds-input {
+  resize: vertical;
+  min-height: 46px;
+  grid-column: span 2;
+}
+
+/* wider modal for add-activity form */
+@media (min-width: 960px) {
+  .ds-ui-layer.is-modal-open .ds-modal {
+    width: min(94vw, 640px);
+  }
+}

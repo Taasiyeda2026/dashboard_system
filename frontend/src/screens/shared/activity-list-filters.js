@@ -111,17 +111,21 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   const filters = ensureActivityListFilters(state, scope);
   const filterFields = Array.isArray(config.filterFields) ? config.filterFields : [];
   const optionsMap = collectFilterOptions(rows, filterFields);
+
+  if (config.optionsOverrides && typeof config.optionsOverrides === 'object') {
+    Object.keys(config.optionsOverrides).forEach((k) => {
+      if (Array.isArray(config.optionsOverrides[k]) && config.optionsOverrides[k].length) {
+        optionsMap[k] = config.optionsOverrides[k];
+      }
+    });
+  }
+
   const showSearch = config.search !== false;
   const searchPlaceholder = config.searchPlaceholder || 'חיפוש…';
 
   const isPanel = config.layout === 'panel';
   if (isPanel) {
-    const searchRow = showSearch ? `<div class="ds-filter-panel__search-row">
-        <input type="search" class="ds-input ds-input--sm ds-filter-search-input" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="${escapeHtml(searchPlaceholder)}" />
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-filter-clear="${escapeHtml(scope)}">ניקוי סינונים</button>
-      </div>` : '';
-    return `<section class="ds-filter-panel" dir="rtl" data-local-filters="${escapeHtml(scope)}">
-      ${searchRow}
+    return `<section class="ds-filter-panel ds-filter-panel--grid-only" dir="rtl" data-local-filters="${escapeHtml(scope)}">
       <div class="ds-filter-panel__grid">
         ${filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
       </div>
