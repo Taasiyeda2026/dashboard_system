@@ -2838,6 +2838,8 @@ function setMeetings_(sourceRowId, meetings) {
   cleaned.forEach(function(row) {
     appendRow_(CONFIG.SHEETS.MEETINGS, row);
   });
+
+  syncEndDateForRow_(sourceRowId);
 }
 
 function setMeetingsFromRange_(sourceRowId, startDate, endDate) {
