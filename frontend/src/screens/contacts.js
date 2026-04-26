@@ -136,6 +136,13 @@ function schoolPersonHtml(row) {
   </article>`;
 }
 
+const HE_ALPHA = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י','כ','ל','מ','נ','ס','ע','פ','צ','ק','ר','ש','ת'];
+
+function firstHebrewLetter(str) {
+  const ch = String(str || '').trim().charAt(0);
+  return HE_ALPHA.includes(ch) ? ch : '#';
+}
+
 function groupByAuthorityThenSchool(rows) {
   const authMap = new Map();
   for (const row of rows) {
@@ -155,6 +162,16 @@ function groupByAuthorityThenSchool(rows) {
     result.set(authority, new Map([...schoolMap.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he'))));
   });
   return result;
+}
+
+function groupByLetter(authorityGroupsMap) {
+  const letterMap = new Map();
+  authorityGroupsMap.forEach((schoolsMap, authority) => {
+    const letter = firstHebrewLetter(authority);
+    if (!letterMap.has(letter)) letterMap.set(letter, new Map());
+    letterMap.get(letter).set(authority, schoolsMap);
+  });
+  return letterMap;
 }
 
 function renderSchoolCard(schoolName, rows) {
@@ -237,13 +254,30 @@ function schoolFormHtml(row = {}) {
   `;
 }
 
+function renderLetterSection(letter, authoritiesMap) {
+  let authHtml = '';
+  authoritiesMap.forEach((schoolsMap, authority) => { authHtml += renderAuthorityGroup(authority, schoolsMap); });
+  if (!authHtml) return '';
+  return `<div class="sc-letter-section" data-letter-section="${escapeHtml(letter)}" hidden>
+    <div class="sc-card-list">${authHtml}</div>
+  </div>`;
+}
+
 function schoolTabHtml(rows, searchQ) {
   const filtered = searchQ ? applyLocalFilters(rows, { q: searchQ }, { filterFields: [] }) : rows;
   if (filtered.length === 0) return { filtered, body: dsEmptyState('לא נמצאו אנשי קשר') };
   const authorityGroups = groupByAuthorityThenSchool(filtered);
-  let html = '';
-  authorityGroups.forEach((schoolsMap, authority) => { html += renderAuthorityGroup(authority, schoolsMap); });
-  return { filtered, body: `<div class="sc-card-list">${html}</div>` };
+  const byLetter = groupByLetter(authorityGroups);
+
+  const alphaBtns = [...byLetter.keys()].map((letter) =>
+    `<button type="button" class="sc-alpha-btn" data-alpha-btn="${escapeHtml(letter)}" aria-expanded="false">${escapeHtml(letter)}</button>`
+  ).join('');
+  const alphaBar = `<div class="sc-alpha-bar" role="toolbar" aria-label="אלפון א-ת" dir="rtl">${alphaBtns}</div>`;
+
+  let sectionsHtml = '';
+  byLetter.forEach((authoritiesMap, letter) => { sectionsHtml += renderLetterSection(letter, authoritiesMap); });
+
+  return { filtered, body: `${alphaBar}${sectionsHtml}` };
 }
 
 /* ─── Screen ─── */
@@ -311,18 +345,36 @@ export const contactsScreen = {
     });
     bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, { debounceMs: 300 });
 
-    root.querySelectorAll('[data-copy-email]').forEach((btn) => {
-      btn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        const email = String(btn.dataset.copyEmail || '').trim();
-        if (!email) {
-          showToast('לא ניתן היה להעתיק', 'error', 1800);
-          return;
+    const bindCopyBtns = (container) => {
+      container.querySelectorAll('[data-copy-email]').forEach((btn) => {
+        if (btn._copyBound) return;
+        btn._copyBound = true;
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const email = String(btn.dataset.copyEmail || '').trim();
+          if (!email) { showToast('לא ניתן היה להעתיק', 'error', 1800); return; }
+          copyEmailToClipboard(email)
+            .then(() => showToast('המייל הועתק', 'success', 1500))
+            .catch(() => showToast('לא ניתן היה להעתיק', 'error', 1800));
+        });
+      });
+    };
+    bindCopyBtns(root);
+
+    root.querySelectorAll('[data-alpha-btn]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const letter = btn.dataset.alphaBtn;
+        const isOpen = btn.getAttribute('aria-expanded') === 'true';
+        root.querySelectorAll('[data-alpha-btn]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+        root.querySelectorAll('[data-alpha-btn]').forEach((b) => b.classList.remove('is-active'));
+        root.querySelectorAll('[data-letter-section]').forEach((s) => { s.hidden = true; });
+        if (!isOpen) {
+          btn.setAttribute('aria-expanded', 'true');
+          btn.classList.add('is-active');
+          const section = root.querySelector(`[data-letter-section="${letter}"]`);
+          if (section) section.hidden = false;
         }
-        copyEmailToClipboard(email)
-          .then(() => showToast('המייל הועתק', 'success', 1500))
-          .catch(() => showToast('לא ניתן היה להעתיק', 'error', 1800));
       });
     });
 
@@ -469,6 +521,11 @@ export const contactsScreen = {
       ui.openDrawer({
         title: hit.full_name || hit.emp_id || 'איש קשר',
         content: instrDrawerHtml(hit, hideEmpIds)
+      });
+      requestAnimationFrame(() => {
+        const drawer = document.querySelector('.ds-drawer__body, .ds-drawer, [data-drawer]');
+        if (drawer) bindCopyBtns(drawer);
+        else bindCopyBtns(document.body);
       });
     });
   }

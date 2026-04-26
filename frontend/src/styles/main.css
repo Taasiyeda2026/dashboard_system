@@ -4536,6 +4536,56 @@ select.ds-input {
   border-color: var(--ds-accent);
 }
 
+/* ── Hebrew alpha bar ── */
+.sc-alpha-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 0 14px;
+  direction: rtl;
+}
+
+.sc-alpha-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid var(--ds-border);
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.13s, color 0.13s, border-color 0.13s, box-shadow 0.13s;
+  box-shadow: var(--ds-shadow-xs);
+  padding: 0 4px;
+  user-select: none;
+}
+
+.sc-alpha-btn:hover {
+  background: var(--ds-interactive-hover);
+  border-color: var(--ds-accent);
+  color: var(--ds-accent);
+}
+
+.sc-alpha-btn.is-active {
+  background: var(--ds-accent);
+  border-color: var(--ds-accent);
+  color: #fff;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-accent) 35%, transparent);
+}
+
+.sc-letter-section {
+  margin-bottom: 18px;
+}
+
+.sc-letter-section[hidden] {
+  display: none;
+}
+
 /* ── School cards ── */
 .sc-card-list {
   display: grid;
