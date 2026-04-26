@@ -1812,6 +1812,8 @@ function actionAddActivity_(user, payload) {
       emp_id: common.emp_id,
       instructor_name: common.instructor_name,
       Date1: firstStartDate || dateCols.Date1 || '',
+      start_date: firstStartDate || dateCols.Date1 || '',
+      end_date: autoEndDate || dateCols.Date2 || firstStartDate || dateCols.Date1 || '',
       status: common.status,
       notes: common.notes,
       finance_status: common.finance_status,
@@ -1883,6 +1885,15 @@ function actionSaveActivity_(user, payload) {
   if (Object.prototype.hasOwnProperty.call(changes, 'status')) {
     var rawStatus = text_(changes.status).toLowerCase();
     changes.status = (rawStatus === 'closed' || rawStatus === 'סגור') ? 'סגור' : 'פעיל';
+  }
+  // עדכון start_date / end_date בגיליון data_long כשיש שינוי בעמודות תאריך
+  if (sourceSheet === CONFIG.SHEETS.DATA_LONG && Object.keys(datePatch).length > 0) {
+    var currentLongRow = getRowByKey_(sourceSheet, 'RowID', sourceRowId);
+    var mergedForDates = {};
+    Object.keys(currentLongRow).forEach(function(k) { mergedForDates[k] = currentLongRow[k]; });
+    Object.keys(changes).forEach(function(k) { mergedForDates[k] = changes[k]; });
+    changes.start_date = activityStartDateFromRow_(mergedForDates);
+    changes.end_date   = activityEndDateFromRow_(mergedForDates);
   }
   if (!effectiveCanEditDirect_(permission, user.display_role)) {
     if (!effectiveCanRequestEdit_(permission, user.display_role)) {
