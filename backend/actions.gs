@@ -2930,6 +2930,12 @@ function buildActivityNameOptionsFromListRows_(rows) {
     if (!label) return;
     var parent = text_(row.parent_value || row.activity_type);
     var actNo = text_(row.activity_no);
+    if (!actNo || /[^\d]/.test(actNo)) {
+      var fromType = text_(row.activity_type);
+      var fromValue = text_(row.value);
+      var fromValueMatch = /activity_(\d+)/i.exec(fromValue);
+      actNo = /^\d+$/.test(fromType) ? fromType : (fromValueMatch ? fromValueMatch[1] : '');
+    }
     var sig = label + '\t' + actNo + '\t' + parent;
     if (seen[sig]) return;
     seen[sig] = true;
@@ -2950,7 +2956,7 @@ function buildDropdownOptionsMapFromRows_(rows) {
     var key = listKey_(row.list_name);
     var value = text_(row.value || row.display_value || row.val);
     if (!key) return;
-    if (key === 'activity_name') {
+    if (key === 'activity_name' || key === 'activity') {
       activityNameRows.push(row);
       return;
     }
