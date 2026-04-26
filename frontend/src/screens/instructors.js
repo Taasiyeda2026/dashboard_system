@@ -18,35 +18,26 @@ function applyActiveFilter(rows, activeOnly) {
   return rows.filter((r) => (r.programs_count || 0) + (r.one_day_count || 0) > 0);
 }
 
-function countBadge(count, label, cls) {
-  if (!count && count !== 0) return '';
-  return `<span class="instr-count-badge instr-count-badge--${cls}">
-    <span class="instr-count-badge__num">${escapeHtml(String(count))}</span>
-    <span class="instr-count-badge__lbl">${escapeHtml(label)}</span>
-  </span>`;
-}
-
 function renderInstructorRow(row) {
-  const name     = escapeHtml(row.full_name || row.emp_id || '—');
-  const endDate  = row.latest_end_date ? formatDateHe(row.latest_end_date) : '';
-  const programs = row.programs_count || 0;
-  const oneDay   = row.one_day_count  || 0;
-  const total    = programs + oneDay;
-  const hasActivity = total > 0;
+  const name       = escapeHtml(row.full_name || row.emp_id || '—');
+  const endDate    = row.latest_end_date ? formatDateHe(row.latest_end_date) : '';
+  const programs   = row.programs_count || 0;
+  const oneDay     = row.one_day_count  || 0;
+  const hasActivity = (programs + oneDay) > 0;
   const inactiveClass = hasActivity ? '' : ' ci-row--inactive';
+
+  const statsHtml = `<span class="instr-stats">
+    <span class="instr-stat"><span class="instr-stat__num">${programs}</span><span class="instr-stat__lbl">תוכניות</span></span>
+    <span class="instr-stat__sep">·</span>
+    <span class="instr-stat"><span class="instr-stat__num">${oneDay}</span><span class="instr-stat__lbl">חד-יומיות</span></span>
+  </span>`;
 
   return `
     <button type="button" class="ci-row instr-summary-row${inactiveClass}" dir="rtl" data-instructor-card="${escapeHtml(String(row.emp_id || ''))}">
       <div class="ci-row__main">
         <span class="ci-row__name">${name}</span>
-        <span class="instr-count-badges">
-          ${countBadge(programs, 'תוכניות', 'program')}
-          ${countBadge(oneDay, 'חד-יומיות', 'oneday')}
-        </span>
-        <span class="instr-count-badges">
-          ${countBadge(total, 'סה״כ פעילות', 'total')}
-        </span>
-        ${endDate ? `<span class="instr-end-date">🏁 ${escapeHtml(endDate)}</span>` : ''}
+        ${statsHtml}
+        ${endDate ? `<span class="instr-end-date">${escapeHtml(endDate)}</span>` : ''}
       </div>
     </button>`;
 }
