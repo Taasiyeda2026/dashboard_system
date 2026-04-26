@@ -79,6 +79,7 @@ function normalizeRole_(value) {
     case 'domain_manager':    return 'domain_manager';
     case 'manager_instructor':return 'manager_instructor';
     case 'instructor':        return 'instructor';
+    case 'instructor_admin':  return 'instructor';
     default:                  throw new Error('invalid_role');
   }
 }

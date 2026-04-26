@@ -5257,6 +5257,7 @@ select.ds-input {
   display: flex;
   flex-direction: column;
   gap: var(--ds-space-3);
+  zoom: 0.9;
 }
 
 .ds-activities-top-panel {
@@ -5346,10 +5347,10 @@ select.ds-input {
 
 .ds-activities-page-title {
   margin: 0 0 var(--ds-space-2);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 800;
-  color: #344054;
-  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.14);
+  color: #4b2e83;
+  text-shadow: 0 2px 6px rgba(76, 29, 149, 0.18);
 }
 
 .ds-toolbar--filters-inline {
@@ -5366,10 +5367,10 @@ select.ds-input {
 }
 
 .ds-filter-select-inline {
-  width: 74px;
-  min-width: 74px;
-  max-width: 74px;
-  flex: 0 0 74px;
+  width: 84px;
+  min-width: 84px;
+  max-width: 84px;
+  flex: 0 0 84px;
   font-size: 0.7rem;
   padding-top: 3px;
   padding-bottom: 3px;
@@ -7215,16 +7216,18 @@ select.ds-input {
 .ds-activities-title-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px;
 }
 
 .ds-activities-title-row .ds-activities-page-title {
-  flex: 1 1 0;
+  flex: 0 1 auto;
   margin: 0;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: min(72vw, 620px);
 }
 
 /* ——— Activities main toolbar: one-row layout ——— */
@@ -7239,6 +7242,18 @@ select.ds-input {
   border-radius: var(--ds-radius-md);
   box-shadow: var(--ds-shadow-xs);
   overflow-x: auto;
+}
+
+.ds-activities-main-toolbar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ds-btn--activities-action {
+  min-width: 30px;
+  min-height: 30px !important;
+  padding: 4px 7px;
 }
 
 .ds-activities-main-toolbar .ds-cal-nav__label {
