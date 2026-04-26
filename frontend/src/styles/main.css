@@ -5339,6 +5339,25 @@ select.ds-input {
   justify-content: flex-end;
 }
 
+.ds-activities-page-title {
+  margin: 0 0 var(--ds-space-2);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ds-text-primary, #1a3358);
+}
+
+.ds-filter-panel__search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-2);
+}
+
+.ds-filter-search-input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .ds-activities-screen .ds-card {
   background: #fff;
   border-color: rgba(26, 51, 88, 0.1);

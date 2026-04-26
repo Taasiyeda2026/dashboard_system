@@ -104,15 +104,14 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
 
   const isPanel = config.layout === 'panel';
   if (isPanel) {
-    const title = config.title ? `<p class="ds-filter-panel__title">${escapeHtml(config.title)}</p>` : '';
+    const searchRow = showSearch ? `<div class="ds-filter-panel__search-row">
+        <input type="search" class="ds-input ds-input--sm ds-filter-search-input" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="${escapeHtml(searchPlaceholder)}" />
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-filter-clear="${escapeHtml(scope)}">ניקוי סינונים</button>
+      </div>` : '';
     return `<section class="ds-filter-panel" dir="rtl" data-local-filters="${escapeHtml(scope)}">
-      ${title}
+      ${searchRow}
       <div class="ds-filter-panel__grid">
-        ${showSearch ? `<label class="ds-filter-field ds-filter-field--search"><span class="ds-filter-field__label">חיפוש</span><input type="search" class="ds-input ds-input--sm" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="${escapeHtml(searchPlaceholder)}" /></label>` : ''}
         ${filterFields.map((field) => selectHtml(scope, field, filters, optionsMap)).join('')}
-        <div class="ds-filter-panel__actions">
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-filter-clear="${escapeHtml(scope)}">ניקוי סינונים</button>
-        </div>
       </div>
     </section>`;
   }
@@ -128,17 +127,19 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
   const filters = ensureActivityListFilters(state, scope);
   const searchInput = root.querySelector(`[data-filter-search="${scope}"]`);
   const clearBtn = root.querySelector(`[data-filter-clear="${scope}"]`);
-  const debounceMs = Math.max(250, Number(options.debounceMs || DEFAULT_SEARCH_DEBOUNCE_MS));
+  const debounceMs = Number(options.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS);
 
   let searchTimer;
   searchInput?.addEventListener('input', (ev) => {
     const nextValue = ev.target?.value || '';
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
+    const apply = () => {
       filters.q = nextValue;
       filters.visibleCount = DEFAULT_VISIBLE_LIMIT;
       rerender();
-    }, debounceMs);
+    };
+    if (debounceMs <= 0) apply();
+    else searchTimer = setTimeout(apply, debounceMs);
   });
 
   root.querySelectorAll(`[data-filter-scope="${scope}"][data-filter-field]`).forEach((node) => {

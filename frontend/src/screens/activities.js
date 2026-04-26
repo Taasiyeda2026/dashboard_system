@@ -276,6 +276,13 @@ function monthLabel(ym) {
   return `${m[1]}-${m[2]}`;
 }
 
+const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+function heMonthLabel(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return monthLabel(ym);
+  return HE_MONTHS[Number(m[2]) - 1] || monthLabel(ym);
+}
+
 function applyActivitiesLocalFilters(rows, state, settings) {
   const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
   if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
@@ -401,28 +408,11 @@ export const activitiesScreen = {
     const thPrivate = canSeePrivateNotes ? `<th>${hebrewColumn('private_note')}</th>` : '';
     const thEmp     = hideEmpIds ? '' : '<th>מדריך/ה 1 (מזהה)</th><th>מדריך/ה 2 (מזהה)</th>';
 
-    const familyChips = [
-      { key: '',      label: 'הכל' },
-      { key: 'short', label: FAMILY_LABEL_SHORT },
-      { key: 'long',  label: FAMILY_LABEL_LONG }
-    ]
-      .map(
-        (f) =>
-          `<button type="button" class="ds-chip--tab ${f.key === (state.activityQuickFamily || '') ? 'is-active' : ''}" data-family="${f.key}">${escapeHtml(f.label)}</button>`
-      )
-      .join('');
-
     const toolbarHtml = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
       searchPlaceholder: 'חיפוש לפי פעילות / מדריך / רשות / בית ספר…',
       filterFields: ACTIVITY_FILTER_FIELDS,
-      layout: 'panel',
-      title: 'סינון מתקדם'
+      layout: 'panel'
     });
-    const monthNavHtml = `<nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי פעילויות" dir="rtl">
-      <button type="button" class="ds-btn ds-btn--sm" data-activities-month-prev aria-label="חודש קודם">חודש קודם ▶</button>
-      <span class="ds-cal-nav__label">${escapeHtml(monthLabel(state.activitiesMonthYm))}</span>
-      <button type="button" class="ds-btn ds-btn--sm" data-activities-month-next aria-label="חודש הבא">◀ חודש הבא</button>
-    </nav>`;
     const loadMoreHtml = hasMore
       ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ACTIVITIES_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
       : '';
@@ -441,23 +431,24 @@ export const activitiesScreen = {
         : `<div class="ds-compact-list">${compactRows}</div>${loadMoreHtml}`;
 
     const html = dsScreenStack(`<section class="ds-activities-screen">
-      ${dsPageHeader('פעילויות', `ניהול פעילויות לחודש ${monthLabel(state.activitiesMonthYm)}`)}
+      <h2 class="ds-activities-page-title">ניהול פעילויות לחודש ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} (${total} פעילויות)</h2>
       <section class="ds-activities-top-panel">
       ${dsToolbar(`
+        <button type="button" class="ds-btn ds-btn--sm" data-activities-month-prev aria-label="חודש קודם">חודש קודם ▶</button>
+        <span class="ds-cal-nav__label">${escapeHtml(monthLabel(state.activitiesMonthYm))}</span>
+        <button type="button" class="ds-btn ds-btn--sm" data-activities-month-next aria-label="חודש הבא">◀ חודש הבא</button>
         <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
           <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${
             forceCompact ? 'disabled title="במסך צר מוצגות תיבות קומפקטיות"' : ''
           }>☰ טבלה</button>
           <button type="button" class="ds-view-toggle__btn ${compactView ? 'is-active' : ''}" data-activity-view="compact">⊞ תיבות</button>
         </div>
-        <div class="ds-chip-group" dir="rtl">${familyChips}</div>
       `)}
-      ${monthNavHtml}
       </section>
       ${toolbarHtml}
       ${compactView
-        ? dsCard({ title: `רשימת פעילויות · ${total}`, body: compactSection, padded: true })
-        : dsCard({ title: `רשימת פעילויות · ${total}`, body: tableSection,   padded: false })}
+        ? dsCard({ body: compactSection, padded: true })
+        : dsCard({ body: tableSection,   padded: false })}
     </section>`);
     return html;
   },
@@ -547,19 +538,11 @@ export const activitiesScreen = {
       } catch {}
     }
 
-    root.querySelectorAll('[data-family]').forEach((node) => {
-      node.addEventListener('click', () => {
-        state.activityQuickFamily = node.dataset.family || '';
-        if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
-        else rerender();
-      });
-    });
-
     const rerenderLocal = () => {
       if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
       else rerender();
     };
-    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 300 });
+    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 0 });
     root.querySelector('[data-activities-month-prev]')?.addEventListener('click', () => {
       state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), -1);
       rerenderLocal();
