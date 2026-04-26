@@ -2,17 +2,9 @@ import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { formatDateHe } from './shared/format-date.js';
 
-const DATE_COLS = Array.from({ length: 35 }, (_, idx) => `Date${idx + 1}`);
-
 function asIso(value) {
   const text = String(value || '').trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
-}
-
-function extractValidDates(row) {
-  return DATE_COLS
-    .map((col) => asIso(row?.[col]))
-    .filter(Boolean);
 }
 
 function monthLabelFromIso(iso) {
@@ -21,19 +13,30 @@ function monthLabelFromIso(iso) {
   return dt.toLocaleDateString('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
+function resolveDates(row) {
+  const fromMeetings = Array.isArray(row?.meeting_dates)
+    ? row.meeting_dates.map((d) => asIso(d)).filter(Boolean)
+    : [];
+  if (fromMeetings.length) return { dates: fromMeetings, source: 'meetings' };
+
+  const fromCols = Array.isArray(row?.date_cols)
+    ? row.date_cols.map((d) => asIso(d)).filter(Boolean)
+    : [];
+  if (fromCols.length) return { dates: fromCols, source: 'cols' };
+
+  return { dates: [], source: 'none' };
+}
+
 function normalizeRows(rows) {
   return rows
     .filter((row) => String(row?.source_sheet || '').trim() === 'data_long')
     .map((row) => {
-      const fallbackEndDate = extractValidDates(row).slice(-1)[0] || '';
-      const endDate = asIso(row?.end_date) || fallbackEndDate;
-      return {
-        ...row,
-        end_date: endDate,
-        validDates: extractValidDates(row)
-      };
+      const endDate = asIso(row?.end_date);
+      if (!endDate) return null;
+      const { dates, source } = resolveDates(row);
+      return { ...row, end_date: endDate, _dates: dates, _dateSource: source };
     })
-    .filter((row) => !!row.end_date)
+    .filter(Boolean)
     .sort((a, b) => {
       if (a.end_date !== b.end_date) return a.end_date.localeCompare(b.end_date);
       const schoolCmp = String(a.school || '').localeCompare(String(b.school || ''), 'he');
@@ -46,25 +49,25 @@ function groupByMonth(rows) {
   const map = new Map();
   rows.forEach((row) => {
     const key = row.end_date.slice(0, 7);
-    if (!map.has(key)) {
-      map.set(key, {
-        key,
-        label: monthLabelFromIso(`${key}-01`),
-        rows: []
-      });
-    }
+    if (!map.has(key)) map.set(key, { key, label: monthLabelFromIso(`${key}-01`), rows: [] });
     map.get(key).rows.push(row);
   });
   return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
 function renderActivityCard(row) {
-  const validDates = row.validDates || [];
-  const datesHtml = validDates.length
-    ? `<div class="ds-end-dates__dates-list">${validDates
+  const dates = row._dates || [];
+  const fromMeetings = row._dateSource === 'meetings';
+
+  const datesHtml = dates.length
+    ? `<div class="ds-end-dates__dates-list">${dates
         .map((iso) => `<span class="ds-end-dates__date-pill">${escapeHtml(formatDateHe(iso))}</span>`)
         .join('')}</div>`
-    : '<p class="ds-end-dates__muted">לא נמצאו תאריכים תקינים.</p>';
+    : '<p class="ds-end-dates__muted">לא נמצאו תאריכים.</p>';
+
+  const sourceLabel = fromMeetings
+    ? `<span class="ds-end-dates__source-badge">activity_meetings</span>`
+    : `<span class="ds-end-dates__source-badge ds-end-dates__source-badge--fallback">Date1-Date35</span>`;
 
   return `<details class="ds-activity-accordion ds-end-dates__activity" data-end-dates-accordion>
     <summary class="ds-activity-accordion__summary ds-end-dates__summary" role="button" aria-label="פתיחת פירוט תאריכים">
@@ -77,18 +80,19 @@ function renderActivityCard(row) {
       <span class="ds-activity-accordion__chevron" aria-hidden="true">›</span>
     </summary>
     <div class="ds-activity-accordion__body">
-      <p class="ds-end-dates__dates-title">פירוט תאריכים (${escapeHtml(String(validDates.length))})</p>
+      <p class="ds-end-dates__dates-title">${sourceLabel} מפגשים (${escapeHtml(String(dates.length))})</p>
       ${datesHtml}
     </div>
   </details>`;
 }
 
 function exportRowsToExcel(rows) {
-  const headers = ['חודש', 'שם פעילות', 'בית ספר', 'רשות', 'תאריך סיום', 'פירוט תאריכים'];
+  const headers = ['חודש', 'שם פעילות', 'בית ספר', 'רשות', 'תאריך סיום', 'פירוט תאריכים', 'מקור תאריכים'];
   const tableRows = rows
     .map((row) => {
       const month = monthLabelFromIso(`${row.end_date.slice(0, 7)}-01`);
-      const datesText = (row.validDates || []).map((iso) => formatDateHe(iso)).join(', ');
+      const datesText = (row._dates || []).map((iso) => formatDateHe(iso)).join(', ');
+      const source = row._dateSource === 'meetings' ? 'activity_meetings' : 'Date1-Date35';
       return `<tr>
         <td>${escapeHtml(month)}</td>
         <td>${escapeHtml(String(row.activity_name || ''))}</td>
@@ -96,6 +100,7 @@ function exportRowsToExcel(rows) {
         <td>${escapeHtml(String(row.authority || ''))}</td>
         <td>${escapeHtml(formatDateHe(row.end_date))}</td>
         <td>${escapeHtml(datesText)}</td>
+        <td>${escapeHtml(source)}</td>
       </tr>`;
     })
     .join('');

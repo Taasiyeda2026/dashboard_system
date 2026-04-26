@@ -7184,6 +7184,25 @@ select.ds-input {
   font-size: 0.8rem;
 }
 
+.ds-end-dates__source-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  font-weight: 600;
+  vertical-align: middle;
+  margin-inline-end: 4px;
+}
+
+.ds-end-dates__source-badge--fallback {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
 @media (max-width: 900px) {
   .ds-end-dates__summary-grid {
     grid-template-columns: 1fr;

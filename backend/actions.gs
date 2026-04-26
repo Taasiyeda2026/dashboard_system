@@ -1394,14 +1394,30 @@ function actionEndDates_(user) {
     throw new Error('Forbidden');
   }
 
+  var meetingsMap = buildMeetingsMap_();
   var longRows = enrichRowsWithMeetings_(buildLongRows_().slice());
   var rows = longRows
     .filter(function(row) {
       return !!text_(row.end_date);
     })
     .map(function(row) {
-      var mapped = {
-        RowID: row.RowID,
+      var rowId = text_(row.RowID);
+
+      // תאריכי מפגשים מגיליון activity_meetings (מקור עיקרי)
+      var fromMeetings = meetingsMap[rowId];
+      var meetingDates = (fromMeetings && fromMeetings.length)
+        ? fromMeetings.map(function(d) { return text_(d); }).filter(Boolean).sort()
+        : [];
+
+      // תאריכים מ-Date1-Date35 (fallback)
+      var dateCols = [];
+      for (var i = 1; i <= 35; i++) {
+        var d = text_(row['Date' + i]);
+        if (d) dateCols.push(d);
+      }
+
+      return {
+        RowID: rowId,
         activity_name: row.activity_name,
         activity_type: text_(row.activity_type),
         activity_manager: text_(row.activity_manager),
@@ -1410,13 +1426,10 @@ function actionEndDates_(user) {
         start_date: text_(row.start_date),
         end_date: text_(row.end_date),
         status: text_(row.status),
-        source_sheet: row.source_sheet
+        source_sheet: row.source_sheet,
+        meeting_dates: meetingDates,
+        date_cols: dateCols
       };
-      for (var i = 1; i <= 35; i += 1) {
-        var key = 'Date' + i;
-        mapped[key] = text_(row[key]);
-      }
-      return mapped;
     });
 
   rows.sort(function(a, b) {
