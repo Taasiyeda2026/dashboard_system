@@ -20,7 +20,7 @@ var SUMMARY_SNAPSHOT_HEADERS_ = [
   'finance_open_count', 'exceptions_count', 'active_instructors_count',
   'course_endings_current_month', 'active_courses_next_month',
   'missing_instructor_count', 'missing_start_date_count', 'late_end_date_count',
-  'north_active_instructors_names', 'south_active_instructors_names'
+  'active_instructors_names'
 ];
 
 var BY_MANAGER_SNAPSHOT_HEADERS_ = [
@@ -50,8 +50,7 @@ var SUMMARY_SNAPSHOT_LABELS_HE_ = [
   'ללא מדריך',
   'ללא תאריך התחלה',
   'תאריך סיום מאוחר',
-  'שמות מדריכים פעילים צפון',
-  'שמות מדריכים פעילים דרום'
+  'שמות מדריכים פעילים'
 ];
 var BY_MANAGER_SNAPSHOT_LABELS_HE_ = [
   'חודש',
@@ -267,13 +266,9 @@ function actionDashboardSnapshot_(user, payload) {
   var missingDate    = parseInt(text_(s.missing_start_date_count), 10) || 0;
   var lateEnd        = parseInt(text_(s.late_end_date_count),      10) || 0;
 
-  var northStr = text_(s.north_active_instructors_names);
-  var southStr = text_(s.south_active_instructors_names);
-  var northArr = northStr
-    ? northStr.split(',').map(function(n) { return n.trim(); }).filter(Boolean)
-    : [];
-  var southArr = southStr
-    ? southStr.split(',').map(function(n) { return n.trim(); }).filter(Boolean)
+  var combinedStr = text_(s.active_instructors_names);
+  var allInstructorNames = combinedStr
+    ? combinedStr.split(',').map(function(n) { return n.trim(); }).filter(Boolean)
     : [];
 
   var byActivityManager = byManagerRows.map(function(r) {
@@ -330,11 +325,8 @@ function actionDashboardSnapshot_(user, payload) {
       active_courses_current_month: activeCurrent,
       ending_courses_current_month: courseEndings,
       active_courses_next_month:    activeNext,
-      active_instructors:           northArr.concat(southArr),
-      active_instructors_by_manager: {
-        'מחוז צפון': northArr,
-        'מחוז דרום': southArr
-      },
+      active_instructors:           allInstructorNames,
+      active_instructors_by_manager: {},
       missing_instructor_count:  missingInstr,
       missing_start_date_count:  missingDate,
       late_end_date_count:       lateEnd,
@@ -455,15 +447,21 @@ function writeDashboardSummarySnapshotRow_(ym, fullData) {
   var summary = fullData.summary || {};
   var totals  = fullData.totals  || {};
 
-  // Extract north/south instructor names from summary if available
+  // בנה רשימת שמות מדריכים מאוחדת מכל המחוזות, ללא כפילויות, ממוינת
+  var allInstructorNamesSet = {};
   var byMgrNames = summary.active_instructors_by_manager || {};
-  var northNames = (byMgrNames['מחוז צפון'] || byMgrNames['גיל נאמן'] || []).join(', ');
-  var southNames = (byMgrNames['מחוז דרום'] || byMgrNames['לינוי שמואל מזרחי'] || []).join(', ');
-
-  // Fall back to active_instructors list if per-manager names are absent
-  if (!northNames && !southNames && Array.isArray(summary.active_instructors)) {
-    northNames = summary.active_instructors.join(', ');
+  Object.keys(byMgrNames).forEach(function(mgr) {
+    var arr = byMgrNames[mgr];
+    if (Array.isArray(arr)) {
+      arr.forEach(function(n) { var t = text_(n); if (t) allInstructorNamesSet[t] = true; });
+    }
+  });
+  if (!Object.keys(allInstructorNamesSet).length && Array.isArray(summary.active_instructors)) {
+    summary.active_instructors.forEach(function(n) { var t = text_(n); if (t) allInstructorNamesSet[t] = true; });
   }
+  var combinedInstructorNames = Object.keys(allInstructorNamesSet).sort(function(a, b) {
+    return a.localeCompare(b, 'he');
+  }).join(', ');
 
   // Extract per-type activity counts from kpi_cards when available
   var kpiAll = Array.isArray(fullData.kpi_cards) ? fullData.kpi_cards : [];
@@ -492,8 +490,7 @@ function writeDashboardSummarySnapshotRow_(ym, fullData) {
     missing_instructor_count:          summary.missing_instructor_count  || 0,
     missing_start_date_count:          summary.missing_start_date_count  || 0,
     late_end_date_count:               summary.late_end_date_count       || 0,
-    north_active_instructors_names:    northNames,
-    south_active_instructors_names:    southNames
+    active_instructors_names:          combinedInstructorNames
   };
 
   upsertRowByKey_(sheetName, 'month_ym', rowObj);

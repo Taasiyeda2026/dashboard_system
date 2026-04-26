@@ -70,9 +70,7 @@ function renderStructuredSummary(summary, ym, byManager) {
   const northActive = escapeHtml(String(northRow.total_long ?? 0));
   const southActive = escapeHtml(String(southRow.total_long ?? 0));
 
-  const byManagerInstructorNames = summary?.active_instructors_by_manager || {};
-  const northInstructors = normalizeNames(byManagerInstructorNames['מחוז צפון'] || byManagerInstructorNames['גיל נאמן'] || []);
-  const southInstructors = normalizeNames(byManagerInstructorNames['מחוז דרום'] || byManagerInstructorNames['לינוי שמואל מזרחי'] || []);
+  const allInstructors = normalizeNames(Array.isArray(summary?.active_instructors) ? summary.active_instructors : []);
 
   return `<div class="ds-summary-panel__structured">
     <h3 class="ds-summary-panel__title">סיכום חודשי – <strong>${escapeHtml(monthTitle)}</strong></h3>
@@ -83,7 +81,7 @@ function renderStructuredSummary(summary, ym, byManager) {
     <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(nextMonthTitle)}</strong> צפויים להיות (<strong>${activeNext}</strong>) קורסים פעילים.</p>
 
     <h4 class="ds-summary-panel__inner-title"><strong>המדריכים הפעילים החודש:</strong></h4>
-    <p class="ds-summary-panel__text">במחוז צפון: <strong>${escapeHtml(northInstructors || '—')}</strong> · במחוז דרום: <strong>${escapeHtml(southInstructors || '—')}</strong></p>
+    <p class="ds-summary-panel__text"><strong>${escapeHtml(allInstructors || '—')}</strong></p>
 
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
       <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש:</strong></h4>
