@@ -4538,9 +4538,9 @@ select.ds-input {
 
 /* ── School cards ── */
 .sc-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .sc-authority-group {
@@ -4549,13 +4549,12 @@ select.ds-input {
   gap: 8px;
   padding-bottom: 14px;
   margin-bottom: 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--ds-border) 80%, transparent);
-}
-
-.sc-authority-group:last-child {
-  margin-bottom: 0;
-  padding-bottom: 0;
-  border-bottom: none;
+  border: 1px solid color-mix(in srgb, var(--ds-border) 78%, transparent);
+  border-radius: 12px;
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-xs);
+  padding: 10px;
+  margin: 0;
 }
 
 .sc-authority-head {
@@ -4590,11 +4589,10 @@ select.ds-input {
   white-space: nowrap;
 }
 
-.sc-school-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.sc-school-stack {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
-  align-items: start;
 }
 
 .sc-card {
@@ -5348,9 +5346,10 @@ select.ds-input {
 
 .ds-activities-page-title {
   margin: 0 0 var(--ds-space-2);
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--ds-text-primary, #1a3358);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #344054;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.14);
 }
 
 .ds-toolbar--filters-inline {
@@ -5367,11 +5366,11 @@ select.ds-input {
 }
 
 .ds-filter-select-inline {
-  width: 52px;
-  min-width: 52px;
-  max-width: 52px;
-  flex: 0 0 52px;
-  font-size: 0.68rem;
+  width: 74px;
+  min-width: 74px;
+  max-width: 74px;
+  flex: 0 0 74px;
+  font-size: 0.7rem;
   padding-top: 3px;
   padding-bottom: 3px;
   padding-inline-start: 4px;
@@ -7216,7 +7215,7 @@ select.ds-input {
 .ds-activities-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .ds-activities-title-row .ds-activities-page-title {
@@ -7233,8 +7232,8 @@ select.ds-input {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 5px;
-  padding: 6px 10px;
+  gap: 4px;
+  padding: 5px 8px;
   background: #f8fbff;
   border: 1px solid rgba(26, 51, 88, 0.1);
   border-radius: var(--ds-radius-md);
@@ -7257,21 +7256,22 @@ select.ds-input {
 
 /* compact icon-only button */
 .ds-btn--icon-only {
-  padding: 4px 7px;
-  font-size: 1rem;
+  padding: 3px 7px;
+  font-size: 0.9rem;
   line-height: 1;
   flex-shrink: 0;
-  min-width: 30px;
+  min-width: 28px;
+  min-height: 28px;
 }
 
 /* narrow search in main toolbar (35% smaller than base) */
 .ds-activities-search-sm {
-  width: 80px;
-  min-width: 60px;
-  max-width: 100px;
+  width: 96px;
+  min-width: 74px;
+  max-width: 120px;
   flex: 0 0 auto;
   font-size: 0.74rem;
-  padding: 4px 7px;
+  padding: 3px 7px;
 }
 
 /* ——— Filter panel: grid-only (no search row) ——— */
@@ -7292,6 +7292,40 @@ select.ds-input {
   grid-template-columns: 1fr 1fr;
   gap: 5px 10px;
   margin-top: 8px;
+}
+
+.ds-activity-add-field--span2 {
+  grid-column: 1 / -1;
+}
+
+.ds-activity-add-date-rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.ds-add-date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ds-add-date-row > span {
+  font-size: 0.7rem;
+  min-width: 48px;
+  color: var(--ds-text-muted);
+}
+
+@media (max-width: 1100px) {
+  .sc-card-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .sc-card-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ds-activity-add-field {

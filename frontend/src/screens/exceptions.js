@@ -17,6 +17,7 @@ import {
   bindLocalFilters,
   splitVisibleRows
 } from './shared/activity-list-filters.js';
+import { getFilterOptionOverrides } from './shared/activity-options.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
 const EXCEPTION_FILTER_FIELDS = [
@@ -93,7 +94,8 @@ export const exceptionsScreen = {
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const toolbarHtml = filtersToolbarHtml(EXCEPTIONS_SCOPE, allRows, state, {
       filterFields: EXCEPTION_FILTER_FIELDS,
-      searchPlaceholder: 'חיפוש חריגות…'
+      searchPlaceholder: 'חיפוש חריגות…',
+      optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
     });
     const loadMoreHtml = hasMore
       ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${EXCEPTIONS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`

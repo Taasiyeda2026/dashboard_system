@@ -11,6 +11,7 @@ import {
   filtersToolbarHtml,
   bindLocalFilters
 } from './shared/activity-list-filters.js';
+import { getFilterOptionOverrides } from './shared/activity-options.js';
 
 const inflightActivityDetailRequests = new Map();
 const MONTH_SCOPE = 'calendar';
@@ -248,7 +249,8 @@ export const monthScreen = {
     prepareRowsForSearch(allItems, CALENDAR_SEARCH_FIELDS);
     const toolbarHtml = filtersToolbarHtml(MONTH_SCOPE, allItems, state, {
       filterFields: CALENDAR_FILTER_FIELDS,
-      searchPlaceholder: 'חיפוש פעילויות בלוח החודש…'
+      searchPlaceholder: 'חיפוש פעילויות בלוח החודש…',
+      optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
     });
     const byDay = cellMapFromCells(safeCells);
     const todayIso = localYmd();

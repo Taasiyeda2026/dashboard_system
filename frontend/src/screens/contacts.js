@@ -184,7 +184,7 @@ function renderAuthorityGroup(authority, schoolsMap) {
       <span class="sc-authority-icon" aria-hidden="true">🏛️</span>
       <span class="sc-authority-name">${escapeHtml(authority)}</span>
     </div>
-    <div class="sc-school-grid">${schoolsHtml}</div>
+    <div class="sc-school-stack">${schoolsHtml}</div>
   </div>`;
 }
 
