@@ -2825,6 +2825,9 @@ function buildMeetingsMap_() {
 }
 
 function setMeetings_(sourceRowId, meetings) {
+  sourceRowId = text_(sourceRowId);
+  if (!sourceRowId) return;
+
   var cleaned = (meetings || []).map(function(item, idx) {
     if (typeof item === 'string') {
       return {
@@ -3210,6 +3213,19 @@ function actionSyncFinance_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager']);
   scriptCacheInvalidateDataViews_();
   return { synced: true, timestamp: new Date().toISOString() };
+}
+
+/* ── Sync End Dates (admin-only manual full sync) ─────────────────────────── */
+function actionSyncEndDates_(user, payload) {
+  requireAnyRole_(user, ['admin']);
+  var result = syncLongDataEndDates_();
+  scriptCacheInvalidateDataViews_();
+  return {
+    synced: true,
+    updated: Number(result && result.updated) || 0,
+    error: text_(result && result.error),
+    timestamp: new Date().toISOString()
+  };
 }
 
 /* ── List Sheets — diagnostic for admin ─────────────────────────────────────── */
