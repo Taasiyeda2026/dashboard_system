@@ -440,14 +440,16 @@ export const activitiesScreen = {
       </div>
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="🔍" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
       <button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">🔄</button>
-      <span class="ds-activities-toolbar-sep"></span>
+    </div>`;
+
+    const titleNavRow = `<div class="ds-activities-title-row">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם">▶</button>
-      <span class="ds-cal-nav__label">${escapeHtml(heMonthLabel(state.activitiesMonthYm))}</span>
+      <h2 class="ds-activities-page-title">ניהול פעילויות לחודש ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} (${total} פעילויות)</h2>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא">◀</button>
     </div>`;
 
     const html = dsScreenStack(`<section class="ds-activities-screen">
-      <h2 class="ds-activities-page-title">ניהול פעילויות לחודש ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} (${total} פעילויות)</h2>
+      ${titleNavRow}
       ${mainToolbar}
       ${toolbarHtml}
       ${compactView

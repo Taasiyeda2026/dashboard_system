@@ -7210,6 +7210,22 @@ select.ds-input {
   }
 }
 
+/* ——— Activities title + month nav: one row ——— */
+.ds-activities-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ds-activities-title-row .ds-activities-page-title {
+  flex: 1 1 0;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ——— Activities main toolbar: one-row layout ——— */
 .ds-activities-main-toolbar {
   display: flex;
