@@ -5364,26 +5364,26 @@ select.ds-input {
 .ds-toolbar--filters-inline {
   flex-wrap: nowrap;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   overflow-x: auto;
 }
 
 .ds-filter-search-sm {
-  width: 110px;
-  min-width: 70px;
+  width: 70px;
+  min-width: 50px;
   flex: 0 0 auto;
 }
 
 .ds-filter-select-inline {
   width: auto;
-  min-width: 70px;
-  max-width: 120px;
+  min-width: 50px;
+  max-width: 80px;
   flex: 0 0 auto;
-  font-size: 0.73rem;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-inline-start: 5px;
-  padding-inline-end: 20px;
+  font-size: 0.68rem;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  padding-inline-start: 4px;
+  padding-inline-end: 16px;
 }
 
 .ds-filter-select-inline.is-active {
