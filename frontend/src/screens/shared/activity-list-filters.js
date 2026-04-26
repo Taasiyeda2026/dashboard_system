@@ -95,6 +95,18 @@ function selectHtml(scope, field, filters, optionsMap) {
   </label>`;
 }
 
+function selectInlineHtml(scope, field, filters, optionsMap) {
+  const selected = String(filters?.[field.key] || '');
+  const options = optionsMap?.[field.key] || [];
+  return `<select class="ds-input ds-input--sm ds-filter-select-inline${selected ? ' is-active' : ''}" data-filter-scope="${escapeHtml(scope)}" data-filter-field="${escapeHtml(field.key)}" title="${escapeHtml(field.label)}">
+    <option value="">${escapeHtml(field.label)}</option>
+    ${options.map((value) => {
+      const label = typeof field.getOptionLabel === 'function' ? field.getOptionLabel(value) : value;
+      return `<option value="${escapeHtml(value)}"${value === selected ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+    }).join('')}
+  </select>`;
+}
+
 export function filtersToolbarHtml(scope, rows, state, config = {}) {
   const filters = ensureActivityListFilters(state, scope);
   const filterFields = Array.isArray(config.filterFields) ? config.filterFields : [];
@@ -116,10 +128,10 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
     </section>`;
   }
 
-  return `<div class="ds-toolbar" dir="rtl" data-local-filters="${escapeHtml(scope)}">
-    ${showSearch ? `<input type="search" class="ds-input" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="${escapeHtml(searchPlaceholder)}" />` : ''}
-    ${filterFields.map((field) => selectHtml(scope, field, filters, optionsMap)).join('')}
-    <button type="button" class="ds-btn ds-btn--sm" data-filter-clear="${escapeHtml(scope)}">ניקוי סינונים</button>
+  return `<div class="ds-toolbar ds-toolbar--filters-inline" dir="rtl" data-local-filters="${escapeHtml(scope)}">
+    ${showSearch ? `<input type="search" class="ds-input ds-input--sm ds-filter-search-sm" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="${escapeHtml(searchPlaceholder)}" />` : ''}
+    ${filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-filter-clear="${escapeHtml(scope)}">ניקוי</button>
   </div>`;
 }
 
