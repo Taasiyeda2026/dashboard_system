@@ -689,8 +689,8 @@ function mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today) {
       return !!v && arr.indexOf(v) === i;
     }).sort());
   var dateRange = meetingDateRangeFromList_(meetingDates);
-  var computedStartDate = dateRange.start || normalizeDateTextToIso_(row.Date1);
-  var computedEndDate = dateRange.end || '';
+  var computedStartDate = dateRange.start || normalizeDateTextToIso_(row.Date1) || normalizeDateTextToIso_(row.start_date);
+  var computedEndDate = dateRange.end || normalizeDateTextToIso_(row.end_date) || computedStartDate;
   return {
     RowID: row.RowID,
     source_sheet: row.source_sheet,
