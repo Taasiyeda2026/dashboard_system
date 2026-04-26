@@ -406,13 +406,15 @@ export const activitiesScreen = {
         : `<div class="ds-compact-list">${compactRows}</div>${loadMoreHtml}`;
 
     const mainToolbar = `<div class="ds-activities-main-toolbar">
-      ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">➕</button>` : ''}
+      <div class="ds-activities-main-toolbar__actions">
+        ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost ds-btn--activities-action" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">➕</button>` : ''}
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost ds-btn--activities-action" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">🔄</button>
+      </div>
       <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
         <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${forceCompact ? 'disabled title="במסך צר מוצגות תיבות קומפקטיות"' : ''} aria-label="טבלה" title="טבלה">☰</button>
         <button type="button" class="ds-view-toggle__btn ${compactView ? 'is-active' : ''}" data-activity-view="compact" aria-label="תיבות" title="תיבות">⊞</button>
       </div>
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="🔍" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">🔄</button>
     </div>`;
 
     const titleNavRow = `<div class="ds-activities-title-row">
