@@ -241,9 +241,9 @@ export const weekScreen = {
 
     const html = dsScreenStack(`
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">שבוע קודם ▶</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-prev aria-label="שבוע קודם">▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
-        <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">◀ שבוע הבא</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-next aria-label="שבוע הבא">◀</button>
       </nav>
       ${toolbarHtml}
       <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>

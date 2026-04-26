@@ -123,7 +123,7 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
     return `<section class="ds-filter-panel" dir="rtl" data-local-filters="${escapeHtml(scope)}">
       ${searchRow}
       <div class="ds-filter-panel__grid">
-        ${filterFields.map((field) => selectHtml(scope, field, filters, optionsMap)).join('')}
+        ${filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
       </div>
     </section>`;
   }

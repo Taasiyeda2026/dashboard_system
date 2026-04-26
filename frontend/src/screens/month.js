@@ -319,9 +319,9 @@ export const monthScreen = {
 
     const html = dsScreenStack(`
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">חודש קודם ▶</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-prev aria-label="חודש קודם">▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
-        <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">◀ חודש הבא</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-next aria-label="חודש הבא">◀</button>
       </nav>
       ${toolbarHtml}
       ${dsCard({

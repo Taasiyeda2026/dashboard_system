@@ -434,9 +434,9 @@ export const activitiesScreen = {
       <h2 class="ds-activities-page-title">ניהול פעילויות לחודש ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} (${total} פעילויות)</h2>
       <section class="ds-activities-top-panel">
       ${dsToolbar(`
-        <button type="button" class="ds-btn ds-btn--sm" data-activities-month-prev aria-label="חודש קודם">חודש קודם ▶</button>
-        <span class="ds-cal-nav__label">${escapeHtml(monthLabel(state.activitiesMonthYm))}</span>
-        <button type="button" class="ds-btn ds-btn--sm" data-activities-month-next aria-label="חודש הבא">◀ חודש הבא</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם">▶</button>
+        <span class="ds-cal-nav__label">${escapeHtml(heMonthLabel(state.activitiesMonthYm))}</span>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא">◀</button>
         <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
           <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${
             forceCompact ? 'disabled title="במסך צר מוצגות תיבות קומפקטיות"' : ''
