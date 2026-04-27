@@ -127,42 +127,7 @@ function primaryExceptionForRow_(row) {
 }
 
 function normalizeDateTextToIso_(value) {
-  if (isNormalizedEmptyValue_(value)) return '';
-  if (Object.prototype.toString.call(value) === '[object Number]' && !isNaN(value)) {
-    var serialDate = new Date(1899, 11, 30);
-    serialDate.setDate(serialDate.getDate() + Number(value));
-    return isNaN(serialDate.getTime()) ? '' : formatDate_(serialDate);
-  }
-  var t = text_(value);
-  if (!t) return '';
-  t = t.replace(/[T\s]\d{1,2}:\d{2}(:\d{2})?.*$/, '');
-  if (isValidIsoDateString_(t)) return t;
-  var ymd = /^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/.exec(t);
-  if (ymd) {
-    var yy = ymd[1];
-    var mmo = ('0' + parseInt(ymd[2], 10)).slice(-2);
-    var dd = ('0' + parseInt(ymd[3], 10)).slice(-2);
-    var ymdIso = yy + '-' + mmo + '-' + dd;
-    if (isValidIsoDateString_(ymdIso)) return ymdIso;
-  }
-  var m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/.exec(t);
-  if (m) {
-    var d = ('0' + parseInt(m[1], 10)).slice(-2);
-    var mo = ('0' + parseInt(m[2], 10)).slice(-2);
-    var y = m[3];
-    var iso = y + '-' + mo + '-' + d;
-    if (isValidIsoDateString_(iso)) return iso;
-  }
-  var dmy2 = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2})$/.exec(t);
-  if (dmy2) {
-    var d2 = ('0' + parseInt(dmy2[1], 10)).slice(-2);
-    var mo2 = ('0' + parseInt(dmy2[2], 10)).slice(-2);
-    var yy2 = parseInt(dmy2[3], 10);
-    var y2 = String(yy2 >= 70 ? 1900 + yy2 : 2000 + yy2);
-    var iso2 = y2 + '-' + mo2 + '-' + d2;
-    if (isValidIsoDateString_(iso2)) return iso2;
-  }
-  return '';
+  return normalizeDateToIsoFlexible_(value);
 }
 
 function resolveMappedTimeField_(row, aliases) {
@@ -171,7 +136,7 @@ function resolveMappedTimeField_(row, aliases) {
     var key = aliases[i];
     if (!Object.prototype.hasOwnProperty.call(src, key)) continue;
     if (isNormalizedEmptyValue_(src[key])) continue;
-    return text_(src[key]);
+    return normalizeTimeToTextFlexible_(src[key]);
   }
   return '';
 }
@@ -1069,7 +1034,7 @@ function actionMonth_(user, payload) {
       'activity_no', 'private_note'
     ];
     viewRows = readRowsProjected_(CONFIG.SHEETS.VIEW_ACTIVITY_MEETINGS, projected).filter(function(row) {
-      return text_(row.month_ym) === targetYm;
+      return normalizeMonthYmFlexible_(row.month_ym) === targetYm;
     });
     if (user.display_role === 'instructor') {
       var empId = text_(user.emp_id || user.user_id);
