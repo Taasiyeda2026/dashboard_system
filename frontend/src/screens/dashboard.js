@@ -52,6 +52,13 @@ function getStrictNumericField(obj, fieldName) {
   return { ok: true, value: asNumber, fieldName };
 }
 
+function pickNumericFallback(obj, fieldName, fallbackValue = 0) {
+  const strict = getStrictNumericField(obj, fieldName);
+  if (strict.ok) return strict.value;
+  const fromFallback = Number(fallbackValue);
+  return Number.isFinite(fromFallback) ? fromFallback : 0;
+}
+
 const MANAGER_DISPLAY_NAMES = {
   'גיל נאמן':               'מחוז צפון',
   'לינוי שמואל מזרחי':      'מחוז דרום',
@@ -67,7 +74,11 @@ function renderStructuredSummary(summary, ym, byManager) {
   const missingInstrField = getStrictNumericField(summary, 'missing_instructor_count');
   const missingDateField = getStrictNumericField(summary, 'missing_start_date_count');
   const lateEndField = getStrictNumericField(summary, 'late_end_date_count');
+  const exceptionsFromParts = pickNumericFallback(summary, 'missing_instructor_count')
+    + pickNumericFallback(summary, 'missing_start_date_count')
+    + pickNumericFallback(summary, 'late_end_date_count');
   const exceptionsTotalField = getStrictNumericField(summary, 'exceptions_count');
+  const exceptionsTotalResolved = exceptionsTotalField.ok ? exceptionsTotalField.value : exceptionsFromParts;
 
   const activeCurrent = escapeHtml(String(activeCurrentField.ok ? activeCurrentField.value : 'שגיאת מיפוי'));
   const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 'שגיאת מיפוי'));
@@ -75,7 +86,7 @@ function renderStructuredSummary(summary, ym, byManager) {
   const missingInstr = escapeHtml(String(missingInstrField.ok ? missingInstrField.value : 'שגיאת מיפוי'));
   const missingDate = escapeHtml(String(missingDateField.ok ? missingDateField.value : 'שגיאת מיפוי'));
   const lateEnd = escapeHtml(String(lateEndField.ok ? lateEndField.value : 'שגיאת מיפוי'));
-  const exceptionsTotal = escapeHtml(String(exceptionsTotalField.ok ? exceptionsTotalField.value : 'שגיאת מיפוי'));
+  const exceptionsTotal = escapeHtml(String(exceptionsTotalResolved));
 
   const mappingErrors = [
     activeCurrentField,
@@ -83,8 +94,7 @@ function renderStructuredSummary(summary, ym, byManager) {
     activeNextField,
     missingInstrField,
     missingDateField,
-    lateEndField,
-    exceptionsTotalField
+    lateEndField
   ].filter((field) => !field.ok);
 
   const districtRows = (Array.isArray(byManager) ? byManager : []).filter(
@@ -218,10 +228,11 @@ export const dashboardScreen = {
           .join('')
       : '<p class="ds-muted">אין כרטיסי KPI להצגה.</p>';
 
-    const monthNav = `<div class="ds-dash-month-nav" dir="rtl" aria-label="בחירת חודש לתצוגה">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם">▶</button>
-      <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}</span>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא">◀</button>
+    const navLoading = !!state?.dashboardNavLoading;
+    const monthNav = `<div class="ds-dash-month-nav${navLoading ? ' is-nav-loading' : ''}" dir="rtl" aria-label="בחירת חודש לתצוגה">
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
+      <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))} ${navLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא" title="חודש הבא" ${navLoading ? 'disabled' : ''}>◀</button>
     </div>`;
 
     return dsScreenStack(`
@@ -317,25 +328,32 @@ export const dashboardScreen = {
     }
 
     const applyYm = async (nextYm) => {
+      if (state.dashboardNavLoading) return;
+      const startedAt = Date.now();
+      state.dashboardNavLoading = true;
       state.dashboardMonthYm = nextYm;
       const cacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(nextYm) ? nextYm : 'default'}`;
 
       const cached = state.screenDataCache[cacheKey];
       if (cached?.data && Date.now() - cached.t < DASHBOARD_TTL_MS) {
         rerender();
-        return;
+      } else {
+        showDataAreaLoading();
+        let snapshotLoaded = false;
+        try {
+          const snapshotData = await api.dashboardSnapshot({ month: nextYm });
+          putDashboardCache(cacheKey, snapshotData);
+          snapshotLoaded = true;
+        } catch (_err) {
+          if (!snapshotLoaded) clearScreenDataCache?.();
+        }
+        rerender();
       }
-
-      showDataAreaLoading();
-      let snapshotLoaded = false;
-      try {
-        const snapshotData = await api.dashboardSnapshot({ month: nextYm });
-        putDashboardCache(cacheKey, snapshotData);
-        snapshotLoaded = true;
-      } catch (_err) {
-        if (!snapshotLoaded) clearScreenDataCache?.();
-      }
-      rerender();
+      const minMs = 420;
+      setTimeout(() => {
+        state.dashboardNavLoading = false;
+        rerender();
+      }, Math.max(0, minMs - (Date.now() - startedAt)));
     };
 
     root.querySelector('[data-dash-month-prev]')?.addEventListener('click', () => {

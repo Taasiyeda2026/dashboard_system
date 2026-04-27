@@ -319,11 +319,12 @@ export const monthScreen = {
     const currentYm = data?.month || `${y}-${String(mo).padStart(2, '0')}`;
     const monthTitle = monthTitleHebrew(spec);
 
+    const navLoading = !!state.monthNavLoading;
     const html = dsScreenStack(`
-      <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-prev aria-label="חודש קודם">▶</button>
-        <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-next aria-label="חודש הבא">◀</button>
+      <nav class="ds-cal-nav${navLoading ? ' is-nav-loading' : ''}" role="navigation" aria-label="ניווט חודשי" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
+        <span class="ds-cal-nav__label">${escapeHtml(monthTitle)} ${navLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-next aria-label="חודש הבא" title="חודש הבא" ${navLoading ? 'disabled' : ''}>◀</button>
       </nav>
       ${toolbarHtml}
       ${dsCard({
@@ -430,27 +431,29 @@ export const monthScreen = {
     };
     const prevBtn = root.querySelector('[data-month-prev]');
     const nextBtn = root.querySelector('[data-month-next]');
-    const setMonthAreaLoading = (isLoading) => {
-      root.classList.toggle('is-month-loading', !!isLoading);
-      root.setAttribute('aria-busy', isLoading ? 'true' : 'false');
-      if (prevBtn) prevBtn.disabled = !!isLoading;
-      if (nextBtn) nextBtn.disabled = !!isLoading;
-    };
     const doMonthShift = (delta) => {
+      if (state.monthNavLoading) return;
       const targetYm = shiftMonthYm(resolveBaseYm(), delta);
       const targetKey = monthCacheKey(targetYm);
       const hasCachedTarget = !!state?.screenDataCache?.[targetKey];
+      const startedAt = Date.now();
 
       state.monthYm = targetYm;
+      state.monthNavLoading = true;
       try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
 
       if (hasCachedTarget) {
         rerender?.();
-        return;
+      } else {
+        root.classList.add('is-month-loading');
+        root.setAttribute('aria-busy', 'true');
+        rerender?.();
       }
-
-      setMonthAreaLoading(true);
-      rerender?.();
+      const minMs = 420;
+      setTimeout(() => {
+        state.monthNavLoading = false;
+        rerender?.();
+      }, Math.max(0, minMs - (Date.now() - startedAt)));
     };
     prevBtn?.addEventListener('click', () => { doMonthShift(-1); });
     nextBtn?.addEventListener('click', () => { doMonthShift(1); });

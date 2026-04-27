@@ -378,19 +378,23 @@ export const activitiesScreen = {
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
 
+    const isNavLoading = !!state.activitiesNavLoading;
+    const navLoadingChip = isNavLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : '';
     const mainToolbar = `<div class="ds-activities-main-toolbar">
-      <div class="ds-activities-main-toolbar__actions">
-        ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost ds-btn--activities-action" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">➕</button>` : ''}
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost ds-btn--activities-action" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">🔄</button>
+      <div class="ds-activities-main-toolbar__search-wrap">
+        <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
       </div>
-      <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="🔍" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
+      <div class="ds-activities-main-toolbar__actions">
+        ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--activities-action" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">הוספה</button>` : ''}
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--activities-action" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">ניקוי</button>
+      </div>
     </div>`;
 
-    const titleNavRow = `<div class="ds-activities-title-row">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם">▶</button>
-      <h2 class="ds-activities-page-title">ניהול פעילויות לחודש ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} (${total} פעילויות)</h2>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא">◀</button>
-    </div>`;
+    const titleNavRow = `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם" title="חודש קודם" ${isNavLoading ? 'disabled' : ''}>▶</button>
+      <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${total} פעילויות ${navLoadingChip}</h2>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא" title="חודש הבא" ${isNavLoading ? 'disabled' : ''}>◀</button>
+    </nav>`;
 
     const html = dsScreenStack(`<section class="ds-activities-screen">
       ${titleNavRow}
@@ -403,7 +407,8 @@ export const activitiesScreen = {
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
 
-    const filteredRows      = applyActivitiesLocalFilters(Array.isArray(data?.rows) ? data.rows : [], state, state?.clientSettings);
+    const activitiesRows = Array.isArray(data?.rows) ? data.rows : [];
+    const filteredRows      = applyActivitiesLocalFilters(activitiesRows, state, state?.clientSettings);
     const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
     const canEditActivity   = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -411,8 +416,54 @@ export const activitiesScreen = {
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canAddActivity = !!state?.user?.can_add_activity;
 
+    const rerenderLocal = () => {
+      if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
+      else rerender();
+    };
+
+    const upsertLocalRow = (rowId, patch) => {
+      const hit = activitiesRows.find((row) => String(row?.RowID || '') === String(rowId || ''));
+      if (!hit) return false;
+      Object.assign(hit, patch || {});
+      return true;
+    };
+    const patchLocalRowFromSave = ({ sourceRowId, changes }) => {
+      if (!upsertLocalRow(sourceRowId, changes || {})) return;
+      const summaryHit = filteredRows.find((row) => String(row?.RowID || '') === String(sourceRowId || ''));
+      if (summaryHit) Object.assign(summaryHit, changes || {});
+    };
+    const scheduleQuietRefresh = async () => {
+      try {
+        const fresh = await api.activities({ activity_type: 'all' });
+        const freshRows = Array.isArray(fresh?.rows) ? fresh.rows : [];
+        activitiesRows.splice(0, activitiesRows.length, ...freshRows);
+        state.screenDataCache['activities:all'] = { data: { ...fresh, rows: activitiesRows }, t: Date.now() };
+      } catch {
+        // keep local optimistic view on failure
+      }
+    };
+
     const bindActivityEditForm = (contentRoot) =>
-      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
+      bindActivityEditFormShared(contentRoot, {
+        api,
+        ui,
+        clearScreenDataCache,
+        rerender,
+        onRowSaved: ({ sourceSheet, sourceRowId, changes }) => {
+          patchLocalRowFromSave({ sourceRowId, changes });
+          const key = `activityDetail:${sourceSheet || ''}:${sourceRowId || ''}`;
+          const entry = state?.screenDataCache?.[key];
+          if (entry?.data && typeof entry.data === 'object') Object.assign(entry.data, changes || {});
+        },
+        onSaveSuccess: async ({ sourceRowId }) => {
+          rerenderLocal();
+          void scheduleQuietRefresh();
+          const rowNode = Array.from(root.querySelectorAll('.ds-data-row'))
+            .find((node) => String(node?.dataset?.rowId || '') === String(sourceRowId || ''));
+          rowNode?.classList.add('is-just-saved');
+          setTimeout(() => rowNode?.classList.remove('is-just-saved'), 1200);
+        }
+      });
 
     async function loadDetailRow(summaryRow) {
       const key = activityDetailCacheKey(summaryRow);
@@ -486,19 +537,21 @@ export const activitiesScreen = {
       } catch {}
     }
 
-    const rerenderLocal = () => {
-      if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
-      else rerender();
-    };
     bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 280 });
-    root.querySelector('[data-activities-month-prev]')?.addEventListener('click', () => {
-      state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), -1);
+    const runMonthShift = (delta) => {
+      if (state.activitiesNavLoading) return;
+      const startedAt = Date.now();
+      state.activitiesNavLoading = true;
+      state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), delta);
       rerenderLocal();
-    });
-    root.querySelector('[data-activities-month-next]')?.addEventListener('click', () => {
-      state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), 1);
-      rerenderLocal();
-    });
+      const minMs = 420;
+      setTimeout(() => {
+        state.activitiesNavLoading = false;
+        rerenderLocal();
+      }, Math.max(0, minMs - (Date.now() - startedAt)));
+    };
+    root.querySelector('[data-activities-month-prev]')?.addEventListener('click', () => runMonthShift(-1));
+    root.querySelector('[data-activities-month-next]')?.addEventListener('click', () => runMonthShift(1));
     root.querySelector(`[data-list-show-more="${ACTIVITIES_SCOPE}"]`)?.addEventListener('click', (ev) => {
       const next = Number(ev.currentTarget?.dataset?.nextCount || 200);
       ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = next;
@@ -665,11 +718,30 @@ export const activitiesScreen = {
       try {
         submit.disabled = true;
         if (statusEl) statusEl.textContent = 'שומר...';
-        await api.addActivity(payload);
+        const rsp = await api.addActivity(payload);
         if (statusEl) statusEl.textContent = 'נשמר בהצלחה';
-        clearScreenDataCache?.();
+        const localRow = {
+          RowID: rsp?.RowID || '',
+          source_sheet: rsp?.source_sheet || (payload.source === 'long' ? 'data_long' : 'data_short'),
+          activity_manager: payload.activity_manager,
+          authority: payload.authority,
+          school: payload.school,
+          activity_type: payload.activity_type,
+          activity_name: payload.activity_name,
+          instructor_name: payload.instructor_name,
+          instructor_name_2: payload.instructor_name_2,
+          emp_id: payload.emp_id,
+          emp_id_2: payload.emp_id_2,
+          start_date: payload.start_date,
+          end_date: payload.Date2 || payload.start_date,
+          status: 'פעיל',
+          private_note: '',
+          meeting_dates: dateInputs.map((input) => String(input.value || '').trim()).filter(Boolean)
+        };
+        if (localRow.RowID) activitiesRows.unshift(localRow);
+        rerenderLocal();
         ui?.closeModal?.();
-        rerender?.();
+        void scheduleQuietRefresh();
       } catch (err) {
         if (statusEl) statusEl.textContent = `שגיאה: ${String(err?.message || '')}`;
       } finally {
