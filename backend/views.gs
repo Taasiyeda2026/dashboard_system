@@ -327,6 +327,44 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
   });
 }
 
+function buildMonthPayloadMapFromMeetingViewRows_(meetingsViewRows) {
+  var grouped = {};
+  (meetingsViewRows || []).forEach(function(row) {
+    var ym = normalizeMonthYmFlexible_(row.month_ym);
+    if (!ym) return;
+    if (!grouped[ym]) grouped[ym] = [];
+    grouped[ym].push(row);
+  });
+  var payloadByMonth = {};
+  Object.keys(grouped).forEach(function(ym) {
+    var parts = ym.split('-');
+    var year = parseInt(parts[0], 10);
+    var month = parseInt(parts[1], 10) - 1;
+    if (isNaN(year) || isNaN(month)) return;
+    payloadByMonth[ym] = buildMonthResponseFromMeetingViewRows_(grouped[ym], year, month);
+  });
+  return payloadByMonth;
+}
+
+function warmMonthPayloadCacheFromMeetingRows_(meetingsViewRows) {
+  var payloadByMonth = buildMonthPayloadMapFromMeetingViewRows_(meetingsViewRows);
+  var months = Object.keys(payloadByMonth);
+  var cachedCount = 0;
+  var skippedCount = 0;
+  months.forEach(function(ym) {
+    var key = monthPayloadCacheKey_(ym);
+    if (!key) return;
+    var writeRes = scriptCachePutJson_(key, payloadByMonth[ym], 21600);
+    if (writeRes && writeRes.ok) cachedCount += 1;
+    else skippedCount += 1;
+  });
+  return {
+    months_total: months.length,
+    months_cached: cachedCount,
+    months_skipped: skippedCount
+  };
+}
+
 function refreshDataViews_() {
   markRequestPerf_('refreshDataViews:read:start');
   var readStartMs = perfNowMs_();
@@ -351,6 +389,7 @@ function refreshDataViews_() {
   writeRowsToViewSheet_(CONFIG.SHEETS.VIEW_ACTIVITIES_SUMMARY, activitiesSummaryRows);
   writeRowsToViewSheet_(CONFIG.SHEETS.VIEW_DASHBOARD_MONTHLY, dashboardMonthlyRows);
   bumpDataViewsCacheVersion_();
+  var monthPayloadCache = warmMonthPayloadCacheFromMeetingRows_(meetingsViewRows);
   markRequestPerf_('refreshDataViews:write:end');
 
   return {
@@ -362,6 +401,7 @@ function refreshDataViews_() {
       view_activities_summary: activitiesSummaryRows.length,
       view_dashboard_monthly: dashboardMonthlyRows.length
     },
+    month_payload_cache: monthPayloadCache,
     used_view: false,
     fallback_used: false
   };
