@@ -281,7 +281,8 @@ function beginRequestPerf_(action, payload) {
     started_ms: perfNowMs_(),
     marks: [{ label: 'request_start', at_ms: perfNowMs_() }],
     sheet_reads: [],
-    sheets_total_ms: 0
+    sheets_total_ms: 0,
+    custom: {}
   };
 }
 
@@ -304,6 +305,13 @@ function trackSheetReadPerf_(meta) {
   __rqPerf_.sheets_total_ms += item.duration_ms;
 }
 
+function setRequestPerfField_(key, value) {
+  if (!__rqPerf_ || !__rqPerf_.enabled) return;
+  var fieldKey = text_(key);
+  if (!fieldKey) return;
+  __rqPerf_.custom[fieldKey] = value;
+}
+
 function buildPerfPayload_(responsePayload, meta) {
   if (!__rqPerf_ || !__rqPerf_.enabled) return null;
   var endMs = perfNowMs_();
@@ -317,7 +325,7 @@ function buildPerfPayload_(responsePayload, meta) {
     });
   }
   var responseSize = JSON.stringify(responsePayload || {}).length;
-  return {
+  var perfPayload = {
     action: text_((meta && meta.action) || __rqPerf_.action),
     cache_hit: !!(meta && meta.cache_hit),
     errored: !!(meta && meta.errored),
@@ -327,6 +335,10 @@ function buildPerfPayload_(responsePayload, meta) {
     steps: stepDurations,
     response_size_bytes: responseSize
   };
+  Object.keys(__rqPerf_.custom || {}).forEach(function(key) {
+    perfPayload[key] = __rqPerf_.custom[key];
+  });
+  return perfPayload;
 }
 
 function jsonResponse_(payload, perfMeta) {
