@@ -976,6 +976,10 @@ export const financeScreen = {
   },
 
   bind({ root, data, ui, api, state, rerender, clearScreenDataCache = () => {} }) {
+    if (root._financeBindAbort) root._financeBindAbort.abort();
+    root._financeBindAbort = new AbortController();
+    const bindOpts = { signal: root._financeBindAbort.signal };
+
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const canEdit = ['admin', 'operation_manager'].includes(state?.user?.display_role);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -996,7 +1000,7 @@ export const financeScreen = {
         state.financeTab = btn.dataset.financeTab || 'active';
         save(LS.tab, state.financeTab);
         rerender();
-      });
+      }, bindOpts);
     });
 
     /* Month nav */
@@ -1004,22 +1008,22 @@ export const financeScreen = {
       state.financeMonthYm = prevMonth(state.financeMonthYm);
       save(LS.monthYm, state.financeMonthYm);
       rerender();
-    });
+    }, bindOpts);
     root.querySelector('[data-month-next]')?.addEventListener('click', () => {
       state.financeMonthYm = nextMonth(state.financeMonthYm);
       save(LS.monthYm, state.financeMonthYm);
       rerender();
-    });
+    }, bindOpts);
     root.querySelector('[data-month-today]')?.addEventListener('click', () => {
       state.financeMonthYm = currentYm();
       save(LS.monthYm, state.financeMonthYm);
       rerender();
-    });
+    }, bindOpts);
     root.querySelector('[data-month-clear]')?.addEventListener('click', () => {
       state.financeMonthYm = '';
       save(LS.monthYm, '');
       rerender();
-    });
+    }, bindOpts);
 
     /* View toggle */
     root.querySelectorAll('[data-view-mode]').forEach((btn) => {
@@ -1027,7 +1031,7 @@ export const financeScreen = {
         state.financeViewMode = btn.dataset.viewMode;
         save(LS.viewMode, state.financeViewMode);
         rerender();
-      });
+      }, bindOpts);
     });
 
     /* Finance group cards — expand / collapse */
@@ -1041,7 +1045,7 @@ export const financeScreen = {
         const isOpen = !body.hidden;
         body.hidden = isOpen;
         card.classList.toggle('is-open', !isOpen);
-      });
+      }, bindOpts);
     });
 
     /* Finance group activity inline edit toggle */
@@ -1052,15 +1056,20 @@ export const financeScreen = {
         const editPanel = root.querySelector(`[data-fg-edit="${uid}"]`);
         if (!editPanel) return;
         editPanel.style.display = editPanel.style.display === 'none' ? '' : 'none';
-      });
+      }, bindOpts);
     });
 
     /* Search */
+    let financeSearchDebounce = null;
     root.querySelector('#finance-search')?.addEventListener('input', (ev) => {
-      state.financeSearch = ev.target.value || '';
-      save(LS.search, state.financeSearch);
-      rerender();
-    });
+      clearTimeout(financeSearchDebounce);
+      const nextValue = ev.target.value || '';
+      financeSearchDebounce = setTimeout(() => {
+        state.financeSearch = nextValue;
+        save(LS.search, state.financeSearch);
+        rerender();
+      }, 180);
+    }, bindOpts);
 
     /* Status filter chips */
     root.querySelectorAll('[data-status-filter]').forEach((btn) => {
@@ -1068,7 +1077,7 @@ export const financeScreen = {
         state.financeStatusFilter = btn.dataset.statusFilter || '';
         save(LS.statusFilter, state.financeStatusFilter);
         rerender();
-      });
+      }, bindOpts);
     });
 
     /* Date filters */
@@ -1080,7 +1089,7 @@ export const financeScreen = {
       showDataAreaLoading();
       clearScreenDataCache();
       rerender();
-    });
+    }, bindOpts);
     root.querySelector('#finance-date-to')?.addEventListener('change', (ev) => {
       state.financeDateTo = ev.target.value || '';
       state.financeMonthYm = '';
@@ -1089,7 +1098,7 @@ export const financeScreen = {
       showDataAreaLoading();
       clearScreenDataCache();
       rerender();
-    });
+    }, bindOpts);
     root.querySelector('[data-clear-dates]')?.addEventListener('click', () => {
       state.financeDateFrom = '';
       state.financeDateTo = '';
@@ -1098,7 +1107,7 @@ export const financeScreen = {
       showDataAreaLoading();
       clearScreenDataCache();
       rerender();
-    });
+    }, bindOpts);
     root.querySelector('[data-reset-filters]')?.addEventListener('click', () => {
       const hadDates = !!(state.financeDateFrom || state.financeDateTo);
       state.financeDateFrom = '';
@@ -1114,7 +1123,7 @@ export const financeScreen = {
         clearScreenDataCache();
       }
       rerender();
-    });
+    }, bindOpts);
 
     /* Table sort (price / sessions column headers) */
     root.querySelectorAll('[data-table-sort-col]').forEach((th) => {
@@ -1129,7 +1138,7 @@ export const financeScreen = {
         localStorage.setItem(LS.tableSortCol, state.financeTableSortCol);
         localStorage.setItem(LS.tableSortDir, state.financeTableSortDir);
         rerender();
-      });
+      }, bindOpts);
     });
 
     /* Manager sort — persist chosen column + direction to localStorage */
@@ -1145,7 +1154,7 @@ export const financeScreen = {
         localStorage.setItem(LS.mgrSortCol, state.managerBreakdownSortCol);
         localStorage.setItem(LS.mgrSortDir, state.managerBreakdownSortDir);
         rerender();
-      });
+      }, bindOpts);
     });
 
     /* CSV export */
@@ -1197,7 +1206,7 @@ export const financeScreen = {
       const filterLabel = filterParts.join(' · ');
 
       exportToExcel(rows, exportLabel, periodLabel, filterLabel);
-    });
+    }, bindOpts);
 
     /* Manual refresh button — fetches fresh data, updates cache, rerenders without clearing old view */
     root.querySelector('[data-finance-refresh]')?.addEventListener('click', async () => {
@@ -1230,7 +1239,7 @@ export const financeScreen = {
         showToast(translateApiErrorForUser(err?.message), 'error');
         if (btn) { btn.disabled = false; btn.textContent = '↻ רענון נתונים'; }
       }
-    });
+    }, bindOpts);
 
     /* Sync button (admin/reviewer only — invalidates server cache and rerenders) */
     root.querySelector('[data-sync-finance]')?.addEventListener('click', async () => {
@@ -1247,7 +1256,7 @@ export const financeScreen = {
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = '↻ סנכרון'; }
       }
-    });
+    }, bindOpts);
 
     /* Dates-panel toggle */
     root.querySelectorAll('[data-dates-toggle]').forEach((btn) => {
@@ -1259,7 +1268,7 @@ export const financeScreen = {
         const isOpen = datesRow.style.display !== 'none';
         datesRow.style.display = isOpen ? 'none' : '';
         btn.textContent = isOpen ? 'תאריכים ▾' : 'תאריכים ▴';
-      });
+      }, bindOpts);
     });
 
     /* Per-row CSV export */
@@ -1269,7 +1278,7 @@ export const financeScreen = {
         const uid = btn.dataset.exportRow;
         const hit = allRows.find((r) => String(r.RowID) === String(uid));
         if (hit) exportToExcel([hit], String(hit.activity_name || hit.RowID).slice(0, 20));
-      });
+      }, bindOpts);
     });
 
     /* Inline save */
@@ -1310,7 +1319,7 @@ export const financeScreen = {
         } finally {
           btn.disabled = false;
         }
-      });
+      }, bindOpts);
     });
 
     /* Row click → drawer */
@@ -1375,10 +1384,10 @@ export const financeScreen = {
         const rowId = rowNode.dataset.rowId;
         const hit = allRows.find((r) => String(r.RowID) === String(rowId));
         openDrawer(hit).catch(() => {});
-      });
+      }, bindOpts);
       rowNode.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); rowNode.click(); }
-      });
+      }, bindOpts);
     });
 
     /* Finance groups layout — activity row click → drawer */
@@ -1388,7 +1397,7 @@ export const financeScreen = {
         const rowId = actRow.dataset.rowId;
         const hit = allRows.find((r) => String(r.RowID) === String(rowId));
         openDrawer(hit).catch(() => {});
-      });
+      }, bindOpts);
     });
 
     /* Finance card view — click header area to open drawer */
@@ -1398,7 +1407,7 @@ export const financeScreen = {
         const rowId = card.dataset.rowId;
         const hit = allRows.find((r) => String(r.RowID) === String(rowId));
         openDrawer(hit).catch(() => {});
-      });
+      }, bindOpts);
     });
 
     ui?.bindInteractiveCards(root, (action) => {

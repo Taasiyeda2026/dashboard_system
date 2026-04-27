@@ -31,6 +31,10 @@ export function bindPageListTools(root, opts = {}) {
   const q = root.querySelector('[data-page-q]');
   const f = root.querySelector('[data-page-f]');
   if (!q && !f) return;
+  if (root._pageListToolsAbort) root._pageListToolsAbort.abort();
+  root._pageListToolsAbort = new AbortController();
+  const listenerOptions = { signal: root._pageListToolsAbort.signal };
+  let debounceTimer = null;
   const apply = () => {
     const qv = (q?.value || '').trim().toLowerCase();
     const fv = (f?.value || '').trim();
@@ -47,6 +51,10 @@ export function bindPageListTools(root, opts = {}) {
       }
     });
   };
-  q?.addEventListener('input', apply);
-  f?.addEventListener('change', apply);
+  const applyDebounced = () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(apply, 120);
+  };
+  q?.addEventListener('input', applyDebounced, listenerOptions);
+  f?.addEventListener('change', apply, listenerOptions);
 }

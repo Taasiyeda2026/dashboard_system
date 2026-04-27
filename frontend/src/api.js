@@ -61,6 +61,14 @@ const READ_ACTIONS = {
 const API_TIMEOUT_MS_READ = 20000;
 const API_TIMEOUT_MS_WRITE = 30000;
 const PERF_MAX_REQUESTS = 150;
+const RETRYABLE_SERVER_ERRORS = new Set([
+  'network_error',
+  'server_error',
+  'service_unavailable',
+  'timeout',
+  'temporarily_unavailable',
+  'internal_error'
+]);
 
 function invalidateScreenDataByAction(action) {
   const targetedMutations = {
@@ -119,10 +127,6 @@ function pushPerfRequest(entry) {
   stats.total_ms += entry.duration_ms || 0;
   stats.max_ms = Math.max(stats.max_ms, entry.duration_ms || 0);
   store.screens[entry.action] = stats;
-  if (entry.duration_ms >= 1500 || (entry.payload_bytes || 0) >= 200000) {
-    // eslint-disable-next-line no-console
-    console.warn('[perf][api] heavy request', entry);
-  }
 }
 
 function sleep(ms) {
@@ -180,12 +184,14 @@ async function request(action, payload = {}) {
 
   const requestStart = performance.now();
   let response;
+  let firstResponseStatus = 0;
   try {
     response = await postWithTimeout(action, requestBody);
+    firstResponseStatus = response?.status || 0;
   } catch {
     if (READ_ACTIONS[action]) {
       try {
-        await sleep(250);
+        await sleep(120);
         response = await postWithTimeout(action, requestBody);
       } catch {
         throw new Error(translateApiErrorForUser('network_error'));
@@ -202,20 +208,24 @@ async function request(action, payload = {}) {
       lastResponseText = await res.text();
       return JSON.parse(lastResponseText);
     } catch {
-      // eslint-disable-next-line no-console
-      console.error('[api] non-JSON response (action=' + action + '):', lastResponseText.slice(0, 500));
       return null;
     }
   }
 
   let json = await parseAndValidate(response);
 
-  // Retry once for read actions: handles GAS cold-start where the first
-  // post-login request gets a non-JSON or ok:false server response.
-  if (READ_ACTIONS[action] && (!json || (!json.ok && (json.error || '').toLowerCase() !== 'unauthorized'))) {
-    // eslint-disable-next-line no-console
-    console.warn('[api] retrying action=' + action + ' after 1.5s (cold-start recovery)');
-    await sleep(1500);
+  function shouldRetryReadAction() {
+    if (!READ_ACTIONS[action]) return false;
+    if (!json) return true; // non-JSON / malformed response is usually transient
+    if (json.ok) return false;
+    const errKey = String(json.error || '').toLowerCase();
+    if (errKey === 'unauthorized' || errKey === 'forbidden' || errKey === 'invalid_credentials') return false;
+    if (RETRYABLE_SERVER_ERRORS.has(errKey)) return true;
+    return firstResponseStatus >= 500;
+  }
+
+  // Retry once only for transient read failures.
+  if (shouldRetryReadAction()) {
     try {
       const retryResponse = await postWithTimeout(action, requestBody);
       json = await parseAndValidate(retryResponse);

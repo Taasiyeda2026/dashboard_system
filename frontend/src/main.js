@@ -6,20 +6,6 @@ import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { headerNavGridHtml } from './screens/shared/act-nav-grid.js';
 import { loginScreen } from './screens/login.js';
-import { dashboardScreen } from './screens/dashboard.js';
-import { activitiesScreen } from './screens/activities.js';
-import { weekScreen } from './screens/week.js';
-import { monthScreen } from './screens/month.js';
-import { exceptionsScreen } from './screens/exceptions.js';
-import { financeScreen } from './screens/finance.js';
-import { instructorsScreen } from './screens/instructors.js';
-import { instructorContactsScreen } from './screens/instructor-contacts.js';
-import { contactsScreen } from './screens/contacts.js';
-import { endDatesScreen } from './screens/end-dates.js';
-import { myDataScreen } from './screens/my-data.js';
-import { operationsScreen } from './screens/operations.js';
-import { editRequestsScreen } from './screens/edit-requests.js';
-import { permissionsScreen } from './screens/permissions.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc  = new URL('../assets/logo1.png',      import.meta.url).href;
@@ -30,6 +16,9 @@ let lastRenderedRoute = null;
 let loginInlineError = '';
 let hasMountedAuthenticatedShell = false;
 const ui = createSharedInteractionLayer();
+let loginPerfStartMs = 0;
+let loginShellPerfReported = false;
+let initialRoutePerfReported = false;
 
 /** In-flight API request dedup: prevents duplicate calls when navigating quickly. */
 const inflightRequests = new Map();
@@ -131,10 +120,18 @@ function recordRenderPerf(route, phase, durationMs, extra = {}) {
   if (window.__dsPerf.renders.length > PERF_MAX_RENDERS) {
     window.__dsPerf.renders.splice(0, window.__dsPerf.renders.length - PERF_MAX_RENDERS);
   }
-  if (entry.duration_ms >= 120) {
-    // eslint-disable-next-line no-console
-    console.warn('[perf][render] heavy render', entry);
-  }
+}
+
+function reportPerfMilestone(kind, durationMs, extra = {}) {
+  if (typeof console === 'undefined' || typeof console.info !== 'function') return;
+  const base = {
+    kind: String(kind || ''),
+    duration_ms: Math.round(durationMs || 0),
+    at: new Date().toISOString(),
+    ...extra
+  };
+  // eslint-disable-next-line no-console
+  console.info('[perf]', base);
 }
 
 function perfStore() {
@@ -335,22 +332,44 @@ const screenLabels = {
   permissions: 'הרשאות'
 };
 
-const screens = {
-  dashboard: dashboardScreen,
-  activities: activitiesScreen,
-  week: weekScreen,
-  month: monthScreen,
-  exceptions: exceptionsScreen,
-  finance: financeScreen,
-  instructors: instructorsScreen,
-  'instructor-contacts': instructorContactsScreen,
-  contacts: contactsScreen,
-  'end-dates': endDatesScreen,
-  'my-data': myDataScreen,
-  operations: operationsScreen,
-  'edit-requests': editRequestsScreen,
-  permissions: permissionsScreen
+const screenLoaders = {
+  dashboard: () => import('./screens/dashboard.js').then((m) => m.dashboardScreen),
+  activities: () => import('./screens/activities.js').then((m) => m.activitiesScreen),
+  week: () => import('./screens/week.js').then((m) => m.weekScreen),
+  month: () => import('./screens/month.js').then((m) => m.monthScreen),
+  exceptions: () => import('./screens/exceptions.js').then((m) => m.exceptionsScreen),
+  finance: () => import('./screens/finance.js').then((m) => m.financeScreen),
+  instructors: () => import('./screens/instructors.js').then((m) => m.instructorsScreen),
+  'instructor-contacts': () => import('./screens/instructor-contacts.js').then((m) => m.instructorContactsScreen),
+  contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
+  'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),
+  'my-data': () => import('./screens/my-data.js').then((m) => m.myDataScreen),
+  operations: () => import('./screens/operations.js').then((m) => m.operationsScreen),
+  'edit-requests': () => import('./screens/edit-requests.js').then((m) => m.editRequestsScreen),
+  permissions: () => import('./screens/permissions.js').then((m) => m.permissionsScreen)
 };
+const loadedScreens = new Map();
+const loadingScreens = new Map();
+
+async function getScreen(route) {
+  if (!route) return null;
+  if (loadedScreens.has(route)) return loadedScreens.get(route);
+  if (loadingScreens.has(route)) return loadingScreens.get(route);
+  const loader = screenLoaders[route];
+  if (!loader) return null;
+  const request = loader()
+    .then((screen) => {
+      loadedScreens.set(route, screen);
+      loadingScreens.delete(route);
+      return screen;
+    })
+    .catch((error) => {
+      loadingScreens.delete(route);
+      throw error;
+    });
+  loadingScreens.set(route, request);
+  return request;
+}
 
 function navSidebarHiddenRoutesSet() {
   const list = state?.clientSettings?.navigation?.sidebar_hidden_routes;
@@ -374,7 +393,7 @@ function applySettingsToRoutes(routes, settings = state.clientSettings) {
   const seen = new Set();
   return (Array.isArray(routes) ? routes : []).filter((route) => {
     if (!route || blocked.has(route) || seen.has(route)) return false;
-    if (!screens[route]) return false;
+    if (!screenLoaders[route]) return false;
     seen.add(route);
     return true;
   });
@@ -390,8 +409,8 @@ function isAllowedRoute(route) {
 }
 
 function resolveAllowedDefaultRoute(preferred, routes) {
-  const knownRoutes = Array.isArray(routes) ? routes.filter((r) => !!screens[r]) : [];
-  if (preferred && screens[preferred] && knownRoutes.includes(preferred)) return preferred;
+  const knownRoutes = Array.isArray(routes) ? routes.filter((r) => !!screenLoaders[r]) : [];
+  if (preferred && screenLoaders[preferred] && knownRoutes.includes(preferred)) return preferred;
   return knownRoutes[0] || 'my-data';
 }
 
@@ -498,6 +517,18 @@ function shell(content) {
       </div>
     </div>
   `;
+}
+
+function renderShellLoadingImmediately() {
+  if (!state.token || !effectiveRoutes().length) return;
+  const shellExists = !!document.querySelector('.app-shell #screenRoot');
+  if (shellExists) return;
+  app.innerHTML = shell(screenLoadingMarkup());
+  bindShell();
+  if (loginPerfStartMs > 0 && !loginShellPerfReported) {
+    loginShellPerfReported = true;
+    reportPerfMilestone('login_shell_visible', performance.now() - loginPerfStartMs);
+  }
 }
 
 function setMobileNavOpen(open) {
@@ -921,18 +952,18 @@ async function mountScreen() {
   }
   const routeChanged = lastRenderedRoute !== state.route;
   if (routeChanged) {
-    const leavingScreen = screens[lastRenderedRoute];
+    const leavingScreen = loadedScreens.get(lastRenderedRoute);
     if (leavingScreen?.onLeave) leavingScreen.onLeave({ state });
     ui.closeAll();
     closeMobileNav();
   }
 
-  let screen = screens[state.route];
+  let screen = await getScreen(state.route);
   if (!screen) {
-    const fallback = effectiveRoutes().find((r) => screens[r]);
+    const fallback = effectiveRoutes().find((r) => !!screenLoaders[r]);
     if (fallback) {
       state.route = fallback;
-      screen = screens[fallback];
+      screen = await getScreen(fallback);
     }
   }
   if (!screen) throw new Error('מסך לא זמין');
@@ -1141,6 +1172,9 @@ async function render() {
           };
           beginPerfTimer('login:total');
           try {
+            loginPerfStartMs = performance.now();
+            loginShellPerfReported = false;
+            initialRoutePerfReported = false;
             beginPerfTimer('login:api.login');
             const data = await api.login(userId, code);
             endPerfTimer('login:api.login');
@@ -1154,6 +1188,20 @@ async function render() {
             endPerfTimer('login:setSession');
             beginPerfTimer('login:applyBootstrap');
             applyBootstrapFromLoginData(data);
+            renderShellLoadingImmediately();
+            try {
+              await mountScreen();
+              if (loginPerfStartMs > 0 && !initialRoutePerfReported) {
+                initialRoutePerfReported = true;
+                reportPerfMilestone('initial_route_loaded', performance.now() - loginPerfStartMs, {
+                  route: String(state.route || '')
+                });
+              }
+              loginInlineError = '';
+            } catch {
+              rollbackToLogin('כשל בטעינת נתוני משתמש אחרי התחברות');
+              await render();
+            }
             endPerfTimer('login:applyBootstrap');
             loginInlineError = '';
             scheduleRender();

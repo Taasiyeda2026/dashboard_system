@@ -55,6 +55,37 @@ export const state = {
   screenDataCache: {}
 };
 
+function parseTokenPayloadClaims(token) {
+  const value = String(token || '').trim();
+  const parts = value.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    let json = '';
+    if (typeof atob === 'function') {
+      json = atob(padded);
+    } else if (typeof globalThis !== 'undefined' && globalThis.Buffer) {
+      json = globalThis.Buffer.from(padded, 'base64').toString('utf8');
+    } else {
+      return null;
+    }
+    const payload = JSON.parse(json);
+    if (!payload || typeof payload !== 'object') return null;
+    return {
+      user_id: String(payload.uid || '').trim(),
+      display_role: String(payload.role || '').trim(),
+      org_id: String(payload.org_id || '').trim(),
+      emp_id: String(payload.emp_id || payload.uid || '').trim(),
+      can_add_activity: !!payload.can_add_activity,
+      full_name: String(payload.name || '').trim(),
+      display_role2: String(payload.role2 || '').trim()
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function clearScreenDataCache() {
   state.screenDataCache = {};
 }
@@ -83,10 +114,17 @@ export function setSession(session) {
     return;
   }
   state.token = session.token;
-  state.user = session.user;
+  const claims = parseTokenPayloadClaims(session.token);
+  state.user = {
+    ...(session.user || {}),
+    ...(claims || {}),
+    user_id: String((session.user && session.user.user_id) || (claims && claims.user_id) || '').trim(),
+    display_role: String((session.user && session.user.display_role) || (claims && claims.display_role) || '').trim(),
+    emp_id: String((session.user && session.user.emp_id) || (claims && claims.emp_id) || '').trim()
+  };
   state.screenDataCache = {};
   localStorage.setItem('dashboard_token', session.token);
-  localStorage.setItem('dashboard_user', JSON.stringify(session.user));
+  localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   sessionStorage.setItem('ds_session_alive', '1');
 }
 

@@ -54,7 +54,7 @@ function scriptCacheDebugMark_(eventName, key, bytes, errorText) {
 }
 
 function debugScriptCacheLoaded_() {
-  Logger.log('typeof scriptCacheDebugMark_ = ' + typeof scriptCacheDebugMark_);
+  return typeof scriptCacheDebugMark_;
 }
 
 function scriptCacheInvalidateDataViews_() {
