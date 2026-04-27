@@ -27,6 +27,7 @@ function keepWarm() {
 function refreshDashboardSnapshots() {
   return refreshDashboardSnapshots_();
 }
+
 /**
  * Time-driven trigger entrypoint for rebuilding dashboard snapshots.
  * Set up as a separate trigger — do not add snapshot logic inside keepWarm.
@@ -60,4 +61,17 @@ function installDataMaintenanceTrigger() {
     .create();
 
   return { status: 'installed', frequency: 'hourly' };
+}
+
+/**
+ * Manual entrypoint for rebuilding the new performance views.
+ *
+ * Use this from the Apps Script function dropdown.
+ * It rebuilds:
+ * - view_activity_meetings
+ * - view_dashboard_monthly
+ * - view_activities_summary
+ */
+function runRefreshDataViewsManually() {
+  return refreshDataViews_();
 }
