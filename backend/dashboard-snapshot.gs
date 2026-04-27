@@ -420,6 +420,13 @@ function refreshDashboardSnapshots_() {
     var status  = errors.length === 0 ? 'ok' : 'partial';
     var message = errors.length === 0 ? 'all months updated' : errors.join('; ');
     updateDashboardRefreshControl_(status, message);
+    return {
+      skipped: false,
+      status: status,
+      message: message,
+      months: months,
+      errors: errors
+    };
   } finally {
     if (!hadCache) {
       __rqCache_ = null;

@@ -1888,13 +1888,18 @@ function actionAddActivity_(user, payload) {
     });
   }
 
+  var maintenanceHandledInMeetings = false;
   if (plannedMeetings.length) {
     setMeetings_(rowId, plannedMeetings);
+    maintenanceHandledInMeetings = true;
   } else if (targetSheet === CONFIG.SHEETS.DATA_LONG) {
     syncDataLongDatesForRowFromMeetings_(rowId);
   }
 
   scriptCacheInvalidateDataViews_();
+  if (!maintenanceHandledInMeetings) {
+    runDataMaintenance_('actionAddActivity');
+  }
   return {
     created: true,
     RowID: rowId,
@@ -1906,6 +1911,7 @@ function actionSaveActivity_(user, payload) {
   var sourceRowId = text_(payload.source_row_id || payload.RowID);
   var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT));
   var changes = payload.changes || {};
+  var currentRow = null;
 
   if (!sourceRowId) throw new Error('source_row_id is required');
 
@@ -1921,6 +1927,18 @@ function actionSaveActivity_(user, payload) {
     var rawStatus = text_(changes.status).toLowerCase();
     changes.status = (rawStatus === 'closed' || rawStatus === 'סגור') ? 'סגור' : 'פעיל';
   }
+  if (sourceSheet === CONFIG.SHEETS.DATA_LONG) {
+    currentRow = getRowByKey_(sourceSheet, 'RowID', sourceRowId);
+  }
+  var meetingsPatch = sourceSheet === CONFIG.SHEETS.DATA_LONG
+    ? normalizeMeetingsPatch_(sourceRowId, changes, currentRow)
+    : null;
+  Object.keys(changes).forEach(function(key) {
+    if (/^meeting_date_\d+$/.test(key) || /^meeting_active_\d+$/.test(key) || key === 'meetings') {
+      delete changes[key];
+    }
+  });
+
   if (sourceSheet === CONFIG.SHEETS.DATA_SHORT) {
     if (Object.prototype.hasOwnProperty.call(changes, 'start_date')) {
       changes.start_date = normalizeDateTextToIso_(changes.start_date);
@@ -1947,11 +1965,19 @@ function actionSaveActivity_(user, payload) {
   }
 
   updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
+  var maintenanceHandled = false;
   if (sourceSheet === CONFIG.SHEETS.DATA_LONG) {
+    if (meetingsPatch) {
+      setMeetings_(sourceRowId, meetingsPatch);
+      maintenanceHandled = true;
+    }
     syncDataLongDatesForRowFromMeetings_(sourceRowId);
   }
 
   scriptCacheInvalidateDataViews_();
+  if (!maintenanceHandled) {
+    runDataMaintenance_('actionSaveActivity');
+  }
   return {
     updated: true,
     source_sheet: sourceSheet,
@@ -2082,9 +2108,14 @@ function actionReviewEditRequest_(user, payload) {
       status = 'conflict';
     } else {
       updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
+      var maintenanceHandledByMeetings = false;
 
       if (sourceSheet === CONFIG.SHEETS.DATA_LONG && (changes.start_date || changes.end_date)) {
         setMeetingsFromRange_(sourceRowId, text_(changes.start_date), text_(changes.end_date));
+        maintenanceHandledByMeetings = true;
+      }
+      if (!maintenanceHandledByMeetings) {
+        runDataMaintenance_('actionReviewEditRequest');
       }
     }
   }
@@ -2922,6 +2953,152 @@ function setMeetings_(sourceRowId, meetings) {
   });
 
   syncEndDateForRow_(sourceRowId);
+  runDataMaintenance_('setMeetings');
+}
+
+function meetingsForRow_(sourceRowId) {
+  var wanted = text_(sourceRowId);
+  if (!wanted) return [];
+  var rows = readRows_(CONFIG.SHEETS.MEETINGS).filter(function(row) {
+    return text_(row.source_row_id) === wanted;
+  }).map(function(row) {
+    return {
+      source_row_id: wanted,
+      meeting_no: text_(row.meeting_no),
+      meeting_date: normalizeDateTextToIso_(row.meeting_date),
+      notes: text_(row.notes),
+      active: yesNo_(row.active || 'yes')
+    };
+  }).filter(function(row) {
+    return !!row.meeting_date;
+  });
+
+  rows.sort(function(a, b) {
+    var na = parseInt(text_(a.meeting_no), 10);
+    var nb = parseInt(text_(b.meeting_no), 10);
+    if (na > 0 && nb > 0 && na !== nb) return na - nb;
+    if (a.meeting_date !== b.meeting_date) return a.meeting_date < b.meeting_date ? -1 : 1;
+    return 0;
+  });
+  return rows;
+}
+
+function normalizeMeetingsPatch_(sourceRowId, changes, currentRow) {
+  var source = text_(sourceRowId);
+  if (!source) return null;
+  var payload = changes || {};
+  var hasMeetingsArray = Object.prototype.hasOwnProperty.call(payload, 'meetings') && Array.isArray(payload.meetings);
+  var keyedMeetingDates = [];
+  var keyedMeetingActive = {};
+  Object.keys(payload).forEach(function(key) {
+    var md = /^meeting_date_(\d+)$/.exec(text_(key));
+    if (md) {
+      keyedMeetingDates.push({
+        idx: parseInt(md[1], 10),
+        date: normalizeDateTextToIso_(payload[key])
+      });
+      return;
+    }
+    var ma = /^meeting_active_(\d+)$/.exec(text_(key));
+    if (ma) {
+      keyedMeetingActive[parseInt(ma[1], 10)] = yesNo_(payload[key] || 'yes');
+    }
+  });
+  keyedMeetingDates = keyedMeetingDates.filter(function(item) {
+    return item.idx >= 0 && !!item.date;
+  }).sort(function(a, b) {
+    return a.idx - b.idx;
+  });
+
+  var sessionsProvided = Object.prototype.hasOwnProperty.call(payload, 'sessions');
+  var sessionsCount = sessionsProvided ? Math.max(0, parseInt(text_(payload.sessions), 10) || 0) : null;
+
+  if (!hasMeetingsArray && !keyedMeetingDates.length && !sessionsProvided) {
+    return null;
+  }
+
+  var currentMeetings = meetingsForRow_(source);
+  var nextMeetings = [];
+
+  if (hasMeetingsArray) {
+    nextMeetings = payload.meetings.map(function(item, idx) {
+      return {
+        source_row_id: source,
+        meeting_no: text_(item && item.meeting_no) || String(idx + 1),
+        meeting_date: normalizeDateTextToIso_(item && item.meeting_date),
+        notes: text_(item && item.notes),
+        active: yesNo_(item && item.active || 'yes')
+      };
+    }).filter(function(item) {
+      return !!item.meeting_date;
+    });
+  } else if (keyedMeetingDates.length) {
+    nextMeetings = keyedMeetingDates.map(function(item, idx) {
+      return {
+        source_row_id: source,
+        meeting_no: String(idx + 1),
+        meeting_date: item.date,
+        notes: '',
+        active: Object.prototype.hasOwnProperty.call(keyedMeetingActive, item.idx) ? keyedMeetingActive[item.idx] : 'yes'
+      };
+    });
+  } else {
+    nextMeetings = currentMeetings.slice();
+  }
+
+  if (sessionsCount !== null) {
+    if (!nextMeetings.length) {
+      var anchorDate = normalizeDateTextToIso_(payload.start_date) ||
+        normalizeDateTextToIso_(currentRow && currentRow.start_date) ||
+        (currentMeetings.length ? currentMeetings[0].meeting_date : '');
+      for (var i = 0; i < sessionsCount; i++) {
+        nextMeetings.push({
+          source_row_id: source,
+          meeting_no: String(i + 1),
+          meeting_date: i === 0 ? anchorDate : '',
+          notes: '',
+          active: 'yes'
+        });
+      }
+    }
+    if (sessionsCount < nextMeetings.length) {
+      nextMeetings = nextMeetings.slice(0, sessionsCount);
+    } else if (sessionsCount > nextMeetings.length) {
+      var lastDate = nextMeetings.length ? normalizeDateTextToIso_(nextMeetings[nextMeetings.length - 1].meeting_date) : '';
+      for (var addIdx = nextMeetings.length; addIdx < sessionsCount; addIdx++) {
+        var nextDate = '';
+        if (lastDate) {
+          var d = dateFromIso_(lastDate);
+          if (d) {
+            d.setDate(d.getDate() + 7);
+            nextDate = formatDate_(d);
+            lastDate = nextDate;
+          }
+        }
+        nextMeetings.push({
+          source_row_id: source,
+          meeting_no: String(addIdx + 1),
+          meeting_date: nextDate,
+          notes: '',
+          active: 'yes'
+        });
+      }
+    }
+  }
+
+  nextMeetings = nextMeetings.map(function(item, idx) {
+    return {
+      source_row_id: source,
+      meeting_no: String(idx + 1),
+      meeting_date: normalizeDateTextToIso_(item.meeting_date),
+      notes: text_(item.notes),
+      active: yesNo_(item.active || 'yes')
+    };
+  }).filter(function(item) {
+    return !!item.meeting_date;
+  });
+
+  return nextMeetings;
 }
 
 function setMeetingsFromRange_(sourceRowId, startDate, endDate) {
@@ -3282,6 +3459,7 @@ function actionSaveFinanceRow_(user, payload) {
   if (Object.keys(changes).length === 0) throw new Error('no changes provided');
   updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
   scriptCacheInvalidateDataViews_();
+  runDataMaintenance_('actionSaveFinanceRow');
   return { saved: true, source_row_id: sourceRowId };
 }
 
