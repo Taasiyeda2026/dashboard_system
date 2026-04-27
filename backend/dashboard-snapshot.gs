@@ -187,6 +187,159 @@ function getDashboardSnapshotFlags_() {
   return flags;
 }
 
+function parseJsonObjectSafeForDashboard_(raw, fallback) {
+  if (raw === null || raw === undefined) return fallback;
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  var s = String(raw).trim();
+  if (!s) return fallback;
+  try {
+    var o = JSON.parse(s);
+    if (typeof o === 'object' && o !== null && !Array.isArray(o)) return o;
+  } catch (_e) {}
+  return fallback;
+}
+
+function parseJsonArraySafeForDashboard_(raw, fallback) {
+  if (raw === null || raw === undefined) return fallback;
+  if (Array.isArray(raw)) return raw;
+  var s = String(raw).trim();
+  if (!s) return fallback;
+  try {
+    var a = JSON.parse(s);
+    return Array.isArray(a) ? a : fallback;
+  } catch (_e) {}
+  return fallback;
+}
+
+function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, canViewFinance) {
+  var summary = parseJsonObjectSafeForDashboard_(primaryRow.summary_json, {});
+  if (!Array.isArray(summary.active_instructors) || !summary.active_instructors.length) {
+    summary.active_instructors = parseJsonArraySafeForDashboard_(primaryRow.active_instructors_json, []);
+  }
+  if (!summary.active_instructors_by_manager || typeof summary.active_instructors_by_manager !== 'object') {
+    summary.active_instructors_by_manager = parseJsonObjectSafeForDashboard_(primaryRow.active_instructors_by_manager_json, {});
+  }
+  if (nextRow) {
+    summary.active_courses_next_month = parseInt(text_(nextRow.active_courses), 10) || 0;
+  } else if (summary.active_courses_next_month === undefined || summary.active_courses_next_month === null) {
+    summary.active_courses_next_month = 0;
+  }
+  summary.exceptions_count = parseInt(text_(primaryRow.exceptions_count), 10) || summary.exceptions_count || 0;
+  var finRaw = summary.finance_open_count;
+  summary.finance_open_count = typeof finRaw === 'number' && !isNaN(finRaw)
+    ? finRaw
+    : (parseInt(text_(finRaw), 10) || 0);
+  summary.active_courses_current_month = parseInt(text_(primaryRow.active_courses), 10) ||
+    summary.active_courses_current_month || 0;
+  summary.ending_courses_current_month = parseInt(text_(primaryRow.course_endings), 10) ||
+    summary.ending_courses_current_month || 0;
+  summary.missing_instructor_count = parseInt(text_(primaryRow.missing_instructor_count), 10) ||
+    summary.missing_instructor_count || 0;
+  summary.missing_start_date_count = parseInt(text_(primaryRow.missing_start_date_count), 10) ||
+    summary.missing_start_date_count || 0;
+  summary.late_end_date_count = parseInt(text_(primaryRow.late_end_date_count), 10) ||
+    summary.late_end_date_count || 0;
+  if (!Array.isArray(summary.short_activities)) summary.short_activities = [];
+
+  var byMgrArr = parseJsonArraySafeForDashboard_(primaryRow.by_manager_json, []);
+  var byActivityManager = byMgrArr.map(function(r) {
+    var out = {
+      activity_manager: text_(r.activity_manager),
+      total_short: parseInt(text_(r.total_short), 10) || 0,
+      total_long: parseInt(text_(r.total_long), 10) || 0,
+      total: parseInt(text_(r.total), 10) || 0,
+      num_instructors: parseInt(text_(r.num_instructors), 10) || 0,
+      course_endings: parseInt(text_(r.course_endings), 10) || 0,
+      exceptions: parseInt(text_(r.exceptions), 10) || 0
+    };
+    if (canViewFinance) out.finance_open = parseInt(text_(r.finance_open), 10) || 0;
+    return out;
+  });
+
+  var totalShort = parseInt(text_(primaryRow.total_short), 10) || 0;
+  var totalLongActive = parseInt(text_(primaryRow.total_long_active), 10) || 0;
+  var totalInstr = parseInt(text_(primaryRow.total_instructors), 10) || 0;
+  var courseEndings = parseInt(text_(primaryRow.course_endings), 10) || 0;
+  var financeOpen = canViewFinance ? (summary.finance_open_count || 0) : 0;
+  var exceptCount = parseInt(text_(primaryRow.exceptions_count), 10) || summary.exceptions_count || 0;
+  var activeCurrent = parseInt(text_(primaryRow.active_courses), 10) || 0;
+
+  var snapshotData = {
+    total_short_activities: totalShort,
+    total_long_activities: totalLongActive,
+    active_instructors_count: totalInstr,
+    course_endings_current_month: courseEndings,
+    finance_open_count: financeOpen,
+    exceptions_count: exceptCount,
+    active_courses_current_month: activeCurrent,
+    active_courses_next_month: summary.active_courses_next_month || 0
+  };
+
+  var kpiCards = buildDashboardSnapshotKpis_(snapshotData, canViewFinance);
+  var flags = getDashboardSnapshotFlags_();
+
+  return {
+    month: ym,
+    can_view_finance: canViewFinance,
+    totals: {
+      total_short_activities: totalShort,
+      total_long_activities: totalLongActive,
+      total_instructors: totalInstr,
+      total_course_endings_current_month: courseEndings,
+      short: totalShort,
+      long: totalLongActive
+    },
+    by_activity_manager: byActivityManager,
+    summary: summary,
+    kpi_cards: kpiCards,
+    show_only_nonzero_kpis: flags.show_only_nonzero_kpis !== false,
+    _is_snapshot: true
+  };
+}
+
+function tryDashboardSnapshotFromMonthlyView_(ym, nextYm, canViewFinance) {
+  var cacheKey = dashboardMonthlyPayloadCacheKey_(ym, canViewFinance);
+  if (cacheKey) {
+    try {
+      var cached = scriptCacheGetJson_(cacheKey);
+      if (cached && typeof cached === 'object' && text_(cached.month) === ym) {
+        return { ok: true, payload: cached, cache_hit: true, view_rows_read: 0 };
+      }
+    } catch (_c) {}
+  }
+
+  var projected = [
+    'month_ym', 'total_short', 'total_long_active', 'active_courses',
+    'total_instructors', 'course_endings', 'exceptions_count',
+    'missing_instructor_count', 'missing_start_date_count', 'late_end_date_count',
+    'summary_json', 'by_manager_json', 'kpi_cards_json',
+    'active_instructors_json', 'active_instructors_by_manager_json'
+  ];
+  var rowsAll;
+  try {
+    rowsAll = readRowsProjected_(CONFIG.SHEETS.VIEW_DASHBOARD_MONTHLY, projected);
+  } catch (_readErr) {
+    return { ok: false, view_rows_read: 0 };
+  }
+  var primaryRow = null;
+  var nextRow = null;
+  var idx;
+  for (idx = 0; idx < rowsAll.length; idx++) {
+    var rYm = normalizeMonthYmFlexible_(rowsAll[idx].month_ym);
+    if (rYm === ym) primaryRow = rowsAll[idx];
+    if (rYm === nextYm) nextRow = rowsAll[idx];
+  }
+  if (!primaryRow) return { ok: false, view_rows_read: rowsAll.length };
+
+  var payload = buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, canViewFinance);
+  if (cacheKey) {
+    try {
+      scriptCachePutJson_(cacheKey, payload, 21600);
+    } catch (_put) {}
+  }
+  return { ok: true, payload: payload, cache_hit: false, view_rows_read: rowsAll.length };
+}
+
 function actionDashboardSnapshot_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
 
@@ -197,6 +350,31 @@ function actionDashboardSnapshot_(user, payload) {
   markRequestPerf_('dashboardSnapshot:permission lookup:end');
 
   var ym = dashboardPayloadYm_(payload || {});
+  var nextYm = shiftYm_(ym, 1);
+
+  markRequestPerf_('dashboardSnapshot:monthly view lookup:start');
+  var viewTry = null;
+  try {
+    viewTry = tryDashboardSnapshotFromMonthlyView_(ym, nextYm, canViewFinance);
+  } catch (_viewErr) {
+    viewTry = { ok: false };
+  }
+  markRequestPerf_('dashboardSnapshot:monthly view lookup:end');
+
+  if (viewTry && viewTry.ok && viewTry.payload) {
+    setRequestPerfField_('dashboard_used_view', true);
+    setRequestPerfField_('dashboard_fallback_used', false);
+    setRequestPerfField_('dashboard_cache_hit', !!viewTry.cache_hit);
+    setRequestPerfField_('dashboard_view_rows_read', viewTry.view_rows_read || 0);
+    setRequestPerfField_('payload_bytes', JSON.stringify(viewTry.payload || {}).length);
+    markRequestPerf_('dashboard:used_view:true');
+    markRequestPerf_(viewTry.cache_hit ? 'dashboard:cache_hit:true' : 'dashboard:cache_hit:false');
+    markRequestPerf_('dashboard:fallback_used:false');
+    return viewTry.payload;
+  }
+
+  setRequestPerfField_('dashboard_used_view', false);
+  setRequestPerfField_('dashboard_cache_hit', false);
 
   var snap = null;
   var byManagerRows = [];
@@ -235,11 +413,17 @@ function actionDashboardSnapshot_(user, payload) {
       if (fullData && typeof fullData === 'object') {
         fullData._is_snapshot = false;
       }
+      setRequestPerfField_('dashboard_fallback_used', true);
+      setRequestPerfField_('dashboard_view_rows_read', 0);
+      setRequestPerfField_('payload_bytes', JSON.stringify(fullData || {}).length);
+      markRequestPerf_('dashboard:fallback_used:true');
+      markRequestPerf_('dashboard:used_view:false');
       markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
       return fullData;
     }
-    markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
-    return {
+    setRequestPerfField_('dashboard_fallback_used', false);
+    setRequestPerfField_('dashboard_view_rows_read', 0);
+    var stubPayload = {
       month: ym,
       _is_snapshot: false,
       _is_snapshot_missing: true,
@@ -250,6 +434,11 @@ function actionDashboardSnapshot_(user, payload) {
       kpi_cards: [],
       show_only_nonzero_kpis: true
     };
+    setRequestPerfField_('payload_bytes', JSON.stringify(stubPayload).length);
+    markRequestPerf_('dashboard:fallback_used:false');
+    markRequestPerf_('dashboard:used_view:false');
+    markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
+    return stubPayload;
   }
 
   var s = snap || {};
@@ -309,7 +498,7 @@ function actionDashboardSnapshot_(user, payload) {
   markRequestPerf_('dashboardSnapshot:settings/show_only_nonzero_kpis:end');
   markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
 
-  return {
+  var sheetSnapshotPayload = {
     month: ym,
     can_view_finance: canViewFinance,
     totals: {
@@ -337,6 +526,12 @@ function actionDashboardSnapshot_(user, payload) {
     show_only_nonzero_kpis: flags.show_only_nonzero_kpis !== false,
     _is_snapshot: true
   };
+  setRequestPerfField_('dashboard_fallback_used', false);
+  setRequestPerfField_('dashboard_view_rows_read', 0);
+  setRequestPerfField_('payload_bytes', JSON.stringify(sheetSnapshotPayload).length);
+  markRequestPerf_('dashboard:fallback_used:false');
+  markRequestPerf_('dashboard:used_view:false');
+  return sheetSnapshotPayload;
 }
 
 // ─── B. buildDashboardSnapshotKpis_ ──────────────────────────────────────────
