@@ -12,6 +12,7 @@ import {
   bindLocalFilters
 } from './shared/activity-list-filters.js';
 import { getFilterOptionOverrides } from './shared/activity-options.js';
+import { bindActNavGrid } from './shared/act-nav-grid.js';
 
 const inflightActivityDetailRequests = new Map();
 const WEEK_SCOPE = 'calendar';
@@ -281,7 +282,9 @@ export const weekScreen = {
       }
     };
 
-    bindActNavGrid(root, { state, rerender });
+    if (typeof bindActNavGrid === 'function') {
+      bindActNavGrid(root, { state, rerender });
+    }
     root.classList.remove('is-week-loading');
     root.setAttribute('aria-busy', 'false');
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -391,5 +394,7 @@ export const weekScreen = {
         loadDetails().catch(() => {});
       }
     });
+    root.dataset.weeksessionBound = '1';
+    console.debug?.('[week] weeksession interactive cards bound');
   }
 };
