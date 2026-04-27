@@ -256,6 +256,15 @@ export const weekScreen = {
     if (root._weekBindAbort) root._weekBindAbort.abort();
     root._weekBindAbort = new AbortController();
     const bindOpts = { signal: root._weekBindAbort.signal };
+    const bindListener = (target, eventName, handler) => {
+      if (!target) return;
+      try {
+        target.addEventListener(eventName, handler, bindOpts);
+      } catch {
+        // Older WebViews may not support addEventListener({ signal }).
+        target.addEventListener(eventName, handler);
+      }
+    };
 
     bindActNavGrid(root, { state, rerender });
     root.classList.remove('is-week-loading');
@@ -280,10 +289,10 @@ export const weekScreen = {
       state.weekOffset = (state.weekOffset || 0) + delta;
       rerender?.();
     };
-    prevBtn?.addEventListener('click', () => doWeekShift(-1), bindOpts);
-    nextBtn?.addEventListener('click', () => doWeekShift(1), bindOpts);
+    bindListener(prevBtn, 'click', () => doWeekShift(-1));
+    bindListener(nextBtn, 'click', () => doWeekShift(1));
 
-    root.addEventListener('click', (ev) => {
+    bindListener(root, 'click', (ev) => {
       const badge = ev.target.closest('[data-group-toggle]');
       if (!badge) return;
       ev.stopPropagation();
@@ -297,7 +306,7 @@ export const weekScreen = {
       badge.setAttribute('aria-expanded', String(!isOpen));
       const count = badge.dataset.groupCount || '';
       badge.textContent = isOpen ? count : '▲';
-    }, bindOpts);
+    });
 
     ui.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('weeksession|')) return;
