@@ -5436,7 +5436,7 @@ select.ds-input {
 .ds-activities-screen .ds-table th,
 .ds-activities-screen .ds-table td {
   padding: 8px 10px;
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 .ds-activities-screen .ds-table tbody tr:nth-child(even) td {

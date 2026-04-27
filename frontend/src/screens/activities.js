@@ -55,14 +55,12 @@ const ACTIVITY_SEARCH_FIELDS = [
   'activity_type'
 ];
 
-function activityStatusMeta(row) {
-  const statusText = String(row?.status || '').trim();
-  const hasInstructor = !!String(row?.emp_id || '').trim() || !!String(row?.emp_id_2 || '').trim();
-  const hasDate = !!String(row?.start_date || '').trim();
-  if (!hasInstructor) return { label: 'חסר מדריך', kind: 'warning' };
-  if (!hasDate) return { label: 'חסר תאריך', kind: 'warning' };
-  if (statusText === 'סגור' || statusText === 'חריגה') return { label: statusText || 'חריגה', kind: 'danger' };
-  return { label: statusText || 'תקין', kind: 'success' };
+function activityInstructorLine(row) {
+  const parts = [row?.instructor_name, row?.instructor_name_2]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+  if (parts.length) return parts.join(' · ');
+  return '';
 }
 
 const FAMILY_LABEL_SHORT = 'חד-יומיות';
@@ -317,8 +315,10 @@ export const activitiesScreen = {
 
     const tableRows = safeRows
       .map((row) => {
-        const instructors = [row?.instructor_name, row?.instructor_name_2].filter(Boolean).join(' · ');
-        const status = activityStatusMeta(row);
+        const instructorLine = activityInstructorLine(row);
+        const startHe = formatDateHe(row.start_date) || '—';
+        const endRaw = String(row?.end_date || '').trim() || String(row?.start_date || '').trim();
+        const endHe = endRaw ? formatDateHe(endRaw) || '—' : '—';
         const rowSearch = [
           hideRowId ? '' : row.RowID,
           visibleActivityCategoryLabel(row.activity_type),
@@ -335,15 +335,16 @@ export const activitiesScreen = {
         ]
           .filter(Boolean)
           .join(' ');
+        const instructorBlock = instructorLine
+          ? `<div class="ds-row-subtle">${escapeHtml(instructorLine)}</div>`
+          : '';
         return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
-        <td><strong>${escapeHtml(row.activity_name || '—')}</strong><div class="ds-row-subtle">${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</div></td>
+        <td><strong>${escapeHtml(row.activity_name || '—')}</strong><div class="ds-row-subtle">${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</div>${instructorBlock}</td>
         <td>${escapeHtml(row.authority || '—')}</td>
         <td>${escapeHtml(row.school || '—')}</td>
-        <td>${escapeHtml(instructors || 'ללא מדריך')}</td>
-        <td>${escapeHtml(formatDateHe(row.start_date) || '—')}</td>
-        <td><span class="ds-chip ds-chip--status ds-chip--status-${status.kind}">${escapeHtml(status.label)}</span></td>
-        <td><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-activity-open="${escapeHtml(row.RowID)}">פתח</button></td>
+        <td>${escapeHtml(startHe)}</td>
+        <td>${escapeHtml(endHe)}</td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
     `;
@@ -366,8 +367,8 @@ export const activitiesScreen = {
     const tableSection =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--equal-cols">
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך</th><th>סטטוס</th><th>פעולה</th>${thPrivate}</tr></thead>
+        : dsTableWrap(`<table class="ds-table ds-table--interactive">
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>תאריך התחלה</th><th>תאריך סיום</th>${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
 
@@ -693,10 +694,6 @@ export const activitiesScreen = {
     root._rowAbort = new AbortController();
     const rowSig = { signal: root._rowAbort.signal };
     root.addEventListener('click', (ev) => {
-      const actionBtn = ev.target.closest('[data-activity-open]');
-      if (actionBtn) {
-        ev.stopPropagation();
-      }
       const rowNode = ev.target.closest('.ds-data-row');
       if (!rowNode) return;
       ev.stopPropagation();

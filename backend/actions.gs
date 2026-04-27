@@ -876,7 +876,168 @@ function actionActivityDraftOptions_(user, payload) {
   };
 }
 
-function actionWeek_(user, payload) {
+/** YYYY-MM ייחודיים לשבוע לוח (7 ימים מ-anchor) — לצורך טעינת month payload / view */
+function weekUniqueYmsFromAnchor_(anchor) {
+  var yms = [];
+  var seen = {};
+  for (var i = 0; i < 7; i++) {
+    var d = shiftDate_(anchor, i);
+    var ym = formatDate_(d).slice(0, 7);
+    if (seen[ym]) continue;
+    seen[ym] = true;
+    yms.push(ym);
+  }
+  return yms;
+}
+
+/**
+ * טוען לכל ym ברשימה month payload מ-ScriptCache או מ-view_activity_meetings (קריאה אחת לגיליון).
+ * חודש ללא שורות ב-view — נבנה payload ריק (תאים עם item_ids ריקים) ונשמר ב-cache, כדי שלא ניפול ל-fallback בשבועות שחוצים חודש.
+ */
+function ensureMonthPayloadBundleForYms_(yms) {
+  var byYm = {};
+  var need = [];
+  var usedCacheOnly = true;
+  var idx;
+  for (idx = 0; idx < yms.length; idx++) {
+    var ym = text_(yms[idx]);
+    var cacheKey = monthPayloadCacheKey_(ym);
+    var cached = null;
+    try {
+      cached = cacheKey ? scriptCacheGetJson_(cacheKey) : null;
+    } catch (_e) {
+      cached = null;
+    }
+    if (cached && typeof cached === 'object' && Array.isArray(cached.cells) && text_(cached.month).slice(0, 7) === ym) {
+      byYm[ym] = cached;
+    } else {
+      need.push(ym);
+      usedCacheOnly = false;
+    }
+  }
+  if (need.length === 0) {
+    return { ok: true, byYm: byYm, viewRowsRead: 0, filteredRowsTotal: 0, usedCacheOnly: true };
+  }
+  var projected = [
+    'month_ym', 'meeting_date', 'source_sheet', 'source_row_id',
+    'activity_type', 'activity_name', 'activity_manager',
+    'authority', 'school', 'funding', 'grade', 'class_group',
+    'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
+    'status', 'start_time', 'end_time', 'start_date', 'end_date',
+    'activity_no', 'private_note'
+  ];
+  var viewRowsAll;
+  try {
+    viewRowsAll = readRowsProjected_(CONFIG.SHEETS.VIEW_ACTIVITY_MEETINGS, projected);
+  } catch (_readErr) {
+    return { ok: false };
+  }
+  var viewRowsRead = viewRowsAll.length;
+  var filteredRowsTotal = 0;
+  for (idx = 0; idx < need.length; idx++) {
+    var ymNeed = text_(need[idx]);
+    var parts = String(ymNeed).split('-');
+    var y = parseInt(parts[0], 10);
+    var mo = parseInt(parts[1], 10) - 1;
+    var viewRows = viewRowsAll.filter(function(row) {
+      return normalizeMonthYmFlexible_(row.month_ym) === ymNeed;
+    });
+    filteredRowsTotal += viewRows.length;
+    var built = buildMonthResponseFromMeetingViewRows_(viewRows, y, mo);
+    var putKey = monthPayloadCacheKey_(ymNeed);
+    if (putKey) scriptCachePutJson_(putKey, built, 21600);
+    byYm[ymNeed] = built;
+  }
+  for (idx = 0; idx < yms.length; idx++) {
+    if (!byYm[text_(yms[idx])]) return { ok: false };
+  }
+  return { ok: true, byYm: byYm, viewRowsRead: viewRowsRead, filteredRowsTotal: filteredRowsTotal, usedCacheOnly: false };
+}
+
+function calendarItemIdsForDateFromMonthBundle_(byYm, dateKey) {
+  var dk = text_(dateKey);
+  if (!dk || dk.length < 7) return [];
+  var ym = dk.slice(0, 7);
+  var mp = byYm[ym];
+  if (!mp) return [];
+  var cells = mp.cells || [];
+  for (var i = 0; i < cells.length; i++) {
+    if (text_(cells[i].date) === dk) return (cells[i].item_ids || []).slice();
+  }
+  return [];
+}
+
+function buildWeekResponseFromMonthBundle_(byYm, anchor, showSat, weekStartsOn, hideSatColumn, weekOffset) {
+  var mergedItems = {};
+  Object.keys(byYm || {}).forEach(function(ym) {
+    var mp = byYm[ym] || {};
+    var src = mp.items_by_id || {};
+    Object.keys(src).forEach(function(rid) {
+      mergedItems[rid] = src[rid];
+    });
+  });
+  var days = [];
+  var neededIds = {};
+  for (var i = 0; i < 7; i++) {
+    var d = shiftDate_(anchor, i);
+    var dow = d.getDay();
+    if (!showSat && dow === 6) continue;
+    var key = formatDate_(d);
+    var ids = calendarItemIdsForDateFromMonthBundle_(byYm, key);
+    for (var j = 0; j < ids.length; j++) neededIds[text_(ids[j])] = true;
+    days.push({
+      date: key,
+      weekday_label: hebrewWeekdayLabel_(dow),
+      item_ids: ids
+    });
+  }
+  var itemsById = {};
+  Object.keys(neededIds).forEach(function(rid) {
+    if (mergedItems[rid]) itemsById[rid] = mergedItems[rid];
+  });
+  return {
+    days: days,
+    items_by_id: itemsById,
+    week_starts_on: weekStartsOn,
+    show_shabbat: showSat,
+    week_hide_saturday_column: hideSatColumn,
+    week_offset: weekOffset
+  };
+}
+
+function filterWeekPayloadForInstructor_(weekPayload, empId) {
+  var normalizedEmpId = text_(empId);
+  if (!normalizedEmpId) return weekPayload;
+  var source = weekPayload || {};
+  var sourceItems = source.items_by_id || {};
+  var itemsById = {};
+  Object.keys(sourceItems).forEach(function(rowId) {
+    var item = sourceItems[rowId] || {};
+    if (text_(item.emp_id) === normalizedEmpId || text_(item.emp_id_2) === normalizedEmpId) {
+      itemsById[rowId] = item;
+    }
+  });
+  var days = (source.days || []).map(function(day) {
+    var itemIds = (day.item_ids || []).filter(function(rowId) {
+      return !!itemsById[rowId];
+    });
+    return {
+      date: day.date,
+      weekday_label: day.weekday_label,
+      item_ids: itemIds
+    };
+  });
+  return {
+    days: days,
+    items_by_id: itemsById,
+    week_starts_on: source.week_starts_on,
+    show_shabbat: source.show_shabbat,
+    week_hide_saturday_column: source.week_hide_saturday_column,
+    week_offset: source.week_offset
+  };
+}
+
+function actionWeekLegacy_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
 
   var today = new Date();
@@ -917,6 +1078,57 @@ function actionWeek_(user, payload) {
     week_hide_saturday_column: hideSatColumn,
     week_offset: weekOffset
   };
+}
+
+function actionWeek_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
+
+  var today = new Date();
+  var startDay = getWeekStartDay_();
+  var weekOffset = parseInt((payload && payload.week_offset) || 0, 10) || 0;
+  var anchor = shiftDate_(startOfWeekContaining_(today, startDay), weekOffset * 7);
+  var showSat = settingShowShabbat_();
+  var hideSatColumn = getSettingBool_('week_hide_saturday_column', false);
+  if (hideSatColumn) showSat = false;
+
+  var yms = weekUniqueYmsFromAnchor_(anchor);
+  markRequestPerf_('week:cache lookup:start');
+  var ensured = null;
+  try {
+    ensured = ensureMonthPayloadBundleForYms_(yms);
+  } catch (_ensureErr) {
+    ensured = { ok: false };
+  }
+  markRequestPerf_('week:cache lookup:end');
+
+  if (!ensured || !ensured.ok) {
+    setRequestPerfField_('week_used_view', false);
+    setRequestPerfField_('week_used_cache', false);
+    setRequestPerfField_('week_fallback_used', true);
+    setRequestPerfField_('week_view_rows_read', 0);
+    setRequestPerfField_('week_filtered_rows', 0);
+    markRequestPerf_('week:used_view:false');
+    markRequestPerf_('week:fallback_used:true');
+    var legacyWeek = actionWeekLegacy_(user, payload);
+    setRequestPerfField_('payload_bytes', JSON.stringify(legacyWeek || {}).length);
+    return legacyWeek;
+  }
+
+  var weekPayload = buildWeekResponseFromMonthBundle_(ensured.byYm, anchor, showSat, startDay, hideSatColumn, weekOffset);
+  if (user.display_role === 'instructor') {
+    weekPayload = filterWeekPayloadForInstructor_(weekPayload, text_(user.emp_id || user.user_id));
+  }
+
+  setRequestPerfField_('week_used_view', true);
+  setRequestPerfField_('week_used_cache', !!ensured.usedCacheOnly);
+  setRequestPerfField_('week_fallback_used', false);
+  setRequestPerfField_('week_view_rows_read', ensured.viewRowsRead);
+  setRequestPerfField_('week_filtered_rows', ensured.filteredRowsTotal);
+  setRequestPerfField_('payload_bytes', JSON.stringify(weekPayload || {}).length);
+  markRequestPerf_('week:used_view:true');
+  markRequestPerf_(ensured.usedCacheOnly ? 'week:used_cache:true' : 'week:used_cache:false');
+  markRequestPerf_('week:fallback_used:false');
+  return weekPayload;
 }
 
 function buildMonthResponseFromMeetingViewRows_(rows, year, month) {
