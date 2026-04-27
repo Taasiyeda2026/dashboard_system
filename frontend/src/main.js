@@ -424,15 +424,32 @@ function systemNameDisplay() {
   return raw;
 }
 
+function repairHebrewMojibake(value) {
+  const raw = value == null ? '' : String(value);
+  if (!raw) return '';
+  const hasHebrew = /[\u0590-\u05FF]/.test(raw);
+  const looksBroken = /[×�□]/.test(raw);
+  if (hasHebrew && !looksBroken) return raw;
+  if (!looksBroken) return raw;
+  try {
+    const latin1Bytes = Uint8Array.from(Array.from(raw), (ch) => ch.charCodeAt(0) & 0xff);
+    const repaired = new TextDecoder('utf-8', { fatal: true }).decode(latin1Bytes).trim();
+    if (/[\u0590-\u05FF]/.test(repaired)) return repaired;
+  } catch (_) {
+    // Keep original value if decoding fails.
+  }
+  return raw.replace(/[�□]/g, '').trim();
+}
+
 function shellUserDisplayName() {
-  const fn = state.user?.full_name != null ? String(state.user.full_name).trim() : '';
+  const fn = repairHebrewMojibake(state.user?.full_name).trim();
   return escapeHtml(fn || 'משתמש');
 }
 
 function shellUserRoleLine() {
-  const r2 = state.user?.display_role2 != null ? String(state.user.display_role2).trim() : '';
+  const r2 = repairHebrewMojibake(state.user?.display_role2).trim();
   if (r2) return escapeHtml(r2);
-  return escapeHtml(hebrewRole(state.user?.display_role || state.user?.role));
+  return escapeHtml(repairHebrewMojibake(hebrewRole(state.user?.display_role || state.user?.role)));
 }
 
 // מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
