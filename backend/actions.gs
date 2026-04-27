@@ -952,20 +952,65 @@ function actionWeek_(user, payload) {
   };
 }
 
-function actionMonth_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
+function buildMonthResponseFromMeetingViewRows_(rows, year, month) {
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  var byDate = {};
+  var itemsById = {};
 
-  var now = new Date();
-  var ym = text_(payload && payload.ym).slice(0, 7);
-  var ymMatch = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(ym);
-  var year, month;
-  if (ymMatch) {
-    year = parseInt(ymMatch[1], 10);
-    month = parseInt(ymMatch[2], 10) - 1;
-  } else {
-    year = now.getFullYear();
-    month = now.getMonth();
+  (rows || []).forEach(function(row) {
+    var rowId = text_(row.source_row_id);
+    var dateKey = normalizeDateTextToIso_(row.meeting_date);
+    if (!rowId || !dateKey) return;
+    if (!itemsById[rowId]) {
+      itemsById[rowId] = {
+        RowID: rowId,
+        source_sheet: text_(row.source_sheet),
+        activity_manager: text_(row.activity_manager),
+        authority: text_(row.authority),
+        school: text_(row.school),
+        grade: text_(row.grade),
+        class_group: text_(row.class_group),
+        activity_type: text_(row.activity_type),
+        activity_no: text_(row.activity_no),
+        activity_name: text_(row.activity_name),
+        funding: text_(row.funding),
+        start_time: text_(row.start_time),
+        end_time: text_(row.end_time),
+        emp_id: text_(row.emp_id),
+        instructor_name: text_(row.instructor_name),
+        emp_id_2: text_(row.emp_id_2),
+        instructor_name_2: text_(row.instructor_name_2),
+        start_date: normalizeDateTextToIso_(row.start_date),
+        end_date: normalizeDateTextToIso_(row.end_date) || normalizeDateTextToIso_(row.start_date),
+        status: text_(row.status),
+        private_note: text_(row.private_note)
+      };
+    }
+    if (!byDate[dateKey]) byDate[dateKey] = [];
+    if (byDate[dateKey].indexOf(rowId) < 0) byDate[dateKey].push(rowId);
+  });
+
+  var cells = [];
+  for (var i = 1; i <= daysInMonth; i++) {
+    var d = new Date(year, month, i);
+    var key = formatDate_(d);
+    cells.push({
+      day: i,
+      date: key,
+      item_ids: byDate[key] || []
+    });
   }
+
+  var mm = month + 1;
+  return {
+    month: year + '-' + (mm < 10 ? '0' : '') + mm,
+    cells: cells,
+    items_by_id: itemsById,
+    hide_saturday: false
+  };
+}
+
+function actionMonthLegacy_(user, year, month) {
   var daysInMonth = new Date(year, month + 1, 0).getDate();
   var calRows = visibleActivitiesSummaryForUser_(user);
   var meetingsMap = buildMeetingsMap_();
@@ -993,6 +1038,58 @@ function actionMonth_(user, payload) {
     items_by_id: itemsById,
     hide_saturday: false
   };
+}
+
+function actionMonth_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
+
+  markRequestPerf_('month:view lookup:start');
+  var now = new Date();
+  var ym = text_(payload && payload.ym).slice(0, 7);
+  var ymMatch = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(ym);
+  var year, month;
+  if (ymMatch) {
+    year = parseInt(ymMatch[1], 10);
+    month = parseInt(ymMatch[2], 10) - 1;
+  } else {
+    year = now.getFullYear();
+    month = now.getMonth();
+  }
+
+  var targetYm = year + '-' + ('0' + (month + 1)).slice(-2);
+  var usedView = false;
+  var viewRows = [];
+  try {
+    var projected = [
+      'month_ym', 'meeting_date', 'source_sheet', 'source_row_id',
+      'activity_type', 'activity_name', 'activity_manager',
+      'authority', 'school', 'funding', 'grade', 'class_group',
+      'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
+      'status', 'start_time', 'end_time', 'start_date', 'end_date',
+      'activity_no', 'private_note'
+    ];
+    viewRows = readRowsProjected_(CONFIG.SHEETS.VIEW_ACTIVITY_MEETINGS, projected).filter(function(row) {
+      return text_(row.month_ym) === targetYm;
+    });
+    if (user.display_role === 'instructor') {
+      var empId = text_(user.emp_id || user.user_id);
+      viewRows = viewRows.filter(function(row) {
+        return text_(row.emp_id) === empId || text_(row.emp_id_2) === empId;
+      });
+    }
+    usedView = viewRows.length > 0;
+  } catch (_viewErr) {
+    usedView = false;
+    viewRows = [];
+  }
+  markRequestPerf_('month:view lookup:end');
+
+  if (usedView) {
+    markRequestPerf_('month:used_view:true');
+    return buildMonthResponseFromMeetingViewRows_(viewRows, year, month);
+  }
+  markRequestPerf_('month:fallback_used:true');
+  return actionMonthLegacy_(user, year, month);
 }
 
 function actionExceptions_(user) {

@@ -55,6 +55,7 @@ function handlePost_(e) {
       saveFinanceRow: function() { return actionSaveFinanceRow_(user, payload); },
       syncFinance: function() { return actionSyncFinance_(user, payload); },
       syncEndDates: function() { return actionSyncEndDates_(user, payload); },
+      refreshDataViews: function() { return actionRefreshDataViews_(user, payload); },
       listSheets: function() { return actionListSheets_(user); }
     };
 
