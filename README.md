@@ -178,7 +178,7 @@
 ```html
 <script>
   window.__DASHBOARD_CONFIG__ = {
-    apiUrl: 'https://script.google.com/macros/s/AKfycbyT4OSQLYsbb-12500G1wj7Sd5ECqD0PRsXzb0WvB0aSECDoN3iSnmm67VGfF6Zs9TP/exec'
+    apiUrl: 'https://script.google.com/macros/s/AKfycbxClLawcmTq3sWlzPG0tstsh0tRUyLsmbGqom8ijtiGIC5sTU9WpxBC8XfyiX26eOXW/exec'
   };
 </script>
 ```
@@ -189,7 +189,7 @@
 לבדיקות:
 
 ```text
-http://localhost:5000/?apiUrl=https://script.google.com/macros/s/AKfycbyT4OSQLYsbb-12500G1wj7Sd5ECqD0PRsXzb0WvB0aSECDoN3iSnmm67VGfF6Zs9TP/exec
+http://localhost:5000/?apiUrl=https://script.google.com/macros/s/AKfycbxClLawcmTq3sWlzPG0tstsh0tRUyLsmbGqom8ijtiGIC5sTU9WpxBC8XfyiX26eOXW/exec
 ```
 
 ### 3. DEFAULT_API_URL
