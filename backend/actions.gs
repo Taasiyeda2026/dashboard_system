@@ -1037,6 +1037,46 @@ function filterWeekPayloadForInstructor_(weekPayload, empId) {
   };
 }
 
+function normalizeWeekPayloadShape_(payload) {
+  var source = payload || {};
+  var srcItems = source.items_by_id && typeof source.items_by_id === 'object' ? source.items_by_id : {};
+  var itemsById = {};
+  Object.keys(srcItems).forEach(function(rowId) {
+    if (!rowId) return;
+    itemsById[text_(rowId)] = srcItems[rowId];
+  });
+
+  var days = Array.isArray(source.days) ? source.days : [];
+  var normalizedDays = days.map(function(day) {
+    var normalizedDate = text_(day && day.date);
+    var normalizedDow = text_(day && day.weekday_label);
+    var dayItems = Array.isArray(day && day.items) ? day.items.filter(Boolean) : null;
+    var dayItemIds = [];
+    if (Array.isArray(day && day.item_ids)) {
+      dayItemIds = day.item_ids.map(function(id) { return text_(id); }).filter(Boolean);
+    } else if (dayItems && dayItems.length) {
+      dayItemIds = dayItems
+        .map(function(item) { return text_(item && item.RowID); })
+        .filter(Boolean);
+    }
+
+    return {
+      date: normalizedDate,
+      weekday_label: normalizedDow,
+      item_ids: dayItemIds
+    };
+  });
+
+  return {
+    days: normalizedDays,
+    items_by_id: itemsById,
+    week_starts_on: source.week_starts_on,
+    show_shabbat: source.show_shabbat,
+    week_hide_saturday_column: source.week_hide_saturday_column,
+    week_offset: source.week_offset
+  };
+}
+
 function actionWeekLegacy_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
 
@@ -1070,14 +1110,14 @@ function actionWeekLegacy_(user, payload) {
     });
   }
 
-  return {
+  return normalizeWeekPayloadShape_({
     days: days,
     items_by_id: itemsById,
     week_starts_on: startDay,
     show_shabbat: showSat,
     week_hide_saturday_column: hideSatColumn,
     week_offset: weekOffset
-  };
+  });
 }
 
 function actionWeek_(user, payload) {
@@ -1109,7 +1149,7 @@ function actionWeek_(user, payload) {
     setRequestPerfField_('week_filtered_rows', 0);
     markRequestPerf_('week:used_view:false');
     markRequestPerf_('week:fallback_used:true');
-    var legacyWeek = actionWeekLegacy_(user, payload);
+    var legacyWeek = normalizeWeekPayloadShape_(actionWeekLegacy_(user, payload));
     setRequestPerfField_('payload_bytes', JSON.stringify(legacyWeek || {}).length);
     return legacyWeek;
   }
@@ -1118,6 +1158,7 @@ function actionWeek_(user, payload) {
   if (user.display_role === 'instructor') {
     weekPayload = filterWeekPayloadForInstructor_(weekPayload, text_(user.emp_id || user.user_id));
   }
+  weekPayload = normalizeWeekPayloadShape_(weekPayload);
 
   setRequestPerfField_('week_used_view', true);
   setRequestPerfField_('week_used_cache', !!ensured.usedCacheOnly);

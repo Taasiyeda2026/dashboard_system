@@ -94,6 +94,19 @@ function weekDayItems(day, itemsById) {
   return ids.map((id) => itemsById?.[id]).filter(Boolean);
 }
 
+function normalizeWeekResponseForRender(data) {
+  const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
+  const days = Array.isArray(data?.days)
+    ? data.days.map((day) => ({
+        date: typeof day?.date === 'string' ? day.date : '',
+        weekday_label: typeof day?.weekday_label === 'string' ? day.weekday_label : '',
+        item_ids: Array.isArray(day?.item_ids) ? day.item_ids : [],
+        items: Array.isArray(day?.items) ? day.items : undefined
+      }))
+    : [];
+  return { days, itemsById };
+}
+
 /**
  * Group items by primary instructor key so multiple activities by the same
  * instructor on the same day can be collapsed into an accordion.
@@ -191,8 +204,7 @@ export const weekScreen = {
     return api.week({ week_offset: offset });
   },
   render(data, { state }) {
-    const safeDays = Array.isArray(data?.days) ? data.days : [];
-    const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
+    const { days: safeDays, itemsById } = normalizeWeekResponseForRender(data);
     const filterState = ensureActivityListFilters(state, WEEK_SCOPE);
     const allItems = Object.values(itemsById || {});
     prepareRowsForSearch(allItems, CALENDAR_SEARCH_FIELDS);
@@ -207,22 +219,24 @@ export const weekScreen = {
     const columns = safeDays
       .map((d, idx) => {
         const items = applyLocalFilters(weekDayItems(d, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
-        const isToday = d.date === todayIso;
+        const dayDate = d.date || '';
+        const isToday = dayDate === todayIso;
         const dow = d.weekday_label || '';
         const groups = groupItemsByInstructor(items);
         const sessionBlocks = items.length
           ? groups.map((group) => renderWeekGroup(group, d.date, dow)).join('')
           : '';
-        const holiday = getHolidayLabel(d.date);
+        const holiday = dayDate ? getHolidayLabel(dayDate) : '';
+        const displayDate = /^\d{4}-\d{2}-\d{2}$/.test(dayDate) ? formatDateHe(dayDate) : '—';
         return `
-      <section class="ds-week-col${isToday ? ' is-today' : ''}" data-day-idx="${idx}" aria-label="${escapeHtml(d.date)}">
+      <section class="ds-week-col${isToday ? ' is-today' : ''}" data-day-idx="${idx}" aria-label="${escapeHtml(dayDate || `day-${idx + 1}`)}">
         <header class="ds-week-col__head">
           <div class="ds-week-col__head-top">
             <span class="ds-week-col__dow">${escapeHtml(dow || `יום ${idx + 1}`)}</span>
             ${isToday ? '<span class="ds-week-col__today-badge">היום</span>' : ''}
             <span class="ds-week-col__count">${items.length}</span>
           </div>
-          <span class="ds-week-col__date">${escapeHtml(formatDateHe(d.date))}</span>
+          <span class="ds-week-col__date">${escapeHtml(displayDate)}</span>
           ${holiday ? `<span class="ds-week-col__holiday">${escapeHtml(holiday)}</span>` : ''}
         </header>
         <div class="ds-week-col__body">${sessionBlocks}</div>
