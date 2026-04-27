@@ -103,7 +103,11 @@ function rowExceptionTypes_(row) {
   var hasInstructor1 = !isNormalizedEmptyValue_(row && row.instructor_name) || !isNormalizedEmptyValue_(row && row.emp_id);
   var hasInstructor2 = !isNormalizedEmptyValue_(row && row.instructor_name_2) || !isNormalizedEmptyValue_(row && row.emp_id_2);
   if (!hasInstructor1 && !hasInstructor2) out.push('missing_instructor');
-  if (!activityStartDateFromRow_(row)) out.push('missing_start_date');
+  if (isDataShortRow_(row)) {
+    if (!normalizeDateTextToIso_(row && row.start_date)) out.push('missing_start_date');
+  } else {
+    if (!activityStartDateFromRow_(row)) out.push('missing_start_date');
+  }
   if (text_(row.end_date) > getLateEndDateCutoff_()) out.push('late_end_date');
   return out;
 }
@@ -236,26 +240,25 @@ function activityDateColumnsFromRow_(row) {
   return out;
 }
 
+function isDataShortRow_(row) {
+  var source = text_(row && row.source_sheet);
+  if (source) return source === CONFIG.SHEETS.DATA_SHORT;
+  return text_(row && row.RowID).indexOf('SHORT-') === 0;
+}
+
+function isDataLongRow_(row) {
+  var source = text_(row && row.source_sheet);
+  if (source) return source === CONFIG.SHEETS.DATA_LONG;
+  return text_(row && row.RowID).indexOf('LONG-') === 0;
+}
+
 function activityStartDateFromRow_(row) {
-  var src = getSettingText_('activity_start_date_source', 'Date1');
-  var fromSrc = normalizeDateTextToIso_(row[src]);
-  return fromSrc || normalizeDateTextToIso_(row.start_date) || '';
+  return normalizeDateTextToIso_(row && row.start_date) || '';
 }
 
 function activityEndDateFromRow_(row) {
-  var rule = getSettingText_('activity_end_date_rule', 'last_valid_date_from_date_columns');
-  var dates = activityDateColumnsFromRow_(row);
-  if (rule === 'last_valid_date_from_date_columns') {
-    // לפי ה-settings: תאריך סיום = התאריך האחרון התקין מבין עמודות Date1-Date35.
-    // אין fallback לעמודת end_date — אם אין עמודות תאריך תקינות, תאריך הסיום ריק.
-    if (!dates.length) return '';
-    dates.sort();
-    return dates[dates.length - 1];
-  }
-  // כלל אחר / לאחורה תואם
-  if (!dates.length) return normalizeDateTextToIso_(row.end_date) || '';
-  dates.sort();
-  return dates[dates.length - 1];
+  var start = activityStartDateFromRow_(row);
+  return normalizeDateTextToIso_(row && row.end_date) || start || '';
 }
 
 function appendDateColumnsToMappedRow_(mapped, sourceRow) {
@@ -263,8 +266,14 @@ function appendDateColumnsToMappedRow_(mapped, sourceRow) {
     var key = 'Date' + i;
     mapped[key] = normalizeDateTextToIso_(sourceRow[key]);
   }
-  mapped.start_date = activityStartDateFromRow_(sourceRow);
-  mapped.end_date = activityEndDateFromRow_(sourceRow);
+  if (mapped.source_sheet === CONFIG.SHEETS.DATA_SHORT) {
+    var shortStart = normalizeDateTextToIso_(sourceRow && sourceRow.start_date);
+    mapped.start_date = shortStart;
+    mapped.end_date = normalizeDateTextToIso_(sourceRow && sourceRow.end_date) || shortStart || '';
+  } else {
+    mapped.start_date = normalizeDateTextToIso_(sourceRow && sourceRow.start_date) || '';
+    mapped.end_date = normalizeDateTextToIso_(sourceRow && sourceRow.end_date) || mapped.start_date || '';
+  }
   return mapped;
 }
 
@@ -701,15 +710,20 @@ function actionActivities_(user, payload) {
 function mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today) {
   var noteKey = row.source_sheet + '|' + row.RowID;
   var noteRow = noteMap[noteKey];
-  var meetingsFromSheet = meetingsMap[text_(row.RowID)];
-  var meetingDates = (meetingsFromSheet && meetingsFromSheet.length
-    ? meetingsFromSheet.slice()
-    : activityDateColumnsFromRow_(row).filter(function(v, i, arr) {
-      return !!v && arr.indexOf(v) === i;
-    }).sort());
-  var dateRange = meetingDateRangeFromList_(meetingDates);
-  var computedStartDate = dateRange.start || normalizeDateTextToIso_(row.Date1) || normalizeDateTextToIso_(row.start_date);
-  var computedEndDate = dateRange.end || normalizeDateTextToIso_(row.end_date) || computedStartDate;
+  var meetingsFromSheet = meetingsMap[text_(row.RowID)] || [];
+  var meetingDates = meetingsFromSheet.slice();
+  var computedStartDate = '';
+  var computedEndDate = '';
+  if (isDataLongRow_(row)) {
+    var dateRange = meetingDateRangeFromList_(meetingDates);
+    computedStartDate = dateRange.start || normalizeDateTextToIso_(row.start_date) || '';
+    computedEndDate = dateRange.end || normalizeDateTextToIso_(row.end_date) || computedStartDate;
+  } else {
+    computedStartDate = normalizeDateTextToIso_(row.start_date) || '';
+    computedEndDate = normalizeDateTextToIso_(row.end_date) || computedStartDate;
+    if (computedStartDate) meetingDates.push(computedStartDate);
+    if (computedEndDate && computedEndDate !== computedStartDate) meetingDates.push(computedEndDate);
+  }
   return {
     RowID: row.RowID,
     source_sheet: row.source_sheet,
@@ -724,6 +738,7 @@ function mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today) {
     emp_id_2: row.emp_id_2,
     start_date: computedStartDate,
     end_date: computedEndDate,
+    meeting_dates: meetingDates,
     status: row.status,
     finance_status: row.finance_status,
     meetings_total: meetingDates.length,
@@ -740,12 +755,16 @@ function mapActivityDetailRowForDrawer_(row, user) {
   var meetingsMap = buildMeetingsMap_();
   var today = formatDate_(new Date());
   var summary = mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today);
-  var meetingsFromSheet = meetingsMap[text_(row.RowID)];
-  var meetingDates = (meetingsFromSheet && meetingsFromSheet.length
-    ? meetingsFromSheet.slice()
-    : activityDateColumnsFromRow_(row).filter(function(v, i, arr) {
-      return !!v && arr.indexOf(v) === i;
-    }).sort());
+  var meetingDates = [];
+  if (isDataLongRow_(row)) {
+    var meetingsFromSheet = meetingsMap[text_(row.RowID)];
+    meetingDates = (meetingsFromSheet && meetingsFromSheet.length) ? meetingsFromSheet.slice() : [];
+  } else {
+    var shortStart = normalizeDateTextToIso_(summary.start_date);
+    var shortEnd = normalizeDateTextToIso_(summary.end_date);
+    if (shortStart) meetingDates.push(shortStart);
+    if (shortEnd && shortEnd !== shortStart) meetingDates.push(shortEnd);
+  }
   var meetingSchedule = meetingDates.map(function(dateKey) {
     return { date: dateKey, performed: dateKey <= today ? 'yes' : 'no' };
   });
@@ -948,9 +967,7 @@ function actionMonth_(user, payload) {
 function actionExceptions_(user) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
 
-  // enrichRowsWithMeetings_ מעדכן end_date לתאריך המפגש האחרון האמיתי מגיליון activity_meetings,
-  // כך שבדיקת late_end_date תזהה נכון קורסים עם מפגשים מעבר ל-late_end_date_cutoff.
-  var rows = enrichRowsWithMeetings_(buildLongRows_().slice());
+  var rows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
   var counts = {
     missing_instructor: 0,
     missing_start_date: 0,
@@ -1414,25 +1431,20 @@ function actionEndDates_(user) {
   }
 
   var meetingsMap = buildMeetingsMap_();
-  var longRows = enrichRowsWithMeetings_(buildLongRows_().slice());
-  var rows = longRows
+  var activityRows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
+  var rows = activityRows
     .filter(function(row) {
       return !!text_(row.end_date);
     })
     .map(function(row) {
       var rowId = text_(row.RowID);
 
-      // תאריכי מפגשים מגיליון activity_meetings (מקור עיקרי)
-      var fromMeetings = meetingsMap[rowId];
-      var meetingDates = (fromMeetings && fromMeetings.length)
-        ? fromMeetings.map(function(d) { return text_(d); }).filter(Boolean).sort()
-        : [];
-
-      // תאריכים מ-Date1-Date35 (fallback)
-      var dateCols = [];
-      for (var i = 1; i <= 35; i++) {
-        var d = text_(row['Date' + i]);
-        if (d) dateCols.push(d);
+      var meetingDates = [];
+      if (isDataLongRow_(row)) {
+        var fromMeetings = meetingsMap[rowId];
+        meetingDates = (fromMeetings && fromMeetings.length)
+          ? fromMeetings.map(function(d) { return text_(d); }).filter(Boolean).sort()
+          : [];
       }
 
       return {
@@ -1447,7 +1459,7 @@ function actionEndDates_(user) {
         status: text_(row.status),
         source_sheet: row.source_sheet,
         meeting_dates: meetingDates,
-        date_cols: dateCols
+        date_cols: []
       };
     });
 
@@ -1772,6 +1784,8 @@ function actionAddActivity_(user, payload) {
       instructor_name: common.instructor_name,
       emp_id_2: text_(derivedEmpId2 || activity.emp_id_2),
       instructor_name_2: instructorName2,
+      start_date: firstStartDate || '',
+      end_date: (autoEndDate || firstStartDate || ''),
       Date1: firstStartDate || dateCols.Date1 || '',
       Date2: (isOneDay ? '' : (autoEndDate || dateCols.Date2 || '')),
       status: common.status,
@@ -1876,6 +1890,8 @@ function actionAddActivity_(user, payload) {
 
   if (plannedMeetings.length) {
     setMeetings_(rowId, plannedMeetings);
+  } else if (targetSheet === CONFIG.SHEETS.DATA_LONG) {
+    syncDataLongDatesForRowFromMeetings_(rowId);
   }
 
   scriptCacheInvalidateDataViews_();
@@ -1905,14 +1921,19 @@ function actionSaveActivity_(user, payload) {
     var rawStatus = text_(changes.status).toLowerCase();
     changes.status = (rawStatus === 'closed' || rawStatus === 'סגור') ? 'סגור' : 'פעיל';
   }
-  // עדכון start_date / end_date בגיליון data_long כשיש שינוי בעמודות תאריך
-  if (sourceSheet === CONFIG.SHEETS.DATA_LONG && Object.keys(datePatch).length > 0) {
-    var currentLongRow = getRowByKey_(sourceSheet, 'RowID', sourceRowId);
-    var mergedForDates = {};
-    Object.keys(currentLongRow).forEach(function(k) { mergedForDates[k] = currentLongRow[k]; });
-    Object.keys(changes).forEach(function(k) { mergedForDates[k] = changes[k]; });
-    changes.start_date = activityStartDateFromRow_(mergedForDates);
-    changes.end_date   = activityEndDateFromRow_(mergedForDates);
+  if (sourceSheet === CONFIG.SHEETS.DATA_SHORT) {
+    if (Object.prototype.hasOwnProperty.call(changes, 'start_date')) {
+      changes.start_date = normalizeDateTextToIso_(changes.start_date);
+      if (!Object.prototype.hasOwnProperty.call(changes, 'end_date')) {
+        changes.end_date = normalizeDateTextToIso_(changes.end_date) || changes.start_date;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'end_date')) {
+      changes.end_date = normalizeDateTextToIso_(changes.end_date) || normalizeDateTextToIso_(changes.start_date) || '';
+    }
+    if (!Object.prototype.hasOwnProperty.call(changes, 'end_date') && Object.prototype.hasOwnProperty.call(changes, 'start_date')) {
+      changes.end_date = changes.start_date || '';
+    }
   }
   if (!effectiveCanEditDirect_(permission, user.display_role)) {
     if (!effectiveCanRequestEdit_(permission, user.display_role)) {
@@ -1926,6 +1947,9 @@ function actionSaveActivity_(user, payload) {
   }
 
   updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
+  if (sourceSheet === CONFIG.SHEETS.DATA_LONG) {
+    syncDataLongDatesForRowFromMeetings_(sourceRowId);
+  }
 
   scriptCacheInvalidateDataViews_();
   return {
@@ -2319,22 +2343,30 @@ function actionSavePrivateNote_(user, payload) {
 function enrichRowsWithMeetings_(rows) {
   var meetingsMap = buildMeetingsMap_();
   rows.forEach(function(row) {
-    var dates = meetingsMap[text_(row.RowID)];
+    var rowId = text_(row.RowID);
+    if (isDataShortRow_(row)) {
+      row.start_date = normalizeDateTextToIso_(row.start_date) || '';
+      row.end_date = normalizeDateTextToIso_(row.end_date) || row.start_date || '';
+      row.meeting_dates = [];
+      return;
+    }
+    var dates = meetingsMap[rowId];
     if (dates && dates.length) {
       var range = meetingDateRangeFromList_(dates);
       row.start_date = range.start;
-      // שימור ה-end_date המקורי אם הוא מאוחר יותר מהמפגש האחרון,
-      // כדי שקורס עם תאריך סיום מאוחר לא יאבד את החריגה late_end_date
-      // רק בגלל שהמפגשים הרשומים עדיין לא הגיעו לאותו תאריך.
-      var origEnd = text_(row.end_date);
-      row.end_date = (range.end > origEnd) ? range.end : origEnd;
+      row.end_date = range.end || range.start;
+      row.meeting_dates = dates.slice();
+      return;
     }
+    row.start_date = normalizeDateTextToIso_(row.start_date) || '';
+    row.end_date = normalizeDateTextToIso_(row.end_date) || row.start_date || '';
+    row.meeting_dates = [];
   });
   return rows;
 }
 
 function meetingDateRangeFromList_(dates) {
-  var list = (dates || []).map(function(v) { return text_(v); }).filter(Boolean);
+  var list = (dates || []).map(function(v) { return normalizeDateTextToIso_(v); }).filter(Boolean).sort();
   if (!list.length) return { start: '', end: '' };
   var start = list[0];
   var end = list[0];
@@ -2412,6 +2444,8 @@ function projectedActivityColumnsForDetail_() {
 }
 
 function mapProjectedActivityDetailRow_(sheetName, row) {
+  var startIso = normalizeDateTextToIso_(row.start_date) || '';
+  var endIso = normalizeDateTextToIso_(row.end_date) || startIso || '';
   var out = {
     source_sheet: sheetName,
     RowID: text_(row.RowID),
@@ -2432,8 +2466,8 @@ function mapProjectedActivityDetailRow_(sheetName, row) {
     instructor_name: text_(row.instructor_name),
     emp_id_2: text_(row.emp_id_2),
     instructor_name_2: text_(row.instructor_name_2),
-    start_date: normalizeDateTextToIso_(row.start_date) || normalizeDateTextToIso_(row.Date1),
-    end_date: normalizeDateTextToIso_(row.end_date) || normalizeDateTextToIso_(row.start_date) || normalizeDateTextToIso_(row.Date1),
+    start_date: startIso,
+    end_date: endIso,
     status: text_(row.status),
     notes: text_(row.notes),
     finance_status: normalizeFinance_(row.finance_status),
@@ -2515,6 +2549,8 @@ function allActivitiesSummary_() {
       return;
     }
     var rows = readRowsProjected_(sheetName, cols).map(function(row) {
+      var startIso = normalizeDateTextToIso_(row.start_date) || '';
+      var endIso = normalizeDateTextToIso_(row.end_date) || startIso || '';
       return {
         source_sheet: sheetName,
         RowID: text_(row.RowID),
@@ -2535,8 +2571,8 @@ function allActivitiesSummary_() {
         instructor_name: text_(row.instructor_name),
         emp_id_2: text_(row.emp_id_2),
         instructor_name_2: text_(row.instructor_name_2),
-        start_date: normalizeDateTextToIso_(row.start_date) || normalizeDateTextToIso_(row.Date1),
-        end_date: normalizeDateTextToIso_(row.end_date) || normalizeDateTextToIso_(row.start_date) || normalizeDateTextToIso_(row.Date1),
+        start_date: startIso,
+        end_date: endIso,
         status: text_(row.status),
         notes: text_(row.notes),
         finance_status: normalizeFinance_(row.finance_status),
@@ -2820,7 +2856,7 @@ function buildMeetingsMap_() {
   var byMeetingNo = {};
   rows.forEach(function(row) {
     var key = text_(row.source_row_id);
-    var date = text_(row.meeting_date);
+    var date = normalizeDateTextToIso_(row.meeting_date);
     var meetingNo = parseInt(text_(row.meeting_no), 10);
     if (!key || !date) return;
     if (!map[key]) map[key] = [];
@@ -3160,19 +3196,15 @@ function buildCalendarIndexForDateRange_(rows, meetingsMap, fromDate, toDate) {
     };
 
     var meetingDates = meetingsMap && meetingsMap[rowId];
-    if (meetingDates && meetingDates.length) {
-      meetingDates.forEach(addRowToDate);
-      return;
+    if (isDataLongRow_(row)) {
+      if (meetingDates && meetingDates.length) {
+        meetingDates.forEach(addRowToDate);
+        return;
+      }
     }
 
-    var dlist = activityDateColumnsFromRow_(row);
-    if (dlist.length) {
-      dlist.forEach(addRowToDate);
-      return;
-    }
-
-    var startIso = text_(row.start_date) || normalizeDateTextToIso_(row.Date1);
-    var endIso = text_(row.end_date) || activityEndDateFromRow_(row);
+    var startIso = normalizeDateTextToIso_(row.start_date);
+    var endIso = normalizeDateTextToIso_(row.end_date) || startIso;
     eachIsoDateInIntersection_(startIso, endIso, fromIso, toIso, addRowToDate);
   });
 
@@ -3263,7 +3295,7 @@ function actionSyncFinance_(user, payload) {
 /* ── Sync End Dates (admin-only manual full sync) ─────────────────────────── */
 function actionSyncEndDates_(user, payload) {
   requireAnyRole_(user, ['admin']);
-  var result = syncLongDataEndDates_();
+  var result = syncDataLongDatesFromMeetings_();
   scriptCacheInvalidateDataViews_();
   return {
     synced: true,

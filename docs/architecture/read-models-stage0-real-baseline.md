@@ -13,4 +13,3 @@ Collection was blocked: Network error while calling login (ENETUNREACH): fetch f
 1. Outbound network access from this environment to Google Apps Script endpoint.
 2. Valid credentials via env vars: `DASHBOARD_USER_ID` and `DASHBOARD_ENTRY_CODE`.
 3. Re-run `node scripts/collect_baseline_stage0_real.mjs`.
-
