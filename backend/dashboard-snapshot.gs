@@ -211,6 +211,18 @@ function parseJsonArraySafeForDashboard_(raw, fallback) {
   return fallback;
 }
 
+function resolveExceptionsCountForDashboard_(summaryObj, rawExceptions) {
+  var summary = summaryObj && typeof summaryObj === 'object' ? summaryObj : {};
+  var missingInstr = parseInt(text_(summary.missing_instructor_count), 10) || 0;
+  var missingStart = parseInt(text_(summary.missing_start_date_count), 10) || 0;
+  var lateEnd = parseInt(text_(summary.late_end_date_count), 10) || 0;
+  var fromSummaryParts = missingInstr + missingStart + lateEnd;
+  var fromRaw = parseInt(text_(rawExceptions), 10);
+  if (isNaN(fromRaw) || fromRaw < 0) return fromSummaryParts;
+  if (fromSummaryParts > 0 && fromRaw !== fromSummaryParts) return fromSummaryParts;
+  return fromRaw;
+}
+
 function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, canViewFinance) {
   var summary = parseJsonObjectSafeForDashboard_(primaryRow.summary_json, {});
   if (!Array.isArray(summary.active_instructors) || !summary.active_instructors.length) {
@@ -224,7 +236,10 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
   } else if (summary.active_courses_next_month === undefined || summary.active_courses_next_month === null) {
     summary.active_courses_next_month = 0;
   }
-  summary.exceptions_count = parseInt(text_(primaryRow.exceptions_count), 10) || summary.exceptions_count || 0;
+  summary.exceptions_count = resolveExceptionsCountForDashboard_(
+    summary,
+    primaryRow.exceptions_count || summary.exceptions_count
+  );
   var finRaw = summary.finance_open_count;
   summary.finance_open_count = typeof finRaw === 'number' && !isNaN(finRaw)
     ? finRaw
@@ -261,7 +276,7 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
   var totalInstr = parseInt(text_(primaryRow.total_instructors), 10) || 0;
   var courseEndings = parseInt(text_(primaryRow.course_endings), 10) || 0;
   var financeOpen = canViewFinance ? (summary.finance_open_count || 0) : 0;
-  var exceptCount = parseInt(text_(primaryRow.exceptions_count), 10) || summary.exceptions_count || 0;
+  var exceptCount = resolveExceptionsCountForDashboard_(summary, primaryRow.exceptions_count);
   var activeCurrent = parseInt(text_(primaryRow.active_courses), 10) || 0;
 
   var snapshotData = {
@@ -448,12 +463,16 @@ function actionDashboardSnapshot_(user, payload) {
   var totalInstr     = parseInt(text_(s.active_instructors_count), 10) || 0;
   var courseEndings  = parseInt(text_(s.course_endings_current_month), 10) || 0;
   var financeOpen    = parseInt(text_(s.finance_open_count),       10) || 0;
-  var exceptCount    = parseInt(text_(s.exceptions_count),         10) || 0;
-  var activeCurrent  = parseInt(text_(s.active_courses_current_month), 10) || 0;
-  var activeNext     = parseInt(text_(s.active_courses_next_month), 10) || 0;
   var missingInstr   = parseInt(text_(s.missing_instructor_count), 10) || 0;
   var missingDate    = parseInt(text_(s.missing_start_date_count), 10) || 0;
   var lateEnd        = parseInt(text_(s.late_end_date_count),      10) || 0;
+  var exceptCount    = resolveExceptionsCountForDashboard_({
+    missing_instructor_count: missingInstr,
+    missing_start_date_count: missingDate,
+    late_end_date_count: lateEnd
+  }, s.exceptions_count);
+  var activeCurrent  = parseInt(text_(s.active_courses_current_month), 10) || 0;
+  var activeNext     = parseInt(text_(s.active_courses_next_month), 10) || 0;
 
   var combinedStr = text_(s.active_instructors_names);
   var allInstructorNames = combinedStr
@@ -672,7 +691,10 @@ function writeDashboardSummarySnapshotRow_(ym, fullData) {
   kpiAll.forEach(function(card) { counts[card.id] = card.value || 0; });
 
   var financeOpen = canViewFinanceFromKpis_(kpiAll, fullData);
-  var exceptions  = counts['exceptions'] || 0;
+  var exceptions  = (counts['exceptions'] || 0);
+  if (!exceptions) {
+    exceptions = resolveExceptionsCountForDashboard_(summary, summary.exceptions_count);
+  }
 
   var rowObj = {
     month_ym:                          "'" + normalizeSnapshotMonthYm_(ym),

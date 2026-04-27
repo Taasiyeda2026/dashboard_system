@@ -72,6 +72,21 @@ function parseActivitiesSnapshotJson_(raw, fallback) {
   }
 }
 
+function normalizeActivitiesSnapshotRow_(row) {
+  var src = row && typeof row === 'object' ? row : {};
+  var normalized = {};
+  Object.keys(src).forEach(function(key) { normalized[key] = src[key]; });
+  normalized.instructor_name = text_(src.instructor_name || src.Instructor || src.Employee);
+  normalized.instructor_name_2 = text_(src.instructor_name_2 || src.Instructor2);
+  normalized.emp_id = text_(src.emp_id || src.EmployeeID);
+  normalized.emp_id_2 = text_(src.emp_id_2);
+  if (!normalized.source_sheet) {
+    var rowId = text_(src.RowID);
+    normalized.source_sheet = rowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT;
+  }
+  return normalized;
+}
+
 function filterActivitiesSnapshotRows_(rows, payload) {
   var oneDayTypes = configuredOneDayActivityTypes_();
   var programTypes = configuredProgramActivityTypes_();
@@ -133,7 +148,7 @@ function actionActivitiesSnapshotFirst_(user, payload) {
   }
 
   var counts = parseActivitiesSnapshotJson_(snap.activity_type_counts_json, {});
-  var rows = parseActivitiesSnapshotJson_(snap.rows_json, []);
+  var rows = parseActivitiesSnapshotJson_(snap.rows_json, []).map(normalizeActivitiesSnapshotRow_);
   var filtered = filterActivitiesSnapshotRows_(rows, payload || {});
   return {
     activity_type_counts: counts,

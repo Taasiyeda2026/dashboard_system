@@ -257,11 +257,12 @@ export const weekScreen = {
         ? `${Math.abs(weekOffset)} שבועות אחורה${rangeLabel ? ` · ${rangeLabel}` : ''}`
         : `${rangeLabel || 'שבוע'}`;
 
+    const navLoading = !!state.weekNavLoading;
     const html = dsScreenStack(`
-      <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-prev aria-label="שבוע קודם">▶</button>
-        <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-next aria-label="שבוע הבא">◀</button>
+      <nav class="ds-cal-nav${navLoading ? ' is-nav-loading' : ''}" role="navigation" aria-label="ניווט שבועי" dir="rtl">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-prev aria-label="שבוע קודם" title="שבוע קודם" ${navLoading ? 'disabled' : ''}>▶</button>
+        <span class="ds-cal-nav__label">${escapeHtml(navLabel)} ${navLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-next aria-label="שבוע הבא" title="שבוע הבא" ${navLoading ? 'disabled' : ''}>◀</button>
       </nav>
       ${toolbarHtml}
       <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
@@ -300,12 +301,16 @@ export const weekScreen = {
     const prevBtn = root.querySelector('[data-week-prev]');
     const nextBtn = root.querySelector('[data-week-next]');
     const doWeekShift = (delta) => {
-      if (prevBtn) prevBtn.disabled = true;
-      if (nextBtn) nextBtn.disabled = true;
-      root.classList.add('is-week-loading');
-      root.setAttribute('aria-busy', 'true');
+      if (state.weekNavLoading) return;
+      const startedAt = Date.now();
+      state.weekNavLoading = true;
       state.weekOffset = (state.weekOffset || 0) + delta;
       rerender?.();
+      const minMs = 420;
+      setTimeout(() => {
+        state.weekNavLoading = false;
+        rerender?.();
+      }, Math.max(0, minMs - (Date.now() - startedAt)));
     };
     bindListener(prevBtn, 'click', () => doWeekShift(-1));
     bindListener(nextBtn, 'click', () => doWeekShift(1));
