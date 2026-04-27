@@ -55,11 +55,19 @@ const ACTIVITY_SEARCH_FIELDS = [
   'activity_type'
 ];
 
-function activityInstructorLine(row) {
-  const parts = [row?.instructor_name, row?.instructor_name_2]
-    .map((s) => String(s || '').trim())
-    .filter(Boolean);
+/** שם תצוגה למדריך/ים — כולל כינויים מה־API ומ־normalizeData (Employee וכו'). */
+function activityInstructorLine(row, opts = {}) {
+  const hideEmpIds = !!opts.hideEmpIds;
+  const n1 = String(row?.instructor_name ?? row?.Instructor ?? row?.Employee ?? '').trim();
+  const n2 = String(row?.instructor_name_2 ?? row?.Instructor2 ?? '').trim();
+  const parts = [n1, n2].filter(Boolean);
   if (parts.length) return parts.join(' · ');
+  if (!hideEmpIds) {
+    const e1 = String(row?.emp_id ?? row?.EmployeeID ?? '').trim();
+    const e2 = String(row?.emp_id_2 ?? '').trim();
+    const empParts = [e1, e2].filter(Boolean);
+    if (empParts.length) return empParts.join(' · ');
+  }
   return '';
 }
 
@@ -315,7 +323,7 @@ export const activitiesScreen = {
 
     const tableRows = safeRows
       .map((row) => {
-        const instructorLine = activityInstructorLine(row);
+        const instructorLine = activityInstructorLine(row, { hideEmpIds });
         const startHe = formatDateHe(row.start_date) || '—';
         const endRaw = String(row?.end_date || '').trim() || String(row?.start_date || '').trim();
         const endHe = endRaw ? formatDateHe(endRaw) || '—' : '—';
@@ -335,14 +343,12 @@ export const activitiesScreen = {
         ]
           .filter(Boolean)
           .join(' ');
-        const instructorBlock = instructorLine
-          ? `<div class="ds-row-subtle">${escapeHtml(instructorLine)}</div>`
-          : '';
         return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
-        <td><strong>${escapeHtml(row.activity_name || '—')}</strong><div class="ds-row-subtle">${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</div>${instructorBlock}</td>
+        <td><strong>${escapeHtml(row.activity_name || '—')}</strong><div class="ds-row-subtle">${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</div></td>
         <td>${escapeHtml(row.authority || '—')}</td>
         <td>${escapeHtml(row.school || '—')}</td>
+        <td>${escapeHtml(instructorLine || '—')}</td>
         <td>${escapeHtml(startHe)}</td>
         <td>${escapeHtml(endHe)}</td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
@@ -368,7 +374,7 @@ export const activitiesScreen = {
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות')
         : dsTableWrap(`<table class="ds-table ds-table--interactive">
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>תאריך התחלה</th><th>תאריך סיום</th>${thPrivate}</tr></thead>
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th>${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
 
