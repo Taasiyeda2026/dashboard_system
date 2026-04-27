@@ -3,6 +3,7 @@
  *
  * מקור אמת לתאריכי data_long הוא activity_meetings (רק active=yes).
  * הקובץ מסנכרן בפועל את העמודות start_date + end_date בגיליון data_long.
+ * כולל נקודות כניסה ידניות לאבחון/סנכרון מתוך Apps Script Editor.
  */
 
 function buildActiveMeetingDatesMap_() {
