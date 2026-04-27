@@ -325,6 +325,7 @@ function actionDashboardSnapshot_(user, payload) {
       active_courses_current_month: activeCurrent,
       ending_courses_current_month: courseEndings,
       active_courses_next_month:    activeNext,
+      exceptions_count:             exceptCount,
       active_instructors:           allInstructorNames,
       active_instructors_by_manager: {},
       missing_instructor_count:  missingInstr,

@@ -40,6 +40,18 @@ function normalizeNames(names) {
   return unique.join(', ');
 }
 
+function getStrictNumericField(obj, fieldName) {
+  if (!obj || typeof obj !== 'object' || !Object.prototype.hasOwnProperty.call(obj, fieldName)) {
+    return { ok: false, reason: 'missing_field', fieldName };
+  }
+  const raw = obj[fieldName];
+  const asNumber = typeof raw === 'number' ? raw : Number(String(raw).trim());
+  if (!Number.isFinite(asNumber)) {
+    return { ok: false, reason: 'invalid_number', fieldName };
+  }
+  return { ok: true, value: asNumber, fieldName };
+}
+
 const MANAGER_DISPLAY_NAMES = {
   'גיל נאמן':               'מחוז צפון',
   'לינוי שמואל מזרחי':      'מחוז דרום',
@@ -49,12 +61,31 @@ function renderStructuredSummary(summary, ym, byManager) {
   const monthTitle     = hebrewMonthTitle(ym);
   const nextMonthTitle = hebrewMonthTitle(shiftYm(ym, 1));
 
-  const activeCurrent = escapeHtml(String(summary?.active_courses_current_month ?? 0));
-  const endingCurrent = escapeHtml(String(summary?.ending_courses_current_month ?? 0));
-  const activeNext    = escapeHtml(String(summary?.active_courses_next_month ?? 0));
-  const missingInstr  = escapeHtml(String(summary?.missing_instructor_count ?? 0));
-  const missingDate   = escapeHtml(String(summary?.missing_start_date_count ?? 0));
-  const lateEnd       = escapeHtml(String(summary?.late_end_date_count ?? 0));
+  const activeCurrentField = getStrictNumericField(summary, 'active_courses_current_month');
+  const endingCurrentField = getStrictNumericField(summary, 'ending_courses_current_month');
+  const activeNextField = getStrictNumericField(summary, 'active_courses_next_month');
+  const missingInstrField = getStrictNumericField(summary, 'missing_instructor_count');
+  const missingDateField = getStrictNumericField(summary, 'missing_start_date_count');
+  const lateEndField = getStrictNumericField(summary, 'late_end_date_count');
+  const exceptionsTotalField = getStrictNumericField(summary, 'exceptions_count');
+
+  const activeCurrent = escapeHtml(String(activeCurrentField.ok ? activeCurrentField.value : 'שגיאת מיפוי'));
+  const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 'שגיאת מיפוי'));
+  const activeNext = escapeHtml(String(activeNextField.ok ? activeNextField.value : 'שגיאת מיפוי'));
+  const missingInstr = escapeHtml(String(missingInstrField.ok ? missingInstrField.value : 'שגיאת מיפוי'));
+  const missingDate = escapeHtml(String(missingDateField.ok ? missingDateField.value : 'שגיאת מיפוי'));
+  const lateEnd = escapeHtml(String(lateEndField.ok ? lateEndField.value : 'שגיאת מיפוי'));
+  const exceptionsTotal = escapeHtml(String(exceptionsTotalField.ok ? exceptionsTotalField.value : 'שגיאת מיפוי'));
+
+  const mappingErrors = [
+    activeCurrentField,
+    endingCurrentField,
+    activeNextField,
+    missingInstrField,
+    missingDateField,
+    lateEndField,
+    exceptionsTotalField
+  ].filter((field) => !field.ok);
 
   const districtRows = (Array.isArray(byManager) ? byManager : []).filter(
     (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned'
@@ -88,7 +119,9 @@ function renderStructuredSummary(summary, ym, byManager) {
       <p class="ds-summary-panel__text">קורסים ללא שיבוץ מדריך (<strong>${missingInstr}</strong>)</p>
       <p class="ds-summary-panel__text">קורסים ללא תאריך התחלה (<strong>${missingDate}</strong>)</p>
       <p class="ds-summary-panel__text">קורסים בסיכון עקב תאריך סיום מאוחר (<strong>${lateEnd}</strong>)</p>
+      <p class="ds-summary-panel__text"><strong>סה״כ חריגות: ${exceptionsTotal}</strong></p>
     </div>
+    ${mappingErrors.length ? `<p class="ds-summary-panel__text" style="color:#b42318"><strong>שגיאת מיפוי שדות Snapshot:</strong> ${escapeHtml(mappingErrors.map((f) => f.fieldName).join(', '))}</p>` : ''}
   </div>`;
 }
 
