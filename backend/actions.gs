@@ -721,7 +721,8 @@ function mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today) {
   } else {
     computedStartDate = normalizeDateTextToIso_(row.start_date) || '';
     computedEndDate = normalizeDateTextToIso_(row.end_date) || computedStartDate;
-    meetingDates = [];
+    if (computedStartDate) meetingDates.push(computedStartDate);
+    if (computedEndDate && computedEndDate !== computedStartDate) meetingDates.push(computedEndDate);
   }
   return {
     RowID: row.RowID,
