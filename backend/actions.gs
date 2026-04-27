@@ -294,6 +294,19 @@ function actionDashboard_(user, payload) {
   });
 
   var byManager = {};
+  var managerInstructorSets = {};
+  var managerCourseEndings = {};
+  var managerFinanceOpen = {};
+  var managerExceptions = {};
+  var managerActiveLong = {};
+  var activeTypeCountsCurrent = {
+    course: 0,
+    workshop: 0,
+    tour: 0,
+    after_school: 0,
+    escape_room: 0
+  };
+  var dashboardRefIso = dashboardActivityRefIso_(ym);
   combined.forEach(function(row) {
     var manager = text_(row.activity_manager) || 'unassigned';
     if (!byManager[manager]) {
@@ -304,6 +317,12 @@ function actionDashboard_(user, payload) {
         total: 0
       };
     }
+    if (!managerInstructorSets[manager]) managerInstructorSets[manager] = {};
+    if (!managerCourseEndings[manager]) managerCourseEndings[manager] = 0;
+    if (!managerFinanceOpen[manager]) managerFinanceOpen[manager] = 0;
+    if (!managerExceptions[manager]) managerExceptions[manager] = 0;
+    if (!managerActiveLong[manager]) managerActiveLong[manager] = 0;
+
     var t = text_(row.activity_type);
     if (oneDayTypes.indexOf(t) >= 0) {
       byManager[manager].total_short += 1;
@@ -312,29 +331,39 @@ function actionDashboard_(user, payload) {
       byManager[manager].total_long += 1;
       byManager[manager].total += 1;
     }
+
+    var empA = text_(row.emp_id);
+    var empB = text_(row.emp_id_2);
+    if (empA) managerInstructorSets[manager][empA] = true;
+    if (empB) managerInstructorSets[manager][empB] = true;
+
+    if (canViewFinance && normalizeFinance_(row.finance_status) === 'open') {
+      managerFinanceOpen[manager] += 1;
+    }
+
+    if (programTypes.indexOf(t) >= 0) {
+      if (primaryExceptionForRow_(row)) managerExceptions[manager] += 1;
+      if (t === 'course' && text_(row.end_date).slice(0, 7) === ym) managerCourseEndings[manager] += 1;
+    }
+
+    if (activityOverlapsYm_(row, ym) && isActivityActiveBySpec_(row, dashboardRefIso)) {
+      if (Object.prototype.hasOwnProperty.call(activeTypeCountsCurrent, t)) {
+        activeTypeCountsCurrent[t] += 1;
+      }
+    }
   });
 
-  // Compute per-manager extended stats
+  activeLongRows.forEach(function(row) {
+    var manager = text_(row.activity_manager) || 'unassigned';
+    managerActiveLong[manager] = (managerActiveLong[manager] || 0) + 1;
+  });
+
   Object.keys(byManager).forEach(function(manager) {
-    var mShort = shortRows.filter(function(r) { return (text_(r.activity_manager) || 'unassigned') === manager; });
-    var mLong = longRows.filter(function(r) { return (text_(r.activity_manager) || 'unassigned') === manager; });
-    var mCombined = mShort.concat(mLong);
-    byManager[manager].num_instructors = countUniqueOperationalInstructors_(mCombined);
-    byManager[manager].course_endings = mLong.filter(function(r) {
-      return text_(r.activity_type) === 'course' && text_(r.end_date).slice(0, 7) === ym;
-    }).length;
-    if (canViewFinance) {
-      byManager[manager].finance_open = mCombined.filter(function(r) {
-        return normalizeFinance_(r.finance_status) === 'open';
-      }).length;
-    }
-    byManager[manager].exceptions = mLong.filter(function(r) {
-      return !!primaryExceptionForRow_(r);
-    }).length;
-    // תוכניות פעילות: לפי ההגדרה החדשה (סטטוס פתוח, ללא חריגות, מפגש בחודש או סיום >= היום)
-    byManager[manager].total_long = activeLongRows.filter(function(r) {
-      return (text_(r.activity_manager) || 'unassigned') === manager;
-    }).length;
+    byManager[manager].num_instructors = Object.keys(managerInstructorSets[manager] || {}).length;
+    byManager[manager].course_endings = managerCourseEndings[manager] || 0;
+    if (canViewFinance) byManager[manager].finance_open = managerFinanceOpen[manager] || 0;
+    byManager[manager].exceptions = managerExceptions[manager] || 0;
+    byManager[manager].total_long = managerActiveLong[manager] || 0;
   });
 
   var courseEndings = longRows.filter(function(row) {
@@ -380,37 +409,37 @@ function actionDashboard_(user, payload) {
     {
       id: 'active_courses',
       action: 'kpi|active_courses',
-      title: String(countActiveByTypeInYm_(combined, ym, 'course')),
+      title: String(activeTypeCountsCurrent.course),
       subtitle: 'קורסים פעילים',
-      value: countActiveByTypeInYm_(combined, ym, 'course')
+      value: activeTypeCountsCurrent.course
     },
     {
       id: 'active_workshops',
       action: 'kpi|active_workshops',
-      title: String(countActiveByTypeInYm_(combined, ym, 'workshop')),
+      title: String(activeTypeCountsCurrent.workshop),
       subtitle: 'סדנאות פעילות',
-      value: countActiveByTypeInYm_(combined, ym, 'workshop')
+      value: activeTypeCountsCurrent.workshop
     },
     {
       id: 'active_tours',
       action: 'kpi|active_tours',
-      title: String(countActiveByTypeInYm_(combined, ym, 'tour')),
+      title: String(activeTypeCountsCurrent.tour),
       subtitle: 'סיורים פעילים',
-      value: countActiveByTypeInYm_(combined, ym, 'tour')
+      value: activeTypeCountsCurrent.tour
     },
     {
       id: 'active_after_school',
       action: 'kpi|active_after_school',
-      title: String(countActiveByTypeInYm_(combined, ym, 'after_school')),
+      title: String(activeTypeCountsCurrent.after_school),
       subtitle: 'אפטרסקול פעיל',
-      value: countActiveByTypeInYm_(combined, ym, 'after_school')
+      value: activeTypeCountsCurrent.after_school
     },
     {
       id: 'active_escape_room',
       action: 'kpi|active_escape_room',
-      title: String(countActiveByTypeInYm_(combined, ym, 'escape_room')),
+      title: String(activeTypeCountsCurrent.escape_room),
       subtitle: 'חדרי בריחה פעילים',
-      value: countActiveByTypeInYm_(combined, ym, 'escape_room')
+      value: activeTypeCountsCurrent.escape_room
     },
     {
       id: 'finance_open',
@@ -481,7 +510,7 @@ function actionDashboard_(user, payload) {
       return byManager[key];
     }),
     summary: {
-      active_courses_current_month: countActiveByTypeInYm_(combined, ym, 'course'),
+      active_courses_current_month: activeTypeCountsCurrent.course,
       ending_courses_current_month: courseEndings,
       active_courses_next_month: countActiveByTypeInYm_(allSummary, nextYm, 'course'),
       active_instructors: collectUniqueInstructorNames_(combined),
@@ -501,12 +530,14 @@ function actionActivities_(user, payload) {
   requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
   var permission = getPermissionRow_(user.user_id);
   var canAddActivity = effectiveCanAddActivity_(permission, user.display_role);
+  var oneDayTypes = configuredOneDayActivityTypes_();
+  var programTypes = configuredProgramActivityTypes_();
 
   var allRows = allActivitiesSummary_();
   var today = formatDate_(new Date());
   var typeKeys = listValuesForName_('activity_type');
   if (!typeKeys.length) {
-    typeKeys = configuredProgramActivityTypes_().concat(configuredOneDayActivityTypes_());
+    typeKeys = programTypes.concat(oneDayTypes);
   }
   var activityTypeCounts = {};
   typeKeys.forEach(function(t) {
@@ -532,8 +563,8 @@ function actionActivities_(user, payload) {
     if (activityType && activityType !== 'all' && text_(row.activity_type) !== activityType) return false;
     if (financeStatus && text_(row.finance_status) !== financeStatus) return false;
     if (manager && text_(row.activity_manager) !== manager) return false;
-    if (family === 'short' && configuredOneDayActivityTypes_().indexOf(text_(row.activity_type)) < 0) return false;
-    if (family === 'long' && configuredProgramActivityTypes_().indexOf(text_(row.activity_type)) < 0) return false;
+    if (family === 'short' && oneDayTypes.indexOf(text_(row.activity_type)) < 0) return false;
+    if (family === 'long' && programTypes.indexOf(text_(row.activity_type)) < 0) return false;
     if (endingCurrentMonth &&
       !(text_(row.activity_type) === 'course' && text_(row.end_date || '').slice(0, 7) === monthFilter)) return false;
     if (search) {
@@ -880,40 +911,32 @@ function actionFinance_(user, payload) {
   var statusFilter = text_((payload || {}).status || '');
   var tab = text_((payload || {}).tab || 'active');
   var monthYm = text_((payload || {}).month || '');
+  var monthFilterEnabled = monthYm && /^\d{4}-\d{2}$/.test(monthYm);
+  var prevYm = '';
   if (dateFrom && !DATE_RE.test(dateFrom)) dateFrom = '';
   if (dateTo && !DATE_RE.test(dateTo)) dateTo = '';
-
-  var rows = allActivitiesSummary_().filter(function(row) {
-    if (rule === 'ended_until_today') {
-      var e = text_(row.end_date || row.start_date);
-      return !!e && e <= today;
-    }
-    return true;
-  });
-
-  if (dateFrom || dateTo) {
-    rows = rows.filter(function(row) {
-      var d = text_(row.end_date || row.start_date);
-      if (!d) return false;
-      if (dateFrom && d < dateFrom) return false;
-      if (dateTo && d > dateTo) return false;
-      return true;
-    });
-  }
-
-  if (monthYm && /^\d{4}-\d{2}$/.test(monthYm)) {
+  if (monthFilterEnabled) {
     var p = monthYm.split('-');
     var yy = parseInt(p[0], 10);
     var mm = parseInt(p[1], 10);
     var prev = new Date(yy, mm - 2, 1);
-    var prevYm = Utilities.formatDate(prev, Session.getScriptTimeZone(), 'yyyy-MM');
-    rows = rows.filter(function(row) {
-      var ym = text_(row.end_date || '').slice(0, 7);
-      return ym === monthYm || ym === prevYm;
-    });
+    prevYm = Utilities.formatDate(prev, Session.getScriptTimeZone(), 'yyyy-MM');
   }
 
-  rows = rows.filter(function(row) {
+  var rows = allActivitiesSummary_().filter(function(row) {
+    var endOrStart = text_(row.end_date || row.start_date);
+    if (rule === 'ended_until_today') {
+      if (!endOrStart || endOrStart > today) return false;
+    }
+    if (dateFrom || dateTo) {
+      if (!endOrStart) return false;
+      if (dateFrom && endOrStart < dateFrom) return false;
+      if (dateTo && endOrStart > dateTo) return false;
+    }
+    if (monthFilterEnabled) {
+      var ym = text_(row.end_date || '').slice(0, 7);
+      if (ym !== monthYm && ym !== prevYm) return false;
+    }
     var isArchived = text_(row.is_archived || row.archive).toLowerCase();
     if (tab === 'active' && (isArchived === 'yes' || isArchived === 'true' || isArchived === '1')) return false;
     if (tab === 'archive' && !(isArchived === 'yes' || isArchived === 'true' || isArchived === '1')) return false;

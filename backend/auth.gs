@@ -4,7 +4,35 @@ function actionLogin_(payload) {
   if (!userId) throw new Error('user_id is required');
   if (!entryCode) throw new Error('entry_code is required');
 
-  var permissionRows = readRows_(CONFIG.SHEETS.PERMISSIONS);
+  var permissionRows = readRowsProjected_(CONFIG.SHEETS.PERMISSIONS, [
+    'user_id',
+    'full_name',
+    'entry_code',
+    'active',
+    'display_role',
+    'display_role2',
+    'default_view',
+    'org_id',
+    'emp_id',
+    'can_add_activity',
+    'can_edit_direct',
+    'can_request_edit',
+    'view_dashboard',
+    'view_activities',
+    'view_week',
+    'view_month',
+    'view_instructors',
+    'view_exceptions',
+    'view_finance',
+    'view_permissions',
+    'view_operations_data',
+    'view_edit_requests',
+    'view_my_data',
+    'view_contacts',
+    'view_contacts_instructors',
+    'view_contacts_instructors 2',
+    'view_end_dates'
+  ]);
   var matchByUser = permissionRows.find(function(row) {
     return text_(row.user_id) === userId;
   });
@@ -14,27 +42,35 @@ function actionLogin_(payload) {
   if (text_(matchByUser.entry_code) !== entryCode) throw new Error('invalid_credentials');
 
   var role = normalizeRole_(internalRoleFromPermissionRow_(matchByUser));
+  var routes = effectiveRoutesForUser_(matchByUser, role);
+  var preferred = text_(matchByUser.default_view) || defaultRouteForRole_(role);
+  var defaultRoute = resolveDefaultRoute_(preferred, routes, role);
   var canAddActivity = effectiveCanAddActivity_(matchByUser, role);
+  var canEditDirect = effectiveCanEditDirect_(matchByUser, role);
+  var canRequestEdit = yesNo_(matchByUser.can_request_edit) === 'yes';
+  var canViewFinance = role === 'admin' || permYes_(matchByUser, 'view_finance');
   var user = {
     user_id: text_(matchByUser.user_id),
     full_name: text_(matchByUser.full_name),
     display_role: role,
     display_role2: text_(matchByUser.display_role2),
     default_view: text_(matchByUser.default_view),
-    emp_id: text_(matchByUser.user_id),
-    can_add_activity: !!canAddActivity
+    emp_id: text_(matchByUser.emp_id || matchByUser.user_id),
+    org_id: text_(matchByUser.org_id),
+    effective_routes: routes.slice(),
+    default_route: defaultRoute,
+    can_add_activity: !!canAddActivity,
+    can_edit_direct: !!canEditDirect,
+    can_request_edit: !!canRequestEdit,
+    can_view_finance: !!canViewFinance
   };
 
-  var token = Utilities.getUuid();
+  var token = createSessionToken_(user);
   CacheService.getScriptCache().put(
     'session:' + token,
     JSON.stringify(user),
     CONFIG.SESSION_CACHE_SECONDS
   );
-
-  var routes = effectiveRoutesForUser_(matchByUser, role);
-  var preferred = text_(matchByUser.default_view) || defaultRouteForRole_(role);
-  var defaultRoute = resolveDefaultRoute_(preferred, routes, role);
 
   return {
     token: token,
@@ -49,10 +85,114 @@ function requireAuth_(token) {
   var value = text_(token);
   if (!value) throw new Error('Unauthorized');
 
+  var sessionFromToken = parseSessionToken_(value);
+  if (sessionFromToken) {
+    var enrichedRaw = CacheService.getScriptCache().get('session:' + value);
+    if (enrichedRaw) {
+      try {
+        var enriched = JSON.parse(enrichedRaw);
+        return {
+          user_id: text_(enriched.user_id || sessionFromToken.user_id),
+          full_name: text_(enriched.full_name || sessionFromToken.full_name),
+          display_role: text_(enriched.display_role || sessionFromToken.display_role),
+          display_role2: text_(enriched.display_role2 || sessionFromToken.display_role2),
+          emp_id: text_(enriched.emp_id || sessionFromToken.emp_id || sessionFromToken.user_id),
+          org_id: text_(enriched.org_id || sessionFromToken.org_id),
+          effective_routes: Array.isArray(enriched.effective_routes) ? enriched.effective_routes.slice() : [],
+          default_route: text_(enriched.default_route),
+          can_add_activity: !!(enriched.can_add_activity || sessionFromToken.can_add_activity),
+          can_edit_direct: !!enriched.can_edit_direct,
+          can_request_edit: !!enriched.can_request_edit,
+          can_view_finance: !!enriched.can_view_finance
+        };
+      } catch (_e) {}
+    }
+    return sessionFromToken;
+  }
+
   var raw = CacheService.getScriptCache().get('session:' + value);
   if (!raw) throw new Error('Unauthorized');
 
   return JSON.parse(raw);
+}
+
+function sessionTokenSecret_() {
+  var fromSettings = getSettingText_('auth_token_secret', '');
+  if (fromSettings) return fromSettings;
+  return CONFIG.SPREADSHEET_ID || 'dashboard-system';
+}
+
+function toWebSafeBase64_(raw) {
+  return Utilities.base64EncodeWebSafe(String(raw || ''), Utilities.Charset.UTF_8).replace(/=+$/g, '');
+}
+
+function fromWebSafeBase64_(raw) {
+  var text = String(raw || '');
+  if (!text) return '';
+  var padded = text + '==='.slice((text.length + 3) % 4);
+  var bytes = Utilities.base64DecodeWebSafe(padded);
+  return Utilities.newBlob(bytes).getDataAsString();
+}
+
+function signSessionToken_(headerPayload) {
+  var sigBytes = Utilities.computeHmacSha256Signature(headerPayload, sessionTokenSecret_());
+  return Utilities.base64EncodeWebSafe(sigBytes).replace(/=+$/g, '');
+}
+
+function createSessionToken_(user) {
+  var nowSec = Math.floor(new Date().getTime() / 1000);
+  var ttlSec = Number(CONFIG.SESSION_CACHE_SECONDS || (60 * 60 * 8));
+  var claims = {
+    uid: text_(user.user_id),
+    role: text_(user.display_role),
+    org_id: text_(user.org_id),
+    emp_id: text_(user.emp_id || user.user_id),
+    can_add_activity: !!user.can_add_activity,
+    name: text_(user.full_name),
+    role2: text_(user.display_role2),
+    iat: nowSec,
+    exp: nowSec + ttlSec
+  };
+  var header = { alg: 'HS256', typ: 'JWT' };
+  var encodedHeader = toWebSafeBase64_(JSON.stringify(header));
+  var encodedPayload = toWebSafeBase64_(JSON.stringify(claims));
+  var headerPayload = encodedHeader + '.' + encodedPayload;
+  var signature = signSessionToken_(headerPayload);
+  return headerPayload + '.' + signature;
+}
+
+function parseSessionToken_(token) {
+  var t = text_(token);
+  var parts = t.split('.');
+  if (parts.length !== 3) return null;
+  var headerPayload = parts[0] + '.' + parts[1];
+  var expectedSignature = signSessionToken_(headerPayload);
+  if (expectedSignature !== parts[2]) return null;
+  var payload = {};
+  try {
+    payload = JSON.parse(fromWebSafeBase64_(parts[1]) || '{}');
+  } catch (_e) {
+    return null;
+  }
+  var nowSec = Math.floor(new Date().getTime() / 1000);
+  if (Number(payload.exp || 0) <= nowSec) return null;
+  var userId = text_(payload.uid);
+  var role = text_(payload.role);
+  if (!userId || !role) return null;
+  return {
+    user_id: userId,
+    display_role: role,
+    org_id: text_(payload.org_id),
+    emp_id: text_(payload.emp_id || userId),
+    can_add_activity: !!payload.can_add_activity,
+    effective_routes: [],
+    default_route: '',
+    can_edit_direct: false,
+    can_request_edit: false,
+    can_view_finance: false,
+    full_name: text_(payload.name),
+    display_role2: text_(payload.role2)
+  };
 }
 
 function requireAnyRole_(user, roles) {
@@ -248,6 +388,10 @@ function resolveDefaultRoute_(preferred, routes, role) {
 function canUserAccessRoute_(user, route) {
   var r = text_(route);
   if (!r) return false;
+  if (user && Object.prototype.toString.call(user.effective_routes) === '[object Array]') {
+    if (user.effective_routes.indexOf(r) >= 0) return true;
+    if (user.effective_routes.length) return false;
+  }
   var permission = getPermissionRow_(user.user_id);
   var effective = effectiveRoutesForUser_(permission, user.display_role);
   return effective.indexOf(r) >= 0;

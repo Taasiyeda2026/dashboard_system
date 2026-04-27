@@ -211,6 +211,10 @@ export const weekScreen = {
     `);
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
+    if (root._weekBindAbort) root._weekBindAbort.abort();
+    root._weekBindAbort = new AbortController();
+    const bindOpts = { signal: root._weekBindAbort.signal };
+
     bindActNavGrid(root, { state, rerender });
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
@@ -229,8 +233,8 @@ export const weekScreen = {
       state.weekOffset = (state.weekOffset || 0) + delta;
       rerender?.();
     };
-    prevBtn?.addEventListener('click', () => doWeekShift(-1));
-    nextBtn?.addEventListener('click', () => doWeekShift(1));
+    prevBtn?.addEventListener('click', () => doWeekShift(-1), bindOpts);
+    nextBtn?.addEventListener('click', () => doWeekShift(1), bindOpts);
 
     root.addEventListener('click', (ev) => {
       const badge = ev.target.closest('[data-group-toggle]');
@@ -246,7 +250,7 @@ export const weekScreen = {
       badge.setAttribute('aria-expanded', String(!isOpen));
       const count = badge.dataset.groupCount || '';
       badge.textContent = isOpen ? count : '▲';
-    });
+    }, bindOpts);
 
     ui.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('weeksession|')) return;

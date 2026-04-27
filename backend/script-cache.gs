@@ -39,7 +39,6 @@ function scriptCacheDebugMark_(eventName, key, bytes, errorText) {
       error: text_(errorText || ''),
       at: new Date().toISOString()
     };
-    console.warn('[script-cache]', JSON.stringify(payload));
     var c = CacheService.getScriptCache();
     var raw = c.get(SCRIPT_CACHE_KEY_DEBUG_STATS);
     var stats = raw ? JSON.parse(raw) : {};
@@ -51,7 +50,7 @@ function scriptCacheDebugMark_(eventName, key, bytes, errorText) {
 }
 
 function debugScriptCacheLoaded_() {
-  Logger.log('typeof scriptCacheDebugMark_ = ' + typeof scriptCacheDebugMark_);
+  return typeof scriptCacheDebugMark_;
 }
 
 function scriptCacheInvalidateDataViews_() {
