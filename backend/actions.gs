@@ -731,7 +731,9 @@ function mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today) {
     activity_type: row.activity_type,
     activity_name: row.activity_name,
     emp_id: row.emp_id,
+    instructor_name: row.instructor_name,
     emp_id_2: row.emp_id_2,
+    instructor_name_2: row.instructor_name_2,
     start_date: computedStartDate,
     end_date: computedEndDate,
     meeting_dates: meetingDates,
@@ -975,6 +977,36 @@ function buildMonthResponseFromMeetingViewRows_(rows, year, month) {
   };
 }
 
+function filterMonthPayloadForInstructor_(monthPayload, empId) {
+  var source = monthPayload || {};
+  var normalizedEmpId = text_(empId);
+  if (!normalizedEmpId) return source;
+  var sourceItems = source.items_by_id || {};
+  var itemsById = {};
+  Object.keys(sourceItems).forEach(function(rowId) {
+    var item = sourceItems[rowId] || {};
+    if (text_(item.emp_id) === normalizedEmpId || text_(item.emp_id_2) === normalizedEmpId) {
+      itemsById[rowId] = item;
+    }
+  });
+  var cells = (source.cells || []).map(function(cell) {
+    var itemIds = (cell.item_ids || []).filter(function(rowId) {
+      return !!itemsById[rowId];
+    });
+    return {
+      day: cell.day,
+      date: cell.date,
+      item_ids: itemIds
+    };
+  });
+  return {
+    month: text_(source.month),
+    cells: cells,
+    items_by_id: itemsById,
+    hide_saturday: !!source.hide_saturday
+  };
+}
+
 function actionMonthLegacy_(user, year, month) {
   var daysInMonth = new Date(year, month + 1, 0).getDate();
   var calRows = visibleActivitiesSummaryForUser_(user);
@@ -1007,8 +1039,6 @@ function actionMonthLegacy_(user, year, month) {
 
 function actionMonth_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
-
-  markRequestPerf_('month:view lookup:start');
   var now = new Date();
   var ym = text_(payload && payload.ym).slice(0, 7);
   var ymMatch = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(ym);
@@ -1022,9 +1052,30 @@ function actionMonth_(user, payload) {
   }
 
   var targetYm = year + '-' + ('0' + (month + 1)).slice(-2);
+  var viewRowsRead = 0;
+  var filteredRows = 0;
+  var buildStartMs = perfNowMs_();
+  var buildMs = 0;
+  var monthCacheHit = false;
+  var usedMonthPayloadCache = false;
   var usedView = false;
-  var viewRows = [];
+  var monthPayload = null;
+
+  markRequestPerf_('month:cache lookup:start');
   try {
+    var payloadCacheKey = monthPayloadCacheKey_(targetYm);
+    var cachedMonthPayload = payloadCacheKey ? scriptCacheGetJson_(payloadCacheKey) : null;
+    if (cachedMonthPayload && typeof cachedMonthPayload === 'object') {
+      monthPayload = cachedMonthPayload;
+      monthCacheHit = true;
+      usedMonthPayloadCache = true;
+      usedView = true;
+    }
+  } catch (_cacheErr) {}
+  markRequestPerf_('month:cache lookup:end');
+
+  markRequestPerf_('month:view lookup:start');
+  if (!monthPayload) {
     var projected = [
       'month_ym', 'meeting_date', 'source_sheet', 'source_row_id',
       'activity_type', 'activity_name', 'activity_manager',
@@ -1033,25 +1084,39 @@ function actionMonth_(user, payload) {
       'status', 'start_time', 'end_time', 'start_date', 'end_date',
       'activity_no', 'private_note'
     ];
-    viewRows = readRowsProjected_(CONFIG.SHEETS.VIEW_ACTIVITY_MEETINGS, projected).filter(function(row) {
-      return normalizeMonthYmFlexible_(row.month_ym) === targetYm;
-    });
-    if (user.display_role === 'instructor') {
-      var empId = text_(user.emp_id || user.user_id);
-      viewRows = viewRows.filter(function(row) {
-        return text_(row.emp_id) === empId || text_(row.emp_id_2) === empId;
+    try {
+      var viewRowsAll = readRowsProjected_(CONFIG.SHEETS.VIEW_ACTIVITY_MEETINGS, projected);
+      viewRowsRead = viewRowsAll.length;
+      var viewRows = viewRowsAll.filter(function(row) {
+        return normalizeMonthYmFlexible_(row.month_ym) === targetYm;
       });
+      filteredRows = viewRows.length;
+      if (viewRows.length > 0) {
+        monthPayload = buildMonthResponseFromMeetingViewRows_(viewRows, year, month);
+        buildMs = Math.max(0, perfNowMs_() - buildStartMs);
+        var cacheKey = monthPayloadCacheKey_(targetYm);
+        if (cacheKey) scriptCachePutJson_(cacheKey, monthPayload, 21600);
+        usedView = true;
+      }
+    } catch (_viewErr) {
+      usedView = false;
+      monthPayload = null;
     }
-    usedView = viewRows.length > 0;
-  } catch (_viewErr) {
-    usedView = false;
-    viewRows = [];
   }
   markRequestPerf_('month:view lookup:end');
 
+  setRequestPerfField_('month_cache_hit', monthCacheHit);
+  setRequestPerfField_('used_month_payload_cache', usedMonthPayloadCache);
+  setRequestPerfField_('view_rows_read', viewRowsRead);
+  setRequestPerfField_('filtered_rows', filteredRows);
+  setRequestPerfField_('build_ms', buildMs);
+
   if (usedView) {
+    if (user.display_role === 'instructor') {
+      monthPayload = filterMonthPayloadForInstructor_(monthPayload, text_(user.emp_id || user.user_id));
+    }
     markRequestPerf_('month:used_view:true');
-    return buildMonthResponseFromMeetingViewRows_(viewRows, year, month);
+    return monthPayload;
   }
   markRequestPerf_('month:fallback_used:true');
   return actionMonthLegacy_(user, year, month);

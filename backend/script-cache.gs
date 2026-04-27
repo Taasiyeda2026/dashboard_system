@@ -7,6 +7,7 @@ var SCRIPT_CACHE_KEY_DASHBOARD = 'pc:dashboard:v2';
 var SCRIPT_CACHE_KEY_PERMISSIONS_LIST = 'pc:permissions:v2';
 var SCRIPT_CACHE_KEY_DATA_VIEWS_VERSION = 'pc:data-views-version:v1';
 var SCRIPT_CACHE_KEY_DEBUG_STATS = 'pc:cache-debug:stats:v1';
+var SCRIPT_CACHE_KEY_MONTH_PAYLOAD_PREFIX = 'pc:month-payload:v1:';
 
 function scriptCacheGetJson_(key) {
   try {
@@ -88,4 +89,10 @@ function bumpDataViewsCacheVersion_() {
       600
     );
   } catch (e) {}
+}
+
+function monthPayloadCacheKey_(monthYm) {
+  var ym = normalizeMonthYmFlexible_(monthYm);
+  if (!ym) return '';
+  return SCRIPT_CACHE_KEY_MONTH_PAYLOAD_PREFIX + dataViewsCacheVersion_() + ':' + ym;
 }
