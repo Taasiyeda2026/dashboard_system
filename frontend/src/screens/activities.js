@@ -7,12 +7,10 @@ import {
 } from './shared/ui-hebrew.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import {
-  dsPageHeader,
   dsCard,
   dsScreenStack,
   dsTableWrap,
-  dsEmptyState,
-  dsInteractiveCard
+  dsEmptyState
 } from './shared/layout.js';
 
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
@@ -34,7 +32,6 @@ import {
   cleanUnique
 } from './shared/activity-options.js';
 
-const ACTIVITY_VIEW_LS = 'dashboard_activity_view_v2';
 const inflightActivityDetailRequests = new Map();
 const ACTIVITIES_SCOPE = 'activities';
 const ACTIVITY_FILTER_FIELDS = [
@@ -58,10 +55,14 @@ const ACTIVITY_SEARCH_FIELDS = [
   'activity_type'
 ];
 
-function hasRowException(row) {
-  const noInstructor = !String(row.emp_id || '').trim() && !String(row.emp_id_2 || '').trim();
-  const noStartDate  = !String(row.start_date || '').trim();
-  return noInstructor || noStartDate;
+function activityStatusMeta(row) {
+  const statusText = String(row?.status || '').trim();
+  const hasInstructor = !!String(row?.emp_id || '').trim() || !!String(row?.emp_id_2 || '').trim();
+  const hasDate = !!String(row?.start_date || '').trim();
+  if (!hasInstructor) return { label: 'חסר מדריך', kind: 'warning' };
+  if (!hasDate) return { label: 'חסר תאריך', kind: 'warning' };
+  if (statusText === 'סגור' || statusText === 'חריגה') return { label: statusText || 'חריגה', kind: 'danger' };
+  return { label: statusText || 'תקין', kind: 'success' };
 }
 
 const FAMILY_LABEL_SHORT = 'חד-יומיות';
@@ -299,12 +300,6 @@ function putCachedActivityDetail(summaryRow, row, s) {
 
 export const activitiesScreen = {
   async load({ api, state }) {
-    try {
-      const v = typeof localStorage !== 'undefined' ? localStorage.getItem(ACTIVITY_VIEW_LS) : null;
-      if (v === 'table' || v === 'compact') state.activityView = v;
-    } catch (_e) {
-      /* ignore */
-    }
     return api.activities({ activity_type: 'all' });
   },
 
@@ -318,71 +313,44 @@ export const activitiesScreen = {
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const forceCompact  = typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches;
-    const compactView   = forceCompact || state?.activityView === 'compact';
     const canAddActivity = !!state?.user?.can_add_activity;
 
     const tableRows = safeRows
       .map((row) => {
-        const emp1 = hideEmpIds ? '' : `<td>${escapeHtml(row.emp_id || '—')}</td>`;
-        const emp2 = hideEmpIds ? '' : `<td>${escapeHtml(row.emp_id_2 || '—')}</td>`;
+        const instructors = [row?.instructor_name, row?.instructor_name_2].filter(Boolean).join(' · ');
+        const status = activityStatusMeta(row);
         const rowSearch = [
           hideRowId ? '' : row.RowID,
+          visibleActivityCategoryLabel(row.activity_type),
           row.activity_name,
           row.start_date,
           row.end_date,
           row.school,
           row.authority,
+          row.instructor_name,
+          row.instructor_name_2,
           row.activity_manager,
-          visibleActivityCategoryLabel(row.activity_type),
           hideEmpIds ? '' : row.emp_id,
-          hideEmpIds ? '' : row.emp_id_2,
-          canSeePrivateNotes ? row.private_note : ''
+          hideEmpIds ? '' : row.emp_id_2
         ]
           .filter(Boolean)
           .join(' ');
         return `
-      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
-        <td>${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</td>
-        <td>${escapeHtml(row.activity_name || '—')}</td>
-        <td>${escapeHtml(row.school || '—')}</td>
+      <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
+        <td><strong>${escapeHtml(row.activity_name || '—')}</strong><div class="ds-row-subtle">${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</div></td>
         <td>${escapeHtml(row.authority || '—')}</td>
+        <td>${escapeHtml(row.school || '—')}</td>
+        <td>${escapeHtml(instructors || 'ללא מדריך')}</td>
         <td>${escapeHtml(formatDateHe(row.start_date) || '—')}</td>
-        <td>${escapeHtml(formatDateHe(row.end_date) || '—')}</td>
-        ${emp1}${emp2}
+        <td><span class="ds-chip ds-chip--status ds-chip--status-${status.kind}">${escapeHtml(status.label)}</span></td>
+        <td><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-activity-open="${escapeHtml(row.RowID)}">פתח</button></td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
     `;
       })
       .join('');
 
-    const compactRows = safeRows
-      .map((row) => {
-        const rowSearch = [
-          hideRowId ? '' : row.RowID,
-          row.activity_name,
-          row.school,
-          row.authority,
-          row.start_date,
-          row.end_date
-        ]
-          .filter(Boolean)
-          .join(' ');
-        const excBadge = hasRowException(row) ? '<span class="ds-exc-dot" title="חריגה">⚠️</span>' : '';
-        return `<div data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="">
-        ${excBadge}${dsInteractiveCard({
-          action: `activity:${row.RowID}`,
-          title: row.activity_name || 'פעילות ללא שם',
-          subtitle: row.school || 'ללא בית ספר',
-          meta: row.authority || 'ללא רשות',
-          variant: 'session'
-        })}
-      </div>`;
-      })
-      .join('');
-
     const thPrivate = canSeePrivateNotes ? `<th>${hebrewColumn('private_note')}</th>` : '';
-    const thEmp     = hideEmpIds ? '' : '<th>מדריך/ה 1 (מזהה)</th><th>מדריך/ה 2 (מזהה)</th>';
 
     const fundingOptions = mergeOptions(state?.clientSettings || {}, ['funding', 'fundings']);
     const centralOptions = getFilterOptionOverrides(state?.clientSettings || {});
@@ -399,23 +367,14 @@ export const activitiesScreen = {
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--equal-cols">
-                <thead><tr><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>בית ספר</th><th>רשות</th><th>התחלה</th><th>סיום</th>${thEmp}${thPrivate}</tr></thead>
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך</th><th>סטטוס</th><th>פעולה</th>${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
-
-    const compactSection =
-      safeRows.length === 0
-        ? dsEmptyState('לא נמצאו פעילויות')
-        : `<div class="ds-compact-list">${compactRows}</div>${loadMoreHtml}`;
 
     const mainToolbar = `<div class="ds-activities-main-toolbar">
       <div class="ds-activities-main-toolbar__actions">
         ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost ds-btn--activities-action" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">➕</button>` : ''}
         <button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost ds-btn--activities-action" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">🔄</button>
-      </div>
-      <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
-        <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${forceCompact ? 'disabled title="במסך צר מוצגות תיבות קומפקטיות"' : ''} aria-label="טבלה" title="טבלה">☰</button>
-        <button type="button" class="ds-view-toggle__btn ${compactView ? 'is-active' : ''}" data-activity-view="compact" aria-label="תיבות" title="תיבות">⊞</button>
       </div>
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="🔍" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
     </div>`;
@@ -430,9 +389,7 @@ export const activitiesScreen = {
       ${titleNavRow}
       ${mainToolbar}
       ${toolbarHtml}
-      ${compactView
-        ? dsCard({ body: compactSection, padded: true })
-        : dsCard({ body: tableSection,   padded: false })}
+      ${dsCard({ title: `פעילויות · ${total} פעילויות נמצאו`, body: tableSection, padded: false })}
     </section>`);
     return html;
   },
@@ -728,22 +685,6 @@ export const activitiesScreen = {
       }, addActivitySig);
     }
 
-    root.querySelectorAll('[data-activity-view]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (btn.disabled) return;
-        const next = btn.getAttribute('data-activity-view');
-        if (next !== 'table' && next !== 'compact') return;
-        state.activityView = next;
-        try {
-          localStorage.setItem(ACTIVITY_VIEW_LS, state.activityView);
-        } catch (_e) {
-          /* ignore */
-        }
-        if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
-        else rerender();
-      });
-    });
-
     root.querySelectorAll('.ds-data-row').forEach((n) => {
       n.tabIndex = 0;
       n.setAttribute('role', 'button');
@@ -752,6 +693,10 @@ export const activitiesScreen = {
     root._rowAbort = new AbortController();
     const rowSig = { signal: root._rowAbort.signal };
     root.addEventListener('click', (ev) => {
+      const actionBtn = ev.target.closest('[data-activity-open]');
+      if (actionBtn) {
+        ev.stopPropagation();
+      }
       const rowNode = ev.target.closest('.ds-data-row');
       if (!rowNode) return;
       ev.stopPropagation();

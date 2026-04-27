@@ -79,8 +79,9 @@ function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo
 
 function weekRangeLabel(days) {
   if (!days || days.length === 0) return '';
-  const first = days[0]?.date || '';
-  const last = days[days.length - 1]?.date || '';
+  const dayDates = days.map((d) => String(d?.date || '')).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  const first = dayDates[0] || '';
+  const last = dayDates[dayDates.length - 1] || '';
   if (!first) return '';
   const fmtFirst = formatDateHe(first);
   const fmtLast = formatDateHe(last);
