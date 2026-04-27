@@ -161,6 +161,25 @@ function normalizeDateTextToIso_(value) {
   return '';
 }
 
+function resolveMappedTimeField_(row, aliases) {
+  var src = row || {};
+  for (var i = 0; i < aliases.length; i++) {
+    var key = aliases[i];
+    if (!Object.prototype.hasOwnProperty.call(src, key)) continue;
+    if (isNormalizedEmptyValue_(src[key])) continue;
+    return text_(src[key]);
+  }
+  return '';
+}
+
+function mappedStartTime_(row) {
+  return resolveMappedTimeField_(row, ['start_time', 'StartTime', 'startTime', 'שעת התחלה']);
+}
+
+function mappedEndTime_(row) {
+  return resolveMappedTimeField_(row, ['end_time', 'EndTime', 'endTime', 'שעת סיום']);
+}
+
 function activityLastValidDateColumnFromRow_(row) {
   var latest = '';
   var latestCol = '';
@@ -2407,8 +2426,8 @@ function mapProjectedActivityDetailRow_(sheetName, row) {
     sessions: text_(row.sessions),
     price: text_(row.price),
     funding: text_(row.funding),
-    start_time: text_(row.start_time),
-    end_time: text_(row.end_time),
+    start_time: mappedStartTime_(row),
+    end_time: mappedEndTime_(row),
     emp_id: text_(row.emp_id),
     instructor_name: text_(row.instructor_name),
     emp_id_2: text_(row.emp_id_2),
@@ -2609,8 +2628,8 @@ function mapShortRow_(row) {
     sessions: text_(row.sessions),
     price: text_(row.price),
     funding: text_(row.funding),
-    start_time: text_(row.start_time),
-    end_time: text_(row.end_time),
+    start_time: mappedStartTime_(row),
+    end_time: mappedEndTime_(row),
     emp_id: text_(row.emp_id),
     instructor_name: text_(row.instructor_name),
     emp_id_2: text_(row.emp_id_2),
@@ -2637,8 +2656,8 @@ function mapLongRow_(row) {
     sessions: text_(row.sessions),
     price: text_(row.price),
     funding: text_(row.funding),
-    start_time: text_(row.start_time),
-    end_time: text_(row.end_time),
+    start_time: mappedStartTime_(row),
+    end_time: mappedEndTime_(row),
     emp_id: text_(row.emp_id),
     instructor_name: text_(row.instructor_name),
     emp_id_2: text_(row.emp_id_2),
