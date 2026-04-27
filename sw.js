@@ -1,5 +1,5 @@
 /* Service worker at repository root so scope covers the whole GitHub Pages site. */
-const CACHE_VERSION = 90;
+const CACHE_VERSION = 217;
 const CACHE = `internal-dashboard-v${CACHE_VERSION}`;
 
 const APP_SHELL = [
@@ -36,6 +36,7 @@ const APP_SHELL = [
   './frontend/src/screens/shared/toast.js',
   './frontend/src/screens/shared/ui-hebrew.js',
   './frontend/src/screens/shared/interactions.js',
+  './frontend/src/screens/shared/activity-list-filters.js',
   './frontend/src/styles/main.css',
   './frontend/public/manifest.json',
   './frontend/assets/logo1.png',

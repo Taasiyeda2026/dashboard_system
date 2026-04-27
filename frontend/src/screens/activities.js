@@ -7,26 +7,62 @@ import {
 } from './shared/ui-hebrew.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import {
-  dsToolbar,
+  dsPageHeader,
   dsCard,
   dsScreenStack,
   dsTableWrap,
   dsEmptyState,
   dsInteractiveCard
 } from './shared/layout.js';
+
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
+import {
+  ensureActivityListFilters,
+  prepareRowsForSearch,
+  applyLocalFilters,
+  filtersToolbarHtml,
+  bindLocalFilters,
+  splitVisibleRows
+} from './shared/activity-list-filters.js';
+import {
+  getActivityCatalog,
+  getActivityTypesByFamily,
+  getActivityNamesForType,
+  getRosterUsers,
+  getManagerUsers,
+  getFilterOptionOverrides,
+  cleanUnique
+} from './shared/activity-options.js';
 
 const ACTIVITY_VIEW_LS = 'dashboard_activity_view_v2';
+const inflightActivityDetailRequests = new Map();
+const ACTIVITIES_SCOPE = 'activities';
+const ACTIVITY_FILTER_FIELDS = [
+  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'instructor', label: 'מדריך', getValues: (row) => [row?.instructor_name, row?.instructor_name_2] },
+  { key: 'activity_name', label: 'תוכנית' },
+  { key: 'authority', label: 'רשות' },
+  { key: 'funding', label: 'מימון' },
+  { key: 'school', label: 'בית ספר' }
+];
+const ACTIVITY_SEARCH_FIELDS = [
+  'RowID',
+  'activity_name',
+  'activity_manager',
+  'instructor_name',
+  'instructor_name_2',
+  'authority',
+  'school',
+  'funding',
+  'status',
+  'activity_type'
+];
 
 function hasRowException(row) {
   const noInstructor = !String(row.emp_id || '').trim() && !String(row.emp_id_2 || '').trim();
   const noStartDate  = !String(row.start_date || '').trim();
   return noInstructor || noStartDate;
 }
-
-const DEFAULT_ONE_DAY_TYPES = ['workshop', 'tour', 'escape_room'];
-const DEFAULT_PROGRAM_TYPES = ['course', 'after_school'];
 
 const FAMILY_LABEL_SHORT = 'חד-יומיות';
 const FAMILY_LABEL_LONG  = 'תוכניות';
@@ -35,22 +71,6 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
-
-function parseRosterUsers(settings) {
-  const raw = Array.isArray(settings?.dropdown_options?.instructor_users)
-    ? settings.dropdown_options.instructor_users
-    : [];
-  const out = [];
-  const seen = new Set();
-  raw.forEach((item) => {
-    const name = String(item?.name || '').trim();
-    const empId = String(item?.emp_id || '').trim();
-    if (!name || seen.has(name)) return;
-    seen.add(name);
-    out.push({ name, emp_id: empId });
-  });
-  return out;
-}
 
 function optionsHtml(values, selected = '', placeholder = '—') {
   const safeSelected = String(selected || '');
@@ -68,18 +88,6 @@ function optionsHtml(values, selected = '', placeholder = '—') {
       uniq.map((v) => `<option value="${escapeHtml(v)}"${v === safeSelected ? ' selected' : ''}>${escapeHtml(v)}</option>`)
     )
     .join('');
-}
-
-function activityNameOptionsByType(settings, activityType) {
-  const all = Array.isArray(settings?.dropdown_options?.activity_names) ? settings.dropdown_options.activity_names : [];
-  const byType = all.filter((o) => {
-    const parent = String(o?.parent_value || o?.activity_type || '').trim();
-    return !parent || parent === activityType;
-  });
-  return byType.map((o) => ({
-    label: String(o?.label || '').trim(),
-    activity_no: String(o?.activity_no || '').trim()
-  })).filter((o) => o.label);
 }
 
 function decodeJsonAttr(raw, fallback = []) {
@@ -110,21 +118,12 @@ function mergeOptions(settings, keys) {
 
 function addActivityModalHtml(settings) {
   const oneDayTypes = resolveOneDayTypes(settings);
-  const programTypes = Array.isArray(settings?.program_activity_types) && settings.program_activity_types.length
-    ? settings.program_activity_types
-    : DEFAULT_PROGRAM_TYPES;
-  const allTypes = mergeOptions(settings, ['activity_type', 'activity_types']);
-  const allActivityNames = Array.isArray(settings?.dropdown_options?.activity_names)
-    ? settings.dropdown_options.activity_names
-    : [];
-  const rosterUsers = parseRosterUsers(settings);
+  const programTypes = getActivityTypesByFamily(settings, 'long');
+  const allTypes = cleanUnique([...getActivityTypesByFamily(settings, 'short'), ...programTypes]);
+  const allActivityNames = getActivityCatalog(settings);
+  const rosterUsers = getRosterUsers(settings);
   const rosterNames = rosterUsers.map((u) => u.name);
-  const managerRoleUsers = Array.isArray(settings?.dropdown_options?.activities_manager_users)
-    ? settings.dropdown_options.activities_manager_users
-    : [];
-  const managerRoleNames = managerRoleUsers
-    .map((u) => String(u?.name || '').trim())
-    .filter(Boolean);
+  const managerRoleNames = getManagerUsers(settings);
   const fundingOptions = mergeOptions(settings, ['funding', 'fundings']);
   const gradeOptions = mergeOptions(settings, ['grade', 'grades']);
   const managerOptions = managerRoleNames.length
@@ -134,7 +133,7 @@ function addActivityModalHtml(settings) {
   const initialFamily = 'long';
   const initialTypes = programTypes.length ? programTypes : allTypes;
   const initialType = initialTypes[0] || '';
-  const initialActivityNames = activityNameOptionsByType(settings, initialType);
+  const initialActivityNames = getActivityNamesForType(settings, initialType);
   const sessionsList = Array.from({ length: 35 }, (_, i) => String(i + 1));
 
   return `
@@ -176,6 +175,11 @@ function addActivityModalHtml(settings) {
         <label class="ds-activity-add-field" data-field-instructor2 style="display:none"><span>מדריך/ה 2</span><select class="ds-input" name="instructor_name_2" data-add-instructor-2>${optionsHtml(instructorOptions)}</select></label>
         <input type="hidden" name="emp_id_2" value="">
         <label class="ds-activity-add-field"><span>תאריך התחלה</span><input class="ds-input" name="start_date" type="date"></label>
+        <label class="ds-activity-add-field"><span>תדירות</span><select class="ds-input" name="frequency" data-add-frequency>${optionsHtml(['weekly', 'biweekly'], 'weekly', 'בחרו תדירות')}</select></label>
+        <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-date-rows-wrap>
+          <span>תאריכי מפגשים</span>
+          <div class="ds-activity-add-date-rows" data-add-date-rows></div>
+        </div>
         <label class="ds-activity-add-field"><span>הערות</span><textarea class="ds-input" name="notes" rows="2"></textarea></label>
       </div>
       <p class="ds-muted" role="status" data-add-activity-status></p>
@@ -184,9 +188,7 @@ function addActivityModalHtml(settings) {
 }
 
 function resolveOneDayTypes(settings) {
-  return Array.isArray(settings?.one_day_activity_types) && settings.one_day_activity_types.length
-    ? settings.one_day_activity_types
-    : DEFAULT_ONE_DAY_TYPES;
+  return getActivityTypesByFamily(settings, 'short');
 }
 
 function isShortFamily(row, oneDayTypes) {
@@ -204,11 +206,73 @@ function applyClientFilters(rows, state, settings) {
   return out;
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
+function currentYm() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function shiftYm(ym, delta) {
+  const base = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  const d = base ? new Date(Number(base[1]), Number(base[2]) - 1, 1) : new Date();
+  d.setMonth(d.getMonth() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthBounds(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  return {
+    start: `${y}-${String(mo).padStart(2, '0')}-01`,
+    end: `${y}-${String(mo).padStart(2, '0')}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`
+  };
+}
+
+function activityOverlapsMonth(row, ym) {
+  const bounds = monthBounds(ym);
+  if (!bounds) return true;
+  const sourceSheet = String(row?.source_sheet || '').trim();
+  const meetings = Array.isArray(row?.meeting_dates)
+    ? row.meeting_dates.map((d) => String(d || '').trim()).filter(Boolean)
+    : [];
+  if (sourceSheet === 'data_long' && meetings.length > 0) return meetings.some((date) => date.startsWith(ym));
+  const start = String(row?.start_date || '').trim();
+  const end = String(row?.end_date || start).trim();
+  if (!start && !end) return false;
+  const rowStart = start || end;
+  const rowEnd = end || start;
+  return rowStart <= bounds.end && rowEnd >= bounds.start;
+}
+
+function monthLabel(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return '';
+  return `${m[1]}-${m[2]}`;
+}
+
+const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+function heMonthLabel(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return monthLabel(ym);
+  return HE_MONTHS[Number(m[2]) - 1] || monthLabel(ym);
+}
+
+function applyActivitiesLocalFilters(rows, state, settings) {
+  const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
+  if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
+  const familyRows = applyClientFilters(rows, state, settings);
+  const monthRows = familyRows.filter((row) => activityOverlapsMonth(row, state.activitiesMonthYm));
+  prepareRowsForSearch(monthRows, ACTIVITY_SEARCH_FIELDS);
+  return applyLocalFilters(monthRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS });
+}
+
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
     canEdit,
+    canDirectEdit,
     hideEmpIds: !!hideEmpIds,
     hideRowId,
     hideActivityNo,
@@ -246,13 +310,17 @@ export const activitiesScreen = {
 
   render(data, { state }) {
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
-    const safeRows      = applyClientFilters(allRows, state, state?.clientSettings);
-    const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
+    if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
+    const filteredRows  = applyActivitiesLocalFilters(allRows, state, state?.clientSettings);
+    const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
+    const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
+    const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const forceCompact  = typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches;
     const compactView   = forceCompact || state?.activityView === 'compact';
+    const canAddActivity = !!state?.user?.can_add_activity;
 
     const tableRows = safeRows
       .map((row) => {
@@ -316,16 +384,16 @@ export const activitiesScreen = {
     const thPrivate = canSeePrivateNotes ? `<th>${hebrewColumn('private_note')}</th>` : '';
     const thEmp     = hideEmpIds ? '' : '<th>מדריך/ה 1 (מזהה)</th><th>מדריך/ה 2 (מזהה)</th>';
 
-    const familyChips = [
-      { key: '',      label: 'הכל' },
-      { key: 'short', label: FAMILY_LABEL_SHORT },
-      { key: 'long',  label: FAMILY_LABEL_LONG }
-    ]
-      .map(
-        (f) =>
-          `<button type="button" class="ds-chip--tab ${f.key === (state.activityQuickFamily || '') ? 'is-active' : ''}" data-family="${f.key}">${escapeHtml(f.label)}</button>`
-      )
-      .join('');
+    const fundingOptions = mergeOptions(state?.clientSettings || {}, ['funding', 'fundings']);
+    const centralOptions = getFilterOptionOverrides(state?.clientSettings || {});
+    const toolbarHtml = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
+      filterFields: ACTIVITY_FILTER_FIELDS,
+      layout: 'panel',
+      optionsOverrides: { ...centralOptions, funding: fundingOptions }
+    });
+    const loadMoreHtml = hasMore
+      ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ACTIVITIES_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
+      : '';
 
     const tableSection =
       safeRows.length === 0
@@ -333,36 +401,47 @@ export const activitiesScreen = {
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--equal-cols">
                 <thead><tr><th>${hebrewColumn('activity_type')}</th><th>שם</th><th>בית ספר</th><th>רשות</th><th>התחלה</th><th>סיום</th>${thEmp}${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
-              </table>`);
+              </table>`) + loadMoreHtml;
 
     const compactSection =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות')
-        : `<div class="ds-compact-list">${compactRows}</div>`;
+        : `<div class="ds-compact-list">${compactRows}</div>${loadMoreHtml}`;
 
-    return dsScreenStack(`
-      ${actNavGridHtml(state)}
-      ${dsToolbar(`
-        <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
-          <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${
-            forceCompact ? 'disabled title="במסך צר מוצגות תיבות קומפקטיות"' : ''
-          }>☰ טבלה</button>
-          <button type="button" class="ds-view-toggle__btn ${compactView ? 'is-active' : ''}" data-activity-view="compact">⊞ תיבות</button>
-        </div>
-        <div class="ds-chip-group" dir="rtl">${familyChips}</div>
-      `)}
+    const mainToolbar = `<div class="ds-activities-main-toolbar">
+      <div class="ds-activities-main-toolbar__actions">
+        ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost ds-btn--activities-action" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">➕</button>` : ''}
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--icon-only ds-btn--ghost ds-btn--activities-action" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">🔄</button>
+      </div>
+      <div class="ds-view-toggle" dir="rtl" role="group" aria-label="בחירת תצוגת רשימה">
+        <button type="button" class="ds-view-toggle__btn ${!compactView ? 'is-active' : ''}" data-activity-view="table" ${forceCompact ? 'disabled title="במסך צר מוצגות תיבות קומפקטיות"' : ''} aria-label="טבלה" title="טבלה">☰</button>
+        <button type="button" class="ds-view-toggle__btn ${compactView ? 'is-active' : ''}" data-activity-view="compact" aria-label="תיבות" title="תיבות">⊞</button>
+      </div>
+      <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="🔍" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
+    </div>`;
+
+    const titleNavRow = `<div class="ds-activities-title-row">
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם">▶</button>
+      <h2 class="ds-activities-page-title">ניהול פעילויות לחודש ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} (${total} פעילויות)</h2>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא">◀</button>
+    </div>`;
+
+    const html = dsScreenStack(`<section class="ds-activities-screen">
+      ${titleNavRow}
+      ${mainToolbar}
+      ${toolbarHtml}
       ${compactView
-        ? dsCard({ title: 'רשימת פעילויות', body: compactSection, padded: true })
-        : dsCard({ title: 'רשימת פעילויות', body: tableSection,   padded: false })}
-    `);
+        ? dsCard({ body: compactSection, padded: true })
+        : dsCard({ body: tableSection,   padded: false })}
+    </section>`);
+    return html;
   },
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
-    bindActNavGrid(root, { state, rerender });
 
-    const filteredRows      = applyClientFilters(Array.isArray(data?.rows) ? data.rows : [], state, state?.clientSettings);
-    const canSeePrivateNotes = state?.user?.display_role === 'operations_reviewer';
-    const canEditActivity   = state?.user?.display_role !== 'instructor';
+    const filteredRows      = applyActivitiesLocalFilters(Array.isArray(data?.rows) ? data.rows : [], state, state?.clientSettings);
+    const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
+    const canEditActivity   = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
@@ -372,7 +451,16 @@ export const activitiesScreen = {
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
 
     async function loadDetailRow(summaryRow) {
-      const rsp = await api.activityDetail(summaryRow.RowID, summaryRow.source_sheet);
+      const key = activityDetailCacheKey(summaryRow);
+      let request = inflightActivityDetailRequests.get(key);
+      if (!request) {
+        request = api.activityDetail(summaryRow.RowID, summaryRow.source_sheet)
+          .finally(() => {
+            inflightActivityDetailRequests.delete(key);
+          });
+        inflightActivityDetailRequests.set(key, request);
+      }
+      const rsp = await request;
       const row = rsp?.row || summaryRow;
       putCachedActivityDetail(summaryRow, row, state);
       return row;
@@ -398,6 +486,7 @@ export const activitiesScreen = {
           initialRow,
           canSeePrivateNotes,
           canEditActivity,
+          !!state?.user?.can_edit_direct,
           hideEmpIds,
           hideRowId,
           hideActivityNo,
@@ -418,6 +507,7 @@ export const activitiesScreen = {
             row,
             canSeePrivateNotes,
             canEditActivity,
+            !!state?.user?.can_edit_direct,
             hideEmpIds,
             hideRowId,
             hideActivityNo,
@@ -432,11 +522,23 @@ export const activitiesScreen = {
       } catch {}
     }
 
-    root.querySelectorAll('[data-family]').forEach((node) => {
-      node.addEventListener('click', () => {
-        state.activityQuickFamily = node.dataset.family || '';
-        rerender();
-      });
+    const rerenderLocal = () => {
+      if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
+      else rerender();
+    };
+    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 280 });
+    root.querySelector('[data-activities-month-prev]')?.addEventListener('click', () => {
+      state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), -1);
+      rerenderLocal();
+    });
+    root.querySelector('[data-activities-month-next]')?.addEventListener('click', () => {
+      state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), 1);
+      rerenderLocal();
+    });
+    root.querySelector(`[data-list-show-more="${ACTIVITIES_SCOPE}"]`)?.addEventListener('click', (ev) => {
+      const next = Number(ev.currentTarget?.dataset?.nextCount || 200);
+      ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = next;
+      rerenderLocal();
     });
 
     if (root._addActivityAbort) root._addActivityAbort.abort();
@@ -489,6 +591,28 @@ export const activitiesScreen = {
         typeSel.innerHTML = optionsHtml(nextTypes, nextTypes[0] || '');
       }
       refreshActivityNameSelect(form);
+      syncSessionDateRows(form);
+    }
+
+    function computeNextSessionDate(baseIso, index, frequency) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(baseIso || ''))) return '';
+      const base = new Date(`${baseIso}T00:00:00`);
+      const stepDays = frequency === 'biweekly' ? 14 : 7;
+      base.setDate(base.getDate() + (index * stepDays));
+      return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+    }
+
+    function syncSessionDateRows(form) {
+      const sessions = Math.max(1, Number(form.querySelector('[data-add-sessions]')?.value || '1'));
+      const container = form.querySelector('[data-add-date-rows]');
+      if (!container) return;
+      const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
+      const frequency = String(form.querySelector('[data-add-frequency]')?.value || 'weekly').trim();
+      const prev = Array.from(container.querySelectorAll('input[data-add-session-date]')).map((input) => String(input.value || '').trim());
+      container.innerHTML = Array.from({ length: sessions }, (_, idx) => {
+        const value = prev[idx] || computeNextSessionDate(startDate, idx, frequency);
+        return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
+      }).join('');
     }
 
     function bindAddActivityForm() {
@@ -498,6 +622,7 @@ export const activitiesScreen = {
       form.dataset.boundAddActivity = 'yes';
 
       updateAddFormByFamily(form);
+      syncSessionDateRows(form);
       form.querySelectorAll('[data-add-family]').forEach((btn) => {
         btn.addEventListener('click', () => {
           form.querySelectorAll('[data-add-family]').forEach((b) => b.classList.remove('is-active'));
@@ -513,6 +638,9 @@ export const activitiesScreen = {
       form.querySelector('[data-add-activity-name]')?.addEventListener('change', () => {
         refreshActivityNameSelect(form);
       }, addActivitySig);
+      form.querySelector('[data-add-sessions]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
+      form.querySelector('[name="start_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
+      form.querySelector('[data-add-frequency]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
     }
 
     document.addEventListener('click', async (ev) => {
@@ -562,6 +690,10 @@ export const activitiesScreen = {
         status: 'פעיל',
         notes: get('notes')
       };
+      const dateInputs = Array.from(form.querySelectorAll('input[data-add-session-date]'));
+      dateInputs.forEach((input, index) => {
+        payload[`Date${index + 1}`] = String(input.value || '').trim();
+      });
       if (!payload.activity_type || !payload.activity_name || !payload.start_date) {
         if (statusEl) statusEl.textContent = 'יש למלא לפחות סוג פעילות, שם פעילות ותאריך התחלה';
         return;
@@ -581,14 +713,8 @@ export const activitiesScreen = {
       }
     }, addActivitySig);
 
-    if (canAddActivity && ui) {
-      const addBtn = document.createElement('button');
-      addBtn.type = 'button';
-      addBtn.className = 'ds-btn ds-btn--primary ds-btn--sm ds-btn--compact';
-      addBtn.textContent = '➕ הוספת פעילות';
-      const toolbar = root.querySelector('.ds-toolbar');
-      if (toolbar) toolbar.appendChild(addBtn);
-
+    const addBtn = root.querySelector('[data-activities-add-btn]');
+    if (canAddActivity && ui && addBtn) {
       addBtn.addEventListener('click', () => {
         ui.openModal({
           title: 'הוספת פעילות',

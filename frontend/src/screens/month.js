@@ -3,9 +3,37 @@ import { dsScreenStack, dsCard, dsInteractiveCard } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
+import {
+  ensureActivityListFilters,
+  prepareRowsForSearch,
+  applyLocalFilters,
+  filtersToolbarHtml,
+  bindLocalFilters
+} from './shared/activity-list-filters.js';
+import { getFilterOptionOverrides } from './shared/activity-options.js';
 
+const inflightActivityDetailRequests = new Map();
+const MONTH_SCOPE = 'calendar';
+const CALENDAR_FILTER_FIELDS = [
+  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'instructor', label: 'מדריך', getValues: (row) => [row?.instructor_name, row?.instructor_name_2] },
+  { key: 'activity_name', label: 'תוכנית' },
+  { key: 'authority', label: 'רשות' },
+  { key: 'funding', label: 'מימון' },
+  { key: 'school', label: 'בית ספר' }
+];
+const CALENDAR_SEARCH_FIELDS = [
+  'RowID',
+  'activity_name',
+  'activity_manager',
+  'instructor_name',
+  'instructor_name_2',
+  'authority',
+  'school',
+  'funding',
+  'status'
+];
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -176,6 +204,10 @@ function shiftMonthYm(ym, delta) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function monthCacheKey(ym) {
+  return `month:${ym && /^\d{4}-\d{2}$/.test(String(ym)) ? ym : 'current'}`;
+}
+
 function activityDetailCacheKey(row) {
   return `activityDetail:${row.source_sheet || ''}:${row.RowID || ''}`;
 }
@@ -212,6 +244,14 @@ export const monthScreen = {
 
     const safeCells = Array.isArray(data?.cells) ? data.cells : [];
     const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
+    const filterState = ensureActivityListFilters(state, MONTH_SCOPE);
+    const allItems = Object.values(itemsById || {});
+    prepareRowsForSearch(allItems, CALENDAR_SEARCH_FIELDS);
+    const toolbarHtml = filtersToolbarHtml(MONTH_SCOPE, allItems, state, {
+      filterFields: CALENDAR_FILTER_FIELDS,
+      searchPlaceholder: 'חיפוש פעילויות בלוח החודש…',
+      optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
+    });
     const byDay = cellMapFromCells(safeCells);
     const todayIso = localYmd();
     const hideSaturday = !!data?.hide_saturday;
@@ -237,7 +277,7 @@ export const monthScreen = {
         date: padDayKey(y, mo, dayNum),
         item_ids: []
       };
-      const cellItems = monthCellItems(cell, itemsById);
+      const cellItems = applyLocalFilters(monthCellItems(cell, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
       const n = cellItems.length;
       const isToday = cell.date === todayIso;
       const isShabbat = cellDate.getDay() === 6;
@@ -279,26 +319,37 @@ export const monthScreen = {
     const currentYm = data?.month || `${y}-${String(mo).padStart(2, '0')}`;
     const monthTitle = monthTitleHebrew(spec);
 
-    return dsScreenStack(`
-      ${actNavGridHtml(state)}
+    const html = dsScreenStack(`
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm" data-month-prev aria-label="חודש קודם">חודש קודם ▶</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-prev aria-label="חודש קודם">▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(monthTitle)}</span>
-        <button type="button" class="ds-btn ds-btn--sm" data-month-next aria-label="חודש הבא">◀ חודש הבא</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-next aria-label="חודש הבא">◀</button>
       </nav>
+      ${toolbarHtml}
       ${dsCard({
         body: gridHtml,
         padded: false
       })}
     `);
+    return html;
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
-    bindActNavGrid(root, { state, rerender });
+    root.classList.remove('is-month-loading');
+    root.setAttribute('aria-busy', 'false');
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canEditActivity = state?.user?.display_role !== 'instructor';
-    const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+    const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
+    const showPrivateNote = state?.user?.display_role === 'operation_manager';
+    bindLocalFilters(root, state, MONTH_SCOPE, rerender, { debounceMs: 300 });
+    const cells = Array.isArray(data?.cells) ? data.cells : [];
+    const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
+    const allItemsByRowId = new Map();
+    cells.forEach((cell) => {
+      monthCellItems(cell, itemsById).forEach((item) => {
+        allItemsByRowId.set(String(item?.RowID || ''), item);
+      });
+    });
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });
@@ -326,10 +377,7 @@ export const monthScreen = {
         const parts = action.split('|');
         const date = decodeURIComponent(parts[1] || '');
         const rowId = decodeURIComponent(parts[2] || '');
-        const cells = Array.isArray(data?.cells) ? data.cells : [];
-        const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
-        const allItems = cells.flatMap((c) => monthCellItems(c, itemsById));
-        const item = allItems.find((it) => String(it.RowID) === String(rowId));
+        const item = allItemsByRowId.get(String(rowId));
         if (!item) {
           ui.openDrawer({ title: 'פעילות', content: '<p class="ds-muted">לא נמצאו נתונים</p>' });
           return;
@@ -341,6 +389,7 @@ export const monthScreen = {
             content: activityWorkDrawerHtml(row, {
               privateNote,
               canEdit: canEditActivity,
+              canDirectEdit: !!state?.user?.can_edit_direct,
               hideEmpIds,
               hideRowId,
               hideActivityNo,
@@ -355,7 +404,16 @@ export const monthScreen = {
           return;
         }
         openItem(item);
-        api.activityDetail(item.RowID, item.source_sheet).then((rsp) => {
+        const detailKey = activityDetailCacheKey(item);
+        let request = inflightActivityDetailRequests.get(detailKey);
+        if (!request) {
+          request = api.activityDetail(item.RowID, item.source_sheet)
+            .finally(() => {
+              inflightActivityDetailRequests.delete(detailKey);
+            });
+          inflightActivityDetailRequests.set(detailKey, request);
+        }
+        request.then((rsp) => {
           const full = rsp?.row || item;
           putCachedActivityDetail(item, full, state);
           openItem(full);
@@ -372,15 +430,30 @@ export const monthScreen = {
     };
     const prevBtn = root.querySelector('[data-month-prev]');
     const nextBtn = root.querySelector('[data-month-next]');
+    const setMonthAreaLoading = (isLoading) => {
+      root.classList.toggle('is-month-loading', !!isLoading);
+      root.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+      if (prevBtn) prevBtn.disabled = !!isLoading;
+      if (nextBtn) nextBtn.disabled = !!isLoading;
+    };
     const doMonthShift = (delta) => {
-      if (prevBtn) prevBtn.disabled = true;
-      if (nextBtn) nextBtn.disabled = true;
-      state.monthYm = shiftMonthYm(resolveBaseYm(), delta);
+      const targetYm = shiftMonthYm(resolveBaseYm(), delta);
+      const targetKey = monthCacheKey(targetYm);
+      const hasCachedTarget = !!state?.screenDataCache?.[targetKey];
+
+      state.monthYm = targetYm;
       try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
+
+      if (hasCachedTarget) {
+        rerender?.();
+        return;
+      }
+
+      setMonthAreaLoading(true);
       rerender?.();
     };
-    prevBtn?.addEventListener('click', () => doMonthShift(-1));
-    nextBtn?.addEventListener('click', () => doMonthShift(1));
+    prevBtn?.addEventListener('click', () => { doMonthShift(-1); });
+    nextBtn?.addEventListener('click', () => { doMonthShift(1); });
 
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;
@@ -398,7 +471,8 @@ export const monthScreen = {
         date: padDayKey(spec.y, spec.mo, d),
         item_ids: []
       };
-      const cellItems = monthCellItems(cell, itemsById);
+      const filterState = ensureActivityListFilters(state, MONTH_SCOPE);
+      const cellItems = applyLocalFilters(monthCellItems(cell, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
       if (!cellItems.length) return;
 
       ui.openDrawer({

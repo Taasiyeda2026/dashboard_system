@@ -1,14 +1,21 @@
 import { escapeHtml } from './shared/html.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { hebrewColumn, hebrewEmploymentType } from './shared/ui-hebrew.js';
 import { dsScreenStack, dsEmptyState, dsStatusChip } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
+import {
+  ensureActivityListFilters,
+  prepareRowsForSearch,
+  applyLocalFilters,
+  filtersToolbarHtml,
+  bindLocalFilters
+} from './shared/activity-list-filters.js';
 
 const AVATAR_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e',
   '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6',
   '#f43f5e', '#a855f7'
 ];
+const CONTACTS_SCOPE = 'contacts';
 
 /* ─── Copy button ─── */
 
@@ -35,16 +42,6 @@ function avatarInitials(fullName) {
   if (parts.length >= 2) return parts[0][0] + parts[1][0];
   if (parts.length === 1) return parts[0].slice(0, 2);
   return '??';
-}
-
-function applyInstrSearch(rows, q) {
-  if (!q) return rows;
-  const lq = q.toLowerCase();
-  return rows.filter((r) =>
-    String(r.full_name || '').toLowerCase().includes(lq) ||
-    String(r.mobile   || '').toLowerCase().includes(lq) ||
-    String(r.email    || '').toLowerCase().includes(lq)
-  );
 }
 
 function instrDrawerHtml(row, hideEmpIds) {
@@ -101,7 +98,7 @@ function renderInstrCard(row) {
 }
 
 function instrTabHtml(rows, searchQ) {
-  const filtered = applyInstrSearch(rows, searchQ);
+  const filtered = searchQ ? applyLocalFilters(rows, { q: searchQ }, { filterFields: [] }) : rows;
   const body = filtered.length === 0
     ? dsEmptyState('לא נמצאו אנשי קשר')
     : `<div class="ci-person-grid">${filtered.map((r) => renderInstrCard(r)).join('')}</div>`;
@@ -109,16 +106,6 @@ function instrTabHtml(rows, searchQ) {
 }
 
 /* ─── School contacts ─── */
-
-function applySchoolSearch(rows, q) {
-  if (!q) return rows;
-  const lq = q.toLowerCase();
-  return rows.filter((r) =>
-    String(r.school       || '').toLowerCase().includes(lq) ||
-    String(r.authority    || '').toLowerCase().includes(lq) ||
-    String(r.contact_name || '').toLowerCase().includes(lq)
-  );
-}
 
 function schoolPersonHtml(row) {
   const name = row.contact_name ? escapeHtml(String(row.contact_name)) : '';
@@ -149,6 +136,13 @@ function schoolPersonHtml(row) {
   </article>`;
 }
 
+const HE_ALPHA = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י','כ','ל','מ','נ','ס','ע','פ','צ','ק','ר','ש','ת'];
+
+function firstHebrewLetter(str) {
+  const ch = String(str || '').trim().charAt(0);
+  return HE_ALPHA.includes(ch) ? ch : '#';
+}
+
 function groupByAuthorityThenSchool(rows) {
   const authMap = new Map();
   for (const row of rows) {
@@ -168,6 +162,16 @@ function groupByAuthorityThenSchool(rows) {
     result.set(authority, new Map([...schoolMap.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he'))));
   });
   return result;
+}
+
+function groupByLetter(authorityGroupsMap) {
+  const letterMap = new Map();
+  authorityGroupsMap.forEach((schoolsMap, authority) => {
+    const letter = firstHebrewLetter(authority);
+    if (!letterMap.has(letter)) letterMap.set(letter, new Map());
+    letterMap.get(letter).set(authority, schoolsMap);
+  });
+  return letterMap;
 }
 
 function renderSchoolCard(schoolName, rows) {
@@ -197,7 +201,7 @@ function renderAuthorityGroup(authority, schoolsMap) {
       <span class="sc-authority-icon" aria-hidden="true">🏛️</span>
       <span class="sc-authority-name">${escapeHtml(authority)}</span>
     </div>
-    <div class="sc-school-grid">${schoolsHtml}</div>
+    <div class="sc-school-stack">${schoolsHtml}</div>
   </div>`;
 }
 
@@ -250,13 +254,30 @@ function schoolFormHtml(row = {}) {
   `;
 }
 
+function renderLetterSection(letter, authoritiesMap) {
+  let authHtml = '';
+  authoritiesMap.forEach((schoolsMap, authority) => { authHtml += renderAuthorityGroup(authority, schoolsMap); });
+  if (!authHtml) return '';
+  return `<div class="sc-letter-section" data-letter-section="${escapeHtml(letter)}" hidden>
+    <div class="sc-card-list">${authHtml}</div>
+  </div>`;
+}
+
 function schoolTabHtml(rows, searchQ) {
-  const filtered = applySchoolSearch(rows, searchQ);
+  const filtered = searchQ ? applyLocalFilters(rows, { q: searchQ }, { filterFields: [] }) : rows;
   if (filtered.length === 0) return { filtered, body: dsEmptyState('לא נמצאו אנשי קשר') };
   const authorityGroups = groupByAuthorityThenSchool(filtered);
-  let html = '';
-  authorityGroups.forEach((schoolsMap, authority) => { html += renderAuthorityGroup(authority, schoolsMap); });
-  return { filtered, body: `<div class="sc-card-list">${html}</div>` };
+  const byLetter = groupByLetter(authorityGroups);
+
+  const alphaBtns = [...byLetter.keys()].map((letter) =>
+    `<button type="button" class="sc-alpha-btn" data-alpha-btn="${escapeHtml(letter)}" aria-expanded="false">${escapeHtml(letter)}</button>`
+  ).join('');
+  const alphaBar = `<div class="sc-alpha-bar" role="toolbar" aria-label="אלפון א-ת" dir="rtl">${alphaBtns}</div>`;
+
+  let sectionsHtml = '';
+  byLetter.forEach((authoritiesMap, letter) => { sectionsHtml += renderLetterSection(letter, authoritiesMap); });
+
+  return { filtered, body: `${alphaBar}${sectionsHtml}` };
 }
 
 /* ─── Screen ─── */
@@ -267,11 +288,13 @@ export const contactsScreen = {
   render(data, { state } = {}) {
     const instrRows  = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
     const schoolRows = Array.isArray(data?.school_rows)     ? data.school_rows     : [];
+    prepareRowsForSearch(instrRows, ['full_name', 'contact_name', 'mobile', 'phone', 'email', 'authority', 'school', 'role', 'contact_role']);
+    prepareRowsForSearch(schoolRows, ['full_name', 'contact_name', 'mobile', 'phone', 'email', 'authority', 'school', 'role', 'contact_role']);
+    const filters = ensureActivityListFilters(state, CONTACTS_SCOPE);
     const canViewInstr  = data?.can_view_instructors !== false;
     const canViewSchool = data?.can_view_schools     !== false;
     const tab     = state?.contactsTab || (canViewInstr ? 'instr' : 'school');
-    const instrQ  = state?.contactsInstrSearch  || '';
-    const schoolQ = state?.contactsSchoolSearch || '';
+    const searchQ = filters.q || '';
 
     const tabBtns = [
       canViewInstr  && { key: 'instr',  label: `אנשי קשר מדריכים (${instrRows.length})`  },
@@ -284,30 +307,29 @@ export const contactsScreen = {
     let listHtml    = '';
 
     if (tab === 'instr' && canViewInstr) {
-      const { body } = instrTabHtml(instrRows, instrQ);
-      searchInput = `<input id="contacts-instr-search" type="search" class="ds-search-input"
-        placeholder="חיפוש לפי שם / טלפון / מייל…" value="${escapeHtml(instrQ)}" dir="rtl" />`;
+      const { body } = instrTabHtml(instrRows, searchQ);
       listHtml = body;
     } else if (tab === 'school' && canViewSchool) {
-      const { body } = schoolTabHtml(schoolRows, schoolQ);
-      searchInput = `<input id="contacts-school-search" type="search" class="ds-search-input"
-        placeholder="חיפוש לפי בית ספר / רשות / איש קשר…" value="${escapeHtml(schoolQ)}" dir="rtl" />`;
+      const { body } = schoolTabHtml(schoolRows, searchQ);
       listHtml = body;
     }
+    searchInput = filtersToolbarHtml(CONTACTS_SCOPE, tab === 'instr' ? instrRows : schoolRows, state, {
+      searchPlaceholder: 'חיפוש לפי שם / תפקיד / טלפון / מייל / רשות / בית ספר…',
+      filterFields: [],
+      search: true
+    });
 
     return dsScreenStack(`
-      ${actNavGridHtml(state)}
       <div class="ds-chip-group" dir="rtl">${tabBtns}</div>
       <div class="ds-screen-top-row">
         ${searchInput}
-        <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-contact-action="add-${tab === 'instr' ? 'instr' : 'school'}">➕ הוספה</button>
+        <button type="button" class="ds-btn ds-btn--primary ds-btn--sm ds-btn--contact-add" data-contact-action="add-${tab === 'instr' ? 'instr' : 'school'}">+ הוסף</button>
       </div>
       <div class="contacts-list-wrap" dir="rtl">${listHtml}</div>
     `);
   },
 
   bind({ root, data, state, ui, rerender, api }) {
-    bindActNavGrid(root, { state, rerender });
     const instrRows = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
     const schoolRows = Array.isArray(data?.school_rows) ? data.school_rows : [];
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -321,31 +343,37 @@ export const contactsScreen = {
         rerender();
       });
     });
+    bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, { debounceMs: 300 });
 
-    let instrSearchTimer;
-    root.querySelector('#contacts-instr-search')?.addEventListener('input', (ev) => {
-      state.contactsInstrSearch = ev.target.value || '';
-      clearTimeout(instrSearchTimer);
-      instrSearchTimer = setTimeout(() => rerender(), 180);
-    });
+    const bindCopyBtns = (container) => {
+      container.querySelectorAll('[data-copy-email]').forEach((btn) => {
+        if (btn._copyBound) return;
+        btn._copyBound = true;
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const email = String(btn.dataset.copyEmail || '').trim();
+          if (!email) { showToast('לא ניתן היה להעתיק', 'error', 1800); return; }
+          copyEmailToClipboard(email)
+            .then(() => showToast('המייל הועתק', 'success', 1500))
+            .catch(() => showToast('לא ניתן היה להעתיק', 'error', 1800));
+        });
+      });
+    };
+    bindCopyBtns(root);
 
-    let schoolSearchTimer;
-    root.querySelector('#contacts-school-search')?.addEventListener('input', (ev) => {
-      state.contactsSchoolSearch = ev.target.value || '';
-      clearTimeout(schoolSearchTimer);
-      schoolSearchTimer = setTimeout(() => rerender(), 180);
-    });
-
-    root.querySelectorAll('[data-copy-email]').forEach((btn) => {
-      btn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        const email = btn.dataset.copyEmail;
-        const doToast = () => showToast('המייל הועתק ✓', 'success', 1200);
-        if (navigator.clipboard?.writeText) {
-          navigator.clipboard.writeText(email).then(doToast).catch(() => fallbackCopy(email, doToast));
-        } else {
-          fallbackCopy(email, doToast);
+    root.querySelectorAll('[data-alpha-btn]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const letter = btn.dataset.alphaBtn;
+        const isOpen = btn.getAttribute('aria-expanded') === 'true';
+        root.querySelectorAll('[data-alpha-btn]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+        root.querySelectorAll('[data-alpha-btn]').forEach((b) => b.classList.remove('is-active'));
+        root.querySelectorAll('[data-letter-section]').forEach((s) => { s.hidden = true; });
+        if (!isOpen) {
+          btn.setAttribute('aria-expanded', 'true');
+          btn.classList.add('is-active');
+          const section = root.querySelector(`[data-letter-section="${letter}"]`);
+          if (section) section.hidden = false;
         }
       });
     });
@@ -494,18 +522,40 @@ export const contactsScreen = {
         title: hit.full_name || hit.emp_id || 'איש קשר',
         content: instrDrawerHtml(hit, hideEmpIds)
       });
+      requestAnimationFrame(() => {
+        const drawer = document.querySelector('.ds-drawer__body, .ds-drawer, [data-drawer]');
+        if (drawer) bindCopyBtns(drawer);
+        else bindCopyBtns(document.body);
+      });
     });
   }
 };
 
-function fallbackCopy(text, cb) {
+function fallbackCopy(text) {
   const ta = document.createElement('textarea');
   ta.value = text;
   Object.assign(ta.style, { position: 'fixed', opacity: '0', top: '0', left: '0' });
   document.body.appendChild(ta);
   ta.focus();
   ta.select();
-  try { document.execCommand('copy'); } catch (_) { /* ignore */ }
-  document.body.removeChild(ta);
-  cb?.();
+  try {
+    const copied = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!copied;
+  } catch (_) {
+    document.body.removeChild(ta);
+    return false;
+  }
+}
+
+async function copyEmailToClipboard(email) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(email);
+      return;
+    } catch (_) {
+      // fallback below
+    }
+  }
+  if (!fallbackCopy(email)) throw new Error('copy-failed');
 }

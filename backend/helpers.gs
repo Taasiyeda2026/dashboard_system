@@ -11,6 +11,55 @@ function text_(value) {
   return String(value).trim();
 }
 
+/**
+ * Unified empty-value normalization for control metrics.
+ * Values such as null/undefined/blank/whitespace/"-"/"—"/"לא שובץ"/"טרם שובץ"/"לא נקבע"
+ * are treated as empty.
+ */
+function isNormalizedEmptyValue_(value) {
+  if (value === null || value === undefined) return true;
+  var raw = text_(value);
+  if (!raw) return true;
+  var norm = raw.replace(/\u00A0/g, ' ').trim();
+  if (!norm) return true;
+  var compact = norm.replace(/\s+/g, ' ').toLowerCase();
+  return compact === '-' ||
+    compact === '—' ||
+    compact === 'לא שובץ' ||
+    compact === 'לא משובץ' ||
+    compact === 'טרם שובץ' ||
+    compact === 'לא נקבע' ||
+    compact === 'אין' ||
+    compact === 'none' ||
+    compact === 'null' ||
+    compact === 'undefined';
+}
+
+function isValidIsoDateString_(value) {
+  var iso = text_(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  var parts = iso.split('-');
+  var y = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  var d = parseInt(parts[2], 10);
+  if (!y || m < 1 || m > 12 || d < 1 || d > 31) return false;
+  var dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && (dt.getMonth() + 1) === m && dt.getDate() === d;
+}
+
+function normalizeStatusForControl_(status) {
+  return text_(status).replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function isExcludedStatusForControl_(status) {
+  var s = normalizeStatusForControl_(status);
+  return s === 'מבוטל' ||
+    s === 'בוטל' ||
+    s === 'הסתיים' ||
+    s === 'לא פעיל' ||
+    s === 'טיוטה';
+}
+
 function yesNo_(value) {
   return text_(value).toLowerCase() === 'no' ? 'no' : 'yes';
 }
@@ -24,13 +73,25 @@ function normalizeRole_(value) {
   switch (role) {
     case 'admin':             return 'admin';
     case 'finance':           return 'finance';
+    case 'operations_reviewer':
     case 'operation_manager': return 'operation_manager';
     case 'activities_manager':return 'activities_manager';
     case 'domain_manager':    return 'domain_manager';
     case 'manager_instructor':return 'manager_instructor';
     case 'instructor':        return 'instructor';
+    case 'instructor_admin':  return 'instructor';
     default:                  throw new Error('invalid_role');
   }
+}
+
+function isOperationManagerRole_(role) {
+  var normalized = text_(role).toLowerCase().trim();
+  return normalized === 'operation_manager' || normalized === 'operations_reviewer';
+}
+
+function canDirectWriteRole_(role) {
+  var normalized = normalizeRole_(role);
+  return normalized === 'admin' || normalized === 'operation_manager';
 }
 
 function isAuthorizedUserTier_(role) {
@@ -74,6 +135,16 @@ function shiftDate_(date, days) {
 function parsePayload_(e) {
   var raw = e && e.postData && e.postData.contents ? e.postData.contents : '{}';
   return JSON.parse(raw || '{}');
+}
+
+function parseJsonObject_(raw, fallback) {
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(String(raw));
+  } catch (_e) {
+    return fallback;
+  }
 }
 
 var __rqPerf_ = null;

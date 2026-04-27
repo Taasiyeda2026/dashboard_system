@@ -72,9 +72,9 @@ const RETRYABLE_SERVER_ERRORS = new Set([
 
 function invalidateScreenDataByAction(action) {
   const targetedMutations = {
-    saveActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:'],
-    addActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:'],
-    submitEditRequest: ['activities:', 'edit-requests', 'week:', 'month:', 'dashboard:'],
+    saveActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'end-dates'],
+    addActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'end-dates'],
+    submitEditRequest: ['activities:', 'edit-requests', 'week:', 'month:', 'dashboard:', 'end-dates'],
     reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:'],
     saveFinanceRow: ['finance:', 'dashboard:'],
     syncFinance: ['finance:', 'dashboard:'],
@@ -131,6 +131,25 @@ function pushPerfRequest(entry) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeData(data) {
+  if (Array.isArray(data)) return data.map(normalizeData);
+  if (!data || typeof data !== 'object') return data;
+
+  const normalized = Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [key, normalizeData(value)])
+  );
+
+  normalized.StartTime = normalized.StartTime ?? normalized.start_time ?? normalized.startTime ?? '';
+  normalized.EndTime = normalized.EndTime ?? normalized.end_time ?? normalized.endTime ?? '';
+  normalized.End = normalized.End ?? normalized.end_date ?? normalized.endDate ?? normalized.DateEnd ?? '';
+  normalized.EmployeeID = normalized.EmployeeID ?? normalized.emp_id ?? normalized.employee_id ?? '';
+  normalized.Employee = normalized.Employee ?? normalized.instructor_name ?? normalized.employee_name ?? '';
+  normalized.Program = normalized.Program ?? normalized.activity_name ?? '';
+  normalized.ActivityNo = normalized.ActivityNo ?? normalized.activity_no ?? '';
+
+  return normalized;
 }
 
 async function postWithTimeout(action, requestBody) {
@@ -232,7 +251,7 @@ async function request(action, payload = {}) {
     payload_bytes: lastResponseText.length,
     backend_debug: json.data && json.data.debug_perf ? json.data.debug_perf : null
   });
-  return json.data;
+  return normalizeData(json.data);
 }
 
 export const api = {

@@ -1,5 +1,8 @@
 /** Short-lived CacheService entries for heavy read-only payloads (invalidated on writes). */
 
+/** Set to true in GAS project settings or temporarily in code to enable cache diagnostic logs. */
+var DS_DEBUG_SCRIPT_CACHE_ = false;
+
 var SCRIPT_CACHE_KEY_DASHBOARD = 'pc:dashboard:v2';
 var SCRIPT_CACHE_KEY_PERMISSIONS_LIST = 'pc:permissions:v2';
 var SCRIPT_CACHE_KEY_DATA_VIEWS_VERSION = 'pc:data-views-version:v1';
@@ -39,6 +42,7 @@ function scriptCacheDebugMark_(eventName, key, bytes, errorText) {
       error: text_(errorText || ''),
       at: new Date().toISOString()
     };
+    if (DS_DEBUG_SCRIPT_CACHE_) console.warn('[script-cache]', JSON.stringify(payload));
     var c = CacheService.getScriptCache();
     var raw = c.get(SCRIPT_CACHE_KEY_DEBUG_STATS);
     var stats = raw ? JSON.parse(raw) : {};

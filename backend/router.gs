@@ -54,6 +54,7 @@ function handlePost_(e) {
       savePrivateNote: function() { return actionSavePrivateNote_(user, payload); },
       saveFinanceRow: function() { return actionSaveFinanceRow_(user, payload); },
       syncFinance: function() { return actionSyncFinance_(user, payload); },
+      syncEndDates: function() { return actionSyncEndDates_(user, payload); },
       listSheets: function() { return actionListSheets_(user); }
     };
 
@@ -114,7 +115,8 @@ function handlePost_(e) {
         action === 'saveActivity' ||
         action === 'reviewEditRequest' ||
         action === 'saveFinanceRow' ||
-        action === 'syncFinance') {
+        action === 'syncFinance' ||
+        action === 'syncEndDates') {
       try {
         markDashboardSnapshotsRefreshNeeded_('mutation:' + action);
       } catch (snapshotErr) {

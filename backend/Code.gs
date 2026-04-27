@@ -34,3 +34,30 @@ function refreshDashboardSnapshots() {
 function refreshDashboardSnapshotsTrigger() {
   refreshDashboardSnapshots_();
 }
+
+function getSnapshotRefreshDiagnostics() {
+  return getSnapshotRefreshDiagnostics_();
+}
+
+function runDataMaintenance() {
+  return runDataMaintenance_('manual');
+}
+
+function runDataMaintenanceTrigger() {
+  runDataMaintenance_('time_trigger');
+}
+
+function installDataMaintenanceTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var exists = triggers.some(function(t) {
+    return t.getHandlerFunction && t.getHandlerFunction() === 'runDataMaintenanceTrigger';
+  });
+  if (exists) return { status: 'already_installed' };
+
+  ScriptApp.newTrigger('runDataMaintenanceTrigger')
+    .timeBased()
+    .everyHours(1)
+    .create();
+
+  return { status: 'installed', frequency: 'hourly' };
+}

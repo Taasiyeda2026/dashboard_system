@@ -18,12 +18,14 @@ function statusLabel(status) {
   if (status === 'pending') return 'ממתין';
   if (status === 'approved') return 'אושר';
   if (status === 'rejected') return 'נדחה';
+  if (status === 'conflict') return 'קונפליקט';
   return status || '—';
 }
 
 function statusVariant(status) {
   if (status === 'approved') return 'success';
   if (status === 'rejected') return 'danger';
+  if (status === 'conflict') return 'danger';
   if (status === 'pending') return 'warning';
   return 'neutral';
 }
@@ -52,8 +54,8 @@ function renderGroup(group, canReview) {
     </div>
   ` : '';
 
-  const reviewerNoteHtml = group.reviewer_notes ? `
-    <p class="ds-er-reviewer-note"><span class="ds-muted">הערת סוקר:</span> ${escapeHtml(group.reviewer_notes)}</p>
+  const reviewerNoteHtml = group.review_note ? `
+    <p class="ds-er-reviewer-note"><span class="ds-muted">הערת סוקר:</span> ${escapeHtml(group.review_note)}</p>
   ` : '';
 
   return `
@@ -62,6 +64,7 @@ function renderGroup(group, canReview) {
         <div class="ds-er-group-meta">
           <span class="ds-er-requester">${escapeHtml(group.requested_by_name || group.requested_by_user_id || '—')}</span>
           <span class="ds-muted ds-er-date">${formatDate(group.requested_at)}</span>
+          <span class="ds-er-row-id ds-muted">${escapeHtml(group.activity_name || '')}</span>
           <span class="ds-er-row-id ds-muted">${escapeHtml(group.source_row_id || '')}</span>
         </div>
         <div>${dsStatusChip(statusLabel(group.status), statusVariant(group.status))}</div>
@@ -95,7 +98,8 @@ export const editRequestsScreen = {
       { value: '', label: 'הכול' },
       { value: 'pending', label: 'ממתינים' },
       { value: 'approved', label: 'מאושרים' },
-      { value: 'rejected', label: 'נדחו' }
+      { value: 'rejected', label: 'נדחו' },
+      { value: 'conflict', label: 'קונפליקט' }
     ];
 
     const filterChips = statusFilters.map((f) => `

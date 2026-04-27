@@ -20,14 +20,14 @@ var SUMMARY_SNAPSHOT_HEADERS_ = [
   'finance_open_count', 'exceptions_count', 'active_instructors_count',
   'course_endings_current_month', 'active_courses_next_month',
   'missing_instructor_count', 'missing_start_date_count', 'late_end_date_count',
-  'north_active_instructors_names', 'south_active_instructors_names'
+  'active_instructors_names'
 ];
 
 var BY_MANAGER_SNAPSHOT_HEADERS_ = [
   'month_ym', 'activity_manager', 'manager_display_name',
   'total_short', 'total_long', 'total', 'num_instructors',
   'course_endings', 'finance_open', 'exceptions',
-  'active_instructors_names', 'updated_at'
+  'active_instructors_names', 'updated_at', 'snapshot_key'
 ];
 
 var REFRESH_CONTROL_HEADERS_ = ['key', 'value', 'label_he'];
@@ -50,8 +50,7 @@ var SUMMARY_SNAPSHOT_LABELS_HE_ = [
   'ללא מדריך',
   'ללא תאריך התחלה',
   'תאריך סיום מאוחר',
-  'שמות מדריכים פעילים צפון',
-  'שמות מדריכים פעילים דרום'
+  'שמות מדריכים פעילים'
 ];
 var BY_MANAGER_SNAPSHOT_LABELS_HE_ = [
   'חודש',
@@ -65,7 +64,8 @@ var BY_MANAGER_SNAPSHOT_LABELS_HE_ = [
   'כספים פתוחים',
   'חריגות',
   'שמות מדריכים פעילים',
-  'עודכן בתאריך'
+  'עודכן בתאריך',
+  'מפתח snapshot'
 ];
 var REFRESH_CONTROL_LABELS_HE_ = ['מפתח', 'ערך', 'תווית'];
 
@@ -73,6 +73,10 @@ var SNAPSHOT_MANAGER_DISPLAY_NAMES_ = {
   'גיל נאמן':          'מחוז צפון',
   'לינוי שמואל מזרחי': 'מחוז דרום'
 };
+
+var DASHBOARD_SNAPSHOT_PERMISSION_CACHE_PREFIX_ = 'pc:dashboard-snapshot:permission:';
+var DASHBOARD_SNAPSHOT_FLAGS_CACHE_KEY_ = 'pc:dashboard-snapshot:flags:v1';
+var DASHBOARD_SNAPSHOT_FLAGS_CACHE_SECONDS_ = 120;
 
 // ─── header helpers ───────────────────────────────────────────────────────────
 
@@ -103,14 +107,94 @@ function ensureSnapshotSheetScaffold_(sheetName, englishHeaders, hebrewLabels) {
   return true;
 }
 
+function normalizeSnapshotMonthYm_(value) {
+  var t = text_(value).trim();
+  if (t.charAt(0) === "'") t = t.slice(1);
+  if (!t) return '';
+  return t.slice(0, 7);
+}
+
 // ─── A. actionDashboardSnapshot_ ─────────────────────────────────────────────
 
-function actionDashboardSnapshot_(user, payload) {
-  requireAnyRole_(user, ['admin', 'operations_reviewer', 'authorized_user']);
+function readSnapshotRowsFast_(sheetName, projectedHeaders) {
+  var ss = getSpreadsheet_();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return [];
 
-  var permission = getPermissionRow_(user.user_id);
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var dataStart = CONFIG.DATA_START_ROW;
+  if (lastRow < dataStart || !lastCol) return [];
+
+  var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
+  var projected = (projectedHeaders || []).map(text_).filter(Boolean);
+  var indexes = projected.length
+    ? projected.map(function(h) { return headers.indexOf(h); }).filter(function(i) { return i >= 0; })
+    : headers.map(function(_, idx) { return idx; });
+  if (!indexes.length) return [];
+  indexes.sort(function(a, b) { return a - b; });
+
+  var maxIdx = indexes[indexes.length - 1];
+  var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, maxIdx + 1).getValues();
+  return values.filter(function(row) {
+    return row.some(function(cell) { return text_(cell) !== ''; });
+  }).map(function(row) {
+    var item = {};
+    indexes.forEach(function(idx) {
+      item[headers[idx]] = row[idx];
+    });
+    return item;
+  });
+}
+
+function getDashboardSnapshotPermission_(user) {
+  if (user && typeof user.can_view_finance === 'boolean') {
+    return { view_finance: user.can_view_finance ? 'yes' : 'no' };
+  }
+
+  var userId = text_(user && user.user_id);
+  if (!userId) return {};
+  var cacheKey = DASHBOARD_SNAPSHOT_PERMISSION_CACHE_PREFIX_ + userId + ':' + dataViewsCacheVersion_();
+  var cached = scriptCacheGetJson_(cacheKey);
+  if (cached && typeof cached === 'object') return cached;
+
+  var permission = getPermissionRow_(userId) || {};
+  scriptCachePutJson_(cacheKey, permission, DASHBOARD_SNAPSHOT_FLAGS_CACHE_SECONDS_);
+  return permission;
+}
+
+function readDashboardRefreshControlMap_() {
+  var map = {};
+  var rows = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_REFRESH_CONTROL, ['key', 'value']);
+  rows.forEach(function(row) {
+    var key = text_(row.key);
+    if (!key) return;
+    map[key] = row.value;
+  });
+  return map;
+}
+
+function getDashboardSnapshotFlags_() {
+  var cacheKey = DASHBOARD_SNAPSHOT_FLAGS_CACHE_KEY_ + ':' + dataViewsCacheVersion_();
+  var cached = scriptCacheGetJson_(cacheKey);
+  if (cached && typeof cached === 'object') return cached;
+
+  var controlMap = readDashboardRefreshControlMap_();
+  var flags = {
+    show_only_nonzero_kpis: yesNo_(controlMap.show_only_nonzero_kpis) !== 'no'
+  };
+  scriptCachePutJson_(cacheKey, flags, DASHBOARD_SNAPSHOT_FLAGS_CACHE_SECONDS_);
+  return flags;
+}
+
+function actionDashboardSnapshot_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
+
+  markRequestPerf_('dashboardSnapshot:permission lookup:start');
+  var permission = getDashboardSnapshotPermission_(user);
   var canViewFinance = user.display_role === 'admin' ||
     yesNo_(permission.view_finance) === 'yes';
+  markRequestPerf_('dashboardSnapshot:permission lookup:end');
 
   var ym = dashboardPayloadYm_(payload || {});
 
@@ -118,23 +202,54 @@ function actionDashboardSnapshot_(user, payload) {
   var byManagerRows = [];
 
   var ss = getSpreadsheet_();
+  var hasSummarySnapshotSheet = !!ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT);
 
-  if (ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT)) {
-    var summaryRows = readRows_(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT);
-    snap = summaryRows.find(function(r) { return text_(r.month_ym) === ym; }) || null;
+  if (hasSummarySnapshotSheet) {
+    markRequestPerf_('dashboardSnapshot:read summary snapshot:start');
+    var summaryRows = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT, SUMMARY_SNAPSHOT_HEADERS_);
+    snap = summaryRows.find(function(r) {
+      return normalizeSnapshotMonthYm_(r.month_ym) === ym;
+    }) || null;
+    markRequestPerf_('dashboardSnapshot:read summary snapshot:end');
   }
 
   if (ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT)) {
-    var allByMgr = readRows_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT);
-    byManagerRows = allByMgr.filter(function(r) { return text_(r.month_ym) === ym; });
+    markRequestPerf_('dashboardSnapshot:read by manager snapshot:start');
+    var allByMgr = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT, BY_MANAGER_SNAPSHOT_HEADERS_);
+    var filteredByMgr = allByMgr.filter(function(r) {
+      return normalizeSnapshotMonthYm_(r.month_ym) === ym;
+    });
+    var seenMgrKeys = {};
+    byManagerRows = filteredByMgr.filter(function(r) {
+      var key = text_(r.activity_manager);
+      if (!key || seenMgrKeys[key]) return false;
+      seenMgrKeys[key] = true;
+      return true;
+    });
+    markRequestPerf_('dashboardSnapshot:read by manager snapshot:end');
   }
 
-  if (!snap || !ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT)) {
-    var fullData = actionDashboard_(user, payload);
-    if (fullData && typeof fullData === 'object') {
-      fullData._is_snapshot = false;
+  if (!snap || !hasSummarySnapshotSheet) {
+    if (payload && payload.force_full === true) {
+      var fullData = actionDashboard_(user, payload);
+      if (fullData && typeof fullData === 'object') {
+        fullData._is_snapshot = false;
+      }
+      markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
+      return fullData;
     }
-    return fullData;
+    markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
+    return {
+      month: ym,
+      _is_snapshot: false,
+      _is_snapshot_missing: true,
+      can_view_finance: canViewFinance,
+      totals: {},
+      summary: {},
+      by_activity_manager: [],
+      kpi_cards: [],
+      show_only_nonzero_kpis: true
+    };
   }
 
   var s = snap || {};
@@ -151,13 +266,9 @@ function actionDashboardSnapshot_(user, payload) {
   var missingDate    = parseInt(text_(s.missing_start_date_count), 10) || 0;
   var lateEnd        = parseInt(text_(s.late_end_date_count),      10) || 0;
 
-  var northStr = text_(s.north_active_instructors_names);
-  var southStr = text_(s.south_active_instructors_names);
-  var northArr = northStr
-    ? northStr.split(',').map(function(n) { return n.trim(); }).filter(Boolean)
-    : [];
-  var southArr = southStr
-    ? southStr.split(',').map(function(n) { return n.trim(); }).filter(Boolean)
+  var combinedStr = text_(s.active_instructors_names);
+  var allInstructorNames = combinedStr
+    ? combinedStr.split(',').map(function(n) { return n.trim(); }).filter(Boolean)
     : [];
 
   var byActivityManager = byManagerRows.map(function(r) {
@@ -190,7 +301,13 @@ function actionDashboardSnapshot_(user, payload) {
     late_end_date_count:       lateEnd
   };
 
+  markRequestPerf_('dashboardSnapshot:build kpi cards:start');
   var kpiCards = buildDashboardSnapshotKpis_(snapshotData, canViewFinance);
+  markRequestPerf_('dashboardSnapshot:build kpi cards:end');
+  markRequestPerf_('dashboardSnapshot:settings/show_only_nonzero_kpis:start');
+  var flags = getDashboardSnapshotFlags_();
+  markRequestPerf_('dashboardSnapshot:settings/show_only_nonzero_kpis:end');
+  markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
 
   return {
     month: ym,
@@ -208,18 +325,16 @@ function actionDashboardSnapshot_(user, payload) {
       active_courses_current_month: activeCurrent,
       ending_courses_current_month: courseEndings,
       active_courses_next_month:    activeNext,
-      active_instructors:           northArr.concat(southArr),
-      active_instructors_by_manager: {
-        'מחוז צפון': northArr,
-        'מחוז דרום': southArr
-      },
+      exceptions_count:             exceptCount,
+      active_instructors:           allInstructorNames,
+      active_instructors_by_manager: {},
       missing_instructor_count:  missingInstr,
       missing_start_date_count:  missingDate,
       late_end_date_count:       lateEnd,
       short_activities:          []
     },
     kpi_cards: kpiCards,
-    show_only_nonzero_kpis: settingYes_('show_only_nonzero_kpis'),
+    show_only_nonzero_kpis: flags.show_only_nonzero_kpis !== false,
     _is_snapshot: true
   };
 }
@@ -276,6 +391,11 @@ function buildDashboardSnapshotKpis_(snapshot, canViewFinance) {
 // ─── C. refreshDashboardSnapshots_ ───────────────────────────────────────────
 
 function refreshDashboardSnapshots_() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) {
+    return { skipped: true, reason: 'snapshot_refresh_already_running' };
+  }
+
   var hadCache = !!__rqCache_;
   if (!hadCache) {
     beginRequestCache_();
@@ -299,15 +419,19 @@ function refreshDashboardSnapshots_() {
 
     var status  = errors.length === 0 ? 'ok' : 'partial';
     var message = errors.length === 0 ? 'all months updated' : errors.join('; ');
-    try {
-      updateDashboardRefreshControl_(status, message);
-    } finally {
-      bumpDataViewsCacheVersion_();
-    }
+    updateDashboardRefreshControl_(status, message);
+    return {
+      skipped: false,
+      status: status,
+      message: message,
+      months: months,
+      errors: errors
+    };
   } finally {
     if (!hadCache) {
       __rqCache_ = null;
     }
+    lock.releaseLock();
   }
 }
 
@@ -326,19 +450,26 @@ function markDashboardSnapshotsRefreshNeeded_(reason) {
 function writeDashboardSummarySnapshotRow_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT;
   ensureSnapshotSheetScaffold_(sheetName, SUMMARY_SNAPSHOT_HEADERS_, SUMMARY_SNAPSHOT_LABELS_HE_);
+  dedupeDashboardSummarySnapshotByMonth_();
 
   var summary = fullData.summary || {};
   var totals  = fullData.totals  || {};
 
-  // Extract north/south instructor names from summary if available
+  // בנה רשימת שמות מדריכים מאוחדת מכל המחוזות, ללא כפילויות, ממוינת
+  var allInstructorNamesSet = {};
   var byMgrNames = summary.active_instructors_by_manager || {};
-  var northNames = (byMgrNames['מחוז צפון'] || byMgrNames['גיל נאמן'] || []).join(', ');
-  var southNames = (byMgrNames['מחוז דרום'] || byMgrNames['לינוי שמואל מזרחי'] || []).join(', ');
-
-  // Fall back to active_instructors list if per-manager names are absent
-  if (!northNames && !southNames && Array.isArray(summary.active_instructors)) {
-    northNames = summary.active_instructors.join(', ');
+  Object.keys(byMgrNames).forEach(function(mgr) {
+    var arr = byMgrNames[mgr];
+    if (Array.isArray(arr)) {
+      arr.forEach(function(n) { var t = text_(n); if (t) allInstructorNamesSet[t] = true; });
+    }
+  });
+  if (!Object.keys(allInstructorNamesSet).length && Array.isArray(summary.active_instructors)) {
+    summary.active_instructors.forEach(function(n) { var t = text_(n); if (t) allInstructorNamesSet[t] = true; });
   }
+  var combinedInstructorNames = Object.keys(allInstructorNamesSet).sort(function(a, b) {
+    return a.localeCompare(b, 'he');
+  }).join(', ');
 
   // Extract per-type activity counts from kpi_cards when available
   var kpiAll = Array.isArray(fullData.kpi_cards) ? fullData.kpi_cards : [];
@@ -349,7 +480,7 @@ function writeDashboardSummarySnapshotRow_(ym, fullData) {
   var exceptions  = counts['exceptions'] || 0;
 
   var rowObj = {
-    month_ym:                          ym,
+    month_ym:                          "'" + normalizeSnapshotMonthYm_(ym),
     month_label:                       ym,
     updated_at:                        formatDate_(new Date()),
     total_short_activities:            totals.total_short_activities || totals.short || 0,
@@ -367,11 +498,11 @@ function writeDashboardSummarySnapshotRow_(ym, fullData) {
     missing_instructor_count:          summary.missing_instructor_count  || 0,
     missing_start_date_count:          summary.missing_start_date_count  || 0,
     late_end_date_count:               summary.late_end_date_count       || 0,
-    north_active_instructors_names:    northNames,
-    south_active_instructors_names:    southNames
+    active_instructors_names:          combinedInstructorNames
   };
 
   upsertRowByKey_(sheetName, 'month_ym', rowObj);
+  dedupeDashboardSummarySnapshotByMonth_();
 }
 
 function canViewFinanceFromKpis_(kpiAll, fullData) {
@@ -387,8 +518,7 @@ function canViewFinanceFromKpis_(kpiAll, fullData) {
 function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT;
   ensureSnapshotSheetScaffold_(sheetName, BY_MANAGER_SNAPSHOT_HEADERS_, BY_MANAGER_SNAPSHOT_LABELS_HE_);
-
-  deleteRowsByKey_(sheetName, 'month_ym', ym);
+  dedupeDashboardByManagerSnapshotByKey_();
 
   var byManager = Array.isArray(fullData.by_activity_manager) ? fullData.by_activity_manager : [];
   var updatedAt = formatDate_(new Date());
@@ -396,9 +526,10 @@ function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
   byManager.forEach(function(row) {
     var manager = text_(row.activity_manager);
     if (!manager || manager === 'unassigned') return;
+    var snapshotKey = buildDashboardByManagerSnapshotKey_(ym, manager);
     var displayName = SNAPSHOT_MANAGER_DISPLAY_NAMES_[manager] || manager;
     var rowObj = {
-      month_ym:               ym,
+      month_ym:               normalizeSnapshotMonthYm_(ym),
       activity_manager:       manager,
       manager_display_name:   displayName,
       total_short:            row.total_short    || 0,
@@ -409,10 +540,13 @@ function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
       finance_open:           row.finance_open   || 0,
       exceptions:             row.exceptions     || 0,
       active_instructors_names: text_(row.active_instructors_names) || '',
-      updated_at:             updatedAt
+      updated_at:             updatedAt,
+      snapshot_key:           snapshotKey
     };
-    appendRow_(sheetName, rowObj);
+    upsertRowByKey_(sheetName, 'snapshot_key', rowObj);
   });
+
+  dedupeDashboardByManagerSnapshotByKey_();
 }
 
 // ─── F. updateDashboardRefreshControl_ ───────────────────────────────────────
@@ -420,6 +554,7 @@ function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
 function updateDashboardRefreshControl_(status, message) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_REFRESH_CONTROL;
   ensureSnapshotSheetScaffold_(sheetName, REFRESH_CONTROL_HEADERS_, REFRESH_CONTROL_LABELS_HE_);
+  dedupeRowsByKeyKeepingLatest_(sheetName, 'key');
 
   var now = new Date().toISOString();
   var entries = [
@@ -431,4 +566,115 @@ function updateDashboardRefreshControl_(status, message) {
   entries.forEach(function(entry) {
     upsertRowByKey_(sheetName, 'key', entry);
   });
+}
+
+function buildDashboardByManagerSnapshotKey_(ym, manager) {
+  return normalizeSnapshotMonthYm_(ym) + '|' + text_(manager);
+}
+
+function dedupeRowsByKeyKeepingLatest_(sheetName, keyField) {
+  var sheet = getSheet_(sheetName);
+  var headers = getHeaders_(sheet);
+  var keyIndex = headers.indexOf(keyField);
+  if (keyIndex < 0) return;
+
+  var dataStart = getDataStartRow_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < dataStart) return;
+
+  var seen = {};
+  for (var rowNum = lastRow; rowNum >= dataStart; rowNum--) {
+    var key = text_(sheet.getRange(rowNum, keyIndex + 1).getValue());
+    if (!key) continue;
+    if (seen[key]) {
+      sheet.deleteRow(rowNum);
+      continue;
+    }
+    seen[key] = true;
+  }
+  invalidateReadRowsCache_(sheetName);
+}
+
+function dedupeDashboardByManagerSnapshotByKey_() {
+  var sheetName = CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT;
+  var sheet = getSheet_(sheetName);
+  var headers = getHeaders_(sheet);
+  var monthIndex = headers.indexOf('month_ym');
+  var managerIndex = headers.indexOf('activity_manager');
+  var snapshotKeyIndex = headers.indexOf('snapshot_key');
+  if (monthIndex < 0 || managerIndex < 0 || snapshotKeyIndex < 0) return;
+
+  var dataStart = getDataStartRow_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < dataStart) return;
+
+  var seen = {};
+  for (var rowNum = lastRow; rowNum >= dataStart; rowNum--) {
+    var monthYm = normalizeSnapshotMonthYm_(sheet.getRange(rowNum, monthIndex + 1).getValue());
+    var manager = text_(sheet.getRange(rowNum, managerIndex + 1).getValue());
+    var snapshotKey = text_(sheet.getRange(rowNum, snapshotKeyIndex + 1).getValue());
+    var normalizedSnapshotKey = '';
+    if (snapshotKey) {
+      var keyParts = snapshotKey.split('|');
+      normalizedSnapshotKey = buildDashboardByManagerSnapshotKey_(keyParts[0], keyParts.slice(1).join('|'));
+    }
+    var computedKey = normalizedSnapshotKey || buildDashboardByManagerSnapshotKey_(monthYm, manager);
+    if (!computedKey || computedKey === '|') continue;
+
+    if (snapshotKey !== computedKey) {
+      sheet.getRange(rowNum, snapshotKeyIndex + 1).setValue(computedKey);
+    }
+
+    if (seen[computedKey]) {
+      sheet.deleteRow(rowNum);
+      continue;
+    }
+    seen[computedKey] = true;
+  }
+  invalidateReadRowsCache_(sheetName);
+}
+
+function dedupeDashboardSummarySnapshotByMonth_() {
+  var sheetName = CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT;
+  var sheet = getSheet_(sheetName);
+  var headers = getHeaders_(sheet);
+  var monthIndex = headers.indexOf('month_ym');
+  if (monthIndex < 0) return;
+
+  var dataStart = getDataStartRow_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < dataStart) return;
+
+  var seen = {};
+  for (var rowNum = lastRow; rowNum >= dataStart; rowNum--) {
+    var monthYm = normalizeSnapshotMonthYm_(sheet.getRange(rowNum, monthIndex + 1).getValue());
+    if (!monthYm) continue;
+
+    var normalizedCellValue = "'" + monthYm;
+    if (text_(sheet.getRange(rowNum, monthIndex + 1).getValue()) !== normalizedCellValue) {
+      sheet.getRange(rowNum, monthIndex + 1).setValue(normalizedCellValue);
+    }
+
+    if (seen[monthYm]) {
+      sheet.deleteRow(rowNum);
+      continue;
+    }
+    seen[monthYm] = true;
+  }
+  invalidateReadRowsCache_(sheetName);
+}
+
+function getSnapshotRefreshDiagnostics_() {
+  var allTriggers = ScriptApp.getProjectTriggers();
+  var snapshotTriggers = allTriggers.filter(function(t) {
+    return t.getHandlerFunction && t.getHandlerFunction() === 'refreshDashboardSnapshotsTrigger';
+  });
+
+  return {
+    project_trigger_count: allTriggers.length,
+    refresh_snapshot_trigger_count: snapshotTriggers.length,
+    refresh_snapshot_trigger_ids: snapshotTriggers.map(function(t) {
+      return t.getUniqueId ? t.getUniqueId() : '';
+    })
+  };
 }

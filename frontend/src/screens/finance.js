@@ -803,7 +803,7 @@ export const financeScreen = {
     const activeTab = state?.financeTab || 'active';
     const monthYm = state?.financeMonthYm || '';
     const viewMode = state?.financeViewMode || (narrow ? 'cards' : 'groups');
-    const canEdit = ['admin', 'operations_reviewer'].includes(state?.user?.display_role);
+    const canEdit = ['admin', 'operation_manager'].includes(state?.user?.display_role);
     const canView = state?.user?.display_role !== 'instructor';
     const isAdmin = state?.user?.display_role === 'admin';
     const groupingRule = state?.clientSettings?.finance_grouping_rule || data?.finance_grouping_rule || 'gafen_by_school_else_funding';
@@ -981,7 +981,7 @@ export const financeScreen = {
     const bindOpts = { signal: root._financeBindAbort.signal };
 
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const canEdit = ['admin', 'operations_reviewer'].includes(state?.user?.display_role);
+    const canEdit = ['admin', 'operation_manager'].includes(state?.user?.display_role);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
@@ -1216,12 +1216,20 @@ export const financeScreen = {
         const freshData = await api.finance({
           date_from: state?.financeDateFrom || '',
           date_to: state?.financeDateTo || '',
-          search: '',
-          status: '',
-          tab: 'all',
+          search: state?.financeSearch || '',
+          status: state?.financeStatusFilter || '',
+          tab: state?.financeTab || 'active',
           month: state?.financeMonthYm || ''
         });
-        const financeKey = `finance:${state.financeDateFrom||''}:${state.financeDateTo||''}:::all:${state.financeMonthYm||''}`;
+        const financeFilters = {
+          dateFrom: state?.financeDateFrom || '',
+          dateTo: state?.financeDateTo || '',
+          search: state?.financeSearch || '',
+          status: state?.financeStatusFilter || '',
+          tab: state?.financeTab || 'active',
+          ym: state?.financeMonthYm || ''
+        };
+        const financeKey = `finance:${JSON.stringify(financeFilters)}`;
         Object.keys(state.screenDataCache).forEach((k) => {
           if (k.startsWith('finance:')) delete state.screenDataCache[k];
         });
@@ -1322,11 +1330,12 @@ export const financeScreen = {
 
     const openDrawerWithRow = (hit) => {
       const meetingsHtml = buildMeetingsDatesHtml(hit);
-      const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+      const showPrivateNote = state?.user?.display_role === 'operation_manager';
       const privateNote = showPrivateNote ? hit.private_note || '—' : null;
       const baseHtml = activityWorkDrawerHtml(hit, {
         privateNote,
         canEdit,
+        canDirectEdit: canEdit,
         hideEmpIds,
         hideRowId,
         hideActivityNo,

@@ -3,9 +3,37 @@ import { dsScreenStack, dsInteractiveCard } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
-import { actNavGridHtml, bindActNavGrid } from './shared/act-nav-grid.js';
 import { getHolidayLabel } from './shared/holidays.js';
+import {
+  ensureActivityListFilters,
+  prepareRowsForSearch,
+  applyLocalFilters,
+  filtersToolbarHtml,
+  bindLocalFilters
+} from './shared/activity-list-filters.js';
+import { getFilterOptionOverrides } from './shared/activity-options.js';
 
+const inflightActivityDetailRequests = new Map();
+const WEEK_SCOPE = 'calendar';
+const CALENDAR_FILTER_FIELDS = [
+  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'instructor', label: 'מדריך', getValues: (row) => [row?.instructor_name, row?.instructor_name_2] },
+  { key: 'activity_name', label: 'תוכנית' },
+  { key: 'authority', label: 'רשות' },
+  { key: 'funding', label: 'מימון' },
+  { key: 'school', label: 'בית ספר' }
+];
+const CALENDAR_SEARCH_FIELDS = [
+  'RowID',
+  'activity_name',
+  'activity_manager',
+  'instructor_name',
+  'instructor_name_2',
+  'authority',
+  'school',
+  'funding',
+  'status'
+];
 
 function localYmd() {
   const d = new Date();
@@ -20,7 +48,7 @@ function weekItemMeta(item) {
   return names || 'ללא מדריך';
 }
 
-function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, showPrivateNote, settings, mode = 'single') {
+function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, canDirectEdit, showPrivateNote, settings, mode = 'single') {
   if (mode === 'summary') {
     const rows = Array.isArray(itemOrItems) ? itemOrItems : [];
     return activityWorkDrawerHtml(rows, {
@@ -28,6 +56,7 @@ function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo
       summaryDate: date,
       privateNote: showPrivateNote ? '—' : null,
       canEdit: !!canEdit,
+      canDirectEdit: !!canDirectEdit,
       hideEmpIds: !!hideEmpIds,
       hideRowId: !!hideRowId,
       hideActivityNo: !!hideActivityNo,
@@ -40,6 +69,7 @@ function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo
     mode: 'single',
     privateNote,
     canEdit: !!canEdit,
+    canDirectEdit: !!canDirectEdit,
     hideEmpIds: !!hideEmpIds,
     hideRowId: !!hideRowId,
     hideActivityNo: !!hideActivityNo,
@@ -72,8 +102,8 @@ function groupItemsByInstructor(items) {
   const order = [];
   items.forEach((item) => {
     const key =
-      String(item.emp_id || '').trim() ||
       String(item.instructor_name || '').trim() ||
+      String(item.emp_id || '').trim() ||
       `__nokey__${item.RowID}`;
     if (!groups.has(key)) {
       groups.set(key, []);
@@ -155,16 +185,27 @@ function patchCachedActivityDetail({ sourceSheet, sourceRowId, changes }, s) {
 }
 
 export const weekScreen = {
-  load: ({ api, state }) => api.week({ week_offset: state.weekOffset || 0 }),
+  load: ({ api, state }) => {
+    const offset = state.weekOffset || 0;
+    return api.week({ week_offset: offset });
+  },
   render(data, { state }) {
     const safeDays = Array.isArray(data?.days) ? data.days : [];
     const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
+    const filterState = ensureActivityListFilters(state, WEEK_SCOPE);
+    const allItems = Object.values(itemsById || {});
+    prepareRowsForSearch(allItems, CALENDAR_SEARCH_FIELDS);
     const todayIso = localYmd();
     const weekOffset = state.weekOffset || 0;
+    const toolbarHtml = filtersToolbarHtml(WEEK_SCOPE, allItems, state, {
+      filterFields: CALENDAR_FILTER_FIELDS,
+      searchPlaceholder: 'חיפוש פעילויות בלוח השבוע…',
+      optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
+    });
 
     const columns = safeDays
       .map((d, idx) => {
-        const items = weekDayItems(d, itemsById);
+        const items = applyLocalFilters(weekDayItems(d, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
         const isToday = d.date === todayIso;
         const dow = d.weekday_label || '';
         const groups = groupItemsByInstructor(items);
@@ -200,15 +241,16 @@ export const weekScreen = {
         ? `${Math.abs(weekOffset)} שבועות אחורה${rangeLabel ? ` · ${rangeLabel}` : ''}`
         : `${rangeLabel || 'שבוע'}`;
 
-    return dsScreenStack(`
-      ${actNavGridHtml(state)}
+    const html = dsScreenStack(`
       <nav class="ds-cal-nav" role="navigation" aria-label="ניווט שבועי" dir="rtl">
-        <button type="button" class="ds-btn ds-btn--sm" data-week-prev aria-label="שבוע קודם">שבוע קודם ▶</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-prev aria-label="שבוע קודם">▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)}</span>
-        <button type="button" class="ds-btn ds-btn--sm" data-week-next aria-label="שבוע הבא">◀ שבוע הבא</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-next aria-label="שבוע הבא">◀</button>
       </nav>
+      ${toolbarHtml}
       <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
+    return html;
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
     if (root._weekBindAbort) root._weekBindAbort.abort();
@@ -216,11 +258,14 @@ export const weekScreen = {
     const bindOpts = { signal: root._weekBindAbort.signal };
 
     bindActNavGrid(root, { state, rerender });
+    root.classList.remove('is-week-loading');
+    root.setAttribute('aria-busy', 'false');
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canEditActivity = state?.user?.display_role !== 'instructor';
-    const showPrivateNote = state?.user?.display_role === 'operations_reviewer';
+    const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
+    const showPrivateNote = state?.user?.display_role === 'operation_manager';
+    bindLocalFilters(root, state, WEEK_SCOPE, rerender, { debounceMs: 300 });
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });
@@ -230,6 +275,8 @@ export const weekScreen = {
     const doWeekShift = (delta) => {
       if (prevBtn) prevBtn.disabled = true;
       if (nextBtn) nextBtn.disabled = true;
+      root.classList.add('is-week-loading');
+      root.setAttribute('aria-busy', 'true');
       state.weekOffset = (state.weekOffset || 0) + delta;
       rerender?.();
     };
@@ -282,7 +329,8 @@ export const weekScreen = {
             hideEmpIds,
             hideRowId,
             hideActivityNo,
-            canEditActivity,
+              canEditActivity,
+              !!state?.user?.can_edit_direct,
             showPrivateNote,
             state?.clientSettings || {},
             currMode
@@ -300,7 +348,16 @@ export const weekScreen = {
           const detailed = await Promise.all(rows.map(async (row) => {
             const cached = getCachedActivityDetail(row, state);
             if (cached) return cached;
-            const rsp = await api.activityDetail(row.RowID, row.source_sheet);
+            const cacheKey = activityDetailCacheKey(row);
+            let request = inflightActivityDetailRequests.get(cacheKey);
+            if (!request) {
+              request = api.activityDetail(row.RowID, row.source_sheet)
+                .finally(() => {
+                  inflightActivityDetailRequests.delete(cacheKey);
+                });
+              inflightActivityDetailRequests.set(cacheKey, request);
+            }
+            const rsp = await request;
             const full = rsp?.row || row;
             putCachedActivityDetail(row, full, state);
             return full;

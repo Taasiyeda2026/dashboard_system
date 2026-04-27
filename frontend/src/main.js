@@ -4,6 +4,7 @@ import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry } from './cache-persist.
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
+import { headerNavGridHtml } from './screens/shared/act-nav-grid.js';
 import { loginScreen } from './screens/login.js';
 
 const app = document.getElementById('app');
@@ -13,6 +14,7 @@ const systemLogoSrc = new URL('../assets/logo_system.png', import.meta.url).href
 let isMobileNavOpen = false;
 let lastRenderedRoute = null;
 let loginInlineError = '';
+let hasMountedAuthenticatedShell = false;
 const ui = createSharedInteractionLayer();
 let loginPerfStartMs = 0;
 let loginShellPerfReported = false;
@@ -24,6 +26,80 @@ const PERF_MAX_RENDERS = 150;
 
 /** Timer handle for deferred prefetch — cancelled on every new navigation. */
 let prefetchTimer = null;
+let prefetchIdleId = null;
+let firstAuthenticatedRenderTimerStarted = false;
+let firstLoadTimerStarted = false;
+let firstDashboardSnapshotTimerStarted = false;
+let firstPrefetchTimerStarted = false;
+let fastRerenderVersion = 0;
+let navigationToken = 0;
+let activeNavigationToken = 0;
+let latestNavigationRoute = '';
+let activeRouteTransitionLabel = null;
+const activeConsoleTimers = new Set();
+
+function beginPerfTimer(label) {
+  if (!label || typeof console === 'undefined' || typeof console.time !== 'function') return;
+  if (activeConsoleTimers.has(label)) return;
+  activeConsoleTimers.add(label);
+  console.time(label);
+}
+
+function endPerfTimer(label) {
+  if (!label || typeof console === 'undefined' || typeof console.timeEnd !== 'function') return;
+  if (!activeConsoleTimers.has(label)) return;
+  activeConsoleTimers.delete(label);
+  console.timeEnd(label);
+}
+
+function scheduleRender() {
+  beginPerfTimer('login:scheduleRender');
+  const complete = () => {
+    endPerfTimer('login:scheduleRender');
+    render().catch(() => {});
+  };
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(complete);
+    return;
+  }
+  setTimeout(complete, 0);
+}
+
+function cancelPrefetchSchedule() {
+  clearTimeout(prefetchTimer);
+  prefetchTimer = null;
+  if (typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function' && prefetchIdleId != null) {
+    window.cancelIdleCallback(prefetchIdleId);
+  }
+  prefetchIdleId = null;
+}
+
+function schedulePostLoginPrefetch() {
+  cancelPrefetchSchedule();
+  const run = () => {
+    prefetchTimer = null;
+    prefetchIdleId = null;
+    if (!state.token) return;
+    if (_isRendering || _pendingRender) return;
+    if (!firstPrefetchTimerStarted) {
+      firstPrefetchTimerStarted = true;
+      beginPerfTimer('prefetch:firstRun');
+      try {
+        prefetchFromDashboardIfNeeded();
+      } finally {
+        endPerfTimer('prefetch:firstRun');
+      }
+      return;
+    }
+    prefetchFromDashboardIfNeeded();
+  };
+
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    prefetchIdleId = window.requestIdleCallback(run, { timeout: 5000 });
+    return;
+  }
+  prefetchTimer = setTimeout(run, 5000);
+}
 
 function recordRenderPerf(route, phase, durationMs, extra = {}) {
   if (typeof window === 'undefined') return;
@@ -58,6 +134,64 @@ function reportPerfMilestone(kind, durationMs, extra = {}) {
   console.info('[perf]', base);
 }
 
+function perfStore() {
+  if (typeof window === 'undefined') return null;
+  if (!window.__dsPerf) {
+    window.__dsPerf = { requests: [], renders: [], screens: {} };
+    window.__resetDsPerf = () => {
+      window.__dsPerf = { requests: [], renders: [], screens: {} };
+    };
+  }
+  if (!window.__dsPerf.navigation) {
+    window.__dsPerf.navigation = {
+      transitions: [],
+      duplicate_requests: [],
+      heavy_renders: []
+    };
+  }
+  return window.__dsPerf;
+}
+
+function pushDuplicateRequestPerf(cacheKey, route) {
+  const store = perfStore();
+  if (!store) return;
+  store.navigation.duplicate_requests.push({
+    cache_key: cacheKey,
+    route: String(route || ''),
+    at: new Date().toISOString()
+  });
+  if (store.navigation.duplicate_requests.length > PERF_MAX_RENDERS) {
+    store.navigation.duplicate_requests.splice(0, store.navigation.duplicate_requests.length - PERF_MAX_RENDERS);
+  }
+}
+
+function pushRouteTransitionPerf(entry) {
+  const store = perfStore();
+  if (!store) return;
+  store.navigation.transitions.push({
+    ...entry,
+    at: new Date().toISOString()
+  });
+  if (store.navigation.transitions.length > PERF_MAX_RENDERS) {
+    store.navigation.transitions.splice(0, store.navigation.transitions.length - PERF_MAX_RENDERS);
+  }
+}
+
+function finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken) {
+  recordRenderPerf(requestedRoute, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
+  pushRouteTransitionPerf({
+    route: requestedRoute,
+    cache_key: cacheKey,
+    duration_ms: Math.round(performance.now() - mountStartMs),
+    token: transitionToken
+  });
+  if (activeRouteTransitionLabel === transitionLabel) {
+    endPerfTimer(transitionLabel);
+    endPerfTimer('route:transition');
+    activeRouteTransitionLabel = null;
+  }
+}
+
 // ─── LocalStorage screen-data cache ───────────────────────────────────────
 // Keys include a user-id prefix so different users on the same browser don't
 // share data. Entries survive page reloads so the first navigation after a
@@ -90,6 +224,11 @@ function restoreScreenCacheFromStorage() {
     let changed = false;
     Object.entries(stored).forEach(([k, v]) => {
       if (!v || !v.t) return;
+      if (MEMORY_ONLY_CACHE_PREFIXES.some((prefix) => k.startsWith(prefix))) {
+        delete stored[k];
+        changed = true;
+        return;
+      }
       if (now - v.t > SCREEN_CACHE_MAX_AGE_MS) { delete stored[k]; changed = true; return; }
       if (!state.screenDataCache[k]) {
         state.screenDataCache[k] = v;
@@ -297,14 +436,14 @@ function shellUserRoleLine() {
 }
 
 // מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
-const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'contacts', 'instructor-contacts']);
+const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'instructor-contacts']);
 
 function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
-  const isAdminUser = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
-  // לאדמין: הרשאות — מהכותרת בלבד; הנתונים שלי — מוסתר לחלוטין
-  const adminSidebarExclude = isAdminUser ? new Set(['permissions', 'my-data']) : new Set();
+  const isAdminUser = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operation_manager';
+  // לאדמין: הנתונים שלי — מוסתר לחלוטין; הרשאות — בסרגל בלבד
+  const adminSidebarExclude = isAdminUser ? new Set(['my-data']) : new Set();
   const nav = effectiveRoutes()
     .filter((route) =>
       !hiddenSet.has(route) &&
@@ -326,18 +465,11 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
-  const HEADER_NAV_ROUTES = ['dashboard', 'activities', 'finance', 'permissions'];
-  const HEADER_NAV_ICONS  = { dashboard: '📊', activities: '📋', finance: '💰', permissions: '🔑' };
-  const isAdmin = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operations_reviewer';
-  const availableRoutes = effectiveRoutes();
-  const headerNavHtml = isAdmin
-    ? HEADER_NAV_ROUTES
-        .filter((r) => availableRoutes.includes(r))
-        .map((r) => `<button type="button" class="shell-header-nav__btn${r === state.route ? ' is-active' : ''}" data-route="${r}" aria-label="${screenLabels[r] || r}" title="${screenLabels[r] || r}">
-          <span aria-hidden="true">${HEADER_NAV_ICONS[r] || '▶'}</span>
-        </button>`)
-        .join('')
-    : '';
+  const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data', 'finance', 'permissions']) : new Set();
+  const headerNavHtml = headerNavGridHtml({
+    route: state.route,
+    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r))
+  });
 
   return `
     <div class="app-shell${drawerClass} route-${escapeHtml(String(state.route || ''))}" data-current-route="${escapeHtml(String(state.route || ''))}" dir="rtl">
@@ -372,7 +504,7 @@ function shell(content) {
             </button>
             <p class="shell-top__mobile-brand">${screenLabels[state.route] || systemName}</p>
           </div>
-          ${headerNavHtml ? `<nav class="shell-header-nav" aria-label="ניווט מהיר">${headerNavHtml}</nav>` : ''}
+          ${headerNavHtml}
           <div class="shell-top__end">
             <button type="button" class="shell-logout-btn" id="logoutBtn" aria-label="התנתקות" title="התנתקות">
               <span aria-hidden="true">⏻</span>
@@ -422,12 +554,18 @@ function closeMobileNav() {
 
 function buildScreenDataCacheKey(route, cacheState = state) {
   if (route === 'activities') {
-    return `activities:${cacheState.activityTab || 'all'}:${cacheState.activityFinanceStatus || ''}:${cacheState.activitySearch || ''}:${cacheState.activityQuickFamily || ''}:${cacheState.activityQuickManager || ''}:${cacheState.activityEndingCurrentMonth ? '1' : '0'}`;
+    return 'activities:all';
   }
   if (route === 'finance') {
-    const df = cacheState.financeDateFrom || '';
-    const dt = cacheState.financeDateTo || '';
-    return `finance:${df}:${dt}:${cacheState.financeSearch || ''}:${cacheState.financeStatusFilter || ''}:${cacheState.financeTab || 'active'}:${cacheState.financeMonthYm || ''}`;
+    const filters = {
+      dateFrom: cacheState.financeDateFrom || '',
+      dateTo: cacheState.financeDateTo || '',
+      search: cacheState.financeSearch || '',
+      status: cacheState.financeStatusFilter || '',
+      tab: cacheState.financeTab || 'active',
+      ym: cacheState.financeMonthYm || ''
+    };
+    return `finance:${JSON.stringify(filters)}`;
   }
   if (route === 'operations') {
     return `operations:${cacheState.operationsSearch || ''}:${cacheState.operationsActivityType || ''}`;
@@ -466,7 +604,35 @@ const DEFAULT_CACHE_TTL_MS = 15 * 60 * 1000;
 function screenCacheTtl() {
   return SCREEN_CACHE_TTL_MS[state.route] ?? DEFAULT_CACHE_TTL_MS;
 }
+const MEMORY_ONLY_CACHE_PREFIXES = [
+  'activities:',
+  'month:',
+  'week:',
+  'finance:',
+  'activityDetail:',
+  'operations:'
+];
 
+const MAX_PERSISTED_CACHE_ENTRY_BYTES = 80000;
+
+function shouldPersistScreenCacheEntry(key, entry) {
+  const cacheKey = String(key || '');
+
+  if (MEMORY_ONLY_CACHE_PREFIXES.some((prefix) => cacheKey.startsWith(prefix))) {
+    return false;
+  }
+
+  try {
+    return JSON.stringify(entry || {}).length <= MAX_PERSISTED_CACHE_ENTRY_BYTES;
+  } catch {
+    return false;
+  }
+}
+
+function maybePersistScreenCacheEntry(key, entry) {
+  if (!shouldPersistScreenCacheEntry(key, entry)) return;
+  persistCacheEntry(key, entry);
+}
 /**
  * Returns cached data immediately if available and fresh (within TTL).
  * Deduplicates in-flight requests so rapid navigation doesn't fire duplicate API calls.
@@ -477,13 +643,16 @@ async function loadScreenDataWithCache(screen) {
   const hit = state.screenDataCache[key];
   if (hit && Date.now() - hit.t < screenCacheTtl()) return hit.data;
 
-  if (inflightRequests.has(key)) return inflightRequests.get(key);
+  if (inflightRequests.has(key)) {
+    pushDuplicateRequestPerf(key, state.route);
+    return inflightRequests.get(key);
+  }
 
   const p = screen.load({ api, state })
     .then((data) => {
       const entry = { data, t: Date.now() };
       state.screenDataCache[key] = entry;
-      persistCacheEntry(key, entry);
+      maybePersistScreenCacheEntry(key, entry);
       inflightRequests.delete(key);
       return data;
     })
@@ -503,6 +672,8 @@ async function backgroundRefreshScreen(screen, cacheKey) {
   if (!screen.load) return;
   if (inflightRequests.has(cacheKey)) return;
   delete state.screenDataCache[cacheKey];
+  const guardedToken = activeNavigationToken;
+  const guardedRoute = state.route;
   try {
     const p = screen.load({ api, state });
     inflightRequests.set(cacheKey, p);
@@ -510,8 +681,12 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     inflightRequests.delete(cacheKey);
     const entry = { data, t: Date.now() };
     state.screenDataCache[cacheKey] = entry;
-    persistCacheEntry(cacheKey, entry);
-    if (screenDataCacheKey() === cacheKey) {
+    maybePersistScreenCacheEntry(cacheKey, entry);
+    if (
+      activeNavigationToken === guardedToken &&
+      state.route === guardedRoute &&
+      screenDataCacheKey() === cacheKey
+    ) {
       const screenRoot = document.getElementById('screenRoot');
       if (screenRoot) {
         const renderStart = performance.now();
@@ -528,66 +703,13 @@ async function backgroundRefreshScreen(screen, cacheKey) {
 }
 
 function prefetchFromDashboardIfNeeded() {
-  const targets = [];
-  if (state.route === 'dashboard') {
-    targets.push(
-      {
-        key: buildScreenDataCacheKey('activities', { ...state, route: 'activities' }),
-        load: () => api.activities({ activity_type: 'all' })
-      },
-      {
-        key: buildScreenDataCacheKey('week', { ...state, route: 'week', weekOffset: 0 }),
-        load: () => api.week({ week_offset: 0 })
-      }
-    );
-  } else if (state.route === 'week') {
-    const curr = state.weekOffset || 0;
-    targets.push(
-      {
-        key: buildScreenDataCacheKey('week', { ...state, route: 'week', weekOffset: curr - 1 }),
-        load: () => api.week({ week_offset: curr - 1 })
-      },
-      {
-        key: buildScreenDataCacheKey('week', { ...state, route: 'week', weekOffset: curr + 1 }),
-        load: () => api.week({ week_offset: curr + 1 })
-      }
-    );
-  } else if (state.route === 'month') {
-    const base = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : '';
-    const shiftYm = (ym, delta) => {
-      const d = ym ? new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1, 1) : new Date();
-      d.setMonth(d.getMonth() + delta);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    };
-    const prevYm = shiftYm(base, -1);
-    const nextYm = shiftYm(base, 1);
-    targets.push(
-      {
-        key: buildScreenDataCacheKey('month', { ...state, route: 'month', monthYm: prevYm }),
-        load: () => api.month({ ym: prevYm })
-      },
-      {
-        key: buildScreenDataCacheKey('month', { ...state, route: 'month', monthYm: nextYm }),
-        load: () => api.month({ ym: nextYm })
-      }
-    );
-  }
-  if (!targets.length) return;
-  targets.forEach((target) => {
-    if (state.screenDataCache[target.key]) return;
-    if (inflightRequests.has(target.key)) return;
-    const request = target.load()
-      .then((data) => {
-        const entry = { data, t: Date.now() };
-        state.screenDataCache[target.key] = entry;
-        persistCacheEntry(target.key, entry);
-      })
-      .catch(() => {})
-      .finally(() => {
-        inflightRequests.delete(target.key);
-      });
-    inflightRequests.set(target.key, request);
-  });
+  // Prefetch disabled — heavy screens (activities/week/month) are loaded on demand only.
+}
+
+function maybePrefetchFromDashboard() {
+  if (!hasMountedAuthenticatedShell) return;
+  if (_isRendering || _pendingRender) return;
+  schedulePostLoginPrefetch();
 }
 
 function setShellNavBusy(busy) {
@@ -623,19 +745,39 @@ function updateNavActiveClasses() {
 
 /**
  * Fast re-render for same-route filter/search changes.
- * Bypasses the full mount cycle when data is already cached.
- * Falls back to full render() if cache is missing or route has changed.
+ * Uses cached data immediately; if cache is missing, fetches in place
+ * (same screen root) to avoid full-shell reload/spinner.
  */
-function fastRerenderScreen(screen, routeAtBind) {
+async function fastRerenderScreen(screen, routeAtBind) {
+  const rerenderVersion = ++fastRerenderVersion;
+  const rerenderToken = activeNavigationToken;
   const perfStart = performance.now();
   if (state.route !== routeAtBind) { render(); return; }
   const key = screenDataCacheKey();
   const raw = state.screenDataCache[key];
   const hit = raw && Date.now() - raw.t < screenCacheTtl() ? raw : null;
-  if (!hit) { render(); return; }
   const screenRoot = document.getElementById('screenRoot');
   if (!screenRoot) { render(); return; }
+  if (!hit) {
+    if (!screen.load) { render(); return; }
+    const requestedKey = key;
+    try {
+      const data = await loadScreenDataWithCache(screen);
+      if (rerenderVersion !== fastRerenderVersion) return;
+      if (rerenderToken !== activeNavigationToken) return;
+      if (state.route !== routeAtBind) return;
+      if (screenDataCacheKey() !== requestedKey) return;
+      screenRoot.innerHTML = screen.render(data, { state });
+      bindScreen(screen, screenRoot, data);
+      recordRenderPerf(routeAtBind, 'fast-rerender-fetch', performance.now() - perfStart, { cache_key: requestedKey });
+      maybePrefetchFromDashboard();
+    } catch {
+      render();
+    }
+    return;
+  }
   screenRoot.innerHTML = screen.render(hit.data, { state });
+  if (rerenderToken !== activeNavigationToken) return;
   bindScreen(screen, screenRoot, hit.data);
   recordRenderPerf(routeAtBind, 'fast-rerender', performance.now() - perfStart, { cache_key: key });
 }
@@ -741,6 +883,8 @@ function backgroundSyncBootstrap() {
       state.user.display_role2 =
         bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
       state.user.can_add_activity = !!bootstrap.can_add_activity;
+      state.user.can_edit_direct = !!bootstrap.can_edit_direct;
+      state.user.can_request_edit = !!bootstrap.can_request_edit;
       localStorage.setItem('dashboard_user', JSON.stringify(state.user));
     }
     if (!isAllowedRoute(state.route)) {
@@ -772,14 +916,23 @@ async function restoreSession() {
     state.user.display_role2 =
       bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
     state.user.can_add_activity = !!bootstrap.can_add_activity;
+    state.user.can_edit_direct = !!bootstrap.can_edit_direct;
+    state.user.can_request_edit = !!bootstrap.can_request_edit;
     localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   }
 }
 
 async function mountScreen() {
+  const requestedRoute = state.route;
+  const transitionToken = ++navigationToken;
+  activeNavigationToken = transitionToken;
+  latestNavigationRoute = requestedRoute;
+  const transitionLabel = `route:transition:${transitionToken}`;
+  activeRouteTransitionLabel = transitionLabel;
+  beginPerfTimer('route:transition');
+  beginPerfTimer(transitionLabel);
   const mountStartMs = performance.now();
-  clearTimeout(prefetchTimer);
-  prefetchTimer = null;
+  cancelPrefetchSchedule();
   if (isDesktopViewport()) {
     isMobileNavOpen = false;
     document.body.classList.remove('is-shell-nav-open');
@@ -793,6 +946,10 @@ async function mountScreen() {
   }
   if (!isAllowedRoute(state.route)) state.route = resolveAllowedDefaultRoute('', state.routes);
 
+  if (transitionToken !== activeNavigationToken || requestedRoute !== latestNavigationRoute) {
+    finishRouteTransition(transitionLabel, requestedRoute, screenDataCacheKey(), mountStartMs, transitionToken);
+    return;
+  }
   const routeChanged = lastRenderedRoute !== state.route;
   if (routeChanged) {
     const leavingScreen = loadedScreens.get(lastRenderedRoute);
@@ -816,6 +973,11 @@ async function mountScreen() {
   const isStale = rawEntry && Date.now() - rawEntry.t >= screenCacheTtl();
 
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
+  const firstAuthenticatedMount = !!(state.token && !hasMountedAuthenticatedShell);
+  if (firstAuthenticatedMount && !firstAuthenticatedRenderTimerStarted) {
+    firstAuthenticatedRenderTimerStarted = true;
+    beginPerfTimer('login:firstAuthenticatedRender');
+  }
 
   if (!shellExists) {
     // First mount: build shell HTML.
@@ -824,37 +986,47 @@ async function mountScreen() {
     app.innerHTML = shell(shellBody);
     bindShell();
     if (rawEntry) {
+      beginPerfTimer('route:renderScreen');
       const renderStart = performance.now();
       const screenRoot = document.getElementById('screenRoot');
-      if (screenRoot) bindScreen(screen, screenRoot, rawEntry.data);
+      if (screenRoot) {
+        beginPerfTimer('route:bindScreen');
+        bindScreen(screen, screenRoot, rawEntry.data);
+        endPerfTimer('route:bindScreen');
+      }
+      endPerfTimer('route:renderScreen');
       recordRenderPerf(state.route, 'first-mount-cached', performance.now() - renderStart, {
         cache_key: cacheKey,
         stale: !!isStale
       });
       if (routeChanged) lastRenderedRoute = state.route;
       if (isStale && state.route !== 'finance') backgroundRefreshScreen(screen, cacheKey);
-      prefetchFromDashboardIfNeeded();
-      recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
+      maybePrefetchFromDashboard();
+      finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
       return;
     }
     await flushPaint();
   } else if (rawEntry) {
+    beginPerfTimer('route:renderScreen');
     const renderStart = performance.now();
     // Shell exists + have any data (fresh or stale): render immediately, no spinner.
     updateNavActiveClasses();
     const screenRoot = document.getElementById('screenRoot');
     if (screenRoot) {
       screenRoot.innerHTML = screen.render(rawEntry.data, { state });
+      beginPerfTimer('route:bindScreen');
       bindScreen(screen, screenRoot, rawEntry.data);
+      endPerfTimer('route:bindScreen');
     }
+    endPerfTimer('route:renderScreen');
     recordRenderPerf(state.route, 'shell-cached', performance.now() - renderStart, {
       cache_key: cacheKey,
       stale: !!isStale
     });
     if (routeChanged) lastRenderedRoute = state.route;
     if (isStale && state.route !== 'finance') backgroundRefreshScreen(screen, cacheKey);
-    prefetchFromDashboardIfNeeded();
-    recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
+    maybePrefetchFromDashboard();
+    finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
     return;
   } else {
     // No data at all: show loading spinner and fetch.
@@ -866,18 +1038,44 @@ async function mountScreen() {
   }
 
   try {
+    beginPerfTimer('route:loadData');
+    if (firstAuthenticatedMount && !firstLoadTimerStarted) {
+      firstLoadTimerStarted = true;
+      beginPerfTimer('screen:firstLoad');
+    }
+    if (firstAuthenticatedMount && state.route === 'dashboard' && !firstDashboardSnapshotTimerStarted) {
+      firstDashboardSnapshotTimerStarted = true;
+      beginPerfTimer('dashboardSnapshot:firstLoad');
+    }
     const data = await loadScreenDataWithCache(screen);
+    endPerfTimer('route:loadData');
+    if (transitionToken !== activeNavigationToken || requestedRoute !== latestNavigationRoute) return;
+    if (state.route !== requestedRoute) return;
+    if (firstAuthenticatedMount && state.route === 'dashboard') {
+      endPerfTimer('dashboardSnapshot:firstLoad');
+    }
+    beginPerfTimer('route:renderScreen');
     const renderStart = performance.now();
     const screenRoot = document.getElementById('screenRoot');
     if (!screenRoot) throw new Error('אזור התצוגה לא זמין');
     screenRoot.innerHTML = screen.render(data, { state });
+    endPerfTimer('route:renderScreen');
+    beginPerfTimer('route:bindScreen');
     bindScreen(screen, screenRoot, data);
+    endPerfTimer('route:bindScreen');
     recordRenderPerf(state.route, 'fresh-data-render', performance.now() - renderStart, {
       cache_key: cacheKey
     });
     if (routeChanged) lastRenderedRoute = state.route;
-    prefetchFromDashboardIfNeeded();
+    maybePrefetchFromDashboard();
   } catch (err) {
+    endPerfTimer('route:loadData');
+    endPerfTimer('route:renderScreen');
+    endPerfTimer('route:bindScreen');
+    if (transitionToken !== activeNavigationToken || state.route !== requestedRoute) return;
+    if (firstAuthenticatedMount && state.route === 'dashboard') {
+      endPerfTimer('dashboardSnapshot:firstLoad');
+    }
     const screenRoot = document.getElementById('screenRoot');
     if (screenRoot) {
       const msg = translateApiErrorForUser(err?.message) || 'אירעה שגיאה בטעינת הדף';
@@ -888,8 +1086,14 @@ async function mountScreen() {
       </div>`;
     }
   } finally {
+    if (!hasMountedAuthenticatedShell) {
+      hasMountedAuthenticatedShell = true;
+      endPerfTimer('login:firstAuthenticatedRender');
+      endPerfTimer('screen:firstLoad');
+      schedulePostLoginPrefetch();
+    }
     setShellNavBusy(false);
-    recordRenderPerf(state.route, 'mount-total', performance.now() - mountStartMs, { cache_key: cacheKey });
+    finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
   }
 }
 
@@ -899,6 +1103,10 @@ function bindShell() {
     const route = e?.detail?.route;
     if (!isAllowedRoute(route)) return;
     closeMobileNav();
+    if (route === 'activities') {
+      state.activityQuickFamily = '';
+      state.activityQuickManager = '';
+    }
     state.route = route;
     render();
   });
@@ -908,6 +1116,10 @@ function bindShell() {
       closeMobileNav();
       const route = button.dataset.route;
       if (!isAllowedRoute(route)) return;
+      if (route === 'activities') {
+        state.activityQuickFamily = '';
+        state.activityQuickManager = '';
+      }
       state.route = route;
       render();
     });
@@ -924,6 +1136,7 @@ function bindShell() {
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
     ui.closeAll();
     clearStorageCache();
+    hasMountedAuthenticatedShell = false;
     setSession(null);
     localStorage.removeItem('dashboard_routes');
     render();
@@ -957,12 +1170,23 @@ async function render() {
             clearRoutesSnapshot();
             loginInlineError = message;
           };
+          beginPerfTimer('login:total');
           try {
             loginPerfStartMs = performance.now();
             loginShellPerfReported = false;
             initialRoutePerfReported = false;
+            beginPerfTimer('login:api.login');
             const data = await api.login(userId, code);
+            endPerfTimer('login:api.login');
+            hasMountedAuthenticatedShell = false;
+            firstAuthenticatedRenderTimerStarted = false;
+            firstLoadTimerStarted = false;
+            firstDashboardSnapshotTimerStarted = false;
+            firstPrefetchTimerStarted = false;
+            beginPerfTimer('login:setSession');
             setSession({ token: data.token, user: data.user });
+            endPerfTimer('login:setSession');
+            beginPerfTimer('login:applyBootstrap');
             applyBootstrapFromLoginData(data);
             renderShellLoadingImmediately();
             try {
@@ -978,11 +1202,20 @@ async function render() {
               rollbackToLogin('כשל בטעינת נתוני משתמש אחרי התחברות');
               await render();
             }
+            endPerfTimer('login:applyBootstrap');
+            loginInlineError = '';
+            scheduleRender();
           } catch (error) {
+            endPerfTimer('login:api.login');
+            endPerfTimer('login:setSession');
+            endPerfTimer('login:applyBootstrap');
+            endPerfTimer('login:scheduleRender');
             const msg = translateApiErrorForUser(error?.message);
             if (errorNode) errorNode.textContent = msg;
             rollbackToLogin(msg);
             throw error;
+          } finally {
+            endPerfTimer('login:total');
           }
         }
       });

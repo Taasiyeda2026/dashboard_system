@@ -47,22 +47,18 @@ function actionLogin_(payload) {
   var defaultRoute = resolveDefaultRoute_(preferred, routes, role);
   var canAddActivity = effectiveCanAddActivity_(matchByUser, role);
   var canEditDirect = effectiveCanEditDirect_(matchByUser, role);
-  var canRequestEdit = yesNo_(matchByUser.can_request_edit) === 'yes';
-  var canViewFinance = role === 'admin' || permYes_(matchByUser, 'view_finance');
+  var canRequestEdit = effectiveCanRequestEdit_(matchByUser, role);
   var user = {
     user_id: text_(matchByUser.user_id),
     full_name: text_(matchByUser.full_name),
     display_role: role,
     display_role2: text_(matchByUser.display_role2),
     default_view: text_(matchByUser.default_view),
-    emp_id: text_(matchByUser.emp_id || matchByUser.user_id),
-    org_id: text_(matchByUser.org_id),
-    effective_routes: routes.slice(),
-    default_route: defaultRoute,
+    emp_id: text_(matchByUser.user_id),
     can_add_activity: !!canAddActivity,
     can_edit_direct: !!canEditDirect,
     can_request_edit: !!canRequestEdit,
-    can_view_finance: !!canViewFinance
+    can_view_finance: role === 'admin' || yesNo_(matchByUser.view_finance) === 'yes'
   };
 
   var token = createSessionToken_(user);
@@ -283,7 +279,7 @@ function buildRoutesFromPermission_(permission, role) {
 
   return allRoutes.filter(function(route) {
     if (route === 'permissions') {
-      if (!(role === 'admin' || role === 'operations_reviewer')) return false;
+      if (!canDirectWriteRole_(role)) return false;
       return permYes_(permission, 'view_permissions');
     }
     if (route === 'my-data') {
@@ -319,7 +315,7 @@ function effectiveRoutesForUser_(permission, role) {
 
 function defaultRouteForRole_(role) {
   if (role === 'instructor') return 'my-data';
-  if (role === 'operations_reviewer') {
+  if (isOperationManagerRole_(role)) {
     return viewKeyToRouteId_(getSettingText_('operations_default_view_key', 'view_operations_data')) || 'dashboard';
   }
   if (role === 'admin') {
@@ -437,23 +433,24 @@ function hasWorkViewForEdit_(permission) {
 function effectiveCanEditDirect_(permission, role) {
   if (role === 'instructor') return false;
   if (role === 'admin') return getSettingBool_('admin_direct_edit', true);
-  if (role === 'operations_reviewer') {
+  if (isOperationManagerRole_(role)) {
     return getSettingBool_('operations_direct_edit', true);
   }
-  if (getSettingBool_('non_admin_edits_require_approval', true)) return false;
-  var explicit = text_(permission.can_edit_direct).toLowerCase();
+  return false;
+}
+
+function effectiveCanRequestEdit_(permission, role) {
+  if (role === 'instructor') return false;
+  if (canDirectWriteRole_(role)) return true;
+  var explicit = text_(permission.can_request_edit).toLowerCase();
   if (explicit === 'yes') return true;
   if (explicit === 'no') return false;
-  return false;
+  return hasWorkViewForEdit_(permission);
 }
 
 function effectiveCanAddActivity_(permission, role) {
   if (role === 'instructor') return false;
   if (role === 'admin') return getSettingBool_('admin_can_add_rows', true);
-  if (role === 'operations_reviewer') return getSettingBool_('operations_can_add_rows', true);
-  if (getSettingBool_('non_admin_edits_require_approval', true)) return false;
-  var explicit = text_(permission.can_add_activity).toLowerCase();
-  if (explicit === 'yes') return true;
-  if (explicit === 'no') return false;
+  if (isOperationManagerRole_(role)) return getSettingBool_('operations_can_add_rows', true);
   return false;
 }
