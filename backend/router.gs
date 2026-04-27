@@ -24,7 +24,7 @@ function handlePost_(e) {
       bootstrap: function() { return actionBootstrap_(user); },
       dashboard: function() { return actionDashboard_(user, payload); },
       dashboardSnapshot: function() { return actionDashboardSnapshot_(user, payload); },
-      activities: function() { return actionActivities_(user, payload); },
+      activities: function() { return actionActivitiesSnapshotFirst_(user, payload); },
       activityDetail: function() { return actionActivityDetail_(user, payload); },
       week: function() { return actionWeek_(user, payload); },
       month: function() { return actionMonth_(user, payload); },
@@ -127,6 +127,13 @@ function handlePost_(e) {
             snapshotErr && snapshotErr.message ? snapshotErr.message : String(snapshotErr)
           );
         } catch (_e) {}
+      }
+      if (action === 'addActivity' || action === 'saveActivity' || action === 'reviewEditRequest') {
+        try {
+          refreshActivitiesSnapshot_();
+        } catch (_activitiesSnapshotErr) {
+          bumpDataViewsCacheVersion_();
+        }
       }
     }
     markRequestPerf_('action_done');
