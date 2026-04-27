@@ -397,6 +397,7 @@ export const dashboardScreen = {
       }
       if (action === 'kpi|exceptions') {
         state.route = 'exceptions';
+        state.exceptionsMonthYm = state.dashboardMonthYm || currentMonthYm();
         ui.closeAll();
         rerender();
         return;
@@ -413,6 +414,7 @@ export const dashboardScreen = {
           goActivitiesDrill(state, { activityQuickManager: name, activityEndingCurrentMonth: true });
         } else if (kind === 'exceptions') {
           state.route = 'exceptions';
+          state.exceptionsMonthYm = state.dashboardMonthYm || currentMonthYm();
         }
         ui.closeAll();
         rerender();

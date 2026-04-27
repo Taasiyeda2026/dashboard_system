@@ -84,10 +84,13 @@ function exceptionDrawerHtml(row, hideRowId) {
 }
 
 export const exceptionsScreen = {
-  load: ({ api }) => api.exceptions(),
+  load: ({ api, state }) => {
+    const month = state?.exceptionsMonthYm || state?.dashboardMonthYm || '';
+    return api.exceptions(month ? { month } : {});
+  },
   render(data, { state } = {}) {
     const rawRows   = Array.isArray(data?.rows) ? data.rows : [];
-    const allRows   = rawRows.filter((row) => String(row?.activity_type || '').trim() === 'course');
+    const allRows   = rawRows;
     const filterState = ensureActivityListFilters(state, EXCEPTIONS_SCOPE);
     prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type']);
     const filteredRows = applyLocalFilters(allRows, filterState, { filterFields: EXCEPTION_FILTER_FIELDS });
@@ -129,15 +132,14 @@ export const exceptionsScreen = {
     return dsScreenStack(`
       ${toolbarHtml}
       ${dsCard({
-        title: `חריגות · ${total}`,
+        title: `חריגות${data?.month ? ` · ${escapeHtml(data.month)}` : ''} · ${total}`,
         body: compact,
         padded: visibleRows.length === 0
       })}
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
-    const allRows   = (Array.isArray(data?.rows) ? data.rows : [])
-      .filter((row) => String(row?.activity_type || '').trim() === 'course');
+    const allRows   = (Array.isArray(data?.rows) ? data.rows : []);
     bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 300 });
     root.querySelector(`[data-list-show-more="${EXCEPTIONS_SCOPE}"]`)?.addEventListener('click', (ev) => {
       ensureActivityListFilters(state, EXCEPTIONS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);

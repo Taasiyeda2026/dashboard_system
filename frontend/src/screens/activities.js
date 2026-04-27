@@ -239,11 +239,6 @@ function monthBounds(ym) {
 function activityOverlapsMonth(row, ym) {
   const bounds = monthBounds(ym);
   if (!bounds) return true;
-  const sourceSheet = String(row?.source_sheet || '').trim();
-  const meetings = Array.isArray(row?.meeting_dates)
-    ? row.meeting_dates.map((d) => String(d || '').trim()).filter(Boolean)
-    : [];
-  if (sourceSheet === 'data_long' && meetings.length > 0) return meetings.some((date) => date.startsWith(ym));
   const start = String(row?.start_date || '').trim();
   const end = String(row?.end_date || start).trim();
   if (!start && !end) return false;
@@ -324,6 +319,7 @@ export const activitiesScreen = {
     const tableRows = safeRows
       .map((row) => {
         const instructorLine = activityInstructorLine(row, { hideEmpIds });
+        const instructorDisplay = instructorLine || 'ללא מדריך';
         const startHe = formatDateHe(row.start_date) || '—';
         const endRaw = String(row?.end_date || '').trim() || String(row?.start_date || '').trim();
         const endHe = endRaw ? formatDateHe(endRaw) || '—' : '—';
@@ -348,7 +344,7 @@ export const activitiesScreen = {
         <td><strong>${escapeHtml(row.activity_name || '—')}</strong><div class="ds-row-subtle">${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</div></td>
         <td>${escapeHtml(row.authority || '—')}</td>
         <td>${escapeHtml(row.school || '—')}</td>
-        <td>${escapeHtml(instructorLine || '—')}</td>
+        <td>${escapeHtml(instructorDisplay)}</td>
         <td>${escapeHtml(startHe)}</td>
         <td>${escapeHtml(endHe)}</td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}

@@ -112,6 +112,64 @@ function rowExceptionTypes_(row) {
   return out;
 }
 
+function collectProgramExceptions_(rows, opts) {
+  var options = opts || {};
+  var ym = text_(options.month || '');
+  var programTypes = configuredProgramActivityTypes_();
+  var includePerTypeRows = options.include_per_type_rows !== false;
+  var sourceRows = Array.isArray(rows) ? rows : [];
+  var counts = {
+    missing_instructor: 0,
+    missing_start_date: 0,
+    late_end_date: 0
+  };
+  var exceptionRows = [];
+  var rowLevelExceptionCount = 0;
+
+  sourceRows.forEach(function(row) {
+    if (programTypes.indexOf(text_(row && row.activity_type)) < 0) return;
+    if (ym && !activityOverlapsYm_(row, ym)) return;
+    var types = rowExceptionTypes_(row);
+    if (!types.length) return;
+    rowLevelExceptionCount += 1;
+    types.forEach(function(type) {
+      if (!counts[type]) counts[type] = 0;
+      counts[type] += 1;
+      if (!includePerTypeRows) return;
+      exceptionRows.push({
+        RowID: text_(row && row.RowID),
+        source_sheet: text_(row && row.source_sheet),
+        activity_name: row && row.activity_name,
+        activity_manager: row && row.activity_manager,
+        activity_type: row && row.activity_type,
+        activity_no: row && row.activity_no,
+        authority: row && row.authority,
+        school: row && row.school,
+        funding: row && row.funding,
+        grade: text_(row && row.grade),
+        class_group: text_(row && row.class_group),
+        emp_id: row && row.emp_id,
+        instructor_name: row && row.instructor_name,
+        emp_id_2: row && row.emp_id_2,
+        instructor_name_2: row && row.instructor_name_2,
+        status: row && row.status,
+        start_date: row && row.start_date,
+        end_date: row && row.end_date,
+        sessions: row && row.sessions,
+        notes: row && row.notes,
+        exception_type: type
+      });
+    });
+  });
+
+  return {
+    counts: counts,
+    rows: exceptionRows,
+    total_exception_instances: exceptionRows.length,
+    total_exception_rows: rowLevelExceptionCount
+  };
+}
+
 function primaryExceptionForRow_(row) {
   var types = rowExceptionTypes_(row);
   if (!types.length) return '';
@@ -335,28 +393,12 @@ function actionDashboard_(user, payload) {
   });
   var uniqueInstructorCount = countUniqueOperationalInstructors_(combined);
 
-  // תוכניות פעילות: סטטוס פתוח (לא סגור), ועם מפגש בחודש זה או תאריך סיום >= היום.
-  // "ללא מדריך" ו"ללא תאריך התחלה" = לא פעיל → לא נכנסות לספירה.
-  // "מפגש אחרי late_end_date_cutoff" = פעיל → נכנסת לספירה.
-  // בודקים את כל סוגי החריגות של השורה (לא רק הראשית), כדי שתוכנית עם
-  // missing_instructor ו-late_end_date גם יחד תיחשב כ"לא פעיל".
-  var INACTIVE_EXCEPTION_TYPES = ['missing_instructor', 'missing_start_date'];
-  var todayIso = formatDate_(new Date());
+  // תוכניות פעילות: פתוחות + חופפות לחודש הנוכחי של הדשבורד.
+  // הלוגיקה כאן מיושרת לתצוגת activities לחודש כדי למנוע פערים בין המסכים.
   var activeLongRows = longRows.filter(function(row) {
     if (text_(row.status) === 'סגור') return false;
-    var allExcTypes = rowExceptionTypes_(row);
-    var hasInactiveExc = allExcTypes.some(function(e) {
-      return INACTIVE_EXCEPTION_TYPES.indexOf(e) >= 0;
-    });
-    if (hasInactiveExc) return false;
-    var rowDates = dashMeetingsMap[text_(row.RowID)];
-    var normalizedDates = [];
-    if (rowDates && Array.isArray(rowDates)) {
-      normalizedDates = rowDates.map(function(d) { return text_(d); }).filter(Boolean);
-    }
-    var hasSessionInYm = normalizedDates.some(function(d) { return d.slice(0, 7) === ym; });
-    var endOnOrAfterToday = text_(row.end_date) >= todayIso;
-    return hasSessionInYm || endOnOrAfterToday;
+    if (!activityOverlapsYm_(row, ym)) return false;
+    return true;
   });
 
   var byManager = {};
@@ -484,7 +526,11 @@ function actionDashboard_(user, payload) {
     }
     if (exceptionTypes.indexOf('late_end_date') >= 0) lateEndDateCount += 1;
   });
-  var exceptionSum = missingInstructorCount + missingStartDateCount + lateEndDateCount;
+  var exceptionSummary = collectProgramExceptions_(longRows, { month: ym, include_per_type_rows: false });
+  missingInstructorCount = exceptionSummary.counts.missing_instructor || 0;
+  missingStartDateCount = exceptionSummary.counts.missing_start_date || 0;
+  lateEndDateCount = exceptionSummary.counts.late_end_date || 0;
+  var exceptionSum = exceptionSummary.total_exception_instances || 0;
 
 
   var shortActivitiesByType = {};
@@ -1373,29 +1419,28 @@ function actionMonth_(user, payload) {
   return actionMonthLegacy_(user, year, month);
 }
 
-function actionExceptions_(user) {
+function actionExceptions_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
-
+  var month = text_((payload && payload.month) || '');
   var rows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
-  var counts = {
-    missing_instructor: 0,
-    missing_start_date: 0,
-    late_end_date: 0
-  };
-  var result = [];
-
+  var exceptionPayload = collectProgramExceptions_(rows, {
+    month: month,
+    include_per_type_rows: true
+  });
+  var counts = exceptionPayload.counts || {};
+  var result = exceptionPayload.rows || [];
   var relevantRows = rows.filter(function(row) {
-    return !isExcludedStatusForControl_(row && row.status);
+    return !isExcludedStatusForControl_(row && row.status) &&
+      configuredProgramActivityTypes_().indexOf(text_(row && row.activity_type)) >= 0 &&
+      (!month || activityOverlapsYm_(row, month));
   });
   var missingInstructorExamples = [];
   var missingStartDateExamples = [];
 
   relevantRows.forEach(function(row) {
-    var exceptionType = primaryExceptionForRow_(row);
-    if (!exceptionType) return;
-
-    counts[exceptionType] += 1;
-    if (exceptionType === 'missing_instructor' && missingInstructorExamples.length < 5) {
+    var types = rowExceptionTypes_(row);
+    if (!types.length) return;
+    if (types.indexOf('missing_instructor') >= 0 && missingInstructorExamples.length < 5) {
       missingInstructorExamples.push({
         RowID: text_(row.RowID),
         instructor_name: row.instructor_name,
@@ -1405,41 +1450,17 @@ function actionExceptions_(user) {
         status: row.status
       });
     }
-    if (exceptionType === 'missing_start_date' && missingStartDateExamples.length < 5) {
+    if (types.indexOf('missing_start_date') >= 0 && missingStartDateExamples.length < 5) {
       missingStartDateExamples.push({
         RowID: text_(row.RowID),
         start_date: row.start_date,
         status: row.status
       });
     }
-    result.push({
-      RowID:              row.RowID,
-      source_sheet:       text_(row.source_sheet || CONFIG.SHEETS.DATA_LONG),
-      activity_name:     row.activity_name,
-      activity_manager:  row.activity_manager,
-      activity_type:     row.activity_type,
-      activity_no:       row.activity_no,
-      authority:         row.authority,
-      school:            row.school,
-      funding:           row.funding,
-      grade:             text_(row.grade),
-      class_group:       text_(row.class_group),
-      emp_id:            row.emp_id,
-      instructor_name:   row.instructor_name,
-      emp_id_2:          row.emp_id_2,
-      instructor_name_2: row.instructor_name_2,
-      status:            row.status,
-      start_date:        row.start_date,
-      end_date:          row.end_date,
-      sessions:          row.sessions,
-      notes:             row.notes,
-      exception_type:    exceptionType
-    });
   });
 
-
-
   return {
+    month: month || '',
     rows: result,
     counts: counts,
     priority: configuredExceptionPriority_()
