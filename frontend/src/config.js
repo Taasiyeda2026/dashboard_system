@@ -19,7 +19,7 @@ const runtimeConfig = (typeof globalThis !== 'undefined' && globalThis.__DASHBOA
  * ניתן לדרוס ב-`window.__DASHBOARD_CONFIG__.apiUrl` או ב-`?apiUrl=` בלא שינוי קוד.
  */
 const DEFAULT_API_URL =
-  'https://script.google.com/macros/s/AKfycbxbmFA6ADNDcvvZ7xZUgblld4dOKHgZrr2ixWys0sDfvPC5v9BJ3XHQ0gwE9UeB3UZc/exec';
+  'https://script.google.com/macros/s/AKfycbySGyM0zSi-4hZTgEc4lHk29-S_GQFWNpGN2eTTnDcdX0l0hjBfPd8q8xyrFHbsK6RB/exec';
 
 function resolveApiUrl() {
   if (runtimeConfig.apiUrl) return String(runtimeConfig.apiUrl).trim();
