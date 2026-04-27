@@ -408,7 +408,8 @@ function actionDashboard_(user, payload) {
     }
 
     if (programTypes.indexOf(t) >= 0) {
-      if (primaryExceptionForRow_(row)) managerExceptions[manager] += 1;
+      var rowExceptionsCount = rowExceptionTypes_(row).length;
+      if (rowExceptionsCount > 0) managerExceptions[manager] += rowExceptionsCount;
       if (t === 'course' && text_(row.end_date).slice(0, 7) === ym) managerCourseEndings[manager] += 1;
     }
 
@@ -439,11 +440,6 @@ function actionDashboard_(user, payload) {
   var financeOpenCount = canViewFinance ? combined.filter(function(row) {
     return normalizeFinance_(row.finance_status) === 'open';
   }).length : 0;
-
-  var exceptionSum = 0;
-  longRows.forEach(function(row) {
-    if (primaryExceptionForRow_(row)) exceptionSum += 1;
-  });
 
   var missingInstructorCount = 0;
   var missingStartDateCount = 0;
@@ -488,6 +484,7 @@ function actionDashboard_(user, payload) {
     }
     if (exceptionTypes.indexOf('late_end_date') >= 0) lateEndDateCount += 1;
   });
+  var exceptionSum = missingInstructorCount + missingStartDateCount + lateEndDateCount;
 
 
   var shortActivitiesByType = {};
@@ -614,6 +611,7 @@ function actionDashboard_(user, payload) {
       active_courses_current_month: activeTypeCountsCurrent.course,
       ending_courses_current_month: courseEndings,
       active_courses_next_month: countActiveByTypeInYm_(allSummary, nextYm, 'course'),
+      exceptions_count: exceptionSum,
       active_instructors: collectUniqueInstructorNames_(combined),
       active_instructors_by_manager: activeInstructorsByManager,
       missing_instructor_count: missingInstructorCount,
