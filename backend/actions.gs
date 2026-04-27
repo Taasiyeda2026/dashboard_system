@@ -450,10 +450,8 @@ function actionDashboard_(user, payload) {
     }
 
     if (programTypes.indexOf(t) >= 0) {
-      if (activityOverlapsYm_(row, ym)) {
-        var rowExceptionsCount = rowExceptionTypes_(row).length;
-        if (rowExceptionsCount > 0) managerExceptions[manager] += rowExceptionsCount;
-      }
+      var rowExceptionsCount = rowExceptionTypes_(row).length;
+      if (rowExceptionsCount > 0) managerExceptions[manager] += rowExceptionsCount;
       if (t === 'course' && text_(row.end_date).slice(0, 7) === ym) managerCourseEndings[manager] += 1;
     }
 
