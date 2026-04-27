@@ -50,6 +50,19 @@ function writeRowsToViewSheet_(sheetName, rows) {
   var sheet = getSheet_(sheetName);
   var headers = getHeaders_(sheet);
   var dataStart = getDataStartRow_();
+  var plainTextColumns = {
+    month_ym: true,
+    meeting_date: true,
+    start_date: true,
+    end_date: true,
+    week_start_date: true,
+    start_time: true,
+    end_time: true
+  };
+  headers.forEach(function(header, idx) {
+    if (!plainTextColumns[text_(header)]) return;
+    sheet.getRange(dataStart, idx + 1, Math.max(sheet.getMaxRows() - dataStart + 1, 1), 1).setNumberFormat('@');
+  });
   var lastRow = sheet.getLastRow();
   if (lastRow >= dataStart) {
     sheet.getRange(dataStart, 1, lastRow - dataStart + 1, headers.length).clearContent();
@@ -69,7 +82,7 @@ function buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap
   var out = [];
   (meetingsRows || []).forEach(function(meeting) {
     if (yesNo_(meeting.active || 'yes') === 'no') return;
-    var meetingDate = normalizeDateTextToIso_(meeting.meeting_date);
+    var meetingDate = normalizeDateToIsoFlexible_(meeting.meeting_date);
     if (!meetingDate) return;
 
     var sourceRowId = text_(meeting.source_row_id || meeting.RowID);
@@ -83,7 +96,7 @@ function buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap
     var privateNote = text_(privateNotesMap[noteKey] || sourceRow.private_note || '');
 
     out.push({
-      month_ym: meetingDate.slice(0, 7),
+      month_ym: normalizeMonthYmFlexible_(meetingDate),
       meeting_date: meetingDate,
       source_sheet: sourceSheet,
       source_row_id: sourceRowId,
@@ -100,10 +113,10 @@ function buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap
       emp_id: text_(meeting.emp_id || sourceRow.emp_id),
       emp_id_2: text_(meeting.emp_id_2 || sourceRow.emp_id_2),
       status: text_(meeting.status || sourceRow.status),
-      start_time: text_(meeting.start_time || sourceRow.start_time),
-      end_time: text_(meeting.end_time || sourceRow.end_time),
-      start_date: normalizeDateTextToIso_(meeting.start_date || sourceRow.start_date),
-      end_date: normalizeDateTextToIso_(meeting.end_date || sourceRow.end_date || sourceRow.start_date),
+      start_time: normalizeTimeToTextFlexible_(meeting.start_time || sourceRow.start_time),
+      end_time: normalizeTimeToTextFlexible_(meeting.end_time || sourceRow.end_time),
+      start_date: normalizeDateToIsoFlexible_(meeting.start_date || sourceRow.start_date),
+      end_date: normalizeDateToIsoFlexible_(meeting.end_date || sourceRow.end_date || sourceRow.start_date),
       activity_no: text_(meeting.activity_no || sourceRow.activity_no),
       private_note: privateNote
     });
@@ -121,7 +134,7 @@ function buildMeetingsByActivityMapFromView_(meetingViewRows) {
   var map = {};
   (meetingViewRows || []).forEach(function(row) {
     var rowId = text_(row.source_row_id);
-    var d = normalizeDateTextToIso_(row.meeting_date);
+    var d = normalizeDateToIsoFlexible_(row.meeting_date);
     if (!rowId || !d) return;
     if (!map[rowId]) map[rowId] = [];
     map[rowId].push(d);
@@ -196,20 +209,20 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
   var nowIso = new Date().toISOString();
   var months = {};
   (activitiesSummaryRows || []).forEach(function(row) {
-    var ym = text_(row.month_ym);
+    var ym = normalizeMonthYmFlexible_(row.month_ym);
     if (ym) months[ym] = true;
   });
   (meetingsViewRows || []).forEach(function(row) {
-    var ym2 = text_(row.month_ym);
+    var ym2 = normalizeMonthYmFlexible_(row.month_ym);
     if (ym2) months[ym2] = true;
   });
 
   return Object.keys(months).sort().map(function(ym) {
     var monthActivities = (activitiesSummaryRows || []).filter(function(row) {
-      return text_(row.month_ym) === ym && text_(row.status) !== 'סגור';
+      return normalizeMonthYmFlexible_(row.month_ym) === ym && text_(row.status) !== 'סגור';
     });
     var monthMeetings = (meetingsViewRows || []).filter(function(row) {
-      return text_(row.month_ym) === ym;
+      return normalizeMonthYmFlexible_(row.month_ym) === ym;
     });
 
     var byManager = {};

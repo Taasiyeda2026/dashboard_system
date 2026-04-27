@@ -118,6 +118,122 @@ function formatDate_(date) {
   return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
 }
 
+function googleSheetsSerialToDate_(serial) {
+  var n = Number(serial);
+  if (isNaN(n)) return null;
+  var wholeDays = Math.floor(n);
+  var dayFraction = n - wholeDays;
+  var ms = Math.round(dayFraction * 24 * 60 * 60 * 1000);
+  var dt = new Date(1899, 11, 30);
+  dt.setDate(dt.getDate() + wholeDays);
+  dt = new Date(dt.getTime() + ms);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+function normalizeDateToIsoFlexible_(value) {
+  if (isNormalizedEmptyValue_(value)) return '';
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    return isNaN(value.getTime()) ? '' : formatDate_(value);
+  }
+  if (Object.prototype.toString.call(value) === '[object Number]' && !isNaN(value)) {
+    var serialDate = googleSheetsSerialToDate_(value);
+    return serialDate ? formatDate_(serialDate) : '';
+  }
+
+  var t = text_(value);
+  if (!t) return '';
+  var trimmed = t.replace(/\u00A0/g, ' ').trim();
+
+  if (/^\d{5}(\.\d+)?$/.test(trimmed)) {
+    var serialDateFromText = googleSheetsSerialToDate_(Number(trimmed));
+    if (serialDateFromText) return formatDate_(serialDateFromText);
+  }
+
+  var normalized = trimmed.replace(/[T\s]\d{1,2}:\d{2}(:\d{2})?.*$/, '');
+  if (isValidIsoDateString_(normalized)) return normalized;
+
+  var ym = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(normalized);
+  if (ym) return ym[1] + '-' + ym[2] + '-01';
+
+  var ymd = /^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/.exec(normalized);
+  if (ymd) {
+    var yy = ymd[1];
+    var mmo = ('0' + parseInt(ymd[2], 10)).slice(-2);
+    var dd = ('0' + parseInt(ymd[3], 10)).slice(-2);
+    var ymdIso = yy + '-' + mmo + '-' + dd;
+    if (isValidIsoDateString_(ymdIso)) return ymdIso;
+  }
+
+  var dmy = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/.exec(normalized);
+  if (dmy) {
+    var d = ('0' + parseInt(dmy[1], 10)).slice(-2);
+    var mo = ('0' + parseInt(dmy[2], 10)).slice(-2);
+    var y = dmy[3];
+    var iso = y + '-' + mo + '-' + d;
+    if (isValidIsoDateString_(iso)) return iso;
+  }
+
+  var dmy2 = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2})$/.exec(normalized);
+  if (dmy2) {
+    var d2 = ('0' + parseInt(dmy2[1], 10)).slice(-2);
+    var mo2 = ('0' + parseInt(dmy2[2], 10)).slice(-2);
+    var yy2 = parseInt(dmy2[3], 10);
+    var y2 = String(yy2 >= 70 ? 1900 + yy2 : 2000 + yy2);
+    var iso2 = y2 + '-' + mo2 + '-' + d2;
+    if (isValidIsoDateString_(iso2)) return iso2;
+  }
+
+  var parsed = new Date(trimmed);
+  return isNaN(parsed.getTime()) ? '' : formatDate_(parsed);
+}
+
+function normalizeMonthYmFlexible_(value) {
+  if (isNormalizedEmptyValue_(value)) return '';
+  var t = text_(value);
+  var directYm = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(t);
+  if (directYm) return directYm[1] + '-' + directYm[2];
+  var iso = normalizeDateToIsoFlexible_(value);
+  return iso ? iso.slice(0, 7) : '';
+}
+
+function normalizeTimeToTextFlexible_(value) {
+  if (isNormalizedEmptyValue_(value)) return '';
+
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    return isNaN(value.getTime()) ? '' : Utilities.formatDate(value, Session.getScriptTimeZone(), 'HH:mm');
+  }
+
+  if (Object.prototype.toString.call(value) === '[object Number]' && !isNaN(value)) {
+    var serialTime = googleSheetsSerialToDate_(value);
+    return serialTime ? Utilities.formatDate(serialTime, Session.getScriptTimeZone(), 'HH:mm') : '';
+  }
+
+  var t = text_(value);
+  if (!t) return '';
+  var trimmed = t.replace(/\u00A0/g, ' ').trim();
+
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    var numeric = Number(trimmed);
+    if (!isNaN(numeric)) {
+      var fromNumeric = googleSheetsSerialToDate_(numeric);
+      if (fromNumeric) return Utilities.formatDate(fromNumeric, Session.getScriptTimeZone(), 'HH:mm');
+    }
+  }
+
+  var hm = /^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/.exec(trimmed);
+  if (hm) {
+    var h = parseInt(hm[1], 10);
+    var m = parseInt(hm[2], 10);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return ('0' + h).slice(-2) + ':' + ('0' + m).slice(-2);
+    }
+  }
+
+  var parsed = new Date(trimmed);
+  if (isNaN(parsed.getTime())) return '';
+  return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'HH:mm');
+}
+
 function mondayOfWeek_(date) {
   var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   var day = d.getDay();
