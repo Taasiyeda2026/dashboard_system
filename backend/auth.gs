@@ -63,7 +63,7 @@ function actionLogin_(payload) {
 
   var token = createSessionToken_(user);
   CacheService.getScriptCache().put(
-    'session:' + token,
+    sessionCacheKey_(token),
     JSON.stringify(user),
     CONFIG.SESSION_CACHE_SECONDS
   );
@@ -83,7 +83,11 @@ function requireAuth_(token) {
 
   var sessionFromToken = parseSessionToken_(value);
   if (sessionFromToken) {
-    var enrichedRaw = CacheService.getScriptCache().get('session:' + value);
+    var enrichedRaw = CacheService.getScriptCache().get(sessionCacheKey_(value));
+    // Backward compatibility for sessions cached with the old key format.
+    if (!enrichedRaw) {
+      enrichedRaw = CacheService.getScriptCache().get('session:' + value);
+    }
     if (enrichedRaw) {
       try {
         var enriched = JSON.parse(enrichedRaw);
@@ -106,10 +110,23 @@ function requireAuth_(token) {
     return sessionFromToken;
   }
 
-  var raw = CacheService.getScriptCache().get('session:' + value);
+  var raw = CacheService.getScriptCache().get(sessionCacheKey_(value));
+  // Backward compatibility for pre-fix UUID/plain-token keys.
+  if (!raw) raw = CacheService.getScriptCache().get('session:' + value);
   if (!raw) throw new Error('Unauthorized');
 
   return JSON.parse(raw);
+}
+
+function sessionCacheKey_(token) {
+  var raw = text_(token);
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw);
+  var hex = bytes.map(function(b) {
+    var n = b < 0 ? b + 256 : b;
+    var h = n.toString(16);
+    return h.length === 1 ? '0' + h : h;
+  }).join('');
+  return 'session:' + hex;
 }
 
 function sessionTokenSecret_() {
