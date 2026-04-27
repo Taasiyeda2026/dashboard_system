@@ -27,9 +27,9 @@ function renderInstructorRow(row) {
   const inactiveClass = hasActivity ? '' : ' ci-row--inactive';
 
   const statsHtml = `<span class="instr-stats">
-    <span class="instr-stat"><span class="instr-stat__num">${programs}</span><span class="instr-stat__lbl">תוכניות</span></span>
-    <span class="instr-stat__sep">·</span>
-    <span class="instr-stat"><span class="instr-stat__num">${oneDay}</span><span class="instr-stat__lbl">חד-יומיות</span></span>
+    <span class="instr-stat"><span class="instr-stat__lbl">תוכניות</span><span class="instr-stat__num">${programs}</span></span>
+    <span class="instr-stat"><span class="instr-stat__lbl">חד-יומיות</span><span class="instr-stat__num">${oneDay}</span></span>
+    <span class="instr-stat"><span class="instr-stat__lbl">תאריך אחרון</span><span class="instr-stat__num instr-stat__num--date">${escapeHtml(endDate || '—')}</span></span>
   </span>`;
 
   return `
@@ -37,7 +37,6 @@ function renderInstructorRow(row) {
       <div class="ci-row__main">
         <span class="ci-row__name">${name}</span>
         ${statsHtml}
-        ${endDate ? `<span class="instr-end-date">${escapeHtml(endDate)}</span>` : ''}
       </div>
     </button>`;
 }

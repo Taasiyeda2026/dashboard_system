@@ -7408,3 +7408,268 @@ select.ds-activity-add-field .ds-input,
     width: min(94vw, 640px);
   }
 }
+
+/* ===== UI/UX refresh: compact operational system language ===== */
+:root {
+  --ds-surface-subtle: #f4f6f9;
+  --ds-border: #d8dee8;
+  --ds-text: #101828;
+  --ds-text-secondary: #1f2937;
+  --ds-text-muted: #667085;
+  --ds-radius-sm: 8px;
+  --ds-radius-md: 8px;
+  --ds-shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --ds-shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.07);
+}
+
+.shell-sidebar {
+  background: linear-gradient(180deg, #172033 0%, #121a2a 100%);
+}
+.shell-nav__btn {
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border-color: rgba(255, 255, 255, 0.11);
+  font-size: 0.74rem;
+}
+.shell-nav__btn.is-active {
+  background: rgba(26, 51, 88, 0.55);
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: none;
+}
+.shell-nav__btn.is-active::before {
+  width: 2px;
+  top: 7px;
+  bottom: 7px;
+}
+
+.ds-act-nav-grid--header {
+  padding: 0;
+  gap: 4px;
+}
+.ds-act-nav-item--header {
+  min-height: 28px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  font-size: 0.56rem;
+}
+.ds-act-nav-item--header .ds-act-nav-item__icon {
+  font-size: 0.66rem;
+}
+
+.ds-toolbar--filters-inline,
+.ds-filter-panel__grid {
+  gap: 6px;
+  align-items: center;
+}
+.ds-input,
+.ds-input--sm,
+.ds-filter-search-sm,
+.ds-filter-select-inline,
+.ds-btn,
+.ds-chip--tab {
+  min-height: 32px;
+}
+.ds-filter-search-sm {
+  width: 180px;
+  min-width: 140px;
+}
+.ds-filter-select-inline {
+  width: 124px;
+  min-width: 124px;
+  max-width: 124px;
+  padding-inline-end: 24px;
+  box-shadow: none;
+}
+.ds-btn--xs {
+  min-height: 24px;
+  font-size: 0.66rem;
+}
+
+.ci-list--instr-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 6px;
+}
+@media (max-width: 1180px) {
+  .ci-list--instr-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .ci-list--instr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .ci-list--instr-grid { grid-template-columns: 1fr; }
+}
+.instr-summary-row {
+  min-height: 112px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--ds-border);
+}
+.instr-stats {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  margin-inline-start: 0;
+}
+.instr-stat {
+  justify-content: space-between;
+  width: 100%;
+}
+.instr-stat__sep,
+.instr-end-date {
+  display: none;
+}
+.instr-stat__lbl { font-size: 0.68rem; color: var(--ds-text-muted); }
+.instr-stat__num { font-size: 0.8rem; }
+.instr-stat__num--date { font-size: 0.74rem; font-weight: 600; color: var(--ds-text-secondary); }
+
+.ds-activities-screen {
+  zoom: 1;
+}
+.ds-activities-main-toolbar {
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  row-gap: 6px;
+}
+.ds-activities-page-title {
+  font-size: 0.94rem;
+  margin: 0;
+}
+.ds-card__head {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-top: 0;
+}
+.ds-table {
+  min-width: 760px;
+  font-size: 0.76rem;
+}
+.ds-table th {
+  background: #f7f9fc;
+  box-shadow: none;
+}
+.ds-table th,
+.ds-table td {
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+.ds-activities-row .ds-row-subtle {
+  font-size: 0.68rem;
+  color: var(--ds-text-muted);
+  margin-top: 2px;
+}
+.ds-chip--status {
+  min-width: auto;
+  min-height: 22px;
+  padding: 1px 8px;
+  font-size: 0.66rem;
+}
+
+.ds-cal-nav {
+  padding: 4px 6px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.ds-cal-nav .ds-btn.ds-btn--sm,
+.ds-btn--nav-arrow {
+  min-height: 30px !important;
+  min-width: 30px;
+  padding: 2px 8px !important;
+}
+.ds-cal-nav__label {
+  font-size: 0.84rem;
+}
+
+.ds-cal-wrap {
+  padding: 6px;
+  gap: 6px;
+}
+.ds-cal-weekdays,
+.ds-cal-grid {
+  gap: 6px;
+}
+.ds-cal-wd {
+  font-size: 0.66rem;
+  padding: 0;
+}
+.ds-cal-slot-hit,
+.ds-cal-slot-hit .ds-interactive-card,
+.ds-cal-slot--empty {
+  min-height: 52px;
+}
+.ds-cal-grid .ds-interactive-card--day-cell {
+  padding: 4px 6px;
+  border: 1px solid var(--ds-border);
+  box-shadow: none;
+}
+.ds-interactive-card.has-activities {
+  background: #ecf8f1;
+  border-color: #b8e8cb;
+}
+.ds-interactive-card.is-no-activities {
+  background: #fafbfd;
+  opacity: 1;
+}
+.ds-cal-grid .ds-interactive-card--day-cell .ds-interactive-card__subtitle {
+  background: #f1f4ff;
+  color: #4a4f75;
+}
+.ds-interactive-card.is-cal-today {
+  background: #edf4ff;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
+}
+
+.ds-week-board {
+  gap: 8px;
+}
+.ds-week-col {
+  border-color: var(--ds-border);
+  border-radius: 8px;
+  box-shadow: none;
+}
+.ds-week-col__head {
+  padding: 6px;
+  gap: 3px;
+  background: #f8fafc;
+}
+.ds-week-col__dow {
+  font-size: 0.72rem;
+  text-transform: none;
+}
+.ds-week-col__date {
+  font-size: 0.73rem;
+}
+.ds-week-col__holiday {
+  font-size: 0.6rem;
+}
+.ds-week-col__count {
+  min-width: 22px;
+  height: 18px;
+  font-size: 0.63rem;
+}
+.ds-week-col__body {
+  padding: 6px;
+  overflow-y: visible;
+  max-height: none !important;
+}
+.ds-week-empty {
+  font-size: 0.68rem;
+}
+.ds-week-col .ds-interactive-card--session {
+  min-height: 40px;
+  padding: 5px 7px;
+  border-inline-start-width: 2px;
+  box-shadow: none;
+}
+.ds-week-col .ds-interactive-card--session .ds-interactive-card__title {
+  font-size: 0.72rem;
+}
+.ds-week-col .ds-interactive-card--session .ds-interactive-card__meta {
+  font-size: 0.66rem;
+}
+.ds-week-group__badge {
+  font-size: 0.56rem;
+  padding: 2px 5px;
+}
