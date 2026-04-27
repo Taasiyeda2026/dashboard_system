@@ -1,200 +1,361 @@
 /**
  * sync-end-dates.gs
  *
- * מסנכרן את עמודת end_date בגיליון data_long עם תאריך המפגש האחרון מגיליון activity_meetings.
- *
- * לוגיקה לכל שורה ב-data_long:
- *   end_date = max( תאריכים ב-activity_meetings לאותו RowID , תאריכים ב-Date1-Date35 )
- *
- * נקודות כניסה:
- *   • syncLongDataEndDates_()          — סנכרון מלא של כל השורות (הפעלה ידנית / trigger)
- *   • syncEndDateForRow_(sourceRowId)  — עדכון שורה אחת (נקרא מ-setMeetings_ אוטומטית)
- *   • onEditSyncEndDates_(e)           — installable trigger לעריכות ישירות בגיליון activity_meetings
- *   • installEndDateSyncTrigger_()     — התקנת ה-trigger (הפעל פעם אחת מ-Apps Script Editor)
- *   • uninstallEndDateSyncTrigger_()   — הסרת ה-trigger
+ * מקור אמת לתאריכי data_long הוא activity_meetings (רק active=yes).
+ * הקובץ מסנכרן בפועל את העמודות start_date + end_date בגיליון data_long.
  */
 
-// ─── A. מפה source_row_id → תאריך סיום מגיליון activity_meetings ─────────────
-
-function buildMeetingEndDateMap_() {
-  var ss = getSpreadsheet_();
-  var sheet = ss.getSheetByName(CONFIG.SHEETS.MEETINGS);
-  if (!sheet) return {};
-
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-  var dataStart = CONFIG.DATA_START_ROW;
-  if (lastRow < dataStart || !lastCol) return {};
-
-  var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
-  var srcIdx    = headers.indexOf('source_row_id');
-  var dateIdx   = headers.indexOf('meeting_date');
-  var activeIdx = headers.indexOf('active');
-  if (srcIdx < 0 || dateIdx < 0) return {};
-
-  var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, lastCol).getValues();
-  var endMap = {};
-  values.forEach(function(row) {
-    if (activeIdx >= 0 && yesNo_(row[activeIdx]) === 'no') return;
-    var srcId   = text_(row[srcIdx]);
-    var dateStr = normalizeDateTextToIso_(row[dateIdx]);
-    if (!srcId || !dateStr) return;
-    if (!endMap[srcId] || dateStr > endMap[srcId]) {
-      endMap[srcId] = dateStr;
-    }
+function buildActiveMeetingDatesMap_() {
+  var rows = readRows_(CONFIG.SHEETS.MEETINGS);
+  var out = {};
+  rows.forEach(function(row) {
+    if (yesNo_(row.active) !== 'yes') return;
+    var sourceRowId = text_(row.source_row_id);
+    var meetingDate = normalizeDateTextToIso_(row.meeting_date);
+    if (!sourceRowId || !meetingDate) return;
+    if (!out[sourceRowId]) out[sourceRowId] = [];
+    out[sourceRowId].push(meetingDate);
   });
-  return endMap;
+
+  Object.keys(out).forEach(function(sourceRowId) {
+    var uniq = {};
+    out[sourceRowId].forEach(function(d) { uniq[d] = true; });
+    out[sourceRowId] = Object.keys(uniq).sort();
+  });
+
+  return out;
 }
 
-// ─── B. סנכרון מלא ───────────────────────────────────────────────────────────
+function buildMeetingsDiagnostics_() {
+  var rows = readRows_(CONFIG.SHEETS.MEETINGS);
+  var sourceIdSet = {};
+  var activeSourceIdSet = {};
+  var activeMeetingRows = 0;
+  var validMeetingDates = 0;
+  var activeDatesMap = {};
+
+  rows.forEach(function(row) {
+    var sourceRowId = text_(row.source_row_id);
+    if (sourceRowId) sourceIdSet[sourceRowId] = true;
+    if (yesNo_(row.active) !== 'yes') return;
+
+    activeMeetingRows++;
+    if (sourceRowId) activeSourceIdSet[sourceRowId] = true;
+    var meetingDate = normalizeDateTextToIso_(row.meeting_date);
+    if (!sourceRowId || !meetingDate) return;
+
+    validMeetingDates++;
+    if (!activeDatesMap[sourceRowId]) activeDatesMap[sourceRowId] = [];
+    activeDatesMap[sourceRowId].push(meetingDate);
+  });
+
+  Object.keys(activeDatesMap).forEach(function(sourceRowId) {
+    var uniq = {};
+    activeDatesMap[sourceRowId].forEach(function(d) { uniq[d] = true; });
+    activeDatesMap[sourceRowId] = Object.keys(uniq).sort();
+  });
+
+  return {
+    rows: rows,
+    source_id_set: sourceIdSet,
+    active_source_id_set: activeSourceIdSet,
+    active_meetings_rows: activeMeetingRows,
+    valid_meeting_dates: validMeetingDates,
+    active_dates_map: activeDatesMap
+  };
+}
+
+function buildDataLongSheetSnapshot_() {
+  var ss = getSpreadsheet_();
+  var sheet = ss.getSheetByName(CONFIG.SHEETS.DATA_LONG);
+  if (!sheet) {
+    return { error: 'missing_data_long', rows: [], headers: [], values: [], data_start: getDataStartRow_() };
+  }
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var dataStart = getDataStartRow_();
+  if (lastRow < dataStart || !lastCol) {
+    return { sheet: sheet, rows: [], headers: [], values: [], data_start: dataStart };
+  }
+  var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
+  var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, lastCol).getValues();
+  return {
+    sheet: sheet,
+    headers: headers,
+    values: values,
+    data_start: dataStart
+  };
+}
+
+function debugDataLongMeetingsSync_() {
+  var snap = buildDataLongSheetSnapshot_();
+  if (snap.error) {
+    return { error: snap.error };
+  }
+
+  var headers = snap.headers;
+  var values = snap.values;
+  var rowIdIdx = headers.indexOf('RowID');
+  var startDateIdx = headers.indexOf('start_date');
+  var endDateIdx = headers.indexOf('end_date');
+  if (rowIdIdx < 0 || startDateIdx < 0 || endDateIdx < 0) {
+    return { error: 'missing_RowID_or_start_date_or_end_date_column' };
+  }
+
+  var longRowIds = [];
+  var longRowIdSet = {};
+  values.forEach(function(row) {
+    var rowId = text_(row[rowIdIdx]);
+    if (!rowId) return;
+    longRowIds.push(rowId);
+    longRowIdSet[rowId] = true;
+  });
+
+  var meetingsDiag = buildMeetingsDiagnostics_();
+  var activeDatesMap = meetingsDiag.active_dates_map;
+
+  var matchedLongRows = 0;
+  var longRowsWithActiveMeetings = 0;
+  var skippedNoMeetings = 0;
+  var sampleNoMatchingMeetings = [];
+  var sampleUpdated = null;
+  var updatedRowsPotential = 0;
+
+  values.forEach(function(row) {
+    var rowId = text_(row[rowIdIdx]);
+    if (!rowId) return;
+
+    if (meetingsDiag.source_id_set[rowId]) matchedLongRows++;
+    var dates = activeDatesMap[rowId] || [];
+    if (dates.length) {
+      longRowsWithActiveMeetings++;
+      var nextStart = dates[0];
+      var nextEnd = dates[dates.length - 1];
+      var currentStart = normalizeDateTextToIso_(row[startDateIdx]);
+      var currentEnd = normalizeDateTextToIso_(row[endDateIdx]);
+      if (nextStart !== currentStart || nextEnd !== currentEnd) {
+        updatedRowsPotential++;
+      }
+      if (!sampleUpdated) {
+        sampleUpdated = {
+          RowID: rowId,
+          current_start_date: currentStart,
+          current_end_date: currentEnd,
+          computed_start_date: nextStart,
+          computed_end_date: nextEnd,
+          meeting_dates: dates.slice(0, 10)
+        };
+      }
+      return;
+    }
+
+    skippedNoMeetings++;
+    if (sampleNoMatchingMeetings.length < 5) sampleNoMatchingMeetings.push(rowId);
+  });
+
+  var orphanMeetings = [];
+  Object.keys(meetingsDiag.source_id_set).forEach(function(sourceRowId) {
+    if (longRowIdSet[sourceRowId]) return;
+    if (orphanMeetings.length < 5) orphanMeetings.push(sourceRowId);
+  });
+
+  return {
+    data_long_rows: longRowIds.length,
+    activity_meetings_rows: meetingsDiag.rows.length,
+    matched_long_rows: matchedLongRows,
+    long_rows_with_active_meetings: longRowsWithActiveMeetings,
+    active_meetings_rows: meetingsDiag.active_meetings_rows,
+    valid_meeting_dates: meetingsDiag.valid_meeting_dates,
+    updated_rows: updatedRowsPotential,
+    skipped_no_meetings: skippedNoMeetings,
+    sample_updated: sampleUpdated,
+    sample_no_matching_meetings: sampleNoMatchingMeetings,
+    sample_orphan_meetings: orphanMeetings
+  };
+}
 
 /**
- * עובר על כל שורות data_long ומעדכן end_date לפי:
- *   max( activity_meetings , Date1-Date35 )
- * מחזיר { updated: N }.
+ * סנכרון מרכזי: ממלא/מעדכן data_long.start_date + data_long.end_date
+ * לפי min/max של meeting_date הפעילים ב-activity_meetings.
  */
-function syncLongDataEndDates_() {
-  var ss = getSpreadsheet_();
+function syncDataLongDatesFromMeetings_() {
+  var snap = buildDataLongSheetSnapshot_();
+  if (snap.error) return { updated: 0, error: snap.error };
 
-  var meetingEndMap = buildMeetingEndDateMap_();
-
-  var longSheet = ss.getSheetByName(CONFIG.SHEETS.DATA_LONG);
-  if (!longSheet) return { updated: 0, error: 'missing_data_long' };
-
-  var lastRow  = longSheet.getLastRow();
-  var lastCol  = longSheet.getLastColumn();
-  var dataStart = CONFIG.DATA_START_ROW;
-  if (lastRow < dataStart || !lastCol) return { updated: 0 };
-
-  var headers    = longSheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
-  var rowIdIdx   = headers.indexOf('RowID');
+  var sheet = snap.sheet;
+  var headers = snap.headers;
+  var values = snap.values;
+  var dataStart = snap.data_start;
+  var rowIdIdx = headers.indexOf('RowID');
+  var startDateIdx = headers.indexOf('start_date');
   var endDateIdx = headers.indexOf('end_date');
-  if (rowIdIdx < 0 || endDateIdx < 0) {
-    return { updated: 0, error: 'missing_RowID_or_end_date_column' };
+  if (rowIdIdx < 0 || startDateIdx < 0 || endDateIdx < 0) {
+    return { updated: 0, error: 'missing_RowID_or_start_date_or_end_date_column' };
   }
 
-  var dateColIndexes = [];
-  for (var i = 1; i <= 35; i++) {
-    var idx = headers.indexOf('Date' + i);
-    if (idx >= 0) dateColIndexes.push(idx);
-  }
-
-  var numRows = lastRow - dataStart + 1;
-  var values  = longSheet.getRange(dataStart, 1, numRows, lastCol).getValues();
-  var updatedCount = 0;
+  var meetingsDiag = buildMeetingsDiagnostics_();
+  var meetingDatesMap = meetingsDiag.active_dates_map;
+  var longRowIdSet = {};
+  var dataLongRows = 0;
+  var matchedLongRows = 0;
+  var longRowsWithActiveMeetings = 0;
+  var skippedNoMeetings = 0;
+  var startWrites = [];
+  var endWrites = [];
+  var updatedRowsSet = {};
+  var sampleUpdated = null;
+  var sampleNoMatchingMeetings = [];
 
   values.forEach(function(row, offset) {
     var rowId = text_(row[rowIdIdx]);
     if (!rowId) return;
+    dataLongRows++;
+    longRowIdSet[rowId] = true;
+    if (meetingsDiag.source_id_set[rowId]) matchedLongRows++;
+    var meetingDates = meetingDatesMap[rowId] || [];
+    if (!meetingDates.length) {
+      skippedNoMeetings++;
+      if (sampleNoMatchingMeetings.length < 5) sampleNoMatchingMeetings.push(rowId);
+      return;
+    }
+    longRowsWithActiveMeetings++;
 
-    var maxFromDateCols = '';
-    dateColIndexes.forEach(function(ci) {
-      var d = normalizeDateTextToIso_(row[ci]);
-      if (d && d > maxFromDateCols) maxFromDateCols = d;
-    });
+    var nextStart = meetingDates[0];
+    var nextEnd = meetingDates[meetingDates.length - 1];
+    var currentStart = normalizeDateTextToIso_(row[startDateIdx]);
+    var currentEnd = normalizeDateTextToIso_(row[endDateIdx]);
 
-    var fromMeetings = meetingEndMap[rowId] || '';
-    var newEndDate   = fromMeetings > maxFromDateCols ? fromMeetings : maxFromDateCols;
-    if (!newEndDate) return;
-
-    var currentEndDate = normalizeDateTextToIso_(row[endDateIdx]);
-    if (newEndDate === currentEndDate) return;
-
-    longSheet.getRange(dataStart + offset, endDateIdx + 1).setValue(newEndDate);
-    updatedCount++;
+    if (nextStart !== currentStart) {
+      startWrites.push({ row: dataStart + offset, value: nextStart });
+      updatedRowsSet[rowId] = true;
+    }
+    if (nextEnd !== currentEnd) {
+      endWrites.push({ row: dataStart + offset, value: nextEnd });
+      updatedRowsSet[rowId] = true;
+    }
+    if (!sampleUpdated && (nextStart !== currentStart || nextEnd !== currentEnd)) {
+      sampleUpdated = {
+        RowID: rowId,
+        current_start_date: currentStart,
+        current_end_date: currentEnd,
+        computed_start_date: nextStart,
+        computed_end_date: nextEnd,
+        meeting_dates: meetingDates.slice(0, 10)
+      };
+    }
   });
 
-  if (updatedCount > 0) {
+  startWrites.forEach(function(item) {
+    sheet.getRange(item.row, startDateIdx + 1).setValue(item.value);
+  });
+  endWrites.forEach(function(item) {
+    sheet.getRange(item.row, endDateIdx + 1).setValue(item.value);
+  });
+
+  var updated = startWrites.length + endWrites.length;
+  if (updated > 0) {
+    invalidateReadRowsCache_(CONFIG.SHEETS.DATA_LONG);
     bumpDataViewsCacheVersion_();
   }
 
-  return { updated: updatedCount };
+  var orphanMeetings = [];
+  Object.keys(meetingsDiag.source_id_set).forEach(function(sourceRowId) {
+    if (longRowIdSet[sourceRowId]) return;
+    if (orphanMeetings.length < 5) orphanMeetings.push(sourceRowId);
+  });
+
+  var updatedRows = Object.keys(updatedRowsSet).length;
+  return {
+    data_long_rows: dataLongRows,
+    activity_meetings_rows: meetingsDiag.rows.length,
+    matched_long_rows: matchedLongRows,
+    long_rows_with_active_meetings: longRowsWithActiveMeetings,
+    active_meetings_rows: meetingsDiag.active_meetings_rows,
+    valid_meeting_dates: meetingsDiag.valid_meeting_dates,
+    updated_rows: updatedRows,
+    skipped_no_meetings: skippedNoMeetings,
+    sample_updated: sampleUpdated,
+    sample_no_matching_meetings: sampleNoMatchingMeetings,
+    sample_orphan_meetings: orphanMeetings,
+    updated: updated,
+    updated_start_date_cells: startWrites.length,
+    updated_end_date_cells: endWrites.length
+  };
 }
 
-// ─── C. עדכון שורה בודדת ─────────────────────────────────────────────────────
+function syncDataLongDatesForRowFromMeetings_(sourceRowId) {
+  var wanted = text_(sourceRowId);
+  if (!wanted) return { updated: 0 };
 
-/**
- * מעדכן end_date עבור שורה יחידה ב-data_long לאחר שמירת מפגשים.
- * נקרא מ-setMeetings_() אוטומטית.
- */
-function syncEndDateForRow_(sourceRowId) {
-  if (!sourceRowId) return;
   var ss = getSpreadsheet_();
+  var sheet = ss.getSheetByName(CONFIG.SHEETS.DATA_LONG);
+  if (!sheet) return { updated: 0, error: 'missing_data_long' };
 
-  var meetingsSheet = ss.getSheetByName(CONFIG.SHEETS.MEETINGS);
-  var fromMeetings  = '';
-  if (meetingsSheet) {
-    var mLastRow  = meetingsSheet.getLastRow();
-    var mLastCol  = meetingsSheet.getLastColumn();
-    var mDataStart = CONFIG.DATA_START_ROW;
-    if (mLastRow >= mDataStart && mLastCol > 0) {
-      var mHeaders  = meetingsSheet.getRange(CONFIG.HEADER_ROW, 1, 1, mLastCol).getValues()[0].map(text_);
-      var srcIdx    = mHeaders.indexOf('source_row_id');
-      var dateIdx   = mHeaders.indexOf('meeting_date');
-      var activeIdx = mHeaders.indexOf('active');
-      if (srcIdx >= 0 && dateIdx >= 0) {
-        var mValues = meetingsSheet.getRange(mDataStart, 1, mLastRow - mDataStart + 1, mLastCol).getValues();
-        mValues.forEach(function(row) {
-          if (text_(row[srcIdx]) !== text_(sourceRowId)) return;
-          if (activeIdx >= 0 && yesNo_(row[activeIdx]) === 'no') return;
-          var d = normalizeDateTextToIso_(row[dateIdx]);
-          if (d && d > fromMeetings) fromMeetings = d;
-        });
-      }
-    }
-  }
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var dataStart = getDataStartRow_();
+  if (lastRow < dataStart || !lastCol) return { updated: 0 };
 
-  var longSheet = ss.getSheetByName(CONFIG.SHEETS.DATA_LONG);
-  if (!longSheet) return;
-
-  var lastRow  = longSheet.getLastRow();
-  var lastCol  = longSheet.getLastColumn();
-  var dataStart = CONFIG.DATA_START_ROW;
-  if (lastRow < dataStart || !lastCol) return;
-
-  var headers    = longSheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
-  var rowIdIdx   = headers.indexOf('RowID');
+  var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lastCol).getValues()[0].map(text_);
+  var rowIdIdx = headers.indexOf('RowID');
+  var startDateIdx = headers.indexOf('start_date');
   var endDateIdx = headers.indexOf('end_date');
-  if (rowIdIdx < 0 || endDateIdx < 0) return;
+  if (rowIdIdx < 0 || startDateIdx < 0 || endDateIdx < 0) return { updated: 0 };
 
-  var dateColIndexes = [];
-  for (var i = 1; i <= 35; i++) {
-    var ci = headers.indexOf('Date' + i);
-    if (ci >= 0) dateColIndexes.push(ci);
-  }
+  var meetingDates = buildActiveMeetingDatesMap_()[wanted] || [];
+  if (!meetingDates.length) return { updated: 0 };
 
-  var numRows = lastRow - dataStart + 1;
-  var values  = longSheet.getRange(dataStart, 1, numRows, lastCol).getValues();
-
+  var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, lastCol).getValues();
   for (var offset = 0; offset < values.length; offset++) {
     var row = values[offset];
-    if (text_(row[rowIdIdx]) !== text_(sourceRowId)) continue;
+    if (text_(row[rowIdIdx]) !== wanted) continue;
 
-    var maxFromDateCols = '';
-    dateColIndexes.forEach(function(ci) {
-      var d = normalizeDateTextToIso_(row[ci]);
-      if (d && d > maxFromDateCols) maxFromDateCols = d;
-    });
+    var nextStart = meetingDates[0];
+    var nextEnd = meetingDates[meetingDates.length - 1];
+    var currentStart = normalizeDateTextToIso_(row[startDateIdx]);
+    var currentEnd = normalizeDateTextToIso_(row[endDateIdx]);
+    var updated = 0;
 
-    var newEndDate = fromMeetings > maxFromDateCols ? fromMeetings : maxFromDateCols;
-    if (!newEndDate) break;
+    if (nextStart !== currentStart) {
+      sheet.getRange(dataStart + offset, startDateIdx + 1).setValue(nextStart);
+      updated++;
+    }
+    if (nextEnd !== currentEnd) {
+      sheet.getRange(dataStart + offset, endDateIdx + 1).setValue(nextEnd);
+      updated++;
+    }
 
-    var currentEndDate = normalizeDateTextToIso_(row[endDateIdx]);
-    if (newEndDate !== currentEndDate) {
-      longSheet.getRange(dataStart + offset, endDateIdx + 1).setValue(newEndDate);
+    if (updated > 0) {
+      invalidateReadRowsCache_(CONFIG.SHEETS.DATA_LONG);
       bumpDataViewsCacheVersion_();
     }
-    break;
+    return { updated: updated };
   }
+
+  return { updated: 0 };
 }
 
-// ─── D. Trigger – עריכה ישירה בגיליון activity_meetings ──────────────────────
+// תאימות לאחור
+function syncLongDataEndDates_() {
+  return syncDataLongDatesFromMeetings_();
+}
 
-/**
- * Installable onEdit trigger.
- * מופעל אוטומטית כשהמשתמש עורך ישירות את גיליון activity_meetings.
- * דורש הרשאות — הפעל installEndDateSyncTrigger_() פעם אחת להתקנה.
- */
+function syncEndDateForRow_(sourceRowId) {
+  return syncDataLongDatesForRowFromMeetings_(sourceRowId);
+}
+
+function debugDataLongMeetingsSync() {
+  var result = debugDataLongMeetingsSync_();
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function runSyncDataLongDates() {
+  var result = syncDataLongDatesFromMeetings_();
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
 function onEditSyncEndDates_(e) {
   var sheet = e && e.range && e.range.getSheet();
   if (!sheet || sheet.getName() !== CONFIG.SHEETS.MEETINGS) return;
@@ -203,22 +364,15 @@ function onEditSyncEndDates_(e) {
   if (!lock.tryLock(8000)) return;
   try {
     beginRequestCache_();
-    syncLongDataEndDates_();
+    syncDataLongDatesFromMeetings_();
   } catch (_err) {
-    // שמור שגיאות בשקט
+    // no-op
   } finally {
     __rqCache_ = null;
     lock.releaseLock();
   }
 }
 
-// ─── E. התקנה / הסרה של ה-trigger ───────────────────────────────────────────
-
-/**
- * מתקין installable onEdit trigger עבור onEditSyncEndDates_.
- * הפעל פעם אחת:
- *   Apps Script Editor → Run → installEndDateSyncTrigger_
- */
 function installEndDateSyncTrigger_() {
   var triggers = ScriptApp.getProjectTriggers();
   var exists = triggers.some(function(t) {
@@ -234,9 +388,6 @@ function installEndDateSyncTrigger_() {
   return { status: 'installed' };
 }
 
-/**
- * מסיר את ה-trigger של onEditSyncEndDates_.
- */
 function uninstallEndDateSyncTrigger_() {
   var removed = 0;
   ScriptApp.getProjectTriggers().forEach(function(t) {

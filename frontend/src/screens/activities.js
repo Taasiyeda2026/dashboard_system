@@ -232,8 +232,11 @@ function monthBounds(ym) {
 function activityOverlapsMonth(row, ym) {
   const bounds = monthBounds(ym);
   if (!bounds) return true;
-  const meetings = Array.from({ length: 35 }, (_, i) => String(row?.[`Date${i + 1}`] || '').trim()).filter(Boolean);
-  if (meetings.length > 0) return meetings.some((date) => String(date).startsWith(ym));
+  const sourceSheet = String(row?.source_sheet || '').trim();
+  const meetings = Array.isArray(row?.meeting_dates)
+    ? row.meeting_dates.map((d) => String(d || '').trim()).filter(Boolean)
+    : [];
+  if (sourceSheet === 'data_long' && meetings.length > 0) return meetings.some((date) => date.startsWith(ym));
   const start = String(row?.start_date || '').trim();
   const end = String(row?.end_date || start).trim();
   if (!start && !end) return false;
