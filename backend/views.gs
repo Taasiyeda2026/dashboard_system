@@ -193,6 +193,7 @@ function buildViewActivitiesSummaryRows_(shortRows, longRows, meetingsViewRows, 
       emp_id: text_(row.emp_id),
       emp_id_2: text_(row.emp_id_2),
       activity_no: text_(row.activity_no),
+      finance_status: normalizeFinance_(row.finance_status),
       sessions_count: sessionsCount,
       meeting_dates_json: JSON.stringify(meetingDates),
       private_note: text_(privateNotesMap[noteKey] || ''),
@@ -205,8 +206,43 @@ function buildViewActivitiesSummaryRows_(shortRows, longRows, meetingsViewRows, 
   });
 }
 
+function monthActivityMeetingDatesList_(row) {
+  try {
+    var raw = JSON.parse(text_(row && row.meeting_dates_json || '[]'));
+    if (!Array.isArray(raw)) return [];
+    return raw.map(function(d) { return text_(d); }).filter(Boolean);
+  } catch (_e) {
+    return [];
+  }
+}
+
+/** תוכנית ארוכה "פעילה" לדשבורד לחודש ym — מיושר ל־actionDashboard_ (מפגשים בחודש או סיום מהיום והלאה). */
+function monthlyRowActiveLongForYm_(row, ym, programTypes, inactiveExcTypes, todayIso) {
+  if (text_(row.source_sheet) !== CONFIG.SHEETS.DATA_LONG) return false;
+  if (programTypes.indexOf(text_(row.activity_type)) < 0) return false;
+  if (text_(row.status) === 'סגור') return false;
+  var types = rowExceptionTypes_(row);
+  var i;
+  for (i = 0; i < types.length; i++) {
+    if (inactiveExcTypes.indexOf(types[i]) >= 0) return false;
+  }
+  var dates = monthActivityMeetingDatesList_(row);
+  var hasSessionInYm = false;
+  for (i = 0; i < dates.length; i++) {
+    if (text_(dates[i]).slice(0, 7) === ym) {
+      hasSessionInYm = true;
+      break;
+    }
+  }
+  var endOnOrAfterToday = text_(row.end_date) >= todayIso;
+  return hasSessionInYm || endOnOrAfterToday;
+}
+
 function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows) {
   var nowIso = new Date().toISOString();
+  var programTypes = configuredProgramActivityTypes_();
+  var inactiveExcTypes = ['missing_instructor', 'missing_start_date'];
+  var todayIso = formatDate_(new Date());
   var months = {};
   (activitiesSummaryRows || []).forEach(function(row) {
     var ym = normalizeMonthYmFlexible_(row.month_ym);
@@ -227,13 +263,17 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
 
     var byManager = {};
     var instructors = {};
-    var exceptionsCount = 0;
     var missingInstructorCount = 0;
     var missingStartDateCount = 0;
     var lateEndDateCount = 0;
+    var managerInstructorSets = {};
+    var managerExceptions = {};
+    var managerCourseEndings = {};
+    var managerFinanceOpen = {};
+    var primaryExceptionRowCount = 0;
 
     monthActivities.forEach(function(row) {
-      var manager = text_(row.activity_manager);
+      var manager = text_(row.activity_manager) || 'unassigned';
       if (!byManager[manager]) {
         byManager[manager] = {
           activity_manager: manager,
@@ -242,21 +282,36 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
           total: 0
         };
       }
+      if (!managerInstructorSets[manager]) managerInstructorSets[manager] = {};
       if (text_(row.source_sheet) === CONFIG.SHEETS.DATA_SHORT) byManager[manager].total_short += 1;
       if (text_(row.source_sheet) === CONFIG.SHEETS.DATA_LONG) byManager[manager].total_long += 1;
       byManager[manager].total += 1;
+
+      var empA = text_(row.emp_id);
+      var empB = text_(row.emp_id_2);
+      if (empA) managerInstructorSets[manager][empA] = true;
+      if (empB) managerInstructorSets[manager][empB] = true;
 
       if (yesNo_(row.has_missing_instructor) === 'yes') missingInstructorCount += 1;
       if (yesNo_(row.has_missing_start_date) === 'yes') missingStartDateCount += 1;
       if (yesNo_(row.has_late_end_date) === 'yes') lateEndDateCount += 1;
 
-      var exceptionTypes = [];
-      try {
-        exceptionTypes = JSON.parse(text_(row.exception_types_json || '[]'));
-      } catch (_e) {
-        exceptionTypes = [];
+      var t = text_(row.activity_type);
+      if (programTypes.indexOf(t) >= 0 && text_(row.source_sheet) === CONFIG.SHEETS.DATA_LONG) {
+        if (primaryExceptionForRow_(row)) {
+          if (!managerExceptions[manager]) managerExceptions[manager] = 0;
+          managerExceptions[manager] += 1;
+          primaryExceptionRowCount += 1;
+        }
+        if (t === 'course' && text_(row.end_date).slice(0, 7) === ym) {
+          if (!managerCourseEndings[manager]) managerCourseEndings[manager] = 0;
+          managerCourseEndings[manager] += 1;
+        }
       }
-      exceptionsCount += exceptionTypes.length;
+      if (programTypes.indexOf(t) >= 0 && normalizeFinance_(row.finance_status) === 'open') {
+        if (!managerFinanceOpen[manager]) managerFinanceOpen[manager] = 0;
+        managerFinanceOpen[manager] += 1;
+      }
     });
 
     monthMeetings.forEach(function(row) {
@@ -266,11 +321,35 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
       if (i2) instructors[i2] = true;
     });
 
+    monthActivities.forEach(function(row) {
+      var n1 = text_(row.instructor_name);
+      var n2 = text_(row.instructor_name_2);
+      if (n1) instructors[n1] = true;
+      if (n2) instructors[n2] = true;
+    });
+
+    var managerActiveLong = {};
+    monthActivities.forEach(function(row) {
+      var manager = text_(row.activity_manager) || 'unassigned';
+      if (monthlyRowActiveLongForYm_(row, ym, programTypes, inactiveExcTypes, todayIso)) {
+        managerActiveLong[manager] = (managerActiveLong[manager] || 0) + 1;
+      }
+    });
+
+    Object.keys(byManager).forEach(function(mgr) {
+      byManager[mgr].total_long = managerActiveLong[mgr] || 0;
+      byManager[mgr].total = byManager[mgr].total_short + byManager[mgr].total_long;
+      byManager[mgr].num_instructors = Object.keys(managerInstructorSets[mgr] || {}).length;
+      byManager[mgr].course_endings = managerCourseEndings[mgr] || 0;
+      byManager[mgr].exceptions = managerExceptions[mgr] || 0;
+      byManager[mgr].finance_open = managerFinanceOpen[mgr] || 0;
+    });
+
     var totalShort = monthActivities.filter(function(row) {
       return text_(row.source_sheet) === CONFIG.SHEETS.DATA_SHORT;
     }).length;
-    var totalLong = monthActivities.filter(function(row) {
-      return text_(row.source_sheet) === CONFIG.SHEETS.DATA_LONG;
+    var totalLongActive = monthActivities.filter(function(row) {
+      return monthlyRowActiveLongForYm_(row, ym, programTypes, inactiveExcTypes, todayIso);
     }).length;
 
     var activeCourses = monthActivities.filter(function(row) { return text_(row.activity_type) === 'course'; }).length;
@@ -278,6 +357,51 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
     var activeTours = monthActivities.filter(function(row) { return text_(row.activity_type) === 'tour'; }).length;
     var activeAfterSchool = monthActivities.filter(function(row) { return text_(row.activity_type) === 'after_school'; }).length;
     var activeEscapeRoom = monthActivities.filter(function(row) { return text_(row.activity_type) === 'escape_room'; }).length;
+
+    var nextYm = shiftYm_(ym, 1);
+    var nextMonthActivities = (activitiesSummaryRows || []).filter(function(row) {
+      return normalizeMonthYmFlexible_(row.month_ym) === nextYm && text_(row.status) !== 'סגור';
+    });
+    var activeCoursesNextMonth = nextMonthActivities.filter(function(row) {
+      return text_(row.activity_type) === 'course';
+    }).length;
+
+    var financeOpenTotal = 0;
+    monthActivities.forEach(function(row) {
+      var tx = text_(row.activity_type);
+      if (programTypes.indexOf(tx) >= 0 && normalizeFinance_(row.finance_status) === 'open') {
+        financeOpenTotal += 1;
+      }
+    });
+
+    var shortActivitiesByType = {};
+    monthActivities.forEach(function(row) {
+      if (text_(row.source_sheet) !== CONFIG.SHEETS.DATA_SHORT) return;
+      var k = text_(row.activity_type);
+      if (!k) return;
+      shortActivitiesByType[k] = (shortActivitiesByType[k] || 0) + 1;
+    });
+    var shortActivitiesSummary = Object.keys(shortActivitiesByType).sort().map(function(typeKey) {
+      return { activity_type: typeKey, count: shortActivitiesByType[typeKey] };
+    });
+
+    var DISTRICT_MANAGER_MAP_ = {
+      'גיל נאמן': 'מחוז צפון',
+      'לינוי שמואל מזרחי': 'מחוז דרום'
+    };
+    var activeInstructorsByManager = {};
+    Object.keys(DISTRICT_MANAGER_MAP_).forEach(function(mgr) {
+      var district = DISTRICT_MANAGER_MAP_[mgr];
+      var names = {};
+      monthActivities.forEach(function(row) {
+        if (text_(row.activity_manager) !== mgr) return;
+        var n1 = text_(row.instructor_name);
+        var n2 = text_(row.instructor_name_2);
+        if (n1) names[n1] = true;
+        if (n2) names[n2] = true;
+      });
+      activeInstructorsByManager[district] = Object.keys(names).sort();
+    });
 
     var byManagerArr = Object.keys(byManager).sort().map(function(key) { return byManager[key]; });
     var activeInstructors = Object.keys(instructors).sort();
@@ -287,25 +411,27 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
       ending_courses_current_month: monthActivities.filter(function(row) {
         return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === ym;
       }).length,
-      active_courses_next_month: 0,
+      active_courses_next_month: activeCoursesNextMonth,
       active_instructors: activeInstructors,
-      active_instructors_by_manager: {},
+      active_instructors_by_manager: activeInstructorsByManager,
       missing_instructor_count: missingInstructorCount,
       missing_start_date_count: missingStartDateCount,
       late_end_date_count: lateEndDateCount,
-      short_activities: []
+      short_activities: shortActivitiesSummary,
+      exceptions_count: primaryExceptionRowCount,
+      finance_open_count: financeOpenTotal
     };
 
     var kpiCards = [
       { id: 'total_short_activities', title: String(totalShort), value: totalShort },
-      { id: 'total_long_activities', title: String(totalLong), value: totalLong },
-      { id: 'exceptions', title: String(exceptionsCount), value: exceptionsCount }
+      { id: 'total_long_activities', title: String(totalLongActive), value: totalLongActive },
+      { id: 'exceptions', title: String(primaryExceptionRowCount), value: primaryExceptionRowCount }
     ];
 
     return {
       month_ym: ym,
       total_short: totalShort,
-      total_long_active: totalLong,
+      total_long_active: totalLongActive,
       active_courses: activeCourses,
       active_workshops: activeWorkshops,
       active_tours: activeTours,
@@ -316,9 +442,9 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
       missing_instructor_count: missingInstructorCount,
       missing_start_date_count: missingStartDateCount,
       late_end_date_count: lateEndDateCount,
-      exceptions_count: exceptionsCount,
+      exceptions_count: primaryExceptionRowCount,
       active_instructors_json: JSON.stringify(activeInstructors),
-      active_instructors_by_manager_json: JSON.stringify({}),
+      active_instructors_by_manager_json: JSON.stringify(activeInstructorsByManager),
       by_manager_json: JSON.stringify(byManagerArr),
       kpi_cards_json: JSON.stringify(kpiCards),
       summary_json: JSON.stringify(summary),
