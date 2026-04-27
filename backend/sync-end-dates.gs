@@ -365,7 +365,7 @@ function onEditSyncEndDates_(e) {
   if (!lock.tryLock(8000)) return;
   try {
     beginRequestCache_();
-    syncDataLongDatesFromMeetings_();
+    runDataMaintenance_('onEditSyncEndDates');
   } catch (_err) {
     // no-op
   } finally {
@@ -387,6 +387,10 @@ function installEndDateSyncTrigger_() {
     .create();
 
   return { status: 'installed' };
+}
+
+function installEndDateSyncTrigger() {
+  return installEndDateSyncTrigger_();
 }
 
 function uninstallEndDateSyncTrigger_() {
