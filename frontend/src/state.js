@@ -63,8 +63,12 @@ function parseTokenPayloadClaims(token) {
     const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
     let json = '';
-    if (typeof atob === 'function') {
-      json = atob(padded);
+    if (typeof atob === 'function' && typeof TextDecoder === 'function') {
+      const binary = atob(padded);
+      const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+      json = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } else if (typeof atob === 'function') {
+      json = decodeURIComponent(escape(atob(padded)));
     } else if (typeof globalThis !== 'undefined' && globalThis.Buffer) {
       json = globalThis.Buffer.from(padded, 'base64').toString('utf8');
     } else {
@@ -120,7 +124,9 @@ export function setSession(session) {
     ...(claims || {}),
     user_id: String((session.user && session.user.user_id) || (claims && claims.user_id) || '').trim(),
     display_role: String((session.user && session.user.display_role) || (claims && claims.display_role) || '').trim(),
-    emp_id: String((session.user && session.user.emp_id) || (claims && claims.emp_id) || '').trim()
+    emp_id: String((session.user && session.user.emp_id) || (claims && claims.emp_id) || '').trim(),
+    full_name: String((session.user && session.user.full_name) || (claims && claims.full_name) || '').trim(),
+    display_role2: String((session.user && session.user.display_role2) || (claims && claims.display_role2) || '').trim()
   };
   state.screenDataCache = {};
   localStorage.setItem('dashboard_token', session.token);
