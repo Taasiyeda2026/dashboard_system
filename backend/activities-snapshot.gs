@@ -77,9 +77,9 @@ function normalizeActivitiesSnapshotRow_(row) {
   var normalized = {};
   Object.keys(src).forEach(function(key) { normalized[key] = src[key]; });
   var instructor1 = text_(src.instructor_name || src.Instructor || src.Employee || src.employee_name || src.employee);
-  var instructor2 = text_(src.instructor_name_2 || src.Instructor2 || src.Employee2 || src.employee_name_2 || src.employee2_name || src.employee2);
-  var emp1 = text_(src.emp_id || src.EmployeeID || src.employee_id);
-  var emp2 = text_(src.emp_id_2 || src.EmployeeID2 || src.employee_id_2);
+  var instructor2 = text_(src.instructor_name_2 || src.Instructor2 || src.Employee2 || src.employee_name_2 || src.employee2_name || src.employee2 || src.employee_2 || src.instructor2);
+  var emp1 = text_(src.emp_id || src.EmployeeID || src.employee_id || src.employeeId || src.empId);
+  var emp2 = text_(src.emp_id_2 || src.EmployeeID2 || src.EmployeeID_2 || src.employee_id_2 || src.employee_id2 || src.employeeId2 || src.empId2);
   normalized.instructor_name = instructor1;
   normalized.instructor_name_2 = instructor2;
   normalized.emp_id = emp1;
@@ -89,6 +89,29 @@ function normalizeActivitiesSnapshotRow_(row) {
     normalized.source_sheet = rowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT;
   }
   return normalized;
+}
+
+
+
+function activitiesInstructorCoverageStats_(rows) {
+  var list = Array.isArray(rows) ? rows : [];
+  var total = list.length;
+  var withInstructorName = 0;
+  var withEmpId = 0;
+  var missingInstructor = 0;
+  list.forEach(function(row) {
+    var hasName = !!(text_(row && row.instructor_name) || text_(row && row.instructor_name_2));
+    var hasEmp = !!(text_(row && row.emp_id) || text_(row && row.emp_id_2));
+    if (hasName) withInstructorName++;
+    if (hasEmp) withEmpId++;
+    if (!hasName && !hasEmp) missingInstructor++;
+  });
+  return {
+    total: total,
+    with_instructor_name: withInstructorName,
+    with_emp_id: withEmpId,
+    missing_instructor: missingInstructor
+  };
 }
 
 function filterActivitiesSnapshotRows_(rows, payload) {
@@ -154,13 +177,33 @@ function actionActivitiesSnapshotFirst_(user, payload) {
   var counts = parseActivitiesSnapshotJson_(snap.activity_type_counts_json, {});
   var rows = parseActivitiesSnapshotJson_(snap.rows_json, []).map(normalizeActivitiesSnapshotRow_);
   var filtered = filterActivitiesSnapshotRows_(rows, payload || {});
+  var snapStats = activitiesInstructorCoverageStats_(filtered);
+
+  if (filtered.length && snapStats.missing_instructor === filtered.length) {
+    var fallbackAllMissing = actionActivitiesLegacy_(user, payload || {});
+    var fallbackRowsMissing = Array.isArray(fallbackAllMissing.rows) ? fallbackAllMissing.rows : [];
+    var fallbackStatsMissing = activitiesInstructorCoverageStats_(fallbackRowsMissing);
+    if (fallbackStatsMissing.missing_instructor < snapStats.missing_instructor) {
+      try { refreshActivitiesSnapshot_(); } catch (_refreshErrAllMissing) {}
+      fallbackAllMissing._is_snapshot = false;
+      fallbackAllMissing._activities_fallback_used = true;
+      fallbackAllMissing._snapshot_fallback_reason = 'snapshot_missing_instructor';
+      fallbackAllMissing._snapshot_instructor_stats = {
+        snapshot: snapStats,
+        fallback: fallbackStatsMissing
+      };
+      return fallbackAllMissing;
+    }
+  }
+
   return {
     activity_type_counts: counts,
     rows: filtered,
     can_add_activity: true,
     _is_snapshot: true,
     _activities_fallback_used: false,
-    _snapshot_updated_at: text_(snap.updated_at)
+    _snapshot_updated_at: text_(snap.updated_at),
+    _snapshot_instructor_stats: { snapshot: snapStats }
   };
 }
 
