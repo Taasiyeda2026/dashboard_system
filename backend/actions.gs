@@ -3713,6 +3713,17 @@ function buildDropdownOptionsMap_() {
 }
 
 function buildClientSettingsPayload_() {
+  // Per-request cache — avoids ScriptCache round-trip when called multiple times in one request.
+  if (__rqCache_ && __rqCache_.clientSettingsPayload) {
+    return __rqCache_.clientSettingsPayload;
+  }
+  var cacheKey = 'pc:client-settings:v1:' + dataViewsCacheVersion_();
+  var cached = scriptCacheGetJson_(cacheKey);
+  if (cached && typeof cached === 'object') {
+    if (__rqCache_) __rqCache_.clientSettingsPayload = cached;
+    return cached;
+  }
+
   var m = readActiveSettingsMap_();
   var navigation = buildNavigationSettings_();
   var roleDefaults = computeNonAdminRoleDefaults_();
@@ -3730,7 +3741,7 @@ function buildClientSettingsPayload_() {
       can_add_activity: (roleDefaults.instructor || {}).can_add_activity === 'yes'
     }
   };
-  return {
+  var result = {
     system_name: getSettingText_('system_name', CONFIG.SYSTEM_NAME || 'Dashboard Taasiyeda'),
     data_start_row: getDataStartRow_(),
     activities_data_sources: configuredActivitiesSources_(),
@@ -3772,6 +3783,9 @@ function buildClientSettingsPayload_() {
     prefer_emoji_over_wide_boxes: getSettingBool_('prefer_emoji_over_wide_boxes', true),
     role_defaults: roleDefaultsBool
   };
+  scriptCachePutJson_(cacheKey, result, CONFIG.SCRIPT_CACHE_SECONDS || 1800);
+  if (__rqCache_) __rqCache_.clientSettingsPayload = result;
+  return result;
 }
 
 /** פריטי לוח שנה ליום אחד — rows ו-meetingsMap מחושבים פעם אחת לכל בקשת week/month */
