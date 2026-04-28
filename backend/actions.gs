@@ -501,6 +501,9 @@ function actionDashboard_(user, payload) {
     managerActiveLong[manager] = (managerActiveLong[manager] || 0) + 1;
   });
 
+  var exceptionSummary = computeCourseExceptionsModel_(combined, ym, { include_rows: false });
+  managerExceptions = exceptionSummary.by_manager_exception_instances || {};
+
   Object.keys(byManager).forEach(function(manager) {
     byManager[manager].num_instructors = Object.keys(managerInstructorSets[manager] || {}).length;
     byManager[manager].course_endings = managerCourseEndings[manager] || 0;
@@ -560,7 +563,6 @@ function actionDashboard_(user, payload) {
     }
     if (exceptionTypes.indexOf('late_end_date') >= 0) lateEndDateCount += 1;
   });
-  var exceptionSummary = computeCourseExceptionsModel_(longRows, ym, { include_rows: false });
   missingInstructorCount = exceptionSummary.counts.missing_instructor || 0;
   missingStartDateCount = exceptionSummary.counts.missing_start_date || 0;
   lateEndDateCount = exceptionSummary.counts.late_end_date || 0;

@@ -129,72 +129,18 @@ function itemMeta(item) {
   return names || 'ללא מדריך';
 }
 
-/** Group items by primary instructor so multiple activities by the same
- *  instructor on the same day are shown as an accordion. */
-function groupItemsByInstructor(items) {
-  const groups = new Map();
-  const order = [];
-  items.forEach((item) => {
-    const key =
-      String(item.emp_id || '').trim() ||
-      String(item.instructor_name || '').trim() ||
-      `__nokey__${item.RowID}`;
-    if (!groups.has(key)) {
-      groups.set(key, []);
-      order.push(key);
-    }
-    groups.get(key).push(item);
-  });
-  return order.map((k) => groups.get(k));
-}
-
-/** Render one instructor-group as a card (or accordion) for the day drawer. */
-function renderDayGroup(group, date) {
-  const main = group[0];
-  const extras = group.slice(1);
-
-  const mainCard = dsInteractiveCard({
-    variant: 'session',
-    action: `monthsession|${encodeURIComponent(date)}|${encodeURIComponent(main.RowID)}`,
-    title: main.activity_name || 'ללא שם',
-    meta: itemMeta(main)
-  });
-
-  if (extras.length === 0) {
-    return `<div class="ds-week-session-wrap">${mainCard}</div>`;
-  }
-
-  const totalCount = group.length;
-  const extraCards = extras
-    .map((item) =>
-      dsInteractiveCard({
-        variant: 'session',
-        action: `monthsession|${encodeURIComponent(date)}|${encodeURIComponent(item.RowID)}`,
-        title: item.activity_name || 'ללא שם',
-        meta: itemMeta(item)
-      })
-    )
-    .join('');
-
-  return `<div class="ds-week-session-wrap ds-week-session-group">
-    <div class="ds-week-group__main-wrap">
-      ${mainCard}
-      <button type="button" class="ds-week-group__badge" data-group-toggle data-group-count="${totalCount}" aria-expanded="false">(${totalCount})</button>
-    </div>
-    <div class="ds-week-group__extra" hidden>
-      ${extraCards}
-    </div>
-  </div>`;
-}
-
 /** Day drawer content: list of session cards (week-style). */
 function monthDayCardsHtml(items, date) {
   if (!items.length) {
     return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(formatDateHe(date) || '')}</p>`;
   }
-  const groups = groupItemsByInstructor(items);
   return `<div class="ds-month-day-cards" dir="rtl">
-    ${groups.map((g) => renderDayGroup(g, date)).join('')}
+    ${items.map((item) => `<div class="ds-week-session-wrap">${dsInteractiveCard({
+      variant: 'session',
+      action: `monthsession|${encodeURIComponent(date)}|${encodeURIComponent(item.RowID)}`,
+      title: item.activity_name || 'ללא שם',
+      meta: itemMeta(item)
+    })}</div>`).join('')}
   </div>`;
 }
 
@@ -324,6 +270,7 @@ export const monthScreen = {
       <nav class="ds-cal-nav${navLoading ? ' is-nav-loading' : ''}" role="navigation" aria-label="ניווט חודשי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(monthTitle)} ${navLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
+        ${currentYm === localYmd().slice(0, 7) ? '' : `<button type="button" class="ds-btn ds-btn--sm ds-btn--today" data-month-today ${navLoading ? 'disabled' : ''}>TODAY</button>`}
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-next aria-label="חודש הבא" title="חודש הבא" ${navLoading ? 'disabled' : ''}>◀</button>
       </nav>
       ${toolbarHtml}
@@ -342,7 +289,7 @@ export const monthScreen = {
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const showPrivateNote = state?.user?.display_role === 'operation_manager';
-    bindLocalFilters(root, state, MONTH_SCOPE, rerender, { debounceMs: 300 });
+    bindLocalFilters(root, state, MONTH_SCOPE, rerender, { debounceMs: 420 });
     const cells = Array.isArray(data?.cells) ? data.cells : [];
     const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
     const allItemsByRowId = new Map();
@@ -431,6 +378,7 @@ export const monthScreen = {
     };
     const prevBtn = root.querySelector('[data-month-prev]');
     const nextBtn = root.querySelector('[data-month-next]');
+    const todayBtn = root.querySelector('[data-month-today]');
     const doMonthShift = (delta) => {
       if (state.monthNavLoading) return;
       const targetYm = shiftMonthYm(resolveBaseYm(), delta);
@@ -452,6 +400,10 @@ export const monthScreen = {
     };
     prevBtn?.addEventListener('click', () => { doMonthShift(-1); });
     nextBtn?.addEventListener('click', () => { doMonthShift(1); });
+    todayBtn?.addEventListener('click', () => {
+      state.monthYm = localYmd().slice(0, 7);
+      rerender?.();
+    });
 
     const prefetchMonth = (targetYm) => {
       if (!/^\d{4}-\d{2}$/.test(String(targetYm || ''))) return;

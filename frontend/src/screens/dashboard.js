@@ -189,10 +189,11 @@ export const dashboardScreen = {
       .map((row) => {
         const mgr = encodeURIComponent(row.activity_manager);
         const displayName = MANAGER_DISPLAY_NAMES[row.activity_manager] || row.activity_manager;
+        const exceptionsValue = Number(row.exceptions ?? 0);
         const stats = [
           { label: 'תוכניות פעילות', value: row.total_long      ?? 0, action: `mstat|${mgr}|long` },
           { label: 'מדריכים פעילים',  value: row.num_instructors ?? 0, action: `mstat|${mgr}|instructors` },
-          { label: 'חריגות',           value: row.exceptions      ?? 0, action: `mstat|${mgr}|exceptions` },
+          { label: 'חריגות',           value: exceptionsValue > 0 ? exceptionsValue : 'מצב תקין', action: `mstat|${mgr}|exceptions` },
           { label: 'סיומי קורסים',    value: row.course_endings  ?? 0, action: `mstat|${mgr}|endings` },
         ];
         const statsHtml = stats

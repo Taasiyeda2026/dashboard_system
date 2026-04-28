@@ -58,18 +58,23 @@ const ACTIVITY_SEARCH_FIELDS = [
 /** שם תצוגה למדריך/ים — כולל כינויים מה־API ומ־normalizeData (Employee וכו'). */
 function activityInstructorMeta(row, opts = {}) {
   const hideEmpIds = !!opts.hideEmpIds;
+  const instructorByEmpId = opts.instructorByEmpId || {};
   const n1 = String(row?.instructor_name ?? row?.Instructor ?? row?.Employee ?? '').trim();
   const n2 = String(row?.instructor_name_2 ?? row?.Instructor2 ?? row?.Employee2 ?? '').trim();
-  const names = [n1, n2].filter(Boolean);
   const e1 = String(row?.emp_id ?? row?.EmployeeID ?? row?.employee_id ?? '').trim();
   const e2 = String(row?.emp_id_2 ?? row?.EmployeeID2 ?? row?.employee_id_2 ?? '').trim();
+  const names = [
+    n1 || instructorByEmpId[e1] || '',
+    n2 || instructorByEmpId[e2] || ''
+  ].filter(Boolean);
   const empIds = [e1, e2].filter(Boolean);
   if (names.length) {
     return { text: names.join(' · '), hasInstructor: true, hasName: true, hasEmpId: empIds.length > 0 };
   }
   if (empIds.length) {
+    const linkedInstructorLabel = hideEmpIds ? 'מדריך משויך' : `מדריך משויך (${empIds.join(' · ')})`;
     return {
-      text: empIds.join(' · '),
+      text: linkedInstructorLabel,
       hasInstructor: true,
       hasName: false,
       hasEmpId: true
@@ -323,9 +328,16 @@ export const activitiesScreen = {
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canAddActivity = !!state?.user?.can_add_activity;
 
+    const rosterUsers = getRosterUsers(state?.clientSettings || {});
+    const instructorByEmpId = rosterUsers.reduce((acc, user) => {
+      const empId = String(user?.emp_id || '').trim();
+      const fullName = String(user?.name || '').trim();
+      if (empId && fullName && !acc[empId]) acc[empId] = fullName;
+      return acc;
+    }, {});
     const tableRows = safeRows
       .map((row) => {
-        const instructorMeta = activityInstructorMeta(row, { hideEmpIds });
+        const instructorMeta = activityInstructorMeta(row, { hideEmpIds, instructorByEmpId });
         const instructorDisplay = instructorMeta.hasInstructor
           ? `<span class="ds-activities-instructor-name${instructorMeta.hasName ? '' : ' is-derived'}">${escapeHtml(instructorMeta.text)}</span>`
           : '<span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>';
@@ -358,6 +370,7 @@ export const activitiesScreen = {
         <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}</div></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe)}</time></td>
+        <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(String(row.notes || '—'))}">${escapeHtml(String(row.notes || '—'))}</span></td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
     `;
@@ -390,9 +403,10 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--instructor">
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--notes">
                   ${canSeePrivateNotes ? '<col>' : ''}
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th>${thPrivate}</tr></thead>
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>הערות</th>${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
 
@@ -416,7 +430,7 @@ export const activitiesScreen = {
     const html = dsScreenStack(`<section class="ds-activities-screen">
       ${titleNavRow}
       ${mainToolbar}
-      ${dsCard({ title: `פעילויות · ${total} פעילויות נמצאו`, body: tableSection, padded: false })}
+      ${dsCard({ body: tableSection, padded: false })}
     </section>`);
     return html;
   },
@@ -553,7 +567,7 @@ export const activitiesScreen = {
       } catch {}
     }
 
-    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 280 });
+    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 420 });
     const runMonthShift = (delta) => {
       if (state.activitiesNavLoading) return;
       const startedAt = Date.now();

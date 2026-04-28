@@ -113,17 +113,14 @@ export const instructorsScreen = {
           });
 
           const items = myRows.flatMap((r) => {
-            const name = escapeHtml(String(r.activity_name || '—'));
-            const school = escapeHtml(String(r.school || '').trim());
-            const authority = escapeHtml(String(r.authority || '').trim());
-            const metaParts = [school, authority].filter(Boolean);
-            const metaHtml = metaParts.length
-              ? ` <span class="instr-act-meta">${metaParts.join(' · ')}</span>`
-              : '';
+            const courseName = escapeHtml(String(r.activity_name || '—'));
+            const school = escapeHtml(String(r.school || '—').trim() || '—');
+            const authority = escapeHtml(String(r.authority || '—').trim() || '—');
+            const metaHtml = `<span class="instr-act-meta">קורס: ${courseName} · בית ספר: ${school} · רשות: ${authority}</span>`;
             const isLong = String(r.source_sheet || '').trim() === 'data_long';
             if (!isLong) {
               if (ym && !String(r.start_date || '').startsWith(ym)) return [];
-              return [`<li class="instr-act-item">${name}${metaHtml}</li>`];
+              return [`<li class="instr-act-item">${metaHtml}</li>`];
             }
             if (ym) {
               const meetings = [];
@@ -133,10 +130,10 @@ export const instructorsScreen = {
               }
               if (meetings.length === 0) return [];
               return meetings.map(
-                (n) => `<li class="instr-act-item">${name} <span class="instr-meeting-pill">מפגש ${n}</span>${metaHtml}</li>`
+                (n) => `<li class="instr-act-item"><span class="instr-meeting-pill">מפגש ${n}</span> ${metaHtml}</li>`
               );
             }
-            return [`<li class="instr-act-item">${name}${metaHtml}</li>`];
+            return [`<li class="instr-act-item">${metaHtml}</li>`];
           });
 
           const list = items.length
