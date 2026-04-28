@@ -7641,6 +7641,99 @@ select.ds-activity-add-field .ds-input,
   padding: 6px;
   gap: 6px;
 }
+
+/* ===== Regression fix: compact activities UI + clean header nav ===== */
+.ds-act-nav-item--header {
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.65rem;
+}
+
+.ds-act-nav-grid--header .ds-act-nav-item__icon {
+  display: none;
+}
+
+.ds-activities-screen {
+  gap: 8px;
+}
+
+.ds-activities-main-toolbar {
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 6px 8px;
+}
+
+.ds-activities-main-toolbar__search-wrap .ds-input,
+.ds-activities-main-toolbar__actions .ds-btn {
+  min-height: 32px;
+}
+
+.ds-toolbar--filters-inline {
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid rgba(26, 51, 88, 0.12);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.ds-filter-select-inline {
+  width: 132px;
+  min-width: 132px;
+  max-width: 132px;
+}
+
+.ds-table--activities-list {
+  table-layout: fixed;
+}
+
+.ds-table--activities-list .ds-activities-col--program {
+  width: 28%;
+}
+.ds-table--activities-list .ds-activities-col--authority,
+.ds-table--activities-list .ds-activities-col--school,
+.ds-table--activities-list .ds-activities-col--instructor {
+  width: 16%;
+}
+.ds-table--activities-list .ds-activities-col--date {
+  width: 12%;
+}
+
+.ds-table--activities-list th {
+  text-align: right;
+  font-size: 0.72rem;
+  font-weight: 800;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.18);
+}
+
+.ds-table--activities-list td {
+  text-align: right;
+  padding-block: 6px;
+}
+
+.ds-activities-program-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ds-activities-program-name {
+  font-weight: 700;
+}
+
+.ds-activities-type-badge {
+  width: fit-content;
+  min-height: 20px;
+  font-size: 0.63rem;
+  padding: 1px 8px;
+}
+
+.ds-chip--instructor-empty {
+  min-height: 20px;
+  font-size: 0.62rem;
+  padding: 1px 8px;
+}
 .ds-cal-weekdays,
 .ds-cal-grid {
   gap: 6px;

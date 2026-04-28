@@ -98,7 +98,7 @@ export const exceptionsScreen = {
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const toolbarHtml = filtersToolbarHtml(EXCEPTIONS_SCOPE, allRows, state, {
       filterFields: EXCEPTION_FILTER_FIELDS,
-      searchPlaceholder: 'חיפוש חריגות…',
+      searchPlaceholder: 'חיפוש חריגות קורסים…',
       optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
     });
     const loadMoreHtml = hasMore
@@ -132,7 +132,7 @@ export const exceptionsScreen = {
     return dsScreenStack(`
       ${toolbarHtml}
       ${dsCard({
-        title: `חריגות${data?.month ? ` · ${escapeHtml(data.month)}` : ''} · ${total}`,
+        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(data.month)}` : ''} · ${total}`,
         body: compact,
         padded: visibleRows.length === 0
       })}

@@ -319,7 +319,11 @@ export const activitiesScreen = {
     const tableRows = safeRows
       .map((row) => {
         const instructorLine = activityInstructorLine(row, { hideEmpIds });
-        const instructorDisplay = instructorLine || 'ללא מדריך';
+        const instructorDisplay = instructorLine
+          ? `<span class="ds-activities-instructor-name">${escapeHtml(instructorLine)}</span>`
+          : '<span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>';
+        const activityTypeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
+        const activityName = escapeHtml(row.activity_name || '—');
         const startHe = formatDateHe(row.start_date) || '—';
         const endRaw = String(row?.end_date || '').trim() || String(row?.start_date || '').trim();
         const endHe = endRaw ? formatDateHe(endRaw) || '—' : '—';
@@ -341,12 +345,12 @@ export const activitiesScreen = {
           .join(' ');
         return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
-        <td><strong>${escapeHtml(row.activity_name || '—')}</strong><div class="ds-row-subtle">${escapeHtml(visibleActivityCategoryLabel(row.activity_type))}</div></td>
-        <td>${escapeHtml(row.authority || '—')}</td>
-        <td>${escapeHtml(row.school || '—')}</td>
-        <td>${escapeHtml(instructorDisplay)}</td>
-        <td>${escapeHtml(startHe)}</td>
-        <td>${escapeHtml(endHe)}</td>
+        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name">${activityName}</strong><span class="ds-chip ds-chip--status ds-chip--neutral ds-activities-type-badge">${activityTypeLabel}</span></div></td>
+        <td class="ds-activities-col ds-activities-col--authority">${escapeHtml(row.authority || '—')}</td>
+        <td class="ds-activities-col ds-activities-col--school">${escapeHtml(row.school || '—')}</td>
+        <td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>
+        <td class="ds-activities-col ds-activities-col--date">${escapeHtml(startHe)}</td>
+        <td class="ds-activities-col ds-activities-col--date">${escapeHtml(endHe)}</td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
     `;
@@ -359,7 +363,8 @@ export const activitiesScreen = {
     const centralOptions = getFilterOptionOverrides(state?.clientSettings || {});
     const toolbarHtml = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
       filterFields: ACTIVITY_FILTER_FIELDS,
-      layout: 'panel',
+      search: false,
+      clear: false,
       optionsOverrides: { ...centralOptions, funding: fundingOptions }
     });
     const loadMoreHtml = hasMore
@@ -369,7 +374,16 @@ export const activitiesScreen = {
     const tableSection =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive">
+        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
+                <colgroup>
+                  <col class="ds-activities-col--program">
+                  <col class="ds-activities-col--authority">
+                  <col class="ds-activities-col--school">
+                  <col class="ds-activities-col--instructor">
+                  <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--date">
+                  ${canSeePrivateNotes ? '<col>' : ''}
+                </colgroup>
                 <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th>${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;

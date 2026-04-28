@@ -62,7 +62,6 @@ export function headerNavGridHtml(state) {
         data-route="${escapeHtml(item.route)}"
         dir="rtl"
       >
-        <span class="ds-act-nav-item__icon" aria-hidden="true">${item.icon}</span>
         <span class="ds-act-nav-item__label">${escapeHtml(item.label)}</span>
       </button>`
     )
