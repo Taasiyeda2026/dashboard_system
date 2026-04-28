@@ -8140,28 +8140,117 @@ select.ds-activity-add-field .ds-input,
   border: 1px solid rgba(26, 51, 88, 0.1);
 }
 
-.instr-card-details {
-  margin-top: 4px;
-  padding: 8px;
-  border: 1px solid rgba(26, 51, 88, 0.1);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.9);
+/* ——— Instructor popup ——— */
+.instr-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 20, 40, 0.38);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  backdrop-filter: blur(2px);
 }
 
-.instr-act-list {
+.instr-popup {
+  background: var(--ds-surface);
+  border: 1px solid rgba(26, 51, 88, 0.15);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.1);
+  width: min(520px, 100%);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.instr-popup__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(26, 51, 88, 0.1);
+  background: rgba(240, 246, 255, 0.5);
+  gap: 8px;
+}
+
+.instr-popup__name {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--ds-text);
+}
+
+.instr-popup__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--ds-text-muted);
+  padding: 2px 6px;
+  border-radius: 6px;
+  line-height: 1;
+  transition: background 0.12s;
+}
+.instr-popup__close:hover { background: rgba(26, 51, 88, 0.08); }
+
+.instr-popup__body {
+  overflow-y: auto;
+  padding: 10px 12px;
+  flex: 1;
+}
+
+.instr-popup__empty {
   margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--ds-text-muted);
+  text-align: center;
+  padding: 12px 0;
 }
 
-.instr-act-item {
-  font-size: 0.74rem;
-  border: 1px solid rgba(26, 51, 88, 0.1);
-  border-radius: 8px;
-  padding: 4px 6px;
-  background: rgba(248, 250, 252, 0.9);
+.instr-popup-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.77rem;
+  direction: rtl;
+}
+
+.instr-popup-table th {
+  text-align: right;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--ds-text-muted);
+  padding: 4px 8px;
+  border-bottom: 2px solid rgba(26, 51, 88, 0.12);
+  white-space: nowrap;
+}
+
+.instr-popup-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(26, 51, 88, 0.06);
+  vertical-align: middle;
+}
+
+.instr-popup-table tbody tr:nth-child(even) td {
+  background: rgba(240, 246, 255, 0.5);
+}
+
+.instr-popup-table tbody tr:hover td {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.instr-pt__name {
+  font-weight: 600;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instr-pt__school,
+.instr-pt__authority {
+  color: var(--ds-text-muted);
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {
