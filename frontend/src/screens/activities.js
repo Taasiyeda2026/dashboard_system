@@ -368,10 +368,11 @@ export const activitiesScreen = {
 
     const fundingOptions = mergeOptions(state?.clientSettings || {}, ['funding', 'fundings']);
     const centralOptions = getFilterOptionOverrides(state?.clientSettings || {});
-    const toolbarHtml = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
+    const bareFilters = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
       filterFields: ACTIVITY_FILTER_FIELDS,
       search: false,
       clear: false,
+      bare: true,
       optionsOverrides: { ...centralOptions, funding: fundingOptions }
     });
     const loadMoreHtml = hasMore
@@ -397,13 +398,12 @@ export const activitiesScreen = {
 
     const isNavLoading = !!state.activitiesNavLoading;
     const navLoadingChip = isNavLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : '';
-    const mainToolbar = `<div class="ds-activities-main-toolbar">
-      <div class="ds-activities-main-toolbar__search-wrap">
-        <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
-      </div>
+    const mainToolbar = `<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
+      <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
+      ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
-        ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">+</button>` : ''}
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">↻</button>
+        ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">+</button>` : ''}
       </div>
     </div>`;
 
@@ -416,7 +416,6 @@ export const activitiesScreen = {
     const html = dsScreenStack(`<section class="ds-activities-screen">
       ${titleNavRow}
       ${mainToolbar}
-      ${toolbarHtml}
       ${dsCard({ title: `פעילויות · ${total} פעילויות נמצאו`, body: tableSection, padded: false })}
     </section>`);
     return html;

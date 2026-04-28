@@ -133,6 +133,10 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
     </section>`;
   }
 
+  if (config.bare) {
+    return filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('');
+  }
+
   return `<div class="ds-toolbar ds-toolbar--filters-inline" dir="rtl" data-local-filters="${escapeHtml(scope)}">
     ${showSearch ? `<input type="search" class="ds-input ds-input--sm ds-filter-search-sm" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="${escapeHtml(searchPlaceholder)}" />` : ''}
     ${filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
