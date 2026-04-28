@@ -1401,7 +1401,7 @@ span.ds-chip {
 
 .ds-act-nav-grid--header {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(53px, 1fr));
   align-items: stretch;
   width: 100%;
   margin: 0 var(--ds-space-2);
@@ -1411,7 +1411,7 @@ span.ds-chip {
 
 .ds-act-nav-item--header {
   min-height: 22px;
-  padding: 3px 5px;
+  padding: 3px 4px;
   font-size: 0.47rem;
   gap: 2px;
   white-space: nowrap;
