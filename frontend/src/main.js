@@ -1205,22 +1205,20 @@ async function render() {
             beginPerfTimer('login:applyBootstrap');
             applyBootstrapFromLoginData(data);
             renderShellLoadingImmediately();
-            try {
-              await mountScreen();
+            loginInlineError = '';
+            endPerfTimer('login:applyBootstrap');
+            scheduleRender();
+            mountScreen().then(() => {
               if (loginPerfStartMs > 0 && !initialRoutePerfReported) {
                 initialRoutePerfReported = true;
                 reportPerfMilestone('initial_route_loaded', performance.now() - loginPerfStartMs, {
                   route: String(state.route || '')
                 });
               }
-              loginInlineError = '';
-            } catch {
+            }).catch(async () => {
               rollbackToLogin('כשל בטעינת נתוני משתמש אחרי התחברות');
               await render();
-            }
-            endPerfTimer('login:applyBootstrap');
-            loginInlineError = '';
-            scheduleRender();
+            });
           } catch (error) {
             endPerfTimer('login:api.login');
             endPerfTimer('login:setSession');
