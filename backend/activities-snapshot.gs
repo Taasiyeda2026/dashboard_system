@@ -124,6 +124,7 @@ function filterActivitiesSnapshotRows_(rows, payload) {
   var family = text_(payload.family || '');
   var endingCurrentMonth = yesNo_(payload.ending_current_month || 'no') === 'yes';
   var monthFilter = text_(payload.month || formatDate_(new Date()).slice(0, 7));
+  var hasMonthFilter = /^\d{4}-\d{2}$/.test(monthFilter);
 
   return (Array.isArray(rows) ? rows : []).filter(function(row) {
     if (text_(row.status) === 'סגור') return false;
@@ -134,6 +135,7 @@ function filterActivitiesSnapshotRows_(rows, payload) {
     if (family === 'long' && programTypes.indexOf(text_(row.activity_type)) < 0) return false;
     if (endingCurrentMonth &&
       !(text_(row.activity_type) === 'course' && text_(row.end_date || '').slice(0, 7) === monthFilter)) return false;
+    if (hasMonthFilter && !activityOverlapsYm_(row, monthFilter)) return false;
     if (search) {
       var hay = [
         row.RowID,
