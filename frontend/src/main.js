@@ -809,17 +809,16 @@ function clearScreenDataCache() {
     Object.keys(state.screenDataCache).forEach((key) => {
       if (key.startsWith('finance:')) { delete state.screenDataCache[key]; deletedKeys.push(key); }
     });
+  } else if (state.route === 'week' || state.route === 'month' || state.route === 'dashboard') {
+    const ownPrefix = `${state.route}:`;
+    Object.keys(state.screenDataCache).forEach((key) => {
+      if (key.startsWith(ownPrefix)) { delete state.screenDataCache[key]; deletedKeys.push(key); }
+    });
   } else {
     const k = screenDataCacheKey();
     delete state.screenDataCache[k];
     deletedKeys.push(k);
   }
-  Object.keys(state.screenDataCache).forEach((key) => {
-    if (key.startsWith('dashboard:') || key.startsWith('week:') || key.startsWith('month:')) {
-      delete state.screenDataCache[key];
-      deletedKeys.push(key);
-    }
-  });
   deletedKeys.forEach(persistCacheDelete);
 }
 

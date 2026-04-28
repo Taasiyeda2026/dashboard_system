@@ -236,9 +236,7 @@ function resolveExceptionsCountForDashboard_(summaryObj, rawExceptions) {
   var lateEnd = parseInt(text_(summary.late_end_date_count), 10) || 0;
   var fromSummaryParts = missingInstr + missingStart + lateEnd;
   var fromRaw = parseInt(text_(rawExceptions), 10);
-  if (isNaN(fromRaw) || fromRaw < 0) return fromSummaryParts;
-  if (fromSummaryParts > 0 && fromRaw !== fromSummaryParts) return fromSummaryParts;
-  return fromRaw;
+  return (isNaN(fromRaw) || fromRaw < 0) ? fromSummaryParts : fromRaw;
 }
 
 function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, canViewFinance) {
