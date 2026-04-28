@@ -187,6 +187,24 @@ function getDashboardSnapshotFlags_() {
   return flags;
 }
 
+function getDashboardSnapshotFreshness_(controlMap) {
+  var map = controlMap && typeof controlMap === 'object' ? controlMap : readDashboardRefreshControlMap_();
+  var status = text_(map.last_status).toLowerCase();
+  var controlVersion = text_(map.data_views_version);
+  var currentVersion = dataViewsCacheVersion_();
+  var hasVersion = !!controlVersion;
+  var versionMatch = hasVersion && controlVersion === currentVersion;
+  var isPendingLike = !status || status === 'pending' || status === 'stale' || status === 'missing';
+  var fresh = status === 'ok' && versionMatch;
+  return {
+    fresh: fresh,
+    status: status || 'missing',
+    control_version: controlVersion,
+    current_version: currentVersion,
+    reason: !hasVersion ? 'missing_version' : (isPendingLike ? ('status_' + (status || 'missing')) : (versionMatch ? '' : 'version_mismatch'))
+  };
+}
+
 function parseJsonObjectSafeForDashboard_(raw, fallback) {
   if (raw === null || raw === undefined) return fallback;
   if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
@@ -366,6 +384,37 @@ function actionDashboardSnapshot_(user, payload) {
 
   var ym = dashboardPayloadYm_(payload || {});
   var nextYm = shiftYm_(ym, 1);
+
+  if (payload && payload.force_full === true) {
+    var forcedData = actionDashboard_(user, payload);
+    if (forcedData && typeof forcedData === 'object') forcedData._is_snapshot = false;
+    setRequestPerfField_('dashboard_used_view', false);
+    setRequestPerfField_('dashboard_cache_hit', false);
+    setRequestPerfField_('dashboard_fallback_used', true);
+    setRequestPerfField_('dashboard_view_rows_read', 0);
+    setRequestPerfField_('payload_bytes', JSON.stringify(forcedData || {}).length);
+    markRequestPerf_('dashboard:force_full:true');
+    markRequestPerf_('dashboard:fallback_used:true');
+    return forcedData;
+  }
+
+  var refreshControlMap = readDashboardRefreshControlMap_();
+  var snapshotFreshness = getDashboardSnapshotFreshness_(refreshControlMap);
+  if (!snapshotFreshness.fresh) {
+    var freshFallback = actionDashboard_(user, payload || {});
+    if (freshFallback && typeof freshFallback === 'object') {
+      freshFallback._is_snapshot = false;
+      freshFallback._snapshot_fallback_reason = snapshotFreshness.reason || 'stale_snapshot';
+    }
+    setRequestPerfField_('dashboard_used_view', false);
+    setRequestPerfField_('dashboard_cache_hit', false);
+    setRequestPerfField_('dashboard_fallback_used', true);
+    setRequestPerfField_('dashboard_view_rows_read', 0);
+    setRequestPerfField_('payload_bytes', JSON.stringify(freshFallback || {}).length);
+    markRequestPerf_('dashboard:force_fallback_by_freshness:true');
+    markRequestPerf_('dashboard:fallback_used:true');
+    return freshFallback;
+  }
 
   markRequestPerf_('dashboardSnapshot:monthly view lookup:start');
   var viewTry = null;
@@ -777,7 +826,8 @@ function updateDashboardRefreshControl_(status, message) {
   var entries = [
     { key: 'last_refresh_at', value: now,     label_he: 'עדכון אחרון' },
     { key: 'last_status',     value: status,  label_he: 'סטטוס' },
-    { key: 'last_message',    value: message, label_he: 'הודעה' }
+    { key: 'last_message',    value: message, label_he: 'הודעה' },
+    { key: 'data_views_version', value: dataViewsCacheVersion_(), label_he: 'גרסת נתונים' }
   ];
 
   entries.forEach(function(entry) {

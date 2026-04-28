@@ -173,6 +173,39 @@ function collectProgramExceptions_(rows, opts) {
   };
 }
 
+function computeCourseExceptionsModel_(rows, ym, opts) {
+  var options = opts || {};
+  var includeRows = options.include_rows === true;
+  var sourceRows = Array.isArray(rows) ? rows : [];
+  var month = text_(ym || '');
+  var payload = collectProgramExceptions_(sourceRows, {
+    month: month,
+    include_activity_types: ['course'],
+    include_per_type_rows: includeRows
+  });
+  var relevantRows = sourceRows.filter(function(row) {
+    if (text_(row && row.activity_type) !== 'course') return false;
+    if (month && !activityOverlapsYm_(row, month)) return false;
+    return !isExcludedStatusForControl_(row && row.status);
+  });
+  var byManagerExceptionInstances = {};
+  relevantRows.forEach(function(row) {
+    var manager = text_(row && row.activity_manager) || 'unassigned';
+    var exceptionsForRow = rowExceptionTypes_(row).length;
+    if (!exceptionsForRow) return;
+    byManagerExceptionInstances[manager] = (byManagerExceptionInstances[manager] || 0) + exceptionsForRow;
+  });
+
+  return {
+    month: month,
+    counts: payload.counts || {},
+    rows: payload.rows || [],
+    total_exception_instances: payload.total_exception_instances || 0,
+    total_exception_rows: payload.total_exception_rows || 0,
+    by_manager_exception_instances: byManagerExceptionInstances
+  };
+}
+
 function primaryExceptionForRow_(row) {
   var types = rowExceptionTypes_(row);
   if (!types.length) return '';
@@ -452,12 +485,8 @@ function actionDashboard_(user, payload) {
       managerFinanceOpen[manager] += 1;
     }
 
-    if (programTypes.indexOf(t) >= 0) {
-      if (activityOverlapsYm_(row, ym)) {
-        var rowExceptionsCount = rowExceptionTypes_(row).length;
-        if (rowExceptionsCount > 0) managerExceptions[manager] += rowExceptionsCount;
-      }
-      if (t === 'course' && text_(row.end_date).slice(0, 7) === ym) managerCourseEndings[manager] += 1;
+    if (programTypes.indexOf(t) >= 0 && t === 'course' && text_(row.end_date).slice(0, 7) === ym) {
+      managerCourseEndings[manager] += 1;
     }
 
     if (activityOverlapsYm_(row, ym) && isActivityActiveBySpec_(row, dashboardRefIso)) {
@@ -531,15 +560,12 @@ function actionDashboard_(user, payload) {
     }
     if (exceptionTypes.indexOf('late_end_date') >= 0) lateEndDateCount += 1;
   });
-  var exceptionSummary = collectProgramExceptions_(longRows, {
-    month: ym,
-    include_activity_types: ['course'],
-    include_per_type_rows: false
-  });
+  var exceptionSummary = computeCourseExceptionsModel_(longRows, ym, { include_rows: false });
   missingInstructorCount = exceptionSummary.counts.missing_instructor || 0;
   missingStartDateCount = exceptionSummary.counts.missing_start_date || 0;
   lateEndDateCount = exceptionSummary.counts.late_end_date || 0;
   var exceptionSum = exceptionSummary.total_exception_instances || 0;
+  managerExceptions = exceptionSummary.by_manager_exception_instances || {};
 
 
   var shortActivitiesByType = {};
@@ -1431,18 +1457,13 @@ function actionMonth_(user, payload) {
 function actionExceptions_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var month = text_((payload && payload.month) || '');
-  var includeActivityTypes = ['course'];
   var rows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
-  var exceptionPayload = collectProgramExceptions_(rows, {
-    month: month,
-    include_activity_types: includeActivityTypes,
-    include_per_type_rows: true
-  });
+  var exceptionPayload = computeCourseExceptionsModel_(rows, month, { include_rows: true });
   var counts = exceptionPayload.counts || {};
   var result = exceptionPayload.rows || [];
   var relevantRows = rows.filter(function(row) {
     return !isExcludedStatusForControl_(row && row.status) &&
-      includeActivityTypes.indexOf(text_(row && row.activity_type)) >= 0 &&
+      text_(row && row.activity_type) === 'course' &&
       (!month || activityOverlapsYm_(row, month));
   });
   var missingInstructorExamples = [];
