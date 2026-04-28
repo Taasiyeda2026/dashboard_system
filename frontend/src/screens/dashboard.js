@@ -186,13 +186,15 @@ export const dashboardScreen = {
       .map((row) => {
         const mgr = encodeURIComponent(row.activity_manager);
         const displayName = MANAGER_DISPLAY_NAMES[row.activity_manager] || row.activity_manager;
+        const isDistrict = !!MANAGER_DISPLAY_NAMES[row.activity_manager];
         const exceptionsValue = Number(row.exceptions ?? 0);
-        const stats = [
+        const allStats = [
           { label: 'תוכניות פעילות', value: row.total_long      ?? 0, action: `mstat|${mgr}|long` },
           { label: 'מדריכים פעילים',  value: row.num_instructors ?? 0, action: `mstat|${mgr}|instructors` },
           { label: 'חריגות',           value: exceptionsValue, action: `mstat|${mgr}|exceptions` },
           { label: 'סיומי קורסים',    value: row.course_endings  ?? 0, action: `mstat|${mgr}|endings` },
         ];
+        const stats = isDistrict ? allStats.filter((s) => s.label !== 'חריגות') : allStats;
         const statsHtml = stats
           .map((s) => {
             const displayValue = s.label === 'חריגות' && Number(s.value || 0) === 0 ? 'מצב תקין' : s.value;
@@ -202,7 +204,7 @@ export const dashboardScreen = {
             </button>`;
           })
           .join('');
-        return `<div class="ds-manager-card">
+        return `<div class="ds-manager-card${isDistrict ? ' ds-manager-card--district' : ''}">
           <div class="ds-manager-card__head">
             <p class="ds-manager-card__name">${escapeHtml(displayName)}</p>
           </div>

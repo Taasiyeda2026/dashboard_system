@@ -2884,6 +2884,10 @@ span.ds-chip {
   justify-items: stretch;
 }
 
+.ds-manager-card--district .ds-manager-stats {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .ds-manager-stat {
   display: flex;
   flex-direction: column;
