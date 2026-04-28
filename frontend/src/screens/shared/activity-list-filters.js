@@ -121,6 +121,7 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   }
 
   const showSearch = config.search !== false;
+  const showClear = config.clear !== false;
   const searchPlaceholder = config.searchPlaceholder || 'חיפוש…';
 
   const isPanel = config.layout === 'panel';
@@ -135,7 +136,7 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   return `<div class="ds-toolbar ds-toolbar--filters-inline" dir="rtl" data-local-filters="${escapeHtml(scope)}">
     ${showSearch ? `<input type="search" class="ds-input ds-input--sm ds-filter-search-sm" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="${escapeHtml(searchPlaceholder)}" />` : ''}
     ${filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
-    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-filter-clear="${escapeHtml(scope)}">ניקוי</button>
+    ${showClear ? `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-filter-clear="${escapeHtml(scope)}">ניקוי</button>` : ''}
   </div>`;
 }
 

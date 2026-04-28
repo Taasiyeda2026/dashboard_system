@@ -115,7 +115,10 @@ function rowExceptionTypes_(row) {
 function collectProgramExceptions_(rows, opts) {
   var options = opts || {};
   var ym = text_(options.month || '');
-  var programTypes = configuredProgramActivityTypes_();
+  var includeActivityTypes = Array.isArray(options.include_activity_types)
+    ? options.include_activity_types.map(function(t) { return text_(t); }).filter(function(t) { return !!t; })
+    : ['course'];
+  if (!includeActivityTypes.length) includeActivityTypes = ['course'];
   var includePerTypeRows = options.include_per_type_rows !== false;
   var sourceRows = Array.isArray(rows) ? rows : [];
   var counts = {
@@ -127,7 +130,7 @@ function collectProgramExceptions_(rows, opts) {
   var rowLevelExceptionCount = 0;
 
   sourceRows.forEach(function(row) {
-    if (programTypes.indexOf(text_(row && row.activity_type)) < 0) return;
+    if (includeActivityTypes.indexOf(text_(row && row.activity_type)) < 0) return;
     if (ym && !activityOverlapsYm_(row, ym)) return;
     var types = rowExceptionTypes_(row);
     if (!types.length) return;
@@ -528,7 +531,11 @@ function actionDashboard_(user, payload) {
     }
     if (exceptionTypes.indexOf('late_end_date') >= 0) lateEndDateCount += 1;
   });
-  var exceptionSummary = collectProgramExceptions_(longRows, { month: ym, include_per_type_rows: false });
+  var exceptionSummary = collectProgramExceptions_(longRows, {
+    month: ym,
+    include_activity_types: ['course'],
+    include_per_type_rows: false
+  });
   missingInstructorCount = exceptionSummary.counts.missing_instructor || 0;
   missingStartDateCount = exceptionSummary.counts.missing_start_date || 0;
   lateEndDateCount = exceptionSummary.counts.late_end_date || 0;
@@ -1424,16 +1431,18 @@ function actionMonth_(user, payload) {
 function actionExceptions_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var month = text_((payload && payload.month) || '');
+  var includeActivityTypes = ['course'];
   var rows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
   var exceptionPayload = collectProgramExceptions_(rows, {
     month: month,
+    include_activity_types: includeActivityTypes,
     include_per_type_rows: true
   });
   var counts = exceptionPayload.counts || {};
   var result = exceptionPayload.rows || [];
   var relevantRows = rows.filter(function(row) {
     return !isExcludedStatusForControl_(row && row.status) &&
-      configuredProgramActivityTypes_().indexOf(text_(row && row.activity_type)) >= 0 &&
+      includeActivityTypes.indexOf(text_(row && row.activity_type)) >= 0 &&
       (!month || activityOverlapsYm_(row, month));
   });
   var missingInstructorExamples = [];

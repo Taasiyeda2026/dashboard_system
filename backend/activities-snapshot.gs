@@ -76,10 +76,14 @@ function normalizeActivitiesSnapshotRow_(row) {
   var src = row && typeof row === 'object' ? row : {};
   var normalized = {};
   Object.keys(src).forEach(function(key) { normalized[key] = src[key]; });
-  normalized.instructor_name = text_(src.instructor_name || src.Instructor || src.Employee);
-  normalized.instructor_name_2 = text_(src.instructor_name_2 || src.Instructor2);
-  normalized.emp_id = text_(src.emp_id || src.EmployeeID);
-  normalized.emp_id_2 = text_(src.emp_id_2);
+  var instructor1 = text_(src.instructor_name || src.Instructor || src.Employee || src.employee_name || src.employee);
+  var instructor2 = text_(src.instructor_name_2 || src.Instructor2 || src.Employee2 || src.employee_name_2 || src.employee2_name || src.employee2);
+  var emp1 = text_(src.emp_id || src.EmployeeID || src.employee_id);
+  var emp2 = text_(src.emp_id_2 || src.EmployeeID2 || src.employee_id_2);
+  normalized.instructor_name = instructor1;
+  normalized.instructor_name_2 = instructor2;
+  normalized.emp_id = emp1;
+  normalized.emp_id_2 = emp2;
   if (!normalized.source_sheet) {
     var rowId = text_(src.RowID);
     normalized.source_sheet = rowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT;
