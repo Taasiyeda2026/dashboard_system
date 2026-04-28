@@ -5,7 +5,7 @@
   "main": "sw.js",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/interactions.test.mjs"
+    "test": "node --test tests/*.test.mjs"
   },
   "keywords": [],
   "author": "",

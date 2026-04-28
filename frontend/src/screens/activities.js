@@ -56,19 +56,26 @@ const ACTIVITY_SEARCH_FIELDS = [
 ];
 
 /** שם תצוגה למדריך/ים — כולל כינויים מה־API ומ־normalizeData (Employee וכו'). */
-function activityInstructorLine(row, opts = {}) {
+function activityInstructorMeta(row, opts = {}) {
   const hideEmpIds = !!opts.hideEmpIds;
   const n1 = String(row?.instructor_name ?? row?.Instructor ?? row?.Employee ?? '').trim();
-  const n2 = String(row?.instructor_name_2 ?? row?.Instructor2 ?? '').trim();
-  const parts = [n1, n2].filter(Boolean);
-  if (parts.length) return parts.join(' · ');
-  if (!hideEmpIds) {
-    const e1 = String(row?.emp_id ?? row?.EmployeeID ?? '').trim();
-    const e2 = String(row?.emp_id_2 ?? '').trim();
-    const empParts = [e1, e2].filter(Boolean);
-    if (empParts.length) return empParts.join(' · ');
+  const n2 = String(row?.instructor_name_2 ?? row?.Instructor2 ?? row?.Employee2 ?? '').trim();
+  const names = [n1, n2].filter(Boolean);
+  const e1 = String(row?.emp_id ?? row?.EmployeeID ?? row?.employee_id ?? '').trim();
+  const e2 = String(row?.emp_id_2 ?? row?.EmployeeID2 ?? row?.employee_id_2 ?? '').trim();
+  const empIds = [e1, e2].filter(Boolean);
+  if (names.length) {
+    return { text: names.join(' · '), hasInstructor: true, hasName: true, hasEmpId: empIds.length > 0 };
   }
-  return '';
+  if (empIds.length) {
+    return {
+      text: hideEmpIds ? 'מדריך משויך' : empIds.join(' · '),
+      hasInstructor: true,
+      hasName: false,
+      hasEmpId: true
+    };
+  }
+  return { text: '', hasInstructor: false, hasName: false, hasEmpId: false };
 }
 
 const FAMILY_LABEL_SHORT = 'חד-יומיות';
@@ -318,9 +325,9 @@ export const activitiesScreen = {
 
     const tableRows = safeRows
       .map((row) => {
-        const instructorLine = activityInstructorLine(row, { hideEmpIds });
-        const instructorDisplay = instructorLine
-          ? `<span class="ds-activities-instructor-name">${escapeHtml(instructorLine)}</span>`
+        const instructorMeta = activityInstructorMeta(row, { hideEmpIds });
+        const instructorDisplay = instructorMeta.hasInstructor
+          ? `<span class="ds-activities-instructor-name${instructorMeta.hasName ? '' : ' is-derived'}">${escapeHtml(instructorMeta.text)}</span>`
           : '<span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>';
         const activityTypeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
         const activityName = escapeHtml(row.activity_name || '—');
@@ -345,12 +352,12 @@ export const activitiesScreen = {
           .join(' ');
         return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
-        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name">${activityName}</strong><span class="ds-chip ds-chip--status ds-chip--neutral ds-activities-type-badge">${activityTypeLabel}</span></div></td>
-        <td class="ds-activities-col ds-activities-col--authority">${escapeHtml(row.authority || '—')}</td>
-        <td class="ds-activities-col ds-activities-col--school">${escapeHtml(row.school || '—')}</td>
-        <td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>
-        <td class="ds-activities-col ds-activities-col--date">${escapeHtml(startHe)}</td>
-        <td class="ds-activities-col ds-activities-col--date">${escapeHtml(endHe)}</td>
+        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span></div></td>
+        <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
+        <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.school || '—')}">${escapeHtml(row.school || '—')}</span></td>
+        <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}</div></td>
+        <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
+        <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe)}</time></td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
     `;

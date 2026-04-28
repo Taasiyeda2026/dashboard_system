@@ -7821,3 +7821,120 @@ select.ds-activity-add-field .ds-input,
   font-size: 0.56rem;
   padding: 2px 5px;
 }
+
+
+/* ===== Activities hard-fix: compact symmetric table + compact header nav ===== */
+.shell-header-nav.ds-act-nav-grid--header {
+  gap: 4px;
+  padding: 0;
+}
+
+.shell-header-nav.ds-act-nav-grid--header .ds-act-nav-item--header {
+  min-height: 24px;
+  height: 24px;
+  padding: 1px 6px;
+  border-radius: 7px;
+  font-size: 0.56rem;
+  line-height: 1;
+  gap: 0;
+}
+
+.shell-header-nav.ds-act-nav-grid--header .ds-act-nav-item__icon {
+  display: none;
+}
+
+.ds-table--activities-list {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.ds-table--activities-list col.ds-activities-col--program { width: 30%; }
+.ds-table--activities-list col.ds-activities-col--authority { width: 15%; }
+.ds-table--activities-list col.ds-activities-col--school { width: 20%; }
+.ds-table--activities-list col.ds-activities-col--instructor { width: 18%; }
+.ds-table--activities-list col.ds-activities-col--date { width: 8.5%; }
+
+.ds-table--activities-list th,
+.ds-table--activities-list td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-table--activities-list th {
+  padding: 6px 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  background: #f4f7fb;
+  border-bottom: 1px solid rgba(26, 51, 88, 0.18);
+}
+
+.ds-table--activities-list td {
+  padding: 4px 8px;
+  height: 34px;
+  line-height: 1.15;
+}
+
+.ds-activities-cell-ellipsis {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-activities-program-cell {
+  min-width: 0;
+  gap: 1px;
+}
+
+.ds-activities-program-name {
+  display: block;
+  font-size: 0.79rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-activities-program-type {
+  display: block;
+  font-size: 0.64rem;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-activities-instructor-wrap {
+  min-width: 0;
+}
+
+.ds-activities-instructor-name {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 0.74rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-activities-instructor-name.is-derived {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.ds-chip--instructor-empty {
+  min-height: 16px;
+  font-size: 0.58rem;
+  padding: 0 6px;
+  border-radius: 999px;
+}
+
+.ds-activities-date {
+  display: block;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+}
