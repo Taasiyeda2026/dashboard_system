@@ -7785,12 +7785,12 @@ select.ds-activity-add-field .ds-input,
 }
 .ds-cal-grid .ds-interactive-card--day-cell {
   padding: 4px 6px;
-  border: 1px solid var(--ds-border);
-  box-shadow: none;
+  border: 1px solid rgba(26, 51, 88, 0.18);
+  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.08), 0 0 0 0.5px rgba(26, 51, 88, 0.06);
 }
 .ds-interactive-card.has-activities {
-  background: #ecf8f1;
-  border-color: #b8e8cb;
+  background: rgba(16, 185, 129, 0.07);
+  border-color: rgba(16, 185, 129, 0.3);
 }
 .ds-interactive-card.is-no-activities {
   background: #fafbfd;
