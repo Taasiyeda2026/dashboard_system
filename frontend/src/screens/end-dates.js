@@ -18,12 +18,10 @@ function resolveDates(row) {
     ? row.meeting_dates.map((d) => asIso(d)).filter(Boolean)
     : [];
   if (fromMeetings.length) return { dates: fromMeetings, source: 'meetings' };
-
   const fromCols = Array.isArray(row?.date_cols)
     ? row.date_cols.map((d) => asIso(d)).filter(Boolean)
     : [];
   if (fromCols.length) return { dates: fromCols, source: 'cols' };
-
   return { dates: [], source: 'none' };
 }
 
@@ -55,66 +53,74 @@ function groupByMonth(rows) {
   return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
-function renderActivityCard(row) {
-  const dates = row._dates || [];
-  const fromMeetings = row._dateSource === 'meetings';
+function renderMonthTable(month, monthIdx) {
+  const tableRows = month.rows.map((row, rowIdx) => {
+    const rowId   = `ed-${monthIdx}-${rowIdx}`;
+    const dates   = row._dates || [];
+    const pillsHtml = dates.length
+      ? dates.map((iso) => `<span class="ds-end-dates__date-pill">${escapeHtml(formatDateHe(iso))}</span>`).join('')
+      : '<span class="ds-end-dates__muted">לא נמצאו תאריכי מפגש.</span>';
 
-  const datesHtml = dates.length
-    ? `<div class="ds-end-dates__dates-list">${dates
-        .map((iso) => `<span class="ds-end-dates__date-pill">${escapeHtml(formatDateHe(iso))}</span>`)
-        .join('')}</div>`
-    : '<p class="ds-end-dates__muted">לא נמצאו תאריכים.</p>';
+    return `<tr class="ds-end-row" data-end-row="${escapeHtml(rowId)}">
+        <td class="ds-end-td ds-end-td--name">${escapeHtml(String(row.activity_name || '—'))}</td>
+        <td class="ds-end-td">${escapeHtml(String(row.school || '—'))}</td>
+        <td class="ds-end-td">${escapeHtml(String(row.authority || '—'))}</td>
+        <td class="ds-end-td ds-end-td--date"><time>${escapeHtml(formatDateHe(row.end_date))}</time></td>
+        <td class="ds-end-td ds-end-td--actions">
+          <button type="button" class="ds-end-export-btn" data-end-export="${escapeHtml(rowId)}" title="ייצוא שורה זו לאקסל" aria-label="ייצוא לאקסל">⬇</button>
+        </td>
+      </tr>
+      <tr class="ds-end-expand-row" id="ds-end-expand-${escapeHtml(rowId)}" hidden>
+        <td colspan="5" class="ds-end-expand-td">
+          <div class="ds-end-dates__dates-list">${pillsHtml}</div>
+        </td>
+      </tr>`;
+  }).join('');
 
-  const sourceLabel = fromMeetings
-    ? `<span class="ds-end-dates__source-badge">activity_meetings</span>`
-    : `<span class="ds-end-dates__source-badge ds-end-dates__source-badge--fallback">Date1-Date35</span>`;
-
-  return `<details class="ds-activity-accordion ds-end-dates__activity" data-end-dates-accordion>
-    <summary class="ds-activity-accordion__summary ds-end-dates__summary" role="button" aria-label="פתיחת פירוט תאריכים">
-      <span class="ds-activity-accordion__name ds-end-dates__summary-grid">
-        <span>${escapeHtml(String(row.activity_name || '—'))}</span>
-        <span>${escapeHtml(String(row.school || '—'))}</span>
-        <span>${escapeHtml(String(row.authority || '—'))}</span>
-        <span>${escapeHtml(formatDateHe(row.end_date))}</span>
-      </span>
-      <span class="ds-activity-accordion__chevron" aria-hidden="true">›</span>
-    </summary>
-    <div class="ds-activity-accordion__body">
-      <p class="ds-end-dates__dates-title">${sourceLabel} מפגשים (${escapeHtml(String(dates.length))})</p>
-      ${datesHtml}
-    </div>
-  </details>`;
+  return `<section class="ds-end-dates__month-group" dir="rtl">
+    <h3 class="ds-end-dates__month-title">
+      ${escapeHtml(month.label)}
+      <span class="ds-end-dates__month-count">${month.rows.length}</span>
+    </h3>
+    <table class="ds-end-table" dir="rtl">
+      <thead><tr>
+        <th class="ds-end-th ds-end-th--name">שם פעילות</th>
+        <th class="ds-end-th">בית ספר</th>
+        <th class="ds-end-th">רשות</th>
+        <th class="ds-end-th ds-end-th--date">תאריך סיום</th>
+        <th class="ds-end-th ds-end-th--actions"></th>
+      </tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  </section>`;
 }
 
-function exportRowsToExcel(rows) {
-  const headers = ['חודש', 'שם פעילות', 'בית ספר', 'רשות', 'תאריך סיום', 'פירוט תאריכים', 'מקור תאריכים'];
-  const tableRows = rows
-    .map((row) => {
-      const month = monthLabelFromIso(`${row.end_date.slice(0, 7)}-01`);
-      const datesText = (row._dates || []).map((iso) => formatDateHe(iso)).join(', ');
-      const source = row._dateSource === 'meetings' ? 'activity_meetings' : 'Date1-Date35';
-      return `<tr>
-        <td>${escapeHtml(month)}</td>
-        <td>${escapeHtml(String(row.activity_name || ''))}</td>
-        <td>${escapeHtml(String(row.school || ''))}</td>
-        <td>${escapeHtml(String(row.authority || ''))}</td>
-        <td>${escapeHtml(formatDateHe(row.end_date))}</td>
-        <td>${escapeHtml(datesText)}</td>
-        <td>${escapeHtml(source)}</td>
-      </tr>`;
-    })
-    .join('');
+function buildExcelBlob(rows) {
+  const headers = ['שם פעילות', 'בית ספר', 'רשות', 'תאריך סיום', 'תאריכי מפגשים'];
+  const tableRows = rows.map((row) => {
+    const datesText = (row._dates || []).map((iso) => formatDateHe(iso)).join(', ');
+    return `<tr>
+      <td>${escapeHtml(String(row.activity_name || ''))}</td>
+      <td>${escapeHtml(String(row.school || ''))}</td>
+      <td>${escapeHtml(String(row.authority || ''))}</td>
+      <td>${escapeHtml(formatDateHe(row.end_date))}</td>
+      <td>${escapeHtml(datesText)}</td>
+    </tr>`;
+  }).join('');
 
-  const html = `<!doctype html><html dir="rtl" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>
-    <table border="1"><thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${tableRows}</tbody></table>
-  </body></html>`;
+  const html = `<!doctype html><html dir="rtl" xmlns:x="urn:schemas-microsoft-com:office:excel">
+    <head><meta charset="UTF-8"></head><body>
+    <table border="1"><thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+    <tbody>${tableRows}</tbody></table></body></html>`;
 
-  const blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  return new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+}
+
+function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const stamp = new Date().toISOString().slice(0, 10);
-  a.href = url;
-  a.download = `תאריכי_סיום_${stamp}.xls`;
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -123,22 +129,18 @@ function exportRowsToExcel(rows) {
 
 export const endDatesScreen = {
   load: ({ api }) => api.endDates(),
+
   render(data) {
     const rawRows = Array.isArray(data?.rows) ? data.rows : [];
-    const rows = normalizeRows(rawRows);
-    const months = groupByMonth(rows);
+    const rows    = normalizeRows(rawRows);
+    const months  = groupByMonth(rows);
 
     const headerTools = `<div class="ds-end-dates__head-tools">
-      <button type="button" class="ds-icon-btn" data-end-dates-export title="ייצוא לאקסל" aria-label="ייצוא לאקסל">⬇️</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-end-dates-export title="ייצוא כל הפעילויות לאקסל" aria-label="ייצוא הכל לאקסל">⬇ ייצוא הכל</button>
     </div>`;
 
     const body = months.length
-      ? `<div class="ds-end-dates__months">${months
-          .map((month) => `<section class="ds-end-dates__month-group" data-end-dates-month="${escapeHtml(month.key)}">
-            <h3 class="ds-end-dates__month-title">${escapeHtml(month.label)}</h3>
-            <div class="ds-end-dates__month-list">${month.rows.map(renderActivityCard).join('')}</div>
-          </section>`)
-          .join('')}</div>`
+      ? `<div class="ds-end-dates__months">${months.map((m, i) => renderMonthTable(m, i)).join('')}</div>`
       : dsEmptyState('לא נמצאו פעילויות מתמשכות עם תאריך סיום');
 
     return dsScreenStack(
@@ -150,10 +152,44 @@ export const endDatesScreen = {
       })
     );
   },
+
   bind({ root, data }) {
-    const rows = normalizeRows(Array.isArray(data?.rows) ? data.rows : []);
+    const allRows = normalizeRows(Array.isArray(data?.rows) ? data.rows : []);
+    const months  = groupByMonth(allRows);
+
+    const rowMap = new Map();
+    months.forEach((month, monthIdx) => {
+      month.rows.forEach((row, rowIdx) => rowMap.set(`ed-${monthIdx}-${rowIdx}`, row));
+    });
+
     root.querySelector('[data-end-dates-export]')?.addEventListener('click', () => {
-      exportRowsToExcel(rows);
+      const stamp = new Date().toISOString().slice(0, 10);
+      triggerDownload(buildExcelBlob(allRows), `תאריכי_סיום_${stamp}.xls`);
+    });
+
+    root.querySelectorAll('[data-end-row]').forEach((tr) => {
+      tr.addEventListener('click', (e) => {
+        if (e.target.closest('[data-end-export]')) return;
+        const rowId    = tr.dataset.endRow;
+        const expandTr = document.getElementById(`ds-end-expand-${rowId}`);
+        if (!expandTr) return;
+        const isOpen   = !expandTr.hidden;
+        expandTr.hidden = isOpen;
+        tr.classList.toggle('is-expanded', !isOpen);
+      });
+    });
+
+    root.querySelectorAll('[data-end-export]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rowId = btn.dataset.endExport;
+        const row   = rowMap.get(rowId);
+        if (!row) return;
+        const name  = String(row.activity_name || 'פעילות')
+          .replace(/[/\\?%*:|"<>]/g, '_').slice(0, 40);
+        const stamp = new Date().toISOString().slice(0, 10);
+        triggerDownload(buildExcelBlob([row]), `${name}_${stamp}.xls`);
+      });
     });
   }
 };

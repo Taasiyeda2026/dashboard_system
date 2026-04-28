@@ -7240,59 +7240,137 @@ select.ds-input {
 .ds-end-dates__head-tools {
   display: flex;
   justify-content: flex-start;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .ds-end-dates__months {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .ds-end-dates__month-title {
   margin: 0 0 8px;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 800;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ds-end-dates__month-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(59, 130, 246, 0.1);
+  color: #1e40af;
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.ds-end-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  table-layout: fixed;
+}
+
+.ds-end-th {
+  text-align: right;
+  font-size: 0.71rem;
+  font-weight: 700;
+  color: #475569;
+  padding: 5px 8px;
+  border-bottom: 2px solid rgba(26, 51, 88, 0.14);
+  white-space: nowrap;
+  background: #f8fafc;
+}
+
+.ds-end-th--name   { width: 35%; }
+.ds-end-th--date   { width: 16%; }
+.ds-end-th--actions { width: 42px; }
+
+.ds-end-td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(26, 51, 88, 0.07);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-end-td--name {
+  font-weight: 600;
   color: #1e293b;
 }
 
-.ds-end-dates__month-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.ds-end-td--date {
+  white-space: nowrap;
+  color: #475569;
+  font-size: 0.74rem;
 }
 
-.ds-end-dates__activity {
-  margin-bottom: 0;
+.ds-end-td--actions {
+  text-align: center;
+  padding: 4px;
 }
 
-.ds-end-dates__summary {
-  align-items: center;
+.ds-end-row {
+  cursor: pointer;
+  transition: background 0.1s;
 }
 
-.ds-end-dates__summary-grid {
-  display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr auto;
-  gap: 8px;
-  align-items: center;
+.ds-end-row:nth-child(4n+1) td,
+.ds-end-row:nth-child(4n+2) td {
+  background: #fafbfd;
 }
 
-.ds-end-dates__dates-title {
-  margin: 0;
-  font-size: 0.86rem;
-  color: #334155;
-  font-weight: 700;
+.ds-end-row:hover td {
+  background: #eef4ff !important;
+}
+
+.ds-end-row.is-expanded td {
+  background: rgba(59, 130, 246, 0.06) !important;
+  border-bottom-color: transparent;
+}
+
+.ds-end-expand-row td {
+  border-bottom: 1px solid rgba(26, 51, 88, 0.1);
+}
+
+.ds-end-expand-td {
+  padding: 6px 12px 10px;
+  background: rgba(240, 246, 255, 0.5);
+}
+
+.ds-end-export-btn {
+  background: none;
+  border: 1px solid rgba(26, 51, 88, 0.15);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  color: #475569;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1.4;
+}
+
+.ds-end-export-btn:hover {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #1e40af;
 }
 
 .ds-end-dates__dates-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
+  padding: 2px 0;
 }
 
 .ds-end-dates__date-pill {
-  font-size: 0.76rem;
-  padding: 3px 8px;
+  font-size: 0.73rem;
+  padding: 2px 8px;
   border-radius: 999px;
   background: #eef4ff;
   color: #1e3a8a;
@@ -7300,38 +7378,12 @@ select.ds-input {
 }
 
 .ds-end-dates__muted {
-  margin: 0;
-  color: #64748b;
-  font-size: 0.8rem;
-}
-
-.ds-end-dates__source-badge {
-  display: inline-block;
-  font-size: 0.7rem;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: #e0f2fe;
-  color: #0369a1;
-  border: 1px solid #bae6fd;
-  font-weight: 600;
-  vertical-align: middle;
-  margin-inline-end: 4px;
-}
-
-.ds-end-dates__source-badge--fallback {
-  background: #fef3c7;
-  color: #92400e;
-  border-color: #fde68a;
-}
-
-@media (max-width: 900px) {
-  .ds-end-dates__summary-grid {
-    grid-template-columns: 1fr;
-    gap: 2px;
-  }
+  font-size: 0.78rem;
+  color: #94a3b8;
 }
 
 /* ——— Activities title + month nav: one row ——— */
+
 .ds-activities-title-row {
   display: inline-flex;
   align-items: center;
