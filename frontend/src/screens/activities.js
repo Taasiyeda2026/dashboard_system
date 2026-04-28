@@ -72,9 +72,8 @@ function activityInstructorMeta(row, opts = {}) {
     return { text: names.join(' · '), hasInstructor: true, hasName: true, hasEmpId: empIds.length > 0 };
   }
   if (empIds.length) {
-    const linkedInstructorLabel = hideEmpIds ? 'מדריך משויך' : `מדריך משויך (${empIds.join(' · ')})`;
     return {
-      text: linkedInstructorLabel,
+      text: '',
       hasInstructor: true,
       hasName: false,
       hasEmpId: true
