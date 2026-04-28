@@ -61,6 +61,8 @@ const READ_ACTIONS = {
 const API_TIMEOUT_MS_READ = 20000;
 const API_TIMEOUT_MS_WRITE = 30000;
 const PERF_MAX_REQUESTS = 150;
+const MONTH_READ_MODEL_TTL_MS = 5 * 60 * 1000;
+const monthReadModelCache = new Map();
 const RETRYABLE_SERVER_ERRORS = new Set([
   'network_error',
   'server_error',
@@ -72,10 +74,10 @@ const RETRYABLE_SERVER_ERRORS = new Set([
 
 function invalidateScreenDataByAction(action) {
   const targetedMutations = {
-    saveActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'end-dates'],
-    addActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'end-dates'],
+    saveActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
+    addActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     submitEditRequest: ['activities:', 'edit-requests', 'week:', 'month:', 'dashboard:', 'end-dates'],
-    reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:'],
+    reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:'],
     saveFinanceRow: ['finance:', 'dashboard:'],
     syncFinance: ['finance:', 'dashboard:'],
     addUser: ['permissions', 'dashboard:'],
@@ -96,6 +98,15 @@ function invalidateScreenDataByAction(action) {
       delete state.screenDataCache[key];
     }
   });
+}
+
+function monthReadModelKey(payload = {}) {
+  const ym = String(payload?.ym || payload?.month || '').trim();
+  return /^\d{4}-\d{2}$/.test(ym) ? ym : '__current__';
+}
+
+function clearMonthReadModelCache() {
+  monthReadModelCache.clear();
 }
 
 function isPerfDebugEnabled() {
@@ -172,6 +183,13 @@ async function request(action, payload = {}) {
   if (!config.apiUrl) {
     throw new Error('חסר קישור API. עדכנו frontend/src/config.js או window.__DASHBOARD_CONFIG__.');
   }
+  if (action === 'month') {
+    const key = monthReadModelKey(payload);
+    const cached = monthReadModelCache.get(key);
+    if (cached && Date.now() - cached.t < MONTH_READ_MODEL_TTL_MS) {
+      return cached.data;
+    }
+  }
 
   const tokenAtCallTime = state.token;
 
@@ -242,6 +260,13 @@ async function request(action, payload = {}) {
     }
     throw new Error(translateApiErrorForUser(json.error));
   }
+  const normalized = normalizeData(json.data);
+  if (action === 'month') {
+    monthReadModelCache.set(monthReadModelKey(payload), { data: normalized, t: Date.now() });
+  }
+  if (action === 'saveActivity' || action === 'addActivity' || action === 'reviewEditRequest') {
+    clearMonthReadModelCache();
+  }
   if (MUTATING_ACTIONS[action]) {
     invalidateScreenDataByAction(action);
   }
@@ -251,7 +276,7 @@ async function request(action, payload = {}) {
     payload_bytes: lastResponseText.length,
     backend_debug: json.data && json.data.debug_perf ? json.data.debug_perf : null
   });
-  return normalizeData(json.data);
+  return normalized;
 }
 
 export const api = {

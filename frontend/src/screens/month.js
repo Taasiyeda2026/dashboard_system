@@ -436,8 +436,6 @@ export const monthScreen = {
       const targetYm = shiftMonthYm(resolveBaseYm(), delta);
       const targetKey = monthCacheKey(targetYm);
       const hasCachedTarget = !!state?.screenDataCache?.[targetKey];
-      const startedAt = Date.now();
-
       state.monthYm = targetYm;
       state.monthNavLoading = true;
       try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
@@ -449,14 +447,25 @@ export const monthScreen = {
         root.setAttribute('aria-busy', 'true');
         rerender?.();
       }
-      const minMs = 420;
-      setTimeout(() => {
-        state.monthNavLoading = false;
-        rerender?.();
-      }, Math.max(0, minMs - (Date.now() - startedAt)));
+      state.monthNavLoading = false;
+      rerender?.();
     };
     prevBtn?.addEventListener('click', () => { doMonthShift(-1); });
     nextBtn?.addEventListener('click', () => { doMonthShift(1); });
+
+    const prefetchMonth = (targetYm) => {
+      if (!/^\d{4}-\d{2}$/.test(String(targetYm || ''))) return;
+      const targetKey = monthCacheKey(targetYm);
+      if (state?.screenDataCache?.[targetKey]) return;
+      api.month({ ym: targetYm })
+        .then((payload) => {
+          state.screenDataCache[targetKey] = { data: payload, t: Date.now() };
+        })
+        .catch(() => {});
+    };
+    const baseYm = resolveBaseYm();
+    prefetchMonth(shiftMonthYm(baseYm, -1));
+    prefetchMonth(shiftMonthYm(baseYm, 1));
 
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;
