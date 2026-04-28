@@ -300,11 +300,6 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
       }
 
       if (t === 'course' && text_(row.source_sheet) === CONFIG.SHEETS.DATA_LONG) {
-        if (primaryExceptionForRow_(row)) {
-          if (!managerExceptions[manager]) managerExceptions[manager] = 0;
-          managerExceptions[manager] += 1;
-          primaryExceptionRowCount += 1;
-        }
         if (text_(row.end_date).slice(0, 7) === ym) {
           if (!managerCourseEndings[manager]) managerCourseEndings[manager] = 0;
           managerCourseEndings[manager] += 1;
@@ -315,6 +310,10 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
         managerFinanceOpen[manager] += 1;
       }
     });
+
+    var monthExceptionSummary = computeCourseExceptionsModel_(monthActivities, ym, { include_rows: false });
+    managerExceptions = monthExceptionSummary.by_manager_exception_instances || {};
+    primaryExceptionRowCount = monthExceptionSummary.total_exception_instances || 0;
 
     monthMeetings.forEach(function(row) {
       var i1 = text_(row.instructor_name || row.emp_id);

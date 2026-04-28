@@ -8050,3 +8050,150 @@ select.ds-activity-add-field .ds-input,
 .ds-table--activities-list .ds-activities-col--school { width: 20%; }
 .ds-table--activities-list .ds-activities-col--instructor { width: 18%; }
 .ds-table--activities-list .ds-activities-col--date { width: 8.5%; }
+
+/* === Focused polish fixes (2026-04-28) === */
+.ds-activities-title-row {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+}
+
+.ds-activities-title-row .ds-btn--nav-arrow {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+}
+
+.ds-activities-main-toolbar {
+  gap: 4px;
+}
+
+.ds-activities-main-toolbar .ds-toolbar--filters-inline {
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.ds-activities-search-sm {
+  width: clamp(180px, 24vw, 220px);
+  min-width: 180px;
+}
+
+.ds-filter-select-inline {
+  min-width: 86px;
+  max-width: 128px;
+  flex: 0 1 112px;
+  min-height: 30px;
+}
+
+.ds-activities-main-toolbar .ds-btn--icon-only {
+  min-width: 26px;
+  width: 26px;
+  min-height: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 0.86rem;
+}
+
+.ds-week-col__head {
+  background: #fff;
+  border: 1px solid rgba(26, 51, 88, 0.12);
+  box-shadow: 0 1px 6px rgba(26, 51, 88, 0.08);
+}
+
+.ds-week-board.is-inline-loading,
+.ds-cal-wrap.is-inline-loading {
+  position: relative;
+}
+
+.ds-week-board.is-inline-loading::after,
+.ds-cal-wrap.is-inline-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(125, 211, 252, 0.12), rgba(255,255,255,0));
+  animation: ds-inline-shimmer 0.6s ease-in-out 1;
+  pointer-events: none;
+}
+
+@keyframes ds-today-glow {
+  0% { box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.2), 0 0 10px rgba(14, 165, 233, 0.18); }
+  50% { box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.24), 0 0 14px rgba(168, 85, 247, 0.2); }
+  100% { box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.2), 0 0 12px rgba(34, 197, 94, 0.18); }
+}
+
+@keyframes ds-inline-shimmer {
+  from { opacity: 0; transform: translateX(18px); }
+  50% { opacity: 1; }
+  to { opacity: 0; transform: translateX(-18px); }
+}
+
+.ds-interactive-card.is-cal-today,
+.ds-week-col.is-today .ds-week-col__head {
+  animation: ds-today-glow 5.4s ease-in-out infinite alternate;
+}
+
+.ds-cal-grid {
+  gap: 5px;
+}
+
+.ds-cal-grid .ds-interactive-card--day-cell {
+  background: #fff;
+  border: 1px solid rgba(26, 51, 88, 0.13);
+  border-radius: 10px;
+}
+
+.ds-cal-slot--empty {
+  background: rgba(248, 250, 252, 0.9);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.ds-cal-wrap .ds-cal-slot-hit.is-other-month,
+.ds-cal-wrap .ds-interactive-card--day-cell.is-other-month {
+  opacity: 0.55;
+}
+
+.ci-list--instr-grid {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 220px));
+  gap: 8px;
+}
+
+.instr-card .instr-summary-row {
+  background: linear-gradient(160deg, rgba(59, 130, 246, 0.08), rgba(16, 185, 129, 0.06));
+  border: 1px solid rgba(26, 51, 88, 0.1);
+}
+
+.instr-card-details {
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid rgba(26, 51, 88, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.instr-act-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.instr-act-item {
+  font-size: 0.74rem;
+  border: 1px solid rgba(26, 51, 88, 0.1);
+  border-radius: 8px;
+  padding: 4px 6px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-interactive-card.is-cal-today,
+  .ds-week-col.is-today .ds-week-col__head,
+  .ds-week-board.is-inline-loading::after,
+  .ds-cal-wrap.is-inline-loading::after {
+    animation: none !important;
+  }
+}

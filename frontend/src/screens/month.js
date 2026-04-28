@@ -207,9 +207,22 @@ export const monthScreen = {
     ).join('');
 
     const slots = [];
+    const prevMonthDate = new Date(y, mo - 2, 1);
+    const prevDays = daysInMonth1Based(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1);
     for (let i = 0; i < slotCount; i += 1) {
       if (i < firstWeekday || i >= firstWeekday + dim) {
-        slots.push('<div class="ds-cal-slot ds-cal-slot--empty" aria-hidden="true"></div>');
+        const isPrev = i < firstWeekday;
+        const dayNum = isPrev
+          ? (prevDays - firstWeekday + i + 1)
+          : (i - (firstWeekday + dim) + 1);
+        const outTitle = String(dayNum);
+        slots.push(
+          `<div class="ds-cal-slot-hit is-other-month" aria-hidden="true">
+            <article class="ds-interactive-card ds-interactive-card--day-cell is-other-month">
+              <p class="ds-interactive-card__title">${escapeHtml(outTitle)}</p>
+            </article>
+          </div>`
+        );
         continue;
       }
       const dayNum = i - firstWeekday + 1;
@@ -256,8 +269,9 @@ export const monthScreen = {
       );
     }
 
+    const navLoading = !!state.monthNavLoading;
     const gridHtml = `
-      <div class="ds-cal-wrap${hideSaturday ? ' ds-cal-wrap--hide-shabbat' : ''}" dir="rtl">
+      <div class="ds-cal-wrap${hideSaturday ? ' ds-cal-wrap--hide-shabbat' : ''}${navLoading ? ' is-inline-loading' : ''}" dir="rtl">
         <div class="ds-cal-weekdays" role="row">${weekdayRow}</div>
         <div class="ds-cal-grid" role="grid" aria-label="לוח חודש">${slots.join('')}</div>
       </div>`;
@@ -265,7 +279,6 @@ export const monthScreen = {
     const currentYm = data?.month || `${y}-${String(mo).padStart(2, '0')}`;
     const monthTitle = monthTitleHebrew(spec);
 
-    const navLoading = !!state.monthNavLoading;
     const html = dsScreenStack(`
       <nav class="ds-cal-nav${navLoading ? ' is-nav-loading' : ''}" role="navigation" aria-label="ניווט חודשי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
@@ -381,6 +394,7 @@ export const monthScreen = {
     const todayBtn = root.querySelector('[data-month-today]');
     const doMonthShift = (delta) => {
       if (state.monthNavLoading) return;
+      const startedAt = Date.now();
       const targetYm = shiftMonthYm(resolveBaseYm(), delta);
       const targetKey = monthCacheKey(targetYm);
       const hasCachedTarget = !!state?.screenDataCache?.[targetKey];
@@ -395,8 +409,13 @@ export const monthScreen = {
         root.setAttribute('aria-busy', 'true');
         rerender?.();
       }
-      state.monthNavLoading = false;
-      rerender?.();
+      const minMs = 420;
+      setTimeout(() => {
+        state.monthNavLoading = false;
+        root.classList.remove('is-month-loading');
+        root.setAttribute('aria-busy', 'false');
+        rerender?.();
+      }, Math.max(0, minMs - (Date.now() - startedAt)));
     };
     prevBtn?.addEventListener('click', () => { doMonthShift(-1); });
     nextBtn?.addEventListener('click', () => { doMonthShift(1); });

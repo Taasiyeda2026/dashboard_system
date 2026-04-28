@@ -266,7 +266,7 @@ export const weekScreen = {
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-next aria-label="שבוע הבא" title="שבוע הבא" ${navLoading ? 'disabled' : ''}>◀</button>
       </nav>
       ${toolbarHtml}
-      <div class="ds-week-board" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
+      <div class="ds-week-board${navLoading ? ' is-inline-loading' : ''}" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
     return html;
   },
