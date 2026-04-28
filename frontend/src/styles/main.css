@@ -7732,7 +7732,7 @@ select.ds-activity-add-field .ds-input,
 }
 
 .ds-table--activities-list .ds-activities-col--program {
-  width: 28%;
+  width: 22%;
 }
 .ds-table--activities-list .ds-activities-col--authority,
 .ds-table--activities-list .ds-activities-col--school,
@@ -7740,7 +7740,7 @@ select.ds-activity-add-field .ds-input,
   width: 16%;
 }
 .ds-table--activities-list .ds-activities-col--date {
-  width: 12%;
+  width: 15%;
 }
 
 .ds-table--activities-list th {
@@ -7892,11 +7892,11 @@ select.ds-activity-add-field .ds-input,
   table-layout: fixed;
 }
 
-.ds-table--activities-list col.ds-activities-col--program { width: 30%; }
-.ds-table--activities-list col.ds-activities-col--authority { width: 15%; }
-.ds-table--activities-list col.ds-activities-col--school { width: 20%; }
-.ds-table--activities-list col.ds-activities-col--instructor { width: 18%; }
-.ds-table--activities-list col.ds-activities-col--date { width: 8.5%; }
+.ds-table--activities-list col.ds-activities-col--program { width: 22%; }
+.ds-table--activities-list col.ds-activities-col--authority { width: 16%; }
+.ds-table--activities-list col.ds-activities-col--school { width: 16%; }
+.ds-table--activities-list col.ds-activities-col--instructor { width: 16%; }
+.ds-table--activities-list col.ds-activities-col--date { width: 15%; }
 
 .ds-table--activities-list th,
 .ds-table--activities-list td {

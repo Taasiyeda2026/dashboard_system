@@ -69,7 +69,7 @@ function activityInstructorMeta(row, opts = {}) {
   }
   if (empIds.length) {
     return {
-      text: hideEmpIds ? 'מדריך משויך' : empIds.join(' · '),
+      text: empIds.join(' · '),
       hasInstructor: true,
       hasName: false,
       hasEmpId: true
