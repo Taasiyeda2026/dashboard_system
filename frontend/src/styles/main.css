@@ -5519,7 +5519,7 @@ select.ds-input {
 }
 
 .ds-activities-screen .ds-table tbody tr:nth-child(even) td {
-  background: #fcfdff;
+  background: #eef3fb;
 }
 
 .ds-activities-screen .ds-table tbody tr:hover td {
@@ -7735,17 +7735,6 @@ select.ds-activity-add-field .ds-input,
   table-layout: fixed;
 }
 
-.ds-table--activities-list .ds-activities-col--program {
-  width: 22%;
-}
-.ds-table--activities-list .ds-activities-col--authority,
-.ds-table--activities-list .ds-activities-col--school,
-.ds-table--activities-list .ds-activities-col--instructor {
-  width: 16%;
-}
-.ds-table--activities-list .ds-activities-col--date {
-  width: 15%;
-}
 
 .ds-table--activities-list th {
   text-align: right;
@@ -7896,11 +7885,12 @@ select.ds-activity-add-field .ds-input,
   table-layout: fixed;
 }
 
-.ds-table--activities-list col.ds-activities-col--program { width: 22%; }
-.ds-table--activities-list col.ds-activities-col--authority { width: 16%; }
-.ds-table--activities-list col.ds-activities-col--school { width: 16%; }
-.ds-table--activities-list col.ds-activities-col--instructor { width: 16%; }
-.ds-table--activities-list col.ds-activities-col--date { width: 15%; }
+.ds-table--activities-list col.ds-activities-col--program   { width: 13%; }
+.ds-table--activities-list col.ds-activities-col--authority  { width: 13%; }
+.ds-table--activities-list col.ds-activities-col--school     { width: 13%; }
+.ds-table--activities-list col.ds-activities-col--instructor { width: 13%; }
+.ds-table--activities-list col.ds-activities-col--date       { width: 13%; }
+.ds-table--activities-list col.ds-activities-col--notes      { width: 22%; }
 
 .ds-table--activities-list th,
 .ds-table--activities-list td {
@@ -7910,18 +7900,22 @@ select.ds-activity-add-field .ds-input,
 }
 
 .ds-table--activities-list th {
-  padding: 6px 8px;
+  padding: 7px 8px;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.01em;
   background: #f4f7fb;
-  border-bottom: 1px solid rgba(26, 51, 88, 0.18);
+  border-bottom: 2px solid rgba(26, 51, 88, 0.2);
+  vertical-align: middle;
+  text-align: right;
 }
 
 .ds-table--activities-list td {
-  padding: 4px 8px;
-  height: 34px;
+  padding: 7px 8px;
+  height: 36px;
   line-height: 1.15;
+  vertical-align: middle;
+  text-align: right;
 }
 
 .ds-activities-cell-ellipsis {
@@ -8021,23 +8015,6 @@ select.ds-activity-add-field .ds-input,
   filter: brightness(1.06);
 }
 
-.ds-table--activities-list col.ds-activities-col--program { width: 21%; }
-.ds-table--activities-list col.ds-activities-col--authority { width: 13%; }
-.ds-table--activities-list col.ds-activities-col--school { width: 13%; }
-.ds-table--activities-list col.ds-activities-col--instructor { width: 15%; }
-.ds-table--activities-list col.ds-activities-col--date { width: 12%; }
-.ds-table--activities-list col.ds-activities-col--notes { width: 14%; }
-
-.ds-table--activities-list th,
-.ds-table--activities-list td {
-  padding-inline: 6px;
-}
-
-.ds-table--activities-list .ds-activities-col--date,
-.ds-table--activities-list th:nth-child(5),
-.ds-table--activities-list th:nth-child(6) {
-  text-align: right;
-}
 
 .ci-list--instr-grid {
   grid-template-columns: repeat(auto-fill, minmax(150px, 185px));
@@ -8048,12 +8025,6 @@ select.ds-activity-add-field .ds-input,
   padding: 7px;
 }
 
-/* test-anchored proportional widths (kept for compatibility) */
-.ds-table--activities-list .ds-activities-col--program { width: 30%; }
-.ds-table--activities-list .ds-activities-col--authority { width: 15%; }
-.ds-table--activities-list .ds-activities-col--school { width: 20%; }
-.ds-table--activities-list .ds-activities-col--instructor { width: 18%; }
-.ds-table--activities-list .ds-activities-col--date { width: 8.5%; }
 
 /* === Focused polish fixes (2026-04-28) === */
 .ds-activities-title-row {
