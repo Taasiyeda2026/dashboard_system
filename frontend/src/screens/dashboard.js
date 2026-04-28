@@ -126,9 +126,6 @@ function renderStructuredSummary(summary, ym, byManager) {
 
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
       <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש:</strong></h4>
-      <p class="ds-summary-panel__text">קורסים ללא שיבוץ מדריך (<strong>${missingInstr}</strong>)</p>
-      <p class="ds-summary-panel__text">קורסים ללא תאריך התחלה (<strong>${missingDate}</strong>)</p>
-      <p class="ds-summary-panel__text">קורסים בסיכון עקב תאריך סיום מאוחר (<strong>${lateEnd}</strong>)</p>
       <p class="ds-summary-panel__text"><strong>סה״כ חריגות: ${exceptionsTotal}</strong></p>
     </div>
     ${mappingErrors.length ? `<p class="ds-summary-panel__text" style="color:#b42318"><strong>שגיאת מיפוי שדות Snapshot:</strong> ${escapeHtml(mappingErrors.map((f) => f.fieldName).join(', '))}</p>` : ''}
