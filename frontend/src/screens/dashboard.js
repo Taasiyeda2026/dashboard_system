@@ -165,7 +165,7 @@ export const dashboardScreen = {
       ym = currentMonthYm();
     }
     state.dashboardMonthYm = ym;
-    return api.dashboardSnapshot({ month: ym, force_full: true });
+    return api.dashboardSnapshot({ month: ym });
   },
   render(data, { state } = {}) {
     const ym = data?.month || currentMonthYm();
@@ -336,7 +336,7 @@ export const dashboardScreen = {
       const key = `dashboard:${validYm}`;
       const cached = state.screenDataCache[key];
       if (cached?.data && Date.now() - cached.t < DASHBOARD_TTL_MS) return;
-      api.dashboardSnapshot({ month: validYm, force_full: true })
+      api.dashboardSnapshot({ month: validYm })
         .then((payload) => {
           putDashboardCache(key, payload);
         })
@@ -356,7 +356,7 @@ export const dashboardScreen = {
         showDataAreaLoading();
         let snapshotLoaded = false;
         try {
-          const snapshotData = await api.dashboardSnapshot({ month: nextYm, force_full: true });
+          const snapshotData = await api.dashboardSnapshot({ month: nextYm });
           putDashboardCache(cacheKey, snapshotData);
           snapshotLoaded = true;
         } catch (_err) {
@@ -370,8 +370,12 @@ export const dashboardScreen = {
       prefetchDashboardMonth(shiftYm(nextYm, 1));
     };
 
-    prefetchDashboardMonth(shiftYm(ym, -1));
-    prefetchDashboardMonth(shiftYm(ym, 1));
+    setTimeout(() => {
+      if (!state.dashboardNavLoading) {
+        prefetchDashboardMonth(shiftYm(ym, -1));
+        prefetchDashboardMonth(shiftYm(ym, 1));
+      }
+    }, 1500);
 
     root.querySelector('[data-dash-month-prev]')?.addEventListener('click', () => {
       applyYm(shiftYm(state.dashboardMonthYm || currentMonthYm(), -1));
