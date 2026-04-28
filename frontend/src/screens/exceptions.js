@@ -151,9 +151,20 @@ export const exceptionsScreen = {
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
 
-    const bindActivityEditForm = (contentRoot) =>
-      bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender });
     const detailCache = new Map();
+
+    const bindActivityEditForm = (contentRoot) =>
+      bindActivityEditFormShared(contentRoot, {
+        api,
+        ui,
+        clearScreenDataCache,
+        rerender,
+        onSaveSuccess: async ({ sourceSheet, sourceRowId }) => {
+          detailCache.delete(`${sourceSheet || ''}|${sourceRowId || ''}`);
+          clearScreenDataCache?.();
+          rerender();
+        }
+      });
 
     async function loadDetailRow(summaryRow) {
       const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
