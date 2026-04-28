@@ -122,7 +122,7 @@ function renderStructuredSummary(summary, ym, byManager) {
     <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(nextMonthTitle)}</strong> צפויים להיות (<strong>${activeNext}</strong>) קורסים פעילים.</p>
 
     <h4 class="ds-summary-panel__inner-title"><strong>המדריכים הפעילים החודש:</strong></h4>
-    <p class="ds-summary-panel__text"><strong>${escapeHtml(allInstructors || '—')}</strong></p>
+    <p class="ds-summary-panel__text">${escapeHtml(allInstructors || '—')}</p>
 
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
       <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש:</strong></h4>
