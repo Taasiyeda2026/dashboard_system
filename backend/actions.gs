@@ -567,8 +567,6 @@ function actionDashboard_(user, payload) {
   missingStartDateCount = exceptionSummary.counts.missing_start_date || 0;
   lateEndDateCount = exceptionSummary.counts.late_end_date || 0;
   var exceptionSum = exceptionSummary.total_exception_instances || 0;
-  managerExceptions = exceptionSummary.by_manager_exception_instances || {};
-
 
   var shortActivitiesByType = {};
   shortRowsBySource.forEach(function(row) {
