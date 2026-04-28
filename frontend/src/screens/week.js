@@ -262,6 +262,7 @@ export const weekScreen = {
       <nav class="ds-cal-nav${navLoading ? ' is-nav-loading' : ''}" role="navigation" aria-label="ניווט שבועי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-prev aria-label="שבוע קודם" title="שבוע קודם" ${navLoading ? 'disabled' : ''}>▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)} ${navLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
+        ${isCurrentWeek ? '' : `<button type="button" class="ds-btn ds-btn--sm ds-btn--today" data-week-today ${navLoading ? 'disabled' : ''}>TODAY</button>`}
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-next aria-label="שבוע הבא" title="שבוע הבא" ${navLoading ? 'disabled' : ''}>◀</button>
       </nav>
       ${toolbarHtml}
@@ -293,13 +294,14 @@ export const weekScreen = {
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const showPrivateNote = state?.user?.display_role === 'operation_manager';
-    bindLocalFilters(root, state, WEEK_SCOPE, rerender, { debounceMs: 300 });
+    bindLocalFilters(root, state, WEEK_SCOPE, rerender, { debounceMs: 420 });
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });
 
     const prevBtn = root.querySelector('[data-week-prev]');
     const nextBtn = root.querySelector('[data-week-next]');
+    const todayBtn = root.querySelector('[data-week-today]');
     const doWeekShift = (delta) => {
       if (state.weekNavLoading) return;
       const startedAt = Date.now();
@@ -314,6 +316,11 @@ export const weekScreen = {
     };
     bindListener(prevBtn, 'click', () => doWeekShift(-1));
     bindListener(nextBtn, 'click', () => doWeekShift(1));
+    bindListener(todayBtn, 'click', () => {
+      if (state.weekNavLoading) return;
+      state.weekOffset = 0;
+      rerender?.();
+    });
 
     bindListener(root, 'click', (ev) => {
       const badge = ev.target.closest('[data-group-toggle]');

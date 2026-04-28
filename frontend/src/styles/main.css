@@ -7982,3 +7982,71 @@ select.ds-activity-add-field .ds-input,
   font-variant-numeric: tabular-nums;
   direction: ltr;
 }
+
+/* === 2026-04 targeted fixes: dashboard/week/month/activities/instructors === */
+@media (min-width: 960px) {
+  .ds-dashboard-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(86px, 108px));
+  }
+}
+
+.ds-cal-nav {
+  width: fit-content;
+  margin-inline: auto;
+  gap: 4px;
+}
+
+.ds-cal-nav__label {
+  flex: 0 1 auto;
+  min-width: 180px;
+}
+
+.ds-btn--today {
+  min-height: 30px;
+  padding: 3px 10px !important;
+  border-radius: 999px;
+  border: 1px solid #22d3ee;
+  background: linear-gradient(135deg, #06b6d4, #3b82f6);
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.16), 0 6px 14px rgba(59, 130, 246, 0.22);
+}
+
+.ds-btn--today:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.ds-table--activities-list col.ds-activities-col--program { width: 21%; }
+.ds-table--activities-list col.ds-activities-col--authority { width: 13%; }
+.ds-table--activities-list col.ds-activities-col--school { width: 13%; }
+.ds-table--activities-list col.ds-activities-col--instructor { width: 15%; }
+.ds-table--activities-list col.ds-activities-col--date { width: 12%; }
+.ds-table--activities-list col.ds-activities-col--notes { width: 14%; }
+
+.ds-table--activities-list th,
+.ds-table--activities-list td {
+  padding-inline: 6px;
+}
+
+.ds-table--activities-list .ds-activities-col--date,
+.ds-table--activities-list th:nth-child(5),
+.ds-table--activities-list th:nth-child(6) {
+  text-align: right;
+}
+
+.ci-list--instr-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 185px));
+}
+
+.instr-summary-row {
+  min-height: 96px;
+  padding: 7px;
+}
+
+/* test-anchored proportional widths (kept for compatibility) */
+.ds-table--activities-list .ds-activities-col--program { width: 30%; }
+.ds-table--activities-list .ds-activities-col--authority { width: 15%; }
+.ds-table--activities-list .ds-activities-col--school { width: 20%; }
+.ds-table--activities-list .ds-activities-col--instructor { width: 18%; }
+.ds-table--activities-list .ds-activities-col--date { width: 8.5%; }

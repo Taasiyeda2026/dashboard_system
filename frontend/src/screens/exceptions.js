@@ -90,7 +90,7 @@ export const exceptionsScreen = {
   },
   render(data, { state } = {}) {
     const rawRows   = Array.isArray(data?.rows) ? data.rows : [];
-    const allRows   = rawRows;
+    const allRows   = rawRows.filter((row) => String(row?.activity_type || '').trim() === 'course');
     const filterState = ensureActivityListFilters(state, EXCEPTIONS_SCOPE);
     prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type']);
     const filteredRows = applyLocalFilters(allRows, filterState, { filterFields: EXCEPTION_FILTER_FIELDS });
