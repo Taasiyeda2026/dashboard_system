@@ -312,7 +312,11 @@ function putCachedActivityDetail(summaryRow, row, s) {
 
 export const activitiesScreen = {
   async load({ api, state }) {
-    return api.activities({ activity_type: 'all' });
+    if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
+    return api.activities({
+      activity_type: 'all',
+      month: state.activitiesMonthYm
+    });
   },
 
   render(data, { state }) {
@@ -463,10 +467,11 @@ export const activitiesScreen = {
     };
     const scheduleQuietRefresh = async () => {
       try {
-        const fresh = await api.activities({ activity_type: 'all' });
+        const refreshMonth = state.activitiesMonthYm || currentYm();
+        const fresh = await api.activities({ activity_type: 'all', month: refreshMonth });
         const freshRows = Array.isArray(fresh?.rows) ? fresh.rows : [];
         activitiesRows.splice(0, activitiesRows.length, ...freshRows);
-        state.screenDataCache['activities:all'] = { data: { ...fresh, rows: activitiesRows }, t: Date.now() };
+        state.screenDataCache[`activities:${refreshMonth}`] = { data: { ...fresh, rows: activitiesRows }, t: Date.now() };
       } catch {
         // keep local optimistic view on failure
       }

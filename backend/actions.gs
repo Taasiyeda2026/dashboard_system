@@ -738,6 +738,7 @@ function actionActivities_(user, payload) {
   var family = text_(payload.family || '');
   var endingCurrentMonth = yesNo_(payload.ending_current_month || 'no') === 'yes';
   var monthFilter = text_(payload.month || formatDate_(new Date()).slice(0, 7));
+  var hasMonthFilter = /^\d{4}-\d{2}$/.test(monthFilter);
   var rows = allRows.filter(function(row) {
     if (text_(row.status) === 'סגור') return false;
     if (activityType && activityType !== 'all' && text_(row.activity_type) !== activityType) return false;
@@ -747,6 +748,7 @@ function actionActivities_(user, payload) {
     if (family === 'long' && programTypes.indexOf(text_(row.activity_type)) < 0) return false;
     if (endingCurrentMonth &&
       !(text_(row.activity_type) === 'course' && text_(row.end_date || '').slice(0, 7) === monthFilter)) return false;
+    if (hasMonthFilter && !activityOverlapsYm_(row, monthFilter)) return false;
     if (search) {
       var hay = [
         row.RowID,

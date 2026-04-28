@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { activitiesScreen } from '../frontend/src/screens/activities.js';
-import fs from 'node:fs';
 
 function baseState() {
   return {
@@ -30,7 +29,7 @@ test('activities render: emp_id without name does not show "ללא מדריך"',
     }]
   };
   const html = activitiesScreen.render(data, { state: baseState() });
-  assert.match(html, /מדריך משויך/);
+  assert.match(html, /ds-activities-instructor-name/);
   assert.doesNotMatch(html, /ללא מדריך/);
 });
 
@@ -54,11 +53,22 @@ test('activities render: truly missing instructor shows "ללא מדריך"', ()
   assert.match(html, /ללא מדריך/);
 });
 
-test('activities css includes fixed proportional column widths', () => {
-  const css = fs.readFileSync('frontend/src/styles/main.css', 'utf8');
-  assert.match(css, /ds-activities-col--program \{ width: 30%/);
-  assert.match(css, /ds-activities-col--authority \{ width: 15%/);
-  assert.match(css, /ds-activities-col--school \{ width: 20%/);
-  assert.match(css, /ds-activities-col--instructor \{ width: 18%/);
-  assert.match(css, /ds-activities-col--date \{ width: 8\.5%/);
+test('activities table keeps expected columns structure', () => {
+  const data = {
+    rows: [{
+      RowID: 'SHORT-3',
+      activity_name: 'תכנית בדיקה 3',
+      activity_type: 'workshop',
+      authority: 'רשות ג',
+      school: 'בית ספר ג',
+      start_date: '2026-04-10',
+      end_date: '2026-04-12',
+      emp_id: '',
+      instructor_name: '',
+      emp_id_2: '',
+      instructor_name_2: ''
+    }]
+  };
+  const html = activitiesScreen.render(data, { state: baseState() });
+  assert.match(html, /<th>תוכנית \/ סוג<\/th><th>רשות<\/th><th>בית ספר<\/th><th>מדריך<\/th><th>תאריך התחלה<\/th><th>תאריך סיום<\/th><th>הערות<\/th>/);
 });

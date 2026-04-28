@@ -571,7 +571,8 @@ function closeMobileNav() {
 
 function buildScreenDataCacheKey(route, cacheState = state) {
   if (route === 'activities') {
-    return 'activities:all';
+    const ym = cacheState.activitiesMonthYm && /^\d{4}-\d{2}$/.test(cacheState.activitiesMonthYm) ? cacheState.activitiesMonthYm : 'current';
+    return `activities:${ym}`;
   }
   if (route === 'finance') {
     const filters = {
