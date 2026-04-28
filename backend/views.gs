@@ -292,18 +292,20 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
       if (empA) managerInstructorSets[manager][empA] = true;
       if (empB) managerInstructorSets[manager][empB] = true;
 
-      if (yesNo_(row.has_missing_instructor) === 'yes') missingInstructorCount += 1;
-      if (yesNo_(row.has_missing_start_date) === 'yes') missingStartDateCount += 1;
-      if (yesNo_(row.has_late_end_date) === 'yes') lateEndDateCount += 1;
-
       var t = text_(row.activity_type);
-      if (programTypes.indexOf(t) >= 0 && text_(row.source_sheet) === CONFIG.SHEETS.DATA_LONG) {
+      if (t === 'course') {
+        if (yesNo_(row.has_missing_instructor) === 'yes') missingInstructorCount += 1;
+        if (yesNo_(row.has_missing_start_date) === 'yes') missingStartDateCount += 1;
+        if (yesNo_(row.has_late_end_date) === 'yes') lateEndDateCount += 1;
+      }
+
+      if (t === 'course' && text_(row.source_sheet) === CONFIG.SHEETS.DATA_LONG) {
         if (primaryExceptionForRow_(row)) {
           if (!managerExceptions[manager]) managerExceptions[manager] = 0;
           managerExceptions[manager] += 1;
           primaryExceptionRowCount += 1;
         }
-        if (t === 'course' && text_(row.end_date).slice(0, 7) === ym) {
+        if (text_(row.end_date).slice(0, 7) === ym) {
           if (!managerCourseEndings[manager]) managerCourseEndings[manager] = 0;
           managerCourseEndings[manager] += 1;
         }

@@ -114,10 +114,16 @@ export const instructorsScreen = {
 
           const items = myRows.flatMap((r) => {
             const name = escapeHtml(String(r.activity_name || '—'));
+            const school = escapeHtml(String(r.school || '').trim());
+            const authority = escapeHtml(String(r.authority || '').trim());
+            const metaParts = [school, authority].filter(Boolean);
+            const metaHtml = metaParts.length
+              ? ` <span class="instr-act-meta">${metaParts.join(' · ')}</span>`
+              : '';
             const isLong = String(r.source_sheet || '').trim() === 'data_long';
             if (!isLong) {
               if (ym && !String(r.start_date || '').startsWith(ym)) return [];
-              return [`<li class="instr-act-item">${name}</li>`];
+              return [`<li class="instr-act-item">${name}${metaHtml}</li>`];
             }
             if (ym) {
               const meetings = [];
@@ -127,15 +133,15 @@ export const instructorsScreen = {
               }
               if (meetings.length === 0) return [];
               return meetings.map(
-                (n) => `<li class="instr-act-item">${name} <span class="instr-meeting-pill">מפגש ${n}</span></li>`
+                (n) => `<li class="instr-act-item">${name} <span class="instr-meeting-pill">מפגש ${n}</span>${metaHtml}</li>`
               );
             }
-            return [`<li class="instr-act-item">${name}</li>`];
+            return [`<li class="instr-act-item">${name}${metaHtml}</li>`];
           });
 
           const list = items.length
             ? `<ul class="ds-summary-panel__list instr-act-list">${items.join('')}</ul>`
-            : '<p class="ds-muted">אין פעילויות בחודש הנוכחי.</p>';
+            : '<p class="ds-muted">אין פעילויות משויכות.</p>';
           ui.openDrawer({ title: 'פעילויות מדריך', content: list });
         } catch (_e) {
           ui.openDrawer({ title: 'פעילויות מדריך', content: '<p class="ds-muted">טעינת הפעילויות נכשלה.</p>' });
