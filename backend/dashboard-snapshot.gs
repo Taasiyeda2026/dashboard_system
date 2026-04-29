@@ -229,6 +229,22 @@ function parseJsonArraySafeForDashboard_(raw, fallback) {
   return fallback;
 }
 
+function pickField_(row, fieldNames, fallback) {
+  var src = row && typeof row === 'object' ? row : {};
+  var names = Array.isArray(fieldNames) ? fieldNames : [];
+  var i;
+  for (i = 0; i < names.length; i++) {
+    var key = text_(names[i]);
+    if (!key) continue;
+    if (!Object.prototype.hasOwnProperty.call(src, key)) continue;
+    var val = src[key];
+    if (val === null || val === undefined) continue;
+    if (typeof val === 'string' && val.trim() === '') continue;
+    return val;
+  }
+  return fallback;
+}
+
 function resolveExceptionsCountForDashboard_(summaryObj, rawExceptions) {
   var summary = summaryObj && typeof summaryObj === 'object' ? summaryObj : {};
   var missingInstr = parseInt(text_(summary.missing_instructor_count), 10) || 0;
@@ -240,29 +256,29 @@ function resolveExceptionsCountForDashboard_(summaryObj, rawExceptions) {
 }
 
 function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, canViewFinance) {
-  var summary = parseJsonObjectSafeForDashboard_(primaryRow.summary_json, {});
+  var summary = parseJsonObjectSafeForDashboard_(pickField_(primaryRow, ['summary_json'], null), {});
   if (!Array.isArray(summary.active_instructors) || !summary.active_instructors.length) {
-    summary.active_instructors = parseJsonArraySafeForDashboard_(primaryRow.active_instructors_json, []);
+    summary.active_instructors = parseJsonArraySafeForDashboard_(pickField_(primaryRow, ['active_instructors_json'], null), []);
   }
   if (!summary.active_instructors_by_manager || typeof summary.active_instructors_by_manager !== 'object') {
-    summary.active_instructors_by_manager = parseJsonObjectSafeForDashboard_(primaryRow.active_instructors_by_manager_json, {});
+    summary.active_instructors_by_manager = parseJsonObjectSafeForDashboard_(pickField_(primaryRow, ['active_instructors_by_manager_json'], null), {});
   }
   if (nextRow) {
-    summary.active_courses_next_month = parseInt(text_(nextRow.active_courses), 10) || 0;
+    summary.active_courses_next_month = parseInt(text_(pickField_(nextRow, ['active_courses', 'active_courses_current_month'], 0)), 10) || 0;
   } else if (summary.active_courses_next_month === undefined || summary.active_courses_next_month === null) {
     summary.active_courses_next_month = 0;
   }
   summary.exceptions_count = resolveExceptionsCountForDashboard_(
     summary,
-    primaryRow.exceptions_count || summary.exceptions_count
+    pickField_(primaryRow, ['exceptions_count', 'exceptions'], summary.exceptions_count)
   );
   var finRaw = summary.finance_open_count;
   summary.finance_open_count = typeof finRaw === 'number' && !isNaN(finRaw)
     ? finRaw
     : (parseInt(text_(finRaw), 10) || 0);
-  summary.active_courses_current_month = parseInt(text_(primaryRow.active_courses), 10) ||
+  summary.active_courses_current_month = parseInt(text_(pickField_(primaryRow, ['active_courses', 'active_courses_current_month'], 0)), 10) ||
     summary.active_courses_current_month || 0;
-  summary.ending_courses_current_month = parseInt(text_(primaryRow.course_endings), 10) ||
+  summary.ending_courses_current_month = parseInt(text_(pickField_(primaryRow, ['course_endings', 'course_endings_current_month'], 0)), 10) ||
     summary.ending_courses_current_month || 0;
   summary.missing_instructor_count = parseInt(text_(primaryRow.missing_instructor_count), 10) ||
     summary.missing_instructor_count || 0;
@@ -272,7 +288,7 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
     summary.late_end_date_count || 0;
   if (!Array.isArray(summary.short_activities)) summary.short_activities = [];
 
-  var byMgrArr = parseJsonArraySafeForDashboard_(primaryRow.by_manager_json, []);
+  var byMgrArr = parseJsonArraySafeForDashboard_(pickField_(primaryRow, ['by_manager_json', 'by_activity_manager_json'], null), []);
   var byActivityManager = byMgrArr.map(function(r) {
     var out = {
       activity_manager: text_(r.activity_manager),
@@ -287,13 +303,13 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
     return out;
   });
 
-  var totalShort = parseInt(text_(primaryRow.total_short), 10) || 0;
-  var totalLongActive = parseInt(text_(primaryRow.total_long_active), 10) || 0;
+  var totalShort = parseInt(text_(pickField_(primaryRow, ['total_short', 'total_short_activities'], 0)), 10) || 0;
+  var totalLongActive = parseInt(text_(pickField_(primaryRow, ['total_long_active', 'total_long_activities'], 0)), 10) || 0;
   var totalInstr = parseInt(text_(primaryRow.total_instructors), 10) || 0;
-  var courseEndings = parseInt(text_(primaryRow.course_endings), 10) || 0;
-  var financeOpen = canViewFinance ? (summary.finance_open_count || 0) : 0;
-  var exceptCount = resolveExceptionsCountForDashboard_(summary, primaryRow.exceptions_count);
-  var activeCurrent = parseInt(text_(primaryRow.active_courses), 10) || 0;
+  var courseEndings = parseInt(text_(pickField_(primaryRow, ['course_endings', 'course_endings_current_month'], 0)), 10) || 0;
+  var financeOpen = canViewFinance ? (parseInt(text_(pickField_(primaryRow, ['finance_open_count', 'finance_open'], summary.finance_open_count || 0)), 10) || 0) : 0;
+  var exceptCount = resolveExceptionsCountForDashboard_(summary, pickField_(primaryRow, ['exceptions_count', 'exceptions'], null));
+  var activeCurrent = parseInt(text_(pickField_(primaryRow, ['active_courses', 'active_courses_current_month'], 0)), 10) || 0;
 
   var snapshotData = {
     total_short_activities: totalShort,
@@ -340,10 +356,11 @@ function tryDashboardSnapshotFromMonthlyView_(ym, nextYm, canViewFinance) {
   }
 
   var projected = [
-    'month_ym', 'total_short', 'total_long_active', 'active_courses',
-    'total_instructors', 'course_endings', 'exceptions_count',
+    'month_ym', 'total_short', 'total_short_activities', 'total_long_active', 'total_long_activities', 'active_courses', 'active_courses_current_month',
+    'total_instructors', 'course_endings', 'course_endings_current_month', 'exceptions_count', 'exceptions',
+    'finance_open_count', 'finance_open',
     'missing_instructor_count', 'missing_start_date_count', 'late_end_date_count',
-    'summary_json', 'by_manager_json', 'kpi_cards_json',
+    'summary_json', 'by_manager_json', 'by_activity_manager_json', 'kpi_cards_json',
     'active_instructors_json', 'active_instructors_by_manager_json'
   ];
   var rowsAll;
