@@ -109,3 +109,15 @@ test('api mutation cache invalidation map includes required keys', async () => {
   assert.match(source, /reviewEditRequest:\s*\['edit-requests',\s*'activities:',\s*'activityDetail:',\s*'dashboard:',\s*'exceptions:'/);
   assert.match(source, /addActivity:\s*\['activities:',\s*'activityDetail:'/);
 });
+
+test('heavy screens request read models by default with legacy fallback', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  assert.match(source, /dashboardSnapshot:\s*\(filters\)\s*=>\s*requestReadModel\('dashboard'/);
+  assert.match(source, /activities:\s*\(filters\)\s*=>\s*requestReadModel\('activities'/);
+  assert.match(source, /week:\s*\(params\)\s*=>\s*requestReadModel\('week'/);
+  assert.match(source, /month:\s*\(params\)\s*=>\s*requestReadModel\('month'/);
+  assert.match(source, /exceptions:\s*\(params\)\s*=>\s*requestReadModel\('exceptions'/);
+  assert.match(source, /finance:\s*\(params\)\s*=>\s*requestReadModel\('finance'/);
+  assert.match(source, /endDates:\s*\(\)\s*=>\s*requestReadModel\('end-dates'/);
+});

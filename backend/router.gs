@@ -22,6 +22,10 @@ function handlePost_(e) {
     var handlers = {
       login: function() { return actionLogin_(payload); },
       bootstrap: function() { return actionBootstrap_(user); },
+      readModelManifest: function() { return actionReadModelManifest_(user); },
+      readModelGet: function() { return actionReadModelGet_(user, payload); },
+      readModelHealth: function() { requireAnyRole_(user, ['admin', 'operation_manager']); return getReadModelHealth_(); },
+      refreshAllReadModels: function() { requireAnyRole_(user, ['admin', 'operation_manager']); return refreshAllReadModels_(); },
       dashboard: function() { return actionDashboard_(user, payload); },
       dashboardSnapshot: function() { return actionDashboardSnapshot_(user, payload); },
       activities: function() { return actionActivitiesSnapshotFirst_(user, payload); },
@@ -114,10 +118,18 @@ function handlePost_(e) {
     var writeData = handlers[action]();
     if (action === 'addActivity' ||
         action === 'saveActivity' ||
+        action === 'submitEditRequest' ||
         action === 'reviewEditRequest' ||
         action === 'saveFinanceRow' ||
         action === 'syncFinance' ||
+        action === 'savePermission' ||
         action === 'syncEndDates') {
+      try {
+        markReadModelsDirtyByMutation_(action, payload || {});
+      } catch (_rmDirtyErr) {}
+      try {
+        refreshReadModelsForMutation_(action);
+      } catch (_rmRefreshErr) {}
       try {
         markDashboardSnapshotsRefreshNeeded_('mutation:' + action);
       } catch (snapshotErr) {
@@ -128,7 +140,7 @@ function handlePost_(e) {
           );
         } catch (_e) {}
       }
-      if (action === 'addActivity' || action === 'saveActivity' || action === 'reviewEditRequest') {
+      if (action === 'addActivity' || action === 'saveActivity' || action === 'submitEditRequest' || action === 'reviewEditRequest') {
         try {
           refreshActivitiesSnapshot_();
         } catch (_activitiesSnapshotErr) {
@@ -160,6 +172,9 @@ function isReadActionCacheable_(action, user) {
   if (!user) return false;
   var map = {
     bootstrap: true,
+    readModelManifest: true,
+    readModelGet: true,
+    readModelHealth: true,
     dashboard: true,
     dashboardSnapshot: true,
     activities: true,

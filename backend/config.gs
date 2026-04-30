@@ -26,7 +26,8 @@ const CONFIG = {
     PRIVATE_NOTES: 'operations_private_notes',
     DASHBOARD_SUMMARY_SNAPSHOT: 'dashboard_summary_snapshot',
     DASHBOARD_BY_MANAGER_SNAPSHOT: 'dashboard_by_manager_snapshot',
-    DASHBOARD_REFRESH_CONTROL: 'dashboard_refresh_control'
+    DASHBOARD_REFRESH_CONTROL: 'dashboard_refresh_control',
+    READ_MODELS: 'read_models'
   },
   /** ברירת מחדל כשגיליון lists ריק או חסר — מיושר ל־lists במקור הנתונים */
   DEFAULT_PROGRAM_ACTIVITY_TYPES: ['course', 'after_school'],

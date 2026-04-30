@@ -75,3 +75,28 @@ function installDataMaintenanceTrigger() {
 function runRefreshDataViewsManually() {
   return refreshDataViews_();
 }
+
+function refreshAllReadModels() {
+  return refreshAllReadModels_();
+}
+
+function refreshAllReadModelsTrigger() {
+  refreshAllReadModels_();
+}
+
+function installReadModelsTriggers() {
+  var targetHandler = 'refreshAllReadModelsTrigger';
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction && t.getHandlerFunction() === targetHandler) {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+  [7, 13, 19].forEach(function(hour) {
+    ScriptApp.newTrigger(targetHandler)
+      .timeBased()
+      .atHour(hour)
+      .everyDays(1)
+      .create();
+  });
+  return { status: 'installed', hours: [7, 13, 19] };
+}

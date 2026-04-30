@@ -65,6 +65,26 @@ function mergeListStrings(map, keys) {
   return out;
 }
 
+function buildInstructorLookup(settings) {
+  const users = settings?.dropdown_options?.instructor_users;
+  const map = {};
+  if (!Array.isArray(users)) return map;
+  users.forEach((u) => {
+    const empId = String(u?.emp_id || '').trim();
+    const name = String(u?.name || '').trim();
+    if (empId && name && !map[empId]) map[empId] = name;
+  });
+  return map;
+}
+
+function resolveInstructorDisplayName(name, empId, lookup) {
+  const direct = String(name || '').trim();
+  if (direct) return direct;
+  const emp = String(empId || '').trim();
+  if (emp && lookup?.[emp]) return lookup[emp];
+  return '';
+}
+
 function normalizeActivityNameOptions(raw) {
   if (!Array.isArray(raw)) return [];
   const out = [];
@@ -217,24 +237,27 @@ function blockPeople(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
   const managers = mergeListStrings(options, ['activity_manager', 'activity_managers']);
   const instructors = mergeListStrings(options, ['instructor_name', 'instructor_names']);
+  const instructorLookup = buildInstructorLookup(settings);
+  const instructor1Display = resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
+  const instructor2Display = resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
   const activityType = String(row.activity_type || '').trim();
   const twoInstructors = activityType === 'workshop';
   const instructorFields = twoInstructors
     ? `
       ${fieldViewEdit(
         'מדריך/ה 1',
-        `${escapeHtml(fallback(row.instructor_name))}`,
+        `${escapeHtml(fallback(instructor1Display))}`,
         selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors })
       )}
       ${fieldViewEdit(
         'מדריך/ה 2',
-        `${escapeHtml(fallback(row.instructor_name_2))}`,
+        `${escapeHtml(fallback(instructor2Display))}`,
         selectHtml({ name: 'instructor_name_2', value: row.instructor_name_2, options: instructors })
       )}
     `
     : fieldViewEdit(
         'מדריך/ה',
-        `${escapeHtml(fallback(row.instructor_name))}`,
+        `${escapeHtml(fallback(instructor1Display))}`,
         selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors })
       );
   return `
