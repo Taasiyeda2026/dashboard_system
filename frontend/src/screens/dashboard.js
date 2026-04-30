@@ -276,7 +276,14 @@ export const dashboardScreen = {
       <div class="ds-dashboard-wrap">
         ${dsPageHeader('לוח בקרה')}
         ${monthNav}
-        ${isAdminOpsUser(state) ? '<div style="margin:8px 0"><button type="button" class="ds-btn ds-btn--primary" data-run-stage2c-live>בדיקת תקינות נתונים</button></div><div data-stage2c-live-results></div>' : ''}
+        ${isAdminOpsUser(state) ? `<div style="margin:8px 0; display:flex; gap:8px; flex-wrap:wrap; align-items:end">
+          <label style="display:flex; flex-direction:column; gap:4px">
+            <span class="ds-muted">חודש</span>
+            <input type="month" value="2026-05" data-stage2c-month />
+          </label>
+          <button type="button" class="ds-btn ds-btn--primary" data-run-stage2c-live>הרץ בדיקה לחודש הנבחר</button>
+          <button type="button" class="ds-btn ds-btn--ghost" data-stop-stage2c-live disabled>עצור בדיקה</button>
+        </div><div data-stage2c-live-results></div>` : ''}
         <div data-dash-data-area>
           <div class="ds-dashboard-summary-row">
             <button type="button" class="ds-summary-btn" data-summary-target="national" aria-label="סיכום">סיכום</button>
@@ -302,20 +309,35 @@ export const dashboardScreen = {
     const runBtn = root?.querySelector('[data-run-stage2c-live]');
     const resultsHost = root?.querySelector('[data-stage2c-live-results]');
     if (isAdminOps && runBtn && resultsHost) {
+      const monthInput = root?.querySelector('[data-stage2c-month]');
+      const stopBtn = root?.querySelector('[data-stop-stage2c-live]');
+      let currentRunId = 0;
       runBtn.addEventListener('click', async () => {
+        const selectedMonth = String(monthInput?.value || '2026-05');
+        if (!/^\d{4}-\d{2}$/.test(selectedMonth)) {
+          resultsHost.innerHTML = '<p style="color:#b42318">יש לבחור חודש תקין (YYYY-MM)</p>';
+          return;
+        }
+        currentRunId += 1;
+        const runId = currentRunId;
         runBtn.disabled = true;
+        if (stopBtn) stopBtn.disabled = false;
         resultsHost.innerHTML = '<p class="ds-muted">מריץ בדיקה…</p>';
         try {
-          const months = ['2026-04', '2026-05'];
-          const results = await Promise.all(months.map((month) => api.diagnosticsConsistency({ month })));
-          const allClean = results.every((r) => Array.isArray(r?.mismatches) && r.mismatches.length === 0);
-          const critical = results.some((r) => !!r?.critical || (Array.isArray(r?.mismatches) && r.mismatches.some((m) => !!m?.critical)));
-          const blocks = results.map((r) => renderDiagnosticsMonthBlock(r)).join('');
-          const stage3 = allClean ? '<p style="color:#067647;font-weight:800">אפשר להתקדם ל-Stage 3</p>' : '';
+          const result = await api.diagnosticsConsistency({ month: selectedMonth }, { timeout_ms: 25000 });
+          if (runId !== currentRunId) return;
+          const allClean = Array.isArray(result?.mismatches) && result.mismatches.length === 0;
+          const critical = !!result?.critical || (Array.isArray(result?.mismatches) && result.mismatches.some((m) => !!m?.critical));
+          const block = renderDiagnosticsMonthBlock(result);
+          const stage3 = allClean ? '<p style="color:#067647;font-weight:800">אין לעבור ל-Stage 3 בשלב זה (הבדיקה היא בטיחותית בלבד)</p>' : '';
           const criticalMsg = critical ? '<p style="color:#b42318;font-weight:800">נמצא פער קריטי — אין לעבור ל-Stage 3</p>' : '';
-          resultsHost.innerHTML = `${criticalMsg}${stage3}${blocks}`;
+          resultsHost.innerHTML = `${criticalMsg}${stage3}${block}`;
         } catch (err) {
           const rawMessage = String(err?.message || err || '');
+          if (rawMessage.includes('יותר מהצפוי') || rawMessage.toLowerCase().includes('timeout')) {
+            resultsHost.innerHTML = '<p style="color:#b42318">בדיקת הדיאגנוסטיקה נמשכה יותר מדי זמן ונעצרה</p>';
+            return;
+          }
           let adminDetailsHtml = '';
           if (isAdminOps) {
             try {
@@ -325,14 +347,25 @@ export const dashboardScreen = {
                 <p>message: ${escapeHtml(String(details?.message || ''))}</p>
                 <p>functionName: ${escapeHtml(String(details?.functionName || ''))}</p>
                 <p>month: ${escapeHtml(String(details?.month || ''))}</p>
+                <p>stage: ${escapeHtml(String(details?.stage || details?.functionName || ''))}</p>
+                ${details?.timings ? `<pre>${escapeHtml(JSON.stringify(details.timings, null, 2))}</pre>` : ''}
                 ${details?.stack ? `<p>stack: ${escapeHtml(String(details.stack))}</p>` : ''}
               </div>`;
             } catch (_e) {}
           }
           resultsHost.innerHTML = adminDetailsHtml || `<p style="color:#b42318">שגיאה בהרצת הדיאגנוסטיקה: ${escapeHtml(rawMessage)}</p>`;
         } finally {
-          runBtn.disabled = false;
+          if (runId === currentRunId) {
+            runBtn.disabled = false;
+            if (stopBtn) stopBtn.disabled = true;
+          }
         }
+      });
+      stopBtn?.addEventListener('click', () => {
+        currentRunId += 1;
+        runBtn.disabled = false;
+        stopBtn.disabled = true;
+        resultsHost.innerHTML = '<p class="ds-muted">הבדיקה נעצרה ידנית.</p>';
       });
     }
     function putDashboardCache(cacheKey, payload) {

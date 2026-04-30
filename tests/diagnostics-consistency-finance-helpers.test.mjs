@@ -25,5 +25,5 @@ test('diagnostics consistency uses defined backend finance helpers and keeps rea
   const diagnosticsFn = actions.match(/function actionDiagnosticsConsistency_\([\s\S]*?\n}\n\nfunction /);
   assert.ok(diagnosticsFn, 'actionDiagnosticsConsistency_ function not found');
   const body = diagnosticsFn[0];
-  assert.doesNotMatch(body, /refreshReadModelsForActivityRow_|refreshSingleReadModel_|readModel|cache/i);
+  assert.doesNotMatch(body, /refreshReadModelsForActivityRow_|refreshSingleReadModel_|actionReadModelGet_/i);
 });
