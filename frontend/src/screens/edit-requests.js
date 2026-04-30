@@ -92,6 +92,7 @@ export const editRequestsScreen = {
   load: ({ api }) => api.editRequests(),
   render(data) {
     const groups = Array.isArray(data?.groups) ? data.groups : [];
+    const validGroups = groups.filter((group) => Array.isArray(group?.fields) && group.fields.length > 0);
     const canReview = !!data?.canReview;
 
     const statusFilters = [
@@ -107,16 +108,16 @@ export const editRequestsScreen = {
         data-er-filter="${escapeHtml(f.value)}">${escapeHtml(f.label)}</button>
     `).join('');
 
-    const groupsHtml = groups.length === 0
+    const groupsHtml = validGroups.length === 0
       ? dsEmptyState('אין בקשות עריכה')
-      : groups.map((g) => renderGroup(g, canReview)).join('');
+      : validGroups.map((g) => renderGroup(g, canReview)).join('');
 
     const subtitle = canReview ? 'בקשות עריכה הממתינות לאישורך' : 'בקשות עריכה שהגשת';
 
     return dsScreenStack(`
       ${dsPageHeader('בקשות עריכה', subtitle)}
       ${dsCard({
-        title: `בקשות (${groups.length})`,
+        title: `בקשות (${validGroups.length})`,
         padded: false,
         body: `
           <div class="ds-filter-bar ds-er-filter-bar">${filterChips}</div>

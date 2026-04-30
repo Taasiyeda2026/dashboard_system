@@ -208,7 +208,17 @@ function headerHtml(row, { mode = 'single', summaryDate = '' } = {}) {
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const main = rows[0] || {};
-    const instructorName = fallback(main.instructor_name || main.instructor_name_2 || 'ללא מדריך');
+    const instructorName = fallback(
+      main.instructor_name ||
+      main.instructor_name_2 ||
+      main.Instructor ||
+      main.Instructor2 ||
+      main.Employee ||
+      main.Employee2 ||
+      main.emp_id ||
+      main.emp_id_2 ||
+      'ללא מדריך'
+    );
     const dateLabel = formatDateHe(summaryDate) || fallback(summaryDate);
     return `
       <div class="activity-drawer__header">

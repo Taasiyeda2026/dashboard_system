@@ -160,8 +160,10 @@ function buildMeetingsDatesHtml(row) {
   }
 
   const totalSessions = parseFloat(row.sessions) || 0;
+  const roundedSessions = totalSessions > 0 ? Math.round(totalSessions) : 0;
   const recorded = dates.length;
-  const pending = Math.max(0, Math.round(totalSessions) - recorded);
+  const pendingRaw = roundedSessions - recorded;
+  const pending = pendingRaw > 0 ? pendingRaw : 0;
 
   if (recorded === 0 && pending === 0) return '';
 
@@ -189,7 +191,7 @@ function buildMeetingsDatesHtml(row) {
 
   return `<div class="ds-meetings-panel">
     <div class="ds-meetings-panel__summary">
-      <span>פגישות (${recorded}${pending > 0 ? `/${Math.round(totalSessions)}` : ''})</span>
+      <span>פגישות (${recorded}${pending > 0 ? `/${roundedSessions}` : ''})</span>
       <span class="ds-meetings-panel__counts">
         ${past > 0 ? `<span class="ds-date-count ds-date-count--past">${past} עברו</span>` : ''}
         ${future > 0 ? `<span class="ds-date-count ds-date-count--future">${future} עתידיות</span>` : ''}
@@ -1023,7 +1025,7 @@ export const financeScreen = {
       });
       rows = applyMonthFilter(rows, monthYm);
       rows = applySearch(rows, searchQ);
-      if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
+      if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '').toLowerCase() === statusFilter);
 
       /* Build filename: include date range when a from/to filter is active;
          month selection alone does not change the base filename (כספים.xls) */
