@@ -315,7 +315,21 @@ export const dashboardScreen = {
           const criticalMsg = critical ? '<p style="color:#b42318;font-weight:800">נמצא פער קריטי — אין לעבור ל-Stage 3</p>' : '';
           resultsHost.innerHTML = `${criticalMsg}${stage3}${blocks}`;
         } catch (err) {
-          resultsHost.innerHTML = `<p style="color:#b42318">שגיאה בהרצת הדיאגנוסטיקה: ${escapeHtml(String(err?.message || err))}</p>`;
+          const rawMessage = String(err?.message || err || '');
+          let adminDetailsHtml = '';
+          if (isAdminOps) {
+            try {
+              const details = JSON.parse(rawMessage);
+              adminDetailsHtml = `<div style="color:#b42318"><p><strong>שגיאה בהרצת הדיאגנוסטיקה</strong></p>
+                <p>errorCode: ${escapeHtml(String(details?.errorCode || ''))}</p>
+                <p>message: ${escapeHtml(String(details?.message || ''))}</p>
+                <p>functionName: ${escapeHtml(String(details?.functionName || ''))}</p>
+                <p>month: ${escapeHtml(String(details?.month || ''))}</p>
+                ${details?.stack ? `<p>stack: ${escapeHtml(String(details.stack))}</p>` : ''}
+              </div>`;
+            } catch (_e) {}
+          }
+          resultsHost.innerHTML = adminDetailsHtml || `<p style="color:#b42318">שגיאה בהרצת הדיאגנוסטיקה: ${escapeHtml(rawMessage)}</p>`;
         } finally {
           runBtn.disabled = false;
         }
