@@ -26,24 +26,21 @@ async function freshModules() {
   return { ...stateMod, ...apiMod };
 }
 
-test('read-model cache miss fetches readModelGet without blocking on readModelManifest first', async () => {
+test('read models are disabled by default and activities load from legacy endpoint', async () => {
   const { api, state } = await freshModules();
   state.token = 'token';
   const calls = [];
   global.fetch = async (_url, req) => {
     const body = JSON.parse(req.body);
     calls.push(body.action);
-    if (body.action === 'readModelGet') {
-      return { status: 200, async text() { return JSON.stringify({ ok: true, data: { data: { items: [] }, version: 'v1', hash: 'h1' } }); } };
-    }
-    if (body.action === 'readModelManifest') {
+    if (body.action === 'activities') {
       return { status: 200, async text() { return JSON.stringify({ ok: true, data: {} }); } };
     }
     throw new Error(`unexpected action: ${body.action}`);
   };
 
   await api.activities({});
-  assert.equal(calls[0], 'readModelGet');
+  assert.equal(calls[0], 'activities');
 });
 
 test('manifest/get failures fallback to legacy endpoint and do not break screen load', async () => {

@@ -67,17 +67,11 @@ const READ_MODEL_TIMEOUT_MS = 6000;
 const PERF_MAX_REQUESTS = 150;
 const MONTH_READ_MODEL_TTL_MS = 5 * 60 * 1000;
 const monthReadModelCache = new Map();
-const READ_MODEL_CACHE_STORAGE_KEY = 'ds_read_model_cache_v1';
+const READ_MODEL_CACHE_STORAGE_KEY = 'ds_read_model_cache_v2';
 const MANIFEST_TTL_MS = 30 * 1000;
 let manifestCache = { t: 0, data: null };
 
-const READ_MODELS_ENABLED = (() => {
-  try {
-    return localStorage.getItem('disable_read_models') !== '1';
-  } catch {
-    return true;
-  }
-})();
+const READ_MODELS_ENABLED = false;
 
 const RETRYABLE_SERVER_ERRORS = new Set([
   'network_error',
@@ -148,6 +142,7 @@ function clearMonthReadModelCache() {
 }
 
 function safeLocalStorageGetJson(key, fallback) {
+  if (!READ_MODELS_ENABLED) return fallback;
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
@@ -157,12 +152,14 @@ function safeLocalStorageGetJson(key, fallback) {
 }
 
 function safeLocalStorageSetJson(key, value) {
+  if (!READ_MODELS_ENABLED) return;
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch { /* ignore */ }
 }
 
 async function getReadModelManifestCached() {
+  if (!READ_MODELS_ENABLED) return {};
   const now = Date.now();
   if (manifestCache.data && now - manifestCache.t < MANIFEST_TTL_MS) return manifestCache.data;
   const fresh = await request('readModelManifest', {});
@@ -254,6 +251,7 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
 }
 
 async function refreshReadModelInBackground_(key, params, localKey, manifestKey, hit) {
+  if (!READ_MODELS_ENABLED) return;
   try {
     const manifest = await getReadModelManifestCached();
     const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;

@@ -13,6 +13,8 @@ function storageKey() {
 }
 
 export function persistCacheEntry(key, entry) {
+  return;
+  // Hotfix: persistent localStorage cache is disabled system-wide.
   if (PERSIST_BLOCKED_PREFIXES.some((p) => key.startsWith(p))) return;
   try {
     const serialized = JSON.stringify(entry);
