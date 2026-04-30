@@ -191,8 +191,15 @@ function manifestEntryForReadModel(key, params = {}) {
 }
 
 async function requestReadModel(key, params = {}, fallbackAction, fallbackPayload = {}) {
+  const perfBase = {
+    action: fallbackAction,
+    used_read_model: false,
+    fallback_used: false,
+    cache_hit: false,
+    sheet_reads_count: null
+  };
   if (!READ_MODELS_ENABLED) {
-    return request(fallbackAction, fallbackPayload);
+    return request(fallbackAction, fallbackPayload, perfBase);
   }
   try {
     const manifestKey = manifestEntryForReadModel(key, params);
@@ -201,10 +208,24 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
     const hit = cachedModels?.[localKey];
     if (hit && hit.data) {
       refreshReadModelInBackground_(key, params, localKey, manifestKey, hit);
+      pushPerfRequest({
+        action: fallbackAction,
+        duration_ms: 0,
+        payload_size: JSON.stringify(hit.data || {}).length,
+        used_read_model: true,
+        fallback_used: false,
+        cache_hit: true,
+        sheet_reads_count: null
+      });
       return hit.data;
     }
     // Cache miss: avoid an extra blocking manifest round-trip and fetch payload directly.
-    const envelope = await request('readModelGet', { key, params });
+    const envelope = await request('readModelGet', { key, params }, {
+      action: fallbackAction,
+      used_read_model: true,
+      fallback_used: false,
+      cache_hit: false
+    });
     const data = envelope?.data ?? envelope ?? {};
 
     const nextCache = {
@@ -226,7 +247,9 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
       fallbackAction,
       error: err?.message || err
     });
-    return request(fallbackAction, fallbackPayload);
+    const allowHeavyFallback = true;
+    if (!allowHeavyFallback) throw err;
+    return request(fallbackAction, fallbackPayload, { ...perfBase, fallback_used: true });
   }
 }
 
@@ -327,7 +350,15 @@ async function postWithTimeout(action, requestBody) {
   }
 }
 
-async function request(action, payload = {}) {
+function emitPerfEntry(entry) {
+  pushPerfRequest(entry);
+  if (isPerfDebugEnabled()) {
+    // eslint-disable-next-line no-console
+    console.info('[perf]', entry);
+  }
+}
+
+async function request(action, payload = {}, perfMeta = {}) {
   if (!config.apiUrl) {
     throw new Error('חסר קישור API. עדכנו frontend/src/config.js או window.__DASHBOARD_CONFIG__.');
   }
@@ -419,10 +450,15 @@ async function request(action, payload = {}) {
     invalidateScreenDataByAction(action);
     invalidateReadModelLocalCacheByAction(action);
   }
-  pushPerfRequest({
-    action,
+  const sheetReads = json?.data?.debug_perf?.sheet_reads_count ?? json?.data?.sheet_reads_count ?? null;
+  emitPerfEntry({
+    action: perfMeta.action || action,
     duration_ms: Math.round(performance.now() - requestStart),
-    payload_bytes: lastResponseText.length,
+    payload_size: lastResponseText.length,
+    used_read_model: Boolean(perfMeta.used_read_model || action === 'readModelGet'),
+    fallback_used: Boolean(perfMeta.fallback_used),
+    cache_hit: Boolean(perfMeta.cache_hit),
+    sheet_reads_count: sheetReads,
     backend_debug: json.data && json.data.debug_perf ? json.data.debug_perf : null
   });
   return normalized;
