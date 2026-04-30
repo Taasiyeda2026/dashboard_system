@@ -403,30 +403,6 @@ function dateColumnsPatchFromChanges_(changes) {
 
 
 
-function parseFinanceRowAmount_(row) {
-  var candidate = toNumberOrNull_(row && row.amount);
-  if (candidate === null) candidate = toNumberOrNull_(row && row.price);
-  if (candidate === null) candidate = toNumberOrNull_(row && row.total_amount);
-  if (candidate === null) candidate = toNumberOrNull_(row && row.amount_due);
-  if (candidate === null) return 0;
-  return candidate;
-}
-
-function parseFinanceRowPending_(row) {
-  var explicitPending = toNumberOrNull_(row && row.pending_amount);
-  if (explicitPending === null) explicitPending = toNumberOrNull_(row && row.pending);
-  if (explicitPending === null) explicitPending = toNumberOrNull_(row && row.balance);
-  if (explicitPending === null) explicitPending = toNumberOrNull_(row && row.remaining_amount);
-  if (explicitPending !== null) return explicitPending;
-
-  var due = toNumberOrNull_(row && row.sessions);
-  if (due === null) due = 0;
-  var paymentValue = toNumberOrNull_(row && row.Payment);
-  if (paymentValue === null) paymentValue = toNumberOrNull_(row && row.payment);
-  var received = paymentValue > 0 ? 1 : 0;
-  return Math.max(due - received, 0);
-}
-
 function actionDiagnosticsConsistency_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager']);
   var month = dashboardPayloadYm_(payload || {});
@@ -465,6 +441,41 @@ function actionDiagnosticsConsistency_(user, payload) {
 
   function guardRuntime_(stage) {
     if ((Date.now() - startedAt) > SAFE_RUNTIME_MS) throwSafeTimeout_(stage);
+  }
+  function parseFinanceNumberLocal_(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') return isFinite(value) ? value : null;
+    var raw = String(value).trim();
+    if (!raw) return null;
+    var normalized = raw
+      .replace(/\u200f|\u200e/g, '')
+      .replace(/[₪,\s]/g, '')
+      .replace(/[^\d.\-]/g, '');
+    if (!normalized || normalized === '-' || normalized === '.' || normalized === '-.') return null;
+    var parsed = Number(normalized);
+    return isFinite(parsed) ? parsed : null;
+  }
+  function parseFinanceAmountLocal_(row) {
+    if (!row) return 0;
+    var amount = parseFinanceNumberLocal_(row.amount);
+    if (amount === null) amount = parseFinanceNumberLocal_(row.price);
+    if (amount === null) amount = parseFinanceNumberLocal_(row.total_amount);
+    if (amount === null) amount = parseFinanceNumberLocal_(row.amount_due);
+    return amount === null ? 0 : amount;
+  }
+  function parseFinancePendingLocal_(row) {
+    if (!row) return 0;
+    var pending = parseFinanceNumberLocal_(row.pending_amount);
+    if (pending === null) pending = parseFinanceNumberLocal_(row.pending);
+    if (pending === null) pending = parseFinanceNumberLocal_(row.balance);
+    if (pending === null) pending = parseFinanceNumberLocal_(row.remaining_amount);
+    if (pending !== null) return pending;
+    var due = parseFinanceNumberLocal_(row.sessions);
+    if (due === null) due = 0;
+    var paymentValue = parseFinanceNumberLocal_(row.Payment);
+    if (paymentValue === null) paymentValue = parseFinanceNumberLocal_(row.payment);
+    var received = paymentValue > 0 ? 1 : 0;
+    return Math.max(due - received, 0);
   }
 
   var allActivitiesOk = false;
@@ -526,8 +537,8 @@ function actionDiagnosticsConsistency_(user, payload) {
     var financeRows = inMonth.map(function(row) {
       return {
         finance_status: normalizeFinance_(row.finance_status),
-        amount: parseFinanceRowAmount_(row),
-        pending: parseFinanceRowPending_(row)
+        amount: parseFinanceAmountLocal_(row),
+        pending: parseFinancePendingLocal_(row)
       };
     });
     var financeOpenRows = financeRows.filter(function(row) { return row.finance_status === 'open'; });
@@ -571,7 +582,7 @@ function actionDiagnosticsConsistency_(user, payload) {
       },
       timings: timings,
       mismatches: [],
-      backendVersion: 'stage2c-finance-helper-fix-v1'
+      backendVersion: 'stage2c-finance-local-parser-v1'
     };
 
     function pushMismatch_(metric, dashboardValue, sourceValue, sourceName, suspectedFunction, critical, reason) {
