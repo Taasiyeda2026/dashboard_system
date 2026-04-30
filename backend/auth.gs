@@ -300,6 +300,10 @@ function buildRoutesFromPermission_(permission, role) {
   };
 
   return allRoutes.filter(function(route) {
+    if (route === 'edit-requests') {
+      if (role === 'admin' || isOperationManagerRole_(role)) return true;
+      return permYes_(permission, 'view_edit_requests');
+    }
     if (route === 'permissions') {
       if (!canDirectWriteRole_(role)) return false;
       return permYes_(permission, 'view_permissions');
@@ -476,6 +480,8 @@ function effectiveCanRequestEdit_(permission, role) {
   if (role === 'instructor') return false;
   if (canDirectWriteRole_(role)) return true;
   var explicit = text_(permission.can_request_edit).toLowerCase();
+  // Backward-compat alias: older permissions sheets may still use can_edit_request.
+  if (!explicit) explicit = text_(permission.can_edit_request).toLowerCase();
   if (explicit === 'yes') return true;
   if (explicit === 'no') return false;
   return hasWorkViewForEdit_(permission);
