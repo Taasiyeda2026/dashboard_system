@@ -11,7 +11,6 @@ export const ACT_SUBNAV_ITEMS = [
   { route: 'contacts',            label: 'אנשי קשר',             icon: '📇' },
   { route: 'finance',             label: 'כספים',                icon: '💰' },
   { route: 'permissions',         label: 'הרשאות',               icon: '🔑' },
-  { route: 'operations',          label: 'תפעול',                icon: '⚙️' },
   { route: 'edit-requests',       label: 'אישורים',              icon: '✅' },
   { route: 'my-data',             label: 'הנתונים שלי',          icon: '👤' }
 ];

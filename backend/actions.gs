@@ -802,11 +802,17 @@ function actionActivities_(user, payload) {
 
   var noteMap = buildPrivateNotesMap_();
   var activitiesMeetingsMap = buildMeetingsMap_();
+  var editRequestMap = latestEditRequestBySourceRowForUser_(user.user_id);
 
   return {
     activity_type_counts: activityTypeCounts,
     rows: rows.map(function(row) {
-      return mapActivitySummaryRowForList_(row, user, noteMap, activitiesMeetingsMap, today);
+      var mapped = mapActivitySummaryRowForList_(row, user, noteMap, activitiesMeetingsMap, today);
+      var editReq = editRequestMap[text_(mapped.RowID)] || {};
+      mapped.edit_request_status = text_(editReq.edit_request_status);
+      mapped.edit_request_id = text_(editReq.edit_request_id);
+      mapped.edit_request_requested_at = text_(editReq.edit_request_requested_at);
+      return mapped;
     }),
     can_add_activity: canAddActivity,
     filters: {
@@ -859,6 +865,28 @@ function mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today) {
       ? text_(noteRow.note_text)
       : ''
   };
+}
+
+function latestEditRequestBySourceRowForUser_(userId) {
+  var uid = text_(userId);
+  if (!uid) return {};
+  var rows = readRows_(CONFIG.SHEETS.EDIT_REQUESTS).filter(function(row) {
+    return yesNo_(row.active) === 'yes' && text_(row.requested_by_user_id) === uid;
+  });
+  rows.sort(function(a, b) {
+    return text_(b.requested_at).localeCompare(text_(a.requested_at));
+  });
+  var map = {};
+  rows.forEach(function(row) {
+    var key = text_(row.source_row_id || row.RowID);
+    if (!key || map[key]) return;
+    map[key] = {
+      edit_request_id: text_(row.request_id),
+      edit_request_status: text_(row.status),
+      edit_request_requested_at: text_(row.requested_at)
+    };
+  });
+  return map;
 }
 
 function mapActivityDetailRowForDrawer_(row, user) {
@@ -946,7 +974,13 @@ function actionActivityDetail_(user, payload) {
   var sourceRowId = text_((payload || {}).source_row_id || (payload || {}).RowID);
   var sourceSheet = text_((payload || {}).source_sheet);
   var row = findActivityRowById_(sourceRowId, sourceSheet);
-  return { row: mapActivityDetailRowForDrawer_(row, user) };
+  var mapped = mapActivityDetailRowForDrawer_(row, user);
+  var editRequestMap = latestEditRequestBySourceRowForUser_(user.user_id);
+  var editReq = editRequestMap[text_(mapped.RowID)] || {};
+  mapped.edit_request_status = text_(editReq.edit_request_status);
+  mapped.edit_request_id = text_(editReq.edit_request_id);
+  mapped.edit_request_requested_at = text_(editReq.edit_request_requested_at);
+  return { row: mapped };
 }
 
 function actionAddActivityOptions_(user) {

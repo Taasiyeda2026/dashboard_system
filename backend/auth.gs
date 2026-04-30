@@ -250,7 +250,6 @@ function allKnownRoutes_() {
     'finance',
     'end-dates',
     'my-data',
-    'operations',
     'edit-requests',
     'permissions'
   ];
@@ -296,7 +295,6 @@ function buildRoutesFromPermission_(permission, role) {
     contacts: '__school_contacts__',
     finance: 'view_finance',
     'end-dates': '__end_dates__',
-    operations: 'view_operations_data',
     'edit-requests': 'view_edit_requests',
     permissions: 'view_permissions'
   };
@@ -340,7 +338,7 @@ function effectiveRoutesForUser_(permission, role) {
 function defaultRouteForRole_(role) {
   if (role === 'instructor') return 'my-data';
   if (isOperationManagerRole_(role)) {
-    return viewKeyToRouteId_(getSettingText_('operations_default_view_key', 'view_operations_data')) || 'dashboard';
+    return 'dashboard';
   }
   if (role === 'admin') {
     return viewKeyToRouteId_(getSettingText_('admin_default_view_key', 'view_admin')) || 'dashboard';
@@ -367,7 +365,7 @@ function viewKeyToRouteId_(viewKey) {
     my_data: 'my-data',
     'my-data': 'my-data',
     view_my_data: 'my-data',
-    view_operations_data: 'operations',
+    view_operations_data: 'dashboard',
     instructor_contacts: 'instructor-contacts',
     'instructor-contacts': 'instructor-contacts',
     view_contacts_instructors: 'instructor-contacts',

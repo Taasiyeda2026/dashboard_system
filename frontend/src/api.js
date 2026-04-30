@@ -313,7 +313,22 @@ export const api = {
     b !== undefined && b !== null
       ? request('saveActivity', { source_row_id: a, changes: b })
       : request('saveActivity', a),
-  submitEditRequest: (source_row_id, changes) => request('submitEditRequest', { source_row_id, changes }),
+  submitEditRequest: (source_row_id, changes) => {
+    const normalizedChanges = Object.entries(changes || {}).reduce((acc, [key, value]) => {
+      if (value === undefined || value === null) return acc;
+      const normalizedValue = String(value).trim();
+      acc[key] = normalizedValue;
+      return acc;
+    }, {});
+    // eslint-disable-next-line no-console
+    console.info('[submitEditRequest] source_row_id', source_row_id);
+    // eslint-disable-next-line no-console
+    console.info('[submitEditRequest] changes', normalizedChanges);
+    if (!source_row_id || !Object.keys(normalizedChanges).length) {
+      throw new Error('No changes to submit');
+    }
+    return request('submitEditRequest', { source_row_id, changes: normalizedChanges });
+  },
   reviewEditRequest: (request_id, status) => request('reviewEditRequest', { request_id, status }),
   savePermission: (row) => request('savePermission', { row }),
   addUser: (row) => request('addUser', { row }),
