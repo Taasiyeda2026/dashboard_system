@@ -40,16 +40,7 @@ function applySearch(rows, q) {
   );
 }
 
-function applyMonthFilter(rows, ymStr, dateFrom, dateTo) {
-  /* Custom date range takes precedence */
-  if (!ymStr && (dateFrom || dateTo)) {
-    return rows.filter((r) => {
-      const d = String(r.end_date || '');
-      if (dateFrom && d < dateFrom) return false;
-      if (dateTo && d > dateTo) return false;
-      return true;
-    });
-  }
+function applyMonthFilter(rows, ymStr) {
   /* No filter: show all */
   if (!ymStr) return rows;
   /* Month window: show selected month AND previous month together */
@@ -155,25 +146,6 @@ function nextMonth(ymStr) {
 function currentYm() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-/* ————————————————————————————————
-   Manager breakdown (for summary card)
-———————————————————————————————— */
-function buildManagerBreakdown(rows) {
-  const map = {};
-  rows.forEach((r) => {
-    const mgr = String(r.activity_manager || '').trim() || '—';
-    if (!map[mgr]) map[mgr] = { total: 0, open: 0, closed: 0, other: 0, amountOpen: 0, amountClosed: 0, amountOther: 0, amountTotal: 0 };
-    const amt = rowAmount(r);
-    map[mgr].total += 1;
-    map[mgr].amountTotal += amt;
-    const st = String(r.finance_status || '').toLowerCase();
-    if (st === 'open') { map[mgr].open += 1; map[mgr].amountOpen += amt; }
-    else if (st === 'closed') { map[mgr].closed += 1; map[mgr].amountClosed += amt; }
-    else { map[mgr].other += 1; map[mgr].amountOther += amt; }
-  });
-  return Object.entries(map).map(([mgr, counts]) => ({ mgr, ...counts })).sort((a, b) => b.total - a.total);
 }
 
 /* ————————————————————————————————
@@ -544,7 +516,7 @@ function buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir, g
 
       const price = parseFloat(row.price) || 0;
       const sessions = parseFloat(row.sessions) || 0;
-      const calcAmount = sessions > 0 ? price * sessions : price;
+      const calcAmount = rowAmount(row);
 
       return `<tr class="ds-data-row" data-row-id="${uid}">
         <td>${escapeHtml(row.activity_name || '—')}</td>
@@ -690,8 +662,6 @@ function exportToExcel(rows, label, periodLabel, filterLabel) {
    LocalStorage persistence
 ———————————————————————————————— */
 const LS = {
-  dateFrom: 'finance_date_from',
-  dateTo: 'finance_date_to',
   search: 'finance_search',
   statusFilter: 'finance_status_filter',
   monthYm: 'finance_month_ym',
@@ -705,7 +675,7 @@ const LS = {
 };
 
 const LS_ALL_PREF_KEYS = [
-  'finance_date_from', 'finance_date_to', 'finance_search', 'finance_status_filter',
+  'finance_search', 'finance_status_filter',
   'finance_month_ym', 'finance_tab', 'finance_view_mode',
   'finance_mgr_sort_col', 'finance_mgr_sort_dir',
   'finance_table_sort_col', 'finance_table_sort_dir',
@@ -717,8 +687,6 @@ function clearFinanceStorage() {
 }
 
 function resetFinanceStateKeys(state) {
-  state.financeDateFrom = '';
-  state.financeDateTo = '';
   state.financeSearch = '';
   state.financeStatusFilter = '';
   state.financeMonthYm = '';
@@ -744,8 +712,6 @@ function loadStateFromStorage(state) {
   }
 
   const map = {
-    financeDateFrom: LS.dateFrom,
-    financeDateTo: LS.dateTo,
     financeSearch: LS.search,
     financeStatusFilter: LS.statusFilter,
     financeMonthYm: LS.monthYm,
@@ -784,8 +750,8 @@ export const financeScreen = {
   load: ({ api, state }) => {
     loadStateFromStorage(state);
     return api.finance({
-      date_from: state?.financeDateFrom || '',
-      date_to: state?.financeDateTo || '',
+      date_from: '',
+      date_to: '',
       search: '',      /* search and status applied client-side for instant filtering */
       status: '',
       tab: 'all',      /* load both active and archived — finance screen shows all */
@@ -798,8 +764,6 @@ export const financeScreen = {
     const narrow = isNarrowViewport();
     const searchQ = state?.financeSearch || '';
     const statusFilter = state?.financeStatusFilter || '';
-    const dateFrom = state?.financeDateFrom || '';
-    const dateTo = state?.financeDateTo || '';
     const activeTab = state?.financeTab || 'active';
     const monthYm = state?.financeMonthYm || '';
     const viewMode = state?.financeViewMode || (narrow ? 'cards' : 'groups');
@@ -814,7 +778,7 @@ export const financeScreen = {
       : allRows;
 
     /* KPI window: month-filter only — independent of search/status chips */
-    const kpiRows = applyMonthFilter(baseRows, monthYm, dateFrom, dateTo);
+    const kpiRows = applyMonthFilter(baseRows, monthYm);
     const kpiOpen = kpiRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'open');
     const kpiClosed = kpiRows.filter((r) => String(r.finance_status || '').toLowerCase() === 'closed');
     const amountOpen = kpiOpen.reduce((s, r) => s + rowAmount(r), 0);
@@ -841,52 +805,6 @@ export const financeScreen = {
         `<button type="button" class="ds-chip ${c.val === statusFilter ? 'is-active' : ''}" data-status-filter="${escapeHtml(c.val)}">${escapeHtml(c.label)}</button>`
       ).join('');
 
-    /* Manager breakdown */
-    const agg = data?.aggregates;
-    const mgrSortCol = state?.managerBreakdownSortCol || 'total';
-    const mgrSortDir = state?.managerBreakdownSortDir || 'desc';
-    const rawMgr = agg?.byManager || buildManagerBreakdown(rows);
-    const managerBreakdown = [...rawMgr].sort((a, b) => {
-      const av = mgrSortCol === 'mgr' ? String(a.mgr || '') : Number(a[mgrSortCol]) || 0;
-      const bv = mgrSortCol === 'mgr' ? String(b.mgr || '') : Number(b[mgrSortCol]) || 0;
-      if (mgrSortCol === 'mgr') return mgrSortDir === 'asc' ? av.localeCompare(bv, 'he') : bv.localeCompare(av, 'he');
-      return mgrSortDir === 'asc' ? av - bv : bv - av;
-    });
-
-    function mgrTh(label, col, center) {
-      const active = mgrSortCol === col;
-      const style = `cursor:pointer;user-select:none;white-space:nowrap;${center ? 'text-align:center;' : ''}${active ? 'text-decoration:underline dotted;' : ''}`;
-      const ind = active ? (mgrSortDir === 'asc' ? ' ▲' : ' ▼') : '';
-      return `<th data-mgr-sort-col="${escapeHtml(col)}" style="${style}">${escapeHtml(label)}${ind}</th>`;
-    }
-
-    const mgrTableRows = managerBreakdown.map((m) => `<tr>
-      <td>${escapeHtml(m.mgr)}</td>
-      <td style="text-align:center;">${m.total}</td>
-      <td style="text-align:center;">${dsStatusChip(String(m.open), 'warning')}</td>
-      <td style="text-align:center;">${formatILS(m.amountOpen)}</td>
-      <td style="text-align:center;">${dsStatusChip(String(m.closed), 'success')}</td>
-      <td style="text-align:center;">${formatILS(m.amountClosed)}</td>
-      <td style="text-align:center;">${formatILS(m.amountTotal)}</td>
-    </tr>`).join('');
-
-    const managerTable = managerBreakdown.length === 0 ? '' : dsCard({
-      title: 'פירוט לפי מנהל פעילות',
-      badge: `${managerBreakdown.length} מנהלים`,
-      body: dsTableWrap(`<table class="ds-table">
-        <thead><tr>
-          ${mgrTh('מנהל פעילות','mgr',false)}
-          ${mgrTh('סה"כ','total',true)}
-          ${mgrTh('פתוח','open',true)}
-          ${mgrTh('סכום פתוח','amountOpen',true)}
-          ${mgrTh('סגור','closed',true)}
-          ${mgrTh('סכום סגור','amountClosed',true)}
-          ${mgrTh('סה"כ סכום','amountTotal',true)}
-        </tr></thead>
-        <tbody>${mgrTableRows}</tbody>
-      </table>`),
-      padded: false
-    });
 
     /* Tabs — show filter options for authorized users */
     const showArchiveTab = canEdit;
@@ -919,9 +837,6 @@ export const financeScreen = {
     /* Header subtitle */
     let headerSubtitle;
     if (monthYm) headerSubtitle = `מציג: ${ymToMonthLabel(prevMonth(monthYm))} – ${ymToMonthLabel(monthYm)}`;
-    else if (dateFrom && dateTo) headerSubtitle = `מציג: ${formatDateIL(dateFrom)} – ${formatDateIL(dateTo)}`;
-    else if (dateFrom) headerSubtitle = `מציג: מתאריך ${formatDateIL(dateFrom)}`;
-    else if (dateTo) headerSubtitle = `מציג: עד ${formatDateIL(dateTo)}`;
     else headerSubtitle = 'מציג: כל התקופה';
 
     const exportBtn = `<button type="button" class="ds-btn ds-btn--sm" data-export-csv>ייצוא Excel</button>`;
@@ -942,7 +857,6 @@ export const financeScreen = {
       ${tabsHtml}
       ${monthNavHtml}
       ${dsKpiGrid(kpis)}
-      ${managerTable}
       <div class="ds-screen-top-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <input id="finance-search" type="search" class="ds-search-input"
           placeholder="חיפוש..." value="${escapeHtml(searchQ)}" dir="rtl" style="flex:1;min-width:160px;" />
@@ -953,16 +867,7 @@ export const financeScreen = {
       </div>
       <div class="ds-filter-bar" role="toolbar" style="flex-wrap:wrap;gap:8px;">
         ${statusChips}
-        <span style="display:flex;align-items:center;gap:4px;margin-right:8px;">
-          <label for="finance-date-from" style="font-size:0.85rem;white-space:nowrap;">מתאריך</label>
-          <input id="finance-date-from" type="date" class="ds-input" value="${escapeHtml(dateFrom)}" style="font-size:0.85rem;padding:4px 6px;" />
-        </span>
-        <span style="display:flex;align-items:center;gap:4px;">
-          <label for="finance-date-to" style="font-size:0.85rem;white-space:nowrap;">עד תאריך</label>
-          <input id="finance-date-to" type="date" class="ds-input" value="${escapeHtml(dateTo)}" style="font-size:0.85rem;padding:4px 6px;" />
-        </span>
-        ${(dateFrom || dateTo) ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-clear-dates>נקה תאריכים</button>` : ''}
-        ${(dateFrom || dateTo || searchQ || statusFilter) ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-reset-filters style="border-color:var(--color-warning,#d97706);color:var(--color-warning,#d97706)">איפוס כל הסננים</button>` : ''}
+        ${(searchQ || statusFilter) ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-reset-filters style="border-color:var(--color-warning,#d97706);color:var(--color-warning,#d97706)">איפוס כל הסננים</button>` : ''}
       </div>
       <div data-finance-data-area>
         ${dsCard({
@@ -1080,48 +985,11 @@ export const financeScreen = {
       }, bindOpts);
     });
 
-    /* Date filters */
-    root.querySelector('#finance-date-from')?.addEventListener('change', (ev) => {
-      state.financeDateFrom = ev.target.value || '';
-      state.financeMonthYm = '';
-      save(LS.dateFrom, state.financeDateFrom);
-      save(LS.monthYm, '');
-      showDataAreaLoading();
-      clearScreenDataCache();
-      rerender();
-    }, bindOpts);
-    root.querySelector('#finance-date-to')?.addEventListener('change', (ev) => {
-      state.financeDateTo = ev.target.value || '';
-      state.financeMonthYm = '';
-      save(LS.dateTo, state.financeDateTo);
-      save(LS.monthYm, '');
-      showDataAreaLoading();
-      clearScreenDataCache();
-      rerender();
-    }, bindOpts);
-    root.querySelector('[data-clear-dates]')?.addEventListener('click', () => {
-      state.financeDateFrom = '';
-      state.financeDateTo = '';
-      save(LS.dateFrom, '');
-      save(LS.dateTo, '');
-      showDataAreaLoading();
-      clearScreenDataCache();
-      rerender();
-    }, bindOpts);
     root.querySelector('[data-reset-filters]')?.addEventListener('click', () => {
-      const hadDates = !!(state.financeDateFrom || state.financeDateTo);
-      state.financeDateFrom = '';
-      state.financeDateTo = '';
       state.financeSearch = '';
       state.financeStatusFilter = '';
-      save(LS.dateFrom, '');
-      save(LS.dateTo, '');
       save(LS.search, '');
       save(LS.statusFilter, '');
-      if (hadDates) {
-        showDataAreaLoading();
-        clearScreenDataCache();
-      }
       rerender();
     }, bindOpts);
 
@@ -1141,59 +1009,30 @@ export const financeScreen = {
       }, bindOpts);
     });
 
-    /* Manager sort — persist chosen column + direction to localStorage */
-    root.querySelectorAll('[data-mgr-sort-col]').forEach((th) => {
-      th.addEventListener('click', () => {
-        const col = th.dataset.mgrSortCol;
-        if (state.managerBreakdownSortCol === col) {
-          state.managerBreakdownSortDir = state.managerBreakdownSortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-          state.managerBreakdownSortCol = col;
-          state.managerBreakdownSortDir = 'desc';
-        }
-        localStorage.setItem(LS.mgrSortCol, state.managerBreakdownSortCol);
-        localStorage.setItem(LS.mgrSortDir, state.managerBreakdownSortDir);
-        rerender();
-      }, bindOpts);
-    });
 
     /* CSV export */
     root.querySelector('[data-export-csv]')?.addEventListener('click', () => {
       const searchQ = state?.financeSearch || '';
       const statusFilter = state?.financeStatusFilter || '';
       const monthYm = state?.financeMonthYm || '';
-      const dateFrom = state?.financeDateFrom || '';
-      const dateTo = state?.financeDateTo || '';
       const activeTab = state?.financeTab || 'active';
       const isAdminExport = state?.user?.display_role === 'admin';
       let rows = isAdminExport ? applyTabFilter(allRows, activeTab) : allRows.filter((r) => {
         const arch = String(r.is_archived || r.archive || '').toLowerCase();
         return arch !== 'yes' && arch !== 'true' && arch !== '1';
       });
-      /* When a custom date range is active it takes precedence over monthYm —
-         pass empty string for ymStr so applyMonthFilter uses the date range. */
-      const effectiveYm = (dateFrom || dateTo) ? '' : monthYm;
-      rows = applyMonthFilter(rows, effectiveYm, dateFrom, dateTo);
+      rows = applyMonthFilter(rows, monthYm);
       rows = applySearch(rows, searchQ);
       if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '') === statusFilter);
 
       /* Build filename: include date range when a from/to filter is active;
          month selection alone does not change the base filename (כספים.xls) */
       let exportLabel = '';
-      if (dateFrom || dateTo) {
-        const fmt = (iso) => iso ? iso.split('-').reverse().join('-') : '';
-        const parts = [fmt(dateFrom), fmt(dateTo)].filter(Boolean);
-        exportLabel = parts.join('_');
-      }
 
       /* Period label for embedded header row */
       let periodLabel = '';
       if (monthYm) {
         periodLabel = `${ymToMonthLabel(prevMonth(monthYm))} – ${ymToMonthLabel(monthYm)}`;
-      } else if (dateFrom || dateTo) {
-        const fromLabel = dateFrom ? formatDateIL(dateFrom) : 'תחילת התקופה';
-        const toLabel = dateTo ? formatDateIL(dateTo) : 'סוף התקופה';
-        periodLabel = `${fromLabel} – ${toLabel}`;
       } else {
         periodLabel = 'כל התקופה';
       }
@@ -1214,16 +1053,14 @@ export const financeScreen = {
       if (btn) { btn.disabled = true; btn.textContent = '↻ מרענן...'; }
       try {
         const freshData = await api.finance({
-          date_from: state?.financeDateFrom || '',
-          date_to: state?.financeDateTo || '',
+          date_from: '',
+          date_to: '',
           search: state?.financeSearch || '',
           status: state?.financeStatusFilter || '',
           tab: state?.financeTab || 'active',
           month: state?.financeMonthYm || ''
         });
         const financeFilters = {
-          dateFrom: state?.financeDateFrom || '',
-          dateTo: state?.financeDateTo || '',
           search: state?.financeSearch || '',
           status: state?.financeStatusFilter || '',
           tab: state?.financeTab || 'active',
