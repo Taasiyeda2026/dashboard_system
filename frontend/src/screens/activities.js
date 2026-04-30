@@ -193,6 +193,7 @@ function addActivityModalHtml(settings) {
         <label class="ds-activity-add-field" data-field-instructor2 style="display:none"><span>מדריך/ה 2</span><select class="ds-input" name="instructor_name_2" data-add-instructor-2>${optionsHtml(instructorOptions)}</select></label>
         <input type="hidden" name="emp_id_2" value="">
         <label class="ds-activity-add-field"><span>תאריך התחלה</span><input class="ds-input" name="start_date" type="date"></label>
+        <label class="ds-activity-add-field"><span>תאריך סיום</span><input class="ds-input" name="end_date" type="date"></label>
         <label class="ds-activity-add-field"><span>תדירות</span><select class="ds-input" name="frequency" data-add-frequency>${optionsHtml(['weekly', 'biweekly'], 'weekly', 'בחרו תדירות')}</select></label>
         <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-date-rows-wrap>
           <span>תאריכי מפגשים</span>
@@ -200,6 +201,7 @@ function addActivityModalHtml(settings) {
         </div>
         <label class="ds-activity-add-field"><span>הערות</span><textarea class="ds-input" name="notes" rows="2"></textarea></label>
       </div>
+      <button type="submit" hidden aria-hidden="true"></button>
       <p class="ds-muted" role="status" data-add-activity-status></p>
     </form>
   `;
@@ -694,16 +696,11 @@ export const activitiesScreen = {
       form.querySelector('[data-add-frequency]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
     }
 
-    document.addEventListener('click', async (ev) => {
-      const submit = ev.target.closest('[data-add-activity-submit]');
-      if (!submit) return;
-      const modal = document.querySelector('.ds-modal__content');
-      const form = modal?.querySelector('[data-add-activity-form]');
-      if (!form) return;
+    async function submitAddActivityForm(form, submitBtn) {
       const statusEl = form.querySelector('[data-add-activity-status]');
       const activityMap = decodeJsonAttr(form.dataset.addActivityNames, []);
       const roster = decodeJsonAttr(form.dataset.addRosterUsers, []);
-      const fd = new FormData(form);
+      const fd = new (window?.FormData || FormData)(form);
       const get = (k) => String(fd.get(k) || '').trim();
       const familySource = get('source') || 'long';
       const selectedName = get('activity_name');
@@ -738,6 +735,8 @@ export const activitiesScreen = {
         instructor_name_2: isShort ? get('instructor_name_2') : '',
         emp_id_2: isShort ? pickEmp(get('instructor_name_2')) : '',
         start_date: get('start_date'),
+        end_date: get('end_date') || '',
+        frequency: get('frequency'),
         status: 'פעיל',
         notes: get('notes')
       };
@@ -745,15 +744,31 @@ export const activitiesScreen = {
       dateInputs.forEach((input, index) => {
         payload[`Date${index + 1}`] = String(input.value || '').trim();
       });
-      if (!payload.activity_type || !payload.activity_name || !payload.start_date) {
-        if (statusEl) statusEl.textContent = 'יש למלא לפחות סוג פעילות, שם פעילות ותאריך התחלה';
+      if (!payload.end_date) {
+        const lastDate = [...dateInputs].map((input) => String(input.value || '').trim()).filter(Boolean).pop();
+        payload.end_date = lastDate || payload.start_date || '';
+      }
+
+      const required = [
+        ['activity_type', 'סוג פעילות'],
+        ['activity_name', 'שם פעילות'],
+        ['start_date', 'תאריך התחלה']
+      ];
+      const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
+      if (missing.length) {
+        if (statusEl) statusEl.textContent = `יש להשלים שדות חובה: ${missing.join(' ,')}`;
         return;
       }
+
+      const originalText = submitBtn?.textContent || 'שמור';
       try {
-        submit.disabled = true;
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'שומר...';
+        }
         if (statusEl) statusEl.textContent = 'שומר...';
         const rsp = await api.addActivity(payload);
-        if (statusEl) statusEl.textContent = 'נשמר בהצלחה';
+        if (statusEl) statusEl.textContent = 'הפעילות נשמרה';
         const localRow = {
           RowID: rsp?.RowID || '',
           source_sheet: rsp?.source_sheet || (payload.source === 'long' ? 'data_long' : 'data_short'),
@@ -767,7 +782,7 @@ export const activitiesScreen = {
           emp_id: payload.emp_id,
           emp_id_2: payload.emp_id_2,
           start_date: payload.start_date,
-          end_date: payload.Date2 || payload.start_date,
+          end_date: payload.end_date,
           status: 'פעיל',
           private_note: '',
           meeting_dates: dateInputs.map((input) => String(input.value || '').trim()).filter(Boolean)
@@ -777,10 +792,32 @@ export const activitiesScreen = {
         ui?.closeModal?.();
         void scheduleQuietRefresh();
       } catch (err) {
-        if (statusEl) statusEl.textContent = `שגיאה: ${String(err?.message || '')}`;
+        if (statusEl) statusEl.textContent = `שגיאה בשמירה: ${String(err?.message || '')}`;
       } finally {
-        submit.disabled = false;
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        }
       }
+    }
+
+    document.addEventListener('submit', (ev) => {
+      const form = ev.target?.closest?.('[data-add-activity-form]');
+      if (!form) return;
+      ev.preventDefault();
+      const submitBtn = document.querySelector('[data-add-activity-submit]');
+      if (submitBtn?.disabled) return;
+      void submitAddActivityForm(form, submitBtn);
+    }, addActivitySig);
+
+    document.addEventListener('click', (ev) => {
+      const submit = ev.target.closest('[data-add-activity-submit]');
+      if (!submit) return;
+      const modal = document.querySelector('.ds-modal__content');
+      const form = modal?.querySelector('[data-add-activity-form]');
+      if (!form) return;
+      if (submit.disabled) return;
+      form.requestSubmit?.();
     }, addActivitySig);
 
     const addBtn = root.querySelector('[data-activities-add-btn]');
