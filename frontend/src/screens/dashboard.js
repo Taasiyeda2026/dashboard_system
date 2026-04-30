@@ -145,6 +145,8 @@ const ALLOWED_KPI_ACTIONS = new Set([
   'kpi|instructors',
   'kpi|endings'
 ]);
+const dashboardMonthPrefetchInflight = new Set();
+let dashboardMonthPrefetchScheduledToken = '';
 
 function filterKpiCards(cards, showOnlyNonzero) {
   const list = Array.isArray(cards) ? cards : [];
@@ -333,11 +335,16 @@ export const dashboardScreen = {
       const key = `dashboard:${validYm}`;
       const cached = state.screenDataCache[key];
       if (cached?.data && Date.now() - cached.t < DASHBOARD_TTL_MS) return;
+      if (dashboardMonthPrefetchInflight.has(key)) return;
+      dashboardMonthPrefetchInflight.add(key);
       api.dashboardSnapshot({ month: validYm })
         .then((payload) => {
           putDashboardCache(key, payload);
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          dashboardMonthPrefetchInflight.delete(key);
+        });
     };
 
     const applyYm = async (nextYm) => {
@@ -362,11 +369,14 @@ export const dashboardScreen = {
         rerender();
       }
       state.dashboardNavLoading = false;
-      rerender();
+      if (state.route === 'dashboard') rerender();
       prefetchDashboardMonth(shiftYm(nextYm, -1));
       prefetchDashboardMonth(shiftYm(nextYm, 1));
     };
 
+    const prefetchToken = `${ym}|${!!state.dashboardNavLoading}`;
+    if (dashboardMonthPrefetchScheduledToken === prefetchToken) return;
+    dashboardMonthPrefetchScheduledToken = prefetchToken;
     setTimeout(() => {
       if (!state.dashboardNavLoading) {
         prefetchDashboardMonth(shiftYm(ym, -1));
