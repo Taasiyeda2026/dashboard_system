@@ -158,41 +158,6 @@ function filterKpiCards(cards, showOnlyNonzero) {
 
 
 
-function isAdminOpsUser(state) {
-  const role = String(state?.user?.display_role || '').trim();
-  return role === 'admin' || role === 'operation_manager';
-}
-
-function renderDiagnosticsMonthBlock(result) {
-  const month = escapeHtml(String(result?.month || ''));
-  const d = result?.dashboard || {};
-  const ex = result?.exceptions || {};
-  const fi = result?.finance || {};
-  const backendVersion = escapeHtml(String(result?.backendVersion || ''));
-  const mismatches = Array.isArray(result?.mismatches) ? result.mismatches : [];
-  const hasCritical = !!result?.critical || mismatches.some((m) => !!m?.critical);
-  const successMsg = mismatches.length === 0
-    ? `<p class="ds-ok" style="color:#067647;font-weight:700">Stage 2C-LIVE עבר בהצלחה לחודש ${month} — לא נמצאו פערים</p>`
-    : '';
-  const criticalMsg = hasCritical
-    ? '<p class="ds-err" style="color:#b42318;font-weight:800">נמצא פער קריטי — אין לעבור ל-Stage 3</p>'
-    : '';
-  const mismatchesTable = mismatches.length
-    ? `<table class="ds-table"><thead><tr><th>metric</th><th>dashboardValue</th><th>sourceValue</th><th>sourceName</th><th>suspectedFunction</th><th>critical</th><th>reason</th></tr></thead><tbody>${mismatches.map((m) => `<tr><td>${escapeHtml(String(m.metric || ''))}</td><td>${escapeHtml(String(m.dashboardValue ?? ''))}</td><td>${escapeHtml(String(m.sourceValue ?? ''))}</td><td>${escapeHtml(String(m.sourceName || ''))}</td><td>${escapeHtml(String(m.suspectedFunction || ''))}</td><td>${escapeHtml(String(!!m.critical))}</td><td>${escapeHtml(String(m.reason || ''))}</td></tr>`).join('')}</tbody></table>`
-    : '<p class="ds-muted">לא נמצאו פערים.</p>';
-
-  return `<div class="ds-card" style="margin-top:12px"><div class="ds-card__body">
-    <h4>חודש ${month}</h4>
-    ${successMsg}
-    ${criticalMsg}
-    <p><strong>Dashboard</strong>: total_short=${escapeHtml(String(d.total_short ?? 0))}, total_long=${escapeHtml(String(d.total_long ?? 0))}, exceptions_count=${escapeHtml(String(d.exceptions_count ?? 0))}, finance_open_count=${escapeHtml(String(d.finance_open_count ?? 0))}, active_instructors=${escapeHtml(String(d.active_instructors ?? 0))}, course_endings=${escapeHtml(String(d.course_endings ?? 0))}</p>
-    <p><strong>Exceptions</strong>: totalExceptionInstances=${escapeHtml(String(ex.totalExceptionInstances ?? 0))}, sumByManager=${escapeHtml(String(ex.sumByManager ?? 0))}, byManager=${escapeHtml(JSON.stringify(ex.byManager || {}))}</p>
-    <p><strong>Finance</strong>: openRows=${escapeHtml(String(fi.openRows ?? 0))}, closedRows=${escapeHtml(String(fi.closedRows ?? 0))}, openAmount=${escapeHtml(String(fi.openAmount ?? 0))}, closedAmount=${escapeHtml(String(fi.closedAmount ?? 0))}, pendingAmount=${escapeHtml(String(fi.pendingAmount ?? 0))}</p>
-    <p><strong>backendVersion</strong>: ${backendVersion}</p>
-    <h5>פערים שהתגלו</h5>
-    ${mismatchesTable}
-  </div></div>`;
-}
 export const dashboardScreen = {
   async load({ api, state }) {
     let ym = state.dashboardMonthYm;
@@ -277,14 +242,6 @@ export const dashboardScreen = {
       <div class="ds-dashboard-wrap">
         ${dsPageHeader('לוח בקרה')}
         ${monthNav}
-        ${config.DIAGNOSTICS_UI_ENABLED && isAdminOpsUser(state) ? `<div style="margin:8px 0; display:flex; gap:8px; flex-wrap:wrap; align-items:end">
-          <label style="display:flex; flex-direction:column; gap:4px">
-            <span class="ds-muted">חודש</span>
-            <input type="month" value="2026-05" data-stage2c-month />
-          </label>
-          <button type="button" class="ds-btn ds-btn--primary" data-run-stage2c-live>הרץ בדיקה לחודש הנבחר</button>
-          <button type="button" class="ds-btn ds-btn--ghost" data-stop-stage2c-live disabled>עצור בדיקה</button>
-        </div><div data-stage2c-live-results></div>` : ''}
         <div data-dash-data-area>
           <div class="ds-dashboard-summary-row">
             <button type="button" class="ds-summary-btn" data-summary-target="national" aria-label="סיכום">סיכום</button>
@@ -306,69 +263,6 @@ export const dashboardScreen = {
   bind({ root, ui, state, api, rerender, clearScreenDataCache, data }) {
     const DASHBOARD_TTL_MS = 5 * 60 * 1000;
     const ym = data?.month || state.dashboardMonthYm || currentMonthYm();
-    const isAdminOps = config.DIAGNOSTICS_UI_ENABLED && isAdminOpsUser(state);
-    const runBtn = root?.querySelector('[data-run-stage2c-live]');
-    const resultsHost = root?.querySelector('[data-stage2c-live-results]');
-    if (isAdminOps && runBtn && resultsHost) {
-      const monthInput = root?.querySelector('[data-stage2c-month]');
-      const stopBtn = root?.querySelector('[data-stop-stage2c-live]');
-      let currentRunId = 0;
-      runBtn.addEventListener('click', async () => {
-        const selectedMonth = String(monthInput?.value || '2026-05');
-        if (!/^\d{4}-\d{2}$/.test(selectedMonth)) {
-          resultsHost.innerHTML = '<p style="color:#b42318">יש לבחור חודש תקין (YYYY-MM)</p>';
-          return;
-        }
-        currentRunId += 1;
-        const runId = currentRunId;
-        runBtn.disabled = true;
-        if (stopBtn) stopBtn.disabled = false;
-        resultsHost.innerHTML = '<p class="ds-muted">מריץ בדיקה…</p>';
-        try {
-          const result = await api.diagnosticsConsistency({ month: selectedMonth }, { timeout_ms: 25000 });
-          if (runId !== currentRunId) return;
-          const allClean = Array.isArray(result?.mismatches) && result.mismatches.length === 0;
-          const critical = !!result?.critical || (Array.isArray(result?.mismatches) && result.mismatches.some((m) => !!m?.critical));
-          const block = renderDiagnosticsMonthBlock(result);
-          const stage3 = allClean ? '<p style="color:#067647;font-weight:800">אין לעבור ל-Stage 3 בשלב זה (הבדיקה היא בטיחותית בלבד)</p>' : '';
-          const criticalMsg = critical ? '<p style="color:#b42318;font-weight:800">נמצא פער קריטי — אין לעבור ל-Stage 3</p>' : '';
-          resultsHost.innerHTML = `${criticalMsg}${stage3}${block}`;
-        } catch (err) {
-          const rawMessage = String(err?.message || err || '');
-          if (rawMessage.includes('יותר מהצפוי') || rawMessage.toLowerCase().includes('timeout')) {
-            resultsHost.innerHTML = '<p style="color:#b42318">בדיקת הדיאגנוסטיקה נמשכה יותר מדי זמן ונעצרה</p>';
-            return;
-          }
-          let adminDetailsHtml = '';
-          if (isAdminOps) {
-            try {
-              const details = JSON.parse(rawMessage);
-              adminDetailsHtml = `<div style="color:#b42318"><p><strong>שגיאה בהרצת הדיאגנוסטיקה</strong></p>
-                <p>errorCode: ${escapeHtml(String(details?.errorCode || ''))}</p>
-                <p>message: ${escapeHtml(String(details?.message || ''))}</p>
-                <p>functionName: ${escapeHtml(String(details?.functionName || ''))}</p>
-                <p>month: ${escapeHtml(String(details?.month || ''))}</p>
-                <p>stage: ${escapeHtml(String(details?.stage || details?.functionName || ''))}</p>
-                ${details?.timings ? `<pre>${escapeHtml(JSON.stringify(details.timings, null, 2))}</pre>` : ''}
-                ${details?.stack ? `<p>stack: ${escapeHtml(String(details.stack))}</p>` : ''}
-              </div>`;
-            } catch (_e) {}
-          }
-          resultsHost.innerHTML = adminDetailsHtml || `<p style="color:#b42318">שגיאה בהרצת הדיאגנוסטיקה: ${escapeHtml(rawMessage)}</p>`;
-        } finally {
-          if (runId === currentRunId) {
-            runBtn.disabled = false;
-            if (stopBtn) stopBtn.disabled = true;
-          }
-        }
-      });
-      stopBtn?.addEventListener('click', () => {
-        currentRunId += 1;
-        runBtn.disabled = false;
-        stopBtn.disabled = true;
-        resultsHost.innerHTML = '<p class="ds-muted">הבדיקה נעצרה ידנית.</p>';
-      });
-    }
     function putDashboardCache(cacheKey, payload) {
       const existing = state.screenDataCache[cacheKey];
       if (!existing) {

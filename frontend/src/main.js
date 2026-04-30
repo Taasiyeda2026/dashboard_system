@@ -44,6 +44,7 @@ const STABILITY_HOTFIX_DISABLE_SERVICE_WORKER = true;
 
 if (typeof window !== 'undefined') {
   window.__HOTFIX_VERSION__ = config.HOTFIX_VERSION;
+  window.__FRONTEND_BUILD_MARKER__ = 'emergency-disable-diagnostics-v2';
 }
 
 function beginPerfTimer(label) {
@@ -533,6 +534,7 @@ function shell(content) {
           ${headerNavHtml}
           <div class="shell-top__end">
             <small style="opacity:.72;margin-inline-end:8px" title="hotfix version">${escapeHtml(String(config.HOTFIX_VERSION || ''))}</small>
+            <small style="opacity:.72" title="frontend build marker">emergency-disable-diagnostics-v2</small>
             <button type="button" class="shell-logout-btn" id="logoutBtn" aria-label="התנתקות" title="התנתקות">
               <span aria-hidden="true">⏻</span>
             </button>

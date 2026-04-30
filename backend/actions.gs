@@ -4345,3 +4345,15 @@ function actionListSheets_(user) {
     activities_data_sources: configuredActivitiesSources_()
   };
 }
+
+function actionDeploymentInfo_(user) {
+  if (!user) throw new Error('Forbidden');
+  return {
+    ok: true,
+    backendVersion: 'emergency-disable-diagnostics-v2',
+    buildMarker: 'commit-emergency-disable-diagnostics-v2',
+    hasLocalDiagnosticsParsers: true,
+    diagnosticsEnabled: false,
+    readModelsEnabled: false
+  };
+}
