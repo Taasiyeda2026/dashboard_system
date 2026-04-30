@@ -303,14 +303,31 @@ export const weekScreen = {
     const prevBtn = root.querySelector('[data-week-prev]');
     const nextBtn = root.querySelector('[data-week-next]');
     const todayBtn = root.querySelector('[data-week-today]');
-    const doWeekShift = (delta) => {
+    const doWeekShift = async (delta) => {
       if (state.weekNavLoading) return;
       const startedAt = Date.now();
+      const nextOffset = (state.weekOffset || 0) + delta;
+      const nextKey = `week:${nextOffset}`;
+      const cached = state?.screenDataCache?.[nextKey];
+      const ttlMs = 8 * 60 * 1000;
+      const hasFreshCache = !!(cached && Date.now() - Number(cached.t || 0) < ttlMs);
       state.weekNavLoading = true;
       state.weekNavDirection = delta > 0 ? 'next' : 'prev';
-      state.weekOffset = (state.weekOffset || 0) + delta;
+      state.weekOffset = nextOffset;
       rerender?.();
-      const minMs = 220;
+
+      if (!hasFreshCache) {
+        try {
+          const weekData = await api.week({ week_offset: nextOffset }, { timeout_ms: 12000 });
+          if (state?.screenDataCache) {
+            state.screenDataCache[nextKey] = { data: weekData, t: Date.now() };
+          }
+        } catch {
+          // Let main renderer fallback to normal load path; don't block navigation.
+        }
+      }
+
+      const minMs = 180;
       setTimeout(() => {
         state.weekNavLoading = false;
         state.weekNavDirection = '';
