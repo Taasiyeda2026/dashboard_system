@@ -582,7 +582,7 @@ function actionDiagnosticsConsistency_(user, payload) {
       },
       timings: timings,
       mismatches: [],
-      backendVersion: 'stage2c-finance-local-parser-v1'
+      backendVersion: 'stage2c-finance-helper-fix-v2'
     };
 
     function pushMismatch_(metric, dashboardValue, sourceValue, sourceName, suspectedFunction, critical, reason) {
