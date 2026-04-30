@@ -112,33 +112,41 @@ function rowExceptionTypes_(row) {
   return out;
 }
 
-function collectProgramExceptions_(rows, opts) {
+function computeExceptionsModel_(rows, ym, opts) {
   var options = opts || {};
-  var ym = text_(options.month || '');
-  var includeActivityTypes = Array.isArray(options.include_activity_types)
-    ? options.include_activity_types.map(function(t) { return text_(t); }).filter(function(t) { return !!t; })
-    : ['course'];
-  if (!includeActivityTypes.length) includeActivityTypes = ['course'];
-  var includePerTypeRows = options.include_per_type_rows !== false;
+  var includeRows = options.include_rows === true;
+  var includeDebug = options.include_debug === true;
   var sourceRows = Array.isArray(rows) ? rows : [];
+  var month = text_(ym || '');
+
   var counts = {
     missing_instructor: 0,
     missing_start_date: 0,
     late_end_date: 0
   };
+  var byManager = {};
   var exceptionRows = [];
-  var rowLevelExceptionCount = 0;
+  var totalExceptionRows = 0;
+  var sampleRows = [];
 
   sourceRows.forEach(function(row) {
-    if (includeActivityTypes.indexOf(text_(row && row.activity_type)) < 0) return;
-    if (ym && !activityOverlapsYm_(row, ym)) return;
+    if (text_(row && row.activity_type) !== 'course') return;
+    if (month && !activityOverlapsYm_(row, month)) return;
+    if (isExcludedStatusForControl_(row && row.status)) return;
+
     var types = rowExceptionTypes_(row);
     if (!types.length) return;
-    rowLevelExceptionCount += 1;
+
+    var manager = text_(row && row.activity_manager) || 'unassigned';
+    if (!byManager[manager]) byManager[manager] = 0;
+
+    totalExceptionRows += 1;
+    byManager[manager] += types.length;
+
     types.forEach(function(type) {
       if (!counts[type]) counts[type] = 0;
       counts[type] += 1;
-      if (!includePerTypeRows) return;
+      if (!includeRows) return;
       exceptionRows.push({
         RowID: text_(row && row.RowID),
         source_sheet: text_(row && row.source_sheet),
@@ -163,42 +171,7 @@ function collectProgramExceptions_(rows, opts) {
         exception_type: type
       });
     });
-  });
 
-  return {
-    counts: counts,
-    rows: exceptionRows,
-    total_exception_instances: exceptionRows.length,
-    total_exception_rows: rowLevelExceptionCount
-  };
-}
-
-function computeExceptionsModel_(rows, ym, opts) {
-  var options = opts || {};
-  var includeRows = options.include_rows === true;
-  var includeDebug = options.include_debug === true;
-  var sourceRows = Array.isArray(rows) ? rows : [];
-  var month = text_(ym || '');
-  var payload = collectProgramExceptions_(sourceRows, {
-    month: month,
-    include_activity_types: ['course'],
-    include_per_type_rows: includeRows
-  });
-  var relevantRows = sourceRows.filter(function(row) {
-    if (text_(row && row.activity_type) !== 'course') return false;
-    if (month && !activityOverlapsYm_(row, month)) return false;
-    return !isExcludedStatusForControl_(row && row.status);
-  });
-
-  var byManager = {};
-  var sampleRows = [];
-  relevantRows.forEach(function(row) {
-    var manager = text_(row && row.activity_manager) || 'unassigned';
-    var types = rowExceptionTypes_(row);
-    if (!types.length) return;
-    if (!byManager[manager]) byManager[manager] = { exceptions: 0, rows: 0 };
-    byManager[manager].exceptions += types.length;
-    byManager[manager].rows += 1;
     if (includeDebug && sampleRows.length < 25) {
       sampleRows.push({
         RowID: text_(row && row.RowID),
@@ -215,22 +188,48 @@ function computeExceptionsModel_(rows, ym, opts) {
     }
   });
 
-  var debug = includeDebug ? {
-    totalExceptionInstances: payload.total_exception_instances || 0,
-    totalExceptionRows: payload.total_exception_rows || 0,
-    counts: payload.counts || {},
-    byManager: byManager,
-    sampleRows: sampleRows
-  } : null;
-
-  return {
+  var totalExceptionInstances = counts.missing_instructor + counts.missing_start_date + counts.late_end_date;
+  var result = {
     month: month,
-    rows: payload.rows || [],
-    totalExceptionInstances: payload.total_exception_instances || 0,
-    totalExceptionRows: payload.total_exception_rows || 0,
-    counts: payload.counts || {},
+    rows: exceptionRows,
+    totalExceptionInstances: totalExceptionInstances,
+    totalExceptionRows: totalExceptionRows,
+    counts: counts,
     byManager: byManager,
-    debug: debug
+
+    // backward compatibility
+    total_exception_instances: totalExceptionInstances,
+    total_exception_rows: totalExceptionRows,
+    by_manager_exception_instances: byManager
+  };
+
+  if (includeDebug) {
+    result.debug = {
+      totalExceptionInstances: totalExceptionInstances,
+      totalExceptionRows: totalExceptionRows,
+      counts: counts,
+      byManager: byManager,
+      sampleRows: sampleRows
+    };
+  }
+
+  return result;
+}
+
+function computeCourseExceptionsModel_(rows, ym, opts) {
+  return computeExceptionsModel_(rows, ym, opts || {});
+}
+
+function collectProgramExceptions_(rows, opts) {
+  var options = opts || {};
+  var summary = computeExceptionsModel_(rows, options.month || '', {
+    include_rows: options.include_per_type_rows === true
+  });
+  return {
+    counts: summary.counts || {},
+    rows: summary.rows || [],
+    total_exception_instances: summary.total_exception_instances || 0,
+    total_exception_rows: summary.total_exception_rows || 0
   };
 }
 
