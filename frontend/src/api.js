@@ -58,7 +58,8 @@ const READ_ACTIONS = {
   listSheets: true,
   readModelManifest: true,
   readModelGet: true,
-  readModelHealth: true
+  readModelHealth: true,
+  diagnosticsConsistency: true
 };
 
 const API_TIMEOUT_MS_READ = 20000;
@@ -533,5 +534,6 @@ export const api = {
   listSheets: () => request('listSheets'),
   readModelManifest: () => request('readModelManifest', {}),
   readModelGet: (key, params = {}) => request('readModelGet', { key, params }),
-  readModelHealth: () => request('readModelHealth', {})
+  readModelHealth: () => request('readModelHealth', {}),
+  diagnosticsConsistency: (payload) => request('diagnosticsConsistency', payload || {})
 };
