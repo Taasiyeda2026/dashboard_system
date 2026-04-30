@@ -401,6 +401,133 @@ function dateColumnsPatchFromChanges_(changes) {
   return patch;
 }
 
+
+function actionDiagnosticsConsistency_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operation_manager']);
+
+  var month = dashboardPayloadYm_(payload || {});
+  var rows = allActivitiesSummary_();
+  var inMonth = rows.filter(function(row) { return activityOverlapsYm_(row, month); });
+
+  var oneDayTypes = configuredOneDayActivityTypes_();
+  var programTypes = configuredProgramActivityTypes_();
+  var dashboardRefIso = dashboardActivityRefIso_(month);
+
+  var dashboardShort = inMonth.filter(function(row) {
+    return oneDayTypes.indexOf(text_(row.activity_type)) >= 0;
+  }).length;
+  var dashboardLong = inMonth.filter(function(row) {
+    if (programTypes.indexOf(text_(row.activity_type)) < 0) return false;
+    if (text_(row.status) === 'סגור') return false;
+    return true;
+  }).length;
+
+  var exceptionSummary = getExceptionsSummary_(inMonth, month, { include_rows: false });
+  var exceptionsTotal = Number(exceptionSummary.totalExceptionInstances || 0);
+  var byManager = exceptionSummary.byManager || {};
+  var sumByManager = Object.keys(byManager).reduce(function(sum, manager) {
+    return sum + Number(byManager[manager] || 0);
+  }, 0);
+
+  var financeRows = inMonth.map(function(row) {
+    return {
+      finance_status: normalizeFinance_(row.finance_status),
+      amount: parseFinanceRowAmount_(row),
+      pending: parseFinanceRowPending_(row)
+    };
+  });
+  var financeOpenRows = financeRows.filter(function(row) { return row.finance_status === 'open'; });
+  var financeClosedRows = financeRows.filter(function(row) { return row.finance_status === 'closed'; });
+  var financeOpenAmount = financeOpenRows.reduce(function(sum, row) { return sum + Number(row.amount || 0); }, 0);
+  var financeClosedAmount = financeClosedRows.reduce(function(sum, row) { return sum + Number(row.amount || 0); }, 0);
+  var financePendingAmount = financeRows.reduce(function(sum, row) { return sum + Number(row.pending || 0); }, 0);
+
+  var courseEndings = inMonth.filter(function(row) {
+    return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === month;
+  }).length;
+  var activeInstructors = countUniqueOperationalInstructors_(inMonth);
+  var financeOpenCount = financeOpenRows.length;
+
+  var dashboard = {
+    total_short: dashboardShort,
+    total_long: dashboardLong,
+    exceptions_count: exceptionsTotal,
+    finance_open_count: financeOpenCount,
+    active_instructors: activeInstructors,
+    course_endings: courseEndings
+  };
+
+  var diagnostics = {
+    month: month,
+    dashboard: dashboard,
+    exceptions: {
+      totalExceptionInstances: exceptionsTotal,
+      byManager: byManager,
+      sumByManager: sumByManager
+    },
+    finance: {
+      openRows: financeOpenRows.length,
+      closedRows: financeClosedRows.length,
+      openAmount: financeOpenAmount,
+      closedAmount: financeClosedAmount,
+      pendingAmount: financePendingAmount
+    },
+    mismatches: []
+  };
+
+  function pushMismatch_(metric, dashboardValue, sourceValue, sourceName, suspectedFunction, critical, reason) {
+    var mismatch = {
+      metric: metric,
+      dashboardValue: dashboardValue,
+      sourceValue: sourceValue,
+      sourceName: sourceName,
+      suspectedFunction: suspectedFunction
+    };
+    if (critical) mismatch.critical = true;
+    if (reason) mismatch.reason = reason;
+    diagnostics.mismatches.push(mismatch);
+  }
+
+  if (dashboard.exceptions_count !== diagnostics.exceptions.totalExceptionInstances) {
+    pushMismatch_('exceptions_count', dashboard.exceptions_count, diagnostics.exceptions.totalExceptionInstances, 'exceptions_direct', 'getExceptionsSummary_');
+  }
+  if (dashboard.exceptions_count !== diagnostics.exceptions.sumByManager) {
+    pushMismatch_('exceptions_count_vs_byManager_sum', dashboard.exceptions_count, diagnostics.exceptions.sumByManager, 'exceptions_direct.byManager', 'computeExceptionsModel_');
+  }
+  if (dashboard.finance_open_count !== diagnostics.finance.openRows) {
+    pushMismatch_('finance_open_count', dashboard.finance_open_count, diagnostics.finance.openRows, 'finance_direct', 'normalizeFinance_');
+  }
+
+  if (diagnostics.exceptions.totalExceptionInstances > 0 && dashboard.exceptions_count === 0) {
+    pushMismatch_(
+      'exceptions_count',
+      dashboard.exceptions_count,
+      diagnostics.exceptions.totalExceptionInstances,
+      'exceptions_direct',
+      'getExceptionsSummary_',
+      true,
+      'Dashboard exceptions_count is zero while Exceptions has positive total'
+    );
+    diagnostics.critical = true;
+    diagnostics.criticalReason = 'Dashboard exceptions_count is zero while Exceptions has positive total';
+  }
+
+  try {
+    var snapshotPayload = actionDashboardSnapshot_(user, { month: month });
+    diagnostics.dashboard_snapshot = {
+      total_short: Number(snapshotPayload && snapshotPayload.total_short_activities || 0),
+      total_long: Number(snapshotPayload && snapshotPayload.total_long_activities || 0),
+      exceptions_count: Number(snapshotPayload && snapshotPayload.exceptions_count || 0),
+      finance_open_count: Number(snapshotPayload && snapshotPayload.finance_open_count || 0),
+      active_instructors: Number(snapshotPayload && snapshotPayload.active_instructors_count || 0),
+      course_endings: Number(snapshotPayload && snapshotPayload.course_endings_current_month || 0),
+      is_snapshot: !!(snapshotPayload && snapshotPayload._is_snapshot)
+    };
+  } catch (_snapshotErr) {}
+
+  return diagnostics;
+}
+
 function actionDashboard_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
 
