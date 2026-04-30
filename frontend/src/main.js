@@ -623,10 +623,6 @@ function screenCacheTtl() {
   return SCREEN_CACHE_TTL_MS[state.route] ?? DEFAULT_CACHE_TTL_MS;
 }
 const MEMORY_ONLY_CACHE_PREFIXES = [
-  'activities:',
-  'month:',
-  'week:',
-  'finance:',
   'activityDetail:',
   'operations:'
 ];
@@ -641,15 +637,34 @@ function shouldPersistScreenCacheEntry(key, entry) {
   }
 
   try {
-    return JSON.stringify(entry || {}).length <= MAX_PERSISTED_CACHE_ENTRY_BYTES;
+    const normalized = normalizeEntryForPersistentCache(cacheKey, entry);
+    if (!normalized) return false;
+    return JSON.stringify(normalized).length <= MAX_PERSISTED_CACHE_ENTRY_BYTES;
   } catch {
     return false;
   }
 }
 
+function normalizeEntryForPersistentCache(cacheKey, entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const payload = entry.data;
+  if (cacheKey.startsWith('activities:') && payload && Array.isArray(payload.rows)) {
+    return { ...entry, data: { ...payload, rows: payload.rows.slice(0, 60) } };
+  }
+  if (cacheKey.startsWith('finance:') && payload && Array.isArray(payload.rows)) {
+    return { ...entry, data: { ...payload, rows: payload.rows.slice(0, 50) } };
+  }
+  if (cacheKey.startsWith('week:') || cacheKey.startsWith('month:')) {
+    if (payload && Array.isArray(payload.rows)) {
+      return { ...entry, data: { ...payload, rows: payload.rows.slice(0, 80) } };
+    }
+  }
+  return entry;
+}
+
 function maybePersistScreenCacheEntry(key, entry) {
   if (!shouldPersistScreenCacheEntry(key, entry)) return;
-  persistCacheEntry(key, entry);
+  persistCacheEntry(key, normalizeEntryForPersistentCache(String(key || ''), entry));
 }
 /**
  * Returns cached data immediately if available and fresh (within TTL).

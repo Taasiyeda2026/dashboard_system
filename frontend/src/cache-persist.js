@@ -3,7 +3,7 @@ import { state } from './state.js';
 export const SCREEN_CACHE_STORAGE_PREFIX = 'ds_screen_cache_v1';
 
 const PERSIST_BLOCKED_PREFIXES = [
-  'activities:', 'week:', 'month:', 'finance:', 'activityDetail:'
+  'activityDetail:'
 ];
 const PERSIST_MAX_BYTES = 100 * 1024; // 100 KB
 
