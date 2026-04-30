@@ -2158,6 +2158,34 @@ function actionAddActivity_(user, payload) {
 
   var activity = payload.activity || {};
   var source = text_(activity.source || 'short').toLowerCase();
+
+  var requiredFields = [
+    'source',
+    'activity_type',
+    'activity_name',
+    'activity_manager',
+    'authority',
+    'school',
+    'start_date',
+    'end_date',
+    'sessions',
+    'price',
+    'funding',
+    'start_time',
+    'end_time',
+    'instructor_name',
+    'emp_id',
+    'notes'
+  ];
+  var missingFields = requiredFields.filter(function(field) {
+    return !text_(activity[field]);
+  });
+  if (missingFields.length) {
+    throw new Error('Missing required fields: ' + missingFields.join(', '));
+  }
+  if (source !== 'long' && source !== 'short') {
+    throw new Error('Invalid source: ' + source + '. Expected long or short.');
+  }
   var targetSheet = source === 'long' ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT;
   var rowId = nextId_(targetSheet, targetSheet === CONFIG.SHEETS.DATA_LONG ? 'LONG-' : 'SHORT-');
 
