@@ -19,7 +19,7 @@ test('diagnostics consistency uses defined backend finance helpers and keeps rea
 
   mustMatch(actions, /finance_status:\s*normalizeFinance_\(row\.finance_status\)/);
   mustMatch(actions, /finance:\s*\{[\s\S]*openAmount:[\s\S]*closedAmount:[\s\S]*pendingAmount:[\s\S]*\}/);
-  mustMatch(actions, /backendVersion:\s*'stage2c-finance-helper-fix-v1'/);
+  mustMatch(actions, /backendVersion:\s*'stage2c-finance-helper-fix-v2'/);
 
   const diagnosticsFn = actions.match(/function actionDiagnosticsConsistency_\([\s\S]*?\n}\n\nfunction /);
   assert.ok(diagnosticsFn, 'actionDiagnosticsConsistency_ function not found');

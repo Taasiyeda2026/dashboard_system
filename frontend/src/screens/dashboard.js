@@ -169,6 +169,7 @@ function renderDiagnosticsMonthBlock(result) {
   const d = result?.dashboard || {};
   const ex = result?.exceptions || {};
   const fi = result?.finance || {};
+  const backendVersion = escapeHtml(String(result?.backendVersion || ''));
   const mismatches = Array.isArray(result?.mismatches) ? result.mismatches : [];
   const hasCritical = !!result?.critical || mismatches.some((m) => !!m?.critical);
   const successMsg = mismatches.length === 0
@@ -188,6 +189,7 @@ function renderDiagnosticsMonthBlock(result) {
     <p><strong>Dashboard</strong>: total_short=${escapeHtml(String(d.total_short ?? 0))}, total_long=${escapeHtml(String(d.total_long ?? 0))}, exceptions_count=${escapeHtml(String(d.exceptions_count ?? 0))}, finance_open_count=${escapeHtml(String(d.finance_open_count ?? 0))}, active_instructors=${escapeHtml(String(d.active_instructors ?? 0))}, course_endings=${escapeHtml(String(d.course_endings ?? 0))}</p>
     <p><strong>Exceptions</strong>: totalExceptionInstances=${escapeHtml(String(ex.totalExceptionInstances ?? 0))}, sumByManager=${escapeHtml(String(ex.sumByManager ?? 0))}, byManager=${escapeHtml(JSON.stringify(ex.byManager || {}))}</p>
     <p><strong>Finance</strong>: openRows=${escapeHtml(String(fi.openRows ?? 0))}, closedRows=${escapeHtml(String(fi.closedRows ?? 0))}, openAmount=${escapeHtml(String(fi.openAmount ?? 0))}, closedAmount=${escapeHtml(String(fi.closedAmount ?? 0))}, pendingAmount=${escapeHtml(String(fi.pendingAmount ?? 0))}</p>
+    <p><strong>backendVersion</strong>: ${backendVersion}</p>
     <h5>פערים שהתגלו</h5>
     ${mismatchesTable}
   </div></div>`;
