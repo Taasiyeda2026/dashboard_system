@@ -132,7 +132,7 @@ export const exceptionsScreen = {
     return dsScreenStack(`
       ${toolbarHtml}
       ${dsCard({
-        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(data.month)}` : ''} · ${total}`,
+        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(data.month)}` : ''} · סה״כ חריגות: ${escapeHtml(String(data?.totalExceptionInstances ?? total))}`,
         body: compact,
         padded: visibleRows.length === 0
       })}
