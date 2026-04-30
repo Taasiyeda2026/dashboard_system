@@ -282,8 +282,16 @@ function beginRequestPerf_(action, payload) {
     marks: [{ label: 'request_start', at_ms: perfNowMs_() }],
     sheet_reads: [],
     sheets_total_ms: 0,
-    custom: {}
+    custom: {
+      permissions_lookup: false,
+      data_source: 'full'
+    }
   };
+  try {
+    __rqPerf_.custom.request_size_bytes = JSON.stringify(payload || {}).length;
+  } catch (_e) {
+    __rqPerf_.custom.request_size_bytes = 0;
+  }
 }
 
 function markRequestPerf_(label) {

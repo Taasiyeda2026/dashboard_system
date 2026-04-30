@@ -61,6 +61,8 @@ function actionLogin_(payload) {
     can_view_finance: role === 'admin' || yesNo_(matchByUser.view_finance) === 'yes'
   };
 
+  user.effective_routes = routes.slice();
+  user.default_route = defaultRoute;
   var token = createSessionToken_(user);
   CacheService.getScriptCache().put(
     sessionCacheKey_(token),
@@ -103,10 +105,12 @@ function requireAuth_(token) {
           can_add_activity: !!(enriched.can_add_activity || sessionFromToken.can_add_activity),
           can_edit_direct: !!enriched.can_edit_direct,
           can_request_edit: !!enriched.can_request_edit,
-          can_view_finance: !!enriched.can_view_finance
+          can_view_finance: !!enriched.can_view_finance,
+          __session_token: value
         };
       } catch (_e) {}
     }
+    sessionFromToken.__session_token = value;
     return sessionFromToken;
   }
 
@@ -115,7 +119,9 @@ function requireAuth_(token) {
   if (!raw) raw = CacheService.getScriptCache().get('session:' + value);
   if (!raw) throw new Error('Unauthorized');
 
-  return JSON.parse(raw);
+  var parsed = JSON.parse(raw);
+  parsed.__session_token = value;
+  return parsed;
 }
 
 function sessionCacheKey_(token) {
@@ -223,6 +229,7 @@ function requireAnyRole_(user, roles) {
 }
 
 function getPermissionRow_(userId) {
+  setRequestPerfField_('permissions_lookup', true);
   var rows = readRows_(CONFIG.SHEETS.PERMISSIONS);
   var match = rows.find(function(row) {
     return text_(row.user_id) === text_(userId);
@@ -407,6 +414,17 @@ function canUserAccessRoute_(user, route) {
   }
   var permission = getPermissionRow_(user.user_id);
   var effective = effectiveRoutesForUser_(permission, user.display_role);
+  if (user && user.user_id) {
+    user.effective_routes = effective.slice();
+    user.default_route = resolveDefaultRoute_(text_(permission.default_view), effective, user.display_role);
+    try {
+      CacheService.getScriptCache().put(
+        sessionCacheKey_(text_(user.__session_token || '')),
+        JSON.stringify(user),
+        CONFIG.SESSION_CACHE_SECONDS
+      );
+    } catch (_e) {}
+  }
   return effective.indexOf(r) >= 0;
 }
 
