@@ -1,32 +1,179 @@
 var READ_MODEL_ADMIN_USER_ = { user_id: 'read_model_refresh', display_role: 'admin' };
 var READ_MODEL_NO_FINANCE_USER_ = { user_id: 'read_model_refresh_nf', display_role: 'authorized_user' };
 var READ_MODEL_SHEET_FALLBACK_ = 'read_models';
+
+/**
+ * Metadata בלבד בגיליון — ללא payload_json / rows_json (מגבלת 50,000 תווים לתא).
+ * גוף ה-JSON נשמר ב-Drive; storage_ref = מזהה קובץ.
+ */
 var READ_MODEL_HEADERS_ = [
   'key',
   'updated_at',
   'version',
   'hash',
-  'rows_json',
-  'payload_json',
   'source_updated_at',
   'status',
   'duration_ms',
   'rows_count',
   'payload_size',
-  'last_error'
+  'last_error',
+  'storage_type',
+  'storage_ref'
 ];
+
+/** JSON מלא נשמר ב-Drive בלבד; לא בתא. */
+var READ_MODEL_STORAGE_DRIVE_ = 'drive';
+
+/** מקסימום תווים לקריאת payload ישן מתא (אם נשאר עמודה payload_json אחרי מיגרציה חלקית). */
+var READ_MODEL_LEGACY_INLINE_MAX_CHARS_ = 40000;
 
 function readModelSheetName_() {
   return (CONFIG.SHEETS && CONFIG.SHEETS.READ_MODELS) || READ_MODEL_SHEET_FALLBACK_;
 }
 
+function readModelsSafeFileSegment_(storageKey) {
+  var s = text_(storageKey).replace(/[^a-zA-Z0-9._-]+/g, '_');
+  if (s.length > 100) s = s.slice(0, 100);
+  return s || 'model';
+}
+
+function readModelsDriveParentFolder_() {
+  var folderId = CONFIG.READ_MODELS_DRIVE_FOLDER_ID && text_(CONFIG.READ_MODELS_DRIVE_FOLDER_ID);
+  if (folderId) {
+    try {
+      return DriveApp.getFolderById(folderId);
+    } catch (_e) {
+      // fall through
+    }
+  }
+  try {
+    var ssFile = DriveApp.getFileById(CONFIG.SPREADSHEET_ID);
+    var parents = ssFile.getParents();
+    if (parents.hasNext()) return parents.next();
+  } catch (_e2) {
+    // fall through
+  }
+  return DriveApp.getRootFolder();
+}
+
+function readModelsTrashDriveFile_(fileId) {
+  var id = text_(fileId);
+  if (!id) return;
+  try {
+    DriveApp.getFileById(id).setTrashed(true);
+  } catch (_e) {
+    // ignore
+  }
+}
+
+function readModelsWritePayloadDrive_(storageKey, version, payloadText) {
+  var folder = readModelsDriveParentFolder_();
+  var name = 'read-model-' + readModelsSafeFileSegment_(storageKey) + '-' + text_(version) + '.json';
+  var file = folder.createFile(name, payloadText, MimeType.PLAIN_TEXT);
+  file.setDescription('read_model_payload:' + text_(storageKey));
+  return file.getId();
+}
+
+function readModelsLoadPayloadFromDrive_(fileId) {
+  var file = DriveApp.getFileById(text_(fileId));
+  return file.getBlob().getDataAsString();
+}
+
 function ensureReadModelsSheet_() {
   var ss = getSpreadsheet_();
-  var sheet = ss.getSheetByName(readModelSheetName_());
-  if (!sheet) sheet = ss.insertSheet(readModelSheetName_());
+  var name = readModelSheetName_();
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+
+  var meta = getSheetMeta_(sheet);
+  var headerScanCols = Math.max(meta.lastCol || 0, READ_MODEL_HEADERS_.length);
+  var rawHeaders = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, headerScanCols).getValues()[0].map(text_);
+  var isLegacy = rawHeaders.indexOf('payload_json') >= 0 || rawHeaders.indexOf('rows_json') >= 0;
+  var dataStart = getDataStartRow_();
+  if (isLegacy) {
+    var lr = sheet.getLastRow();
+    if (lr >= dataStart) {
+      sheet.deleteRows(dataStart, lr - dataStart + 1);
+    }
+  }
+
   sheet.getRange(CONFIG.HEADER_ROW, 1, 1, READ_MODEL_HEADERS_.length).setValues([READ_MODEL_HEADERS_]);
-  invalidateReadRowsCache_(readModelSheetName_());
+  while (sheet.getLastColumn() > READ_MODEL_HEADERS_.length) {
+    sheet.deleteColumn(sheet.getLastColumn());
+  }
+  invalidateReadRowsCache_(name);
   return sheet;
+}
+
+function findReadModelDataRowNum_(key) {
+  var k = text_(key);
+  if (!k) return -1;
+  ensureReadModelsSheet_();
+  var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
+  var dataStart = getDataStartRow_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < dataStart) return -1;
+  var keys = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, 1).getValues();
+  for (var i = 0; i < keys.length; i++) {
+    if (text_(keys[i][0]) === k) return dataStart + i;
+  }
+  return -1;
+}
+
+function readReadModelMetadataAtRow_(rowNum) {
+  var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
+  var vals = sheet.getRange(rowNum, 1, rowNum, READ_MODEL_HEADERS_.length).getValues()[0];
+  var o = {};
+  for (var i = 0; i < READ_MODEL_HEADERS_.length; i++) {
+    o[READ_MODEL_HEADERS_[i]] = vals[i];
+  }
+  return o;
+}
+
+function writeReadModelFullMetadataRow_(rowNum, rowObj) {
+  var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
+  var row = READ_MODEL_HEADERS_.map(function(h) {
+    return Object.prototype.hasOwnProperty.call(rowObj, h) ? rowObj[h] : '';
+  });
+  sheet.getRange(rowNum, 1, rowNum, READ_MODEL_HEADERS_.length).setValues([row]);
+  invalidateReadRowsCache_(readModelSheetName_());
+}
+
+function appendReadModelFullRow_(rowObj) {
+  var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
+  var row = READ_MODEL_HEADERS_.map(function(h) {
+    return Object.prototype.hasOwnProperty.call(rowObj, h) ? rowObj[h] : '';
+  });
+  sheet.appendRow(row);
+  invalidateReadRowsCache_(readModelSheetName_());
+}
+
+function patchReadModelRowCells_(rowNum, patch) {
+  var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
+  var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, READ_MODEL_HEADERS_.length).getValues()[0].map(text_);
+  Object.keys(patch || {}).forEach(function(field) {
+    var col = headers.indexOf(text_(field));
+    if (col < 0) return;
+    sheet.getRange(rowNum, col + 1).setValue(patch[field]);
+  });
+  invalidateReadRowsCache_(readModelSheetName_());
+}
+
+function upsertReadModelMetadataRow_(rowObj) {
+  ensureReadModelsSheet_();
+  var key = text_(rowObj.key);
+  if (!key) throw new Error('read model key is required');
+  var rowNum = findReadModelDataRowNum_(key);
+  if (rowNum < 0) {
+    appendReadModelFullRow_(rowObj);
+    return;
+  }
+  var cur = readReadModelMetadataAtRow_(rowNum);
+  for (var i = 0; i < READ_MODEL_HEADERS_.length; i++) {
+    var h = READ_MODEL_HEADERS_[i];
+    if (Object.prototype.hasOwnProperty.call(rowObj, h)) cur[h] = rowObj[h];
+  }
+  writeReadModelFullMetadataRow_(rowNum, cur);
 }
 
 function readModelRows_() {
@@ -86,27 +233,33 @@ function buildReadModelStorageKey_(key, params) {
   return qs ? (k + '?' + qs) : k;
 }
 
-function upsertReadModelRow_(rowObj) {
-  ensureReadModelsSheet_();
-  upsertRowByKey_(readModelSheetName_(), 'key', rowObj);
-}
-
+/**
+ * מעדכן רק status / updated_at / last_error — לא נוגע ב-storage_ref ובגוף ה-JSON.
+ */
 function markReadModelStatus_(key, status, message) {
-  var existing = readModelRowByKey_(key) || {};
-  upsertReadModelRow_({
-    key: key,
-    updated_at: text_(existing.updated_at || formatDate_(new Date())),
-    version: text_(existing.version || dataViewsCacheVersion_()),
-    hash: text_(existing.hash),
-    rows_json: text_(existing.rows_json),
-    payload_json: text_(existing.payload_json),
-    source_updated_at: text_(existing.source_updated_at),
-    status: text_(status || existing.status || 'stale'),
-    duration_ms: text_(existing.duration_ms),
-    rows_count: text_(existing.rows_count),
-    payload_size: text_(existing.payload_size),
-    last_error: text_(message || existing.last_error)
-  });
+  ensureReadModelsSheet_();
+  var rowNum = findReadModelDataRowNum_(key);
+  var nowIso = new Date().toISOString();
+  var st = text_(status || 'stale');
+  var err = message === undefined || message === null ? '' : text_(message);
+  if (rowNum < 0) {
+    appendReadModelFullRow_({
+      key: key,
+      updated_at: nowIso,
+      version: String(new Date().getTime()),
+      hash: '',
+      source_updated_at: '',
+      status: st,
+      duration_ms: '',
+      rows_count: '0',
+      payload_size: '0',
+      last_error: err,
+      storage_type: '',
+      storage_ref: ''
+    });
+    return;
+  }
+  patchReadModelRowCells_(rowNum, { status: st, updated_at: nowIso, last_error: err });
 }
 
 function payloadRowsCount_(payload) {
@@ -117,26 +270,47 @@ function payloadRowsCount_(payload) {
   return 0;
 }
 
-function persistReadModelPayload_(storageKey, payload, sourceUpdatedAt) {
+/**
+ * שומר JSON ב-Drive בלבד (גם payload קטן — שיטה אחידה).
+ * אם payloadText.length > READ_MODEL_LEGACY_INLINE_MAX_CHARS_ — בכל מקרה לא נכתב לתא.
+ */
+function persistReadModelPayload_(storageKey, payload, sourceUpdatedAt, durationMs) {
   var nowIso = new Date().toISOString();
   var version = String(new Date().getTime());
   var hash = computeReadModelHash_(payload);
   var payloadText = JSON.stringify(payload || {});
-  var rows = payload && Array.isArray(payload.rows) ? payload.rows : [];
-  upsertReadModelRow_({
+  var prev = readModelRowByKey_(storageKey);
+  var oldRef = prev && text_(prev.storage_ref);
+  if (oldRef) readModelsTrashDriveFile_(oldRef);
+  var fileId = readModelsWritePayloadDrive_(storageKey, version, payloadText);
+  var dm = durationMs === undefined || durationMs === null ? '' : String(durationMs);
+  upsertReadModelMetadataRow_({
     key: storageKey,
     updated_at: nowIso,
     version: version,
     hash: hash,
-    rows_json: JSON.stringify(rows),
-    payload_json: payloadText,
     source_updated_at: text_(sourceUpdatedAt || ''),
     status: 'fresh',
-    duration_ms: '',
+    duration_ms: dm,
     rows_count: String(payloadRowsCount_(payload)),
     payload_size: String(payloadText.length),
-    last_error: ''
+    last_error: '',
+    storage_type: READ_MODEL_STORAGE_DRIVE_,
+    storage_ref: fileId
   });
+}
+
+function readReadModelLegacyPayloadCellIfSmall_(rowNum) {
+  var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
+  var lc = sheet.getLastColumn();
+  if (!lc || rowNum < getDataStartRow_()) return null;
+  var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, lc).getValues()[0].map(text_);
+  var idx = headers.indexOf('payload_json');
+  if (idx < 0) return null;
+  var raw = sheet.getRange(rowNum, idx + 1).getValue();
+  var s = String(raw || '');
+  if (!s || s.length > READ_MODEL_LEGACY_INLINE_MAX_CHARS_) return null;
+  return parseReadModelJson_(s, null);
 }
 
 function refreshSingleReadModel_(logicalKey, params, builder) {
@@ -146,39 +320,23 @@ function refreshSingleReadModel_(logicalKey, params, builder) {
   try {
     var payload = builder(params || {});
     var nowIso = new Date().toISOString();
-    var version = String(new Date().getTime());
-    var hash = computeReadModelHash_(payload);
-    var payloadText = JSON.stringify(payload || {});
-    var rows = payload && Array.isArray(payload.rows) ? payload.rows : [];
-    upsertReadModelRow_({
-      key: storageKey,
-      updated_at: nowIso,
-      version: version,
-      hash: hash,
-      rows_json: JSON.stringify(rows),
-      payload_json: payloadText,
-      source_updated_at: nowIso,
-      status: 'fresh',
-      duration_ms: String(Math.max(0, perfNowMs_() - started)),
-      rows_count: String(payloadRowsCount_(payload)),
-      payload_size: String(payloadText.length),
-      last_error: ''
-    });
-    return { key: storageKey, status: 'fresh', hash: hash, version: version };
+    persistReadModelPayload_(storageKey, payload, nowIso, Math.max(0, perfNowMs_() - started));
+    var done = readModelRowByKey_(storageKey) || {};
+    return { key: storageKey, status: 'fresh', hash: text_(done.hash), version: text_(done.version) };
   } catch (e) {
-    upsertReadModelRow_({
+    upsertReadModelMetadataRow_({
       key: storageKey,
       updated_at: new Date().toISOString(),
       version: String(new Date().getTime()),
       hash: '',
-      rows_json: '[]',
-      payload_json: '{}',
       source_updated_at: '',
       status: 'failed',
       duration_ms: String(Math.max(0, perfNowMs_() - started)),
       rows_count: '0',
-      payload_size: '2',
-      last_error: text_(e && e.message ? e.message : String(e))
+      payload_size: '0',
+      last_error: text_(e && e.message ? e.message : String(e)),
+      storage_type: '',
+      storage_ref: ''
     });
     return { key: storageKey, status: 'failed', error: text_(e && e.message ? e.message : String(e)) };
   }
@@ -262,9 +420,9 @@ function normalizeReadModelManifest_(rows) {
   map.finance = readModelRowByKey_('finance?month=' + nowMonth + '&tab=active') || {};
   map['end_dates'] = readModelRowByKey_('end-dates') || {};
   var out = {};
-  Object.keys(map).forEach(function(key) {
-    var r = map[key] || {};
-    out[key] = {
+  Object.keys(map).forEach(function(mkey) {
+    var r = map[mkey] || {};
+    out[mkey] = {
       version: text_(r.version || ''),
       updated_at: text_(r.updated_at || ''),
       hash: text_(r.hash || ''),
@@ -284,19 +442,19 @@ function markReadModelStale_(logicalKey, params, reason) {
   var storageKey = buildReadModelStorageKey_(logicalKey, params || {});
   var row = readModelRowByKey_(storageKey);
   if (!row) {
-    upsertReadModelRow_({
+    upsertReadModelMetadataRow_({
       key: storageKey,
       updated_at: new Date().toISOString(),
       version: String(new Date().getTime()),
       hash: '',
-      rows_json: '[]',
-      payload_json: '{}',
       source_updated_at: '',
       status: 'stale',
       duration_ms: '',
       rows_count: '0',
-      payload_size: '2',
-      last_error: text_(reason || 'marked_stale')
+      payload_size: '0',
+      last_error: text_(reason || 'marked_stale'),
+      storage_type: '',
+      storage_ref: ''
     });
     return;
   }
@@ -361,22 +519,50 @@ function actionReadModelGet_(user, payload) {
   var params = parseJsonObject_((payload && payload.params) || {}, {});
   var storageKey = buildReadModelStorageKey_(key, params);
   var row = readModelRowByKey_(storageKey);
+  var warnings = [];
+
   if (row && text_(row.status) === 'fresh') {
-    return {
-      key: key,
-      cache_key: storageKey,
-      version: text_(row.version),
-      hash: text_(row.hash),
-      updated_at: text_(row.updated_at),
-      status: text_(row.status),
-      data: parseReadModelJson_(row.payload_json, {})
-    };
+    var data = null;
+    if (text_(row.storage_type) === READ_MODEL_STORAGE_DRIVE_ && text_(row.storage_ref)) {
+      try {
+        var raw = readModelsLoadPayloadFromDrive_(text_(row.storage_ref));
+        data = parseReadModelJson_(raw, null);
+      } catch (e) {
+        warnings.push('read_model_storage_read_failed: ' + text_(e && e.message ? e.message : String(e)));
+      }
+    }
+    if (data === null) {
+      var rowNum = findReadModelDataRowNum_(storageKey);
+      if (rowNum > 0) {
+        var legacy = readReadModelLegacyPayloadCellIfSmall_(rowNum);
+        if (legacy !== null && typeof legacy === 'object') {
+          data = legacy;
+          if (!warnings.length) warnings.push('read_model_legacy_inline_payload');
+        }
+      }
+    }
+    if (data !== null) {
+      return {
+        key: key,
+        cache_key: storageKey,
+        version: text_(row.version),
+        hash: text_(row.hash),
+        updated_at: text_(row.updated_at),
+        status: text_(row.status),
+        data: data,
+        warning: warnings.length ? warnings.join(' | ') : undefined
+      };
+    }
+    if (warnings.length) warnings.push('read_model_fallback_rebuild');
   }
+
   var builder = resolveReadModelBuilder_(key, user, params);
   if (!builder) throw new Error('unknown read model key: ' + key);
   var data = builder();
-  persistReadModelPayload_(storageKey, data, new Date().toISOString());
+  persistReadModelPayload_(storageKey, data, new Date().toISOString(), '');
   var fresh = readModelRowByKey_(storageKey) || {};
+  var w = row ? 'fallback_rebuild_from_source' : 'missing_read_model_fallback';
+  if (warnings.length) w = warnings.join(' | ') + ' | ' + w;
   return {
     key: key,
     cache_key: storageKey,
@@ -385,7 +571,7 @@ function actionReadModelGet_(user, payload) {
     updated_at: text_(fresh.updated_at),
     status: text_(fresh.status || 'fresh'),
     data: data,
-    warning: row ? 'fallback_rebuild_from_source' : 'missing_read_model_fallback'
+    warning: w
   };
 }
 
@@ -400,7 +586,9 @@ function getReadModelHealth_() {
       payload_size: parseInt(text_(row.payload_size), 10) || 0,
       hash: text_(row.hash),
       status: text_(row.status || 'missing'),
-      last_error: text_(row.last_error)
+      last_error: text_(row.last_error),
+      storage_type: text_(row.storage_type),
+      storage_ref: text_(row.storage_ref)
     };
   });
 }

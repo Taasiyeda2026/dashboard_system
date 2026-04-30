@@ -29,6 +29,8 @@ const CONFIG = {
     DASHBOARD_REFRESH_CONTROL: 'dashboard_refresh_control',
     READ_MODELS: 'read_models'
   },
+  /** אופציונלי: מזהה תיקיית Drive לאחסון קבצי read-model JSON (ברירת מחדל — אותה תיקייה כמו גיליון האלקטרוני). */
+  READ_MODELS_DRIVE_FOLDER_ID: '',
   /** ברירת מחדל כשגיליון lists ריק או חסר — מיושר ל־lists במקור הנתונים */
   DEFAULT_PROGRAM_ACTIVITY_TYPES: ['course', 'after_school'],
   DEFAULT_ONE_DAY_ACTIVITY_TYPES: ['workshop', 'tour', 'escape_room'],
