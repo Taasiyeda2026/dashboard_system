@@ -404,10 +404,20 @@ function dateColumnsPatchFromChanges_(changes) {
 
 function actionDiagnosticsConsistency_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager']);
-
   var month = dashboardPayloadYm_(payload || {});
-  var rows = allActivitiesSummary_();
-  var inMonth = rows.filter(function(row) { return activityOverlapsYm_(row, month); });
+  var role = text_(user && user.display_role);
+  var userId = text_(user && user.user_id);
+  Logger.log('diagnosticsConsistency started');
+  Logger.log('diagnosticsConsistency user id / role: ' + userId + ' / ' + role);
+  Logger.log('diagnosticsConsistency month: ' + month);
+  var allActivitiesOk = false;
+  var exceptionsOk = false;
+  var financeOk = false;
+  try {
+    var rows = allActivitiesSummary_();
+    allActivitiesOk = true;
+    Logger.log('diagnosticsConsistency allActivitiesSummary_ succeeded');
+    var inMonth = rows.filter(function(row) { return activityOverlapsYm_(row, month); });
 
   var oneDayTypes = configuredOneDayActivityTypes_();
   var programTypes = configuredProgramActivityTypes_();
@@ -423,6 +433,8 @@ function actionDiagnosticsConsistency_(user, payload) {
   }).length;
 
   var exceptionSummary = getExceptionsSummary_(inMonth, month, { include_rows: false });
+  exceptionsOk = true;
+  Logger.log('diagnosticsConsistency getExceptionsSummary_ succeeded');
   var exceptionsTotal = Number(exceptionSummary.totalExceptionInstances || 0);
   var byManager = exceptionSummary.byManager || {};
   var sumByManager = Object.keys(byManager).reduce(function(sum, manager) {
@@ -441,6 +453,8 @@ function actionDiagnosticsConsistency_(user, payload) {
   var financeOpenAmount = financeOpenRows.reduce(function(sum, row) { return sum + Number(row.amount || 0); }, 0);
   var financeClosedAmount = financeClosedRows.reduce(function(sum, row) { return sum + Number(row.amount || 0); }, 0);
   var financePendingAmount = financeRows.reduce(function(sum, row) { return sum + Number(row.pending || 0); }, 0);
+  financeOk = true;
+  Logger.log('diagnosticsConsistency finance calculation succeeded');
 
   var courseEndings = inMonth.filter(function(row) {
     return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === month;
@@ -526,6 +540,26 @@ function actionDiagnosticsConsistency_(user, payload) {
   } catch (_snapshotErr) {}
 
   return diagnostics;
+  } catch (err) {
+    var errMessage = err && err.message ? String(err.message) : String(err);
+    var fnMatch = errMessage.match(/([A-Za-z_][A-Za-z0-9_]+_)\s/);
+    var functionName = fnMatch ? fnMatch[1] : 'actionDiagnosticsConsistency_';
+    Logger.log('diagnosticsConsistency allActivitiesSummary_ success: ' + allActivitiesOk);
+    Logger.log('diagnosticsConsistency getExceptionsSummary_ success: ' + exceptionsOk);
+    Logger.log('diagnosticsConsistency finance calculation success: ' + financeOk);
+    Logger.log('diagnosticsConsistency failed + function: ' + functionName);
+    if (role === 'admin' || role === 'operation_manager') {
+      var safeDetails = {
+        errorCode: 'DIAGNOSTICS_CONSISTENCY_FAILED',
+        message: errMessage,
+        functionName: functionName,
+        month: month,
+        stack: err && err.stack ? String(err.stack).split('\n').slice(0, 3).join(' | ') : ''
+      };
+      throw new Error('DIAGNOSTICS_ADMIN_DETAILS:' + JSON.stringify(safeDetails));
+    }
+    throw new Error('server_error');
+  }
 }
 
 function actionDashboard_(user, payload) {

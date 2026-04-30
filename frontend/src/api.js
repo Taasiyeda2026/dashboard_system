@@ -436,6 +436,12 @@ async function request(action, payload = {}, perfMeta = {}) {
     if ((json.error || '').toLowerCase() === 'unauthorized' && state.token === tokenAtCallTime) {
       setSession(null);
     }
+    if (action === 'diagnosticsConsistency' &&
+        typeof json.error === 'string' &&
+        json.error.indexOf('DIAGNOSTICS_ADMIN_DETAILS:') === 0 &&
+        ['admin', 'operation_manager'].includes(String(state?.user?.display_role || ''))) {
+      throw new Error(json.error.slice('DIAGNOSTICS_ADMIN_DETAILS:'.length));
+    }
     throw new Error(translateApiErrorForUser(json.error));
   }
   const normalized = normalizeData(json.data);
