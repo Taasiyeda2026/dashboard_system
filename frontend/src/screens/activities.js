@@ -750,9 +750,22 @@ export const activitiesScreen = {
       }
 
       const required = [
+        ['source', 'מקור'],
         ['activity_type', 'סוג פעילות'],
         ['activity_name', 'שם פעילות'],
-        ['start_date', 'תאריך התחלה']
+        ['activity_manager', 'מנהל פעילות'],
+        ['authority', 'רשות'],
+        ['school', 'בית ספר'],
+        ['start_date', 'תאריך התחלה'],
+        ['end_date', 'תאריך סיום'],
+        ['sessions', 'מספר מפגשים'],
+        ['price', 'מחיר'],
+        ['funding', 'מימון'],
+        ['start_time', 'שעת התחלה'],
+        ['end_time', 'שעת סיום'],
+        ['instructor_name', 'מדריך/ה'],
+        ['emp_id', 'מספר עובד'],
+        ['notes', 'הערות']
       ];
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
       if (missing.length) {
@@ -767,7 +780,10 @@ export const activitiesScreen = {
           submitBtn.textContent = 'שומר...';
         }
         if (statusEl) statusEl.textContent = 'שומר...';
+        console.info('[addActivity] submit fired');
+        console.info('[addActivity] payload', payload);
         const rsp = await api.addActivity(payload);
+        console.info('[addActivity] success', rsp);
         if (statusEl) statusEl.textContent = 'הפעילות נשמרה';
         const localRow = {
           RowID: rsp?.RowID || '',
@@ -792,6 +808,7 @@ export const activitiesScreen = {
         ui?.closeModal?.();
         void scheduleQuietRefresh();
       } catch (err) {
+        console.error('[addActivity] failed', err);
         if (statusEl) statusEl.textContent = `שגיאה בשמירה: ${String(err?.message || '')}`;
       } finally {
         if (submitBtn) {
@@ -800,6 +817,19 @@ export const activitiesScreen = {
         }
       }
     }
+
+    const modalRoot = document;
+    const addActivityForm = modalRoot.querySelector('[data-add-activity-form]');
+    if (addActivityForm && addActivityForm.dataset.submitBound !== 'yes') {
+      addActivityForm.dataset.submitBound = 'yes';
+      addActivityForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const submitBtn = document.querySelector('[data-add-activity-submit]');
+        if (submitBtn?.disabled) return;
+        await submitAddActivityForm(addActivityForm, submitBtn);
+      }, addActivitySig);
+    }
+
 
     document.addEventListener('submit', (ev) => {
       const form = ev.target?.closest?.('[data-add-activity-form]');
