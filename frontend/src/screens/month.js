@@ -424,20 +424,6 @@ export const monthScreen = {
       rerender?.();
     });
 
-    const prefetchMonth = (targetYm) => {
-      if (!/^\d{4}-\d{2}$/.test(String(targetYm || ''))) return;
-      const targetKey = monthCacheKey(targetYm);
-      if (state?.screenDataCache?.[targetKey]) return;
-      api.month({ ym: targetYm })
-        .then((payload) => {
-          state.screenDataCache[targetKey] = { data: payload, t: Date.now() };
-        })
-        .catch(() => {});
-    };
-    const baseYm = resolveBaseYm();
-    prefetchMonth(shiftMonthYm(baseYm, -1));
-    prefetchMonth(shiftMonthYm(baseYm, 1));
-
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;
       const dayNum = action.split('|')[1];
