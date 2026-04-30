@@ -203,21 +203,7 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
       refreshReadModelInBackground_(key, params, localKey, manifestKey, hit);
       return hit.data;
     }
-
-    const manifest = await getReadModelManifestCached();
-    const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;
-
-    if (
-      hit &&
-      manifestMeta &&
-      hit.version &&
-      hit.hash &&
-      hit.version === manifestMeta.version &&
-      hit.hash === manifestMeta.hash
-    ) {
-      return hit.data;
-    }
-
+    // Cache miss: avoid an extra blocking manifest round-trip and fetch payload directly.
     const envelope = await request('readModelGet', { key, params });
     const data = envelope?.data ?? envelope ?? {};
 
