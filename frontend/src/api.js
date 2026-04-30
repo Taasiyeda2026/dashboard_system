@@ -69,6 +69,15 @@ const monthReadModelCache = new Map();
 const READ_MODEL_CACHE_STORAGE_KEY = 'ds_read_model_cache_v1';
 const MANIFEST_TTL_MS = 30 * 1000;
 let manifestCache = { t: 0, data: null };
+
+const READ_MODELS_ENABLED = (() => {
+  try {
+    return localStorage.getItem('disable_read_models') !== '1';
+  } catch {
+    return true;
+  }
+})();
+
 const RETRYABLE_SERVER_ERRORS = new Set([
   'network_error',
   'server_error',
@@ -181,25 +190,31 @@ function manifestEntryForReadModel(key, params = {}) {
 }
 
 async function requestReadModel(key, params = {}, fallbackAction, fallbackPayload = {}) {
-  const manifest = await getReadModelManifestCached();
-  const manifestKey = manifestEntryForReadModel(key, params);
-  const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;
-  const localKey = readModelLocalCacheKey(key, params);
-  const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
-  const hit = cachedModels?.[localKey];
-  if (
-    hit &&
-    manifestMeta &&
-    hit.version &&
-    hit.hash &&
-    hit.version === manifestMeta.version &&
-    hit.hash === manifestMeta.hash
-  ) {
-    return hit.data;
+  if (!READ_MODELS_ENABLED) {
+    return request(fallbackAction, fallbackPayload);
   }
   try {
+    const manifest = await getReadModelManifestCached();
+    const manifestKey = manifestEntryForReadModel(key, params);
+    const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;
+    const localKey = readModelLocalCacheKey(key, params);
+    const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
+    const hit = cachedModels?.[localKey];
+
+    if (
+      hit &&
+      manifestMeta &&
+      hit.version &&
+      hit.hash &&
+      hit.version === manifestMeta.version &&
+      hit.hash === manifestMeta.hash
+    ) {
+      return hit.data;
+    }
+
     const envelope = await request('readModelGet', { key, params });
     const data = envelope?.data ?? envelope ?? {};
+
     const nextCache = {
       ...cachedModels,
       [localKey]: {
@@ -210,9 +225,15 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
         data
       }
     };
+
     safeLocalStorageSetJson(READ_MODEL_CACHE_STORAGE_KEY, nextCache);
     return data;
-  } catch {
+  } catch (err) {
+    console.warn('[readModel] fallback to legacy endpoint', {
+      key,
+      fallbackAction,
+      error: err?.message || err
+    });
     return request(fallbackAction, fallbackPayload);
   }
 }
