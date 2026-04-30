@@ -556,23 +556,10 @@ function actionReadModelGet_(user, payload) {
     if (warnings.length) warnings.push('read_model_fallback_rebuild');
   }
 
-  var builder = resolveReadModelBuilder_(key, user, params);
-  if (!builder) throw new Error('unknown read model key: ' + key);
-  var data = builder();
-  persistReadModelPayload_(storageKey, data, new Date().toISOString(), '');
-  var fresh = readModelRowByKey_(storageKey) || {};
-  var w = row ? 'fallback_rebuild_from_source' : 'missing_read_model_fallback';
-  if (warnings.length) w = warnings.join(' | ') + ' | ' + w;
-  return {
-    key: key,
-    cache_key: storageKey,
-    version: text_(fresh.version),
-    hash: text_(fresh.hash),
-    updated_at: text_(fresh.updated_at),
-    status: text_(fresh.status || 'fresh'),
-    data: data,
-    warning: w
-  };
+  if (row) {
+    throw new Error('read_model_not_fresh');
+  }
+  throw new Error('read_model_missing');
 }
 
 function getReadModelHealth_() {

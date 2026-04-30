@@ -11,10 +11,14 @@ function mustMatch(source, re, msg) {
 
 test('exceptions model exposes single-source fields and both totals', () => {
   mustMatch(actions, /function computeExceptionsModel_\(rows, ym, opts\)/);
-  mustMatch(actions, /totalExceptionInstances:\s*payload\.total_exception_instances \|\| 0/);
-  mustMatch(actions, /totalExceptionRows:\s*payload\.total_exception_rows \|\| 0/);
-  mustMatch(actions, /counts:\s*payload\.counts \|\| \{\}/);
+  mustMatch(actions, /totalExceptionInstances:\s*totalExceptionInstances/);
+  mustMatch(actions, /totalExceptionRows:\s*totalExceptionRows/);
+  mustMatch(actions, /counts:\s*counts/);
   mustMatch(actions, /byManager:\s*byManager/);
+  mustMatch(actions, /rows:\s*exceptionRows/);
+  mustMatch(actions, /total_exception_instances:\s*totalExceptionInstances/);
+  mustMatch(actions, /total_exception_rows:\s*totalExceptionRows/);
+  mustMatch(actions, /by_manager_exception_instances:\s*byManager/);
 });
 
 test('exceptions endpoint returns totals and optional debug payload', () => {

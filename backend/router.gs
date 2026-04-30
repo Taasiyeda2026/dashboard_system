@@ -128,9 +128,6 @@ function handlePost_(e) {
         markReadModelsDirtyByMutation_(action, payload || {});
       } catch (_rmDirtyErr) {}
       try {
-        refreshReadModelsForMutation_(action);
-      } catch (_rmRefreshErr) {}
-      try {
         markDashboardSnapshotsRefreshNeeded_('mutation:' + action);
       } catch (snapshotErr) {
         try {
