@@ -403,26 +403,46 @@ function dateColumnsPatchFromChanges_(changes) {
 
 
 
+function parseFinanceCellNumber_(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') {
+    if (!isFinite(value)) return null;
+    return value;
+  }
+  var raw = String(value).trim();
+  if (!raw) return null;
+  var normalized = raw
+    .replace(/\u200f|\u200e/g, '')
+    .replace(/[₪,\s]/g, '')
+    .replace(/[^\d.\-]/g, '');
+  if (!normalized || normalized === '-' || normalized === '.' || normalized === '-.') return null;
+  var parsed = Number(normalized);
+  if (!isFinite(parsed)) return null;
+  return parsed;
+}
+
 function parseFinanceRowAmount_(row) {
-  var candidate = toNumberOrNull_(row && row.amount);
-  if (candidate === null) candidate = toNumberOrNull_(row && row.price);
-  if (candidate === null) candidate = toNumberOrNull_(row && row.total_amount);
-  if (candidate === null) candidate = toNumberOrNull_(row && row.amount_due);
+  if (!row) return 0;
+  var candidate = parseFinanceCellNumber_(row.amount);
+  if (candidate === null) candidate = parseFinanceCellNumber_(row.price);
+  if (candidate === null) candidate = parseFinanceCellNumber_(row.total_amount);
+  if (candidate === null) candidate = parseFinanceCellNumber_(row.amount_due);
   if (candidate === null) return 0;
   return candidate;
 }
 
 function parseFinanceRowPending_(row) {
-  var explicitPending = toNumberOrNull_(row && row.pending_amount);
-  if (explicitPending === null) explicitPending = toNumberOrNull_(row && row.pending);
-  if (explicitPending === null) explicitPending = toNumberOrNull_(row && row.balance);
-  if (explicitPending === null) explicitPending = toNumberOrNull_(row && row.remaining_amount);
+  if (!row) return 0;
+  var explicitPending = parseFinanceCellNumber_(row.pending_amount);
+  if (explicitPending === null) explicitPending = parseFinanceCellNumber_(row.pending);
+  if (explicitPending === null) explicitPending = parseFinanceCellNumber_(row.balance);
+  if (explicitPending === null) explicitPending = parseFinanceCellNumber_(row.remaining_amount);
   if (explicitPending !== null) return explicitPending;
 
-  var due = toNumberOrNull_(row && row.sessions);
+  var due = parseFinanceCellNumber_(row.sessions);
   if (due === null) due = 0;
-  var paymentValue = toNumberOrNull_(row && row.Payment);
-  if (paymentValue === null) paymentValue = toNumberOrNull_(row && row.payment);
+  var paymentValue = parseFinanceCellNumber_(row.Payment);
+  if (paymentValue === null) paymentValue = parseFinanceCellNumber_(row.payment);
   var received = paymentValue > 0 ? 1 : 0;
   return Math.max(due - received, 0);
 }
@@ -571,7 +591,7 @@ function actionDiagnosticsConsistency_(user, payload) {
       },
       timings: timings,
       mismatches: [],
-      backendVersion: 'stage2c-finance-helper-fix-v1'
+      backendVersion: 'stage2c-finance-helper-fix-v2'
     };
 
     function pushMismatch_(metric, dashboardValue, sourceValue, sourceName, suspectedFunction, critical, reason) {

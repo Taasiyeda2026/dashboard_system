@@ -18,6 +18,7 @@ test('dashboard diagnostics button is admin/ops only and labeled correctly', asy
 test('dashboard diagnostics runs one selected month at a time with timeout', async () => {
   const source = await readFile(DASHBOARD_FILE, 'utf8');
   assert.match(source, /api\.diagnosticsConsistency\(\{ month: selectedMonth \}, \{ timeout_ms: 25000 \}\)/);
+  assert.match(source, /<strong>backendVersion<\/strong>/);
   assert.match(source, /בדיקת הדיאגנוסטיקה נמשכה יותר מדי זמן ונעצרה/);
   assert.doesNotMatch(source, /const months = \['2026-04', '2026-05'\]/);
   assert.doesNotMatch(source, /Promise\.all\(months\.map/);
