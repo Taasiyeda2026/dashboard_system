@@ -254,8 +254,8 @@ function enrichDashboardPayloadWithSharedExceptions_(payload, ym) {
   if (!payload || typeof payload !== 'object') return payload;
   var rows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
   var exceptionSummary = getExceptionsSummary_(rows, ym, { include_rows: false });
-  var total = exceptionSummary.totalExceptions || 0;
-  var byManager = exceptionSummary.exceptionsByManager || {};
+  var total = exceptionSummary.totalExceptionInstances || 0;
+  var byManager = exceptionSummary.byManager || {};
 
   if (!payload.summary || typeof payload.summary !== 'object') payload.summary = {};
   payload.summary.exceptions_count = total;

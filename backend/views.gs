@@ -311,9 +311,9 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
       }
     });
 
-    var monthExceptionSummary = computeCourseExceptionsModel_(monthActivities, ym, { include_rows: false });
-    managerExceptions = monthExceptionSummary.by_manager_exception_instances || {};
-    primaryExceptionRowCount = monthExceptionSummary.total_exception_instances || 0;
+    var monthExceptionSummary = computeExceptionsModel_(monthActivities, ym, { include_rows: false });
+    managerExceptions = monthExceptionSummary.byManager || {};
+    primaryExceptionRowCount = monthExceptionSummary.totalExceptionInstances || 0;
 
     monthMeetings.forEach(function(row) {
       var i1 = text_(row.instructor_name || row.emp_id);

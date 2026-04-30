@@ -173,9 +173,10 @@ function collectProgramExceptions_(rows, opts) {
   };
 }
 
-function computeCourseExceptionsModel_(rows, ym, opts) {
+function computeExceptionsModel_(rows, ym, opts) {
   var options = opts || {};
   var includeRows = options.include_rows === true;
+  var includeDebug = options.include_debug === true;
   var sourceRows = Array.isArray(rows) ? rows : [];
   var month = text_(ym || '');
   var payload = collectProgramExceptions_(sourceRows, {
@@ -188,37 +189,53 @@ function computeCourseExceptionsModel_(rows, ym, opts) {
     if (month && !activityOverlapsYm_(row, month)) return false;
     return !isExcludedStatusForControl_(row && row.status);
   });
-  var byManagerExceptionInstances = {};
+
+  var byManager = {};
+  var sampleRows = [];
   relevantRows.forEach(function(row) {
     var manager = text_(row && row.activity_manager) || 'unassigned';
-    var exceptionsForRow = rowExceptionTypes_(row).length;
-    if (!exceptionsForRow) return;
-    byManagerExceptionInstances[manager] = (byManagerExceptionInstances[manager] || 0) + exceptionsForRow;
+    var types = rowExceptionTypes_(row);
+    if (!types.length) return;
+    if (!byManager[manager]) byManager[manager] = { exceptions: 0, rows: 0 };
+    byManager[manager].exceptions += types.length;
+    byManager[manager].rows += 1;
+    if (includeDebug && sampleRows.length < 25) {
+      sampleRows.push({
+        RowID: text_(row && row.RowID),
+        activity_name: text_(row && row.activity_name),
+        activity_manager: manager,
+        exception_types: types.slice(),
+        source_sheet: text_(row && row.source_sheet),
+        start_date: text_(row && row.start_date),
+        end_date: text_(row && row.end_date),
+        instructor_name: text_(row && row.instructor_name),
+        instructor_name_2: text_(row && row.instructor_name_2),
+        status: text_(row && row.status)
+      });
+    }
   });
+
+  var debug = includeDebug ? {
+    totalExceptionInstances: payload.total_exception_instances || 0,
+    totalExceptionRows: payload.total_exception_rows || 0,
+    counts: payload.counts || {},
+    byManager: byManager,
+    sampleRows: sampleRows
+  } : null;
 
   return {
     month: month,
-    counts: payload.counts || {},
     rows: payload.rows || [],
-    total_exception_instances: payload.total_exception_instances || 0,
-    total_exception_rows: payload.total_exception_rows || 0,
-    by_manager_exception_instances: byManagerExceptionInstances
+    totalExceptionInstances: payload.total_exception_instances || 0,
+    totalExceptionRows: payload.total_exception_rows || 0,
+    counts: payload.counts || {},
+    byManager: byManager,
+    debug: debug
   };
 }
 
 function getExceptionsSummary_(rows, ym, opts) {
-  var sourceRows = Array.isArray(rows) ? rows : [];
-  var normalizedYm = text_(ym || '');
-  var settings = opts && typeof opts === 'object' ? opts : {};
-  var includeRows = settings.include_rows === true;
-  var model = computeCourseExceptionsModel_(sourceRows, normalizedYm, { include_rows: includeRows });
-  return {
-    totalExceptions: model.total_exception_instances || 0,
-    currentMonthExceptions: model.total_exception_instances || 0,
-    exceptionsByManager: model.by_manager_exception_instances || {},
-    counts: model.counts || {},
-    rows: model.rows || []
-  };
+  return computeExceptionsModel_(rows, ym, opts || {});
 }
 
 function primaryExceptionForRow_(row) {
@@ -517,7 +534,7 @@ function actionDashboard_(user, payload) {
   });
 
   var exceptionSummary = getExceptionsSummary_(combined, ym, { include_rows: false });
-  managerExceptions = exceptionSummary.exceptionsByManager || {};
+  managerExceptions = exceptionSummary.byManager || {};
 
   Object.keys(byManager).forEach(function(manager) {
     byManager[manager].num_instructors = Object.keys(managerInstructorSets[manager] || {}).length;
@@ -581,7 +598,7 @@ function actionDashboard_(user, payload) {
   missingInstructorCount = exceptionSummary.counts.missing_instructor || 0;
   missingStartDateCount = exceptionSummary.counts.missing_start_date || 0;
   lateEndDateCount = exceptionSummary.counts.late_end_date || 0;
-  var exceptionSum = exceptionSummary.totalExceptions || 0;
+  var exceptionSum = exceptionSummary.totalExceptionInstances || 0;
 
   var shortActivitiesByType = {};
   shortRowsBySource.forEach(function(row) {
@@ -1475,7 +1492,7 @@ function actionExceptions_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var month = text_((payload && payload.month) || '');
   var rows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
-  var exceptionSummary = getExceptionsSummary_(rows, month, { include_rows: true });
+  var exceptionSummary = getExceptionsSummary_(rows, month, { include_rows: true, include_debug: yesNo_(payload && payload.debug) === 'yes' });
   var counts = exceptionSummary.counts || {};
   var result = exceptionSummary.rows || [];
   var relevantRows = rows.filter(function(row) {
@@ -1511,7 +1528,11 @@ function actionExceptions_(user, payload) {
   return {
     month: month || '',
     rows: result,
+    totalExceptionInstances: exceptionSummary.totalExceptionInstances || 0,
+    totalExceptionRows: exceptionSummary.totalExceptionRows || 0,
     counts: counts,
+    byManager: exceptionSummary.byManager || {},
+    debug: exceptionSummary.debug || null,
     priority: configuredExceptionPriority_()
   };
 }
