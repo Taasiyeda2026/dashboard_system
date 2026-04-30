@@ -73,6 +73,7 @@ function renderMonthTable(month, monthIdx) {
       <tr class="ds-end-expand-row" id="ds-end-expand-${escapeHtml(rowId)}" hidden>
         <td colspan="5" class="ds-end-expand-td">
           <div class="ds-end-dates__dates-list">${pillsHtml}</div>
+          <p class="ds-end-dates__meta"><strong>מנהל פעילויות:</strong> ${escapeHtml(String(row.activity_manager || '—'))}</p>
         </td>
       </tr>`;
   }).join('');
@@ -96,15 +97,20 @@ function renderMonthTable(month, monthIdx) {
 }
 
 function buildExcelBlob(rows) {
-  const headers = ['שם פעילות', 'בית ספר', 'רשות', 'תאריך סיום', 'תאריכי מפגשים'];
+  const maxMeetingDates = rows.reduce((max, row) => Math.max(max, Array.isArray(row?._dates) ? row._dates.length : 0), 0);
+  const dateHeaders = Array.from({ length: maxMeetingDates }, (_, idx) => `תאריך סיום ${idx + 1}`);
+  const headers = ['שם פעילות', 'בית ספר', 'רשות', 'תאריך סיום', ...dateHeaders];
   const tableRows = rows.map((row) => {
-    const datesText = (row._dates || []).map((iso) => formatDateHe(iso)).join(', ');
+    const dateCells = Array.from({ length: maxMeetingDates }, (_, idx) => {
+      const iso = row?._dates?.[idx];
+      return `<td>${escapeHtml(iso ? formatDateHe(iso) : '')}</td>`;
+    }).join('');
     return `<tr>
       <td>${escapeHtml(String(row.activity_name || ''))}</td>
       <td>${escapeHtml(String(row.school || ''))}</td>
       <td>${escapeHtml(String(row.authority || ''))}</td>
       <td>${escapeHtml(formatDateHe(row.end_date))}</td>
-      <td>${escapeHtml(datesText)}</td>
+      ${dateCells}
     </tr>`;
   }).join('');
 
