@@ -63,6 +63,7 @@ const READ_ACTIONS = {
 
 const API_TIMEOUT_MS_READ = 20000;
 const API_TIMEOUT_MS_WRITE = 30000;
+const READ_MODEL_TIMEOUT_MS = 6000;
 const PERF_MAX_REQUESTS = 150;
 const MONTH_READ_MODEL_TTL_MS = 5 * 60 * 1000;
 const monthReadModelCache = new Map();
@@ -194,12 +195,17 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
     return request(fallbackAction, fallbackPayload);
   }
   try {
-    const manifest = await getReadModelManifestCached();
     const manifestKey = manifestEntryForReadModel(key, params);
-    const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;
     const localKey = readModelLocalCacheKey(key, params);
     const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
     const hit = cachedModels?.[localKey];
+    if (hit && hit.data) {
+      refreshReadModelInBackground_(key, params, localKey, manifestKey, hit);
+      return hit.data;
+    }
+
+    const manifest = await getReadModelManifestCached();
+    const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;
 
     if (
       hit &&
@@ -236,6 +242,31 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
     });
     return request(fallbackAction, fallbackPayload);
   }
+}
+
+async function refreshReadModelInBackground_(key, params, localKey, manifestKey, hit) {
+  try {
+    const manifest = await getReadModelManifestCached();
+    const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;
+    if (
+      manifestMeta &&
+      hit.version &&
+      hit.hash &&
+      hit.version === manifestMeta.version &&
+      hit.hash === manifestMeta.hash
+    ) return;
+    const envelope = await request('readModelGet', { key, params });
+    const data = envelope?.data ?? envelope ?? {};
+    const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
+    cachedModels[localKey] = {
+      key,
+      version: envelope?.version || '',
+      hash: envelope?.hash || '',
+      updated_at: envelope?.updated_at || '',
+      data
+    };
+    safeLocalStorageSetJson(READ_MODEL_CACHE_STORAGE_KEY, cachedModels);
+  } catch (_err) {}
 }
 
 function isPerfDebugEnabled() {
@@ -293,7 +324,9 @@ function normalizeData(data) {
 }
 
 async function postWithTimeout(action, requestBody) {
-  const timeoutMs = READ_ACTIONS[action] ? API_TIMEOUT_MS_READ : API_TIMEOUT_MS_WRITE;
+  const timeoutMs = (action === 'readModelManifest' || action === 'readModelGet')
+    ? READ_MODEL_TIMEOUT_MS
+    : (READ_ACTIONS[action] ? API_TIMEOUT_MS_READ : API_TIMEOUT_MS_WRITE);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
