@@ -246,13 +246,41 @@ function pickField_(row, fieldNames, fallback) {
 }
 
 function resolveExceptionsCountForDashboard_(summaryObj, rawExceptions) {
-  var summary = summaryObj && typeof summaryObj === 'object' ? summaryObj : {};
-  var missingInstr = parseInt(text_(summary.missing_instructor_count), 10) || 0;
-  var missingStart = parseInt(text_(summary.missing_start_date_count), 10) || 0;
-  var lateEnd = parseInt(text_(summary.late_end_date_count), 10) || 0;
-  var fromSummaryParts = missingInstr + missingStart + lateEnd;
   var fromRaw = parseInt(text_(rawExceptions), 10);
-  return (isNaN(fromRaw) || fromRaw < 0) ? fromSummaryParts : fromRaw;
+  return (isNaN(fromRaw) || fromRaw < 0) ? 0 : fromRaw;
+}
+
+function enrichDashboardPayloadWithSharedExceptions_(payload, ym) {
+  if (!payload || typeof payload !== 'object') return payload;
+  var rows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
+  var exceptionSummary = getExceptionsSummary_(rows, ym, { include_rows: false });
+  var total = exceptionSummary.totalExceptions || 0;
+  var byManager = exceptionSummary.exceptionsByManager || {};
+
+  if (!payload.summary || typeof payload.summary !== 'object') payload.summary = {};
+  payload.summary.exceptions_count = total;
+  payload.summary.current_month_exceptions_count = exceptionSummary.currentMonthExceptions || 0;
+
+  if (payload.totals && typeof payload.totals === 'object') {
+    payload.totals.exceptions_count = total;
+  }
+  if (Array.isArray(payload.kpi_cards)) {
+    payload.kpi_cards = payload.kpi_cards.map(function(card) {
+      if (card && card.id === 'exceptions') {
+        card.title = String(total);
+        card.value = total;
+      }
+      return card;
+    });
+  }
+  if (Array.isArray(payload.by_activity_manager)) {
+    payload.by_activity_manager = payload.by_activity_manager.map(function(row) {
+      var manager = text_(row && row.activity_manager) || 'unassigned';
+      row.exceptions = byManager[manager] || 0;
+      return row;
+    });
+  }
+  return payload;
 }
 
 function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, canViewFinance) {
@@ -441,6 +469,7 @@ function actionDashboardSnapshot_(user, payload) {
   markRequestPerf_('dashboardSnapshot:monthly view lookup:end');
 
   if (viewTry && viewTry.ok && viewTry.payload) {
+    viewTry.payload = enrichDashboardPayloadWithSharedExceptions_(viewTry.payload, ym);
     setRequestPerfField_('dashboard_used_view', true);
     setRequestPerfField_('dashboard_fallback_used', false);
     setRequestPerfField_('dashboard_cache_hit', !!viewTry.cache_hit);
@@ -609,6 +638,7 @@ function actionDashboardSnapshot_(user, payload) {
     show_only_nonzero_kpis: flags.show_only_nonzero_kpis !== false,
     _is_snapshot: true
   };
+  sheetSnapshotPayload = enrichDashboardPayloadWithSharedExceptions_(sheetSnapshotPayload, ym);
   setRequestPerfField_('dashboard_fallback_used', false);
   setRequestPerfField_('dashboard_view_rows_read', 0);
   setRequestPerfField_('payload_bytes', JSON.stringify(sheetSnapshotPayload).length);

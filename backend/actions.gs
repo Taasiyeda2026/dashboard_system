@@ -206,6 +206,21 @@ function computeCourseExceptionsModel_(rows, ym, opts) {
   };
 }
 
+function getExceptionsSummary_(rows, ym, opts) {
+  var sourceRows = Array.isArray(rows) ? rows : [];
+  var normalizedYm = text_(ym || '');
+  var settings = opts && typeof opts === 'object' ? opts : {};
+  var includeRows = settings.include_rows === true;
+  var model = computeCourseExceptionsModel_(sourceRows, normalizedYm, { include_rows: includeRows });
+  return {
+    totalExceptions: model.total_exception_instances || 0,
+    currentMonthExceptions: model.total_exception_instances || 0,
+    exceptionsByManager: model.by_manager_exception_instances || {},
+    counts: model.counts || {},
+    rows: model.rows || []
+  };
+}
+
 function primaryExceptionForRow_(row) {
   var types = rowExceptionTypes_(row);
   if (!types.length) return '';
@@ -501,8 +516,8 @@ function actionDashboard_(user, payload) {
     managerActiveLong[manager] = (managerActiveLong[manager] || 0) + 1;
   });
 
-  var exceptionSummary = computeCourseExceptionsModel_(combined, ym, { include_rows: false });
-  managerExceptions = exceptionSummary.by_manager_exception_instances || {};
+  var exceptionSummary = getExceptionsSummary_(combined, ym, { include_rows: false });
+  managerExceptions = exceptionSummary.exceptionsByManager || {};
 
   Object.keys(byManager).forEach(function(manager) {
     byManager[manager].num_instructors = Object.keys(managerInstructorSets[manager] || {}).length;
@@ -566,7 +581,7 @@ function actionDashboard_(user, payload) {
   missingInstructorCount = exceptionSummary.counts.missing_instructor || 0;
   missingStartDateCount = exceptionSummary.counts.missing_start_date || 0;
   lateEndDateCount = exceptionSummary.counts.late_end_date || 0;
-  var exceptionSum = exceptionSummary.total_exception_instances || 0;
+  var exceptionSum = exceptionSummary.totalExceptions || 0;
 
   var shortActivitiesByType = {};
   shortRowsBySource.forEach(function(row) {
@@ -1460,9 +1475,9 @@ function actionExceptions_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var month = text_((payload && payload.month) || '');
   var rows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
-  var exceptionPayload = computeCourseExceptionsModel_(rows, month, { include_rows: true });
-  var counts = exceptionPayload.counts || {};
-  var result = exceptionPayload.rows || [];
+  var exceptionSummary = getExceptionsSummary_(rows, month, { include_rows: true });
+  var counts = exceptionSummary.counts || {};
+  var result = exceptionSummary.rows || [];
   var relevantRows = rows.filter(function(row) {
     return !isExcludedStatusForControl_(row && row.status) &&
       text_(row && row.activity_type) === 'course' &&
