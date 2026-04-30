@@ -78,7 +78,11 @@ function renderStructuredSummary(summary, ym, byManager) {
     + pickNumericFallback(summary, 'missing_start_date_count')
     + pickNumericFallback(summary, 'late_end_date_count');
   const exceptionsTotalField = getStrictNumericField(summary, 'exceptions_count');
-  const exceptionsTotalResolved = exceptionsTotalField.ok ? exceptionsTotalField.value : exceptionsFromParts;
+  const byManagerExceptions = (Array.isArray(byManager) ? byManager : [])
+    .reduce((sum, row) => sum + (Number(row?.exceptions || 0) || 0), 0);
+  const exceptionsTotalResolved = exceptionsTotalField.ok
+    ? Math.max(exceptionsTotalField.value, exceptionsFromParts, byManagerExceptions)
+    : Math.max(exceptionsFromParts, byManagerExceptions);
 
   const activeCurrent = escapeHtml(String(activeCurrentField.ok ? activeCurrentField.value : 'שגיאת מיפוי'));
   const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 'שגיאת מיפוי'));

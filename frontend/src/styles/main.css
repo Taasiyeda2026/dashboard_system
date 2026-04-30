@@ -7375,6 +7375,11 @@ select.ds-input {
   color: #1e3a8a;
   border: 1px solid #d9e6ff;
 }
+.ds-end-dates__meta {
+  margin: 8px 0 0;
+  font-size: 0.74rem;
+  color: #334155;
+}
 
 .ds-end-dates__muted {
   font-size: 0.78rem;
@@ -7951,6 +7956,11 @@ select.ds-activity-add-field .ds-input,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border-inline-start: 1px solid rgba(26, 51, 88, 0.08);
+}
+.ds-table--activities-list th:first-child,
+.ds-table--activities-list td:first-child {
+  border-inline-start: none;
 }
 
 .ds-table--activities-list th {
@@ -7970,6 +7980,12 @@ select.ds-activity-add-field .ds-input,
   line-height: 1.15;
   vertical-align: middle;
   text-align: right;
+}
+.ds-table--activities-list th:nth-child(5),
+.ds-table--activities-list th:nth-child(6),
+.ds-table--activities-list td:nth-child(5),
+.ds-table--activities-list td:nth-child(6) {
+  text-align: center;
 }
 
 .ds-activities-cell-ellipsis {
@@ -8185,10 +8201,25 @@ select.ds-activity-add-field .ds-input,
   grid-template-columns: repeat(auto-fill, minmax(180px, 220px));
   gap: 8px;
 }
+@media (min-width: 1200px) {
+  .ci-list--instr-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
 
 .instr-card .instr-summary-row {
   background: linear-gradient(160deg, rgba(59, 130, 246, 0.08), rgba(16, 185, 129, 0.06));
   border: 1px solid rgba(26, 51, 88, 0.1);
+}
+
+.ds-week-col.is-today .ds-week-col__head {
+  background: rgba(255, 235, 59, 0.45);
+  border-bottom-color: rgba(245, 158, 11, 0.35);
+}
+.ds-week-col__today-badge {
+  background: rgba(255, 215, 0, 0.92);
+  color: #5b3a00;
+  border: 1px solid rgba(217, 119, 6, 0.45);
 }
 
 /* ——— Instructor popup ——— */
