@@ -402,6 +402,31 @@ function dateColumnsPatchFromChanges_(changes) {
 }
 
 
+
+function parseFinanceRowAmount_(row) {
+  var candidate = toNumberOrNull_(row && row.amount);
+  if (candidate === null) candidate = toNumberOrNull_(row && row.price);
+  if (candidate === null) candidate = toNumberOrNull_(row && row.total_amount);
+  if (candidate === null) candidate = toNumberOrNull_(row && row.amount_due);
+  if (candidate === null) return 0;
+  return candidate;
+}
+
+function parseFinanceRowPending_(row) {
+  var explicitPending = toNumberOrNull_(row && row.pending_amount);
+  if (explicitPending === null) explicitPending = toNumberOrNull_(row && row.pending);
+  if (explicitPending === null) explicitPending = toNumberOrNull_(row && row.balance);
+  if (explicitPending === null) explicitPending = toNumberOrNull_(row && row.remaining_amount);
+  if (explicitPending !== null) return explicitPending;
+
+  var due = toNumberOrNull_(row && row.sessions);
+  if (due === null) due = 0;
+  var paymentValue = toNumberOrNull_(row && row.Payment);
+  if (paymentValue === null) paymentValue = toNumberOrNull_(row && row.payment);
+  var received = paymentValue > 0 ? 1 : 0;
+  return Math.max(due - received, 0);
+}
+
 function actionDiagnosticsConsistency_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager']);
   var month = dashboardPayloadYm_(payload || {});
@@ -545,7 +570,8 @@ function actionDiagnosticsConsistency_(user, payload) {
         pendingAmount: financePendingAmount
       },
       timings: timings,
-      mismatches: []
+      mismatches: [],
+      backendVersion: 'stage2c-finance-helper-fix-v1'
     };
 
     function pushMismatch_(metric, dashboardValue, sourceValue, sourceName, suspectedFunction, critical, reason) {
