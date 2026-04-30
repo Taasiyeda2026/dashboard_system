@@ -171,15 +171,34 @@ export function bindActivityEditForm(contentRoot, {
     const sourceRowId = form.getAttribute('data-row-id') || '';
     const canDirectEdit = String(form.dataset.canDirectEdit || '') === 'yes';
     const changes = {};
+    const initialValues = form._initialValues || {};
 
     form.querySelectorAll('[name]').forEach((el) => {
       const name = el.getAttribute('name');
       if (!name || name.startsWith('_')) return;
       if (el.closest('[hidden]')) return;
-      changes[name] = String(el.value ?? '').trim();
+      const rawValue = el.value;
+      if (rawValue === undefined || rawValue === null) return;
+      const nextValue = String(rawValue).trim();
+      const prevValue = String(initialValues[name] ?? '').trim();
+      if (nextValue === prevValue) return;
+      changes[name] = nextValue;
     });
 
     try {
+      if (!Object.keys(changes).length) {
+        setStatus(statusEl, 'is-error', 'לא זוהו שינויים לשמירה');
+        showToast('לא זוהו שינויים לשמירה', 'info', 2200);
+        return;
+      }
+
+      if (!canDirectEdit) {
+        // eslint-disable-next-line no-console
+        console.info('[submitEditRequest] source_row_id', sourceRowId);
+        // eslint-disable-next-line no-console
+        console.info('[submitEditRequest] changes', changes);
+      }
+
       setStatus(statusEl, 'is-pending', canDirectEdit ? 'שומר...' : 'שולח לאישור...');
       if (submitBtn) {
         submitBtn.disabled = true;
@@ -294,6 +313,13 @@ export function bindActivityEditForm(contentRoot, {
     updateMeetingWeekdays(form);
     updateMoreDatesToggle(form);
     updateEndDateDisplay(form);
+    const initialValues = {};
+    form.querySelectorAll('[name]').forEach((el) => {
+      const name = el.getAttribute('name');
+      if (!name || name.startsWith('_')) return;
+      initialValues[name] = String(el.value ?? '').trim();
+    });
+    form._initialValues = initialValues;
 
     form.addEventListener(
       'change',

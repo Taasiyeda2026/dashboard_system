@@ -327,7 +327,6 @@ const screenLabels = {
   contacts: 'אנשי קשר',
   'end-dates': 'תאריכי סיום',
   'my-data': 'הנתונים שלי',
-  operations: 'תפעול',
   'edit-requests': 'אישורים',
   permissions: 'הרשאות'
 };
@@ -344,7 +343,6 @@ const screenLoaders = {
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
   'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),
   'my-data': () => import('./screens/my-data.js').then((m) => m.myDataScreen),
-  operations: () => import('./screens/operations.js').then((m) => m.operationsScreen),
   'edit-requests': () => import('./screens/edit-requests.js').then((m) => m.editRequestsScreen),
   permissions: () => import('./screens/permissions.js').then((m) => m.permissionsScreen)
 };
@@ -584,9 +582,6 @@ function buildScreenDataCacheKey(route, cacheState = state) {
       ym: cacheState.financeMonthYm || ''
     };
     return `finance:${JSON.stringify(filters)}`;
-  }
-  if (route === 'operations') {
-    return `operations:${cacheState.operationsSearch || ''}:${cacheState.operationsActivityType || ''}`;
   }
   if (route === 'dashboard') {
     const ym = cacheState.dashboardMonthYm && /^\d{4}-\d{2}$/.test(cacheState.dashboardMonthYm) ? cacheState.dashboardMonthYm : 'default';

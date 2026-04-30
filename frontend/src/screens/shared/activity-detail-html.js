@@ -476,6 +476,15 @@ function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
 function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, showPrivateNote = false, idx = 0 } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = String(row.activity_type || '').trim();
+  const editReqStatus = String(row.edit_request_status || '').trim();
+  const editReqLabel =
+    editReqStatus === 'pending' ? 'ממתין לאישור' :
+      editReqStatus === 'approved' ? 'אושר' :
+        editReqStatus === 'rejected' ? 'נדחה' :
+          editReqStatus === 'conflict' ? 'בקונפליקט' : '';
+  const editReqBadge = editReqLabel
+    ? `<div class="ds-chip ds-chip--status ds-chip--warn" data-edit-request-status="${escapeHtml(editReqStatus)}">בקשת עריכה: ${escapeHtml(editReqLabel)}</div>`
+    : '';
   return `
     <form class="activity-drawer__form" data-drawer-form data-editing="no"
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
@@ -483,6 +492,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       data-can-direct-edit="${canDirectEdit ? 'yes' : 'no'}"
       data-auto-end-date="${escapeHtml(computedEnd)}"
       data-is-once="${ONCE_TYPES.includes(activityType) ? 'yes' : 'no'}">
+      ${editReqBadge}
       <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
       <input type="hidden" name="_activity_idx" value="${idx}">
       ${blockPeople(row, { settings })}

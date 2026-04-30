@@ -129,12 +129,14 @@ export const editRequestsScreen = {
     if (!root) return;
 
     const list = root.querySelector('[data-er-list]');
+    let activeFilter = 'pending';
 
     root.querySelectorAll('[data-er-filter]').forEach((btn) => {
       btn.addEventListener('click', () => {
         root.querySelectorAll('[data-er-filter]').forEach((b) => b.classList.remove('is-active'));
         btn.classList.add('is-active');
         const filterVal = btn.dataset.erFilter;
+        activeFilter = filterVal;
         if (!list) return;
         list.querySelectorAll('.ds-er-group').forEach((g) => {
           const show = !filterVal || g.dataset.status === filterVal;
@@ -154,6 +156,17 @@ export const editRequestsScreen = {
 
         try {
           await api.reviewEditRequest(requestId, status);
+          const groupEl = btn.closest('.ds-er-group');
+          if (groupEl) {
+            if (activeFilter === 'pending') {
+              groupEl.remove();
+            } else {
+              groupEl.dataset.status = status;
+              const statusChipWrap = groupEl.querySelector('.ds-er-group-head > div:last-child');
+              if (statusChipWrap) statusChipWrap.innerHTML = dsStatusChip(statusLabel(status), statusVariant(status));
+              groupEl.querySelector('.ds-er-actions')?.remove();
+            }
+          }
           clearScreenDataCache?.();
           showToast(status === 'approved' ? 'הבקשה אושרה' : 'הבקשה נדחתה', 'success');
           rerender?.();

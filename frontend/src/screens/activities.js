@@ -297,6 +297,14 @@ function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, 
   });
 }
 
+function editRequestStatusLabel(status) {
+  if (status === 'pending') return 'בקשת עריכה ממתינה';
+  if (status === 'approved') return 'בקשת העריכה אושרה';
+  if (status === 'rejected') return 'בקשת העריכה נדחתה';
+  if (status === 'conflict') return 'בקשת העריכה בקונפליקט';
+  return '';
+}
+
 function activityDetailCacheKey(summaryRow) {
   return `activityDetail:${summaryRow.source_sheet || ''}:${summaryRow.RowID || ''}`;
 }
@@ -348,6 +356,10 @@ export const activitiesScreen = {
           : '<span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>';
         const activityTypeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
         const activityName = escapeHtml(row.activity_name || '—');
+        const editStatus = editRequestStatusLabel(String(row.edit_request_status || ''));
+        const editStatusBadge = editStatus
+          ? `<span class="ds-chip ds-chip--status ds-chip--warn" title="${escapeHtml(editStatus)}">${escapeHtml(editStatus)}</span>`
+          : '';
         const startHe = formatDateHe(row.start_date) || '—';
         const endRaw = String(row?.end_date || '').trim() || String(row?.start_date || '').trim();
         const endHe = endRaw ? formatDateHe(endRaw) || '—' : '—';
@@ -369,7 +381,7 @@ export const activitiesScreen = {
           .join(' ');
         return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
-        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span></div></td>
+        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.school || '—')}">${escapeHtml(row.school || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}</div></td>
