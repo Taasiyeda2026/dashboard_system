@@ -392,7 +392,7 @@ export const monthScreen = {
     const prevBtn = root.querySelector('[data-month-prev]');
     const nextBtn = root.querySelector('[data-month-next]');
     const todayBtn = root.querySelector('[data-month-today]');
-    const doMonthShift = (delta) => {
+    const doMonthShift = async (delta) => {
       if (state.monthNavLoading) return;
       const startedAt = Date.now();
       const targetYm = shiftMonthYm(resolveBaseYm(), delta);
@@ -408,8 +408,16 @@ export const monthScreen = {
         root.classList.add('is-month-loading');
         root.setAttribute('aria-busy', 'true');
         rerender?.();
+        try {
+          const monthData = await api.month({ ym: targetYm }, { timeout_ms: 12000 });
+          if (state?.screenDataCache) {
+            state.screenDataCache[targetKey] = { data: monthData, t: Date.now() };
+          }
+        } catch {
+          // Release loading state and allow default loader to retry.
+        }
       }
-      const minMs = 420;
+      const minMs = 250;
       setTimeout(() => {
         state.monthNavLoading = false;
         root.classList.remove('is-month-loading');
@@ -420,6 +428,7 @@ export const monthScreen = {
     prevBtn?.addEventListener('click', () => { doMonthShift(-1); });
     nextBtn?.addEventListener('click', () => { doMonthShift(1); });
     todayBtn?.addEventListener('click', () => {
+      if (state.monthNavLoading) return;
       state.monthYm = localYmd().slice(0, 7);
       rerender?.();
     });
