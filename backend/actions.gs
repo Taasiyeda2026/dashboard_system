@@ -407,6 +407,7 @@ function actionDiagnosticsConsistency_(user, payload) {
   var month = dashboardPayloadYm_(payload || {});
   var role = text_(user && user.display_role);
   var userId = text_(user && user.user_id);
+  var currentFunction = 'actionDiagnosticsConsistency_';
   Logger.log('diagnosticsConsistency started');
   Logger.log('diagnosticsConsistency user id / role: ' + userId + ' / ' + role);
   Logger.log('diagnosticsConsistency month: ' + month);
@@ -414,6 +415,7 @@ function actionDiagnosticsConsistency_(user, payload) {
   var exceptionsOk = false;
   var financeOk = false;
   try {
+    currentFunction = 'allActivitiesSummary_';
     var rows = allActivitiesSummary_();
     allActivitiesOk = true;
     Logger.log('diagnosticsConsistency allActivitiesSummary_ succeeded');
@@ -432,6 +434,7 @@ function actionDiagnosticsConsistency_(user, payload) {
     return true;
   }).length;
 
+  currentFunction = 'getExceptionsSummary_';
   var exceptionSummary = getExceptionsSummary_(inMonth, month, { include_rows: false });
   exceptionsOk = true;
   Logger.log('diagnosticsConsistency getExceptionsSummary_ succeeded');
@@ -441,6 +444,7 @@ function actionDiagnosticsConsistency_(user, payload) {
     return sum + Number(byManager[manager] || 0);
   }, 0);
 
+  currentFunction = 'financeCalculation_';
   var financeRows = inMonth.map(function(row) {
     return {
       finance_status: normalizeFinance_(row.finance_status),
@@ -543,7 +547,7 @@ function actionDiagnosticsConsistency_(user, payload) {
   } catch (err) {
     var errMessage = err && err.message ? String(err.message) : String(err);
     var fnMatch = errMessage.match(/([A-Za-z_][A-Za-z0-9_]+_)\s/);
-    var functionName = fnMatch ? fnMatch[1] : 'actionDiagnosticsConsistency_';
+    var functionName = currentFunction || (fnMatch ? fnMatch[1] : 'actionDiagnosticsConsistency_');
     Logger.log('diagnosticsConsistency allActivitiesSummary_ success: ' + allActivitiesOk);
     Logger.log('diagnosticsConsistency getExceptionsSummary_ success: ' + exceptionsOk);
     Logger.log('diagnosticsConsistency finance calculation success: ' + financeOk);
