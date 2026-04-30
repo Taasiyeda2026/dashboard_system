@@ -258,6 +258,7 @@ export const weekScreen = {
         : `${rangeLabel || 'שבוע'}`;
 
     const navLoading = !!state.weekNavLoading;
+    const navDirection = state.weekNavDirection === 'prev' ? ' week-transition is-entering-prev' : state.weekNavDirection === 'next' ? ' week-transition is-entering-next' : '';
     const html = dsScreenStack(`
       <nav class="ds-cal-nav${navLoading ? ' is-nav-loading' : ''}" role="navigation" aria-label="ניווט שבועי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-prev aria-label="שבוע קודם" title="שבוע קודם" ${navLoading ? 'disabled' : ''}>▶</button>
@@ -266,7 +267,7 @@ export const weekScreen = {
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-next aria-label="שבוע הבא" title="שבוע הבא" ${navLoading ? 'disabled' : ''}>◀</button>
       </nav>
       ${toolbarHtml}
-      <div class="ds-week-board${navLoading ? ' is-inline-loading' : ''}" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
+      <div class="ds-week-board${navLoading ? ' is-inline-loading' : ''}${navDirection}" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
     return html;
   },
@@ -306,11 +307,13 @@ export const weekScreen = {
       if (state.weekNavLoading) return;
       const startedAt = Date.now();
       state.weekNavLoading = true;
+      state.weekNavDirection = delta > 0 ? 'next' : 'prev';
       state.weekOffset = (state.weekOffset || 0) + delta;
       rerender?.();
-      const minMs = 420;
+      const minMs = 220;
       setTimeout(() => {
         state.weekNavLoading = false;
+        state.weekNavDirection = '';
         rerender?.();
       }, Math.max(0, minMs - (Date.now() - startedAt)));
     };
@@ -318,6 +321,7 @@ export const weekScreen = {
     bindListener(nextBtn, 'click', () => doWeekShift(1));
     bindListener(todayBtn, 'click', () => {
       if (state.weekNavLoading) return;
+      state.weekNavDirection = '';
       state.weekOffset = 0;
       rerender?.();
     });

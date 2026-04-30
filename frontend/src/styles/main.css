@@ -8343,3 +8343,62 @@ select.ds-activity-add-field .ds-input,
     animation: none !important;
   }
 }
+
+/* Week navigation transition (week board only) */
+.ds-week-board.week-transition.is-entering-next {
+  animation: ds-week-enter-next 220ms ease both;
+}
+
+.ds-week-board.week-transition.is-entering-prev {
+  animation: ds-week-enter-prev 220ms ease both;
+}
+
+@keyframes ds-week-enter-next {
+  from {
+    opacity: 0.38;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes ds-week-enter-prev {
+  from {
+    opacity: 0.38;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Month day cell highlighting for days with activities */
+.ds-cal-grid .ds-interactive-card--day-cell.has-activities {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.ds-cal-grid .ds-interactive-card--day-cell.has-activities:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+/* Keep TODAY dominant while preserving activity indication */
+.ds-interactive-card.is-cal-today.has-activities {
+  background: linear-gradient(165deg, #deeaff 0%, #eef4ff 100%);
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.22),
+              0 0 0 1px rgba(59, 130, 246, 0.13),
+              0 0 18px rgba(59, 130, 246, 0.14),
+              0 4px 14px rgba(26, 51, 88, 0.07);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-week-board.week-transition.is-entering-next,
+  .ds-week-board.week-transition.is-entering-prev {
+    animation: none !important;
+    transform: none !important;
+  }
+}
