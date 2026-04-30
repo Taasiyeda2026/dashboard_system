@@ -55,7 +55,10 @@ const READ_ACTIONS = {
   operationsDetail: true,
   editRequests: true,
   permissions: true,
-  listSheets: true
+  listSheets: true,
+  readModelManifest: true,
+  readModelGet: true,
+  readModelHealth: true
 };
 
 const API_TIMEOUT_MS_READ = 20000;
@@ -63,6 +66,9 @@ const API_TIMEOUT_MS_WRITE = 30000;
 const PERF_MAX_REQUESTS = 150;
 const MONTH_READ_MODEL_TTL_MS = 5 * 60 * 1000;
 const monthReadModelCache = new Map();
+const READ_MODEL_CACHE_STORAGE_KEY = 'ds_read_model_cache_v1';
+const MANIFEST_TTL_MS = 30 * 1000;
+let manifestCache = { t: 0, data: null };
 const RETRYABLE_SERVER_ERRORS = new Set([
   'network_error',
   'server_error',
@@ -100,6 +106,28 @@ function invalidateScreenDataByAction(action) {
   });
 }
 
+function invalidateReadModelLocalCacheByAction(action) {
+  const targeted = {
+    saveActivity: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'],
+    addActivity: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'],
+    submitEditRequest: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'],
+    reviewEditRequest: ['dashboard', 'activities', 'week', 'month', 'exceptions'],
+    saveFinanceRow: ['dashboard', 'finance'],
+    syncFinance: ['dashboard', 'finance'],
+    savePermission: ['dashboard']
+  };
+  const keys = targeted[action];
+  if (!keys?.length) return;
+  const allCache = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
+  Object.keys(allCache).forEach((cacheKey) => {
+    if (keys.some((key) => cacheKey === key || cacheKey.startsWith(`${key}?`))) {
+      delete allCache[cacheKey];
+    }
+  });
+  safeLocalStorageSetJson(READ_MODEL_CACHE_STORAGE_KEY, allCache);
+  manifestCache = { t: 0, data: null };
+}
+
 function monthReadModelKey(payload = {}) {
   const ym = String(payload?.ym || payload?.month || '').trim();
   return /^\d{4}-\d{2}$/.test(ym) ? ym : '__current__';
@@ -107,6 +135,86 @@ function monthReadModelKey(payload = {}) {
 
 function clearMonthReadModelCache() {
   monthReadModelCache.clear();
+}
+
+function safeLocalStorageGetJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeLocalStorageSetJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch { /* ignore */ }
+}
+
+async function getReadModelManifestCached() {
+  const now = Date.now();
+  if (manifestCache.data && now - manifestCache.t < MANIFEST_TTL_MS) return manifestCache.data;
+  const fresh = await request('readModelManifest', {});
+  manifestCache = { t: now, data: fresh || {} };
+  return manifestCache.data;
+}
+
+function readModelLocalCacheKey(key, params = {}) {
+  const normalized = Object.entries(params || {})
+    .filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '')
+    .sort(([a], [b]) => a.localeCompare(b));
+  const suffix = normalized.map(([k, v]) => `${k}=${String(v).trim()}`).join('&');
+  return suffix ? `${key}?${suffix}` : key;
+}
+
+function manifestEntryForReadModel(key, params = {}) {
+  if (key === 'dashboard') return 'dashboard';
+  if (key === 'activities') return 'activities';
+  if (key === 'week') return 'week';
+  if (key === 'month') return 'month';
+  if (key === 'exceptions') return 'exceptions';
+  if (key === 'finance') return 'finance';
+  if (key === 'end-dates') return 'end_dates';
+  if (key === 'instructors') return 'instructors';
+  return null;
+}
+
+async function requestReadModel(key, params = {}, fallbackAction, fallbackPayload = {}) {
+  const manifest = await getReadModelManifestCached();
+  const manifestKey = manifestEntryForReadModel(key, params);
+  const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;
+  const localKey = readModelLocalCacheKey(key, params);
+  const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
+  const hit = cachedModels?.[localKey];
+  if (
+    hit &&
+    manifestMeta &&
+    hit.version &&
+    hit.hash &&
+    hit.version === manifestMeta.version &&
+    hit.hash === manifestMeta.hash
+  ) {
+    return hit.data;
+  }
+  try {
+    const envelope = await request('readModelGet', { key, params });
+    const data = envelope?.data ?? envelope ?? {};
+    const nextCache = {
+      ...cachedModels,
+      [localKey]: {
+        key,
+        version: envelope?.version || '',
+        hash: envelope?.hash || '',
+        updated_at: envelope?.updated_at || '',
+        data
+      }
+    };
+    safeLocalStorageSetJson(READ_MODEL_CACHE_STORAGE_KEY, nextCache);
+    return data;
+  } catch {
+    return request(fallbackAction, fallbackPayload);
+  }
 }
 
 function isPerfDebugEnabled() {
@@ -269,6 +377,7 @@ async function request(action, payload = {}) {
   }
   if (MUTATING_ACTIONS[action]) {
     invalidateScreenDataByAction(action);
+    invalidateReadModelLocalCacheByAction(action);
   }
   pushPerfRequest({
     action,
@@ -283,18 +392,18 @@ export const api = {
   login: (user_id, entry_code) => request('login', { user_id, entry_code }),
   bootstrap: () => request('bootstrap'),
   dashboard: (filters) => request('dashboard', filters || {}),
-  dashboardSnapshot: (filters) => request('dashboardSnapshot', filters || {}),
-  activities: (filters) => request('activities', filters),
+  dashboardSnapshot: (filters) => requestReadModel('dashboard', filters || {}, 'dashboardSnapshot', filters || {}),
+  activities: (filters) => requestReadModel('activities', filters || {}, 'activities', filters || {}),
   activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
-  week: (params) => request('week', params || {}),
-  month: (params) => request('month', params || {}),
-  exceptions: (params) => request('exceptions', params || {}),
-  finance: (params) => request('finance', params || {}),
+  week: (params) => requestReadModel('week', params || { week_offset: 0 }, 'week', params || {}),
+  month: (params) => requestReadModel('month', params || {}, 'month', params || {}),
+  exceptions: (params) => requestReadModel('exceptions', params || {}, 'exceptions', params || {}),
+  finance: (params) => requestReadModel('finance', params || {}, 'finance', params || {}),
   financeDetail: (source_row_id, source_sheet) => request('financeDetail', { source_row_id, source_sheet }),
   instructors: () => request('instructors'),
   instructorContacts: () => request('instructorContacts'),
   contacts: () => request('contacts'),
-  endDates: () => request('endDates'),
+  endDates: () => requestReadModel('end-dates', {}, 'endDates', {}),
   myData: () => request('myData'),
   operations: (params) => request('operations', params || {}),
   operationsDetail: (source_row_id, source_sheet) => request('operationsDetail', { source_row_id, source_sheet }),
@@ -347,5 +456,8 @@ export const api = {
     }
     return request('savePrivateNote', { source_sheet: a, source_row_id: b, note: c });
   },
-  listSheets: () => request('listSheets')
+  listSheets: () => request('listSheets'),
+  readModelManifest: () => request('readModelManifest', {}),
+  readModelGet: (key, params = {}) => request('readModelGet', { key, params }),
+  readModelHealth: () => request('readModelHealth', {})
 };

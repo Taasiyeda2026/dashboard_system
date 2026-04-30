@@ -41,8 +41,17 @@ test('reviewEditRequest handles approve/reject, missing requests and already rev
 });
 
 test('router triggers snapshot refresh or cache version bump after write actions', () => {
-  mustMatch(router, /if \(action === 'addActivity' \|\|[\s\S]*action === 'saveActivity' \|\|[\s\S]*action === 'reviewEditRequest'/);
-  mustMatch(router, /if \(action === 'addActivity' \|\| action === 'saveActivity' \|\| action === 'reviewEditRequest'\) \{[\s\S]*refreshActivitiesSnapshot_\(\);[\s\S]*\} catch \(_activitiesSnapshotErr\) \{[\s\S]*bumpDataViewsCacheVersion_\(\);/);
+  mustMatch(router, /if \(action === 'addActivity' \|\|[\s\S]*action === 'saveActivity' \|\|[\s\S]*action === 'submitEditRequest' \|\|[\s\S]*action === 'reviewEditRequest'/);
+  mustMatch(router, /if \(action === 'addActivity' \|\| action === 'saveActivity' \|\| action === 'submitEditRequest' \|\| action === 'reviewEditRequest'\) \{[\s\S]*refreshActivitiesSnapshot_\(\);[\s\S]*\} catch \(_activitiesSnapshotErr\) \{[\s\S]*bumpDataViewsCacheVersion_\(\);/);
+});
+
+test('addActivity requires core fields but does not force notes/end_date when derivable', () => {
+  mustMatch(actions, /var requiredFields = \[[\s\S]*'start_date',[\s\S]*'sessions',[\s\S]*'instructor_name'[\s\S]*\];/);
+  mustMatch(actions, /if \(!text_\(derivedEmpId1 \|\| activity\.emp_id\)\) \{[\s\S]*Missing required fields: emp_id/);
+});
+
+test('edit requests list excludes empty change sets', () => {
+  mustMatch(actions, /result = result\.filter\(function\(item\) \{[\s\S]*item\.fields\.length > 0/);
 });
 
 test('activities snapshot refresh persists rows and bumps data-views version', () => {

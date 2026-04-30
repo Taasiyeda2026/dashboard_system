@@ -85,3 +85,10 @@ test('activities screen wires add-activity form submit to api.addActivity flow',
   assert.match(source, /await api\.addActivity\(payload\)/);
   assert.match(source, /statusEl\) statusEl\.textContent = `שגיאה בשמירה:/);
 });
+
+test('activity drawer uses instructor emp_id fallback for display consistency', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(new URL('../frontend/src/screens/shared/activity-detail-html.js', import.meta.url), 'utf8');
+  assert.match(source, /function resolveInstructorDisplayName\(name, empId, lookup\)/);
+  assert.match(source, /resolveInstructorDisplayName\(row\.instructor_name,\s*row\.emp_id,\s*instructorLookup\)/);
+});

@@ -2082,7 +2082,7 @@ function actionEditRequests_(user) {
       originalValues[text_(r.field_name)] = text_(r.old_value);
       requestedValues[text_(r.field_name)] = text_(r.new_value);
     }
-    return {
+    var mapped = {
       request_id: text_(r.request_id),
       RowID: text_(r.RowID || r.source_row_id),
       source_sheet: text_(r.source_sheet),
@@ -2108,6 +2108,10 @@ function actionEditRequests_(user) {
         };
       })
     };
+    return mapped;
+  });
+  result = result.filter(function(item) {
+    return Array.isArray(item.fields) && item.fields.length > 0;
   });
   result.sort(function(a, b) {
     return (b.requested_at || '').localeCompare(a.requested_at || '');
@@ -2222,15 +2226,12 @@ function actionAddActivity_(user, payload) {
     'authority',
     'school',
     'start_date',
-    'end_date',
     'sessions',
     'price',
     'funding',
     'start_time',
     'end_time',
-    'instructor_name',
-    'emp_id',
-    'notes'
+    'instructor_name'
   ];
   var missingFields = requiredFields.filter(function(field) {
     return !text_(activity[field]);
@@ -2290,6 +2291,9 @@ function actionAddActivity_(user, payload) {
   var instructorName2 = text_(activity.instructor_name_2);
   var derivedEmpId1 = empIdForInstructorName_(instructorName1);
   var derivedEmpId2 = empIdForInstructorName_(instructorName2);
+  if (!text_(derivedEmpId1 || activity.emp_id)) {
+    throw new Error('Missing required fields: emp_id');
+  }
   var firstStartDate = normalizeDateTextToIso_(activity.start_date || dateCols.Date1);
   var plannedMeetings = meetingScheduleFromPayload_(firstStartDate, activity.sessions);
   var meetingsTotal = plannedMeetings.length;
