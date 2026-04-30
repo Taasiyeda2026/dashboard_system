@@ -72,3 +72,16 @@ test('activities table keeps expected columns structure', () => {
   const html = activitiesScreen.render(data, { state: baseState() });
   assert.match(html, /<th>תוכנית \/ סוג<\/th><th>רשות<\/th><th>בית ספר<\/th><th>מדריך<\/th><th>תאריך התחלה<\/th><th>תאריך סיום<\/th><th>הערות<\/th>/);
 });
+
+
+
+
+
+test('activities screen wires add-activity form submit to api.addActivity flow', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
+  assert.match(source, /data-add-activity-form/);
+  assert.match(source, /document\.addEventListener\('submit'[\s\S]*submitAddActivityForm/);
+  assert.match(source, /await api\.addActivity\(payload\)/);
+  assert.match(source, /statusEl\) statusEl\.textContent = `שגיאה בשמירה:/);
+});

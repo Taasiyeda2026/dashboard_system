@@ -50,3 +50,13 @@ test('activities snapshot refresh persists rows and bumps data-views version', (
   mustMatch(snapshot, /JSON\.stringify\(payload\.rows \|\| \[\]\)/);
   mustMatch(snapshot, /bumpDataViewsCacheVersion_\(\);/);
 });
+
+
+test('activities snapshot normalizes instructor aliases and merges missing instructor fields by RowID fallback', () => {
+  mustMatch(snapshot, /normalized\.instructor_name = instructor1;/);
+  mustMatch(snapshot, /normalized\.EmployeeID2 = text_\(src\.EmployeeID2 \|\| src\.EmployeeID_2 \|\| src\.employee_id_2 \|\| emp2\);/);
+  mustMatch(snapshot, /function mergeInstructorFieldsByRowId_\(snapshotRows, legacyRows\)/);
+  mustMatch(snapshot, /var match = legacyMap\[text_\(normalized && normalized\.RowID\)\];/);
+  mustMatch(snapshot, /needsFallbackMerge = filtered\.some\(function\(row\) \{/);
+  mustMatch(snapshot, /var fallbackData = actionActivitiesLegacy_\(user, payload \|\| \{\}\);/);
+});

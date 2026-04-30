@@ -84,6 +84,10 @@ function normalizeActivitiesSnapshotRow_(row) {
   normalized.instructor_name_2 = instructor2;
   normalized.emp_id = emp1;
   normalized.emp_id_2 = emp2;
+  normalized.Employee = text_(src.Employee || src.employee || instructor1);
+  normalized.Employee2 = text_(src.Employee2 || src.employee2 || instructor2);
+  normalized.EmployeeID = text_(src.EmployeeID || src.employee_id || emp1);
+  normalized.EmployeeID2 = text_(src.EmployeeID2 || src.EmployeeID_2 || src.employee_id_2 || emp2);
   if (!normalized.source_sheet) {
     var rowId = text_(src.RowID);
     normalized.source_sheet = rowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT;
@@ -154,6 +158,45 @@ function filterActivitiesSnapshotRows_(rows, payload) {
   });
 }
 
+function rowHasInstructorData_(row) {
+  var hasName = !!(text_(row && row.instructor_name) || text_(row && row.instructor_name_2) || text_(row && row.Employee) || text_(row && row.Employee2));
+  var hasEmp = !!(text_(row && row.emp_id) || text_(row && row.emp_id_2) || text_(row && row.EmployeeID) || text_(row && row.EmployeeID2));
+  return hasName || hasEmp;
+}
+
+function mergeInstructorFieldsByRowId_(snapshotRows, legacyRows) {
+  var snapRows = Array.isArray(snapshotRows) ? snapshotRows : [];
+  var legacyMap = {};
+  (Array.isArray(legacyRows) ? legacyRows : []).forEach(function(row) {
+    legacyMap[text_(row && row.RowID)] = normalizeActivitiesSnapshotRow_(row);
+  });
+  var mergedCount = 0;
+  var missingCount = 0;
+  var out = snapRows.map(function(row) {
+    var normalized = normalizeActivitiesSnapshotRow_(row);
+    if (rowHasInstructorData_(normalized)) return normalized;
+    missingCount += 1;
+    var match = legacyMap[text_(normalized && normalized.RowID)];
+    if (!match || !rowHasInstructorData_(match)) return normalized;
+    mergedCount += 1;
+    normalized.instructor_name = text_(match.instructor_name);
+    normalized.instructor_name_2 = text_(match.instructor_name_2);
+    normalized.emp_id = text_(match.emp_id);
+    normalized.emp_id_2 = text_(match.emp_id_2);
+    normalized.Employee = text_(match.Employee || match.instructor_name);
+    normalized.Employee2 = text_(match.Employee2 || match.instructor_name_2);
+    normalized.EmployeeID = text_(match.EmployeeID || match.emp_id);
+    normalized.EmployeeID2 = text_(match.EmployeeID2 || match.emp_id_2);
+    return normalized;
+  });
+  return {
+    rows: out,
+    missing_before: missingCount,
+    merged: mergedCount,
+    still_missing: Math.max(0, missingCount - mergedCount)
+  };
+}
+
 function actionActivitiesLegacy_(user, payload) {
   return actionActivities_(user, payload);
 }
@@ -181,21 +224,26 @@ function actionActivitiesSnapshotFirst_(user, payload) {
   var filtered = filterActivitiesSnapshotRows_(rows, payload || {});
   var snapStats = activitiesInstructorCoverageStats_(filtered);
 
-  if (filtered.length && snapStats.missing_instructor === filtered.length) {
-    var fallbackAllMissing = actionActivitiesLegacy_(user, payload || {});
-    var fallbackRowsMissing = Array.isArray(fallbackAllMissing.rows) ? fallbackAllMissing.rows : [];
-    var fallbackStatsMissing = activitiesInstructorCoverageStats_(fallbackRowsMissing);
-    if (fallbackStatsMissing.missing_instructor < snapStats.missing_instructor) {
-      try { refreshActivitiesSnapshot_(); } catch (_refreshErrAllMissing) {}
-      fallbackAllMissing._is_snapshot = false;
-      fallbackAllMissing._activities_fallback_used = true;
-      fallbackAllMissing._snapshot_fallback_reason = 'snapshot_missing_instructor';
-      fallbackAllMissing._snapshot_instructor_stats = {
-        snapshot: snapStats,
-        fallback: fallbackStatsMissing
-      };
-      return fallbackAllMissing;
+  var needsFallbackMerge = filtered.some(function(row) {
+    return !rowHasInstructorData_(row);
+  });
+  var mergeReport = { missing_before: 0, merged: 0, still_missing: 0 };
+
+  if (needsFallbackMerge) {
+    var fallbackData = actionActivitiesLegacy_(user, payload || {});
+    var fallbackRows = Array.isArray(fallbackData.rows) ? fallbackData.rows : [];
+    var merged = mergeInstructorFieldsByRowId_(filtered, fallbackRows);
+    filtered = merged.rows;
+    mergeReport = {
+      missing_before: merged.missing_before,
+      merged: merged.merged,
+      still_missing: merged.still_missing
+    };
+    var mergedStats = activitiesInstructorCoverageStats_(filtered);
+    if (merged.merged > 0 || mergedStats.missing_instructor < snapStats.missing_instructor) {
+      try { refreshActivitiesSnapshot_(); } catch (_refreshErrInstructorMerge) {}
     }
+    snapStats = mergedStats;
   }
 
   return {
@@ -205,7 +253,7 @@ function actionActivitiesSnapshotFirst_(user, payload) {
     _is_snapshot: true,
     _activities_fallback_used: false,
     _snapshot_updated_at: text_(snap.updated_at),
-    _snapshot_instructor_stats: { snapshot: snapStats }
+    _snapshot_instructor_stats: { snapshot: snapStats, merge: mergeReport }
   };
 }
 
