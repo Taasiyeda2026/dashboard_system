@@ -1,5 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
+import { config } from '../config.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -145,8 +146,6 @@ const ALLOWED_KPI_ACTIONS = new Set([
   'kpi|instructors',
   'kpi|endings'
 ]);
-const dashboardMonthPrefetchInflight = new Set();
-let dashboardMonthPrefetchScheduledToken = '';
 
 function filterKpiCards(cards, showOnlyNonzero) {
   const list = Array.isArray(cards) ? cards : [];
@@ -278,7 +277,7 @@ export const dashboardScreen = {
       <div class="ds-dashboard-wrap">
         ${dsPageHeader('לוח בקרה')}
         ${monthNav}
-        ${isAdminOpsUser(state) ? `<div style="margin:8px 0; display:flex; gap:8px; flex-wrap:wrap; align-items:end">
+        ${config.DIAGNOSTICS_UI_ENABLED && isAdminOpsUser(state) ? `<div style="margin:8px 0; display:flex; gap:8px; flex-wrap:wrap; align-items:end">
           <label style="display:flex; flex-direction:column; gap:4px">
             <span class="ds-muted">חודש</span>
             <input type="month" value="2026-05" data-stage2c-month />
@@ -307,7 +306,7 @@ export const dashboardScreen = {
   bind({ root, ui, state, api, rerender, clearScreenDataCache, data }) {
     const DASHBOARD_TTL_MS = 5 * 60 * 1000;
     const ym = data?.month || state.dashboardMonthYm || currentMonthYm();
-    const isAdminOps = isAdminOpsUser(state);
+    const isAdminOps = config.DIAGNOSTICS_UI_ENABLED && isAdminOpsUser(state);
     const runBtn = root?.querySelector('[data-run-stage2c-live]');
     const resultsHost = root?.querySelector('[data-stage2c-live-results]');
     if (isAdminOps && runBtn && resultsHost) {
@@ -437,24 +436,6 @@ export const dashboardScreen = {
       }
     }
 
-    const prefetchDashboardMonth = (targetYm) => {
-      const validYm = /^\d{4}-\d{2}$/.test(targetYm || '') ? targetYm : '';
-      if (!validYm) return;
-      const key = `dashboard:${validYm}`;
-      const cached = state.screenDataCache[key];
-      if (cached?.data && Date.now() - cached.t < DASHBOARD_TTL_MS) return;
-      if (dashboardMonthPrefetchInflight.has(key)) return;
-      dashboardMonthPrefetchInflight.add(key);
-      api.dashboardSnapshot({ month: validYm })
-        .then((payload) => {
-          putDashboardCache(key, payload);
-        })
-        .catch(() => {})
-        .finally(() => {
-          dashboardMonthPrefetchInflight.delete(key);
-        });
-    };
-
     const applyYm = async (nextYm) => {
       if (state.dashboardNavLoading) return;
       state.dashboardNavLoading = true;
@@ -478,19 +459,7 @@ export const dashboardScreen = {
       }
       state.dashboardNavLoading = false;
       if (state.route === 'dashboard') rerender();
-      prefetchDashboardMonth(shiftYm(nextYm, -1));
-      prefetchDashboardMonth(shiftYm(nextYm, 1));
     };
-
-    const prefetchToken = `${ym}|${!!state.dashboardNavLoading}`;
-    if (dashboardMonthPrefetchScheduledToken === prefetchToken) return;
-    dashboardMonthPrefetchScheduledToken = prefetchToken;
-    setTimeout(() => {
-      if (!state.dashboardNavLoading) {
-        prefetchDashboardMonth(shiftYm(ym, -1));
-        prefetchDashboardMonth(shiftYm(ym, 1));
-      }
-    }, 1500);
 
     root.querySelector('[data-dash-month-prev]')?.addEventListener('click', () => {
       applyYm(shiftYm(state.dashboardMonthYm || currentMonthYm(), -1));

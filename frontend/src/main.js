@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { config } from './config.js';
 import { state, setSession, defaultClientSettings } from './state.js';
 import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
@@ -40,6 +41,10 @@ const activeConsoleTimers = new Set();
 const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = true;
 const STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE = true;
 const STABILITY_HOTFIX_DISABLE_SERVICE_WORKER = true;
+
+if (typeof window !== 'undefined') {
+  window.__HOTFIX_VERSION__ = config.HOTFIX_VERSION;
+}
 
 function beginPerfTimer(label) {
   if (!label || typeof console === 'undefined' || typeof console.time !== 'function') return;
@@ -527,6 +532,7 @@ function shell(content) {
           </div>
           ${headerNavHtml}
           <div class="shell-top__end">
+            <small style="opacity:.72;margin-inline-end:8px" title="hotfix version">${escapeHtml(String(config.HOTFIX_VERSION || ''))}</small>
             <button type="button" class="shell-logout-btn" id="logoutBtn" aria-label="התנתקות" title="התנתקות">
               <span aria-hidden="true">⏻</span>
             </button>
@@ -1283,6 +1289,12 @@ window.addEventListener('resize', () => {
     closeMobileNav();
   }
 });
+
+if ('serviceWorker' in navigator && STABILITY_HOTFIX_DISABLE_SERVICE_WORKER) {
+  navigator.serviceWorker.getRegistrations()
+    .then((regs) => Promise.all(regs.map((reg) => reg.unregister())))
+    .catch(() => {});
+}
 
 if ('serviceWorker' in navigator && !STABILITY_HOTFIX_DISABLE_SERVICE_WORKER) {
   window.addEventListener('load', () => {
