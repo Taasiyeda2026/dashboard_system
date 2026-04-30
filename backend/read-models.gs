@@ -122,7 +122,7 @@ function findReadModelDataRowNum_(key) {
 
 function readReadModelMetadataAtRow_(rowNum) {
   var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
-  var vals = sheet.getRange(rowNum, 1, rowNum, READ_MODEL_HEADERS_.length).getValues()[0];
+  var vals = sheet.getRange(rowNum, 1, 1, READ_MODEL_HEADERS_.length).getValues()[0];
   var o = {};
   for (var i = 0; i < READ_MODEL_HEADERS_.length; i++) {
     o[READ_MODEL_HEADERS_[i]] = vals[i];
@@ -135,7 +135,7 @@ function writeReadModelFullMetadataRow_(rowNum, rowObj) {
   var row = READ_MODEL_HEADERS_.map(function(h) {
     return Object.prototype.hasOwnProperty.call(rowObj, h) ? rowObj[h] : '';
   });
-  sheet.getRange(rowNum, 1, rowNum, READ_MODEL_HEADERS_.length).setValues([row]);
+  sheet.getRange(rowNum, 1, 1, READ_MODEL_HEADERS_.length).setValues([row]);
   invalidateReadRowsCache_(readModelSheetName_());
 }
 
