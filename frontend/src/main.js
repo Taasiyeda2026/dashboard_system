@@ -37,6 +37,9 @@ let activeNavigationToken = 0;
 let latestNavigationRoute = '';
 let activeRouteTransitionLabel = null;
 const activeConsoleTimers = new Set();
+const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = true;
+const STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE = true;
+const STABILITY_HOTFIX_DISABLE_SERVICE_WORKER = true;
 
 function beginPerfTimer(label) {
   if (!label || typeof console === 'undefined' || typeof console.time !== 'function') return;
@@ -75,6 +78,7 @@ function cancelPrefetchSchedule() {
 }
 
 function schedulePostLoginPrefetch() {
+  if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return;
   cancelPrefetchSchedule();
   const run = () => {
     prefetchTimer = null;
@@ -206,6 +210,7 @@ function _storageKey() {
 }
 
 function persistCacheDelete(key) {
+  if (STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE) return;
   try {
     const raw = localStorage.getItem(_storageKey());
     if (!raw) return;
@@ -216,6 +221,7 @@ function persistCacheDelete(key) {
 }
 
 function restoreScreenCacheFromStorage() {
+  if (STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE) return;
   try {
     const raw = localStorage.getItem(_storageKey());
     if (!raw) return;
@@ -658,6 +664,7 @@ function normalizeEntryForPersistentCache(cacheKey, entry) {
 }
 
 function maybePersistScreenCacheEntry(key, entry) {
+  if (STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE) return;
   if (!shouldPersistScreenCacheEntry(key, entry)) return;
   persistCacheEntry(key, normalizeEntryForPersistentCache(String(key || ''), entry));
 }
@@ -697,6 +704,7 @@ async function loadScreenDataWithCache(screen) {
  * Updates UI silently if the user is still on the same screen.
  */
 async function backgroundRefreshScreen(screen, cacheKey) {
+  if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return;
   if (!screen.load) return;
   if (inflightRequests.has(cacheKey)) return;
   delete state.screenDataCache[cacheKey];
@@ -735,6 +743,7 @@ function prefetchFromDashboardIfNeeded() {
 }
 
 function maybePrefetchFromDashboard() {
+  if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return;
   if (!hasMountedAuthenticatedShell) return;
   if (_isRendering || _pendingRender) return;
   schedulePostLoginPrefetch();
@@ -1275,7 +1284,7 @@ window.addEventListener('resize', () => {
   }
 });
 
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && !STABILITY_HOTFIX_DISABLE_SERVICE_WORKER) {
   window.addEventListener('load', () => {
     const swUrl = new URL('./sw.js', window.location.href);
     navigator.serviceWorker
