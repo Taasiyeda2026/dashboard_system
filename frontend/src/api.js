@@ -331,10 +331,11 @@ function normalizeData(data) {
   return normalized;
 }
 
-async function postWithTimeout(action, requestBody) {
-  const timeoutMs = (action === 'readModelManifest' || action === 'readModelGet')
+async function postWithTimeout(action, requestBody, timeoutOverrideMs) {
+  const baseTimeoutMs = (action === 'readModelManifest' || action === 'readModelGet')
     ? READ_MODEL_TIMEOUT_MS
     : (READ_ACTIONS[action] ? API_TIMEOUT_MS_READ : API_TIMEOUT_MS_WRITE);
+  const timeoutMs = typeof timeoutOverrideMs === 'number' && timeoutOverrideMs > 0 ? timeoutOverrideMs : baseTimeoutMs;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -358,6 +359,7 @@ function emitPerfEntry(entry) {
 }
 
 async function request(action, payload = {}, perfMeta = {}) {
+  const timeoutMs = typeof perfMeta?.timeout_ms === 'number' ? perfMeta.timeout_ms : undefined;
   if (!config.apiUrl) {
     throw new Error('חסר קישור API. עדכנו frontend/src/config.js או window.__DASHBOARD_CONFIG__.');
   }
@@ -382,13 +384,13 @@ async function request(action, payload = {}, perfMeta = {}) {
   let response;
   let firstResponseStatus = 0;
   try {
-    response = await postWithTimeout(action, requestBody);
+    response = await postWithTimeout(action, requestBody, timeoutMs);
     firstResponseStatus = response?.status || 0;
   } catch {
     if (READ_ACTIONS[action]) {
       try {
         await sleep(120);
-        response = await postWithTimeout(action, requestBody);
+        response = await postWithTimeout(action, requestBody, timeoutMs);
       } catch {
         throw new Error(translateApiErrorForUser('network_error'));
       }
@@ -423,7 +425,7 @@ async function request(action, payload = {}, perfMeta = {}) {
   // Retry once only for transient read failures.
   if (shouldRetryReadAction()) {
     try {
-      const retryResponse = await postWithTimeout(action, requestBody);
+      const retryResponse = await postWithTimeout(action, requestBody, timeoutMs);
       json = await parseAndValidate(retryResponse);
     } catch {
       throw new Error(translateApiErrorForUser('network_error'));
@@ -541,5 +543,5 @@ export const api = {
   readModelManifest: () => request('readModelManifest', {}),
   readModelGet: (key, params = {}) => request('readModelGet', { key, params }),
   readModelHealth: () => request('readModelHealth', {}),
-  diagnosticsConsistency: (payload) => request('diagnosticsConsistency', payload || {})
+  diagnosticsConsistency: (payload, opts = {}) => request('diagnosticsConsistency', payload || {}, { timeout_ms: opts.timeout_ms })
 };

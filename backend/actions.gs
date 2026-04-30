@@ -408,144 +408,173 @@ function actionDiagnosticsConsistency_(user, payload) {
   var role = text_(user && user.display_role);
   var userId = text_(user && user.user_id);
   var currentFunction = 'actionDiagnosticsConsistency_';
+  var startedAt = Date.now();
+  var SAFE_RUNTIME_MS = 25000;
+  var timings = {
+    startedAt: new Date(startedAt).toISOString(),
+    allActivitiesSummaryMs: null,
+    dashboardMs: null,
+    exceptionsMs: null,
+    financeMs: null,
+    totalMs: null,
+    allActivitiesRows: 0,
+    inMonthRows: 0,
+    financeScannedRows: 0,
+    financeInMonthRows: 0
+  };
   Logger.log('diagnosticsConsistency started');
   Logger.log('diagnosticsConsistency user id / role: ' + userId + ' / ' + role);
   Logger.log('diagnosticsConsistency month: ' + month);
+
+  function throwSafeTimeout_(stage) {
+    timings.totalMs = Date.now() - startedAt;
+    var timeoutDetails = {
+      errorCode: 'DIAGNOSTICS_TIMEOUT',
+      message: 'Diagnostics exceeded safe runtime',
+      stage: stage,
+      month: month,
+      timings: timings
+    };
+    throw new Error('DIAGNOSTICS_ADMIN_DETAILS:' + JSON.stringify(timeoutDetails));
+  }
+
+  function guardRuntime_(stage) {
+    if ((Date.now() - startedAt) > SAFE_RUNTIME_MS) throwSafeTimeout_(stage);
+  }
+
   var allActivitiesOk = false;
   var exceptionsOk = false;
   var financeOk = false;
   try {
+    guardRuntime_('before_allActivitiesSummary');
     currentFunction = 'allActivitiesSummary_';
+    Logger.log('starting allActivitiesSummary');
+    var stageStart = Date.now();
     var rows = allActivitiesSummary_();
+    timings.allActivitiesSummaryMs = Date.now() - stageStart;
+    timings.allActivitiesRows = rows.length;
     allActivitiesOk = true;
-    Logger.log('diagnosticsConsistency allActivitiesSummary_ succeeded');
+    Logger.log('finished allActivitiesSummary + duration=' + timings.allActivitiesSummaryMs + 'ms, rows=' + rows.length);
+    guardRuntime_('after_allActivitiesSummary');
+
     var inMonth = rows.filter(function(row) { return activityOverlapsYm_(row, month); });
+    timings.inMonthRows = inMonth.length;
 
-  var oneDayTypes = configuredOneDayActivityTypes_();
-  var programTypes = configuredProgramActivityTypes_();
-  var dashboardRefIso = dashboardActivityRefIso_(month);
+    stageStart = Date.now();
+    var oneDayTypes = configuredOneDayActivityTypes_();
+    var programTypes = configuredProgramActivityTypes_();
+    var dashboardShort = inMonth.filter(function(row) {
+      return oneDayTypes.indexOf(text_(row.activity_type)) >= 0;
+    }).length;
+    var dashboardLong = inMonth.filter(function(row) {
+      if (programTypes.indexOf(text_(row.activity_type)) < 0) return false;
+      if (text_(row.status) === 'סגור') return false;
+      return true;
+    }).length;
+    var courseEndings = inMonth.filter(function(row) {
+      return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === month;
+    }).length;
+    var activeInstructors = countUniqueOperationalInstructors_(inMonth);
+    timings.dashboardMs = Date.now() - stageStart;
+    guardRuntime_('after_dashboard_calculation');
 
-  var dashboardShort = inMonth.filter(function(row) {
-    return oneDayTypes.indexOf(text_(row.activity_type)) >= 0;
-  }).length;
-  var dashboardLong = inMonth.filter(function(row) {
-    if (programTypes.indexOf(text_(row.activity_type)) < 0) return false;
-    if (text_(row.status) === 'סגור') return false;
-    return true;
-  }).length;
+    currentFunction = 'getExceptionsSummary_';
+    Logger.log('starting exceptions');
+    stageStart = Date.now();
+    var exceptionSummary = getExceptionsSummary_(inMonth, month, { include_rows: false });
+    timings.exceptionsMs = Date.now() - stageStart;
+    exceptionsOk = true;
+    Logger.log('finished exceptions + duration=' + timings.exceptionsMs + 'ms');
+    guardRuntime_('after_getExceptionsSummary_');
 
-  currentFunction = 'getExceptionsSummary_';
-  var exceptionSummary = getExceptionsSummary_(inMonth, month, { include_rows: false });
-  exceptionsOk = true;
-  Logger.log('diagnosticsConsistency getExceptionsSummary_ succeeded');
-  var exceptionsTotal = Number(exceptionSummary.totalExceptionInstances || 0);
-  var byManager = exceptionSummary.byManager || {};
-  var sumByManager = Object.keys(byManager).reduce(function(sum, manager) {
-    return sum + Number(byManager[manager] || 0);
-  }, 0);
+    var exceptionsTotal = Number(exceptionSummary.totalExceptionInstances || 0);
+    var byManager = exceptionSummary.byManager || {};
+    var sumByManager = Object.keys(byManager).reduce(function(sum, manager) {
+      return sum + Number(byManager[manager] || 0);
+    }, 0);
 
-  currentFunction = 'financeCalculation_';
-  var financeRows = inMonth.map(function(row) {
-    return {
-      finance_status: normalizeFinance_(row.finance_status),
-      amount: parseFinanceRowAmount_(row),
-      pending: parseFinanceRowPending_(row)
+    currentFunction = 'financeCalculation_';
+    Logger.log('starting finance');
+    stageStart = Date.now();
+    timings.financeScannedRows = rows.length;
+    timings.financeInMonthRows = inMonth.length;
+    var financeRows = inMonth.map(function(row) {
+      return {
+        finance_status: normalizeFinance_(row.finance_status),
+        amount: parseFinanceRowAmount_(row),
+        pending: parseFinanceRowPending_(row)
+      };
+    });
+    var financeOpenRows = financeRows.filter(function(row) { return row.finance_status === 'open'; });
+    var financeClosedRows = financeRows.filter(function(row) { return row.finance_status === 'closed'; });
+    var financeOpenAmount = financeOpenRows.reduce(function(sum, row) { return sum + Number(row.amount || 0); }, 0);
+    var financeClosedAmount = financeClosedRows.reduce(function(sum, row) { return sum + Number(row.amount || 0); }, 0);
+    var financePendingAmount = financeRows.reduce(function(sum, row) { return sum + Number(row.pending || 0); }, 0);
+    timings.financeMs = Date.now() - stageStart;
+    financeOk = true;
+    Logger.log('finished finance + duration=' + timings.financeMs + 'ms');
+    guardRuntime_('after_finance_calculation');
+
+    var financeOpenCount = financeOpenRows.length;
+    var dashboard = {
+      total_short: dashboardShort,
+      total_long: dashboardLong,
+      exceptions_count: exceptionsTotal,
+      finance_open_count: financeOpenCount,
+      active_instructors: activeInstructors,
+      course_endings: courseEndings
     };
-  });
-  var financeOpenRows = financeRows.filter(function(row) { return row.finance_status === 'open'; });
-  var financeClosedRows = financeRows.filter(function(row) { return row.finance_status === 'closed'; });
-  var financeOpenAmount = financeOpenRows.reduce(function(sum, row) { return sum + Number(row.amount || 0); }, 0);
-  var financeClosedAmount = financeClosedRows.reduce(function(sum, row) { return sum + Number(row.amount || 0); }, 0);
-  var financePendingAmount = financeRows.reduce(function(sum, row) { return sum + Number(row.pending || 0); }, 0);
-  financeOk = true;
-  Logger.log('diagnosticsConsistency finance calculation succeeded');
 
-  var courseEndings = inMonth.filter(function(row) {
-    return text_(row.activity_type) === 'course' && text_(row.end_date).slice(0, 7) === month;
-  }).length;
-  var activeInstructors = countUniqueOperationalInstructors_(inMonth);
-  var financeOpenCount = financeOpenRows.length;
+    timings.finishedAt = new Date().toISOString();
+    timings.totalMs = Date.now() - startedAt;
+    Logger.log('diagnosticsConsistency finished + total duration=' + timings.totalMs + 'ms');
 
-  var dashboard = {
-    total_short: dashboardShort,
-    total_long: dashboardLong,
-    exceptions_count: exceptionsTotal,
-    finance_open_count: financeOpenCount,
-    active_instructors: activeInstructors,
-    course_endings: courseEndings
-  };
-
-  var diagnostics = {
-    month: month,
-    dashboard: dashboard,
-    exceptions: {
-      totalExceptionInstances: exceptionsTotal,
-      byManager: byManager,
-      sumByManager: sumByManager
-    },
-    finance: {
-      openRows: financeOpenRows.length,
-      closedRows: financeClosedRows.length,
-      openAmount: financeOpenAmount,
-      closedAmount: financeClosedAmount,
-      pendingAmount: financePendingAmount
-    },
-    mismatches: []
-  };
-
-  function pushMismatch_(metric, dashboardValue, sourceValue, sourceName, suspectedFunction, critical, reason) {
-    var mismatch = {
-      metric: metric,
-      dashboardValue: dashboardValue,
-      sourceValue: sourceValue,
-      sourceName: sourceName,
-      suspectedFunction: suspectedFunction
+    var diagnostics = {
+      month: month,
+      dashboard: dashboard,
+      exceptions: {
+        totalExceptionInstances: exceptionsTotal,
+        byManager: byManager,
+        sumByManager: sumByManager
+      },
+      finance: {
+        openRows: financeOpenRows.length,
+        closedRows: financeClosedRows.length,
+        openAmount: financeOpenAmount,
+        closedAmount: financeClosedAmount,
+        pendingAmount: financePendingAmount
+      },
+      timings: timings,
+      mismatches: []
     };
-    if (critical) mismatch.critical = true;
-    if (reason) mismatch.reason = reason;
-    diagnostics.mismatches.push(mismatch);
-  }
 
-  if (dashboard.exceptions_count !== diagnostics.exceptions.totalExceptionInstances) {
-    pushMismatch_('exceptions_count', dashboard.exceptions_count, diagnostics.exceptions.totalExceptionInstances, 'exceptions_direct', 'getExceptionsSummary_');
-  }
-  if (dashboard.exceptions_count !== diagnostics.exceptions.sumByManager) {
-    pushMismatch_('exceptions_count_vs_byManager_sum', dashboard.exceptions_count, diagnostics.exceptions.sumByManager, 'exceptions_direct.byManager', 'computeExceptionsModel_');
-  }
-  if (dashboard.finance_open_count !== diagnostics.finance.openRows) {
-    pushMismatch_('finance_open_count', dashboard.finance_open_count, diagnostics.finance.openRows, 'finance_direct', 'normalizeFinance_');
-  }
+    function pushMismatch_(metric, dashboardValue, sourceValue, sourceName, suspectedFunction, critical, reason) {
+      var mismatch = {
+        metric: metric,
+        dashboardValue: dashboardValue,
+        sourceValue: sourceValue,
+        sourceName: sourceName,
+        suspectedFunction: suspectedFunction
+      };
+      if (critical) mismatch.critical = true;
+      if (reason) mismatch.reason = reason;
+      diagnostics.mismatches.push(mismatch);
+    }
 
-  if (diagnostics.exceptions.totalExceptionInstances > 0 && dashboard.exceptions_count === 0) {
-    pushMismatch_(
-      'exceptions_count',
-      dashboard.exceptions_count,
-      diagnostics.exceptions.totalExceptionInstances,
-      'exceptions_direct',
-      'getExceptionsSummary_',
-      true,
-      'Dashboard exceptions_count is zero while Exceptions has positive total'
-    );
-    diagnostics.critical = true;
-    diagnostics.criticalReason = 'Dashboard exceptions_count is zero while Exceptions has positive total';
-  }
+    if (dashboard.exceptions_count !== diagnostics.exceptions.totalExceptionInstances) {
+      pushMismatch_('exceptions_count', dashboard.exceptions_count, diagnostics.exceptions.totalExceptionInstances, 'exceptions_direct', 'getExceptionsSummary_');
+    }
+    if (dashboard.exceptions_count !== diagnostics.exceptions.sumByManager) {
+      pushMismatch_('exceptions_count_vs_byManager_sum', dashboard.exceptions_count, diagnostics.exceptions.sumByManager, 'exceptions_direct.byManager', 'computeExceptionsModel_');
+    }
+    if (dashboard.finance_open_count !== diagnostics.finance.openRows) {
+      pushMismatch_('finance_open_count', dashboard.finance_open_count, diagnostics.finance.openRows, 'finance_direct', 'normalizeFinance_');
+    }
 
-  try {
-    var snapshotPayload = actionDashboardSnapshot_(user, { month: month });
-    diagnostics.dashboard_snapshot = {
-      total_short: Number(snapshotPayload && snapshotPayload.total_short_activities || 0),
-      total_long: Number(snapshotPayload && snapshotPayload.total_long_activities || 0),
-      exceptions_count: Number(snapshotPayload && snapshotPayload.exceptions_count || 0),
-      finance_open_count: Number(snapshotPayload && snapshotPayload.finance_open_count || 0),
-      active_instructors: Number(snapshotPayload && snapshotPayload.active_instructors_count || 0),
-      course_endings: Number(snapshotPayload && snapshotPayload.course_endings_current_month || 0),
-      is_snapshot: !!(snapshotPayload && snapshotPayload._is_snapshot)
-    };
-  } catch (_snapshotErr) {}
-
-  return diagnostics;
+    return diagnostics;
   } catch (err) {
     var errMessage = err && err.message ? String(err.message) : String(err);
+    if (errMessage.indexOf('DIAGNOSTICS_ADMIN_DETAILS:') === 0) throw err;
     var fnMatch = errMessage.match(/([A-Za-z_][A-Za-z0-9_]+_)\s/);
     var functionName = currentFunction || (fnMatch ? fnMatch[1] : 'actionDiagnosticsConsistency_');
     Logger.log('diagnosticsConsistency allActivitiesSummary_ success: ' + allActivitiesOk);
@@ -557,7 +586,9 @@ function actionDiagnosticsConsistency_(user, payload) {
         errorCode: 'DIAGNOSTICS_CONSISTENCY_FAILED',
         message: errMessage,
         functionName: functionName,
+        stage: functionName,
         month: month,
+        timings: timings,
         stack: err && err.stack ? String(err.stack).split('\n').slice(0, 3).join(' | ') : ''
       };
       throw new Error('DIAGNOSTICS_ADMIN_DETAILS:' + JSON.stringify(safeDetails));
@@ -565,6 +596,7 @@ function actionDiagnosticsConsistency_(user, payload) {
     throw new Error('server_error');
   }
 }
+
 
 function actionDashboard_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);

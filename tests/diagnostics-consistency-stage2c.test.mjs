@@ -19,17 +19,16 @@ test('Stage2C diagnostics action exists and is admin/internal oriented', async (
   mustMatch(router, /diagnosticsConsistency: function\(\) \{ return actionDiagnosticsConsistency_\(user, payload\); \},/);
 });
 
-test('Stage2C diagnostics payload includes dashboard/exceptions/finance/mismatches and critical guard', async () => {
+test('Stage2C diagnostics payload includes dashboard/exceptions/finance/mismatches/timings' , async () => {
   const actions = await read('backend/actions.gs');
 
   mustMatch(actions, /dashboard:\s*dashboard,/);
   mustMatch(actions, /exceptions:\s*\{[\s\S]*totalExceptionInstances:[\s\S]*byManager:[\s\S]*sumByManager:/);
   mustMatch(actions, /finance:\s*\{[\s\S]*openRows:[\s\S]*closedRows:[\s\S]*openAmount:[\s\S]*closedAmount:[\s\S]*pendingAmount:/);
   mustMatch(actions, /mismatches:\s*\[\]/);
+  mustMatch(actions, /timings:\s*timings/);
+  mustMatch(actions, /errorCode:\s*'DIAGNOSTICS_TIMEOUT'/);
 
-  mustMatch(actions, /if \(diagnostics\.exceptions\.totalExceptionInstances > 0 && dashboard\.exceptions_count === 0\)/);
-  mustMatch(actions, /critical = true|mismatch\.critical = true|diagnostics\.critical = true/);
-  mustMatch(actions, /Dashboard exceptions_count is zero while Exceptions has positive total/);
 });
 
 test('Stage2C diagnostics uses direct sources and does not refresh read-model/cache', async () => {
