@@ -59,7 +59,6 @@ const READ_ACTIONS = {
   readModelManifest: true,
   readModelGet: true,
   readModelHealth: true,
-  diagnosticsConsistency: true
 };
 
 const API_TIMEOUT_MS_READ = 20000;
@@ -543,5 +542,4 @@ export const api = {
   readModelManifest: () => request('readModelManifest', {}),
   readModelGet: (key, params = {}) => request('readModelGet', { key, params }),
   readModelHealth: () => request('readModelHealth', {}),
-  diagnosticsConsistency: (payload, opts = {}) => request('diagnosticsConsistency', payload || {}, { timeout_ms: opts.timeout_ms })
 };

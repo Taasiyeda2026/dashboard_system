@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'emergency-disable-diagnostics-v1'
+  HOTFIX_VERSION: 'emergency-disable-diagnostics-v2'
 };

@@ -28,6 +28,7 @@ function handlePost_(e) {
       refreshAllReadModels: function() { requireAnyRole_(user, ['admin', 'operation_manager']); return refreshAllReadModels_(); },
       dashboard: function() { return actionDashboard_(user, payload); },
       dashboardSnapshot: function() { return actionDashboardSnapshot_(user, payload); },
+      deploymentInfo: function() { return actionDeploymentInfo_(user); },
       diagnosticsConsistency: function() { return actionDiagnosticsConsistency_(user, payload); },
       activities: function() { return actionActivitiesSnapshotFirst_(user, payload); },
       activityDetail: function() { return actionActivityDetail_(user, payload); },
@@ -71,6 +72,7 @@ function handlePost_(e) {
     var ACTION_ROUTE_MAP = {
       dashboard: 'dashboard',
       dashboardSnapshot: 'dashboard',
+      deploymentInfo: 'dashboard',
       diagnosticsConsistency: 'dashboard',
       activities: 'activities',
       activityDetail: 'activities',
