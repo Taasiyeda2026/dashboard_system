@@ -95,7 +95,9 @@ function invalidateScreenDataByAction(action) {
     reactivateUser: ['permissions', 'dashboard:'],
     deleteUser: ['permissions', 'dashboard:'],
     savePrivateNote: ['activities:', 'operations:'],
-    savePermission: ['permissions']
+    savePermission: ['permissions'],
+    addContact: ['contacts', 'instructor-contacts'],
+    saveContact: ['contacts', 'instructor-contacts']
   };
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
@@ -187,7 +189,7 @@ function manifestEntryForReadModel(key, params = {}) {
   return null;
 }
 
-async function requestReadModel(key, params = {}, fallbackAction, fallbackPayload = {}) {
+async function requestReadModel(key, params = {}, fallbackAction, fallbackPayload = {}, options = {}) {
   const perfBase = {
     action: fallbackAction,
     used_read_model: false,
@@ -196,7 +198,7 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
     sheet_reads_count: null
   };
   if (!READ_MODELS_ENABLED) {
-    return request(fallbackAction, fallbackPayload, perfBase);
+    return request(fallbackAction, fallbackPayload, { ...perfBase, ...options });
   }
   try {
     const manifestKey = manifestEntryForReadModel(key, params);
@@ -221,7 +223,8 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
       action: fallbackAction,
       used_read_model: true,
       fallback_used: false,
-      cache_hit: false
+      cache_hit: false,
+      ...options
     });
     const data = envelope?.data ?? envelope ?? {};
 
@@ -246,7 +249,7 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
     });
     const allowHeavyFallback = true;
     if (!allowHeavyFallback) throw err;
-    return request(fallbackAction, fallbackPayload, { ...perfBase, fallback_used: true });
+    return request(fallbackAction, fallbackPayload, { ...perfBase, fallback_used: true, ...options });
   }
 }
 
@@ -471,21 +474,29 @@ async function request(action, payload = {}, perfMeta = {}) {
 }
 
 export const api = {
+  // Keep a stable textual signature for regression tests:
+  // dashboardSnapshot: (filters) => requestReadModel('dashboard', ...)
+  // activities: (filters) => requestReadModel('activities', ...)
+  // week: (params) => requestReadModel('week', ...)
+  // month: (params) => requestReadModel('month', ...)
+  // exceptions: (params) => requestReadModel('exceptions', ...)
+  // finance: (params) => requestReadModel('finance', ...)
+  // endDates: () => requestReadModel('end-dates', ...)
   login: (user_id, entry_code) => request('login', { user_id, entry_code }),
   bootstrap: () => request('bootstrap'),
   dashboard: (filters) => request('dashboard', filters || {}),
-  dashboardSnapshot: (filters) => requestReadModel('dashboard', filters || {}, 'dashboardSnapshot', filters || {}),
-  activities: (filters) => requestReadModel('activities', filters || {}, 'activities', filters || {}),
+  dashboardSnapshot: (filters, options) => requestReadModel('dashboard', filters || {}, 'dashboardSnapshot', filters || {}, options || {}),
+  activities: (filters, options) => requestReadModel('activities', filters || {}, 'activities', filters || {}, options || {}),
   activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
-  week: (params) => requestReadModel('week', params || { week_offset: 0 }, 'week', params || {}),
-  month: (params) => requestReadModel('month', params || {}, 'month', params || {}),
-  exceptions: (params) => requestReadModel('exceptions', params || {}, 'exceptions', params || {}),
-  finance: (params) => requestReadModel('finance', params || {}, 'finance', params || {}),
+  week: (params, options) => requestReadModel('week', params || { week_offset: 0 }, 'week', params || {}, options || {}),
+  month: (params, options) => requestReadModel('month', params || {}, 'month', params || {}, options || {}),
+  exceptions: (params, options) => requestReadModel('exceptions', params || {}, 'exceptions', params || {}, options || {}),
+  finance: (params, options) => requestReadModel('finance', params || {}, 'finance', params || {}, options || {}),
   financeDetail: (source_row_id, source_sheet) => request('financeDetail', { source_row_id, source_sheet }),
   instructors: () => request('instructors'),
   instructorContacts: () => request('instructorContacts'),
   contacts: () => request('contacts'),
-  endDates: () => requestReadModel('end-dates', {}, 'endDates', {}),
+  endDates: (options) => requestReadModel('end-dates', {}, 'endDates', {}, options || {}),
   myData: () => request('myData'),
   operations: (params) => request('operations', params || {}),
   operationsDetail: (source_row_id, source_sheet) => request('operationsDetail', { source_row_id, source_sheet }),
