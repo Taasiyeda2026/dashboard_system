@@ -396,7 +396,7 @@ export const dashboardScreen = {
           putDashboardCache(cacheKey, snapshotData);
           snapshotLoaded = true;
         } catch (_err) {
-          if (!snapshotLoaded) clearScreenDataCache?.();
+          // Keep currently rendered dashboard content when refresh fails.
         }
         rerender();
       }

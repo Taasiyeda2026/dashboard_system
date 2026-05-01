@@ -14,6 +14,7 @@ import {
 import { getFilterOptionOverrides } from './shared/activity-options.js';
 
 const inflightActivityDetailRequests = new Map();
+const inflightMonthRequests = new Map();
 const MONTH_SCOPE = 'calendar';
 const CALENDAR_FILTER_FIELDS = [
   { key: 'activity_manager', label: 'מנהל פעילות' },
@@ -405,28 +406,37 @@ export const monthScreen = {
       state.monthNavLoading = true;
       try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
 
-      if (hasCachedTarget) {
-        rerender?.();
-      } else {
-        root.classList.add('is-month-loading');
-        root.setAttribute('aria-busy', 'true');
-        rerender?.();
-        try {
-          const monthData = await api.month({ ym: targetYm }, { timeout_ms: 12000 });
-          if (state?.screenDataCache) {
+      try {
+        if (hasCachedTarget) {
+          rerender?.();
+        } else {
+          root.classList.add('is-month-loading');
+          root.setAttribute('aria-busy', 'true');
+          rerender?.();
+          let request = inflightMonthRequests.get(targetKey);
+          if (!request) {
+            request = api.month({ ym: targetYm }, { timeout_ms: 12000 })
+              .finally(() => {
+                inflightMonthRequests.delete(targetKey);
+              });
+            inflightMonthRequests.set(targetKey, request);
+          }
+          const monthData = await request;
+          if (state?.screenDataCache && monthData) {
             state.screenDataCache[targetKey] = { data: monthData, t: Date.now() };
           }
-        } catch {
-          // Release loading state and allow default loader to retry.
         }
+      } catch {
+        // Keep current month content and allow regular route load retry.
+      } finally {
+        const minMs = 250;
+        setTimeout(() => {
+          state.monthNavLoading = false;
+          root.classList.remove('is-month-loading');
+          root.setAttribute('aria-busy', 'false');
+          rerender?.();
+        }, Math.max(0, minMs - (Date.now() - startedAt)));
       }
-      const minMs = 250;
-      setTimeout(() => {
-        state.monthNavLoading = false;
-        root.classList.remove('is-month-loading');
-        root.setAttribute('aria-busy', 'false');
-        rerender?.();
-      }, Math.max(0, minMs - (Date.now() - startedAt)));
     };
     prevBtn?.addEventListener('click', () => { doMonthShift(-1); });
     nextBtn?.addEventListener('click', () => { doMonthShift(1); });
