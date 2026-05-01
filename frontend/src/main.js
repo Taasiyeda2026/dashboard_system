@@ -40,6 +40,7 @@ let activeNavigationToken = 0;
 let latestNavigationRoute = '';
 let activeRouteTransitionLabel = null;
 const activeConsoleTimers = new Set();
+let shellEventsBound = false;
 const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = true;
 const STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE = true;
 const STABILITY_HOTFIX_DISABLE_SERVICE_WORKER = true;
@@ -1212,10 +1213,12 @@ async function mountScreen() {
 }
 
 function bindShell() {
-  /* Allow any screen to navigate programmatically via custom event */
-  document.addEventListener('app:navigate', (e) => {
-    const route = e?.detail?.route;
+  if (shellEventsBound) return;
+  shellEventsBound = true;
+
+  const navigateToRoute = (route) => {
     if (!isAllowedRoute(route)) return;
+    if (route === state.route) return;
     closeMobileNav();
     if (route === 'activities') {
       state.activityQuickFamily = '';
@@ -1223,19 +1226,16 @@ function bindShell() {
     }
     state.route = route;
     render();
+  };
+
+  /* Allow any screen to navigate programmatically via custom event */
+  document.addEventListener('app:navigate', (e) => {
+    navigateToRoute(e?.detail?.route);
   });
 
   document.querySelectorAll('[data-route]').forEach((button) => {
     button.addEventListener('click', () => {
-      closeMobileNav();
-      const route = button.dataset.route;
-      if (!isAllowedRoute(route)) return;
-      if (route === 'activities') {
-        state.activityQuickFamily = '';
-        state.activityQuickManager = '';
-      }
-      state.route = route;
-      render();
+      navigateToRoute(button.dataset.route);
     });
   });
 
