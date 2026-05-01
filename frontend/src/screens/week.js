@@ -15,6 +15,7 @@ import { getFilterOptionOverrides } from './shared/activity-options.js';
 import { bindActNavGrid } from './shared/act-nav-grid.js';
 
 const inflightActivityDetailRequests = new Map();
+const inflightWeekRequests = new Map();
 const WEEK_SCOPE = 'calendar';
 const CALENDAR_FILTER_FIELDS = [
   { key: 'activity_manager', label: 'מנהל פעילות' },
@@ -316,23 +317,31 @@ export const weekScreen = {
       state.weekOffset = nextOffset;
       rerender?.();
 
-      if (!hasFreshCache) {
-        try {
-          const weekData = await api.week({ week_offset: nextOffset }, { timeout_ms: 12000 });
-          if (state?.screenDataCache) {
+      try {
+        if (!hasFreshCache) {
+          let request = inflightWeekRequests.get(nextKey);
+          if (!request) {
+            request = api.week({ week_offset: nextOffset }, { timeout_ms: 12000 })
+              .finally(() => {
+                inflightWeekRequests.delete(nextKey);
+              });
+            inflightWeekRequests.set(nextKey, request);
+          }
+          const weekData = await request;
+          if (state?.screenDataCache && weekData) {
             state.screenDataCache[nextKey] = { data: weekData, t: Date.now() };
           }
-        } catch {
-          // Let main renderer fallback to normal load path; don't block navigation.
         }
+      } catch {
+        // Keep current week content and let regular route load retry if needed.
+      } finally {
+        const minMs = 180;
+        setTimeout(() => {
+          state.weekNavLoading = false;
+          state.weekNavDirection = '';
+          rerender?.();
+        }, Math.max(0, minMs - (Date.now() - startedAt)));
       }
-
-      const minMs = 180;
-      setTimeout(() => {
-        state.weekNavLoading = false;
-        state.weekNavDirection = '';
-        rerender?.();
-      }, Math.max(0, minMs - (Date.now() - startedAt)));
     };
     bindListener(prevBtn, 'click', () => doWeekShift(-1));
     bindListener(nextBtn, 'click', () => doWeekShift(1));

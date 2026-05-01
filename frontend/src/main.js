@@ -41,7 +41,7 @@ let latestNavigationRoute = '';
 let activeRouteTransitionLabel = null;
 const activeConsoleTimers = new Set();
 let shellEventsBound = false;
-const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = true;
+const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = false;
 const STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE = true;
 const STABILITY_HOTFIX_DISABLE_SERVICE_WORKER = true;
 const ROUTE_LOAD_GUARD_MS = 25000;
@@ -788,7 +788,6 @@ async function backgroundRefreshScreen(screen, cacheKey) {
   if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return;
   if (!screen.load) return;
   if (inflightRequests.has(cacheKey)) return;
-  delete state.screenDataCache[cacheKey];
   const guardedToken = activeNavigationToken;
   const guardedRoute = state.route;
   try {
