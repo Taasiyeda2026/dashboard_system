@@ -41,7 +41,7 @@ let latestNavigationRoute = '';
 let activeRouteTransitionLabel = null;
 const activeConsoleTimers = new Set();
 let shellEventsBound = false;
-const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = false;
+const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = true;
 const STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE = true;
 const STABILITY_HOTFIX_DISABLE_SERVICE_WORKER = true;
 const ROUTE_LOAD_GUARD_MS = 25000;
@@ -1375,9 +1375,16 @@ async function render() {
             applyBootstrapFromLoginData(data);
             loginBootstrapDurationMs = performance.now() - bootstrapApplyStartMs;
             renderShellLoadingImmediately();
+            // eslint-disable-next-line no-console
+            console.info('[login-success]', { route: state.route, routes_count: effectiveRoutes().length });
+            // eslint-disable-next-line no-console
+            console.info('[first-route-render:start]', { route: state.route });
             loginInlineError = '';
             endPerfTimer('login:applyBootstrap');
+            scheduleRender();
             mountScreen().then(() => {
+              // eslint-disable-next-line no-console
+              console.info('[first-route-render:success]', { route: state.route });
               if (loginPerfStartMs > 0 && !initialRoutePerfReported) {
                 initialRoutePerfReported = true;
                 const firstScreenDurationMs = performance.now() - loginPerfStartMs;
@@ -1392,7 +1399,9 @@ async function render() {
                   source: 'login'
                 });
               }
-            }).catch(async () => {
+            }).catch(async (error) => {
+              // eslint-disable-next-line no-console
+              console.warn('[first-route-render:failed]', { route: state.route, error: error?.message || String(error) });
               rollbackToLogin('כשל בטעינת נתוני משתמש אחרי התחברות');
               await render();
             });
