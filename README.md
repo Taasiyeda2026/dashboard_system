@@ -413,6 +413,26 @@ node scripts/apps_script_snapshot_ops.mjs
 5. בדיקה שמספר ה-triggers עבור `refreshDashboardSnapshotsTrigger` אינו גדול מ-1.
 6. redeploy (אם הופעל בדגלים המתאימים).
 
+
+## בדיקת מוכנות תפעולית קצרה (Production) – login/dashboard איטי
+
+מטרת הבדיקה: לוודא שאיטיות שנותרה אינה נובעת מחוסר trigger או מ־snapshot stale/missing בצד Apps Script.
+
+1. אשרו שב־`backend/Code.gs` קיימת הפונקציה `keepWarm()` וש־trigger שלה מוגדר כל 10 דקות (Time-driven).
+2. אשרו שב־`backend/Code.gs` קיימות פונקציות הרענון:
+   - `refreshDashboardSnapshotsTrigger`
+   - `runRefreshDataViewsManually`
+   - `refreshAllReadModelsTrigger` (לשימוש עתידי/תחזוקה)
+3. אשרו שב־Apps Script יש trigger/פעולה פעילה לרענון snapshots/data views (בפועל לפחות אחד מהמסלולים: trigger ל־`refreshDashboardSnapshotsTrigger` או הרצה ידנית של `runRefreshDataViewsManually` לפי נוהל התפעול).
+4. אם ה־dashboard איטי, בדקו בגיליון `dashboard_refresh_control` לפחות את:
+   - `last_status`
+   - `data_views_version`
+5. לוגיקת freshness של `dashboardSnapshot`:
+   - אם `last_status === "ok"` וגם `data_views_version` תואם לגרסה הנוכחית – משתמשים ב־snapshot/view המהיר.
+   - אחרת המערכת עוברת ל־fallback כבד דרך `actionDashboard_` ומחזירה `_snapshot_fallback_reason`.
+
+> הבדיקה הזו תפעולית בלבד (Apps Script/Sheets) ואינה דורשת שינוי UI, הפעלת Read Models, החזרת service worker, או הפעלת persistent cache.
+
 ## תחזוקה נכונה
 
 ### כשמחליפים URL של Apps Script
