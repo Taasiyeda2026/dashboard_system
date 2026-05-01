@@ -20,6 +20,8 @@ const ui = createSharedInteractionLayer();
 let loginPerfStartMs = 0;
 let loginShellPerfReported = false;
 let initialRoutePerfReported = false;
+let loginApiDurationMs = 0;
+let loginBootstrapDurationMs = 0;
 
 /** In-flight API request dedup: prevents duplicate calls when navigating quickly. */
 const inflightRequests = new Map();
@@ -144,6 +146,35 @@ function reportPerfMilestone(kind, durationMs, extra = {}) {
   };
   // eslint-disable-next-line no-console
   console.info('[perf]', base);
+}
+
+
+function startupPerfStore() {
+  if (typeof window === 'undefined') return null;
+  if (!window.__dsStartupPerf) {
+    window.__dsStartupPerf = { runs: [] };
+  }
+  return window.__dsStartupPerf;
+}
+
+function reportStartupPerf(entry) {
+  const store = startupPerfStore();
+  if (!store) return;
+  const run = {
+    measured_at: new Date().toISOString(),
+    login_ms: Math.round(entry?.login_ms || 0),
+    bootstrap_ms: Math.round(entry?.bootstrap_ms || 0),
+    first_screen_ms: Math.round(entry?.first_screen_ms || 0),
+    first_route: String(entry?.first_route || state.route || ''),
+    source: String(entry?.source || 'login-flow')
+  };
+  store.runs.push(run);
+  if (store.runs.length > 30) {
+    store.runs.splice(0, store.runs.length - 30);
+  }
+  if (typeof console !== 'undefined' && typeof console.info === 'function') {
+    console.info('[startup-perf]', run);
+  }
 }
 
 function perfStore() {
@@ -1262,7 +1293,9 @@ async function render() {
             loginShellPerfReported = false;
             initialRoutePerfReported = false;
             beginPerfTimer('login:api.login');
+            const loginApiStartMs = performance.now();
             const data = await api.login(userId, code);
+            loginApiDurationMs = performance.now() - loginApiStartMs;
             endPerfTimer('login:api.login');
             hasMountedAuthenticatedShell = false;
             firstAuthenticatedRenderTimerStarted = false;
@@ -1273,16 +1306,25 @@ async function render() {
             setSession({ token: data.token, user: data.user });
             endPerfTimer('login:setSession');
             beginPerfTimer('login:applyBootstrap');
+            const bootstrapApplyStartMs = performance.now();
             applyBootstrapFromLoginData(data);
+            loginBootstrapDurationMs = performance.now() - bootstrapApplyStartMs;
             renderShellLoadingImmediately();
             loginInlineError = '';
             endPerfTimer('login:applyBootstrap');
-            scheduleRender();
             mountScreen().then(() => {
               if (loginPerfStartMs > 0 && !initialRoutePerfReported) {
                 initialRoutePerfReported = true;
-                reportPerfMilestone('initial_route_loaded', performance.now() - loginPerfStartMs, {
+                const firstScreenDurationMs = performance.now() - loginPerfStartMs;
+                reportPerfMilestone('initial_route_loaded', firstScreenDurationMs, {
                   route: String(state.route || '')
+                });
+                reportStartupPerf({
+                  login_ms: loginApiDurationMs,
+                  bootstrap_ms: loginBootstrapDurationMs,
+                  first_screen_ms: firstScreenDurationMs,
+                  first_route: String(state.route || ''),
+                  source: 'login'
                 });
               }
             }).catch(async () => {
