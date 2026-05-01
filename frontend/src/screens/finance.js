@@ -734,11 +734,13 @@ function loadStateFromStorage(state) {
   if (!state.financeStatusFilter) {
     state.financeStatusFilter = 'open';
   }
-  /* Default tab: all — show both active and archived activities */
+  /* Default tab for canonical read-model path */
   if (!state.financeTab) {
-    state.financeTab = 'all';
+    state.financeTab = 'active';
   }
-  /* No default month filter — show all activities */
+  if (!state.financeMonthYm) {
+    state.financeMonthYm = currentYm();
+  }
 }
 
 function save(key, val) {
@@ -751,14 +753,11 @@ function save(key, val) {
 export const financeScreen = {
   load: ({ api, state }) => {
     loadStateFromStorage(state);
-    return api.finance({
-      date_from: '',
-      date_to: '',
-      search: '',      /* search and status applied client-side for instant filtering */
-      status: '',
-      tab: 'all',      /* load both active and archived — finance screen shows all */
-      month: state?.financeMonthYm || ''
-    });
+    const canonical = {
+      month: state?.financeMonthYm || currentYm(),
+      tab: state?.financeTab || 'active'
+    };
+    return api.finance(canonical);
   },
 
   render(data, { state } = {}) {

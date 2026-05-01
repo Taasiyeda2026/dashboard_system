@@ -380,16 +380,39 @@ function refreshActivitiesReadModel_() {
 }
 
 function refreshWeekReadModel_() {
-  return refreshSingleReadModel_('week', { week_offset: 0 }, function() {
-    return actionWeek_(READ_MODEL_ADMIN_USER_, { week_offset: 0 });
+  return refreshWeekReadModelForOffset_(0);
+}
+
+function refreshWeekReadModelForOffset_(offset) {
+  var wo = parseInt(offset, 10) || 0;
+  return refreshSingleReadModel_('week', { week_offset: wo }, function() {
+    return actionWeek_(READ_MODEL_ADMIN_USER_, { week_offset: wo });
   });
 }
 
 function refreshMonthReadModel_() {
   var ym = formatDate_(new Date()).slice(0, 7);
-  return refreshSingleReadModel_('month', { ym: ym }, function() {
-    return actionMonth_(READ_MODEL_ADMIN_USER_, { ym: ym });
+  return refreshMonthReadModelForYm_(ym);
+}
+
+function refreshMonthReadModelForYm_(ym) {
+  var targetYm = text_(ym).slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(targetYm)) {
+    targetYm = formatDate_(new Date()).slice(0, 7);
+  }
+  return refreshSingleReadModel_('month', { ym: targetYm }, function() {
+    return actionMonth_(READ_MODEL_ADMIN_USER_, { ym: targetYm });
   });
+}
+
+function shiftYm_(ym, deltaMonths) {
+  var base = text_(ym);
+  if (!/^\d{4}-\d{2}$/.test(base)) base = formatDate_(new Date()).slice(0, 7);
+  var y = parseInt(base.slice(0, 4), 10);
+  var m = parseInt(base.slice(5, 7), 10);
+  var d = new Date(y, m - 1, 1);
+  d.setMonth(d.getMonth() + (parseInt(deltaMonths, 10) || 0));
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
 }
 
 function refreshExceptionsReadModel_() {
@@ -422,8 +445,13 @@ function refreshAllReadModels_() {
     var results = [];
     results.push(refreshDashboardReadModel_());
     results.push(refreshActivitiesReadModel_());
-    results.push(refreshWeekReadModel_());
-    results.push(refreshMonthReadModel_());
+    results.push(refreshWeekReadModelForOffset_(-1));
+    results.push(refreshWeekReadModelForOffset_(0));
+    results.push(refreshWeekReadModelForOffset_(1));
+    var curYm = formatDate_(new Date()).slice(0, 7);
+    results.push(refreshMonthReadModelForYm_(shiftYm_(curYm, -1)));
+    results.push(refreshMonthReadModelForYm_(curYm));
+    results.push(refreshMonthReadModelForYm_(shiftYm_(curYm, 1)));
     results.push(refreshExceptionsReadModel_());
     results.push(refreshFinanceReadModel_());
     results.push(refreshEndDatesReadModel_());
@@ -637,12 +665,12 @@ function materializeScreenDataFromReadModel_(action, user, payload) {
 
   if (act === 'week') {
     var wo = parseInt((payload && payload.week_offset) || 0, 10) || 0;
-    if (wo !== 0) {
-      return noteReadModelServerLegacyReturn_(act, 'week_non_current_offset', { week_offset: wo });
+    if (wo < -1 || wo > 1) {
+      return noteReadModelServerLegacyReturn_(act, 'week_outside_supported_offsets', { week_offset: wo });
     }
-    var wData = readModelLoadFreshPayloadData_(buildReadModelStorageKey_('week', { week_offset: 0 }));
+    var wData = readModelLoadFreshPayloadData_(buildReadModelStorageKey_('week', { week_offset: wo }));
     if (wData === null) {
-      return noteReadModelServerLegacyReturn_(act, 'week_no_fresh_read_model_payload', {});
+      return noteReadModelServerLegacyReturn_(act, 'week_no_fresh_read_model_payload', { week_offset: wo });
     }
     try {
       var wOut = JSON.parse(JSON.stringify(wData));
@@ -661,8 +689,10 @@ function materializeScreenDataFromReadModel_(action, user, payload) {
   if (act === 'month') {
     var ym = text_((payload && payload.ym) || (payload && payload.month) || '').slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(ym)) ym = curYm;
-    if (ym !== curYm) {
-      return noteReadModelServerLegacyReturn_(act, 'month_not_current_period', { ym: ym, current_ym: curYm });
+    var prevYm = shiftYm_(curYm, -1);
+    var nextYm = shiftYm_(curYm, 1);
+    if (ym !== curYm && ym !== prevYm && ym !== nextYm) {
+      return noteReadModelServerLegacyReturn_(act, 'month_outside_supported_period', { ym: ym, current_ym: curYm });
     }
     var mData = readModelLoadFreshPayloadData_(buildReadModelStorageKey_('month', { ym: ym }));
     if (mData === null) {
