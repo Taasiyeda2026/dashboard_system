@@ -162,6 +162,43 @@ function perfStore() {
   return window.__dsPerf;
 }
 
+function ensurePerfSummaryPrinter() {
+  if (typeof window === 'undefined') return;
+  if (typeof window.__printDsPerfSummary === 'function') return;
+  window.__printDsPerfSummary = () => {
+    const store = perfStore() || { requests: [], renders: [], screens: {}, navigation: {} };
+    const requests = Array.isArray(store.requests) ? store.requests : [];
+    const renders = Array.isArray(store.renders) ? store.renders : [];
+    const duplicateRequests = Array.isArray(store?.navigation?.duplicate_requests) ? store.navigation.duplicate_requests : [];
+
+    const topApi = [...requests].sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0)).slice(0, 10);
+    const topRenders = [...renders].sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0)).slice(0, 10);
+    const byAction = requests.reduce((acc, row) => {
+      const key = String(row?.action || 'unknown');
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    const slowCount = requests.filter((row) => row?.slow === true).length;
+
+    // eslint-disable-next-line no-console
+    console.groupCollapsed(`[dsPerf] summary: api=${requests.length}, renders=${renders.length}, slow_api=${slowCount}`);
+    // eslint-disable-next-line no-console
+    console.table(topApi);
+    // eslint-disable-next-line no-console
+    console.table(topRenders);
+    // eslint-disable-next-line no-console
+    console.table(Object.entries(byAction).map(([action, count]) => ({ action, count })).sort((a, b) => b.count - a.count));
+    // eslint-disable-next-line no-console
+    console.info('[dsPerf] slow_api_count', slowCount);
+    // eslint-disable-next-line no-console
+    console.info('[dsPerf] duplicate_requests', duplicateRequests.length);
+    // eslint-disable-next-line no-console
+    console.groupEnd();
+  };
+}
+
+ensurePerfSummaryPrinter();
+
 function pushDuplicateRequestPerf(cacheKey, route) {
   const store = perfStore();
   if (!store) return;

@@ -353,7 +353,10 @@ async function postWithTimeout(action, requestBody, timeoutOverrideMs) {
 }
 
 function emitPerfEntry(entry) {
-  pushPerfRequest(entry);
+  pushPerfRequest({
+    ...entry,
+    slow: Number(entry?.duration_ms || 0) > 3000
+  });
   if (isPerfDebugEnabled()) {
     // eslint-disable-next-line no-console
     console.info('[perf]', entry);
