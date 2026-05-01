@@ -2,6 +2,7 @@ import { escapeHtml } from './html.js';
 
 const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
 const DEFAULT_VISIBLE_LIMIT = 200;
+const FILTER_OPTIONS_CACHE = new WeakMap();
 
 export function normalizeText(value) {
   return String(value == null ? '' : value)
@@ -42,9 +43,19 @@ export function ensureActivityListFilters(state, scope) {
 }
 
 export function collectFilterOptions(rows, fields) {
-  const result = {};
   const list = Array.isArray(rows) ? rows : [];
-  (Array.isArray(fields) ? fields : []).forEach((field) => {
+  const normalizedFields = Array.isArray(fields) ? fields : [];
+  let perRowsCache = FILTER_OPTIONS_CACHE.get(list);
+  if (!perRowsCache) {
+    perRowsCache = new WeakMap();
+    FILTER_OPTIONS_CACHE.set(list, perRowsCache);
+  } else {
+    const cached = perRowsCache.get(normalizedFields);
+    if (cached) return cached;
+  }
+
+  const result = {};
+  normalizedFields.forEach((field) => {
     const key = field.key;
     const values = new Set();
     list.forEach((row) => {
@@ -56,6 +67,7 @@ export function collectFilterOptions(rows, fields) {
     });
     result[key] = Array.from(values).sort((a, b) => a.localeCompare(b, 'he'));
   });
+  perRowsCache.set(normalizedFields, result);
   return result;
 }
 

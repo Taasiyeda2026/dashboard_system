@@ -80,6 +80,18 @@ test('Stage2B numeric: critical non-zero manager exceptions do not become zero i
   assert.notEqual(dash.exceptions_count, 0);
 });
 
+test('Stage2B numeric: exceptions_count equals manager exception sum', ()=>{
+  const dash=actionDashboardNumeric(rows);
+  const mgrSum=Object.values(dash.byManagerExceptions || {}).reduce((a,b)=>a+Number(b||0),0);
+  assert.equal(dash.exceptions_count, mgrSum);
+});
+
+test('Stage2B numeric: course endings and active instructors stay stable on fixture', ()=>{
+  const dash=actionDashboardNumeric(rows);
+  assert.equal(dash.course_endings, 2);
+  assert.equal(dash.active_instructors, 4);
+});
+
 test('Stage2B numeric: finance open/closed/pending and export-screen consistency', ()=>{
   const f=actionFinanceNumeric(rows);
   assert.equal(f.openRows, 3);
