@@ -900,6 +900,46 @@ async function fastRerenderScreen(screen, routeAtBind) {
   recordRenderPerf(routeAtBind, 'fast-rerender', performance.now() - perfStart, { cache_key: key });
 }
 
+
+function renderScreenIntoRoot({ route, screen, data, screenRoot, phase, cacheKey }) {
+  const dataKeys = data && typeof data === 'object' ? Object.keys(data) : [];
+  // eslint-disable-next-line no-console
+  console.info('[route-render:start]', { route, data_keys: dataKeys });
+  const renderStart = performance.now();
+  try {
+    const markup = screen.render(data, { state });
+    screenRoot.innerHTML = markup;
+    const text = (screenRoot.textContent || '').trim();
+    if (text === 'טוען נתונים...' && data && typeof data === 'object') {
+      // eslint-disable-next-line no-console
+      console.warn('[route-render:retry]', { route, reason: 'loading-stuck-after-render' });
+      screenRoot.innerHTML = screen.render(data, { state });
+    }
+    const afterText = (screenRoot.textContent || '').trim();
+    if (afterText === 'טוען נתונים...') {
+      throw new Error('render_stuck_on_loading');
+    }
+    beginPerfTimer('route:bindScreen');
+    bindScreen(screen, screenRoot, data);
+    endPerfTimer('route:bindScreen');
+    recordRenderPerf(route, phase || 'fresh-data-render', performance.now() - renderStart, {
+      cache_key: cacheKey
+    });
+    // eslint-disable-next-line no-console
+    console.info('[route-render:success]', { route });
+    return true;
+  } catch (err) {
+    endPerfTimer('route:bindScreen');
+    // eslint-disable-next-line no-console
+    console.warn('[route-render:failed]', { route, error: err?.message || String(err), data_keys: dataKeys });
+    screenRoot.innerHTML = `<div class="ds-loading-card" dir="rtl" role="alert">
+      <p style="color:var(--ds-color-danger,#c0392b);font-weight:600;">⚠ שגיאה בהצגת המסך</p>
+      <p>אירעה תקלה בהצגת הנתונים. נסו לרענן את הדף.</p>
+      <button type="button" class="ds-btn ds-btn--sm" style="margin-top:8px" onclick="window.location.reload()">נסה שוב</button>
+    </div>`;
+    throw err;
+  }
+}
 function clearScreenDataCache() {
   const deletedKeys = [];
   if (state.route === 'activities') {
@@ -1184,17 +1224,17 @@ async function mountScreen() {
       endPerfTimer('dashboardSnapshot:firstLoad');
     }
     beginPerfTimer('route:renderScreen');
-    const renderStart = performance.now();
     const screenRoot = document.getElementById('screenRoot');
     if (!screenRoot) throw new Error('אזור התצוגה לא זמין');
-    screenRoot.innerHTML = screen.render(data, { state });
-    endPerfTimer('route:renderScreen');
-    beginPerfTimer('route:bindScreen');
-    bindScreen(screen, screenRoot, data);
-    endPerfTimer('route:bindScreen');
-    recordRenderPerf(state.route, 'fresh-data-render', performance.now() - renderStart, {
-      cache_key: cacheKey
+    renderScreenIntoRoot({
+      route: requestedRoute,
+      screen,
+      data,
+      screenRoot,
+      phase: 'fresh-data-render',
+      cacheKey
     });
+    endPerfTimer('route:renderScreen');
     // eslint-disable-next-line no-console
     console.info('[route-load:success]', {
       route: requestedRoute,

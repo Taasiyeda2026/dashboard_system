@@ -94,3 +94,26 @@ test('translateApiErrorForUser passes through Hebrew error messages unchanged', 
   assert.match(src, /\\u0590-\\u05FF.*return raw/s,
     'translateApiErrorForUser should return Hebrew strings as-is so dashboard error message is shown verbatim');
 });
+
+
+test('main.js emits route-render lifecycle logs for dashboard rendering', async () => {
+  const src = await read(MAIN_FILE);
+  assert.match(src, /console\.info\('\[route-render:start\]'/,
+    'should log route-render start');
+  assert.match(src, /console\.info\('\[route-render:success\]'/,
+    'should log route-render success');
+  assert.match(src, /console\.warn\('\[route-render:failed\]'/,
+    'should log route-render failure');
+});
+
+test('main.js fail-safe retries render and replaces stuck loading with Hebrew error', async () => {
+  const src = await read(MAIN_FILE);
+  assert.match(src, /if \(text === 'טוען נתונים\.\.\.' && data && typeof data === 'object'\)/,
+    'should detect loading text stuck after successful data load');
+  assert.match(src, /\[route-render:retry\]/,
+    'should log a retry attempt when loading is stuck');
+  assert.match(src, /throw new Error\('render_stuck_on_loading'\)/,
+    'should fail explicitly if loading text is still stuck after retry');
+  assert.match(src, /שגיאה בהצגת המסך/,
+    'should show Hebrew render error fallback instead of leaving loading state');
+});
