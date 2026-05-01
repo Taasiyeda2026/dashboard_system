@@ -26,7 +26,7 @@ async function freshModules() {
   return { ...stateMod, ...apiMod };
 }
 
-test('read models are disabled by default and activities load from legacy endpoint', async () => {
+test('only dashboard read model is gradually enabled; activities stay on legacy endpoint', async () => {
   const { api, state } = await freshModules();
   state.token = 'token';
   const calls = [];
@@ -40,24 +40,56 @@ test('read models are disabled by default and activities load from legacy endpoi
   };
 
   await api.activities({});
-  assert.equal(calls[0], 'activities');
+  assert.deepEqual(calls, ['activities']);
 });
 
-test('manifest/get failures fallback to legacy endpoint and do not break screen load', async () => {
+test('dashboardSnapshot without month stays on legacy while rollout switch is off', async () => {
+  const { api, state } = await freshModules();
+  state.token = 'token';
+  const calls = [];
+  global.fetch = async (_url, req) => {
+    const body = JSON.parse(req.body);
+    calls.push(body.action);
+    if (body.action === 'dashboardSnapshot') {
+      return { status: 200, async text() { return JSON.stringify({ ok: true, data: { totals: { active: 7 } } }); } };
+    }
+    throw new Error(`unexpected action: ${body.action}`);
+  };
+
+  const data = await api.dashboardSnapshot({});
+  assert.equal(data?.totals?.active, 7);
+  assert.deepEqual(calls, ['dashboardSnapshot']);
+});
+
+test('dashboardSnapshot with month falls back to legacy endpoint (no read model key mismatch)', async () => {
+  const { api, state } = await freshModules();
+  state.token = 'token';
+  const calls = [];
+  global.fetch = async (_url, req) => {
+    const body = JSON.parse(req.body);
+    calls.push(body.action);
+    if (body.action === 'dashboardSnapshot') {
+      return { status: 200, async text() { return JSON.stringify({ ok: true, data: { month: body.month, from: 'legacy' } }); } };
+    }
+    throw new Error(`unexpected action: ${body.action}`);
+  };
+  const data = await api.dashboardSnapshot({ month: '2026-04' });
+  assert.equal(data?.from, 'legacy');
+  assert.deepEqual(calls, ['dashboardSnapshot']);
+});
+
+test('dashboardSnapshot load works via legacy route when rollout is off', async () => {
   const { api, state } = await freshModules();
   state.token = 'token';
   global.fetch = async (_url, req) => {
     const body = JSON.parse(req.body);
-    if (body.action === 'readModelGet') {
-      throw new Error('network failure');
-    }
-    if (body.action === 'activities') {
+    if (body.action === 'dashboardSnapshot') {
       return { status: 200, async text() { return JSON.stringify({ ok: true, data: { rows: [{ RowID: 'A1' }] } }); } };
     }
     return { status: 200, async text() { return JSON.stringify({ ok: true, data: {} }); } };
   };
 
-  const data = await api.activities({});
+  const data = await api.dashboardSnapshot({});
   assert.ok(Array.isArray(data?.rows));
   assert.equal(data.rows[0]?.RowID, 'A1');
 });
