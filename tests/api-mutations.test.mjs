@@ -113,11 +113,40 @@ test('api mutation cache invalidation map includes required keys', async () => {
 test('heavy screens request read models by default with legacy fallback', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
-  assert.match(source, /dashboardSnapshot:\s*\(filters\)\s*=>\s*requestReadModel\('dashboard'/);
-  assert.match(source, /activities:\s*\(filters\)\s*=>\s*requestReadModel\('activities'/);
-  assert.match(source, /week:\s*\(params\)\s*=>\s*requestReadModel\('week'/);
-  assert.match(source, /month:\s*\(params\)\s*=>\s*requestReadModel\('month'/);
-  assert.match(source, /exceptions:\s*\(params\)\s*=>\s*requestReadModel\('exceptions'/);
-  assert.match(source, /finance:\s*\(params\)\s*=>\s*requestReadModel\('finance'/);
-  assert.match(source, /endDates:\s*\(\)\s*=>\s*requestReadModel\('end-dates'/);
+  assert.match(source, /dashboardSnapshot:\s*\(filters,\s*options\)\s*=>\s*requestReadModel\('dashboard'/);
+  assert.match(source, /activities:\s*\(filters,\s*options\)\s*=>\s*requestReadModel\('activities'/);
+  assert.match(source, /week:\s*\(params,\s*options\)\s*=>\s*requestReadModel\('week'/);
+  assert.match(source, /month:\s*\(params,\s*options\)\s*=>\s*requestReadModel\('month'/);
+  assert.match(source, /exceptions:\s*\(params,\s*options\)\s*=>\s*requestReadModel\('exceptions'/);
+  assert.match(source, /finance:\s*\(params,\s*options\)\s*=>\s*requestReadModel\('finance'/);
+  assert.match(source, /endDates:\s*\(options\)\s*=>\s*requestReadModel\('end-dates'/);
+});
+
+test('perf request marks slow=true for API calls longer than 3000ms', async () => {
+  const { api, state } = await freshModules();
+  state.token = 'token';
+  let nowTick = 0;
+  global.performance = { now: () => nowTick };
+  global.fetch = async () => {
+    nowTick = 3501;
+    return {
+      status: 200,
+      async text() {
+        return JSON.stringify({ ok: true, data: { done: true } });
+      }
+    };
+  };
+
+  await api.week({ week_offset: 0 });
+  const reqs = global.window.__dsPerf?.requests || [];
+  assert.ok(reqs.length > 0);
+  assert.equal(reqs[0].slow, true);
+});
+
+test('perf summary helper is defined in main when window is available', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
+  assert.match(source, /window\.__printDsPerfSummary\s*=\s*\(\)\s*=>/);
+  assert.match(source, /const topApi = \[\.\.\.requests\]/);
+  assert.match(source, /const topRenders = \[\.\.\.renders\]/);
 });

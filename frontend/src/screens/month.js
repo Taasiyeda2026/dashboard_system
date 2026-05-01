@@ -240,7 +240,7 @@ export const monthScreen = {
       const n = cellItems.length;
       const isToday = cell.date === todayIso;
       const isShabbat = cellDate.getDay() === 6;
-      const warn = dayNeedsAttention(cell.items);
+      const warn = dayNeedsAttention(cellItems);
       const extra = [
         isToday ? 'is-cal-today' : '',
         warn ? 'is-month-warn' : '',
@@ -250,7 +250,7 @@ export const monthScreen = {
       const holiday = getHolidayLabel(cell.date);
       const subtitle = holiday || '';
       const meta = n > 0 ? `${n} פעילויות` : '';
-      const hay = (Array.isArray(cell.items) ? cell.items : [])
+      const hay = cellItems
         .map((it) =>
           [it.activity_name, it.RowID, it.emp_id, it.emp_id_2, it.instructor_name, it.instructor_name_2].filter(Boolean).join(' ')
         )
