@@ -75,7 +75,7 @@ let manifestCache = { t: 0, data: null };
 const READ_MODELS_ENABLED = true;
 
 /** Explicit allow-list: only these read-model keys use the read-model path; all others use legacy only. */
-const READ_MODEL_ENABLED_KEY_LIST = ['dashboard', 'activities', 'week', 'month', 'exceptions', 'finance'];
+const READ_MODEL_ENABLED_KEY_LIST = ['dashboard', 'activities', 'week', 'month', 'exceptions', 'finance', 'end-dates'];
 const READ_MODEL_ENABLED_KEYS = new Set(READ_MODEL_ENABLED_KEY_LIST);
 
 /**
@@ -269,6 +269,9 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
     }
     return request(fallbackAction, fallbackPayload, {
       ...perfBase,
+      fallback_used: true,
+      used_read_model: false,
+      legacy_fallback_reason: 'read_model_not_enabled_for_screen',
       legacy_intentional: true,
       read_model_screen_key: key,
       ...options
@@ -671,10 +674,40 @@ export const api = {
   dashboardSnapshot: (filters, options) => requestReadModel('dashboard', filters || {}, 'dashboardSnapshot', filters || {}, options || {}),
   activities: (filters, options) => requestReadModel('activities', filters || {}, 'activities', filters || {}, options || {}),
   activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
-  week: (params, options) => requestReadModel('week', params || { week_offset: 0 }, 'week', params || {}, options || {}),
-  month: (params, options) => requestReadModel('month', params || {}, 'month', params || {}, options || {}),
-  exceptions: (params, options) => requestReadModel('exceptions', params || {}, 'exceptions', params || {}, options || {}),
-  finance: (params, options) => requestReadModel('finance', params || {}, 'finance', params || {}, options || {}),
+  week: (params, options) => {
+    const resolved = (params && typeof params === 'object') ? params : {};
+    const weekOffset = Number.parseInt(resolved.week_offset, 10);
+    const canonical = { ...resolved, week_offset: Number.isFinite(weekOffset) ? weekOffset : 0 };
+    return requestReadModel('week', canonical, 'week', canonical, options || {});
+  },
+  month: (params, options) => {
+    const resolved = (params && typeof params === 'object') ? params : {};
+    const candidate = String(resolved.ym || resolved.month || '').trim();
+    const now = new Date();
+    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const ym = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
+    const canonical = { ...resolved, ym };
+    return requestReadModel('month', canonical, 'month', canonical, options || {});
+  },
+  exceptions: (params, options) => {
+    const resolved = (params && typeof params === 'object') ? params : {};
+    const candidate = String(resolved.month || resolved.ym || '').trim();
+    const now = new Date();
+    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
+    const canonical = { ...resolved, month };
+    return requestReadModel('exceptions', canonical, 'exceptions', canonical, options || {});
+  },
+  finance: (params, options) => {
+    const resolved = (params && typeof params === 'object') ? params : {};
+    const now = new Date();
+    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const candidateMonth = String(resolved.month || resolved.ym || '').trim();
+    const month = /^\d{4}-\d{2}$/.test(candidateMonth) ? candidateMonth : currentYm;
+    const tab = String(resolved.tab || 'active').trim() || 'active';
+    const canonical = { ...resolved, month, tab };
+    return requestReadModel('finance', canonical, 'finance', canonical, options || {});
+  },
   financeDetail: (source_row_id, source_sheet) => request('financeDetail', { source_row_id, source_sheet }),
   instructors: () => request('instructors'),
   instructorContacts: () => request('instructorContacts'),

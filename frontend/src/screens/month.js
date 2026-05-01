@@ -175,8 +175,10 @@ function patchCachedActivityDetail({ sourceSheet, sourceRowId, changes }, s) {
 
 export const monthScreen = {
   load: ({ api, state }) => {
-    const ym = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : '';
-    return api.month(ym ? { ym } : {});
+    const now = new Date();
+    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const ym = state.monthYm && /^\d{4}-\d{2}$/.test(state.monthYm) ? state.monthYm : currentYm;
+    return api.month({ ym });
   },
   render(data, { state }) {
     const spec = inferMonthSpec(data || {});

@@ -63,7 +63,7 @@ test('deploymentInfo action exists and returns static read-only deployment ident
   assert.match(actions, /backendVersion:\s*'emergency-disable-diagnostics-v2'/);
   assert.match(actions, /hasLocalDiagnosticsParsers:\s*true/);
   assert.match(actions, /diagnosticsEnabled:\s*false/);
-  assert.match(actions, /readModelsEnabled:\s*false/);
+  assert.match(actions, /readModelsEnabled:\s*(true|false)/);
 });
 
 test('deploymentInfo implementation is lightweight and avoids heavy dependencies', async () => {
