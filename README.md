@@ -278,6 +278,30 @@ npm test
 - Event source: Time-driven
 - Every 10 minutes
 
+### התקנה חד־פעמית של אוטומציה
+
+אחרי פריסה ל־Apps Script, מריצים פעם אחת:
+
+- `installProductionAutomation()`
+
+הפונקציה:
+- מתקינה trigger ל־`keepWarm` כל 10 דקות.
+- מתקינה trigger ל־`runDataMaintenanceTrigger` כל שעה.
+- מוחקת/מחליפה טריגרים קיימים לאותן פונקציות כדי למנוע כפילויות.
+- לא מתקינה `refreshAllReadModelsTrigger` כברירת מחדל (כי `READ_MODELS_ENABLED` בפרונט כבוי).
+
+לאחר ההתקנה אין צורך בהרצות ידניות שוטפות של:
+- `runRefreshDataViewsManually`
+- `runDataMaintenance`
+
+לבדיקת מצב האוטומציה:
+- `getProductionAutomationStatus()`
+
+מה אמור להופיע במסך Triggers:
+- trigger אחד עבור `keepWarm` (Time-driven).
+- trigger אחד עבור `runDataMaintenanceTrigger` (Time-driven).
+- בלי כפילויות עבור אותן פונקציות.
+
 ## Cache וביצועים
 
 המערכת כוללת כמה שכבות שיפור ביצועים:
@@ -423,7 +447,7 @@ node scripts/apps_script_snapshot_ops.mjs
    - `refreshDashboardSnapshotsTrigger`
    - `runRefreshDataViewsManually`
    - `refreshAllReadModelsTrigger` (לשימוש עתידי/תחזוקה)
-3. אשרו שב־Apps Script יש trigger/פעולה פעילה לרענון snapshots/data views (בפועל לפחות אחד מהמסלולים: trigger ל־`refreshDashboardSnapshotsTrigger` או הרצה ידנית של `runRefreshDataViewsManually` לפי נוהל התפעול).
+3. אשרו שהרצתם פעם אחת `installProductionAutomation()` ושקיימים טריגרים פעילים ל־`keepWarm` ול־`runDataMaintenanceTrigger`.
 4. אם ה־dashboard איטי, בדקו בגיליון `dashboard_refresh_control` לפחות את:
    - `last_status`
    - `data_views_version`
