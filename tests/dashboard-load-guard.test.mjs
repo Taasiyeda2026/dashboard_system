@@ -65,6 +65,28 @@ test('main.js catch block releases loading on any screen error', async () => {
     'setShellNavBusy(false) must be in finally block so it runs even on error');
 });
 
+test('main.js adds a route-level load timeout guard with Hebrew fallback error', async () => {
+  const src = await read(MAIN_FILE);
+  assert.match(src, /ROUTE_LOAD_GUARD_MS\s*=\s*25000/,
+    'should define a 25s route-level load guard');
+  assert.match(src, /Promise\.race\(\[loadScreenDataWithCache\(screen\), routeLoadGuard\]\)/,
+    'should race route data loading against a timeout guard');
+  assert.match(src, /טעינת המסך נמשכת זמן רב מדי\. נסו לרענן או להיכנס שוב\./,
+    'should show a clear Hebrew timeout message instead of infinite loading');
+});
+
+test('main.js route load failures clean inflight requests and log lifecycle', async () => {
+  const src = await read(MAIN_FILE);
+  assert.match(src, /inflightRequests\.delete\(cacheKey\)/,
+    'should cleanup inflight request on failure/timeout');
+  assert.match(src, /console\.info\('\[route-load:start\]'/,
+    'should log route load start');
+  assert.match(src, /console\.info\('\[route-load:success\]'/,
+    'should log route load success');
+  assert.match(src, /console\.warn\('\[route-load:failed\]'/,
+    'should log route load failure');
+});
+
 test('translateApiErrorForUser passes through Hebrew error messages unchanged', async () => {
   const src = await read(
     new URL('../frontend/src/screens/shared/ui-hebrew.js', import.meta.url)

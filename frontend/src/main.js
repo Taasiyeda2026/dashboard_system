@@ -44,6 +44,8 @@ let shellEventsBound = false;
 const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = true;
 const STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE = true;
 const STABILITY_HOTFIX_DISABLE_SERVICE_WORKER = true;
+const ROUTE_LOAD_GUARD_MS = 25000;
+const ROUTE_LOAD_ERROR_HE = 'טעינת המסך נמשכת זמן רב מדי. נסו לרענן או להיכנס שוב.';
 
 if (typeof window !== 'undefined') {
   window.__HOTFIX_VERSION__ = config.HOTFIX_VERSION;
@@ -1084,6 +1086,9 @@ async function mountScreen() {
   if (!screen) throw new Error('מסך לא זמין');
 
   const cacheKey = screenDataCacheKey();
+  const routeLoadStartMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  // eslint-disable-next-line no-console
+  console.info('[route-load:start]', { route: requestedRoute, cacheKey });
   const rawEntry = screen.load ? state.screenDataCache[cacheKey] : null;
   const isStale = rawEntry && Date.now() - rawEntry.t >= screenCacheTtl();
 
@@ -1162,7 +1167,16 @@ async function mountScreen() {
       firstDashboardSnapshotTimerStarted = true;
       beginPerfTimer('dashboardSnapshot:firstLoad');
     }
-    const data = await loadScreenDataWithCache(screen);
+    let routeLoadGuardTimer = null;
+    const routeLoadGuard = new Promise((_, reject) => {
+      routeLoadGuardTimer = setTimeout(() => reject(new Error('route_load_timeout')), ROUTE_LOAD_GUARD_MS);
+    });
+    let data;
+    try {
+      data = await Promise.race([loadScreenDataWithCache(screen), routeLoadGuard]);
+    } finally {
+      clearTimeout(routeLoadGuardTimer);
+    }
     endPerfTimer('route:loadData');
     if (transitionToken !== activeNavigationToken || requestedRoute !== latestNavigationRoute) return;
     if (state.route !== requestedRoute) return;
@@ -1181,9 +1195,15 @@ async function mountScreen() {
     recordRenderPerf(state.route, 'fresh-data-render', performance.now() - renderStart, {
       cache_key: cacheKey
     });
+    // eslint-disable-next-line no-console
+    console.info('[route-load:success]', {
+      route: requestedRoute,
+      duration_ms: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - routeLoadStartMs)
+    });
     if (routeChanged) lastRenderedRoute = state.route;
     maybePrefetchFromDashboard();
   } catch (err) {
+    inflightRequests.delete(cacheKey);
     endPerfTimer('route:loadData');
     endPerfTimer('route:renderScreen');
     endPerfTimer('route:bindScreen');
@@ -1193,13 +1213,22 @@ async function mountScreen() {
     }
     const screenRoot = document.getElementById('screenRoot');
     if (screenRoot) {
-      const msg = translateApiErrorForUser(err?.message) || 'אירעה שגיאה בטעינת הדף';
+      const isRouteTimeout = String(err?.message || '').includes('route_load_timeout');
+      const msg = isRouteTimeout
+        ? ROUTE_LOAD_ERROR_HE
+        : (translateApiErrorForUser(err?.message) || 'אירעה שגיאה בטעינת הדף');
       screenRoot.innerHTML = `<div class="ds-loading-card" dir="rtl" role="alert">
         <p style="color:var(--ds-color-danger,#c0392b);font-weight:600;">⚠ שגיאה בטעינת הדף</p>
         <p>${msg}</p>
         <button type="button" class="ds-btn ds-btn--sm" style="margin-top:8px" onclick="window.location.reload()">נסה שוב</button>
       </div>`;
     }
+    // eslint-disable-next-line no-console
+    console.warn('[route-load:failed]', {
+      route: requestedRoute,
+      duration_ms: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - routeLoadStartMs),
+      error: err?.message || String(err)
+    });
   } finally {
     if (!hasMountedAuthenticatedShell) {
       hasMountedAuthenticatedShell = true;
