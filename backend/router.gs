@@ -145,10 +145,8 @@ function handlePost_(e) {
         }
         if (action === 'addActivity' || action === 'saveActivity' || action === 'submitEditRequest' || action === 'reviewEditRequest') {
           try {
-            refreshActivitiesSnapshot_();
-          } catch (_activitiesSnapshotErr) {
             bumpDataViewsCacheVersion_();
-          }
+          } catch (_activitiesSnapshotErr) {}
         }
       }
       markRequestPerf_('action_done');

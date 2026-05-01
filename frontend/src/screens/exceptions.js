@@ -94,8 +94,10 @@ function exceptionDrawerHtml(row, hideRowId) {
 
 export const exceptionsScreen = {
   load: ({ api, state }) => {
-    const month = state?.exceptionsMonthYm || state?.dashboardMonthYm || '';
-    return api.exceptions(month ? { month } : {});
+    const now = new Date();
+    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const month = state?.exceptionsMonthYm || state?.dashboardMonthYm || currentYm;
+    return api.exceptions({ month });
   },
   render(data, { state } = {}) {
     const rawRows   = Array.isArray(data?.rows) ? data.rows : [];
