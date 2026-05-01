@@ -131,7 +131,12 @@ function computeExceptionsModel_(rows, ym, opts) {
 
   sourceRows.forEach(function(row) {
     if (text_(row && row.activity_type) !== 'course') return;
-    if (month && !activityOverlapsYm_(row, month)) return;
+    // Activities without start_date are always included when a month filter is
+    // active: the missing date is itself an exception and we cannot determine
+    // overlap from an absent field.  Only skip overlap check when start_date
+    // exists and the range does not intersect the requested month.
+    var rowHasStart = !!text_(row && row.start_date);
+    if (month && rowHasStart && !activityOverlapsYm_(row, month)) return;
     if (isExcludedStatusForControl_(row && row.status)) return;
 
     var types = rowExceptionTypes_(row);

@@ -129,7 +129,7 @@ export const exceptionsScreen = {
               return `<div data-list-item>
                 <button type="button"
                   class="ds-interactive-card ds-interactive-card--session"
-                  data-card-action="${escapeHtml(`exception:${row.RowID}`)}">
+                  data-card-action="${escapeHtml(`exception:${row.RowID}:${row.exception_type || ''}`)}">
                   <p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p>
                   ${subtitleHtml}
                   ${chipHtml}
@@ -194,14 +194,25 @@ export const exceptionsScreen = {
       bindActivityEditForm(contentRoot);
     }
 
+    function exceptionTypeHeader(summaryRow) {
+      const et = String(summaryRow?.exception_type || '').trim();
+      if (!et) return '';
+      return `<div style="margin-bottom:10px;direction:rtl">${dsStatusChip(hebrewExceptionType(et), 'neutral')}</div>`;
+    }
+
     async function openActivityDetail(summaryRow) {
       if (!summaryRow || !ui) return;
       const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
       const cached = detailCache.get(cacheKey);
       const initialRow = cached || summaryRow;
+      const typeHeader = exceptionTypeHeader(summaryRow);
+      const onClose = () => {
+        const shellHdr = document.querySelector('.ds-drawer > header');
+        if (shellHdr) shellHdr.hidden = false;
+      };
       ui.openDrawer({
         title: '',
-        content: activityDrawerContent(
+        content: typeHeader + activityDrawerContent(
           initialRow,
           canSeePrivateNotes,
           canEditActivity,
@@ -212,17 +223,14 @@ export const exceptionsScreen = {
           state?.clientSettings || {}
         ),
         onOpen: makeOnOpen,
-        onClose: () => {
-          const shellHdr = document.querySelector('.ds-drawer > header');
-          if (shellHdr) shellHdr.hidden = false;
-        }
+        onClose
       });
       if (cached) return;
       try {
         const row = await loadDetailRow(summaryRow);
         ui.openDrawer({
           title: '',
-          content: activityDrawerContent(
+          content: typeHeader + activityDrawerContent(
             row,
             canSeePrivateNotes,
             canEditActivity,
@@ -233,10 +241,7 @@ export const exceptionsScreen = {
             state?.clientSettings || {}
           ),
           onOpen: makeOnOpen,
-          onClose: () => {
-            const shellHdr = document.querySelector('.ds-drawer > header');
-            if (shellHdr) shellHdr.hidden = false;
-          }
+          onClose
         });
       } catch {}
     }
@@ -256,8 +261,16 @@ export const exceptionsScreen = {
 
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('exception:')) return;
-      const rowId = action.slice('exception:'.length);
-      const idx = allRows.findIndex((row) => String(row.RowID) === String(rowId));
+      // Action format: "exception:<RowID>:<exception_type>"
+      // RowID may itself contain ":" only in legacy formats; exception_type never does.
+      const rest = action.slice('exception:'.length);
+      const lastColon = rest.lastIndexOf(':');
+      const rowId  = lastColon >= 0 ? rest.slice(0, lastColon) : rest;
+      const exType = lastColon >= 0 ? rest.slice(lastColon + 1) : '';
+      const idx = allRows.findIndex((row) =>
+        String(row.RowID) === rowId &&
+        (!exType || String(row.exception_type || '') === exType)
+      );
       openAt(idx);
     });
   }
