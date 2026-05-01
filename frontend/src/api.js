@@ -474,14 +474,6 @@ async function request(action, payload = {}, perfMeta = {}) {
 }
 
 export const api = {
-  // Keep a stable textual signature for regression tests:
-  // dashboardSnapshot: (filters) => requestReadModel('dashboard', ...)
-  // activities: (filters) => requestReadModel('activities', ...)
-  // week: (params) => requestReadModel('week', ...)
-  // month: (params) => requestReadModel('month', ...)
-  // exceptions: (params) => requestReadModel('exceptions', ...)
-  // finance: (params) => requestReadModel('finance', ...)
-  // endDates: () => requestReadModel('end-dates', ...)
   login: (user_id, entry_code) => request('login', { user_id, entry_code }),
   bootstrap: () => request('bootstrap'),
   dashboard: (filters) => request('dashboard', filters || {}),
