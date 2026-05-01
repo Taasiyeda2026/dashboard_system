@@ -41,3 +41,38 @@ test('activities read-model path falls back to legacy action when readModelGet f
   assert.ok(calls.includes('readModelGet'));
   assert.ok(calls.includes('activities'));
 });
+
+
+test('dashboardSnapshot tries read model then falls back to legacy on readModelGet failure', async () => {
+  const { api, state } = await freshModules();
+  state.token = 'token';
+  const calls = [];
+  global.fetch = async (_url, req) => {
+    const body = JSON.parse(req.body);
+    calls.push(body.action);
+    if (body.action === 'readModelGet') return { status: 500, async text(){ return JSON.stringify({ ok:false, error:'x' }); } };
+    if (body.action === 'dashboardSnapshot') return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{ totals:{ active: 7 } } }); } };
+    if (body.action === 'readModelManifest') return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{} }); } };
+    throw new Error('unexpected action');
+  };
+  const data = await api.dashboardSnapshot({});
+  assert.equal(data?.totals?.active, 7);
+  assert.ok(calls.includes('readModelGet'));
+  assert.ok(calls.includes('dashboardSnapshot'));
+});
+
+test('read-model fallback emits perf metadata visibility flags', async () => {
+  const { api, state } = await freshModules();
+  state.token = 'token';
+  global.fetch = async (_url, req) => {
+    const body = JSON.parse(req.body);
+    if (body.action === 'readModelGet') return { status: 500, async text(){ return JSON.stringify({ ok:false, error:'x' }); } };
+    if (body.action === 'activities') return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{ rows: [] } }); } };
+    return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{} }); } };
+  };
+  await api.activities({});
+  const reqs = global.window.__dsPerf?.requests || [];
+  const last = reqs[reqs.length - 1] || {};
+  assert.equal(last.fallback_used, true);
+  assert.equal(last.used_read_model, false);
+});
