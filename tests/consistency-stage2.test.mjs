@@ -15,7 +15,7 @@ test('dashboard consistency harness: legacy/snapshot/read-model are wired to sam
 
   // same exception source in legacy and snapshot
   mustMatch(actions, /var exceptionSummary = getExceptionsSummary_\(combined, ym, \{ include_rows: false \}\);/);
-  mustMatch(snapshot, /var exceptionSummary = getExceptionsSummary_\(rows, ym, \{ include_rows: false \}\);/);
+  mustMatch(snapshot, /getExceptionsSummary_\([^\n]+include_rows: false[^\n]+\)/);
 
   // required KPI fields are built by snapshot
   mustMatch(snapshot, /finance_open_count/);

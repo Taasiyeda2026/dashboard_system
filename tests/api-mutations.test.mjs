@@ -110,13 +110,12 @@ test('api mutation cache invalidation map includes required keys', async () => {
   assert.match(source, /addActivity:\s*\['activities:',\s*'activityDetail:'/);
 });
 
-test('only dashboard snapshot is wired to read model in this rollout', async () => {
+test('read-model rollout includes heavy screens and end-dates in allow list', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
-  assert.match(source, /const READ_MODELS_ENABLED = false/);
-  assert.match(source, /const READ_MODEL_ENABLED_KEYS = new Set\(\['dashboard'\]\)/);
-  assert.match(source, /dashboardSnapshot:\s*\(filters,\s*options\)\s*=>\s*requestReadModel\('dashboard'/);
-  assert.match(source, /activities:\s*\(filters,\s*options\)\s*=>\s*requestReadModel\('activities'/);
+  assert.match(source, /const READ_MODELS_ENABLED = true/);
+  assert.match(source, /READ_MODEL_ENABLED_KEY_LIST\s*=\s*\[[^\]]*'week'[^\]]*'month'[^\]]*'exceptions'[^\]]*'finance'[^\]]*'end-dates'[^\]]*\]/);
+  assert.match(source, /endDates:\s*\(options\)\s*=>\s*requestReadModel\('end-dates'/);
 });
 
 test('perf request marks slow=true for API calls longer than 3000ms', async () => {
