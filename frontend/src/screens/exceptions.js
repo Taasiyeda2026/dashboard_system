@@ -20,6 +20,15 @@ import {
 import { getFilterOptionOverrides } from './shared/activity-options.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
+
+const HEBREW_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+function hebrewMonthLabel(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return String(ym || '');
+  const idx = Number(m[2]) - 1;
+  return `${HEBREW_MONTHS[idx] || m[2]} ${m[1]}`;
+}
+
 const EXCEPTION_FILTER_FIELDS = [
   { key: 'activity_manager', label: 'מנהל פעילות' },
   { key: 'authority', label: 'רשות' },
@@ -131,11 +140,11 @@ export const exceptionsScreen = {
 
     return dsScreenStack(`
       ${toolbarHtml}
-      ${dsCard({
-        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(data.month)}` : ''} · סה״כ חריגות: ${escapeHtml(String(data?.totalExceptionInstances ?? total))}`,
+      <section class="ds-screen-compact-90">${dsCard({
+        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ חריגות: ${escapeHtml(String(data?.totalExceptionInstances ?? total))}`,
         body: compact,
         padded: visibleRows.length === 0
-      })}
+      })}</section>
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {

@@ -118,7 +118,7 @@ export const instructorsScreen = {
     const ym       = data?.ym || '';
     prepareRowsForSearch(allRows, ['full_name', 'emp_id', 'activity_manager', 'authority', 'school', 'activity_name']);
     const filters = ensureActivityListFilters(state, INSTRUCTORS_SCOPE);
-    const activeOnly = state?.instructorsActiveOnly !== false;
+    const activeOnly = true;
 
     const locallyFiltered = applyLocalFilters(allRows, filters, { filterFields: INSTRUCTOR_FILTER_FIELDS });
     const filtered  = applyActiveFilter(locallyFiltered, activeOnly);
@@ -129,8 +129,7 @@ export const instructorsScreen = {
       searchPlaceholder: 'חיפוש לפי שם מדריך / מזהה / מנהל / רשות / בית ספר…'
     });
 
-    const ymLabel = ym ? ym.slice(0, 7) : '';
-    const activeChk = activeOnly ? 'checked' : '';
+    const ymLabel = ym ? new Date(`${ym.slice(0,7)}-01T00:00:00Z`).toLocaleDateString('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
     const bodyHtml = visibleRows.length === 0
       ? dsEmptyState(filters.q || activeOnly ? 'לא נמצאו מדריכים לסינון זה' : 'אין נתוני מדריכים')
@@ -138,19 +137,15 @@ export const instructorsScreen = {
         hasMore ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${INSTRUCTORS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>` : ''
       }`;
 
-    const subtitle = ymLabel
-      ? `מדריכים · ${filtered.length}${activeOnly && totalAll !== filtered.length ? ` (מתוך ${totalAll})` : ''} · חודש ${ymLabel}`
-      : `מדריכים · ${filtered.length}`;
+    const subtitle = ymLabel ? `מדריכים · ${ymLabel}` : 'מדריכים';
 
     return dsScreenStack(`
+      <section class="ds-screen-compact-90">
       <div class="ds-screen-top-row">
         ${toolbarHtml}
-        <label class="ds-toggle-label" dir="rtl">
-          <input type="checkbox" id="instructors-active-only" ${activeChk} />
-          פעילים החודש בלבד
-        </label>
       </div>
       ${dsCard({ title: subtitle, body: bodyHtml, padded: filtered.length === 0 })}
+      </section>
     `);
   },
 
@@ -161,10 +156,6 @@ export const instructorsScreen = {
       rerender();
     });
 
-    root.querySelector('#instructors-active-only')?.addEventListener('change', (ev) => {
-      state.instructorsActiveOnly = ev.target.checked;
-      rerender();
-    });
 
     state.instructorsActivityDetailsCache = state.instructorsActivityDetailsCache || {};
 

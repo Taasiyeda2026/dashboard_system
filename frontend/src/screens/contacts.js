@@ -343,7 +343,7 @@ export const contactsScreen = {
         rerender();
       });
     });
-    bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, { debounceMs: 300 });
+    bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, { debounceMs: 420 });
 
     const bindCopyBtns = (container) => {
       container.querySelectorAll('[data-copy-email]').forEach((btn) => {
