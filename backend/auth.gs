@@ -1,41 +1,103 @@
+/** Projected headers for login permission row (must stay aligned with actionLogin_ / permission logic). */
+var PERMISSIONS_LOGIN_PROJECTED_HEADERS_ = [
+  'user_id',
+  'full_name',
+  'entry_code',
+  'active',
+  'display_role',
+  'display_role2',
+  'default_view',
+  'org_id',
+  'emp_id',
+  'can_add_activity',
+  'can_edit_direct',
+  'can_request_edit',
+  'view_dashboard',
+  'view_activities',
+  'view_week',
+  'view_month',
+  'view_instructors',
+  'view_exceptions',
+  'view_finance',
+  'view_permissions',
+  'view_operations_data',
+  'view_edit_requests',
+  'view_my_data',
+  'view_contacts',
+  'view_contacts_instructors',
+  'view_contacts_instructors 2',
+  'view_end_dates'
+];
+
+/** TTL for per-user permission rows in ScriptCache (invalidated when dataViewsCacheVersion_ changes). */
+var PERMISSION_LOGIN_CACHE_SECONDS_ = 3600;
+
+var PERMISSION_LOGIN_CACHE_KEY_PREFIX_ = 'pc:perm-login:v1:';
+var PERMISSION_LOGIN_CACHE_NO_ROW_ = '__NO_ROW__';
+
+function permissionLoginCacheKey_(userId, dataViewsVersion) {
+  var v = dataViewsVersion !== undefined && dataViewsVersion !== null ? String(dataViewsVersion) : dataViewsCacheVersion_();
+  return PERMISSION_LOGIN_CACHE_KEY_PREFIX_ + v + ':' + text_(userId);
+}
+
+/**
+ * Single ScriptCache lookup per login (hit path). On miss, one sheet read builds the versioned index
+ * for all users (same projection as login) and populates cache entries.
+ */
+function getPermissionRowForLoginCached_(userId) {
+  setRequestPerfField_('permissions_lookup', true);
+  var uid = text_(userId);
+  if (!uid) return null;
+
+  var cache = CacheService.getScriptCache();
+  var key = permissionLoginCacheKey_(uid);
+  var raw = cache.get(key);
+
+  if (raw === PERMISSION_LOGIN_CACHE_NO_ROW_) {
+    return null;
+  }
+  if (raw) {
+    try {
+      var parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch (_e) {}
+    return null;
+  }
+
+  return warmPermissionLoginIndexForUser_(uid);
+}
+
+function warmPermissionLoginIndexForUser_(requestedUserId) {
+  var ver = dataViewsCacheVersion_();
+  var rows = readRowsProjected_(CONFIG.SHEETS.PERMISSIONS, PERMISSIONS_LOGIN_PROJECTED_HEADERS_);
+  var byUser = {};
+  rows.forEach(function(row) {
+    var id = text_(row.user_id);
+    if (!id) return;
+    if (!byUser[id]) byUser[id] = row;
+  });
+
+  var cache = CacheService.getScriptCache();
+  var ttl = PERMISSION_LOGIN_CACHE_SECONDS_;
+  for (var uid in byUser) {
+    if (!Object.prototype.hasOwnProperty.call(byUser, uid)) continue;
+    cache.put(permissionLoginCacheKey_(uid, ver), JSON.stringify(byUser[uid]), ttl);
+  }
+
+  var req = text_(requestedUserId);
+  if (byUser[req]) return byUser[req];
+
+  cache.put(permissionLoginCacheKey_(req, ver), PERMISSION_LOGIN_CACHE_NO_ROW_, ttl);
+  return null;
+}
+
 function actionLogin_(payload) {
   var userId = text_(payload.user_id || payload.userId);
   var entryCode = text_(payload.entry_code || payload.entryCode);
   if (!userId) throw new Error('user_id is required');
   if (!entryCode) throw new Error('entry_code is required');
 
-  var permissionRows = readRowsProjected_(CONFIG.SHEETS.PERMISSIONS, [
-    'user_id',
-    'full_name',
-    'entry_code',
-    'active',
-    'display_role',
-    'display_role2',
-    'default_view',
-    'org_id',
-    'emp_id',
-    'can_add_activity',
-    'can_edit_direct',
-    'can_request_edit',
-    'view_dashboard',
-    'view_activities',
-    'view_week',
-    'view_month',
-    'view_instructors',
-    'view_exceptions',
-    'view_finance',
-    'view_permissions',
-    'view_operations_data',
-    'view_edit_requests',
-    'view_my_data',
-    'view_contacts',
-    'view_contacts_instructors',
-    'view_contacts_instructors 2',
-    'view_end_dates'
-  ]);
-  var matchByUser = permissionRows.find(function(row) {
-    return text_(row.user_id) === userId;
-  });
+  var matchByUser = getPermissionRowForLoginCached_(userId);
 
   if (!matchByUser) throw new Error('invalid_credentials');
   if (yesNo_(matchByUser.active) !== 'yes') throw new Error('user_inactive');
@@ -70,13 +132,18 @@ function actionLogin_(payload) {
     CONFIG.SESSION_CACHE_SECONDS
   );
 
-  return {
+  var loginData = {
     token: token,
     user: user,
     routes: routes,
     default_route: defaultRoute,
     client_settings: buildClientSettingsPayload_()
   };
+  setRequestPerfField_('fallback_used', false);
+  try {
+    setRequestPerfField_('payload_bytes', JSON.stringify(loginData).length);
+  } catch (_e) {}
+  return loginData;
 }
 
 function requireAuth_(token) {

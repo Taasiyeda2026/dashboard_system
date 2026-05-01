@@ -15,8 +15,11 @@ function handlePost_(e) {
   try {
     beginRequestCache_();
     var payload = parsePayload_(e);
+    if (e && e.parameter && e.parameter.debug_perf != null && payload.debug_perf === undefined) {
+      payload.debug_perf = e.parameter.debug_perf;
+    }
     var action = text_(payload.action);
-    beginRequestPerf_(action, payload);
+    beginRequestPerf_(action, payload, e);
     var user = action === 'login' ? null : requireAuth_(payload.token);
 
     var handlers = {
@@ -103,6 +106,7 @@ function handlePost_(e) {
       var readHit = scriptCacheGetJson_(readKey);
       if (readHit !== null) {
         markRequestPerf_('cache_lookup_done');
+        markRequestPerf_('action_done');
         return jsonResponse_({ ok: true, data: readHit }, {
           action: action,
           cache_hit: true

@@ -7,6 +7,9 @@
  *
  * גיליונות: dashboard_summary_snapshot, dashboard_by_manager_snapshot,
  *            dashboard_refresh_control
+ *
+ * Performance: עם debug_perf (או Script property DEBUG_PERF=1) נאספים סימוני זמן,
+ * sheet_reads_count, payload_size, dashboard_fallback_used ב-debug_perf בתשובה.
  */
 
 var SNAPSHOT_ADMIN_USER_ = { user_id: 'snapshot_refresh', display_role: 'admin' };
@@ -220,6 +223,127 @@ function getDashboardSnapshotFreshness_(controlMap) {
   };
 }
 
+/**
+ * Reads persisted snapshot sheet rows for one month (summary + by-manager). No live dashboard computation.
+ */
+function readPersistedDashboardSnapshotRowsForMonth_(ym) {
+  var snap = null;
+  var byManagerRows = [];
+  var ss = getSpreadsheet_();
+  var hasSummarySnapshotSheet = !!ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT);
+  if (hasSummarySnapshotSheet) {
+    var summaryRows = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT, SUMMARY_SNAPSHOT_HEADERS_);
+    snap = summaryRows.find(function(r) {
+      return normalizeSnapshotMonthYm_(r.month_ym) === ym;
+    }) || null;
+  }
+  if (ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT)) {
+    var allByMgr = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT, BY_MANAGER_SNAPSHOT_HEADERS_);
+    var filteredByMgr = allByMgr.filter(function(r) {
+      return normalizeSnapshotMonthYm_(r.month_ym) === ym;
+    });
+    var seenMgrKeys = {};
+    byManagerRows = filteredByMgr.filter(function(r) {
+      var key = text_(r.activity_manager);
+      if (!key || seenMgrKeys[key]) return false;
+      seenMgrKeys[key] = true;
+      return true;
+    });
+  }
+  return { snap: snap, byManagerRows: byManagerRows, hasSummarySnapshotSheet: hasSummarySnapshotSheet };
+}
+
+/**
+ * Builds the dashboard API payload shape from one summary snapshot row + by-manager rows (snapshot sheets only).
+ */
+function composeDashboardPayloadFromSummarySnapshot_(ym, canViewFinance, snap, byManagerRows, showOnlyNonzeroKpis) {
+  var s = snap || {};
+
+  var totalShort     = parseInt(text_(s.total_short_activities),   10) || 0;
+  var totalLong      = parseInt(text_(s.total_long_activities),    10) || 0;
+  var totalInstr     = parseInt(text_(s.active_instructors_count), 10) || 0;
+  var courseEndings  = parseInt(text_(s.course_endings_current_month), 10) || 0;
+  var financeOpen    = parseInt(text_(s.finance_open_count),       10) || 0;
+  var missingInstr   = parseInt(text_(s.missing_instructor_count), 10) || 0;
+  var missingDate    = parseInt(text_(s.missing_start_date_count), 10) || 0;
+  var lateEnd        = parseInt(text_(s.late_end_date_count),      10) || 0;
+  var exceptCount    = resolveExceptionsCountForDashboard_({
+    missing_instructor_count: missingInstr,
+    missing_start_date_count: missingDate,
+    late_end_date_count: lateEnd
+  }, s.exceptions_count);
+  var activeCurrent  = parseInt(text_(s.active_courses_current_month), 10) || 0;
+  var activeNext     = parseInt(text_(s.active_courses_next_month), 10) || 0;
+
+  var combinedStr = text_(s.active_instructors_names);
+  var allInstructorNames = combinedStr
+    ? combinedStr.split(',').map(function(n) { return n.trim(); }).filter(Boolean)
+    : [];
+
+  var byActivityManager = byManagerRows.map(function(r) {
+    var row = {
+      activity_manager: text_(r.activity_manager),
+      total_short:     parseInt(text_(r.total_short),    10) || 0,
+      total_long:      parseInt(text_(r.total_long),     10) || 0,
+      total:           parseInt(text_(r.total),          10) || 0,
+      num_instructors: parseInt(text_(r.num_instructors),10) || 0,
+      course_endings:  parseInt(text_(r.course_endings), 10) || 0,
+      exceptions:      parseInt(text_(r.exceptions),     10) || 0
+    };
+    if (canViewFinance) {
+      row.finance_open = parseInt(text_(r.finance_open), 10) || 0;
+    }
+    return row;
+  });
+
+  var snapshotData = {
+    total_short_activities:    totalShort,
+    total_long_activities:     totalLong,
+    active_instructors_count:  totalInstr,
+    course_endings_current_month: courseEndings,
+    finance_open_count:        canViewFinance ? financeOpen : 0,
+    exceptions_count:          exceptCount,
+    active_courses_current_month: activeCurrent,
+    active_courses_next_month: activeNext,
+    missing_instructor_count:  missingInstr,
+    missing_start_date_count:  missingDate,
+    late_end_date_count:       lateEnd
+  };
+
+  var kpiCards = buildDashboardSnapshotKpis_(snapshotData, canViewFinance);
+
+  return {
+    month: ym,
+    can_view_finance: canViewFinance,
+    totals: {
+      total_short_activities:           totalShort,
+      total_long_activities:            totalLong,
+      total_instructors:                totalInstr,
+      total_course_endings_current_month: courseEndings,
+      exceptions_count:                 exceptCount,
+      short: totalShort,
+      long:  totalLong
+    },
+    by_activity_manager: byActivityManager,
+    summary: {
+      active_courses_current_month: activeCurrent,
+      ending_courses_current_month: courseEndings,
+      active_courses_next_month:    activeNext,
+      exceptions_count:             exceptCount,
+      current_month_exceptions_count: 0,
+      active_instructors:           allInstructorNames,
+      active_instructors_by_manager: {},
+      missing_instructor_count:  missingInstr,
+      missing_start_date_count:  missingDate,
+      late_end_date_count:       lateEnd,
+      short_activities:          []
+    },
+    kpi_cards: kpiCards,
+    show_only_nonzero_kpis: showOnlyNonzeroKpis !== false,
+    _is_snapshot: true
+  };
+}
+
 function parseJsonObjectSafeForDashboard_(raw, fallback) {
   if (raw === null || raw === undefined) return fallback;
   if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
@@ -265,39 +389,6 @@ function resolveExceptionsCountForDashboard_(summaryObj, rawExceptions) {
   return (isNaN(fromRaw) || fromRaw < 0) ? 0 : fromRaw;
 }
 
-function enrichDashboardPayloadWithSharedExceptions_(payload, ym) {
-  if (!payload || typeof payload !== 'object') return payload;
-  var rows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
-  var exceptionSummary = getExceptionsSummary_(rows, ym, { include_rows: false });
-  var total = exceptionSummary.totalExceptionInstances || 0;
-  var byManager = exceptionSummary.byManager || {};
-
-  if (!payload.summary || typeof payload.summary !== 'object') payload.summary = {};
-  payload.summary.exceptions_count = total;
-  payload.summary.current_month_exceptions_count = exceptionSummary.currentMonthExceptions || 0;
-
-  if (payload.totals && typeof payload.totals === 'object') {
-    payload.totals.exceptions_count = total;
-  }
-  if (Array.isArray(payload.kpi_cards)) {
-    payload.kpi_cards = payload.kpi_cards.map(function(card) {
-      if (card && card.id === 'exceptions') {
-        card.title = String(total);
-        card.value = total;
-      }
-      return card;
-    });
-  }
-  if (Array.isArray(payload.by_activity_manager)) {
-    payload.by_activity_manager = payload.by_activity_manager.map(function(row) {
-      var manager = text_(row && row.activity_manager) || 'unassigned';
-      row.exceptions = byManager[manager] || 0;
-      return row;
-    });
-  }
-  return payload;
-}
-
 function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, canViewFinance) {
   var summary = parseJsonObjectSafeForDashboard_(pickField_(primaryRow, ['summary_json'], null), {});
   if (!Array.isArray(summary.active_instructors) || !summary.active_instructors.length) {
@@ -315,6 +406,9 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
     summary,
     pickField_(primaryRow, ['exceptions_count', 'exceptions'], summary.exceptions_count)
   );
+  var cmExc = summary.current_month_exceptions_count;
+  summary.current_month_exceptions_count =
+    typeof cmExc === 'number' && !isNaN(cmExc) ? cmExc : (parseInt(text_(cmExc), 10) || 0);
   var finRaw = summary.finance_open_count;
   summary.finance_open_count = typeof finRaw === 'number' && !isNaN(finRaw)
     ? finRaw
@@ -376,6 +470,7 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
       total_long_activities: totalLongActive,
       total_instructors: totalInstr,
       total_course_endings_current_month: courseEndings,
+      exceptions_count: exceptCount,
       short: totalShort,
       long: totalLongActive
     },
@@ -459,19 +554,51 @@ function actionDashboardSnapshot_(user, payload) {
   var refreshControlMap = readDashboardRefreshControlMap_();
   var snapshotFreshness = getDashboardSnapshotFreshness_(refreshControlMap);
   if (!snapshotFreshness.fresh) {
-    var freshFallback = actionDashboard_(user, payload || {});
-    if (freshFallback && typeof freshFallback === 'object') {
-      freshFallback._is_snapshot = false;
-      freshFallback._snapshot_fallback_reason = snapshotFreshness.reason || 'stale_snapshot';
+    var staleReason = snapshotFreshness.reason || 'stale_snapshot';
+    var showOnlyFromControl = yesNo_(refreshControlMap.show_only_nonzero_kpis) !== 'no';
+
+    markRequestPerf_('dashboardSnapshot:stale snapshot reads:start');
+    var persistedStale = readPersistedDashboardSnapshotRowsForMonth_(ym);
+    markRequestPerf_('dashboardSnapshot:stale snapshot reads:end');
+
+    var stalePayload;
+    if (!persistedStale.snap || !persistedStale.hasSummarySnapshotSheet) {
+      stalePayload = {
+        month: ym,
+        can_view_finance: canViewFinance,
+        totals: {},
+        summary: {},
+        by_activity_manager: [],
+        kpi_cards: [],
+        show_only_nonzero_kpis: showOnlyFromControl,
+        _is_snapshot: true,
+        _is_stale: true,
+        _snapshot_fallback_reason: staleReason
+      };
+    } else {
+      markRequestPerf_('dashboardSnapshot:build kpi cards:start');
+      stalePayload = composeDashboardPayloadFromSummarySnapshot_(
+        ym,
+        canViewFinance,
+        persistedStale.snap,
+        persistedStale.byManagerRows,
+        showOnlyFromControl
+      );
+      markRequestPerf_('dashboardSnapshot:build kpi cards:end');
+      stalePayload._is_stale = true;
+      stalePayload._snapshot_fallback_reason = staleReason;
     }
+
     setRequestPerfField_('dashboard_used_view', false);
     setRequestPerfField_('dashboard_cache_hit', false);
-    setRequestPerfField_('dashboard_fallback_used', true);
+    setRequestPerfField_('dashboard_fallback_used', false);
     setRequestPerfField_('dashboard_view_rows_read', 0);
-    setRequestPerfField_('payload_bytes', JSON.stringify(freshFallback || {}).length);
+    setRequestPerfField_('payload_bytes', JSON.stringify(stalePayload || {}).length);
     markRequestPerf_('dashboard:force_fallback_by_freshness:true');
-    markRequestPerf_('dashboard:fallback_used:true');
-    return freshFallback;
+    markRequestPerf_('dashboard:stale_snapshot:true');
+    markRequestPerf_('dashboard:fallback_used:false');
+    markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
+    return stalePayload;
   }
 
   markRequestPerf_('dashboardSnapshot:monthly view lookup:start');
@@ -484,7 +611,6 @@ function actionDashboardSnapshot_(user, payload) {
   markRequestPerf_('dashboardSnapshot:monthly view lookup:end');
 
   if (viewTry && viewTry.ok && viewTry.payload) {
-    viewTry.payload = enrichDashboardPayloadWithSharedExceptions_(viewTry.payload, ym);
     setRequestPerfField_('dashboard_used_view', true);
     setRequestPerfField_('dashboard_fallback_used', false);
     setRequestPerfField_('dashboard_cache_hit', !!viewTry.cache_hit);
@@ -499,36 +625,13 @@ function actionDashboardSnapshot_(user, payload) {
   setRequestPerfField_('dashboard_used_view', false);
   setRequestPerfField_('dashboard_cache_hit', false);
 
-  var snap = null;
-  var byManagerRows = [];
+  markRequestPerf_('dashboardSnapshot:read persisted snapshot sheets:start');
+  var persisted = readPersistedDashboardSnapshotRowsForMonth_(ym);
+  markRequestPerf_('dashboardSnapshot:read persisted snapshot sheets:end');
 
-  var ss = getSpreadsheet_();
-  var hasSummarySnapshotSheet = !!ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT);
-
-  if (hasSummarySnapshotSheet) {
-    markRequestPerf_('dashboardSnapshot:read summary snapshot:start');
-    var summaryRows = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT, SUMMARY_SNAPSHOT_HEADERS_);
-    snap = summaryRows.find(function(r) {
-      return normalizeSnapshotMonthYm_(r.month_ym) === ym;
-    }) || null;
-    markRequestPerf_('dashboardSnapshot:read summary snapshot:end');
-  }
-
-  if (ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT)) {
-    markRequestPerf_('dashboardSnapshot:read by manager snapshot:start');
-    var allByMgr = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT, BY_MANAGER_SNAPSHOT_HEADERS_);
-    var filteredByMgr = allByMgr.filter(function(r) {
-      return normalizeSnapshotMonthYm_(r.month_ym) === ym;
-    });
-    var seenMgrKeys = {};
-    byManagerRows = filteredByMgr.filter(function(r) {
-      var key = text_(r.activity_manager);
-      if (!key || seenMgrKeys[key]) return false;
-      seenMgrKeys[key] = true;
-      return true;
-    });
-    markRequestPerf_('dashboardSnapshot:read by manager snapshot:end');
-  }
+  var snap = persisted.snap;
+  var byManagerRows = persisted.byManagerRows;
+  var hasSummarySnapshotSheet = persisted.hasSummarySnapshotSheet;
 
   if (!snap || !hasSummarySnapshotSheet) {
     if (payload && payload.force_full === true) {
@@ -564,96 +667,20 @@ function actionDashboardSnapshot_(user, payload) {
     return stubPayload;
   }
 
-  var s = snap || {};
-
-  var totalShort     = parseInt(text_(s.total_short_activities),   10) || 0;
-  var totalLong      = parseInt(text_(s.total_long_activities),    10) || 0;
-  var totalInstr     = parseInt(text_(s.active_instructors_count), 10) || 0;
-  var courseEndings  = parseInt(text_(s.course_endings_current_month), 10) || 0;
-  var financeOpen    = parseInt(text_(s.finance_open_count),       10) || 0;
-  var missingInstr   = parseInt(text_(s.missing_instructor_count), 10) || 0;
-  var missingDate    = parseInt(text_(s.missing_start_date_count), 10) || 0;
-  var lateEnd        = parseInt(text_(s.late_end_date_count),      10) || 0;
-  var exceptCount    = resolveExceptionsCountForDashboard_({
-    missing_instructor_count: missingInstr,
-    missing_start_date_count: missingDate,
-    late_end_date_count: lateEnd
-  }, s.exceptions_count);
-  var activeCurrent  = parseInt(text_(s.active_courses_current_month), 10) || 0;
-  var activeNext     = parseInt(text_(s.active_courses_next_month), 10) || 0;
-
-  var combinedStr = text_(s.active_instructors_names);
-  var allInstructorNames = combinedStr
-    ? combinedStr.split(',').map(function(n) { return n.trim(); }).filter(Boolean)
-    : [];
-
-  var byActivityManager = byManagerRows.map(function(r) {
-    var row = {
-      activity_manager: text_(r.activity_manager),
-      total_short:     parseInt(text_(r.total_short),    10) || 0,
-      total_long:      parseInt(text_(r.total_long),     10) || 0,
-      total:           parseInt(text_(r.total),          10) || 0,
-      num_instructors: parseInt(text_(r.num_instructors),10) || 0,
-      course_endings:  parseInt(text_(r.course_endings), 10) || 0,
-      exceptions:      parseInt(text_(r.exceptions),     10) || 0
-    };
-    if (canViewFinance) {
-      row.finance_open = parseInt(text_(r.finance_open), 10) || 0;
-    }
-    return row;
-  });
-
-  var snapshotData = {
-    total_short_activities:    totalShort,
-    total_long_activities:     totalLong,
-    active_instructors_count:  totalInstr,
-    course_endings_current_month: courseEndings,
-    finance_open_count:        canViewFinance ? financeOpen : 0,
-    exceptions_count:          exceptCount,
-    active_courses_current_month: activeCurrent,
-    active_courses_next_month: activeNext,
-    missing_instructor_count:  missingInstr,
-    missing_start_date_count:  missingDate,
-    late_end_date_count:       lateEnd
-  };
-
-  markRequestPerf_('dashboardSnapshot:build kpi cards:start');
-  var kpiCards = buildDashboardSnapshotKpis_(snapshotData, canViewFinance);
-  markRequestPerf_('dashboardSnapshot:build kpi cards:end');
   markRequestPerf_('dashboardSnapshot:settings/show_only_nonzero_kpis:start');
   var flags = getDashboardSnapshotFlags_();
   markRequestPerf_('dashboardSnapshot:settings/show_only_nonzero_kpis:end');
+  markRequestPerf_('dashboardSnapshot:build kpi cards:start');
+  var sheetSnapshotPayload = composeDashboardPayloadFromSummarySnapshot_(
+    ym,
+    canViewFinance,
+    snap,
+    byManagerRows,
+    flags.show_only_nonzero_kpis !== false
+  );
+  markRequestPerf_('dashboardSnapshot:build kpi cards:end');
   markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
 
-  var sheetSnapshotPayload = {
-    month: ym,
-    can_view_finance: canViewFinance,
-    totals: {
-      total_short_activities:           totalShort,
-      total_long_activities:            totalLong,
-      total_instructors:                totalInstr,
-      total_course_endings_current_month: courseEndings,
-      short: totalShort,
-      long:  totalLong
-    },
-    by_activity_manager: byActivityManager,
-    summary: {
-      active_courses_current_month: activeCurrent,
-      ending_courses_current_month: courseEndings,
-      active_courses_next_month:    activeNext,
-      exceptions_count:             exceptCount,
-      active_instructors:           allInstructorNames,
-      active_instructors_by_manager: {},
-      missing_instructor_count:  missingInstr,
-      missing_start_date_count:  missingDate,
-      late_end_date_count:       lateEnd,
-      short_activities:          []
-    },
-    kpi_cards: kpiCards,
-    show_only_nonzero_kpis: flags.show_only_nonzero_kpis !== false,
-    _is_snapshot: true
-  };
-  sheetSnapshotPayload = enrichDashboardPayloadWithSharedExceptions_(sheetSnapshotPayload, ym);
   setRequestPerfField_('dashboard_fallback_used', false);
   setRequestPerfField_('dashboard_view_rows_read', 0);
   setRequestPerfField_('payload_bytes', JSON.stringify(sheetSnapshotPayload).length);
