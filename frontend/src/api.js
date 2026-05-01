@@ -210,6 +210,7 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
       pushPerfRequest({
         action: fallbackAction,
         duration_ms: 0,
+        slow: false,
         payload_size: JSON.stringify(hit.data || {}).length,
         used_read_model: true,
         fallback_used: false,
@@ -363,6 +364,21 @@ function emitPerfEntry(entry) {
   }
 }
 
+function buildPerfRequestEntry(action, requestStart, lastResponseText, perfMeta = {}, sheetReads = null, backendDebug = null) {
+  const durationMs = Math.round(performance.now() - requestStart);
+  return {
+    action: perfMeta.action || action,
+    duration_ms: durationMs,
+    slow: durationMs > 3000,
+    payload_size: typeof lastResponseText === 'string' ? lastResponseText.length : null,
+    used_read_model: Boolean(perfMeta.used_read_model || action === 'readModelGet'),
+    fallback_used: Boolean(perfMeta.fallback_used),
+    cache_hit: Boolean(perfMeta.cache_hit),
+    sheet_reads_count: sheetReads,
+    backend_debug: backendDebug
+  };
+}
+
 async function request(action, payload = {}, perfMeta = {}) {
   const timeoutMs = typeof perfMeta?.timeout_ms === 'number' ? perfMeta.timeout_ms : undefined;
   if (!config.apiUrl) {
@@ -463,16 +479,14 @@ async function request(action, payload = {}, perfMeta = {}) {
     invalidateReadModelLocalCacheByAction(action);
   }
   const sheetReads = json?.data?.debug_perf?.sheet_reads_count ?? json?.data?.sheet_reads_count ?? null;
-  emitPerfEntry({
-    action: perfMeta.action || action,
-    duration_ms: Math.round(performance.now() - requestStart),
-    payload_size: lastResponseText.length,
-    used_read_model: Boolean(perfMeta.used_read_model || action === 'readModelGet'),
-    fallback_used: Boolean(perfMeta.fallback_used),
-    cache_hit: Boolean(perfMeta.cache_hit),
-    sheet_reads_count: sheetReads,
-    backend_debug: json.data && json.data.debug_perf ? json.data.debug_perf : null
-  });
+  emitPerfEntry(buildPerfRequestEntry(
+    action,
+    requestStart,
+    lastResponseText,
+    perfMeta,
+    sheetReads,
+    json.data && json.data.debug_perf ? json.data.debug_perf : null
+  ));
   return normalized;
 }
 

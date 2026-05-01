@@ -119,10 +119,12 @@ function recordRenderPerf(route, phase, durationMs, extra = {}) {
       window.__dsPerf = { requests: [], renders: [], screens: {} };
     };
   }
+  const normalizedDuration = Math.round(durationMs);
   const entry = {
     route: String(route || 'unknown'),
     phase: String(phase || 'render'),
-    duration_ms: Math.round(durationMs),
+    duration_ms: normalizedDuration,
+    slow: normalizedDuration > 3000,
     at: new Date().toISOString(),
     ...extra
   };
@@ -159,45 +161,45 @@ function perfStore() {
       heavy_renders: []
     };
   }
+  if (typeof window.__printDsPerfSummary !== 'function') {
+    window.__printDsPerfSummary = () => {
+      const currentStore = perfStore();
+      if (!currentStore) return null;
+      const requests = Array.isArray(currentStore.requests) ? currentStore.requests : [];
+      const renders = Array.isArray(currentStore.renders) ? currentStore.renders : [];
+      const slowestRequests = [...requests]
+        .sort((a, b) => (b?.duration_ms || 0) - (a?.duration_ms || 0))
+        .slice(0, 5);
+      const slowestScreens = [...renders]
+        .sort((a, b) => (b?.duration_ms || 0) - (a?.duration_ms || 0))
+        .slice(0, 5);
+      const actionCounts = requests.reduce((acc, item) => {
+        const key = String(item?.action || 'unknown');
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      const summary = {
+        slowest_requests: slowestRequests,
+        slowest_screens: slowestScreens,
+        action_counts: actionCounts
+      };
+      if (typeof console !== 'undefined' && typeof console.table === 'function') {
+        console.info('DS Perf Summary');
+        console.table(slowestRequests);
+        console.table(slowestScreens);
+        console.table(Object.entries(actionCounts).map(([action, count]) => ({ action, count })));
+      } else if (typeof console !== 'undefined' && typeof console.info === 'function') {
+        console.info('DS Perf Summary', summary);
+      }
+      return summary;
+    };
+  }
   return window.__dsPerf;
 }
 
-function ensurePerfSummaryPrinter() {
-  if (typeof window === 'undefined') return;
-  if (typeof window.__printDsPerfSummary === 'function') return;
-  window.__printDsPerfSummary = () => {
-    const store = perfStore() || { requests: [], renders: [], screens: {}, navigation: {} };
-    const requests = Array.isArray(store.requests) ? store.requests : [];
-    const renders = Array.isArray(store.renders) ? store.renders : [];
-    const duplicateRequests = Array.isArray(store?.navigation?.duplicate_requests) ? store.navigation.duplicate_requests : [];
-
-    const topApi = [...requests].sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0)).slice(0, 10);
-    const topRenders = [...renders].sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0)).slice(0, 10);
-    const byAction = requests.reduce((acc, row) => {
-      const key = String(row?.action || 'unknown');
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
-    const slowCount = requests.filter((row) => row?.slow === true).length;
-
-    // eslint-disable-next-line no-console
-    console.groupCollapsed(`[dsPerf] summary: api=${requests.length}, renders=${renders.length}, slow_api=${slowCount}`);
-    // eslint-disable-next-line no-console
-    console.table(topApi);
-    // eslint-disable-next-line no-console
-    console.table(topRenders);
-    // eslint-disable-next-line no-console
-    console.table(Object.entries(byAction).map(([action, count]) => ({ action, count })).sort((a, b) => b.count - a.count));
-    // eslint-disable-next-line no-console
-    console.info('[dsPerf] slow_api_count', slowCount);
-    // eslint-disable-next-line no-console
-    console.info('[dsPerf] duplicate_requests', duplicateRequests.length);
-    // eslint-disable-next-line no-console
-    console.groupEnd();
-  };
+if (typeof window !== 'undefined') {
+  perfStore();
 }
-
-ensurePerfSummaryPrinter();
 
 function pushDuplicateRequestPerf(cacheKey, route) {
   const store = perfStore();
