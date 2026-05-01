@@ -189,6 +189,7 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
   clearBtn?.addEventListener('click', () => {
     const prevVisibleCount = state.listFilters?.[scope]?.visibleCount;
     state.listFilters[scope] = { q: '', visibleCount: typeof prevVisibleCount === 'number' ? prevVisibleCount : DEFAULT_VISIBLE_LIMIT };
+    if (typeof options.onClear === 'function') options.onClear();
     rerender();
   });
 }

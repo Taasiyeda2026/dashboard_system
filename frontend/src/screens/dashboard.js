@@ -114,8 +114,8 @@ function renderStructuredSummary(summary, ym, byManager) {
   return `<div class="ds-summary-panel__structured">
     <h3 class="ds-summary-panel__title">סיכום חודשי – <strong>${escapeHtml(monthTitle)}</strong></h3>
 
-    <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(monthTitle)}</strong> יש קורסים (<strong>${activeCurrent}</strong>) קורסים פעילים.</p>
-    <p class="ds-summary-panel__text">במהלך החודש צפויים להסתיים (<strong>${endingCurrent}</strong>) קורסי.</p>
+    <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(monthTitle)}</strong> יש (<strong>${activeCurrent}</strong>) קורסים פעילים.</p>
+    <p class="ds-summary-panel__text">במהלך החודש צפויים להסתיים (<strong>${endingCurrent}</strong>) קורסים.</p>
     <p class="ds-summary-panel__text ds-summary-panel__text--districts">מחוז צפון: (<strong>${northActive}</strong>) קורסים פעילים · מחוז דרום: (<strong>${southActive}</strong>) קורסים פעילים</p>
     <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(nextMonthTitle)}</strong> צפויים להיות (<strong>${activeNext}</strong>) קורסים פעילים.</p>
 
@@ -384,12 +384,13 @@ export const dashboardScreen = {
       }
       if (action === 'kpi|instructors') {
         state.route = 'instructors';
+        state.instructorsActiveOnly = true;
         ui.closeAll();
         rerender();
         return;
       }
       if (action === 'kpi|endings') {
-        goActivitiesDrill(state, { activityEndingCurrentMonth: true });
+        state.route = 'end_dates';
         ui.closeAll();
         rerender();
         return;
@@ -407,6 +408,7 @@ export const dashboardScreen = {
         const kind = parts[2] || 'long';
         if (kind === 'instructors') {
           state.route = 'instructors';
+          state.instructorsActiveOnly = true;
         } else if (kind === 'long') {
           goActivitiesDrill(state, { activityQuickManager: name, activityQuickFamily: 'long' });
         } else if (kind === 'endings') {

@@ -239,12 +239,15 @@ export const monthScreen = {
       const cellItems = applyLocalFilters(monthCellItems(cell, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
       const n = cellItems.length;
       const isToday = cell.date === todayIso;
-      const isShabbat = cellDate.getDay() === 6;
+      const dayOfWeek = cellDate.getDay();
+      const isShabbat = dayOfWeek === 6;
+      const isFriday = dayOfWeek === 5;
       const warn = dayNeedsAttention(cellItems);
       const extra = [
         isToday ? 'is-cal-today' : '',
         warn ? 'is-month-warn' : '',
         isShabbat ? 'is-shabbat' : '',
+        (isFriday || isShabbat) ? 'is-weekend' : '',
         n > 0 ? 'has-activities' : 'is-no-activities'
       ].filter(Boolean).join(' ');
       const holiday = getHolidayLabel(cell.date);
@@ -271,7 +274,7 @@ export const monthScreen = {
 
     const navLoading = !!state.monthNavLoading;
     const gridHtml = `
-      <div class="ds-cal-wrap${hideSaturday ? ' ds-cal-wrap--hide-shabbat' : ''}${navLoading ? ' is-inline-loading' : ''}" dir="rtl">
+      <div class="ds-cal-wrap ds-screen-compact-90${hideSaturday ? ' ds-cal-wrap--hide-shabbat' : ''}${navLoading ? ' is-inline-loading' : ''}" dir="rtl">
         <div class="ds-cal-weekdays" role="row">${weekdayRow}</div>
         <div class="ds-cal-grid" role="grid" aria-label="לוח חודש">${slots.join('')}</div>
       </div>`;

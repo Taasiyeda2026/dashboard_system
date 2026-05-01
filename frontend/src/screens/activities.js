@@ -40,7 +40,8 @@ const ACTIVITY_FILTER_FIELDS = [
   { key: 'activity_name', label: 'תוכנית' },
   { key: 'authority', label: 'רשות' },
   { key: 'funding', label: 'מימון' },
-  { key: 'school', label: 'בית ספר' }
+  { key: 'school', label: 'בית ספר' },
+  { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
 ];
 const ACTIVITY_SEARCH_FIELDS = [
   'RowID',
@@ -585,7 +586,13 @@ export const activitiesScreen = {
       } catch {}
     }
 
-    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 420 });
+    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 420, onClear: () => {
+      state.activityQuickFamily = '';
+      state.activityQuickManager = '';
+      state.activityEndingCurrentMonth = false;
+      state.activityTab = 'all';
+      state.activityFinanceStatus = '';
+    } });
     const runMonthShift = (delta) => {
       if (state.activitiesNavLoading) return;
       const startedAt = Date.now();

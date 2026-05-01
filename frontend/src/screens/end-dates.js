@@ -83,7 +83,7 @@ function renderMonthTable(month, monthIdx) {
       ${escapeHtml(month.label)}
       <span class="ds-end-dates__month-count">${month.rows.length}</span>
     </h3>
-    <table class="ds-end-table" dir="rtl">
+    <table class="ds-end-table ds-end-table--compact" dir="rtl">
       <thead><tr>
         <th class="ds-end-th ds-end-th--name">שם פעילות</th>
         <th class="ds-end-th">בית ספר</th>

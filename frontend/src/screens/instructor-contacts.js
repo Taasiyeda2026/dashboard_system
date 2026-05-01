@@ -137,9 +137,9 @@ export const instructorContactsScreen = {
 
     let searchTimer;
     root.querySelector('#instr-contacts-search')?.addEventListener('input', (ev) => {
-      state.instrContactsSearch = ev.target.value || '';
+      const next = ev.target.value || '';
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => rerender(), 180);
+      searchTimer = setTimeout(() => { state.instrContactsSearch = next; rerender(); }, 280);
     });
 
     root.querySelectorAll('[data-active-filter]').forEach((btn) => {

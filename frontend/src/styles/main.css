@@ -8402,3 +8402,13 @@ select.ds-activity-add-field .ds-input,
     transform: none !important;
   }
 }
+
+
+.ds-screen-compact-90 { zoom: .9; }
+.ds-week-col__head { background: #fff !important; }
+.ds-week-col__head-top { background: rgba(103, 232, 249, 0.2); margin: -12px -12px 8px; padding: 10px 12px; border-radius: 12px 12px 0 0; }
+.ds-cal-wd { font-weight: 800; }
+.ds-interactive-card.is-weekend { background: rgba(244, 114, 182, 0.16); }
+.ds-interactive-card.is-cal-today { box-shadow: inset 0 0 0 2px rgba(29,78,216,.45); }
+.ds-end-table--compact { margin-inline: auto; width: min(100%, 1100px); }
+.ds-end-table--compact th, .ds-end-table--compact td { padding: 6px 8px; }
