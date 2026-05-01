@@ -60,6 +60,7 @@ function debugScriptCacheLoaded_() {
 }
 
 function scriptCacheInvalidateDataViews_() {
+  assertMutationAllowedInCurrentRequest_('scriptCacheInvalidateDataViews');
   try {
     var c = CacheService.getScriptCache();
     bumpDataViewsCacheVersion_();
@@ -83,6 +84,7 @@ function dataViewsCacheVersion_() {
 }
 
 function bumpDataViewsCacheVersion_() {
+  assertMutationAllowedInCurrentRequest_('bumpDataViewsCacheVersion');
   try {
     CacheService.getScriptCache().put(
       SCRIPT_CACHE_KEY_DATA_VIEWS_VERSION,

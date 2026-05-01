@@ -282,8 +282,43 @@ function parseJsonObject_(raw, fallback) {
 
 var __rqPerf_ = null;
 
+/** Wall-clock SLA ceilings (ms); breaches log only — see maybeLogSlaBreached_. */
+var SLA_THRESHOLDS_MS_ = {
+  login: 1000,
+  dashboard: 1500,
+  dashboardSnapshot: 1500,
+  activities: 2000,
+  week: 2000,
+  month: 2000
+};
+
 function perfNowMs_() {
   return new Date().getTime();
+}
+
+/**
+ * Non-blocking: console.warn when request wall time exceeds SLA for the action.
+ * Uses __rqPerf_.started_ms from beginRequestPerf_; no effect if perf was not started.
+ */
+function maybeLogSlaBreached_(perfMeta) {
+  if (!__rqPerf_ || typeof __rqPerf_.started_ms !== 'number') return;
+  var action = text_((perfMeta && perfMeta.action) || __rqPerf_.action || '');
+  if (!action) return;
+  var limit = SLA_THRESHOLDS_MS_[action];
+  if (!limit) return;
+  var elapsed = Math.max(0, perfNowMs_() - __rqPerf_.started_ms);
+  if (elapsed <= limit) return;
+  try {
+    console.warn('[sla]', JSON.stringify({
+      action: action,
+      reason: 'sla_exceeded',
+      duration_ms: elapsed,
+      threshold_ms: limit,
+      overflow_ms: elapsed - limit,
+      cache_hit: !!(perfMeta && perfMeta.cache_hit),
+      errored: !!(perfMeta && perfMeta.errored)
+    }));
+  } catch (_e) {}
 }
 
 /**
@@ -318,6 +353,7 @@ function inferFallbackUsedFromPerfCustom_(custom) {
   if (custom.fallback_used !== undefined && custom.fallback_used !== null) {
     return !!custom.fallback_used;
   }
+  if (custom.read_model_legacy_fallback) return true;
   if (custom.dashboard_fallback_used) return true;
   if (custom.week_fallback_used) return true;
   if (custom._activities_fallback_used) return true;
@@ -411,6 +447,9 @@ function buildPerfPayload_(responsePayload, meta) {
 
 function jsonResponse_(payload, perfMeta) {
   var body = payload || {};
+  try {
+    maybeLogSlaBreached_(perfMeta || {});
+  } catch (_sla) {}
   var perf = buildPerfPayload_(body, perfMeta);
   if (perf) {
     if (body.ok && body.data && typeof body.data === 'object') {

@@ -5,12 +5,16 @@
   "main": "sw.js",
   "type": "module",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/postbuild-dist.mjs",
+    "preview": "vite preview",
     "test": "node --test tests/*.test.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "jsdom": "^29.0.2"
+    "jsdom": "^29.0.2",
+    "vite": "^6.0.3"
   }
 }

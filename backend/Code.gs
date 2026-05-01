@@ -3,6 +3,9 @@
  *
  * Keep `doGet` / `doPost` here so repository setup is explicit and
  * consistent with Apps Script deployment expectations.
+ *
+ * Ops: POST action `health_check` (admin / operation_manager) returns rollup
+ * metrics from `ops_health.gs` without debug_perf.
  */
 function doGet() {
   return handleGet_();
@@ -70,6 +73,9 @@ function installProductionAutomation() {
     }},
     { handler: 'runDataMaintenanceTrigger', frequency: 'hourly', install: function() {
       ScriptApp.newTrigger('runDataMaintenanceTrigger').timeBased().everyHours(1).create();
+    }},
+    { handler: 'refreshAllReadModelsTrigger', frequency: 'hourly', install: function() {
+      ScriptApp.newTrigger('refreshAllReadModelsTrigger').timeBased().everyHours(1).create();
     }}
   ];
   var existing = ScriptApp.getProjectTriggers();
@@ -103,11 +109,6 @@ function installProductionAutomation() {
       handler: target.handler,
       frequency: target.frequency
     });
-  });
-
-  result.skipped.push({
-    handler: 'refreshAllReadModelsTrigger',
-    reason: 'READ_MODELS_ENABLED is false by default in frontend/src/api.js'
   });
 
   var updated = ScriptApp.getProjectTriggers();
@@ -145,10 +146,13 @@ function getProductionAutomationStatus() {
 
   var keepWarm = summarize('keepWarm', 'every_10_minutes');
   var maintenance = summarize('runDataMaintenanceTrigger', 'hourly');
-  var hasDuplicates = keepWarm.duplicate || maintenance.duplicate;
+  var readModels = summarize('refreshAllReadModelsTrigger', 'hourly');
+  var hasDuplicates =
+    keepWarm.duplicate || maintenance.duplicate || readModels.duplicate;
   var missing = [];
   if (!keepWarm.exists) missing.push('keepWarm');
   if (!maintenance.exists) missing.push('runDataMaintenanceTrigger');
+  if (!readModels.exists) missing.push('refreshAllReadModelsTrigger');
 
   var recommendation = missing.length === 0 && !hasDuplicates
     ? 'automation_is_healthy'
@@ -157,6 +161,7 @@ function getProductionAutomationStatus() {
   return {
     keepWarm: keepWarm,
     runDataMaintenanceTrigger: maintenance,
+    refreshAllReadModelsTrigger: readModels,
     duplicates_detected: hasDuplicates,
     missing_handlers: missing,
     recommendation: recommendation
@@ -180,23 +185,81 @@ function refreshAllReadModels() {
   return refreshAllReadModels_();
 }
 
-function refreshAllReadModelsTrigger() {
-  refreshAllReadModels_();
+/**
+ * Ensures a single clock trigger calls refreshAllReadModelsTrigger every hour.
+ * - 0 triggers: creates one hourly trigger.
+ * - 1 trigger: left as-is (schedule cannot be read back from Trigger; use installReadModelsTriggers() to force hourly).
+ * - 2+ triggers: removes all and creates one hourly (fixes duplicates or legacy multi-clock installs).
+ */
+function ensureReadModelsRefreshTrigger_() {
+  var handler = 'refreshAllReadModelsTrigger';
+  var mine = ScriptApp.getProjectTriggers().filter(function(t) {
+    return t.getHandlerFunction && t.getHandlerFunction() === handler;
+  });
+  if (mine.length === 0) {
+    ScriptApp.newTrigger(handler)
+      .timeBased()
+      .everyHours(1)
+      .create();
+    return { status: 'installed', action: 'created_hourly', count: 1 };
+  }
+  if (mine.length > 1) {
+    mine.forEach(function(t) {
+      try {
+        ScriptApp.deleteTrigger(t);
+      } catch (_e) {}
+    });
+    ScriptApp.newTrigger(handler)
+      .timeBased()
+      .everyHours(1)
+      .create();
+    return {
+      status: 'installed',
+      action: 'replaced_with_single_hourly',
+      previous_count: mine.length,
+      count: 1
+    };
+  }
+  return { status: 'ok', action: 'none', count: 1 };
 }
 
+function refreshAllReadModelsTrigger() {
+  var ensured = ensureReadModelsRefreshTrigger_();
+  try {
+    console.info('[read_models] trigger_start', JSON.stringify({ trigger_ensure: ensured }));
+  } catch (_e) {}
+  var outcome = refreshAllReadModels_();
+  try {
+    if (outcome && outcome.skipped) {
+      console.info('[read_models] trigger_skipped', JSON.stringify(outcome));
+    } else {
+      console.info(
+        '[read_models] trigger_done',
+        JSON.stringify({
+          duration_ms: outcome && outcome.duration_ms,
+          failure_count: outcome && outcome.failure_count,
+          trigger_ensure: ensured
+        })
+      );
+    }
+  } catch (_e2) {}
+}
+
+/**
+ * Normalizes read-model triggers to exactly one hourly run (run once from the Apps Script editor after deploy).
+ */
 function installReadModelsTriggers() {
   var targetHandler = 'refreshAllReadModelsTrigger';
   ScriptApp.getProjectTriggers().forEach(function(t) {
     if (t.getHandlerFunction && t.getHandlerFunction() === targetHandler) {
-      ScriptApp.deleteTrigger(t);
+      try {
+        ScriptApp.deleteTrigger(t);
+      } catch (_e) {}
     }
   });
-  [7, 13, 19].forEach(function(hour) {
-    ScriptApp.newTrigger(targetHandler)
-      .timeBased()
-      .atHour(hour)
-      .everyDays(1)
-      .create();
-  });
-  return { status: 'installed', hours: [7, 13, 19] };
+  ScriptApp.newTrigger(targetHandler)
+    .timeBased()
+    .everyHours(1)
+    .create();
+  return { status: 'installed', frequency: 'hourly' };
 }
