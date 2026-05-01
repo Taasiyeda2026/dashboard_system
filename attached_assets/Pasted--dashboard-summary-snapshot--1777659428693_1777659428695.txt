@@ -1,0 +1,63 @@
+משימה לקודקס:
+
+בדקנו את קובץ הנתונים הפעיל ונמצא שיש אי־תאימות בין dashboard_summary_snapshot לבין view_dashboard_monthly.
+
+דוגמה:
+ב-dashboard_summary_snapshot עבור 2026-05:
+active_courses_current_month = 69
+exceptions_count = 15
+course_endings_current_month = 34
+
+אבל ב-view_dashboard_monthly עבור 2026-05:
+active_courses = 0
+exceptions_count = 0
+
+מסקנה:
+האוטומציה הנוכחית מרעננת dashboard snapshots / dashboard_refresh_control, אבל לא מרעננת באופן מלא את data views:
+- view_activity_meetings
+- view_dashboard_monthly
+- view_activities_summary
+
+מטרה:
+להבטיח שהתחזוקה האוטומטית תרענן גם את data views וגם את dashboard snapshots, בלי צורך בהרצות ידניות שוטפות.
+
+קבצים רלוונטיים:
+- backend/data-maintenance.gs
+- backend/views.gs
+- backend/dashboard-snapshot.gs
+- backend/Code.gs
+- README.md
+- tests מתאימים
+
+מה לבצע:
+1. לעדכן את runDataMaintenance_ כך שיריץ גם refreshDataViews_ כחלק מהתחזוקה האוטומטית.
+2. סדר מומלץ:
+   - syncDataLongDatesFromMeetings_
+   - refreshDataViews_
+   - refreshDashboardSnapshots_
+   - updateDashboardRefreshControl_
+3. לוודא שלא נוצרת כפילות bump מיותרת או מצב שבו data_views_version משתנה אחרי snapshot בצורה ששוברת freshness.
+4. לוודא ש-dashboard_refresh_control מסמן ok רק אחרי שגם data views וגם snapshots עודכנו בהצלחה.
+5. לוודא ש-month_ym ב-dashboard_summary_snapshot וב-dashboard_by_manager_snapshot נשמר כטקסט בפורמט YYYY-MM ולא כמספר Excel.
+6. אם refreshDataViews_ כבד מדי להרצה כל שעה, להציע תדירות בטוחה, אבל לא להשאיר את המערכת בלי רענון אוטומטי של data views.
+7. לעדכן את installProductionAutomation אם צריך, כך שהאוטומציה תתקין את התחזוקה הנכונה.
+8. לא להפעיל Read Models בפרונט.
+9. לא לשנות UI.
+10. לא להחזיר service worker.
+11. לא להפעיל persistent cache.
+12. לא לבצע refactor רחב.
+
+בדיקות:
+1. להריץ npm test.
+2. להוסיף/לעדכן בדיקה שמוודאת ש-runDataMaintenance_ קורא ל-refreshDataViews_ לפני refreshDashboardSnapshots_.
+3. להוסיף/לעדכן בדיקה שמוודאת ש-dashboard_refresh_control לא מסומן ok אם refreshDataViews_ נכשל.
+4. להוסיף/לעדכן בדיקה שמוודאת ש-month_ym נשמר בפורמט YYYY-MM.
+5. לוודא שאין שינוי frontend.
+
+בסוף להחזיר:
+- מה השתנה
+- האם data views מתרעננים עכשיו אוטומטית
+- האם snapshots מתרעננים אחרי data views
+- האם נדרש deploy backend
+- האם npm test עבר
+- האם נשארו נקודות פתוחות

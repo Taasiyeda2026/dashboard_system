@@ -158,6 +158,9 @@ function filterKpiCards(cards, showOnlyNonzero) {
 
 
 
+const DASHBOARD_LOAD_GUARD_MS = 22000;
+const DASHBOARD_LOAD_ERROR_HE = 'לא ניתן לטעון את לוח הבקרה כרגע. נסו לרענן או בדקו את חיבור השרת.';
+
 export const dashboardScreen = {
   async load({ api, state }) {
     let ym = state.dashboardMonthYm;
@@ -165,7 +168,53 @@ export const dashboardScreen = {
       ym = currentMonthYm();
     }
     state.dashboardMonthYm = ym;
-    return api.dashboardSnapshot({ month: ym });
+
+    const loadStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    let guardTimer = null;
+
+    const guardPromise = new Promise((_, reject) => {
+      guardTimer = setTimeout(
+        () => reject(new Error('dashboard_load_timeout')),
+        DASHBOARD_LOAD_GUARD_MS
+      );
+    });
+
+    try {
+      const data = await Promise.race([
+        api.dashboardSnapshot({ month: ym }),
+        guardPromise
+      ]);
+      clearTimeout(guardTimer);
+      const durationMs = Math.round(
+        (typeof performance !== 'undefined' ? performance.now() : Date.now()) - loadStart
+      );
+      // eslint-disable-next-line no-console
+      console.info('[dashboard-load]', {
+        action: 'dashboardSnapshot',
+        duration_ms: durationMs,
+        fallback_used: data?._is_snapshot === false,
+        snapshot_fallback_reason: data?._snapshot_fallback_reason || null,
+        month: ym
+      });
+      return data;
+    } catch (err) {
+      clearTimeout(guardTimer);
+      const durationMs = Math.round(
+        (typeof performance !== 'undefined' ? performance.now() : Date.now()) - loadStart
+      );
+      const isTimeout =
+        String(err?.message || '').includes('dashboard_load_timeout') ||
+        String(err?.message || '').includes('timeout');
+      // eslint-disable-next-line no-console
+      console.warn('[dashboard-load] failed', {
+        action: 'dashboardSnapshot',
+        duration_ms: durationMs,
+        is_timeout: isTimeout,
+        error: err?.message || String(err),
+        month: ym
+      });
+      throw new Error(DASHBOARD_LOAD_ERROR_HE);
+    }
   },
   render(data, { state } = {}) {
     const ym = data?.month || currentMonthYm();

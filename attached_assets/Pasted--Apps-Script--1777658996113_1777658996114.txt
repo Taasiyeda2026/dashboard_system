@@ -1,0 +1,64 @@
+משימה :
+
+יש לטפל בתקלה שבה לוח הבקרה נשאר על "טוען נתונים..." אחרי מעבר לכתובת Apps Script החדשה.
+
+מצב בפועל:
+המערכת נטענת, המשתמש מזוהה, הניווט מופיע, אבל לוח הבקרה נשאר תקוע ב-loading.
+
+מטרה:
+לאתר למה dashboardSnapshot / dashboard לא מסיים טעינה, ולמנוע מצב של loading אינסופי.
+
+קבצים רלוונטיים:
+- frontend/src/screens/dashboard.js
+- frontend/src/api.js
+- backend/dashboard-snapshot.gs
+- backend/router.gs
+- README.md אם נדרש תיעוד
+- tests מתאימים תחת tests
+
+מה לבדוק:
+1. לבדוק את קריאת dashboardSnapshot מה-frontend:
+   - האם יש catch תקין
+   - האם loading משתחרר גם בכשל
+   - האם מוצגת שגיאה במקום loading אינסופי
+
+2. לבדוק ב-backend:
+   - האם actionDashboardSnapshot_ יכול להיתקע כאשר snapshot לא fresh
+   - האם fallback ל-actionDashboard_ עלול להיות כבד מדי
+   - האם במקרה של missing/stale/error ב-dashboard_refresh_control מוחזרת תשובה ברורה
+   - האם יש מצב שבו מוחזר payload ריק/לא תקין שגורם לפרונט להמשיך loading
+
+3. להוסיף timeout / guard במסך dashboard:
+   - אם טעינת הדשבורד נמשכת יותר מדי, לשחרר loading
+   - להציג הודעה בעברית:
+     "לא ניתן לטעון את לוח הבקרה כרגע. נסו לרענן או בדקו את חיבור השרת."
+   - לא להשאיר את המשתמש על loading אינסופי
+
+4. להוסיף לוג מדידה ברור:
+   - action=dashboardSnapshot
+   - duration_ms
+   - fallback_used
+   - snapshot_fallback_reason אם קיים
+
+5. לא לשנות UI רחב.
+6. לא לשנות עיצוב מעבר להודעת שגיאה.
+7. לא להפעיל Read Models.
+8. לא להחזיר service worker.
+9. לא להפעיל persistent cache.
+10. לא לבצע refactor רחב.
+
+בדיקות:
+1. להריץ npm test.
+2. להוסיף/לעדכן בדיקה שמוודאת:
+   - dashboard loading משתחרר גם כאשר API נכשל
+   - dashboard מציג הודעת שגיאה במקום להישאר על loading
+   - אין loading אינסופי
+3. אם נמצא שהבעיה היא backend fallback כבד, להחזיר סיכום ברור ולא לבצע שינוי מסוכן בלי לציין.
+
+בסוף להחזיר:
+- מה נמצא כגורם התקיעה
+- האם הבעיה הייתה frontend loading/catch או backend dashboardSnapshot
+- אילו קבצים שונו
+- האם npm test עבר
+- האם נדרש deploy frontend בלבד או גם backend
+- האם נשארו נקודות פתוחות
