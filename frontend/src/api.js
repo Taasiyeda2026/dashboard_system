@@ -71,7 +71,10 @@ const READ_MODEL_CACHE_STORAGE_KEY = 'ds_read_model_cache_v2';
 const MANIFEST_TTL_MS = 30 * 1000;
 let manifestCache = { t: 0, data: null };
 
+// Gradual rollout switch stays OFF by default.
+// Dashboard monthly calls are legacy-by-design for now (see requestReadModel guard below).
 const READ_MODELS_ENABLED = false;
+const READ_MODEL_ENABLED_KEYS = new Set(['dashboard']);
 
 const RETRYABLE_SERVER_ERRORS = new Set([
   'network_error',
@@ -197,7 +200,10 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
     cache_hit: false,
     sheet_reads_count: null
   };
-  if (!READ_MODELS_ENABLED) {
+  if (!READ_MODELS_ENABLED || !READ_MODEL_ENABLED_KEYS.has(key)) {
+    return request(fallbackAction, fallbackPayload, { ...perfBase, ...options });
+  }
+  if (key === 'dashboard' && params && String(params.month || '').trim()) {
     return request(fallbackAction, fallbackPayload, { ...perfBase, ...options });
   }
   try {
