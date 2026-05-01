@@ -286,10 +286,26 @@ async function refreshReadModelInBackground_(key, params, localKey, manifestKey,
   } catch (_err) {}
 }
 
+/**
+ * When true, requests include debug_perf and console logs [perf] lines with server metrics.
+ * Enable any of:
+ *   localStorage.setItem('ds_debug_perf', '1')
+ *   localStorage.setItem('debug_perf', '1')   // legacy
+ *   window.__DEBUG_PERF__ = true
+ *   ?debug_perf=1 on the app URL
+ * Server: set script property DEBUG_PERF=1 for all requests without client flags.
+ */
 function isPerfDebugEnabled() {
   try {
     if (typeof window !== 'undefined' && window.__DEBUG_PERF__ === true) return true;
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('debug_perf') === '1') return true;
+    if (typeof localStorage !== 'undefined') {
+      if (localStorage.getItem('ds_debug_perf') === '1') return true;
+      if (localStorage.getItem('debug_perf') === '1') return true;
+    }
+    if (typeof window !== 'undefined' && window.location?.search) {
+      const q = new URLSearchParams(window.location.search).get('debug_perf');
+      if (q === '1' || (q && q.toLowerCase() === 'true')) return true;
+    }
   } catch { /* ignore */ }
   return false;
 }
@@ -365,23 +381,47 @@ function emitPerfEntry(entry) {
     slow: Number(entry?.duration_ms || 0) > 3000
   });
   if (isPerfDebugEnabled()) {
+    const line = {
+      action: entry.action,
+      duration_ms: entry.duration_ms,
+      server_duration_ms: entry.server_duration_ms,
+      sheet_reads_count: entry.sheet_reads_count,
+      payload_size: entry.payload_size,
+      server_payload_size: entry.server_payload_size,
+      fallback_used: entry.fallback_used,
+      cache_hit: entry.cache_hit
+    };
     // eslint-disable-next-line no-console
-    console.info('[perf]', entry);
+    console.info('[perf]', line, entry.backend_debug || '');
   }
 }
 
 function buildPerfRequestEntry(action, requestStart, lastResponseText, perfMeta = {}, sheetReads = null, backendDebug = null) {
   const durationMs = Math.round(performance.now() - requestStart);
+  const dbg = backendDebug && typeof backendDebug === 'object' ? backendDebug : null;
+  const fromServerCount = dbg?.sheet_reads_count;
+  const fromServerArray = Array.isArray(dbg?.sheet_reads) ? dbg.sheet_reads.length : null;
+  const mergedSheetReads =
+    sheetReads != null && sheetReads !== ''
+      ? sheetReads
+      : (fromServerCount != null ? fromServerCount : fromServerArray);
+  const serverDuration = dbg?.duration_ms ?? dbg?.total_ms ?? null;
+  const serverPayloadSize = dbg?.payload_size ?? dbg?.response_size_bytes ?? null;
+  const serverFallback = dbg?.fallback_used;
   return {
     action: perfMeta.action || action,
     duration_ms: durationMs,
+    server_duration_ms: serverDuration,
     slow: durationMs > 3000,
     payload_size: typeof lastResponseText === 'string' ? lastResponseText.length : null,
+    server_payload_size: serverPayloadSize,
     used_read_model: Boolean(perfMeta.used_read_model || action === 'readModelGet'),
-    fallback_used: Boolean(perfMeta.fallback_used),
-    cache_hit: Boolean(perfMeta.cache_hit),
-    sheet_reads_count: sheetReads,
-    backend_debug: backendDebug
+    fallback_used: Boolean(
+      serverFallback !== undefined && serverFallback !== null ? serverFallback : perfMeta.fallback_used
+    ),
+    cache_hit: Boolean(perfMeta.cache_hit || dbg?.cache_hit),
+    sheet_reads_count: mergedSheetReads,
+    backend_debug: dbg
   };
 }
 
@@ -484,14 +524,19 @@ async function request(action, payload = {}, perfMeta = {}) {
     invalidateScreenDataByAction(action);
     invalidateReadModelLocalCacheByAction(action);
   }
-  const sheetReads = json?.data?.debug_perf?.sheet_reads_count ?? json?.data?.sheet_reads_count ?? null;
+  const backendDbg = json?.data?.debug_perf && typeof json.data.debug_perf === 'object' ? json.data.debug_perf : null;
+  const sheetReads =
+    backendDbg?.sheet_reads_count ??
+    (Array.isArray(backendDbg?.sheet_reads) ? backendDbg.sheet_reads.length : null) ??
+    json?.data?.sheet_reads_count ??
+    null;
   emitPerfEntry(buildPerfRequestEntry(
     action,
     requestStart,
     lastResponseText,
     perfMeta,
     sheetReads,
-    json.data && json.data.debug_perf ? json.data.debug_perf : null
+    backendDbg
   ));
   return normalized;
 }
@@ -569,3 +614,5 @@ export const api = {
   readModelGet: (key, params = {}) => request('readModelGet', { key, params }),
   readModelHealth: () => request('readModelHealth', {}),
 };
+
+export { isPerfDebugEnabled, getPerfStore };

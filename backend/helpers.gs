@@ -286,12 +286,46 @@ function perfNowMs_() {
   return new Date().getTime();
 }
 
-function beginRequestPerf_(action, payload) {
-  var debugFlag = payload && (
-    payload.debug_perf === true ||
-    text_(payload.debug_perf) === '1' ||
-    text_(payload.debug_perf).toLowerCase() === 'true'
-  );
+/**
+ * Enable per-request perf when any of:
+ * - JSON body debug_perf true / "1" / "true"
+ * - Query string debug_perf=1 (web app POST may still carry e.parameter)
+ * - Script property DEBUG_PERF=1 (Apps Script project settings → Script properties)
+ */
+function debugPerfRequested_(payload, httpEvent) {
+  var p = payload || {};
+  if (
+    p.debug_perf === true ||
+    text_(p.debug_perf) === '1' ||
+    text_(p.debug_perf).toLowerCase() === 'true'
+  ) {
+    return true;
+  }
+  try {
+    if (httpEvent && httpEvent.parameter) {
+      var q = text_(httpEvent.parameter.debug_perf).toLowerCase();
+      if (q === '1' || q === 'true') return true;
+    }
+  } catch (_e) {}
+  try {
+    if (PropertiesService.getScriptProperties().getProperty('DEBUG_PERF') === '1') return true;
+  } catch (_e2) {}
+  return false;
+}
+
+function inferFallbackUsedFromPerfCustom_(custom) {
+  if (!custom || typeof custom !== 'object') return false;
+  if (custom.fallback_used !== undefined && custom.fallback_used !== null) {
+    return !!custom.fallback_used;
+  }
+  if (custom.dashboard_fallback_used) return true;
+  if (custom.week_fallback_used) return true;
+  if (custom._activities_fallback_used) return true;
+  return false;
+}
+
+function beginRequestPerf_(action, payload, httpEvent) {
+  var debugFlag = debugPerfRequested_(payload, httpEvent);
   __rqPerf_ = {
     enabled: !!debugFlag,
     action: text_(action),
@@ -350,19 +384,28 @@ function buildPerfPayload_(responsePayload, meta) {
     });
   }
   var responseSize = JSON.stringify(responsePayload || {}).length;
+  var totalMs = endMs - __rqPerf_.started_ms;
+  var sheetReadsArr = __rqPerf_.sheet_reads || [];
   var perfPayload = {
     action: text_((meta && meta.action) || __rqPerf_.action),
     cache_hit: !!(meta && meta.cache_hit),
     errored: !!(meta && meta.errored),
-    total_ms: endMs - __rqPerf_.started_ms,
+    total_ms: totalMs,
+    duration_ms: totalMs,
     sheets_total_ms: __rqPerf_.sheets_total_ms,
-    sheet_reads: __rqPerf_.sheet_reads,
+    sheet_reads: sheetReadsArr,
+    sheet_reads_count: sheetReadsArr.length,
     steps: stepDurations,
-    response_size_bytes: responseSize
+    response_size_bytes: responseSize,
+    payload_size: responseSize
   };
   Object.keys(__rqPerf_.custom || {}).forEach(function(key) {
     perfPayload[key] = __rqPerf_.custom[key];
   });
+  perfPayload.fallback_used = inferFallbackUsedFromPerfCustom_(__rqPerf_.custom);
+  perfPayload.duration_ms = totalMs;
+  perfPayload.sheet_reads_count = sheetReadsArr.length;
+  perfPayload.payload_size = responseSize;
   return perfPayload;
 }
 
