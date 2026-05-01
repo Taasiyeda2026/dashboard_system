@@ -33,6 +33,28 @@ test('frontend does not render hotfix/build marker text in header UI', async () 
   assert.doesNotMatch(src, /title="frontend build marker"/);
 });
 
+test('frontend keeps background refresh disabled during stabilization hotfix', async () => {
+  const src = await read(MAIN_FILE);
+  assert.match(src, /STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = true/);
+});
+
+test('login success flow forces first-route render and emits explicit lifecycle logs', async () => {
+  const src = await read(MAIN_FILE);
+  assert.match(src, /\[login-success\]/);
+  assert.match(src, /\[first-route-render:start\]/);
+  assert.match(src, /\[first-route-render:success\]/);
+  assert.match(src, /\[first-route-render:failed\]/);
+  assert.match(src, /renderShellLoadingImmediately\(\);[\s\S]*scheduleRender\(\);[\s\S]*mountScreen\(\)/);
+});
+
+test('route render flow reports start\/success\/failed and never silently leaves loading screen', async () => {
+  const src = await read(MAIN_FILE);
+  assert.match(src, /\[route-render:start\]/);
+  assert.match(src, /\[route-render:success\]/);
+  assert.match(src, /\[route-render:failed\]/);
+  assert.match(src, /if \(afterText === 'טוען נתונים\.\.\.'\) \{\s*throw new Error\('render_stuck_on_loading'\);/);
+});
+
 test('deploymentInfo action exists and returns static read-only deployment identity', async () => {
   const router = await read(ROUTER_FILE);
   const actions = await read(ACTIONS_FILE);
