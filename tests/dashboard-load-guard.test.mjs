@@ -52,7 +52,7 @@ test('dashboard load logs perf data on failure', async () => {
 
 test('config.js DEFAULT_API_URL matches the active GAS deployment', async () => {
   const src = await read(CONFIG_FILE);
-  assert.match(src, /AKfycbxbmFA6ADNDcvvZ7xZUgblld4dOKHgZrr2ixWys0sDfvPC5v9BJ3XHQ0gwE9UeB3UZc/,
+  assert.match(src, /AKfycbysqMOYDnPXDeTiU1R0qBr5Kp84E_q2m6kkMVk6CLXZX9akgvE4zKGPmm_h7CJjfnys/,
     'DEFAULT_API_URL should use the current active GAS deployment URL');
 });
 
