@@ -567,10 +567,7 @@ function shell(content) {
     route: state.route,
     routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r))
   });
-  const headerTechHtml = isAdminUser
-    ? `<small style="opacity:.72;margin-inline-end:8px" title="hotfix version">${escapeHtml(String(config.HOTFIX_VERSION || ''))}</small>
-            <small style="opacity:.72" title="frontend build marker">emergency-disable-diagnostics-v2</small>`
-    : '';
+  const headerTechHtml = '';
 
   return `
     <div class="app-shell${drawerClass} route-${escapeHtml(String(state.route || ''))}" data-current-route="${escapeHtml(String(state.route || ''))}" dir="rtl">

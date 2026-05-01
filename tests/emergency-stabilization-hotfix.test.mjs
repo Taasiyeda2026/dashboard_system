@@ -25,11 +25,12 @@ test('dashboard load and render do not auto-run diagnostics', async () => {
   assert.doesNotMatch(src, /DIAGNOSTICS_UI_ENABLED && isAdminOpsUser/);
 });
 
-test('frontend shows explicit hotfix + frontend build marker', async () => {
+test('frontend does not render hotfix/build marker text in header UI', async () => {
   const src = await read(MAIN_FILE);
   assert.match(src, /__HOTFIX_VERSION__/);
   assert.match(src, /emergency-disable-diagnostics-v2/);
-  assert.match(src, /frontend build marker/);
+  assert.doesNotMatch(src, /title="hotfix version"/);
+  assert.doesNotMatch(src, /title="frontend build marker"/);
 });
 
 test('deploymentInfo action exists and returns static read-only deployment identity', async () => {
