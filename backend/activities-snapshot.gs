@@ -258,6 +258,7 @@ function actionActivitiesSnapshotFirst_(user, payload) {
 }
 
 function refreshActivitiesSnapshot_() {
+  assertMutationAllowedInCurrentRequest_('refreshActivitiesSnapshot');
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) {
     return { skipped: true, reason: 'activities_snapshot_refresh_already_running' };

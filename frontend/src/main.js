@@ -41,9 +41,10 @@ let latestNavigationRoute = '';
 let activeRouteTransitionLabel = null;
 const activeConsoleTimers = new Set();
 let shellEventsBound = false;
-const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = true;
+const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = false;
 const STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE = true;
-const STABILITY_HOTFIX_DISABLE_SERVICE_WORKER = true;
+/** Single switch: off = unregister all SW and skip registration (no stale shell risk during incidents). */
+const SERVICE_WORKER_ENABLED = true;
 const ROUTE_LOAD_GUARD_MS = 25000;
 const ROUTE_LOAD_ERROR_HE = 'טעינת המסך נמשכת זמן רב מדי. נסו לרענן או להיכנס שוב.';
 
@@ -77,6 +78,28 @@ function scheduleRender() {
     return;
   }
   setTimeout(complete, 0);
+}
+
+/** Subtle header cue + aria-busy while a stale screen revalidates in the background (no full-screen spinner). */
+function ensureRefreshIndicatorStyle() {
+  if (ensureRefreshIndicatorStyle._done) return;
+  ensureRefreshIndicatorStyle._done = true;
+  if (typeof document === 'undefined') return;
+  const el = document.createElement('style');
+  el.setAttribute('data-ds', 'route-refresh');
+  el.textContent =
+    '.app-shell.is-route-refreshing .shell-top{box-shadow:0 2px 0 0 rgba(59,130,246,0.55);transition:box-shadow .2s ease}';
+  document.head.appendChild(el);
+}
+
+function setRouteRefreshing(active) {
+  if (typeof document === 'undefined') return;
+  document.querySelector('.app-shell')?.classList.toggle('is-route-refreshing', !!active);
+  const sr = document.getElementById('screenRoot');
+  if (sr) {
+    if (active) sr.setAttribute('aria-busy', 'true');
+    else sr.removeAttribute('aria-busy');
+  }
 }
 
 function cancelPrefetchSchedule() {
@@ -757,7 +780,17 @@ async function loadScreenDataWithCache(screen) {
   if (!screen.load) return {};
   const key = screenDataCacheKey();
   const hit = state.screenDataCache[key];
-  if (hit && Date.now() - hit.t < screenCacheTtl()) return hit.data;
+  const ttl = screenCacheTtl();
+  const age = hit ? Date.now() - hit.t : 0;
+  if (hit && age < ttl) return hit.data;
+
+  if (hit) {
+    if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return hit.data;
+    if (!inflightRequests.has(key)) {
+      backgroundRefreshScreen(screen, key);
+    }
+    return hit.data;
+  }
 
   if (inflightRequests.has(key)) {
     pushDuplicateRequestPerf(key, state.route);
@@ -788,6 +821,11 @@ async function backgroundRefreshScreen(screen, cacheKey) {
   if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return;
   if (!screen.load) return;
   if (inflightRequests.has(cacheKey)) return;
+  ensureRefreshIndicatorStyle();
+  const prevBg =
+    typeof globalThis !== 'undefined' ? globalThis.__DS_BG_SCREEN_REFRESH__ : undefined;
+  if (typeof globalThis !== 'undefined') globalThis.__DS_BG_SCREEN_REFRESH__ = true;
+  setRouteRefreshing(true);
   const guardedToken = activeNavigationToken;
   const guardedRoute = state.route;
   try {
@@ -815,6 +853,9 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     }
   } catch {
     inflightRequests.delete(cacheKey);
+  } finally {
+    if (typeof globalThis !== 'undefined') globalThis.__DS_BG_SCREEN_REFRESH__ = prevBg;
+    setRouteRefreshing(false);
   }
 }
 
@@ -871,32 +912,27 @@ async function fastRerenderScreen(screen, routeAtBind) {
   const perfStart = performance.now();
   if (state.route !== routeAtBind) { render(); return; }
   const key = screenDataCacheKey();
-  const raw = state.screenDataCache[key];
-  const hit = raw && Date.now() - raw.t < screenCacheTtl() ? raw : null;
   const screenRoot = document.getElementById('screenRoot');
   if (!screenRoot) { render(); return; }
-  if (!hit) {
-    if (!screen.load) { render(); return; }
-    const requestedKey = key;
-    try {
-      const data = await loadScreenDataWithCache(screen);
-      if (rerenderVersion !== fastRerenderVersion) return;
-      if (rerenderToken !== activeNavigationToken) return;
-      if (state.route !== routeAtBind) return;
-      if (screenDataCacheKey() !== requestedKey) return;
-      screenRoot.innerHTML = screen.render(data, { state });
-      bindScreen(screen, screenRoot, data);
-      recordRenderPerf(routeAtBind, 'fast-rerender-fetch', performance.now() - perfStart, { cache_key: requestedKey });
-      maybePrefetchFromDashboard();
-    } catch {
-      render();
-    }
-    return;
+  if (!screen.load) { render(); return; }
+  const requestedKey = key;
+  try {
+    const data = await loadScreenDataWithCache(screen);
+    if (rerenderVersion !== fastRerenderVersion) return;
+    if (rerenderToken !== activeNavigationToken) return;
+    if (state.route !== routeAtBind) return;
+    if (screenDataCacheKey() !== requestedKey) return;
+    screenRoot.innerHTML = screen.render(data, { state });
+    bindScreen(screen, screenRoot, data);
+    const cached = state.screenDataCache[requestedKey];
+    const fresh = cached && Date.now() - cached.t < screenCacheTtl();
+    recordRenderPerf(routeAtBind, fresh ? 'fast-rerender' : 'fast-rerender-stale-served', performance.now() - perfStart, {
+      cache_key: requestedKey
+    });
+    maybePrefetchFromDashboard();
+  } catch {
+    render();
   }
-  screenRoot.innerHTML = screen.render(hit.data, { state });
-  if (rerenderToken !== activeNavigationToken) return;
-  bindScreen(screen, screenRoot, hit.data);
-  recordRenderPerf(routeAtBind, 'fast-rerender', performance.now() - perfStart, { cache_key: key });
 }
 
 
@@ -1159,7 +1195,7 @@ async function mountScreen() {
         stale: !!isStale
       });
       if (routeChanged) lastRenderedRoute = state.route;
-      if (isStale && state.route !== 'finance') backgroundRefreshScreen(screen, cacheKey);
+      if (isStale) backgroundRefreshScreen(screen, cacheKey);
       maybePrefetchFromDashboard();
       finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
       return;
@@ -1183,7 +1219,7 @@ async function mountScreen() {
       stale: !!isStale
     });
     if (routeChanged) lastRenderedRoute = state.route;
-    if (isStale && state.route !== 'finance') backgroundRefreshScreen(screen, cacheKey);
+    if (isStale) backgroundRefreshScreen(screen, cacheKey);
     maybePrefetchFromDashboard();
     finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
     return;
@@ -1450,13 +1486,13 @@ window.addEventListener('resize', () => {
   }
 });
 
-if ('serviceWorker' in navigator && STABILITY_HOTFIX_DISABLE_SERVICE_WORKER) {
+if ('serviceWorker' in navigator && !SERVICE_WORKER_ENABLED) {
   navigator.serviceWorker.getRegistrations()
     .then((regs) => Promise.all(regs.map((reg) => reg.unregister())))
     .catch(() => {});
 }
 
-if ('serviceWorker' in navigator && !STABILITY_HOTFIX_DISABLE_SERVICE_WORKER) {
+if ('serviceWorker' in navigator && SERVICE_WORKER_ENABLED) {
   window.addEventListener('load', () => {
     const swUrl = new URL('./sw.js', window.location.href);
     navigator.serviceWorker

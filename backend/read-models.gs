@@ -27,6 +27,31 @@ var READ_MODEL_STORAGE_DRIVE_ = 'drive';
 /** מקסימום תווים לקריאת payload ישן מתא (אם נשאר עמודה payload_json אחרי מיגרציה חלקית). */
 var READ_MODEL_LEGACY_INLINE_MAX_CHARS_ = 40000;
 
+/**
+ * Logging + perf custom fields when persisted read model cannot serve the request
+ * and the router falls back to legacy heavy handlers (activities/week/month/...).
+ */
+function noteReadModelServerLegacy_(action, reason, detail) {
+  var act = text_(action);
+  var rs = text_(reason);
+  try {
+    console.warn('[read_model][server] legacy heavy handler', JSON.stringify({
+      screen_action: act,
+      reason: rs,
+      detail: detail || null
+    }));
+  } catch (_e) {}
+  try {
+    setRequestPerfField_('read_model_legacy_fallback', true);
+    setRequestPerfField_('read_model_legacy_reason', rs);
+  } catch (_e2) {}
+}
+
+function noteReadModelServerLegacyReturn_(action, reason, detail) {
+  noteReadModelServerLegacy_(action, reason, detail);
+  return null;
+}
+
 function readModelSheetName_() {
   return (CONFIG.SHEETS && CONFIG.SHEETS.READ_MODELS) || READ_MODEL_SHEET_FALLBACK_;
 }
@@ -392,6 +417,7 @@ function refreshAllReadModels_() {
   if (!lock.tryLock(2000)) return { skipped: true, reason: 'read_models_refresh_already_running' };
   var hadCache = !!__rqCache_;
   if (!hadCache) beginRequestCache_();
+  var batchStarted = perfNowMs_();
   try {
     var results = [];
     results.push(refreshDashboardReadModel_());
@@ -402,7 +428,42 @@ function refreshAllReadModels_() {
     results.push(refreshFinanceReadModel_());
     results.push(refreshEndDatesReadModel_());
     bumpDataViewsCacheVersion_();
-    return { ok: true, refreshed_at: new Date().toISOString(), results: results };
+    var durationMs = Math.max(0, perfNowMs_() - batchStarted);
+    var failures = results.filter(function(r) {
+      return r && r.status === 'failed';
+    });
+    var failureSummaries = failures.map(function(f) {
+      return { key: text_(f.key), error: text_(f.error || '') };
+    });
+    var logLine = {
+      event: 'read_models_refresh_all',
+      duration_ms: durationMs,
+      model_count: results.length,
+      failure_count: failures.length,
+      statuses: results.map(function(r) {
+        return { key: text_(r && r.key), status: text_(r && r.status) };
+      })
+    };
+    try {
+      console.info('[read_models]', JSON.stringify(logLine));
+    } catch (_logErr) {}
+    if (failures.length) {
+      try {
+        console.warn('[read_models] refresh failures', JSON.stringify(failureSummaries));
+      } catch (_w) {}
+    }
+    var refreshedAtIso = new Date().toISOString();
+    try {
+      opsHealthRecordReadModelBatchComplete_(refreshedAtIso, durationMs, failures.length);
+    } catch (_opsErr) {}
+    return {
+      ok: true,
+      refreshed_at: refreshedAtIso,
+      duration_ms: durationMs,
+      failure_count: failures.length,
+      failures: failureSummaries,
+      results: results
+    };
   } finally {
     if (!hadCache) __rqCache_ = null;
     lock.releaseLock();
@@ -462,6 +523,7 @@ function markReadModelStale_(logicalKey, params, reason) {
 }
 
 function markReadModelsDirtyByMutation_(action, payload) {
+  assertMutationAllowedInCurrentRequest_('markReadModelsDirtyByMutation');
   var nowMonth = formatDate_(new Date()).slice(0, 7);
   var targets = [];
   if (action === 'addActivity' || action === 'saveActivity') {
@@ -509,6 +571,180 @@ function resolveReadModelBuilder_(key, user, params) {
   if (key === 'finance') return function() { return actionFinance_(user, params || {}); };
   if (key === 'end-dates') return function() { return actionEndDates_(user); };
   if (key === 'instructors') return function() { return actionInstructors_(user); };
+  return null;
+}
+
+/**
+ * Loads persisted read-model JSON when the row is fresh (Drive or legacy cell).
+ * No auth check — caller must enforce route access.
+ */
+function readModelLoadFreshPayloadData_(storageKey) {
+  var sk = text_(storageKey);
+  if (!sk) return null;
+  var row = readModelRowByKey_(sk);
+  if (!row || text_(row.status) !== 'fresh') return null;
+  var data = null;
+  if (text_(row.storage_type) === READ_MODEL_STORAGE_DRIVE_ && text_(row.storage_ref)) {
+    try {
+      var raw = readModelsLoadPayloadFromDrive_(text_(row.storage_ref));
+      data = parseReadModelJson_(raw, null);
+    } catch (_e) {
+      return null;
+    }
+  }
+  if (data === null) {
+    var rowNum = findReadModelDataRowNum_(sk);
+    if (rowNum > 0) {
+      var legacy = readReadModelLegacyPayloadCellIfSmall_(rowNum);
+      if (legacy !== null && typeof legacy === 'object') data = legacy;
+    }
+  }
+  if (data === null || typeof data !== 'object') return null;
+  return data;
+}
+
+/**
+ * Route → canonical read model (refresh keys in refreshAllReadModels_):
+ *   activities  → activities        (activities_by_month snapshot, key "activities")
+ *   week        → week?week_offset=0 (week_current)
+ *   month       → month?ym=YYYY-MM   (month_YYYY-MM, current month only from store)
+ *   exceptions  → exceptions?month=… (exceptions_by_month, current month only)
+ *   finance     → finance?month=…&tab=active (finance_by_month, current month + active tab only)
+ */
+function materializeScreenDataFromReadModel_(action, user, payload) {
+  var act = text_(action);
+  var curYm = formatDate_(new Date()).slice(0, 7);
+
+  if (act === 'activities') {
+    if (payload && payload.force_full === true) {
+      return noteReadModelServerLegacyReturn_(act, 'activities_force_full', {});
+    }
+    var aData = readModelLoadFreshPayloadData_(buildReadModelStorageKey_('activities', {}));
+    if (aData === null) {
+      return noteReadModelServerLegacyReturn_(act, 'activities_no_fresh_read_model_payload', {});
+    }
+    try {
+      var aOut = JSON.parse(JSON.stringify(aData));
+      aOut.rows = filterActivitiesSnapshotRows_(aOut.rows || [], payload || {});
+      setRequestPerfField_('read_model_route', 'activities_by_month');
+      return aOut;
+    } catch (_e) {
+      return noteReadModelServerLegacyReturn_(act, 'activities_transform_error', {
+        message: _e && _e.message ? String(_e.message) : 'error'
+      });
+    }
+  }
+
+  if (act === 'week') {
+    var wo = parseInt((payload && payload.week_offset) || 0, 10) || 0;
+    if (wo !== 0) {
+      return noteReadModelServerLegacyReturn_(act, 'week_non_current_offset', { week_offset: wo });
+    }
+    var wData = readModelLoadFreshPayloadData_(buildReadModelStorageKey_('week', { week_offset: 0 }));
+    if (wData === null) {
+      return noteReadModelServerLegacyReturn_(act, 'week_no_fresh_read_model_payload', {});
+    }
+    try {
+      var wOut = JSON.parse(JSON.stringify(wData));
+      if (user && user.display_role === 'instructor') {
+        wOut = filterWeekPayloadForInstructor_(wOut, text_(user.emp_id || user.user_id));
+      }
+      setRequestPerfField_('read_model_route', 'week_current');
+      return wOut;
+    } catch (_e2) {
+      return noteReadModelServerLegacyReturn_(act, 'week_transform_error', {
+        message: _e2 && _e2.message ? String(_e2.message) : 'error'
+      });
+    }
+  }
+
+  if (act === 'month') {
+    var ym = text_((payload && payload.ym) || (payload && payload.month) || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(ym)) ym = curYm;
+    if (ym !== curYm) {
+      return noteReadModelServerLegacyReturn_(act, 'month_not_current_period', { ym: ym, current_ym: curYm });
+    }
+    var mData = readModelLoadFreshPayloadData_(buildReadModelStorageKey_('month', { ym: ym }));
+    if (mData === null) {
+      return noteReadModelServerLegacyReturn_(act, 'month_no_fresh_read_model_payload', { ym: ym });
+    }
+    try {
+      var mOut = JSON.parse(JSON.stringify(mData));
+      if (user && user.display_role === 'instructor') {
+        mOut = filterMonthPayloadForInstructor_(mOut, text_(user.emp_id || user.user_id));
+      }
+      setRequestPerfField_('read_model_route', 'month_YYYY-MM');
+      return mOut;
+    } catch (_e3) {
+      return noteReadModelServerLegacyReturn_(act, 'month_transform_error', {
+        message: _e3 && _e3.message ? String(_e3.message) : 'error'
+      });
+    }
+  }
+
+  if (act === 'exceptions') {
+    if (yesNo_(payload && payload.debug) === 'yes') {
+      return noteReadModelServerLegacyReturn_(act, 'exceptions_debug_enabled', {});
+    }
+    var exYm = text_((payload && payload.month) || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(exYm) || exYm !== curYm) {
+      return noteReadModelServerLegacyReturn_(act, 'exceptions_month_not_current', {
+        month: exYm,
+        current_ym: curYm
+      });
+    }
+    var exData = readModelLoadFreshPayloadData_(buildReadModelStorageKey_('exceptions', { month: exYm }));
+    if (exData === null) {
+      return noteReadModelServerLegacyReturn_(act, 'exceptions_no_fresh_read_model_payload', { month: exYm });
+    }
+    try {
+      setRequestPerfField_('read_model_route', 'exceptions_by_month');
+      return JSON.parse(JSON.stringify(exData));
+    } catch (_e4) {
+      return noteReadModelServerLegacyReturn_(act, 'exceptions_transform_error', {
+        message: _e4 && _e4.message ? String(_e4.message) : 'error'
+      });
+    }
+  }
+
+  if (act === 'finance') {
+    var fp = payload || {};
+    if (text_(fp.search)) {
+      return noteReadModelServerLegacyReturn_(act, 'finance_search_not_supported', {});
+    }
+    if (text_(fp.date_from) || text_(fp.date_to)) {
+      return noteReadModelServerLegacyReturn_(act, 'finance_date_range_not_supported', {});
+    }
+    if (text_(fp.status)) {
+      return noteReadModelServerLegacyReturn_(act, 'finance_status_filter_not_supported', {});
+    }
+    var fTab = text_(fp.tab || 'active');
+    if (fTab !== 'active') {
+      return noteReadModelServerLegacyReturn_(act, 'finance_tab_not_active', { tab: fTab });
+    }
+    var fYm = text_(fp.month || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(fYm) || fYm !== curYm) {
+      return noteReadModelServerLegacyReturn_(act, 'finance_month_not_current', {
+        month: fYm,
+        current_ym: curYm
+      });
+    }
+    var fData = readModelLoadFreshPayloadData_(
+      buildReadModelStorageKey_('finance', { month: fYm, tab: 'active' })
+    );
+    if (fData === null) {
+      return noteReadModelServerLegacyReturn_(act, 'finance_no_fresh_read_model_payload', { month: fYm });
+    }
+    try {
+      setRequestPerfField_('read_model_route', 'finance_by_month');
+      return JSON.parse(JSON.stringify(fData));
+    } catch (_e5) {
+      return noteReadModelServerLegacyReturn_(act, 'finance_transform_error', {
+        message: _e5 && _e5.message ? String(_e5.message) : 'error'
+      });
+    }
+  }
+
   return null;
 }
 

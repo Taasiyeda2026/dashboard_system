@@ -71,10 +71,52 @@ const READ_MODEL_CACHE_STORAGE_KEY = 'ds_read_model_cache_v2';
 const MANIFEST_TTL_MS = 30 * 1000;
 let manifestCache = { t: 0, data: null };
 
-// Gradual rollout switch stays OFF by default.
-// Dashboard monthly calls are legacy-by-design for now (see requestReadModel guard below).
-const READ_MODELS_ENABLED = false;
-const READ_MODEL_ENABLED_KEYS = new Set(['dashboard']);
+/** When true, allowed screens may use readModelGet + local manifest cache instead of legacy actions. */
+const READ_MODELS_ENABLED = true;
+
+/** Explicit allow-list: only these read-model keys use the read-model path; all others use legacy only. */
+const READ_MODEL_ENABLED_KEY_LIST = ['dashboard', 'activities', 'week', 'month', 'exceptions', 'finance'];
+const READ_MODEL_ENABLED_KEYS = new Set(READ_MODEL_ENABLED_KEY_LIST);
+
+/**
+ * Heavy screen reads that must go through requestReadModel (or pass legacy_intentional in perfMeta).
+ * Direct request() otherwise logs [legacy-guard] for visibility.
+ */
+const HEAVY_LEGACY_GUARDED_READ_ACTIONS = new Set([
+  'dashboardSnapshot',
+  'activities',
+  'week',
+  'month',
+  'exceptions',
+  'finance',
+  'endDates'
+]);
+
+function warnHeavyLegacyReadWithoutIntentionalFlag(action, perfMeta) {
+  if (!READ_ACTIONS[action]) return;
+  if (!HEAVY_LEGACY_GUARDED_READ_ACTIONS.has(action)) return;
+  if (perfMeta?.legacy_intentional === true) return;
+  let caller = '';
+  try {
+    caller = String(new Error().stack || '')
+      .split('\n')
+      .slice(2, 6)
+      .map((s) => s.trim())
+      .join(' | ');
+  } catch {
+    /* ignore */
+  }
+  try {
+    console.warn('[legacy-guard]', JSON.stringify({
+      screen: String(action),
+      action: String(action),
+      reason: 'heavy_legacy_read_without_read_model_path',
+      caller
+    }));
+  } catch {
+    /* ignore */
+  }
+}
 
 const RETRYABLE_SERVER_ERRORS = new Set([
   'network_error',
@@ -192,6 +234,19 @@ function manifestEntryForReadModel(key, params = {}) {
   return null;
 }
 
+function warnReadModelClientLegacy(screenKey, legacyAction, reason, extra = {}) {
+  try {
+    console.warn('[readModel][client] legacy action', JSON.stringify({
+      screen: String(screenKey),
+      legacy_action: String(legacyAction),
+      reason: String(reason),
+      ...extra
+    }));
+  } catch {
+    /* ignore */
+  }
+}
+
 async function requestReadModel(key, params = {}, fallbackAction, fallbackPayload = {}, options = {}) {
   const perfBase = {
     action: fallbackAction,
@@ -201,31 +256,29 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
     sheet_reads_count: null
   };
   if (!READ_MODELS_ENABLED || !READ_MODEL_ENABLED_KEYS.has(key)) {
-    return request(fallbackAction, fallbackPayload, { ...perfBase, ...options });
-  }
-  if (key === 'dashboard' && params && String(params.month || '').trim()) {
-    return request(fallbackAction, fallbackPayload, { ...perfBase, ...options });
-  }
-  try {
-    const manifestKey = manifestEntryForReadModel(key, params);
-    const localKey = readModelLocalCacheKey(key, params);
-    const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
-    const hit = cachedModels?.[localKey];
-    if (hit && hit.data) {
-      refreshReadModelInBackground_(key, params, localKey, manifestKey, hit);
-      pushPerfRequest({
-        action: fallbackAction,
-        duration_ms: 0,
-        slow: false,
-        payload_size: JSON.stringify(hit.data || {}).length,
-        used_read_model: true,
-        fallback_used: false,
-        cache_hit: true,
-        sheet_reads_count: null
+    if (READ_MODEL_ENABLED_KEYS.has(key) && !READ_MODELS_ENABLED) {
+      warnReadModelClientLegacy(key, fallbackAction, 'read_models_client_disabled', { params });
+      return request(fallbackAction, fallbackPayload, {
+        ...perfBase,
+        fallback_used: true,
+        legacy_fallback_reason: 'read_models_client_disabled',
+        legacy_intentional: true,
+        read_model_screen_key: key,
+        ...options
       });
-      return hit.data;
     }
-    // Cache miss: avoid an extra blocking manifest round-trip and fetch payload directly.
+    return request(fallbackAction, fallbackPayload, {
+      ...perfBase,
+      legacy_intentional: true,
+      read_model_screen_key: key,
+      ...options
+    });
+  }
+
+  const manifestKey = manifestEntryForReadModel(key, params);
+  const localKey = readModelLocalCacheKey(key, params);
+
+  async function fetchReadModelFresh_() {
     const envelope = await request('readModelGet', { key, params }, {
       action: fallbackAction,
       used_read_model: true,
@@ -234,7 +287,7 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
       ...options
     });
     const data = envelope?.data ?? envelope ?? {};
-
+    const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
     const nextCache = {
       ...cachedModels,
       [localKey]: {
@@ -245,18 +298,76 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
         data
       }
     };
-
     safeLocalStorageSetJson(READ_MODEL_CACHE_STORAGE_KEY, nextCache);
     return data;
+  }
+
+  try {
+    const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
+    const hit = cachedModels?.[localKey];
+
+    if (hit && hit.data) {
+      let cacheFresh = false;
+      try {
+        const manifest = await getReadModelManifestCached();
+        const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;
+        cacheFresh =
+          !!manifestMeta &&
+          !!hit.version &&
+          !!hit.hash &&
+          hit.version === manifestMeta.version &&
+          hit.hash === manifestMeta.hash;
+      } catch (_manifestErr) {
+        cacheFresh = false;
+      }
+
+      if (cacheFresh) {
+        refreshReadModelInBackground_(key, params, localKey, manifestKey, hit);
+        pushPerfRequest({
+          action: fallbackAction,
+          duration_ms: 0,
+          slow: false,
+          payload_size: JSON.stringify(hit.data || {}).length,
+          used_read_model: true,
+          fallback_used: false,
+          cache_hit: true,
+          sheet_reads_count: null
+        });
+        return hit.data;
+      }
+
+      try {
+        return await fetchReadModelFresh_();
+      } catch (_refreshErr) {
+        warnReadModelClientLegacy(key, fallbackAction, 'read_model_refresh_failed', {
+          params,
+          error: _refreshErr?.message || String(_refreshErr)
+        });
+        return request(fallbackAction, fallbackPayload, {
+          ...perfBase,
+          fallback_used: true,
+          legacy_fallback_reason: 'read_model_refresh_failed',
+          legacy_intentional: true,
+          read_model_screen_key: key,
+          ...options
+        });
+      }
+    }
+
+    return await fetchReadModelFresh_();
   } catch (err) {
-    console.warn('[readModel] fallback to legacy endpoint', {
-      key,
-      fallbackAction,
-      error: err?.message || err
+    warnReadModelClientLegacy(key, fallbackAction, 'read_model_get_failed', {
+      params,
+      error: err?.message || String(err)
     });
-    const allowHeavyFallback = true;
-    if (!allowHeavyFallback) throw err;
-    return request(fallbackAction, fallbackPayload, { ...perfBase, fallback_used: true, ...options });
+    return request(fallbackAction, fallbackPayload, {
+      ...perfBase,
+      fallback_used: true,
+      legacy_fallback_reason: 'read_model_get_failed',
+      legacy_intentional: true,
+      read_model_screen_key: key,
+      ...options
+    });
   }
 }
 
@@ -389,7 +500,9 @@ function emitPerfEntry(entry) {
       payload_size: entry.payload_size,
       server_payload_size: entry.server_payload_size,
       fallback_used: entry.fallback_used,
-      cache_hit: entry.cache_hit
+      legacy_fallback_reason: entry.legacy_fallback_reason,
+      cache_hit: entry.cache_hit,
+      background_refresh: entry.background_refresh
     };
     // eslint-disable-next-line no-console
     console.info('[perf]', line, entry.backend_debug || '');
@@ -408,6 +521,15 @@ function buildPerfRequestEntry(action, requestStart, lastResponseText, perfMeta 
   const serverDuration = dbg?.duration_ms ?? dbg?.total_ms ?? null;
   const serverPayloadSize = dbg?.payload_size ?? dbg?.response_size_bytes ?? null;
   const serverFallback = dbg?.fallback_used;
+  const legacyReason =
+    perfMeta.legacy_fallback_reason ?? dbg?.read_model_legacy_reason ?? null;
+  const bg =
+    perfMeta.background_refresh ??
+    (typeof globalThis !== 'undefined' && globalThis.__DS_BG_SCREEN_REFRESH__);
+  const mergedFallback =
+    serverFallback !== undefined && serverFallback !== null
+      ? Boolean(serverFallback)
+      : Boolean(perfMeta.fallback_used) || Boolean(dbg?.read_model_legacy_fallback) || Boolean(legacyReason);
   return {
     action: perfMeta.action || action,
     duration_ms: durationMs,
@@ -416,16 +538,17 @@ function buildPerfRequestEntry(action, requestStart, lastResponseText, perfMeta 
     payload_size: typeof lastResponseText === 'string' ? lastResponseText.length : null,
     server_payload_size: serverPayloadSize,
     used_read_model: Boolean(perfMeta.used_read_model || action === 'readModelGet'),
-    fallback_used: Boolean(
-      serverFallback !== undefined && serverFallback !== null ? serverFallback : perfMeta.fallback_used
-    ),
+    fallback_used: mergedFallback,
+    legacy_fallback_reason: legacyReason,
     cache_hit: Boolean(perfMeta.cache_hit || dbg?.cache_hit),
     sheet_reads_count: mergedSheetReads,
+    background_refresh: Boolean(bg),
     backend_debug: dbg
   };
 }
 
 async function request(action, payload = {}, perfMeta = {}) {
+  warnHeavyLegacyReadWithoutIntentionalFlag(action, perfMeta);
   const timeoutMs = typeof perfMeta?.timeout_ms === 'number' ? perfMeta.timeout_ms : undefined;
   if (!config.apiUrl) {
     throw new Error('חסר קישור API. עדכנו frontend/src/config.js או window.__DASHBOARD_CONFIG__.');
@@ -615,4 +738,4 @@ export const api = {
   readModelHealth: () => request('readModelHealth', {}),
 };
 
-export { isPerfDebugEnabled, getPerfStore };
+export { isPerfDebugEnabled, getPerfStore, READ_MODELS_ENABLED, READ_MODEL_ENABLED_KEY_LIST };

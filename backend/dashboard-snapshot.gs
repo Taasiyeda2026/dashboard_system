@@ -786,6 +786,7 @@ function refreshDashboardSnapshots_() {
 }
 
 function markDashboardSnapshotsRefreshNeeded_(reason) {
+  assertMutationAllowedInCurrentRequest_('markDashboardSnapshotsRefreshNeeded');
   var message = text_(reason || 'data changed; refresh required');
   try {
     updateDashboardRefreshControl_('pending', message);
