@@ -1966,11 +1966,12 @@ function actionInstructors_(user) {
       var contact  = enrichMap[empId];
       var fullName = contact ? text_(contact.full_name) : (nameFromActivity || empId);
       instructorMap[empId] = {
-        emp_id:          empId,
-        full_name:       fullName,
-        programs_count:  0,
-        one_day_count:   0,
-        latest_end_date: ''
+        emp_id:            empId,
+        full_name:         fullName,
+        programs_count:    0,
+        one_day_count:     0,
+        latest_end_date:   '',
+        activity_managers: []
       };
     }
     if (!instructorMap[empId].full_name && nameFromActivity) {
@@ -1990,6 +1991,7 @@ function actionInstructors_(user) {
     var isOneDay  = oneDayTypes.indexOf(actType)  >= 0;
     var endDate   = text_(row.end_date);
 
+    var mgr = text_(row.activity_manager);
     [e1, e2].forEach(function(empId) {
       if (!empId || !instructorMap[empId]) return;
       var inst = instructorMap[empId];
@@ -1999,6 +2001,9 @@ function actionInstructors_(user) {
       }
       if (endDate && (!inst.latest_end_date || endDate > inst.latest_end_date)) {
         inst.latest_end_date = endDate;
+      }
+      if (mgr && inst.activity_managers.indexOf(mgr) < 0) {
+        inst.activity_managers.push(mgr);
       }
     });
   });

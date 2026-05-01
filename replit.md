@@ -6,7 +6,7 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 ## Runtime
 - Static server: `npx serve . -l 5000` (workflow: "Start application")
 - SW networkFirst. Bump `CACHE_VERSION` in `sw.js` AND `?v=` in `index.html` together on every JS/CSS change.
-- **Current versions**: SW v233, CSS v2604291, JS v2605011
+- **Current versions**: SW v234, CSS v2604291, JS v2605012
 
 ## Key identifiers
 - `SPREADSHEET_ID = '1odLLnhpm7gLwSsDrgzxjIy2cuHXZGNNQYXCkuhAt52s'`

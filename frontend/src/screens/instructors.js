@@ -11,7 +11,11 @@ import {
 } from './shared/activity-list-filters.js';
 
 const INSTRUCTORS_SCOPE = 'instructors';
-const INSTRUCTOR_FILTER_FIELDS = [{ key: 'activity_manager', label: 'מנהל פעילות' }];
+const INSTRUCTOR_FILTER_FIELDS = [{
+  key: 'activity_manager',
+  label: 'מנהל פעילות',
+  getValues: (row) => Array.isArray(row.activity_managers) ? row.activity_managers : (row.activity_manager ? [row.activity_manager] : [])
+}];
 
 function applyActiveFilter(rows, activeOnly) {
   if (!activeOnly) return rows;
@@ -116,7 +120,11 @@ export const instructorsScreen = {
   render(data, { state } = {}) {
     const allRows  = Array.isArray(data?.rows) ? data.rows : [];
     const ym       = data?.ym || '';
-    prepareRowsForSearch(allRows, ['full_name', 'emp_id', 'activity_manager', 'authority', 'school', 'activity_name']);
+    prepareRowsForSearch(allRows, [
+      'full_name', 'emp_id',
+      (row) => (Array.isArray(row.activity_managers) ? row.activity_managers : []).join(' '),
+      'authority', 'school', 'activity_name'
+    ]);
     const filters = ensureActivityListFilters(state, INSTRUCTORS_SCOPE);
     const activeOnly = true;
 
