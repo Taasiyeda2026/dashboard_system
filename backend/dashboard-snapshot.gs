@@ -80,6 +80,21 @@ var DASHBOARD_SNAPSHOT_FLAGS_CACHE_SECONDS_ = 120;
 
 // ─── header helpers ───────────────────────────────────────────────────────────
 
+/**
+ * Ensures the month_ym column in a snapshot sheet is formatted as plain text
+ * (number format '@') so Sheets never auto-converts YYYY-MM strings to date
+ * serial numbers.  Call this after ensureSnapshotSheetScaffold_.
+ */
+function ensureSnapshotMonthYmTextColumn_(sheetName) {
+  var sheet = getSheet_(sheetName);
+  var headers = getHeaders_(sheet);
+  var idx = headers.indexOf('month_ym');
+  if (idx < 0) return;
+  var dataStart = getDataStartRow_();
+  var numRows = Math.max(sheet.getMaxRows() - dataStart + 1, 1);
+  sheet.getRange(dataStart, idx + 1, numRows, 1).setNumberFormat('@');
+}
+
 function ensureSnapshotSheetScaffold_(sheetName, englishHeaders, hebrewLabels) {
   var ss = getSpreadsheet_();
   var sheet = ss.getSheetByName(sheetName);
@@ -758,6 +773,7 @@ function markDashboardSnapshotsRefreshNeeded_(reason) {
 function writeDashboardSummarySnapshotRow_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT;
   ensureSnapshotSheetScaffold_(sheetName, SUMMARY_SNAPSHOT_HEADERS_, SUMMARY_SNAPSHOT_LABELS_HE_);
+  ensureSnapshotMonthYmTextColumn_(sheetName);
   dedupeDashboardSummarySnapshotByMonth_();
 
   var summary = fullData.summary || {};
@@ -829,6 +845,7 @@ function canViewFinanceFromKpis_(kpiAll, fullData) {
 function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT;
   ensureSnapshotSheetScaffold_(sheetName, BY_MANAGER_SNAPSHOT_HEADERS_, BY_MANAGER_SNAPSHOT_LABELS_HE_);
+  ensureSnapshotMonthYmTextColumn_(sheetName);
   dedupeDashboardByManagerSnapshotByKey_();
 
   var byManager = Array.isArray(fullData.by_activity_manager) ? fullData.by_activity_manager : [];
@@ -840,7 +857,7 @@ function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
     var snapshotKey = buildDashboardByManagerSnapshotKey_(ym, manager);
     var displayName = SNAPSHOT_MANAGER_DISPLAY_NAMES_[manager] || manager;
     var rowObj = {
-      month_ym:               normalizeSnapshotMonthYm_(ym),
+      month_ym:               "'" + normalizeSnapshotMonthYm_(ym),
       activity_manager:       manager,
       manager_display_name:   displayName,
       total_short:            row.total_short    || 0,
