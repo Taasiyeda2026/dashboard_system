@@ -285,14 +285,19 @@ npm test
 - `installProductionAutomation()`
 
 הפונקציה:
-- מתקינה trigger ל־`keepWarm` כל 10 דקות.
+- מתקינה trigger ל־`keepWarm` כל 5 דקות.
 - מתקינה trigger ל־`runDataMaintenanceTrigger` כל שעה.
+- מתקינה trigger ל־`refreshAllReadModelsTrigger` כל שעה.
+- מתקינה trigger ל־`refreshDataViewsTrigger` כל שעה.
+- מתקינה trigger ל־`refreshActivitiesSnapshotTrigger` כל 10 דקות.
+- מתקינה trigger ל־`refreshDashboardSnapshotsTrigger` כל 10 דקות.
+- מתקינה trigger ל־`syncEndDatesTrigger` כל שעה (כולל רענון אוטומטי של עמוד תאריכי סיום).
 - מוחקת/מחליפה טריגרים קיימים לאותן פונקציות כדי למנוע כפילויות.
-- לא מתקינה `refreshAllReadModelsTrigger` כברירת מחדל (כי `READ_MODELS_ENABLED` בפרונט כבוי).
 
 לאחר ההתקנה אין צורך בהרצות ידניות שוטפות של:
 - `runRefreshDataViewsManually`
 - `runDataMaintenance`
+- `syncEndDates`
 
 לבדיקת מצב האוטומציה:
 - `getProductionAutomationStatus()`
@@ -300,6 +305,11 @@ npm test
 מה אמור להופיע במסך Triggers:
 - trigger אחד עבור `keepWarm` (Time-driven).
 - trigger אחד עבור `runDataMaintenanceTrigger` (Time-driven).
+- trigger אחד עבור `refreshAllReadModelsTrigger` (Time-driven).
+- trigger אחד עבור `refreshDataViewsTrigger` (Time-driven).
+- trigger אחד עבור `refreshActivitiesSnapshotTrigger` (Time-driven).
+- trigger אחד עבור `refreshDashboardSnapshotsTrigger` (Time-driven).
+- trigger אחד עבור `syncEndDatesTrigger` (Time-driven).
 - בלי כפילויות עבור אותן פונקציות.
 
 ## Cache וביצועים

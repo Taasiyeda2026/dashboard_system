@@ -113,10 +113,12 @@ test('api mutation cache invalidation map includes required keys', async () => {
 test('read-model rollout excludes finance from normal paths and keeps end-dates', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  const mainSource = await fs.readFile(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
   assert.match(source, /const READ_MODELS_ENABLED = true/);
   assert.match(source, /READ_MODEL_ENABLED_KEY_LIST\s*=\s*\[[^\]]*'week'[^\]]*'month'[^\]]*'exceptions'[^\]]*'end-dates'[^\]]*\]/);
   assert.doesNotMatch(source, /READ_MODEL_ENABLED_KEY_LIST\s*=\s*\[[^\]]*'finance'[^\]]*\]/);
   assert.match(source, /endDates:\s*\(options\)\s*=>\s*requestReadModel\('end-dates'/);
+  assert.match(mainSource, /const screenLoaders = \{[\s\S]*'end-dates': \(\) => import\('\.\/screens\/end-dates\.js'\)/);
 });
 
 test('perf request marks slow=true for API calls longer than 3000ms', async () => {
