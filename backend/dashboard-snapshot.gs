@@ -563,18 +563,14 @@ function actionDashboardSnapshot_(user, payload) {
 
     var stalePayload;
     if (!persistedStale.snap || !persistedStale.hasSummarySnapshotSheet) {
-      stalePayload = {
-        month: ym,
-        can_view_finance: canViewFinance,
-        totals: {},
-        summary: {},
-        by_activity_manager: [],
-        kpi_cards: [],
-        show_only_nonzero_kpis: showOnlyFromControl,
-        _is_snapshot: true,
-        _is_stale: true,
-        _snapshot_fallback_reason: staleReason
-      };
+      stalePayload = actionDashboard_(user, payload || {});
+      if (stalePayload && typeof stalePayload === 'object') {
+        stalePayload._is_snapshot = false;
+        stalePayload._is_stale = true;
+        stalePayload._snapshot_fallback_reason = staleReason || 'missing_snapshot';
+      }
+      setRequestPerfField_('dashboard_fallback_used', true);
+      markRequestPerf_('dashboard:fallback_used:true');
     } else {
       markRequestPerf_('dashboardSnapshot:build kpi cards:start');
       stalePayload = composeDashboardPayloadFromSummarySnapshot_(
@@ -587,16 +583,16 @@ function actionDashboardSnapshot_(user, payload) {
       markRequestPerf_('dashboardSnapshot:build kpi cards:end');
       stalePayload._is_stale = true;
       stalePayload._snapshot_fallback_reason = staleReason;
+      setRequestPerfField_('dashboard_fallback_used', false);
+      markRequestPerf_('dashboard:fallback_used:false');
     }
 
     setRequestPerfField_('dashboard_used_view', false);
     setRequestPerfField_('dashboard_cache_hit', false);
-    setRequestPerfField_('dashboard_fallback_used', false);
     setRequestPerfField_('dashboard_view_rows_read', 0);
     setRequestPerfField_('payload_bytes', JSON.stringify(stalePayload || {}).length);
     markRequestPerf_('dashboard:force_fallback_by_freshness:true');
     markRequestPerf_('dashboard:stale_snapshot:true');
-    markRequestPerf_('dashboard:fallback_used:false');
     markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
     return stalePayload;
   }
@@ -647,24 +643,19 @@ function actionDashboardSnapshot_(user, payload) {
       markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
       return fullData;
     }
-    setRequestPerfField_('dashboard_fallback_used', false);
+    var fallbackData = actionDashboard_(user, payload || {});
+    if (fallbackData && typeof fallbackData === 'object') {
+      fallbackData._is_snapshot = false;
+      fallbackData._is_stale = true;
+      fallbackData._snapshot_fallback_reason = 'missing_snapshot';
+    }
+    setRequestPerfField_('dashboard_fallback_used', true);
     setRequestPerfField_('dashboard_view_rows_read', 0);
-    var stubPayload = {
-      month: ym,
-      _is_snapshot: false,
-      _is_snapshot_missing: true,
-      can_view_finance: canViewFinance,
-      totals: {},
-      summary: {},
-      by_activity_manager: [],
-      kpi_cards: [],
-      show_only_nonzero_kpis: true
-    };
-    setRequestPerfField_('payload_bytes', JSON.stringify(stubPayload).length);
-    markRequestPerf_('dashboard:fallback_used:false');
+    setRequestPerfField_('payload_bytes', JSON.stringify(fallbackData || {}).length);
+    markRequestPerf_('dashboard:fallback_used:true');
     markRequestPerf_('dashboard:used_view:false');
     markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
-    return stubPayload;
+    return fallbackData;
   }
 
   markRequestPerf_('dashboardSnapshot:settings/show_only_nonzero_kpis:start');
