@@ -11,7 +11,7 @@ import { instructorsScreen } from '../frontend/src/screens/instructors.js';
 import { contactsScreen } from '../frontend/src/screens/contacts.js';
 import { endDatesScreen } from '../frontend/src/screens/end-dates.js';
 
-const API_URL = process.env.DASHBOARD_API_URL || 'https://script.google.com/macros/s/AKfycbzzRyiqUPA5o6o5AoJ0PEEFOkl9z8_2e0DBT2ctDm8DrMAf3n4wGSrfKGh0n5b6Wgfk/exec';
+const API_URL = process.env.DASHBOARD_API_URL || 'https://script.google.com/macros/s/AKfycbwWMz-YVA7uPuA6d1yS7JKna3nRZmqBJy8u6ilPnggChBhwpYz_JeAXv6Dd5w3D16vA/exec';
 const USER_ID = process.env.DASHBOARD_USER_ID || '';
 const ENTRY_CODE = process.env.DASHBOARD_ENTRY_CODE || '';
 const SAMPLES_PER_SCREEN = Number(process.env.STAGE0B_SAMPLES || 20);
