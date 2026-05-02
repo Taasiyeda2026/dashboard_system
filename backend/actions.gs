@@ -13,7 +13,8 @@ function actionBootstrap_(user) {
     can_request_edit: effectiveCanRequestEdit_(permission, user.display_role),
     profile: {
       full_name: text_(permission.full_name),
-      display_role2: text_(permission.display_role2)
+      display_role2: text_(permission.display_role2),
+      display_role_label: text_(permission.display_role)
     },
     client_settings: buildClientSettingsPayload_()
   };
@@ -2435,11 +2436,13 @@ function actionPermissions_(user) {
 
   var result = {
     rows: readRows_(CONFIG.SHEETS.PERMISSIONS).map(function(row) {
+      var normRole = normalizeRole_(internalRoleFromPermissionRow_(row));
       var out = {
         user_id: text_(row.user_id),
         entry_code: text_(row.entry_code),
         full_name: text_(row.full_name),
-        display_role: normalizeRole_(internalRoleFromPermissionRow_(row)),
+        role: normRole,
+        display_role: text_(row.display_role),
         display_role2: text_(row.display_role2),
         default_view: text_(row.default_view),
         active: yesNo_(row.active)
@@ -2968,13 +2971,17 @@ function actionSavePermission_(user, payload) {
     }
     if (Object.prototype.hasOwnProperty.call(row, h)) {
       if (h === 'role') {
-        // 'role' column = internal code. Accept from payload.role or payload.display_role (backward compat).
-        merged[h] = normalizeRole_(text_(row.role || row.display_role) || internalRoleFromPermissionRow_(existing));
+        // Internal code column: payload.role, or English code mistakenly sent as display_role (UI compat).
+        var src = text_(row.role);
+        if (!src && isPermissionsSheetRoleCodeToken_(row.display_role)) {
+          src = text_(row.display_role);
+        }
+        merged[h] = normalizeRole_(src || internalRoleFromPermissionRow_(existing));
       } else if (h === 'display_role') {
         // 'display_role' column = human-readable label (Hebrew text). Store as-is.
         // If the payload contains only an internal code here, keep existing label.
         var payloadLabel = text_(row[h]);
-        var isCode = payloadLabel && ['admin','operation_manager','operations_reviewer','authorized_user','instructor','finance','activities_manager','domain_manager','manager_instructor','instructor_admin'].indexOf(payloadLabel.toLowerCase()) >= 0;
+        var isCode = isPermissionsSheetRoleCodeToken_(payloadLabel);
         merged[h] = isCode ? text_(existing[h] || '') : (payloadLabel || text_(existing[h] || ''));
       } else if (h === 'active' || h.indexOf('view_') === 0 || h.indexOf('can_') === 0) {
         merged[h] = yesNo_(row[h]);
@@ -3032,8 +3039,8 @@ function actionAddUser_(user, payload) {
   });
   if (alreadyExists) throw new Error('user_already_exists');
 
-  // Accept role code from payload.role or (backward compat) payload.display_role.
-  var resolvedRole = normalizeRole_(text_(row.role || row.display_role || 'instructor'));
+  // Prefer permissions-style display_role (sheet column) then internal role column.
+  var resolvedRole = normalizeRole_(text_(row.display_role || row.role || 'instructor'));
 
   var nonAdminRoleDefaults = computeNonAdminRoleDefaults_();
 

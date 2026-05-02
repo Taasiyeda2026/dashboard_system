@@ -105,6 +105,11 @@ function actionLogin_(payload) {
   if (text_(matchByUser.entry_code) !== entryCode) throw new Error('invalid_credentials');
 
   var role = normalizeRole_(internalRoleFromPermissionRow_(matchByUser));
+  var rawSheetDisplay = text_(matchByUser.display_role);
+  var displayRoleLabel = '';
+  if (rawSheetDisplay && rawSheetDisplay.toLowerCase() !== role) {
+    displayRoleLabel = rawSheetDisplay;
+  }
   var routes = effectiveRoutesForUser_(matchByUser, role);
   var preferred = text_(matchByUser.default_view) || defaultRouteForRole_(role);
   var defaultRoute = resolveDefaultRoute_(preferred, routes, role);
@@ -115,6 +120,7 @@ function actionLogin_(payload) {
     user_id: text_(matchByUser.user_id),
     full_name: text_(matchByUser.full_name),
     display_role: role,
+    display_role_label: displayRoleLabel,
     display_role2: text_(matchByUser.display_role2),
     default_view: text_(matchByUser.default_view),
     emp_id: text_(matchByUser.user_id),
@@ -165,6 +171,7 @@ function requireAuth_(token) {
           user_id: text_(enriched.user_id || sessionFromToken.user_id),
           full_name: text_(enriched.full_name || sessionFromToken.full_name),
           display_role: text_(enriched.display_role || sessionFromToken.display_role),
+          display_role_label: text_(enriched.display_role_label || ''),
           display_role2: text_(enriched.display_role2 || sessionFromToken.display_role2),
           emp_id: text_(enriched.emp_id || sessionFromToken.emp_id || sessionFromToken.user_id),
           org_id: text_(enriched.org_id || sessionFromToken.org_id),
@@ -269,6 +276,7 @@ function parseSessionToken_(token) {
   return {
     user_id: userId,
     display_role: role,
+    display_role_label: '',
     org_id: text_(payload.org_id),
     emp_id: text_(payload.emp_id || userId),
     can_add_activity: !!payload.can_add_activity,

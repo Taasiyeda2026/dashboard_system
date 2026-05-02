@@ -65,11 +65,31 @@ function yesNo_(value) {
 }
 
 function internalRoleFromPermissionRow_(row) {
-  // 'role' column = internal code (admin / operation_manager / etc.).
-  // Fallback to display_role for backward-compat with rows read before the
-  // schema fix (when display_role held the code due to missing role column).
-  var v = text_(row && (row.role || row.display_role));
-  return v;
+  // Primary: permissions sheet `display_role` (Hebrew label or legacy English code).
+  // Fallback: internal `role` column when display_role is blank.
+  var display = text_(row && row.display_role);
+  var roleCol = text_(row && row.role);
+  if (display) return display;
+  return roleCol;
+}
+
+/** True when value is a known internal role token (English), not a Hebrew label. */
+function isPermissionsSheetRoleCodeToken_(value) {
+  var t = text_(value).toLowerCase();
+  if (!t) return false;
+  var codes = [
+    'admin',
+    'finance',
+    'operations_reviewer',
+    'operation_manager',
+    'authorized_user',
+    'instructor',
+    'instructor_admin',
+    'activities_manager',
+    'domain_manager',
+    'manager_instructor'
+  ];
+  return codes.indexOf(t) >= 0;
 }
 
 function normalizeRole_(value) {

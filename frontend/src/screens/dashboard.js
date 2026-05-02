@@ -162,6 +162,18 @@ function filterKpiCards(cards, showOnlyNonzero) {
 const DASHBOARD_LOAD_GUARD_MS = 22000;
 const DASHBOARD_LOAD_ERROR_HE = 'לא ניתן לטעון את לוח הבקרה כרגע. נסו לרענן או בדקו את חיבור השרת.';
 
+/** Snapshot / read-model status line above dashboard body (controlled copy). */
+function buildDashboardStaleBanner(data) {
+  if (!data || typeof data !== 'object') return '';
+  if (data._snapshot_unavailable === true) {
+    return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">נתוני לוח הבקרה מתעדכנים כעת. ייתכן שחלק מהנתונים יוצגו לאחר הרענון הבא.</div>';
+  }
+  if (data._read_model_stale === true || data._is_stale === true) {
+    return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">הנתונים מתעדכנים כעת. מוצגים נתוני מטמון אחרונים.</div>';
+  }
+  return '';
+}
+
 export const dashboardScreen = {
   async load({ api, state }) {
     let ym = state.dashboardMonthYm;
@@ -282,7 +294,7 @@ export const dashboardScreen = {
       : '<p class="ds-muted">אין כרטיסי KPI להצגה.</p>';
 
     const navLoading = !!state?.dashboardNavLoading;
-    const staleBanner = data?._read_model_stale ? '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">הנתונים מתעדכנים כעת. מוצגים נתוני מטמון אחרונים.</div>' : ''; 
+    const staleBanner = buildDashboardStaleBanner(data);
     const monthNav = `<div class="ds-dash-month-nav${navLoading ? ' is-nav-loading' : ''}" dir="rtl" aria-label="בחירת חודש לתצוגה">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
       <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))} ${navLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
@@ -387,24 +399,22 @@ export const dashboardScreen = {
       state.dashboardNavLoading = true;
       state.dashboardMonthYm = nextYm;
       const cacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(nextYm) ? nextYm : 'default'}`;
-
-      const cached = state.screenDataCache[cacheKey];
-      if (cached?.data && Date.now() - cached.t < DASHBOARD_TTL_MS) {
-        rerender();
-      } else {
+      try {
+        const cached = state.screenDataCache[cacheKey];
+        if (cached?.data && Date.now() - cached.t < DASHBOARD_TTL_MS) {
+          return;
+        }
         showDataAreaLoading();
-        let snapshotLoaded = false;
         try {
           const snapshotData = await api.dashboardSnapshot({ month: nextYm });
           putDashboardCache(cacheKey, snapshotData);
-          snapshotLoaded = true;
         } catch (_err) {
           // Keep currently rendered dashboard content when refresh fails.
         }
-        rerender();
+      } finally {
+        state.dashboardNavLoading = false;
+        if (state.route === 'dashboard') rerender();
       }
-      state.dashboardNavLoading = false;
-      if (state.route === 'dashboard') rerender();
     };
 
     root.querySelector('[data-dash-month-prev]')?.addEventListener('click', () => {
@@ -442,7 +452,7 @@ export const dashboardScreen = {
         return;
       }
       if (action === 'kpi|endings') {
-        state.route = 'end_dates';
+        state.route = 'end-dates';
         ui.closeAll();
         rerender();
         return;

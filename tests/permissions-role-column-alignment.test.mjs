@@ -86,21 +86,23 @@ test('PERMISSIONS_LOGIN_PROJECTED_HEADERS_ includes role', async () => {
   assert.match(blockMatch[1], /'role'/, "PERMISSIONS_LOGIN_PROJECTED_HEADERS_ must include 'role'");
 });
 
-test('internalRoleFromPermissionRow_ reads row.role (not only row.display_role)', async () => {
+test('internalRoleFromPermissionRow_ prefers display_role then falls back to role', async () => {
   const src = await readFile(HELPERS_GS, 'utf8');
   const fnMatch = src.match(/function internalRoleFromPermissionRow_\([\s\S]*?\n}/);
   assert.ok(fnMatch, 'internalRoleFromPermissionRow_ must exist');
+  assert.match(fnMatch[0], /row\.display_role/, 'internalRoleFromPermissionRow_ must reference row.display_role');
   assert.match(fnMatch[0], /row\.role/, 'internalRoleFromPermissionRow_ must reference row.role');
 });
 
-test('internalRoleFromPermissionRow_ example: EXAMPLE_ROW returns admin (from role column)', () => {
-  // Simulate what internalRoleFromPermissionRow_ does after the fix
+test('internalRoleFromPermissionRow_ example: EXAMPLE_ROW returns Hebrew display_role first', () => {
   function internalRoleFromPermissionRow_(row) {
-    var v = (row && (row.role || row.display_role)) || '';
-    return String(v).trim();
+    var display = String((row && row.display_role) || '').trim();
+    var roleCol = String((row && row.role) || '').trim();
+    if (display) return display;
+    return roleCol;
   }
   const result = internalRoleFromPermissionRow_(EXAMPLE_ROW);
-  assert.strictEqual(result, 'admin', `must return 'admin' from role column, got '${result}'`);
+  assert.strictEqual(result, 'מנהל מערכת', `must return sheet display_role first, got '${result}'`);
 });
 
 test('EXAMPLE_ROW: view_admin is yes (not dashboard)', () => {
@@ -139,12 +141,12 @@ test('EXAMPLE_ROW: headers count equals values count', () => {
 
 test('actionSavePermission_: role column is normalized, display_role is not used as code', async () => {
   const src = await readFile(ACTIONS_GS, 'utf8');
-  // Function must exist
   assert.match(src, /function actionSavePermission_\(/, 'actionSavePermission_ must exist');
-  // Must handle h === 'role' with normalizeRole_
-  assert.match(src, /h === 'role'[\s\S]{1,200}normalizeRole_/, "actionSavePermission_ must normalize 'role' column");
-  // The old broken pattern — normalizing the display_role column — must not appear
-  assert.doesNotMatch(src,
+  const fnMatch = src.match(/function actionSavePermission_\([\s\S]*?\r?\n}\r?\n\r?\nfunction actionAddUser_/);
+  assert.ok(fnMatch, 'actionSavePermission_ block must be extractable before actionAddUser_');
+  const saveSrc = fnMatch[0];
+  assert.match(saveSrc, /h === 'role'[\s\S]*normalizeRole_/, "actionSavePermission_ must normalize 'role' column");
+  assert.doesNotMatch(saveSrc,
     /if \(h === 'display_role'\)\s*\{[\s\S]{1,60}normalizeRole_/,
     "display_role column must not be normalized with normalizeRole_ (it is a Hebrew label)"
   );
@@ -158,9 +160,9 @@ test('actionAddUser_: role column is handled in newRow builder', async () => {
     "actionAddUser_ must write resolvedRole to 'role' column");
 });
 
-test('actionAddUser_: resolvedRole accepts row.role or row.display_role', async () => {
+test('actionAddUser_: resolvedRole prefers row.display_role then row.role', async () => {
   const src = await readFile(ACTIONS_GS, 'utf8');
   assert.match(src, /function actionAddUser_\(/, 'actionAddUser_ must exist');
-  assert.match(src, /row\.role\s*\|\|\s*row\.display_role/,
-    'resolvedRole must accept row.role || row.display_role for backward compat');
+  assert.match(src, /row\.display_role\s*\|\|\s*row\.role/,
+    'resolvedRole must accept row.display_role || row.role (permissions sheet column first)');
 });
