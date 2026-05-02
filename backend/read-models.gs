@@ -6,20 +6,7 @@ var READ_MODEL_SHEET_FALLBACK_ = 'read_models';
  * Metadata בלבד בגיליון — ללא payload_json / rows_json (מגבלת 50,000 תווים לתא).
  * גוף ה-JSON נשמר ב-Drive; storage_ref = מזהה קובץ.
  */
-var READ_MODEL_HEADERS_ = [
-  'key',
-  'updated_at',
-  'version',
-  'hash',
-  'source_updated_at',
-  'status',
-  'duration_ms',
-  'rows_count',
-  'payload_size',
-  'last_error',
-  'storage_type',
-  'storage_ref'
-];
+var READ_MODEL_HEADERS_ = getSystemSheetSpec_('read_models').headers.slice();
 
 /** JSON מלא נשמר ב-Drive בלבד; לא בתא. */
 var READ_MODEL_STORAGE_DRIVE_ = 'drive';

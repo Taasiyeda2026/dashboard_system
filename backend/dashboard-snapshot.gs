@@ -14,63 +14,14 @@
 
 var SNAPSHOT_ADMIN_USER_ = { user_id: 'snapshot_refresh', display_role: 'admin' };
 
-var SUMMARY_SNAPSHOT_HEADERS_ = [
-  'month_ym', 'month_label', 'updated_at',
-  'total_short_activities', 'total_long_activities',
-  'active_courses_current_month', 'active_workshops_current_month',
-  'active_tours_current_month', 'active_after_school_current_month',
-  'active_escape_room_current_month',
-  /* legacy column finance_open_count kept in sheet but not used */ 'exceptions_count', 'active_instructors_count',
-  'course_endings_current_month', 'active_courses_next_month',
-  'missing_instructor_count', 'missing_start_date_count', 'late_end_date_count',
-  'active_instructors_names'
-];
+var SUMMARY_SNAPSHOT_HEADERS_ = getSystemSheetSpec_('dashboard_summary_snapshot').headers.slice();
 
-var BY_MANAGER_SNAPSHOT_HEADERS_ = [
-  'month_ym', 'activity_manager', 'manager_display_name',
-  'total_short', 'total_long', 'total', 'num_instructors',
-  /* legacy column finance_open kept in sheet but not used */ 'course_endings', 'exceptions',
-  'active_instructors_names', 'updated_at', 'snapshot_key'
-];
+var BY_MANAGER_SNAPSHOT_HEADERS_ = getSystemSheetSpec_('dashboard_by_manager_snapshot').headers.slice();
 
-var REFRESH_CONTROL_HEADERS_ = ['key', 'value', 'label_he'];
-var SUMMARY_SNAPSHOT_LABELS_HE_ = [
-  'חודש',
-  'תווית חודש',
-  'עודכן בתאריך',
-  'סך פעילויות חד-יומיות',
-  'סך תוכניות',
-  'קורסים פעילים בחודש נוכחי',
-  'סדנאות פעילות בחודש נוכחי',
-  'סיורים פעילים בחודש נוכחי',
-  'צהרונים פעילים בחודש נוכחי',
-  'חדרי בריחה פעילים בחודש נוכחי',
-  'כספים פתוחים',
-  'חריגות',
-  'מדריכים פעילים',
-  'סיומי קורסים בחודש נוכחי',
-  'קורסים פעילים בחודש הבא',
-  'ללא מדריך',
-  'ללא תאריך התחלה',
-  'תאריך סיום מאוחר',
-  'שמות מדריכים פעילים'
-];
-var BY_MANAGER_SNAPSHOT_LABELS_HE_ = [
-  'חודש',
-  'מנהל פעילות',
-  'שם תצוגה מנהל',
-  'חד-יומי',
-  'תוכניות',
-  'סך הכול',
-  'מספר מדריכים',
-  'סיומי קורסים',
-  'כספים פתוחים',
-  'חריגות',
-  'שמות מדריכים פעילים',
-  'עודכן בתאריך',
-  'מפתח snapshot'
-];
-var REFRESH_CONTROL_LABELS_HE_ = ['מפתח', 'ערך', 'תווית'];
+var REFRESH_CONTROL_HEADERS_ = getSystemSheetSpec_('dashboard_refresh_control').headers.slice();
+var SUMMARY_SNAPSHOT_LABELS_HE_ = getSystemSheetSpec_('dashboard_summary_snapshot').hebrewLabels.slice();
+var BY_MANAGER_SNAPSHOT_LABELS_HE_ = getSystemSheetSpec_('dashboard_by_manager_snapshot').hebrewLabels.slice();
+var REFRESH_CONTROL_LABELS_HE_ = getSystemSheetSpec_('dashboard_refresh_control').hebrewLabels.slice();
 
 var SNAPSHOT_MANAGER_DISPLAY_NAMES_ = {
   'גיל נאמן':          'מחוז צפון',
