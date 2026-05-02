@@ -14,7 +14,7 @@ function handleGet_() {
 
 function shouldAllowLegacyFallbackForHeavyAction_(action, payload, user) {
   var a = text_(action);
-  var heavy = {
+    var heavy = {
     dashboard: true,
     dashboardSnapshot: true,
     month: true,

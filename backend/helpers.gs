@@ -333,6 +333,7 @@ var SLA_THRESHOLDS_MS_ = {
   login: 1000,
   dashboard: 1500,
   dashboardSnapshot: 1500,
+  dashboardSheet: 1500,
   activities: 2000,
   week: 2000,
   month: 2000

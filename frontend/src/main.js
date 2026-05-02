@@ -1235,7 +1235,7 @@ async function mountScreen() {
     }
     if (firstAuthenticatedMount && state.route === 'dashboard' && !firstDashboardSnapshotTimerStarted) {
       firstDashboardSnapshotTimerStarted = true;
-      beginPerfTimer('dashboardSnapshot:firstLoad');
+      beginPerfTimer('dashboardSheet:firstLoad');
     }
     let routeLoadGuardTimer = null;
     const routeLoadGuard = new Promise((_, reject) => {
@@ -1251,7 +1251,7 @@ async function mountScreen() {
     if (transitionToken !== activeNavigationToken || requestedRoute !== latestNavigationRoute) return;
     if (state.route !== requestedRoute) return;
     if (firstAuthenticatedMount && state.route === 'dashboard') {
-      endPerfTimer('dashboardSnapshot:firstLoad');
+      endPerfTimer('dashboardSheet:firstLoad');
     }
     beginPerfTimer('route:renderScreen');
     const screenRoot = document.getElementById('screenRoot');
@@ -1279,7 +1279,7 @@ async function mountScreen() {
     endPerfTimer('route:bindScreen');
     if (transitionToken !== activeNavigationToken || state.route !== requestedRoute) return;
     if (firstAuthenticatedMount && state.route === 'dashboard') {
-      endPerfTimer('dashboardSnapshot:firstLoad');
+      endPerfTimer('dashboardSheet:firstLoad');
     }
     const screenRoot = document.getElementById('screenRoot');
     if (screenRoot) {

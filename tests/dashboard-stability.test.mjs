@@ -1,5 +1,5 @@
 /**
- * Post–PR #240 dashboard stability: routes, snapshot API, stale banners, nav loading, lockfile.
+ * Post–PR #240 dashboard stability: routes, dashboardSheet API, stale banners, nav loading, lockfile.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,9 +23,10 @@ test('dashboard.js: KPI endings navigates to end-dates', async () => {
   assert.match(src, /kpi\|endings[\s\S]{0,400}state\.route\s*=\s*['"]end-dates['"]/);
 });
 
-test('dashboard.js: uses dashboardSheet, not bare api.dashboard', async () => {
+test('dashboard.js: uses dashboardSheet only (no dashboard / dashboardSnapshot)', async () => {
   const src = await readText(DASHBOARD_JS);
   assert.match(src, /api\.dashboardSheet\s*\(/, 'must load via dashboardSheet');
+  assert.doesNotMatch(src, /api\.dashboardSnapshot\s*\(/, 'must not use dashboardSnapshot on Dashboard screen');
   assert.doesNotMatch(
     src,
     /api\.dashboard\s*\(\s*\{/,

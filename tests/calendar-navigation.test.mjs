@@ -18,7 +18,7 @@ test('week nav uses compact week API and guarded loading flag', () => {
   assert.match(weekSrc, /finally\s*\{[\s\S]*state\.weekNavLoading = false/);
 });
 
-test('dashboard month navigation stays on dashboardSheet-only path', () => {
+test('dashboard month navigation uses dashboardSheet path', () => {
   assert.match(dashboardSrc, /api\.dashboardSheet\(\{ month: nextYm \}\)/);
   assert.doesNotMatch(dashboardSrc, /api\.dashboard\s*\(\s*\{/);
   assert.match(dashboardSrc, /state\.dashboardNavLoading = true/);

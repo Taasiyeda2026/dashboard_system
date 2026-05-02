@@ -406,8 +406,8 @@ export const dashboardScreen = {
         }
         showDataAreaLoading();
         try {
-          const snapshotData = await api.dashboardSheet({ month: nextYm });
-          putDashboardCache(cacheKey, snapshotData);
+          const sheetData = await api.dashboardSheet({ month: nextYm });
+          putDashboardCache(cacheKey, sheetData);
         } catch (_err) {
           // Keep currently rendered dashboard content when refresh fails.
         }

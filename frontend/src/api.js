@@ -39,6 +39,7 @@ const READ_ACTIONS = {
   bootstrap: true,
   dashboard: true,
   dashboardSnapshot: true,
+  dashboardSheet: true,
   activities: true,
   activityDetail: true,
   week: true,
@@ -684,7 +685,7 @@ export const api = {
     const route = String(state?.route || '').trim();
     const isProd = !config.devMode;
     if (isProd && route === 'dashboard') {
-      throw new Error('Legacy dashboard API is blocked on Dashboard screen in production. Use dashboardSnapshot only.');
+      throw new Error('Legacy dashboard API is blocked on Dashboard screen in production. Use dashboardSheet only.');
     }
     return request('dashboard', filters || {});
   },
