@@ -31,11 +31,10 @@ function actionDashboardNumeric(rs){
   const inMonth=rs.filter(r=>overlapsYm(r,YM));
   const total_short=inMonth.filter(r=>['workshop','tour','escape_room'].includes(r.activity_type)).length;
   const total_long=inMonth.filter(r=>['course','after_school'].includes(r.activity_type) && r.status!=='סגור').length;
-  const finance_open_count=inMonth.filter(r=>normFinance(r.finance_status)==='open').length;
   const course_endings=inMonth.filter(r=>r.activity_type==='course' && String(r.end_date).slice(0,7)===YM).length;
   const active_instructors=new Set(inMonth.flatMap(r=>[r.emp_id].filter(Boolean))).size;
   const ex=computeExceptionsModelNumeric(inMonth);
-  return { total_short,total_long,finance_open_count,course_endings,active_instructors,exceptions_count:ex.totalExceptionRows, byManagerExceptions:ex.byManager };
+  return { total_short,total_long,course_endings,active_instructors,exceptions_count:ex.totalExceptionRows, byManagerExceptions:ex.byManager };
 }
 
 const actionDashboardSnapshotNumeric = actionDashboardNumeric;
@@ -59,7 +58,7 @@ test('Stage2B numeric: dashboard/snapshot/read-model parity on same fixture', ()
   const d=actionDashboardNumeric(rows);
   const s=actionDashboardSnapshotNumeric(rows);
   const rm=actionReadModelGetNumeric(refreshDashboardReadModelNumeric(rows));
-  ['total_short','total_long','exceptions_count','finance_open_count','active_instructors','course_endings'].forEach((k)=>{
+  ['total_short','total_long','exceptions_count','active_instructors','course_endings'].forEach((k)=>{
     assert.equal(d[k], s[k]);
     assert.equal(d[k], rm[k]);
   });

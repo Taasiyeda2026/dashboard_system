@@ -696,6 +696,7 @@ export const api = {
     const canonical = { ...resolved, month };
     return requestReadModel('exceptions', canonical, 'exceptions', canonical, options || {});
   },
+  // legacy only; not used by startup/navigation/dashboard/read models.
   finance: (params, options) => {
     const resolved = (params && typeof params === 'object') ? params : {};
     const now = new Date();
@@ -704,8 +705,10 @@ export const api = {
     const month = /^\d{4}-\d{2}$/.test(candidateMonth) ? candidateMonth : currentYm;
     const tab = String(resolved.tab || 'active').trim() || 'active';
     const canonical = { ...resolved, month, tab };
-    return requestReadModel('finance', canonical, 'finance', canonical, options || {});
+    void options;
+    return request('finance', canonical, { legacy_intentional: true, used_read_model: false, fallback_used: true });
   },
+  // legacy only; not used by startup/navigation/dashboard/read models.
   financeDetail: (source_row_id, source_sheet) => request('financeDetail', { source_row_id, source_sheet }),
   instructors: () => request('instructors'),
   instructorContacts: () => request('instructorContacts'),

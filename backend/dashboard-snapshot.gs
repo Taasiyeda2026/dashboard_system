@@ -519,8 +519,7 @@ function actionDashboardSnapshot_(user, payload) {
 
   markRequestPerf_('dashboardSnapshot:permission lookup:start');
   var permission = getDashboardSnapshotPermission_(user);
-  var canViewFinance = user.display_role === 'admin' ||
-    yesNo_(permission.view_finance) === 'yes';
+  void permission;
   markRequestPerf_('dashboardSnapshot:permission lookup:end');
 
   var ym = dashboardPayloadYm_(payload || {});
@@ -561,13 +560,7 @@ function actionDashboardSnapshot_(user, payload) {
       markRequestPerf_('dashboard:fallback_used:true');
     } else {
       markRequestPerf_('dashboardSnapshot:build kpi cards:start');
-      stalePayload = composeDashboardPayloadFromSummarySnapshot_(
-        ym,
-        canViewFinance,
-        persistedStale.snap,
-        persistedStale.byManagerRows,
-        showOnlyFromControl
-      );
+      stalePayload = composeDashboardPayloadFromSummarySnapshot_(ym, persistedStale.snap, persistedStale.byManagerRows, showOnlyFromControl);
       markRequestPerf_('dashboardSnapshot:build kpi cards:end');
       stalePayload._is_stale = true;
       stalePayload._snapshot_fallback_reason = staleReason;
@@ -582,13 +575,13 @@ function actionDashboardSnapshot_(user, payload) {
     markRequestPerf_('dashboard:force_fallback_by_freshness:true');
     markRequestPerf_('dashboard:stale_snapshot:true');
     markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
-    return stalePayload;
+    return sanitizeDashboardSnapshotPayloadNoFinance_(stalePayload);
   }
 
   markRequestPerf_('dashboardSnapshot:monthly view lookup:start');
   var viewTry = null;
   try {
-    viewTry = tryDashboardSnapshotFromMonthlyView_(ym, nextYm, canViewFinance);
+    viewTry = tryDashboardSnapshotFromMonthlyView_(ym, nextYm);
   } catch (_viewErr) {
     viewTry = { ok: false };
   }
@@ -603,7 +596,7 @@ function actionDashboardSnapshot_(user, payload) {
     markRequestPerf_('dashboard:used_view:true');
     markRequestPerf_(viewTry.cache_hit ? 'dashboard:cache_hit:true' : 'dashboard:cache_hit:false');
     markRequestPerf_('dashboard:fallback_used:false');
-    return viewTry.payload;
+    return sanitizeDashboardSnapshotPayloadNoFinance_(viewTry.payload);
   }
 
   setRequestPerfField_('dashboard_used_view', false);
@@ -629,7 +622,7 @@ function actionDashboardSnapshot_(user, payload) {
       markRequestPerf_('dashboard:fallback_used:true');
       markRequestPerf_('dashboard:used_view:false');
       markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
-      return fullData;
+      return sanitizeDashboardSnapshotPayloadNoFinance_(fullData);
     }
     var fallbackData = actionDashboard_(user, payload || {});
     if (fallbackData && typeof fallbackData === 'object') {
@@ -643,20 +636,14 @@ function actionDashboardSnapshot_(user, payload) {
     markRequestPerf_('dashboard:fallback_used:true');
     markRequestPerf_('dashboard:used_view:false');
     markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
-    return fallbackData;
+    return sanitizeDashboardSnapshotPayloadNoFinance_(fallbackData);
   }
 
   markRequestPerf_('dashboardSnapshot:settings/show_only_nonzero_kpis:start');
   var flags = getDashboardSnapshotFlags_();
   markRequestPerf_('dashboardSnapshot:settings/show_only_nonzero_kpis:end');
   markRequestPerf_('dashboardSnapshot:build kpi cards:start');
-  var sheetSnapshotPayload = composeDashboardPayloadFromSummarySnapshot_(
-    ym,
-    canViewFinance,
-    snap,
-    byManagerRows,
-    flags.show_only_nonzero_kpis !== false
-  );
+  var sheetSnapshotPayload = composeDashboardPayloadFromSummarySnapshot_(ym, snap, byManagerRows, flags.show_only_nonzero_kpis !== false);
   markRequestPerf_('dashboardSnapshot:build kpi cards:end');
   markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
 
@@ -665,7 +652,7 @@ function actionDashboardSnapshot_(user, payload) {
   setRequestPerfField_('payload_bytes', JSON.stringify(sheetSnapshotPayload).length);
   markRequestPerf_('dashboard:fallback_used:false');
   markRequestPerf_('dashboard:used_view:false');
-  return sheetSnapshotPayload;
+  return sanitizeDashboardSnapshotPayloadNoFinance_(sheetSnapshotPayload);
 }
 
 // ─── B. buildDashboardSnapshotKpis_ ──────────────────────────────────────────
@@ -704,17 +691,29 @@ function buildDashboardSnapshotKpis_(snapshot, canViewFinance) {
     }
   ];
 
-  if (canViewFinance) {
-    cards.push({
-      id: 'finance_open', action: 'kpi|finance_open',
-      title: String(snapshot.finance_open_count || 0),
-      subtitle: 'כספים פתוחים',
-      value: snapshot.finance_open_count || 0,
-      requires_finance: true
-    });
-  }
+  void canViewFinance;
 
   return cards;
+}
+
+function sanitizeDashboardSnapshotPayloadNoFinance_(data) {
+  var payload = data && typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : {};
+  delete payload.can_view_finance;
+  if (payload.summary && typeof payload.summary === 'object') {
+    delete payload.summary.finance_open_count;
+  }
+  if (payload.totals && typeof payload.totals === 'object') {
+    delete payload.totals.finance_open_count;
+    delete payload.totals.finance_open;
+  }
+  if (Array.isArray(payload.by_activity_manager)) {
+    payload.by_activity_manager.forEach(function(row) { if (row && typeof row === 'object') delete row.finance_open; });
+  }
+  if (Array.isArray(payload.kpi_cards)) {
+    payload.kpi_cards = payload.kpi_cards.filter(function(card) { return text_(card && card.id) !== 'finance_open'; });
+  }
+  delete payload.finance_open_count;
+  return payload;
 }
 
 // ─── C. refreshDashboardSnapshots_ ───────────────────────────────────────────

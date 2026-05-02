@@ -18,7 +18,9 @@ test('dashboard consistency harness: legacy/snapshot/read-model are wired to sam
   mustMatch(snapshot, /getExceptionsSummary_\([^\n]+include_rows: false[^\n]+\)/);
 
   // required KPI fields are built by snapshot
-  mustMatch(snapshot, /finance_open_count/);
+  mustMatch(snapshot, /function sanitizeDashboardSnapshotPayloadNoFinance_/);
+  mustMatch(snapshot, /delete payload\.summary\.finance_open_count/);
+  mustMatch(snapshot, /payload\.kpi_cards = payload\.kpi_cards\.filter/);
   mustMatch(snapshot, /exceptions_count/);
   mustMatch(snapshot, /active_instructors_count/);
   mustMatch(snapshot, /course_endings_current_month/);
@@ -41,7 +43,7 @@ test('exceptions consistency harness: exceptions endpoint and dashboard use comp
   mustMatch(views, /var monthExceptionSummary = computeExceptionsModel_\(monthActivities, ym, \{ include_rows: false \}\);/);
 });
 
-test('finance consistency harness: row amount, pending logic, status buckets, and export use same normalization', async () => {
+test('finance logic remains legacy-only in finance screen/backend helpers', async () => {
   const actions = await read('backend/actions.gs');
   const financeScreen = await read('frontend/src/screens/finance.js');
 

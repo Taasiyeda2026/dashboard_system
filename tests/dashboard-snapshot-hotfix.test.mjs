@@ -24,3 +24,11 @@ test('dashboard manager mapping keeps display-only district labels', async () =>
 
   mustMatch(snapshot, /var SNAPSHOT_MANAGER_DISPLAY_NAMES_ = \{[\s\S]*'גיל נאמן'\s*:\s*'מחוז צפון',[\s\S]*'לינוי שמואל מזרחי'\s*:\s*'מחוז דרום'[\s\S]*\};/);
 });
+
+
+test('dashboard snapshot payload strips finance fields from fallback payload', async () => {
+  const snapshot = await read('backend/dashboard-snapshot.gs');
+  mustMatch(snapshot, /function sanitizeDashboardSnapshotPayloadNoFinance_\(/);
+  mustMatch(snapshot, /delete payload\.can_view_finance/);
+  mustMatch(snapshot, /delete payload\.summary\.finance_open_count/);
+});
