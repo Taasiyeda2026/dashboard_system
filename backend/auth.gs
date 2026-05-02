@@ -4,6 +4,7 @@ var PERMISSIONS_LOGIN_PROJECTED_HEADERS_ = [
   'full_name',
   'entry_code',
   'active',
+  'role',
   'display_role',
   'display_role2',
   'default_view',

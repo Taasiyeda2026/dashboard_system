@@ -2445,7 +2445,7 @@ function actionPermissions_(user) {
         active: yesNo_(row.active)
       };
       permHeaders.forEach(function(h) {
-        if (h === 'user_id' || h === 'entry_code' || h === 'full_name' || h === 'display_role' || h === 'display_role2' || h === 'default_view' || h === 'active') {
+        if (h === 'user_id' || h === 'entry_code' || h === 'full_name' || h === 'role' || h === 'display_role' || h === 'display_role2' || h === 'default_view' || h === 'active') {
           return;
         }
         if (h.indexOf('view_') === 0 || h.indexOf('can_') === 0) {
@@ -2967,8 +2967,15 @@ function actionSavePermission_(user, payload) {
       return;
     }
     if (Object.prototype.hasOwnProperty.call(row, h)) {
-      if (h === 'display_role') {
-        merged[h] = normalizeRole_(text_(row[h]) || internalRoleFromPermissionRow_(existing));
+      if (h === 'role') {
+        // 'role' column = internal code. Accept from payload.role or payload.display_role (backward compat).
+        merged[h] = normalizeRole_(text_(row.role || row.display_role) || internalRoleFromPermissionRow_(existing));
+      } else if (h === 'display_role') {
+        // 'display_role' column = human-readable label (Hebrew text). Store as-is.
+        // If the payload contains only an internal code here, keep existing label.
+        var payloadLabel = text_(row[h]);
+        var isCode = payloadLabel && ['admin','operation_manager','operations_reviewer','authorized_user','instructor','finance','activities_manager','domain_manager','manager_instructor','instructor_admin'].indexOf(payloadLabel.toLowerCase()) >= 0;
+        merged[h] = isCode ? text_(existing[h] || '') : (payloadLabel || text_(existing[h] || ''));
       } else if (h === 'active' || h.indexOf('view_') === 0 || h.indexOf('can_') === 0) {
         merged[h] = yesNo_(row[h]);
       } else {
@@ -2985,8 +2992,8 @@ function actionSavePermission_(user, payload) {
   if (headers.indexOf('full_name') >= 0 && !text_(merged.full_name)) {
     merged.full_name = text_(row.full_name || existing.full_name);
   }
-  if (headers.indexOf('display_role') >= 0 && !text_(merged.display_role)) {
-    merged.display_role = normalizeRole_(internalRoleFromPermissionRow_(existing));
+  if (headers.indexOf('role') >= 0 && !text_(merged.role)) {
+    merged.role = normalizeRole_(internalRoleFromPermissionRow_(existing));
   }
   if (headers.indexOf('default_view') >= 0 && !text_(merged.default_view)) {
     merged.default_view = text_(row.default_view || existing.default_view);
@@ -2995,7 +3002,7 @@ function actionSavePermission_(user, payload) {
     merged.active = Object.prototype.hasOwnProperty.call(row, 'active') ? yesNo_(row.active) : yesNo_(existing.active);
   }
   if (headers.indexOf('default_view') >= 0) {
-    var mergedRole = normalizeRole_(text_(merged.display_role) || internalRoleFromPermissionRow_(existing));
+    var mergedRole = normalizeRole_(internalRoleFromPermissionRow_(merged) || internalRoleFromPermissionRow_(existing));
     var mergedRoutes = effectiveRoutesForUser_(merged, mergedRole);
     merged.default_view = resolveDefaultRoute_(text_(merged.default_view), mergedRoutes, mergedRole);
   }
@@ -3025,7 +3032,8 @@ function actionAddUser_(user, payload) {
   });
   if (alreadyExists) throw new Error('user_already_exists');
 
-  var resolvedRole = normalizeRole_(text_(row.display_role || 'instructor'));
+  // Accept role code from payload.role or (backward compat) payload.display_role.
+  var resolvedRole = normalizeRole_(text_(row.role || row.display_role || 'instructor'));
 
   var nonAdminRoleDefaults = computeNonAdminRoleDefaults_();
 
@@ -3040,8 +3048,11 @@ function actionAddUser_(user, payload) {
       newRow[h] = text_(row.full_name || '');
     } else if (h === 'entry_code') {
       newRow[h] = text_(row.entry_code || '');
-    } else if (h === 'display_role') {
+    } else if (h === 'role') {
       newRow[h] = resolvedRole;
+    } else if (h === 'display_role') {
+      // Store Hebrew label if provided; otherwise leave blank (code is in 'role' column).
+      newRow[h] = text_(row.display_role_label || '');
     } else if (h === 'active') {
       newRow[h] = 'yes';
     } else if (h.indexOf('view_') === 0 || h.indexOf('can_') === 0) {

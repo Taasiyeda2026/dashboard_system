@@ -33,9 +33,9 @@ function getSystemSheetSchema_() {
   },
   permissions: {
     sheetName: 'permissions', required: true, type: 'source',
-    headers: ['user_id','entry_code','full_name','display_role','default_view','view_admin','view_dashboard','view_activities','view_week','view_month','view_instructors','view_exceptions','view_my_data','view_contacts','view_finance','view_permissions','can_request_edit','can_edit_direct','can_add_activity','can_review_requests','active'],
-    hebrewLabels: ['מזהה משתמש','קוד כניסה','שם מלא','תפקיד תצוגה','מסך ברירת מחדל','ניהול','לוח בקרה','פעילויות','שבוע','חודש','מדריכים','חריגות','הנתונים שלי','אנשי קשר','כספים','הרשאות','בקשת עריכה','עריכה ישירה','הוספת פעילות','אישור בקשות','פעיל'],
-    dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: true
+    headers: ['user_id','entry_code','full_name','role','display_role','default_view','view_admin','view_dashboard','view_activities','view_week','view_month','view_instructors','view_exceptions','view_my_data','view_contacts','view_finance','view_permissions','can_request_edit','can_edit_direct','can_add_activity','can_review_requests','active'],
+    hebrewLabels: ['מזהה משתמש','קוד כניסה','שם מלא','תפקיד (קוד)','תפקיד (תצוגה)','מסך ברירת מחדל','ניהול','לוח בקרה','פעילויות','שבוע','חודש','מדריכים','חריגות','הנתונים שלי','אנשי קשר','כספים','הרשאות','בקשת עריכה','עריכה ישירה','הוספת פעילות','אישור בקשות','פעיל'],
+    dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: false
   },
   settings: {
     sheetName: 'settings', required: true, type: 'source',

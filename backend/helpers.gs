@@ -65,7 +65,11 @@ function yesNo_(value) {
 }
 
 function internalRoleFromPermissionRow_(row) {
-  return text_(row && row.display_role);
+  // 'role' column = internal code (admin / operation_manager / etc.).
+  // Fallback to display_role for backward-compat with rows read before the
+  // schema fix (when display_role held the code due to missing role column).
+  var v = text_(row && (row.role || row.display_role));
+  return v;
 }
 
 function normalizeRole_(value) {
