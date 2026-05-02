@@ -11,7 +11,7 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 ## Key identifiers
 - `SPREADSHEET_ID = '1odLLnhpm7gLwSsDrgzxjIy2cuHXZGNNQYXCkuhAt52s'`
 - GAS deployment URL (DEFAULT_API_URL in `frontend/src/config.js`):
-  `AKfycbyxuO4hGXwAvMsR4tljCy-ADBApSY3c6YPWXc17DAzgjzV7-rjgLzir08XvPUN6BGUu`
+  `AKfycbzzRyiqUPA5o6o5AoJ0PEEFOkl9z8_2e0DBT2ctDm8DrMAf3n4wGSrfKGh0n5b6Wgfk`
 
 ## Test suite
 - `node --test tests/*.test.mjs`
