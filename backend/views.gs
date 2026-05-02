@@ -313,7 +313,7 @@ function buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows)
 
     var monthExceptionSummary = computeExceptionsModel_(monthActivities, ym, { include_rows: false });
     managerExceptions = monthExceptionSummary.byManager || {};
-    primaryExceptionRowCount = monthExceptionSummary.totalExceptionInstances || 0;
+    primaryExceptionRowCount = monthExceptionSummary.totalExceptionRows || 0;
 
     monthMeetings.forEach(function(row) {
       var i1 = text_(row.instructor_name || row.emp_id);

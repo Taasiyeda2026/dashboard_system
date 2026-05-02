@@ -13,6 +13,6 @@ test('dashboard and manager summary read exceptions from shared summary object',
   const source = await fs.readFile(new URL('../backend/actions.gs', import.meta.url), 'utf8');
   assert.match(source, /missingInstructorCount = exceptionSummary\.counts\.missing_instructor \|\| 0;/);
   assert.match(source, /missingStartDateCount = exceptionSummary\.counts\.missing_start_date \|\| 0;/);
-  assert.match(source, /var exceptionSum = exceptionSummary\.totalExceptionInstances \|\| 0;/);
+  assert.match(source, /var exceptionSum = exceptionSummary\.totalExceptionRows \|\| 0;/);
   assert.match(source, /managerExceptions = exceptionSummary\.byManager \|\| \{\};/);
 });

@@ -60,8 +60,8 @@ function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, 
 }
 
 function exceptionDrawerHtml(row, hideRowId) {
-  const et = String(row.exception_type || '').trim();
-  const typeChip = dsStatusChip(hebrewExceptionType(et), 'neutral');
+  const exceptionTypes = Array.isArray(row.exception_types) ? row.exception_types : [row.exception_type].filter(Boolean);
+  const chips = exceptionTypes.map((et) => dsStatusChip(hebrewExceptionType(String(et || '').trim()), 'neutral')).join(' ');
 
   const instructor  = row.instructor_name  || '';
   const instructor2 = row.instructor_name_2 || '';
@@ -73,7 +73,7 @@ function exceptionDrawerHtml(row, hideRowId) {
 
   return `<div class="ds-details-grid" dir="rtl">
     ${hideRowId ? '' : `<p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>`}
-    <p><strong>סוג חריגה:</strong> ${typeChip}</p>
+    <p><strong>סוגי חריגה:</strong> ${chips || "—"}</p>
     ${fieldRow(hebrewColumn('activity_name'),    row.activity_name)}
     ${fieldRow(hebrewColumn('activity_type'),    row.activity_type)}
     ${fieldRow(hebrewColumn('authority'),        row.authority)}
@@ -103,7 +103,7 @@ export const exceptionsScreen = {
     const rawRows   = Array.isArray(data?.rows) ? data.rows : [];
     const allRows   = rawRows.filter((row) => String(row?.activity_type || '').trim() === 'course');
     const filterState = ensureActivityListFilters(state, EXCEPTIONS_SCOPE);
-    prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type']);
+    prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type', 'exception_types']);
     const filteredRows = applyLocalFilters(allRows, filterState, { filterFields: EXCEPTION_FILTER_FIELDS });
     const { visible: visibleRows, hasMore, nextCount, total } = splitVisibleRows(filteredRows, filterState);
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
@@ -126,12 +126,15 @@ export const exceptionsScreen = {
               const subtitleHtml  = subtitleParts.length
                 ? `<p class="ds-interactive-card__subtitle">${escapeHtml(subtitleParts.join(' · '))}</p>`
                 : '';
-              const chipHtml = `<p class="ds-interactive-card__meta">${dsStatusChip(hebrewExceptionType(et), 'neutral')}</p>`;
+              const exTypes = Array.isArray(row.exception_types) ? row.exception_types : [et].filter(Boolean);
+              const chips = exTypes.map((type) => dsStatusChip(hebrewExceptionType(type), 'neutral')).join(' ');
+              const multiBadge = exTypes.length > 1 ? `<span class="ds-badge">${escapeHtml(String(exTypes.length))} חריגות</span>` : '';
+              const chipHtml = `<p class="ds-interactive-card__meta">${chips} ${multiBadge}</p>`;
 
               return `<div data-list-item>
                 <button type="button"
                   class="ds-interactive-card ds-interactive-card--session"
-                  data-card-action="${escapeHtml(`exception:${row.RowID}:${row.exception_type || ''}`)}">
+                  data-card-action="${escapeHtml(`exception:${row.RowID}`)}">
                   <p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p>
                   ${subtitleHtml}
                   ${chipHtml}
@@ -143,7 +146,7 @@ export const exceptionsScreen = {
     return dsScreenStack(`
       ${toolbarHtml}
       <section class="ds-screen-compact-90">${dsCard({
-        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ חריגות: ${escapeHtml(String(data?.totalExceptionInstances ?? total))}`,
+        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ חריגות: ${escapeHtml(String(data?.totalExceptionRows ?? total))}`,
         body: compact,
         padded: visibleRows.length === 0
       })}</section>
@@ -197,9 +200,11 @@ export const exceptionsScreen = {
     }
 
     function exceptionTypeHeader(summaryRow) {
-      const et = String(summaryRow?.exception_type || '').trim();
-      if (!et) return '';
-      return `<div style="margin-bottom:10px;direction:rtl">${dsStatusChip(hebrewExceptionType(et), 'neutral')}</div>`;
+      const exTypes = Array.isArray(summaryRow?.exception_types) ? summaryRow.exception_types : [summaryRow?.exception_type].filter(Boolean);
+      if (!exTypes.length) return '';
+      const chips = exTypes.map((et) => dsStatusChip(hebrewExceptionType(String(et || '').trim()), 'neutral')).join(' ');
+      const multiBadge = exTypes.length > 1 ? `<span class="ds-badge">${escapeHtml(String(exTypes.length))} חריגות</span>` : '';
+      return `<div style="margin-bottom:10px;direction:rtl">${chips} ${multiBadge}</div>`;
     }
 
     async function openActivityDetail(summaryRow) {
@@ -263,16 +268,8 @@ export const exceptionsScreen = {
 
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('exception:')) return;
-      // Action format: "exception:<RowID>:<exception_type>"
-      // RowID may itself contain ":" only in legacy formats; exception_type never does.
-      const rest = action.slice('exception:'.length);
-      const lastColon = rest.lastIndexOf(':');
-      const rowId  = lastColon >= 0 ? rest.slice(0, lastColon) : rest;
-      const exType = lastColon >= 0 ? rest.slice(lastColon + 1) : '';
-      const idx = allRows.findIndex((row) =>
-        String(row.RowID) === rowId &&
-        (!exType || String(row.exception_type || '') === exType)
-      );
+      const rowId = action.slice('exception:'.length);
+      const idx = allRows.findIndex((row) => String(row.RowID) === rowId);
       openAt(idx);
     });
   }
