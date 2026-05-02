@@ -8,8 +8,8 @@
  */
 
 var ACTIVITIES_SNAPSHOT_SHEET_FALLBACK_ = 'activities_snapshot';
-var ACTIVITIES_SNAPSHOT_HEADERS_ = getSystemSheetSpec_('activities_snapshot').headers.slice();
-var ACTIVITIES_SNAPSHOT_LABELS_HE_ = getSystemSheetSpec_('activities_snapshot').hebrewLabels.slice();
+function activitiesSnapshotHeaders_() { return getSystemSheetSpec_('activities_snapshot').headers.slice(); }
+function activitiesSnapshotLabelsHe_() { return getSystemSheetSpec_('activities_snapshot').hebrewLabels.slice(); }
 
 function activitiesSnapshotSheetName_() {
   return (CONFIG.SHEETS && CONFIG.SHEETS.ACTIVITIES_SNAPSHOT) || ACTIVITIES_SNAPSHOT_SHEET_FALLBACK_;
@@ -27,13 +27,13 @@ function ensureActivitiesSnapshotSheet_() {
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
   }
-  sheet.getRange(CONFIG.HEADER_ROW, 1, 1, ACTIVITIES_SNAPSHOT_HEADERS_.length)
-    .setValues([ACTIVITIES_SNAPSHOT_HEADERS_]);
-  var row2 = sheet.getRange(CONFIG.HEADER_ROW + 1, 1, 1, ACTIVITIES_SNAPSHOT_HEADERS_.length).getValues()[0];
+  sheet.getRange(CONFIG.HEADER_ROW, 1, 1, activitiesSnapshotHeaders_().length)
+    .setValues([activitiesSnapshotHeaders_()]);
+  var row2 = sheet.getRange(CONFIG.HEADER_ROW + 1, 1, 1, activitiesSnapshotHeaders_().length).getValues()[0];
   var row2IsEmpty = row2.every(function(v) { return text_(v) === ''; });
   if (row2IsEmpty) {
-    sheet.getRange(CONFIG.HEADER_ROW + 1, 1, 1, ACTIVITIES_SNAPSHOT_LABELS_HE_.length)
-      .setValues([ACTIVITIES_SNAPSHOT_LABELS_HE_]);
+    sheet.getRange(CONFIG.HEADER_ROW + 1, 1, 1, activitiesSnapshotLabelsHe_().length)
+      .setValues([activitiesSnapshotLabelsHe_()]);
   }
   invalidateReadRowsCache_(sheetName);
   return sheet;
@@ -42,7 +42,7 @@ function ensureActivitiesSnapshotSheet_() {
 function readActivitiesSnapshotRow_() {
   var sheetName = activitiesSnapshotSheetName_();
   try {
-    var rows = readRowsProjected_(sheetName, ACTIVITIES_SNAPSHOT_HEADERS_);
+    var rows = readRowsProjected_(sheetName, activitiesSnapshotHeaders_());
     return rows.find(function(r) { return text_(r.snapshot_key) === 'all'; }) || null;
   } catch (_err) {
     return null;
@@ -267,10 +267,10 @@ function refreshActivitiesSnapshot_() {
       JSON.stringify(payload.activity_type_counts || {}),
       JSON.stringify(payload.rows || [])
     ];
-    sheet.getRange(CONFIG.DATA_START_ROW, 1, 1, ACTIVITIES_SNAPSHOT_HEADERS_.length).setValues([row]);
+    sheet.getRange(CONFIG.DATA_START_ROW, 1, 1, activitiesSnapshotHeaders_().length).setValues([row]);
     var lastRow = sheet.getLastRow();
     if (lastRow > CONFIG.DATA_START_ROW) {
-      sheet.getRange(CONFIG.DATA_START_ROW + 1, 1, lastRow - CONFIG.DATA_START_ROW, ACTIVITIES_SNAPSHOT_HEADERS_.length).clearContent();
+      sheet.getRange(CONFIG.DATA_START_ROW + 1, 1, lastRow - CONFIG.DATA_START_ROW, activitiesSnapshotHeaders_().length).clearContent();
     }
     invalidateReadRowsCache_(activitiesSnapshotSheetName_());
     bumpDataViewsCacheVersion_();

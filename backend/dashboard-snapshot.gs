@@ -14,14 +14,12 @@
 
 var SNAPSHOT_ADMIN_USER_ = { user_id: 'snapshot_refresh', display_role: 'admin' };
 
-var SUMMARY_SNAPSHOT_HEADERS_ = getSystemSheetSpec_('dashboard_summary_snapshot').headers.slice();
-
-var BY_MANAGER_SNAPSHOT_HEADERS_ = getSystemSheetSpec_('dashboard_by_manager_snapshot').headers.slice();
-
-var REFRESH_CONTROL_HEADERS_ = getSystemSheetSpec_('dashboard_refresh_control').headers.slice();
-var SUMMARY_SNAPSHOT_LABELS_HE_ = getSystemSheetSpec_('dashboard_summary_snapshot').hebrewLabels.slice();
-var BY_MANAGER_SNAPSHOT_LABELS_HE_ = getSystemSheetSpec_('dashboard_by_manager_snapshot').hebrewLabels.slice();
-var REFRESH_CONTROL_LABELS_HE_ = getSystemSheetSpec_('dashboard_refresh_control').hebrewLabels.slice();
+function summarySnapshotHeaders_() { return getSystemSheetSpec_('dashboard_summary_snapshot').headers.slice(); }
+function byManagerSnapshotHeaders_() { return getSystemSheetSpec_('dashboard_by_manager_snapshot').headers.slice(); }
+function refreshControlHeaders_() { return getSystemSheetSpec_('dashboard_refresh_control').headers.slice(); }
+function summarySnapshotLabelsHe_() { return getSystemSheetSpec_('dashboard_summary_snapshot').hebrewLabels.slice(); }
+function byManagerSnapshotLabelsHe_() { return getSystemSheetSpec_('dashboard_by_manager_snapshot').hebrewLabels.slice(); }
+function refreshControlLabelsHe_() { return getSystemSheetSpec_('dashboard_refresh_control').hebrewLabels.slice(); }
 
 var SNAPSHOT_MANAGER_DISPLAY_NAMES_ = {
   'גיל נאמן':          'מחוז צפון',
@@ -183,13 +181,13 @@ function readPersistedDashboardSnapshotRowsForMonth_(ym) {
   var ss = getSpreadsheet_();
   var hasSummarySnapshotSheet = !!ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT);
   if (hasSummarySnapshotSheet) {
-    var summaryRows = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT, SUMMARY_SNAPSHOT_HEADERS_);
+    var summaryRows = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT, summarySnapshotHeaders_());
     snap = summaryRows.find(function(r) {
       return normalizeSnapshotMonthYm_(r.month_ym) === ym;
     }) || null;
   }
   if (ss.getSheetByName(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT)) {
-    var allByMgr = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT, BY_MANAGER_SNAPSHOT_HEADERS_);
+    var allByMgr = readSnapshotRowsFast_(CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT, byManagerSnapshotHeaders_());
     var filteredByMgr = allByMgr.filter(function(r) {
       return normalizeSnapshotMonthYm_(r.month_ym) === ym;
     });
@@ -729,7 +727,7 @@ function markDashboardSnapshotsRefreshNeeded_(reason) {
 
 function writeDashboardSummarySnapshotRow_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_SUMMARY_SNAPSHOT;
-  ensureSnapshotSheetScaffold_(sheetName, SUMMARY_SNAPSHOT_HEADERS_, SUMMARY_SNAPSHOT_LABELS_HE_);
+  ensureSnapshotSheetScaffold_(sheetName, summarySnapshotHeaders_(), summarySnapshotLabelsHe_());
   ensureSnapshotMonthYmTextColumn_(sheetName);
   dedupeDashboardSummarySnapshotByMonth_();
 
@@ -801,7 +799,7 @@ function canViewFinanceFromKpis_(kpiAll, fullData) {
 
 function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_BY_MANAGER_SNAPSHOT;
-  ensureSnapshotSheetScaffold_(sheetName, BY_MANAGER_SNAPSHOT_HEADERS_, BY_MANAGER_SNAPSHOT_LABELS_HE_);
+  ensureSnapshotSheetScaffold_(sheetName, byManagerSnapshotHeaders_(), byManagerSnapshotLabelsHe_());
   ensureSnapshotMonthYmTextColumn_(sheetName);
   dedupeDashboardByManagerSnapshotByKey_();
 
@@ -838,7 +836,7 @@ function replaceDashboardByManagerSnapshotRows_(ym, fullData) {
 
 function updateDashboardRefreshControl_(status, message) {
   var sheetName = CONFIG.SHEETS.DASHBOARD_REFRESH_CONTROL;
-  ensureSnapshotSheetScaffold_(sheetName, REFRESH_CONTROL_HEADERS_, REFRESH_CONTROL_LABELS_HE_);
+  ensureSnapshotSheetScaffold_(sheetName, refreshControlHeaders_(), refreshControlLabelsHe_());
   dedupeRowsByKeyKeepingLatest_(sheetName, 'key');
 
   var now = new Date().toISOString();
