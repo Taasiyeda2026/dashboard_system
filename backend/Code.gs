@@ -31,6 +31,22 @@ function refreshDashboardSnapshots() {
   return refreshDashboardSnapshots_();
 }
 
+function refreshDataViews() {
+  return refreshDataViews_();
+}
+
+function refreshActivitiesSnapshot() {
+  return refreshActivitiesSnapshot_();
+}
+
+function ensureSystemWorkbookScaffold() {
+  return ensureSystemWorkbookScaffold_();
+}
+
+function repairSystemWorkbookStructure() {
+  return repairSystemWorkbookStructure_();
+}
+
 /**
  * Time-driven trigger entrypoint for rebuilding dashboard snapshots.
  * Set up as a separate trigger — do not add snapshot logic inside keepWarm.
@@ -154,9 +170,13 @@ function installProductionAutomation() {
   };
   if (typeof ensureSystemWorkbookScaffold_ === 'function') {
     try { result.scaffold = ensureSystemWorkbookScaffold_(); } catch (e) { result.scaffold = { skipped: true, reason: String(e) }; }
+  } else {
+    result.scaffold = { skipped: true, reason: 'missing_function_ensureSystemWorkbookScaffold_' };
   }
   if (typeof repairSystemWorkbookStructure_ === 'function') {
     try { result.repair = repairSystemWorkbookStructure_(); } catch (e2) { result.repair = { skipped: true, reason: String(e2) }; }
+  } else {
+    result.repair = { skipped: true, reason: 'missing_function_repairSystemWorkbookStructure_' };
   }
   [
     { fn: 'refreshDataViews_', label: 'data_views' },
