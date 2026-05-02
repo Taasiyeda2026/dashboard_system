@@ -15,8 +15,8 @@ function getSystemSheetSchema_() {
   __systemSheetSchemaCache_ = {
   data_long: {
     sheetName: 'data_long', required: true, type: 'source',
-    headers: ['RowID','activity_manager','authority','school','grade','class_group','activity_type','activity_no','activity_name','sessions','price','funding','start_time','end_time','emp_id','instructor_name','emp_id_2','instructor_name_2','start_date','end_date','status','notes','finance_status','finance_notes'],
-    hebrewLabels: ['RowID','מנהל פעילות','רשות','בית ספר','כיתה','קבוצה','סוג פעילות','מספר פעילות','שם פעילות','מפגשים','מחיר','מימון','שעת התחלה','שעת סיום','ת.ז. מדריך','שם מדריך','ת.ז. מדריך 2','שם מדריך 2','תאריך התחלה','תאריך סיום','סטטוס','הערות','סטטוס כספי','הערות כספיות'],
+    headers: ['RowID','activity_manager','authority','school','grade','class_group','activity_type','activity_no','activity_name','sessions','price','funding','start_time','end_time','emp_id','instructor_name','start_date','end_date','status','notes','finance_status','finance_notes'],
+    hebrewLabels: ['RowID','מנהל פעילות','רשות','בית ספר','כיתה','קבוצה','סוג פעילות','מספר פעילות','שם פעילות','מפגשים','מחיר','מימון','שעת התחלה','שעת סיום','ת.ז. מדריך','שם מדריך','תאריך התחלה','תאריך סיום','סטטוס','הערות','סטטוס כספי','הערות כספיות'],
     dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: false
   },
   data_short: {
