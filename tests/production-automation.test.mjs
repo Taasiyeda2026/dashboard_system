@@ -10,6 +10,14 @@ test('production automation entrypoints exist', async () => {
   assert.match(source, /function\s+getProductionAutomationStatus\s*\(/);
 });
 
+test('manual workbook and refresh wrappers are publicly exposed', async () => {
+  const source = await readFile(CODE_GS, 'utf8');
+  assert.match(source, /function\s+repairSystemWorkbookStructure\s*\(/);
+  assert.match(source, /function\s+ensureSystemWorkbookScaffold\s*\(/);
+  assert.match(source, /function\s+refreshActivitiesSnapshot\s*\(/);
+  assert.match(source, /function\s+refreshDataViews\s*\(/);
+});
+
 test('installProductionAutomation installs required production automation triggers including end-dates', async () => {
   const source = await readFile(CODE_GS, 'utf8');
   assert.match(source, /newTrigger\('keepWarm'\)[\s\S]*everyMinutes\(5\)/);
