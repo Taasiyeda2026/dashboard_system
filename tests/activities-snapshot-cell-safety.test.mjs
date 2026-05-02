@@ -62,7 +62,7 @@ test('safeJsonArrayCell_: calls Logger.log on truncation', () => {
 });
 
 test('safeJsonArrayCell_: returns [] for empty input', () => {
-  assert.match(src, /if \(!Array\.isArray\(arr\) \|\| arr\.length === 0\) return '\[\]'/, 'empty-array guard must be present');
+  assert.match(src, /if \(!Array\.isArray\(arr\) \|\| arr\.length === 0\) return \{ json: '\[\]'/, 'empty-array guard must be present');
 });
 
 test('refreshActivitiesSnapshot_: uses safeCellValue_ for activity_type_counts', () => {
@@ -107,9 +107,9 @@ function safeCellValue(value, fieldName, maxLength) {
 
 function safeJsonArrayCell(arr, fieldName, maxLength) {
   maxLength = maxLength || MAX;
-  if (!Array.isArray(arr) || arr.length === 0) return '[]';
+  if (!Array.isArray(arr) || arr.length === 0) return { json: '[]', truncated: false, original_rows_count: 0, kept_rows_count: 0 };
   var full = JSON.stringify(arr);
-  if (full.length <= maxLength) return full;
+  if (full.length <= maxLength) return { json: full, truncated: false, original_rows_count: arr.length, kept_rows_count: arr.length };
   var lo = 0;
   var hi = arr.length;
   while (lo < hi) {
@@ -120,7 +120,7 @@ function safeJsonArrayCell(arr, fieldName, maxLength) {
       hi = mid - 1;
     }
   }
-  return JSON.stringify(arr.slice(0, lo));
+  return { json: JSON.stringify(arr.slice(0, lo)), truncated: true, original_rows_count: arr.length, kept_rows_count: lo };
 }
 
 function bigRow(id) {
@@ -166,25 +166,29 @@ test('sim safeCellValue_: output exactly at limit is NOT truncated', () => {
 
 // --- safeJsonArrayCell simulation tests ---
 
-test('sim safeJsonArrayCell_: empty array returns "[]"', () => {
-  assert.strictEqual(safeJsonArrayCell([], 'test'), '[]');
+test('sim safeJsonArrayCell_: empty array returns metadata with []', () => {
+  const out = safeJsonArrayCell([], 'test');
+  assert.strictEqual(out.json, '[]');
+  assert.equal(out.truncated, false);
 });
 
-test('sim safeJsonArrayCell_: null returns "[]"', () => {
-  assert.strictEqual(safeJsonArrayCell(null, 'test'), '[]');
+test('sim safeJsonArrayCell_: null returns metadata with []', () => {
+  const out = safeJsonArrayCell(null, 'test');
+  assert.strictEqual(out.json, '[]');
+  assert.equal(out.truncated, false);
 });
 
 test('sim safeJsonArrayCell_: small array returned unchanged', () => {
   const arr = [{ id: 1 }, { id: 2 }, { id: 3 }];
   const out = safeJsonArrayCell(arr, 'test');
-  assert.deepStrictEqual(JSON.parse(out), arr);
+  assert.deepStrictEqual(JSON.parse(out.json), arr);
 });
 
 test('sim safeJsonArrayCell_: large array (1000 big rows) output never > HARD_MAX', () => {
   const arr = Array.from({ length: 1000 }, (_, i) => bigRow(i));
   const out = safeJsonArrayCell(arr, 'rows_json');
-  assert.ok(out.length <= HARD_MAX,
-    'safeJsonArrayCell_ result must be <= 50000 chars, got ' + out.length
+  assert.ok(out.json.length <= HARD_MAX,
+    'safeJsonArrayCell_ result must be <= 50000 chars, got ' + out.json.length
   );
 });
 
@@ -192,14 +196,14 @@ test('sim safeJsonArrayCell_: output is always valid JSON', () => {
   const arr = Array.from({ length: 500 }, (_, i) => bigRow(i));
   const out = safeJsonArrayCell(arr, 'rows_json');
   let parsed;
-  assert.doesNotThrow(() => { parsed = JSON.parse(out); }, 'output must be valid JSON');
+  assert.doesNotThrow(() => { parsed = JSON.parse(out.json); }, 'output must be valid JSON');
   assert.ok(Array.isArray(parsed), 'parsed result must be an array');
 });
 
 test('sim safeJsonArrayCell_: kept rows are a prefix of the original array', () => {
   const arr = Array.from({ length: 400 }, (_, i) => bigRow(i));
   const out = safeJsonArrayCell(arr, 'rows_json');
-  const parsed = JSON.parse(out);
+  const parsed = JSON.parse(out.json);
   for (let i = 0; i < parsed.length; i++) {
     assert.strictEqual(parsed[i].RowID, arr[i].RowID,
       'kept rows must be a prefix of the original array'
@@ -210,20 +214,20 @@ test('sim safeJsonArrayCell_: kept rows are a prefix of the original array', () 
 test('sim safeJsonArrayCell_: all rows kept when total fits within limit', () => {
   const arr = Array.from({ length: 10 }, (_, i) => ({ id: i, name: 'row' + i }));
   const out = safeJsonArrayCell(arr, 'rows_json');
-  const parsed = JSON.parse(out);
+  const parsed = JSON.parse(out.json);
   assert.strictEqual(parsed.length, arr.length, 'all rows must be kept when under the limit');
 });
 
 test('sim safeJsonArrayCell_: binary search finds maximum fitting rows', () => {
   const arr = Array.from({ length: 2000 }, (_, i) => bigRow(i));
   const out = safeJsonArrayCell(arr, 'rows_json', 10000);
-  const parsed = JSON.parse(out);
+  const parsed = JSON.parse(out.json);
   // Verify exactly one more row would exceed the limit
   const oneMore = JSON.stringify(arr.slice(0, parsed.length + 1));
   assert.ok(oneMore.length > 10000,
     'adding one more row must exceed the limit (binary search is tight)'
   );
-  assert.ok(out.length <= 10000,
+  assert.ok(out.json.length <= 10000,
     'output must be within the limit'
   );
 });
@@ -236,6 +240,6 @@ test('sim full snapshot write: both cells within HARD_MAX', () => {
   const countsCell = safeCellValue(payload.activity_type_counts, 'activity_type_counts_json');
   const rowsCell   = safeJsonArrayCell(payload.rows, 'rows_json');
   assert.ok(countsCell.length <= HARD_MAX, 'activity_type_counts_json must be <= 50000 chars');
-  assert.ok(rowsCell.length   <= HARD_MAX, 'rows_json must be <= 50000 chars');
-  assert.doesNotThrow(() => JSON.parse(rowsCell), 'rows_json must remain valid JSON');
+  assert.ok(rowsCell.json.length   <= HARD_MAX, 'rows_json must be <= 50000 chars');
+  assert.doesNotThrow(() => JSON.parse(rowsCell.json), 'rows_json must remain valid JSON');
 });

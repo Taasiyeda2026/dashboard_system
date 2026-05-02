@@ -47,9 +47,9 @@ function safeCellValue_(value, fieldName, maxLength) {
  */
 function safeJsonArrayCell_(arr, fieldName, maxLength) {
   maxLength = maxLength || 45000;
-  if (!Array.isArray(arr) || arr.length === 0) return '[]';
+  if (!Array.isArray(arr) || arr.length === 0) return { json: '[]', truncated: false, original_rows_count: 0, kept_rows_count: 0 };
   var full = JSON.stringify(arr);
-  if (full.length <= maxLength) return full;
+  if (full.length <= maxLength) return { json: full, truncated: false, original_rows_count: arr.length, kept_rows_count: arr.length };
   var lo = 0;
   var hi = arr.length;
   while (lo < hi) {
@@ -67,7 +67,7 @@ function safeJsonArrayCell_(arr, fieldName, maxLength) {
     ' kept=' + kept.length + ' rows (' + JSON.stringify(kept).length + ' chars)' +
     ' maxLength=' + maxLength
   );
-  return JSON.stringify(kept);
+  return { json: JSON.stringify(kept), truncated: true, original_rows_count: arr.length, kept_rows_count: kept.length };
 }
 
 function activitiesSnapshotSheetName_() {
@@ -102,10 +102,21 @@ function readActivitiesSnapshotRow_() {
   var sheetName = activitiesSnapshotSheetName_();
   try {
     var rows = readRowsProjected_(sheetName, activitiesSnapshotHeaders_());
-    return rows.find(function(r) { return text_(r.snapshot_key) === 'all'; }) || null;
+    var row = rows.find(function(r) { return text_(r.snapshot_key) === 'all'; }) || null;
+    if (!row) return null;
+    row._rows_meta = parseActivitiesSnapshotJson_(row.rows_meta_json, {});
+    return row;
   } catch (_err) {
     return null;
   }
+}
+
+function isActivitiesSnapshotTruncated_(snap) {
+  var meta = (snap && snap._rows_meta) || parseActivitiesSnapshotJson_(snap && snap.rows_meta_json, {}) || {};
+  if (yesNo_(meta.truncated || 'no') === 'yes') return true;
+  var originalCount = parseInt(meta.original_rows_count, 10);
+  var keptCount = parseInt(meta.kept_rows_count, 10);
+  return originalCount > 0 && keptCount >= 0 && keptCount < originalCount;
 }
 
 function parseActivitiesSnapshotJson_(raw, fallback) {
@@ -267,10 +278,21 @@ function actionActivitiesSnapshotFirst_(user, payload) {
     fallback._activities_fallback_used = true;
     return fallback;
   }
+  if (isActivitiesSnapshotTruncated_(snap)) {
+    Logger.log('[activities_snapshot] truncated rows_json detected; fallback to legacy');
+    var fullFallback = actionActivitiesLegacy_(user, payload || {});
+    fullFallback._is_snapshot = false;
+    fullFallback._activities_fallback_used = true;
+    fullFallback._snapshot_truncated = true;
+    return fullFallback;
+  }
 
   var counts = parseActivitiesSnapshotJson_(snap.activity_type_counts_json, {});
   var rows = parseActivitiesSnapshotJson_(snap.rows_json, []).map(normalizeActivitiesSnapshotRow_);
+  Logger.log('[activities_snapshot] rows before filter=' + rows.length);
   var filtered = filterActivitiesSnapshotRows_(rows, payload || {});
+  Logger.log('[activities_snapshot] rows after filter=' + filtered.length + ' month=' + text_((payload || {}).month || ''));
+  Logger.log('[activities_snapshot] missing RowID rows=' + filtered.filter(function(row) { return !text_(row && row.RowID); }).length);
   var snapStats = activitiesInstructorCoverageStats_(filtered);
 
   var needsFallbackMerge = filtered.some(function(row) {
@@ -318,13 +340,23 @@ function refreshActivitiesSnapshot_() {
 
   try {
     var payload = actionActivitiesLegacy_(SNAPSHOT_ADMIN_USER_, { activity_type: 'all' });
+    Logger.log('[activities_snapshot] read rows data_short=' + text_(payload._data_short_rows_read) + ' data_long=' + text_(payload._data_long_rows_read));
+    Logger.log('[activities_snapshot] payload rows before snapshot=' + (payload.rows || []).length);
     var sheet = ensureActivitiesSnapshotSheet_();
     var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
+    var rowsCell = safeJsonArrayCell_(payload.rows || [], 'rows_json');
+    var rowsMeta = {
+      truncated: rowsCell.truncated ? 'yes' : 'no',
+      original_rows_count: rowsCell.original_rows_count,
+      kept_rows_count: rowsCell.kept_rows_count
+    };
+    Logger.log('[activities_snapshot] rows_json truncated=' + rowsMeta.truncated + ' original=' + rowsMeta.original_rows_count + ' kept=' + rowsMeta.kept_rows_count);
     var row = [
       'all',
       now,
       safeCellValue_(payload.activity_type_counts || {}, 'activity_type_counts_json'),
-      safeJsonArrayCell_(payload.rows || [], 'rows_json')
+      rowsCell.json,
+      safeCellValue_(rowsMeta, 'rows_meta_json')
     ];
     sheet.getRange(CONFIG.DATA_START_ROW, 1, 1, activitiesSnapshotHeaders_().length).setValues([row]);
     var lastRow = sheet.getLastRow();
