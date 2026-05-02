@@ -11,6 +11,33 @@ function handleGet_() {
   });
 }
 
+
+function shouldAllowLegacyFallbackForHeavyAction_(action, payload, user) {
+  var a = text_(action);
+  var heavy = {
+    dashboard: true,
+    dashboardSnapshot: true,
+    month: true,
+    week: true,
+    activities: true,
+    exceptions: true,
+    endDates: true
+  };
+  if (!heavy[a]) return true;
+  var forceLegacy = yesNo_(payload && payload.force_legacy) === 'yes' || payload && payload.force_legacy === true;
+  var debugEnabled = yesNo_(payload && payload.debug) === 'yes' || yesNo_(payload && payload.debug_perf) === 'yes';
+  var isAdmin = !!(user && (user.display_role === 'admin' || user.display_role === 'operation_manager'));
+  if (forceLegacy || debugEnabled) {
+    try { console.warn('[perf][legacy_fallback_explicit]', JSON.stringify({ action: a, force_legacy: !!forceLegacy, debug: !!debugEnabled, is_admin: !!isAdmin })); } catch (_e) {}
+    setRequestPerfField_('legacy_fallback_explicit', true);
+    return true;
+  }
+  try { console.warn('[perf][legacy_fallback_blocked]', JSON.stringify({ action: a, reason: 'read_model_missing_or_stale' })); } catch (_e2) {}
+  setRequestPerfField_('legacy_fallback_blocked', true);
+  setRequestPerfField_('legacy_fallback_reason', 'read_model_missing_or_stale');
+  return false;
+}
+
 function handlePost_(e) {
   try {
     beginRequestCache_();
@@ -97,18 +124,21 @@ function handlePost_(e) {
         if (readData !== null) {
           markRequestPerf_('action_done');
           setRequestPerfField_('read_model_screen_hit', true);
-          scriptCachePutJson_(readKey, readData, CONFIG.SCRIPT_CACHE_SECONDS || 90);
+          scriptCachePutJson_(readKey, readData, CONFIG.SCRIPT_CACHE_SECONDS || 900);
           opsHealthAfterReadResponse_(action, false, readData);
           return jsonResponse_({ ok: true, data: readData }, {
             action: action,
             cache_hit: false
           });
         }
-        /* Persisted read-model miss: heavy handler runs only for actions on LEGACY_READ_DISPATCH_ALLOWLIST_
-           (see api_read_write.gs); non-listed actions log [legacy-allowlist]. */
+        /* Persisted read-model miss: block implicit heavy legacy fallback in normal flow. */
+        if (!shouldAllowLegacyFallbackForHeavyAction_(action, payload, user)) {
+          markRequestPerf_('action_done');
+          throw new Error('READ_MODEL_UNAVAILABLE_TRY_AGAIN');
+        }
         readData = runReadApiHandler_(action, user, payload);
         markRequestPerf_('action_done');
-        scriptCachePutJson_(readKey, readData, CONFIG.SCRIPT_CACHE_SECONDS || 90);
+        scriptCachePutJson_(readKey, readData, CONFIG.SCRIPT_CACHE_SECONDS || 900);
         opsHealthAfterReadResponse_(action, false, readData);
         return jsonResponse_({ ok: true, data: readData }, {
           action: action,
@@ -143,13 +173,9 @@ function handlePost_(e) {
             );
           } catch (_e) {}
         }
-        if (action === 'addActivity' || action === 'saveActivity' || action === 'submitEditRequest' || action === 'reviewEditRequest') {
-          try {
-            refreshActivitiesSnapshot_();
-          } catch (_activitiesSnapshotErr) {
-            bumpDataViewsCacheVersion_();
-          }
-        }
+        try {
+          bumpDataViewsCacheVersion_();
+        } catch (_bumpErr) {}
       }
       markRequestPerf_('action_done');
 

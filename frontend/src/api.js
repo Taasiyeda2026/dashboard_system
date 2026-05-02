@@ -344,14 +344,22 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
           params,
           error: _refreshErr?.message || String(_refreshErr)
         });
-        return request(fallbackAction, fallbackPayload, {
-          ...perfBase,
-          fallback_used: true,
-          legacy_fallback_reason: 'read_model_refresh_failed',
-          legacy_intentional: true,
-          read_model_screen_key: key,
-          ...options
-        });
+        const staleData = hit?.data && typeof hit.data === 'object' ? { ...hit.data, _read_model_stale: true } : hit?.data;
+        if (staleData) {
+          pushPerfRequest({
+            action: fallbackAction,
+            duration_ms: 0,
+            slow: false,
+            payload_size: JSON.stringify(staleData || {}).length,
+            used_read_model: true,
+            fallback_used: false,
+            cache_hit: true,
+            stale_cache_used: true,
+            sheet_reads_count: null
+          });
+          return staleData;
+        }
+        throw _refreshErr;
       }
     }
 
@@ -361,14 +369,18 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
       params,
       error: err?.message || String(err)
     });
-    return request(fallbackAction, fallbackPayload, {
-      ...perfBase,
-      fallback_used: true,
-      legacy_fallback_reason: 'read_model_get_failed',
-      legacy_intentional: true,
-      read_model_screen_key: key,
-      ...options
-    });
+    const explicitLegacy = options?.forceLegacy === true || params?.force_legacy === true || String(params?.force_legacy || '').toLowerCase() === 'yes' || options?.debug === true;
+    if (explicitLegacy) {
+      return request(fallbackAction, { ...(fallbackPayload || {}), force_legacy: true }, {
+        ...perfBase,
+        fallback_used: true,
+        legacy_fallback_reason: 'read_model_get_failed_explicit',
+        legacy_intentional: true,
+        read_model_screen_key: key,
+        ...options
+      });
+    }
+    throw new Error('הנתונים מתעדכנים כעת. נסו שוב בעוד מספר רגעים.');
   }
 }
 
