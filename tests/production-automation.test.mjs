@@ -40,3 +40,19 @@ test('production automation status includes end-dates trigger health', async () 
   assert.match(source, /syncEndDatesTrigger: endDates/);
   assert.match(source, /if \(!endDates\.exists\) missing\.push\('syncEndDatesTrigger'\)/);
 });
+
+test('trigger wrappers use lock service', async () => {
+  const source = await readFile(CODE_GS, 'utf8');
+  assert.match(source, /function\s+refreshDataViewsTrigger\s*\(/);
+  assert.match(source, /function\s+refreshActivitiesSnapshotTrigger\s*\(/);
+  assert.match(source, /function\s+refreshDashboardSnapshotsTrigger\s*\([\s\S]*LockService\.getScriptLock/);
+});
+
+test('installProductionAutomation includes scaffold repair and initial refresh report', async () => {
+  const source = await readFile(CODE_GS, 'utf8');
+  assert.match(source, /result\.scaffold/);
+  assert.match(source, /result\.repair/);
+  assert.match(source, /result\.initialRefresh/);
+  assert.match(source, /ensureSystemWorkbookScaffold_/);
+  assert.match(source, /repairSystemWorkbookStructure_/);
+});

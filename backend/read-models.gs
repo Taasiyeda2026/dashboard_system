@@ -6,7 +6,7 @@ var READ_MODEL_SHEET_FALLBACK_ = 'read_models';
  * Metadata בלבד בגיליון — ללא payload_json / rows_json (מגבלת 50,000 תווים לתא).
  * גוף ה-JSON נשמר ב-Drive; storage_ref = מזהה קובץ.
  */
-var READ_MODEL_HEADERS_ = getSystemSheetSpec_('read_models').headers.slice();
+function readModelHeaders_() { return getSystemSheetSpec_('read_models').headers.slice(); }
 
 /** JSON מלא נשמר ב-Drive בלבד; לא בתא. */
 var READ_MODEL_STORAGE_DRIVE_ = 'drive';
@@ -98,7 +98,7 @@ function ensureReadModelsSheet_() {
   if (!sheet) sheet = ss.insertSheet(name);
 
   var meta = getSheetMeta_(sheet);
-  var headerScanCols = Math.max(meta.lastCol || 0, READ_MODEL_HEADERS_.length);
+  var headerScanCols = Math.max(meta.lastCol || 0, readModelHeaders_().length);
   var rawHeaders = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, headerScanCols).getValues()[0].map(text_);
   var isLegacy = rawHeaders.indexOf('payload_json') >= 0 || rawHeaders.indexOf('rows_json') >= 0;
   var dataStart = getDataStartRow_();
@@ -109,8 +109,8 @@ function ensureReadModelsSheet_() {
     }
   }
 
-  sheet.getRange(CONFIG.HEADER_ROW, 1, 1, READ_MODEL_HEADERS_.length).setValues([READ_MODEL_HEADERS_]);
-  while (sheet.getLastColumn() > READ_MODEL_HEADERS_.length) {
+  sheet.getRange(CONFIG.HEADER_ROW, 1, 1, readModelHeaders_().length).setValues([readModelHeaders_()]);
+  while (sheet.getLastColumn() > readModelHeaders_().length) {
     sheet.deleteColumn(sheet.getLastColumn());
   }
   invalidateReadRowsCache_(name);
@@ -134,26 +134,26 @@ function findReadModelDataRowNum_(key) {
 
 function readReadModelMetadataAtRow_(rowNum) {
   var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
-  var vals = sheet.getRange(rowNum, 1, 1, READ_MODEL_HEADERS_.length).getValues()[0];
+  var vals = sheet.getRange(rowNum, 1, 1, readModelHeaders_().length).getValues()[0];
   var o = {};
-  for (var i = 0; i < READ_MODEL_HEADERS_.length; i++) {
-    o[READ_MODEL_HEADERS_[i]] = vals[i];
+  for (var i = 0; i < readModelHeaders_().length; i++) {
+    o[readModelHeaders_()[i]] = vals[i];
   }
   return o;
 }
 
 function writeReadModelFullMetadataRow_(rowNum, rowObj) {
   var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
-  var row = READ_MODEL_HEADERS_.map(function(h) {
+  var row = readModelHeaders_().map(function(h) {
     return Object.prototype.hasOwnProperty.call(rowObj, h) ? rowObj[h] : '';
   });
-  sheet.getRange(rowNum, 1, 1, READ_MODEL_HEADERS_.length).setValues([row]);
+  sheet.getRange(rowNum, 1, 1, readModelHeaders_().length).setValues([row]);
   invalidateReadRowsCache_(readModelSheetName_());
 }
 
 function appendReadModelFullRow_(rowObj) {
   var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
-  var row = READ_MODEL_HEADERS_.map(function(h) {
+  var row = readModelHeaders_().map(function(h) {
     return Object.prototype.hasOwnProperty.call(rowObj, h) ? rowObj[h] : '';
   });
   sheet.appendRow(row);
@@ -162,7 +162,7 @@ function appendReadModelFullRow_(rowObj) {
 
 function patchReadModelRowCells_(rowNum, patch) {
   var sheet = getSpreadsheet_().getSheetByName(readModelSheetName_());
-  var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, READ_MODEL_HEADERS_.length).getValues()[0].map(text_);
+  var headers = sheet.getRange(CONFIG.HEADER_ROW, 1, 1, readModelHeaders_().length).getValues()[0].map(text_);
   Object.keys(patch || {}).forEach(function(field) {
     var col = headers.indexOf(text_(field));
     if (col < 0) return;
@@ -181,8 +181,8 @@ function upsertReadModelMetadataRow_(rowObj) {
     return;
   }
   var cur = readReadModelMetadataAtRow_(rowNum);
-  for (var i = 0; i < READ_MODEL_HEADERS_.length; i++) {
-    var h = READ_MODEL_HEADERS_[i];
+  for (var i = 0; i < readModelHeaders_().length; i++) {
+    var h = readModelHeaders_()[i];
     if (Object.prototype.hasOwnProperty.call(rowObj, h)) cur[h] = rowObj[h];
   }
   writeReadModelFullMetadataRow_(rowNum, cur);
@@ -191,7 +191,7 @@ function upsertReadModelMetadataRow_(rowObj) {
 function readModelRows_() {
   ensureReadModelsSheet_();
   try {
-    return readRowsProjected_(readModelSheetName_(), READ_MODEL_HEADERS_);
+    return readRowsProjected_(readModelSheetName_(), readModelHeaders_());
   } catch (_e) {
     return [];
   }
