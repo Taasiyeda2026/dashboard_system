@@ -385,6 +385,9 @@ function pickField_(row, fieldNames, fallback) {
 }
 
 function resolveExceptionsCountForDashboard_(summaryObj, rawExceptions) {
+  var summary = summaryObj && typeof summaryObj === 'object' ? summaryObj : {};
+  var canonicalRows = parseInt(text_(pickField_(summary, ['totalExceptionRows', 'total_exception_rows', 'exceptions_rows'], null)), 10);
+  if (!isNaN(canonicalRows) && canonicalRows >= 0) return canonicalRows;
   var fromRaw = parseInt(text_(rawExceptions), 10);
   return (isNaN(fromRaw) || fromRaw < 0) ? 0 : fromRaw;
 }

@@ -16,9 +16,15 @@ function overlapsYm(r, ym){ return String(r.start_date||r.end_date||'').slice(0,
 function rowExceptions(r){ const ex=[]; if(r.activity_type==='course' && !r.emp_id) ex.push('missing_instructor'); if(r.activity_type==='course' && !r.start_date) ex.push('missing_start_date'); return ex; }
 
 function computeExceptionsModelNumeric(rs){
-  const byManager={}; let total=0;
-  rs.forEach(r=>{ const count=rowExceptions(r).length; if(!count) return; const m=r.activity_manager||'unassigned'; byManager[m]=(byManager[m]||0)+count; total+=count; });
-  return { totalExceptionInstances: total, byManager };
+  const byManager={}; let totalRows=0; let totalInstances=0;
+  rs.forEach(r=>{
+    const count=rowExceptions(r).length; if(!count) return;
+    const m=r.activity_manager||'unassigned';
+    byManager[m]=(byManager[m]||0)+1;
+    totalRows+=1;
+    totalInstances+=count;
+  });
+  return { totalExceptionRows: totalRows, totalExceptionInstances: totalInstances, byManager };
 }
 
 function actionDashboardNumeric(rs){
@@ -29,7 +35,7 @@ function actionDashboardNumeric(rs){
   const course_endings=inMonth.filter(r=>r.activity_type==='course' && String(r.end_date).slice(0,7)===YM).length;
   const active_instructors=new Set(inMonth.flatMap(r=>[r.emp_id].filter(Boolean))).size;
   const ex=computeExceptionsModelNumeric(inMonth);
-  return { total_short,total_long,finance_open_count,course_endings,active_instructors,exceptions_count:ex.totalExceptionInstances, byManagerExceptions:ex.byManager };
+  return { total_short,total_long,finance_open_count,course_endings,active_instructors,exceptions_count:ex.totalExceptionRows, byManagerExceptions:ex.byManager };
 }
 
 const actionDashboardSnapshotNumeric = actionDashboardNumeric;
@@ -64,18 +70,18 @@ test('Stage2B numeric: exceptions parity and manager totals', ()=>{
   const exAction=computeExceptionsModelNumeric(inMonth);
   const exCompute=computeExceptionsModelNumeric(inMonth);
   const dash=actionDashboardNumeric(rows);
-  assert.equal(exAction.totalExceptionInstances, exCompute.totalExceptionInstances);
+  assert.equal(exAction.totalExceptionRows, exCompute.totalExceptionRows);
   assert.deepEqual(exAction.byManager, exCompute.byManager);
   const mgrSum=Object.values(exAction.byManager).reduce((a,b)=>a+b,0);
-  assert.equal(mgrSum, exAction.totalExceptionInstances);
-  assert.equal(dash.exceptions_count, exAction.totalExceptionInstances);
-  assert.ok(exAction.totalExceptionInstances > 0);
+  assert.equal(mgrSum, exAction.totalExceptionRows);
+  assert.equal(dash.exceptions_count, exAction.totalExceptionRows);
+  assert.ok(exAction.totalExceptionRows > 0);
 });
 
 test('Stage2B numeric: critical non-zero manager exceptions do not become zero in dashboard', ()=>{
   const ex=computeExceptionsModelNumeric(rows);
   const dash=actionDashboardNumeric(rows);
-  assert.ok(ex.totalExceptionInstances > 0);
+  assert.ok(ex.totalExceptionRows > 0);
   assert.ok(Object.keys(ex.byManager).length > 0);
   assert.notEqual(dash.exceptions_count, 0);
 });

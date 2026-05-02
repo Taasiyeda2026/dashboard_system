@@ -124,7 +124,7 @@ function renderStructuredSummary(summary, ym, byManager) {
 
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
       <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש:</strong></h4>
-      <p class="ds-summary-panel__text"><strong>סה״כ חריגות: ${exceptionsTotal}</strong></p>
+      <p class="ds-summary-panel__text"><strong>פעילויות עם חריגה: ${exceptionsTotal}</strong></p>
     </div>
     ${mappingErrors.length ? `<p class="ds-summary-panel__text" style="color:#b42318"><strong>שגיאת מיפוי שדות Snapshot:</strong> ${escapeHtml(mappingErrors.map((f) => f.fieldName).join(', '))}</p>` : ''}
   </div>`;
@@ -137,6 +137,7 @@ function goActivitiesDrill(state, patch) {
   state.activityQuickFamily = patch.activityQuickFamily ?? '';
   state.activityQuickManager = patch.activityQuickManager ?? '';
   state.activityEndingCurrentMonth = !!patch.activityEndingCurrentMonth;
+  state.activitiesMonthYm = state.dashboardMonthYm || currentMonthYm();
 }
 
 const ALLOWED_KPI_ACTIONS = new Set([
