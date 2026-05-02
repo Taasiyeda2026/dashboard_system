@@ -20,7 +20,7 @@ var SUMMARY_SNAPSHOT_HEADERS_ = [
   'active_courses_current_month', 'active_workshops_current_month',
   'active_tours_current_month', 'active_after_school_current_month',
   'active_escape_room_current_month',
-  'finance_open_count', 'exceptions_count', 'active_instructors_count',
+  /* legacy column finance_open_count kept in sheet but not used */ 'exceptions_count', 'active_instructors_count',
   'course_endings_current_month', 'active_courses_next_month',
   'missing_instructor_count', 'missing_start_date_count', 'late_end_date_count',
   'active_instructors_names'
@@ -29,7 +29,7 @@ var SUMMARY_SNAPSHOT_HEADERS_ = [
 var BY_MANAGER_SNAPSHOT_HEADERS_ = [
   'month_ym', 'activity_manager', 'manager_display_name',
   'total_short', 'total_long', 'total', 'num_instructors',
-  'course_endings', 'finance_open', 'exceptions',
+  /* legacy column finance_open kept in sheet but not used */ 'course_endings', 'exceptions',
   'active_instructors_names', 'updated_at', 'snapshot_key'
 ];
 
@@ -256,14 +256,13 @@ function readPersistedDashboardSnapshotRowsForMonth_(ym) {
 /**
  * Builds the dashboard API payload shape from one summary snapshot row + by-manager rows (snapshot sheets only).
  */
-function composeDashboardPayloadFromSummarySnapshot_(ym, canViewFinance, snap, byManagerRows, showOnlyNonzeroKpis) {
+function composeDashboardPayloadFromSummarySnapshot_(ym, snap, byManagerRows, showOnlyNonzeroKpis) {
   var s = snap || {};
 
   var totalShort     = parseInt(text_(s.total_short_activities),   10) || 0;
   var totalLong      = parseInt(text_(s.total_long_activities),    10) || 0;
   var totalInstr     = parseInt(text_(s.active_instructors_count), 10) || 0;
   var courseEndings  = parseInt(text_(s.course_endings_current_month), 10) || 0;
-  var financeOpen    = parseInt(text_(s.finance_open_count),       10) || 0;
   var missingInstr   = parseInt(text_(s.missing_instructor_count), 10) || 0;
   var missingDate    = parseInt(text_(s.missing_start_date_count), 10) || 0;
   var lateEnd        = parseInt(text_(s.late_end_date_count),      10) || 0;
@@ -290,9 +289,6 @@ function composeDashboardPayloadFromSummarySnapshot_(ym, canViewFinance, snap, b
       course_endings:  parseInt(text_(r.course_endings), 10) || 0,
       exceptions:      parseInt(text_(r.exceptions),     10) || 0
     };
-    if (canViewFinance) {
-      row.finance_open = parseInt(text_(r.finance_open), 10) || 0;
-    }
     return row;
   });
 
@@ -301,7 +297,6 @@ function composeDashboardPayloadFromSummarySnapshot_(ym, canViewFinance, snap, b
     total_long_activities:     totalLong,
     active_instructors_count:  totalInstr,
     course_endings_current_month: courseEndings,
-    finance_open_count:        canViewFinance ? financeOpen : 0,
     exceptions_count:          exceptCount,
     active_courses_current_month: activeCurrent,
     active_courses_next_month: activeNext,
@@ -310,11 +305,10 @@ function composeDashboardPayloadFromSummarySnapshot_(ym, canViewFinance, snap, b
     late_end_date_count:       lateEnd
   };
 
-  var kpiCards = buildDashboardSnapshotKpis_(snapshotData, canViewFinance);
+  var kpiCards = buildDashboardSnapshotKpis_(snapshotData, false);
 
   return {
     month: ym,
-    can_view_finance: canViewFinance,
     totals: {
       total_short_activities:           totalShort,
       total_long_activities:            totalLong,
@@ -392,7 +386,7 @@ function resolveExceptionsCountForDashboard_(summaryObj, rawExceptions) {
   return (isNaN(fromRaw) || fromRaw < 0) ? 0 : fromRaw;
 }
 
-function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, canViewFinance) {
+function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym) {
   var summary = parseJsonObjectSafeForDashboard_(pickField_(primaryRow, ['summary_json'], null), {});
   if (!Array.isArray(summary.active_instructors) || !summary.active_instructors.length) {
     summary.active_instructors = parseJsonArraySafeForDashboard_(pickField_(primaryRow, ['active_instructors_json'], null), []);
@@ -412,10 +406,6 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
   var cmExc = summary.current_month_exceptions_count;
   summary.current_month_exceptions_count =
     typeof cmExc === 'number' && !isNaN(cmExc) ? cmExc : (parseInt(text_(cmExc), 10) || 0);
-  var finRaw = summary.finance_open_count;
-  summary.finance_open_count = typeof finRaw === 'number' && !isNaN(finRaw)
-    ? finRaw
-    : (parseInt(text_(finRaw), 10) || 0);
   summary.active_courses_current_month = parseInt(text_(pickField_(primaryRow, ['active_courses', 'active_courses_current_month'], 0)), 10) ||
     summary.active_courses_current_month || 0;
   summary.ending_courses_current_month = parseInt(text_(pickField_(primaryRow, ['course_endings', 'course_endings_current_month'], 0)), 10) ||
@@ -439,7 +429,6 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
       course_endings: parseInt(text_(r.course_endings), 10) || 0,
       exceptions: parseInt(text_(r.exceptions), 10) || 0
     };
-    if (canViewFinance) out.finance_open = parseInt(text_(r.finance_open), 10) || 0;
     return out;
   });
 
@@ -447,7 +436,6 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
   var totalLongActive = parseInt(text_(pickField_(primaryRow, ['total_long_active', 'total_long_activities'], 0)), 10) || 0;
   var totalInstr = parseInt(text_(primaryRow.total_instructors), 10) || 0;
   var courseEndings = parseInt(text_(pickField_(primaryRow, ['course_endings', 'course_endings_current_month'], 0)), 10) || 0;
-  var financeOpen = canViewFinance ? (parseInt(text_(pickField_(primaryRow, ['finance_open_count', 'finance_open'], summary.finance_open_count || 0)), 10) || 0) : 0;
   var exceptCount = resolveExceptionsCountForDashboard_(summary, pickField_(primaryRow, ['exceptions_count', 'exceptions'], null));
   var activeCurrent = parseInt(text_(pickField_(primaryRow, ['active_courses', 'active_courses_current_month'], 0)), 10) || 0;
 
@@ -456,18 +444,16 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
     total_long_activities: totalLongActive,
     active_instructors_count: totalInstr,
     course_endings_current_month: courseEndings,
-    finance_open_count: financeOpen,
     exceptions_count: exceptCount,
     active_courses_current_month: activeCurrent,
     active_courses_next_month: summary.active_courses_next_month || 0
   };
 
-  var kpiCards = buildDashboardSnapshotKpis_(snapshotData, canViewFinance);
+  var kpiCards = buildDashboardSnapshotKpis_(snapshotData, false);
   var flags = getDashboardSnapshotFlags_();
 
   return {
     month: ym,
-    can_view_finance: canViewFinance,
     totals: {
       total_short_activities: totalShort,
       total_long_activities: totalLongActive,
@@ -485,8 +471,8 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, can
   };
 }
 
-function tryDashboardSnapshotFromMonthlyView_(ym, nextYm, canViewFinance) {
-  var cacheKey = dashboardMonthlyPayloadCacheKey_(ym, canViewFinance);
+function tryDashboardSnapshotFromMonthlyView_(ym, nextYm) {
+  var cacheKey = dashboardMonthlyPayloadCacheKey_(ym, false);
   if (cacheKey) {
     try {
       var cached = scriptCacheGetJson_(cacheKey);
@@ -499,7 +485,6 @@ function tryDashboardSnapshotFromMonthlyView_(ym, nextYm, canViewFinance) {
   var projected = [
     'month_ym', 'total_short', 'total_short_activities', 'total_long_active', 'total_long_activities', 'active_courses', 'active_courses_current_month',
     'total_instructors', 'course_endings', 'course_endings_current_month', 'exceptions_count', 'exceptions',
-    'finance_open_count', 'finance_open',
     'missing_instructor_count', 'missing_start_date_count', 'late_end_date_count',
     'summary_json', 'by_manager_json', 'by_activity_manager_json', 'kpi_cards_json',
     'active_instructors_json', 'active_instructors_by_manager_json'
@@ -520,7 +505,7 @@ function tryDashboardSnapshotFromMonthlyView_(ym, nextYm, canViewFinance) {
   }
   if (!primaryRow) return { ok: false, view_rows_read: rowsAll.length };
 
-  var payload = buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym, canViewFinance);
+  var payload = buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym);
   if (cacheKey) {
     try {
       scriptCachePutJson_(cacheKey, payload, 21600);
