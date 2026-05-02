@@ -344,6 +344,21 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
           params,
           error: _refreshErr?.message || String(_refreshErr)
         });
+        const staleData = hit?.data && typeof hit.data === 'object' ? { ...hit.data, _read_model_stale: true } : hit?.data;
+        if (staleData) {
+          pushPerfRequest({
+            action: fallbackAction,
+            duration_ms: 0,
+            slow: false,
+            payload_size: JSON.stringify(staleData || {}).length,
+            used_read_model: true,
+            fallback_used: false,
+            cache_hit: true,
+            stale_cache_used: true,
+            sheet_reads_count: null
+          });
+          return staleData;
+        }
         throw _refreshErr;
       }
     }

@@ -282,6 +282,7 @@ export const dashboardScreen = {
       : '<p class="ds-muted">אין כרטיסי KPI להצגה.</p>';
 
     const navLoading = !!state?.dashboardNavLoading;
+    const staleBanner = data?._read_model_stale ? '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">הנתונים מתעדכנים כעת. מוצגים נתוני מטמון אחרונים.</div>' : ''; 
     const monthNav = `<div class="ds-dash-month-nav${navLoading ? ' is-nav-loading' : ''}" dir="rtl" aria-label="בחירת חודש לתצוגה">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
       <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))} ${navLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
@@ -292,6 +293,7 @@ export const dashboardScreen = {
       <div class="ds-dashboard-wrap">
         ${dsPageHeader('לוח בקרה')}
         ${monthNav}
+        ${staleBanner}
         <div data-dash-data-area>
           <div class="ds-dashboard-summary-row">
             <button type="button" class="ds-summary-btn" data-summary-target="national" aria-label="סיכום">סיכום</button>
