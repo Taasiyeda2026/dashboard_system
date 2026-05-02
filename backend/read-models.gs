@@ -456,7 +456,6 @@ function refreshAllReadModels_() {
     results.push(refreshMonthReadModelForYm_(curYm));
     results.push(refreshMonthReadModelForYm_(shiftYm_(curYm, 1)));
     results.push(refreshExceptionsReadModel_());
-    results.push(refreshFinanceReadModel_());
     results.push(refreshEndDatesReadModel_());
     bumpDataViewsCacheVersion_();
     var durationMs = Math.max(0, perfNowMs_() - batchStarted);
@@ -509,7 +508,6 @@ function normalizeReadModelManifest_(rows) {
   map.week = readModelRowByKey_('week?week_offset=0') || {};
   map.month = readModelRowByKey_('month?ym=' + nowMonth) || {};
   map.exceptions = readModelRowByKey_('exceptions?month=' + nowMonth) || {};
-  map.finance = readModelRowByKey_('finance?month=' + nowMonth + '&tab=active') || {};
   map['end_dates'] = readModelRowByKey_('end-dates') || {};
   var out = {};
   Object.keys(map).forEach(function(mkey) {
@@ -568,7 +566,6 @@ function markReadModelsDirtyByMutation_(action, payload) {
       ['month', { ym: nowMonth }], ['week', { week_offset: 0 }], ['end-dates', {}]
     ];
   } else if (action === 'saveFinanceRow' || action === 'syncFinance') {
-    targets = [['finance', { month: nowMonth, tab: 'active' }], ['dashboard', {}]];
   } else if (action === 'savePermission') {
     targets = [['dashboard', {}]];
   }
@@ -586,7 +583,6 @@ function refreshReadModelsForMutation_(action) {
     refreshExceptionsReadModel_();
     refreshEndDatesReadModel_();
   } else if (action === 'saveFinanceRow' || action === 'syncFinance') {
-    refreshFinanceReadModel_();
     refreshDashboardReadModel_();
   } else if (action === 'savePermission') {
     refreshDashboardReadModel_();
@@ -599,7 +595,6 @@ function resolveReadModelBuilder_(key, user, params) {
   if (key === 'week') return function() { return actionWeek_(user, params || { week_offset: 0 }); };
   if (key === 'month') return function() { return actionMonth_(user, params || {}); };
   if (key === 'exceptions') return function() { return actionExceptions_(user, params || {}); };
-  if (key === 'finance') return function() { return actionFinance_(user, params || {}); };
   if (key === 'end-dates') return function() { return actionEndDates_(user); };
   if (key === 'instructors') return function() { return actionInstructors_(user); };
   return null;
@@ -740,43 +735,7 @@ function materializeScreenDataFromReadModel_(action, user, payload) {
     }
   }
 
-  if (act === 'finance') {
-    var fp = payload || {};
-    if (text_(fp.search)) {
-      return noteReadModelServerLegacyReturn_(act, 'finance_search_not_supported', {});
-    }
-    if (text_(fp.date_from) || text_(fp.date_to)) {
-      return noteReadModelServerLegacyReturn_(act, 'finance_date_range_not_supported', {});
-    }
-    if (text_(fp.status)) {
-      return noteReadModelServerLegacyReturn_(act, 'finance_status_filter_not_supported', {});
-    }
-    var fTab = text_(fp.tab || 'active');
-    if (fTab !== 'active') {
-      return noteReadModelServerLegacyReturn_(act, 'finance_tab_not_active', { tab: fTab });
-    }
-    var fYm = text_(fp.month || '').slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(fYm) || fYm !== curYm) {
-      return noteReadModelServerLegacyReturn_(act, 'finance_month_not_current', {
-        month: fYm,
-        current_ym: curYm
-      });
-    }
-    var fData = readModelLoadFreshPayloadData_(
-      buildReadModelStorageKey_('finance', { month: fYm, tab: 'active' })
-    );
-    if (fData === null) {
-      return noteReadModelServerLegacyReturn_(act, 'finance_no_fresh_read_model_payload', { month: fYm });
-    }
-    try {
-      setRequestPerfField_('read_model_route', 'finance_by_month');
-      return JSON.parse(JSON.stringify(fData));
-    } catch (_e5) {
-      return noteReadModelServerLegacyReturn_(act, 'finance_transform_error', {
-        message: _e5 && _e5.message ? String(_e5.message) : 'error'
-      });
-    }
-  }
+
 
   return null;
 }

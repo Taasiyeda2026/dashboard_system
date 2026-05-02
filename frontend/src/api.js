@@ -75,7 +75,7 @@ let manifestCache = { t: 0, data: null };
 const READ_MODELS_ENABLED = true;
 
 /** Explicit allow-list: only these read-model keys use the read-model path; all others use legacy only. */
-const READ_MODEL_ENABLED_KEY_LIST = ['dashboard', 'activities', 'week', 'month', 'exceptions', 'finance', 'end-dates'];
+const READ_MODEL_ENABLED_KEY_LIST = ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'];
 const READ_MODEL_ENABLED_KEYS = new Set(READ_MODEL_ENABLED_KEY_LIST);
 
 /**
@@ -88,7 +88,6 @@ const HEAVY_LEGACY_GUARDED_READ_ACTIONS = new Set([
   'week',
   'month',
   'exceptions',
-  'finance',
   'endDates'
 ]);
 
@@ -133,8 +132,8 @@ function invalidateScreenDataByAction(action) {
     addActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     submitEditRequest: ['activities:', 'edit-requests', 'week:', 'month:', 'dashboard:', 'end-dates'],
     reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:'],
-    saveFinanceRow: ['finance:', 'dashboard:'],
-    syncFinance: ['finance:', 'dashboard:'],
+    saveFinanceRow: ['dashboard:'],
+    syncFinance: ['dashboard:'],
     addUser: ['permissions', 'dashboard:'],
     deactivateUser: ['permissions', 'dashboard:'],
     reactivateUser: ['permissions', 'dashboard:'],
@@ -163,8 +162,8 @@ function invalidateReadModelLocalCacheByAction(action) {
     addActivity: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'],
     submitEditRequest: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'],
     reviewEditRequest: ['dashboard', 'activities', 'week', 'month', 'exceptions'],
-    saveFinanceRow: ['dashboard', 'finance'],
-    syncFinance: ['dashboard', 'finance'],
+    saveFinanceRow: ['dashboard'],
+    syncFinance: ['dashboard'],
     savePermission: ['dashboard']
   };
   const keys = targeted[action];
@@ -228,7 +227,6 @@ function manifestEntryForReadModel(key, params = {}) {
   if (key === 'week') return 'week';
   if (key === 'month') return 'month';
   if (key === 'exceptions') return 'exceptions';
-  if (key === 'finance') return 'finance';
   if (key === 'end-dates') return 'end_dates';
   if (key === 'instructors') return 'instructors';
   return null;
