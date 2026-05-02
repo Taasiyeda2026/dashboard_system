@@ -27,6 +27,7 @@ test('read-model refresh batch includes adjacent week and month models', () => {
   assert.match(readModelsSource, /refreshMonthReadModelForYm_\(shiftYm_\(curYm, -1\)\)/);
   assert.match(readModelsSource, /refreshMonthReadModelForYm_\(curYm\)/);
   assert.match(readModelsSource, /refreshMonthReadModelForYm_\(shiftYm_\(curYm, 1\)\)/);
+  assert.match(readModelsSource, /refreshEndDatesReadModel_\(\)/);
 });
 
 test('end-dates refresh uses internal payload builder and api action keeps permission checks', () => {

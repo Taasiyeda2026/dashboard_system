@@ -51,6 +51,25 @@ function runDataMaintenanceTrigger() {
   runDataMaintenance_('time_trigger');
 }
 
+function syncEndDatesTrigger() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) {
+    console.info('[end_dates] skipped: lock busy');
+    return { skipped: true, reason: 'lock_busy' };
+  }
+  try {
+    if (typeof actionSyncEndDates_ === 'function') {
+      return actionSyncEndDates_({ user_id: 'end_dates_trigger', display_role: 'admin' }, {});
+    }
+    if (typeof refreshEndDatesReadModel_ === 'function') {
+      return refreshEndDatesReadModel_();
+    }
+    return { skipped: true, reason: 'no_end_dates_refresh_function' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function installDataMaintenanceTrigger() {
   var triggers = ScriptApp.getProjectTriggers();
   var exists = triggers.some(function(t) {
@@ -76,6 +95,18 @@ function installProductionAutomation() {
     }},
     { handler: 'refreshAllReadModelsTrigger', frequency: 'hourly', install: function() {
       ScriptApp.newTrigger('refreshAllReadModelsTrigger').timeBased().everyHours(1).create();
+    }},
+    { handler: 'refreshDataViewsTrigger', frequency: 'hourly', install: function() {
+      ScriptApp.newTrigger('refreshDataViewsTrigger').timeBased().everyHours(1).create();
+    }},
+    { handler: 'refreshActivitiesSnapshotTrigger', frequency: 'every_10_minutes', install: function() {
+      ScriptApp.newTrigger('refreshActivitiesSnapshotTrigger').timeBased().everyMinutes(10).create();
+    }},
+    { handler: 'refreshDashboardSnapshotsTrigger', frequency: 'every_10_minutes', install: function() {
+      ScriptApp.newTrigger('refreshDashboardSnapshotsTrigger').timeBased().everyMinutes(10).create();
+    }},
+    { handler: 'syncEndDatesTrigger', frequency: 'hourly', install: function() {
+      ScriptApp.newTrigger('syncEndDatesTrigger').timeBased().everyHours(1).create();
     }}
   ];
   var existing = ScriptApp.getProjectTriggers();
@@ -123,6 +154,10 @@ function installProductionAutomation() {
   return result;
 }
 
+function ensureProductionAutomationTriggers_() {
+  return installProductionAutomation();
+}
+
 function getProductionAutomationStatus() {
   var triggers = ScriptApp.getProjectTriggers();
   var byHandler = {};
@@ -147,12 +182,23 @@ function getProductionAutomationStatus() {
   var keepWarm = summarize('keepWarm', 'every_5_minutes');
   var maintenance = summarize('runDataMaintenanceTrigger', 'hourly');
   var readModels = summarize('refreshAllReadModelsTrigger', 'hourly');
+  var dataViews = summarize('refreshDataViewsTrigger', 'hourly');
+  var activitiesSnapshot = summarize('refreshActivitiesSnapshotTrigger', 'every_10_minutes');
+  var dashboardSnapshots = summarize('refreshDashboardSnapshotsTrigger', 'every_10_minutes');
+  var endDates = summarize('syncEndDatesTrigger', 'hourly');
+  var workbookRepair = summarize('repairSystemWorkbookStructureTrigger', 'daily_optional');
   var hasDuplicates =
-    keepWarm.duplicate || maintenance.duplicate || readModels.duplicate;
+    keepWarm.duplicate || maintenance.duplicate || readModels.duplicate ||
+    dataViews.duplicate || activitiesSnapshot.duplicate || dashboardSnapshots.duplicate ||
+    endDates.duplicate || workbookRepair.duplicate;
   var missing = [];
   if (!keepWarm.exists) missing.push('keepWarm');
   if (!maintenance.exists) missing.push('runDataMaintenanceTrigger');
   if (!readModels.exists) missing.push('refreshAllReadModelsTrigger');
+  if (!dataViews.exists) missing.push('refreshDataViewsTrigger');
+  if (!activitiesSnapshot.exists) missing.push('refreshActivitiesSnapshotTrigger');
+  if (!dashboardSnapshots.exists) missing.push('refreshDashboardSnapshotsTrigger');
+  if (!endDates.exists) missing.push('syncEndDatesTrigger');
 
   var recommendation = missing.length === 0 && !hasDuplicates
     ? 'automation_is_healthy'
@@ -162,6 +208,11 @@ function getProductionAutomationStatus() {
     keepWarm: keepWarm,
     runDataMaintenanceTrigger: maintenance,
     refreshAllReadModelsTrigger: readModels,
+    refreshDataViewsTrigger: dataViews,
+    refreshActivitiesSnapshotTrigger: activitiesSnapshot,
+    refreshDashboardSnapshotsTrigger: dashboardSnapshots,
+    syncEndDatesTrigger: endDates,
+    repairSystemWorkbookStructureTrigger: workbookRepair,
     duplicates_detected: hasDuplicates,
     missing_handlers: missing,
     recommendation: recommendation

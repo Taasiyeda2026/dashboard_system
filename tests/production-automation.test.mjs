@@ -10,11 +10,15 @@ test('production automation entrypoints exist', async () => {
   assert.match(source, /function\s+getProductionAutomationStatus\s*\(/);
 });
 
-test('installProductionAutomation installs keepWarm, maintenance, and read models triggers', async () => {
+test('installProductionAutomation installs required production automation triggers including end-dates', async () => {
   const source = await readFile(CODE_GS, 'utf8');
   assert.match(source, /newTrigger\('keepWarm'\)[\s\S]*everyMinutes\(5\)/);
   assert.match(source, /newTrigger\('runDataMaintenanceTrigger'\)[\s\S]*everyHours\(1\)/);
   assert.match(source, /newTrigger\('refreshAllReadModelsTrigger'\)[\s\S]*everyHours\(1\)/);
+  assert.match(source, /newTrigger\('refreshDataViewsTrigger'\)[\s\S]*everyHours\(1\)/);
+  assert.match(source, /newTrigger\('refreshActivitiesSnapshotTrigger'\)[\s\S]*everyMinutes\(10\)/);
+  assert.match(source, /newTrigger\('refreshDashboardSnapshotsTrigger'\)[\s\S]*everyMinutes\(10\)/);
+  assert.match(source, /newTrigger\('syncEndDatesTrigger'\)[\s\S]*everyHours\(1\)/);
 });
 
 test('installProductionAutomation avoids duplicate triggers by replacing existing ones', async () => {
@@ -28,4 +32,11 @@ test('read models trigger can be normalized to hourly via installReadModelsTrigg
   assert.match(source, /function\s+installReadModelsTriggers\s*\(/);
   assert.match(source, /function\s+ensureReadModelsRefreshTrigger_\s*\(/);
   assert.match(source, /newTrigger\('refreshAllReadModelsTrigger'\)[\s\S]*everyHours\(1\)/);
+});
+
+test('production automation status includes end-dates trigger health', async () => {
+  const source = await readFile(CODE_GS, 'utf8');
+  assert.match(source, /var endDates = summarize\('syncEndDatesTrigger', 'hourly'\)/);
+  assert.match(source, /syncEndDatesTrigger: endDates/);
+  assert.match(source, /if \(!endDates\.exists\) missing\.push\('syncEndDatesTrigger'\)/);
 });
