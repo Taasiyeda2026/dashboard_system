@@ -11,6 +11,65 @@ var ACTIVITIES_SNAPSHOT_SHEET_FALLBACK_ = 'activities_snapshot';
 function activitiesSnapshotHeaders_() { return getSystemSheetSpec_('activities_snapshot').headers.slice(); }
 function activitiesSnapshotLabelsHe_() { return getSystemSheetSpec_('activities_snapshot').hebrewLabels.slice(); }
 
+/**
+ * Google Sheets hard limit: 50,000 chars per cell.
+ * safeCellValue_ caps at 45,000 for headroom and appends a truncation marker.
+ * NOTE: the result may not be valid JSON — use safeJsonArrayCell_ for arrays.
+ *
+ * @param {*}      value     value to serialise
+ * @param {string} fieldName descriptive label used in log messages
+ * @param {number} [maxLength=45000]
+ * @returns {string}
+ */
+function safeCellValue_(value, fieldName, maxLength) {
+  maxLength = maxLength || 45000;
+  var text = (value === null || value === undefined)
+    ? ''
+    : (typeof value === 'string' ? value : JSON.stringify(value));
+  if (text.length <= maxLength) return text;
+  Logger.log(
+    '[safeCellValue_] field="' + (fieldName || 'unknown') + '"' +
+    ' truncated from ' + text.length + ' chars to ' + maxLength
+  );
+  return text.slice(0, maxLength) + '\n...[TRUNCATED: original length ' + text.length + ' chars]';
+}
+
+/**
+ * Safely serialise a JSON array for a single Sheets cell.
+ * Uses binary search to keep the maximum number of whole items that fit within
+ * maxLength, so the result is always valid JSON (never a broken string).
+ * Logs truncation details when items are dropped.
+ *
+ * @param {Array}  arr       array to serialise
+ * @param {string} fieldName descriptive label used in log messages
+ * @param {number} [maxLength=45000]
+ * @returns {string} valid JSON array string
+ */
+function safeJsonArrayCell_(arr, fieldName, maxLength) {
+  maxLength = maxLength || 45000;
+  if (!Array.isArray(arr) || arr.length === 0) return '[]';
+  var full = JSON.stringify(arr);
+  if (full.length <= maxLength) return full;
+  var lo = 0;
+  var hi = arr.length;
+  while (lo < hi) {
+    var mid = Math.floor((lo + hi + 1) / 2);
+    if (JSON.stringify(arr.slice(0, mid)).length <= maxLength) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  var kept = arr.slice(0, lo);
+  Logger.log(
+    '[safeJsonArrayCell_] field="' + (fieldName || 'unknown') + '"' +
+    ' original=' + arr.length + ' rows (' + full.length + ' chars)' +
+    ' kept=' + kept.length + ' rows (' + JSON.stringify(kept).length + ' chars)' +
+    ' maxLength=' + maxLength
+  );
+  return JSON.stringify(kept);
+}
+
 function activitiesSnapshotSheetName_() {
   return (CONFIG.SHEETS && CONFIG.SHEETS.ACTIVITIES_SNAPSHOT) || ACTIVITIES_SNAPSHOT_SHEET_FALLBACK_;
 }
@@ -264,8 +323,8 @@ function refreshActivitiesSnapshot_() {
     var row = [
       'all',
       now,
-      JSON.stringify(payload.activity_type_counts || {}),
-      JSON.stringify(payload.rows || [])
+      safeCellValue_(payload.activity_type_counts || {}, 'activity_type_counts_json'),
+      safeJsonArrayCell_(payload.rows || [], 'rows_json')
     ];
     sheet.getRange(CONFIG.DATA_START_ROW, 1, 1, activitiesSnapshotHeaders_().length).setValues([row]);
     var lastRow = sheet.getLastRow();

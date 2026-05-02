@@ -56,7 +56,7 @@ test('edit requests list excludes empty change sets', () => {
 
 test('activities snapshot refresh persists rows and bumps data-views version', () => {
   mustMatch(snapshot, /function refreshActivitiesSnapshot_\(\) \{/);
-  mustMatch(snapshot, /JSON\.stringify\(payload\.rows \|\| \[\]\)/);
+  mustMatch(snapshot, /safeJsonArrayCell_\(payload\.rows \|\| \[\], 'rows_json'\)/);
   mustMatch(snapshot, /bumpDataViewsCacheVersion_\(\);/);
 });
 
