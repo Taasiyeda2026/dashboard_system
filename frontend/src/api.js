@@ -68,7 +68,7 @@ const PERF_MAX_REQUESTS = 150;
 const MONTH_READ_MODEL_TTL_MS = 5 * 60 * 1000;
 const monthReadModelCache = new Map();
 const READ_MODEL_CACHE_STORAGE_KEY = 'ds_read_model_cache_v2';
-const MANIFEST_TTL_MS = 30 * 1000;
+const MANIFEST_TTL_MS = 5 * 60 * 1000;
 let manifestCache = { t: 0, data: null };
 
 /** When true, allowed screens may use readModelGet + local manifest cache instead of legacy actions. */

@@ -12,7 +12,7 @@ test('production automation entrypoints exist', async () => {
 
 test('installProductionAutomation installs keepWarm, maintenance, and read models triggers', async () => {
   const source = await readFile(CODE_GS, 'utf8');
-  assert.match(source, /newTrigger\('keepWarm'\)[\s\S]*everyMinutes\(10\)/);
+  assert.match(source, /newTrigger\('keepWarm'\)[\s\S]*everyMinutes\(5\)/);
   assert.match(source, /newTrigger\('runDataMaintenanceTrigger'\)[\s\S]*everyHours\(1\)/);
   assert.match(source, /newTrigger\('refreshAllReadModelsTrigger'\)[\s\S]*everyHours\(1\)/);
 });

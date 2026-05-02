@@ -68,8 +68,8 @@ function installDataMaintenanceTrigger() {
 
 function installProductionAutomation() {
   var targets = [
-    { handler: 'keepWarm', frequency: 'every_10_minutes', install: function() {
-      ScriptApp.newTrigger('keepWarm').timeBased().everyMinutes(10).create();
+    { handler: 'keepWarm', frequency: 'every_5_minutes', install: function() {
+      ScriptApp.newTrigger('keepWarm').timeBased().everyMinutes(5).create();
     }},
     { handler: 'runDataMaintenanceTrigger', frequency: 'hourly', install: function() {
       ScriptApp.newTrigger('runDataMaintenanceTrigger').timeBased().everyHours(1).create();
@@ -144,7 +144,7 @@ function getProductionAutomationStatus() {
     };
   }
 
-  var keepWarm = summarize('keepWarm', 'every_10_minutes');
+  var keepWarm = summarize('keepWarm', 'every_5_minutes');
   var maintenance = summarize('runDataMaintenanceTrigger', 'hourly');
   var readModels = summarize('refreshAllReadModelsTrigger', 'hourly');
   var hasDuplicates =
