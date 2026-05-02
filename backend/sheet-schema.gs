@@ -111,8 +111,8 @@ function getSystemSheetSchema_() {
   },
   activities_snapshot: {
     sheetName: 'activities_snapshot', required: true, type: 'snapshot',
-    headers: ['snapshot_key','updated_at','activity_type_counts_json','rows_json'],
-    hebrewLabels: ['מפתח snapshot','עודכן בתאריך','ספירות לפי סוג פעילות','שורות פעילות לתצוגה'],
+    headers: ['snapshot_key','updated_at','activity_type_counts_json','rows_json','rows_meta_json'],
+    hebrewLabels: ['מפתח snapshot','עודכן בתאריך','ספירות לפי סוג פעילות','שורות פעילות לתצוגה','מטא נתוני שורות snapshot'],
     dataStartRow: 3, allowExtraColumns: false, preserveExistingData: false, legacyFinanceColumns: false
   },
   read_models: {

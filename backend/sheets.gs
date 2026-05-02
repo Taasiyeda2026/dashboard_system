@@ -189,15 +189,15 @@ function readRowsProjected_(sheetName, projectedHeaders) {
   var readStartMs = perfNowMs_();
   var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, maxIdx + 1).getValues();
   var readDurationMs = perfNowMs_() - readStartMs;
-  var projected = values.filter(function(row) {
-    return row.some(function(cell) { return text_(cell) !== ''; });
-  }).map(function(row) {
+  var projected = values.map(function(row, idx) {
+    if (!row.some(function(cell) { return text_(cell) !== ''; })) return null;
     var item = {};
     projectedIndexes.forEach(function(idx) {
       item[headers[idx]] = row[idx];
     });
+    item.__row_number = dataStart + idx;
     return item;
-  });
+  }).filter(Boolean);
   if (__rqCache_) {
     __rqCache_.readRows[cacheKey] = projected;
   }
@@ -243,15 +243,15 @@ function readRows_(sheetName) {
   var values = sheet.getRange(dataStart, 1, lastRow - dataStart + 1, lastCol).getValues();
   var readDurationMs = perfNowMs_() - readStartMs;
 
-  var result = values.filter(function(row) {
-    return row.some(function(cell) { return text_(cell) !== ''; });
-  }).map(function(row) {
+  var result = values.map(function(row, idx) {
+    if (!row.some(function(cell) { return text_(cell) !== ''; })) return null;
     var item = {};
     headers.forEach(function(header, idx) {
       item[header] = row[idx];
     });
+    item.__row_number = dataStart + idx;
     return item;
-  });
+  }).filter(Boolean);
 
   if (__rqCache_) {
     __rqCache_.readRows[cacheKey] = result;

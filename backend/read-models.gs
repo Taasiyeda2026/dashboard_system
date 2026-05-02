@@ -362,7 +362,7 @@ function refreshDashboardReadModel_() {
 
 function refreshActivitiesReadModel_() {
   return refreshSingleReadModel_('activities', {}, function() {
-    return actionActivitiesSnapshotFirst_(READ_MODEL_ADMIN_USER_, { activity_type: 'all' });
+    return actionActivitiesLegacy_(READ_MODEL_ADMIN_USER_, { activity_type: 'all' });
   });
 }
 

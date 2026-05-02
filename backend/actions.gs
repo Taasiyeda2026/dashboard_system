@@ -3400,12 +3400,15 @@ function allActivitiesSummary_() {
       list = list.concat(cachedRows);
       return;
     }
-    var rows = readRowsProjected_(sheetName, cols).map(function(row) {
+    var rawRows = readRowsProjected_(sheetName, cols);
+    Logger.log('[activities] source=' + sheetName + ' read_rows=' + rawRows.length);
+    var rows = rawRows.map(function(row) {
       var startIso = normalizeDateTextToIso_(row.start_date) || '';
       var endIso = normalizeDateTextToIso_(row.end_date) || startIso || '';
+      var stableRowId = text_(row.RowID) || ((sheetName === CONFIG.SHEETS.DATA_LONG ? 'LONG-' : 'SHORT-') + text_(row.__row_number));
       return {
         source_sheet: sheetName,
-        RowID: text_(row.RowID),
+        RowID: stableRowId,
         activity_manager: text_(row.activity_manager),
         authority: text_(row.authority),
         school: text_(row.school),
@@ -3441,6 +3444,7 @@ function allActivitiesSummary_() {
   });
 
   enrichRowsWithMeetings_(list);
+  Logger.log('[activities] combined rows before filters=' + list.length);
   if (__rqCache_) {
     __rqCache_.allActivitiesSummary = list;
   }
