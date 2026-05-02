@@ -6,12 +6,12 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 ## Runtime
 - Static server: `npx serve . -l 5000` (workflow: "Start application")
 - SW cache bump: edit `CACHE_VERSION` in `frontend/sw.js` after any JS/CSS change.
-- **Current versions**: SW v302 (frontend/sw.js)
+- **Current versions**: SW v303 (frontend/sw.js)
 
 ## Key identifiers
 - `SPREADSHEET_ID = '1odLLnhpm7gLwSsDrgzxjIy2cuHXZGNNQYXCkuhAt52s'`
 - GAS deployment URL (DEFAULT_API_URL in `frontend/src/config.js`):
-  `AKfycbwWMz-YVA7uPuA6d1yS7JKna3nRZmqBJy8u6ilPnggChBhwpYz_JeAXv6Dd5w3D16vA`
+  `AKfycbw0OIsvI4BVqjvR5kZXUzIOKP2bufrMY2X9qGfCYtF_3ye8_HbXbGv_OZu2ZYfThLLS`
 
 ## Test suite
 - `node --test tests/*.test.mjs`
