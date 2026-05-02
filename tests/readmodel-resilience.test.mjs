@@ -1,16 +1,17 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { JSDOM } from 'jsdom';
 
 const API_MODULE = new URL('../frontend/src/api.js', import.meta.url).href;
 const STATE_MODULE = new URL('../frontend/src/state.js', import.meta.url).href;
 
+function makeStorage(){ const m=new Map(); return {getItem:(k)=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),removeItem:(k)=>m.delete(k),clear:()=>m.clear()}; }
 function setupDom() {
-  const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost' });
-  global.window = dom.window;
-  global.document = dom.window.document;
-  global.localStorage = dom.window.localStorage;
-  global.sessionStorage = dom.window.sessionStorage;
+  global.window = {};
+  global.document = {};
+  global.localStorage = makeStorage();
+  global.sessionStorage = makeStorage();
+  global.window.localStorage = global.localStorage;
+  global.window.sessionStorage = global.sessionStorage;
   global.performance = { now: () => 0 };
   global.requestAnimationFrame = (cb) => cb();
 }
