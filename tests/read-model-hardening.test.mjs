@@ -11,11 +11,11 @@ test('frontend read-model allow list includes end-dates and endDates uses reques
   assert.match(apiSource, /endDates:\s*\(options\)\s*=>\s*requestReadModel\('end-dates',\s*\{\},\s*'endDates',\s*\{\},\s*options \|\| \{\}\)/);
 });
 
-test('requestReadModel fallback metadata includes reason and explicit fallback flags', () => {
-  assert.match(apiSource, /legacy_fallback_reason:\s*'read_model_get_failed'/);
-  assert.match(apiSource, /legacy_fallback_reason:\s*'read_model_refresh_failed'/);
-  assert.match(apiSource, /fallback_used:\s*true/);
-  assert.match(apiSource, /used_read_model:\s*false/);
+test('requestReadModel logs legacy reasons and uses explicit fallback metadata when forceLegacy', () => {
+  assert.match(apiSource, /warnReadModelClientLegacy\([^)]*'read_model_get_failed'/);
+  assert.match(apiSource, /warnReadModelClientLegacy\([^)]*'read_model_refresh_failed'/);
+  assert.match(apiSource, /legacy_fallback_reason:\s*'read_model_get_failed_explicit'/);
+  assert.match(apiSource, /legacy_fallback_reason:\s*'read_models_client_disabled'/);
   assert.match(apiSource, /read_model_screen_key:\s*key/);
 });
 

@@ -8,6 +8,7 @@ const MAIN_FILE = new URL('../frontend/src/main.js', import.meta.url);
 const API_FILE = new URL('../frontend/src/api.js', import.meta.url);
 const ROUTER_FILE = new URL('../backend/router.gs', import.meta.url);
 const ACTIONS_FILE = new URL('../backend/actions.gs', import.meta.url);
+const API_READ_WRITE_FILE = new URL('../backend/api_read_write.gs', import.meta.url);
 const DEPLOY_SCRIPT_FILE = new URL('../scripts/apps_script_snapshot_ops.mjs', import.meta.url);
 
 async function read(url) { return readFile(url, 'utf8'); }
@@ -33,9 +34,9 @@ test('frontend does not render hotfix/build marker text in header UI', async () 
   assert.doesNotMatch(src, /title="frontend build marker"/);
 });
 
-test('frontend keeps background refresh disabled during stabilization hotfix', async () => {
+test('frontend keeps background refresh toggle (post-stabilization default off)', async () => {
   const src = await read(MAIN_FILE);
-  assert.match(src, /STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = true/);
+  assert.match(src, /const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = false/);
 });
 
 test('login success flow forces first-route render and emits explicit lifecycle logs', async () => {
@@ -58,7 +59,9 @@ test('route render flow reports start\/success\/failed and never silently leaves
 test('deploymentInfo action exists and returns static read-only deployment identity', async () => {
   const router = await read(ROUTER_FILE);
   const actions = await read(ACTIONS_FILE);
-  assert.match(router, /deploymentInfo:\s*function\(\)\s*\{\s*return actionDeploymentInfo_\(user\);\s*\}/);
+  const apiRw = await read(API_READ_WRITE_FILE);
+  assert.match(router, /deploymentInfo:\s*'dashboard'/);
+  assert.match(apiRw, /deploymentInfo:\s*function\(u,\s*p\)\s*\{[\s\S]*return actionDeploymentInfo_\(u\)/);
   assert.match(actions, /function actionDeploymentInfo_\(user\) \{/);
   assert.match(actions, /backendVersion:\s*'emergency-disable-diagnostics-v2'/);
   assert.match(actions, /hasLocalDiagnosticsParsers:\s*true/);

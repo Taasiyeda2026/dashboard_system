@@ -15,6 +15,20 @@ const KEY_PERM_FLAGS = [
   'view_permissions'
 ];
 
+/** Normalized role code from API (`role`) or legacy rows where code lived in `display_role`. */
+function permRowRoleCode(row) {
+  const code = String(row?.role != null && row.role !== '' ? row.role : row?.display_role || '').trim();
+  return code;
+}
+
+/** Label from permissions sheet `display_role` column, or mapped Hebrew from code. */
+function permRowRoleLabel(row) {
+  const raw = String(row?.display_role || '').trim();
+  const code = permRowRoleCode(row);
+  if (raw && (!code || raw.toLowerCase() !== code.toLowerCase())) return raw;
+  return hebrewRole(code);
+}
+
 /**
  * Renders the role-defaults preview snippet.
  * @param {string} role - e.g. 'authorized_user'
@@ -40,7 +54,7 @@ function buildRolePreviewHtml(role, roleDefaults) {
 
 function sortedPermissionEditorKeys(row) {
   const keys = Object.keys(row).filter((k) => {
-    if (k === 'user_id' || k === 'display_role') return false;
+    if (k === 'user_id' || k === 'role' || k === 'display_role') return false;
     return (
       k === 'entry_code' ||
       k === 'full_name' ||
@@ -159,10 +173,10 @@ function buildEditDrawerHtml(row) {
       <div class="ds-perm-field">
         <span class="ds-muted">${escapeHtml(hebrewColumn('display_role'))}</span>
         <select data-role-select data-user-id="${uid}" class="ds-input ds-input--sm">
-          <option value="admin" ${row.display_role === 'admin' ? 'selected' : ''}>מנהל/ת</option>
-          <option value="operation_manager" ${row.display_role === 'operation_manager' ? 'selected' : ''}>בקר/ת תפעול</option>
-          <option value="authorized_user" ${row.display_role === 'authorized_user' ? 'selected' : ''}>משתמש/ת מורשה</option>
-          <option value="instructor" ${row.display_role === 'instructor' ? 'selected' : ''}>מדריך/ה</option>
+          <option value="admin" ${permRowRoleCode(row) === 'admin' ? 'selected' : ''}>מנהל/ת</option>
+          <option value="operation_manager" ${permRowRoleCode(row) === 'operation_manager' ? 'selected' : ''}>בקר/ת תפעול</option>
+          <option value="authorized_user" ${permRowRoleCode(row) === 'authorized_user' ? 'selected' : ''}>משתמש/ת מורשה</option>
+          <option value="instructor" ${permRowRoleCode(row) === 'instructor' ? 'selected' : ''}>מדריך/ה</option>
         </select>
       </div>
       <div class="ds-perm-field">
@@ -187,10 +201,10 @@ function buildEditDrawerHtml(row) {
 
 function renderUserRow(row, canEdit, isAdmin, currentUserId) {
   const uid = escapeHtml(row.user_id);
-  const searchHay = [row.full_name, row.user_id, row.display_role, hebrewRole(row.display_role), row.display_role2]
-    .filter(Boolean)
-    .join(' ');
-  const roleKey = String(row.display_role || '').trim();
+  const code = permRowRoleCode(row);
+  const label = permRowRoleLabel(row);
+  const searchHay = [row.full_name, row.user_id, code, label, row.display_role2].filter(Boolean).join(' ');
+  const roleKey = code;
   const isActive = String(row.active || '').toLowerCase() === 'yes';
   const activeLabel = isActive ? 'פעיל/ה' : 'לא פעיל/ה';
   const activeKind = isActive ? 'success' : 'neutral';
@@ -215,7 +229,7 @@ function renderUserRow(row, canEdit, isAdmin, currentUserId) {
   return `<tr class="ds-perm-row" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}">
     <td style="font-weight:600;">${escapeHtml(row.full_name || uid)}</td>
     <td class="ds-muted" style="font-size:0.75rem;">${uid}</td>
-    <td>${dsStatusChip(hebrewRole(row.display_role), roleChipKind(row.display_role))}</td>
+    <td>${dsStatusChip(label, roleChipKind(code))}</td>
     <td>${dsStatusChip(activeLabel, activeKind)}</td>
     <td><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${actionBtns}</div></td>
   </tr>`;
@@ -251,10 +265,10 @@ export const permissionsScreen = {
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
 
     const activeCount = safeRows.filter((r) => String(r.active || '').toLowerCase() === 'yes').length;
-    const adminCount = safeRows.filter((r) => r.display_role === 'admin').length;
-    const reviewerCount = safeRows.filter((r) => r.display_role === 'operation_manager').length;
-    const authorizedCount = safeRows.filter((r) => r.display_role === 'authorized_user').length;
-    const instructorCount = safeRows.filter((r) => r.display_role === 'instructor').length;
+    const adminCount = safeRows.filter((r) => permRowRoleCode(r) === 'admin').length;
+    const reviewerCount = safeRows.filter((r) => permRowRoleCode(r) === 'operation_manager').length;
+    const authorizedCount = safeRows.filter((r) => permRowRoleCode(r) === 'authorized_user').length;
+    const instructorCount = safeRows.filter((r) => permRowRoleCode(r) === 'instructor').length;
 
     const kpis = [
       { label: 'סה"כ משתמשים', value: String(safeRows.length) },
@@ -277,7 +291,7 @@ export const permissionsScreen = {
             <tbody>${rowPairs}</tbody>
           </table></div>`;
 
-    const roleFilters = [...new Set(safeRows.map((r) => String(r.display_role || '').trim()).filter(Boolean))].map((r) => ({
+    const roleFilters = [...new Set(safeRows.map((r) => permRowRoleCode(r)).filter(Boolean))].map((r) => ({
       value: r,
       label: hebrewRole(r)
     }));
@@ -337,7 +351,7 @@ export const permissionsScreen = {
               submitBtn.classList.add('is-loading');
               if (statusEl) statusEl.textContent = '';
               try {
-                await api.addUser({ user_id, full_name, entry_code, display_role });
+                await api.addUser({ user_id, full_name, entry_code, role: display_role });
                 if (statusEl) statusEl.textContent = 'המשתמש נוצר בהצלחה';
                 clearScreenDataCache?.();
                 if (typeof rerender === 'function') await rerender();
@@ -423,7 +437,7 @@ export const permissionsScreen = {
         const userId = btn.dataset.userId;
         const row = safeRows.find((r) => String(r.user_id) === String(userId));
         const name = row?.full_name || userId;
-        const isTargetAdmin = row?.display_role === 'admin';
+        const isTargetAdmin = permRowRoleCode(row) === 'admin';
         const adminWarning = isTargetAdmin ? '\n\n⚠️ שים לב: משתמש/ת זה/זו הוא/היא מנהל/ת המערכת!' : '';
         showConfirmModal(ui, {
           title: 'מחיקת משתמש/ת',
@@ -479,12 +493,12 @@ export const permissionsScreen = {
         if (!saveBtn) return;
 
         saveBtn.addEventListener('click', async () => {
-          const display_role = modalContent.querySelector(`[data-role-select][data-user-id="${userId}"]`)?.value;
+          const role = modalContent.querySelector(`[data-role-select][data-user-id="${userId}"]`)?.value;
           const active = modalContent.querySelector(`[data-active-toggle][data-user-id="${userId}"]`)?.checked
             ? 'yes'
             : 'no';
 
-          const payload = { user_id: userId, display_role, active };
+          const payload = { user_id: userId, role, active };
           modalContent.querySelectorAll('[data-perm-field]').forEach((el) => {
             const field = el.getAttribute('data-perm-field');
             if (!field) return;

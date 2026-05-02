@@ -124,6 +124,7 @@ export function setSession(session) {
     ...(claims || {}),
     user_id: String((session.user && session.user.user_id) || (claims && claims.user_id) || '').trim(),
     display_role: String((session.user && session.user.display_role) || (claims && claims.display_role) || '').trim(),
+    display_role_label: String((session.user && session.user.display_role_label) || '').trim(),
     emp_id: String((session.user && session.user.emp_id) || (claims && claims.emp_id) || '').trim(),
     full_name: String((session.user && session.user.full_name) || (claims && claims.full_name) || '').trim(),
     display_role2: String((session.user && session.user.display_role2) || (claims && claims.display_role2) || '').trim()

@@ -13,7 +13,7 @@ test('can_edit_request is treated as backward-compatible alias for can_request_e
 
 test('view_edit_requests does not grant can_request_edit in effectiveCanRequestEdit_', async () => {
   const source = await readFile(AUTH_FILE, 'utf8');
-  const fnMatch = source.match(/function effectiveCanRequestEdit_\([\s\S]*?\n}\n/);
+  const fnMatch = source.match(/function effectiveCanRequestEdit_\([\s\S]*?\r?\n}\r?\n/);
   assert.ok(fnMatch, 'effectiveCanRequestEdit_ function should exist');
   assert.doesNotMatch(fnMatch[0], /view_edit_requests/);
 });
@@ -25,7 +25,7 @@ test('operation_manager can access edit-requests route, non-manager still uses v
 
 test('operations route is not part of known routes and operations default maps to dashboard', async () => {
   const authSource = await readFile(AUTH_FILE, 'utf8');
-  const knownRoutesBlock = authSource.match(/function allKnownRoutes_\(\) \{[\s\S]*?\n}\n/);
+  const knownRoutesBlock = authSource.match(/function allKnownRoutes_\(\) \{[\s\S]*?\r?\n}\r?\n/);
   assert.ok(knownRoutesBlock, 'allKnownRoutes_ should exist');
   assert.doesNotMatch(knownRoutesBlock[0], /'operations'/);
   assert.match(authSource, /view_operations_data:\s*'dashboard'/);

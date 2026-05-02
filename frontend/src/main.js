@@ -553,7 +553,12 @@ function shellUserDisplayName() {
 function shellUserRoleLine() {
   const r2 = repairHebrewMojibake(state.user?.display_role2).trim();
   if (r2) return escapeHtml(r2);
-  return escapeHtml(repairHebrewMojibake(hebrewRole(state.user?.display_role || state.user?.role)));
+  const sheetLabel = repairHebrewMojibake(state.user?.display_role_label).trim();
+  const code = String(state.user?.display_role || state.user?.role || '').trim();
+  if (sheetLabel && (!code || sheetLabel.toLowerCase() !== code.toLowerCase())) {
+    return escapeHtml(sheetLabel);
+  }
+  return escapeHtml(repairHebrewMojibake(hebrewRole(code)));
 }
 
 // מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
@@ -1058,6 +1063,9 @@ function backgroundSyncBootstrap() {
       if (fn) state.user.full_name = fn;
       state.user.display_role2 =
         bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
+      if (bootstrap.profile.display_role_label != null) {
+        state.user.display_role_label = String(bootstrap.profile.display_role_label);
+      }
       state.user.can_add_activity = !!bootstrap.can_add_activity;
       state.user.can_edit_direct = !!bootstrap.can_edit_direct;
       state.user.can_request_edit = !!bootstrap.can_request_edit;
@@ -1091,6 +1099,9 @@ async function restoreSession() {
     if (fn) state.user.full_name = fn;
     state.user.display_role2 =
       bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
+    if (bootstrap.profile.display_role_label != null) {
+      state.user.display_role_label = String(bootstrap.profile.display_role_label);
+    }
     state.user.can_add_activity = !!bootstrap.can_add_activity;
     state.user.can_edit_direct = !!bootstrap.can_edit_direct;
     state.user.can_request_edit = !!bootstrap.can_request_edit;

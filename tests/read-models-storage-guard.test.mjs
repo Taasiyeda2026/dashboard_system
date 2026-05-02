@@ -3,19 +3,21 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const readModels = fs.readFileSync(new URL('../backend/read-models.gs', import.meta.url), 'utf8');
+const sheetSchema = fs.readFileSync(new URL('../backend/sheet-schema.gs', import.meta.url), 'utf8');
 
 function mustMatch(source, re, msg) {
   assert.match(source, re, msg);
 }
 
 test('read models sheet is metadata-only; payload lives in Drive', () => {
-  mustMatch(readModels, /var READ_MODEL_HEADERS_ = \[[\s\S]*'storage_ref'[\s\S]*\];/);
-  mustMatch(readModels, /'storage_type',[\s\S]*'storage_ref'/);
+  mustMatch(readModels, /function readModelHeaders_\(\)/);
+  mustMatch(readModels, /getSystemSheetSpec_\('read_models'\)/);
   mustMatch(readModels, /readModelsWritePayloadDrive_/);
   mustMatch(readModels, /readModelsLoadPayloadFromDrive_/);
-  var hdr = readModels.match(/var READ_MODEL_HEADERS_ = (\[[\s\S]*?\]);/);
-  assert.ok(hdr, 'READ_MODEL_HEADERS_ block');
-  assert.doesNotMatch(hdr[1], /payload_json|rows_json/, 'no inline JSON columns in header list');
+  const rmSpec = sheetSchema.match(/read_models:\s*\{[\s\S]*?\n  \},/);
+  assert.ok(rmSpec, 'read_models sheet spec');
+  assert.match(rmSpec[0], /'storage_ref'/);
+  assert.doesNotMatch(rmSpec[0], /payload_json|rows_json/, 'no inline JSON columns in sheet-schema read_models headers');
 });
 
 test('markReadModelStatus_ patches row cells without rewriting storage payload', () => {
