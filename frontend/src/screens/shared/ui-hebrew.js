@@ -235,7 +235,9 @@ const API_ERROR_HE = {
   user_not_found: 'המשתמש/ת לא נמצא/ה במערכת',
   cannot_deactivate_self: 'לא ניתן להשבית את עצמך',
   cannot_delete_self: 'לא ניתן למחוק את עצמך',
-  cannot_delete_active_user: 'ניתן למחוק משתמש/ת לא פעיל/ה בלבד'
+  cannot_delete_active_user: 'ניתן למחוק משתמש/ת לא פעיל/ה בלבד',
+  dashboard_sheet_missing: 'גיליון הדשבורד לא נמצא במסמך. פנה למנהל המערכת.',
+  DASHBOARD_SHEET_MISSING: 'גיליון הדשבורד לא נמצא במסמך. פנה למנהל המערכת.'
 };
 
 /**
@@ -277,6 +279,12 @@ export function hebrewInstructorsSourcesLabel(sources) {
 export function translateApiErrorForUser(message) {
   if (message === undefined || message === null || message === '') return API_ERROR_HE.server_error;
   const raw = String(message).trim();
+  if (/^DASHBOARD_MONTH_NOT_FOUND:/i.test(raw)) {
+    return 'החודש שנבחר לא קיים בגיליון הדשבורד.';
+  }
+  if (/^DASHBOARD_SHEET_MISSING$/i.test(raw) || raw === 'DASHBOARD_SHEET_MISSING') {
+    return API_ERROR_HE.DASHBOARD_SHEET_MISSING;
+  }
   if (/[\u0590-\u05FF]/.test(raw)) return raw;
   const key = raw.toLowerCase();
   if (API_ERROR_HE[key]) return API_ERROR_HE[key];

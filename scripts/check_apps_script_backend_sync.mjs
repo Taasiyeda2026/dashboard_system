@@ -14,6 +14,7 @@ const criticalFiles = [
   'actions.gs',
   'auth.gs',
   'dashboard-snapshot.gs',
+  'dashboard-sheet.gs',
   'script-cache.gs',
   'Code.gs'
 ];

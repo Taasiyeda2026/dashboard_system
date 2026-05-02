@@ -14,7 +14,7 @@ function handleGet_() {
 
 function shouldAllowLegacyFallbackForHeavyAction_(action, payload, user) {
   var a = text_(action);
-  var heavy = {
+    var heavy = {
     dashboard: true,
     dashboardSnapshot: true,
     month: true,
@@ -57,6 +57,7 @@ function handlePost_(e) {
     var ACTION_ROUTE_MAP = {
       dashboard: 'dashboard',
       dashboardSnapshot: 'dashboard',
+      dashboardSheet: 'dashboard',
       deploymentInfo: 'dashboard',
       diagnosticsConsistency: 'dashboard',
       activities: 'activities',
