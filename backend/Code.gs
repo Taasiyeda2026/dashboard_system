@@ -36,7 +36,33 @@ function refreshDashboardSnapshots() {
  * Set up as a separate trigger — do not add snapshot logic inside keepWarm.
  */
 function refreshDashboardSnapshotsTrigger() {
-  refreshDashboardSnapshots_();
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return { skipped: true, reason: 'lock_busy' };
+  try {
+    return refreshDashboardSnapshots_();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function refreshDataViewsTrigger() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return { skipped: true, reason: 'lock_busy' };
+  try {
+    return refreshDataViews_();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function refreshActivitiesSnapshotTrigger() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return { skipped: true, reason: 'lock_busy' };
+  try {
+    return refreshActivitiesSnapshot_();
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function getSnapshotRefreshDiagnostics() {
@@ -118,11 +144,33 @@ function installProductionAutomation() {
   });
 
   var result = {
+    scaffold: null,
+    repair: null,
+    initialRefresh: [],
     installed: [],
     replaced: [],
     skipped: [],
     triggers: []
   };
+  if (typeof ensureSystemWorkbookScaffold_ === 'function') {
+    try { result.scaffold = ensureSystemWorkbookScaffold_(); } catch (e) { result.scaffold = { skipped: true, reason: String(e) }; }
+  }
+  if (typeof repairSystemWorkbookStructure_ === 'function') {
+    try { result.repair = repairSystemWorkbookStructure_(); } catch (e2) { result.repair = { skipped: true, reason: String(e2) }; }
+  }
+  [
+    { fn: 'refreshDataViews_', label: 'data_views' },
+    { fn: 'refreshActivitiesSnapshot_', label: 'activities_snapshot' },
+    { fn: 'refreshDashboardSnapshots_', label: 'dashboard_snapshots' },
+    { fn: 'refreshAllReadModels_', label: 'read_models' }
+  ].forEach(function(step) {
+    if (typeof this[step.fn] !== 'function') {
+      result.initialRefresh.push({ step: step.label, skipped: true, reason: 'missing_function_' + step.fn });
+      return;
+    }
+    try { result.initialRefresh.push({ step: step.label, ok: true, outcome: this[step.fn]() || null }); }
+    catch (e3) { result.initialRefresh.push({ step: step.label, skipped: true, reason: String(e3) }); }
+  });
 
   targets.forEach(function(target) {
     var current = byHandler[target.handler] || [];
