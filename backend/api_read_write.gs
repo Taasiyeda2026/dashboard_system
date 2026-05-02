@@ -38,6 +38,7 @@ var READ_ONLY_API_ACTIONS_MAP_ = {
   readModelHealth: true,
   dashboard: true,
   dashboardSnapshot: true,
+  dashboardSheet: true,
   deploymentInfo: true,
   diagnosticsConsistency: true,
   activities: true,
@@ -116,6 +117,7 @@ var LEGACY_READ_DISPATCH_ALLOWLIST_ = {
   readModelHealth: true,
   dashboard: true,
   dashboardSnapshot: true,
+  dashboardSheet: true,
   deploymentInfo: true,
   diagnosticsConsistency: true,
   activities: true,
@@ -185,6 +187,9 @@ var READ_API_HANDLER_FACTORIES_ = {
   },
   dashboardSnapshot: function(u, p) {
     return actionDashboardSnapshot_(u, p);
+  },
+  dashboardSheet: function(u, p) {
+    return actionDashboardSheet_(u, p);
   },
   deploymentInfo: function(u, p) {
     return actionDeploymentInfo_(u);

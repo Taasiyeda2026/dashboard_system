@@ -689,6 +689,7 @@ export const api = {
     return request('dashboard', filters || {});
   },
   dashboardSnapshot: (filters, options) => requestReadModel('dashboard', filters || {}, 'dashboardSnapshot', filters || {}, options || {}),
+  dashboardSheet: (filters) => request('dashboardSheet', filters || {}),
   activities: (filters, options) => requestReadModel('activities', filters || {}, 'activities', filters || {}, options || {}),
   activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
   week: (params, options) => {

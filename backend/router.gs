@@ -57,6 +57,7 @@ function handlePost_(e) {
     var ACTION_ROUTE_MAP = {
       dashboard: 'dashboard',
       dashboardSnapshot: 'dashboard',
+      dashboardSheet: 'dashboard',
       deploymentInfo: 'dashboard',
       diagnosticsConsistency: 'dashboard',
       activities: 'activities',
