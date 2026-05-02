@@ -146,12 +146,14 @@ function computeExceptionsModel_(rows, ym, opts) {
     if (!byManager[manager]) byManager[manager] = 0;
 
     totalExceptionRows += 1;
-    byManager[manager] += types.length;
+    byManager[manager] += 1;
 
     types.forEach(function(type) {
       if (!counts[type]) counts[type] = 0;
       counts[type] += 1;
-      if (!includeRows) return;
+    });
+
+    if (includeRows) {
       exceptionRows.push({
         RowID: text_(row && row.RowID),
         source_sheet: text_(row && row.source_sheet),
@@ -173,9 +175,12 @@ function computeExceptionsModel_(rows, ym, opts) {
         end_date: row && row.end_date,
         sessions: row && row.sessions,
         notes: row && row.notes,
-        exception_type: type
+        exception_type: types[0] || '',
+        exception_types: types.slice(),
+        exception_count: types.length,
+        has_multiple_exceptions: types.length > 1 ? 'yes' : 'no'
       });
-    });
+    }
 
     if (includeDebug && sampleRows.length < 25) {
       sampleRows.push({
@@ -528,7 +533,7 @@ function actionDiagnosticsConsistency_(user, payload) {
     Logger.log('finished exceptions + duration=' + timings.exceptionsMs + 'ms');
     guardRuntime_('after_getExceptionsSummary_');
 
-    var exceptionsTotal = Number(exceptionSummary.totalExceptionInstances || 0);
+    var exceptionsTotal = Number(exceptionSummary.totalExceptionRows || 0);
     var byManager = exceptionSummary.byManager || {};
     var sumByManager = Object.keys(byManager).reduce(function(sum, manager) {
       return sum + Number(byManager[manager] || 0);
@@ -574,7 +579,8 @@ function actionDiagnosticsConsistency_(user, payload) {
       month: month,
       dashboard: dashboard,
       exceptions: {
-        totalExceptionInstances: exceptionsTotal,
+        totalExceptionRows: exceptionsTotal,
+        totalExceptionInstances: Number(exceptionSummary.totalExceptionInstances || 0),
         byManager: byManager,
         sumByManager: sumByManager
       },
@@ -603,8 +609,8 @@ function actionDiagnosticsConsistency_(user, payload) {
       diagnostics.mismatches.push(mismatch);
     }
 
-    if (dashboard.exceptions_count !== diagnostics.exceptions.totalExceptionInstances) {
-      pushMismatch_('exceptions_count', dashboard.exceptions_count, diagnostics.exceptions.totalExceptionInstances, 'exceptions_direct', 'getExceptionsSummary_');
+    if (dashboard.exceptions_count !== diagnostics.exceptions.totalExceptionRows) {
+      pushMismatch_('exceptions_count', dashboard.exceptions_count, diagnostics.exceptions.totalExceptionRows, 'exceptions_direct', 'getExceptionsSummary_');
     }
     if (dashboard.exceptions_count !== diagnostics.exceptions.sumByManager) {
       pushMismatch_('exceptions_count_vs_byManager_sum', dashboard.exceptions_count, diagnostics.exceptions.sumByManager, 'exceptions_direct.byManager', 'computeExceptionsModel_');
@@ -836,7 +842,7 @@ function actionDashboard_(user, payload) {
   missingInstructorCount = exceptionSummary.counts.missing_instructor || 0;
   missingStartDateCount = exceptionSummary.counts.missing_start_date || 0;
   lateEndDateCount = exceptionSummary.counts.late_end_date || 0;
-  var exceptionSum = exceptionSummary.totalExceptionInstances || 0;
+  var exceptionSum = exceptionSummary.totalExceptionRows || 0;
 
   var shortActivitiesByType = {};
   shortRowsBySource.forEach(function(row) {

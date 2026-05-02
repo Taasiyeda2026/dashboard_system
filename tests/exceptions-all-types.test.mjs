@@ -68,14 +68,15 @@ function computeExceptionsModel(sourceRows, ym, opts) {
     const manager = String(row.activity_manager || '') || 'unassigned';
     if (!byManager[manager]) byManager[manager] = 0;
     totalExceptionRows += 1;
-    byManager[manager] += types.length;
+    byManager[manager] += 1;
 
     types.forEach((type) => {
       if (!counts[type]) counts[type] = 0;
       counts[type] += 1;
-      if (!includeRows) return;
-      exceptionRows.push({ RowID: String(row.RowID || ''), activity_type: row.activity_type, exception_type: type });
     });
+    if (includeRows) {
+      exceptionRows.push({ RowID: String(row.RowID || ''), activity_type: row.activity_type, exception_type: types[0] || '', exception_types: types.slice() });
+    }
   });
 
   const totalExceptionInstances = counts.missing_instructor + counts.missing_start_date + counts.late_end_date;
@@ -160,15 +161,13 @@ const rowOutOfMonth = {
 
 // ─── Numeric tests ────────────────────────────────────────────────────────────
 
-test('activity with all 3 exception types produces 3 exception instances', () => {
+test('activity with all 3 exception types counts as one row and keeps details', () => {
   const result = computeExceptionsModel([rowAllThree], '', { include_rows: true });
   assert.equal(result.totalExceptionInstances, 3,
     'one activity with missing_instructor + missing_start_date + late_end_date → 3 instances');
-  assert.equal(result.rows.length, 3, 'should produce 3 rows (one per exception type)');
-  const types = result.rows.map((r) => r.exception_type);
-  assert.ok(types.includes('missing_instructor'),  'should include missing_instructor');
-  assert.ok(types.includes('missing_start_date'),  'should include missing_start_date');
-  assert.ok(types.includes('late_end_date'),        'should include late_end_date');
+  assert.equal(result.rows.length, 1, 'should produce one row per course');
+  const types = result.rows[0].exception_types || [];
+  assert.deepEqual(types.sort(), ['late_end_date','missing_instructor','missing_start_date'].sort());
 });
 
 test('activity without start_date (missing_start_date) is included in month-filtered results', () => {
@@ -192,16 +191,14 @@ test('activity outside month with start_date is excluded when month filter is ac
   assert.equal(result.totalExceptionInstances, 0);
 });
 
-test('count by manager is by exception instances not by activity count', () => {
+test('count by manager is by course rows, not instances', () => {
   const allRows = [rowAllThree, rowMissingInstructor];
   const result = computeExceptionsModel(allRows, YM, { include_rows: false });
   // rowAllThree (no start_date): 3 exceptions → mgr_a gets 3
   // rowMissingInstructor: 1 exception → mgr_b gets 1
-  assert.equal(result.byManager['mgr_a'], 3,
-    'mgr_a should count 3 exception instances from rowAllThree');
-  assert.equal(result.byManager['mgr_b'], 1,
-    'mgr_b should count 1 exception instance from rowMissingInstructor');
-  assert.equal(result.totalExceptionInstances, 4);
+  assert.equal(result.byManager['mgr_a'], 1, 'mgr_a should count one problematic course');
+  assert.equal(result.byManager['mgr_b'], 1, 'mgr_b should count one problematic course');
+  assert.equal(result.totalExceptionRows, 2);
 });
 
 test('non-course activities are never included in exceptions', () => {
@@ -231,23 +228,14 @@ test('backend has all 3 exception type keys in counts object', async () => {
   assert.match(src, /late_end_date:\s*0/);
 });
 
-test('frontend exceptions screen uses composite card action (RowID + exception_type)', async () => {
+test('frontend exceptions screen uses single row action by RowID', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
-  assert.match(src, /data-card-action.*exception:\$\{row\.RowID\}:\$\{row\.exception_type/,
-    'card action must include exception_type so cards for same activity are uniquely keyed');
-  assert.doesNotMatch(
-    src,
-    /data-card-action.*`exception:\$\{row\.RowID\}`/,
-    'card action must NOT use RowID-only key (would conflate multiple exception types)'
-  );
+  assert.match(src, /data-card-action.*`exception:\$\{row\.RowID\}`/);
 });
 
-test('frontend bind parses exception_type from card action for correct row lookup', async () => {
+test('frontend bind resolves row by RowID only', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
-  assert.match(src, /lastIndexOf\(':'\)/,
-    'bind must split action by lastIndexOf to extract exception_type');
-  assert.match(src, /row\.exception_type/,
-    'findIndex must compare exception_type');
+  assert.match(src, /findIndex\(\(row\) => String\(row\.RowID\) === rowId\)/);
 });
 
 test('frontend exceptions screen filter fields include exception_type', async () => {
@@ -258,13 +246,13 @@ test('frontend exceptions screen filter fields include exception_type', async ()
     'exception_type filter must use hebrewExceptionType for option labels');
 });
 
-test('frontend exceptions title uses totalExceptionInstances not totalExceptionRows', async () => {
+test('frontend exceptions title uses totalExceptionRows', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
-  assert.match(src, /data\?\.totalExceptionInstances/,
+  assert.match(src, /data\?\.totalExceptionRows/,
     'title count must use totalExceptionInstances from API response');
   assert.doesNotMatch(
     src,
-    /totalExceptionRows.*סה.{0,5}כ חריגות/,
+    /totalExceptionInstances.*סה.{0,5}כ חריגות/,
     'title must not use totalExceptionRows for the count'
   );
 });
