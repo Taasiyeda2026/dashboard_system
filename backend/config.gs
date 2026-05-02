@@ -27,6 +27,7 @@ const CONFIG = {
     DASHBOARD_SUMMARY_SNAPSHOT: 'dashboard_summary_snapshot',
     DASHBOARD_BY_MANAGER_SNAPSHOT: 'dashboard_by_manager_snapshot',
     DASHBOARD_REFRESH_CONTROL: 'dashboard_refresh_control',
+    ACTIVITIES_SNAPSHOT: 'activities_snapshot',
     READ_MODELS: 'read_models'
   },
   /** אופציונלי: מזהה תיקיית Drive לאחסון קבצי read-model JSON (ברירת מחדל — אותה תיקייה כמו גיליון האלקטרוני). */

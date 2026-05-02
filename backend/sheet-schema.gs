@@ -1,0 +1,30 @@
+/**
+ * sheet-schema.gs
+ * מקור אמת יחיד למבנה workbook (Headers + תוויות + מדיניות שימור נתונים).
+ */
+
+var SYSTEM_SHEET_SCHEMA_ = {
+  data_long: { sheetName: 'data_long', required: true, type: 'source', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: false },
+  data_short: { sheetName: 'data_short', required: true, type: 'source', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: false },
+  activity_meetings: { sheetName: 'activity_meetings', required: true, type: 'source', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: false },
+  permissions: { sheetName: 'permissions', required: true, type: 'source', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: true },
+  settings: { sheetName: 'settings', required: true, type: 'source', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: true },
+  lists: { sheetName: 'lists', required: true, type: 'source', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: true },
+  contacts_instructors: { sheetName: 'contacts_instructors', required: true, type: 'source', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: false },
+  contacts_schools: { sheetName: 'contacts_schools', required: true, type: 'source', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: false },
+  operations_private_notes: { sheetName: 'operations_private_notes', required: true, type: 'source', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: false },
+  edit_requests: { sheetName: 'edit_requests', required: true, type: 'source', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: false },
+  view_activity_meetings: { sheetName: 'view_activity_meetings', required: true, type: 'view', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: false, preserveExistingData: false, legacyFinanceColumns: false },
+  view_dashboard_monthly: { sheetName: 'view_dashboard_monthly', required: true, type: 'view', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: false, preserveExistingData: false, legacyFinanceColumns: false },
+  view_activities_summary: { sheetName: 'view_activities_summary', required: true, type: 'view', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: false, preserveExistingData: false, legacyFinanceColumns: false },
+  dashboard_refresh_control: { sheetName: 'dashboard_refresh_control', required: true, type: 'system', headers: ['key', 'value', 'label_he'], hebrewLabels: ['מפתח', 'ערך', 'תווית'], dataStartRow: 3, allowExtraColumns: false, preserveExistingData: false, legacyFinanceColumns: false },
+  dashboard_summary_snapshot: { sheetName: 'dashboard_summary_snapshot', required: true, type: 'snapshot', headers: ['month_ym', 'month_label', 'updated_at', 'total_short_activities', 'total_long_activities', 'active_courses_current_month', 'active_workshops_current_month', 'active_tours_current_month', 'active_after_school_current_month', 'active_escape_room_current_month', 'exceptions_count', 'active_instructors_count', 'course_endings_current_month', 'active_courses_next_month', 'missing_instructor_count', 'missing_start_date_count', 'late_end_date_count', 'active_instructors_names'], hebrewLabels: ['חודש', 'תווית חודש', 'עודכן בתאריך', 'סך פעילויות חד-יומיות', 'סך תוכניות', 'קורסים פעילים בחודש נוכחי', 'סדנאות פעילות בחודש נוכחי', 'סיורים פעילים בחודש נוכחי', 'צהרונים פעילים בחודש נוכחי', 'חדרי בריחה פעילים בחודש נוכחי', 'חריגות', 'מדריכים פעילים', 'סיומי קורסים בחודש נוכחי', 'קורסים פעילים בחודש הבא', 'ללא מדריך', 'ללא תאריך התחלה', 'תאריך סיום מאוחר', 'שמות מדריכים פעילים'], dataStartRow: 3, allowExtraColumns: false, preserveExistingData: false, legacyFinanceColumns: true },
+  dashboard_by_manager_snapshot: { sheetName: 'dashboard_by_manager_snapshot', required: true, type: 'snapshot', headers: ['month_ym', 'activity_manager', 'manager_display_name', 'total_short', 'total_long', 'total', 'num_instructors', 'course_endings', 'exceptions', 'active_instructors_names', 'updated_at', 'snapshot_key'], hebrewLabels: ['חודש', 'מנהל פעילות', 'שם תצוגה מנהל', 'חד-יומי', 'תוכניות', 'סך הכול', 'מספר מדריכים', 'סיומי קורסים', 'חריגות', 'שמות מדריכים פעילים', 'עודכן בתאריך', 'מפתח snapshot'], dataStartRow: 3, allowExtraColumns: false, preserveExistingData: false, legacyFinanceColumns: true },
+  activities_snapshot: { sheetName: 'activities_snapshot', required: true, type: 'snapshot', headers: ['snapshot_key', 'updated_at', 'activity_type_counts_json', 'rows_json'], hebrewLabels: ['מפתח snapshot', 'עודכן בתאריך', 'ספירות לפי סוג פעילות', 'שורות פעילות לתצוגה'], dataStartRow: 3, allowExtraColumns: false, preserveExistingData: false, legacyFinanceColumns: false },
+  read_models: { sheetName: 'read_models', required: true, type: 'system', headers: ['key', 'updated_at', 'version', 'hash', 'source_updated_at', 'status', 'duration_ms', 'rows_count', 'payload_size', 'last_error', 'storage_type', 'storage_ref'], hebrewLabels: ['מפתח', 'עודכן בתאריך', 'גרסה', 'hash', 'עודכן מקור', 'סטטוס', 'משך (ms)', 'מספר שורות', 'גודל payload', 'שגיאה אחרונה', 'סוג אחסון', 'מזהה אחסון'], dataStartRow: 3, allowExtraColumns: false, preserveExistingData: false, legacyFinanceColumns: true },
+  אפיון: { sheetName: 'אפיון', required: false, type: 'documentation', headers: [], hebrewLabels: [], dataStartRow: 3, allowExtraColumns: true, preserveExistingData: true, legacyFinanceColumns: false }
+};
+
+function getSystemSheetSpec_(sheetName) {
+  return SYSTEM_SHEET_SCHEMA_[text_(sheetName)] || null;
+}

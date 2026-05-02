@@ -8,18 +8,8 @@
  */
 
 var ACTIVITIES_SNAPSHOT_SHEET_FALLBACK_ = 'activities_snapshot';
-var ACTIVITIES_SNAPSHOT_HEADERS_ = [
-  'snapshot_key',
-  'updated_at',
-  'activity_type_counts_json',
-  'rows_json'
-];
-var ACTIVITIES_SNAPSHOT_LABELS_HE_ = [
-  'מפתח snapshot',
-  'עודכן בתאריך',
-  'ספירות לפי סוג פעילות',
-  'שורות פעילות לתצוגה'
-];
+var ACTIVITIES_SNAPSHOT_HEADERS_ = getSystemSheetSpec_('activities_snapshot').headers.slice();
+var ACTIVITIES_SNAPSHOT_LABELS_HE_ = getSystemSheetSpec_('activities_snapshot').hebrewLabels.slice();
 
 function activitiesSnapshotSheetName_() {
   return (CONFIG.SHEETS && CONFIG.SHEETS.ACTIVITIES_SNAPSHOT) || ACTIVITIES_SNAPSHOT_SHEET_FALLBACK_;
