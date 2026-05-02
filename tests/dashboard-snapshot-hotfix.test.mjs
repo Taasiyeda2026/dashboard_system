@@ -8,15 +8,18 @@ function mustMatch(src, re, msg) {
   assert.match(src, re, msg || String(re));
 }
 
-test('dashboard snapshot stale/missing falls back to actionDashboard_ instead of empty payload', async () => {
+test('dashboard snapshot: force_full uses actionDashboard_; stale/missing uses lightweight stub (no legacy dashboard)', async () => {
   const snapshot = await read('backend/dashboard-snapshot.gs');
 
-  mustMatch(snapshot, /if \(!persistedStale\.snap \|\| !persistedStale\.hasSummarySnapshotSheet\) \{[\s\S]*stalePayload = actionDashboard_\(user, payload \|\| \{\}\);/);
-  mustMatch(snapshot, /stalePayload\._is_snapshot = false;/);
-  mustMatch(snapshot, /stalePayload\._is_stale = true;/);
-  mustMatch(snapshot, /stalePayload\._snapshot_fallback_reason = staleReason \|\| 'missing_snapshot';/);
-
-  mustMatch(snapshot, /if \(!snap \|\| !hasSummarySnapshotSheet\) \{[\s\S]*fallbackData = actionDashboard_\(user, payload \|\| \{\}\);[\s\S]*fallbackData\._snapshot_fallback_reason = 'missing_snapshot';/);
+  mustMatch(snapshot, /if \(payload && payload\.force_full === true\) \{[\s\S]*var forcedData = actionDashboard_\(user, payload\);/);
+  mustMatch(snapshot, /if \(!persistedStale\.snap \|\| !persistedStale\.hasSummarySnapshotSheet\) \{[\s\S]*_snapshot_unavailable:\s*true/);
+  mustMatch(snapshot, /if \(!snap \|\| !hasSummarySnapshotSheet\) \{[\s\S]*_snapshot_unavailable:\s*true/);
+  mustMatch(snapshot, /totals:\s*\{\},[\s\S]*kpi_cards:\s*\[\]/);
+  const staleMissingBranch = snapshot.indexOf('if (!persistedStale.snap || !persistedStale.hasSummarySnapshotSheet)');
+  assert.ok(staleMissingBranch >= 0);
+  const staleMissingElse = snapshot.indexOf('} else {', staleMissingBranch);
+  assert.ok(staleMissingElse > staleMissingBranch);
+  assert.doesNotMatch(snapshot.slice(staleMissingBranch, staleMissingElse), /actionDashboard_\(/);
 });
 
 test('dashboard manager mapping keeps display-only district labels', async () => {

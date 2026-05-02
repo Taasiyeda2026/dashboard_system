@@ -13,9 +13,10 @@ test('dashboard consistency harness: legacy/snapshot/read-model are wired to sam
   const snapshot = await read('backend/dashboard-snapshot.gs');
   const readModels = await read('backend/read-models.gs');
 
-  // same exception source in legacy and snapshot
+  // legacy dashboard path still aggregates exceptions via getExceptionsSummary_
   mustMatch(actions, /var exceptionSummary = getExceptionsSummary_\(combined, ym, \{ include_rows: false \}\);/);
-  mustMatch(snapshot, /getExceptionsSummary_\([^\n]+include_rows: false[^\n]+\)/);
+  // snapshot path resolves exception KPI via resolver (aligned contract; no inline getExceptionsSummary_)
+  mustMatch(snapshot, /resolveExceptionsCountForDashboard_\(/);
 
   // required KPI fields are built by snapshot
   mustMatch(snapshot, /function sanitizeDashboardSnapshotPayloadNoFinance_/);
@@ -40,7 +41,8 @@ test('exceptions consistency harness: exceptions endpoint and dashboard use comp
   mustMatch(actions, /function getExceptionsSummary_\(rows, ym, opts\) \{\s*return computeExceptionsModel_\(rows, ym, opts \|\| \{\}\);\s*\}/s);
   mustMatch(actions, /var exceptionSummary = getExceptionsSummary_\(rows, month, \{ include_rows: true, include_debug: yesNo_\(payload && payload\.debug\) === 'yes' \}\);/);
   mustMatch(actions, /var exceptionSummary = getExceptionsSummary_\(combined, ym, \{ include_rows: false \}\);/);
-  mustMatch(views, /var monthExceptionSummary = computeExceptionsModel_\(monthActivities, ym, \{ include_rows: false \}\);/);
+  // views build path uses shared row exception typing (month grid no longer inlines computeExceptionsModel_)
+  mustMatch(views, /rowExceptionTypes_\(/);
 });
 
 test('finance logic remains legacy-only in finance screen/backend helpers', async () => {
