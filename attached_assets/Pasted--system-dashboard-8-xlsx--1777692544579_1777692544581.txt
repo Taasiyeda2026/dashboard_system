@@ -1,0 +1,179 @@
+בדקתי את system dashboard (8).xlsx אחרי הפריסה. יש התקדמות, אבל נמצאה בעיה קריטית במבנה גיליונות המקור.
+
+ממצאים:
+
+1. data_long ו-data_short לא מיושרים
+בגיליונות data_long ו-data_short הכותרות חסרות כנראה שתי עמודות אחרי school:
+grade
+class_group
+
+בפועל הנתונים נראים כך:
+RowID | activity_manager | authority | school | ריק | ריק | course | 6089 | ביומימיקרי | ...
+
+אבל הכותרות כרגע הן:
+RowID | activity_manager | authority | school | activity_type | activity_no | activity_name | ...
+
+כלומר:
+activity_type ריק,
+activity_no ריק,
+course נמצא תחת activity_name,
+6089 נמצא תחת sessions,
+שם הפעילות נמצא תחת price.
+
+זה שובר את כל החישובים של dashboard / activities / views / snapshots.
+
+משימה:
+לתקן את source sheet schema של data_long ו-data_short כך שיתאים למבנה הנתונים הקיים.
+כנראה צריך להוסיף:
+grade
+class_group
+בין school לבין activity_type.
+
+חשוב:
+לא להזיז נתונים כרגע לפני בדיקה.
+קודם לתקן headers/schema כך שיתאימו לנתונים הקיימים.
+לא לדרוס source headers בצורה עיוורת.
+
+2. לתקן את ensureSystemWorkbookScaffold_ עבור source sheets
+ב-backend/workbook-structure.gs:
+בגיליונות source עם preserveExistingData=true:
+אסור לדרוס headers קיימים אם יש נתונים קיימים וה-schema לא מלאה.
+צריך:
+- אם הגיליון חסר לגמרי — ליצור עם headers מלאים.
+- אם הגיליון קיים ויש נתונים — לא לדרוס headers אלא אם repair mode מפורש ומאובחן.
+- אם מזהים mismatch בין headers לנתונים — להחזיר warning ב-diagnostics ולא לבצע שינוי מסוכן אוטומטי.
+
+3. להשלים את schema של source sheets
+ב-backend/sheet-schema.gs וב-scripts/sheet-schema.json:
+כרגע להרבה source sheets יש headers ריקים או לא מלאים.
+צריך להגדיר headers מלאים ל:
+data_long
+data_short
+activity_meetings
+settings
+lists
+permissions
+contacts_instructors
+contacts_schools
+operations_private_notes
+edit_requests
+
+עבור data_long/data_short, לוודא שהheaders כוללים grade/class_group במקום הנכון.
+
+4. לתקן settings headers
+בגיליון settings יש:
+setting_key | setting_value | active | notes | active
+
+אבל עמודה C מכילה ערכים כמו:
+text
+number
+csv
+date
+boolean
+
+לכן עמודה C צריכה להיות:
+value_type
+
+המבנה הנכון צריך להיות:
+setting_key
+setting_value
+value_type
+notes
+active
+
+לעדכן schema, scaffold ו-template בהתאם.
+
+5. לתקן lists headers
+בגיליון lists יש:
+name | value | active | parent_value | activity_no | activity_name | active
+
+אבל עמודה C מכילה תווית עברית כמו:
+קורס
+חוג אפטרסקול
+סדנה
+
+לכן עמודה C צריכה להיות:
+label_he
+
+המבנה הנכון:
+name
+value
+label_he
+parent_value
+activity_no
+activity_name
+active
+
+לעדכן schema, scaffold ו-template בהתאם.
+
+6. לתקן permissions כפילויות
+בגיליון permissions יש כפילות:
+can_request_edit
+can_edit_direct
+can_add_activity
+
+מופיעות גם בעמודות Q-S וגם בעמודות V-X.
+
+צריך:
+- לבדוק איזה סט הוא המקור הנכון.
+- לא להשאיר duplicate headers.
+- אם עמודות V-X הן החדשות עם תוויות בעברית בלבד, יש להזיז labels לשורה 2 ולא לשכפל headers.
+- view_finance יכול להישאר legacy, אבל לא ליצור route finance.
+
+7. read_models cleanup
+בגיליון read_models עדיין קיימות שורות:
+finance?month=2026-04&tab=active
+finance?month=2026-05&tab=active
+
+צריך להסיר אותן ממסלול רגיל או לסמן/לנקות בעת refresh.
+בנוסף קיימות שתי שורות dashboard.
+צריך לוודא ש-refreshAllReadModels_ / upsert read model מחליף שורה קיימת ולא יוצר כפילות key.
+
+בדיקות:
+- read_models לא מכיל finance keys אחרי refreshAllReadModels_.
+- read_models לא מכיל duplicate key dashboard.
+- אם יש duplicate keys קיימים, repairSystemWorkbookStructure צריך לנקות כפילויות ולשמור את העדכני ביותר.
+
+8. dashboard_summary_snapshot extra used cells
+הכותרות תקינות עד active_instructors_names, אבל קיימים תאים “משומשים” ריקים מעבר לעמודת הסכמה.
+צריך לנקות used range מעבר ל-schema בגיליונות allowExtraColumns=false, כולל עמודות מיותרות ולא רק שורות 1-2.
+
+9. diagnosticsSheetStructure
+להרחיב את האבחון כך שיזהה:
+- source header/data mismatch
+- duplicate headers
+- headers שגויים כמו active במקום value_type
+- lists active במקום label_he
+- data_long/data_short missing grade/class_group
+- duplicate read_model keys
+- finance keys ב-read_models
+- extra used columns מעבר ל-schema
+- warning כאשר scaffold עלול לדרוס source data
+
+10. build:workbook
+אחרי תיקון schema:
+npm run build:workbook צריך ליצור template מלא, לא גיליונות מקור עם headers ריקים.
+לוודא שה-template כולל:
+data_long/data_short עם grade/class_group
+settings עם value_type
+lists עם label_he
+permissions בלי duplicate headers
+activities_snapshot
+dashboard snapshots בלי finance
+
+11. הרצה
+בסיום:
+npm test
+npm run build
+npm run build:workbook
+
+לאחר deploy:
+להריץ:
+diagnosticsSheetStructure
+repairSystemWorkbookStructure
+refreshAllReadModels
+ולוודא שאין:
+- finance read models
+- duplicate dashboard key
+- duplicate headers
+- source data mismatch

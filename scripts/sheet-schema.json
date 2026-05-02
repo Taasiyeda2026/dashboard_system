@@ -4,11 +4,16 @@
       "sheetName": "data_long",
       "required": true,
       "type": "source",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [
         "RowID",
         "activity_manager",
         "authority",
         "school",
+        "grade",
+        "class_group",
         "activity_type",
         "activity_no",
         "activity_name",
@@ -30,38 +35,45 @@
       ],
       "hebrewLabels": [
         "RowID",
-        "activity_manager",
-        "authority",
-        "school",
-        "activity_type",
-        "activity_no",
-        "activity_name",
-        "sessions",
-        "price",
-        "funding",
-        "start_time",
-        "end_time",
-        "emp_id",
-        "instructor_name",
-        "emp_id_2",
-        "instructor_name_2",
-        "start_date",
-        "end_date",
-        "status",
-        "notes",
-        "finance_status",
-        "finance_notes"
+        "מנהל פעילות",
+        "רשות",
+        "בית ספר",
+        "כיתה",
+        "קבוצה",
+        "סוג פעילות",
+        "מספר פעילות",
+        "שם פעילות",
+        "מפגשים",
+        "מחיר",
+        "מימון",
+        "שעת התחלה",
+        "שעת סיום",
+        "ת.ז. מדריך",
+        "שם מדריך",
+        "ת.ז. מדריך 2",
+        "שם מדריך 2",
+        "תאריך התחלה",
+        "תאריך סיום",
+        "סטטוס",
+        "הערות",
+        "סטטוס כספי",
+        "הערות כספיות"
       ]
     },
     {
       "sheetName": "data_short",
       "required": true,
       "type": "source",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [
         "RowID",
         "activity_manager",
         "authority",
         "school",
+        "grade",
+        "class_group",
         "activity_type",
         "activity_no",
         "activity_name",
@@ -82,32 +94,37 @@
       ],
       "hebrewLabels": [
         "RowID",
-        "activity_manager",
-        "authority",
-        "school",
-        "activity_type",
-        "activity_no",
-        "activity_name",
-        "sessions",
-        "price",
-        "funding",
-        "start_time",
-        "end_time",
-        "emp_id",
-        "instructor_name",
-        "emp_id_2",
-        "instructor_name_2",
-        "start_date",
-        "status",
-        "notes",
-        "finance_status",
-        "finance_notes"
+        "מנהל פעילות",
+        "רשות",
+        "בית ספר",
+        "כיתה",
+        "קבוצה",
+        "סוג פעילות",
+        "מספר פעילות",
+        "שם פעילות",
+        "מפגשים",
+        "מחיר",
+        "מימון",
+        "שעת התחלה",
+        "שעת סיום",
+        "ת.ז. מדריך",
+        "שם מדריך",
+        "ת.ז. מדריך 2",
+        "שם מדריך 2",
+        "תאריך התחלה",
+        "סטטוס",
+        "הערות",
+        "סטטוס כספי",
+        "הערות כספיות"
       ]
     },
     {
       "sheetName": "activity_meetings",
       "required": true,
       "type": "source",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [
         "source_row_id",
         "meeting_no",
@@ -116,17 +133,20 @@
         "active"
       ],
       "hebrewLabels": [
-        "source_row_id",
-        "meeting_no",
-        "meeting_date",
-        "notes",
-        "active"
+        "מזהה שורת מקור",
+        "מספר מפגש",
+        "תאריך מפגש",
+        "הערות",
+        "פעיל"
       ]
     },
     {
       "sheetName": "permissions",
       "required": true,
       "type": "source",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [
         "user_id",
         "entry_code",
@@ -151,63 +171,84 @@
         "active"
       ],
       "hebrewLabels": [
-        "user_id",
-        "entry_code",
-        "full_name",
-        "display_role",
-        "default_view",
-        "view_admin",
-        "view_dashboard",
-        "view_activities",
-        "view_week",
-        "view_month",
-        "view_instructors",
-        "view_exceptions",
-        "view_my_data",
-        "view_contacts",
-        "view_finance",
-        "view_permissions",
-        "can_request_edit",
-        "can_edit_direct",
-        "can_add_activity",
-        "can_review_requests",
-        "active"
+        "מזהה משתמש",
+        "קוד כניסה",
+        "שם מלא",
+        "תפקיד תצוגה",
+        "מסך ברירת מחדל",
+        "ניהול",
+        "לוח בקרה",
+        "פעילויות",
+        "שבוע",
+        "חודש",
+        "מדריכים",
+        "חריגות",
+        "הנתונים שלי",
+        "אנשי קשר",
+        "כספים",
+        "הרשאות",
+        "בקשת עריכה",
+        "עריכה ישירה",
+        "הוספת פעילות",
+        "אישור בקשות",
+        "פעיל"
       ]
     },
     {
       "sheetName": "settings",
       "required": true,
       "type": "source",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [
         "setting_key",
         "setting_value",
+        "value_type",
+        "notes",
         "active"
       ],
       "hebrewLabels": [
-        "setting_key",
-        "setting_value",
-        "active"
+        "מפתח הגדרה",
+        "ערך",
+        "סוג ערך",
+        "הערות",
+        "פעיל"
       ]
     },
     {
       "sheetName": "lists",
       "required": true,
       "type": "source",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [
         "name",
         "value",
+        "label_he",
+        "parent_value",
+        "activity_no",
+        "activity_name",
         "active"
       ],
       "hebrewLabels": [
-        "name",
-        "value",
-        "active"
+        "שם רשימה",
+        "ערך",
+        "תווית עברית",
+        "ערך אב",
+        "מספר פעילות",
+        "שם פעילות",
+        "פעיל"
       ]
     },
     {
       "sheetName": "contacts_instructors",
       "required": true,
       "type": "source",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [
         "emp_id",
         "full_name",
@@ -219,20 +260,23 @@
         "active"
       ],
       "hebrewLabels": [
-        "emp_id",
-        "full_name",
-        "mobile",
-        "email",
-        "address",
-        "employment_type",
-        "direct_manager",
-        "active"
+        "ת.ז.",
+        "שם מלא",
+        "נייד",
+        "דוא\"ל",
+        "כתובת",
+        "סוג העסקה",
+        "מנהל ישיר",
+        "פעיל"
       ]
     },
     {
       "sheetName": "contacts_schools",
       "required": true,
       "type": "source",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [
         "authority",
         "school",
@@ -246,22 +290,25 @@
         "active"
       ],
       "hebrewLabels": [
-        "authority",
-        "school",
-        "contact_name",
-        "contact_role",
-        "phone",
-        "mobile",
-        "email",
-        "address",
-        "notes",
-        "active"
+        "רשות",
+        "בית ספר",
+        "שם איש קשר",
+        "תפקיד",
+        "טלפון",
+        "נייד",
+        "דוא\"ל",
+        "כתובת",
+        "הערות",
+        "פעיל"
       ]
     },
     {
       "sheetName": "operations_private_notes",
       "required": true,
       "type": "source",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [
         "source_sheet",
         "source_row_id",
@@ -271,18 +318,21 @@
         "active"
       ],
       "hebrewLabels": [
-        "source_sheet",
-        "source_row_id",
-        "note_text",
-        "updated_at",
-        "updated_by",
-        "active"
+        "גיליון מקור",
+        "מזהה שורת מקור",
+        "תוכן הערה",
+        "עודכן בתאריך",
+        "עודכן על ידי",
+        "פעיל"
       ]
     },
     {
       "sheetName": "edit_requests",
       "required": true,
       "type": "source",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [
         "request_id",
         "source_sheet",
@@ -300,26 +350,29 @@
         "active"
       ],
       "hebrewLabels": [
-        "request_id",
-        "source_sheet",
-        "source_row_id",
-        "field_name",
-        "old_value",
-        "new_value",
-        "requested_by_user_id",
-        "requested_by_name",
-        "requested_at",
-        "status",
-        "reviewed_at",
-        "reviewed_by",
-        "reviewer_notes",
-        "active"
+        "מזהה בקשה",
+        "גיליון מקור",
+        "מזהה שורת מקור",
+        "שם שדה",
+        "ערך ישן",
+        "ערך חדש",
+        "מזהה מבקש",
+        "שם מבקש",
+        "תאריך בקשה",
+        "סטטוס",
+        "תאריך בדיקה",
+        "בודק",
+        "הערות בודק",
+        "פעיל"
       ]
     },
     {
       "sheetName": "view_activity_meetings",
       "required": true,
       "type": "view",
+      "preserveExistingData": false,
+      "allowExtraColumns": false,
+      "dataStartRow": 3,
       "headers": [
         "RowID",
         "source_sheet",
@@ -333,20 +386,23 @@
       ],
       "hebrewLabels": [
         "RowID",
-        "source_sheet",
-        "activity_type",
-        "activity_manager",
-        "start_date",
-        "end_date",
-        "status",
-        "emp_id",
-        "instructor_name"
+        "גיליון מקור",
+        "סוג פעילות",
+        "מנהל פעילות",
+        "תאריך התחלה",
+        "תאריך סיום",
+        "סטטוס",
+        "ת.ז. מדריך",
+        "שם מדריך"
       ]
     },
     {
       "sheetName": "view_dashboard_monthly",
       "required": true,
       "type": "view",
+      "preserveExistingData": false,
+      "allowExtraColumns": false,
+      "dataStartRow": 3,
       "headers": [
         "month_ym",
         "metric_key",
@@ -354,16 +410,19 @@
         "updated_at"
       ],
       "hebrewLabels": [
-        "month_ym",
-        "metric_key",
-        "metric_value",
-        "updated_at"
+        "חודש",
+        "מפתח מדד",
+        "ערך מדד",
+        "עודכן בתאריך"
       ]
     },
     {
       "sheetName": "view_activities_summary",
       "required": true,
       "type": "view",
+      "preserveExistingData": false,
+      "allowExtraColumns": false,
+      "dataStartRow": 3,
       "headers": [
         "month_ym",
         "activity_type",
@@ -371,16 +430,37 @@
         "updated_at"
       ],
       "hebrewLabels": [
-        "month_ym",
-        "activity_type",
-        "total",
-        "updated_at"
+        "חודש",
+        "סוג פעילות",
+        "סך הכול",
+        "עודכן בתאריך"
+      ]
+    },
+    {
+      "sheetName": "dashboard_refresh_control",
+      "required": true,
+      "type": "system",
+      "preserveExistingData": false,
+      "allowExtraColumns": false,
+      "dataStartRow": 3,
+      "headers": [
+        "key",
+        "value",
+        "label_he"
+      ],
+      "hebrewLabels": [
+        "מפתח",
+        "ערך",
+        "תווית"
       ]
     },
     {
       "sheetName": "dashboard_summary_snapshot",
       "required": true,
       "type": "snapshot",
+      "preserveExistingData": false,
+      "allowExtraColumns": false,
+      "dataStartRow": 3,
       "headers": [
         "month_ym",
         "month_label",
@@ -426,6 +506,9 @@
       "sheetName": "dashboard_by_manager_snapshot",
       "required": true,
       "type": "snapshot",
+      "preserveExistingData": false,
+      "allowExtraColumns": false,
+      "dataStartRow": 3,
       "headers": [
         "month_ym",
         "activity_manager",
@@ -456,24 +539,12 @@
       ]
     },
     {
-      "sheetName": "dashboard_refresh_control",
-      "required": true,
-      "type": "system",
-      "headers": [
-        "key",
-        "value",
-        "label_he"
-      ],
-      "hebrewLabels": [
-        "מפתח",
-        "ערך",
-        "תווית"
-      ]
-    },
-    {
       "sheetName": "activities_snapshot",
       "required": true,
       "type": "snapshot",
+      "preserveExistingData": false,
+      "allowExtraColumns": false,
+      "dataStartRow": 3,
       "headers": [
         "snapshot_key",
         "updated_at",
@@ -491,6 +562,9 @@
       "sheetName": "read_models",
       "required": true,
       "type": "system",
+      "preserveExistingData": false,
+      "allowExtraColumns": false,
+      "dataStartRow": 3,
       "headers": [
         "key",
         "updated_at",
@@ -524,6 +598,9 @@
       "sheetName": "אפיון",
       "required": false,
       "type": "documentation",
+      "preserveExistingData": true,
+      "allowExtraColumns": true,
+      "dataStartRow": 3,
       "headers": [],
       "hebrewLabels": []
     }
