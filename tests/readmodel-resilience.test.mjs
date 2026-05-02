@@ -24,7 +24,7 @@ async function freshModules() {
   return { ...stateMod, ...apiMod };
 }
 
-test('activities read-model path falls back to legacy action when readModelGet fails', async () => {
+test('activities read-model path does not auto-fallback without explicit legacy flag', async () => {
   const { api, state } = await freshModules();
   state.token = 'token';
   const calls = [];
@@ -36,14 +36,13 @@ test('activities read-model path falls back to legacy action when readModelGet f
     if (body.action === 'readModelManifest') return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{} }); } };
     throw new Error('unexpected action');
   };
-  const data = await api.activities({});
-  assert.ok(Array.isArray(data?.rows));
+  await assert.rejects(() => api.activities({}), /הנתונים מתעדכנים כעת/);
   assert.ok(calls.includes('readModelGet'));
-  assert.ok(calls.includes('activities'));
+  assert.equal(calls.includes('activities'), false);
 });
 
 
-test('dashboardSnapshot tries read model then falls back to legacy on readModelGet failure', async () => {
+test('dashboardSnapshot blocks implicit legacy fallback on readModelGet failure', async () => {
   const { api, state } = await freshModules();
   state.token = 'token';
   const calls = [];
@@ -55,13 +54,12 @@ test('dashboardSnapshot tries read model then falls back to legacy on readModelG
     if (body.action === 'readModelManifest') return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{} }); } };
     throw new Error('unexpected action');
   };
-  const data = await api.dashboardSnapshot({});
-  assert.equal(data?.totals?.active, 7);
+  await assert.rejects(() => api.dashboardSnapshot({}), /הנתונים מתעדכנים כעת/);
   assert.ok(calls.includes('readModelGet'));
-  assert.ok(calls.includes('dashboardSnapshot'));
+  assert.equal(calls.includes('dashboardSnapshot'), false);
 });
 
-test('read-model fallback emits perf metadata visibility flags', async () => {
+test('explicit force_legacy still allows legacy fallback when requested', async () => {
   const { api, state } = await freshModules();
   state.token = 'token';
   global.fetch = async (_url, req) => {
@@ -70,9 +68,6 @@ test('read-model fallback emits perf metadata visibility flags', async () => {
     if (body.action === 'activities') return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{ rows: [] } }); } };
     return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{} }); } };
   };
-  await api.activities({});
-  const reqs = global.window.__dsPerf?.requests || [];
-  const last = reqs[reqs.length - 1] || {};
-  assert.equal(last.fallback_used, true);
-  assert.equal(last.used_read_model, false);
+  const data = await api.activities({ force_legacy: true }, { forceLegacy: true });
+  assert.ok(Array.isArray(data?.rows));
 });
