@@ -2192,13 +2192,7 @@ function actionInstructorContacts_(user) {
   };
 }
 
-function actionEndDates_(user) {
-  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
-  var permission = getPermissionRow_(user.user_id);
-  if (!endDatesViewYes_(permission)) {
-    throw new Error('Forbidden');
-  }
-
+function buildEndDatesPayload_() {
   var meetingsMap = buildMeetingsMap_();
   var activityRows = enrichRowsWithMeetings_(allActivitiesSummary_().slice());
   var rows = activityRows
@@ -2237,6 +2231,15 @@ function actionEndDates_(user) {
   });
 
   return { rows: rows };
+}
+
+function actionEndDates_(user) {
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
+  var permission = getPermissionRow_(user.user_id);
+  if (!endDatesViewYes_(permission)) {
+    throw new Error('Forbidden');
+  }
+  return buildEndDatesPayload_();
 }
 
 function actionMyData_(user) {

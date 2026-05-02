@@ -431,7 +431,7 @@ function refreshFinanceReadModel_() {
 
 function refreshEndDatesReadModel_() {
   return refreshSingleReadModel_('end-dates', {}, function() {
-    return actionEndDates_(READ_MODEL_ADMIN_USER_);
+    return buildEndDatesPayload_();
   });
 }
 
@@ -442,6 +442,9 @@ function refreshAllReadModels_() {
   if (!hadCache) beginRequestCache_();
   var batchStarted = perfNowMs_();
   try {
+    try {
+      console.info('[read_models] refreshAllReadModels_version', 'adjacent-week-month-v2');
+    } catch (_vlogErr) {}
     var results = [];
     results.push(refreshDashboardReadModel_());
     results.push(refreshActivitiesReadModel_());
