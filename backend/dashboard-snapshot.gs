@@ -499,14 +499,19 @@ function actionDashboardSnapshot_(user, payload) {
 
     var stalePayload;
     if (!persistedStale.snap || !persistedStale.hasSummarySnapshotSheet) {
-      stalePayload = actionDashboard_(user, payload || {});
-      if (stalePayload && typeof stalePayload === 'object') {
-        stalePayload._is_snapshot = false;
-        stalePayload._is_stale = true;
-        stalePayload._snapshot_fallback_reason = staleReason || 'missing_snapshot';
-      }
-      setRequestPerfField_('dashboard_fallback_used', true);
-      markRequestPerf_('dashboard:fallback_used:true');
+      stalePayload = {
+        month: ym,
+        totals: {},
+        by_activity_manager: [],
+        summary: {},
+        kpi_cards: [],
+        _is_snapshot: true,
+        _is_stale: true,
+        _snapshot_unavailable: true,
+        _snapshot_fallback_reason: staleReason || 'missing_snapshot'
+      };
+      setRequestPerfField_('dashboard_fallback_used', false);
+      markRequestPerf_('dashboard:fallback_used:false');
     } else {
       markRequestPerf_('dashboardSnapshot:build kpi cards:start');
       stalePayload = composeDashboardPayloadFromSummarySnapshot_(ym, persistedStale.snap, persistedStale.byManagerRows, showOnlyFromControl);
@@ -573,16 +578,21 @@ function actionDashboardSnapshot_(user, payload) {
       markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
       return sanitizeDashboardSnapshotPayloadNoFinance_(fullData);
     }
-    var fallbackData = actionDashboard_(user, payload || {});
-    if (fallbackData && typeof fallbackData === 'object') {
-      fallbackData._is_snapshot = false;
-      fallbackData._is_stale = true;
-      fallbackData._snapshot_fallback_reason = 'missing_snapshot';
-    }
-    setRequestPerfField_('dashboard_fallback_used', true);
+    var fallbackData = {
+      month: ym,
+      totals: {},
+      by_activity_manager: [],
+      summary: {},
+      kpi_cards: [],
+      _is_snapshot: true,
+      _is_stale: true,
+      _snapshot_unavailable: true,
+      _snapshot_fallback_reason: 'missing_snapshot'
+    };
+    setRequestPerfField_('dashboard_fallback_used', false);
     setRequestPerfField_('dashboard_view_rows_read', 0);
     setRequestPerfField_('payload_bytes', JSON.stringify(fallbackData || {}).length);
-    markRequestPerf_('dashboard:fallback_used:true');
+    markRequestPerf_('dashboard:fallback_used:false');
     markRequestPerf_('dashboard:used_view:false');
     markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
     return sanitizeDashboardSnapshotPayloadNoFinance_(fallbackData);

@@ -680,7 +680,14 @@ async function request(action, payload = {}, perfMeta = {}) {
 export const api = {
   login: (user_id, entry_code) => request('login', { user_id, entry_code }),
   bootstrap: () => request('bootstrap'),
-  dashboard: (filters) => request('dashboard', filters || {}),
+  dashboard: (filters) => {
+    const route = String(state?.route || '').trim();
+    const isProd = !config.devMode;
+    if (isProd && route === 'dashboard') {
+      throw new Error('Legacy dashboard API is blocked on Dashboard screen in production. Use dashboardSnapshot only.');
+    }
+    return request('dashboard', filters || {});
+  },
   dashboardSnapshot: (filters, options) => requestReadModel('dashboard', filters || {}, 'dashboardSnapshot', filters || {}, options || {}),
   activities: (filters, options) => requestReadModel('activities', filters || {}, 'activities', filters || {}, options || {}),
   activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
