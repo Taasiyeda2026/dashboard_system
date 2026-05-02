@@ -429,7 +429,6 @@ const screenLabels = {
   week: 'שבוע',
   month: 'חודש',
   exceptions: 'חריגות',
-  finance: 'כספים',
   instructors: 'מדריכים',
   'instructor-contacts': 'אנשי קשר מדריכים',
   contacts: 'אנשי קשר',
@@ -445,7 +444,6 @@ const screenLoaders = {
   week: () => import('./screens/week.js').then((m) => m.weekScreen),
   month: () => import('./screens/month.js').then((m) => m.monthScreen),
   exceptions: () => import('./screens/exceptions.js').then((m) => m.exceptionsScreen),
-  finance: () => import('./screens/finance.js').then((m) => m.financeScreen),
   instructors: () => import('./screens/instructors.js').then((m) => m.instructorsScreen),
   'instructor-contacts': () => import('./screens/instructor-contacts.js').then((m) => m.instructorContactsScreen),
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
@@ -588,7 +586,7 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
-  const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data', 'finance', 'permissions']) : new Set();
+  const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data', 'permissions']) : new Set();
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
     routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r))
@@ -682,17 +680,6 @@ function buildScreenDataCacheKey(route, cacheState = state) {
     const ym = cacheState.activitiesMonthYm && /^\d{4}-\d{2}$/.test(cacheState.activitiesMonthYm) ? cacheState.activitiesMonthYm : 'current';
     return `activities:${ym}`;
   }
-  if (route === 'finance') {
-    const filters = {
-      dateFrom: cacheState.financeDateFrom || '',
-      dateTo: cacheState.financeDateTo || '',
-      search: cacheState.financeSearch || '',
-      status: cacheState.financeStatusFilter || '',
-      tab: cacheState.financeTab || 'active',
-      ym: cacheState.financeMonthYm || ''
-    };
-    return `finance:${JSON.stringify(filters)}`;
-  }
   if (route === 'dashboard') {
     const ym = cacheState.dashboardMonthYm && /^\d{4}-\d{2}$/.test(cacheState.dashboardMonthYm) ? cacheState.dashboardMonthYm : 'default';
     return `dashboard:${ym}`;
@@ -755,9 +742,6 @@ function normalizeEntryForPersistentCache(cacheKey, entry) {
   const payload = entry.data;
   if (cacheKey.startsWith('activities:') && payload && Array.isArray(payload.rows)) {
     return { ...entry, data: { ...payload, rows: payload.rows.slice(0, 60) } };
-  }
-  if (cacheKey.startsWith('finance:') && payload && Array.isArray(payload.rows)) {
-    return { ...entry, data: { ...payload, rows: payload.rows.slice(0, 50) } };
   }
   if (cacheKey.startsWith('week:') || cacheKey.startsWith('month:')) {
     if (payload && Array.isArray(payload.rows)) {
