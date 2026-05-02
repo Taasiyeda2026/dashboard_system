@@ -73,18 +73,40 @@ function internalRoleFromPermissionRow_(row) {
 }
 
 function normalizeRole_(value) {
-  var role = text_(value).toLowerCase().trim();
-  switch (role) {
-    case 'admin':             return 'admin';
-    case 'finance':           return 'finance';
+  var role = text_(value).trim();
+  // Case-insensitive match on internal codes first
+  switch (role.toLowerCase()) {
+    case 'admin':              return 'admin';
+    case 'finance':            return 'finance';
     case 'operations_reviewer':
-    case 'operation_manager': return 'operation_manager';
-    case 'activities_manager':return 'activities_manager';
-    case 'domain_manager':    return 'domain_manager';
-    case 'manager_instructor':return 'manager_instructor';
-    case 'instructor':        return 'instructor';
-    case 'instructor_admin':  return 'instructor';
-    default:                  throw new Error('invalid_role');
+    case 'operation_manager':  return 'operation_manager';
+    case 'authorized_user':    return 'authorized_user';
+    case 'activities_manager': return 'activities_manager';
+    case 'domain_manager':     return 'domain_manager';
+    case 'manager_instructor': return 'manager_instructor';
+    case 'instructor':         return 'instructor';
+    case 'instructor_admin':   return 'instructor';
+  }
+  // Hebrew display-label fallback (backward-compat: old sessions where
+  // display_role column held the Hebrew label instead of the code).
+  switch (role) {
+    case 'מנהל/ת':
+    case 'מנהל מערכת':         return 'admin';
+    case 'בקר/ת תפעול':
+    case 'מנהל/ת תפעול':
+    case 'מנהל תפעול':         return 'operation_manager';
+    case 'משתמש/ת מורשה':
+    case 'משתמש מורשה':        return 'authorized_user';
+    case 'מדריך/ה':
+    case 'מדריך':              return 'instructor';
+    case 'כספים':              return 'finance';
+    case 'מנהל/ת פעילויות':
+    case 'מנהל פעילויות':      return 'activities_manager';
+    case 'מנהל/ת תחום':
+    case 'מנהל תחום':          return 'domain_manager';
+    case 'מדריך/ת-מנהל/ת':
+    case 'מדריך-מנהל':         return 'manager_instructor';
+    default:                   throw new Error('invalid_role');
   }
 }
 
