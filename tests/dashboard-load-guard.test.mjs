@@ -32,14 +32,12 @@ test('dashboard load releases loading on API failure with Hebrew error message',
 
 test('dashboard load logs perf data on success', async () => {
   const src = await read(DASHBOARD_FILE);
-  assert.match(src, /action:\s*['"]dashboardSnapshot['"]/,
-    'should log action=dashboardSnapshot');
+  assert.match(src, /action:\s*['"]dashboardSheet['"]/,
+    'should log action=dashboardSheet');
   assert.match(src, /duration_ms/,
     'should log duration_ms');
-  assert.match(src, /fallback_used/,
-    'should log fallback_used');
-  assert.match(src, /snapshot_fallback_reason/,
-    'should log snapshot_fallback_reason');
+  assert.match(src, /month: ym/,
+    'should log requested month');
 });
 
 test('dashboard load logs perf data on failure', async () => {
