@@ -404,8 +404,16 @@ function shiftYm_(ym, deltaMonths) {
 
 function refreshExceptionsReadModel_() {
   var month = formatDate_(new Date()).slice(0, 7);
-  return refreshSingleReadModel_('exceptions', { month: month }, function() {
-    return actionExceptions_(READ_MODEL_ADMIN_USER_, { month: month });
+  return refreshExceptionsReadModelForYm_(month);
+}
+
+function refreshExceptionsReadModelForYm_(ym) {
+  var targetYm = text_(ym).slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(targetYm)) {
+    targetYm = formatDate_(new Date()).slice(0, 7);
+  }
+  return refreshSingleReadModel_('exceptions', { month: targetYm }, function() {
+    return actionExceptions_(READ_MODEL_ADMIN_USER_, { month: targetYm });
   });
 }
 
@@ -442,7 +450,9 @@ function refreshAllReadModels_() {
     results.push(refreshMonthReadModelForYm_(shiftYm_(curYm, -1)));
     results.push(refreshMonthReadModelForYm_(curYm));
     results.push(refreshMonthReadModelForYm_(shiftYm_(curYm, 1)));
-    results.push(refreshExceptionsReadModel_());
+    results.push(refreshExceptionsReadModelForYm_(shiftYm_(curYm, -1)));
+    results.push(refreshExceptionsReadModelForYm_(curYm));
+    results.push(refreshExceptionsReadModelForYm_(shiftYm_(curYm, 1)));
     results.push(refreshEndDatesReadModel_());
     bumpDataViewsCacheVersion_();
     var durationMs = Math.max(0, perfNowMs_() - batchStarted);
@@ -702,8 +712,17 @@ function materializeScreenDataFromReadModel_(action, user, payload) {
       return noteReadModelServerLegacyReturn_(act, 'exceptions_debug_enabled', {});
     }
     var exYm = text_((payload && payload.month) || '').slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(exYm) || exYm !== curYm) {
+    if (!/^\d{4}-\d{2}$/.test(exYm)) {
       return noteReadModelServerLegacyReturn_(act, 'exceptions_month_not_current', {
+        month: exYm,
+        current_ym: curYm
+      });
+    }
+    var exPrevYm = shiftYm_(curYm, -1);
+    var exNextYm = shiftYm_(curYm, 1);
+    var exInWindow = (exYm === curYm || exYm === exPrevYm || exYm === exNextYm);
+    if (!exInWindow) {
+      return noteReadModelServerLegacyReturn_(act, 'exceptions_month_outside_window', {
         month: exYm,
         current_ym: curYm
       });

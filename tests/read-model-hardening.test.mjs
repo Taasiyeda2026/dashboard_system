@@ -19,7 +19,7 @@ test('requestReadModel fallback metadata includes reason and explicit fallback f
   assert.match(apiSource, /read_model_screen_key:\s*key/);
 });
 
-test('read-model refresh batch includes adjacent week and month models', () => {
+test('read-model refresh batch includes adjacent week, month, and exceptions models', () => {
   assert.match(readModelsSource, /refreshAllReadModels_version',\s*'adjacent-week-month-v2'/);
   assert.match(readModelsSource, /refreshWeekReadModelForOffset_\(-1\)/);
   assert.match(readModelsSource, /refreshWeekReadModelForOffset_\(0\)/);
@@ -27,7 +27,29 @@ test('read-model refresh batch includes adjacent week and month models', () => {
   assert.match(readModelsSource, /refreshMonthReadModelForYm_\(shiftYm_\(curYm, -1\)\)/);
   assert.match(readModelsSource, /refreshMonthReadModelForYm_\(curYm\)/);
   assert.match(readModelsSource, /refreshMonthReadModelForYm_\(shiftYm_\(curYm, 1\)\)/);
+  assert.match(readModelsSource, /refreshExceptionsReadModelForYm_\(shiftYm_\(curYm, -1\)\)/);
+  assert.match(readModelsSource, /refreshExceptionsReadModelForYm_\(curYm\)/);
+  assert.match(readModelsSource, /refreshExceptionsReadModelForYm_\(shiftYm_\(curYm, 1\)\)/);
   assert.match(readModelsSource, /refreshEndDatesReadModel_\(\)/);
+});
+
+test('refreshExceptionsReadModelForYm_ exists and is called by refreshExceptionsReadModel_', () => {
+  assert.match(readModelsSource, /function refreshExceptionsReadModelForYm_\(ym\)/);
+  const refreshFn = readModelsSource.match(/function refreshExceptionsReadModel_\(\)\s*\{[\s\S]*?\n\}/);
+  assert.ok(refreshFn, 'refreshExceptionsReadModel_ function exists');
+  assert.match(refreshFn[0], /refreshExceptionsReadModelForYm_\(/,
+    'refreshExceptionsReadModel_ must delegate to refreshExceptionsReadModelForYm_');
+});
+
+test('materializeScreenDataFromReadModel serves exceptions for prev/cur/next month window', () => {
+  assert.match(readModelsSource, /exInWindow/,
+    'exceptions materialize must use a window check variable');
+  assert.match(readModelsSource, /exYm === exPrevYm \|\| exYm === exNextYm/,
+    'window must include both prev and next month');
+  assert.match(readModelsSource, /exceptions_month_outside_window/,
+    'out-of-window fallback reason must be exceptions_month_outside_window');
+  assert.doesNotMatch(readModelsSource, /exYm !== curYm[\s\S]{0,20}return noteReadModelServerLegacyReturn_\(act, 'exceptions_month_not_current'/,
+    'the old single-month guard must be replaced by the window check');
 });
 
 test('end-dates refresh uses internal payload builder and api action keeps permission checks', () => {
