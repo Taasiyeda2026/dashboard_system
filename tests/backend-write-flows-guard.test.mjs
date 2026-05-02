@@ -40,10 +40,9 @@ test('reviewEditRequest handles approve/reject, missing requests and already rev
   mustMatch(actions, /updateEditRequestRows_\(requestId, \{[\s\S]*status: status,[\s\S]*reviewed_at: new Date\(\)\.toISOString\(\)/);
 });
 
-test('router write flow avoids synchronous snapshot rebuild and only bumps cache version', () => {
+test('router write flow tries activity snapshot refresh and falls back to cache bump on failure', () => {
   mustMatch(router, /if \(action === 'addActivity' \|\|[\s\S]*action === 'saveActivity' \|\|[\s\S]*action === 'submitEditRequest' \|\|[\s\S]*action === 'reviewEditRequest'/);
-  mustMatch(router, /if \(action === 'addActivity' \|\| action === 'saveActivity' \|\| action === 'submitEditRequest' \|\| action === 'reviewEditRequest'\) \{[\s\S]*bumpDataViewsCacheVersion_\(\);/);
-  assert.doesNotMatch(router, /refreshActivitiesSnapshot_\(\)/);
+  mustMatch(router, /if \(action === 'addActivity' \|\| action === 'saveActivity' \|\| action === 'submitEditRequest' \|\| action === 'reviewEditRequest'\) \{[\s\S]*try \{[\s\S]*refreshActivitiesSnapshot_\(\);[\s\S]*\} catch \(_activitiesSnapshotErr\) \{[\s\S]*bumpDataViewsCacheVersion_\(\);[\s\S]*\}/);
 });
 
 test('addActivity requires core fields but does not force notes/end_date when derivable', () => {
