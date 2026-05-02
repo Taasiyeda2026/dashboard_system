@@ -4398,3 +4398,108 @@ function actionDeploymentInfo_(user) {
     readModelsEnabled: false
   };
 }
+
+
+function actionDashboardSheet_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
+
+  var ym = dashboardPayloadYm_(payload || {});
+  var nextYm = shiftYm_(ym, 1);
+  var sheet = getSpreadsheet_().getSheetByName('dashboard');
+  if (!sheet) throw new Error('DASHBOARD_SHEET_MISSING');
+
+  var rangeA1 = 'A1:X64';
+  var values = sheet.getRange(rangeA1).getValues();
+  var monthCol = -1;
+  for (var c = 0; c < (values[0] || []).length; c++) {
+    var raw = values[0][c];
+    var normalized = normalizeMonthYmFlexible_(raw);
+    if (normalized === ym) { monthCol = c; break; }
+  }
+  if (monthCol < 0) {
+    throw new Error('DASHBOARD_MONTH_NOT_FOUND:' + ym);
+  }
+  var nextCol = -1;
+  for (var c2 = 0; c2 < (values[0] || []).length; c2++) {
+    if (normalizeMonthYmFlexible_(values[0][c2]) === nextYm) { nextCol = c2; break; }
+  }
+
+  function num(v) { var n = Number(String(v == null ? '' : v).replace(/,/g, '').trim()); return Number.isFinite(n) ? n : 0; }
+  function key(v) { return text_(v).trim().toLowerCase(); }
+
+  var map = {};
+  for (var r = 0; r < values.length; r++) {
+    var region = key(values[r][0]);
+    var metric = key(values[r][1]);
+    if (!region || !metric) continue;
+    if (!map[region]) map[region] = {};
+    map[region][metric] = { row: r };
+  }
+  function metric(region, m, col) {
+    var entry = map[key(region)] && map[key(region)][key(m)];
+    if (!entry) return 0;
+    return num(values[entry.row][col]);
+  }
+
+  var all = 'all';
+  var north = 'gil neeman';
+  var south = 'linoy shmuel mizrahi';
+
+  var totals = {
+    total: metric(all, 'all_activities', monthCol),
+    total_long: metric(all, 'course', monthCol),
+    total_short: metric(all, 'all_activities', monthCol),
+    num_instructors: metric(all, 'all_instructors', monthCol),
+    course_endings: metric(all, 'end_date', monthCol),
+    exceptions: metric(all, 'course_total_exceptions', monthCol),
+    by_type: {
+      course: metric(all, 'course', monthCol),
+      after_school: metric(all, 'after_school', monthCol),
+      workshop: metric(all, 'workshop', monthCol),
+      tour: metric(all, 'tour', monthCol),
+      escape_room: metric(all, 'escape_room', monthCol)
+    }
+  };
+
+  var by_activity_manager = [
+    {
+      activity_manager: 'גיל נאמן',
+      total_short: metric(north, 'all_activities', monthCol),
+      total_long: metric(north, 'course', monthCol),
+      total: metric(north, 'all_activities', monthCol),
+      num_instructors: 0,
+      course_endings: metric(north, 'end_date', monthCol),
+      exceptions: metric(north, 'course_total_exceptions', monthCol)
+    },
+    {
+      activity_manager: 'לינוי שמואל מזרחי',
+      total_short: metric(south, 'all_activities', monthCol),
+      total_long: metric(south, 'course', monthCol),
+      total: metric(south, 'all_activities', monthCol),
+      num_instructors: 0,
+      course_endings: metric(south, 'end_date', monthCol),
+      exceptions: metric(south, 'course_total_exceptions', monthCol)
+    }
+  ];
+
+  var summary = {
+    active_courses_current_month: metric(all, 'course', monthCol),
+    ending_courses_current_month: metric(all, 'end_date', monthCol),
+    active_courses_next_month: nextCol >= 0 ? metric(all, 'course', nextCol) : 0,
+    missing_instructor_count: 0,
+    missing_start_date_count: metric(all, 'course_operational_gaps', monthCol),
+    late_end_date_count: metric(all, 'course_late_end_date', monthCol),
+    exceptions_count: metric(all, 'course_total_exceptions', monthCol),
+    active_instructors: []
+  };
+
+  var kpi_cards = [
+    { id: 'short', title: 'חד-יומי', value: totals.total_short, action: 'kpi|short' },
+    { id: 'long', title: 'תוכניות', value: totals.total_long, action: 'kpi|long' },
+    { id: 'instructors', title: 'מדריכים פעילים', value: totals.num_instructors, action: 'kpi|instructors' },
+    { id: 'endings', title: 'סיומי קורסים', value: totals.course_endings, action: 'kpi|endings' },
+    { id: 'exceptions', title: 'חריגות', value: totals.exceptions, action: 'kpi|exceptions' }
+  ];
+
+  return { month: ym, totals: totals, by_activity_manager: by_activity_manager, summary: summary, kpi_cards: kpi_cards, show_only_nonzero_kpis: true, _is_dashboard_sheet: true, _dashboard_sheet_range: rangeA1 };
+}
