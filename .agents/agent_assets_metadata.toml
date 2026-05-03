@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "HC-2qcYUUF-pUWIjph0kK"
+uri = "file://backend/DEPLOY_PASTE_GUIDE.txt"
+type = "text"
+title = "DEPLOY_PASTE_GUIDE.txt — 5 קבצי backend לעדכון Apps Script"
