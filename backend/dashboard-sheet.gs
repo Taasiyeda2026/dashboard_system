@@ -262,7 +262,7 @@ function actionDashboardSheet_(user, payload) {
   var courseEndings = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.end_date, colYmAll);
   var exceptionSum = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course_total_exceptions, colYmAll);
   var lateEndDateCount = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course_late_end_date, colYmAll);
-  var missingInstructorCount = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course_operational_gaps, colYmAll);
+  var operationalGapsCount = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course_operational_gaps, colYmAll);
   var nationalInstructors = dashboardSheetInstructorNamesList_(values, colYmAll);
   var uniqueInstructorCount = dashboardSheetUniqueInstructorCount_(values, colYmAll);
 
@@ -335,7 +335,8 @@ function actionDashboardSheet_(user, payload) {
       exceptions_count: exceptionSum,
       active_instructors: nationalInstructors,
       active_instructors_by_manager: activeInstructorsByManager,
-      missing_instructor_count: missingInstructorCount,
+      operational_gaps_count: operationalGapsCount,
+      missing_instructor_count: operationalGapsCount,
       missing_start_date_count: 0,
       late_end_date_count: lateEndDateCount,
       short_activities: dashboardSheetBuildShortActivities_(values, colYmAll)
