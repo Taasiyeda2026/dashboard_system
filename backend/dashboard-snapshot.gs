@@ -499,47 +499,33 @@ function actionDashboardSnapshot_(user, payload) {
 
     var stalePayload;
     if (!persistedStale.snap || !persistedStale.hasSummarySnapshotSheet) {
-      // Snapshot sheets entirely missing — try inline full compute so user gets real data.
-      // Heavy but correct for first-time setup or long month-gap scenarios.
-      // The time-based trigger will write the snapshot for subsequent fast loads.
-      var inlineOk = false;
-      try {
-        markRequestPerf_('dashboardSnapshot:inline rebuild:start');
-        var inlineData = actionDashboard_(user, { month: ym });
-        markRequestPerf_('dashboardSnapshot:inline rebuild:end');
-        if (inlineData && typeof inlineData === 'object') {
-          inlineData._is_snapshot = false;
-          inlineData._is_stale = true;
-          inlineData._snapshot_rebuilt_inline = true;
-          inlineData._snapshot_fallback_reason = staleReason || 'missing_snapshot';
-        }
-        setRequestPerfField_('dashboard_fallback_used', true);
+      // Snapshot sheets entirely missing — rebuild synchronously so user gets real data.
+      // Must temporarily exit read-only scope because refreshDashboardSnapshots_ writes to sheets.
+      var showOnlyStale = yesNo_(refreshControlMap.show_only_nonzero_kpis) !== 'no';
+      var inlineStaleMissing = rebuildSnapshotInlineForMissing_(ym, showOnlyStale);
+      if (inlineStaleMissing) {
+        inlineStaleMissing._snapshot_rebuilt_inline = true;
+        setRequestPerfField_('dashboard_fallback_used', false);
         setRequestPerfField_('dashboard_used_view', false);
         setRequestPerfField_('dashboard_cache_hit', false);
-        setRequestPerfField_('payload_bytes', JSON.stringify(inlineData || {}).length);
+        setRequestPerfField_('payload_bytes', JSON.stringify(inlineStaleMissing || {}).length);
         markRequestPerf_('dashboard:inline_rebuild:true');
         markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
-        inlineOk = true;
-        return inlineData;
-      } catch (_inlineErr) {
-        // Inline compute failed — fall through to empty stub so UI shows banner.
-        markRequestPerf_('dashboardSnapshot:inline rebuild:failed');
+        return sanitizeDashboardSnapshotPayloadNoFinance_(inlineStaleMissing);
       }
-      if (!inlineOk) {
-        stalePayload = {
-          month: ym,
-          totals: {},
-          by_activity_manager: [],
-          summary: {},
-          kpi_cards: [],
-          _is_snapshot: true,
-          _is_stale: true,
-          _snapshot_unavailable: true,
-          _snapshot_fallback_reason: staleReason || 'missing_snapshot'
-        };
-        setRequestPerfField_('dashboard_fallback_used', false);
-        markRequestPerf_('dashboard:fallback_used:false');
-      }
+      stalePayload = {
+        month: ym,
+        totals: {},
+        by_activity_manager: [],
+        summary: {},
+        kpi_cards: [],
+        _is_snapshot: true,
+        _is_stale: true,
+        _snapshot_unavailable: true,
+        _snapshot_fallback_reason: staleReason || 'missing_snapshot'
+      };
+      setRequestPerfField_('dashboard_fallback_used', false);
+      markRequestPerf_('dashboard:fallback_used:false');
     } else {
       markRequestPerf_('dashboardSnapshot:build kpi cards:start');
       stalePayload = composeDashboardPayloadFromSummarySnapshot_(ym, persistedStale.snap, persistedStale.byManagerRows, showOnlyFromControl);
@@ -605,6 +591,20 @@ function actionDashboardSnapshot_(user, payload) {
       markRequestPerf_('dashboard:used_view:false');
       markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
       return sanitizeDashboardSnapshotPayloadNoFinance_(fullData);
+    }
+    // Snapshot sheets entirely missing — rebuild synchronously so user gets real data.
+    var flagsFresh = getDashboardSnapshotFlags_();
+    var showOnlyFresh = flagsFresh.show_only_nonzero_kpis !== false;
+    var inlineFreshMissing = rebuildSnapshotInlineForMissing_(ym, showOnlyFresh);
+    if (inlineFreshMissing) {
+      inlineFreshMissing._snapshot_rebuilt_inline = true;
+      setRequestPerfField_('dashboard_fallback_used', false);
+      setRequestPerfField_('dashboard_view_rows_read', 0);
+      setRequestPerfField_('payload_bytes', JSON.stringify(inlineFreshMissing || {}).length);
+      markRequestPerf_('dashboard:inline_rebuild:true');
+      markRequestPerf_('dashboard:used_view:false');
+      markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
+      return sanitizeDashboardSnapshotPayloadNoFinance_(inlineFreshMissing);
     }
     var fallbackData = {
       month: ym,
@@ -984,6 +984,59 @@ function dedupeDashboardSummarySnapshotByMonth_() {
     seen[monthYm] = true;
   }
   invalidateReadRowsCache_(sheetName);
+}
+
+/**
+ * Rebuilds dashboard snapshots synchronously when they are completely missing.
+ * Temporarily exits the read-only API scope so refreshDashboardSnapshots_() can write to sheets.
+ * After writing, re-reads the snapshot for the given month and composes a payload.
+ * Returns the payload object (with _is_snapshot: true) on success, or null if rebuild/re-read fails.
+ */
+function rebuildSnapshotInlineForMissing_(ym, showOnlyNonzero) {
+  try {
+    markRequestPerf_('dashboardSnapshot:rebuildInline:start');
+    endReadOnlyApiScope_();
+    try {
+      refreshDashboardSnapshots_();
+    } finally {
+      beginReadOnlyApiScope_();
+    }
+    markRequestPerf_('dashboardSnapshot:rebuildInline:rebuilt');
+    var rebuiltPersisted = readPersistedDashboardSnapshotRowsForMonth_(ym);
+    if (!rebuiltPersisted.snap || !rebuiltPersisted.hasSummarySnapshotSheet) {
+      markRequestPerf_('dashboardSnapshot:rebuildInline:reread_missing');
+      return null;
+    }
+    var payload = composeDashboardPayloadFromSummarySnapshot_(
+      ym,
+      rebuiltPersisted.snap,
+      rebuiltPersisted.byManagerRows,
+      showOnlyNonzero !== false
+    );
+    payload._is_snapshot = true;
+    markRequestPerf_('dashboardSnapshot:rebuildInline:end');
+    return payload;
+  } catch (_rebuildErr) {
+    try { beginReadOnlyApiScope_(); } catch (_scopeErr) {}
+    markRequestPerf_('dashboardSnapshot:rebuildInline:failed');
+    return null;
+  }
+}
+
+/**
+ * Ensures the refreshDashboardSnapshotsTrigger time-driven trigger exists at ≤10-minute intervals.
+ * Safe to call from setup, onOpen, or admin tooling — idempotent.
+ */
+function ensureDashboardSnapshotTrigger_() {
+  var allTriggers = ScriptApp.getProjectTriggers();
+  var exists = allTriggers.some(function(t) {
+    return t.getHandlerFunction && t.getHandlerFunction() === 'refreshDashboardSnapshotsTrigger';
+  });
+  if (exists) {
+    return { status: 'already_installed' };
+  }
+  ScriptApp.newTrigger('refreshDashboardSnapshotsTrigger').timeBased().everyMinutes(10).create();
+  return { status: 'installed', frequency: 'every_10_minutes' };
 }
 
 function getSnapshotRefreshDiagnostics_() {

@@ -31,6 +31,14 @@ function refreshDashboardSnapshots() {
   return refreshDashboardSnapshots_();
 }
 
+/**
+ * Public entrypoint: ensures the 10-minute dashboard snapshot trigger is installed.
+ * Callable from onOpen, custom menus, or admin setup flows.
+ */
+function ensureDashboardSnapshotTrigger() {
+  return ensureDashboardSnapshotTrigger_();
+}
+
 function refreshDataViews() {
   return refreshDataViews_();
 }
