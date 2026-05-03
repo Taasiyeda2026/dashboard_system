@@ -72,8 +72,8 @@ function renderStructuredSummary(summary, ym, byManager) {
   const activeCurrentField = getStrictNumericField(summary, 'active_courses_current_month');
   const endingCurrentField = getStrictNumericField(summary, 'ending_courses_current_month');
   const activeNextField = getStrictNumericField(summary, 'active_courses_next_month');
-  const missingInstrField = getStrictNumericField(summary, 'missing_instructor_count');
-  const missingDateField = getStrictNumericField(summary, 'missing_start_date_count');
+  const operationalGapsField = getStrictNumericField(summary, 'operational_gaps_count');
+  const missingInstrField = operationalGapsField.ok ? operationalGapsField : getStrictNumericField(summary, 'missing_instructor_count');
   const lateEndField = getStrictNumericField(summary, 'late_end_date_count');
   const exceptionsTotalField = getStrictNumericField(summary, 'exceptions_count');
   const exceptionsTotalResolved = exceptionsTotalField.ok ? exceptionsTotalField.value : 'שגיאת מיפוי';
@@ -81,8 +81,7 @@ function renderStructuredSummary(summary, ym, byManager) {
   const activeCurrent = escapeHtml(String(activeCurrentField.ok ? activeCurrentField.value : 'שגיאת מיפוי'));
   const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 'שגיאת מיפוי'));
   const activeNext = escapeHtml(String(activeNextField.ok ? activeNextField.value : 'שגיאת מיפוי'));
-  const missingInstr = escapeHtml(String(missingInstrField.ok ? missingInstrField.value : 'שגיאת מיפוי'));
-  const missingDate = escapeHtml(String(missingDateField.ok ? missingDateField.value : 'שגיאת מיפוי'));
+  const operationalGaps = escapeHtml(String(missingInstrField.ok ? missingInstrField.value : 'שגיאת מיפוי'));
   const lateEnd = escapeHtml(String(lateEndField.ok ? lateEndField.value : 'שגיאת מיפוי'));
   const exceptionsTotal = escapeHtml(String(exceptionsTotalResolved));
 
@@ -91,8 +90,8 @@ function renderStructuredSummary(summary, ym, byManager) {
     endingCurrentField,
     activeNextField,
     missingInstrField,
-    missingDateField,
-    lateEndField
+    lateEndField,
+    exceptionsTotalField
   ].filter((field) => !field.ok);
 
   const districtRows = (Array.isArray(byManager) ? byManager : []).filter(
@@ -124,9 +123,11 @@ function renderStructuredSummary(summary, ym, byManager) {
 
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
       <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש:</strong></h4>
-      <p class="ds-summary-panel__text"><strong>פעילויות עם חריגה: ${exceptionsTotal}</strong></p>
+      <p class="ds-summary-panel__text"><strong>סה״כ חריגות: ${exceptionsTotal}</strong></p>
+      <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${lateEnd}</strong></p>
+      <p class="ds-summary-panel__text">פערים תפעוליים: <strong>${operationalGaps}</strong></p>
     </div>
-    ${mappingErrors.length ? `<p class="ds-summary-panel__text" style="color:#b42318"><strong>שגיאת מיפוי שדות Snapshot:</strong> ${escapeHtml(mappingErrors.map((f) => f.fieldName).join(', '))}</p>` : ''}
+    ${mappingErrors.length ? `<p class="ds-summary-panel__text" style="color:#b42318"><strong>שגיאת מיפוי שדות dashboard:</strong> ${escapeHtml(mappingErrors.map((f) => f.fieldName).join(', '))}</p>` : ''}
   </div>`;
 }
 
@@ -256,7 +257,7 @@ export const dashboardScreen = {
           { label: 'חריגות',           value: exceptionsValue, action: `mstat|${mgr}|exceptions` },
           { label: 'סיומי קורסים',    value: row.course_endings  ?? 0, action: `mstat|${mgr}|endings` },
         ];
-        const stats = isDistrict ? allStats.filter((s) => s.label !== 'חריגות') : allStats;
+        const stats = allStats;
         const statsHtml = stats
           .map((s) => {
             const displayValue = s.label === 'חריגות' && Number(s.value || 0) === 0 ? 'מצב תקין' : s.value;
@@ -342,6 +343,17 @@ export const dashboardScreen = {
       if (existingIsSnapshot) {
         state.screenDataCache[cacheKey] = { data: payload, t: Date.now() };
       }
+    }
+
+    function resetExceptionsFilters(activityManager = '') {
+      state.listFilters = state.listFilters || {};
+      const prev = state.listFilters.exceptions || {};
+      state.listFilters.exceptions = {
+        ...prev,
+        q: '',
+        activity_manager: activityManager,
+        visibleCount: 200
+      };
     }
 
     function getSummaryBtn(target) {
@@ -460,6 +472,7 @@ export const dashboardScreen = {
       if (action === 'kpi|exceptions') {
         state.route = 'exceptions';
         state.exceptionsMonthYm = state.dashboardMonthYm || currentMonthYm();
+        resetExceptionsFilters('');
         ui.closeAll();
         rerender();
         return;
@@ -478,6 +491,7 @@ export const dashboardScreen = {
         } else if (kind === 'exceptions') {
           state.route = 'exceptions';
           state.exceptionsMonthYm = state.dashboardMonthYm || currentMonthYm();
+          resetExceptionsFilters(name);
         }
         ui.closeAll();
         rerender();
