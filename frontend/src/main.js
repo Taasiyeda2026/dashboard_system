@@ -1195,6 +1195,7 @@ async function restoreSession() {
 }
 
 async function mountScreen() {
+  redirectIfDisabledRoute();
   const requestedRoute = state.route;
   const transitionToken = ++navigationToken;
   activeNavigationToken = transitionToken;
@@ -1216,7 +1217,6 @@ async function mountScreen() {
       await restoreSession();
     }
   }
-  redirectIfDisabledRoute();
   if (!isAllowedRoute(state.route)) state.route = resolveAllowedDefaultRoute('', state.routes);
 
   if (transitionToken !== activeNavigationToken || requestedRoute !== latestNavigationRoute) {
