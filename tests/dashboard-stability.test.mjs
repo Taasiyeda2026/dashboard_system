@@ -23,14 +23,14 @@ test('dashboard.js: KPI endings navigates to end-dates', async () => {
   assert.match(src, /kpi\|endings[\s\S]{0,400}state\.route\s*=\s*['"]end-dates['"]/);
 });
 
-test('dashboard.js: uses dashboardSheet only (no dashboard / dashboardSnapshot)', async () => {
+test('dashboard.js: uses dashboardSnapshot only (no dashboardSheet / api.dashboard)', async () => {
   const src = await readText(DASHBOARD_JS);
-  assert.match(src, /api\.dashboardSheet\s*\(/, 'must load via dashboardSheet');
-  assert.doesNotMatch(src, /api\.dashboardSnapshot\s*\(/, 'must not use dashboardSnapshot on Dashboard screen');
+  assert.match(src, /api\.dashboardSnapshot\s*\(/, 'must load via dashboardSnapshot');
+  assert.doesNotMatch(src, /api\.dashboardSheet\s*\(/, 'must not use legacy dashboardSheet on Dashboard screen');
   assert.doesNotMatch(
     src,
     /api\.dashboard\s*\(\s*\{/,
-    'must not call api.dashboard({ — use dashboardSheet only'
+    'must not call api.dashboard({ — use dashboardSnapshot only'
   );
 });
 

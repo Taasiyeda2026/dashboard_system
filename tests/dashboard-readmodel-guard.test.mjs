@@ -4,11 +4,12 @@ import fs from 'node:fs';
 
 const dashboard = fs.readFileSync(new URL('../frontend/src/screens/dashboard.js', import.meta.url), 'utf8');
 
-test('dashboard screen load uses dashboardSheet and not legacy dashboard api', () => {
-  assert.match(dashboard, /api\.dashboardSheet\(\{ month: ym \}\)/);
+test('dashboard screen load uses dashboardSnapshot and not legacy dashboard api', () => {
+  assert.match(dashboard, /api\.dashboardSnapshot\(\{ month: ym \}\)/);
+  assert.doesNotMatch(dashboard, /api\.dashboardSheet\(/);
   assert.doesNotMatch(dashboard, /api\.dashboard\(/);
 });
 
-test('dashboard month navigation uses dashboardSheet for next month', () => {
-  assert.match(dashboard, /api\.dashboardSheet\(\{ month: nextYm \}\)/);
+test('dashboard month navigation uses dashboardSnapshot for next month', () => {
+  assert.match(dashboard, /api\.dashboardSnapshot\(\{ month: nextYm \}\)/);
 });

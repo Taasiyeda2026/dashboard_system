@@ -195,7 +195,7 @@ export const dashboardScreen = {
 
     try {
       const data = await Promise.race([
-        api.dashboardSheet({ month: ym }),
+        api.dashboardSnapshot({ month: ym }),
         guardPromise
       ]);
       clearTimeout(guardTimer);
@@ -204,9 +204,10 @@ export const dashboardScreen = {
       );
       // eslint-disable-next-line no-console
       console.info('[dashboard-load]', {
-        action: 'dashboardSheet',
+        action: 'dashboardSnapshot',
         duration_ms: durationMs,
-        fallback_used: data?._is_snapshot === false,
+        is_snapshot: data?._is_snapshot !== false,
+        is_stale: data?._is_stale === true,
         snapshot_fallback_reason: data?._snapshot_fallback_reason || null,
         month: ym
       });
@@ -221,7 +222,7 @@ export const dashboardScreen = {
         String(err?.message || '').includes('timeout');
       // eslint-disable-next-line no-console
       console.warn('[dashboard-load] failed', {
-        action: 'dashboardSheet',
+        action: 'dashboardSnapshot',
         duration_ms: durationMs,
         is_timeout: isTimeout,
         error: err?.message || String(err),
@@ -418,8 +419,8 @@ export const dashboardScreen = {
         }
         showDataAreaLoading();
         try {
-          const sheetData = await api.dashboardSheet({ month: nextYm });
-          putDashboardCache(cacheKey, sheetData);
+          const snapshotData = await api.dashboardSnapshot({ month: nextYm });
+          putDashboardCache(cacheKey, snapshotData);
         } catch (_err) {
           // Keep currently rendered dashboard content when refresh fails.
         }

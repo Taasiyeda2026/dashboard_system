@@ -8,10 +8,10 @@ const actions = fs.readFileSync(new URL('../backend/actions.gs', import.meta.url
 const apiReadWrite = fs.readFileSync(new URL('../backend/api_read_write.gs', import.meta.url), 'utf8');
 
 
-test('dashboard screen uses dashboardSheet only', () => {
-  assert.match(dashboardScreen, /api\.dashboardSheet\(\{ month: ym \}\)/);
-  assert.match(dashboardScreen, /api\.dashboardSheet\(\{ month: nextYm \}\)/);
-  assert.doesNotMatch(dashboardScreen, /api\.dashboardSnapshot\(/);
+test('dashboard screen uses dashboardSnapshot (not dashboardSheet)', () => {
+  assert.match(dashboardScreen, /api\.dashboardSnapshot\(\{ month: ym \}\)/);
+  assert.match(dashboardScreen, /api\.dashboardSnapshot\(\{ month: nextYm \}\)/);
+  assert.doesNotMatch(dashboardScreen, /api\.dashboardSheet\(/);
   assert.doesNotMatch(dashboardScreen, /api\.dashboard\(/);
 });
 

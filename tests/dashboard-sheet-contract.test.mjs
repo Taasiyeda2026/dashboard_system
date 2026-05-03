@@ -1,5 +1,5 @@
 /**
- * Contract: Dashboard screen reads only dashboardSheet; backend reads dashboard sheet once.
+ * Contract: Dashboard screen reads via dashboardSnapshot; backend dashboardSheet still exists for admin use.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,20 +28,21 @@ test('actionDashboardSheet_ does not call heavy dashboard internals', async () =
   assert.doesNotMatch(src, /refreshAllReadModels_/);
 });
 
-test('api.js exposes dashboardSheet and wires to request()', async () => {
+test('api.js exposes dashboardSnapshot and wires to requestReadModel()', async () => {
   const src = await read('frontend/src/api.js');
-  assert.match(src, /dashboardSheet:\s*\(filters\)\s*=>\s*request\(\s*['"]dashboardSheet['"]/);
+  assert.match(src, /dashboardSnapshot:\s*\(filters.*\)\s*=>\s*requestReadModel\(\s*['"]dashboard['"].*['"]dashboardSnapshot['"]/);
 });
 
-test('dashboardScreen.load uses dashboardSheet', async () => {
+test('dashboardScreen.load uses dashboardSnapshot', async () => {
   const src = await read('frontend/src/screens/dashboard.js');
-  assert.match(src, /api\.dashboardSheet\(\{\s*month:\s*ym\s*\}\)/);
+  assert.match(src, /api\.dashboardSnapshot\(\{\s*month:\s*ym\s*\}\)/);
+  assert.doesNotMatch(src, /api\.dashboardSheet\(/, 'must not call legacy dashboardSheet');
 });
 
-test('dashboard.js: month navigation and screen never use dashboardSnapshot or api.dashboard', async () => {
+test('dashboard.js: month navigation uses dashboardSnapshot and does not use dashboardSheet or api.dashboard', async () => {
   const src = await read('frontend/src/screens/dashboard.js');
-  assert.match(src, /api\.dashboardSheet\(\{\s*month:\s*nextYm\s*\}\)/);
-  assert.doesNotMatch(src, /api\.dashboardSnapshot\s*\(/);
+  assert.match(src, /api\.dashboardSnapshot\(\{\s*month:\s*nextYm\s*\}\)/);
+  assert.doesNotMatch(src, /api\.dashboardSheet\s*\(/);
   assert.doesNotMatch(src, /api\.dashboard\s*\(\s*\{/);
 });
 

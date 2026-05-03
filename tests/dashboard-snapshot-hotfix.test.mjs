@@ -215,7 +215,23 @@ test('router.gs calls scheduleSnapshotRebuildSoon_ after data mutations to initi
 });
 
 // ---------------------------------------------------------------------------
-// T12: frontend — serverMarkedStale bypass in loadScreenDataWithCache
+// T12: dashboard screen uses dashboardSnapshot (not dashboardSheet)
+// ---------------------------------------------------------------------------
+test('dashboard screen: load() and applyYm() use api.dashboardSnapshot — never api.dashboardSheet', async () => {
+  const screen = await read('frontend/src/screens/dashboard.js');
+
+  // Must use dashboardSnapshot for the primary load call
+  mustMatch(screen, /api\.dashboardSnapshot\(\s*\{/, 'dashboard load must use api.dashboardSnapshot');
+
+  // Must NOT use dashboardSheet anywhere
+  assert.doesNotMatch(screen, /api\.dashboardSheet/, 'dashboard must NOT call api.dashboardSheet');
+
+  // Console log must reflect the new action name
+  mustMatch(screen, /action:\s*'dashboardSnapshot'/, 'console.info/warn must log action dashboardSnapshot');
+});
+
+// ---------------------------------------------------------------------------
+// T13: frontend — serverMarkedStale bypass in loadScreenDataWithCache
 // ---------------------------------------------------------------------------
 test('frontend loadScreenDataWithCache: server _is_stale bypasses TTL fast-path to trigger background refresh', async () => {
   const main = await read('frontend/src/main.js');
