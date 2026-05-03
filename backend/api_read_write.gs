@@ -64,6 +64,7 @@ var READ_ONLY_API_ACTIONS_MAP_ = {
 /** Mutations, auth, and admin refresh jobs — never use read-model cache path. */
 var WRITE_API_ACTIONS_MAP_ = {
   login: true,
+  saveSheetMapping: true,
   refreshAllReadModels: true,
   addContact: true,
   saveContact: true,
@@ -329,5 +330,8 @@ var WRITE_API_HANDLER_FACTORIES_ = {
   },
   refreshDataViews: function(u, p) {
     return actionRefreshDataViews_(u);
+  },
+  saveSheetMapping: function(u, p) {
+    return actionSaveSheetMapping_(u, p);
   }
 };

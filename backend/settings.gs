@@ -27,7 +27,8 @@ function normalizeActivitySourceName_(value) {
   var t = text_(value).toLowerCase();
   if (t === 'data_short' || t === 'short') return CONFIG.SHEETS.DATA_SHORT;
   if (t === 'data_long' || t === 'long') return CONFIG.SHEETS.DATA_LONG;
-  return '';
+  var raw = text_(value);
+  return raw;
 }
 
 /* ── גישה בסיסית ל-settings ────────────────────────────────────────────────── */
@@ -101,11 +102,30 @@ function configuredDropdownSourceSheet_() {
   return fromSettings || CONFIG.SHEETS.LISTS;
 }
 
+function configuredShortActivitiesSheet_() {
+  return text_(readActiveSettingsMap_().sheet_short_activities) || CONFIG.SHEETS.DATA_SHORT;
+}
+
+function configuredLongActivitiesSheet_() {
+  return text_(readActiveSettingsMap_().sheet_long_activities) || CONFIG.SHEETS.DATA_LONG;
+}
+
 function configuredInstructorsSources_() {
   return configuredActivitySources_('instructors_screen_sources', [CONFIG.SHEETS.DATA_SHORT, CONFIG.SHEETS.DATA_LONG]);
 }
 
 function configuredActivitiesSources_() {
+  var m = readActiveSettingsMap_();
+  var shortOverride = text_(m.sheet_short_activities);
+  var longOverride = text_(m.sheet_long_activities);
+  if (shortOverride || longOverride) {
+    var shortSheet = shortOverride || CONFIG.SHEETS.DATA_SHORT;
+    var longSheet = longOverride || CONFIG.SHEETS.DATA_LONG;
+    var out = [];
+    if (shortSheet && out.indexOf(shortSheet) < 0) out.push(shortSheet);
+    if (longSheet && shortSheet !== longSheet && out.indexOf(longSheet) < 0) out.push(longSheet);
+    return out;
+  }
   return configuredActivitySources_('activities_data_sources', [CONFIG.SHEETS.DATA_SHORT, CONFIG.SHEETS.DATA_LONG]);
 }
 

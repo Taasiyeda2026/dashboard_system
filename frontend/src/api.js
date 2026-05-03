@@ -30,7 +30,8 @@ const MUTATING_ACTIONS = {
   deactivateUser: true,
   reactivateUser: true,
   deleteUser: true,
-  savePrivateNote: true
+  savePrivateNote: true,
+  saveSheetMapping: true
 };
 
 const READ_ACTIONS = {
@@ -138,7 +139,8 @@ function invalidateScreenDataByAction(action) {
     savePrivateNote: ['activities:', 'operations:'],
     savePermission: ['permissions'],
     addContact: ['contacts', 'instructor-contacts'],
-    saveContact: ['contacts', 'instructor-contacts']
+    saveContact: ['contacts', 'instructor-contacts'],
+    saveSheetMapping: ['adminSettings', 'listSheets']
   };
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
@@ -768,6 +770,7 @@ export const api = {
     return request('savePrivateNote', { source_sheet: a, source_row_id: b, note: c });
   },
   listSheets: () => request('listSheets'),
+  saveSheetMapping: (payload) => request('saveSheetMapping', payload),
   readModelManifest: () => request('readModelManifest', {}),
   readModelGet: (key, params = {}) => request('readModelGet', { key, params }),
   readModelHealth: () => request('readModelHealth', {}),
