@@ -16,6 +16,7 @@ import {
   dsKpiGrid
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
+import { clearFinancePrefsIfUserChanged } from './shared/finance-prefs-storage.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { showToast } from './shared/toast.js';
@@ -673,7 +674,7 @@ const LS = {
   mgrSortDir: 'finance_mgr_sort_dir',
   tableSortCol: 'finance_table_sort_col',
   tableSortDir: 'finance_table_sort_dir',
-  userId: 'finance_user_id'
+  lastUserId: 'finance_last_user_id'
 };
 
 const LS_ALL_PREF_KEYS = [
@@ -681,7 +682,7 @@ const LS_ALL_PREF_KEYS = [
   'finance_month_ym', 'finance_tab', 'finance_view_mode',
   'finance_mgr_sort_col', 'finance_mgr_sort_dir',
   'finance_table_sort_col', 'finance_table_sort_dir',
-  'finance_user_id'
+  'finance_last_user_id'
 ];
 
 function clearFinanceStorage() {
@@ -702,15 +703,16 @@ function resetFinanceStateKeys(state) {
 
 function loadStateFromStorage(state) {
   /* Isolate preferences by user — clear both LS and in-memory finance state
-     when a different user logs in, preventing cross-user preference leakage */
+     when a different user logs in, preventing cross-user preference leakage.
+     The primary check runs at bootstrap time (main.js); this is a defensive guard. */
   const currentUserId = String(state?.user?.user_id || '');
-  const storedUserId = localStorage.getItem(LS.userId) || '';
+  const storedUserId = localStorage.getItem(LS.lastUserId) || '';
   if (currentUserId && storedUserId && currentUserId !== storedUserId) {
     clearFinanceStorage();
     resetFinanceStateKeys(state);
   }
   if (currentUserId) {
-    localStorage.setItem(LS.userId, currentUserId);
+    localStorage.setItem(LS.lastUserId, currentUserId);
   }
 
   const map = {

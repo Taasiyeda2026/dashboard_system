@@ -7,6 +7,7 @@ import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { headerNavGridHtml } from './screens/shared/act-nav-grid.js';
 import { loginScreen } from './screens/login.js';
+import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-storage.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc  = new URL('../assets/logo1.png',      import.meta.url).href;
@@ -1189,6 +1190,7 @@ async function restoreSession() {
   state.effectiveRoutes = normalizedRoutes;
   state.route = resolveAllowedDefaultRoute(bootstrap.default_route, normalizedRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
+  clearFinancePrefsIfUserChanged(state.user?.user_id);
   if (bootstrap.profile && state.user) {
     const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
     if (fn) state.user.full_name = fn;
@@ -1505,6 +1507,7 @@ async function render() {
             firstPrefetchTimerStarted = false;
             beginPerfTimer('login:setSession');
             setSession({ token: data.token, user: data.user });
+            clearFinancePrefsIfUserChanged(data.user?.user_id);
             endPerfTimer('login:setSession');
             beginPerfTimer('login:applyBootstrap');
             const bootstrapApplyStartMs = performance.now();
