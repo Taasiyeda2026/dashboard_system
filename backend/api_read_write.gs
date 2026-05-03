@@ -46,8 +46,6 @@ var READ_ONLY_API_ACTIONS_MAP_ = {
   week: true,
   month: true,
   exceptions: true,
-  finance: true,
-  financeDetail: true,
   instructors: true,
   instructorContacts: true,
   contacts: true,
@@ -77,8 +75,6 @@ var WRITE_API_ACTIONS_MAP_ = {
   reactivateUser: true,
   deleteUser: true,
   savePrivateNote: true,
-  saveFinanceRow: true,
-  syncFinance: true,
   syncEndDates: true,
   refreshDataViews: true
 };
@@ -125,8 +121,6 @@ var LEGACY_READ_DISPATCH_ALLOWLIST_ = {
   week: true,
   month: true,
   exceptions: true,
-  finance: true,
-  financeDetail: true,
   instructors: true,
   instructorContacts: true,
   contacts: true,

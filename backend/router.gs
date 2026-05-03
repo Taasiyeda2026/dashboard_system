@@ -49,6 +49,11 @@ function handlePost_(e) {
     beginRequestPerf_(action, payload, e);
     var user = action === 'login' ? null : requireAuth_(payload.token);
 
+    var DISABLED_FINANCE_ACTIONS = { finance: true, financeDetail: true, saveFinanceRow: true, syncFinance: true };
+    if (DISABLED_FINANCE_ACTIONS[action]) {
+      return jsonResponse_({ ok: false, error: 'finance_disabled' }, { action: action, errored: true });
+    }
+
     var kind = getApiActionKind_(action);
     if (!kind) {
       throw new Error('Unknown action: ' + action);
@@ -65,8 +70,6 @@ function handlePost_(e) {
       week: 'week',
       month: 'month',
       exceptions: 'exceptions',
-      finance: 'finance',
-      financeDetail: 'finance',
       instructors: 'instructors',
       instructorContacts: 'instructor-contacts',
       contacts: 'contacts',
@@ -170,8 +173,6 @@ function handlePost_(e) {
           action === 'saveActivity' ||
           action === 'submitEditRequest' ||
           action === 'reviewEditRequest' ||
-          action === 'saveFinanceRow' ||
-          action === 'syncFinance' ||
           action === 'savePermission' ||
           action === 'syncEndDates') {
         try {

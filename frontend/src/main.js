@@ -1046,10 +1046,6 @@ function clearScreenDataCache() {
     Object.keys(state.screenDataCache).forEach((key) => {
       if (key.startsWith('activities:')) { delete state.screenDataCache[key]; deletedKeys.push(key); }
     });
-  } else if (state.route === 'finance') {
-    Object.keys(state.screenDataCache).forEach((key) => {
-      if (key.startsWith('finance:')) { delete state.screenDataCache[key]; deletedKeys.push(key); }
-    });
   } else if (state.route === 'week' || state.route === 'month' || state.route === 'dashboard') {
     const ownPrefix = `${state.route}:`;
     Object.keys(state.screenDataCache).forEach((key) => {

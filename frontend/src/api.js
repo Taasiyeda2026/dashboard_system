@@ -11,12 +11,12 @@ import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
  * Mutations clear only related route caches (not full wipe), so navigation
  * stays fast while still showing fresh data where needed.
  *
- * Screens that expose their own save forms (activities.js, finance.js,
- * permissions.js) additionally call the bind-injected clearScreenDataCache?.()
- * right before rerender() as a belt-and-suspenders guard for their targeted
- * route cache keys. Read-only screens (exceptions, end-dates, instructors,
- * my-data, week, month, contacts, instructor-contacts) have no save handlers
- * and rely solely on this centralised clear, which is sufficient.
+ * Screens that expose their own save forms (activities.js, permissions.js)
+ * additionally call the bind-injected clearScreenDataCache?.() right before
+ * rerender() as a belt-and-suspenders guard for their targeted route cache keys.
+ * Read-only screens (exceptions, end-dates, instructors, my-data, week, month,
+ * contacts, instructor-contacts) have no save handlers and rely solely on this
+ * centralised clear, which is sufficient.
  */
 const MUTATING_ACTIONS = {
   saveActivity: true,
@@ -30,9 +30,7 @@ const MUTATING_ACTIONS = {
   deactivateUser: true,
   reactivateUser: true,
   deleteUser: true,
-  savePrivateNote: true,
-  saveFinanceRow: true,
-  syncFinance: true
+  savePrivateNote: true
 };
 
 const READ_ACTIONS = {
@@ -45,8 +43,6 @@ const READ_ACTIONS = {
   week: true,
   month: true,
   exceptions: true,
-  finance: true,
-  financeDetail: true,
   instructors: true,
   instructorContacts: true,
   contacts: true,
@@ -133,8 +129,6 @@ function invalidateScreenDataByAction(action) {
     addActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     submitEditRequest: ['activities:', 'edit-requests', 'week:', 'month:', 'dashboard:', 'end-dates'],
     reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:'],
-    saveFinanceRow: ['dashboard:'],
-    syncFinance: ['dashboard:'],
     addUser: ['permissions', 'dashboard:'],
     deactivateUser: ['permissions', 'dashboard:'],
     reactivateUser: ['permissions', 'dashboard:'],
@@ -163,8 +157,6 @@ function invalidateReadModelLocalCacheByAction(action) {
     addActivity: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'],
     submitEditRequest: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'],
     reviewEditRequest: ['dashboard', 'activities', 'week', 'month', 'exceptions'],
-    saveFinanceRow: ['dashboard'],
-    syncFinance: ['dashboard'],
     savePermission: ['dashboard']
   };
   const keys = targeted[action];
@@ -717,20 +709,6 @@ export const api = {
     const canonical = { ...resolved, month };
     return requestReadModel('exceptions', canonical, 'exceptions', canonical, options || {});
   },
-  // legacy only; not used by startup/navigation/dashboard/read models.
-  finance: (params, options) => {
-    const resolved = (params && typeof params === 'object') ? params : {};
-    const now = new Date();
-    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const candidateMonth = String(resolved.month || resolved.ym || '').trim();
-    const month = /^\d{4}-\d{2}$/.test(candidateMonth) ? candidateMonth : currentYm;
-    const tab = String(resolved.tab || 'active').trim() || 'active';
-    const canonical = { ...resolved, month, tab };
-    void options;
-    return request('finance', canonical, { legacy_intentional: true, used_read_model: false, fallback_used: true });
-  },
-  // legacy only; not used by startup/navigation/dashboard/read models.
-  financeDetail: (source_row_id, source_sheet) => request('financeDetail', { source_row_id, source_sheet }),
   instructors: () => request('instructors'),
   instructorContacts: () => request('instructorContacts'),
   contacts: () => request('contacts'),
@@ -775,8 +753,6 @@ export const api = {
   deactivateUser: (user_id) => request('deactivateUser', { user_id }),
   reactivateUser: (user_id) => request('reactivateUser', { user_id }),
   deleteUser: (user_id) => request('deleteUser', { user_id }),
-  saveFinanceRow: (payload) => request('saveFinanceRow', payload),
-  syncFinance: () => request('syncFinance', {}),
   savePrivateNote: (a, b, c) => {
     if (typeof a === 'object' && a !== null) {
       return request('savePrivateNote', {
