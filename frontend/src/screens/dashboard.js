@@ -254,13 +254,13 @@ export const dashboardScreen = {
         const allStats = [
           { label: 'תוכניות פעילות', value: row.total_long      ?? 0, action: `mstat|${mgr}|long` },
           { label: 'מדריכים פעילים',  value: row.num_instructors ?? 0, action: `mstat|${mgr}|instructors` },
-          { label: 'חריגות',           value: exceptionsValue, action: `mstat|${mgr}|exceptions` },
+          { label: 'סה"כ חריגות',       value: exceptionsValue, action: `mstat|${mgr}|exceptions` },
           { label: 'סיומי קורסים',    value: row.course_endings  ?? 0, action: `mstat|${mgr}|endings` },
         ];
         const stats = allStats;
         const statsHtml = stats
           .map((s) => {
-            const displayValue = s.label === 'חריגות' && Number(s.value || 0) === 0 ? 'מצב תקין' : s.value;
+            const displayValue = s.label === 'סה"כ חריגות' && Number(s.value || 0) === 0 ? 'מצב תקין' : s.value;
             return `<button type="button" class="ds-manager-stat" data-card-action="${escapeHtml(s.action)}">
               <span class="ds-manager-stat__label">${escapeHtml(s.label)}</span>
               <span class="ds-manager-stat__value">${escapeHtml(String(displayValue))}</span>
