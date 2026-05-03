@@ -189,7 +189,23 @@ var READ_API_HANDLER_FACTORIES_ = {
     return actionDashboardSnapshot_(u, p);
   },
   dashboardSheet: function(u, p) {
-    return actionDashboardSheet_(u, p);
+    try {
+      return actionDashboardSheet_(u, p);
+    } catch (err) {
+      try {
+        console.warn('[dashboardSheet] fallback to dashboardSnapshot', JSON.stringify({
+          error: err && err.message ? String(err.message) : String(err)
+        }));
+      } catch (_logErr) {}
+      var fallback = actionDashboardSnapshot_(u, p || {});
+      if (fallback && typeof fallback === 'object') {
+        fallback._dashboard_sheet_failed = true;
+        fallback._dashboard_sheet_fallback = 'dashboardSnapshot';
+        fallback._dashboard_sheet_error = err && err.message ? String(err.message) : String(err);
+      }
+      setRequestPerfField_('dashboard_sheet_fallback_used', true);
+      return fallback;
+    }
   },
   deploymentInfo: function(u, p) {
     return actionDeploymentInfo_(u);
