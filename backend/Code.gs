@@ -35,15 +35,15 @@ function keepWarm() {
 /**
  * One-time trigger handler: rebuilds dashboard snapshots as soon as possible
  * after a data mutation so the next read gets a fresh snapshot.
+ * Does NOT acquire its own lock — refreshDashboardSnapshots_() has its own
+ * script lock internally; a second outer lock would cause it to see the lock
+ * as busy and return { skipped: true } without actually rebuilding.
  * Self-cleans all same-handler triggers after running (including any duplicates).
  */
 function scheduledSnapshotRebuildTrigger() {
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(2000)) return;
   try {
     refreshDashboardSnapshots_();
   } finally {
-    lock.releaseLock();
     var triggers = ScriptApp.getProjectTriggers();
     triggers.forEach(function(t) {
       if (t.getHandlerFunction && t.getHandlerFunction() === 'scheduledSnapshotRebuildTrigger') {

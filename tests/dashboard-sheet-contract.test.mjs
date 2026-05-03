@@ -28,9 +28,9 @@ test('actionDashboardSheet_ does not call heavy dashboard internals', async () =
   assert.doesNotMatch(src, /refreshAllReadModels_/);
 });
 
-test('api.js exposes dashboardSnapshot and wires to requestReadModel()', async () => {
+test('api.js exposes dashboardSnapshot and wires directly to request() — bypasses read-model stale error path', async () => {
   const src = await read('frontend/src/api.js');
-  assert.match(src, /dashboardSnapshot:\s*\(filters.*\)\s*=>\s*requestReadModel\(\s*['"]dashboard['"].*['"]dashboardSnapshot['"]/);
+  assert.match(src, /dashboardSnapshot:\s*\(filters\)\s*=>\s*request\(\s*'dashboardSnapshot'/);
 });
 
 test('dashboardScreen.load uses dashboardSnapshot', async () => {

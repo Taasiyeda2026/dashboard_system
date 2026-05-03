@@ -43,21 +43,22 @@ test('activities read-model path does not auto-fallback without explicit legacy 
 });
 
 
-test('dashboardSnapshot blocks implicit legacy fallback on readModelGet failure', async () => {
+test('dashboardSnapshot calls backend directly via request() and returns snapshot data (no readModelGet)', async () => {
+  // dashboardSnapshot uses request('dashboardSnapshot') directly, bypassing requestReadModel,
+  // so stale read-model state never blocks the dashboard load and _is_stale:true can flow through.
   const { api, state } = await freshModules();
   state.token = 'token';
   const calls = [];
   global.fetch = async (_url, req) => {
     const body = JSON.parse(req.body);
     calls.push(body.action);
-    if (body.action === 'readModelGet') return { status: 500, async text(){ return JSON.stringify({ ok:false, error:'x' }); } };
-    if (body.action === 'dashboardSnapshot') return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{ totals:{ active: 7 } } }); } };
-    if (body.action === 'readModelManifest') return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{} }); } };
-    throw new Error('unexpected action');
+    if (body.action === 'dashboardSnapshot') return { status: 200, async text(){ return JSON.stringify({ ok:true, data:{ totals:{ active: 7 }, _is_snapshot: true } }); } };
+    throw new Error('unexpected action: ' + body.action);
   };
-  await assert.rejects(() => api.dashboardSnapshot({}), /הנתונים מתעדכנים כעת/);
-  assert.ok(calls.includes('readModelGet'));
-  assert.equal(calls.includes('dashboardSnapshot'), false);
+  const result = await api.dashboardSnapshot({});
+  assert.equal(calls.includes('readModelGet'), false, 'must NOT call readModelGet — dashboardSnapshot bypasses read model');
+  assert.ok(calls.includes('dashboardSnapshot'), 'must call dashboardSnapshot directly');
+  assert.equal(result.totals.active, 7);
 });
 
 test('explicit force_legacy still allows legacy fallback when requested', async () => {

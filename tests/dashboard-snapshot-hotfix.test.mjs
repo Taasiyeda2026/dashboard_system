@@ -220,14 +220,66 @@ test('router.gs calls scheduleSnapshotRebuildSoon_ after data mutations to initi
 test('dashboard screen: load() and applyYm() use api.dashboardSnapshot — never api.dashboardSheet', async () => {
   const screen = await read('frontend/src/screens/dashboard.js');
 
-  // Must use dashboardSnapshot for the primary load call
   mustMatch(screen, /api\.dashboardSnapshot\(\s*\{/, 'dashboard load must use api.dashboardSnapshot');
-
-  // Must NOT use dashboardSheet anywhere
   assert.doesNotMatch(screen, /api\.dashboardSheet/, 'dashboard must NOT call api.dashboardSheet');
-
-  // Console log must reflect the new action name
   mustMatch(screen, /action:\s*'dashboardSnapshot'/, 'console.info/warn must log action dashboardSnapshot');
+});
+
+// ---------------------------------------------------------------------------
+// T12b: api.js wires dashboardSnapshot directly to request() (not requestReadModel)
+// ---------------------------------------------------------------------------
+test('api.js wires dashboardSnapshot directly to request() — bypassing read-model stale error path', async () => {
+  const src = await read('frontend/src/api.js');
+
+  mustMatch(src, /dashboardSnapshot:\s*\(filters\)\s*=>\s*request\(\s*'dashboardSnapshot'/,
+    'dashboardSnapshot must use request() directly so stale read-model state does not block dashboard load');
+
+  assert.doesNotMatch(src, /dashboardSnapshot:.*requestReadModel/,
+    'dashboardSnapshot must NOT route through requestReadModel (which throws on stale read model)');
+});
+
+// ---------------------------------------------------------------------------
+// T12c: behavioral — mutation flow wires _is_stale to dashboard via actionDashboardSnapshot_
+// ---------------------------------------------------------------------------
+test('behavioral: actionDashboardSnapshot_ returns _is_stale:true when snapshot freshness control is not fresh', async () => {
+  const snapshot = await read('backend/dashboard-snapshot.gs');
+
+  // getDashboardSnapshotFreshness_ is called to check freshness
+  mustMatch(snapshot, /getDashboardSnapshotFreshness_\(refreshControlMap\)/,
+    'must check snapshot freshness via getDashboardSnapshotFreshness_');
+
+  // When not fresh, stalePayload._is_stale = true is set BEFORE returning to client
+  const notFreshPath = snapshot.indexOf('if (!snapshotFreshness.fresh)');
+  assert.ok(notFreshPath >= 0, '!snapshotFreshness.fresh branch must exist');
+  const notFreshText = snapshot.slice(notFreshPath, notFreshPath + 3000);
+  assert.match(notFreshText, /stalePayload\._is_stale\s*=\s*true/,
+    'not-fresh branch must mark _is_stale=true on the returned payload');
+  assert.match(notFreshText, /return sanitizeDashboardSnapshotPayloadNoFinance_\(stalePayload\)/,
+    'not-fresh branch must return the stale payload to client');
+
+  // markDashboardSnapshotsRefreshNeeded_ → updateDashboardRefreshControl_('pending')
+  // → getDashboardSnapshotFreshness_ sees 'pending' status → !fresh → _is_stale:true
+  const markFn = snapshot.indexOf("function markDashboardSnapshotsRefreshNeeded_");
+  assert.ok(markFn >= 0, 'markDashboardSnapshotsRefreshNeeded_ must be defined');
+  const markText = snapshot.slice(markFn, markFn + 500);
+  assert.match(markText, /updateDashboardRefreshControl_\('pending'/,
+    'marking refresh needed must set control to pending status');
+});
+
+// ---------------------------------------------------------------------------
+// T12d: scheduledSnapshotRebuildTrigger has NO outer lock (avoids re-entrancy deadlock)
+// ---------------------------------------------------------------------------
+test('scheduledSnapshotRebuildTrigger does NOT acquire outer LockService lock (refreshDashboardSnapshots_ has its own)', async () => {
+  const code = await read('backend/Code.gs');
+
+  const fnStart = code.indexOf('function scheduledSnapshotRebuildTrigger()');
+  assert.ok(fnStart >= 0, 'handler must be defined');
+  const fnText = code.slice(fnStart, fnStart + 600);
+
+  assert.doesNotMatch(fnText, /LockService\.getScriptLock\(\)/,
+    'must NOT acquire outer script lock — refreshDashboardSnapshots_() already has its own non-reentrant lock');
+  assert.match(fnText, /refreshDashboardSnapshots_\(\)/,
+    'must call refreshDashboardSnapshots_()');
 });
 
 // ---------------------------------------------------------------------------
