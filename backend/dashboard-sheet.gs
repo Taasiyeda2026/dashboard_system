@@ -11,8 +11,8 @@ var DASHBOARD_SHEET_MAX_ROW_ = 17;
 var DASHBOARD_SHEET_MAX_COL_ = 23;
 
 /**
- * שורה 1 = כותרת מנהל, שורה 2 = שם אזור; שורות 3–8 ספירות לפי סוג; 10 סיומים; 12–14 חריגות; 16 מספר מדריכים; 17 שמות.
- * עמודת label_col = תיאורי מדדים; month_cols = ערכים לפי חודש (כותרות חודש בשורה 2 באותן עמודות).
+ * שורה 1 = כותרות תאריך חודש בפועל; שורה 2 = תווית חודש/אזור לתצוגה; שורות 3–8 ספירות לפי סוג; 10 סיומים; 12–14 חריגות; 16 מספר מדריכים; 17 שמות.
+ * עמודת label_col = תיאורי מדדים; month_cols = ערכים לפי חודש (כותרות התאריך בשורה 1 באותן עמודות).
  */
 var DASHBOARD_SHEET_BLOCKS_ = {
   all: {
@@ -44,7 +44,7 @@ var DASHBOARD_SHEET_BLOCKS_ = {
   }
 };
 
-var DASHBOARD_SHEET_MONTH_HEADER_ROW_ = 2;
+var DASHBOARD_SHEET_MONTH_HEADER_ROW_ = 1;
 
 var DASHBOARD_METRIC_ROWS_ = {
   all_activities: 3,
@@ -82,6 +82,13 @@ function dashboardSheetCellYm_(cell) {
   if (m) {
     var mo = ('0' + m[2]).slice(-2);
     return m[3] + '-' + mo;
+  }
+  var short = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+  if (short) {
+    var yy = parseInt(short[3], 10);
+    var yyyy = yy >= 70 ? 1900 + yy : 2000 + yy;
+    var mo2 = ('0' + short[2]).slice(-2);
+    return yyyy + '-' + mo2;
   }
   return '';
 }
