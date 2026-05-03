@@ -199,7 +199,7 @@ function buildEditDrawerHtml(row) {
   </div>`;
 }
 
-function renderUserRow(row, canEdit, isAdmin, currentUserId) {
+function renderUserRow(row, canEdit, isAdmin, currentUserId, adminCount) {
   const uid = escapeHtml(row.user_id);
   const code = permRowRoleCode(row);
   const label = permRowRoleLabel(row);
@@ -220,8 +220,11 @@ function renderUserRow(row, canEdit, isAdmin, currentUserId) {
   const reactivateBtn = isAdmin && !isActive
     ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--success" data-reactivate-user data-user-id="${uid}">הפעל</button>`
     : '';
+  const isLastAdmin = adminCount === 1 && permRowRoleCode(row) === 'admin';
   const deleteBtn = isAdmin && !isActive
-    ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-delete-user data-user-id="${uid}">מחק</button>`
+    ? isLastAdmin
+      ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" disabled title="לא ניתן למחוק את מנהל המערכת האחרון">מחק</button>`
+      : `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-delete-user data-user-id="${uid}">מחק</button>`
     : '';
 
   const actionBtns = [expandBtn, editBtn, deactivateBtn, reactivateBtn, deleteBtn].filter(Boolean).join(' ');
@@ -280,7 +283,7 @@ export const permissionsScreen = {
     ];
 
     const rowPairs = safeRows.map((row) =>
-      renderUserRow(row, canEdit, isAdmin, state?.user?.user_id) + renderExpandRow(row)
+      renderUserRow(row, canEdit, isAdmin, state?.user?.user_id, adminCount) + renderExpandRow(row)
     ).join('');
 
     const body =
