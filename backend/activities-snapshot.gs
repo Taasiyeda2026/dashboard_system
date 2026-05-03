@@ -278,17 +278,31 @@ function actionActivitiesSnapshotFirst_(user, payload) {
     fallback._activities_fallback_used = true;
     return fallback;
   }
-  if (isActivitiesSnapshotTruncated_(snap)) {
-    Logger.log('[activities_snapshot] truncated rows_json detected; fallback to legacy');
-    var fullFallback = actionActivitiesLegacy_(user, payload || {});
-    fullFallback._is_snapshot = false;
-    fullFallback._activities_fallback_used = true;
-    fullFallback._snapshot_truncated = true;
-    return fullFallback;
-  }
-
   var counts = parseActivitiesSnapshotJson_(snap.activity_type_counts_json, {});
-  var rows = parseActivitiesSnapshotJson_(snap.rows_json, []).map(normalizeActivitiesSnapshotRow_);
+  var snapMeta = (snap && snap._rows_meta) || {};
+  var driveFileId = text_(snapMeta.drive_file_id);
+  var rows;
+  if (driveFileId) {
+    try {
+      var driveRaw = readModelsLoadPayloadFromDrive_(driveFileId);
+      rows = JSON.parse(driveRaw).map(normalizeActivitiesSnapshotRow_);
+      Logger.log('[activities_snapshot] loaded ' + rows.length + ' rows from Drive file=' + driveFileId);
+    } catch (_driveErr) {
+      Logger.log('[activities_snapshot] Drive load failed, falling back to cell: ' + String(_driveErr));
+      rows = null;
+    }
+  }
+  if (!rows) {
+    if (isActivitiesSnapshotTruncated_(snap)) {
+      Logger.log('[activities_snapshot] truncated rows_json and no Drive file; fallback to legacy');
+      var fullFallback = actionActivitiesLegacy_(user, payload || {});
+      fullFallback._is_snapshot = false;
+      fullFallback._activities_fallback_used = true;
+      fullFallback._snapshot_truncated = true;
+      return fullFallback;
+    }
+    rows = parseActivitiesSnapshotJson_(snap.rows_json, []).map(normalizeActivitiesSnapshotRow_);
+  }
   Logger.log('[activities_snapshot] rows before filter=' + rows.length);
   var filtered = filterActivitiesSnapshotRows_(rows, payload || {});
   Logger.log('[activities_snapshot] rows after filter=' + filtered.length + ' month=' + text_((payload || {}).month || ''));
@@ -348,8 +362,30 @@ function refreshActivitiesSnapshot_() {
     var rowsMeta = {
       truncated: rowsCell.truncated ? 'yes' : 'no',
       original_rows_count: rowsCell.original_rows_count,
-      kept_rows_count: rowsCell.kept_rows_count
+      kept_rows_count: rowsCell.kept_rows_count,
+      drive_file_id: ''
     };
+
+    var oldMeta = null;
+    try {
+      var oldSnap = readActivitiesSnapshotRow_();
+      oldMeta = (oldSnap && oldSnap._rows_meta) || null;
+    } catch (_readErr) {}
+
+    try {
+      var oldDriveFileId = oldMeta && text_(oldMeta.drive_file_id);
+      if (oldDriveFileId) { try { readModelsTrashDriveFile_(oldDriveFileId); } catch (_trashErr) {} }
+      var driveVersion = String(new Date().getTime());
+      var driveName = 'activities-snapshot-rows-' + driveVersion + '.json';
+      var folder = readModelsDriveParentFolder_();
+      var driveFile = folder.createFile(driveName, JSON.stringify(payload.rows || []), MimeType.PLAIN_TEXT);
+      driveFile.setDescription('activities_snapshot_rows:all');
+      rowsMeta.drive_file_id = driveFile.getId();
+      Logger.log('[activities_snapshot] rows written to Drive file=' + rowsMeta.drive_file_id + ' rows=' + (payload.rows || []).length);
+    } catch (_driveWriteErr) {
+      Logger.log('[activities_snapshot] Drive write failed: ' + String(_driveWriteErr));
+    }
+
     Logger.log('[activities_snapshot] rows_json truncated=' + rowsMeta.truncated + ' original=' + rowsMeta.original_rows_count + ' kept=' + rowsMeta.kept_rows_count);
     var row = [
       'all',
