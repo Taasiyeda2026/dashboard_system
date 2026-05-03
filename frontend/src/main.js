@@ -515,12 +515,25 @@ function effectiveRoutes() {
   return Array.isArray(state.routes) ? state.routes : [];
 }
 
+/**
+ * Routes that are permanently disabled regardless of user permissions.
+ * Any attempt to navigate to these is silently redirected to dashboard (or the first allowed route).
+ */
+const PERMANENTLY_DISABLED_ROUTES = new Set(['finance']);
+
+function redirectIfDisabledRoute() {
+  if (!PERMANENTLY_DISABLED_ROUTES.has(state.route)) return;
+  const fallback = effectiveRoutes().includes('dashboard') ? 'dashboard' : (effectiveRoutes()[0] || 'dashboard');
+  state.route = fallback;
+}
+
 function isAllowedRoute(route) {
+  if (PERMANENTLY_DISABLED_ROUTES.has(route)) return false;
   return !!route && effectiveRoutes().includes(route);
 }
 
 function resolveAllowedDefaultRoute(preferred, routes) {
-  const knownRoutes = Array.isArray(routes) ? routes.filter((r) => !!screenLoaders[r]) : [];
+  const knownRoutes = Array.isArray(routes) ? routes.filter((r) => !!screenLoaders[r] && !PERMANENTLY_DISABLED_ROUTES.has(r)) : [];
   if (preferred && screenLoaders[preferred] && knownRoutes.includes(preferred)) return preferred;
   return knownRoutes[0] || 'my-data';
 }
@@ -1203,6 +1216,7 @@ async function mountScreen() {
       await restoreSession();
     }
   }
+  redirectIfDisabledRoute();
   if (!isAllowedRoute(state.route)) state.route = resolveAllowedDefaultRoute('', state.routes);
 
   if (transitionToken !== activeNavigationToken || requestedRoute !== latestNavigationRoute) {
