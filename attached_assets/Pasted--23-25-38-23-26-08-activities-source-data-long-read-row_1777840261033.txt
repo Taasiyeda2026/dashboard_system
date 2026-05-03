@@ -1,0 +1,33 @@
+יומן ביצוע
+23:25:38	הודעה	ההפעלה התחילה
+23:26:08	מידע	[activities] source=data_long read_rows=121
+23:26:09	מידע	[activities] source=data_short read_rows=9
+23:26:12	מידע	[activities] combined rows before filters=130
+23:26:13	מידע	[activities_snapshot] read rows data_short= data_long=
+23:26:13	מידע	[activities_snapshot] payload rows before snapshot=76
+23:26:13	מידע	[safeJsonArrayCell_] field="rows_json" original=76 rows (53606 chars) kept=63 rows (44886 chars) maxLength=45000
+23:26:13	מידע	[activities_snapshot] rows_json truncated=yes original=76 kept=63
+23:26:15	מידע	[activities] source=data_long read_rows=121
+23:26:16	מידע	[activities] source=data_short read_rows=9
+23:26:19	מידע	[activities] combined rows before filters=130
+23:26:40	מידע	[read_models] refreshAllReadModels_version adjacent-week-month-v2
+23:26:50	מידע	[activities] source=data_long read_rows=121
+23:26:51	מידע	[activities] source=data_short read_rows=9
+23:26:54	מידע	[activities] combined rows before filters=130
+23:28:01	מידע	[read_models] {"event":"read_models_refresh_all","duration_ms":80578,"model_count":12,"failure_count":0,"statuses":[{"key":"dashboard","status":"fresh"},{"key":"activities","status":"fresh"},{"key":"week?week_offset=-1","status":"fresh"},{"key":"week?week_offset=0","status":"fresh"},{"key":"week?week_offset=1","status":"fresh"},{"key":"month?ym=2026-04","status":"fresh"},{"key":"month?ym=2026-05","status":"fresh"},{"key":"month?ym=2026-06","status":"fresh"},{"key":"exceptions?month=2026-04","status":"fresh"},{"key":"exceptions?month=2026-05","status":"fresh"},{"key":"exceptions?month=2026-06","status":"fresh"},{"key":"end-dates","status":"fresh"}]}
+23:28:19	מידע	[activities] source=data_long read_rows=121
+23:28:21	מידע	[activities] source=data_short read_rows=9
+23:28:24	מידע	[activities] combined rows before filters=130
+23:28:25	מידע	[activities_snapshot] read rows data_short= data_long=
+23:28:25	מידע	[activities_snapshot] payload rows before snapshot=76
+23:28:25	מידע	[safeJsonArrayCell_] field="rows_json" original=76 rows (53606 chars) kept=63 rows (44886 chars) maxLength=45000
+23:28:25	מידע	[activities_snapshot] rows_json truncated=yes original=76 kept=63
+23:28:27	מידע	[activities] source=data_long read_rows=121
+23:28:28	מידע	[activities] source=data_short read_rows=9
+23:28:32	מידע	[activities] combined rows before filters=130
+23:28:51	מידע	[read_models] refreshAllReadModels_version adjacent-week-month-v2
+23:29:01	מידע	[activities] source=data_long read_rows=121
+23:29:02	מידע	[activities] source=data_short read_rows=9
+23:29:05	מידע	[activities] combined rows before filters=130
+23:30:25	מידע	[read_models] {"event":"read_models_refresh_all","duration_ms":94201,"model_count":12,"failure_count":0,"statuses":[{"key":"dashboard","status":"fresh"},{"key":"activities","status":"fresh"},{"key":"week?week_offset=-1","status":"fresh"},{"key":"week?week_offset=0","status":"fresh"},{"key":"week?week_offset=1","status":"fresh"},{"key":"month?ym=2026-04","status":"fresh"},{"key":"month?ym=2026-05","status":"fresh"},{"key":"month?ym=2026-06","status":"fresh"},{"key":"exceptions?month=2026-04","status":"fresh"},{"key":"exceptions?month=2026-05","status":"fresh"},{"key":"exceptions?month=2026-06","status":"fresh"},{"key":"end-dates","status":"fresh"}]}
+23:30:32	הודעה	ההפעלה הושלמה
