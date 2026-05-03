@@ -253,6 +253,14 @@ function installProductionAutomation() {
     };
   });
 
+  // Confirm dashboard snapshot trigger cadence via PropertiesService so keepWarm
+  // self-healing can detect and repair any cadence drift on subsequent runs.
+  try {
+    result.snapshotTrigger = ensureDashboardSnapshotTrigger_();
+  } catch (e) {
+    result.snapshotTrigger = { skipped: true, reason: String(e) };
+  }
+
   return result;
 }
 

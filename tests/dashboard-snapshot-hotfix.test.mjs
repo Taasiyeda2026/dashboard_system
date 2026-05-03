@@ -9,7 +9,7 @@ function mustMatch(src, re, msg) {
 }
 
 // ---------------------------------------------------------------------------
-// T1: force_full path
+// T1: force_full path stays legacy; stale-has-rows branch does NOT call actionDashboard_
 // ---------------------------------------------------------------------------
 test('dashboard snapshot: force_full uses actionDashboard_; stale-but-has-rows branch does NOT call legacy actionDashboard_', async () => {
   const snapshot = await read('backend/dashboard-snapshot.gs');
@@ -35,7 +35,6 @@ test('dashboard snapshot: force_full uses actionDashboard_; stale-but-has-rows b
 test('dashboard snapshot: both missing-snapshot paths use rebuildSnapshotInlineForMissing_ (not direct actionDashboard_)', async () => {
   const snapshot = await read('backend/dashboard-snapshot.gs');
 
-  // Path 1 (stale branch)
   const stalePath = snapshot.indexOf('if (!persistedStale.snap || !persistedStale.hasSummarySnapshotSheet)');
   assert.ok(stalePath >= 0, 'stale missing-snapshot path must exist');
   const staleMissEnd = snapshot.indexOf('} else {', stalePath);
@@ -44,7 +43,6 @@ test('dashboard snapshot: both missing-snapshot paths use rebuildSnapshotInlineF
   assert.match(staleMissText, /rebuildSnapshotInlineForMissing_\(/, 'stale missing path must use rebuildSnapshotInlineForMissing_');
   assert.doesNotMatch(staleMissText, /actionDashboard_\(user,/, 'stale missing path must NOT call actionDashboard_ directly');
 
-  // Path 2 (fresh branch — after monthly view lookup)
   const freshPath = snapshot.indexOf('if (!snap || !hasSummarySnapshotSheet)');
   assert.ok(freshPath >= 0, 'fresh missing-snapshot path must exist');
   const freshMissText = snapshot.slice(freshPath, freshPath + 1500);
@@ -52,7 +50,7 @@ test('dashboard snapshot: both missing-snapshot paths use rebuildSnapshotInlineF
 });
 
 // ---------------------------------------------------------------------------
-// T3: rebuildSnapshotInlineForMissing_ — behavioral check of the call chain
+// T3: rebuildSnapshotInlineForMissing_ — ordered call chain and return contract
 // ---------------------------------------------------------------------------
 test('rebuildSnapshotInlineForMissing_ exits read-only scope, calls refreshDashboardSnapshots_, re-reads and returns _is_snapshot:true', async () => {
   const snapshot = await read('backend/dashboard-snapshot.gs');
@@ -60,7 +58,6 @@ test('rebuildSnapshotInlineForMissing_ exits read-only scope, calls refreshDashb
   mustMatch(snapshot, /function rebuildSnapshotInlineForMissing_\(ym, showOnlyNonzero\)/,
     'helper function must be defined');
 
-  // Call-chain order: endReadOnlyApiScope_ comes before refreshDashboardSnapshots_ which comes before beginReadOnlyApiScope_
   const helperStart = snapshot.indexOf('function rebuildSnapshotInlineForMissing_(');
   assert.ok(helperStart >= 0);
   const helperText = snapshot.slice(helperStart, helperStart + 2000);
@@ -73,14 +70,13 @@ test('rebuildSnapshotInlineForMissing_ exits read-only scope, calls refreshDashb
   assert.ok(endIdx < refreshIdx, 'must exit scope BEFORE calling refresh');
   assert.ok(refreshIdx < beginIdx, 'must call refresh BEFORE restoring scope');
 
-  // Must re-read snapshot after rebuild, then return _is_snapshot:true
   assert.match(helperText, /readPersistedDashboardSnapshotRowsForMonth_\(ym\)/, 'must re-read snapshot after rebuild');
   assert.match(helperText, /payload\._is_snapshot\s*=\s*true/, 'returned payload must have _is_snapshot: true');
   assert.match(helperText, /return null/, 'must return null on failure so caller falls through to empty stub');
 });
 
 // ---------------------------------------------------------------------------
-// T4: _is_stale flag propagation
+// T4: _is_stale flag propagation on stale-rows path and fallback stub
 // ---------------------------------------------------------------------------
 test('dashboard snapshot: _is_stale flag propagated on both stale-rows path and fallback stub', async () => {
   const snapshot = await read('backend/dashboard-snapshot.gs');
@@ -94,29 +90,49 @@ test('dashboard snapshot: _is_stale flag propagated on both stale-rows path and 
 });
 
 // ---------------------------------------------------------------------------
-// T5: ensureDashboardSnapshotTrigger_ — repairs duplicates, guarantees 10-min cadence
+// T5: refreshDashboardSnapshots_ bumps cache version after rebuild (cache invalidation fix)
 // ---------------------------------------------------------------------------
-test('ensureDashboardSnapshotTrigger_ repairs duplicates and guarantees 10-minute cadence', async () => {
+test('refreshDashboardSnapshots_ calls bumpDataViewsCacheVersion_ after successful rebuild to invalidate cached stale responses', async () => {
+  const snapshot = await read('backend/dashboard-snapshot.gs');
+
+  const fnStart = snapshot.indexOf('function refreshDashboardSnapshots_()');
+  assert.ok(fnStart >= 0, 'refreshDashboardSnapshots_ must be defined');
+  const fnText = snapshot.slice(fnStart, fnStart + 2000);
+
+  // bumpDataViewsCacheVersion_ must appear AFTER updateDashboardRefreshControl_ (success path)
+  const updateIdx = fnText.indexOf('updateDashboardRefreshControl_');
+  const bumpIdx = fnText.indexOf('bumpDataViewsCacheVersion_()');
+  assert.ok(updateIdx >= 0, 'must call updateDashboardRefreshControl_ after rebuild');
+  assert.ok(bumpIdx >= 0, 'must call bumpDataViewsCacheVersion_() to invalidate stale cache entries');
+  assert.ok(bumpIdx > updateIdx, 'bumpDataViewsCacheVersion_() must come AFTER updateDashboardRefreshControl_ (success only)');
+});
+
+// ---------------------------------------------------------------------------
+// T6: ensureDashboardSnapshotTrigger_ uses PropertiesService for cadence tracking
+// ---------------------------------------------------------------------------
+test('ensureDashboardSnapshotTrigger_ uses PropertiesService to record and validate 10-minute cadence', async () => {
   const snapshot = await read('backend/dashboard-snapshot.gs');
   const code = await read('backend/Code.gs');
 
   mustMatch(snapshot, /function ensureDashboardSnapshotTrigger_\(\)/,
     'ensureDashboardSnapshotTrigger_ must be defined in dashboard-snapshot.gs');
 
-  // Must filter to only the relevant handler — not all triggers
-  mustMatch(snapshot, /getHandlerFunction.*===.*['"]refreshDashboardSnapshotsTrigger['"]/,
-    'must filter triggers by refreshDashboardSnapshotsTrigger handler');
-
-  // Duplicate repair: must delete existing triggers before reinstalling
   const fnStart = snapshot.indexOf('function ensureDashboardSnapshotTrigger_');
-  const fnText = snapshot.slice(fnStart, fnStart + 1200);
-  assert.match(fnText, /deleteTrigger\(t\)/, 'must delete existing triggers to repair duplicates');
-  assert.match(fnText, /everyMinutes\(10\)/, 'must reinstall with everyMinutes(10) to guarantee cadence');
-  assert.match(fnText, /status:.*'repaired'|'repaired'.*status:/, 'must distinguish repaired vs installed state');
+  const fnText = snapshot.slice(fnStart, fnStart + 1500);
 
-  // Must be idempotent when exactly one trigger exists
-  assert.match(fnText, /snapshotTriggers\.length === 1/, 'must short-circuit when exactly 1 trigger exists');
-  assert.match(fnText, /status:\s*'already_installed'/, 'already_installed path required for idempotency');
+  // PropertiesService cadence key must be used
+  assert.match(fnText, /PropertiesService\.getScriptProperties\(\)/, 'must use PropertiesService to track cadence');
+  assert.match(fnText, /setProperty\(CADENCE_KEY,.*EXPECTED_CADENCE\)/, 'must record confirmed cadence after install');
+
+  // Short-circuit only when BOTH trigger count === 1 AND recorded cadence matches
+  assert.match(fnText, /snapshotTriggers\.length === 1 && recordedCadence === EXPECTED_CADENCE/,
+    'must require both trigger-exists AND recorded cadence to match before returning early');
+
+  // Must delete+reinstall with everyMinutes(10) when cadence unconfirmed or trigger count wrong
+  assert.match(fnText, /deleteTrigger\(t\)/, 'must delete existing triggers before reinstall');
+  assert.match(fnText, /everyMinutes\(10\)/, 'must reinstall at everyMinutes(10)');
+  assert.match(fnText, /'repaired'/, 'must distinguish repaired vs installed (repaired literal must exist)');
+  assert.match(fnText, /status:\s*'already_installed'/, 'already_installed path required when fully validated');
 
   // Public entrypoint in Code.gs
   mustMatch(code, /function ensureDashboardSnapshotTrigger\(\)/, 'public entrypoint must exist in Code.gs');
@@ -124,7 +140,20 @@ test('ensureDashboardSnapshotTrigger_ repairs duplicates and guarantees 10-minut
 });
 
 // ---------------------------------------------------------------------------
-// T6: keepWarm wires ensureDashboardSnapshotTrigger_ (auto-heal on every 5-min run)
+// T7: ensureDashboardSnapshotTrigger_ wired into installProductionAutomation (setup path)
+// ---------------------------------------------------------------------------
+test('ensureDashboardSnapshotTrigger_ is called from installProductionAutomation for setup-time cadence guarantee', async () => {
+  const code = await read('backend/Code.gs');
+
+  const setupStart = code.indexOf('function installProductionAutomation()');
+  assert.ok(setupStart >= 0, 'installProductionAutomation must exist');
+  const setupText = code.slice(setupStart, setupStart + 6000);
+  assert.match(setupText, /ensureDashboardSnapshotTrigger_\(\)/,
+    'installProductionAutomation must call ensureDashboardSnapshotTrigger_() to record cadence at setup time');
+});
+
+// ---------------------------------------------------------------------------
+// T8: keepWarm calls ensureDashboardSnapshotTrigger_ (5-min self-healing)
 // ---------------------------------------------------------------------------
 test('keepWarm calls ensureDashboardSnapshotTrigger_ for automatic trigger self-healing', async () => {
   const code = await read('backend/Code.gs');
@@ -137,7 +166,7 @@ test('keepWarm calls ensureDashboardSnapshotTrigger_ for automatic trigger self-
 });
 
 // ---------------------------------------------------------------------------
-// T7: scheduleSnapshotRebuildSoon_ — one-time trigger background refresh
+// T9: scheduleSnapshotRebuildSoon_ cleans up and schedules one-time trigger
 // ---------------------------------------------------------------------------
 test('scheduleSnapshotRebuildSoon_ cleans stale pending triggers then schedules a fresh one-time rebuild', async () => {
   const snapshot = await read('backend/dashboard-snapshot.gs');
@@ -148,18 +177,15 @@ test('scheduleSnapshotRebuildSoon_ cleans stale pending triggers then schedules 
   const fnStart = snapshot.indexOf('function scheduleSnapshotRebuildSoon_');
   const fnText = snapshot.slice(fnStart, fnStart + 600);
 
-  // Must delete stale pending rebuild triggers first (cleanup)
   assert.match(fnText, /getHandlerFunction.*===.*['"]scheduledSnapshotRebuildTrigger['"]/,
     'must filter for scheduledSnapshotRebuildTrigger before deleting');
   assert.match(fnText, /deleteTrigger\(t\)/, 'must delete stale pending triggers');
-
-  // Must create a new one-time trigger
   assert.match(fnText, /newTrigger\('scheduledSnapshotRebuildTrigger'\)/, 'must create new one-time trigger');
   assert.match(fnText, /\.after\(1000\)/, 'must schedule with .after(1000) for earliest possible execution');
 });
 
 // ---------------------------------------------------------------------------
-// T8: scheduledSnapshotRebuildTrigger — behavioral: runs full refresh, self-cleans
+// T10: scheduledSnapshotRebuildTrigger — calls refresh and self-cleans
 // ---------------------------------------------------------------------------
 test('scheduledSnapshotRebuildTrigger in Code.gs calls refreshDashboardSnapshots_ and self-cleans trigger', async () => {
   const code = await read('backend/Code.gs');
@@ -173,7 +199,7 @@ test('scheduledSnapshotRebuildTrigger in Code.gs calls refreshDashboardSnapshots
 });
 
 // ---------------------------------------------------------------------------
-// T9: router calls scheduleSnapshotRebuildSoon_ after data mutations (behavioral chain)
+// T11 (behavioral chain): router → scheduleSnapshotRebuildSoon_ after mutations
 // ---------------------------------------------------------------------------
 test('router.gs calls scheduleSnapshotRebuildSoon_ after data mutations to initiate background rebuild', async () => {
   const router = await read('backend/router.gs');
@@ -181,7 +207,6 @@ test('router.gs calls scheduleSnapshotRebuildSoon_ after data mutations to initi
   mustMatch(router, /scheduleSnapshotRebuildSoon_\(\)/,
     'router must call scheduleSnapshotRebuildSoon_ after mutations');
 
-  // The call must appear AFTER markDashboardSnapshotsRefreshNeeded_ in the mutation block
   const markIdx = router.indexOf('markDashboardSnapshotsRefreshNeeded_');
   const schedIdx = router.indexOf('scheduleSnapshotRebuildSoon_()');
   assert.ok(markIdx >= 0, 'markDashboardSnapshotsRefreshNeeded_ must be called');
@@ -190,7 +215,7 @@ test('router.gs calls scheduleSnapshotRebuildSoon_ after data mutations to initi
 });
 
 // ---------------------------------------------------------------------------
-// T10: frontend — serverMarkedStale bypass in loadScreenDataWithCache
+// T12: frontend — serverMarkedStale bypass in loadScreenDataWithCache
 // ---------------------------------------------------------------------------
 test('frontend loadScreenDataWithCache: server _is_stale bypasses TTL fast-path to trigger background refresh', async () => {
   const main = await read('frontend/src/main.js');
@@ -202,7 +227,7 @@ test('frontend loadScreenDataWithCache: server _is_stale bypasses TTL fast-path 
 });
 
 // ---------------------------------------------------------------------------
-// T11: frontend — isStale respects server _is_stale flag
+// T13: frontend — isStale respects server _is_stale flag
 // ---------------------------------------------------------------------------
 test('frontend navigate: isStale also true when rawEntry.data._is_stale from server', async () => {
   const main = await read('frontend/src/main.js');
@@ -215,7 +240,7 @@ test('frontend navigate: isStale also true when rawEntry.data._is_stale from ser
 });
 
 // ---------------------------------------------------------------------------
-// T12: frontend — fresh stale load schedules 3s background refresh
+// T14: frontend — fresh stale load schedules 3s background refresh
 // ---------------------------------------------------------------------------
 test('frontend navigate: fresh stale load schedules 3s background refresh', async () => {
   const main = await read('frontend/src/main.js');

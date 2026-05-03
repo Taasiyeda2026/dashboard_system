@@ -735,6 +735,9 @@ function refreshDashboardSnapshots_() {
     var status  = errors.length === 0 ? 'ok' : 'partial';
     var message = errors.length === 0 ? 'all months updated' : errors.join('; ');
     updateDashboardRefreshControl_(status, message);
+    // Invalidate any cached stale dashboardSnapshot responses so the next read
+    // returns fresh snapshot data (not the _is_stale:true payload stored before rebuild).
+    try { bumpDataViewsCacheVersion_(); } catch (_bumpE) {}
     return {
       skipped: false,
       status: status,
@@ -1025,24 +1028,34 @@ function rebuildSnapshotInlineForMissing_(ym, showOnlyNonzero) {
 
 /**
  * Ensures exactly one refreshDashboardSnapshotsTrigger time-driven trigger exists at 10-minute intervals.
- * Removes duplicates and repairs missing triggers. Safe to call from keepWarm, setup, or admin tooling.
- * GAS does not expose a trigger's configured interval, so we delete and reinstall to guarantee cadence.
+ * Uses PropertiesService to record the confirmed cadence so subsequent calls can detect cadence drift.
+ * GAS does not expose a trigger's configured interval; this function deletes and reinstalls when the
+ * recorded cadence property is absent or stale, guaranteeing the 10-minute cadence after each call.
+ * Safe to call from keepWarm, installProductionAutomation, or admin tooling — idempotent after install.
  */
 function ensureDashboardSnapshotTrigger_() {
+  var CADENCE_KEY = 'dashboard_snapshot_trigger_cadence_v1';
+  var EXPECTED_CADENCE = 'every_10_minutes';
+  var props = PropertiesService.getScriptProperties();
   var allTriggers = ScriptApp.getProjectTriggers();
   var snapshotTriggers = allTriggers.filter(function(t) {
     return t.getHandlerFunction && t.getHandlerFunction() === 'refreshDashboardSnapshotsTrigger';
   });
-  if (snapshotTriggers.length === 1) {
-    return { status: 'already_installed', count: 1 };
+  var recordedCadence = props.getProperty(CADENCE_KEY);
+  // Only skip reinstall when exactly one trigger exists AND the cadence was confirmed in a prior run.
+  // This guarantees that any deployment without a cadence property records, triggers are repaired.
+  if (snapshotTriggers.length === 1 && recordedCadence === EXPECTED_CADENCE) {
+    return { status: 'already_installed', cadence: EXPECTED_CADENCE, count: 1 };
   }
+  // Delete all existing triggers (0, duplicate, or unconfirmed cadence) and reinstall at 10 min.
   snapshotTriggers.forEach(function(t) {
     try { ScriptApp.deleteTrigger(t); } catch (_e) {}
   });
   ScriptApp.newTrigger('refreshDashboardSnapshotsTrigger').timeBased().everyMinutes(10).create();
+  props.setProperty(CADENCE_KEY, EXPECTED_CADENCE);
   return {
     status: snapshotTriggers.length === 0 ? 'installed' : 'repaired',
-    frequency: 'every_10_minutes',
+    cadence: EXPECTED_CADENCE,
     deleted_count: snapshotTriggers.length
   };
 }
