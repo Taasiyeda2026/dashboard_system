@@ -297,6 +297,30 @@ test('refreshDashboardSnapshotsTrigger and scheduledSnapshotRebuildTrigger have 
 });
 
 // ---------------------------------------------------------------------------
+// T12e-version: bump-before-write ordering regression — prevents eternal stale
+// ---------------------------------------------------------------------------
+test('refreshDashboardSnapshots_: bumpDataViewsCacheVersion_ called BEFORE updateDashboardRefreshControl_(ok) — prevents version_mismatch stale loop', async () => {
+  const snapshot = await read('backend/dashboard-snapshot.gs');
+
+  const fnStart = snapshot.indexOf('function refreshDashboardSnapshots_()');
+  assert.ok(fnStart >= 0, 'refreshDashboardSnapshots_ must be defined');
+  const fnText = snapshot.slice(fnStart, fnStart + 2500);
+
+  // Find positions of the two critical calls within the function body
+  const bumpPos   = fnText.indexOf('bumpDataViewsCacheVersion_()');
+  const updatePos = fnText.indexOf("updateDashboardRefreshControl_(status");
+
+  assert.ok(bumpPos >= 0,   'bumpDataViewsCacheVersion_ must be present in refreshDashboardSnapshots_');
+  assert.ok(updatePos >= 0, 'updateDashboardRefreshControl_(status, ...) must be present in refreshDashboardSnapshots_');
+
+  assert.ok(bumpPos < updatePos,
+    'bumpDataViewsCacheVersion_() MUST come before updateDashboardRefreshControl_(status, ...) — ' +
+    'updateDashboardRefreshControl_ stores data_views_version: dataViewsCacheVersion_(), so bumping ' +
+    'after write causes the stored version to not match the current version (version_mismatch) and ' +
+    'every subsequent getDashboardSnapshotFreshness_ call returns fresh=false forever');
+});
+
+// ---------------------------------------------------------------------------
 // T12e: rebuildSnapshotInlineForMissing_ treats skipped rebuild as failure
 // ---------------------------------------------------------------------------
 test('rebuildSnapshotInlineForMissing_ returns null when refreshDashboardSnapshots_ returns { skipped: true }', async () => {

@@ -734,10 +734,13 @@ function refreshDashboardSnapshots_() {
 
     var status  = errors.length === 0 ? 'ok' : 'partial';
     var message = errors.length === 0 ? 'all months updated' : errors.join('; ');
-    updateDashboardRefreshControl_(status, message);
-    // Invalidate any cached stale dashboardSnapshot responses so the next read
-    // returns fresh snapshot data (not the _is_stale:true payload stored before rebuild).
+    // CRITICAL ORDER: bump the cache version BEFORE writing the refresh control.
+    // updateDashboardRefreshControl_ stores data_views_version: dataViewsCacheVersion_().
+    // If we bumped AFTER writing, the stored version (Vold) would not match the current
+    // version (Vnew), causing getDashboardSnapshotFreshness_ to report version_mismatch
+    // forever and every subsequent actionDashboardSnapshot_ call to return _is_stale:true.
     try { bumpDataViewsCacheVersion_(); } catch (_bumpE) {}
+    updateDashboardRefreshControl_(status, message);
     return {
       skipped: false,
       status: status,
