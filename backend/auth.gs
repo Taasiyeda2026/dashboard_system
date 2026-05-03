@@ -30,15 +30,99 @@ var PERMISSIONS_LOGIN_PROJECTED_HEADERS_ = [
   'view_end_dates'
 ];
 
+/** Optional lightweight login sheet. If missing/empty, login falls back to permissions. */
+var LOGIN_SHEET_NAME_ = 'login';
+var LOGIN_PROJECTED_HEADERS_ = PERMISSIONS_LOGIN_PROJECTED_HEADERS_;
+
 /** TTL for per-user permission rows in ScriptCache (invalidated when dataViewsCacheVersion_ changes). */
 var PERMISSION_LOGIN_CACHE_SECONDS_ = 3600;
 
 var PERMISSION_LOGIN_CACHE_KEY_PREFIX_ = 'pc:perm-login:v1:';
+var LOGIN_CACHE_KEY_PREFIX_ = 'pc:login-sheet:v1:';
 var PERMISSION_LOGIN_CACHE_NO_ROW_ = '__NO_ROW__';
 
 function permissionLoginCacheKey_(userId, dataViewsVersion) {
   var v = dataViewsVersion !== undefined && dataViewsVersion !== null ? String(dataViewsVersion) : dataViewsCacheVersion_();
   return PERMISSION_LOGIN_CACHE_KEY_PREFIX_ + v + ':' + text_(userId);
+}
+
+function loginSheetCacheKey_(userId, dataViewsVersion) {
+  var v = dataViewsVersion !== undefined && dataViewsVersion !== null ? String(dataViewsVersion) : dataViewsCacheVersion_();
+  return LOGIN_CACHE_KEY_PREFIX_ + v + ':' + text_(userId);
+}
+
+function hasLoginSheet_() {
+  try {
+    return !!getSpreadsheet_().getSheetByName(LOGIN_SHEET_NAME_);
+  } catch (_e) {
+    return false;
+  }
+}
+
+function getLoginRowFastCached_(userId) {
+  setRequestPerfField_('login_sheet_lookup', true);
+  var uid = text_(userId);
+  if (!uid) return null;
+  if (!hasLoginSheet_()) {
+    setRequestPerfField_('login_sheet_missing', true);
+    return null;
+  }
+
+  var cache = CacheService.getScriptCache();
+  var key = loginSheetCacheKey_(uid);
+  var raw = cache.get(key);
+
+  if (raw === PERMISSION_LOGIN_CACHE_NO_ROW_) {
+    setRequestPerfField_('login_sheet_cache_no_row', true);
+    return null;
+  }
+  if (raw) {
+    try {
+      var parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setRequestPerfField_('login_sheet_cache_hit', true);
+        return parsed;
+      }
+    } catch (_e) {}
+    return null;
+  }
+
+  return warmLoginSheetIndexForUser_(uid);
+}
+
+function warmLoginSheetIndexForUser_(requestedUserId) {
+  var ver = dataViewsCacheVersion_();
+  var rows = [];
+  try {
+    rows = readRowsProjected_(LOGIN_SHEET_NAME_, LOGIN_PROJECTED_HEADERS_);
+  } catch (_e) {
+    setRequestPerfField_('login_sheet_read_failed', true);
+    return null;
+  }
+
+  var byUser = {};
+  rows.forEach(function(row) {
+    var id = text_(row.user_id);
+    if (!id) return;
+    if (!byUser[id]) byUser[id] = row;
+  });
+
+  var cache = CacheService.getScriptCache();
+  var ttl = PERMISSION_LOGIN_CACHE_SECONDS_;
+  for (var uid in byUser) {
+    if (!Object.prototype.hasOwnProperty.call(byUser, uid)) continue;
+    cache.put(loginSheetCacheKey_(uid, ver), JSON.stringify(byUser[uid]), ttl);
+  }
+
+  var req = text_(requestedUserId);
+  if (byUser[req]) {
+    setRequestPerfField_('login_sheet_hit', true);
+    return byUser[req];
+  }
+
+  cache.put(loginSheetCacheKey_(req, ver), PERMISSION_LOGIN_CACHE_NO_ROW_, ttl);
+  setRequestPerfField_('login_sheet_no_row', true);
+  return null;
 }
 
 /**
@@ -98,7 +182,7 @@ function actionLogin_(payload) {
   if (!userId) throw new Error('user_id is required');
   if (!entryCode) throw new Error('entry_code is required');
 
-  var matchByUser = getPermissionRowForLoginCached_(userId);
+  var matchByUser = getLoginRowFastCached_(userId) || getPermissionRowForLoginCached_(userId);
 
   if (!matchByUser) throw new Error('invalid_credentials');
   if (yesNo_(matchByUser.active) !== 'yes') throw new Error('user_inactive');
@@ -123,7 +207,7 @@ function actionLogin_(payload) {
     display_role_label: displayRoleLabel,
     display_role2: text_(matchByUser.display_role2),
     default_view: text_(matchByUser.default_view),
-    emp_id: text_(matchByUser.user_id),
+    emp_id: text_(matchByUser.emp_id || matchByUser.user_id),
     can_add_activity: !!canAddActivity,
     can_edit_direct: !!canEditDirect,
     can_request_edit: !!canRequestEdit,
