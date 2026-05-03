@@ -5645,6 +5645,16 @@ select.ds-input {
   min-width: 100px;
 }
 
+.ds-finance-notes-cell {
+  min-width: 140px;
+  vertical-align: middle;
+}
+
+.ds-finance-notes-cell input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .ds-finance-status-select {
   width: 100%;
   min-width: 80px;

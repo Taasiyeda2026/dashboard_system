@@ -1132,28 +1132,18 @@ export const financeScreen = {
         btn.disabled = true;
         if (statusEl) statusEl.textContent = '';
         try {
-          /* Use dedicated saveFinanceRow for status/notes edits */
-          const saveFn = typeof api.saveFinanceRow === 'function' ? api.saveFinanceRow : null;
-          if (saveFn) {
-            await saveFn({
-              source_row_id: String(uid),
-              source_sheet: row.source_sheet || '',
-              finance_status: statusVal,
-              finance_notes: notesVal
-            });
-          } else {
-            await api.saveActivity({
-              source_sheet: row.source_sheet || '',
-              source_row_id: String(uid),
-              changes: { finance_status: statusVal, finance_notes: notesVal }
-            });
-          }
+          await api.saveActivity({
+            source_sheet: row.source_sheet || '',
+            source_row_id: String(uid),
+            changes: { finance_status: statusVal, finance_notes: notesVal }
+          });
           if (statusEl) statusEl.textContent = 'נשמר ✓';
           showToast('הנתונים נשמרו', 'success', 2000);
           clearScreenDataCache();
           setTimeout(() => rerender(), 600);
         } catch (err) {
           if (statusEl) statusEl.textContent = translateApiErrorForUser(err?.message);
+          showToast(translateApiErrorForUser(err?.message), 'error');
         } finally {
           btn.disabled = false;
         }
