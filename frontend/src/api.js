@@ -685,7 +685,7 @@ export const api = {
     const route = String(state?.route || '').trim();
     const isProd = !config.devMode;
     if (isProd && route === 'dashboard') {
-      throw new Error('Legacy dashboard API is blocked on Dashboard screen in production. Use dashboardSheet only.');
+      throw new Error('Legacy dashboard API is blocked on Dashboard screen in production. Use dashboardSnapshot instead.');
     }
     return request('dashboard', filters || {});
   },

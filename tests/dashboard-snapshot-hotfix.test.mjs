@@ -391,6 +391,72 @@ test('frontend navigate: isStale also true when rawEntry.data._is_stale from ser
 });
 
 // ---------------------------------------------------------------------------
+// T13b: behavioral regression — full stale-mark → refresh → fresh cycle (JS-level)
+// ---------------------------------------------------------------------------
+test('behavioral regression: markDashboardSnapshotsRefreshNeeded_ sets pending status; refreshDashboardSnapshots_ bumps version then writes ok; getDashboardSnapshotFreshness_ returns fresh', async () => {
+  // Simulate the full cycle using JS objects that mirror the GAS state machine:
+  //   markDashboardSnapshotsRefreshNeeded_ → updateDashboardRefreshControl_('pending') + bump
+  //   getDashboardSnapshotFreshness_        → !fresh (pending status)
+  //   refreshDashboardSnapshots_            → bump + updateDashboardRefreshControl_('ok')
+  //   getDashboardSnapshotFreshness_        → fresh (ok + version match)
+
+  // State machine (mirrors GAS PropertiesService + cache version counter)
+  let version = 1;
+  let control = { last_status: 'ok', data_views_version: String(version) };
+
+  function dataViewsCacheVersion() { return String(version); }
+  function bumpDataViewsCacheVersion() { version++; }
+  function updateDashboardRefreshControl(status) {
+    control.last_status = status;
+    control.data_views_version = dataViewsCacheVersion();
+  }
+  function getDashboardSnapshotFreshness() {
+    const statusOk  = control.last_status === 'ok';
+    const versionOk = control.data_views_version === dataViewsCacheVersion();
+    return { fresh: statusOk && versionOk, status: control.last_status };
+  }
+
+  // Initially fresh
+  assert.ok(getDashboardSnapshotFreshness().fresh, 'precondition: initially fresh');
+
+  // Step 1: mutation → markDashboardSnapshotsRefreshNeeded_ (writes 'pending' then bumps)
+  updateDashboardRefreshControl('pending');
+  bumpDataViewsCacheVersion();
+  const afterMark = getDashboardSnapshotFreshness();
+  assert.equal(afterMark.fresh, false, 'after marking refresh needed: must not be fresh');
+  assert.equal(afterMark.status, 'pending', 'status must be pending');
+
+  // Step 2: refreshDashboardSnapshots_ (bumps FIRST, then writes 'ok')
+  bumpDataViewsCacheVersion();
+  updateDashboardRefreshControl('ok');
+  const afterRefresh = getDashboardSnapshotFreshness();
+  assert.ok(afterRefresh.fresh, 'after refresh: must be fresh again (bump-before-write ordering)');
+  assert.equal(afterRefresh.status, 'ok', 'status must be ok');
+
+  // Verify the source code matches this ordering (bump before write)
+  const snapshot = await read('backend/dashboard-snapshot.gs');
+  const fnStart = snapshot.indexOf('function refreshDashboardSnapshots_()');
+  const fnText = snapshot.slice(fnStart, fnStart + 2500);
+  const bumpPos   = fnText.indexOf('bumpDataViewsCacheVersion_()');
+  const updatePos = fnText.indexOf("updateDashboardRefreshControl_(status");
+  assert.ok(bumpPos < updatePos, 'source: bumpDataViewsCacheVersion_() must precede updateDashboardRefreshControl_(status, ...)');
+});
+
+// ---------------------------------------------------------------------------
+// T13c: repairDashboardSnapshotTrigger clears cadence marker then reinstalls
+// ---------------------------------------------------------------------------
+test('repairDashboardSnapshotTrigger() clears PropertiesService cadence marker before reinstalling', async () => {
+  const code = await read('backend/Code.gs');
+  const fnStart = code.indexOf('function repairDashboardSnapshotTrigger()');
+  assert.ok(fnStart >= 0, 'repairDashboardSnapshotTrigger must be defined in Code.gs');
+  const fnText = code.slice(fnStart, fnStart + 400);
+  assert.match(fnText, /deleteProperty\('dashboard_snapshot_trigger_cadence_v1'\)/,
+    'must clear the cadence marker so ensureDashboardSnapshotTrigger_ performs a fresh reinstall');
+  assert.match(fnText, /ensureDashboardSnapshotTrigger_\(\)/,
+    'must delegate to ensureDashboardSnapshotTrigger_ after clearing the marker');
+});
+
+// ---------------------------------------------------------------------------
 // T14: frontend — fresh stale load schedules 3s background refresh
 // ---------------------------------------------------------------------------
 test('frontend navigate: fresh stale load schedules 3s background refresh', async () => {

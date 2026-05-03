@@ -92,6 +92,17 @@ function refreshDashboardSnapshotsTrigger() {
   return refreshDashboardSnapshots_();
 }
 
+/**
+ * Admin repair function for snapshot trigger cadence drift.
+ * ensureDashboardSnapshotTrigger_() skips reinstall when the PropertiesService marker is already set.
+ * Call this after manual trigger deletion or when the 10-minute cadence is suspected to have drifted.
+ * Clears the marker then delegates to ensureDashboardSnapshotTrigger_() for a clean reinstall.
+ */
+function repairDashboardSnapshotTrigger() {
+  PropertiesService.getScriptProperties().deleteProperty('dashboard_snapshot_trigger_cadence_v1');
+  return ensureDashboardSnapshotTrigger_();
+}
+
 function refreshDataViewsTrigger() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return { skipped: true, reason: 'lock_busy' };
