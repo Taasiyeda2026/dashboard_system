@@ -627,12 +627,14 @@ function exportToExcel(rows, label, periodLabel, filterLabel) {
 
   /* Self-documenting header rows: period + active filters */
   const metaRows = [];
+  const exportDateTime = new Date().toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   if (periodLabel) {
-    const filterNote = filterLabel ? ` · ${filterLabel}` : '';
-    metaRows.push(`<tr><td colspan="${cols.length}" style="background:#e8eaf6;font-weight:bold;font-size:0.9rem;padding:6px 8px;border:1px solid #aab;">תקופה: ${esc(periodLabel)}${esc(filterNote)}</td></tr>`);
+    const filterNote = filterLabel ? ` | ${filterLabel}` : '';
+    metaRows.push(`<tr><td colspan="${cols.length}" style="background:#e8eaf6;font-style:italic;font-weight:bold;font-size:0.9rem;padding:6px 8px;border:1px solid #aab;">תקופה: ${esc(periodLabel)}${esc(filterNote)}</td></tr>`);
+    metaRows.push(`<tr><td colspan="${cols.length}" style="background:#f5f5f5;font-size:0.8rem;color:#555;padding:4px 8px;border:1px solid #ccc;">יוצא בתאריך: ${esc(exportDateTime)} · ${esc(String(rows.length))} רשומות</td></tr>`);
+  } else {
+    metaRows.push(`<tr><td colspan="${cols.length}" style="background:#e8eaf6;font-style:italic;font-size:0.9rem;padding:6px 8px;border:1px solid #aab;">יוצא בתאריך: ${esc(exportDateTime)} · ${esc(String(rows.length))} רשומות</td></tr>`);
   }
-  const exportDate = new Date().toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  metaRows.push(`<tr><td colspan="${cols.length}" style="background:#f5f5f5;font-size:0.8rem;color:#555;padding:4px 8px;border:1px solid #ccc;">יוצא בתאריך: ${esc(exportDate)} · ${esc(String(rows.length))} רשומות</td></tr>`);
 
   const headerRow = `<tr>${headers.map((h) => `<th style="background:#dde;">${esc(h)}</th>`).join('')}</tr>`;
   const dataRows = rows.map((row) => {
@@ -1032,12 +1034,10 @@ export const financeScreen = {
          month selection alone does not change the base filename (כספים.xls) */
       let exportLabel = '';
 
-      /* Period label for embedded header row */
+      /* Period label for embedded header row — empty when no filters at all */
       let periodLabel = '';
       if (monthYm) {
         periodLabel = `${ymToMonthLabel(prevMonth(monthYm))} – ${ymToMonthLabel(monthYm)}`;
-      } else {
-        periodLabel = 'כל התקופה';
       }
 
       /* Filter label for embedded header row */
@@ -1045,7 +1045,10 @@ export const financeScreen = {
       if (statusFilter) filterParts.push(`סטטוס: ${hebrewFinanceStatus(statusFilter)}`);
       if (searchQ) filterParts.push(`חיפוש: "${searchQ}"`);
       if (activeTab === 'archive') filterParts.push('ארכיון');
-      const filterLabel = filterParts.join(' · ');
+      const filterLabel = filterParts.join(' | ');
+
+      /* If no month is selected but other filters are active, note "all periods" */
+      if (!periodLabel && filterLabel) periodLabel = 'כל התקופה';
 
       exportToExcel(rows, exportLabel, periodLabel, filterLabel);
     }, bindOpts);
