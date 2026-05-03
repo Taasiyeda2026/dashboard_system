@@ -267,19 +267,51 @@ test('behavioral: actionDashboardSnapshot_ returns _is_stale:true when snapshot 
 });
 
 // ---------------------------------------------------------------------------
-// T12d: scheduledSnapshotRebuildTrigger has NO outer lock (avoids re-entrancy deadlock)
+// T12d: NEITHER trigger acquires outer lock — avoids double-lock / skipped rebuilds
 // ---------------------------------------------------------------------------
-test('scheduledSnapshotRebuildTrigger does NOT acquire outer LockService lock (refreshDashboardSnapshots_ has its own)', async () => {
+test('refreshDashboardSnapshotsTrigger and scheduledSnapshotRebuildTrigger have NO outer LockService lock', async () => {
   const code = await read('backend/Code.gs');
 
-  const fnStart = code.indexOf('function scheduledSnapshotRebuildTrigger()');
-  assert.ok(fnStart >= 0, 'handler must be defined');
-  const fnText = code.slice(fnStart, fnStart + 600);
+  // Helper: strip comment lines before checking for actual code calls
+  function stripComments(s) {
+    return s.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+  }
 
-  assert.doesNotMatch(fnText, /LockService\.getScriptLock\(\)/,
-    'must NOT acquire outer script lock — refreshDashboardSnapshots_() already has its own non-reentrant lock');
-  assert.match(fnText, /refreshDashboardSnapshots_\(\)/,
-    'must call refreshDashboardSnapshots_()');
+  // 10-minute periodic trigger must NOT have outer lock
+  const periodicStart = code.indexOf('function refreshDashboardSnapshotsTrigger()');
+  assert.ok(periodicStart >= 0, 'refreshDashboardSnapshotsTrigger must be defined');
+  const periodicText = stripComments(code.slice(periodicStart, periodicStart + 400));
+  assert.doesNotMatch(periodicText, /LockService\.getScriptLock\(\)/,
+    'refreshDashboardSnapshotsTrigger must NOT acquire outer lock — causes double-lock skip inside refreshDashboardSnapshots_()');
+  assert.match(periodicText, /refreshDashboardSnapshots_\(\)/,
+    'refreshDashboardSnapshotsTrigger must delegate directly to refreshDashboardSnapshots_()');
+
+  // One-time rebuild trigger must NOT have outer lock either
+  const onetimeStart = code.indexOf('function scheduledSnapshotRebuildTrigger()');
+  assert.ok(onetimeStart >= 0, 'scheduledSnapshotRebuildTrigger must be defined');
+  const onetimeText = stripComments(code.slice(onetimeStart, onetimeStart + 600));
+  assert.doesNotMatch(onetimeText, /LockService\.getScriptLock\(\)/,
+    'scheduledSnapshotRebuildTrigger must NOT acquire outer lock');
+  assert.match(onetimeText, /refreshDashboardSnapshots_\(\)/,
+    'scheduledSnapshotRebuildTrigger must call refreshDashboardSnapshots_()');
+});
+
+// ---------------------------------------------------------------------------
+// T12e: rebuildSnapshotInlineForMissing_ treats skipped rebuild as failure
+// ---------------------------------------------------------------------------
+test('rebuildSnapshotInlineForMissing_ returns null when refreshDashboardSnapshots_ returns { skipped: true }', async () => {
+  const snapshot = await read('backend/dashboard-snapshot.gs');
+
+  const fnStart = snapshot.indexOf('function rebuildSnapshotInlineForMissing_(');
+  assert.ok(fnStart >= 0);
+  const fnText = snapshot.slice(fnStart, fnStart + 2000);
+
+  assert.match(fnText, /rebuildResult = refreshDashboardSnapshots_\(\)/,
+    'must capture the return value of refreshDashboardSnapshots_()');
+  assert.match(fnText, /rebuildResult\.skipped === true/,
+    'must check skipped:true and treat it as a failed rebuild (lock was busy)');
+  assert.match(fnText, /return null/,
+    'must return null when rebuild was skipped so caller serves empty stub, not stale data');
 });
 
 // ---------------------------------------------------------------------------

@@ -999,10 +999,17 @@ function rebuildSnapshotInlineForMissing_(ym, showOnlyNonzero) {
   try {
     markRequestPerf_('dashboardSnapshot:rebuildInline:start');
     endReadOnlyApiScope_();
+    var rebuildResult;
     try {
-      refreshDashboardSnapshots_();
+      rebuildResult = refreshDashboardSnapshots_();
     } finally {
       beginReadOnlyApiScope_();
+    }
+    // If the internal lock was busy (concurrent rebuild running), treat as failure —
+    // return null so the caller falls through to the empty stub rather than serving stale data.
+    if (!rebuildResult || rebuildResult.skipped === true) {
+      markRequestPerf_('dashboardSnapshot:rebuildInline:skipped_lock_busy');
+      return null;
     }
     markRequestPerf_('dashboardSnapshot:rebuildInline:rebuilt');
     var rebuiltPersisted = readPersistedDashboardSnapshotRowsForMonth_(ym);

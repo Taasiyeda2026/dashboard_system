@@ -86,13 +86,10 @@ function repairSystemWorkbookStructure() {
  * Set up as a separate trigger — do not add snapshot logic inside keepWarm.
  */
 function refreshDashboardSnapshotsTrigger() {
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(1000)) return { skipped: true, reason: 'lock_busy' };
-  try {
-    return refreshDashboardSnapshots_();
-  } finally {
-    lock.releaseLock();
-  }
+  // Do NOT acquire an outer script lock here — refreshDashboardSnapshots_() owns its own
+  // non-reentrant LockService.getScriptLock() internally. Wrapping it in a second outer lock
+  // causes the inner tryLock to see the lock as busy and return { skipped: true } without rebuilding.
+  return refreshDashboardSnapshots_();
 }
 
 function refreshDataViewsTrigger() {
