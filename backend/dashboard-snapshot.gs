@@ -499,19 +499,47 @@ function actionDashboardSnapshot_(user, payload) {
 
     var stalePayload;
     if (!persistedStale.snap || !persistedStale.hasSummarySnapshotSheet) {
-      stalePayload = {
-        month: ym,
-        totals: {},
-        by_activity_manager: [],
-        summary: {},
-        kpi_cards: [],
-        _is_snapshot: true,
-        _is_stale: true,
-        _snapshot_unavailable: true,
-        _snapshot_fallback_reason: staleReason || 'missing_snapshot'
-      };
-      setRequestPerfField_('dashboard_fallback_used', false);
-      markRequestPerf_('dashboard:fallback_used:false');
+      // Snapshot sheets entirely missing — try inline full compute so user gets real data.
+      // Heavy but correct for first-time setup or long month-gap scenarios.
+      // The time-based trigger will write the snapshot for subsequent fast loads.
+      var inlineOk = false;
+      try {
+        markRequestPerf_('dashboardSnapshot:inline rebuild:start');
+        var inlineData = actionDashboard_(user, { month: ym });
+        markRequestPerf_('dashboardSnapshot:inline rebuild:end');
+        if (inlineData && typeof inlineData === 'object') {
+          inlineData._is_snapshot = false;
+          inlineData._is_stale = true;
+          inlineData._snapshot_rebuilt_inline = true;
+          inlineData._snapshot_fallback_reason = staleReason || 'missing_snapshot';
+        }
+        setRequestPerfField_('dashboard_fallback_used', true);
+        setRequestPerfField_('dashboard_used_view', false);
+        setRequestPerfField_('dashboard_cache_hit', false);
+        setRequestPerfField_('payload_bytes', JSON.stringify(inlineData || {}).length);
+        markRequestPerf_('dashboard:inline_rebuild:true');
+        markRequestPerf_('dashboardSnapshot:total actionDashboardSnapshot:end');
+        inlineOk = true;
+        return inlineData;
+      } catch (_inlineErr) {
+        // Inline compute failed — fall through to empty stub so UI shows banner.
+        markRequestPerf_('dashboardSnapshot:inline rebuild:failed');
+      }
+      if (!inlineOk) {
+        stalePayload = {
+          month: ym,
+          totals: {},
+          by_activity_manager: [],
+          summary: {},
+          kpi_cards: [],
+          _is_snapshot: true,
+          _is_stale: true,
+          _snapshot_unavailable: true,
+          _snapshot_fallback_reason: staleReason || 'missing_snapshot'
+        };
+        setRequestPerfField_('dashboard_fallback_used', false);
+        markRequestPerf_('dashboard:fallback_used:false');
+      }
     } else {
       markRequestPerf_('dashboardSnapshot:build kpi cards:start');
       stalePayload = composeDashboardPayloadFromSummarySnapshot_(ym, persistedStale.snap, persistedStale.byManagerRows, showOnlyFromControl);

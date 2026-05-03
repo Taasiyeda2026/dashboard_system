@@ -771,7 +771,8 @@ async function loadScreenDataWithCache(screen) {
   const hit = state.screenDataCache[key];
   const ttl = screenCacheTtl();
   const age = hit ? Date.now() - hit.t : 0;
-  if (hit && age < ttl) return hit.data;
+  const serverMarkedStale = !!(hit && hit.data && hit.data._is_stale === true);
+  if (hit && age < ttl && !serverMarkedStale) return hit.data;
 
   if (hit) {
     if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return hit.data;
@@ -1160,7 +1161,7 @@ async function mountScreen() {
   // eslint-disable-next-line no-console
   console.info('[route-load:start]', { route: requestedRoute, cacheKey });
   const rawEntry = screen.load ? state.screenDataCache[cacheKey] : null;
-  const isStale = rawEntry && Date.now() - rawEntry.t >= screenCacheTtl();
+  const isStale = rawEntry && (Date.now() - rawEntry.t >= screenCacheTtl() || rawEntry.data?._is_stale === true);
 
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
   const firstAuthenticatedMount = !!(state.token && !hasMountedAuthenticatedShell);
@@ -1271,6 +1272,15 @@ async function mountScreen() {
       duration_ms: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - routeLoadStartMs)
     });
     if (routeChanged) lastRenderedRoute = state.route;
+    if (data?._is_stale === true && !STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) {
+      const _staleGuardToken = activeNavigationToken;
+      const _staleGuardRoute = requestedRoute;
+      setTimeout(() => {
+        if (activeNavigationToken === _staleGuardToken && state.route === _staleGuardRoute) {
+          backgroundRefreshScreen(screen, cacheKey);
+        }
+      }, 3000);
+    }
     maybePrefetchFromDashboard();
   } catch (err) {
     inflightRequests.delete(cacheKey);
