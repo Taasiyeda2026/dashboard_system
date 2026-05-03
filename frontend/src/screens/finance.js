@@ -26,6 +26,15 @@ const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','�
 /* ————————————————————————————————
    Filtering helpers
 ———————————————————————————————— */
+function applyNumericFilters(rows, minSessions, minPrice) {
+  let out = rows;
+  const ms = parseFloat(minSessions);
+  if (ms > 0) out = out.filter((r) => (parseFloat(r.sessions) || 0) >= ms);
+  const mp = parseFloat(minPrice);
+  if (mp > 0) out = out.filter((r) => (parseFloat(r.price) || 0) >= mp);
+  return out;
+}
+
 function applySearch(rows, q) {
   if (!q) return rows;
   const lq = q.toLowerCase();
@@ -454,9 +463,8 @@ function buildGroupedTable(rows, canEdit, canView, tableSortCol, tableSortDir, g
       ? [...rawGRows].sort((a, b) => {
           let av, bv;
           if (tableSortCol === 'amount') {
-            const calcAmt = (r) => { const p = parseFloat(r.price) || 0; const s = parseFloat(r.sessions) || 0; return s > 0 ? p * s : p; };
-            av = calcAmt(a);
-            bv = calcAmt(b);
+            av = rowAmount(a);
+            bv = rowAmount(b);
             return tableSortDir === 'asc' ? av - bv : bv - av;
           } else if (tableSortCol === 'end_date') {
             av = String(a.end_date || '');
@@ -688,6 +696,8 @@ const LS = {
   mgrSortDir: 'finance_mgr_sort_dir',
   tableSortCol: 'finance_table_sort_col',
   tableSortDir: 'finance_table_sort_dir',
+  minSessions: 'finance_min_sessions',
+  minPrice: 'finance_min_price',
   lastUserId: 'finance_last_user_id'
 };
 
@@ -696,6 +706,7 @@ const LS_ALL_PREF_KEYS = [
   'finance_month_ym', 'finance_tab', 'finance_view_mode',
   'finance_mgr_sort_col', 'finance_mgr_sort_dir',
   'finance_table_sort_col', 'finance_table_sort_dir',
+  'finance_min_sessions', 'finance_min_price',
   'finance_last_user_id'
 ];
 
@@ -713,6 +724,8 @@ function resetFinanceStateKeys(state) {
   state.managerBreakdownSortDir = '';
   state.financeTableSortCol = '';
   state.financeTableSortDir = '';
+  state.financeMinSessions = '';
+  state.financeMinPrice = '';
 }
 
 function loadStateFromStorage(state) {
@@ -738,7 +751,9 @@ function loadStateFromStorage(state) {
     financeTableSortCol: LS.tableSortCol,
     financeTableSortDir: LS.tableSortDir,
     managerBreakdownSortCol: LS.mgrSortCol,
-    managerBreakdownSortDir: LS.mgrSortDir
+    managerBreakdownSortDir: LS.mgrSortDir,
+    financeMinSessions: LS.minSessions,
+    financeMinPrice: LS.minPrice
   };
   Object.entries(map).forEach(([stateKey, lsKey]) => {
     if (!state[stateKey]) {
@@ -784,6 +799,8 @@ export const financeScreen = {
     const activeTab = state?.financeTab || 'active';
     const monthYm = state?.financeMonthYm || '';
     const viewMode = state?.financeViewMode || (narrow ? 'cards' : 'groups');
+    const minSessions = state?.financeMinSessions || '';
+    const minPrice = state?.financeMinPrice || '';
     const canEdit = ['admin', 'operation_manager'].includes(state?.user?.display_role);
     const canView = state?.user?.display_role !== 'instructor';
     const isAdmin = state?.user?.display_role === 'admin';
@@ -809,11 +826,12 @@ export const financeScreen = {
       { label: 'סה"כ סל גבייה', value: formatILS(amountTotal) }
     ];
 
-    /* Display rows: apply status filter and search client-side on top of the month window */
+    /* Display rows: apply status filter, numeric filters, and search client-side on top of the month window */
     let rows = kpiRows;
     if (statusFilter) {
       rows = rows.filter((r) => String(r.finance_status || '').toLowerCase() === statusFilter);
     }
+    rows = applyNumericFilters(rows, minSessions, minPrice);
 
     /* Status filter chips */
     const statuses = [...new Set(rows.map((r) => String(r.finance_status || '')).filter(Boolean))];
@@ -884,7 +902,19 @@ export const financeScreen = {
       </div>
       <div class="ds-filter-bar" role="toolbar" style="flex-wrap:wrap;gap:8px;">
         ${statusChips}
-        ${(searchQ || statusFilter) ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-reset-filters style="border-color:var(--color-warning,#d97706);color:var(--color-warning,#d97706)">איפוס כל הסננים</button>` : ''}
+        <label class="ds-finance-num-filter" style="display:inline-flex;align-items:center;gap:4px;font-size:0.85rem;">
+          <span>מפגשים ≥</span>
+          <input id="finance-min-sessions" type="number" min="0" step="1"
+            class="ds-input ds-input--sm" style="width:64px;"
+            value="${escapeHtml(minSessions)}" placeholder="—" title="סנן לפי מינימום מפגשים" />
+        </label>
+        <label class="ds-finance-num-filter" style="display:inline-flex;align-items:center;gap:4px;font-size:0.85rem;">
+          <span>מחיר ≥</span>
+          <input id="finance-min-price" type="number" min="0" step="1"
+            class="ds-input ds-input--sm" style="width:80px;"
+            value="${escapeHtml(minPrice)}" placeholder="—" title="סנן לפי מינימום מחיר" />
+        </label>
+        ${(searchQ || statusFilter || minSessions || minPrice) ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-reset-filters style="border-color:var(--color-warning,#d97706);color:var(--color-warning,#d97706)">איפוס כל הסננים</button>` : ''}
       </div>
       <div data-finance-data-area>
         ${dsCard({
@@ -1005,8 +1035,12 @@ export const financeScreen = {
     root.querySelector('[data-reset-filters]')?.addEventListener('click', () => {
       state.financeSearch = '';
       state.financeStatusFilter = '';
+      state.financeMinSessions = '';
+      state.financeMinPrice = '';
       save(LS.search, '');
       save(LS.statusFilter, '');
+      save(LS.minSessions, '');
+      save(LS.minPrice, '');
       rerender();
     }, bindOpts);
 
@@ -1026,6 +1060,24 @@ export const financeScreen = {
       }, bindOpts);
     });
 
+    /* Numeric filters: min sessions, min price — each has its own debounce timer */
+    function bindNumericFilter(inputId, stateKey, lsKey) {
+      const el = root.querySelector(`#${inputId}`);
+      if (!el) return;
+      let timer = null;
+      el.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          const val = el.value.trim();
+          state[stateKey] = val;
+          save(lsKey, val);
+          rerender();
+        }, 250);
+      }, bindOpts);
+    }
+    bindNumericFilter('finance-min-sessions', 'financeMinSessions', LS.minSessions);
+    bindNumericFilter('finance-min-price', 'financeMinPrice', LS.minPrice);
+
 
     /* CSV export */
     root.querySelector('[data-export-csv]')?.addEventListener('click', () => {
@@ -1041,6 +1093,7 @@ export const financeScreen = {
       rows = applyMonthFilter(rows, monthYm);
       rows = applySearch(rows, searchQ);
       if (statusFilter) rows = rows.filter((r) => String(r.finance_status || '').toLowerCase() === statusFilter);
+      rows = applyNumericFilters(rows, state?.financeMinSessions || '', state?.financeMinPrice || '');
 
       /* Build filename: include date range when a from/to filter is active;
          month selection alone does not change the base filename (כספים.xls) */
