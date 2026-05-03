@@ -1008,10 +1008,24 @@ function rebuildSnapshotInlineForMissing_(ym, showOnlyNonzero) {
     } finally {
       beginReadOnlyApiScope_();
     }
-    // If the internal lock was busy (concurrent rebuild running), treat as failure —
-    // return null so the caller falls through to the empty stub rather than serving stale data.
+    // If the lock was busy, a concurrent rebuild is running. Wait briefly and retry
+    // reading the persisted snapshot — it should be available once the other execution completes.
     if (!rebuildResult || rebuildResult.skipped === true) {
-      markRequestPerf_('dashboardSnapshot:rebuildInline:skipped_lock_busy');
+      markRequestPerf_('dashboardSnapshot:rebuildInline:skipped_awaiting_concurrent');
+      try { Utilities.sleep(3000); } catch (_sleepE) {}
+      var retryPersisted = readPersistedDashboardSnapshotRowsForMonth_(ym);
+      if (retryPersisted.snap && retryPersisted.hasSummarySnapshotSheet) {
+        var retryPayload = composeDashboardPayloadFromSummarySnapshot_(
+          ym,
+          retryPersisted.snap,
+          retryPersisted.byManagerRows,
+          showOnlyNonzero !== false
+        );
+        retryPayload._is_snapshot = true;
+        markRequestPerf_('dashboardSnapshot:rebuildInline:concurrent_wait_hit');
+        return retryPayload;
+      }
+      markRequestPerf_('dashboardSnapshot:rebuildInline:concurrent_wait_miss');
       return null;
     }
     markRequestPerf_('dashboardSnapshot:rebuildInline:rebuilt');

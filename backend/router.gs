@@ -121,6 +121,19 @@ function handlePost_(e) {
           });
         }
         markRequestPerf_('cache_lookup_done');
+        // dashboardSnapshot owns its own freshness logic inside actionDashboardSnapshot_.
+        // It must NOT go through materializeScreenDataFromReadModel_ (no branch there → null)
+        // or the heavy-action legacy-fallback guard (which would throw READ_MODEL_UNAVAILABLE_TRY_AGAIN).
+        if (action === 'dashboardSnapshot') {
+          var snapshotData = runReadApiHandler_(action, user, payload);
+          markRequestPerf_('action_done');
+          scriptCachePutJson_(readKey, snapshotData, CONFIG.SCRIPT_CACHE_SECONDS || 900);
+          opsHealthAfterReadResponse_(action, false, snapshotData);
+          return jsonResponse_({ ok: true, data: snapshotData }, {
+            action: action,
+            cache_hit: false
+          });
+        }
         var readData = materializeScreenDataFromReadModel_(action, user, payload);
         if (readData !== null) {
           markRequestPerf_('action_done');

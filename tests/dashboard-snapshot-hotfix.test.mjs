@@ -323,19 +323,46 @@ test('refreshDashboardSnapshots_: bumpDataViewsCacheVersion_ called BEFORE updat
 // ---------------------------------------------------------------------------
 // T12e: rebuildSnapshotInlineForMissing_ treats skipped rebuild as failure
 // ---------------------------------------------------------------------------
-test('rebuildSnapshotInlineForMissing_ returns null when refreshDashboardSnapshots_ returns { skipped: true }', async () => {
+test('rebuildSnapshotInlineForMissing_: lock-busy skipped rebuild waits and retries reading persisted snapshot', async () => {
   const snapshot = await read('backend/dashboard-snapshot.gs');
 
   const fnStart = snapshot.indexOf('function rebuildSnapshotInlineForMissing_(');
   assert.ok(fnStart >= 0);
-  const fnText = snapshot.slice(fnStart, fnStart + 2000);
+  const fnText = snapshot.slice(fnStart, fnStart + 2500);
 
   assert.match(fnText, /rebuildResult = refreshDashboardSnapshots_\(\)/,
     'must capture the return value of refreshDashboardSnapshots_()');
   assert.match(fnText, /rebuildResult\.skipped === true/,
-    'must check skipped:true and treat it as a failed rebuild (lock was busy)');
-  assert.match(fnText, /return null/,
-    'must return null when rebuild was skipped so caller serves empty stub, not stale data');
+    'must detect lock-busy skipped case');
+  // When skipped, must sleep briefly and retry reading persisted snapshot from concurrent rebuild
+  assert.match(fnText, /Utilities\.sleep\(\d+\)/,
+    'must wait briefly for concurrent rebuild to complete before retrying');
+  assert.match(fnText, /readPersistedDashboardSnapshotRowsForMonth_\(ym\)/,
+    'must retry reading persisted snapshot rows after the wait');
+  // On retry hit, must return a composed payload (not null/empty)
+  assert.match(fnText, /retryPayload\._is_snapshot\s*=\s*true/,
+    'retry hit must mark _is_snapshot:true before returning');
+});
+
+test('router.gs: dashboardSnapshot bypasses materializeScreenDataFromReadModel_ and heavy-fallback guard', async () => {
+  const router = await read('backend/router.gs');
+
+  // Find the dashboardSnapshot bypass block
+  const bypassIdx = router.indexOf("if (action === 'dashboardSnapshot')");
+  assert.ok(bypassIdx >= 0, "dashboardSnapshot bypass block must exist in read path");
+
+  // It must come BEFORE materializeScreenDataFromReadModel_
+  const materializeIdx = router.indexOf('materializeScreenDataFromReadModel_(action');
+  assert.ok(materializeIdx >= 0, 'materializeScreenDataFromReadModel_ must exist');
+  assert.ok(bypassIdx < materializeIdx,
+    'dashboardSnapshot bypass must come BEFORE materializeScreenDataFromReadModel_ — ' +
+    'materializeScreenDataFromReadModel_ has no dashboardSnapshot branch (returns null) ' +
+    'which then triggers READ_MODEL_UNAVAILABLE_TRY_AGAIN from the heavy-fallback guard');
+
+  // The bypass block must call runReadApiHandler_ directly
+  const bypassText = router.slice(bypassIdx, bypassIdx + 400);
+  assert.match(bypassText, /runReadApiHandler_\(action,\s*user,\s*payload\)/,
+    'dashboardSnapshot bypass must call runReadApiHandler_ directly');
 });
 
 // ---------------------------------------------------------------------------
