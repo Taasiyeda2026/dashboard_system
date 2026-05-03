@@ -133,10 +133,19 @@ function schedulePostLoginPrefetch() {
     prefetchFromDashboardIfNeeded();
   };
 
-  // Enforce a minimum 4 s delay before the idle callback fires so the
-  // prefetch does not compete with the dashboard's own paint/hydration.
-  // requestIdleCallback's { timeout } is a *maximum* wait, not a minimum,
-  // so wrapping it in a setTimeout guarantees the 4 s floor on all browsers.
+  // When any of the prefetch-target screens already has a fresh cache entry the
+  // dashboard painted immediately from localStorage — there is no hydration
+  // competition to worry about, so we can start much sooner.  The 4 s floor is
+  // preserved only when the caches are fully cold (very first load / hard clear).
+  const _PREFETCH_WARM_SCREENS = ['activities', 'week', 'month'];
+  const _prefetchAnyWarm = _PREFETCH_WARM_SCREENS.some((r) => {
+    if (!isAllowedRoute(r)) return false;
+    const hit = state.screenDataCache[buildScreenDataCacheKey(r, state)];
+    const ttl = SCREEN_CACHE_TTL_MS[r] ?? DEFAULT_CACHE_TTL_MS;
+    return !!(hit && Date.now() - hit.t < ttl);
+  });
+  const _prefetchDelay = _prefetchAnyWarm ? 500 : 4000;
+
   prefetchTimer = setTimeout(() => {
     prefetchTimer = null;
     if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
@@ -144,7 +153,7 @@ function schedulePostLoginPrefetch() {
     } else {
       run();
     }
-  }, 4000);
+  }, _prefetchDelay);
 }
 
 function recordRenderPerf(route, phase, durationMs, extra = {}) {
