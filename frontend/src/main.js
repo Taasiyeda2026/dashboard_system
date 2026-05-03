@@ -132,11 +132,18 @@ function schedulePostLoginPrefetch() {
     prefetchFromDashboardIfNeeded();
   };
 
-  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-    prefetchIdleId = window.requestIdleCallback(run, { timeout: 5000 });
-    return;
-  }
-  prefetchTimer = setTimeout(run, 5000);
+  // Enforce a minimum 4 s delay before the idle callback fires so the
+  // prefetch does not compete with the dashboard's own paint/hydration.
+  // requestIdleCallback's { timeout } is a *maximum* wait, not a minimum,
+  // so wrapping it in a setTimeout guarantees the 4 s floor on all browsers.
+  prefetchTimer = setTimeout(() => {
+    prefetchTimer = null;
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      prefetchIdleId = window.requestIdleCallback(run, { timeout: 1000 });
+    } else {
+      run();
+    }
+  }, 4000);
 }
 
 function recordRenderPerf(route, phase, durationMs, extra = {}) {
@@ -849,8 +856,76 @@ async function backgroundRefreshScreen(screen, cacheKey) {
   }
 }
 
-function prefetchFromDashboardIfNeeded() {
-  // Prefetch disabled — heavy screens (activities/week/month) are loaded on demand only.
+async function prefetchFromDashboardIfNeeded() {
+  if (!state.token) return;
+  if (state.route !== 'dashboard') return;
+
+  const PREFETCH_SCREENS = ['activities', 'week', 'month'];
+  const toFetch = PREFETCH_SCREENS.filter((r) => isAllowedRoute(r));
+  if (!toFetch.length) return;
+
+  const capturedToken = activeNavigationToken;
+  const capturedSessionToken = state.token;
+  const capturedUserId = state.user?.user_id || '';
+
+  // activitiesScreen.load() synchronously sets state.activitiesMonthYm = currentYm()
+  // before its first await, so normalise it here before computing cache keys so
+  // the inflightRequests key and the final cache key stay in sync.
+  if (!state.activitiesMonthYm) {
+    const _n = new Date();
+    state.activitiesMonthYm = `${_n.getFullYear()}-${String(_n.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  let screenModules;
+  try {
+    screenModules = await Promise.all(toFetch.map((r) => getScreen(r).catch(() => null)));
+  } catch {
+    return;
+  }
+
+  if (activeNavigationToken !== capturedToken) return;
+  if (!state.token) return;
+
+  const fetchPromises = toFetch.map((route, idx) => {
+    const screen = screenModules[idx];
+    if (!screen || !screen.load) return Promise.resolve();
+
+    // Key is captured before load() so user changes to weekOffset/monthYm during
+    // the request do not shift the write to a different period's cache slot.
+    const cacheKey = buildScreenDataCacheKey(route, state);
+    const ttl = SCREEN_CACHE_TTL_MS[route] ?? DEFAULT_CACHE_TTL_MS;
+
+    const hit = state.screenDataCache[cacheKey];
+    if (hit && Date.now() - hit.t < ttl) return Promise.resolve();
+    if (inflightRequests.has(cacheKey)) return Promise.resolve();
+
+    const p = screen.load({ api, state })
+      .then((data) => {
+        inflightRequests.delete(cacheKey);
+        // Discard if navigation happened or the session changed mid-flight.
+        if (activeNavigationToken !== capturedToken) return data;
+        if (!state.token || state.token !== capturedSessionToken) return data;
+        if (capturedUserId && (state.user?.user_id || '') !== capturedUserId) return data;
+        // Keep a fresher entry if navigation already wrote one.
+        const existing = state.screenDataCache[cacheKey];
+        if (existing && Date.now() - existing.t < ttl) return existing.data ?? data;
+        const entry = { data, t: Date.now() };
+        state.screenDataCache[cacheKey] = entry;
+        maybePersistScreenCacheEntry(cacheKey, entry);
+        return data;
+      })
+      .catch((err) => {
+        inflightRequests.delete(cacheKey);
+        throw err;
+      });
+
+    // Registering in inflightRequests lets loadScreenDataWithCache reuse this
+    // promise if navigation arrives while the request is in flight.
+    inflightRequests.set(cacheKey, p);
+    return p;
+  });
+
+  await Promise.allSettled(fetchPromises);
 }
 
 function maybePrefetchFromDashboard() {
