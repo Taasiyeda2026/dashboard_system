@@ -1024,19 +1024,42 @@ function rebuildSnapshotInlineForMissing_(ym, showOnlyNonzero) {
 }
 
 /**
- * Ensures the refreshDashboardSnapshotsTrigger time-driven trigger exists at ≤10-minute intervals.
- * Safe to call from setup, onOpen, or admin tooling — idempotent.
+ * Ensures exactly one refreshDashboardSnapshotsTrigger time-driven trigger exists at 10-minute intervals.
+ * Removes duplicates and repairs missing triggers. Safe to call from keepWarm, setup, or admin tooling.
+ * GAS does not expose a trigger's configured interval, so we delete and reinstall to guarantee cadence.
  */
 function ensureDashboardSnapshotTrigger_() {
   var allTriggers = ScriptApp.getProjectTriggers();
-  var exists = allTriggers.some(function(t) {
+  var snapshotTriggers = allTriggers.filter(function(t) {
     return t.getHandlerFunction && t.getHandlerFunction() === 'refreshDashboardSnapshotsTrigger';
   });
-  if (exists) {
-    return { status: 'already_installed' };
+  if (snapshotTriggers.length === 1) {
+    return { status: 'already_installed', count: 1 };
   }
+  snapshotTriggers.forEach(function(t) {
+    try { ScriptApp.deleteTrigger(t); } catch (_e) {}
+  });
   ScriptApp.newTrigger('refreshDashboardSnapshotsTrigger').timeBased().everyMinutes(10).create();
-  return { status: 'installed', frequency: 'every_10_minutes' };
+  return {
+    status: snapshotTriggers.length === 0 ? 'installed' : 'repaired',
+    frequency: 'every_10_minutes',
+    deleted_count: snapshotTriggers.length
+  };
+}
+
+/**
+ * Schedules a one-time trigger to rebuild dashboard snapshots soon after a data mutation.
+ * Cleans up any stale pending rebuild triggers first to avoid accumulation.
+ * GAS trigger scheduling has ~1 min minimum delay; this fires at the next opportunity.
+ */
+function scheduleSnapshotRebuildSoon_() {
+  var allTriggers = ScriptApp.getProjectTriggers();
+  allTriggers.forEach(function(t) {
+    if (t.getHandlerFunction && t.getHandlerFunction() === 'scheduledSnapshotRebuildTrigger') {
+      try { ScriptApp.deleteTrigger(t); } catch (_e) {}
+    }
+  });
+  ScriptApp.newTrigger('scheduledSnapshotRebuildTrigger').timeBased().after(1000).create();
 }
 
 function getSnapshotRefreshDiagnostics_() {

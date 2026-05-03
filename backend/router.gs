@@ -177,6 +177,9 @@ function handlePost_(e) {
         try {
           bumpDataViewsCacheVersion_();
         } catch (_bumpErr) {}
+        try {
+          scheduleSnapshotRebuildSoon_();
+        } catch (_rebuildErr) {}
       }
       markRequestPerf_('action_done');
 

@@ -25,6 +25,32 @@ function keepWarm() {
   } catch (e) {
     // warmup only — intentionally ignored
   }
+  try {
+    ensureDashboardSnapshotTrigger_();
+  } catch (_e) {
+    // trigger self-heal — failure is non-fatal
+  }
+}
+
+/**
+ * One-time trigger handler: rebuilds dashboard snapshots as soon as possible
+ * after a data mutation so the next read gets a fresh snapshot.
+ * Self-cleans all same-handler triggers after running (including any duplicates).
+ */
+function scheduledSnapshotRebuildTrigger() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(2000)) return;
+  try {
+    refreshDashboardSnapshots_();
+  } finally {
+    lock.releaseLock();
+    var triggers = ScriptApp.getProjectTriggers();
+    triggers.forEach(function(t) {
+      if (t.getHandlerFunction && t.getHandlerFunction() === 'scheduledSnapshotRebuildTrigger') {
+        try { ScriptApp.deleteTrigger(t); } catch (_e) {}
+      }
+    });
+  }
 }
 
 function refreshDashboardSnapshots() {
