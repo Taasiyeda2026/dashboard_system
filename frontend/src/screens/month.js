@@ -12,6 +12,7 @@ import {
   bindLocalFilters
 } from './shared/activity-list-filters.js';
 import { getFilterOptionOverrides } from './shared/activity-options.js';
+import { calendarMonthStorageKey } from '../state.js';
 
 const inflightActivityDetailRequests = new Map();
 const inflightMonthRequests = new Map();
@@ -406,7 +407,10 @@ export const monthScreen = {
       const hasCachedTarget = !!state?.screenDataCache?.[targetKey];
       state.monthYm = targetYm;
       state.monthNavLoading = true;
-      try { localStorage.setItem('dashboard_calendar_month_ym', state.monthYm); } catch { /* ignore */ }
+      try {
+        const calKey = calendarMonthStorageKey(state.user?.user_id);
+        if (calKey) localStorage.setItem(calKey, state.monthYm);
+      } catch { /* ignore */ }
 
       try {
         if (hasCachedTarget) {

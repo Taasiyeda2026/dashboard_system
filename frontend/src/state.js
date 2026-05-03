@@ -29,9 +29,18 @@ if (!sessionStorage.getItem('ds_session_alive')) {
   localStorage.removeItem('dashboard_user');
 }
 
+function calendarMonthStorageKey(userId) {
+  return userId ? `dashboard_calendar_month_ym:${userId}` : null;
+}
+
+const _initStoredUser = JSON.parse(localStorage.getItem('dashboard_user') || 'null');
+const _initCalKey = calendarMonthStorageKey(_initStoredUser?.user_id);
+const _initMonthYm = (_initCalKey && localStorage.getItem(_initCalKey)) || '';
+if (_initCalKey) { try { localStorage.removeItem('dashboard_calendar_month_ym'); } catch { /* ignore */ } }
+
 export const state = {
   token: localStorage.getItem('dashboard_token') || '',
-  user: JSON.parse(localStorage.getItem('dashboard_user') || 'null'),
+  user: _initStoredUser,
   route: 'login',
   routes: [],
   effectiveRoutes: [],
@@ -45,7 +54,7 @@ export const state = {
   /** מסך שבוע: הזזה בשבועות מהשבוע הנוכחי (0 = שבוע נוכחי, -1 = קודם, +1 = הבא) */
   weekOffset: 0,
   /** מסך חודש: חודש מוצג בפורמט YYYY-MM; ריק = חודש נוכחי */
-  monthYm: localStorage.getItem('dashboard_calendar_month_ym') || '',
+  monthYm: _initMonthYm,
   /** פעילויות: `table` | `compact` — נשמר בלוקאל סטורג' במסך הפעילויות */
   activityView: 'compact',
   financeFilter: '',
@@ -113,7 +122,7 @@ export function setSession(session) {
     state.screenDataCache = {};
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
-    localStorage.removeItem('dashboard_calendar_month_ym');
+    try { localStorage.removeItem('dashboard_calendar_month_ym'); } catch { /* ignore */ }
     sessionStorage.removeItem('ds_session_alive');
     return;
   }
@@ -129,10 +138,13 @@ export function setSession(session) {
     full_name: String((session.user && session.user.full_name) || (claims && claims.full_name) || '').trim(),
     display_role2: String((session.user && session.user.display_role2) || (claims && claims.display_role2) || '').trim()
   };
+  const newCalKey = calendarMonthStorageKey(state.user.user_id);
+  state.monthYm = (newCalKey && localStorage.getItem(newCalKey)) || '';
+  try { localStorage.removeItem('dashboard_calendar_month_ym'); } catch { /* ignore */ }
   state.screenDataCache = {};
   localStorage.setItem('dashboard_token', session.token);
   localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   sessionStorage.setItem('ds_session_alive', '1');
 }
 
-export { defaultClientSettings };
+export { defaultClientSettings, calendarMonthStorageKey };
