@@ -175,11 +175,35 @@ function buildDashboardStaleBanner(data) {
   return '';
 }
 
+const LS_DASHBOARD_MONTH_KEY = 'dashboard_month_ym';
+
+function loadDashboardMonthFromStorage() {
+  try {
+    const stored = localStorage.getItem(LS_DASHBOARD_MONTH_KEY);
+    if (stored && /^\d{4}-\d{2}$/.test(stored)) {
+      const now = currentMonthYm();
+      return stored > now ? now : stored;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveDashboardMonthToStorage(ym) {
+  try {
+    localStorage.setItem(LS_DASHBOARD_MONTH_KEY, ym);
+  } catch { /* ignore */ }
+}
+
 export const dashboardScreen = {
   async load({ api, state }) {
     let ym = state.dashboardMonthYm;
     if (!ym || !/^\d{4}-\d{2}$/.test(ym)) {
-      ym = currentMonthYm();
+      ym = loadDashboardMonthFromStorage() || currentMonthYm();
+    }
+    const now = currentMonthYm();
+    if (ym > now) {
+      ym = now;
+      saveDashboardMonthToStorage(ym);
     }
     state.dashboardMonthYm = ym;
 
@@ -411,6 +435,7 @@ export const dashboardScreen = {
       if (state.dashboardNavLoading) return;
       state.dashboardNavLoading = true;
       state.dashboardMonthYm = nextYm;
+      saveDashboardMonthToStorage(nextYm);
       const cacheKey = `dashboard:${/^\d{4}-\d{2}$/.test(nextYm) ? nextYm : 'default'}`;
       try {
         const cached = state.screenDataCache[cacheKey];
