@@ -410,7 +410,10 @@ function allKnownRoutes_() {
     'end-dates',
     'my-data',
     'edit-requests',
-    'permissions'
+    'permissions',
+    'admin-home',
+    'admin-settings',
+    'admin-lists'
   ];
 }
 

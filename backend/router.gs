@@ -80,7 +80,9 @@ function handlePost_(e) {
       operations: 'operations',
       operationsDetail: 'operations',
       editRequests: 'edit-requests',
-      permissions: 'permissions'
+      permissions: 'permissions',
+      adminSettings: 'admin-settings',
+      adminLists: 'admin-lists'
     };
     var routeForAction = ACTION_ROUTE_MAP[action];
     if (routeForAction && !canUserAccessRoute_(user, routeForAction)) {

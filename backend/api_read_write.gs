@@ -55,6 +55,8 @@ var READ_ONLY_API_ACTIONS_MAP_ = {
   operationsDetail: true,
   editRequests: true,
   permissions: true,
+  adminSettings: true,
+  adminLists: true,
   listSheets: true,
   health_check: true
 };
@@ -130,6 +132,8 @@ var LEGACY_READ_DISPATCH_ALLOWLIST_ = {
   operationsDetail: true,
   editRequests: true,
   permissions: true,
+  adminSettings: true,
+  adminLists: true,
   listSheets: true,
   health_check: true
 };
@@ -255,6 +259,12 @@ var READ_API_HANDLER_FACTORIES_ = {
   permissions: function(u, p) {
     return actionPermissions_(u);
   },
+  adminSettings: function(u, p) {
+    return actionAdminSettings_(u);
+  },
+  adminLists: function(u, p) {
+    return actionAdminLists_(u);
+  },
   listSheets: function(u, p) {
     return actionListSheets_(u);
   },
@@ -262,6 +272,7 @@ var READ_API_HANDLER_FACTORIES_ = {
     return actionHealthCheck_(u);
   }
 };
+
 
 var WRITE_API_HANDLER_FACTORIES_ = {
   login: function(u, p) {

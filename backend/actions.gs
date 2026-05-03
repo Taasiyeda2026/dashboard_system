@@ -4507,3 +4507,37 @@ function actionDashboardSheet_(user, payload) {
 
   return { month: ym, totals: totals, by_activity_manager: by_activity_manager, summary: summary, kpi_cards: kpi_cards, show_only_nonzero_kpis: true, _is_dashboard_sheet: true, _dashboard_sheet_range: rangeA1 };
 }
+
+function actionAdminSettings_(user) {
+  requireAnyRole_(user, ['admin']);
+  var rows = readRows_(CONFIG.SHEETS.SETTINGS);
+  var settings = rows.map(function(row) {
+    return {
+      key: text_(row.setting_key),
+      value: text_(row.setting_value),
+      value_type: text_(row.value_type || ''),
+      description: text_(row.notes || ''),
+      active: yesNo_(row.active)
+    };
+  }).filter(function(r) { return !!r.key; });
+  return { rows: settings };
+}
+
+function actionAdminLists_(user) {
+  requireAnyRole_(user, ['admin']);
+  var sourceSheet = configuredDropdownSourceSheet_();
+  var rows = readRows_(sourceSheet);
+  var byCategory = {};
+  rows.forEach(function(row) {
+    var category = text_(row.list_name || row.name || '');
+    var value = text_(row.value);
+    if (!category || !value) return;
+    if (yesNo_(row.active) === 'no') return;
+    if (!byCategory[category]) byCategory[category] = [];
+    byCategory[category].push({ value: value, label: text_(row.label_he || row.label || '') });
+  });
+  var categories = Object.keys(byCategory).map(function(cat) {
+    return { category: cat, items: byCategory[cat] };
+  });
+  return { categories: categories, raw_rows: rows.length };
+}

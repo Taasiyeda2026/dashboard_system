@@ -52,6 +52,8 @@ const READ_ACTIONS = {
   operationsDetail: true,
   editRequests: true,
   permissions: true,
+  adminSettings: true,
+  adminLists: true,
   listSheets: true,
   readModelManifest: true,
   readModelGet: true,
@@ -718,6 +720,8 @@ export const api = {
   operationsDetail: (source_row_id, source_sheet) => request('operationsDetail', { source_row_id, source_sheet }),
   editRequests: () => request('editRequests'),
   permissions: () => request('permissions'),
+  adminSettings: () => request('adminSettings'),
+  adminLists: () => request('adminLists'),
   addContact: (payload) => request('addContact', payload),
   saveContact: (payload) => request('saveContact', payload),
   addActivity: (target, data) => {

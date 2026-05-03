@@ -442,7 +442,10 @@ const screenLabels = {
   'end-dates': 'תאריכי סיום',
   'my-data': 'הנתונים שלי',
   'edit-requests': 'אישורים',
-  permissions: 'הרשאות'
+  permissions: 'הרשאות',
+  'admin-home': 'בית — ניהול',
+  'admin-settings': 'הגדרות מערכת',
+  'admin-lists': 'ניהול רשימות'
 };
 
 const screenLoaders = {
@@ -457,7 +460,10 @@ const screenLoaders = {
   'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),
   'my-data': () => import('./screens/my-data.js').then((m) => m.myDataScreen),
   'edit-requests': () => import('./screens/edit-requests.js').then((m) => m.editRequestsScreen),
-  permissions: () => import('./screens/permissions.js').then((m) => m.permissionsScreen)
+  permissions: () => import('./screens/permissions.js').then((m) => m.permissionsScreen),
+  'admin-home': () => import('./screens/admin-home.js').then((m) => m.adminHomeScreen),
+  'admin-settings': () => import('./screens/admin-settings.js').then((m) => m.adminSettingsScreen),
+  'admin-lists': () => import('./screens/admin-lists.js').then((m) => m.adminListsScreen)
 };
 const loadedScreens = new Map();
 const loadingScreens = new Map();
