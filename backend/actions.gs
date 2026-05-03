@@ -1817,6 +1817,7 @@ function actionExceptions_(user, payload) {
 }
 
 function actionFinance_(user, payload) {
+  throw new Error('Finance screen is disabled');
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
 
   var today = formatDate_(new Date());
@@ -1947,6 +1948,7 @@ function actionFinance_(user, payload) {
 }
 
 function actionFinanceDetail_(user, payload) {
+  throw new Error('Finance screen is disabled');
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
   var sourceRowId = text_((payload || {}).source_row_id || (payload || {}).RowID);
   var sourceSheet = text_((payload || {}).source_sheet);
@@ -4295,6 +4297,7 @@ function actionAdminSettings_(user, payload) {
 
 /* ── Save Finance Row (status + notes) ─────────────────────────────────────── */
 function actionSaveFinanceRow_(user, payload) {
+  throw new Error('Finance screen is disabled');
   requireAnyRole_(user, ['admin', 'operation_manager']);
   var sourceRowId = text_(payload.source_row_id || payload.RowID);
   var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT));
@@ -4311,6 +4314,7 @@ function actionSaveFinanceRow_(user, payload) {
 
 /* ── Sync Finance (refresh cache + return timestamp) ───────────────────────── */
 function actionSyncFinance_(user, payload) {
+  throw new Error('Finance screen is disabled');
   requireAnyRole_(user, ['admin', 'operation_manager']);
   scriptCacheInvalidateDataViews_();
   return { synced: true, timestamp: new Date().toISOString() };

@@ -51,7 +51,7 @@ function handlePost_(e) {
 
     var DISABLED_FINANCE_ACTIONS = { finance: true, financeDetail: true, saveFinanceRow: true, syncFinance: true };
     if (DISABLED_FINANCE_ACTIONS[action]) {
-      return jsonResponse_({ ok: false, error: 'finance_disabled' }, { action: action, errored: true });
+      return jsonResponse_({ ok: false, error: 'Finance screen is disabled' }, { action: action, errored: true });
     }
 
     var kind = getApiActionKind_(action);

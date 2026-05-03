@@ -154,7 +154,6 @@ const PERMISSION_FIELD_LABELS = {
   view_operations_data: 'צפייה — נתוני תפעול',
   view_contacts_instructors: 'צפייה — אנשי קשר מדריכים',
   'view_contacts_instructors 2': 'צפייה — אנשי קשר מדריכים (2)',
-  view_finance: 'צפייה — כספים',
   view_permissions: 'צפייה — הרשאות',
   view_edit_requests: 'צפייה — בקשות עריכה',
   view_final_approvals: 'צפייה — אישורים סופיים',

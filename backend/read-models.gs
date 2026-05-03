@@ -418,10 +418,7 @@ function refreshExceptionsReadModelForYm_(ym) {
 }
 
 function refreshFinanceReadModel_() {
-  var month = formatDate_(new Date()).slice(0, 7);
-  return refreshSingleReadModel_('finance', { month: month, tab: 'active' }, function() {
-    return actionFinance_(READ_MODEL_ADMIN_USER_, { month: month, tab: 'active' });
-  });
+  return { key: 'finance', status: 'disabled', skipped: true };
 }
 
 function refreshEndDatesReadModel_() {
@@ -562,7 +559,6 @@ function markReadModelsDirtyByMutation_(action, payload) {
       ['activities', {}], ['dashboard', {}], ['exceptions', { month: nowMonth }],
       ['month', { ym: nowMonth }], ['week', { week_offset: 0 }], ['end-dates', {}]
     ];
-  } else if (action === 'saveFinanceRow' || action === 'syncFinance') {
   } else if (action === 'savePermission') {
     targets = [['dashboard', {}]];
   }
@@ -579,8 +575,6 @@ function refreshReadModelsForMutation_(action) {
     refreshMonthReadModel_();
     refreshExceptionsReadModel_();
     refreshEndDatesReadModel_();
-  } else if (action === 'saveFinanceRow' || action === 'syncFinance') {
-    refreshDashboardReadModel_();
   } else if (action === 'savePermission') {
     refreshDashboardReadModel_();
   }

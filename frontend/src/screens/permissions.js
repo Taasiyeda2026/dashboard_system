@@ -10,7 +10,6 @@ const KEY_PERM_FLAGS = [
   'can_edit_direct',
   'can_request_edit',
   'can_review_requests',
-  'view_finance',
   'view_admin',
   'view_permissions'
 ];
@@ -55,6 +54,7 @@ function buildRolePreviewHtml(role, roleDefaults) {
 function sortedPermissionEditorKeys(row) {
   const keys = Object.keys(row).filter((k) => {
     if (k === 'user_id' || k === 'role' || k === 'display_role') return false;
+    if (k === 'view_finance') return false;
     return (
       k === 'entry_code' ||
       k === 'full_name' ||
