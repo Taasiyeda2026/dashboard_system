@@ -96,6 +96,21 @@ function dashboardSheetFindMonthCol_(values, block, ym) {
   return null;
 }
 
+function dashboardSheetAvailableMonthCols_(values, block) {
+  var out = [];
+  var r = DASHBOARD_SHEET_MONTH_HEADER_ROW_ - 1;
+  for (var c = block.monthColStart; c <= block.monthColEnd; c++) {
+    var ym = dashboardSheetCellYm_(values[r][c - 1]);
+    if (ym) out.push({ col: c, ym: ym });
+  }
+  return out.sort(function(a, b) { return text_(a.ym).localeCompare(text_(b.ym)); });
+}
+
+function dashboardSheetFallbackMonthCol_(values, block) {
+  var months = dashboardSheetAvailableMonthCols_(values, block);
+  return months.length ? months[months.length - 1] : null;
+}
+
 function dashboardSheetMetric_(values, row1, col1) {
   if (row1 < 1 || col1 < 1) return 0;
   if (row1 > values.length) return 0;
@@ -233,8 +248,8 @@ function actionDashboardSheet_(user, payload) {
   var canViewFinance = user.display_role === 'admin' ||
     yesNo_(permission.view_finance) === 'yes';
 
-  var ym = dashboardPayloadYm_(payload || {});
-  var nextYm = shiftYm_(ym, 1);
+  var requestedYm = dashboardPayloadYm_(payload || {});
+  var ym = requestedYm;
 
   var ss = getSpreadsheet_();
   var sheet = ss.getSheetByName(DASHBOARD_SHEET_NAME_);
@@ -247,10 +262,19 @@ function actionDashboardSheet_(user, payload) {
 
   var bAll = DASHBOARD_SHEET_BLOCKS_.all;
   var colYmAll = dashboardSheetFindMonthCol_(values, bAll, ym);
+  var fallbackMonth = null;
   if (!colYmAll) {
-    throw new Error('DASHBOARD_MONTH_NOT_FOUND:' + ym);
+    fallbackMonth = dashboardSheetFallbackMonthCol_(values, bAll);
+    if (!fallbackMonth) {
+      throw new Error('DASHBOARD_MONTH_NOT_FOUND:' + ym);
+    }
+    ym = fallbackMonth.ym;
+    colYmAll = fallbackMonth.col;
+    setRequestPerfField_('dashboard_month_fallback_from', requestedYm);
+    setRequestPerfField_('dashboard_month_fallback_to', ym);
   }
 
+  var nextYm = shiftYm_(ym, 1);
   var colNextAll = dashboardSheetFindMonthCol_(values, bAll, nextYm);
 
   var totalShort =
@@ -317,6 +341,8 @@ function actionDashboardSheet_(user, payload) {
 
   return {
     month: ym,
+    requested_month: requestedYm,
+    month_fallback_used: requestedYm !== ym,
     can_view_finance: canViewFinance,
     totals: {
       total_short_activities: totalShort,
