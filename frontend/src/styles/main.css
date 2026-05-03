@@ -6047,6 +6047,25 @@ select.ds-input {
   border-right: 2px solid var(--ds-status-warning-border);
 }
 
+.ds-fg-activity__amounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.78rem;
+  color: var(--ds-text-secondary);
+  padding: 3px 0;
+}
+
+.ds-fg-activity__price,
+.ds-fg-activity__sessions {
+  color: var(--ds-text-muted);
+}
+
+.ds-fg-activity__amount {
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+
 .ds-fg-activity__edit {
   display: flex;
   align-items: center;

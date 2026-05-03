@@ -301,6 +301,17 @@ function buildActivityRowHtml(row, canEdit) {
     ? `<div class="ds-fg-activity__notes">הערות כספים: ${escapeHtml(row.finance_notes)}</div>`
     : '';
 
+  const actPrice = parseFloat(row.price) || 0;
+  const actSessions = parseFloat(row.sessions) || 0;
+  const actAmount = rowAmount(row);
+  const priceSessionsHtml = (actPrice > 0 || actSessions > 0 || actAmount > 0)
+    ? `<div class="ds-fg-activity__amounts">
+        ${actPrice > 0 ? `<span class="ds-fg-activity__price">מחיר: ${formatILS(actPrice)}</span>` : ''}
+        ${actSessions > 0 ? `<span class="ds-fg-activity__sessions">מפגשים: ${actSessions}</span>` : ''}
+        ${actAmount > 0 ? `<span class="ds-fg-activity__amount">סכום: ${formatILS(actAmount)}</span>` : ''}
+      </div>`
+    : '';
+
   let editHtml = '';
   if (canEdit) {
     const statusOpts = ['', 'open', 'closed'].map((v) =>
@@ -327,6 +338,7 @@ function buildActivityRowHtml(row, canEdit) {
         ${canEdit ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm ds-fg-activity__edit-btn" data-fg-edit-toggle="${uid}" title="ערוך">✎</button>` : ''}
       </div>
     </div>
+    ${priceSessionsHtml}
     ${notesHtml}
     ${editHtml}
   </div>`;
