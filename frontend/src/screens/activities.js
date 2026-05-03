@@ -803,6 +803,7 @@ export const activitiesScreen = {
         console.info('[addActivity] payload', payload);
         const rsp = await api.addActivity(payload);
         console.info('[addActivity] success', rsp);
+        clearScreenDataCache?.();
         if (statusEl) statusEl.textContent = 'הפעילות נשמרה';
         const localRow = {
           RowID: rsp?.RowID || '',

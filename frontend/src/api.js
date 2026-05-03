@@ -128,7 +128,7 @@ function invalidateScreenDataByAction(action) {
     saveActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     addActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     submitEditRequest: ['activities:', 'edit-requests', 'week:', 'month:', 'dashboard:', 'end-dates'],
-    reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:'],
+    reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'exceptions:'],
     addUser: ['permissions', 'dashboard:'],
     deactivateUser: ['permissions', 'dashboard:'],
     reactivateUser: ['permissions', 'dashboard:'],

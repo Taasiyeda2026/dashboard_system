@@ -1055,16 +1055,20 @@ function renderScreenIntoRoot({ route, screen, data, screenRoot, phase, cacheKey
 }
 function clearScreenDataCache() {
   const deletedKeys = [];
-  if (state.route === 'activities') {
+  // Always purge week, month and activities caches — any activity mutation can affect
+  // these views regardless of which screen initiated the save.
+  Object.keys(state.screenDataCache).forEach((key) => {
+    if (key.startsWith('week:') || key.startsWith('month:') || key.startsWith('activities:')) {
+      delete state.screenDataCache[key];
+      deletedKeys.push(key);
+    }
+  });
+  // Also purge the current screen's own cache entry so it reloads fresh data.
+  if (state.route === 'dashboard') {
     Object.keys(state.screenDataCache).forEach((key) => {
-      if (key.startsWith('activities:')) { delete state.screenDataCache[key]; deletedKeys.push(key); }
+      if (key.startsWith('dashboard:')) { delete state.screenDataCache[key]; deletedKeys.push(key); }
     });
-  } else if (state.route === 'week' || state.route === 'month' || state.route === 'dashboard') {
-    const ownPrefix = `${state.route}:`;
-    Object.keys(state.screenDataCache).forEach((key) => {
-      if (key.startsWith(ownPrefix)) { delete state.screenDataCache[key]; deletedKeys.push(key); }
-    });
-  } else {
+  } else if (!['activities', 'week', 'month'].includes(state.route)) {
     const k = screenDataCacheKey();
     delete state.screenDataCache[k];
     deletedKeys.push(k);
