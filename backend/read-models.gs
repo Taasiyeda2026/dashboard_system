@@ -790,6 +790,27 @@ function actionReadModelGet_(user, payload) {
   throw new Error('read_model_missing');
 }
 
+/**
+ * הגדרת טריגר כל 30 דקות ל-refreshAllReadModels_.
+ * יש להריץ פעם אחת בלבד דרך עורך Apps Script (Run → setupReadModelRefreshTrigger_).
+ * הפונקציה מוחקת טריגרים קיימים של refreshAllReadModels_ לפני יצירת חדש.
+ */
+function setupReadModelRefreshTrigger_() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'refreshAllReadModels_') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('refreshAllReadModels_')
+    .timeBased()
+    .everyMinutes(30)
+    .create();
+  try {
+    console.info('[read_models] setupReadModelRefreshTrigger_: טריגר הוגדר — כל 30 דקות');
+  } catch (_e) {}
+}
+
 function getReadModelHealth_() {
   var rows = readModelRows_();
   return rows.map(function(row) {

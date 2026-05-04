@@ -331,6 +331,26 @@ export const weekScreen = {
           if (state?.screenDataCache && weekData) {
             state.screenDataCache[nextKey] = { data: weekData, t: Date.now() };
           }
+          [-1, 1].forEach((adj) => {
+            const adjOffset = nextOffset + adj;
+            const adjKey = `week:${adjOffset}`;
+            const adjCached = state?.screenDataCache?.[adjKey];
+            const adjFresh = !!(adjCached && Date.now() - Number(adjCached.t || 0) < ttlMs);
+            if (!adjFresh && !inflightWeekRequests.has(adjKey)) {
+              const adjReq = api.week({ week_offset: adjOffset }, { timeout_ms: 12000 })
+                .then((adjData) => {
+                  if (state?.screenDataCache && adjData) {
+                    const existing = state.screenDataCache[adjKey];
+                    if (!existing || Date.now() - Number(existing.t || 0) >= ttlMs) {
+                      state.screenDataCache[adjKey] = { data: adjData, t: Date.now() };
+                    }
+                  }
+                })
+                .catch(() => {})
+                .finally(() => { inflightWeekRequests.delete(adjKey); });
+              inflightWeekRequests.set(adjKey, adjReq);
+            }
+          });
         }
       } catch {
         // Keep current week content and let regular route load retry if needed.

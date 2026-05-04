@@ -431,6 +431,21 @@ export const monthScreen = {
           if (state?.screenDataCache && monthData) {
             state.screenDataCache[targetKey] = { data: monthData, t: Date.now() };
           }
+          [-1, 1].forEach((adj) => {
+            const adjYm = shiftMonthYm(targetYm, adj);
+            const adjKey = monthCacheKey(adjYm);
+            if (!state?.screenDataCache?.[adjKey] && !inflightMonthRequests.has(adjKey)) {
+              const adjReq = api.month({ ym: adjYm }, { timeout_ms: 12000 })
+                .then((adjData) => {
+                  if (state?.screenDataCache && adjData && !state.screenDataCache[adjKey]) {
+                    state.screenDataCache[adjKey] = { data: adjData, t: Date.now() };
+                  }
+                })
+                .catch(() => {})
+                .finally(() => { inflightMonthRequests.delete(adjKey); });
+              inflightMonthRequests.set(adjKey, adjReq);
+            }
+          });
         }
       } catch {
         // Keep current month content and allow regular route load retry.

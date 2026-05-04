@@ -1,0 +1,116 @@
+צריך לבצע ייעול טעינה וניווט במערכת הקיימת, בלי לבנות ארכיטקטורה חדשה.
+
+המטרה:
+המשתמש לא יחכה לחישובים כבדים בזמן פתיחת מסך או מעבר חודש/שבוע. להשתמש במה שכבר קיים: dashboard sheet, read_models, cache, dirty/stale, וניווט קיים.
+
+משימה 1 — קיבוע מסלול הדשבורד
+
+לוודא שעמוד הדשבורד משתמש במסלול הקל:
+frontend dashboard → api.dashboardSheet → actionDashboardSheet_
+
+הדשבורד צריך לקרוא ישירות מגיליון `dashboard` בגוגל שיטס, מהטווח הקבוע הקיים, ולא לחשב מתוך:
+`data_long`, `data_short`, `activity_meetings`, `view_activity_meetings`.
+
+אסור שעמוד הדשבורד ב־production ישתמש במסלול הישן:
+api.dashboard → actionDashboard_ → allActivitiesSummary_
+
+אם יש dashboard read-model/cache, הוא יכול להישאר רק כהאצה, אבל לא כשכבת חישוב חדשה.
+
+משימה 2 — קיבוע read_models למסכים הכבדים
+
+לוודא שהמסכים הבאים נטענים מתוך read_models מוכנים מראש ולא מחישוב בזמן פתיחת המסך:
+
+`activities`
+`week`
+`month`
+`exceptions`
+`end-dates`
+
+לוודא ש־`refreshAllReadModels_()` מרעננת את המודלים:
+`activities`
+`week?week_offset=-1`
+`week?week_offset=0`
+`week?week_offset=1`
+`month?ym=חודש קודם`
+`month?ym=חודש נוכחי`
+`month?ym=חודש הבא`
+`exceptions?month=חודש קודם`
+`exceptions?month=חודש נוכחי`
+`exceptions?month=חודש הבא`
+`end-dates`
+
+להגדיר/לוודא טריגר קבוע ל־`refreshAllReadModels_()` כל 30 דקות.
+
+לא להריץ את זה כל 5 דקות, כי `activities` הוא מודל כבד יחסית.
+
+משימה 3 — מניעת חישוב כבד בזמן טעינה רגילה
+
+לוודא שבמסכים כבדים אין fallback אוטומטי לחישוב legacy כבד בזמן טעינה רגילה.
+
+אם read-model חסר/stale:
+
+* להציג cache אחרון אם קיים.
+* אם אין cache, להציג הודעה קצרה שהנתונים מתעדכנים.
+* לא להריץ חישוב כבד שמחזיק את המשתמש 10–20 שניות.
+
+Fallback כבד מותר רק במצב מפורש:
+`debug`
+`force_legacy`
+או פעולה אדמינית יזומה.
+
+משימה 4 — סידור ניווט שבועות וחודשים
+
+לשפר את הניווט הקיים, לא לבנות מחדש.
+
+שבועות:
+
+* להשתמש ב־cache key אחיד בצד לקוח: `week:${weekOffset}`
+* read-model בצד שרת: `week?week_offset=${weekOffset}`
+* בלחיצה שבוע קודם/הבא: לבדוק cache לפני בקשת שרת.
+* אם יש cache טרי — להציג מיד.
+* אם אין — להשאיר את המסך הקיים ולהציג loading קטן בכותרת בלבד.
+* למנוע בקשות כפולות עם inflightWeekRequests.
+* אחרי מעבר מוצלח לבצע prefetch שקט ל־`targetOffset - 1` ו־`targetOffset + 1`, בלי לחסום את המשתמש.
+
+חודשים:
+
+* להשתמש ב־cache key אחיד בצד לקוח: `month:${ym}`
+* read-model בצד שרת: `month?ym=${ym}`
+* בלחיצה חודש קודם/הבא: לבדוק cache לפני בקשת שרת.
+* אם יש cache טרי — להציג מיד.
+* אם אין — להשאיר את המסך הקיים ולהציג loading קטן בכותרת בלבד.
+* למנוע בקשות כפולות עם inflightMonthRequests.
+* אחרי מעבר מוצלח לבצע prefetch שקט לחודש קודם ולחודש הבא של targetYm.
+
+אסור להציג מסך לבן בזמן ניווט.
+
+משימה 5 — שמירה ועריכה בלי רענון כבד
+
+אחרי פעולות כתיבה:
+`addActivity`
+`saveActivity`
+`submitEditRequest`
+`reviewEditRequest`
+
+לא להריץ refresh כבד בזמן שהמשתמש מחכה.
+
+יש לבצע רק:
+
+* markReadModelsDirtyByMutation_
+* cache invalidation ממוקד
+* bumpDataViewsCacheVersion_
+* עדכון מקומי/אופטימי של השורה אם רלוונטי
+* refresh שקט בלבד
+
+פרטי פעילות מלאים ייטענו רק בפתיחת Drawer, לא לכל הרשימה מראש.
+
+קריטריוני קבלה:
+
+1. הדשבורד נטען מ־`dashboard` sheet בלבד ולא מפעיל `allActivitiesSummary_`.
+2. activities/week/month/exceptions/end-dates נטענים מ־read_models.
+3. מעבר שבוע/חודש בודק cache לפני בקשת שרת.
+4. אין מסך לבן בניווט.
+5. אין legacy fallback כבד בטעינה רגילה.
+6. אחרי שמירה אין רענון כבד סינכרוני.
+7. `refreshAllReadModels_` רץ בטריגר כל 30 דקות.
+8. activityDetail נטען רק בפתיחת Drawer.
