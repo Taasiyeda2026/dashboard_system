@@ -35,8 +35,6 @@ const CONFIG = {
   /** ברירת מחדל כשגיליון lists ריק או חסר — מיושר ל־lists במקור הנתונים */
   DEFAULT_PROGRAM_ACTIVITY_TYPES: ['course', 'after_school'],
   DEFAULT_ONE_DAY_ACTIVITY_TYPES: ['workshop', 'tour', 'escape_room'],
-  DEFAULT_FINANCE_DISPLAY_RULE: 'ended_until_today',
-  DEFAULT_FINANCE_GROUPING_RULE: 'gafen_by_school_else_funding',
   ACTIVITY_TYPES: ['all', 'course', 'after_school', 'workshop', 'tour', 'escape_room'],
   FINANCE_STATUSES: ['open', 'closed'],
   EDIT_REQUEST_STATUSES: ['pending', 'approved', 'rejected', 'conflict']

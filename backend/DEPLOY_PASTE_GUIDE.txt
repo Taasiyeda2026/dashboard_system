@@ -3127,12 +3127,9 @@ function actionDiagnosticsConsistency_(user, payload) {
     allActivitiesSummaryMs: null,
     dashboardMs: null,
     exceptionsMs: null,
-    financeMs: null,
     totalMs: null,
     allActivitiesRows: 0,
-    inMonthRows: 0,
-    financeScannedRows: 0,
-    financeInMonthRows: 0
+    inMonthRows: 0
   };
   Logger.log('diagnosticsConsistency started');
   Logger.log('diagnosticsConsistency user id / role: ' + userId + ' / ' + role);
@@ -3153,45 +3150,9 @@ function actionDiagnosticsConsistency_(user, payload) {
   function guardRuntime_(stage) {
     if ((Date.now() - startedAt) > SAFE_RUNTIME_MS) throwSafeTimeout_(stage);
   }
-  function parseFinanceNumberLocal_(value) {
-    if (value === null || value === undefined) return null;
-    if (typeof value === 'number') return isFinite(value) ? value : null;
-    var raw = String(value).trim();
-    if (!raw) return null;
-    var normalized = raw
-      .replace(/\u200f|\u200e/g, '')
-      .replace(/[₪,\s]/g, '')
-      .replace(/[^\d.\-]/g, '');
-    if (!normalized || normalized === '-' || normalized === '.' || normalized === '-.') return null;
-    var parsed = Number(normalized);
-    return isFinite(parsed) ? parsed : null;
-  }
-  function parseFinanceAmountLocal_(row) {
-    if (!row) return 0;
-    var amount = parseFinanceNumberLocal_(row.amount);
-    if (amount === null) amount = parseFinanceNumberLocal_(row.price);
-    if (amount === null) amount = parseFinanceNumberLocal_(row.total_amount);
-    if (amount === null) amount = parseFinanceNumberLocal_(row.amount_due);
-    return amount === null ? 0 : amount;
-  }
-  function parseFinancePendingLocal_(row) {
-    if (!row) return 0;
-    var pending = parseFinanceNumberLocal_(row.pending_amount);
-    if (pending === null) pending = parseFinanceNumberLocal_(row.pending);
-    if (pending === null) pending = parseFinanceNumberLocal_(row.balance);
-    if (pending === null) pending = parseFinanceNumberLocal_(row.remaining_amount);
-    if (pending !== null) return pending;
-    var due = parseFinanceNumberLocal_(row.sessions);
-    if (due === null) due = 0;
-    var paymentValue = parseFinanceNumberLocal_(row.Payment);
-    if (paymentValue === null) paymentValue = parseFinanceNumberLocal_(row.payment);
-    var received = paymentValue > 0 ? 1 : 0;
-    return Math.max(due - received, 0);
-  }
 
   var allActivitiesOk = false;
   var exceptionsOk = false;
-  var financeOk = false;
   try {
     guardRuntime_('before_allActivitiesSummary');
     currentFunction = 'allActivitiesSummary_';
@@ -3240,34 +3201,10 @@ function actionDiagnosticsConsistency_(user, payload) {
       return sum + Number(byManager[manager] || 0);
     }, 0);
 
-    currentFunction = 'financeCalculation_';
-    Logger.log('starting finance');
-    stageStart = Date.now();
-    timings.financeScannedRows = rows.length;
-    timings.financeInMonthRows = inMonth.length;
-    var financeRows = inMonth.map(function(row) {
-      return {
-        finance_status: normalizeFinance_(row.finance_status),
-        amount: parseFinanceAmountLocal_(row),
-        pending: parseFinancePendingLocal_(row)
-      };
-    });
-    var financeOpenRows = financeRows.filter(function(row) { return row.finance_status === 'open'; });
-    var financeClosedRows = financeRows.filter(function(row) { return row.finance_status === 'closed'; });
-    var financeOpenAmount = financeOpenRows.reduce(function(sum, row) { return sum + Number(row.amount || 0); }, 0);
-    var financeClosedAmount = financeClosedRows.reduce(function(sum, row) { return sum + Number(row.amount || 0); }, 0);
-    var financePendingAmount = financeRows.reduce(function(sum, row) { return sum + Number(row.pending || 0); }, 0);
-    timings.financeMs = Date.now() - stageStart;
-    financeOk = true;
-    Logger.log('finished finance + duration=' + timings.financeMs + 'ms');
-    guardRuntime_('after_finance_calculation');
-
-    var financeOpenCount = financeOpenRows.length;
     var dashboard = {
       total_short: dashboardShort,
       total_long: dashboardLong,
       exceptions_count: exceptionsTotal,
-      finance_open_count: financeOpenCount,
       active_instructors: activeInstructors,
       course_endings: courseEndings
     };
@@ -3285,16 +3222,9 @@ function actionDiagnosticsConsistency_(user, payload) {
         byManager: byManager,
         sumByManager: sumByManager
       },
-      finance: {
-        openRows: financeOpenRows.length,
-        closedRows: financeClosedRows.length,
-        openAmount: financeOpenAmount,
-        closedAmount: financeClosedAmount,
-        pendingAmount: financePendingAmount
-      },
       timings: timings,
       mismatches: [],
-      backendVersion: 'stage2c-finance-helper-fix-v2'
+      backendVersion: 'stage2c-finance-removed-v3'
     };
 
     function pushMismatch_(metric, dashboardValue, sourceValue, sourceName, suspectedFunction, critical, reason) {
@@ -3316,9 +3246,6 @@ function actionDiagnosticsConsistency_(user, payload) {
     if (dashboard.exceptions_count !== diagnostics.exceptions.sumByManager) {
       pushMismatch_('exceptions_count_vs_byManager_sum', dashboard.exceptions_count, diagnostics.exceptions.sumByManager, 'exceptions_direct.byManager', 'computeExceptionsModel_');
     }
-    if (dashboard.finance_open_count !== diagnostics.finance.openRows) {
-      pushMismatch_('finance_open_count', dashboard.finance_open_count, diagnostics.finance.openRows, 'finance_direct', 'normalizeFinance_');
-    }
 
     return diagnostics;
   } catch (err) {
@@ -3328,7 +3255,6 @@ function actionDiagnosticsConsistency_(user, payload) {
     var functionName = currentFunction || (fnMatch ? fnMatch[1] : 'actionDiagnosticsConsistency_');
     Logger.log('diagnosticsConsistency allActivitiesSummary_ success: ' + allActivitiesOk);
     Logger.log('diagnosticsConsistency getExceptionsSummary_ success: ' + exceptionsOk);
-    Logger.log('diagnosticsConsistency finance calculation success: ' + financeOk);
     Logger.log('diagnosticsConsistency failed + function: ' + functionName);
     if (role === 'admin' || role === 'operation_manager') {
       var safeDetails = {
@@ -6712,8 +6638,6 @@ function buildClientSettingsPayload_() {
     school_contacts_source: configuredSchoolContactsSourceSheet_(),
     program_activity_types: configuredProgramActivityTypes_(),
     one_day_activity_types: configuredOneDayActivityTypes_(),
-    finance_display_rule: getSettingText_('finance_display_rule', CONFIG.DEFAULT_FINANCE_DISPLAY_RULE || 'ended_until_today'),
-    finance_grouping_rule: getSettingText_('finance_grouping_rule', CONFIG.DEFAULT_FINANCE_GROUPING_RULE || 'gafen_by_school_else_funding'),
     week_start_day: getWeekStartDay_(),
     show_shabbat: settingShowShabbat_(),
     week_hide_saturday_column: getSettingBool_('week_hide_saturday_column', false),

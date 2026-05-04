@@ -67,7 +67,6 @@ permissions (כותרות לדוגמה; חייבות להתאים לגיליון
 settings (שורה 1):
 - setting_key, setting_value, value_type, notes, active
 מפתחות שנקראים בקוד (חלקם אופציונליים — אם חסרים יש ברירות מחדל):
-- finance_display_rule (למשל ended_until_today)
 - show_only_nonzero_kpis
 - use_status_with_dates
 - hide_emp_id_on_screens, hide_activity_no_on_screens
@@ -126,9 +125,8 @@ addActivity, saveActivity, submitEditRequest, reviewEditRequest, savePermission,
 5. activities: פתיחת מגירה ושמירת שדה (לא מדריך).
 6. week — עמודות ימים תואמות settings (week_start_day, show_shabbat).
 7. month — יום שבת מוסתר כש-show_shabbat לא yes.
-8. finance — רשומות לפי finance_display_rule.
-9. end-dates, instructor-contacts — נטען ללא שגיאה כשיש הרשאה.
-10. מדריך: אין טופס עריכה בפעילויות/כספים.
-11. exceptions — התנהגות לוגית כמו לפני (ספירות/סינון).
-12. מובייל: תפריט drawer נפתח/נסגר.
-13. RTL: כיוון מסכים ומגירות.
+8. end-dates, instructor-contacts — נטען ללא שגיאה כשיש הרשאה.
+9. מדריך: אין טופס עריכה בפעילויות.
+10. exceptions — התנהגות לוגית כמו לפני (ספירות/סינון).
+11. מובייל: תפריט drawer נפתח/נסגר.
+12. RTL: כיוון מסכים ומגירות.

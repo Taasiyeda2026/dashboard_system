@@ -153,23 +153,6 @@ function normalizeFinance_(value) {
   return text_(value).toLowerCase() === 'closed' ? 'closed' : 'open';
 }
 
-function parseFinanceRowAmount_(row) {
-  var explicit = parseFloat((row && (row.Payment || row.payment || row.payment_amount)) || 0) || 0;
-  if (explicit > 0) return explicit;
-  var price = parseFloat(row && row.price) || 0;
-  var sessions = parseFloat(row && row.sessions) || 0;
-  return sessions > 0 ? price * sessions : price;
-}
-
-function parseFinanceRowPending_(row) {
-  var price = parseFloat(row && row.price) || 0;
-  var sessions = parseFloat(row && row.sessions) || 0;
-  var expected = sessions > 0 ? price * sessions : price;
-  var recorded = parseFloat((row && (row.Payment || row.payment || row.payment_amount)) || 0) || 0;
-  var pending = expected - recorded;
-  return pending > 0 ? pending : 0;
-}
-
 function pickYesNo_(input, key, fallback) {
   if (Object.prototype.hasOwnProperty.call(input || {}, key)) {
     return yesNo_(input[key]);
