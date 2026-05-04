@@ -103,6 +103,38 @@ function setRouteRefreshing(active) {
   }
 }
 
+/** Injects the one-time CSS needed for the background-prefetch sidebar indicator. */
+function ensurePrefetchIndicatorStyle() {
+  if (ensurePrefetchIndicatorStyle._done) return;
+  ensurePrefetchIndicatorStyle._done = true;
+  if (typeof document === 'undefined') return;
+  const el = document.createElement('style');
+  el.setAttribute('data-ds', 'prefetch-indicator');
+  el.textContent =
+    '@keyframes ds-prefetch-sweep{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}' +
+    '.app-shell.is-prefetching .shell-sidebar{position:relative;overflow:hidden}' +
+    '.app-shell.is-prefetching .shell-sidebar::after{content:"";position:absolute;bottom:0;inset-inline-start:0;inset-inline-end:0;height:2px;' +
+    'background:linear-gradient(90deg,transparent 0%,rgba(99,179,237,0.55) 50%,transparent 100%);' +
+    'animation:ds-prefetch-sweep 1.6s linear infinite;pointer-events:none}';
+  document.head.appendChild(el);
+}
+
+/** Reference count of in-flight prefetch runs — indicator stays visible until it reaches zero. */
+let _prefetchIndicatorCount = 0;
+
+/** Shows or hides the subtle sidebar prefetch indicator (no spinner, no blocking UI).
+ *  Reference-counted so overlapping runs don't prematurely clear the indicator. */
+function setPrefetchIndicator(active) {
+  if (typeof document === 'undefined') return;
+  if (active) {
+    ensurePrefetchIndicatorStyle();
+    _prefetchIndicatorCount = Math.max(0, _prefetchIndicatorCount) + 1;
+  } else {
+    _prefetchIndicatorCount = Math.max(0, _prefetchIndicatorCount - 1);
+  }
+  document.querySelector('.app-shell')?.classList.toggle('is-prefetching', _prefetchIndicatorCount > 0);
+}
+
 function cancelPrefetchSchedule() {
   clearTimeout(prefetchTimer);
   prefetchTimer = null;
@@ -915,6 +947,7 @@ async function prefetchFromDashboardIfNeeded() {
   if (activeNavigationToken !== capturedToken) return;
   if (!state.token) return;
 
+  setPrefetchIndicator(true);
   const fetchPromises = toFetch.map((route, idx) => {
     const screen = screenModules[idx];
     if (!screen || !screen.load) return Promise.resolve();
@@ -954,7 +987,11 @@ async function prefetchFromDashboardIfNeeded() {
     return p;
   });
 
-  await Promise.allSettled(fetchPromises);
+  try {
+    await Promise.allSettled(fetchPromises);
+  } finally {
+    setPrefetchIndicator(false);
+  }
 }
 
 function maybePrefetchFromDashboard() {
