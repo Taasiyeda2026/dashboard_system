@@ -801,10 +801,10 @@ function actionReadModelGet_(user, payload) {
 
 /**
  * הגדרת טריגר כל 30 דקות ל-refreshAllReadModels_.
- * יש להריץ פעם אחת בלבד דרך עורך Apps Script (Run → setupReadModelRefreshTrigger_).
+ * יש להריץ פעם אחת בלבד דרך עורך Apps Script (Run → setupReadModelRefreshTrigger).
  * הפונקציה מוחקת טריגרים קיימים של refreshAllReadModels_ לפני יצירת חדש.
  */
-function setupReadModelRefreshTrigger_() {
+function setupReadModelRefreshTrigger() {
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {
     if (triggers[i].getHandlerFunction() === 'refreshAllReadModels_') {
@@ -816,7 +816,7 @@ function setupReadModelRefreshTrigger_() {
     .everyMinutes(30)
     .create();
   try {
-    console.info('[read_models] setupReadModelRefreshTrigger_: טריגר הוגדר — כל 30 דקות');
+    console.info('[read_models] setupReadModelRefreshTrigger: טריגר הוגדר — כל 30 דקות');
   } catch (_e) {}
 }
 
