@@ -167,10 +167,10 @@ const DASHBOARD_LOAD_ERROR_HE = 'לא ניתן לטעון את לוח הבקרה
 function buildDashboardStaleBanner(data) {
   if (!data || typeof data !== 'object') return '';
   if (data._snapshot_unavailable === true) {
-    return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">נתוני לוח הבקרה מתעדכנים כעת. ייתכן שחלק מהנתונים יוצגו לאחר הרענון הבא.</div>';
+    return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">הנתונים בהכנה — ייתכן שחלק מהמידע חסר. רעננו את הדף לאחר מספר דקות לקבלת תצוגה מלאה.</div>';
   }
   if (data._read_model_stale === true || data._is_stale === true) {
-    return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">הנתונים מתעדכנים כעת. מוצגים נתוני מטמון אחרונים.</div>';
+    return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">מציג נתונים מהפעם הקודמת — הדף יתעדכן אוטומטית בעוד רגע.</div>';
   }
   return '';
 }
