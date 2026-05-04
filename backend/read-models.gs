@@ -356,7 +356,7 @@ function refreshSingleReadModel_(logicalKey, params, builder) {
 
 function refreshDashboardReadModel_() {
   return refreshSingleReadModel_('dashboard', {}, function() {
-    return actionDashboardSnapshot_(READ_MODEL_NO_FINANCE_USER_, {});
+    return actionDashboardSheet_(READ_MODEL_NO_FINANCE_USER_, {});
   });
 }
 
@@ -581,7 +581,7 @@ function refreshReadModelsForMutation_(action) {
 }
 
 function resolveReadModelBuilder_(key, user, params) {
-  if (key === 'dashboard') return function() { return actionDashboardSnapshot_(user, params || {}); };
+  if (key === 'dashboard') return function() { return actionDashboardSheet_(user, params || {}); };
   if (key === 'activities') return function() { return actionActivitiesSnapshotFirst_(user, params || { activity_type: 'all' }); };
   if (key === 'week') return function() { return actionWeek_(user, params || { week_offset: 0 }); };
   if (key === 'month') return function() { return actionMonth_(user, params || {}); };
