@@ -219,12 +219,12 @@ function readModelLocalCacheKey(key, params = {}) {
 }
 
 function manifestEntryForReadModel(key, params = {}) {
+  if (key === 'week' || key === 'month' || key === 'exceptions') {
+    return readModelLocalCacheKey(key, params);
+  }
   if (key === 'dashboard') return 'dashboard';
   if (key === 'activities') return 'activities';
-  if (key === 'week') return 'week';
-  if (key === 'month') return 'month';
-  if (key === 'exceptions') return 'exceptions';
-  if (key === 'end-dates') return 'end_dates';
+  if (key === 'end-dates') return 'end-dates';
   if (key === 'instructors') return 'instructors';
   return null;
 }

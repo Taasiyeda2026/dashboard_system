@@ -333,6 +333,7 @@ export const weekScreen = {
           }
           [-1, 1].forEach((adj) => {
             const adjOffset = nextOffset + adj;
+            if (adjOffset < -1 || adjOffset > 1) return;
             const adjKey = `week:${adjOffset}`;
             const adjCached = state?.screenDataCache?.[adjKey];
             const adjFresh = !!(adjCached && Date.now() - Number(adjCached.t || 0) < ttlMs);

@@ -412,3 +412,28 @@ function refreshActivitiesSnapshot_() {
     lock.releaseLock();
   }
 }
+
+/**
+ * הגדרת טריגר כל 10 דקות ל-refreshActivitiesSnapshot_.
+ * יש להריץ פעם אחת בלבד דרך עורך Apps Script (Run → setupActivitiesSnapshotTrigger_).
+ * הפונקציה מוחקת טריגרים קיימים של refreshActivitiesSnapshot_ לפני יצירת חדש.
+ *
+ * הערה: פונקציה זו נפרדת מ-setupReadModelRefreshTrigger_ (כל 30 דקות).
+ * snapshot הפעילויות הוא קלט לבניית read_model — חייב להיות מעודכן לפני כל בנייה.
+ * אין כפילות: snapshot = קריאה מ-Sheets ואחסון גולמי; read_model = payload מוכן ל-UI.
+ */
+function setupActivitiesSnapshotTrigger_() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'refreshActivitiesSnapshot_') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('refreshActivitiesSnapshot_')
+    .timeBased()
+    .everyMinutes(10)
+    .create();
+  try {
+    console.info('[activities_snapshot] setupActivitiesSnapshotTrigger_: טריגר הוגדר — כל 10 דקות');
+  } catch (_e) {}
+}

@@ -496,17 +496,26 @@ function refreshAllReadModels_() {
 
 function normalizeReadModelManifest_(rows) {
   var nowMonth = formatDate_(new Date()).slice(0, 7);
-  var map = {};
-  map.dashboard = readModelRowByKey_('dashboard') || {};
-  map.activities = readModelRowByKey_('activities') || {};
-  map.week = readModelRowByKey_('week?week_offset=0') || {};
-  map.month = readModelRowByKey_('month?ym=' + nowMonth) || {};
-  map.exceptions = readModelRowByKey_('exceptions?month=' + nowMonth) || {};
-  map['end_dates'] = readModelRowByKey_('end-dates') || {};
+  var prevMonth = shiftYm_(nowMonth, -1);
+  var nextMonth = shiftYm_(nowMonth, 1);
+  var storageKeys = [
+    'dashboard',
+    'activities',
+    'week?week_offset=-1',
+    'week?week_offset=0',
+    'week?week_offset=1',
+    'month?ym=' + prevMonth,
+    'month?ym=' + nowMonth,
+    'month?ym=' + nextMonth,
+    'exceptions?month=' + prevMonth,
+    'exceptions?month=' + nowMonth,
+    'exceptions?month=' + nextMonth,
+    'end-dates'
+  ];
   var out = {};
-  Object.keys(map).forEach(function(mkey) {
-    var r = map[mkey] || {};
-    out[mkey] = {
+  storageKeys.forEach(function(storageKey) {
+    var r = readModelRowByKey_(storageKey) || {};
+    out[storageKey] = {
       version: text_(r.version || ''),
       updated_at: text_(r.updated_at || ''),
       hash: text_(r.hash || ''),

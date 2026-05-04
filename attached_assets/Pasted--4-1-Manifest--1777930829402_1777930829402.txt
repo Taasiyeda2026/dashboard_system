@@ -1,0 +1,65 @@
+בדקתי את הריפו אחרי הביצוע. רוב העבודה תקינה, אבל יש 4 תיקונים ממוקדים שצריך להשלים.
+
+1. Manifest / freshness לפי פרמטרים
+
+ב־api.js ה־localStorage cache key כבר כולל פרמטרים, למשל:
+month?ym=YYYY-MM
+week?week_offset=N
+
+אבל manifestEntryForReadModel עדיין מחזיר key כללי:
+week
+month
+exceptions
+
+ובשרת normalizeReadModelManifest_ מחזיר בעיקר את השבוע/החודש הנוכחי בלבד.
+
+צריך לתקן כך שה־manifest יוכל להחזיר metadata לפי storageKey מלא:
+
+* week?week_offset=-1
+* week?week_offset=0
+* week?week_offset=1
+* month?ym=YYYY-MM
+* exceptions?month=YYYY-MM
+
+או לחלופין, ב־requestReadModel לא לפסול cache פרמטרי רק כי ה־manifest הכללי לא תואם.
+
+המטרה: אם localStorage מחזיק month?ym=2026-06 או week?week_offset=1 והוא עדיין תואם ל־read_model הרלוונטי — להשתמש בו ולא לבצע fetch נוסף.
+
+2. להגביל prefetch שבועות לטווח הנתמך
+
+ב־week.js יש prefetch ל־targetOffset - 1 ו־targetOffset + 1.
+
+אבל השרת כרגע תומך רק:
+week_offset=-1
+week_offset=0
+week_offset=1
+
+לכן אם targetOffset=1, לא לבצע prefetch ל־2.
+אם targetOffset=-1, לא לבצע prefetch ל־-2.
+
+או להרחיב במפורש את refreshAllReadModels_ ואת materializeScreenDataFromReadModel_ לתמיכה גם ב־±2. אם לא מרחיבים — להגביל את ה־prefetch.
+
+3. להגביל prefetch חודשים לטווח הנתמך
+
+ב־month.js יש prefetch לחודש קודם ולחודש הבא של targetYm.
+
+אבל השרת תומך כרגע רק:
+חודש קודם
+חודש נוכחי
+חודש הבא
+
+לכן אם targetYm הוא כבר חודש הבא, לא לבצע prefetch לחודש שאחריו, אלא אם מרחיבים את read_models לתמוך בזה.
+
+או להרחיב את refreshAllReadModels_ לבניית שני חודשים קדימה/אחורה, או להגביל את prefetch לטווח הנתמך.
+
+4. טריגר read_models
+
+כרגע refreshAllReadModelsTrigger מותקן hourly.
+
+לפי ההחלטה שלנו רצינו נקודת פתיחה של כל 30 דקות, לא כל שעה, בגלל ש־activities הוא מודל כבד ואסור שיישאר stale יותר מדי זמן.
+
+נא להחליט וליישם:
+או לשנות ל־everyMinutes(30)
+או להסביר למה hourly מספיק.
+
+בנוסף לבדוק האם עדיין צריך refreshActivitiesSnapshotTrigger כל 10 דקות אם activities כבר נבנה דרך refreshAllReadModels_. לא להריץ כפילויות כבדות בלי צורך.

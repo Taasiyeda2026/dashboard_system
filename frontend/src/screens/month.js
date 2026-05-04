@@ -431,8 +431,13 @@ export const monthScreen = {
           if (state?.screenDataCache && monthData) {
             state.screenDataCache[targetKey] = { data: monthData, t: Date.now() };
           }
+          const _now = new Date();
+          const _nowYm = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`;
+          const _minYm = shiftMonthYm(_nowYm, -1);
+          const _maxYm = shiftMonthYm(_nowYm, 1);
           [-1, 1].forEach((adj) => {
             const adjYm = shiftMonthYm(targetYm, adj);
+            if (adjYm < _minYm || adjYm > _maxYm) return;
             const adjKey = monthCacheKey(adjYm);
             if (!state?.screenDataCache?.[adjKey] && !inflightMonthRequests.has(adjKey)) {
               const adjReq = api.month({ ym: adjYm }, { timeout_ms: 12000 })

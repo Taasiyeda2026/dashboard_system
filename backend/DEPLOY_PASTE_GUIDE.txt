@@ -1955,17 +1955,26 @@ function refreshAllReadModels_() {
 
 function normalizeReadModelManifest_(rows) {
   var nowMonth = formatDate_(new Date()).slice(0, 7);
-  var map = {};
-  map.dashboard = readModelRowByKey_('dashboard') || {};
-  map.activities = readModelRowByKey_('activities') || {};
-  map.week = readModelRowByKey_('week?week_offset=0') || {};
-  map.month = readModelRowByKey_('month?ym=' + nowMonth) || {};
-  map.exceptions = readModelRowByKey_('exceptions?month=' + nowMonth) || {};
-  map['end_dates'] = readModelRowByKey_('end-dates') || {};
+  var prevMonth = shiftYm_(nowMonth, -1);
+  var nextMonth = shiftYm_(nowMonth, 1);
+  var storageKeys = [
+    'dashboard',
+    'activities',
+    'week?week_offset=-1',
+    'week?week_offset=0',
+    'week?week_offset=1',
+    'month?ym=' + prevMonth,
+    'month?ym=' + nowMonth,
+    'month?ym=' + nextMonth,
+    'exceptions?month=' + prevMonth,
+    'exceptions?month=' + nowMonth,
+    'exceptions?month=' + nextMonth,
+    'end-dates'
+  ];
   var out = {};
-  Object.keys(map).forEach(function(mkey) {
-    var r = map[mkey] || {};
-    out[mkey] = {
+  storageKeys.forEach(function(storageKey) {
+    var r = readModelRowByKey_(storageKey) || {};
+    out[storageKey] = {
       version: text_(r.version || ''),
       updated_at: text_(r.updated_at || ''),
       hash: text_(r.hash || ''),
@@ -2709,6 +2718,31 @@ function refreshActivitiesSnapshot_() {
     if (!hadCache) __rqCache_ = null;
     lock.releaseLock();
   }
+}
+
+/**
+ * הגדרת טריגר כל 10 דקות ל-refreshActivitiesSnapshot_.
+ * יש להריץ פעם אחת בלבד דרך עורך Apps Script (Run → setupActivitiesSnapshotTrigger_).
+ * הפונקציה מוחקת טריגרים קיימים של refreshActivitiesSnapshot_ לפני יצירת חדש.
+ *
+ * הערה: פונקציה זו נפרדת מ-setupReadModelRefreshTrigger_ (כל 30 דקות).
+ * snapshot הפעילויות הוא קלט לבניית read_model — חייב להיות מעודכן לפני כל בנייה.
+ * אין כפילות: snapshot = קריאה מ-Sheets ואחסון גולמי; read_model = payload מוכן ל-UI.
+ */
+function setupActivitiesSnapshotTrigger_() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'refreshActivitiesSnapshot_') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('refreshActivitiesSnapshot_')
+    .timeBased()
+    .everyMinutes(10)
+    .create();
+  try {
+    console.info('[activities_snapshot] setupActivitiesSnapshotTrigger_: טריגר הוגדר — כל 10 דקות');
+  } catch (_e) {}
 }
 
 ################################################################################
