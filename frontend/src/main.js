@@ -632,6 +632,9 @@ function shellUserRoleLine() {
 // מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
 const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'instructor-contacts']);
 
+// מסכי ניהול — נגישים למי שיש לו הרשאה, אך לא מוצגים בסרגל הצד
+const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'admin-lists']);
+
 function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
@@ -643,6 +646,7 @@ function shell(content) {
       !hiddenSet.has(route) &&
       !contextualSet.has(route) &&
       !ACTIVITIES_CHILD_ROUTES.has(route) &&
+      !ADMIN_SIDEBAR_HIDDEN_ROUTES.has(route) &&
       !adminSidebarExclude.has(route)
     )
     .map(
