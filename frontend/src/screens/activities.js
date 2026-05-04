@@ -1,5 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe } from './shared/format-date.js';
+import { readDashboardSummaryForYm, shortActivitiesMap, dashboardSummaryBar } from './shared/dashboard-summary.js';
 import {
   hebrewColumn,
   visibleActivityCategoryLabel,
@@ -334,6 +335,18 @@ export const activitiesScreen = {
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
     if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
     const filteredRows  = applyActivitiesLocalFilters(allRows, state, state?.clientSettings);
+
+    const _dashSum  = readDashboardSummaryForYm(state.activitiesMonthYm);
+    const _shortMap = shortActivitiesMap(_dashSum);
+    const summaryBarHtml = dashboardSummaryBar(_dashSum ? [
+      { label: 'קורסים',      value: _dashSum.totals?.total_long_activities  ?? 0 },
+      { label: 'סדנאות',      value: _shortMap.workshop    ?? 0, hideZero: true },
+      { label: 'סיורים',      value: _shortMap.tour        ?? 0, hideZero: true },
+      { label: 'אפטרסקול',    value: _shortMap.after_school ?? 0, hideZero: true },
+      { label: 'חדר בריחה',   value: _shortMap.escape_room  ?? 0, hideZero: true },
+      { label: 'חריגות',      value: _dashSum.summary?.exceptions_count ?? 0, hideZero: true },
+      { label: 'מדריכים',     value: _dashSum.totals?.total_instructors ?? 0, hideZero: true },
+    ] : []);
     const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
     const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
     const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
@@ -447,6 +460,7 @@ export const activitiesScreen = {
 
     const html = dsScreenStack(`<section class="ds-activities-screen">
       ${titleNavRow}
+      ${summaryBarHtml}
       ${mainToolbar}
       ${dsCard({ body: tableSection, padded: false })}
     </section>`);

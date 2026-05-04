@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { readDashboardSummaryForYm } from './shared/dashboard-summary.js';
 import { formatDateHe } from './shared/format-date.js';
 import { hebrewExceptionType, hebrewColumn } from './shared/ui-hebrew.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
@@ -102,6 +103,7 @@ export const exceptionsScreen = {
   render(data, { state } = {}) {
     const rawRows   = Array.isArray(data?.rows) ? data.rows : [];
     const allRows   = rawRows.filter((row) => String(row?.activity_type || '').trim() === 'course');
+    const _dashSum  = readDashboardSummaryForYm(data?.month ?? null);
     const filterState = ensureActivityListFilters(state, EXCEPTIONS_SCOPE);
     prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type', 'exception_types']);
     const filteredRows = applyLocalFilters(allRows, filterState, { filterFields: EXCEPTION_FILTER_FIELDS });
@@ -146,7 +148,7 @@ export const exceptionsScreen = {
     return dsScreenStack(`
       ${toolbarHtml}
       <section class="ds-screen-compact-90">${dsCard({
-        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ חריגות: ${escapeHtml(String(data?.totalExceptionRows ?? total))}`,
+        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ חריגות: ${escapeHtml(String(_dashSum?.summary?.exceptions_count ?? data?.totalExceptionRows ?? total))}`,
         body: compact,
         padded: visibleRows.length === 0
       })}</section>
