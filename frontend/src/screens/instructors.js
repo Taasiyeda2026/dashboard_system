@@ -1,6 +1,5 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
-import { readDashboardSummaryForYm, dashboardSummaryBar } from './shared/dashboard-summary.js';
 import { formatDateHe } from './shared/format-date.js';
 import {
   ensureActivityListFilters,
@@ -148,17 +147,11 @@ export const instructorsScreen = {
 
     const subtitle = ymLabel ? `מדריכים · ${ymLabel}` : 'מדריכים';
 
-    const _dashSum = readDashboardSummaryForYm(data?.ym?.slice(0, 7) || null);
-    const instrSummaryBar = dashboardSummaryBar(_dashSum ? [
-      { label: 'מדריכים פעילים', value: _dashSum.totals?.total_instructors ?? 0 },
-    ] : []);
-
     return dsScreenStack(`
       <section class="ds-screen-compact-90">
       <div class="ds-screen-top-row">
         ${toolbarHtml}
       </div>
-      ${instrSummaryBar}
       ${dsCard({ title: subtitle, body: bodyHtml, padded: filtered.length === 0 })}
       </section>
     `);

@@ -3585,53 +3585,6 @@ select.ds-input {
   margin-bottom: var(--ds-space-2);
 }
 
-/* --- dashboard summary bar (ds-sum-bar) --- */
-.ds-sum-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 16px;
-  padding: 7px 14px;
-  margin: 4px 0 6px;
-  background: rgba(241, 245, 249, 0.85);
-  border: 1px solid var(--ds-border, #e2e8f0);
-  border-radius: var(--ds-radius-sm, 6px);
-  direction: rtl;
-}
-
-.ds-sum-bar__chip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-}
-
-.ds-sum-bar__lbl {
-  font-size: 0.72rem;
-  color: var(--ds-text-muted, #64748b);
-  white-space: nowrap;
-}
-
-.ds-sum-bar__val {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--ds-text, #1e293b);
-  font-variant-numeric: tabular-nums;
-}
-
-.ds-sum-bar__chip + .ds-sum-bar__chip {
-  padding-right: 16px;
-  border-right: 1px solid var(--ds-border, #e2e8f0);
-}
-
-@media (max-width: 600px) {
-  .ds-sum-bar {
-    gap: 5px 12px;
-    padding: 6px 10px;
-  }
-  .ds-sum-bar__chip + .ds-sum-bar__chip {
-    padding-right: 12px;
-  }
-}
 
 .ds-summary-btn {
   display: inline-flex;
