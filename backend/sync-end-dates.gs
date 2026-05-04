@@ -403,3 +403,38 @@ function uninstallEndDateSyncTrigger_() {
   });
   return { removed: removed };
 }
+
+/**
+ * Handler ציבורי לטריגר From spreadsheet → On edit.
+ * מופעל אוטומטית בכל עריכה בגיליון — מסנן פנימית לגיליון activity_meetings בלבד.
+ * שימוש ב-LockService מונע ריצות כפולות.
+ * שגיאות נרשמות ללוג בלבד — לא מפילות את העריכה.
+ */
+function onEditSyncEndDatesTrigger(e) {
+  try {
+    onEditSyncEndDates_(e);
+  } catch (err) {
+    try { Logger.log('[onEditSyncEndDatesTrigger] error: ' + String(err)); } catch (_l) {}
+  }
+}
+
+/**
+ * הגדרת טריגר On edit עבור onEditSyncEndDatesTrigger.
+ * יש להריץ פעם אחת בלבד דרך עורך Apps Script (Run → setupOnEditSyncEndDatesTrigger).
+ * מוחקת טריגרים קיימים של onEditSyncEndDatesTrigger לפני יצירת חדש.
+ */
+function setupOnEditSyncEndDatesTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'onEditSyncEndDatesTrigger') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('onEditSyncEndDatesTrigger')
+    .forSpreadsheet(SpreadsheetApp.getActive())
+    .onEdit()
+    .create();
+  try {
+    Logger.log('[sync-end-dates] setupOnEditSyncEndDatesTrigger: טריגר הוגדר — From spreadsheet → On edit');
+  } catch (_e) {}
+}
