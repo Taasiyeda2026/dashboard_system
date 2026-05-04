@@ -49,11 +49,6 @@ function handlePost_(e) {
     beginRequestPerf_(action, payload, e);
     var user = action === 'login' ? null : requireAuth_(payload.token);
 
-    var DISABLED_FINANCE_ACTIONS = { finance: true, financeDetail: true, saveFinanceRow: true, syncFinance: true };
-    if (DISABLED_FINANCE_ACTIONS[action]) {
-      return jsonResponse_({ ok: false, error: 'Finance screen is disabled' }, { action: action, errored: true });
-    }
-
     var kind = getApiActionKind_(action);
     if (!kind) {
       throw new Error('Unknown action: ' + action);

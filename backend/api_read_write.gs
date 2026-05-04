@@ -227,12 +227,6 @@ var READ_API_HANDLER_FACTORIES_ = {
   exceptions: function(u, p) {
     return actionExceptions_(u, p);
   },
-  finance: function(u, p) {
-    return actionFinance_(u, p);
-  },
-  financeDetail: function(u, p) {
-    return actionFinanceDetail_(u, p);
-  },
   instructors: function(u, p) {
     return actionInstructors_(u);
   },
@@ -318,12 +312,6 @@ var WRITE_API_HANDLER_FACTORIES_ = {
   },
   savePrivateNote: function(u, p) {
     return actionSavePrivateNote_(u, p);
-  },
-  saveFinanceRow: function(u, p) {
-    return actionSaveFinanceRow_(u, p);
-  },
-  syncFinance: function(u, p) {
-    return actionSyncFinance_(u, p);
   },
   syncEndDates: function(u, p) {
     return actionSyncEndDates_(u, p);
