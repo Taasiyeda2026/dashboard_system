@@ -150,7 +150,7 @@ function normalizeActivitiesSnapshotRow_(row) {
   normalized.EmployeeID2 = text_(src.EmployeeID2 || src.EmployeeID_2 || src.employee_id_2 || emp2);
   if (!normalized.source_sheet) {
     var rowId = text_(src.RowID);
-    normalized.source_sheet = rowId.indexOf('LONG-') === 0 ? CONFIG.SHEETS.DATA_LONG : CONFIG.SHEETS.DATA_SHORT;
+    normalized.source_sheet = rowId.indexOf('LONG-') === 0 ? configuredLongActivitiesSheet_() : configuredShortActivitiesSheet_();
   }
   return normalized;
 }
