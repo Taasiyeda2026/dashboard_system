@@ -1041,6 +1041,11 @@ function mapActivitySummaryRowForList_(row, user, noteMap, meetingsMap, today) {
 function latestEditRequestBySourceRowForUser_(userId) {
   var uid = text_(userId);
   if (!uid) return {};
+  if (__rqCache_ &&
+      __rqCache_.editRequestMapForUserId === uid &&
+      __rqCache_.editRequestMapForUser) {
+    return __rqCache_.editRequestMapForUser;
+  }
   var rows = readRows_(CONFIG.SHEETS.EDIT_REQUESTS).filter(function(row) {
     return yesNo_(row.active) === 'yes' && text_(row.requested_by_user_id) === uid;
   });
@@ -1057,6 +1062,10 @@ function latestEditRequestBySourceRowForUser_(userId) {
       edit_request_requested_at: text_(row.requested_at)
     };
   });
+  if (__rqCache_) {
+    __rqCache_.editRequestMapForUserId = uid;
+    __rqCache_.editRequestMapForUser = map;
+  }
   return map;
 }
 
@@ -1140,16 +1149,30 @@ function findActivityRowById_(sourceRowId, sourceSheet) {
 
 function actionActivityDetail_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
+  var t0 = perfNowMs_();
   var sourceRowId = text_((payload || {}).source_row_id || (payload || {}).RowID);
   var sourceSheet = text_((payload || {}).source_sheet);
   var row = findActivityRowById_(sourceRowId, sourceSheet);
+  var tRowFound = perfNowMs_();
   var mapped = mapActivityDetailRowForDrawer_(row, user);
+  var tMapped = perfNowMs_();
   var editRequestMap = latestEditRequestBySourceRowForUser_(user.user_id);
+  var tEditReq = perfNowMs_();
   var editReq = editRequestMap[text_(mapped.RowID)] || {};
   mapped.edit_request_status = text_(editReq.edit_request_status);
   mapped.edit_request_id = text_(editReq.edit_request_id);
   mapped.edit_request_requested_at = text_(editReq.edit_request_requested_at);
-  return { row: mapped };
+  return {
+    row: mapped,
+    debug_perf: {
+      duration_ms: Math.round(perfNowMs_() - t0),
+      find_row_ms: Math.round(tRowFound - t0),
+      map_detail_ms: Math.round(tMapped - tRowFound),
+      edit_req_ms: Math.round(tEditReq - tMapped),
+      source_sheet: text_(mapped.source_sheet),
+      row_id: text_(mapped.RowID)
+    }
+  };
 }
 
 function actionAddActivityOptions_(user) {
@@ -3459,12 +3482,28 @@ function buildOperationalInstructorsPayloadRows_() {
 }
 
 function buildPrivateNotesMap_() {
+  if (__rqCache_ && __rqCache_.privateNotesMap) {
+    return __rqCache_.privateNotesMap;
+  }
+  var version = dataViewsCacheVersion_();
+  var cacheKey = 'pc:private-notes-map:' + version;
+  var cached = scriptCacheGetJson_(cacheKey);
+  if (cached && typeof cached === 'object' && !Array.isArray(cached)) {
+    if (__rqCache_) __rqCache_.privateNotesMap = cached;
+    return cached;
+  }
   var rows = readRows_(CONFIG.SHEETS.PRIVATE_NOTES);
   var map = {};
   rows.forEach(function(row) {
     var key = text_(row.source_sheet) + '|' + text_(row.source_row_id);
     map[key] = row;
   });
+  scriptCachePutJson_(
+    cacheKey,
+    map,
+    CONFIG.SCRIPT_CACHE_SECONDS || 120
+  );
+  if (__rqCache_) __rqCache_.privateNotesMap = map;
   return map;
 }
 

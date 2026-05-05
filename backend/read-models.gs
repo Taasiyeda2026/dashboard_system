@@ -768,12 +768,22 @@ function materializeScreenDataFromReadModel_(action, user, payload) {
   return null;
 }
 
+/**
+ * Keys where the stored payload is always under the bare key (no params).
+ * Filtering/transformation is applied after loading.
+ */
+var READ_MODEL_CANONICAL_KEYS_ = { 'activities': true, 'dashboard': true, 'end-dates': true, 'instructors': true };
+
 function actionReadModelGet_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
   var key = text_(payload && payload.key);
   if (!key) throw new Error('read model key is required');
   var params = parseJsonObject_((payload && payload.params) || {}, {});
-  var storageKey = buildReadModelStorageKey_(key, params);
+  // For canonical (param-agnostic) keys the payload is always stored under the bare key.
+  // Using params in the storage key would yield a key that never exists.
+  var storageKey = READ_MODEL_CANONICAL_KEYS_[key]
+    ? key
+    : buildReadModelStorageKey_(key, params);
   var row = readModelRowByKey_(storageKey);
   var warnings = [];
 
@@ -798,6 +808,7 @@ function actionReadModelGet_(user, payload) {
       }
     }
     if (data !== null) {
+      data = applyReadModelParamFilter_(key, data, params);
       return {
         key: key,
         cache_key: storageKey,
@@ -809,13 +820,58 @@ function actionReadModelGet_(user, payload) {
         warning: warnings.length ? warnings.join(' | ') : undefined
       };
     }
-    if (warnings.length) warnings.push('read_model_fallback_rebuild');
+    warnings.push('read_model_drive_and_inline_failed');
+  }
+
+  var builder = resolveReadModelBuilder_(key, user, params);
+  if (builder) {
+    try {
+      var rebuilt = builder();
+      if (rebuilt && typeof rebuilt === 'object') {
+        warnings.push('read_model_rebuilt_inline');
+        try {
+          persistReadModelPayload_(storageKey, rebuilt, new Date().toISOString(), null);
+        } catch (_persistErr) {
+          warnings.push('read_model_persist_failed: ' + text_(_persistErr && _persistErr.message ? _persistErr.message : String(_persistErr)));
+        }
+        var nowVersion = String(new Date().getTime());
+        var rebuiltFiltered = applyReadModelParamFilter_(key, rebuilt, params);
+        return {
+          key: key,
+          cache_key: storageKey,
+          version: nowVersion,
+          hash: '',
+          updated_at: new Date().toISOString(),
+          status: 'rebuilt',
+          data: rebuiltFiltered,
+          warning: warnings.join(' | ')
+        };
+      }
+    } catch (_rebuildErr) {
+      warnings.push('read_model_rebuild_failed: ' + text_(_rebuildErr && _rebuildErr.message ? _rebuildErr.message : String(_rebuildErr)));
+    }
   }
 
   if (row) {
     throw new Error('read_model_not_fresh');
   }
   throw new Error('read_model_missing');
+}
+
+/**
+ * Applies server-side param filtering to a freshly-loaded read model payload.
+ * Only 'activities' needs filtering; other canonical keys are returned as-is.
+ */
+function applyReadModelParamFilter_(key, data, params) {
+  if (key !== 'activities' || !data || typeof data !== 'object') return data;
+  if (!params || !Object.keys(params).length) return data;
+  try {
+    var out = JSON.parse(JSON.stringify(data));
+    out.rows = filterActivitiesSnapshotRows_(out.rows || [], params);
+    return out;
+  } catch (_e) {
+    return data;
+  }
 }
 
 /**

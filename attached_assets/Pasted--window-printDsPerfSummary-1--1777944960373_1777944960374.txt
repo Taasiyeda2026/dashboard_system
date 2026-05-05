@@ -1,0 +1,105 @@
+בדיקת ביצועים אחרי התיקונים:
+
+`window.__printDsPerfSummary?.()` מציג:
+
+1. עמוד פעילויות עצמו נטען מהר:
+
+* activities mount-total: 23ms
+* activities shell-cached: 22ms
+
+זה תקין.
+
+2. readModelManifest השתפר:
+
+* count=1
+* לא מופיע יותר כאיטי
+
+זה תקין.
+
+אבל עדיין יש שתי בעיות:
+
+בעיה 1 — activities עדיין נופל ל־fallback
+
+ב־slowest_requests מופיע:
+activities — 4067ms
+used_read_model: false
+fallback_used: true
+legacy_fallback_reason: read_model_get_failed_auto_fallback
+payload_size: 59184
+
+כלומר readModelGet של activities נכשל, ואז המערכת נפלה ל־fallback.
+
+צריך לבדוק למה `requestReadModel('activities')` נכשל:
+
+* האם read_model key בשם `activities` קיים בגיליון read_models?
+* האם הסטטוס שלו fresh?
+* האם readModelGet מצליח לקרוא את payload?
+* האם payload נמצא ב־Drive ויש בעיית timeout/הרשאה/קובץ חסר?
+* האם manifest key תואם ל־local cache key?
+* האם יש שגיאת שרת שמוחבאת בגלל fallback אוטומטי?
+
+דרישה:
+בטעינה רגילה של activities לא אמור להופיע:
+fallback_used=true
+legacy_fallback_reason=read_model_get_failed_auto_fallback
+
+קריטריון קבלה:
+ב־Perf Summary צריך להופיע:
+activities
+used_read_model: true
+fallback_used: false
+
+או אם משתמשים ב־cache:
+cache_hit: true
+fallback_used: false
+
+בעיה 2 — activityDetail איטי מדי
+
+ב־slowest_requests מופיע:
+activityDetail — 9448ms
+activityDetail — 8918ms
+
+זה גורם לפתיחת פעילות/תאריכים לעלות לאט.
+
+צריך לבדוק את actionActivityDetail / activityDetail:
+
+* האם הוא קורא את כל data_long/data_short?
+* האם הוא קורא את כל activity_meetings?
+* האם הוא מחפש בכל הגיליון במקום לפי RowID/source_sheet בלבד?
+* האם הוא טוען שדות לא נחוצים לפתיחת Drawer?
+* האם אפשר ליצור endpoint קל `activityDates` שמחזיר רק תאריכי מפגשים?
+
+דרישה:
+פתיחת Drawer צריכה להיות מיידית עם summaryRow.
+פרטי תאריכים צריכים להגיע מ־cache או מקריאה קלה.
+activityDetail לא צריך לקחת 9–10 שניות.
+
+פתרון מומלץ:
+
+1. להשאיר פתיחת Drawer מיידית.
+2. להוסיף cache ל־activityDetail לפי:
+   activityDetail:{source_sheet}:{RowID}
+3. אם רוב האיטיות היא תאריכים, להוסיף endpoint קל:
+   activityDates
+   שמחזיר רק:
+
+   * start_date
+   * end_date
+   * sessions
+   * meeting_dates / Date1-Date35
+4. לא לרנדר מחדש את כל עמוד הפעילויות אחרי טעינת detail.
+5. להוסיף perf debug ל־activityDetail:
+
+   * duration_ms
+   * source_sheet
+   * RowID
+   * sheet_reads_count
+   * meetings_rows_read
+   * cache_hit
+
+קריטריוני קבלה:
+
+* activities לא נופל ל־fallback.
+* activityDetail יורד משמעותית, עדיף מתחת ל־2–3 שניות.
+* פתיחת פעילות לא גורמת לטעינה ארוכה של התאריכים.
+* אין קריאה כבדה לכל data_long/data_short בעת פתיחת פעילות אחת.
