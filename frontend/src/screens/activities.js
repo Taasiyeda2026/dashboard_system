@@ -135,6 +135,11 @@ function mergeOptions(settings, keys) {
   return out;
 }
 
+function datalistHtml(id, values) {
+  if (!values.length) return '';
+  return `<datalist id="${escapeHtml(id)}">${values.map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>`;
+}
+
 function addActivityModalHtml(settings) {
   const oneDayTypes = resolveOneDayTypes(settings);
   const programTypes = getActivityTypesByFamily(settings, 'long');
@@ -145,6 +150,8 @@ function addActivityModalHtml(settings) {
   const managerRoleNames = getManagerUsers(settings);
   const fundingOptions = mergeOptions(settings, ['funding', 'fundings']);
   const gradeOptions = mergeOptions(settings, ['grade', 'grades']);
+  const schoolOptions = mergeOptions(settings, ['school', 'schools']);
+  const authorityOptions = mergeOptions(settings, ['authority', 'authorities']);
   const managerOptions = managerRoleNames.length
     ? managerRoleNames
     : mergeOptions(settings, ['activity_manager', 'activity_managers']);
@@ -154,6 +161,14 @@ function addActivityModalHtml(settings) {
   const initialType = initialTypes[0] || '';
   const initialActivityNames = getActivityNamesForType(settings, initialType);
   const sessionsList = Array.from({ length: 35 }, (_, i) => String(i + 1));
+
+  const authorityField = authorityOptions.length
+    ? `<label class="ds-activity-add-field"><span>רשות</span><input class="ds-input" name="authority" type="text" list="add-authority-list" autocomplete="off">${datalistHtml('add-authority-list', authorityOptions)}</label>`
+    : `<label class="ds-activity-add-field"><span>רשות</span><input class="ds-input" name="authority" type="text"></label>`;
+
+  const schoolField = schoolOptions.length
+    ? `<label class="ds-activity-add-field"><span>בית ספר</span><input class="ds-input" name="school" type="text" list="add-school-list" autocomplete="off">${datalistHtml('add-school-list', schoolOptions)}</label>`
+    : `<label class="ds-activity-add-field"><span>בית ספר</span><input class="ds-input" name="school" type="text"></label>`;
 
   return `
     <form class="ds-activity-add-form" dir="rtl" data-add-activity-form
@@ -166,8 +181,8 @@ function addActivityModalHtml(settings) {
       <input type="hidden" name="source" value="long">
       <div class="ds-activity-add-grid">
         <label class="ds-activity-add-field"><span>מנהל פעילות</span><select class="ds-input" name="activity_manager">${optionsHtml(managerOptions)}</select></label>
-        <label class="ds-activity-add-field"><span>רשות</span><input class="ds-input" name="authority" type="text"></label>
-        <label class="ds-activity-add-field"><span>בית ספר</span><input class="ds-input" name="school" type="text"></label>
+        ${authorityField}
+        ${schoolField}
         <label class="ds-activity-add-field"><span>שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions)}</select></label>
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
         <label class="ds-activity-add-field"><span>סוג פעילות</span>

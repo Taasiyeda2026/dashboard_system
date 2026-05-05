@@ -306,7 +306,7 @@ async function readListsFromSupabase() {
       const label = String(row.label ?? row.item_label ?? row.display ?? value).trim() || value;
       if (!value) continue;
       if (!catMap.has(cat)) catMap.set(cat, []);
-      catMap.get(cat).push({ label, value });
+      catMap.get(cat).push({ label, value, _row: row });
     }
     const categories = [...catMap.entries()].map(([category, items]) => ({ category, items }));
     return { categories, _source: 'supabase' };
@@ -315,6 +315,81 @@ async function readListsFromSupabase() {
     console.error('[supabase] Unexpected lists fetch error:', error);
     return null;
   }
+}
+
+/**
+ * Converts the lists table data into the clientSettings shape expected by
+ * activity-options.js and the add-activity form.
+ * Handles many category name variants so the lists table can use any naming.
+ */
+function buildClientSettingsFromLists(listsData) {
+  const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
+  const byCategory = {};
+  categories.forEach(({ category, items }) => {
+    byCategory[String(category).toLowerCase()] = Array.isArray(items) ? items : [];
+  });
+
+  function getItems(...keys) {
+    for (const k of keys) {
+      const hit = byCategory[String(k).toLowerCase()];
+      if (hit && hit.length) return hit;
+    }
+    return [];
+  }
+  function getValues(...keys) {
+    return getItems(...keys).map((i) => i.value).filter(Boolean);
+  }
+
+  const managerItems    = getItems('activity_manager', 'activity_managers', 'manager', 'managers');
+  const instructorItems = getItems('instructor_users', 'instructor_name', 'instructor', 'instructors', 'instructor_names');
+  const activityNameItems = getItems('activity_names', 'activity_name', 'activities', 'activity');
+  const fundingValues   = getValues('funding', 'fundings');
+  const gradeValues     = getValues('grade', 'grades', 'class');
+  const schoolValues    = getValues('school', 'schools');
+  const authorityValues = getValues('authority', 'authorities');
+
+  const shortTypes = getValues('one_day_activity_type', 'one_day_types', 'short_activity_type', 'short_activity_types');
+  let   longTypes  = getValues('program_activity_type', 'program_types', 'long_activity_type', 'long_activity_types', 'program_activity_types');
+  if (!shortTypes.length && !longTypes.length) {
+    longTypes = getValues('activity_type', 'activity_types');
+  }
+
+  const instructorUsers = instructorItems.map((i) => ({
+    name:   i.label || i.value,
+    emp_id: String(i._row?.emp_id || i._row?.employee_id || '').trim()
+  }));
+
+  const activityNames = activityNameItems.map((i) => ({
+    label:        i.label || i.value,
+    value:        i.value,
+    activity_no:  String(i._row?.activity_no  || i._row?.number      || '').trim(),
+    activity_type: String(i._row?.activity_type || i._row?.parent_value || i._row?.type || '').trim(),
+    parent_value:  String(i._row?.parent_value  || i._row?.activity_type || i._row?.type || '').trim()
+  }));
+
+  const managerNames = managerItems.map((i) => i.value || i.label).filter(Boolean);
+
+  return {
+    dropdown_options: {
+      funding:                  fundingValues,
+      fundings:                 fundingValues,
+      grade:                    gradeValues,
+      grades:                   gradeValues,
+      school:                   schoolValues,
+      schools:                  schoolValues,
+      authority:                authorityValues,
+      authorities:              authorityValues,
+      activity_manager:         managerNames,
+      activity_managers:        managerNames,
+      activities_manager_users: managerNames.map((name) => ({ name })),
+      instructor_name:          instructorUsers.map((u) => u.name),
+      instructor_names:         instructorUsers.map((u) => u.name),
+      instructor_users:         instructorUsers,
+      activity_names:           activityNames,
+    },
+    one_day_activity_types: shortTypes,
+    program_activity_types: longTypes,
+  };
 }
 
 /**
@@ -1989,7 +2064,10 @@ async function readSettingsRowsFromSupabase() {
 
 export const api = {
   login: async (user_id, entry_code) => {
-    const user = await getActiveUserByLogin(user_id, entry_code);
+    const [user, listsData] = await Promise.all([
+      getActiveUserByLogin(user_id, entry_code),
+      readListsFromSupabase().catch(() => null)
+    ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
     return {
@@ -2005,12 +2083,19 @@ export const api = {
         can_edit_direct: String(flat.can_edit_direct || '').toLowerCase() === 'yes' || flat.role === 'admin',
         can_request_edit: String(flat.can_request_edit || '').toLowerCase() !== 'no'
       },
-      ...buildBootstrapFromUser(user)
+      ...buildBootstrapFromUser(user),
+      client_settings: buildClientSettingsFromLists(listsData)
     };
   },
   bootstrap: async () => {
-    const user = await readCurrentUserBySession();
-    return buildBootstrapFromUser(user);
+    const [user, listsData] = await Promise.all([
+      readCurrentUserBySession(),
+      readListsFromSupabase().catch(() => null)
+    ]);
+    return {
+      ...buildBootstrapFromUser(user),
+      client_settings: buildClientSettingsFromLists(listsData)
+    };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),
   dashboardSnapshot: (filters) => api.dashboardReadModel(filters || {}),
