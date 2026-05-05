@@ -415,6 +415,34 @@ function refreshActivitiesSnapshot_() {
 }
 
 /**
+ * Lightweight endpoint — returns only meeting-date fields for a single activity.
+ * Skips the edit-request lookup so it is faster than a full activityDetail request.
+ * Frontend cache key: activityDates:{source_sheet}:{RowID}
+ */
+function actionActivityDates_(user, payload) {
+  requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
+  var sourceRowId = text_((payload || {}).source_row_id || (payload || {}).RowID);
+  var sourceSheet = text_((payload || {}).source_sheet);
+  var t0 = perfNowMs_();
+  var row = findActivityRowById_(sourceRowId, sourceSheet);
+  var mapped = mapActivityDetailRowForDrawer_(row, user);
+  var dur = Math.round(perfNowMs_() - t0);
+  Logger.log('[activityDates] RowID=' + sourceRowId + ' source_sheet=' + sourceSheet + ' duration_ms=' + dur);
+  return {
+    row_id: text_(mapped.RowID),
+    source_sheet: text_(mapped.source_sheet),
+    activity_type: text_(mapped.activity_type),
+    start_date: text_(mapped.start_date),
+    end_date: text_(mapped.end_date),
+    sessions: mapped.sessions,
+    meetings_done: Number(mapped.meetings_done || 0),
+    meetings_total: Number(mapped.meetings_total || 0),
+    meeting_schedule: Array.isArray(mapped.meeting_schedule) ? mapped.meeting_schedule : [],
+    _duration_ms: dur
+  };
+}
+
+/**
  * הגדרת טריגר כל 10 דקות ל-refreshActivitiesSnapshot_.
  * יש להריץ פעם אחת בלבד דרך עורך Apps Script (Run → setupActivitiesSnapshotTrigger).
  * הפונקציה מוחקת טריגרים קיימים של refreshActivitiesSnapshot_ לפני יצירת חדש.

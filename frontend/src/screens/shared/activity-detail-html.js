@@ -386,15 +386,8 @@ function blockContent(row, { settings = {} } = {}) {
   `;
 }
 
-function blockDates(row, { canEdit = false, canDirectEdit = false } = {}) {
-  const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
-  const activityType = String(row.activity_type || '').trim();
-  const isOnce = ONCE_TYPES.includes(activityType);
-  const computedEnd = autoEndDate(row);
-  const done = Number(row?.meetings_done || 0);
-  const total = Number(row?.meetings_total || schedule.length || 0);
-  const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-  const viewChips = (isOnce ? schedule.slice(0, 1) : schedule)
+function buildDateChipsHtml(schedule, isOnce) {
+  return (isOnce ? schedule.slice(0, 1) : schedule)
     .map((item) => {
       const isDone = String(item?.performed || '').toLowerCase() === 'yes';
       return `
@@ -405,6 +398,17 @@ function blockDates(row, { canEdit = false, canDirectEdit = false } = {}) {
       `;
     })
     .join('') || '<div class="activity-drawer__date-chip">—</div>';
+}
+
+function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false } = {}) {
+  const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
+  const activityType = String(row.activity_type || '').trim();
+  const isOnce = ONCE_TYPES.includes(activityType);
+  const computedEnd = autoEndDate(row);
+  const done = Number(row?.meetings_done || 0);
+  const total = Number(row?.meetings_total || schedule.length || 0);
+  const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const viewChips = buildDateChipsHtml(schedule, isOnce);
   const editDates = isOnce ? schedule.slice(0, 1) : schedule;
   const removeMeetingBtn = isOnce
     ? ''
@@ -440,14 +444,26 @@ function blockDates(row, { canEdit = false, canDirectEdit = false } = {}) {
   const addMeetingBtn = isOnce
     ? ''
     : `<button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-mode="edit" hidden>➕ הוסף מפגש</button>`;
-  return `
-    <section class="activity-drawer__section">
-      <div class="activity-drawer__section-head">
-        <h3 class="activity-drawer__section-title">📅</h3>
-        ${canEdit ? '<button type="button" class="activity-drawer__action" data-action="start-edit" data-mode="view">✏️ עריכה</button>' : ''}
+
+  const loadingAttr = datesLoading ? ' data-dates-loading="true"' : '';
+  const progressHtml = datesLoading
+    ? `<div class="activity-drawer__progress" data-mode="view" data-dates-progress>
+        <div class="activity-drawer__progress-meta" data-dates-progress-meta>
+          <span class="ds-muted">טוען תאריכי מפגשים...</span>
+        </div>
+        <div class="activity-drawer__progress-track">
+          <div class="activity-drawer__progress-fill" style="width:0%"></div>
+        </div>
       </div>
-      <div class="activity-drawer__progress" data-mode="view">
-        <div class="activity-drawer__progress-meta">
+      <div class="activity-drawer__end-date" data-mode="view">
+        <span>🏁 תאריך סיום</span>
+        <strong data-computed-end-display>—</strong>
+      </div>
+      <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
+        <div class="activity-drawer__date-chip ds-muted" aria-busy="true">טוען...</div>
+      </div>`
+    : `<div class="activity-drawer__progress" data-mode="view" data-dates-progress>
+        <div class="activity-drawer__progress-meta" data-dates-progress-meta>
           <span>${done} מתוך ${total} מפגשים</span>
           <span>${progressPct}%</span>
         </div>
@@ -459,9 +475,17 @@ function blockDates(row, { canEdit = false, canDirectEdit = false } = {}) {
         <span>🏁 תאריך סיום</span>
         <strong data-computed-end-display>${escapeHtml(formatDateHe(computedEnd) || '—')}</strong>
       </div>
-      <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view">
+      <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
         ${viewChips}
+      </div>`;
+
+  return `
+    <section class="activity-drawer__section" data-dates-section${loadingAttr}>
+      <div class="activity-drawer__section-head">
+        <h3 class="activity-drawer__section-title">📅</h3>
+        ${canEdit ? '<button type="button" class="activity-drawer__action" data-action="start-edit" data-mode="view">✏️ עריכה</button>' : ''}
       </div>
+      ${progressHtml}
       <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
         ${datePickers}
       </div>
@@ -474,6 +498,41 @@ function blockDates(row, { canEdit = false, canDirectEdit = false } = {}) {
       </div>
     </section>
   `;
+}
+
+/**
+ * Surgically patches the view-mode date elements inside an already-open drawer's
+ * dates section. Called after activityDates resolves so we avoid re-rendering the
+ * full drawer (which would lose edit-form bindings and cause a visible flash).
+ *
+ * @param {Element} sectionEl  — element with [data-dates-section]
+ * @param {object}  datesData  — response from api.activityDates
+ */
+export function patchDrawerDatesSection(sectionEl, datesData) {
+  if (!sectionEl) return;
+  const schedule = Array.isArray(datesData?.meeting_schedule) ? datesData.meeting_schedule : [];
+  const activityType = String(datesData?.activity_type || '').trim();
+  const isOnce = ONCE_TYPES.includes(activityType);
+  const done = Number(datesData?.meetings_done || 0);
+  const total = Number(datesData?.meetings_total || schedule.length || 0);
+  const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const computedEnd = autoEndDate({ meeting_schedule: schedule }) || String(datesData?.end_date || '');
+
+  const progressMeta = sectionEl.querySelector('[data-dates-progress-meta]');
+  if (progressMeta) {
+    progressMeta.innerHTML = `<span>${done} מתוך ${total} מפגשים</span><span>${progressPct}%</span>`;
+  }
+
+  const progressFill = sectionEl.querySelector('.activity-drawer__progress-fill');
+  if (progressFill) progressFill.style.width = `${progressPct}%`;
+
+  const endDisplay = sectionEl.querySelector('[data-computed-end-display]');
+  if (endDisplay) endDisplay.textContent = formatDateHe(computedEnd) || '—';
+
+  const chipsDiv = sectionEl.querySelector('[data-dates-view-chips]');
+  if (chipsDiv) chipsDiv.innerHTML = buildDateChipsHtml(schedule, isOnce);
+
+  sectionEl.removeAttribute('data-dates-loading');
 }
 
 function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
@@ -506,7 +565,7 @@ function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
   `;
 }
 
-function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, showPrivateNote = false, idx = 0 } = {}) {
+function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, showPrivateNote = false, idx = 0, datesLoading = false } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = String(row.activity_type || '').trim();
   const editReqStatus = String(row.edit_request_status || '').trim();
@@ -530,7 +589,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       <input type="hidden" name="_activity_idx" value="${idx}">
       ${blockPeople(row, { settings })}
       ${blockContent(row, { settings })}
-      ${blockDates(row, { canEdit, canDirectEdit })}
+      ${blockDates(row, { canEdit, canDirectEdit, datesLoading })}
       ${blockNotes(row, { privateNote, showPrivateNote })}
     </form>
   `;
@@ -549,7 +608,7 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
-  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, settings = {} } = opts;
+  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, settings = {}, datesLoading = false } = opts;
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const body = rows
@@ -590,6 +649,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
         canEdit,
         canDirectEdit,
         showPrivateNote: privateNote !== null,
+        datesLoading,
         idx: 0,
       })}
     </div>

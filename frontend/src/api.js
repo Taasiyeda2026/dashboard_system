@@ -41,6 +41,7 @@ const READ_ACTIONS = {
   dashboardSheet: true,
   activities: true,
   activityDetail: true,
+  activityDates: true,
   week: true,
   month: true,
   exceptions: true,
@@ -130,10 +131,10 @@ const RETRYABLE_SERVER_ERRORS = new Set([
 
 function invalidateScreenDataByAction(action) {
   const targetedMutations = {
-    saveActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
-    addActivity: ['activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
-    submitEditRequest: ['activities:', 'edit-requests', 'week:', 'month:', 'dashboard:', 'end-dates'],
-    reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'week:', 'month:', 'dashboard:', 'exceptions:'],
+    saveActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
+    addActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
+    submitEditRequest: ['activities:', 'activityDetail:', 'activityDates:', 'edit-requests', 'week:', 'month:', 'dashboard:', 'end-dates'],
+    reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:'],
     addUser: ['permissions', 'dashboard:'],
     deactivateUser: ['permissions', 'dashboard:'],
     reactivateUser: ['permissions', 'dashboard:'],
@@ -701,6 +702,7 @@ export const api = {
   dashboardSheet: (filters) => request('dashboardSheet', filters || {}),
   activities: (filters, options) => requestReadModel('activities', filters || {}, 'activities', filters || {}, options || {}),
   activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
+  activityDates: (source_row_id, source_sheet) => request('activityDates', { source_row_id, source_sheet }),
   week: (params, options) => {
     const resolved = (params && typeof params === 'object') ? params : {};
     const weekOffset = Number.parseInt(resolved.week_offset, 10);

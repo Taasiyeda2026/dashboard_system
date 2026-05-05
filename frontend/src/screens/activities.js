@@ -13,7 +13,7 @@ import {
   dsEmptyState
 } from './shared/layout.js';
 
-import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
 import {
   ensureActivityListFilters,
   prepareRowsForSearch,
@@ -283,7 +283,7 @@ function applyActivitiesLocalFilters(rows, state, settings) {
   return applyLocalFilters(monthRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS });
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
@@ -294,7 +294,8 @@ function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, 
     hideActivityNo,
     settings,
     showFinance: false,
-    showFinanceFields: false
+    showFinanceFields: false,
+    datesLoading
   });
 }
 
@@ -318,6 +319,21 @@ function getCachedActivityDetail(summaryRow, s) {
 function putCachedActivityDetail(summaryRow, row, s) {
   if (s?.screenDataCache) {
     s.screenDataCache[activityDetailCacheKey(summaryRow)] = { data: row, t: Date.now() };
+  }
+}
+
+function activityDatesCacheKey(summaryRow) {
+  return `activityDates:${summaryRow.source_sheet || ''}:${summaryRow.RowID || ''}`;
+}
+
+function getCachedActivityDates(summaryRow, s) {
+  const entry = s?.screenDataCache?.[activityDatesCacheKey(summaryRow)];
+  return entry ? entry.data : null;
+}
+
+function putCachedActivityDates(summaryRow, data, s) {
+  if (s?.screenDataCache) {
+    s.screenDataCache[activityDatesCacheKey(summaryRow)] = { data, t: Date.now() };
   }
 }
 

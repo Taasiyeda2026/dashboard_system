@@ -62,6 +62,7 @@ function handlePost_(e) {
       diagnosticsConsistency: 'dashboard',
       activities: 'activities',
       activityDetail: 'activities',
+      activityDates: 'activities',
       week: 'week',
       month: 'month',
       exceptions: 'exceptions',

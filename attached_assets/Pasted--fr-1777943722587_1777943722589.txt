@@ -1,0 +1,75 @@
+בעת שמירת עריכה בפעילות מתקבלת הודעה:
+“בעיית תקשורת — בדקו את החיבור לאינטרנט”
+
+בדיקה בקוד:
+ב־frontend/src/api.js פעולות כתיבה משתמשות ב־API_TIMEOUT_MS_WRITE = 20000.
+אם saveActivity עובר timeout או fetch נכשל, הקוד זורק network_error ולכן מוצגת הודעת “בעיית תקשורת”, גם אם בפועל מדובר ב־timeout של Apps Script או תגובה איטית.
+
+צריך לתקן בשני כיוונים:
+
+1. אבחון מדויק יותר בצד לקוח
+   ב־postWithTimeout / request:
+
+* אם AbortController ביטל את הבקשה בגלל timeout, לא להחזיר network_error כללי.
+* להחזיר שגיאה ברורה כמו:
+  save_timeout
+  או:
+  הפעולה נמשכת זמן רב מדי. ייתכן שהשמירה בוצעה, רעננו בעוד רגע.
+
+כלומר להבדיל בין:
+
+* אין אינטרנט / fetch failed
+* timeout
+* server_error
+* response not JSON
+
+2. להעלות זמנית timeout לכתיבה
+   להעלות את:
+   API_TIMEOUT_MS_WRITE
+   מ־20000 ל־45000 או 60000.
+
+הסיבה:
+שמירת פעילות יכולה לכלול עדכון תאריכים/מפגשים/dirty cache, ולעיתים Apps Script איטי.
+לא נכון להציג “בעיית תקשורת” אחרי 20 שניות אם השרת עדיין עובד.
+
+3. לבדוק saveActivity backend
+   לוודא ש־saveActivity לא מפעיל פעולות כבדות סינכרוניות אחרי השמירה:
+
+* לא refreshAllReadModels_
+* לא refreshActivitiesSnapshot_
+* לא חישוב activities legacy
+* לא בנייה מחדש של month/week
+* לא פעולות Drive כבדות
+
+אחרי שמירה צריך לבצע רק:
+
+* כתיבה נקודתית לגיליון
+* mark dirty/stale
+* bump cache version
+* invalidation קל
+
+כל רענון כבד צריך להישאר לטריגרים.
+
+4. להוסיף perf/debug לשמירה
+   בתגובת saveActivity להחזיר debug_perf עם:
+
+* duration_ms
+* sheet_reads_count
+* sheet_writes_count אם קיים
+* mutation_steps
+* dirty_marked
+* read_models_refreshed: false
+* activities_snapshot_refreshed: false
+
+5. בצד UI
+   ב־bind-activity-edit-form.js, אם מתקבלת שגיאת timeout:
+   להציג הודעה אחרת:
+   “השמירה נמשכת זמן רב. ייתכן שהשינוי נשמר. רעננו בעוד רגע ובדקו שוב.”
+   ולא “בעיית תקשורת”.
+
+קריטריוני קבלה:
+
+* saveActivity לא מציג network_error כאשר מדובר ב־timeout.
+* saveActivity לא מפעיל refresh כבד.
+* שמירת שינוי קטן מסתיימת משמעותית מתחת ל־20–30 שניות.
+* אם יש timeout, ההודעה למשתמש מדויקת ולא מטעה.

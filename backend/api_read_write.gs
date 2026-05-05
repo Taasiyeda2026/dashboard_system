@@ -43,6 +43,7 @@ var READ_ONLY_API_ACTIONS_MAP_ = {
   diagnosticsConsistency: true,
   activities: true,
   activityDetail: true,
+  activityDates: true,
   week: true,
   month: true,
   exceptions: true,
@@ -121,6 +122,7 @@ var LEGACY_READ_DISPATCH_ALLOWLIST_ = {
   diagnosticsConsistency: true,
   activities: true,
   activityDetail: true,
+  activityDates: true,
   week: true,
   month: true,
   exceptions: true,
@@ -217,6 +219,9 @@ var READ_API_HANDLER_FACTORIES_ = {
   },
   activityDetail: function(u, p) {
     return actionActivityDetail_(u, p);
+  },
+  activityDates: function(u, p) {
+    return actionActivityDates_(u, p);
   },
   week: function(u, p) {
     return actionWeek_(u, p);
