@@ -1,6 +1,5 @@
-import { config } from './config.js';
 import { state, setSession, clearScreenDataCache } from './state.js';
-import { translateApiErrorForUser, hebrewRole } from './screens/shared/ui-hebrew.js';
+import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { supabase } from './supabase-client.js';
 
 /**
@@ -1608,28 +1607,10 @@ function normalizeData(data) {
 }
 
 async function postWithTimeout(action, requestBody, timeoutOverrideMs) {
-  const baseTimeoutMs = (action === 'readModelManifest' || action === 'readModelGet')
-    ? READ_MODEL_TIMEOUT_MS
-    : (READ_ACTIONS[action] ? API_TIMEOUT_MS_READ : API_TIMEOUT_MS_WRITE);
-  const timeoutMs = typeof timeoutOverrideMs === 'number' && timeoutOverrideMs > 0 ? timeoutOverrideMs : baseTimeoutMs;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
-  try {
-    return await fetch(config.apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal
-    });
-  } catch (err) {
-    if (controller.signal.aborted) {
-      const isWrite = !READ_ACTIONS[action];
-      throw Object.assign(new Error(isWrite ? 'save_timeout' : 'request_timeout'), { _isTimeout: true });
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
+  void action;
+  void requestBody;
+  void timeoutOverrideMs;
+  throw new Error('legacy_gas_api_disabled');
 }
 
 function emitPerfEntry(entry) {
@@ -1694,124 +1675,10 @@ function buildPerfRequestEntry(action, requestStart, lastResponseText, perfMeta 
 }
 
 async function request(action, payload = {}, perfMeta = {}) {
-  warnHeavyLegacyReadWithoutIntentionalFlag(action, perfMeta);
-  const timeoutMs = typeof perfMeta?.timeout_ms === 'number' ? perfMeta.timeout_ms : undefined;
-  if (!config.apiUrl) {
-    throw new Error('חסר קישור API. עדכנו frontend/src/config.js או window.__DASHBOARD_CONFIG__.');
-  }
-  if (action === 'month') {
-    const key = monthReadModelKey(payload);
-    const cached = monthReadModelCache.get(key);
-    if (cached && Date.now() - cached.t < MONTH_READ_MODEL_TTL_MS) {
-      return cached.data;
-    }
-  }
-
-  const tokenAtCallTime = state.token;
-
-  const requestBody = {
-    action,
-    token: tokenAtCallTime,
-    ...payload
-  };
-  if (isPerfDebugEnabled()) requestBody.debug_perf = true;
-
-  const requestStart = performance.now();
-  let response;
-  let firstResponseStatus = 0;
-  try {
-    response = await postWithTimeout(action, requestBody, timeoutMs);
-    firstResponseStatus = response?.status || 0;
-  } catch (fetchErr) {
-    if (fetchErr?._isTimeout) {
-      throw new Error(fetchErr.message);
-    }
-    if (READ_ACTIONS[action]) {
-      try {
-        await sleep(120);
-        response = await postWithTimeout(action, requestBody, timeoutMs);
-      } catch (retryErr) {
-        if (retryErr?._isTimeout) throw new Error(retryErr.message);
-        throw new Error('network_error');
-      }
-    } else {
-      throw new Error('network_error');
-    }
-  }
-
-  let lastResponseText = '';
-
-  async function parseAndValidate(res) {
-    try {
-      lastResponseText = await res.text();
-      return JSON.parse(lastResponseText);
-    } catch {
-      return null;
-    }
-  }
-
-  let json = await parseAndValidate(response);
-
-  function shouldRetryReadAction() {
-    if (!READ_ACTIONS[action]) return false;
-    if (!json) return true; // non-JSON / malformed response is usually transient
-    if (json.ok) return false;
-    const errKey = String(json.error || '').toLowerCase();
-    if (errKey === 'unauthorized' || errKey === 'forbidden' || errKey === 'invalid_credentials') return false;
-    if (RETRYABLE_SERVER_ERRORS.has(errKey)) return true;
-    return firstResponseStatus >= 500;
-  }
-
-  // Retry once only for transient read failures.
-  if (shouldRetryReadAction()) {
-    try {
-      const retryResponse = await postWithTimeout(action, requestBody, timeoutMs);
-      json = await parseAndValidate(retryResponse);
-    } catch {
-      throw new Error(translateApiErrorForUser('network_error'));
-    }
-  }
-
-  if (!json) throw new Error(translateApiErrorForUser('server_error'));
-
-  if (!json.ok) {
-    if ((json.error || '').toLowerCase() === 'unauthorized' && state.token === tokenAtCallTime) {
-      setSession(null);
-    }
-    if (action === 'diagnosticsConsistency' &&
-        typeof json.error === 'string' &&
-        json.error.indexOf('DIAGNOSTICS_ADMIN_DETAILS:') === 0 &&
-        ['admin', 'operation_manager'].includes(String(state?.user?.display_role || ''))) {
-      throw new Error(json.error.slice('DIAGNOSTICS_ADMIN_DETAILS:'.length));
-    }
-    throw new Error(translateApiErrorForUser(json.error));
-  }
-  const normalized = normalizeData(json.data);
-  if (action === 'month') {
-    monthReadModelCache.set(monthReadModelKey(payload), { data: normalized, t: Date.now() });
-  }
-  if (action === 'saveActivity' || action === 'addActivity' || action === 'reviewEditRequest') {
-    clearMonthReadModelCache();
-  }
-  if (MUTATING_ACTIONS[action]) {
-    invalidateScreenDataByAction(action);
-    invalidateReadModelLocalCacheByAction(action);
-  }
-  const backendDbg = json?.data?.debug_perf && typeof json.data.debug_perf === 'object' ? json.data.debug_perf : null;
-  const sheetReads =
-    backendDbg?.sheet_reads_count ??
-    (Array.isArray(backendDbg?.sheet_reads) ? backendDbg.sheet_reads.length : null) ??
-    json?.data?.sheet_reads_count ??
-    null;
-  emitPerfEntry(buildPerfRequestEntry(
-    action,
-    requestStart,
-    lastResponseText,
-    perfMeta,
-    sheetReads,
-    backendDbg
-  ));
-  return normalized;
+  void action;
+  void payload;
+  void perfMeta;
+  throw new Error('legacy_gas_api_disabled');
 }
 
 const SUPABASE_ROLE_ROUTES = {
@@ -2157,7 +2024,16 @@ export const api = {
       }
     };
   },
-  adminSettings: async () => {
+  adminSettings: async (payload) => {
+    if (payload && typeof payload === 'object' && String(payload.key || '').trim()) {
+      const key = String(payload.key || '').trim();
+      const value = String(payload.value || '');
+      const description = String(payload.description || '');
+      const { error: writeErr } = await supabase
+        .from('settings')
+        .upsert({ key, value, description }, { onConflict: 'key' });
+      if (writeErr) throw new Error(writeErr.message || 'admin_settings_save_failed');
+    }
     const rows = await readSettingsRowsFromSupabase();
     return { rows, _source: 'supabase' };
   },
@@ -2184,7 +2060,37 @@ export const api = {
     throw new Error('invalid_contact_kind');
   },
   saveContact: async (payload) => {
-    return api.addContact(payload);
+    const kind = String(payload?.kind || '').trim();
+    const row = payload?.row || {};
+    if (kind === 'instructor') {
+      return api.addContact(payload);
+    }
+    if (kind === 'school') {
+      const nextRow = { ...row };
+      if (nextRow.role !== undefined && nextRow.contact_role === undefined) nextRow.contact_role = nextRow.role;
+      const orig = payload?._supabase_orig && typeof payload._supabase_orig === 'object' ? payload._supabase_orig : null;
+      const keyChanged = !!orig && (
+        String(orig.authority || '') !== String(nextRow.authority || '') ||
+        String(orig.school || '') !== String(nextRow.school || '') ||
+        String(orig.contact_name || '') !== String(nextRow.contact_name || '')
+      );
+      if (keyChanged) {
+        const { error: delErr } = await supabase
+          .from('contacts_schools')
+          .delete()
+          .eq('authority', String(orig.authority || ''))
+          .eq('school', String(orig.school || ''))
+          .eq('contact_name', String(orig.contact_name || ''));
+        if (delErr) throw new Error(delErr.message || 'save_contact_failed');
+        const { error: insErr } = await supabase
+          .from('contacts_schools')
+          .insert(nextRow);
+        if (insErr) throw new Error(insErr.message || 'save_contact_failed');
+        return { ok: true };
+      }
+      return api.addContact({ kind: 'school', row: nextRow });
+    }
+    throw new Error('invalid_contact_kind');
   },
   addActivity: async (target, data) => {
     const payload = (typeof target === 'object' && target !== null && data === undefined)
@@ -2228,12 +2134,40 @@ export const api = {
     return { request_id: row.request_id, status: 'pending' };
   },
   reviewEditRequest: async (request_id, status) => {
+    const requestId = String(request_id || '').trim();
+    const nextStatus = String(status || '').trim();
+    if (!requestId) throw new Error('missing_request_id');
+    const reqRes = await supabase
+      .from('edit_requests')
+      .select('*')
+      .eq('request_id', requestId)
+      .single();
+    if (reqRes.error || !reqRes.data) throw new Error(reqRes.error?.message || 'review_edit_request_failed');
+    const reqRow = reqRes.data;
+    if (nextStatus === 'approved') {
+      const sourceSheet = String(reqRow?.source_sheet || '').trim();
+      const sourceRowId = String(reqRow?.source_row_id || '').trim();
+      const tableName = sourceSheet === 'data_short' || sourceRowId.startsWith('SHORT-') ? 'data_short' : 'data_long';
+      const requestedValues =
+        reqRow?.requested_values && typeof reqRow.requested_values === 'object'
+          ? reqRow.requested_values
+          : (() => {
+              try { return JSON.parse(String(reqRow?.requested_values || '{}')); } catch { return {}; }
+            })();
+      if (sourceRowId && requestedValues && Object.keys(requestedValues).length) {
+        const { error: applyErr } = await supabase
+          .from(tableName)
+          .update(requestedValues)
+          .eq('RowID', sourceRowId);
+        if (applyErr) throw new Error(applyErr.message || 'review_edit_request_apply_failed');
+      }
+    }
     const { error } = await supabase
       .from('edit_requests')
-      .update({ status, reviewed_at: new Date().toISOString() })
-      .eq('request_id', request_id);
+      .update({ status: nextStatus, reviewed_at: new Date().toISOString() })
+      .eq('request_id', requestId);
     if (error) throw new Error(error.message || 'review_edit_request_failed');
-    return { request_id, status };
+    return { request_id: requestId, status: nextStatus };
   },
   savePermission: async (row) => {
     const userId = String(row?.user_id || '').trim();
