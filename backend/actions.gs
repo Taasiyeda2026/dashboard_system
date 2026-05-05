@@ -1516,6 +1516,32 @@ function actionWeek_(user, payload) {
   }
   weekPayload = normalizeWeekPayloadShape_(weekPayload);
 
+  // Read-model build safety-net only: during scheduled/background refresh we may
+  // rebuild from source if bundle output is unexpectedly empty.
+  var hasWeekItems = Object.keys(weekPayload.items_by_id || {}).length > 0;
+  var hasDayItems = (weekPayload.days || []).some(function(day) {
+    return Array.isArray(day.item_ids) && day.item_ids.length > 0;
+  });
+  var debugWeek = buildWeekSourceDebug_(user, anchor);
+  var allowForegroundRebuild = yesNo_(payload && payload.allow_foreground_rebuild) === 'yes';
+  var shouldRebuild = (!hasWeekItems || !hasDayItems) && allowForegroundRebuild;
+  if (shouldRebuild) {
+    var rebuilt = normalizeWeekPayloadShape_(actionWeekLegacy_(user, payload));
+    rebuilt.debug = Object.assign({}, rebuilt.debug || {}, debugWeek, {
+      items_count: Object.keys(rebuilt.items_by_id || {}).length,
+      days_with_items: (rebuilt.days || []).filter(function(day) { return (day.item_ids || []).length > 0; }).length,
+      fallback_rebuild_used: true
+    });
+    weekPayload = rebuilt;
+  } else {
+    weekPayload.debug = Object.assign({}, weekPayload.debug || {}, debugWeek, {
+      items_count: Object.keys(weekPayload.items_by_id || {}).length,
+      days_with_items: (weekPayload.days || []).filter(function(day) { return (day.item_ids || []).length > 0; }).length,
+      fallback_rebuild_used: false,
+      fallback_rebuild_allowed: allowForegroundRebuild
+    });
+  }
+
   setRequestPerfField_('week_used_view', true);
   setRequestPerfField_('week_used_cache', !!ensured.usedCacheOnly);
   setRequestPerfField_('week_fallback_used', false);
@@ -1526,6 +1552,47 @@ function actionWeek_(user, payload) {
   markRequestPerf_(ensured.usedCacheOnly ? 'week:used_cache:true' : 'week:used_cache:false');
   markRequestPerf_('week:fallback_used:false');
   return weekPayload;
+}
+
+function buildWeekSourceDebug_(user, anchor) {
+  var fromDate = formatDate_(anchor);
+  var toDate = formatDate_(shiftDate_(anchor, 6));
+  var calRows = visibleActivitiesSummaryForUser_(user) || [];
+  var meetingsMap = buildMeetingsMap_() || {};
+  var rowsWithAnyDate = 0;
+  var rowsWithDateInWeek = 0;
+
+  calRows.forEach(function(row) {
+    var rowId = text_(row && row.RowID);
+    var hasAnyDate = false;
+    var hasDateInWeek = false;
+    var seen = {};
+
+    var addDate = function(dateKey) {
+      if (!dateKey || seen[dateKey]) return;
+      seen[dateKey] = true;
+      hasAnyDate = true;
+      if (dateKey >= fromDate && dateKey <= toDate) hasDateInWeek = true;
+    };
+
+    if (rowId && meetingsMap[rowId] && meetingsMap[rowId].length) {
+      meetingsMap[rowId].forEach(function(d) { addDate(normalizeDateTextToIso_(d)); });
+    }
+    var rowDates = collectActivityDatesFromSourceRow_(row);
+    rowDates.forEach(addDate);
+    if (!hasAnyDate) addDate(normalizeDateTextToIso_(row && row.start_date));
+
+    if (hasAnyDate) rowsWithAnyDate++;
+    if (hasDateInWeek) rowsWithDateInWeek++;
+  });
+
+  return {
+    total_source_rows: calRows.length,
+    rows_with_any_date: rowsWithAnyDate,
+    rows_with_date_in_week: rowsWithDateInWeek,
+    week_start: fromDate,
+    week_end: toDate
+  };
 }
 
 function buildMonthResponseFromMeetingViewRows_(rows, year, month) {
