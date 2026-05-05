@@ -246,6 +246,11 @@ export const weekScreen = {
       })
       .join('');
 
+    const hasAnyItems = allItems.length > 0;
+    const weekEmptyNotice = (!hasAnyItems && safeDays.length > 0)
+      ? `<div class="ds-empty" role="status" dir="rtl" style="padding:16px 0"><p class="ds-empty__msg">אין פעילויות רשומות בשבוע זה</p></div>`
+      : '';
+
     const body =
       columns ||
       `<div class="ds-empty"><p class="ds-empty__msg">אין נתוני שבוע זמינים</p></div>`;
@@ -268,6 +273,7 @@ export const weekScreen = {
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-next aria-label="שבוע הבא" title="שבוע הבא" ${navLoading ? 'disabled' : ''}>◀</button>
       </nav>
       ${toolbarHtml}
+      ${weekEmptyNotice}
       <div class="ds-week-board ds-screen-compact-90${navLoading ? ' is-inline-loading' : ''}${navDirection}" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
     return html;

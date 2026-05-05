@@ -413,7 +413,9 @@ export const activitiesScreen = {
 
     const tableSection =
       safeRows.length === 0
-        ? dsEmptyState('לא נמצאו פעילויות')
+        ? dsEmptyState(allRows.length === 0
+            ? 'אין פעילויות רשומות בחודש זה'
+            : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
                 <colgroup>
                   <col class="ds-activities-col--program">

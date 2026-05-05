@@ -286,6 +286,14 @@ export const monthScreen = {
     const currentYm = data?.month || `${y}-${String(mo).padStart(2, '0')}`;
     const monthTitle = monthTitleHebrew(spec);
 
+    const hasAnyActivities = allItems.length > 0;
+    const hasFilteredResults = filterState.q || Object.values(filterState.filters || {}).some(Boolean);
+    const emptyNotice = !hasAnyActivities && !navLoading
+      ? `<div class="ds-empty" role="status" dir="rtl"><p class="ds-empty__msg">אין פעילויות רשומות בחודש ${escapeHtml(monthTitle)}</p></div>`
+      : !hasAnyActivities && hasFilteredResults
+        ? `<div class="ds-empty" role="status" dir="rtl"><p class="ds-empty__msg">לא נמצאו פעילויות התואמות לסינון</p></div>`
+        : '';
+
     const html = dsScreenStack(`
       <nav class="ds-cal-nav${navLoading ? ' is-nav-loading' : ''}" role="navigation" aria-label="ניווט חודשי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
@@ -294,6 +302,7 @@ export const monthScreen = {
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-next aria-label="חודש הבא" title="חודש הבא" ${navLoading ? 'disabled' : ''}>◀</button>
       </nav>
       ${toolbarHtml}
+      ${emptyNotice}
       ${dsCard({
         body: gridHtml,
         padded: false
