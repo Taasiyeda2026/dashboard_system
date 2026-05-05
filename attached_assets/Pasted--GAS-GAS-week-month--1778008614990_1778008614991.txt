@@ -1,0 +1,105 @@
+שינוי גישה חשוב:
+תתייחס לכך שאין יותר GAS. החיבור ל-GAS נסגר.
+
+המטרה:
+מסכי week ו-month חייבים לעבוד מ-Supabase בלבד דרך activity_meetings.
+אין fallback ל-GAS.
+אין requestReadModel כנתיב הצלה למסכים האלה.
+אם אין נתונים במסך — זו תקלה במיפוי/סינון שצריך לתקן מול Supabase.
+
+טבלת המקור:
+activity_meetings
+
+בצע:
+1. עבור על frontend/src/screens/week.js
+2. עבור על frontend/src/screens/month.js
+3. עבור על frontend/src/api.js
+4. בדוק בדיוק איזה payload המסכים מצפים לקבל.
+5. בנה את אותו payload ישירות מתוך activity_meetings.
+
+מבנה פלט נדרש:
+week:
+{
+  week_start,
+  week_end,
+  days,
+  items_by_id,
+  _source: "supabase"
+}
+
+month:
+{
+  month,
+  cells,
+  items_by_id,
+  _source: "supabase"
+}
+
+חשוב:
+אל תנחש שמות שדות.
+בדוק את השדות בפועל מתוך activity_meetings והוסף מיפוי גמיש לשמות קיימים.
+
+תמוך לפחות בשדות תאריך אפשריים:
+meeting_date
+date
+start_date
+date_start
+activity_date
+
+תמוך בשדות שעה אפשריים:
+start_time
+StartTime
+end_time
+EndTime
+
+תמוך בשדות פעילות/תצוגה אפשריים:
+RowID
+activity_name
+activity_no
+activity_type
+activity_manager
+authority
+school
+instructor_name
+emp_id
+
+אם השדות בפועל שונים — להשתמש בשמות האמיתיים שמצאת.
+
+דרישות:
+1. week לא משתמש יותר ב-GAS/readModel כ-fallback.
+2. month לא משתמש יותר ב-GAS/readModel כ-fallback.
+3. אם Supabase נכשל טכנית — להחזיר שגיאה ברורה למסך או payload ריק עם debug, אבל לא לקרוא ל-GAS.
+4. אם Supabase מחזיר rows אבל המסך מציג 0 — לתקן את המיפוי/הסינון.
+5. אם Supabase מחזיר 0 rows אמיתי לטווח התאריכים — להציג 0, אבל להוסיף debug שמראה raw rows count ו-filtered rows count.
+6. לוודא שפילטרים ריקים במסך לא מסננים בטעות הכול.
+7. לא לשנות UI.
+8. לא לגעת בדשבורד.
+9. לא לגעת באנשי קשר.
+10. לא לגעת ב-permissions.
+11. לא לשנות מבנה טבלאות.
+12. לא ליצור טבלאות.
+13. לא להשתמש ב-secret key.
+14. לא להעלות env לריפו.
+
+הוסף לוגים זמניים לאבחון:
+[supabase][activity_meetings] raw rows count
+[supabase][activity_meetings] detected fields
+[supabase][week] week_start
+[supabase][week] week_end
+[supabase][week] filtered rows count
+[supabase][week] mapped items count
+[supabase][month] month
+[supabase][month] filtered rows count
+[supabase][month] mapped items count
+
+בסיום החזר:
+1. אילו קריאות ל-GAS/readModel הוסרו ממסכי week/month
+2. אילו שדות אמיתיים נמצאו ב-activity_meetings
+3. מה שדה התאריך שמשמש בפועל
+4. למה week הציג 0 לפני התיקון
+5. למה month הציג 0 לפני התיקון
+6. מה תוקן במיפוי
+7. האם week עובד רק מ-Supabase
+8. האם month עובד רק מ-Supabase
+9. אילו קבצים שונו
+10. האם npm run build עבר
