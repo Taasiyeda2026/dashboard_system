@@ -65,3 +65,5 @@ on public.users
 for delete
 to anon, authenticated
 using (true);
+
+grant select, insert, update, delete on public.users to anon, authenticated;

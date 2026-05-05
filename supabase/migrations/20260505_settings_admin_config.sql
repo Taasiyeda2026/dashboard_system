@@ -47,6 +47,8 @@ to anon, authenticated
 using (true)
 with check (true);
 
+grant select, insert, update, delete on public.settings to anon, authenticated;
+
 insert into public.settings(key, value, description)
 values
   ('sheet_short_activities', 'data_short', 'Supabase source for short activities'),
