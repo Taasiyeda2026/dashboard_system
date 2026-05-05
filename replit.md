@@ -1,45 +1,63 @@
 # Dashboard-Taasiyeda — Project Memory
 
-Hebrew RTL internal dashboard. Stack: Vanilla JS + Google Apps Script + Google Sheets + Supabase.
+Hebrew RTL internal dashboard. Fully migrated to Supabase — NO Google Apps Script dependency.
 Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebrew.
 
 ## Runtime
 - Static server: `npx serve dist -l 5000` (workflow: "Start application")
 - SW cache bump: edit `CACHE_VERSION` in `frontend/sw.js` after any JS/CSS change.
-- **Current versions**: SW v321 (frontend/sw.js)
+- **Current versions**: SW v322 (frontend/sw.js)
 
 ## Key identifiers
-- `SPREADSHEET_ID = '1odLLnhpm7gLwSsDrgzxjIy2cuHXZGNNQYXCkuhAt52s'`
-- GAS deployment URL (DEFAULT_API_URL in `frontend/src/config.js`):
-  `AKfycbx0QRcn7lbK7Cenx1FzAaKQTk7ICk4YALPpDCynMHwZ0bMlpUq8hWVG5J-8y0ZNr23q`
 - Supabase URL: `https://szinlhjuwyiyszdpsdop.supabase.co` (anon key in `frontend/src/supabase-client.js`)
+- GAS URL in `frontend/src/config.js` — **legacy, no longer used**
 
 ## Test suite
 - `node --test tests/*.test.mjs`
 - Baseline: 92 pass / 5 fail (pre-existing jsdom-missing failures, unrelated to app logic)
 
 ## Architecture
-- `frontend/src/screens/` — one file per screen (exceptions.js, finance.js, week.js, month.js, …)
-- `frontend/src/api.js` — API layer; week/month read ONLY from Supabase (no GAS fallback)
-- `backend/*.gs` — Google Apps Script files (actions.gs, dashboard-snapshot.gs, …)
-- `tests/*.test.mjs` — Node test-runner tests (no jsdom; DOM tests fail, expected)
+- `frontend/src/api.js` — ALL reads & writes go directly to Supabase. `request()` throws `legacy_gas_api_disabled`.
+- `frontend/src/main.js` — app shell, routing, login
+- `frontend/src/screens/` — one file per screen
+- `backend/*.gs` — Google Apps Script (legacy, archived — NOT in use)
+- `tests/*.test.mjs` — Node test-runner tests
 
-## Supabase data sources
-- `data_short` — short activities; `start_date` = meeting date
-- `data_long` — long activities; joined from `activity_meetings.source_row_id → data_long.RowID`
-- `activity_meetings` — per-meeting rows for long programs; `meeting_date` = calendar date
+## Supabase tables
+| Table | Contents |
+|---|---|
+| `data_long` | Long-program activities (source of truth) |
+| `data_short` | Short/one-day activities |
+| `activity_meetings` | Per-meeting dates for long programs; `meeting_date` = calendar date |
+| `contacts_instructors` | Instructor contacts |
+| `contacts_schools` | School contacts |
+| `lists` | Dropdown option lists |
+| `edit_requests` | Edit-request workflow |
+| `operations_private_notes` | Private ops notes |
+| `users` | Auth/permissions (replaces GAS permissions sheet) ⚠️ SQL pending |
+| `settings` | App config / sheet mappings ⚠️ SQL pending |
 
-## Supabase-only screens (no GAS fallback)
-- **week**: `api.week` → `readWeekFromSupabase` only. On failure: empty payload with `_debug`.
-- **month**: `api.month` → `readMonthFromSupabase` only. On failure: empty payload with `_debug`.
-- Helper functions: `buildCalendarMapping`, `detectActivityMeetingsDateField`, `emptyWeekPayload`, `emptyMonthPayload`
-- Diagnostic logs: `[supabase][activity_meetings]`, `[supabase][week]`, `[supabase][month]`
+## ⚠️ Pending manual step — run in Supabase SQL editor
+Two migration files must be applied before login works:
+- `supabase/migrations/20260505_users_auth_bootstrap.sql`
+- `supabase/migrations/20260505_settings_admin_config.sql`
+
+After applying: seed `users` table with existing users (user_id, entry_code, role, name).
+
+## API status — all Supabase-only
+- **Auth**: `login`, `bootstrap` → `users` table
+- **Reads**: all screens read directly from Supabase (no GAS fallback anywhere)
+- **Writes**: all writes go directly to Supabase tables
+- **Dead code** (safe to delete later): `syncActivityToSupabase`, `syncContactToSupabase`, `requestReadModel`, `getReadModelManifestCached`
+
+## Supabase-only screens
+- week ✅ month ✅ dashboard ✅ activities ✅ activityDetail ✅ activityDates ✅
+- exceptions ✅ instructors ✅ instructorContacts ✅ contacts ✅ endDates ✅
+- myData ✅ operations ✅ operationsDetail ✅ editRequests ✅ permissions ✅
+- adminSettings ✅ adminLists ✅ all writes ✅
 
 ## Notable fixes (history)
-1. **Data-maintenance pipeline**: `runDataMaintenance_` calls `refreshDataViews_()` before
-   `refreshDashboardSnapshots_()`. Early-return on view failure.
-2. **month_ym text format**: `ensureSnapshotMonthYmTextColumn_()` ensures `'YYYY-MM` prefix.
-3. **Exceptions screen — all 3 types visible**: `computeExceptionsModel_` now only skips
-   overlap check when `rowHasStart` is true.
-4. **Exceptions — unique card actions**: format `exception:<RowID>:<exception_type>`.
-5. **week/month — Supabase-only**: GAS fallback removed; empty payload returned on failure.
+1. **Data-maintenance pipeline**: `runDataMaintenance_` calls `refreshDataViews_()` early-return on view failure.
+2. **Exceptions — unique card actions**: format `exception:<RowID>:<exception_type>`.
+3. **week/month — Supabase-only**: GAS fallback removed.
+4. **Full GAS cutover**: `request()` disabled; all 35+ api methods Supabase-only.
