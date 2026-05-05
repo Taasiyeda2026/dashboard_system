@@ -869,19 +869,19 @@ async function dashboardReadModelFromSupabase(month) {
 
     const [longResult, shortResult, longEndingsResult] = await Promise.all([
       supabase.from('data_long')
-        .select('activity_type,activity_manager,start_date,end_date,emp_id,status')
+        .select('activity_type,activity_manager,start_date,end_date,date_end,emp_id,emp_id_2,instructor_name,instructor_name_2,school,authority,activity_name,status,RowID')
         .lte('start_date', monthEnd)
-        .gte('end_date', monthStart)
+        .or(`end_date.gte.${monthStart},date_end.gte.${monthStart}`)
         .neq('status', 'סגור'),
       supabase.from('data_short')
-        .select('activity_type,activity_manager,start_date,emp_id,emp_id_2,status')
+        .select('activity_type,activity_manager,start_date,emp_id,emp_id_2,instructor_name,instructor_name_2,school,authority,activity_name,status,RowID')
         .gte('start_date', monthStart)
         .lte('start_date', monthEnd)
         .neq('status', 'סגור'),
       supabase.from('data_long')
-        .select('activity_type,activity_manager,end_date,status')
-        .gte('end_date', monthStart)
-        .lte('end_date', monthEnd)
+        .select('activity_type,activity_manager,end_date,date_end,status')
+        .or(`end_date.gte.${monthStart},date_end.gte.${monthStart}`)
+        .or(`end_date.lte.${monthEnd},date_end.lte.${monthEnd}`)
         .neq('status', 'סגור')
     ]);
 
@@ -909,28 +909,40 @@ async function dashboardReadModelFromSupabase(month) {
     const total_short_activities = shortRows.length;
     const course_endings = courseEndingRows.length;
 
+    const HEB_TYPE_MAP = {
+      'קורס': 'course', 'סדנה': 'workshop', 'סדנאות': 'workshop',
+      'טיול': 'tour', 'סיור': 'tour', 'צהרון': 'after_school', 'חוג': 'after_school',
+      'חדר בריחה': 'escape_room',
+      'course': 'course', 'workshop': 'workshop', 'tour': 'tour',
+      'after_school': 'after_school', 'escape_room': 'escape_room'
+    };
     const activeTypeCounts = { course: 0, after_school: 0, workshop: 0, tour: 0, escape_room: 0 };
-    for (const r of longRows) {
+    for (const r of [...longRows, ...shortRows]) {
       const t = String(r.activity_type || '').trim();
-      if (Object.prototype.hasOwnProperty.call(activeTypeCounts, t)) activeTypeCounts[t] += 1;
-    }
-    for (const r of shortRows) {
-      const t = String(r.activity_type || '').trim();
-      if (Object.prototype.hasOwnProperty.call(activeTypeCounts, t)) activeTypeCounts[t] += 1;
+      const key = HEB_TYPE_MAP[t] || t;
+      if (Object.prototype.hasOwnProperty.call(activeTypeCounts, key)) activeTypeCounts[key] += 1;
     }
 
     const instructorIds = new Set();
+    const instructorNames = new Set();
     for (const r of longRows) {
       const id = String(r.emp_id || '').trim();
+      const n = String(r.instructor_name || '').trim();
       if (id) instructorIds.add(id);
+      if (n) instructorNames.add(n);
     }
     for (const r of shortRows) {
       const id1 = String(r.emp_id || '').trim();
       const id2 = String(r.emp_id_2 || '').trim();
+      const n1 = String(r.instructor_name || '').trim();
+      const n2 = String(r.instructor_name_2 || '').trim();
       if (id1) instructorIds.add(id1);
       if (id2) instructorIds.add(id2);
+      if (n1) instructorNames.add(n1);
+      if (n2) instructorNames.add(n2);
     }
     const active_instructors_count = instructorIds.size;
+    const exceptions_count = buildExceptionsFromRows(longRows, shortRows, []).length;
 
     const managerMap = new Map();
     function ensureManager(name) {
@@ -976,7 +988,7 @@ async function dashboardReadModelFromSupabase(month) {
       total_long_activities,
       total_instructors: active_instructors_count,
       total_course_endings_current_month: course_endings,
-      exceptions_count: 0,
+      exceptions_count,
       short: total_short_activities,
       long: total_long_activities
     };
@@ -984,7 +996,7 @@ async function dashboardReadModelFromSupabase(month) {
     const kpi_cards = buildDashboardKpiCardsFromSupabase(
       totals,
       activeTypeCounts,
-      0,
+      exceptions_count,
       active_instructors_count,
       course_endings
     );
@@ -996,11 +1008,11 @@ async function dashboardReadModelFromSupabase(month) {
       totals,
       by_activity_manager,
       summary: {
-        active_courses_current_month: activeTypeCounts.course,
+        active_courses_current_month: total_long_activities,
         ending_courses_current_month: course_endings,
         active_courses_next_month: 0,
-        exceptions_count: 0,
-        active_instructors: [],
+        exceptions_count,
+        active_instructors: [...instructorNames].sort(),
         operational_gaps_count: 0,
         missing_instructor_count: 0,
         missing_start_date_count: 0,

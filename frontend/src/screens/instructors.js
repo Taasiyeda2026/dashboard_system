@@ -126,7 +126,7 @@ export const instructorsScreen = {
       'authority', 'school', 'activity_name'
     ]);
     const filters = ensureActivityListFilters(state, INSTRUCTORS_SCOPE);
-    const activeOnly = true;
+    const activeOnly = false;
 
     const locallyFiltered = applyLocalFilters(allRows, filters, { filterFields: INSTRUCTOR_FILTER_FIELDS });
     const filtered  = applyActiveFilter(locallyFiltered, activeOnly);

@@ -394,7 +394,7 @@ export const activitiesScreen = {
           ? `<span class="ds-chip ds-chip--status ds-chip--warn" title="${escapeHtml(editStatus)}">${escapeHtml(editStatus)}</span>`
           : '';
         const startHe = formatDateHe(row.start_date) || '—';
-        const endRaw = String(row?.end_date || '').trim() || String(row?.start_date || '').trim();
+        const endRaw = String(row?.end_date || row?.date_end || '').trim() || String(row?.start_date || '').trim();
         const endHe = endRaw ? formatDateHe(endRaw) || '—' : '—';
         const rowSearch = [
           hideRowId ? '' : row.RowID,

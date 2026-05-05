@@ -4,7 +4,8 @@
  */
 export function formatDateHe(iso) {
   if (!iso || typeof iso !== 'string') return iso || '—';
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const s = String(iso).trim().slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return iso;
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
