@@ -10,7 +10,8 @@ import {
 } from './shared/layout.js';
 import { isNarrowViewport } from './shared/responsive.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
-import { activityRowDetailHtml } from './shared/activity-detail-html.js';
+import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
+import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 
 export const operationsScreen = {
   load: ({ api, state }) => api.operations({
@@ -40,7 +41,7 @@ export const operationsScreen = {
         })
         .join(' ');
       return `
-      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${columns
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}" data-row-id="${escapeHtml(row.RowID)}" data-source-sheet="${escapeHtml(row.source_sheet || '')}" role="button" tabindex="0">${columns
         .map((col) => {
           let val = row?.[col] ?? '';
           if (col === 'activity_type') val = hebrewActivityType(val);
@@ -70,7 +71,7 @@ export const operationsScreen = {
               return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}">
               ${dsInteractiveCard({
                 variant: 'session',
-                action: `operations:${row.RowID}`,
+                action: `operations:${row.source_sheet || ''}:${row.RowID}`,
                 title: hideRowId ? `${row.activity_name || 'פעילות'}` : `${row.RowID} · ${row.activity_name || 'פעילות'}`,
                 subtitle: `${row.start_date || '—'} → ${row.end_date || '—'}`,
                 meta: hebrewActivityType(row.activity_type)
@@ -89,7 +90,7 @@ export const operationsScreen = {
       })}
     `);
   },
-  bind({ root, data, state, ui, api, rerender }) {
+  bind({ root, data, state, ui, api, rerender, clearScreenDataCache }) {
     if (!root) return;
     bindPageListTools(root);
     root.querySelector('[data-page-q]')?.addEventListener('input', (ev) => {
@@ -109,25 +110,65 @@ export const operationsScreen = {
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
+    const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
+    const canEditActivity   = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
+    const canDirectEdit     = !!state?.user?.can_edit_direct;
+    const settings = state?.clientSettings || {};
+
     const detailCache = new Map();
     const loadingDetailMarkup = '<div class="ds-loading-card" dir="rtl"><p>טוען פירוט פעילות…</p></div>';
+
+    function makeOnOpen(contentRoot) {
+      const shellHdr = contentRoot.closest('.ds-drawer')?.querySelector(':scope > header');
+      if (shellHdr) shellHdr.hidden = true;
+      bindActivityEditFormShared(contentRoot, {
+        api,
+        ui,
+        clearScreenDataCache,
+        rerender,
+        onRowSaved: ({ sourceRowId, changes }) => {
+          const cached = detailCache.get(sourceRowId);
+          if (cached) Object.assign(cached, changes || {});
+          const hit = rowById.get(String(sourceRowId));
+          if (hit) Object.assign(hit, changes || {});
+        }
+      });
+    }
 
     async function openOperationDetail(summaryRow) {
       if (!summaryRow || !ui) return;
       ui.openDrawer({
-        title: hideRowId ? 'פירוט פעילות' : `פירוט ${summaryRow.RowID}`,
+        title: '',
         content: loadingDetailMarkup
       });
-      const cacheKey = `${summaryRow.source_sheet || ''}|${summaryRow.RowID || ''}`;
+
+      const cacheKey = String(summaryRow.RowID || '');
       let hit = detailCache.get(cacheKey);
       if (!hit) {
         const rsp = await api.operationsDetail(summaryRow.RowID, summaryRow.source_sheet);
         hit = rsp?.row || summaryRow;
         detailCache.set(cacheKey, hit);
       }
+
+      const privateNote = canSeePrivateNotes ? (hit.private_note ?? '—') : null;
+
       ui.openDrawer({
-        title: hideRowId ? 'פירוט פעילות' : `פירוט ${hit.RowID}`,
-        content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo })
+        title: '',
+        content: activityWorkDrawerHtml(hit, {
+          privateNote,
+          canEdit: canEditActivity,
+          canDirectEdit,
+          hideEmpIds,
+          hideRowId,
+          hideActivityNo,
+          settings,
+          datesLoading: false
+        }),
+        onOpen: makeOnOpen,
+        onClose: () => {
+          const shellHdr = document.querySelector('.ds-drawer > header');
+          if (shellHdr) shellHdr.hidden = false;
+        }
       });
     }
 
@@ -148,7 +189,9 @@ export const operationsScreen = {
 
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('operations:')) return;
-      const rowId = action.slice('operations:'.length);
+      const rest = action.slice('operations:'.length);
+      const colonIdx = rest.indexOf(':');
+      const rowId = colonIdx >= 0 ? rest.slice(colonIdx + 1) : rest;
       const hit = rowById.get(String(rowId));
       if (!hit) return;
       openOperationDetail(hit).catch(() => {});

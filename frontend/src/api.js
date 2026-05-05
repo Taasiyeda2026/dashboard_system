@@ -1798,9 +1798,12 @@ async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
   const rowId = String(source_row_id || '').trim();
   const sheet = String(source_sheet || '').trim();
   const tableName = sheet === 'data_short' || rowId.startsWith('SHORT-') ? 'data_short' : 'data_long';
-  const { data, error } = await supabase.from(tableName).select('*').eq('RowID', rowId).single();
+  const [{ data, error }, { data: noteData }] = await Promise.all([
+    supabase.from(tableName).select('*').eq('RowID', rowId).single(),
+    supabase.from('operations_private_notes').select('note_text').eq('source_row_id', rowId).maybeSingle()
+  ]);
   if (error) throw new Error(error.message || 'detail_failed');
-  return { row: { ...(data || {}), source_sheet: tableName } };
+  return { row: { ...(data || {}), source_sheet: tableName, private_note: noteData?.note_text ?? '' } };
 }
 
 async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
