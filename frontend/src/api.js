@@ -736,9 +736,9 @@ async function dashboardReadModelFromSupabase(month) {
 
     const [longResult, shortResult, longEndingsResult] = await Promise.all([
       supabase.from('data_long')
-        .select('activity_type,activity_manager,start_date,emp_id,status')
-        .gte('start_date', monthStart)
+        .select('activity_type,activity_manager,start_date,end_date,emp_id,status')
         .lte('start_date', monthEnd)
+        .gte('end_date', monthStart)
         .neq('status', 'סגור'),
       supabase.from('data_short')
         .select('activity_type,activity_manager,start_date,emp_id,emp_id_2,status')
