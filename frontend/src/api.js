@@ -429,6 +429,145 @@ async function syncContactToSupabase(kind, row, origIdentity) {
   }
 }
 
+/**
+ * Fire-and-forget Supabase sync after a successful GAS write for activities.
+ * Never throws — errors are logged only. Does not block the caller.
+ *
+ * kind: 'add' | 'save' | 'submit_edit_request' | 'review_edit_request' | 'private_note'
+ * payload: the object sent to GAS (before token stripping)
+ * gasResponse: the normalized response returned by GAS
+ *
+ * Tables written:
+ *   add                  → data_long / data_short (upsert on RowID)
+ *   save                 → data_long / data_short (update by RowID)
+ *   submit_edit_request  → edit_requests (upsert on request_id)
+ *   review_edit_request  → edit_requests (update status by request_id)
+ *                          + data_long/data_short (update by RowID) if approved
+ *   private_note         → operations_private_notes (upsert on source_sheet,source_row_id)
+ *
+ * ⚠️ Requires UNIQUE constraints — see supabase/migrations/20260505_activities_write_sync.sql
+ */
+async function syncActivityToSupabase(kind, payload, gasResponse) {
+  if (!supabase) return;
+  try {
+    if (kind === 'add') {
+      const rowId = gasResponse?.RowID;
+      const sourceSheet = gasResponse?.source_sheet;
+      if (!rowId || !sourceSheet) return;
+      const act = payload?.activity || payload || {};
+      const isLong = rowId.startsWith('LONG-');
+      const tableName = isLong ? 'data_long' : 'data_short';
+      const row = {
+        RowID: rowId,
+        activity_manager: String(act.activity_manager || ''),
+        authority: String(act.authority || ''),
+        school: String(act.school || ''),
+        grade: String(act.grade || ''),
+        class_group: String(act.class_group || ''),
+        activity_type: String(act.activity_type || ''),
+        activity_no: String(act.activity_no || ''),
+        activity_name: String(act.activity_name || ''),
+        sessions: String(act.sessions || ''),
+        price: String(act.price || ''),
+        funding: String(act.funding || ''),
+        start_time: String(act.start_time || ''),
+        end_time: String(act.end_time || ''),
+        emp_id: String(act.emp_id || ''),
+        instructor_name: String(act.instructor_name || ''),
+        start_date: String(act.start_date || ''),
+        end_date: String(act.end_date || act.start_date || ''),
+        status: 'פעיל',
+        notes: String(act.notes || ''),
+        finance_status: String(act.finance_status || ''),
+        finance_notes: String(act.finance_notes || ''),
+        source_sheet: sourceSheet
+      };
+      if (!isLong) {
+        row.emp_id_2 = String(act.emp_id_2 || '');
+        row.instructor_name_2 = String(act.instructor_name_2 || '');
+      }
+      for (let i = 1; i <= 35; i++) {
+        const k = `Date${i}`;
+        if (act[k] !== undefined) row[k] = String(act[k] || '');
+      }
+      const { error } = await supabase.from(tableName).upsert(row, { onConflict: 'RowID' });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] activity upsert (add) failed:', error);
+      }
+
+    } else if (kind === 'save') {
+      const sourceRowId = String(payload?.source_row_id || payload?.RowID || '');
+      const changes = payload?.changes || {};
+      if (!sourceRowId || !Object.keys(changes).length) return;
+      const isLong = sourceRowId.startsWith('LONG-');
+      const tableName = isLong ? 'data_long' : 'data_short';
+      const { error } = await supabase.from(tableName).update(changes).eq('RowID', sourceRowId);
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] activity update (save) failed:', error);
+      }
+
+    } else if (kind === 'submit_edit_request') {
+      const requestId = gasResponse?.request_id;
+      if (!requestId) return;
+      const sourceRowId = String(payload?.source_row_id || '');
+      const isLong = sourceRowId.startsWith('LONG-');
+      const row = {
+        request_id: requestId,
+        source_sheet: isLong ? 'data_long' : 'data_short',
+        source_row_id: sourceRowId,
+        changed_fields: JSON.stringify(Object.keys(payload?.changes || {})),
+        original_values: JSON.stringify({}),
+        requested_values: JSON.stringify(payload?.changes || {}),
+        requested_at: new Date().toISOString(),
+        status: 'pending',
+        active: 'yes'
+      };
+      const { error } = await supabase.from('edit_requests').upsert(row, { onConflict: 'request_id' });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] edit_requests upsert (submit) failed:', error);
+      }
+
+    } else if (kind === 'review_edit_request') {
+      const requestId = String(payload?.request_id || '');
+      const finalStatus = gasResponse?.status || payload?.status || '';
+      if (!requestId) return;
+      const { error } = await supabase
+        .from('edit_requests')
+        .update({ status: finalStatus, reviewed_at: new Date().toISOString() })
+        .eq('request_id', requestId);
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] edit_requests update (review) failed:', error);
+      }
+
+    } else if (kind === 'private_note') {
+      const sourceSheet = String(payload?.source_sheet || '');
+      const sourceRowId = String(payload?.source_row_id || '');
+      if (!sourceSheet || !sourceRowId) return;
+      const row = {
+        source_sheet: sourceSheet,
+        source_row_id: sourceRowId,
+        note_text: String(payload?.note || payload?.note_text || ''),
+        updated_at: new Date().toISOString(),
+        active: 'yes'
+      };
+      const { error } = await supabase
+        .from('operations_private_notes')
+        .upsert(row, { onConflict: 'source_sheet,source_row_id' });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] operations_private_notes upsert failed:', error);
+      }
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] syncActivityToSupabase unexpected error:', err);
+  }
+}
+
 const RETRYABLE_SERVER_ERRORS = new Set([
   'network_error',
   'server_error',
@@ -1098,18 +1237,24 @@ export const api = {
     syncContactToSupabase(gasPayload?.kind, gasPayload?.row, origIdentity || null).catch(() => {});
     return result;
   },
-  addActivity: (target, data) => {
-    if (typeof target === 'object' && target !== null && data === undefined) {
-      return request('addActivity', { activity: target });
-    }
-    return request('addActivity', { activity: { ...(data || {}), source: target } });
+  addActivity: async (target, data) => {
+    const payload = (typeof target === 'object' && target !== null && data === undefined)
+      ? { activity: target }
+      : { activity: { ...(data || {}), source: target } };
+    const result = await request('addActivity', payload);
+    syncActivityToSupabase('add', payload, result).catch(() => {});
+    return result;
   },
   /** מקבל אובייקט מלא (כולל source_sheet, changes) או חתימה ישנה (id, changes). */
-  saveActivity: (a, b) =>
-    b !== undefined && b !== null
-      ? request('saveActivity', { source_row_id: a, changes: b })
-      : request('saveActivity', a),
-  submitEditRequest: (source_row_id, changes) => {
+  saveActivity: async (a, b) => {
+    const payload = (b !== undefined && b !== null)
+      ? { source_row_id: a, changes: b }
+      : a;
+    const result = await request('saveActivity', payload);
+    syncActivityToSupabase('save', payload, result).catch(() => {});
+    return result;
+  },
+  submitEditRequest: async (source_row_id, changes) => {
     const normalizedChanges = Object.entries(changes || {}).reduce((acc, [key, value]) => {
       if (value === undefined || value === null) return acc;
       const normalizedValue = String(value).trim();
@@ -1123,23 +1268,27 @@ export const api = {
     if (!source_row_id || !Object.keys(normalizedChanges).length) {
       throw new Error('No changes to submit');
     }
-    return request('submitEditRequest', { source_row_id, changes: normalizedChanges });
+    const result = await request('submitEditRequest', { source_row_id, changes: normalizedChanges });
+    syncActivityToSupabase('submit_edit_request', { source_row_id, changes: normalizedChanges }, result).catch(() => {});
+    return result;
   },
-  reviewEditRequest: (request_id, status) => request('reviewEditRequest', { request_id, status }),
+  reviewEditRequest: async (request_id, status) => {
+    const result = await request('reviewEditRequest', { request_id, status });
+    syncActivityToSupabase('review_edit_request', { request_id, status }, result).catch(() => {});
+    return result;
+  },
   savePermission: (row) => request('savePermission', { row }),
   addUser: (row) => request('addUser', { row }),
   deactivateUser: (user_id) => request('deactivateUser', { user_id }),
   reactivateUser: (user_id) => request('reactivateUser', { user_id }),
   deleteUser: (user_id) => request('deleteUser', { user_id }),
-  savePrivateNote: (a, b, c) => {
-    if (typeof a === 'object' && a !== null) {
-      return request('savePrivateNote', {
-        source_sheet: a.source_sheet,
-        source_row_id: a.source_row_id,
-        note: a.note ?? a.note_text ?? ''
-      });
-    }
-    return request('savePrivateNote', { source_sheet: a, source_row_id: b, note: c });
+  savePrivateNote: async (a, b, c) => {
+    const payload = (typeof a === 'object' && a !== null)
+      ? { source_sheet: a.source_sheet, source_row_id: a.source_row_id, note: a.note ?? a.note_text ?? '' }
+      : { source_sheet: a, source_row_id: b, note: c };
+    const result = await request('savePrivateNote', payload);
+    syncActivityToSupabase('private_note', payload, result).catch(() => {});
+    return result;
   },
   listSheets: () => request('listSheets'),
   saveSheetMapping: (payload) => request('saveSheetMapping', payload),
