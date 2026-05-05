@@ -352,23 +352,28 @@ async function readInstructorsFromSupabase() {
 }
 
 /**
- * Fire-and-forget Supabase upsert after a successful GAS write.
+ * Fire-and-forget Supabase upsert/update after a successful GAS write.
  * Never throws — errors are logged only. Does not block the caller.
  *
  * For instructors: upsert on emp_id.
- * For schools: upsert on (authority, school, contact_name).
- * GAS-only fields (_row_index) are stripped before sending to Supabase.
+ * For schools (create / no-key-change edit): upsert on (authority, school, contact_name).
+ * For schools (key-change edit): delete old row by origIdentity, then insert new row.
+ *   This preserves 1:1 update semantics even when key fields are renamed.
  *
- * ⚠️ Requires the Supabase table to have an appropriate unique constraint
- *   on the conflict columns for upsert to work. If not configured,
- *   the call will log an error and silently degrade — GAS remains source of truth.
+ * origIdentity — original {authority, school, contact_name} from the pre-edit row.
+ *   Pass null for addContact (no prior row).
+ *
+ * GAS-only fields (_row_index, _supabase_orig) are stripped before sending to Supabase.
+ *
+ * ⚠️ Requires UNIQUE constraint on conflict columns. Without it, upsert inserts
+ *   duplicates and this function logs the error — GAS remains source of truth.
  */
-async function syncContactToSupabase(kind, row) {
+async function syncContactToSupabase(kind, row, origIdentity) {
   if (!supabase || !row || typeof row !== 'object') return;
   try {
     if (kind === 'instructor') {
       if (!row.emp_id) return;
-      const { _row_index: _ri, ...cleanRow } = row;
+      const { _row_index: _ri, _supabase_orig: _so, ...cleanRow } = row;
       const { error } = await supabase
         .from('contacts_instructors')
         .upsert(cleanRow, { onConflict: 'emp_id' });
@@ -378,13 +383,41 @@ async function syncContactToSupabase(kind, row) {
       }
     } else if (kind === 'school') {
       if (!row.authority || !row.school || !row.contact_name) return;
-      const { _row_index: _ri, ...cleanRow } = row;
-      const { error } = await supabase
-        .from('contacts_schools')
-        .upsert(cleanRow, { onConflict: 'authority,school,contact_name' });
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error('[supabase] contacts_schools upsert failed:', error);
+      const { _row_index: _ri, _supabase_orig: _so, ...cleanRow } = row;
+
+      const orig = origIdentity && typeof origIdentity === 'object' ? origIdentity : null;
+      const keyChanged = orig && (
+        orig.authority !== row.authority ||
+        orig.school !== row.school ||
+        orig.contact_name !== row.contact_name
+      );
+
+      if (keyChanged) {
+        const { error: delErr } = await supabase
+          .from('contacts_schools')
+          .delete()
+          .eq('authority', orig.authority)
+          .eq('school', orig.school)
+          .eq('contact_name', orig.contact_name);
+        if (delErr) {
+          // eslint-disable-next-line no-console
+          console.error('[supabase] contacts_schools delete (key-change) failed:', delErr);
+        }
+        const { error: insErr } = await supabase
+          .from('contacts_schools')
+          .insert(cleanRow);
+        if (insErr) {
+          // eslint-disable-next-line no-console
+          console.error('[supabase] contacts_schools insert (after key-change) failed:', insErr);
+        }
+      } else {
+        const { error } = await supabase
+          .from('contacts_schools')
+          .upsert(cleanRow, { onConflict: 'authority,school,contact_name' });
+        if (error) {
+          // eslint-disable-next-line no-console
+          console.error('[supabase] contacts_schools upsert failed:', error);
+        }
       }
     }
   } catch (err) {
@@ -1053,12 +1086,13 @@ export const api = {
   },
   addContact: async (payload) => {
     const result = await request('addContact', payload);
-    syncContactToSupabase(payload?.kind, payload?.row).catch(() => {});
+    syncContactToSupabase(payload?.kind, payload?.row, null).catch(() => {});
     return result;
   },
   saveContact: async (payload) => {
-    const result = await request('saveContact', payload);
-    syncContactToSupabase(payload?.kind, payload?.row).catch(() => {});
+    const { _supabase_orig: origIdentity, ...gasPayload } = payload || {};
+    const result = await request('saveContact', gasPayload);
+    syncContactToSupabase(gasPayload?.kind, gasPayload?.row, origIdentity || null).catch(() => {});
     return result;
   },
   addActivity: (target, data) => {
