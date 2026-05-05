@@ -145,7 +145,6 @@ function dashboardSheetBuildShortActivities_(values, colYm) {
   var pairs = [
     { type: 'workshop', row: DASHBOARD_METRIC_ROWS_.workshop },
     { type: 'tour', row: DASHBOARD_METRIC_ROWS_.tour },
-    { type: 'after_school', row: DASHBOARD_METRIC_ROWS_.after_school },
     { type: 'escape_room', row: DASHBOARD_METRIC_ROWS_.escape_room }
   ];
   pairs.forEach(function(p) {
@@ -229,11 +228,12 @@ function dashboardSheetBuildKpiCards_(totals, activeTypeCounts, canViewFinance, 
 
 function dashboardSheetManagerRow_(values, colYm, managerKey) {
   var totalShort =
-    dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.after_school, colYm) +
     dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.workshop, colYm) +
     dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.tour, colYm) +
     dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.escape_room, colYm);
-  var totalLong = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course, colYm);
+  var totalLong =
+    dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.after_school, colYm) +
+    dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course, colYm);
   var numInstr = dashboardSheetUniqueInstructorCount_(values, colYm);
   var endings = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.end_date, colYm);
   var exceptions = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course_total_exceptions, colYm);
@@ -285,11 +285,12 @@ function actionDashboardSheet_(user, payload) {
   var colNextAll = dashboardSheetFindMonthCol_(values, bAll, nextYm);
 
   var totalShort =
-    dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.after_school, colYmAll) +
     dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.workshop, colYmAll) +
     dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.tour, colYmAll) +
     dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.escape_room, colYmAll);
-  var totalLong = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course, colYmAll);
+  var totalLong =
+    dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.after_school, colYmAll) +
+    dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course, colYmAll);
   var courseEndings = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.end_date, colYmAll);
   var exceptionSum = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course_total_exceptions, colYmAll);
   var lateEndDateCount = dashboardSheetMetric_(values, DASHBOARD_METRIC_ROWS_.course_late_end_date, colYmAll);
