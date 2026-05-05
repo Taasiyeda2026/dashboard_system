@@ -172,6 +172,104 @@ async function readActivitiesFromSupabase(filters = {}) {
   }
 }
 
+/**
+ * Reads contacts_instructors + contacts_schools from Supabase.
+ * Returns { instructor_rows, school_rows, can_view_instructors, can_view_schools, _source }
+ * or null on any failure (caller falls back to GAS).
+ *
+ * ⚠️ permissions table is intentionally excluded — login credentials must never be read client-side.
+ */
+async function readContactsFromSupabase() {
+  if (!supabase) return null;
+  try {
+    const [instrResult, schoolResult] = await Promise.all([
+      supabase.from('contacts_instructors').select('*'),
+      supabase.from('contacts_schools').select('*')
+    ]);
+    if (instrResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load contacts_instructors:', instrResult.error);
+      return null;
+    }
+    if (schoolResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load contacts_schools:', schoolResult.error);
+      return null;
+    }
+    const instructor_rows = Array.isArray(instrResult.data) ? instrResult.data : [];
+    const school_rows = Array.isArray(schoolResult.data) ? schoolResult.data : [];
+    return {
+      instructor_rows,
+      school_rows,
+      can_view_instructors: true,
+      can_view_schools: true,
+      _source: 'supabase'
+    };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] Unexpected contacts fetch error:', error);
+    return null;
+  }
+}
+
+/**
+ * Reads contacts_instructors from Supabase for the instructor-contacts screen.
+ * Returns { rows, _source } or null on failure.
+ */
+async function readInstructorContactsFromSupabase() {
+  if (!supabase) return null;
+  try {
+    const result = await supabase.from('contacts_instructors').select('*');
+    if (result.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load contacts_instructors:', result.error);
+      return null;
+    }
+    return {
+      rows: Array.isArray(result.data) ? result.data : [],
+      _source: 'supabase'
+    };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] Unexpected contacts_instructors fetch error:', error);
+    return null;
+  }
+}
+
+/**
+ * Reads the lists table from Supabase and groups rows into categories.
+ * Expected columns: category, value, label (label optional — falls back to value).
+ * Returns { categories: [{ category, items: [{ label, value }] }], _source } or null.
+ */
+async function readListsFromSupabase() {
+  if (!supabase) return null;
+  try {
+    const result = await supabase.from('lists').select('*').order('category').order('value');
+    if (result.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load lists:', result.error);
+      return null;
+    }
+    const rows = Array.isArray(result.data) ? result.data : [];
+    const catMap = new Map();
+    for (const row of rows) {
+      const cat = String(row.category || row.group || '').trim();
+      if (!cat) continue;
+      const value = String(row.value ?? row.item_value ?? row.val ?? '').trim();
+      const label = String(row.label ?? row.item_label ?? row.display ?? value).trim() || value;
+      if (!value) continue;
+      if (!catMap.has(cat)) catMap.set(cat, []);
+      catMap.get(cat).push({ label, value });
+    }
+    const categories = [...catMap.entries()].map(([category, items]) => ({ category, items }));
+    return { categories, _source: 'supabase' };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] Unexpected lists fetch error:', error);
+    return null;
+  }
+}
+
 const RETRYABLE_SERVER_ERRORS = new Set([
   'network_error',
   'server_error',
@@ -804,8 +902,16 @@ export const api = {
     return requestReadModel('exceptions', canonical, 'exceptions', canonical, options || {});
   },
   instructors: () => request('instructors'),
-  instructorContacts: () => request('instructorContacts'),
-  contacts: () => request('contacts'),
+  instructorContacts: async () => {
+    const supabaseData = await readInstructorContactsFromSupabase();
+    if (supabaseData) return supabaseData;
+    return request('instructorContacts');
+  },
+  contacts: async () => {
+    const supabaseData = await readContactsFromSupabase();
+    if (supabaseData) return supabaseData;
+    return request('contacts');
+  },
   endDates: (options) => requestReadModel('end-dates', {}, 'endDates', {}, options || {}),
   myData: () => request('myData'),
   operations: (params) => request('operations', params || {}),
@@ -813,7 +919,11 @@ export const api = {
   editRequests: () => request('editRequests'),
   permissions: () => request('permissions'),
   adminSettings: () => request('adminSettings'),
-  adminLists: () => request('adminLists'),
+  adminLists: async () => {
+    const supabaseData = await readListsFromSupabase();
+    if (supabaseData) return supabaseData;
+    return request('adminLists');
+  },
   addContact: (payload) => request('addContact', payload),
   saveContact: (payload) => request('saveContact', payload),
   addActivity: (target, data) => {
