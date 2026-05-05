@@ -270,6 +270,304 @@ async function readListsFromSupabase() {
   }
 }
 
+/**
+ * Reads contacts_instructors and computes per-instructor activity stats
+ * (programs_count, one_day_count, latest_end_date, activity_managers) from
+ * data_long + data_short — all client-side, no schema changes.
+ * Returns { rows, _source: 'supabase' } or null on any failure.
+ */
+async function readInstructorsFromSupabase() {
+  if (!supabase) return null;
+  try {
+    const [instrResult, longResult, shortResult] = await Promise.all([
+      supabase.from('contacts_instructors').select('*'),
+      supabase.from('data_long').select('emp_id,emp_id_2,end_date,date_end,activity_manager,status'),
+      supabase.from('data_short').select('emp_id,emp_id_2,end_date,date_end,activity_manager,status')
+    ]);
+
+    if (instrResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load contacts_instructors (instructors screen):', instrResult.error);
+      return null;
+    }
+    if (longResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load data_long (instructors screen):', longResult.error);
+      return null;
+    }
+    if (shortResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load data_short (instructors screen):', shortResult.error);
+      return null;
+    }
+
+    const instrRows = Array.isArray(instrResult.data) ? instrResult.data : [];
+    const longRows = Array.isArray(longResult.data) ? longResult.data : [];
+    const shortRows = Array.isArray(shortResult.data) ? shortResult.data : [];
+
+    const statsMap = new Map();
+    function ensureStats(id) {
+      const k = String(id || '').trim();
+      if (!k) return null;
+      if (!statsMap.has(k)) statsMap.set(k, { programs_count: 0, one_day_count: 0, latest_end_date: '', managers: new Set() });
+      return statsMap.get(k);
+    }
+
+    function applyRow(row, isLong) {
+      if (String(row.status || '').trim() === 'סגור') return;
+      const ids = [String(row.emp_id || '').trim(), String(row.emp_id_2 || '').trim()].filter(Boolean);
+      const d = String(row.end_date || row.date_end || '').trim().slice(0, 10);
+      const mgr = String(row.activity_manager || '').trim();
+      for (const id of ids) {
+        const s = ensureStats(id);
+        if (!s) continue;
+        if (isLong) s.programs_count += 1;
+        else s.one_day_count += 1;
+        if (d && (!s.latest_end_date || d > s.latest_end_date)) s.latest_end_date = d;
+        if (mgr) s.managers.add(mgr);
+      }
+    }
+
+    for (const row of longRows) applyRow(row, true);
+    for (const row of shortRows) applyRow(row, false);
+
+    const rows = instrRows.map((instr) => {
+      const id = String(instr.emp_id || '').trim();
+      const s = statsMap.get(id) || { programs_count: 0, one_day_count: 0, latest_end_date: '', managers: new Set() };
+      return {
+        ...instr,
+        programs_count: s.programs_count,
+        one_day_count: s.one_day_count,
+        latest_end_date: s.latest_end_date || '',
+        activity_managers: [...s.managers]
+      };
+    });
+
+    return { rows, _source: 'supabase' };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] Unexpected instructors fetch error:', error);
+    return null;
+  }
+}
+
+/**
+ * Fire-and-forget Supabase upsert/update after a successful GAS write.
+ * Never throws — errors are logged only. Does not block the caller.
+ *
+ * For instructors: upsert on emp_id.
+ * For schools (create / no-key-change edit): upsert on (authority, school, contact_name).
+ * For schools (key-change edit): delete old row by origIdentity, then insert new row.
+ *   This preserves 1:1 update semantics even when key fields are renamed.
+ *
+ * origIdentity — original {authority, school, contact_name} from the pre-edit row.
+ *   Pass null for addContact (no prior row).
+ *
+ * GAS-only fields (_row_index, _supabase_orig) are stripped before sending to Supabase.
+ *
+ * ⚠️ Requires UNIQUE constraint on conflict columns. Without it, upsert inserts
+ *   duplicates and this function logs the error — GAS remains source of truth.
+ */
+async function syncContactToSupabase(kind, row, origIdentity) {
+  if (!supabase || !row || typeof row !== 'object') return;
+  try {
+    if (kind === 'instructor') {
+      if (!row.emp_id) return;
+      const { _row_index: _ri, _supabase_orig: _so, ...cleanRow } = row;
+      const { error } = await supabase
+        .from('contacts_instructors')
+        .upsert(cleanRow, { onConflict: 'emp_id' });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] contacts_instructors upsert failed:', error);
+      }
+    } else if (kind === 'school') {
+      if (!row.authority || !row.school || !row.contact_name) return;
+      const { _row_index: _ri, _supabase_orig: _so, role: formRole, ...cleanRow } = row;
+      if (formRole !== undefined && cleanRow.contact_role === undefined) {
+        cleanRow.contact_role = formRole;
+      }
+
+      const orig = origIdentity && typeof origIdentity === 'object' ? origIdentity : null;
+      const keyChanged = orig && (
+        orig.authority !== row.authority ||
+        orig.school !== row.school ||
+        orig.contact_name !== row.contact_name
+      );
+
+      if (keyChanged) {
+        const { error: delErr } = await supabase
+          .from('contacts_schools')
+          .delete()
+          .eq('authority', orig.authority)
+          .eq('school', orig.school)
+          .eq('contact_name', orig.contact_name);
+        if (delErr) {
+          // eslint-disable-next-line no-console
+          console.error('[supabase] contacts_schools delete (key-change) failed:', delErr);
+        }
+        const { error: insErr } = await supabase
+          .from('contacts_schools')
+          .insert(cleanRow);
+        if (insErr) {
+          // eslint-disable-next-line no-console
+          console.error('[supabase] contacts_schools insert (after key-change) failed:', insErr);
+        }
+      } else {
+        const { error } = await supabase
+          .from('contacts_schools')
+          .upsert(cleanRow, { onConflict: 'authority,school,contact_name' });
+        if (error) {
+          // eslint-disable-next-line no-console
+          console.error('[supabase] contacts_schools upsert failed:', error);
+        }
+      }
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] Unexpected contact sync error:', err);
+  }
+}
+
+/**
+ * Fire-and-forget Supabase sync after a successful GAS write for activities.
+ * Never throws — errors are logged only. Does not block the caller.
+ *
+ * kind: 'add' | 'save' | 'submit_edit_request' | 'review_edit_request' | 'private_note'
+ * payload: the object sent to GAS (before token stripping)
+ * gasResponse: the normalized response returned by GAS
+ *
+ * Tables written:
+ *   add                  → data_long / data_short (upsert on RowID)
+ *   save                 → data_long / data_short (update by RowID)
+ *   submit_edit_request  → edit_requests (upsert on request_id)
+ *   review_edit_request  → edit_requests (update status by request_id)
+ *                          + data_long/data_short (update by RowID) if approved
+ *   private_note         → operations_private_notes (upsert on source_sheet,source_row_id)
+ *
+ * ⚠️ Requires UNIQUE constraints — see supabase/migrations/20260505_activities_write_sync.sql
+ */
+async function syncActivityToSupabase(kind, payload, gasResponse) {
+  if (!supabase) return;
+  try {
+    if (kind === 'add') {
+      const rowId = gasResponse?.RowID;
+      const sourceSheet = gasResponse?.source_sheet;
+      if (!rowId || !sourceSheet) return;
+      const act = payload?.activity || payload || {};
+      const isLong = rowId.startsWith('LONG-');
+      const tableName = isLong ? 'data_long' : 'data_short';
+      const row = {
+        RowID: rowId,
+        activity_manager: String(act.activity_manager || ''),
+        authority: String(act.authority || ''),
+        school: String(act.school || ''),
+        grade: String(act.grade || ''),
+        class_group: String(act.class_group || ''),
+        activity_type: String(act.activity_type || ''),
+        activity_no: String(act.activity_no || ''),
+        activity_name: String(act.activity_name || ''),
+        sessions: String(act.sessions || ''),
+        price: String(act.price || ''),
+        funding: String(act.funding || ''),
+        start_time: String(act.start_time || ''),
+        end_time: String(act.end_time || ''),
+        emp_id: String(act.emp_id || ''),
+        instructor_name: String(act.instructor_name || ''),
+        start_date: String(act.start_date || ''),
+        end_date: String(act.end_date || act.start_date || ''),
+        status: 'פעיל',
+        notes: String(act.notes || ''),
+        finance_status: String(act.finance_status || ''),
+        finance_notes: String(act.finance_notes || ''),
+        source_sheet: sourceSheet
+      };
+      if (!isLong) {
+        row.emp_id_2 = String(act.emp_id_2 || '');
+        row.instructor_name_2 = String(act.instructor_name_2 || '');
+      }
+      for (let i = 1; i <= 35; i++) {
+        const k = `Date${i}`;
+        if (act[k] !== undefined) row[k] = String(act[k] || '');
+      }
+      const { error } = await supabase.from(tableName).upsert(row, { onConflict: 'RowID' });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] activity upsert (add) failed:', error);
+      }
+
+    } else if (kind === 'save') {
+      const sourceRowId = String(payload?.source_row_id || payload?.RowID || '');
+      const changes = payload?.changes || {};
+      if (!sourceRowId || !Object.keys(changes).length) return;
+      const isLong = sourceRowId.startsWith('LONG-');
+      const tableName = isLong ? 'data_long' : 'data_short';
+      const { error } = await supabase.from(tableName).update(changes).eq('RowID', sourceRowId);
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] activity update (save) failed:', error);
+      }
+
+    } else if (kind === 'submit_edit_request') {
+      const requestId = gasResponse?.request_id;
+      if (!requestId) return;
+      const sourceRowId = String(payload?.source_row_id || '');
+      const isLong = sourceRowId.startsWith('LONG-');
+      const row = {
+        request_id: requestId,
+        source_sheet: isLong ? 'data_long' : 'data_short',
+        source_row_id: sourceRowId,
+        changed_fields: JSON.stringify(Object.keys(payload?.changes || {})),
+        original_values: JSON.stringify({}),
+        requested_values: JSON.stringify(payload?.changes || {}),
+        requested_at: new Date().toISOString(),
+        status: 'pending',
+        active: 'yes'
+      };
+      const { error } = await supabase.from('edit_requests').upsert(row, { onConflict: 'request_id' });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] edit_requests upsert (submit) failed:', error);
+      }
+
+    } else if (kind === 'review_edit_request') {
+      const requestId = String(payload?.request_id || '');
+      const finalStatus = gasResponse?.status || payload?.status || '';
+      if (!requestId) return;
+      const { error } = await supabase
+        .from('edit_requests')
+        .update({ status: finalStatus, reviewed_at: new Date().toISOString() })
+        .eq('request_id', requestId);
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] edit_requests update (review) failed:', error);
+      }
+
+    } else if (kind === 'private_note') {
+      const sourceSheet = String(payload?.source_sheet || '');
+      const sourceRowId = String(payload?.source_row_id || '');
+      if (!sourceSheet || !sourceRowId) return;
+      const row = {
+        source_sheet: sourceSheet,
+        source_row_id: sourceRowId,
+        note_text: String(payload?.note || payload?.note_text || ''),
+        updated_at: new Date().toISOString(),
+        active: 'yes'
+      };
+      const { error } = await supabase
+        .from('operations_private_notes')
+        .upsert(row, { onConflict: 'source_sheet,source_row_id' });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] operations_private_notes upsert failed:', error);
+      }
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] syncActivityToSupabase unexpected error:', err);
+  }
+}
+
 const RETRYABLE_SERVER_ERRORS = new Set([
   'network_error',
   'server_error',
@@ -901,7 +1199,11 @@ export const api = {
     const canonical = { ...resolved, month };
     return requestReadModel('exceptions', canonical, 'exceptions', canonical, options || {});
   },
-  instructors: () => request('instructors'),
+  instructors: async () => {
+    const supabaseData = await readInstructorsFromSupabase();
+    if (supabaseData) return supabaseData;
+    return request('instructors');
+  },
   instructorContacts: async () => {
     const supabaseData = await readInstructorContactsFromSupabase();
     if (supabaseData) return supabaseData;
@@ -924,20 +1226,35 @@ export const api = {
     if (supabaseData) return supabaseData;
     return request('adminLists');
   },
-  addContact: (payload) => request('addContact', payload),
-  saveContact: (payload) => request('saveContact', payload),
-  addActivity: (target, data) => {
-    if (typeof target === 'object' && target !== null && data === undefined) {
-      return request('addActivity', { activity: target });
-    }
-    return request('addActivity', { activity: { ...(data || {}), source: target } });
+  addContact: async (payload) => {
+    const result = await request('addContact', payload);
+    syncContactToSupabase(payload?.kind, payload?.row, null).catch(() => {});
+    return result;
+  },
+  saveContact: async (payload) => {
+    const { _supabase_orig: origIdentity, ...gasPayload } = payload || {};
+    const result = await request('saveContact', gasPayload);
+    syncContactToSupabase(gasPayload?.kind, gasPayload?.row, origIdentity || null).catch(() => {});
+    return result;
+  },
+  addActivity: async (target, data) => {
+    const payload = (typeof target === 'object' && target !== null && data === undefined)
+      ? { activity: target }
+      : { activity: { ...(data || {}), source: target } };
+    const result = await request('addActivity', payload);
+    syncActivityToSupabase('add', payload, result).catch(() => {});
+    return result;
   },
   /** מקבל אובייקט מלא (כולל source_sheet, changes) או חתימה ישנה (id, changes). */
-  saveActivity: (a, b) =>
-    b !== undefined && b !== null
-      ? request('saveActivity', { source_row_id: a, changes: b })
-      : request('saveActivity', a),
-  submitEditRequest: (source_row_id, changes) => {
+  saveActivity: async (a, b) => {
+    const payload = (b !== undefined && b !== null)
+      ? { source_row_id: a, changes: b }
+      : a;
+    const result = await request('saveActivity', payload);
+    syncActivityToSupabase('save', payload, result).catch(() => {});
+    return result;
+  },
+  submitEditRequest: async (source_row_id, changes) => {
     const normalizedChanges = Object.entries(changes || {}).reduce((acc, [key, value]) => {
       if (value === undefined || value === null) return acc;
       const normalizedValue = String(value).trim();
@@ -951,23 +1268,27 @@ export const api = {
     if (!source_row_id || !Object.keys(normalizedChanges).length) {
       throw new Error('No changes to submit');
     }
-    return request('submitEditRequest', { source_row_id, changes: normalizedChanges });
+    const result = await request('submitEditRequest', { source_row_id, changes: normalizedChanges });
+    syncActivityToSupabase('submit_edit_request', { source_row_id, changes: normalizedChanges }, result).catch(() => {});
+    return result;
   },
-  reviewEditRequest: (request_id, status) => request('reviewEditRequest', { request_id, status }),
+  reviewEditRequest: async (request_id, status) => {
+    const result = await request('reviewEditRequest', { request_id, status });
+    syncActivityToSupabase('review_edit_request', { request_id, status }, result).catch(() => {});
+    return result;
+  },
   savePermission: (row) => request('savePermission', { row }),
   addUser: (row) => request('addUser', { row }),
   deactivateUser: (user_id) => request('deactivateUser', { user_id }),
   reactivateUser: (user_id) => request('reactivateUser', { user_id }),
   deleteUser: (user_id) => request('deleteUser', { user_id }),
-  savePrivateNote: (a, b, c) => {
-    if (typeof a === 'object' && a !== null) {
-      return request('savePrivateNote', {
-        source_sheet: a.source_sheet,
-        source_row_id: a.source_row_id,
-        note: a.note ?? a.note_text ?? ''
-      });
-    }
-    return request('savePrivateNote', { source_sheet: a, source_row_id: b, note: c });
+  savePrivateNote: async (a, b, c) => {
+    const payload = (typeof a === 'object' && a !== null)
+      ? { source_sheet: a.source_sheet, source_row_id: a.source_row_id, note: a.note ?? a.note_text ?? '' }
+      : { source_sheet: a, source_row_id: b, note: c };
+    const result = await request('savePrivateNote', payload);
+    syncActivityToSupabase('private_note', payload, result).catch(() => {});
+    return result;
   },
   listSheets: () => request('listSheets'),
   saveSheetMapping: (payload) => request('saveSheetMapping', payload),

@@ -471,7 +471,16 @@ export const contactsScreen = {
           if (statusEl) statusEl.textContent = 'שומר...';
           await (isCreate
             ? api.addContact({ kind: 'school', row: payload })
-            : api.saveContact({ kind: 'school', row_index: target._row_index, row: payload }));
+            : api.saveContact({
+                kind: 'school',
+                row_index: target._row_index,
+                row: payload,
+                _supabase_orig: {
+                  authority: String(target.authority || '').trim(),
+                  school: String(target.school || '').trim(),
+                  contact_name: String(target.contact_name || '').trim()
+                }
+              }));
           showToast('✅ נשמר בהצלחה', 'success', 1800);
           ui.closeModal();
           rerender();
