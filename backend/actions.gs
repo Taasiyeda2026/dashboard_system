@@ -1516,14 +1516,16 @@ function actionWeek_(user, payload) {
   }
   weekPayload = normalizeWeekPayloadShape_(weekPayload);
 
-  // Safety-net: if cached month bundle produced empty week items, rebuild from source
-  // rows using Date1–Date35/start_date + activity_meetings (in addition, not במקום).
+  // Read-model build safety-net only: during scheduled/background refresh we may
+  // rebuild from source if bundle output is unexpectedly empty.
   var hasWeekItems = Object.keys(weekPayload.items_by_id || {}).length > 0;
   var hasDayItems = (weekPayload.days || []).some(function(day) {
     return Array.isArray(day.item_ids) && day.item_ids.length > 0;
   });
   var debugWeek = buildWeekSourceDebug_(user, anchor);
-  if (!hasWeekItems || !hasDayItems) {
+  var allowForegroundRebuild = yesNo_(payload && payload.allow_foreground_rebuild) === 'yes';
+  var shouldRebuild = (!hasWeekItems || !hasDayItems) && allowForegroundRebuild;
+  if (shouldRebuild) {
     var rebuilt = normalizeWeekPayloadShape_(actionWeekLegacy_(user, payload));
     rebuilt.debug = Object.assign({}, rebuilt.debug || {}, debugWeek, {
       items_count: Object.keys(rebuilt.items_by_id || {}).length,
@@ -1535,7 +1537,8 @@ function actionWeek_(user, payload) {
     weekPayload.debug = Object.assign({}, weekPayload.debug || {}, debugWeek, {
       items_count: Object.keys(weekPayload.items_by_id || {}).length,
       days_with_items: (weekPayload.days || []).filter(function(day) { return (day.item_ids || []).length > 0; }).length,
-      fallback_rebuild_used: false
+      fallback_rebuild_used: false,
+      fallback_rebuild_allowed: allowForegroundRebuild
     });
   }
 

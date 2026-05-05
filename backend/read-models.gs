@@ -387,7 +387,10 @@ function refreshWeekReadModel_() {
 function refreshWeekReadModelForOffset_(offset) {
   var wo = parseInt(offset, 10) || 0;
   return refreshSingleReadModel_('week', { week_offset: wo }, function() {
-    return actionWeek_(READ_MODEL_ADMIN_USER_, { week_offset: wo });
+    return actionWeek_(READ_MODEL_ADMIN_USER_, {
+      week_offset: wo,
+      allow_foreground_rebuild: 'yes'
+    });
   });
 }
 
