@@ -1829,6 +1829,27 @@ async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
 
 async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
   const rowId = String(source_row_id || '').trim();
+  const sheet = String(source_sheet || '').trim();
+  const isShort = sheet === 'data_short' || rowId.startsWith('SHORT-');
+
+  if (isShort) {
+    const { data, error } = await supabase
+      .from('data_short')
+      .select('start_date,RowID')
+      .eq('RowID', rowId)
+      .maybeSingle();
+    if (error) throw new Error(error.message || 'dates_failed');
+    const dateKey = String(data?.start_date || '').trim().slice(0, 10);
+    const meeting_dates = dateKey ? [dateKey] : [];
+    return {
+      meeting_dates,
+      date_cols: meeting_dates,
+      rows: dateKey ? [{ source_row_id: rowId, meeting_date: dateKey }] : [],
+      source_row_id: rowId,
+      source_sheet: 'data_short'
+    };
+  }
+
   const { data, error } = await supabase
     .from('activity_meetings')
     .select('*')
@@ -1845,7 +1866,7 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
     date_cols: meeting_dates,
     rows,
     source_row_id: rowId,
-    source_sheet: String(source_sheet || '')
+    source_sheet: sheet
   };
 }
 
