@@ -128,7 +128,7 @@ export const exceptionsScreen = {
                 : '';
               const exTypes = Array.isArray(row.exception_types) ? row.exception_types : [et].filter(Boolean);
               const chips = exTypes.map((type) => dsStatusChip(hebrewExceptionType(type), 'neutral')).join(' ');
-              const multiBadge = exTypes.length > 1 ? `<span class="ds-badge">${escapeHtml(String(exTypes.length))} חריגות</span>` : '';
+              const multiBadge = exTypes.length > 1 ? `<span class="ds-badge" aria-label="${escapeHtml(String(exTypes.length))} חריגות">${escapeHtml(String(exTypes.length))}</span>` : '';
               const chipHtml = `<p class="ds-interactive-card__meta">${chips} ${multiBadge}</p>`;
 
               return `<div data-list-item>
@@ -203,7 +203,7 @@ export const exceptionsScreen = {
       const exTypes = Array.isArray(summaryRow?.exception_types) ? summaryRow.exception_types : [summaryRow?.exception_type].filter(Boolean);
       if (!exTypes.length) return '';
       const chips = exTypes.map((et) => dsStatusChip(hebrewExceptionType(String(et || '').trim()), 'neutral')).join(' ');
-      const multiBadge = exTypes.length > 1 ? `<span class="ds-badge">${escapeHtml(String(exTypes.length))} חריגות</span>` : '';
+      const multiBadge = exTypes.length > 1 ? `<span class="ds-badge" aria-label="${escapeHtml(String(exTypes.length))} חריגות">${escapeHtml(String(exTypes.length))}</span>` : '';
       return `<div style="margin-bottom:10px;direction:rtl">${chips} ${multiBadge}</div>`;
     }
 
