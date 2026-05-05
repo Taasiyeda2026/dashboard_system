@@ -18,7 +18,7 @@ function setEditMode(form, editing) {
 function setStatus(statusEl, kind, text) {
   if (!statusEl) return;
   statusEl.textContent = text;
-  statusEl.classList.remove('is-pending', 'is-error', 'is-success');
+  statusEl.classList.remove('is-pending', 'is-error', 'is-success', 'is-warning');
   if (kind) statusEl.classList.add(kind);
 }
 
@@ -220,7 +220,9 @@ export function bindActivityEditForm(contentRoot, {
         });
       }
     } catch (err) {
-      setStatus(statusEl, 'is-error', `⚠️ ${translateApiErrorForUser(err?.message)}`);
+      const errMsg = err?.message || '';
+      const isTimeout = errMsg === 'save_timeout' || errMsg === 'request_timeout';
+      setStatus(statusEl, isTimeout ? 'is-warning' : 'is-error', `⚠️ ${translateApiErrorForUser(errMsg)}`);
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;

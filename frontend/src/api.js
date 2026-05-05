@@ -63,7 +63,7 @@ const READ_ACTIONS = {
 };
 
 const API_TIMEOUT_MS_READ = 20000;
-const API_TIMEOUT_MS_WRITE = 20000;
+const API_TIMEOUT_MS_WRITE = 45000;
 const READ_MODEL_TIMEOUT_MS = 14000;
 const PERF_MAX_REQUESTS = 150;
 const MONTH_READ_MODEL_TTL_MS = 5 * 60 * 1000;
@@ -496,7 +496,7 @@ async function postWithTimeout(action, requestBody, timeoutOverrideMs) {
     : (READ_ACTIONS[action] ? API_TIMEOUT_MS_READ : API_TIMEOUT_MS_WRITE);
   const timeoutMs = typeof timeoutOverrideMs === 'number' && timeoutOverrideMs > 0 ? timeoutOverrideMs : baseTimeoutMs;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
   try {
     return await fetch(config.apiUrl, {
       method: 'POST',
@@ -504,6 +504,12 @@ async function postWithTimeout(action, requestBody, timeoutOverrideMs) {
       body: JSON.stringify(requestBody),
       signal: controller.signal
     });
+  } catch (err) {
+    if (controller.signal.aborted) {
+      const isWrite = !READ_ACTIONS[action];
+      throw Object.assign(new Error(isWrite ? 'save_timeout' : 'request_timeout'), { _isTimeout: true });
+    }
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -599,16 +605,20 @@ async function request(action, payload = {}, perfMeta = {}) {
   try {
     response = await postWithTimeout(action, requestBody, timeoutMs);
     firstResponseStatus = response?.status || 0;
-  } catch {
+  } catch (fetchErr) {
+    if (fetchErr?._isTimeout) {
+      throw new Error(fetchErr.message);
+    }
     if (READ_ACTIONS[action]) {
       try {
         await sleep(120);
         response = await postWithTimeout(action, requestBody, timeoutMs);
-      } catch {
-        throw new Error(translateApiErrorForUser('network_error'));
+      } catch (retryErr) {
+        if (retryErr?._isTimeout) throw new Error(retryErr.message);
+        throw new Error('network_error');
       }
     } else {
-      throw new Error(translateApiErrorForUser('network_error'));
+      throw new Error('network_error');
     }
   }
 

@@ -2506,6 +2506,7 @@ function actionAddActivity_(user, payload) {
 }
 
 function actionSaveActivity_(user, payload) {
+  var t0 = perfNowMs_();
   var sourceRowId = text_(payload.source_row_id || payload.RowID);
   var sourceSheet = text_(payload.source_sheet || (sourceRowId.indexOf('LONG-') === 0 ? configuredLongActivitiesSheet_() : configuredShortActivitiesSheet_()));
   var changes = payload.changes || {};
@@ -2562,24 +2563,36 @@ function actionSaveActivity_(user, payload) {
     });
   }
 
+  var mutationSteps = [];
+
   updateRowByKey_(sourceSheet, 'RowID', sourceRowId, changes);
-  var maintenanceHandled = false;
+  mutationSteps.push('updateRowByKey');
+
+  var meetingsWritten = false;
   if (sourceSheet === configuredLongActivitiesSheet_()) {
     if (meetingsPatch) {
       setMeetings_(sourceRowId, meetingsPatch);
-      maintenanceHandled = true;
+      meetingsWritten = true;
+      mutationSteps.push('setMeetings');
     }
     syncDataLongDatesForRowFromMeetings_(sourceRowId);
+    mutationSteps.push('syncDataLongDatesForRow');
   }
 
   scriptCacheInvalidateDataViews_();
-  if (!maintenanceHandled) {
-    runDataMaintenance_('actionSaveActivity');
-  }
+  mutationSteps.push('scriptCacheInvalidate');
+
   return {
     updated: true,
     source_sheet: sourceSheet,
-    source_row_id: sourceRowId
+    source_row_id: sourceRowId,
+    debug_perf: {
+      duration_ms: Math.round(perfNowMs_() - t0),
+      mutation_steps: mutationSteps,
+      meetings_written: meetingsWritten,
+      read_models_refreshed: false,
+      activities_snapshot_refreshed: false
+    }
   };
 }
 

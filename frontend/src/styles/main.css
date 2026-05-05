@@ -3555,6 +3555,10 @@ select.ds-input {
   color: var(--ds-danger);
 }
 
+.ds-activity-edit-status.is-warning {
+  color: var(--ds-warning, #b45309);
+}
+
 .ds-dash-month-nav {
   display: flex;
   align-items: center;

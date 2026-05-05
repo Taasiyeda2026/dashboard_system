@@ -561,40 +561,17 @@ export const activitiesScreen = {
 
     async function openActivityDetail(summaryRow) {
       if (!summaryRow || !ui) return;
-      const cached = getCachedActivityDetail(summaryRow, state);
-      const initialRow = cached || summaryRow;
-      ui.openDrawer({
-        title: '',
-        content: activityDrawerContent(
-          initialRow,
-          canSeePrivateNotes,
-          canEditActivity,
-          !!state?.user?.can_edit_direct,
-          hideEmpIds,
-          hideRowId,
-          hideActivityNo,
-          state?.clientSettings || {}
-        ),
-        onOpen: makeOnOpen,
-        onClose: () => {
-          const shellHdr = document.querySelector('.ds-drawer > header');
-          if (shellHdr) shellHdr.hidden = false;
-        }
-      });
-      if (cached) return;
-      try {
-        const row = await loadDetailRow(summaryRow);
+      const cachedDetail = getCachedActivityDetail(summaryRow, state);
+      const cachedDates  = getCachedActivityDates(summaryRow, state);
+      const canDirectEdit = !!state?.user?.can_edit_direct;
+      const settings = state?.clientSettings || {};
+
+      if (cachedDetail) {
         ui.openDrawer({
           title: '',
           content: activityDrawerContent(
-            row,
-            canSeePrivateNotes,
-            canEditActivity,
-            !!state?.user?.can_edit_direct,
-            hideEmpIds,
-            hideRowId,
-            hideActivityNo,
-            state?.clientSettings || {}
+            cachedDetail, canSeePrivateNotes, canEditActivity, canDirectEdit,
+            hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading: false }
           ),
           onOpen: makeOnOpen,
           onClose: () => {
@@ -602,7 +579,47 @@ export const activitiesScreen = {
             if (shellHdr) shellHdr.hidden = false;
           }
         });
-      } catch {}
+        return;
+      }
+
+      const needDates = !cachedDates;
+      ui.openDrawer({
+        title: '',
+        content: activityDrawerContent(
+          summaryRow, canSeePrivateNotes, canEditActivity, canDirectEdit,
+          hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading: needDates }
+        ),
+        onOpen: makeOnOpen,
+        onClose: () => {
+          const shellHdr = document.querySelector('.ds-drawer > header');
+          if (shellHdr) shellHdr.hidden = false;
+        }
+      });
+
+      if (cachedDates && !needDates) {
+        const sectionEl = document.querySelector('[data-dates-section]');
+        if (sectionEl) patchDrawerDatesSection(sectionEl, cachedDates);
+      }
+
+      const srcRowId    = summaryRow.source_row_id || summaryRow.RowID;
+      const srcSheet    = summaryRow.source_sheet || '';
+
+      if (needDates) {
+        api.activityDates(srcRowId, srcSheet)
+          .then((datesData) => {
+            putCachedActivityDates(summaryRow, datesData, state);
+            const sectionEl = document.querySelector('[data-dates-section]');
+            if (sectionEl) patchDrawerDatesSection(sectionEl, datesData);
+          })
+          .catch(() => {
+            const sectionEl = document.querySelector('[data-dates-section]');
+            if (sectionEl) sectionEl.removeAttribute('data-dates-loading');
+          });
+      }
+
+      loadDetailRow(summaryRow)
+        .then((row) => { putCachedActivityDetail(summaryRow, row, state); })
+        .catch(() => {});
     }
 
     bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 420, onClear: () => {
