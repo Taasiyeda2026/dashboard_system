@@ -383,7 +383,10 @@ async function syncContactToSupabase(kind, row, origIdentity) {
       }
     } else if (kind === 'school') {
       if (!row.authority || !row.school || !row.contact_name) return;
-      const { _row_index: _ri, _supabase_orig: _so, ...cleanRow } = row;
+      const { _row_index: _ri, _supabase_orig: _so, role: formRole, ...cleanRow } = row;
+      if (formRole !== undefined && cleanRow.contact_role === undefined) {
+        cleanRow.contact_role = formRole;
+      }
 
       const orig = origIdentity && typeof origIdentity === 'object' ? origIdentity : null;
       const keyChanged = orig && (
