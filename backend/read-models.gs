@@ -512,9 +512,13 @@ function normalizeReadModelManifest_(rows) {
     'exceptions?month=' + nextMonth,
     'end-dates'
   ];
+  var rowMap = {};
+  (rows || []).forEach(function(r) {
+    if (r && r.key) rowMap[text_(r.key)] = r;
+  });
   var out = {};
   storageKeys.forEach(function(storageKey) {
-    var r = readModelRowByKey_(storageKey) || {};
+    var r = rowMap[storageKey] || {};
     out[storageKey] = {
       version: text_(r.version || ''),
       updated_at: text_(r.updated_at || ''),

@@ -70,6 +70,8 @@ const monthReadModelCache = new Map();
 const READ_MODEL_CACHE_STORAGE_KEY = 'ds_read_model_cache_v2';
 const MANIFEST_TTL_MS = 5 * 60 * 1000;
 let manifestCache = { t: 0, data: null };
+/** Deduplicates concurrent readModelManifest network calls — any call while one is in-flight joins the same Promise. */
+let manifestInflight = null;
 
 /** When true, allowed screens may use readModelGet + local manifest cache instead of legacy actions. */
 const READ_MODELS_ENABLED = true;
@@ -205,9 +207,18 @@ async function getReadModelManifestCached() {
   if (!READ_MODELS_ENABLED) return {};
   const now = Date.now();
   if (manifestCache.data && now - manifestCache.t < MANIFEST_TTL_MS) return manifestCache.data;
-  const fresh = await request('readModelManifest', {});
-  manifestCache = { t: now, data: fresh || {} };
-  return manifestCache.data;
+  if (manifestInflight) return manifestInflight;
+  manifestInflight = request('readModelManifest', {})
+    .then((fresh) => {
+      manifestCache = { t: Date.now(), data: fresh || {} };
+      manifestInflight = null;
+      return manifestCache.data;
+    })
+    .catch((err) => {
+      manifestInflight = null;
+      throw err;
+    });
+  return manifestInflight;
 }
 
 function readModelLocalCacheKey(key, params = {}) {

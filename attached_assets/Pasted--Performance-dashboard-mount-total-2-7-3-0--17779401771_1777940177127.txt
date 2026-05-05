@@ -1,0 +1,65 @@
+בדקתי Performance בדפדפן.
+
+הדשבורד עצמו נטען תקין:
+
+* dashboard mount-total בערך 2.7–3.0 שניות
+* fresh-data-render בערך 3ms
+
+הבעיה היא לא הדשבורד אלא קריאות read-model ברקע:
+
+ב־window.__printDsPerfSummary התקבל:
+
+* readModelManifest — כ־10.3 שניות
+* readModelManifest — כ־9.4 שניות
+* login — כ־6.7 שניות
+* month — כ־4.2 שניות
+* week — כ־3.7 שניות
+
+וגם action_counts מראה:
+
+* readModelManifest נקרא 2 פעמים
+* dashboardSheet נקרא 2 פעמים
+* month/week נטענים ברקע
+
+צריך לתקן:
+
+1. למנוע קריאה כפולה ל־readModelManifest
+   אם כבר יש manifestCache inflight, כל בקשה נוספת צריכה להצטרף לאותה Promise ולא לפתוח בקשה שנייה.
+
+להוסיף למשל:
+`let manifestInflight = null;`
+
+וב־getReadModelManifestCached:
+
+* אם cache טרי קיים — להחזיר אותו.
+* אם manifestInflight קיים — להחזיר אותו.
+* אחרת ליצור request אחד בלבד ל־readModelManifest, לשמור ב־manifestInflight, וב־finally לאפס אותו.
+
+2. להקטין את העלות של readModelManifest בצד שרת
+   ה־manifest אמור להיות קריאה קלה מאוד מגיליון read_models בלבד, בלי לקרוא payloads מ־Drive ובלי לבנות מודלים.
+   נא לוודא ש־actionReadModelManifest_ / normalizeReadModelManifest_:
+
+* קוראת רק metadata מהגיליון read_models.
+* לא קוראת JSON payload.
+* לא פותחת קבצי Drive.
+* לא מפעילה refresh/build.
+* מחזירה רק key, version, hash, updated_at, status.
+
+3. לא לבצע prefetch כבד מיד אחרי הדשבורד אם הוא גורם לתחושת טעינה
+   כרגע אחרי dashboard נטענים month/week ברקע, וזה מוסיף בקשות של 3–4 שניות.
+   נא לעכב prefetch לאחר הכניסה הראשונה ל־8–10 שניות, או לבצע אותו רק לאחר שהמשתמש לא נמצא במצב טעינה וללא אינדיקציית spinner מרכזית.
+   ה־prefetch לא צריך לגרום למסך להיראות כאילו הוא עדיין נטען.
+
+4. למנוע dashboardSheet כפול
+   action_counts מראה dashboardSheet count=2.
+   נא לבדוק למה הדשבורד נטען פעמיים באותה כניסה.
+   אם זו טעינת stale-while-revalidate — זה בסדר רק אם הראשונה מגיעה מ־cache והשנייה background_refresh.
+   אם שתיהן בקשות שרת — למנוע כפילות באמצעות cache/inflight.
+
+קריטריוני קבלה:
+
+* בכניסה רגילה, readModelManifest נקרא לכל היותר פעם אחת.
+* readModelManifest יורד לפחות מ־1–2 שניות אם אפשר.
+* dashboardSheet לא נקרא פעמיים כבקשת foreground.
+* prefetch של week/month לא מציג למשתמש תחושת טעינה מתמשכת.
+* window.__printDsPerfSummary מציג פחות בקשות איטיות.

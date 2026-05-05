@@ -176,7 +176,7 @@ function schedulePostLoginPrefetch() {
     const ttl = SCREEN_CACHE_TTL_MS[r] ?? DEFAULT_CACHE_TTL_MS;
     return !!(hit && Date.now() - hit.t < ttl);
   });
-  const _prefetchDelay = _prefetchAnyWarm ? 500 : 4000;
+  const _prefetchDelay = _prefetchAnyWarm ? 2000 : 8000;
 
   prefetchTimer = setTimeout(() => {
     prefetchTimer = null;
