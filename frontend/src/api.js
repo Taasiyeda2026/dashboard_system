@@ -140,18 +140,34 @@ async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
   try {
-    const { data, error } = await supabase.from('activities').select('*');
-    if (error) {
+    const [longResult, shortResult] = await Promise.all([
+      supabase.from('data_long').select('*'),
+      supabase.from('data_short').select('*')
+    ]);
+
+    if (longResult.error) {
       // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load activities:', error);
+      console.error('[supabase] Failed to load data_long:', longResult.error);
+      return null;
+    }
+    if (shortResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load data_short:', shortResult.error);
       return null;
     }
 
-    const rows = Array.isArray(data) ? data.filter((row) => rowMatchesActivitiesFilters(row, filters)) : [];
+    const longRows = Array.isArray(longResult.data)
+      ? longResult.data.map((row) => ({ ...row, source_sheet: row?.source_sheet || 'data_long' }))
+      : [];
+    const shortRows = Array.isArray(shortResult.data)
+      ? shortResult.data.map((row) => ({ ...row, source_sheet: row?.source_sheet || 'data_short' }))
+      : [];
+
+    const rows = [...longRows, ...shortRows].filter((row) => rowMatchesActivitiesFilters(row, filters));
     return { rows };
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('[supabase] Unexpected activities fetch error:', error);
+    console.error('[supabase] Unexpected data_long/data_short fetch error:', error);
     return null;
   }
 }
