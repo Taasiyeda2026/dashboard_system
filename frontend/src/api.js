@@ -299,8 +299,8 @@ async function readInstructorsFromSupabase() {
   try {
     const [instrResult, longResult, shortResult] = await Promise.all([
       supabase.from('contacts_instructors').select('*'),
-      supabase.from('data_long').select('emp_id,emp_id_2,end_date,date_end,activity_manager,status'),
-      supabase.from('data_short').select('emp_id,emp_id_2,end_date,date_end,activity_manager,status')
+      supabase.from('data_long').select('emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,date_end,activity_manager,status'),
+      supabase.from('data_short').select('emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,date_end,activity_manager,status')
     ]);
 
     if (instrResult.error) {
@@ -324,21 +324,25 @@ async function readInstructorsFromSupabase() {
     const shortRows = Array.isArray(shortResult.data) ? shortResult.data : [];
 
     const statsMap = new Map();
-    function ensureStats(id) {
+    function ensureStats(id, name) {
       const k = String(id || '').trim();
       if (!k) return null;
-      if (!statsMap.has(k)) statsMap.set(k, { programs_count: 0, one_day_count: 0, latest_end_date: '', managers: new Set() });
+      if (!statsMap.has(k)) statsMap.set(k, { programs_count: 0, one_day_count: 0, latest_end_date: '', managers: new Set(), name: String(name || '').trim() });
       return statsMap.get(k);
     }
 
     function applyRow(row, isLong) {
       if (String(row.status || '').trim() === 'סגור') return;
-      const ids = [String(row.emp_id || '').trim(), String(row.emp_id_2 || '').trim()].filter(Boolean);
+      const pairs = [
+        [String(row.emp_id || '').trim(), String(row.instructor_name || '').trim()],
+        [String(row.emp_id_2 || '').trim(), String(row.instructor_name_2 || '').trim()]
+      ].filter(([id]) => id);
       const d = String(row.end_date || row.date_end || '').trim().slice(0, 10);
       const mgr = String(row.activity_manager || '').trim();
-      for (const id of ids) {
-        const s = ensureStats(id);
+      for (const [id, name] of pairs) {
+        const s = ensureStats(id, name);
         if (!s) continue;
+        if (!s.name && name) s.name = name;
         if (isLong) s.programs_count += 1;
         else s.one_day_count += 1;
         if (d && (!s.latest_end_date || d > s.latest_end_date)) s.latest_end_date = d;
@@ -348,6 +352,8 @@ async function readInstructorsFromSupabase() {
 
     for (const row of longRows) applyRow(row, true);
     for (const row of shortRows) applyRow(row, false);
+
+    const knownIds = new Set(instrRows.map((r) => String(r.emp_id || '').trim()).filter(Boolean));
 
     const rows = instrRows.map((instr) => {
       const id = String(instr.emp_id || '').trim();
@@ -360,6 +366,20 @@ async function readInstructorsFromSupabase() {
         activity_managers: [...s.managers]
       };
     });
+
+    for (const [id, s] of statsMap.entries()) {
+      if (knownIds.has(id)) continue;
+      if ((s.programs_count + s.one_day_count) === 0) continue;
+      rows.push({
+        emp_id: id,
+        full_name: s.name || id,
+        programs_count: s.programs_count,
+        one_day_count: s.one_day_count,
+        latest_end_date: s.latest_end_date || '',
+        activity_managers: [...s.managers],
+        _synthetic: true
+      });
+    }
 
     return { rows, _source: 'supabase' };
   } catch (error) {
