@@ -78,8 +78,69 @@ function writeRowsToViewSheet_(sheetName, rows) {
   invalidateReadRowsCache_(sheetName);
 }
 
-function buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap) {
+/**
+ * Collects all ISO date strings from a source row's Date1–Date35 fields.
+ * Falls back to start_date if none found.
+ * Returns a sorted, de-duplicated array of ISO date strings.
+ */
+function collectActivityDatesFromSourceRow_(row) {
+  var seen = {};
+  var dates = [];
+  for (var i = 1; i <= 35; i++) {
+    var d = normalizeDateToIsoFlexible_(row['Date' + i]);
+    if (d && !seen[d]) { seen[d] = true; dates.push(d); }
+  }
+  if (!dates.length) {
+    var start = normalizeDateToIsoFlexible_(row.start_date);
+    if (start && !seen[start]) dates.push(start);
+  }
+  return dates.sort();
+}
+
+/**
+ * Builds one meeting-view row object from a source activity row + a meeting date.
+ * Used for both MEETINGS-sheet-based rows and Date1–Date35-based rows.
+ */
+function buildMeetingViewRow_(effectiveRowId, sourceRowId, sourceSheet, meetingDate, activityRow, privateNote) {
+  return {
+    RowID: effectiveRowId,
+    source_sheet: sourceSheet,
+    source_row_id: sourceRowId,
+    month_ym: meetingDate.slice(0, 7),
+    meeting_date: meetingDate,
+    activity_type: text_(activityRow.activity_type),
+    activity_name: text_(activityRow.activity_name),
+    activity_manager: text_(activityRow.activity_manager),
+    authority: text_(activityRow.authority),
+    school: text_(activityRow.school),
+    funding: text_(activityRow.funding),
+    grade: text_(activityRow.grade),
+    class_group: text_(activityRow.class_group),
+    start_date: normalizeDateToIsoFlexible_(activityRow.start_date),
+    end_date: normalizeDateToIsoFlexible_(activityRow.end_date) || normalizeDateToIsoFlexible_(activityRow.start_date),
+    status: text_(activityRow.status),
+    emp_id: text_(activityRow.emp_id),
+    instructor_name: text_(activityRow.instructor_name),
+    emp_id_2: text_(activityRow.emp_id_2),
+    instructor_name_2: text_(activityRow.instructor_name_2),
+    start_time: text_(activityRow.start_time),
+    end_time: text_(activityRow.end_time),
+    activity_no: text_(activityRow.activity_no),
+    private_note: text_(privateNote)
+  };
+}
+
+/**
+ * Builds view_activity_meetings rows from three sources:
+ *  1. activity_meetings sheet — explicit meeting records for long activities
+ *  2. data_short rows — Date1–Date35 / start_date (not in activity_meetings)
+ *  3. data_long rows that have no activity_meetings entries — Date1–Date35 fallback
+ */
+function buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap, shortRows, longRows) {
   var out = [];
+
+  // --- 1. activity_meetings sheet (primary source for long/course activities) ---
+  var hasExplicitMeetings = {};
   (meetingsRows || []).forEach(function(meeting) {
     if (yesNo_(meeting.active || 'yes') === 'no') return;
     var meetingDate = normalizeDateToIsoFlexible_(meeting.meeting_date);
@@ -87,6 +148,8 @@ function buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap
 
     var sourceRowId = text_(meeting.source_row_id || meeting.RowID);
     if (!sourceRowId) return;
+    hasExplicitMeetings[sourceRowId] = true;
+
     var meetingNo = text_(meeting.meeting_no);
     var effectiveRowId = meetingNo ? (sourceRowId + '-' + meetingNo) : sourceRowId;
 
@@ -97,12 +160,7 @@ function buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap
     var noteKey = sourceSheet + '|' + sourceRowId;
     var privateNote = text_(privateNotesMap[noteKey] || sourceRow.private_note || '');
 
-    out.push({
-      RowID: effectiveRowId,
-      source_sheet: sourceSheet,
-      source_row_id: sourceRowId,
-      month_ym: meetingDate.slice(0, 7),
-      meeting_date: meetingDate,
+    var merged = {
       activity_type: text_(meeting.activity_type || sourceRow.activity_type),
       activity_name: text_(meeting.activity_name || sourceRow.activity_name),
       activity_manager: text_(meeting.activity_manager || sourceRow.activity_manager),
@@ -111,8 +169,8 @@ function buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap
       funding: text_(meeting.funding || sourceRow.funding),
       grade: text_(meeting.grade || sourceRow.grade),
       class_group: text_(meeting.class_group || sourceRow.class_group),
-      start_date: normalizeDateToIsoFlexible_(meeting.start_date || sourceRow.start_date),
-      end_date: normalizeDateToIsoFlexible_(meeting.end_date || sourceRow.end_date || sourceRow.start_date),
+      start_date: meeting.start_date || sourceRow.start_date,
+      end_date: meeting.end_date || sourceRow.end_date || sourceRow.start_date,
       status: text_(meeting.status || sourceRow.status),
       emp_id: text_(meeting.emp_id || sourceRow.emp_id),
       instructor_name: text_(meeting.instructor_name || sourceRow.instructor_name),
@@ -120,8 +178,36 @@ function buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap
       instructor_name_2: text_(meeting.instructor_name_2 || sourceRow.instructor_name_2),
       start_time: text_(meeting.start_time || sourceRow.start_time),
       end_time: text_(meeting.end_time || sourceRow.end_time),
-      activity_no: text_(meeting.activity_no || sourceRow.activity_no),
-      private_note: privateNote
+      activity_no: text_(meeting.activity_no || sourceRow.activity_no)
+    };
+    out.push(buildMeetingViewRow_(effectiveRowId, sourceRowId, sourceSheet, meetingDate, merged, privateNote));
+  });
+
+  // --- 2. data_short rows — dates from Date1–Date35 / start_date ---
+  var shortSheet = configuredShortActivitiesSheet_();
+  (shortRows || []).forEach(function(row) {
+    var sourceRowId = text_(row.RowID);
+    if (!sourceRowId || hasExplicitMeetings[sourceRowId]) return;
+    var noteKey = shortSheet + '|' + sourceRowId;
+    var privateNote = text_(privateNotesMap[noteKey] || '');
+    var dates = collectActivityDatesFromSourceRow_(row);
+    dates.forEach(function(meetingDate, idx) {
+      var effectiveRowId = sourceRowId + '-d' + (idx + 1);
+      out.push(buildMeetingViewRow_(effectiveRowId, sourceRowId, shortSheet, meetingDate, row, privateNote));
+    });
+  });
+
+  // --- 3. data_long rows with no activity_meetings entries — Date1–Date35 fallback ---
+  var longSheet = configuredLongActivitiesSheet_();
+  (longRows || []).forEach(function(row) {
+    var sourceRowId = text_(row.RowID);
+    if (!sourceRowId || hasExplicitMeetings[sourceRowId]) return;
+    var noteKey = longSheet + '|' + sourceRowId;
+    var privateNote = text_(privateNotesMap[noteKey] || '');
+    var dates = collectActivityDatesFromSourceRow_(row);
+    dates.forEach(function(meetingDate, idx) {
+      var effectiveRowId = sourceRowId + '-d' + (idx + 1);
+      out.push(buildMeetingViewRow_(effectiveRowId, sourceRowId, longSheet, meetingDate, row, privateNote));
     });
   });
 
@@ -305,7 +391,7 @@ function refreshDataViews_() {
 
   markRequestPerf_('refreshDataViews:build:start');
   var buildStartMs = perfNowMs_();
-  var meetingsViewRows = buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap);
+  var meetingsViewRows = buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap, shortRows, longRows);
   var activitiesSummaryRows = buildViewActivitiesSummaryRows_(shortRows, longRows, meetingsViewRows, privateNotesMap);
   var dashboardMonthlyRows = buildViewDashboardMonthlyRows_(activitiesSummaryRows, meetingsViewRows);
   var buildMs = perfNowMs_() - buildStartMs;
