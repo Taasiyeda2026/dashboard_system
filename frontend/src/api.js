@@ -431,21 +431,149 @@ function buildItemsById(rows) {
 }
 
 /**
- * Read week calendar data from Supabase.
- *   Short activities  → data_short rows where start_date is in [startDate, endDate].
- *   Long activities   → activity_meetings rows in range → joined with data_long.
- * Returns null on any failure so the caller can fall through to GAS.
+ * Detect which date field is actually used in activity_meetings rows.
+ * Logs the raw row count and detected field names for diagnostics.
+ * Returns the field name string, or null if none found.
+ */
+function detectActivityMeetingsDateField(rows) {
+  if (!rows.length) return null;
+  const firstRow = rows[0];
+  const detectedFields = Object.keys(firstRow);
+  // eslint-disable-next-line no-console
+  console.info('[supabase][activity_meetings] detected fields', detectedFields);
+  for (const field of SUPABASE_DATE_CANDIDATE_FIELDS) {
+    const hasField = rows.some((r) => r[field] != null && r[field] !== '');
+    if (hasField) return field;
+  }
+  return null;
+}
+
+/**
+ * Build an empty but valid week payload for diagnostic/error cases.
+ * Always returns a usable structure so the screen renders (empty, not broken).
+ */
+function emptyWeekPayload(startDate, endDate, debugInfo) {
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startDate + 'T00:00:00');
+    d.setDate(d.getDate() + i);
+    const dateKey =
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    days.push({ date: dateKey, weekday_label: HEBREW_WEEKDAY_LABELS[d.getDay()], item_ids: [] });
+  }
+  return { days, items_by_id: {}, week_start: startDate, week_end: endDate, _source: 'supabase', _debug: debugInfo };
+}
+
+/**
+ * Build an empty but valid month payload for diagnostic/error cases.
+ */
+function emptyMonthPayload(monthPrefix, debugInfo) {
+  const [yStr, mStr] = monthPrefix.split('-');
+  const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
+  const cells = [];
+  for (let dayNum = 1; dayNum <= lastDay; dayNum++) {
+    cells.push({ date: `${monthPrefix}-${String(dayNum).padStart(2, '0')}`, day: dayNum, item_ids: [] });
+  }
+  return { month: monthPrefix, cells, items_by_id: {}, _source: 'supabase', _debug: debugInfo };
+}
+
+/**
+ * Core mapping: given activity_meetings rows + data_long rows + data_short rows,
+ * build itemsById and dayMap for the calendar.
+ *
+ * Strategy:
+ *   1. data_short rows: start_date is the meeting date (one session per row).
+ *   2. activity_meetings rows: flexible date field → join source_row_id → data_long.
+ *
+ * Returns { itemsById, dayMap, detectedDateField, stats }
+ */
+function buildCalendarMapping(meetingRows, shortRows, longById, startDate, endDate) {
+  // eslint-disable-next-line no-console
+  console.info('[supabase][activity_meetings] raw rows count', { meetings: meetingRows.length, short: shortRows.length });
+
+  const detectedDateField = detectActivityMeetingsDateField(meetingRows);
+
+  const itemsById = { ...buildItemsById(shortRows) };
+  const dayMap = {};
+  const addToDay = (dateKey, rowId) => {
+    if (!dayMap[dateKey]) dayMap[dateKey] = new Set();
+    dayMap[dateKey].add(rowId);
+  };
+
+  let shortFiltered = 0;
+  for (const row of shortRows) {
+    const dateKey = normalizeSupabaseDate(row.start_date);
+    if (!dateKey || dateKey < startDate || dateKey > endDate) continue;
+    if (row.RowID) { addToDay(dateKey, row.RowID); shortFiltered++; }
+  }
+
+  let meetFiltered = 0;
+  let meetMapped = 0;
+  let meetMissingLong = 0;
+
+  for (const meetRow of meetingRows) {
+    const { dateKey } = activityMeetingDateFromCandidates(meetRow);
+    if (!dateKey || dateKey < startDate || dateKey > endDate) continue;
+    meetFiltered++;
+
+    const actRow = longById[meetRow.source_row_id];
+    if (!actRow) { meetMissingLong++; continue; }
+    meetMapped++;
+    if (actRow.RowID) {
+      itemsById[actRow.RowID] = actRow;
+      addToDay(dateKey, actRow.RowID);
+    }
+  }
+
+  const stats = {
+    shortRawCount: shortRows.length,
+    shortFilteredCount: shortFiltered,
+    meetingsRawCount: meetingRows.length,
+    meetingsFilteredCount: meetFiltered,
+    meetingsMappedCount: meetMapped,
+    meetingsMissingLongCount: meetMissingLong,
+    detectedDateField,
+    totalMappedItems: Object.keys(itemsById).length
+  };
+
+  return { itemsById, dayMap, detectedDateField, stats };
+}
+
+/**
+ * Read week calendar data from Supabase ONLY — no GAS fallback.
+ *
+ *   Short activities → data_short where start_date is in [startDate, endDate].
+ *   Long activities  → activity_meetings where meeting_date is in range → join data_long.
+ *
+ * Always returns a valid payload (may be empty). Never throws.
  */
 async function readWeekFromSupabase(weekOffset) {
-  if (!supabase) return null;
-  try {
-    const offset = Number.isFinite(weekOffset) ? weekOffset : 0;
-    const { startDate, endDate } = buildWeekDateRange(offset);
+  const offset = Number.isFinite(weekOffset) ? weekOffset : 0;
+  const { startDate, endDate } = buildWeekDateRange(offset);
 
+  // eslint-disable-next-line no-console
+  console.info('[supabase][week] week_start', startDate, 'week_end', endDate);
+
+  if (!supabase) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase][week] supabase client not available');
+    return emptyWeekPayload(startDate, endDate, { error: 'no_supabase_client' });
+  }
+
+  try {
     const [shortRes, meetingsRes] = await Promise.all([
       supabase.from('data_short').select('*').gte('start_date', startDate).lte('start_date', endDate),
       supabase.from('activity_meetings').select('*').gte('meeting_date', startDate).lte('meeting_date', endDate)
     ]);
+
+    if (shortRes.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase][week] data_short query failed', shortRes.error);
+    }
+    if (meetingsRes.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase][week] activity_meetings query failed', meetingsRes.error);
+    }
 
     const shortRows = Array.isArray(shortRes.data) ? shortRes.data : [];
     const meetingRows = Array.isArray(meetingsRes.data) ? meetingsRes.data : [];
@@ -454,50 +582,21 @@ async function readWeekFromSupabase(weekOffset) {
     let longRows = [];
     if (longRowIds.length > 0) {
       const longRes = await supabase.from('data_long').select('*').in('RowID', longRowIds);
+      if (longRes.error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase][week] data_long query failed', longRes.error);
+      }
       longRows = Array.isArray(longRes.data) ? longRes.data : [];
     }
 
     const longById = buildItemsById(longRows);
-    const itemsById = { ...buildItemsById(shortRows) };
+    const { itemsById, dayMap, stats } = buildCalendarMapping(
+      meetingRows, shortRows, longById, startDate, endDate
+    );
 
-    const dayMap = {};
-    const addToDay = (dateKey, rowId) => {
-      if (!dayMap[dateKey]) dayMap[dateKey] = new Set();
-      dayMap[dateKey].add(rowId);
-    };
-
-    for (const row of shortRows) {
-      const dateKey = normalizeSupabaseDate(row.start_date);
-      if (!dateKey || dateKey < startDate || dateKey > endDate) continue;
-      if (row.RowID) addToDay(dateKey, row.RowID);
-    }
-
-    let dateRowsInRequestedRange = 0;
-    let missingActivityRowsInRange = 0;
-    let mappedItemsCount = 0;
-
-    for (const meetRow of meetingRows) {
-      const { dateKey } = activityMeetingDateFromCandidates(meetRow);
-      if (!dateKey) continue;
-      if (dateKey < startDate || dateKey > endDate) continue;
-      dateRowsInRequestedRange += 1;
-
-      const actRow = longById[meetRow.source_row_id];
-      if (!actRow) { missingActivityRowsInRange += 1; continue; }
-      mappedItemsCount += 1;
-      if (actRow.RowID) {
-        itemsById[actRow.RowID] = actRow;
-        addToDay(dateKey, actRow.RowID);
-      }
-    }
-
-    if (dateRowsInRequestedRange > 0 && mappedItemsCount === 0) {
-      // eslint-disable-next-line no-console
-      console.warn('[supabase][week] mapping produced 0 items for dated rows in requested range', {
-        dateRowsInRequestedRange, missingActivityRowsInRange
-      });
-      return null;
-    }
+    // eslint-disable-next-line no-console
+    console.info('[supabase][week] filtered rows count', stats.meetingsFilteredCount + stats.shortFilteredCount,
+      'mapped items count', stats.totalMappedItems, stats);
 
     const days = [];
     for (let i = 0; i < 7; i++) {
@@ -512,24 +611,37 @@ async function readWeekFromSupabase(weekOffset) {
       });
     }
 
-    return { days, items_by_id: itemsById, _source: 'supabase' };
+    return { days, items_by_id: itemsById, week_start: startDate, week_end: endDate, _source: 'supabase' };
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[supabase][week] unexpected error:', err);
-    return null;
+    return emptyWeekPayload(startDate, endDate, { error: String(err?.message || err) });
   }
 }
 
 /**
- * Read month calendar data from Supabase.
- * Returns null on any failure so the caller can fall through to GAS.
+ * Read month calendar data from Supabase ONLY — no GAS fallback.
+ * Always returns a valid payload (may be empty). Never throws.
  */
 async function readMonthFromSupabase(ym) {
-  if (!supabase) return null;
-  try {
-    const monthPrefix = String(ym || '').slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(monthPrefix)) return null;
+  const monthPrefix = String(ym || '').slice(0, 7);
 
+  // eslint-disable-next-line no-console
+  console.info('[supabase][month] month', monthPrefix);
+
+  if (!supabase) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase][month] supabase client not available');
+    return emptyMonthPayload(monthPrefix || 'unknown', { error: 'no_supabase_client' });
+  }
+
+  if (!/^\d{4}-\d{2}$/.test(monthPrefix)) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase][month] invalid month format', ym);
+    return emptyMonthPayload(monthPrefix || 'unknown', { error: 'invalid_month', ym });
+  }
+
+  try {
     const [yStr, mStr] = monthPrefix.split('-');
     const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
     const startDate = `${monthPrefix}-01`;
@@ -540,6 +652,15 @@ async function readMonthFromSupabase(ym) {
       supabase.from('activity_meetings').select('*').gte('meeting_date', startDate).lte('meeting_date', endDate)
     ]);
 
+    if (shortRes.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase][month] data_short query failed', shortRes.error);
+    }
+    if (meetingsRes.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase][month] activity_meetings query failed', meetingsRes.error);
+    }
+
     const shortRows = Array.isArray(shortRes.data) ? shortRes.data : [];
     const meetingRows = Array.isArray(meetingsRes.data) ? meetingsRes.data : [];
 
@@ -547,50 +668,21 @@ async function readMonthFromSupabase(ym) {
     let longRows = [];
     if (longRowIds.length > 0) {
       const longRes = await supabase.from('data_long').select('*').in('RowID', longRowIds);
+      if (longRes.error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase][month] data_long query failed', longRes.error);
+      }
       longRows = Array.isArray(longRes.data) ? longRes.data : [];
     }
 
     const longById = buildItemsById(longRows);
-    const itemsById = { ...buildItemsById(shortRows) };
+    const { itemsById, dayMap, stats } = buildCalendarMapping(
+      meetingRows, shortRows, longById, startDate, endDate
+    );
 
-    const dayMap = {};
-    const addToDay = (dateKey, rowId) => {
-      if (!dayMap[dateKey]) dayMap[dateKey] = new Set();
-      dayMap[dateKey].add(rowId);
-    };
-
-    for (const row of shortRows) {
-      const dateKey = normalizeSupabaseDate(row.start_date);
-      if (!dateKey || dateKey < startDate || dateKey > endDate) continue;
-      if (row.RowID) addToDay(dateKey, row.RowID);
-    }
-
-    let dateRowsInRequestedRange = 0;
-    let missingActivityRowsInRange = 0;
-    let mappedItemsCount = 0;
-
-    for (const meetRow of meetingRows) {
-      const { dateKey } = activityMeetingDateFromCandidates(meetRow);
-      if (!dateKey) continue;
-      if (dateKey < startDate || dateKey > endDate) continue;
-      dateRowsInRequestedRange += 1;
-
-      const actRow = longById[meetRow.source_row_id];
-      if (!actRow) { missingActivityRowsInRange += 1; continue; }
-      mappedItemsCount += 1;
-      if (actRow.RowID) {
-        itemsById[actRow.RowID] = actRow;
-        addToDay(dateKey, actRow.RowID);
-      }
-    }
-
-    if (dateRowsInRequestedRange > 0 && mappedItemsCount === 0) {
-      // eslint-disable-next-line no-console
-      console.warn('[supabase][month] mapping produced 0 items for dated rows in requested range', {
-        dateRowsInRequestedRange, missingActivityRowsInRange
-      });
-      return null;
-    }
+    // eslint-disable-next-line no-console
+    console.info('[supabase][month] filtered rows count', stats.meetingsFilteredCount + stats.shortFilteredCount,
+      'mapped items count', stats.totalMappedItems, stats);
 
     const cells = [];
     for (let dayNum = 1; dayNum <= lastDay; dayNum++) {
@@ -602,7 +694,7 @@ async function readMonthFromSupabase(ym) {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[supabase][month] unexpected error:', err);
-    return null;
+    return emptyMonthPayload(monthPrefix, { error: String(err?.message || err) });
   }
 }
 
@@ -1625,43 +1717,19 @@ export const api = {
   },
   activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
   activityDates: (source_row_id, source_sheet) => request('activityDates', { source_row_id, source_sheet }),
-  week: async (params, options) => {
+  week: async (params) => {
     const resolved = (params && typeof params === 'object') ? params : {};
     const weekOffset = Number.parseInt(resolved.week_offset, 10);
     const offset = Number.isFinite(weekOffset) ? weekOffset : 0;
-    const canonical = { ...resolved, week_offset: offset };
-    try {
-      const supabaseData = await readWeekFromSupabase(offset);
-      if (supabaseData) {
-        // eslint-disable-next-line no-console
-        console.info('[week] loaded from supabase', { week_offset: offset, _source: supabaseData._source });
-        return supabaseData;
-      }
-    } catch (supabaseErr) {
-      // eslint-disable-next-line no-console
-      console.warn('[week] supabase path threw, falling back to GAS read model', { week_offset: offset, error: supabaseErr?.message || String(supabaseErr) });
-    }
-    return requestReadModel('week', canonical, 'week', canonical, options || {});
+    return readWeekFromSupabase(offset);
   },
-  month: async (params, options) => {
+  month: async (params) => {
     const resolved = (params && typeof params === 'object') ? params : {};
     const candidate = String(resolved.ym || resolved.month || '').trim();
     const now = new Date();
     const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const ym = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
-    const canonical = { ...resolved, ym };
-    try {
-      const supabaseData = await readMonthFromSupabase(ym);
-      if (supabaseData) {
-        // eslint-disable-next-line no-console
-        console.info('[month] loaded from supabase', { ym, _source: supabaseData._source });
-        return supabaseData;
-      }
-    } catch (supabaseErr) {
-      // eslint-disable-next-line no-console
-      console.warn('[month] supabase path threw, falling back to GAS read model', { ym, error: supabaseErr?.message || String(supabaseErr) });
-    }
-    return requestReadModel('month', canonical, 'month', canonical, options || {});
+    return readMonthFromSupabase(ym);
   },
   exceptions: (params, options) => {
     const resolved = (params && typeof params === 'object') ? params : {};
