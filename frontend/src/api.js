@@ -270,6 +270,129 @@ async function readListsFromSupabase() {
   }
 }
 
+/**
+ * Reads contacts_instructors and computes per-instructor activity stats
+ * (programs_count, one_day_count, latest_end_date, activity_managers) from
+ * data_long + data_short — all client-side, no schema changes.
+ * Returns { rows, _source: 'supabase' } or null on any failure.
+ */
+async function readInstructorsFromSupabase() {
+  if (!supabase) return null;
+  try {
+    const [instrResult, longResult, shortResult] = await Promise.all([
+      supabase.from('contacts_instructors').select('*'),
+      supabase.from('data_long').select('emp_id,emp_id_2,end_date,date_end,activity_manager,status'),
+      supabase.from('data_short').select('emp_id,emp_id_2,end_date,date_end,activity_manager,status')
+    ]);
+
+    if (instrResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load contacts_instructors (instructors screen):', instrResult.error);
+      return null;
+    }
+    if (longResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load data_long (instructors screen):', longResult.error);
+      return null;
+    }
+    if (shortResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load data_short (instructors screen):', shortResult.error);
+      return null;
+    }
+
+    const instrRows = Array.isArray(instrResult.data) ? instrResult.data : [];
+    const longRows = Array.isArray(longResult.data) ? longResult.data : [];
+    const shortRows = Array.isArray(shortResult.data) ? shortResult.data : [];
+
+    const statsMap = new Map();
+    function ensureStats(id) {
+      const k = String(id || '').trim();
+      if (!k) return null;
+      if (!statsMap.has(k)) statsMap.set(k, { programs_count: 0, one_day_count: 0, latest_end_date: '', managers: new Set() });
+      return statsMap.get(k);
+    }
+
+    function applyRow(row, isLong) {
+      if (String(row.status || '').trim() === 'סגור') return;
+      const ids = [String(row.emp_id || '').trim(), String(row.emp_id_2 || '').trim()].filter(Boolean);
+      const d = String(row.end_date || row.date_end || '').trim().slice(0, 10);
+      const mgr = String(row.activity_manager || '').trim();
+      for (const id of ids) {
+        const s = ensureStats(id);
+        if (!s) continue;
+        if (isLong) s.programs_count += 1;
+        else s.one_day_count += 1;
+        if (d && (!s.latest_end_date || d > s.latest_end_date)) s.latest_end_date = d;
+        if (mgr) s.managers.add(mgr);
+      }
+    }
+
+    for (const row of longRows) applyRow(row, true);
+    for (const row of shortRows) applyRow(row, false);
+
+    const rows = instrRows.map((instr) => {
+      const id = String(instr.emp_id || '').trim();
+      const s = statsMap.get(id) || { programs_count: 0, one_day_count: 0, latest_end_date: '', managers: new Set() };
+      return {
+        ...instr,
+        programs_count: s.programs_count,
+        one_day_count: s.one_day_count,
+        latest_end_date: s.latest_end_date || '',
+        activity_managers: [...s.managers]
+      };
+    });
+
+    return { rows, _source: 'supabase' };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] Unexpected instructors fetch error:', error);
+    return null;
+  }
+}
+
+/**
+ * Fire-and-forget Supabase upsert after a successful GAS write.
+ * Never throws — errors are logged only. Does not block the caller.
+ *
+ * For instructors: upsert on emp_id.
+ * For schools: upsert on (authority, school, contact_name).
+ * GAS-only fields (_row_index) are stripped before sending to Supabase.
+ *
+ * ⚠️ Requires the Supabase table to have an appropriate unique constraint
+ *   on the conflict columns for upsert to work. If not configured,
+ *   the call will log an error and silently degrade — GAS remains source of truth.
+ */
+async function syncContactToSupabase(kind, row) {
+  if (!supabase || !row || typeof row !== 'object') return;
+  try {
+    if (kind === 'instructor') {
+      if (!row.emp_id) return;
+      const { _row_index: _ri, ...cleanRow } = row;
+      const { error } = await supabase
+        .from('contacts_instructors')
+        .upsert(cleanRow, { onConflict: 'emp_id' });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] contacts_instructors upsert failed:', error);
+      }
+    } else if (kind === 'school') {
+      if (!row.authority || !row.school || !row.contact_name) return;
+      const { _row_index: _ri, ...cleanRow } = row;
+      const { error } = await supabase
+        .from('contacts_schools')
+        .upsert(cleanRow, { onConflict: 'authority,school,contact_name' });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] contacts_schools upsert failed:', error);
+      }
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] Unexpected contact sync error:', err);
+  }
+}
+
 const RETRYABLE_SERVER_ERRORS = new Set([
   'network_error',
   'server_error',
@@ -901,7 +1024,11 @@ export const api = {
     const canonical = { ...resolved, month };
     return requestReadModel('exceptions', canonical, 'exceptions', canonical, options || {});
   },
-  instructors: () => request('instructors'),
+  instructors: async () => {
+    const supabaseData = await readInstructorsFromSupabase();
+    if (supabaseData) return supabaseData;
+    return request('instructors');
+  },
   instructorContacts: async () => {
     const supabaseData = await readInstructorContactsFromSupabase();
     if (supabaseData) return supabaseData;
@@ -924,8 +1051,16 @@ export const api = {
     if (supabaseData) return supabaseData;
     return request('adminLists');
   },
-  addContact: (payload) => request('addContact', payload),
-  saveContact: (payload) => request('saveContact', payload),
+  addContact: async (payload) => {
+    const result = await request('addContact', payload);
+    syncContactToSupabase(payload?.kind, payload?.row).catch(() => {});
+    return result;
+  },
+  saveContact: async (payload) => {
+    const result = await request('saveContact', payload);
+    syncContactToSupabase(payload?.kind, payload?.row).catch(() => {});
+    return result;
+  },
   addActivity: (target, data) => {
     if (typeof target === 'object' && target !== null && data === undefined) {
       return request('addActivity', { activity: target });
