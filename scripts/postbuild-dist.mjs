@@ -20,14 +20,19 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const root = join(__dirname, '..');
 const dist = join(root, 'dist');
 
-function collectAssetRefs(html) {
+function collectAssetRefs(html, base) {
   const out = new Set();
-  const re = /(?:href|src)="((?:\.\/)?assets\/[^"?#]+)"/g;
+  const re = /(?:href|src)="([^"?#]+)"/g;
   let m;
   while ((m = re.exec(html))) {
     let p = m[1];
     if (p.startsWith('./')) p = p.slice(2);
-    out.add('/' + p);
+    if (!p.includes('assets/')) continue;
+    if (!p.startsWith('/')) p = '/' + p;
+    if (base && base !== '/' && base !== './' && p.startsWith(base)) {
+      p = p.slice(base.replace(/\/$/, '').length);
+    }
+    out.add(p);
   }
   return out;
 }
@@ -90,8 +95,9 @@ if (hashedManifest) {
   }
 }
 
+const viteBase = process.env.VITE_BASE || './';
 const precache = new Set(['/index.html', '/manifest.json']);
-for (const u of collectAssetRefs(html)) precache.add(u);
+for (const u of collectAssetRefs(html, viteBase)) precache.add(u);
 for (const u of walkFiles(join(dist, 'assets'))) precache.add(u);
 
 const swOut = join(dist, 'frontend', 'sw.js');
