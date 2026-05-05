@@ -131,8 +131,66 @@ function runDataMaintenance() {
   return runDataMaintenance_('manual');
 }
 
+/**
+ * טריגר תחזוקה יומי — מריץ רק את הסנכרון הייחודי (sync end dates).
+ *
+ * Views ו-Snapshots מכוסים כבר על ידי טריגרים נפרדים:
+ *   refreshDataViewsTrigger        — כל שעה
+ *   refreshDashboardSnapshotsTrigger — כל 10 דקות
+ *
+ * Guard: עוצר אחרי 5 דקות ומדווח על כל שלב.
+ * שלבים נוספים (Drive cleanup) מבוצעים רק אם נשאר budget.
+ */
 function runDataMaintenanceTrigger() {
-  runDataMaintenance_('time_trigger');
+  var MAX_MS = 5 * 60 * 1000;
+  var startMs = Date.now();
+  var results = { started_at: new Date().toISOString(), steps: [] };
+
+  function elapsed() { return Date.now() - startMs; }
+  function hasTime(reserveMs) { return elapsed() < MAX_MS - (reserveMs || 30000); }
+
+  function runStep(label, fn, reserveMs) {
+    if (!hasTime(reserveMs)) {
+      results.steps.push({ step: label, skipped: true, reason: 'time_budget_exhausted', elapsed_ms: elapsed() });
+      return;
+    }
+    try {
+      var r = fn();
+      results.steps.push({ step: label, ok: true, result: r || null, elapsed_ms: elapsed() });
+    } catch (err) {
+      results.steps.push({ step: label, error: String(err), elapsed_ms: elapsed() });
+    }
+  }
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(3000)) {
+    Logger.log('[runDataMaintenanceTrigger] skipped: lock busy');
+    return { skipped: true, reason: 'lock_busy' };
+  }
+
+  try {
+    beginRequestCache_();
+
+    // שלב 1: סנכרון תאריכי סיום מגיליון activity_meetings → data_long
+    // זהו השלב הייחודי לטריגר זה — views/snapshots מכוסים בטריגרים נפרדים.
+    runStep('sync_end_dates', function() {
+      return syncDataLongDatesFromMeetings_();
+    }, 120000);
+
+    // שלב 2: ניקוי cache ישן של script (קל)
+    runStep('script_cache_cleanup', function() {
+      if (typeof pruneExpiredScriptCache_ === 'function') return pruneExpiredScriptCache_();
+      return { skipped: true, reason: 'function_not_available' };
+    }, 60000);
+
+  } finally {
+    try { __rqCache_ = null; } catch (_e) {}
+    lock.releaseLock();
+  }
+
+  results.elapsed_ms = elapsed();
+  Logger.log('[runDataMaintenanceTrigger] completed: ' + JSON.stringify(results));
+  return results;
 }
 
 function syncEndDatesTrigger() {
@@ -156,17 +214,17 @@ function syncEndDatesTrigger() {
 
 function installDataMaintenanceTrigger() {
   var triggers = ScriptApp.getProjectTriggers();
-  var exists = triggers.some(function(t) {
-    return t.getHandlerFunction && t.getHandlerFunction() === 'runDataMaintenanceTrigger';
+  triggers.forEach(function(t) {
+    if (t.getHandlerFunction && t.getHandlerFunction() === 'runDataMaintenanceTrigger') {
+      ScriptApp.deleteTrigger(t);
+    }
   });
-  if (exists) return { status: 'already_installed' };
-
   ScriptApp.newTrigger('runDataMaintenanceTrigger')
     .timeBased()
-    .everyHours(1)
+    .everyDays(1)
+    .atHour(3)
     .create();
-
-  return { status: 'installed', frequency: 'hourly' };
+  return { status: 'installed', frequency: 'daily_03:00' };
 }
 
 function installProductionAutomation() {
@@ -174,8 +232,8 @@ function installProductionAutomation() {
     { handler: 'keepWarm', frequency: 'every_5_minutes', install: function() {
       ScriptApp.newTrigger('keepWarm').timeBased().everyMinutes(5).create();
     }},
-    { handler: 'runDataMaintenanceTrigger', frequency: 'hourly', install: function() {
-      ScriptApp.newTrigger('runDataMaintenanceTrigger').timeBased().everyHours(1).create();
+    { handler: 'runDataMaintenanceTrigger', frequency: 'daily_03:00', install: function() {
+      ScriptApp.newTrigger('runDataMaintenanceTrigger').timeBased().everyDays(1).atHour(3).create();
     }},
     { handler: 'refreshAllReadModelsTrigger', frequency: 'hourly', install: function() {
       ScriptApp.newTrigger('refreshAllReadModelsTrigger').timeBased().everyHours(1).create();
@@ -298,7 +356,7 @@ function getProductionAutomationStatus() {
   }
 
   var keepWarm = summarize('keepWarm', 'every_5_minutes');
-  var maintenance = summarize('runDataMaintenanceTrigger', 'hourly');
+  var maintenance = summarize('runDataMaintenanceTrigger', 'daily_03:00');
   var readModels = summarize('refreshAllReadModelsTrigger', 'hourly');
   var dataViews = summarize('refreshDataViewsTrigger', 'hourly');
   var activitiesSnapshot = summarize('refreshActivitiesSnapshotTrigger', 'every_10_minutes');
