@@ -128,8 +128,17 @@ function rowMatchesActivitiesFilters(row, filters = {}) {
   if (activityType && activityType !== 'all' && String(row?.activity_type || '').trim() !== activityType) return false;
 
   if (/^\d{4}-\d{2}$/.test(month)) {
+    const [y, mo] = month.split('-').map(Number);
+    const monthStart = `${month}-01`;
+    const lastDay = new Date(y, mo, 0).getDate();
+    const monthEnd = `${month}-${String(lastDay).padStart(2, '0')}`;
     const start = String(row?.date_start || row?.start_date || '').trim();
-    if (/^\d{4}-\d{2}/.test(start) && !start.startsWith(month)) return false;
+    const end = String(row?.end_date || row?.date_end || start).trim();
+    if (start || end) {
+      const rowStart = start || end;
+      const rowEnd = end || start;
+      if (rowStart > monthEnd || rowEnd < monthStart) return false;
+    }
   }
 
   return true;
