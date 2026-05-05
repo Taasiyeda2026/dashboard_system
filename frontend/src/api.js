@@ -378,11 +378,12 @@ async function requestReadModel(key, params = {}, fallbackAction, fallbackPayloa
       error: err?.message || String(err)
     });
     const explicitLegacy = options?.forceLegacy === true || params?.force_legacy === true || String(params?.force_legacy || '').toLowerCase() === 'yes' || options?.debug === true;
-    if (explicitLegacy) {
+    const legacyReason = explicitLegacy ? 'read_model_get_failed_explicit' : 'read_model_get_failed_auto_fallback';
+    if (fallbackAction) {
       return request(fallbackAction, { ...(fallbackPayload || {}), force_legacy: true }, {
         ...perfBase,
         fallback_used: true,
-        legacy_fallback_reason: 'read_model_get_failed_explicit',
+        legacy_fallback_reason: legacyReason,
         legacy_intentional: true,
         read_model_screen_key: key,
         ...options
