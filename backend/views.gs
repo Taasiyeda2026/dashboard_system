@@ -100,13 +100,28 @@ function buildViewActivityMeetingsRows_(meetingsRows, sourceMap, privateNotesMap
     out.push({
       RowID: effectiveRowId,
       source_sheet: sourceSheet,
+      source_row_id: sourceRowId,
+      month_ym: meetingDate.slice(0, 7),
+      meeting_date: meetingDate,
       activity_type: text_(meeting.activity_type || sourceRow.activity_type),
+      activity_name: text_(meeting.activity_name || sourceRow.activity_name),
       activity_manager: text_(meeting.activity_manager || sourceRow.activity_manager),
+      authority: text_(meeting.authority || sourceRow.authority),
+      school: text_(meeting.school || sourceRow.school),
+      funding: text_(meeting.funding || sourceRow.funding),
+      grade: text_(meeting.grade || sourceRow.grade),
+      class_group: text_(meeting.class_group || sourceRow.class_group),
       start_date: normalizeDateToIsoFlexible_(meeting.start_date || sourceRow.start_date),
       end_date: normalizeDateToIsoFlexible_(meeting.end_date || sourceRow.end_date || sourceRow.start_date),
       status: text_(meeting.status || sourceRow.status),
       emp_id: text_(meeting.emp_id || sourceRow.emp_id),
-      instructor_name: text_(meeting.instructor_name || sourceRow.instructor_name)
+      instructor_name: text_(meeting.instructor_name || sourceRow.instructor_name),
+      emp_id_2: text_(meeting.emp_id_2 || sourceRow.emp_id_2),
+      instructor_name_2: text_(meeting.instructor_name_2 || sourceRow.instructor_name_2),
+      start_time: text_(meeting.start_time || sourceRow.start_time),
+      end_time: text_(meeting.end_time || sourceRow.end_time),
+      activity_no: text_(meeting.activity_no || sourceRow.activity_no),
+      private_note: privateNote
     });
   });
 

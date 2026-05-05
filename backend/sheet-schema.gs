@@ -75,8 +75,22 @@ function getSystemSheetSchema_() {
   },
   view_activity_meetings: {
     sheetName: 'view_activity_meetings', required: true, type: 'view',
-    headers: ['RowID','source_sheet','activity_type','activity_manager','start_date','end_date','status','emp_id','instructor_name'],
-    hebrewLabels: ['RowID','גיליון מקור','סוג פעילות','מנהל פעילות','תאריך התחלה','תאריך סיום','סטטוס','ת.ז. מדריך','שם מדריך'],
+    headers: [
+      'RowID','source_sheet','source_row_id','month_ym','meeting_date',
+      'activity_type','activity_name','activity_manager',
+      'authority','school','funding','grade','class_group',
+      'start_date','end_date','status',
+      'emp_id','instructor_name','emp_id_2','instructor_name_2',
+      'start_time','end_time','activity_no','private_note'
+    ],
+    hebrewLabels: [
+      'RowID','גיליון מקור','שורת מקור','חודש','תאריך מפגש',
+      'סוג פעילות','שם פעילות','מנהל פעילות',
+      'רשות','בית ספר','מימון','שכבה','קבוצה',
+      'תאריך התחלה','תאריך סיום','סטטוס',
+      'ת.ז. מדריך','שם מדריך','ת.ז. מדריך 2','שם מדריך 2',
+      'שעת התחלה','שעת סיום','מס\' פעילות','הערה פרטית'
+    ],
     dataStartRow: 3, allowExtraColumns: false, preserveExistingData: false, legacyFinanceColumns: false
   },
   view_dashboard_monthly: {

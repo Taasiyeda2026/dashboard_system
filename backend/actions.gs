@@ -1308,15 +1308,21 @@ function calendarItemIdsForDateFromMonthBundle_(byYm, dateKey) {
 
 function buildWeekResponseFromMonthBundle_(byYm, anchor, showSat, weekStartsOn, hideSatColumn, weekOffset) {
   var mergedItems = {};
+  var totalSourceRows = 0;
   Object.keys(byYm || {}).forEach(function(ym) {
     var mp = byYm[ym] || {};
     var src = mp.items_by_id || {};
     Object.keys(src).forEach(function(rid) {
       mergedItems[rid] = src[rid];
     });
+    if (mp.debug && typeof mp.debug.total_source_rows === 'number') {
+      totalSourceRows += mp.debug.total_source_rows;
+    }
   });
   var days = [];
   var neededIds = {};
+  var weekStart = formatDate_(anchor);
+  var weekEnd = formatDate_(shiftDate_(anchor, 6));
   for (var i = 0; i < 7; i++) {
     var d = shiftDate_(anchor, i);
     var dow = d.getDay();
@@ -1334,13 +1340,22 @@ function buildWeekResponseFromMonthBundle_(byYm, anchor, showSat, weekStartsOn, 
   Object.keys(neededIds).forEach(function(rid) {
     if (mergedItems[rid]) itemsById[rid] = mergedItems[rid];
   });
+  var daysWithItems = days.filter(function(day) { return day.item_ids.length > 0; }).length;
   return {
     days: days,
     items_by_id: itemsById,
     week_starts_on: weekStartsOn,
     show_shabbat: showSat,
     week_hide_saturday_column: hideSatColumn,
-    week_offset: weekOffset
+    week_offset: weekOffset,
+    debug: {
+      total_source_rows: totalSourceRows,
+      rows_with_dates: Object.keys(neededIds).length,
+      items_count: Object.keys(itemsById).length,
+      days_with_items: daysWithItems,
+      week_start: weekStart,
+      week_end: weekEnd
+    }
   };
 }
 
@@ -1372,7 +1387,8 @@ function filterWeekPayloadForInstructor_(weekPayload, empId) {
     week_starts_on: source.week_starts_on,
     show_shabbat: source.show_shabbat,
     week_hide_saturday_column: source.week_hide_saturday_column,
-    week_offset: source.week_offset
+    week_offset: source.week_offset,
+    debug: source.debug || undefined
   };
 }
 
@@ -1412,7 +1428,8 @@ function normalizeWeekPayloadShape_(payload) {
     week_starts_on: source.week_starts_on,
     show_shabbat: source.show_shabbat,
     week_hide_saturday_column: source.week_hide_saturday_column,
-    week_offset: source.week_offset
+    week_offset: source.week_offset,
+    debug: source.debug || undefined
   };
 }
 
@@ -1515,11 +1532,14 @@ function buildMonthResponseFromMeetingViewRows_(rows, year, month) {
   var daysInMonth = new Date(year, month + 1, 0).getDate();
   var byDate = {};
   var itemsById = {};
+  var totalSourceRows = (rows || []).length;
+  var rowsWithDates = 0;
 
   (rows || []).forEach(function(row) {
     var rowId = text_(row.source_row_id);
     var dateKey = normalizeDateTextToIso_(row.meeting_date);
     if (!rowId || !dateKey) return;
+    rowsWithDates++;
     if (!itemsById[rowId]) {
       itemsById[rowId] = {
         RowID: rowId,
@@ -1550,22 +1570,33 @@ function buildMonthResponseFromMeetingViewRows_(rows, year, month) {
   });
 
   var cells = [];
+  var cellsWithItems = 0;
   for (var i = 1; i <= daysInMonth; i++) {
     var d = new Date(year, month, i);
     var key = formatDate_(d);
+    var ids = byDate[key] || [];
+    if (ids.length) cellsWithItems++;
     cells.push({
       day: i,
       date: key,
-      item_ids: byDate[key] || []
+      item_ids: ids
     });
   }
 
   var mm = month + 1;
+  var ymStr = year + '-' + (mm < 10 ? '0' : '') + mm;
   return {
-    month: year + '-' + (mm < 10 ? '0' : '') + mm,
+    month: ymStr,
     cells: cells,
     items_by_id: itemsById,
-    hide_saturday: false
+    hide_saturday: false,
+    debug: {
+      total_source_rows: totalSourceRows,
+      rows_with_dates: rowsWithDates,
+      items_count: Object.keys(itemsById).length,
+      cells_with_items: cellsWithItems,
+      month: ymStr
+    }
   };
 }
 
@@ -1595,7 +1626,8 @@ function filterMonthPayloadForInstructor_(monthPayload, empId) {
     month: text_(source.month),
     cells: cells,
     items_by_id: itemsById,
-    hide_saturday: !!source.hide_saturday
+    hide_saturday: !!source.hide_saturday,
+    debug: source.debug || undefined
   };
 }
 

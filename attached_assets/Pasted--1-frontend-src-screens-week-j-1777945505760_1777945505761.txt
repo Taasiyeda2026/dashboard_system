@@ -1,0 +1,109 @@
+צריך לבדוק למה עמודי שבוע וחודש לא מציגים פעילויות.
+
+לפי הפרונט:
+
+1. frontend/src/screens/week.js
+   המסך קורא:
+   api.week({ week_offset: offset })
+
+וה-render מצפה לקבל:
+
+* data.days
+* data.items_by_id
+
+אם items_by_id ריק, השבוע יוצג בלי פעילויות.
+
+2. frontend/src/screens/month.js
+   המסך קורא:
+   api.month({ ym })
+
+וה-render מצפה לקבל:
+
+* data.month
+* data.cells
+* data.items_by_id
+
+אם cells קיימים אבל items_by_id ריק, הלוח יוצג בלי פעילויות.
+
+3. backend/read-models.gs
+   read-model של שבוע וחודש נבנה כך:
+
+* refreshWeekReadModelForOffset_(offset) → actionWeek_(READ_MODEL_ADMIN_USER_, { week_offset: wo })
+* refreshMonthReadModelForYm_(ym) → actionMonth_(READ_MODEL_ADMIN_USER_, { ym: targetYm })
+
+צריך לבדוק את actionWeek_ ואת actionMonth_.
+
+משימה:
+לוודא שה־payload שנשמר ב־read_models עבור week/month כולל בפועל פריטי פעילות.
+
+דרישות בדיקה:
+
+1. לפתוח את read_models ולבדוק:
+
+* week?week_offset=-1
+* week?week_offset=0
+* week?week_offset=1
+* month?ym=2026-04
+* month?ym=2026-05
+* month?ym=2026-06
+
+2. לוודא:
+
+* status=fresh
+* storage_ref קיים
+* payload_size לא קטן מדי
+* last_error ריק
+
+3. לבדוק את קובץ ה־Drive של payload:
+   ל־week צריך להיות:
+   {
+   days: [...],
+   items_by_id: {...}
+   }
+
+ל־month צריך להיות:
+{
+month: "YYYY-MM",
+cells: [...],
+items_by_id: {...}
+}
+
+4. אם days/cells קיימים אבל items_by_id ריק:
+   לתקן את actionWeek_ / actionMonth_ כך שיאספו פעילויות מתוך המקור הנכון.
+
+5. לבדוק במיוחד שה־builder של week/month לא מסתמך רק על activity_meetings אם בפועל התאריכים נמצאים בשדות Date1-Date35 או start_date/end_date.
+
+6. לבדוק שלא מסוננות בטעות פעילויות בגלל:
+
+* status
+* activity_type
+* source_sheet
+* instructor
+* month/week bounds
+* תאריכים לא מנורמלים
+
+7. להוסיף debug למודלים:
+   ב־week payload:
+
+* debug.total_source_rows
+* debug.rows_with_dates
+* debug.items_count
+* debug.days_with_items
+* debug.week_start
+* debug.week_end
+
+ב־month payload:
+
+* debug.total_source_rows
+* debug.rows_with_dates
+* debug.items_count
+* debug.cells_with_items
+* debug.month
+
+קריטריוני קבלה:
+
+* עמוד שבוע מציג פעילויות כאשר יש פעילויות בטווח השבוע.
+* עמוד חודש מציג פעילויות כאשר יש פעילויות בטווח החודש.
+* ב־read_models, payload של week/month כולל items_by_id לא ריק.
+* אם אין פעילויות באמת, debug מסביר למה:
+  no_source_rows / no_dates_in_range / filtered_by_status / filtered_by_type.
