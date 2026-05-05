@@ -49,7 +49,7 @@ const SERVICE_WORKER_ENABLED = true;
 const ROUTE_LOAD_GUARD_MS = 25000;
 const ROUTE_LOAD_ERROR_HE = 'טעינת המסך נמשכת זמן רב מדי. נסו לרענן או להיכנס שוב.';
 const SUPABASE_READONLY_CUTOVER = false;
-const SUPABASE_READONLY_ROUTES = ['dashboard', 'activities', 'week', 'month', 'instructors', 'end-dates', 'exceptions'];
+const SUPABASE_READONLY_ROUTES = ['dashboard', 'activities', 'week', 'month', 'instructors', 'end-dates', 'exceptions', 'archive'];
 
 if (typeof window !== 'undefined') {
   window.__HOTFIX_VERSION__ = config.HOTFIX_VERSION;
@@ -489,7 +489,8 @@ const screenLabels = {
   permissions: 'הרשאות',
   'admin-home': 'בית — ניהול',
   'admin-settings': 'הגדרות מערכת',
-  'admin-lists': 'ניהול רשימות'
+  'admin-lists': 'ניהול רשימות',
+  archive: 'ארכיון'
 };
 
 const screenLoaders = {
@@ -507,7 +508,8 @@ const screenLoaders = {
   permissions: () => import('./screens/permissions.js').then((m) => m.permissionsScreen),
   'admin-home': () => import('./screens/admin-home.js').then((m) => m.adminHomeScreen),
   'admin-settings': () => import('./screens/admin-settings.js').then((m) => m.adminSettingsScreen),
-  'admin-lists': () => import('./screens/admin-lists.js').then((m) => m.adminListsScreen)
+  'admin-lists': () => import('./screens/admin-lists.js').then((m) => m.adminListsScreen),
+  archive: () => import('./screens/archive.js').then((m) => m.archiveScreen)
 };
 const loadedScreens = new Map();
 const loadingScreens = new Map();

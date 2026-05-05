@@ -144,6 +144,35 @@ function rowMatchesActivitiesFilters(row, filters = {}) {
   return true;
 }
 
+async function readArchiveActivitiesFromSupabase() {
+  if (!supabase) return null;
+  try {
+    const [longResult, shortResult] = await Promise.all([
+      supabase.from('data_long').select('*').eq('status', 'סגור'),
+      supabase.from('data_short').select('*').eq('status', 'סגור')
+    ]);
+    if (longResult.error) {
+      console.error('[supabase] archive data_long failed:', longResult.error);
+      return null;
+    }
+    if (shortResult.error) {
+      console.error('[supabase] archive data_short failed:', shortResult.error);
+      return null;
+    }
+    const longRows = (Array.isArray(longResult.data) ? longResult.data : []).map((r) => ({ ...r, source_sheet: 'data_long' }));
+    const shortRows = (Array.isArray(shortResult.data) ? shortResult.data : []).map((r) => ({ ...r, source_sheet: 'data_short' }));
+    const rows = [...longRows, ...shortRows].sort((a, b) => {
+      const da = String(b?.end_date || b?.start_date || '').trim();
+      const db = String(a?.end_date || a?.start_date || '').trim();
+      return da.localeCompare(db);
+    });
+    return { rows };
+  } catch (err) {
+    console.error('[supabase] archive fetch error:', err);
+    return null;
+  }
+}
+
 async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
@@ -1712,10 +1741,10 @@ async function request(action, payload = {}, perfMeta = {}) {
 }
 
 const SUPABASE_ROLE_ROUTES = {
-  admin: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'admin-lists'],
-  operation_manager: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  authorized_user: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  instructor: ['dashboard', 'activities', 'week', 'month', 'instructor-contacts', 'my-data']
+  admin: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'admin-lists'],
+  operation_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  instructor: ['dashboard', 'activities', 'archive', 'week', 'month', 'instructor-contacts', 'my-data']
 };
 
 function flattenUserRow(userRow = {}) {
@@ -1995,6 +2024,11 @@ export const api = {
     const canonical = { ...resolved, month };
     const supabasePayload = await dashboardReadModelFromSupabase(month);
     return { ...supabasePayload, ...canonical };
+  },
+  archiveActivities: async () => {
+    const data = await readArchiveActivitiesFromSupabase();
+    if (data) return data;
+    return buildSupabaseErrorPayload({ rows: [] }, 'archive_supabase_failed');
   },
   activities: async (filters, options) => {
     const resolvedFilters = filters || {};

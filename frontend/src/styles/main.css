@@ -5543,6 +5543,16 @@ select.ds-input {
   white-space: nowrap;
 }
 
+/* ——— Archive screen ——— */
+.ds-archive-year-nav {
+  padding: var(--ds-space-1) 0;
+}
+
+.ds-archive-end-date {
+  font-weight: 700;
+  color: var(--ds-text);
+}
+
 .ds-activities-row {
   transition: background-color 0.16s ease;
 }
