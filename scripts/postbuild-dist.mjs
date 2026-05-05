@@ -57,12 +57,17 @@ if (!existsSync(join(dist, 'index.html'))) {
 mkdirSync(join(dist, 'assets'), { recursive: true });
 cpSync(join(root, 'frontend', 'assets'), join(dist, 'assets'), { recursive: true });
 
+const viteBaseRaw = process.env.VITE_BASE || './';
 const manPath = join(dist, 'manifest.json');
 if (existsSync(manPath)) {
   const m = JSON.parse(readFileSync(manPath, 'utf8'));
-  m.start_url = './index.html';
-  m.scope = './';
-  m.id = './index.html';
+  const isAbsoluteBase = viteBaseRaw.startsWith('/') && viteBaseRaw !== '/';
+  const basePrefix = isAbsoluteBase
+    ? viteBaseRaw.replace(/\/$/, '') + '/'
+    : './';
+  m.start_url = isAbsoluteBase ? basePrefix + 'index.html' : './index.html';
+  m.scope = basePrefix;
+  m.id = isAbsoluteBase ? basePrefix + 'index.html' : './index.html';
   m.icons = (m.icons || []).map((icon) => {
     const src = String(icon.src || '');
     const next = src
@@ -95,9 +100,8 @@ if (hashedManifest) {
   }
 }
 
-const viteBase = process.env.VITE_BASE || './';
 const precache = new Set(['/index.html', '/manifest.json']);
-for (const u of collectAssetRefs(html, viteBase)) precache.add(u);
+for (const u of collectAssetRefs(html, viteBaseRaw)) precache.add(u);
 for (const u of walkFiles(join(dist, 'assets'))) precache.add(u);
 
 const swOut = join(dist, 'frontend', 'sw.js');

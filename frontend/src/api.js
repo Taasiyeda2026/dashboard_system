@@ -352,6 +352,201 @@ async function readInstructorsFromSupabase() {
 }
 
 /**
+ * Builds KPI card array for the dashboard from computed Supabase values.
+ * KPIs that cannot be computed from Supabase columns are set to 0 and noted as GAS-only.
+ */
+function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionCount, uniqueInstructorCount, courseEndings) {
+  return [
+    { id: 'short', action: 'kpi|short', title: String(totals.total_short_activities), subtitle: 'חד-יומי', value: totals.total_short_activities },
+    { id: 'long', action: 'kpi|long', title: String(totals.total_long_activities), subtitle: 'תוכניות', value: totals.total_long_activities },
+    { id: 'active_courses', action: 'kpi|active_courses', title: String(activeTypeCounts.course || 0), subtitle: 'קורסים פעילים', value: activeTypeCounts.course || 0 },
+    { id: 'active_workshops', action: 'kpi|active_workshops', title: String(activeTypeCounts.workshop || 0), subtitle: 'סדנאות פעילות', value: activeTypeCounts.workshop || 0 },
+    { id: 'active_tours', action: 'kpi|active_tours', title: String(activeTypeCounts.tour || 0), subtitle: 'סיורים פעילים', value: activeTypeCounts.tour || 0 },
+    { id: 'active_after_school', action: 'kpi|active_after_school', title: String(activeTypeCounts.after_school || 0), subtitle: 'אפטרסקול פעיל', value: activeTypeCounts.after_school || 0 },
+    { id: 'active_escape_room', action: 'kpi|active_escape_room', title: String(activeTypeCounts.escape_room || 0), subtitle: 'חדרי בריחה פעילים', value: activeTypeCounts.escape_room || 0 },
+    { id: 'exceptions', action: 'kpi|exceptions', title: String(exceptionCount), subtitle: 'חריגות (קורסים)', value: exceptionCount },
+    { id: 'instructors', action: 'kpi|instructors', title: String(uniqueInstructorCount), subtitle: 'מדריכים פעילים', value: uniqueInstructorCount },
+    { id: 'endings', action: 'kpi|endings', title: String(courseEndings), subtitle: 'סיומי קורסים', value: courseEndings }
+  ];
+}
+
+/**
+ * Queries Supabase to build a dashboard payload for the given month (YYYY-MM).
+ *
+ * KPIs computable from Supabase: short, long, active_courses, active_workshops,
+ * active_tours, active_after_school, active_escape_room, instructors, endings.
+ *
+ * KPIs that cannot yet be computed (no equivalent column): exceptions,
+ * operational_gaps_count, late_end_date_count, active_courses_next_month.
+ * These are set to 0 — GAS fallback is authoritative for them.
+ *
+ * Returns null on any failure so the caller can fall through to GAS.
+ */
+async function dashboardReadModelFromSupabase(month) {
+  if (!supabase) return null;
+  try {
+    const monthPrefix = String(month || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(monthPrefix)) return null;
+
+    const monthStart = `${monthPrefix}-01`;
+    const [yStr, mStr] = monthPrefix.split('-');
+    const y = Number(yStr);
+    const m = Number(mStr);
+    const lastDay = new Date(y, m, 0).getDate();
+    const monthEnd = `${monthPrefix}-${String(lastDay).padStart(2, '0')}`;
+
+    const [longResult, shortResult, longEndingsResult] = await Promise.all([
+      supabase.from('data_long')
+        .select('activity_type,activity_manager,start_date,emp_id,status')
+        .gte('start_date', monthStart)
+        .lte('start_date', monthEnd)
+        .neq('status', 'סגור'),
+      supabase.from('data_short')
+        .select('activity_type,activity_manager,start_date,emp_id,emp_id_2,status')
+        .gte('start_date', monthStart)
+        .lte('start_date', monthEnd)
+        .neq('status', 'סגור'),
+      supabase.from('data_long')
+        .select('activity_type,activity_manager,end_date,status')
+        .gte('end_date', monthStart)
+        .lte('end_date', monthEnd)
+        .neq('status', 'סגור')
+    ]);
+
+    if (longResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase][dashboard] data_long fetch failed:', longResult.error);
+      return null;
+    }
+    if (shortResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase][dashboard] data_short fetch failed:', shortResult.error);
+      return null;
+    }
+    if (longEndingsResult.error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase][dashboard] data_long endings fetch failed:', longEndingsResult.error);
+      return null;
+    }
+
+    const longRows = Array.isArray(longResult.data) ? longResult.data : [];
+    const shortRows = Array.isArray(shortResult.data) ? shortResult.data : [];
+    const courseEndingRows = Array.isArray(longEndingsResult.data) ? longEndingsResult.data : [];
+
+    const total_long_activities = longRows.length;
+    const total_short_activities = shortRows.length;
+    const course_endings = courseEndingRows.length;
+
+    const activeTypeCounts = { course: 0, after_school: 0, workshop: 0, tour: 0, escape_room: 0 };
+    for (const r of longRows) {
+      const t = String(r.activity_type || '').trim();
+      if (Object.prototype.hasOwnProperty.call(activeTypeCounts, t)) activeTypeCounts[t] += 1;
+    }
+    for (const r of shortRows) {
+      const t = String(r.activity_type || '').trim();
+      if (Object.prototype.hasOwnProperty.call(activeTypeCounts, t)) activeTypeCounts[t] += 1;
+    }
+
+    const instructorIds = new Set();
+    for (const r of longRows) {
+      const id = String(r.emp_id || '').trim();
+      if (id) instructorIds.add(id);
+    }
+    for (const r of shortRows) {
+      const id1 = String(r.emp_id || '').trim();
+      const id2 = String(r.emp_id_2 || '').trim();
+      if (id1) instructorIds.add(id1);
+      if (id2) instructorIds.add(id2);
+    }
+    const active_instructors_count = instructorIds.size;
+
+    const managerMap = new Map();
+    function ensureManager(name) {
+      const k = String(name || '').trim();
+      if (!k) return null;
+      if (!managerMap.has(k)) managerMap.set(k, { total_long: 0, total_short: 0, instructors: new Set(), endings: 0 });
+      return managerMap.get(k);
+    }
+    for (const r of longRows) {
+      const mg = ensureManager(r.activity_manager);
+      if (!mg) continue;
+      mg.total_long += 1;
+      const id = String(r.emp_id || '').trim();
+      if (id) mg.instructors.add(id);
+    }
+    for (const r of shortRows) {
+      const mg = ensureManager(r.activity_manager);
+      if (!mg) continue;
+      mg.total_short += 1;
+      const id1 = String(r.emp_id || '').trim();
+      const id2 = String(r.emp_id_2 || '').trim();
+      if (id1) mg.instructors.add(id1);
+      if (id2) mg.instructors.add(id2);
+    }
+    for (const r of courseEndingRows) {
+      const mg = ensureManager(r.activity_manager);
+      if (!mg) continue;
+      mg.endings += 1;
+    }
+
+    const by_activity_manager = [...managerMap.entries()].map(([activity_manager, s]) => ({
+      activity_manager,
+      total_long: s.total_long,
+      total_short: s.total_short,
+      total: s.total_long + s.total_short,
+      num_instructors: s.instructors.size,
+      course_endings: s.endings,
+      exceptions: 0
+    }));
+
+    const totals = {
+      total_short_activities,
+      total_long_activities,
+      total_instructors: active_instructors_count,
+      total_course_endings_current_month: course_endings,
+      exceptions_count: 0,
+      short: total_short_activities,
+      long: total_long_activities
+    };
+
+    const kpi_cards = buildDashboardKpiCardsFromSupabase(
+      totals,
+      activeTypeCounts,
+      0,
+      active_instructors_count,
+      course_endings
+    );
+
+    return {
+      month,
+      requested_month: month,
+      month_fallback_used: false,
+      totals,
+      by_activity_manager,
+      summary: {
+        active_courses_current_month: activeTypeCounts.course,
+        ending_courses_current_month: course_endings,
+        active_courses_next_month: 0,
+        exceptions_count: 0,
+        active_instructors: [],
+        operational_gaps_count: 0,
+        missing_instructor_count: 0,
+        missing_start_date_count: 0,
+        late_end_date_count: 0,
+        short_activities: []
+      },
+      kpi_cards,
+      show_only_nonzero_kpis: false,
+      _source: 'supabase'
+    };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase][dashboard] unexpected error:', err);
+    return null;
+  }
+}
+
+/**
  * Fire-and-forget Supabase upsert/update after a successful GAS write.
  * Never throws — errors are logged only. Does not block the caller.
  *
@@ -1158,14 +1353,33 @@ export const api = {
   },
   dashboardSnapshot: (filters) => request('dashboardSnapshot', filters || {}),
   dashboardSheet: (filters) => request('dashboardSheet', filters || {}),
-  dashboardReadModel: (filters, options) => {
+  dashboardReadModel: async (filters, options) => {
     const resolved = (filters && typeof filters === 'object') ? filters : {};
     const candidate = String(resolved.month || resolved.ym || '').trim();
     const now = new Date();
     const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
     const canonical = { ...resolved, month };
-    return requestReadModel('dashboard', canonical, 'dashboardSheet', canonical, options || {});
+    try {
+      const supabasePayload = await dashboardReadModelFromSupabase(month);
+      if (supabasePayload) {
+        // eslint-disable-next-line no-console
+        console.info('[dashboard] loaded from supabase', { month, _source: supabasePayload._source });
+        return supabasePayload;
+      }
+      // eslint-disable-next-line no-console
+      console.warn('[dashboard] supabase path returned null (no data or not configured), falling back to GAS read model', { month });
+    } catch (supabaseErr) {
+      // eslint-disable-next-line no-console
+      console.warn('[dashboard] supabase path threw, falling back to GAS read model', { month, error: supabaseErr?.message || String(supabaseErr) });
+    }
+    // eslint-disable-next-line no-console
+    console.info('[dashboard] loading from GAS read model', { month, _source: 'gas' });
+    const gasPayload = await requestReadModel('dashboard', canonical, 'dashboardSheet', canonical, options || {});
+    if (gasPayload && typeof gasPayload === 'object' && !gasPayload._source) {
+      gasPayload._source = 'gas';
+    }
+    return gasPayload;
   },
   activities: async (filters, options) => {
     const resolvedFilters = filters || {};
