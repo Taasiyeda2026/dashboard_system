@@ -285,7 +285,7 @@ export const dashboardScreen = {
         const stats = allStats;
         const statsHtml = stats
           .map((s) => {
-            const displayValue = s.label === 'סה"כ חריגות' && Number(s.value || 0) === 0 ? 'מצב תקין' : s.value;
+            const displayValue = s.value;
             return `<button type="button" class="ds-manager-stat" data-card-action="${escapeHtml(s.action)}">
               <span class="ds-manager-stat__label">${escapeHtml(s.label)}</span>
               <span class="ds-manager-stat__value">${escapeHtml(String(displayValue))}</span>

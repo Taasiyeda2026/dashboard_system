@@ -79,9 +79,14 @@ export function exceptionTypeVariant(exceptionType) {
 }
 
 export const HEBREW_EXCEPTION_TYPE = {
-  missing_instructor: 'חסר מדריך',
-  missing_start_date: 'חסר תאריך התחלה',
-  late_end_date: 'תאריך סיום מאוחר'
+  missing_instructor:       'חסר מדריך',
+  missing_start_date:       'חסר תאריך התחלה',
+  late_end_date:            'תאריך סיום מאוחר',
+  missing_activity_manager: 'חסר מנהל פעילות',
+  missing_school:           'חסרה בית ספר',
+  missing_authority:        'חסרה רשות',
+  missing_activity_name:    'חסר שם פעילות',
+  missing_meetings:         'חסרות פגישות'
 };
 
 export function hebrewExceptionType(value) {
