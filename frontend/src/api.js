@@ -1,6 +1,7 @@
 import { config } from './config.js';
 import { state, setSession, clearScreenDataCache } from './state.js';
 import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
+import { supabase } from './supabase-client.js';
 
 /**
  * Actions that modify server-side data.
@@ -117,6 +118,41 @@ function warnHeavyLegacyReadWithoutIntentionalFlag(action, perfMeta) {
     }));
   } catch {
     /* ignore */
+  }
+}
+
+
+function rowMatchesActivitiesFilters(row, filters = {}) {
+  const activityType = String(filters?.activity_type || '').trim();
+  const month = String(filters?.month || '').trim();
+
+  if (activityType && activityType !== 'all' && String(row?.activity_type || '').trim() !== activityType) return false;
+
+  if (/^\d{4}-\d{2}$/.test(month)) {
+    const start = String(row?.date_start || row?.start_date || '').trim();
+    if (/^\d{4}-\d{2}/.test(start) && !start.startsWith(month)) return false;
+  }
+
+  return true;
+}
+
+async function readActivitiesFromSupabase(filters = {}) {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase.from('activities').select('*');
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Failed to load activities:', error);
+      return null;
+    }
+
+    const rows = Array.isArray(data) ? data.filter((row) => rowMatchesActivitiesFilters(row, filters)) : [];
+    return { rows };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] Unexpected activities fetch error:', error);
+    return null;
   }
 }
 
@@ -719,7 +755,12 @@ export const api = {
     const canonical = { ...resolved, month };
     return requestReadModel('dashboard', canonical, 'dashboardSheet', canonical, options || {});
   },
-  activities: (filters, options) => requestReadModel('activities', filters || {}, 'activities', filters || {}, options || {}),
+  activities: async (filters, options) => {
+    const resolvedFilters = filters || {};
+    const supabaseData = await readActivitiesFromSupabase(resolvedFilters);
+    if (supabaseData) return normalizeData(supabaseData);
+    return requestReadModel('activities', resolvedFilters, 'activities', resolvedFilters, options || {});
+  },
   activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
   activityDates: (source_row_id, source_sheet) => request('activityDates', { source_row_id, source_sheet }),
   week: (params, options) => {
