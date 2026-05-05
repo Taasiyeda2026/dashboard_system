@@ -710,6 +710,15 @@ export const api = {
   },
   dashboardSnapshot: (filters) => request('dashboardSnapshot', filters || {}),
   dashboardSheet: (filters) => request('dashboardSheet', filters || {}),
+  dashboardReadModel: (filters, options) => {
+    const resolved = (filters && typeof filters === 'object') ? filters : {};
+    const candidate = String(resolved.month || resolved.ym || '').trim();
+    const now = new Date();
+    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
+    const canonical = { ...resolved, month };
+    return requestReadModel('dashboard', canonical, 'dashboardSheet', canonical, options || {});
+  },
   activities: (filters, options) => requestReadModel('activities', filters || {}, 'activities', filters || {}, options || {}),
   activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
   activityDates: (source_row_id, source_sheet) => request('activityDates', { source_row_id, source_sheet }),

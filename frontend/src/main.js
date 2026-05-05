@@ -839,28 +839,62 @@ function maybePersistScreenCacheEntry(key, entry) {
  */
 async function loadScreenDataWithCache(screen) {
   if (!screen.load) return {};
+  const routeName = String(state.route || '');
+  const routePerfEnabled = routeName === 'dashboard' || routeName === 'activities' || routeName === 'week' || routeName === 'month';
+  const routePerfStart = routePerfEnabled ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0;
   const key = screenDataCacheKey();
   const hit = state.screenDataCache[key];
   const ttl = screenCacheTtl();
   const age = hit ? Date.now() - hit.t : 0;
   const serverMarkedStale = !!(hit && hit.data && hit.data._is_stale === true);
-  if (hit && age < ttl && !serverMarkedStale) return hit.data;
+  if (hit && age < ttl && !serverMarkedStale) {
+    if (routePerfEnabled) {
+      const dur = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - routePerfStart);
+      console.info('[route-load]', { route: routeName, duration_ms: dur, cache_hit: true, fallback_used: false, source: 'memory-cache-fresh' });
+    }
+    return hit.data;
+  }
 
   if (hit) {
-    if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return hit.data;
+    if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) {
+      if (routePerfEnabled) {
+        const dur = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - routePerfStart);
+        console.info('[route-load]', { route: routeName, duration_ms: dur, cache_hit: true, fallback_used: false, source: 'memory-cache-stale-bg-disabled' });
+      }
+      return hit.data;
+    }
     if (!inflightRequests.has(key)) {
       backgroundRefreshScreen(screen, key);
+    }
+    if (routePerfEnabled) {
+      const dur = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - routePerfStart);
+      console.info('[route-load]', { route: routeName, duration_ms: dur, cache_hit: true, fallback_used: false, source: 'memory-cache-swr' });
     }
     return hit.data;
   }
 
   if (inflightRequests.has(key)) {
     pushDuplicateRequestPerf(key, state.route);
-    return inflightRequests.get(key);
+    const inflight = inflightRequests.get(key);
+    if (routePerfEnabled) {
+      const dur = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - routePerfStart);
+      console.info('[route-load]', { route: routeName, duration_ms: dur, cache_hit: false, fallback_used: false, source: 'inflight-dedup' });
+    }
+    return inflight;
   }
 
   const p = screen.load({ api, state })
     .then((data) => {
+      if (routePerfEnabled) {
+        const dur = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - routePerfStart);
+        console.info('[route-load]', {
+          route: routeName,
+          duration_ms: dur,
+          cache_hit: false,
+          fallback_used: !!(data && (data._snapshot_unavailable === true || data._read_model_stale === true || data._is_stale === true)),
+          source: 'network'
+        });
+      }
       const entry = { data, t: Date.now() };
       state.screenDataCache[key] = entry;
       maybePersistScreenCacheEntry(key, entry);
