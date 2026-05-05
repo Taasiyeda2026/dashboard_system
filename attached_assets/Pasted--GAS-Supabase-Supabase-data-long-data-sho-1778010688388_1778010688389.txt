@@ -1,0 +1,176 @@
+משימת מעבר מלאה מ-GAS ל-Supabase
+מצב נוכחי
+
+קיימות כבר הטבלאות הבאות ב-Supabase:
+
+data_long
+data_short
+activity_meetings
+contacts_instructors
+contacts_schools
+lists
+edit_requests
+operations_private_notes
+
+המסכים הבאים כבר עובדים Supabase-only, ללא GAS:
+
+week
+month
+
+המסכים הבאים כבר מחוברים חלקית ל-Supabase, אבל עדיין כוללים fallback ל-GAS:
+
+activities
+instructors
+instructorContacts
+contacts
+adminLists
+dashboard
+
+המטרה היא להשלים מעבר מלא ל-Supabase, כך שכל הקריאות והכתיבות יבוצעו ישירות מול Supabase, ללא תלות ב-Google Apps Script.
+
+שלב 1 — Auth, Login ו-Bootstrap
+
+זה השלב החוסם והחשוב ביותר.
+
+כרגע חסרה לגמרי טבלת משתמשים/הרשאות ב-Supabase.
+
+נדרש ליצור טבלה חדשה:
+
+users
+
+הטבלה צריכה להחליף את מקור ההרשאות הקיים מ-GAS/Sheet.
+
+הטבלה צריכה לתמוך לפחות בנתונים הבאים:
+
+id
+email
+name
+role
+emp_id
+is_active
+permissions
+created_at
+updated_at
+
+נדרש לממש מחדש את:
+
+login
+bootstrap
+session
+permissions
+
+כך שכל תהליך הכניסה, זיהוי המשתמש, שליפת ההרשאות וטעינת הנתונים הראשונית יתבצע ישירות מול Supabase בלבד.
+
+אין להשאיר fallback ל-GAS בתהליך ההתחברות.
+
+שלב 2 — הסרת GAS fallback ממסכים שכבר מחוברים חלקית
+
+במסכים הבאים כבר קיימת לוגיקת Supabase ראשונית:
+
+activities
+instructors
+instructorContacts
+contacts
+adminLists
+dashboard
+
+נדרש לעבור מסך-מסך ולהסיר כל קריאה חלופית ל-GAS.
+
+היעד:
+
+Supabase בלבד
+ללא google.script.run
+ללא backend GAS
+ללא fallback
+
+במקרה של שגיאה — להציג הודעת שגיאה מסודרת למשתמש, לא לעבור ל-GAS.
+
+שלב 3 — מימוש מסכי קריאה שנותרו ב-Supabase
+
+יש לממש קריאות ישירות ל-Supabase עבור המסכים/API הבאים:
+
+activityDetail
+activityDates
+editRequests
+endDates
+myData
+operations
+operationsDetail
+exceptions
+adminSettings
+
+פירוט מקור הנתונים:
+
+מסך / API	מקור Supabase נדרש
+activityDetail	שליפה מ-data_long / data_short לפי RowID
+activityDates	שליפה מ-activity_meetings לפי source_row_id
+editRequests	שליפה מ-edit_requests
+endDates	חישוב מתוך data_long + activity_meetings
+myData	סינון data_long / data_short לפי emp_id
+operations	סינון data_long / data_short לפי הצורך
+operationsDetail	שליפה מפורטת מ-data_long / data_short
+exceptions	חישוב חריגות מתוך data_long / data_short
+adminSettings	שליפה מטבלת settings חדשה
+
+נדרש ליצור גם טבלה חדשה:
+
+settings
+
+עבור הגדרות מערכת, מיפויי גיליונות והגדרות Admin.
+
+שלב 4 — העברת כל הכתיבות ל-Supabase
+
+כרגע כל פעולות הכתיבה עדיין עוברות דרך GAS.
+
+נדרש להעביר את כל הפעולות הבאות לכתיבה ישירה מול Supabase:
+
+addActivity
+saveActivity
+addContact
+saveContact
+submitEditRequest
+reviewEditRequest
+addUser
+savePermission
+deactivateUser
+deleteUser
+savePrivateNote
+saveSheetMapping
+adminSettings
+
+פירוט טבלאות יעד:
+
+פעולה	טבלת יעד
+addActivity / saveActivity	data_long / data_short
+addContact / saveContact	contacts_instructors / contacts_schools
+submitEditRequest / reviewEditRequest	edit_requests
+addUser / savePermission / deactivateUser / deleteUser	users
+savePrivateNote	operations_private_notes
+saveSheetMapping / adminSettings	settings
+
+חשוב במיוחד:
+
+לא לשנות את מבנה הנתונים הקיים בלי צורך.
+לא לשבור תאימות למסכים שכבר עובדים.
+כל כתיבה צריכה להחזיר תשובה ברורה ל-UI.
+כל כשל כתיבה צריך להציג הודעת שגיאה ולא להפעיל GAS.
+
+שלב 5 — סנכרון חד-פעמי וניקוי קוד
+
+לאחר השלמת הקריאות והכתיבות:
+
+יש לבצע סנכרון חד-פעמי:
+
+permissions sheet → users
+settings sheet → settings
+
+לאחר בדיקה שכל המסכים עובדים מול Supabase בלבד:
+
+יש לנקות את הקוד:
+
+להסיר קריאות google.script.run
+לנקות api.js מקריאות GAS
+להסיר fallback ישן
+להשאיר backend/*.gs רק אם אין בו צורך פעיל
+
+בסיום צריך להגיע למצב שבו המערכת אינה תלויה ב-GAS כלל.
