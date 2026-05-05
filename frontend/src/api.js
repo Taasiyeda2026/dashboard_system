@@ -1,6 +1,6 @@
 import { config } from './config.js';
 import { state, setSession, clearScreenDataCache } from './state.js';
-import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
+import { translateApiErrorForUser, hebrewRole } from './screens/shared/ui-hebrew.js';
 import { supabase } from './supabase-client.js';
 
 /**
@@ -170,6 +170,16 @@ async function readActivitiesFromSupabase(filters = {}) {
     console.error('[supabase] Unexpected data_long/data_short fetch error:', error);
     return null;
   }
+}
+
+function buildSupabaseErrorPayload(base, error, extra = {}) {
+  const message = String(error?.message || error || 'supabase_read_failed');
+  return {
+    ...(base && typeof base === 'object' ? base : {}),
+    _source: 'supabase',
+    _debug: { error: message, ...extra },
+    error: message
+  };
 }
 
 /**
@@ -711,10 +721,12 @@ async function readMonthFromSupabase(ym) {
  * Returns null on any failure so the caller can fall through to GAS.
  */
 async function dashboardReadModelFromSupabase(month) {
-  if (!supabase) return null;
+  if (!supabase) return buildSupabaseErrorPayload({ month, requested_month: month }, 'no_supabase_client');
   try {
     const monthPrefix = String(month || '').slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(monthPrefix)) return null;
+    if (!/^\d{4}-\d{2}$/.test(monthPrefix)) {
+      return buildSupabaseErrorPayload({ month, requested_month: month }, 'invalid_month_format', { month });
+    }
 
     const monthStart = `${monthPrefix}-01`;
     const [yStr, mStr] = monthPrefix.split('-');
@@ -868,9 +880,143 @@ async function dashboardReadModelFromSupabase(month) {
       _source: 'supabase'
     };
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[supabase][dashboard] unexpected error:', err);
-    return null;
+    return buildSupabaseErrorPayload({
+      month,
+      requested_month: month,
+      totals: {
+        total_short_activities: 0,
+        total_long_activities: 0,
+        total_instructors: 0,
+        total_course_endings_current_month: 0,
+        exceptions_count: 0,
+        short: 0,
+        long: 0
+      },
+      by_activity_manager: [],
+      summary: {
+        active_courses_current_month: 0,
+        ending_courses_current_month: 0,
+        active_courses_next_month: 0,
+        exceptions_count: 0,
+        active_instructors: [],
+        operational_gaps_count: 0,
+        missing_instructor_count: 0,
+        missing_start_date_count: 0,
+        late_end_date_count: 0,
+        short_activities: []
+      },
+      kpi_cards: buildDashboardKpiCardsFromSupabase(
+        { total_short_activities: 0, total_long_activities: 0 },
+        { course: 0, after_school: 0, workshop: 0, tour: 0, escape_room: 0 },
+        0,
+        0,
+        0
+      ),
+      show_only_nonzero_kpis: false
+    }, err);
+  }
+}
+
+async function readEndDatesFromSupabase() {
+  if (!supabase) return buildSupabaseErrorPayload({ rows: [] }, 'no_supabase_client');
+  try {
+    const [longRes, meetingsRes] = await Promise.all([
+      supabase.from('data_long').select('*'),
+      supabase.from('activity_meetings').select('source_row_id,meeting_date,date,start_date,date_start,activity_date,end_date,date_end')
+    ]);
+    if (longRes.error) return buildSupabaseErrorPayload({ rows: [] }, longRes.error);
+    if (meetingsRes.error) return buildSupabaseErrorPayload({ rows: [] }, meetingsRes.error);
+    const meetingsByRow = new Map();
+    for (const m of (Array.isArray(meetingsRes.data) ? meetingsRes.data : [])) {
+      const rowId = String(m?.source_row_id || '').trim();
+      if (!rowId) continue;
+      const { dateKey } = activityMeetingDateFromCandidates(m);
+      if (!dateKey) continue;
+      if (!meetingsByRow.has(rowId)) meetingsByRow.set(rowId, []);
+      meetingsByRow.get(rowId).push(dateKey);
+    }
+    const rows = (Array.isArray(longRes.data) ? longRes.data : []).map((row) => {
+      const rowId = String(row?.RowID || '').trim();
+      const meeting_dates = (meetingsByRow.get(rowId) || []).sort();
+      return {
+        ...row,
+        source_sheet: 'data_long',
+        meeting_dates,
+        date_cols: meeting_dates
+      };
+    });
+    return { rows, _source: 'supabase' };
+  } catch (error) {
+    return buildSupabaseErrorPayload({ rows: [] }, error);
+  }
+}
+
+function buildExceptionsFromRows(longRows, shortRows, meetingsRows = []) {
+  const rows = [];
+  const meetingsByRow = new Map();
+  for (const meet of meetingsRows) {
+    const rowId = String(meet?.source_row_id || '').trim();
+    if (!rowId) continue;
+    if (!meetingsByRow.has(rowId)) meetingsByRow.set(rowId, []);
+    meetingsByRow.get(rowId).push(meet);
+  }
+  const addException = (row, source_sheet, types) => {
+    if (!types.length) return;
+    rows.push({
+      ...row,
+      source_sheet,
+      exception_type: types[0],
+      exception_types: [...new Set(types)]
+    });
+  };
+  const checkRow = (row, source_sheet) => {
+    const types = [];
+    const emp1 = String(row?.emp_id || '').trim();
+    const emp2 = String(row?.emp_id_2 || '').trim();
+    const start = String(row?.start_date || '').trim();
+    const end = String(row?.end_date || row?.date_end || '').trim();
+    if (!emp1 && !emp2) types.push('missing_instructor');
+    if (!start) types.push('missing_start_date');
+    if (start && end && end < start) types.push('late_end_date');
+    if (!String(row?.activity_manager || '').trim()) types.push('missing_activity_manager');
+    if (!String(row?.school || '').trim()) types.push('missing_school');
+    if (!String(row?.authority || '').trim()) types.push('missing_authority');
+    if (!String(row?.activity_name || '').trim()) types.push('missing_activity_name');
+    if (source_sheet === 'data_long' && !(meetingsByRow.get(String(row?.RowID || '').trim()) || []).length) {
+      types.push('missing_meetings');
+    }
+    addException(row, source_sheet, types);
+  };
+  longRows.forEach((r) => checkRow(r, 'data_long'));
+  shortRows.forEach((r) => checkRow(r, 'data_short'));
+  return rows;
+}
+
+async function readExceptionsFromSupabase(params = {}) {
+  if (!supabase) return buildSupabaseErrorPayload({ rows: [], totalExceptionRows: 0 }, 'no_supabase_client');
+  const candidate = String(params?.month || params?.ym || '').trim();
+  const now = new Date();
+  const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
+  const start = `${month}-01`;
+  const lastDay = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+  const end = `${month}-${String(lastDay).padStart(2, '0')}`;
+  try {
+    const [longRes, shortRes, meetRes] = await Promise.all([
+      supabase.from('data_long').select('*').lte('start_date', end).or(`end_date.gte.${start},date_end.gte.${start}`),
+      supabase.from('data_short').select('*').gte('start_date', start).lte('start_date', end),
+      supabase.from('activity_meetings').select('*').gte('meeting_date', start).lte('meeting_date', end)
+    ]);
+    if (longRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, longRes.error);
+    if (shortRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, shortRes.error);
+    if (meetRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, meetRes.error);
+    const longRows = Array.isArray(longRes.data) ? longRes.data : [];
+    const shortRows = Array.isArray(shortRes.data) ? shortRes.data : [];
+    const meetingsRows = Array.isArray(meetRes.data) ? meetRes.data : [];
+    const rows = buildExceptionsFromRows(longRows, shortRows, meetingsRows);
+    return { month, rows, totalExceptionRows: rows.length, _source: 'supabase' };
+  } catch (error) {
+    return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, error);
   }
 }
 
@@ -1668,19 +1814,257 @@ async function request(action, payload = {}, perfMeta = {}) {
   return normalized;
 }
 
+const SUPABASE_ROLE_ROUTES = {
+  admin: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'admin-lists'],
+  operation_manager: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  authorized_user: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  instructor: ['dashboard', 'activities', 'week', 'month', 'instructor-contacts', 'my-data']
+};
+
+function flattenUserRow(userRow = {}) {
+  const permissions = userRow?.permissions && typeof userRow.permissions === 'object' ? userRow.permissions : {};
+  return {
+    user_id: String(userRow.user_id || ''),
+    full_name: String(userRow.name || ''),
+    role: String(userRow.role || 'authorized_user'),
+    display_role: String(userRow.role || 'authorized_user'),
+    display_role_label: hebrewRole(String(userRow.role || 'authorized_user')),
+    display_role2: String(permissions.display_role2 || ''),
+    emp_id: String(userRow.emp_id || ''),
+    entry_code: String(userRow.entry_code || ''),
+    active: userRow.is_active ? 'yes' : 'no',
+    ...permissions
+  };
+}
+
+function buildBootstrapFromUser(userRow) {
+  const flat = flattenUserRow(userRow);
+  const role = String(flat.role || 'authorized_user');
+  const allowedRoutes = SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user;
+  return {
+    routes: [...allowedRoutes],
+    default_route: allowedRoutes[0] || 'dashboard',
+    profile: {
+      full_name: flat.full_name,
+      display_role2: flat.display_role2 || '',
+      display_role_label: flat.display_role_label || hebrewRole(role)
+    },
+    can_add_activity: String(flat.can_add_activity || '').toLowerCase() === 'yes' || role === 'admin' || role === 'operation_manager',
+    can_edit_direct: String(flat.can_edit_direct || '').toLowerCase() === 'yes' || role === 'admin',
+    can_request_edit: String(flat.can_request_edit || '').toLowerCase() !== 'no',
+    client_settings: {}
+  };
+}
+
+async function getActiveUserByLogin(user_id, entry_code) {
+  if (!supabase) throw new Error('no_supabase_client');
+  const uid = String(user_id || '').trim();
+  const code = String(entry_code || '').trim();
+  if (!uid || !code) throw new Error('invalid_credentials');
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('is_active', true)
+    .or(`user_id.eq.${uid},email.eq.${uid},emp_id.eq.${uid}`)
+    .limit(20);
+  if (error) throw new Error(error.message || 'auth_query_failed');
+  const hit = (Array.isArray(data) ? data : []).find((r) => String(r.entry_code || '').trim() === code);
+  if (!hit) throw new Error('invalid_credentials');
+  return hit;
+}
+
+function makeSessionToken(userRow) {
+  const claims = {
+    uid: String(userRow.user_id || ''),
+    role: String(userRow.role || 'authorized_user'),
+    emp_id: String(userRow.emp_id || ''),
+    name: String(userRow.name || '')
+  };
+  return `sb.${btoa(unescape(encodeURIComponent(JSON.stringify(claims))))}.session`;
+}
+
+async function readCurrentUserBySession() {
+  if (!supabase) throw new Error('no_supabase_client');
+  const userId = String(state?.user?.user_id || '').trim();
+  if (!userId) throw new Error('unauthorized');
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  if (error || !data) throw new Error('unauthorized');
+  if (!data.is_active) throw new Error('unauthorized');
+  return data;
+}
+
+async function upsertActivityToSupabase(payload = {}) {
+  const act = payload?.activity || payload || {};
+  const source = String(act.source || '').trim() === 'short' ? 'short' : 'long';
+  const tableName = source === 'short' ? 'data_short' : 'data_long';
+  const rowId = String(act.RowID || `${source === 'short' ? 'SHORT' : 'LONG'}-${crypto.randomUUID?.() || Date.now()}`).trim();
+  const row = { ...act, RowID: rowId, source_sheet: tableName, status: String(act.status || 'פעיל') };
+  const { data, error } = await supabase.from(tableName).upsert(row, { onConflict: 'RowID' }).select().single();
+  if (error) throw new Error(error.message || 'save_failed');
+  return { RowID: rowId, source_sheet: tableName, row: data || row };
+}
+
+async function updateActivityInSupabase(payload = {}) {
+  const sourceRowId = String(payload?.source_row_id || payload?.RowID || '').trim();
+  const changes = payload?.changes || {};
+  if (!sourceRowId) throw new Error('missing_row_id');
+  const tableName = sourceRowId.startsWith('SHORT-') ? 'data_short' : 'data_long';
+  const { error } = await supabase.from(tableName).update(changes).eq('RowID', sourceRowId);
+  if (error) throw new Error(error.message || 'save_failed');
+  return { ok: true, RowID: sourceRowId, source_sheet: tableName };
+}
+
+async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
+  const rowId = String(source_row_id || '').trim();
+  const sheet = String(source_sheet || '').trim();
+  const tableName = sheet === 'data_short' || rowId.startsWith('SHORT-') ? 'data_short' : 'data_long';
+  const { data, error } = await supabase.from(tableName).select('*').eq('RowID', rowId).single();
+  if (error) throw new Error(error.message || 'detail_failed');
+  return { row: { ...(data || {}), source_sheet: tableName } };
+}
+
+async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
+  const rowId = String(source_row_id || '').trim();
+  const { data, error } = await supabase
+    .from('activity_meetings')
+    .select('*')
+    .eq('source_row_id', rowId)
+    .order('meeting_date', { ascending: true });
+  if (error) throw new Error(error.message || 'dates_failed');
+  const rows = Array.isArray(data) ? data : [];
+  const meeting_dates = rows
+    .map((r) => activityMeetingDateFromCandidates(r).dateKey)
+    .filter(Boolean)
+    .sort();
+  return {
+    meeting_dates,
+    date_cols: meeting_dates,
+    rows,
+    source_row_id: rowId,
+    source_sheet: String(source_sheet || '')
+  };
+}
+
+async function readAllActivitiesRowsSupabase() {
+  const [longRes, shortRes] = await Promise.all([
+    supabase.from('data_long').select('*'),
+    supabase.from('data_short').select('*')
+  ]);
+  if (longRes.error) throw new Error(longRes.error.message || 'data_long_read_failed');
+  if (shortRes.error) throw new Error(shortRes.error.message || 'data_short_read_failed');
+  const longRows = (Array.isArray(longRes.data) ? longRes.data : []).map((r) => ({ ...r, source_sheet: 'data_long' }));
+  const shortRows = (Array.isArray(shortRes.data) ? shortRes.data : []).map((r) => ({ ...r, source_sheet: 'data_short' }));
+  return [...longRows, ...shortRows];
+}
+
+function filterOperationsRows(rows, params = {}) {
+  const q = String(params?.search || '').trim().toLowerCase();
+  const activityType = String(params?.activity_type || '').trim();
+  return rows.filter((row) => {
+    if (String(row?.status || '').trim() === 'סגור') return false;
+    if (activityType && String(row?.activity_type || '').trim() !== activityType) return false;
+    if (!q) return true;
+    const hay = [
+      row?.RowID,
+      row?.activity_name,
+      row?.activity_type,
+      row?.authority,
+      row?.school,
+      row?.activity_manager,
+      row?.instructor_name,
+      row?.instructor_name_2,
+      row?.emp_id,
+      row?.emp_id_2
+    ].map((v) => String(v || '').toLowerCase());
+    return hay.some((v) => v.includes(q));
+  });
+}
+
+function buildEditRequestGroups(rows = [], canReview = false) {
+  const groups = rows.map((row) => {
+    const changedFields =
+      Array.isArray(row?.changed_fields) ? row.changed_fields
+        : (() => {
+            try { return JSON.parse(String(row?.changed_fields || '[]')); } catch { return []; }
+          })();
+    const requestedValues =
+      row?.requested_values && typeof row.requested_values === 'object'
+        ? row.requested_values
+        : (() => {
+            try { return JSON.parse(String(row?.requested_values || '{}')); } catch { return {}; }
+          })();
+    const originalValues =
+      row?.original_values && typeof row.original_values === 'object'
+        ? row.original_values
+        : (() => {
+            try { return JSON.parse(String(row?.original_values || '{}')); } catch { return {}; }
+          })();
+    const fields = (Array.isArray(changedFields) ? changedFields : []).map((fieldName) => ({
+      field_name: String(fieldName || ''),
+      old_value: String(originalValues?.[fieldName] ?? ''),
+      new_value: String(requestedValues?.[fieldName] ?? '')
+    })).filter((f) => f.field_name);
+    return {
+      request_id: String(row?.request_id || ''),
+      status: String(row?.status || 'pending'),
+      requested_by_name: String(row?.requested_by_name || ''),
+      requested_by_user_id: String(row?.requested_by_user_id || ''),
+      requested_at: String(row?.requested_at || ''),
+      review_note: String(row?.review_note || ''),
+      source_row_id: String(row?.source_row_id || ''),
+      activity_name: String(row?.activity_name || ''),
+      fields
+    };
+  });
+  return { groups, canReview };
+}
+
+async function readSettingsRowsFromSupabase() {
+  const { data, error } = await supabase
+    .from('settings')
+    .select('*')
+    .order('key', { ascending: true });
+  if (error) throw new Error(error.message || 'settings_read_failed');
+  const rows = Array.isArray(data) ? data : [];
+  return rows.map((r) => ({
+    key: String(r?.key || ''),
+    value: String(r?.value || ''),
+    description: String(r?.description || '')
+  }));
+}
+
 export const api = {
-  login: (user_id, entry_code) => request('login', { user_id, entry_code }),
-  bootstrap: () => request('bootstrap'),
-  dashboard: (filters) => {
-    const route = String(state?.route || '').trim();
-    const isProd = !config.devMode;
-    if (isProd && route === 'dashboard') {
-      throw new Error('Legacy dashboard API is blocked on Dashboard screen in production. Use dashboardSnapshot instead.');
-    }
-    return request('dashboard', filters || {});
+  login: async (user_id, entry_code) => {
+    const user = await getActiveUserByLogin(user_id, entry_code);
+    const token = makeSessionToken(user);
+    const flat = flattenUserRow(user);
+    return {
+      token,
+      user: {
+        user_id: flat.user_id,
+        display_role: flat.role,
+        display_role_label: flat.display_role_label,
+        display_role2: flat.display_role2,
+        full_name: flat.full_name,
+        emp_id: flat.emp_id,
+        can_add_activity: String(flat.can_add_activity || '').toLowerCase() === 'yes' || flat.role === 'admin' || flat.role === 'operation_manager',
+        can_edit_direct: String(flat.can_edit_direct || '').toLowerCase() === 'yes' || flat.role === 'admin',
+        can_request_edit: String(flat.can_request_edit || '').toLowerCase() !== 'no'
+      },
+      ...buildBootstrapFromUser(user)
+    };
   },
-  dashboardSnapshot: (filters) => request('dashboardSnapshot', filters || {}),
-  dashboardSheet: (filters) => request('dashboardSheet', filters || {}),
+  bootstrap: async () => {
+    const user = await readCurrentUserBySession();
+    return buildBootstrapFromUser(user);
+  },
+  dashboard: (filters) => api.dashboardReadModel(filters || {}),
+  dashboardSnapshot: (filters) => api.dashboardReadModel(filters || {}),
+  dashboardSheet: (filters) => api.dashboardReadModel(filters || {}),
   dashboardReadModel: async (filters, options) => {
     const resolved = (filters && typeof filters === 'object') ? filters : {};
     const candidate = String(resolved.month || resolved.ym || '').trim();
@@ -1688,35 +2072,17 @@ export const api = {
     const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
     const canonical = { ...resolved, month };
-    try {
-      const supabasePayload = await dashboardReadModelFromSupabase(month);
-      if (supabasePayload) {
-        // eslint-disable-next-line no-console
-        console.info('[dashboard] loaded from supabase', { month, _source: supabasePayload._source });
-        return supabasePayload;
-      }
-      // eslint-disable-next-line no-console
-      console.warn('[dashboard] supabase path returned null (no data or not configured), falling back to GAS read model', { month });
-    } catch (supabaseErr) {
-      // eslint-disable-next-line no-console
-      console.warn('[dashboard] supabase path threw, falling back to GAS read model', { month, error: supabaseErr?.message || String(supabaseErr) });
-    }
-    // eslint-disable-next-line no-console
-    console.info('[dashboard] loading from GAS read model', { month, _source: 'gas' });
-    const gasPayload = await requestReadModel('dashboard', canonical, 'dashboardSheet', canonical, options || {});
-    if (gasPayload && typeof gasPayload === 'object' && !gasPayload._source) {
-      gasPayload._source = 'gas';
-    }
-    return gasPayload;
+    const supabasePayload = await dashboardReadModelFromSupabase(month);
+    return { ...supabasePayload, ...canonical };
   },
   activities: async (filters, options) => {
     const resolvedFilters = filters || {};
     const supabaseData = await readActivitiesFromSupabase(resolvedFilters);
     if (supabaseData) return normalizeData(supabaseData);
-    return requestReadModel('activities', resolvedFilters, 'activities', resolvedFilters, options || {});
+    return normalizeData(buildSupabaseErrorPayload({ rows: [] }, 'activities_supabase_failed', { filters: resolvedFilters }));
   },
-  activityDetail: (source_row_id, source_sheet) => request('activityDetail', { source_row_id, source_sheet }),
-  activityDates: (source_row_id, source_sheet) => request('activityDates', { source_row_id, source_sheet }),
+  activityDetail: (source_row_id, source_sheet) => readActivityDetailFromSupabase(source_row_id, source_sheet),
+  activityDates: (source_row_id, source_sheet) => readActivityDatesFromSupabase(source_row_id, source_sheet),
   week: async (params) => {
     const resolved = (params && typeof params === 'object') ? params : {};
     const weekOffset = Number.parseInt(resolved.week_offset, 10);
@@ -1733,67 +2099,105 @@ export const api = {
   },
   exceptions: (params, options) => {
     const resolved = (params && typeof params === 'object') ? params : {};
-    const candidate = String(resolved.month || resolved.ym || '').trim();
-    const now = new Date();
-    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
-    const canonical = { ...resolved, month };
-    return requestReadModel('exceptions', canonical, 'exceptions', canonical, options || {});
+    return readExceptionsFromSupabase(resolved);
   },
   instructors: async () => {
     const supabaseData = await readInstructorsFromSupabase();
     if (supabaseData) return supabaseData;
-    return request('instructors');
+    return buildSupabaseErrorPayload({ rows: [] }, 'instructors_supabase_failed');
   },
   instructorContacts: async () => {
     const supabaseData = await readInstructorContactsFromSupabase();
     if (supabaseData) return supabaseData;
-    return request('instructorContacts');
+    return buildSupabaseErrorPayload({ rows: [] }, 'instructor_contacts_supabase_failed');
   },
   contacts: async () => {
     const supabaseData = await readContactsFromSupabase();
     if (supabaseData) return supabaseData;
-    return request('contacts');
+    return buildSupabaseErrorPayload({ instructor_rows: [], school_rows: [], can_view_instructors: true, can_view_schools: true }, 'contacts_supabase_failed');
   },
-  endDates: (options) => requestReadModel('end-dates', {}, 'endDates', {}, options || {}),
-  myData: () => request('myData'),
-  operations: (params) => request('operations', params || {}),
-  operationsDetail: (source_row_id, source_sheet) => request('operationsDetail', { source_row_id, source_sheet }),
-  editRequests: () => request('editRequests'),
-  permissions: () => request('permissions'),
-  adminSettings: () => request('adminSettings'),
+  endDates: () => readEndDatesFromSupabase(),
+  myData: async () => {
+    const allRows = await readAllActivitiesRowsSupabase();
+    const empId = String(state?.user?.emp_id || state?.user?.user_id || '').trim();
+    const rows = allRows.filter((row) => {
+      const emp1 = String(row?.emp_id || '').trim();
+      const emp2 = String(row?.emp_id_2 || '').trim();
+      return !!empId && (emp1 === empId || emp2 === empId);
+    });
+    return { rows, _source: 'supabase' };
+  },
+  operations: async (params = {}) => {
+    const allRows = await readAllActivitiesRowsSupabase();
+    const rows = filterOperationsRows(allRows, params || {});
+    return { rows, _source: 'supabase' };
+  },
+  operationsDetail: async (source_row_id, source_sheet) => readActivityDetailFromSupabase(source_row_id, source_sheet),
+  editRequests: async () => {
+    const { data, error } = await supabase
+      .from('edit_requests')
+      .select('*')
+      .order('requested_at', { ascending: false });
+    if (error) throw new Error(error.message || 'edit_requests_read_failed');
+    const rows = Array.isArray(data) ? data : [];
+    const canReview = ['admin', 'operation_manager'].includes(String(state?.user?.display_role || ''));
+    return buildEditRequestGroups(rows, canReview);
+  },
+  permissions: async () => {
+    const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+    if (error) throw new Error(error.message || 'permissions_read_failed');
+    const rows = (Array.isArray(data) ? data : []).map(flattenUserRow);
+    return {
+      rows,
+      roleDefaults: {
+        admin: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'yes' },
+        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'no' },
+        authorized_user: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
+        instructor: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' }
+      }
+    };
+  },
+  adminSettings: async () => {
+    const rows = await readSettingsRowsFromSupabase();
+    return { rows, _source: 'supabase' };
+  },
   adminLists: async () => {
     const supabaseData = await readListsFromSupabase();
     if (supabaseData) return supabaseData;
-    return request('adminLists');
+    return buildSupabaseErrorPayload({ categories: [] }, 'admin_lists_supabase_failed');
   },
   addContact: async (payload) => {
-    const result = await request('addContact', payload);
-    syncContactToSupabase(payload?.kind, payload?.row, null).catch(() => {});
-    return result;
+    const kind = String(payload?.kind || '').trim();
+    const row = payload?.row || {};
+    if (kind === 'instructor') {
+      const { error } = await supabase.from('contacts_instructors').upsert(row, { onConflict: 'emp_id' });
+      if (error) throw new Error(error.message || 'add_contact_failed');
+      return { ok: true };
+    }
+    if (kind === 'school') {
+      const nextRow = { ...row };
+      if (nextRow.role !== undefined && nextRow.contact_role === undefined) nextRow.contact_role = nextRow.role;
+      const { error } = await supabase.from('contacts_schools').upsert(nextRow, { onConflict: 'authority,school,contact_name' });
+      if (error) throw new Error(error.message || 'add_contact_failed');
+      return { ok: true };
+    }
+    throw new Error('invalid_contact_kind');
   },
   saveContact: async (payload) => {
-    const { _supabase_orig: origIdentity, ...gasPayload } = payload || {};
-    const result = await request('saveContact', gasPayload);
-    syncContactToSupabase(gasPayload?.kind, gasPayload?.row, origIdentity || null).catch(() => {});
-    return result;
+    return api.addContact(payload);
   },
   addActivity: async (target, data) => {
     const payload = (typeof target === 'object' && target !== null && data === undefined)
       ? { activity: target }
       : { activity: { ...(data || {}), source: target } };
-    const result = await request('addActivity', payload);
-    syncActivityToSupabase('add', payload, result).catch(() => {});
-    return result;
+    return upsertActivityToSupabase(payload);
   },
   /** מקבל אובייקט מלא (כולל source_sheet, changes) או חתימה ישנה (id, changes). */
   saveActivity: async (a, b) => {
     const payload = (b !== undefined && b !== null)
       ? { source_row_id: a, changes: b }
       : a;
-    const result = await request('saveActivity', payload);
-    syncActivityToSupabase('save', payload, result).catch(() => {});
-    return result;
+    return updateActivityInSupabase(payload);
   },
   submitEditRequest: async (source_row_id, changes) => {
     const normalizedChanges = Object.entries(changes || {}).reduce((acc, [key, value]) => {
@@ -1809,33 +2213,146 @@ export const api = {
     if (!source_row_id || !Object.keys(normalizedChanges).length) {
       throw new Error('No changes to submit');
     }
-    const result = await request('submitEditRequest', { source_row_id, changes: normalizedChanges });
-    syncActivityToSupabase('submit_edit_request', { source_row_id, changes: normalizedChanges }, result).catch(() => {});
-    return result;
+    const row = {
+      request_id: `REQ-${Date.now()}`,
+      source_row_id,
+      source_sheet: source_row_id.startsWith('SHORT-') ? 'data_short' : 'data_long',
+      changed_fields: Object.keys(normalizedChanges),
+      requested_values: normalizedChanges,
+      status: 'pending',
+      active: 'yes',
+      requested_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('edit_requests').insert(row);
+    if (error) throw new Error(error.message || 'submit_edit_request_failed');
+    return { request_id: row.request_id, status: 'pending' };
   },
   reviewEditRequest: async (request_id, status) => {
-    const result = await request('reviewEditRequest', { request_id, status });
-    syncActivityToSupabase('review_edit_request', { request_id, status }, result).catch(() => {});
-    return result;
+    const { error } = await supabase
+      .from('edit_requests')
+      .update({ status, reviewed_at: new Date().toISOString() })
+      .eq('request_id', request_id);
+    if (error) throw new Error(error.message || 'review_edit_request_failed');
+    return { request_id, status };
   },
-  savePermission: (row) => request('savePermission', { row }),
-  addUser: (row) => request('addUser', { row }),
-  deactivateUser: (user_id) => request('deactivateUser', { user_id }),
-  reactivateUser: (user_id) => request('reactivateUser', { user_id }),
-  deleteUser: (user_id) => request('deleteUser', { user_id }),
+  savePermission: async (row) => {
+    const userId = String(row?.user_id || '').trim();
+    if (!userId) throw new Error('missing_user_id');
+    const existing = await supabase.from('users').select('*').eq('user_id', userId).single();
+    if (existing.error || !existing.data) throw new Error('user_not_found');
+    const permissions = { ...(existing.data.permissions || {}) };
+    Object.entries(row || {}).forEach(([k, v]) => {
+      if (['user_id', 'role', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2'].includes(k)) return;
+      permissions[k] = v;
+    });
+    const patch = {
+      role: row.role || existing.data.role,
+      is_active: String(row.active || '').toLowerCase() !== 'no',
+      name: row.full_name ?? existing.data.name,
+      emp_id: row.emp_id ?? existing.data.emp_id,
+      entry_code: row.entry_code ?? existing.data.entry_code,
+      permissions: {
+        ...permissions,
+        display_role2: row.display_role2 ?? permissions.display_role2 ?? ''
+      }
+    };
+    const { error } = await supabase.from('users').update(patch).eq('user_id', userId);
+    if (error) throw new Error(error.message || 'save_permission_failed');
+    return { ok: true };
+  },
+  addUser: async (row) => {
+    const permissions = { can_request_edit: 'yes' };
+    const insert = {
+      user_id: String(row?.user_id || '').trim(),
+      email: null,
+      name: String(row?.full_name || '').trim(),
+      role: String(row?.role || 'instructor').trim(),
+      emp_id: String(row?.user_id || '').trim(),
+      is_active: true,
+      entry_code: String(row?.entry_code || '').trim(),
+      permissions
+    };
+    const { error } = await supabase.from('users').insert(insert);
+    if (error) throw new Error(error.message || 'add_user_failed');
+    return { ok: true };
+  },
+  deactivateUser: async (user_id) => {
+    const { error } = await supabase.from('users').update({ is_active: false }).eq('user_id', user_id);
+    if (error) throw new Error(error.message || 'deactivate_user_failed');
+    return { ok: true };
+  },
+  reactivateUser: async (user_id) => {
+    const { error } = await supabase.from('users').update({ is_active: true }).eq('user_id', user_id);
+    if (error) throw new Error(error.message || 'reactivate_user_failed');
+    return { ok: true };
+  },
+  deleteUser: async (user_id) => {
+    const { error } = await supabase.from('users').delete().eq('user_id', user_id);
+    if (error) throw new Error(error.message || 'delete_user_failed');
+    return { ok: true };
+  },
   savePrivateNote: async (a, b, c) => {
     const payload = (typeof a === 'object' && a !== null)
       ? { source_sheet: a.source_sheet, source_row_id: a.source_row_id, note: a.note ?? a.note_text ?? '' }
       : { source_sheet: a, source_row_id: b, note: c };
-    const result = await request('savePrivateNote', payload);
-    syncActivityToSupabase('private_note', payload, result).catch(() => {});
-    return result;
+    const row = {
+      source_sheet: payload.source_sheet,
+      source_row_id: payload.source_row_id,
+      note_text: payload.note,
+      updated_at: new Date().toISOString(),
+      active: 'yes'
+    };
+    const { error } = await supabase.from('operations_private_notes').upsert(row, { onConflict: 'source_sheet,source_row_id' });
+    if (error) throw new Error(error.message || 'save_private_note_failed');
+    return { ok: true };
   },
-  listSheets: () => request('listSheets'),
-  saveSheetMapping: (payload) => request('saveSheetMapping', payload),
-  readModelManifest: () => request('readModelManifest', {}),
-  readModelGet: (key, params = {}) => request('readModelGet', { key, params }),
-  readModelHealth: () => request('readModelHealth', {}),
+  listSheets: async () => {
+    const rows = await readSettingsRowsFromSupabase();
+    const map = new Map(rows.map((r) => [String(r.key || ''), String(r.value || '')]));
+    const available = map.get('available_sheets');
+    const sheets = (() => {
+      try {
+        const parsed = JSON.parse(String(available || '[]'));
+        if (Array.isArray(parsed) && parsed.length) return parsed.map((name) => ({ name: String(name) }));
+      } catch {
+        /* ignore */
+      }
+      return [
+        { name: 'data_short' },
+        { name: 'data_long' },
+        { name: 'activity_meetings' },
+        { name: 'contacts_instructors' },
+        { name: 'contacts_schools' },
+        { name: 'lists' }
+      ];
+    })();
+    return {
+      sheets,
+      sheet_roles: {
+        sheet_short_activities: map.get('sheet_short_activities') || 'data_short',
+        sheet_long_activities: map.get('sheet_long_activities') || 'data_long'
+      },
+      _source: 'supabase'
+    };
+  },
+  saveSheetMapping: async (payload) => {
+    const role = String(payload?.role || '').trim();
+    const sheetName = String(payload?.sheet_name || '').trim();
+    if (!role || !sheetName) throw new Error('missing_sheet_mapping_fields');
+    const row = {
+      key: role,
+      value: sheetName,
+      description: role === 'sheet_short_activities'
+        ? 'Supabase source for short activities'
+        : (role === 'sheet_long_activities' ? 'Supabase source for long activities' : 'Sheet mapping')
+    };
+    const { error } = await supabase.from('settings').upsert(row, { onConflict: 'key' });
+    if (error) throw new Error(error.message || 'save_sheet_mapping_failed');
+    return { ok: true };
+  },
+  readModelManifest: async () => ({ _source: 'supabase', manifest: {} }),
+  readModelGet: async () => ({ _source: 'supabase', data: {} }),
+  readModelHealth: async () => ({ _source: 'supabase', ok: true }),
 };
 
 export { isPerfDebugEnabled, getPerfStore, READ_MODELS_ENABLED, READ_MODEL_ENABLED_KEY_LIST };

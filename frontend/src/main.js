@@ -48,6 +48,8 @@ const STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE = false;
 const SERVICE_WORKER_ENABLED = true;
 const ROUTE_LOAD_GUARD_MS = 25000;
 const ROUTE_LOAD_ERROR_HE = 'טעינת המסך נמשכת זמן רב מדי. נסו לרענן או להיכנס שוב.';
+const SUPABASE_READONLY_CUTOVER = false;
+const SUPABASE_READONLY_ROUTES = ['dashboard', 'activities', 'week', 'month', 'instructors', 'end-dates', 'exceptions'];
 
 if (typeof window !== 'undefined') {
   window.__HOTFIX_VERSION__ = config.HOTFIX_VERSION;
@@ -548,6 +550,15 @@ function navDisabledRoutesSet(settings = state.clientSettings) {
 }
 
 function applySettingsToRoutes(routes, settings = state.clientSettings) {
+  if (SUPABASE_READONLY_CUTOVER) {
+    const seen = new Set();
+    return SUPABASE_READONLY_ROUTES.filter((route) => {
+      if (seen.has(route)) return false;
+      if (!screenLoaders[route]) return false;
+      seen.add(route);
+      return true;
+    });
+  }
   const blocked = navDisabledRoutesSet(settings);
   const seen = new Set();
   return (Array.isArray(routes) ? routes : []).filter((route) => {
@@ -581,9 +592,31 @@ function isAllowedRoute(route) {
 }
 
 function resolveAllowedDefaultRoute(preferred, routes) {
+  if (SUPABASE_READONLY_CUTOVER) {
+    return SUPABASE_READONLY_ROUTES[0];
+  }
   const knownRoutes = Array.isArray(routes) ? routes.filter((r) => !!screenLoaders[r] && !PERMANENTLY_DISABLED_ROUTES.has(r)) : [];
   if (preferred && screenLoaders[preferred] && knownRoutes.includes(preferred)) return preferred;
   return knownRoutes[0] || 'my-data';
+}
+
+function bootstrapSupabaseReadonlySession() {
+  if (!SUPABASE_READONLY_CUTOVER) return;
+  if (!state.token) {
+    setSession({
+      token: 'supabase-readonly',
+      user: {
+        user_id: 'supabase-readonly',
+        display_role: 'viewer',
+        full_name: 'Supabase Readonly'
+      }
+    });
+  }
+  state.routes = [...SUPABASE_READONLY_ROUTES];
+  state.effectiveRoutes = [...SUPABASE_READONLY_ROUTES];
+  if (!SUPABASE_READONLY_ROUTES.includes(state.route)) {
+    state.route = SUPABASE_READONLY_ROUTES[0];
+  }
 }
 
 function systemNameRaw() {
@@ -1558,6 +1591,9 @@ async function render() {
   _isRendering = true;
   _pendingRender = false;
   try {
+    if (SUPABASE_READONLY_CUTOVER && !state.token) {
+      bootstrapSupabaseReadonlySession();
+    }
     if (!state.token) {
       lastRenderedRoute = null;
       isMobileNavOpen = false;
