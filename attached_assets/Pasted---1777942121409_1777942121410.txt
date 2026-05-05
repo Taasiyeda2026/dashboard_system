@@ -1,0 +1,134 @@
+צריך לתקן באופן ממוקד את האיטיות בטעינת עמוד פעילויות.
+
+לא לבצע כרגע שינויי ארכיטקטורה גדולים.
+לא ליצור גיליונות חדשים.
+לא לשנות את מבנה data_long / data_short.
+לא לשנות את מסלול הדשבורד.
+
+המטרה:
+פתיחת עמוד פעילויות רגילה לא תפעיל חישוב legacy כבד מתוך data_long/data_short, אלא תשתמש ב־read_model / snapshot מוכן.
+
+רקע מהבדיקה:
+
+1. הדשבורד עצמו נטען תקין.
+2. read_models נבנו fresh.
+3. בפלט ביצועים בדפדפן:
+
+   * readModelManifest לוקח כ־9–10 שניות ונקרא פעמיים.
+   * month/week נטענים ברקע.
+4. בעמוד פעילויות, הקוד קורא ל־api.activities.
+5. ב־backend/activities-snapshot.gs, בתוך actionActivitiesSnapshotFirst_, יש מצבים שבהם בקשת משתמש רגילה נופלת ל־actionActivitiesLegacy_:
+
+   * אין snapshot.
+   * snapshot חתוך ואין Drive file.
+   * חסרים נתוני מדריך ואז needsFallbackMerge מפעיל legacy כדי להשלים מדריכים.
+
+זו כנראה הסיבה המרכזית לכך שמעבר לעמוד פעילויות נטען הרבה זמן.
+
+משימה 1 — למנוע legacy foreground בעמוד פעילויות
+
+בטעינה רגילה של עמוד פעילויות אסור להריץ:
+actionActivitiesLegacy_
+או כל קריאה שמחשבת מחדש מתוך:
+data_long
+data_short
+activity_meetings
+
+במקום זאת:
+
+* אם יש read_model activities — להשתמש בו.
+* אם יש snapshot — להשתמש בו.
+* אם חסר מידע לא קריטי, למשל מדריך חסר — להחזיר את הנתונים כפי שהם עם סימון חסר.
+* אם snapshot חסר או לא תקין — להחזיר שגיאה קלה / הודעה שהנתונים מתעדכנים / cache אחרון, ולא להריץ legacy מלא בבקשת המשתמש.
+
+legacy מותר רק אם יש force_full=true או debug/admin action מפורש.
+
+משימה 2 — לתקן needsFallbackMerge
+
+כרגע אם חסרים נתוני מדריכים, הקוד מפעיל:
+actionActivitiesLegacy_(user, payload)
+
+זה לא תקין בזמן טעינת מסך רגילה.
+
+נדרש לשנות:
+
+* לא להריץ legacy כדי להשלים מדריכים בבקשת foreground.
+* להשאיר שורות עם מדריך חסר כפי שהן.
+* להחזיר metadata שמסמן:
+  instructor_merge_fallback_used: false
+  missing_instructor_count: X
+  snapshot_needs_refresh: true
+* אם רוצים, לתזמן refreshActivitiesSnapshot_ ברקע רק אם זה בטוח ולא חוסם את המשתמש.
+* לא לקרוא data_long/data_short בזמן פתיחת עמוד פעילויות.
+
+משימה 3 — לתקן readModelManifest איטי וכפול
+
+הפלט בדפדפן הראה:
+readModelManifest — כ־10.3 שניות
+readModelManifest — כ־9.4 שניות
+
+זה לא תקין.
+
+דרישות:
+
+1. בצד לקוח:
+
+   * להוסיף/לוודא manifestInflight יחיד.
+   * אם קריאת manifest כבר רצה, כל קריאה נוספת מחזירה את אותה Promise.
+   * לא לפתוח שתי קריאות readModelManifest באותה כניסה.
+
+2. בצד שרת:
+
+   * actionReadModelManifest_ / normalizeReadModelManifest_ צריכים לקרוא metadata בלבד מגיליון read_models.
+   * לא לקרוא payload JSON.
+   * לא לפתוח Drive files.
+   * לא להפעיל refresh/build.
+   * לא לקרוא data_long/data_short.
+   * להחזיר רק key, status, version, hash, updated_at, storage_ref אם צריך.
+
+יעד:
+readModelManifest צריך לרדת לפחות מ־1–2 שניות, ובכל מקרה לא להיקרא פעמיים.
+
+משימה 4 — להוסיף לוגים ברורים למסלול activities
+
+בתגובה של activities או בלוג backend להוסיף metadata ברור:
+
+* used_read_model
+* snapshot_used
+* snapshot_drive_used
+* fallback_used
+* legacy_fallback_reason
+* instructor_merge_fallback_used
+* missing_instructor_count
+* rows_count
+* duration_ms
+
+אם בזמן פתיחת עמוד פעילויות רגילה מופיעים בלוגים:
+[activities] source=data_long
+[activities] source=data_short
+
+זה צריך להיחשב תקלה, אלא אם יש force_full/debug מפורש.
+
+משימה 5 — לא לגרום ל־prefetch להיראות כמו טעינה ראשית
+
+אם אחרי הדשבורד נטענים month/week ברקע, זה בסדר, אבל:
+
+* לא להציג spinner מרכזי בגלל prefetch.
+* לא לנעול ניווט בגלל prefetch.
+* לא לגרום למשתמש לחשוב שהעמוד עדיין טוען.
+* prefetch צריך להיות שקט ועדיף לדחות אותו כמה שניות אחרי שהמסך הראשי סיים להיטען.
+
+קריטריוני קבלה:
+
+1. מעבר לעמוד פעילויות רגיל לא מפעיל actionActivitiesLegacy_.
+2. אין קריאה ל־data_long/data_short בזמן פתיחת עמוד פעילויות רגילה.
+3. activities חוזר מתוך read_model או snapshot מוכן.
+4. אם חסרים מדריכים — לא מפעילים legacy, רק מסמנים missing.
+5. readModelManifest נקרא פעם אחת בלבד בכניסה רגילה.
+6. readModelManifest לא קורא Drive/payloads ולא בונה מודלים.
+7. window.__printDsPerfSummary מציג:
+
+   * activities עם used_read_model=true או snapshot_used=true
+   * fallback_used=false
+   * readModelManifest count=1
+8. אין מצב שבו מעבר לעמוד פעילויות מסתובב זמן רב בגלל חישוב foreground.

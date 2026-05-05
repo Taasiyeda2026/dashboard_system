@@ -264,6 +264,7 @@ function actionActivitiesLegacy_(user, payload) {
 function actionActivitiesSnapshotFirst_(user, payload) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user']);
 
+  // force_full is only available for admins/managers and bypasses all fast paths.
   if (payload && payload.force_full === true && canForceActivitiesFull_(user)) {
     var forced = actionActivitiesLegacy_(user, payload || {});
     forced._is_snapshot = false;
@@ -273,11 +274,23 @@ function actionActivitiesSnapshotFirst_(user, payload) {
 
   var snap = readActivitiesSnapshotRow_();
   if (!snap) {
-    var fallback = actionActivitiesLegacy_(user, payload || {});
-    fallback._is_snapshot = false;
-    fallback._activities_fallback_used = true;
-    return fallback;
+    // No snapshot — do NOT run legacy. Return an empty response with metadata
+    // so the client can show a friendly "data is being prepared" message.
+    Logger.log('[activities_snapshot] no snapshot found; returning empty (no legacy foreground)');
+    return {
+      rows: [],
+      activity_type_counts: {},
+      can_add_activity: true,
+      _is_snapshot: false,
+      _activities_fallback_used: false,
+      _snapshot_missing: true,
+      snapshot_needs_refresh: true,
+      instructor_merge_fallback_used: false,
+      missing_instructor_count: 0,
+      _snapshot_updated_at: ''
+    };
   }
+
   var counts = parseActivitiesSnapshotJson_(snap.activity_type_counts_json, {});
   var snapMeta = (snap && snap._rows_meta) || {};
   var driveFileId = text_(snapMeta.drive_file_id);
@@ -288,48 +301,33 @@ function actionActivitiesSnapshotFirst_(user, payload) {
       rows = JSON.parse(driveRaw).map(normalizeActivitiesSnapshotRow_);
       Logger.log('[activities_snapshot] loaded ' + rows.length + ' rows from Drive file=' + driveFileId);
     } catch (_driveErr) {
-      Logger.log('[activities_snapshot] Drive load failed, falling back to cell: ' + String(_driveErr));
+      Logger.log('[activities_snapshot] Drive load failed, using cell data: ' + String(_driveErr));
       rows = null;
     }
   }
+
   if (!rows) {
-    if (isActivitiesSnapshotTruncated_(snap)) {
-      Logger.log('[activities_snapshot] truncated rows_json and no Drive file; fallback to legacy');
-      var fullFallback = actionActivitiesLegacy_(user, payload || {});
-      fullFallback._is_snapshot = false;
-      fullFallback._activities_fallback_used = true;
-      fullFallback._snapshot_truncated = true;
-      return fullFallback;
+    // Use cell data regardless of truncation — partial data is better than a
+    // heavy legacy rebuild in the foreground of a user request.
+    var truncated = isActivitiesSnapshotTruncated_(snap);
+    if (truncated) {
+      Logger.log('[activities_snapshot] truncated rows_json and no Drive file; using partial cell data (no legacy foreground)');
     }
     rows = parseActivitiesSnapshotJson_(snap.rows_json, []).map(normalizeActivitiesSnapshotRow_);
   }
+
   Logger.log('[activities_snapshot] rows before filter=' + rows.length);
   var filtered = filterActivitiesSnapshotRows_(rows, payload || {});
   Logger.log('[activities_snapshot] rows after filter=' + filtered.length + ' month=' + text_((payload || {}).month || ''));
   Logger.log('[activities_snapshot] missing RowID rows=' + filtered.filter(function(row) { return !text_(row && row.RowID); }).length);
   var snapStats = activitiesInstructorCoverageStats_(filtered);
 
-  var needsFallbackMerge = filtered.some(function(row) {
+  // Count missing instructors — do NOT call legacy to fill them in.
+  // The snapshot trigger will refresh within 10 minutes.
+  var missingInstructorCount = filtered.filter(function(row) {
     return !rowHasInstructorData_(row);
-  });
-  var mergeReport = { missing_before: 0, merged: 0, still_missing: 0 };
-
-  if (needsFallbackMerge) {
-    var fallbackData = actionActivitiesLegacy_(user, payload || {});
-    var fallbackRows = Array.isArray(fallbackData.rows) ? fallbackData.rows : [];
-    var merged = mergeInstructorFieldsByRowId_(filtered, fallbackRows);
-    filtered = merged.rows;
-    mergeReport = {
-      missing_before: merged.missing_before,
-      merged: merged.merged,
-      still_missing: merged.still_missing
-    };
-    var mergedStats = activitiesInstructorCoverageStats_(filtered);
-    if (merged.merged > 0 || mergedStats.missing_instructor < snapStats.missing_instructor) {
-      try { refreshActivitiesSnapshot_(); } catch (_refreshErrInstructorMerge) {}
-    }
-    snapStats = mergedStats;
-  }
+  }).length;
+  var mergeReport = { missing_before: missingInstructorCount, merged: 0, still_missing: missingInstructorCount };
 
   return {
     activity_type_counts: counts,
@@ -338,7 +336,10 @@ function actionActivitiesSnapshotFirst_(user, payload) {
     _is_snapshot: true,
     _activities_fallback_used: false,
     _snapshot_updated_at: text_(snap.updated_at),
-    _snapshot_instructor_stats: { snapshot: snapStats, merge: mergeReport }
+    _snapshot_instructor_stats: { snapshot: snapStats, merge: mergeReport },
+    instructor_merge_fallback_used: false,
+    missing_instructor_count: missingInstructorCount,
+    snapshot_needs_refresh: missingInstructorCount > 0
   };
 }
 

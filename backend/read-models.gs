@@ -197,6 +197,20 @@ function readModelRows_() {
   }
 }
 
+/**
+ * Fast read for manifest requests only — skips ensureReadModelsSheet_() to
+ * avoid the costly header-rewrite that ensureReadModelsSheet_ performs on
+ * every call (1–3 s per write to Google Sheets).
+ * The read_models sheet is always present in production; errors return [].
+ */
+function readModelRowsFast_() {
+  try {
+    return readRowsProjected_(readModelSheetName_(), readModelHeaders_());
+  } catch (_e) {
+    return [];
+  }
+}
+
 function readModelRowByKey_(key) {
   var k = text_(key);
   if (!k) return null;
@@ -531,7 +545,8 @@ function normalizeReadModelManifest_(rows) {
 
 function actionReadModelManifest_(user) {
   requireAnyRole_(user, ['admin', 'operation_manager', 'authorized_user', 'instructor']);
-  var rows = readModelRows_();
+  // Use fast read path — no sheet write, no legacy-column migration.
+  var rows = readModelRowsFast_();
   return normalizeReadModelManifest_(rows);
 }
 
