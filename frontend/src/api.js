@@ -901,7 +901,8 @@ async function dashboardReadModelFromSupabase(month) {
         missing_instructor_count: 0,
         missing_start_date_count: 0,
         late_end_date_count: 0,
-        short_activities: []
+        short_activities: [],
+        active_type_counts: { ...activeTypeCounts }
       },
       kpi_cards,
       show_only_nonzero_kpis: false,

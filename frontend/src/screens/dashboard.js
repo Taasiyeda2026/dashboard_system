@@ -65,39 +65,44 @@ const MANAGER_DISPLAY_NAMES = {
   'לינוי שמואל מזרחי':      'מחוז דרום',
 };
 
+const ACTIVITY_TYPE_ORDER = [
+  { key: 'course',       label: 'קורסים' },
+  { key: 'after_school', label: 'אפטרסקול' },
+  { key: 'tour',         label: 'סיורים' },
+  { key: 'workshop',     label: 'סדנאות' },
+  { key: 'escape_room',  label: 'חדרי בריחה' }
+];
+
 function renderStructuredSummary(summary, ym, byManager) {
   const monthTitle     = hebrewMonthTitle(ym);
-  const nextMonthTitle = hebrewMonthTitle(shiftYm(ym, 1));
 
-  const activeCurrentField = getStrictNumericField(summary, 'active_courses_current_month');
   const endingCurrentField = getStrictNumericField(summary, 'ending_courses_current_month');
-  const activeNextField = getStrictNumericField(summary, 'active_courses_next_month');
   const operationalGapsField = getStrictNumericField(summary, 'operational_gaps_count');
   const missingInstrField = operationalGapsField.ok ? operationalGapsField : getStrictNumericField(summary, 'missing_instructor_count');
   const lateEndField = getStrictNumericField(summary, 'late_end_date_count');
   const exceptionsTotalField = getStrictNumericField(summary, 'exceptions_count');
   const exceptionsTotalResolved = exceptionsTotalField.ok ? exceptionsTotalField.value : 'שגיאת מיפוי';
 
-  const activeCurrent = escapeHtml(String(activeCurrentField.ok ? activeCurrentField.value : 'שגיאת מיפוי'));
   const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 'שגיאת מיפוי'));
-  const activeNext = escapeHtml(String(activeNextField.ok ? activeNextField.value : 'שגיאת מיפוי'));
   const operationalGaps = escapeHtml(String(missingInstrField.ok ? missingInstrField.value : 'שגיאת מיפוי'));
   const lateEnd = escapeHtml(String(lateEndField.ok ? lateEndField.value : 'שגיאת מיפוי'));
   const exceptionsTotal = escapeHtml(String(exceptionsTotalResolved));
 
-  const mappingErrors = [
-    activeCurrentField,
-    endingCurrentField,
-    activeNextField,
-    missingInstrField,
-    lateEndField,
-    exceptionsTotalField
-  ].filter((field) => !field.ok);
+  const typeCounts = summary?.active_type_counts || {};
+  const typeRows = ACTIVITY_TYPE_ORDER
+    .map(({ key, label }) => {
+      const count = Number(typeCounts[key] || 0);
+      if (count === 0) return '';
+      return `<p class="ds-summary-panel__text">
+        <span class="ds-summary-panel__type-label">${escapeHtml(label)}:</span>
+        <strong>${count}</strong>
+      </p>`;
+    })
+    .join('');
 
   const districtRows = (Array.isArray(byManager) ? byManager : []).filter(
     (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned'
   );
-
   const districtByName = districtRows.reduce((acc, row) => {
     const label = MANAGER_DISPLAY_NAMES[row.activity_manager] || row.activity_manager;
     acc[label] = row;
@@ -113,10 +118,10 @@ function renderStructuredSummary(summary, ym, byManager) {
   return `<div class="ds-summary-panel__structured">
     <h3 class="ds-summary-panel__title">סיכום חודשי – <strong>${escapeHtml(monthTitle)}</strong></h3>
 
-    <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(monthTitle)}</strong> יש (<strong>${activeCurrent}</strong>) קורסים פעילים.</p>
-    <p class="ds-summary-panel__text">במהלך החודש צפויים להסתיים (<strong>${endingCurrent}</strong>) קורסים.</p>
-    <p class="ds-summary-panel__text ds-summary-panel__text--districts">מחוז צפון: (<strong>${northActive}</strong>) קורסים פעילים · מחוז דרום: (<strong>${southActive}</strong>) קורסים פעילים</p>
-    <p class="ds-summary-panel__text">בחודש <strong>${escapeHtml(nextMonthTitle)}</strong> צפויים להיות (<strong>${activeNext}</strong>) קורסים פעילים.</p>
+    <h4 class="ds-summary-panel__inner-title"><strong>פעילויות פעילות החודש:</strong></h4>
+    ${typeRows || '<p class="ds-summary-panel__text ds-muted">אין פעילויות פעילות</p>'}
+    <p class="ds-summary-panel__text">מחוז צפון: <strong>${northActive}</strong> תוכניות · מחוז דרום: <strong>${southActive}</strong> תוכניות</p>
+    <p class="ds-summary-panel__text">סיומי קורסים החודש: <strong>${endingCurrent}</strong></p>
 
     <h4 class="ds-summary-panel__inner-title"><strong>המדריכים הפעילים החודש:</strong></h4>
     <p class="ds-summary-panel__text">${escapeHtml(allInstructors || '—')}</p>
@@ -127,7 +132,6 @@ function renderStructuredSummary(summary, ym, byManager) {
       <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${lateEnd}</strong></p>
       <p class="ds-summary-panel__text">פערים תפעוליים: <strong>${operationalGaps}</strong></p>
     </div>
-    ${mappingErrors.length ? `<p class="ds-summary-panel__text" style="color:#b42318"><strong>שגיאת מיפוי שדות dashboard:</strong> ${escapeHtml(mappingErrors.map((f) => f.fieldName).join(', '))}</p>` : ''}
   </div>`;
 }
 
