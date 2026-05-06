@@ -3,8 +3,7 @@ import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState } from './shared/layo
 import { showToast } from './shared/toast.js';
 
 const SHEET_ROLES = [
-  { key: 'sheet_short_activities', label: 'פעילויות חד-יומיות', hint: 'גיליון מקור לפעילויות קצרות (data_short)' },
-  { key: 'sheet_long_activities', label: 'תוכניות', hint: 'גיליון מקור לפעילויות ארוכות (data_long)' }
+  { key: 'sheet_activities', label: 'פעילויות', hint: 'טבלת מקור יחידה: activities' }
 ];
 
 export const adminSettingsScreen = {

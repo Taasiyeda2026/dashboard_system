@@ -27,7 +27,7 @@ function resolveDates(row) {
 
 function normalizeRows(rows) {
   return rows
-    .filter((row) => String(row?.source_sheet || '').trim() === 'data_long')
+    .filter((row) => String(row?.activity_family || '').trim() === 'program')
     .map((row) => {
       const endDate = asIso(row?.end_date) || asIso(row?.date_end);
       if (!endDate) return null;

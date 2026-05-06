@@ -230,7 +230,7 @@ function buildDashboardStaleBanner(data) {
   if (data._snapshot_unavailable === true) {
     return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">הנתונים בהכנה — ייתכן שחלק מהמידע חסר. רעננו את הדף לאחר מספר דקות לקבלת תצוגה מלאה.</div>';
   }
-  if (data._read_model_stale === true || data._is_stale === true) {
+  if (data._is_stale === true) {
     return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">מציג נתונים מהפעם הקודמת — הדף יתעדכן אוטומטית בעוד רגע.</div>';
   }
   return '';
@@ -378,9 +378,10 @@ export const dashboardScreen = {
       })
       .join('');
 
+    const emptyDashboardMessage = data?.no_data_message || 'אין נתונים להצגה';
     const managersBlock = managers.length
       ? `<div class="ds-manager-grid">${managerCards}</div>`
-      : '<div class="ds-empty"><p class="ds-empty__msg">אין נתונים להצגה</p></div>';
+      : `<div class="ds-empty"><p class="ds-empty__msg">${escapeHtml(emptyDashboardMessage)}</p></div>`;
 
     const kpiHtml = kpiCards.length
       ? kpiCards.map(renderKpiCard).join('')

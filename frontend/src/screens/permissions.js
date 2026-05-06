@@ -14,7 +14,7 @@ const KEY_PERM_FLAGS = [
   'view_permissions'
 ];
 
-/** Normalized role code from API (`role`) or legacy rows where code lived in `display_role`. */
+/** Normalized role code from API (`role`). */
 function permRowRoleCode(row) {
   const code = String(row?.role != null && row.role !== '' ? row.role : row?.display_role || '').trim();
   return code;
