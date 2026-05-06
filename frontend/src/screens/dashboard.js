@@ -288,7 +288,19 @@ export const dashboardScreen = {
       }
     );
     const showOnly = !!data?.show_only_nonzero_kpis;
-    const kpiCards = filterKpiCards(data?.kpi_cards, showOnly);
+    let _kpiSource = data?.kpi_cards;
+    if (!Array.isArray(_kpiSource) || _kpiSource.filter(c => c && ALLOWED_KPI_ACTIONS.has(c.action)).length === 0) {
+      const t = data?.totals || {};
+      const s = data?.summary || {};
+      _kpiSource = [
+        { id: 'short',       action: 'kpi|short',       subtitle: 'חד-יומי',           value: t.total_short_activities ?? t.short ?? 0 },
+        { id: 'long',        action: 'kpi|long',        subtitle: 'תוכניות',            value: t.total_long_activities  ?? t.long  ?? 0 },
+        { id: 'exceptions',  action: 'kpi|exceptions',  subtitle: 'חריגות (קורסים)',    value: s.exceptions_count       ?? t.exceptions_count ?? 0 },
+        { id: 'instructors', action: 'kpi|instructors', subtitle: 'מדריכים פעילים',     value: Array.isArray(s.active_instructors) ? s.active_instructors.length : (t.total_instructors ?? 0) },
+        { id: 'endings',     action: 'kpi|endings',     subtitle: 'סיומי קורסים',       value: t.total_course_endings_current_month ?? s.ending_courses_current_month ?? 0 },
+      ];
+    }
+    const kpiCards = filterKpiCards(_kpiSource, showOnly);
 
     const managerCards = managers
       .map((row) => {
