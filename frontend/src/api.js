@@ -1063,18 +1063,13 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
 
   const { data: userRow, error: profileError } = await supabase
     .from('users')
-    .select(USER_PUBLIC_COLUMNS)
+    .select('*')
     .eq('auth_user_id', authUserId)
-    .maybeSingle();
+    .eq('is_active', true)
+    .single();
 
-  if (profileError) {
-    throwLoginError('users_query_failed', { message: String(profileError.message || ''), auth_user_id: authUserId });
-  }
-  if (!userRow) {
-    throwLoginError('user_not_found', { auth_user_id: authUserId });
-  }
-  if (!userRow.is_active) {
-    throwLoginError('inactive_user', { login: uid });
+  if (profileError || !userRow) {
+    throwLoginError('invalid_credentials', { auth_user_id: authUserId, message: String(profileError?.message || '') });
   }
 
   assertValidLoginUserRow(userRow);
