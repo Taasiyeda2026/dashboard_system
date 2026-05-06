@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "node --test tests/*.test.mjs",
     "build:workbook": "node scripts/build_system_dashboard_workbook.mjs",
-    "sync:sheet-to-supabase:once": "node scripts/sync_supabase_from_sheets_once.mjs"
+    "sync:sheet-to-supabase:once": "node scripts/sync_supabase_from_sheets_once.mjs",
+    "migrate:users-to-auth:once": "node scripts/migrate_users_to_auth_once.mjs"
   },
   "keywords": [],
   "author": "",
