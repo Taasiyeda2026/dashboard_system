@@ -1,6 +1,8 @@
 modules = ["nodejs-20", "web", "python-3.11"]
 [agent]
 expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
+integrations = ["javascript_database:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
