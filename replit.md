@@ -6,7 +6,7 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 ## Runtime
 - Static server: `npx serve dist -l 5000` (workflow: "Start application")
 - SW cache bump: edit `CACHE_VERSION` in `frontend/sw.js` after any JS/CSS change.
-- **Current versions**: SW v334 (frontend/sw.js)
+- **Current versions**: SW v342 (frontend/sw.js)
 
 ## Key identifiers
 - Supabase URL: `https://szinlhjuwyiyszdpsdop.supabase.co` (anon key in `frontend/src/supabase-client.js`)
@@ -20,7 +20,7 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 - `frontend/src/api.js` — ALL reads & writes go directly to Supabase. `request()` throws `legacy_gas_api_disabled`.
 - `frontend/src/main.js` — app shell, routing, login
 - `frontend/src/screens/` — one file per screen
-- `backend/*.gs` — Google Apps Script (legacy, archived — NOT in use)
+- `OLD-GAS/*.gs` — Google Apps Script (legacy, archived — NOT in use)
 - `tests/*.test.mjs` — Node test-runner tests
 
 ## Supabase tables
