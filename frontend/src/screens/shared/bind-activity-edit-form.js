@@ -205,15 +205,26 @@ export function bindActivityEditForm(contentRoot, {
         submitBtn.classList.add('is-loading');
       }
 
-      await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
+      if (canDirectEdit) {
+        await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
+      } else {
+        await api.submitEditRequest(sourceRowId, changes);
+      }
       setStatus(statusEl, 'is-success', canDirectEdit ? '✅ נשמר בהצלחה' : '✅ בקשת העריכה נשלחה לאישור');
       showToast(canDirectEdit ? '✅ נשמר בהצלחה' : '✅ בקשת העריכה נשלחה לאישור', 'success', 2500);
-      if (typeof onRowSaved === 'function') onRowSaved({ sourceSheet, sourceRowId, changes, form });
+      if (canDirectEdit && typeof onRowSaved === 'function') onRowSaved({ sourceSheet, sourceRowId, changes, form });
+      if (!canDirectEdit) {
+        form.reset();
+        updateMeetingWeekdays(form);
+        updateMoreDatesToggle(form);
+        updateEndDateDisplay(form);
+        clearScreenDataCache?.();
+      }
       setEditMode(form, false);
-      if (typeof onSaveSuccess === 'function') {
+      if (canDirectEdit && typeof onSaveSuccess === 'function') {
         await onSaveSuccess({ sourceSheet, sourceRowId, changes, form });
       } else if (typeof quietRefresh === 'function') {
-        quietRefresh({ sourceSheet, sourceRowId, changes, form });
+        quietRefresh({ sourceSheet, sourceRowId, changes: canDirectEdit ? changes : {}, form });
       } else if (typeof rerender === 'function') {
         requestAnimationFrame(() => {
           rerender();
