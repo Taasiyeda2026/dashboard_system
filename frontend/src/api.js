@@ -964,7 +964,7 @@ function normalizeData(data) {
   return normalized;
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,emp_id,is_active,permissions,created_at,updated_at';
+const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,emp_id,is_active,permissions,auth_user_id,created_at,updated_at';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor']);
 
 const SUPABASE_ROLE_ROUTES = {
@@ -1042,28 +1042,43 @@ function buildBootstrapFromUser(userRow) {
   };
 }
 
-async function getActiveUserByLogin(user_id, entry_code) {
+async function loginWithSupabaseAuth(user_id, entry_code) {
   if (!supabase) throwLoginError('no_supabase_client');
   const uid = String(user_id || '').trim();
   const code = String(entry_code || '').trim();
+  if (!uid || !code) throwLoginError('missing_user_id_or_entry_code');
 
-  const { data, error } = await supabase.rpc('login_user_by_entry_code', {
-    p_login: uid,
-    p_entry_code: code
+  const authEmail = `${uid}@taasiyeda.local`;
+
+  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    email: authEmail,
+    password: code
   });
-  if (error) {
-    throwLoginError('users_query_failed', { message: String(error.message || ''), code: String(error.code || '') });
+
+  if (authError || !authData?.user) {
+    throwLoginError('invalid_credentials', { login: uid, message: String(authError?.message || '') });
   }
 
-  const rows = Array.isArray(data) ? data : (data ? [data] : []);
-  const hit = rows[0];
-  const status = getLoginStatus(hit);
-  if (!hit || !status) throwLoginError('users_query_failed', { login: uid, reason: 'missing_rpc_status' });
-  if (status !== 'ok') {
-    throwLoginError(status, { login: uid, status });
+  const authUserId = authData.user.id;
+
+  const { data: userRow, error: profileError } = await supabase
+    .from('users')
+    .select(USER_PUBLIC_COLUMNS)
+    .eq('auth_user_id', authUserId)
+    .maybeSingle();
+
+  if (profileError) {
+    throwLoginError('users_query_failed', { message: String(profileError.message || ''), auth_user_id: authUserId });
   }
-  assertValidLoginUserRow(hit);
-  return hit;
+  if (!userRow) {
+    throwLoginError('user_not_found', { auth_user_id: authUserId });
+  }
+  if (!userRow.is_active) {
+    throwLoginError('inactive_user', { login: uid });
+  }
+
+  assertValidLoginUserRow(userRow);
+  return userRow;
 }
 
 function makeSessionToken(userRow) {
@@ -1242,7 +1257,7 @@ async function readSettingsRowsFromSupabase() {
 export const api = {
   login: async (user_id, entry_code) => {
     const [user, listsData] = await Promise.all([
-      getActiveUserByLogin(user_id, entry_code),
+      loginWithSupabaseAuth(user_id, entry_code),
       readListsFromSupabase().catch(() => null)
     ]);
     const token = makeSessionToken(user);
