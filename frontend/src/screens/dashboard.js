@@ -144,7 +144,7 @@ function renderStructuredSummary(summary, ym, byManager) {
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
       <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש:</strong></h4>
       <p class="ds-summary-panel__text"><strong>סה״כ חריגות: ${exceptionsTotal}</strong></p>
-      <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${lateEnd}</strong></p>
+      <p class="ds-summary-panel__text">תאריך סיום: <strong>${lateEnd}</strong></p>
       <p class="ds-summary-panel__text">פערים תפעוליים: <strong>${operationalGaps}</strong></p>
     </div>
   </div>`;
