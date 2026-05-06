@@ -988,14 +988,16 @@ async function readExceptionsFromSupabase(params = {}) {
   const end = `${month}-${String(lastDay).padStart(2, '0')}`;
   try {
     const [longRes, shortRes, meetRes] = await Promise.all([
-      supabase.from('data_long').select('*').lte('start_date', end).or(`end_date.gte.${start},date_end.gte.${start}`),
+      supabase.from('data_long').select('*').lte('start_date', end),
       supabase.from('data_short').select('*').gte('start_date', start).lte('start_date', end),
       supabase.from('activity_meetings').select('*').gte('meeting_date', start).lte('meeting_date', end)
     ]);
     if (longRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, longRes.error);
     if (shortRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, shortRes.error);
     if (meetRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, meetRes.error);
-    const longRows = Array.isArray(longRes.data) ? longRes.data : [];
+    const longRows = Array.isArray(longRes.data)
+      ? longRes.data.filter((row) => String(row?.end_date || row?.date_end || '').trim() >= start)
+      : [];
     const shortRows = Array.isArray(shortRes.data) ? shortRes.data : [];
     const meetingsRows = Array.isArray(meetRes.data) ? meetRes.data : [];
     const rows = buildExceptionsFromRows(longRows, shortRows, meetingsRows);
@@ -1683,7 +1685,7 @@ function normalizeSupabaseRole(role) {
 }
 
 function getLoginStatus(row) {
-  return String(row?.login_status || row?.status || '').trim();
+  return String(row?.status || '').trim();
 }
 
 function throwLoginError(code, details = {}) {
@@ -1748,7 +1750,6 @@ async function getActiveUserByLogin(user_id, entry_code) {
   if (!supabase) throwLoginError('no_supabase_client');
   const uid = String(user_id || '').trim();
   const code = String(entry_code || '').trim();
-  if (!uid || !code) throwLoginError('missing_user_id_or_entry_code', { has_user_id: Boolean(uid), has_entry_code: Boolean(code) });
 
   const { data, error } = await supabase.rpc('login_user_by_entry_code', {
     p_login: uid,
@@ -1761,12 +1762,10 @@ async function getActiveUserByLogin(user_id, entry_code) {
   const rows = Array.isArray(data) ? data : (data ? [data] : []);
   const hit = rows[0];
   const status = getLoginStatus(hit);
-  if (!hit) throwLoginError('user_not_found', { login: uid });
-  if (status && status !== 'ok') {
-    const allowedStatuses = new Set(['user_not_found', 'inactive_user', 'entry_code_mismatch', 'invalid_role']);
-    throwLoginError(allowedStatuses.has(status) ? status : 'users_query_failed', { login: uid, status });
+  if (!hit || !status) throwLoginError('users_query_failed', { login: uid, reason: 'missing_rpc_status' });
+  if (status !== 'ok') {
+    throwLoginError(status, { login: uid, status });
   }
-  if (!hit.is_active) throwLoginError('inactive_user', { login: uid });
   assertValidLoginUserRow(hit);
   return hit;
 }

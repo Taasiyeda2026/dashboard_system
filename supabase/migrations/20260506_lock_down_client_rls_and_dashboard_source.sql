@@ -74,7 +74,7 @@ using (true);
 drop function if exists public.login_user_by_entry_code(text, text);
 create function public.login_user_by_entry_code(p_login text, p_entry_code text)
 returns table (
-  login_status text,
+  status text,
   user_id text,
   email text,
   name text,
@@ -108,24 +108,25 @@ as $$
   ), diagnostic as (
     select
       case
+        when (select i.login from input i) = '' or (select i.code from input i) = '' then 'missing_user_id_or_entry_code'
         when not exists (select 1 from candidate) then 'user_not_found'
         when not (select c.is_active from candidate c) then 'inactive_user'
         when trim(coalesce((select c.entry_code from candidate c), '')) <> (select i.code from input i) then 'entry_code_mismatch'
         when coalesce((select c.role from candidate c), '') not in ('admin', 'operation_manager', 'authorized_user', 'instructor') then 'invalid_role'
         else 'ok'
-      end as login_status
+      end as status
   )
   select
-    d.login_status,
-    case when d.login_status = 'ok' then c.user_id end as user_id,
-    case when d.login_status = 'ok' then c.email end as email,
-    case when d.login_status = 'ok' then c.name end as name,
-    case when d.login_status = 'ok' then c.role end as role,
-    case when d.login_status = 'ok' then c.emp_id end as emp_id,
-    case when d.login_status = 'ok' then c.is_active end as is_active,
-    case when d.login_status = 'ok' then c.permissions end as permissions,
-    case when d.login_status = 'ok' then c.created_at end as created_at,
-    case when d.login_status = 'ok' then c.updated_at end as updated_at
+    d.status,
+    case when d.status = 'ok' then c.user_id end as user_id,
+    case when d.status = 'ok' then c.email end as email,
+    case when d.status = 'ok' then c.name end as name,
+    case when d.status = 'ok' then c.role end as role,
+    case when d.status = 'ok' then c.emp_id end as emp_id,
+    case when d.status = 'ok' then c.is_active end as is_active,
+    case when d.status = 'ok' then c.permissions end as permissions,
+    case when d.status = 'ok' then c.created_at end as created_at,
+    case when d.status = 'ok' then c.updated_at end as updated_at
   from diagnostic d
   left join candidate c on true;
 $$;
