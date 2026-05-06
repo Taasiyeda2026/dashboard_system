@@ -495,11 +495,6 @@ function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionC
 
 // ─── Supabase helpers for week/month calendar views ──────────────────────────
 
-const SUPABASE_DATE_CANDIDATE_FIELDS = [
-  'meeting_date', 'date', 'start_date', 'date_start',
-  'activity_date', 'end_date', 'date_end'
-];
-
 const HEBREW_WEEKDAY_LABELS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 /**
@@ -511,21 +506,6 @@ function normalizeSupabaseDate(val) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
   return m ? m[1] : '';
-}
-
-/**
- * Find the first valid date from candidate fields in an activity date row.
- * Returns { field, dateKey } — dateKey is normalized YYYY-MM-DD, or '' if none found.
- */
-function activityMeetingDateFromCandidates(row) {
-  if (!row || typeof row !== 'object') return { field: null, dateKey: '' };
-  for (const field of SUPABASE_DATE_CANDIDATE_FIELDS) {
-    const raw = row[field];
-    if (raw == null || raw === '') continue;
-    const dateKey = normalizeSupabaseDate(raw);
-    if (dateKey) return { field, dateKey };
-  }
-  return { field: null, dateKey: '' };
 }
 
 /**
@@ -551,24 +531,6 @@ function buildItemsById(rows) {
     if (id) map[id] = row;
   }
   return map;
-}
-
-/**
- * Detect which date field is actually used in activity date rows.
- * Logs the raw row count and detected field names for diagnostics.
- * Returns the field name string, or null if none found.
- */
-function detectActivityMeetingsDateField(rows) {
-  if (!rows.length) return null;
-  const firstRow = rows[0];
-  const detectedFields = Object.keys(firstRow);
-  // eslint-disable-next-line no-console
-  console.info('[supabase][activities] detected fields', detectedFields);
-  for (const field of SUPABASE_DATE_CANDIDATE_FIELDS) {
-    const hasField = rows.some((r) => r[field] != null && r[field] !== '');
-    if (hasField) return field;
-  }
-  return null;
 }
 
 /**
@@ -598,67 +560,6 @@ function emptyMonthPayload(monthPrefix, debugInfo) {
     cells.push({ date: `${monthPrefix}-${String(dayNum).padStart(2, '0')}`, day: dayNum, item_ids: [] });
   }
   return { month: monthPrefix, cells, items_by_id: {}, _source: 'supabase', _debug: debugInfo };
-}
-
-/**
- * Core mapping helper retained for in-memory activity calendar rows.
- * build itemsById and dayMap for the calendar.
- *
- * Strategy:
- *   1. date_1..date_35 hold session dates.
- *
- * Returns { itemsById, dayMap, detectedDateField, stats }
- */
-function buildCalendarMapping(meetingRows, shortRows, longById, startDate, endDate) {
-  // eslint-disable-next-line no-console
-  console.info('[supabase][activities] raw rows count', { meetings: meetingRows.length, short: shortRows.length });
-
-  const detectedDateField = detectActivityMeetingsDateField(meetingRows);
-
-  const itemsById = { ...buildItemsById(shortRows) };
-  const dayMap = {};
-  const addToDay = (dateKey, rowId) => {
-    if (!dayMap[dateKey]) dayMap[dateKey] = new Set();
-    dayMap[dateKey].add(rowId);
-  };
-
-  let shortFiltered = 0;
-  for (const row of shortRows) {
-    const dateKey = normalizeSupabaseDate(row.start_date);
-    if (!dateKey || dateKey < startDate || dateKey > endDate) continue;
-    if (row.RowID) { addToDay(dateKey, row.RowID); shortFiltered++; }
-  }
-
-  let meetFiltered = 0;
-  let meetMapped = 0;
-  let meetMissingLong = 0;
-
-  for (const meetRow of meetingRows) {
-    const { dateKey } = activityMeetingDateFromCandidates(meetRow);
-    if (!dateKey || dateKey < startDate || dateKey > endDate) continue;
-    meetFiltered++;
-
-    const actRow = longById[meetRow.source_row_id];
-    if (!actRow) { meetMissingLong++; continue; }
-    meetMapped++;
-    if (actRow.RowID) {
-      itemsById[actRow.RowID] = actRow;
-      addToDay(dateKey, actRow.RowID);
-    }
-  }
-
-  const stats = {
-    shortRawCount: shortRows.length,
-    shortFilteredCount: shortFiltered,
-    meetingsRawCount: meetingRows.length,
-    meetingsFilteredCount: meetFiltered,
-    meetingsMappedCount: meetMapped,
-    meetingsMissingLongCount: meetMissingLong,
-    detectedDateField,
-    totalMappedItems: Object.keys(itemsById).length
-  };
-
-  return { itemsById, dayMap, detectedDateField, stats };
 }
 
 /**

@@ -74,13 +74,13 @@ test('saveActivity sends source_sheet, source_row_id and changes in direct-edit 
   mockOkFetch(bodies);
 
   await api.saveActivity({
-    source_sheet: 'data_long',
+    source_sheet: 'activities',
     source_row_id: 'LONG-123',
     changes: { activity_name: 'Updated', Date1: '2026-04-15' }
   });
 
   assert.equal(bodies[0].action, 'saveActivity');
-  assert.equal(bodies[0].source_sheet, 'data_long');
+  assert.equal(bodies[0].source_sheet, 'activities');
   assert.equal(bodies[0].source_row_id, 'LONG-123');
   assert.equal(bodies[0].changes.activity_name, 'Updated');
 });

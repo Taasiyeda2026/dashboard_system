@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 const YM = '2026-04';
 
 const rows = [
-  { RowID:'S1', source_sheet:'data_short', activity_type:'workshop', activity_manager:'mgr_a', emp_id:'e1', status:'פעיל', finance_status:'open', end_date:'2026-04-05', start_date:'2026-04-05', price:100, sessions:1, Payment:0 },
-  { RowID:'L1', source_sheet:'data_long', activity_type:'course', activity_manager:'mgr_a', emp_id:'e2', status:'פעיל', finance_status:'open', start_date:'2026-04-01', end_date:'2026-04-20', price:200, sessions:2, Payment:100 },
-  { RowID:'L2', source_sheet:'data_long', activity_type:'course', activity_manager:'mgr_b', emp_id:'', status:'פעיל', finance_status:'closed', start_date:'', end_date:'2026-04-25', price:300, sessions:1, Payment:300 },
-  { RowID:'L3', source_sheet:'data_long', activity_type:'after_school', activity_manager:'mgr_b', emp_id:'e3', status:'פעיל', finance_status:'pending', start_date:'2026-03-20', end_date:'2026-05-15', price:150, sessions:3, Payment:0 },
-  { RowID:'S2', source_sheet:'data_short', activity_type:'tour', activity_manager:'mgr_b', emp_id:'e4', status:'פעיל', finance_status:'paid', start_date:'2026-04-18', end_date:'2026-04-18', price:120, sessions:1, Payment:120 }
+  { RowID:'S1', source_sheet:'activities', activity_type:'workshop', activity_manager:'mgr_a', emp_id:'e1', status:'פעיל', finance_status:'open', end_date:'2026-04-05', start_date:'2026-04-05', price:100, sessions:1, Payment:0 },
+  { RowID:'L1', source_sheet:'activities', activity_type:'course', activity_manager:'mgr_a', emp_id:'e2', status:'פעיל', finance_status:'open', start_date:'2026-04-01', end_date:'2026-04-20', price:200, sessions:2, Payment:100 },
+  { RowID:'L2', source_sheet:'activities', activity_type:'course', activity_manager:'mgr_b', emp_id:'', status:'פעיל', finance_status:'closed', start_date:'', end_date:'2026-04-25', price:300, sessions:1, Payment:300 },
+  { RowID:'L3', source_sheet:'activities', activity_type:'after_school', activity_manager:'mgr_b', emp_id:'e3', status:'פעיל', finance_status:'pending', start_date:'2026-03-20', end_date:'2026-05-15', price:150, sessions:3, Payment:0 },
+  { RowID:'S2', source_sheet:'activities', activity_type:'tour', activity_manager:'mgr_b', emp_id:'e4', status:'פעיל', finance_status:'paid', start_date:'2026-04-18', end_date:'2026-04-18', price:120, sessions:1, Payment:120 }
 ];
 
 function normFinance(v){ return String(v||'').toLowerCase()==='closed'?'closed':'open'; }

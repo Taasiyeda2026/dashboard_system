@@ -113,6 +113,26 @@ alter table public.activities add column if not exists updated_at timestamptz no
 
 do $$
 begin
+  if exists (select 1 from public.activities where row_id is null or btrim(row_id) = '') then
+    raise exception 'public.activities.row_id must be populated before enforcing the primary key';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint c
+    join pg_class t on t.oid = c.conrelid
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'activities'
+      and c.contype = 'p'
+  ) then
+    alter table public.activities alter column row_id set not null;
+    alter table public.activities add constraint activities_pkey primary key (row_id);
+  end if;
+end $$;
+
+do $$
+begin
   if not exists (
     select 1 from pg_index i
     join pg_class t on t.oid = i.indrelid

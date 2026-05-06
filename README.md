@@ -54,9 +54,7 @@ npx serve dist -l 5000
 
 | טבלה | תוכן |
 |---|---|
-| `data_long` | פעילויות ארוכות-טווח (מקור אמת) |
-| `data_short` | פעילויות חד-יומיות |
-| `activity_meetings` | תאריכי מפגשים לפעילויות ארוכות |
+| `activities` | מקור האמת היחיד לפעילויות — נטען ידנית מ-`activities_system_ready.csv`; `row_id` הוא המזהה הייחודי |
 | `contacts_instructors` | אנשי קשר — מדריכים |
 | `contacts_schools` | אנשי קשר — בתי ספר |
 | `lists` | רשימות dropdown |
@@ -98,5 +96,9 @@ Baseline: 92 עוברות / 5 נכשלות (כשלים קיימים מראש —
 
 - `supabase/migrations/20260505_users_auth_bootstrap.sql`
 - `supabase/migrations/20260505_settings_admin_config.sql`
+- `supabase/migrations/20260506_create_public_activities.sql`
+- `supabase/migrations/20260506_activities_single_source_cleanup.sql`
 
-לאחר ההרצה: הזינו משתמשים לטבלת `users` (user_id, entry_code, role, name).
+לאחר ההרצה:
+1. העלו ידנית את `activities_system_ready.csv` לטבלת `public.activities` ב-Supabase.
+2. הזינו משתמשים לטבלת `users` (user_id, entry_code, role, name).
