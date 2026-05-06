@@ -657,9 +657,9 @@ async function dashboardReadModelFromSupabase(month) {
     const byManagerMap = new Map();
     let missingInstructorCount = 0;
     let missingDateCount = 0;
-    let lateEndDateCount = 0;
     let dangerousEndDateCount = 0;
-    const operationalGapsCount = 0;
+    let operationalGapsCount = 0;
+    let totalExceptionsActivityCount = 0;
 
     function managerStats(manager) {
       const key = String(manager || 'unassigned').trim() || 'unassigned';
@@ -706,7 +706,11 @@ async function dashboardReadModelFromSupabase(month) {
       if (missingInstructor) missingInstructorCount += 1;
       if (missingDate) missingDateCount += 1;
       if (isDangerousEnd) dangerousEndDateCount += 1;
-      if (missingInstructor || missingDate || isDangerousEnd) stats.exceptions += 1;
+      if (missingInstructor || missingDate) operationalGapsCount += 1;
+      if (missingInstructor || missingDate || isDangerousEnd) {
+        totalExceptionsActivityCount += 1;
+        stats.exceptions += 1;
+      }
     }
 
     for (const row of endingRows) {
@@ -718,7 +722,7 @@ async function dashboardReadModelFromSupabase(month) {
       delete stats._instructors;
       return stats;
     });
-    const exceptionsCount = missingInstructorCount + missingDateCount + lateEndDateCount + dangerousEndDateCount + operationalGapsCount;
+    const exceptionsCount = totalExceptionsActivityCount;
     const totals = {
       total_short_activities: monthRows.filter(isOneDayActivity).length,
       total_long_activities: monthRows.filter(isProgramActivity).length,
@@ -734,7 +738,7 @@ async function dashboardReadModelFromSupabase(month) {
       ending_courses_current_month: endingRows.length,
       missing_instructor_count: missingInstructorCount,
       missing_date_count: missingDateCount,
-      late_end_date_count: lateEndDateCount,
+      late_end_date_count: dangerousEndDateCount,
       operational_gaps_count: operationalGapsCount,
       exceptions_count: exceptionsCount
     };
