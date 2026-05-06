@@ -1514,6 +1514,7 @@ export const api = {
     if (!source_row_id || !Object.keys(normalizedChanges).length) {
       throw new Error('No changes to submit');
     }
+    const currentUser = state?.user || {};
     const row = {
       request_id: `REQ-${Date.now()}`,
       source_row_id,
@@ -1522,6 +1523,8 @@ export const api = {
       requested_values: normalizedChanges,
       status: 'pending',
       active: 'yes',
+      requested_by_user_id: String(currentUser?.user_id || '').trim(),
+      requested_by_name: String(currentUser?.full_name || currentUser?.profile?.full_name || '').trim(),
       requested_at: new Date().toISOString()
     };
     const { error } = await supabase.from('edit_requests').insert(row);
@@ -1532,6 +1535,7 @@ export const api = {
     const requestId = String(request_id || '').trim();
     const nextStatus = String(status || '').trim();
     if (!requestId) throw new Error('missing_request_id');
+    if (!['approved', 'rejected'].includes(nextStatus)) throw new Error('invalid_review_status');
     const reqRes = await supabase
       .from('edit_requests')
       .select('*')
@@ -1555,9 +1559,15 @@ export const api = {
         if (applyErr) throw new Error(applyErr.message || 'review_edit_request_apply_failed');
       }
     }
+    const reviewer = state?.user || {};
     const { error } = await supabase
       .from('edit_requests')
-      .update({ status: nextStatus, reviewed_at: new Date().toISOString() })
+      .update({
+        status: nextStatus,
+        reviewed_at: new Date().toISOString(),
+        reviewer_user_id: String(reviewer?.user_id || '').trim(),
+        reviewed_by: String(reviewer?.full_name || reviewer?.profile?.full_name || '').trim()
+      })
       .eq('request_id', requestId);
     if (error) throw new Error(error.message || 'review_edit_request_failed');
     return { request_id: requestId, status: nextStatus };
