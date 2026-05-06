@@ -67,3 +67,65 @@ to anon, authenticated
 using (true);
 
 grant select, insert, update, delete on public.users to anon, authenticated;
+-- Login validates entry_code server-side and returns explicit diagnostics without exposing entry_code.
+drop function if exists public.login_user_by_entry_code(text, text);
+create function public.login_user_by_entry_code(p_login text, p_entry_code text)
+returns table (
+  login_status text,
+  user_id text,
+  email text,
+  name text,
+  role text,
+  emp_id text,
+  is_active boolean,
+  permissions jsonb,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with input as (
+    select trim(coalesce(p_login, '')) as login, trim(coalesce(p_entry_code, '')) as code
+  ), candidate as (
+    select u.*
+    from public.users u
+    cross join input i
+    where u.user_id = i.login
+       or u.email = i.login
+       or u.emp_id = i.login
+    order by case
+      when u.user_id = i.login then 1
+      when u.email = i.login then 2
+      when u.emp_id = i.login then 3
+      else 4
+    end, u.created_at desc
+    limit 1
+  ), diagnostic as (
+    select
+      case
+        when not exists (select 1 from candidate) then 'user_not_found'
+        when not (select c.is_active from candidate c) then 'inactive_user'
+        when trim(coalesce((select c.entry_code from candidate c), '')) <> (select i.code from input i) then 'entry_code_mismatch'
+        when coalesce((select c.role from candidate c), '') not in ('admin', 'operation_manager', 'authorized_user', 'instructor') then 'invalid_role'
+        else 'ok'
+      end as login_status
+  )
+  select
+    d.login_status,
+    case when d.login_status = 'ok' then c.user_id end as user_id,
+    case when d.login_status = 'ok' then c.email end as email,
+    case when d.login_status = 'ok' then c.name end as name,
+    case when d.login_status = 'ok' then c.role end as role,
+    case when d.login_status = 'ok' then c.emp_id end as emp_id,
+    case when d.login_status = 'ok' then c.is_active end as is_active,
+    case when d.login_status = 'ok' then c.permissions end as permissions,
+    case when d.login_status = 'ok' then c.created_at end as created_at,
+    case when d.login_status = 'ok' then c.updated_at end as updated_at
+  from diagnostic d
+  left join candidate c on true;
+$$;
+
+revoke all on function public.login_user_by_entry_code(text, text) from public;
+grant execute on function public.login_user_by_entry_code(text, text) to anon, authenticated;
