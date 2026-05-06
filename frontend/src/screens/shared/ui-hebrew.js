@@ -251,15 +251,13 @@ const API_ERROR_HE = {
 };
 
 /**
- * Maps an internal sheet key (e.g. 'data_short', 'data_long', 'contacts_instructors')
+ * Maps an internal source key (e.g. 'activities', 'contacts_instructors')
  * to a short Hebrew label for display in screen sub-headers.
  */
 const SHEET_LABEL_HE = {
-  data_short:           'חד-יומיות',
-  data_long:            'תוכניות',
+  activities:           'פעילויות',
   contacts_instructors: 'אנשי קשר מדריכים',
   contacts_schools:     'אנשי קשר מוסדות',
-  activity_meetings:    'מפגשים',
   permissions:          'הרשאות',
   settings:             'הגדרות',
   lists:                'רשימות'
@@ -277,11 +275,6 @@ export function hebrewSheetLabel(sheetName) {
  */
 export function hebrewInstructorsSourcesLabel(sources) {
   const arr = Array.isArray(sources) ? sources : [];
-  const hasShort = arr.some((s) => String(s).toLowerCase() === 'data_short');
-  const hasLong  = arr.some((s) => String(s).toLowerCase() === 'data_long');
-  if (hasShort && hasLong) return 'חד-יומיות ותוכניות';
-  if (hasShort) return 'חד-יומיות בלבד';
-  if (hasLong)  return 'תוכניות בלבד';
   return arr.map(hebrewSheetLabel).join(', ') || 'כל הפעילויות';
 }
 

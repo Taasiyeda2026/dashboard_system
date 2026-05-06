@@ -926,7 +926,7 @@ async function loadScreenDataWithCache(screen) {
           route: routeName,
           duration_ms: dur,
           cache_hit: false,
-          fallback_used: !!(data && (data._snapshot_unavailable === true || data._read_model_stale === true || data._is_stale === true)),
+          fallback_used: !!(data && (data._snapshot_unavailable === true || data._is_stale === true)),
           source: 'network'
         });
       }

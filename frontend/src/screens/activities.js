@@ -868,7 +868,8 @@ export const activitiesScreen = {
         if (statusEl) statusEl.textContent = 'הפעילות נשמרה';
         const localRow = {
           RowID: rsp?.RowID || '',
-          source_sheet: rsp?.source_sheet || (payload.source === 'long' ? 'data_long' : 'data_short'),
+          source_sheet: rsp?.source_sheet || 'activities',
+          activity_family: payload.source === 'short' ? 'one_day' : 'program',
           activity_manager: payload.activity_manager,
           authority: payload.authority,
           school: payload.school,

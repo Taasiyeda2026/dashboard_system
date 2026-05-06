@@ -195,12 +195,12 @@ export const instructorsScreen = {
           const items = [];
           const seen = new Set();
           myRows.forEach((r) => {
-            const isLong = String(r.source_sheet || '').trim() === 'data_long';
+            const isLong = String(r.activity_family || '').trim() === 'program';
             if (!isLong && ym && !String(r.start_date || '').startsWith(ym)) return;
             if (isLong && ym) {
               let hasMeeting = false;
               for (let i = 1; i <= 35; i++) {
-                const d = String(r[`Date${i}`] || '').trim();
+                const d = String((r[`date_${i}`] || r[`Date${i}`]) || '').trim();
                 if (d && d.startsWith(ym)) { hasMeeting = true; break; }
               }
               if (!hasMeeting) return;

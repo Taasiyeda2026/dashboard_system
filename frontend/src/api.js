@@ -5,8 +5,7 @@ import { supabase } from './supabase-client.js';
 /**
  * Actions that modify server-side data.
  *
- * After mutating actions succeed, cache invalidation runs automatically
- * (see bottom of request()).
+ * After mutating actions succeed, route cache invalidation runs automatically.
  *
  * Mutations clear only related route caches (not full wipe), so navigation
  * stays fast while still showing fresh data where needed.
@@ -57,35 +56,13 @@ const READ_ACTIONS = {
   adminSettings: true,
   adminLists: true,
   listSheets: true,
-  readModelManifest: true,
-  readModelGet: true,
-  readModelHealth: true,
 };
 
 const API_TIMEOUT_MS_READ = 20000;
 const API_TIMEOUT_MS_WRITE = 45000;
-const READ_MODEL_TIMEOUT_MS = 14000;
 const PERF_MAX_REQUESTS = 150;
-const MONTH_READ_MODEL_TTL_MS = 5 * 60 * 1000;
-const monthReadModelCache = new Map();
-const READ_MODEL_CACHE_STORAGE_KEY = 'ds_read_model_cache_v2';
-const MANIFEST_TTL_MS = 5 * 60 * 1000;
-let manifestCache = { t: 0, data: null };
-/** Deduplicates concurrent readModelManifest network calls — any call while one is in-flight joins the same Promise. */
-let manifestInflight = null;
-
-/** When true, allowed screens may use readModelGet + local manifest cache instead of legacy actions. */
-const READ_MODELS_ENABLED = true;
-
-/** Explicit allow-list: only these read-model keys use the read-model path; all others use legacy only. */
-const READ_MODEL_ENABLED_KEY_LIST = ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'];
-const READ_MODEL_ENABLED_KEYS = new Set(READ_MODEL_ENABLED_KEY_LIST);
-
-/**
- * Heavy screen reads that must go through requestReadModel (or pass legacy_intentional in perfMeta).
- * Direct request() otherwise logs [legacy-guard] for visibility.
- */
-const HEAVY_LEGACY_GUARDED_READ_ACTIONS = new Set([
+/** Logs direct heavy reads for performance diagnostics. */
+const HEAVY_GUARDED_READ_ACTIONS = new Set([
   'dashboardSnapshot',
   'activities',
   'week',
@@ -96,8 +73,8 @@ const HEAVY_LEGACY_GUARDED_READ_ACTIONS = new Set([
 
 function warnHeavyLegacyReadWithoutIntentionalFlag(action, perfMeta) {
   if (!READ_ACTIONS[action]) return;
-  if (!HEAVY_LEGACY_GUARDED_READ_ACTIONS.has(action)) return;
-  if (perfMeta?.legacy_intentional === true) return;
+  if (!HEAVY_GUARDED_READ_ACTIONS.has(action)) return;
+  if (perfMeta?.direct_intentional === true) return;
   let caller = '';
   try {
     caller = String(new Error().stack || '')
@@ -109,10 +86,10 @@ function warnHeavyLegacyReadWithoutIntentionalFlag(action, perfMeta) {
     /* ignore */
   }
   try {
-    console.warn('[legacy-guard]', JSON.stringify({
+    console.warn('[heavy-read-guard]', JSON.stringify({
       screen: String(action),
       action: String(action),
-      reason: 'heavy_legacy_read_without_read_model_path',
+      reason: 'heavy_read_without_intentional_flag',
       caller
     }));
   } catch {
@@ -147,26 +124,15 @@ function rowMatchesActivitiesFilters(row, filters = {}) {
 async function readArchiveActivitiesFromSupabase() {
   if (!supabase) return null;
   try {
-    const [longResult, shortResult] = await Promise.all([
-      supabase.from('data_long').select('*').eq('status', 'סגור'),
-      supabase.from('data_short').select('*').eq('status', 'סגור')
-    ]);
-    if (longResult.error) {
-      console.error('[supabase] archive data_long failed:', longResult.error);
-      return null;
-    }
-    if (shortResult.error) {
-      console.error('[supabase] archive data_short failed:', shortResult.error);
-      return null;
-    }
-    const longRows = (Array.isArray(longResult.data) ? longResult.data : []).map((r) => ({ ...r, source_sheet: 'data_long' }));
-    const shortRows = (Array.isArray(shortResult.data) ? shortResult.data : []).map((r) => ({ ...r, source_sheet: 'data_short' }));
-    const rows = [...longRows, ...shortRows].sort((a, b) => {
-      const da = String(b?.end_date || b?.start_date || '').trim();
-      const db = String(a?.end_date || a?.start_date || '').trim();
-      return da.localeCompare(db);
-    });
-    return { rows };
+    const { data, error } = await supabase
+      .from(ACTIVITIES_TABLE)
+      .select('*')
+      .eq('status', CLOSED_STATUS);
+    if (error) throw new Error(error.message || 'archive_read_failed');
+    const rows = (Array.isArray(data) ? data : [])
+      .map(normalizeActivityRow)
+      .sort((a, b) => String(b?.end_date || b?.start_date || '').localeCompare(String(a?.end_date || a?.start_date || '')));
+    return { rows, _source: 'supabase' };
   } catch (err) {
     console.error('[supabase] archive fetch error:', err);
     return null;
@@ -177,34 +143,16 @@ async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
   try {
-    const [longResult, shortResult] = await Promise.all([
-      supabase.from('data_long').select('*'),
-      supabase.from('data_short').select('*')
-    ]);
-
-    if (longResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load data_long:', longResult.error);
-      return null;
-    }
-    if (shortResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load data_short:', shortResult.error);
-      return null;
-    }
-
-    const longRows = Array.isArray(longResult.data)
-      ? longResult.data.map((row) => ({ ...row, source_sheet: row?.source_sheet || 'data_long' }))
-      : [];
-    const shortRows = Array.isArray(shortResult.data)
-      ? shortResult.data.map((row) => ({ ...row, source_sheet: row?.source_sheet || 'data_short' }))
-      : [];
-
-    const rows = [...longRows, ...shortRows].filter((row) => rowMatchesActivitiesFilters(row, filters));
-    return { rows };
+    const { data, error } = await supabase.from(ACTIVITIES_TABLE).select('*');
+    if (error) throw new Error(error.message || 'activities_read_failed');
+    const rows = (Array.isArray(data) ? data : [])
+      .map(normalizeActivityRow)
+      .filter((row) => !isActivityClosed(row))
+      .filter((row) => rowMatchesActivitiesFilters(row, filters));
+    return { rows, _source: 'supabase' };
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('[supabase] Unexpected data_long/data_short fetch error:', error);
+    console.error('[supabase] Unexpected activities fetch error:', error);
     return null;
   }
 }
@@ -219,10 +167,72 @@ function buildSupabaseErrorPayload(base, error, extra = {}) {
   };
 }
 
+
+const ACTIVITIES_TABLE = 'activities';
+const CLOSED_STATUS = 'סגור';
+
+function normalizeActivityRow(row = {}) {
+  const rowId = String(row?.row_id ?? row?.RowID ?? '').trim();
+  const normalized = {
+    ...row,
+    row_id: rowId,
+    RowID: rowId,
+    source_sheet: 'activities',
+    source_table: ACTIVITIES_TABLE,
+    date_start: row?.start_date ?? row?.date_start ?? '',
+    date_end: row?.end_date ?? row?.date_end ?? ''
+  };
+  for (let i = 1; i <= 35; i++) {
+    const lower = `date_${i}`;
+    const oldDateKey = `Date${i}`;
+    const value = String(row?.[lower] ?? row?.[oldDateKey] ?? '').trim().slice(0, 10);
+    normalized[lower] = value;
+    normalized[oldDateKey] = value;
+  }
+  normalized.meeting_dates = getActivityDateColumns(normalized);
+  normalized.date_cols = normalized.meeting_dates;
+  return normalized;
+}
+
+function isActivityClosed(row) {
+  return String(row?.status || '').trim() === CLOSED_STATUS;
+}
+
+function isProgramActivity(row) {
+  return String(row?.activity_family || '').trim() === 'program';
+}
+
+function isOneDayActivity(row) {
+  return String(row?.activity_family || '').trim() === 'one_day';
+}
+
+function getActivityDateColumns(row = {}) {
+  const dates = [];
+  for (let i = 1; i <= 35; i++) {
+    const dateKey = normalizeSupabaseDate(row?.[`date_${i}`] ?? row?.[`Date${i}`]);
+    if (dateKey) dates.push(dateKey);
+  }
+  return [...new Set(dates)].sort();
+}
+
+function activityHasDateInRange(row, startDate, endDate) {
+  return getActivityDateColumns(row).some((dateKey) => dateKey >= startDate && dateKey <= endDate);
+}
+
+function activityHasDateInMonth(row, monthPrefix) {
+  return getActivityDateColumns(row).some((dateKey) => dateKey.startsWith(monthPrefix));
+}
+
+async function selectActivitiesFromSupabase(select = '*') {
+  const result = await supabase.from(ACTIVITIES_TABLE).select(select);
+  if (result.error) throw new Error(result.error.message || 'activities_read_failed');
+  return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
+}
+
 /**
  * Reads contacts_instructors + contacts_schools from Supabase.
  * Returns { instructor_rows, school_rows, can_view_instructors, can_view_schools, _source }
- * or null on any failure (caller falls back to GAS).
+ * or null on any failure.
  *
  * ⚠️ permissions table is intentionally excluded — login credentials must never be read client-side.
  */
@@ -395,16 +405,15 @@ function buildClientSettingsFromLists(listsData) {
 /**
  * Reads contacts_instructors and computes per-instructor activity stats
  * (programs_count, one_day_count, latest_end_date, activity_managers) from
- * data_long + data_short — all client-side, no schema changes.
+ * activities — all client-side, no schema changes.
  * Returns { rows, _source: 'supabase' } or null on any failure.
  */
 async function readInstructorsFromSupabase() {
   if (!supabase) return null;
   try {
-    const [instrResult, longResult, shortResult] = await Promise.all([
+    const [instrResult, activityRows] = await Promise.all([
       supabase.from('contacts_instructors').select('*'),
-      supabase.from('data_long').select('emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,date_end,activity_manager,status'),
-      supabase.from('data_short').select('emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,date_end,activity_manager,status')
+      selectActivitiesFromSupabase('emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,activity_manager,status,activity_family')
     ]);
 
     if (instrResult.error) {
@@ -412,20 +421,9 @@ async function readInstructorsFromSupabase() {
       console.error('[supabase] Failed to load contacts_instructors (instructors screen):', instrResult.error);
       return null;
     }
-    if (longResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load data_long (instructors screen):', longResult.error);
-      return null;
-    }
-    if (shortResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load data_short (instructors screen):', shortResult.error);
-      return null;
-    }
 
     const instrRows = Array.isArray(instrResult.data) ? instrResult.data : [];
-    const longRows = Array.isArray(longResult.data) ? longResult.data : [];
-    const shortRows = Array.isArray(shortResult.data) ? shortResult.data : [];
+    const rowsForStats = activityRows.filter((row) => !isActivityClosed(row));
 
     const statsMap = new Map();
     function ensureStats(id, name) {
@@ -435,54 +433,37 @@ async function readInstructorsFromSupabase() {
       return statsMap.get(k);
     }
 
-    function applyRow(row, isLong) {
-      if (String(row.status || '').trim() === 'סגור') return;
+    function applyRow(row) {
       const pairs = [
         [String(row.emp_id || '').trim(), String(row.instructor_name || '').trim()],
         [String(row.emp_id_2 || '').trim(), String(row.instructor_name_2 || '').trim()]
       ].filter(([id]) => id);
-      const d = String(row.end_date || row.date_end || '').trim().slice(0, 10);
+      const d = String(row.end_date || '').trim().slice(0, 10);
       const mgr = String(row.activity_manager || '').trim();
       for (const [id, name] of pairs) {
         const s = ensureStats(id, name);
         if (!s) continue;
         if (!s.name && name) s.name = name;
-        if (isLong) s.programs_count += 1;
-        else s.one_day_count += 1;
+        if (isProgramActivity(row)) s.programs_count += 1;
+        if (isOneDayActivity(row)) s.one_day_count += 1;
         if (d && (!s.latest_end_date || d > s.latest_end_date)) s.latest_end_date = d;
         if (mgr) s.managers.add(mgr);
       }
     }
 
-    for (const row of longRows) applyRow(row, true);
-    for (const row of shortRows) applyRow(row, false);
+    for (const row of rowsForStats) applyRow(row);
 
     const knownIds = new Set(instrRows.map((r) => String(r.emp_id || '').trim()).filter(Boolean));
-
     const rows = instrRows.map((instr) => {
       const id = String(instr.emp_id || '').trim();
       const s = statsMap.get(id) || { programs_count: 0, one_day_count: 0, latest_end_date: '', managers: new Set() };
-      return {
-        ...instr,
-        programs_count: s.programs_count,
-        one_day_count: s.one_day_count,
-        latest_end_date: s.latest_end_date || '',
-        activity_managers: [...s.managers]
-      };
+      return { ...instr, programs_count: s.programs_count, one_day_count: s.one_day_count, latest_end_date: s.latest_end_date || '', activity_managers: [...s.managers] };
     });
 
     for (const [id, s] of statsMap.entries()) {
       if (knownIds.has(id)) continue;
       if ((s.programs_count + s.one_day_count) === 0) continue;
-      rows.push({
-        emp_id: id,
-        full_name: s.name || id,
-        programs_count: s.programs_count,
-        one_day_count: s.one_day_count,
-        latest_end_date: s.latest_end_date || '',
-        activity_managers: [...s.managers],
-        _synthetic: true
-      });
+      rows.push({ emp_id: id, full_name: s.name || id, programs_count: s.programs_count, one_day_count: s.one_day_count, latest_end_date: s.latest_end_date || '', activity_managers: [...s.managers], _synthetic: true });
     }
 
     return { rows, _source: 'supabase' };
@@ -533,7 +514,7 @@ function normalizeSupabaseDate(val) {
 }
 
 /**
- * Find the first valid date from candidate fields in an activity_meetings row.
+ * Find the first valid date from candidate fields in an activity date row.
  * Returns { field, dateKey } — dateKey is normalized YYYY-MM-DD, or '' if none found.
  */
 function activityMeetingDateFromCandidates(row) {
@@ -573,7 +554,7 @@ function buildItemsById(rows) {
 }
 
 /**
- * Detect which date field is actually used in activity_meetings rows.
+ * Detect which date field is actually used in activity date rows.
  * Logs the raw row count and detected field names for diagnostics.
  * Returns the field name string, or null if none found.
  */
@@ -582,7 +563,7 @@ function detectActivityMeetingsDateField(rows) {
   const firstRow = rows[0];
   const detectedFields = Object.keys(firstRow);
   // eslint-disable-next-line no-console
-  console.info('[supabase][activity_meetings] detected fields', detectedFields);
+  console.info('[supabase][activities] detected fields', detectedFields);
   for (const field of SUPABASE_DATE_CANDIDATE_FIELDS) {
     const hasField = rows.some((r) => r[field] != null && r[field] !== '');
     if (hasField) return field;
@@ -620,18 +601,17 @@ function emptyMonthPayload(monthPrefix, debugInfo) {
 }
 
 /**
- * Core mapping: given activity_meetings rows + data_long rows + data_short rows,
+ * Core mapping helper retained for in-memory activity calendar rows.
  * build itemsById and dayMap for the calendar.
  *
  * Strategy:
- *   1. data_short rows: start_date is the meeting date (one session per row).
- *   2. activity_meetings rows: flexible date field → join source_row_id → data_long.
+ *   1. date_1..date_35 hold session dates.
  *
  * Returns { itemsById, dayMap, detectedDateField, stats }
  */
 function buildCalendarMapping(meetingRows, shortRows, longById, startDate, endDate) {
   // eslint-disable-next-line no-console
-  console.info('[supabase][activity_meetings] raw rows count', { meetings: meetingRows.length, short: shortRows.length });
+  console.info('[supabase][activities] raw rows count', { meetings: meetingRows.length, short: shortRows.length });
 
   const detectedDateField = detectActivityMeetingsDateField(meetingRows);
 
@@ -682,149 +662,65 @@ function buildCalendarMapping(meetingRows, shortRows, longById, startDate, endDa
 }
 
 /**
- * Read week calendar data from Supabase ONLY — no GAS fallback.
+ * Read week calendar data from Supabase only.
  *
- *   Short activities → data_short where start_date is in [startDate, endDate].
- *   Long activities  → activity_meetings where meeting_date is in range → join data_long.
+ *   Activities → any date_1..date_35 in [startDate, endDate].
+ *   Archive is status-based only.
  *
  * Always returns a valid payload (may be empty). Never throws.
  */
 async function readWeekFromSupabase(weekOffset) {
   const offset = Number.isFinite(weekOffset) ? weekOffset : 0;
   const { startDate, endDate } = buildWeekDateRange(offset);
-
-  // eslint-disable-next-line no-console
-  console.info('[supabase][week] week_start', startDate, 'week_end', endDate);
-
-  if (!supabase) {
-    // eslint-disable-next-line no-console
-    console.error('[supabase][week] supabase client not available');
-    return emptyWeekPayload(startDate, endDate, { error: 'no_supabase_client' });
-  }
+  if (!supabase) return emptyWeekPayload(startDate, endDate, { error: 'no_supabase_client' });
 
   try {
-    const [shortRes, meetingsRes] = await Promise.all([
-      supabase.from('data_short').select('*').gte('start_date', startDate).lte('start_date', endDate),
-      supabase.from('activity_meetings').select('*').gte('meeting_date', startDate).lte('meeting_date', endDate)
-    ]);
-
-    if (shortRes.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][week] data_short query failed', shortRes.error);
-    }
-    if (meetingsRes.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][week] activity_meetings query failed', meetingsRes.error);
-    }
-
-    const shortRows = Array.isArray(shortRes.data) ? shortRes.data : [];
-    const meetingRows = Array.isArray(meetingsRes.data) ? meetingsRes.data : [];
-
-    const longRowIds = [...new Set(meetingRows.map((r) => r.source_row_id).filter(Boolean))];
-    let longRows = [];
-    if (longRowIds.length > 0) {
-      const longRes = await supabase.from('data_long').select('*').in('RowID', longRowIds);
-      if (longRes.error) {
-        // eslint-disable-next-line no-console
-        console.error('[supabase][week] data_long query failed', longRes.error);
+    const rows = (await selectActivitiesFromSupabase('*')).filter((row) => !isActivityClosed(row));
+    const matchingRows = rows.filter((row) => activityHasDateInRange(row, startDate, endDate));
+    const itemsById = buildItemsById(matchingRows);
+    const dayMap = {};
+    for (const row of matchingRows) {
+      for (const dateKey of getActivityDateColumns(row)) {
+        if (dateKey < startDate || dateKey > endDate) continue;
+        if (!dayMap[dateKey]) dayMap[dateKey] = new Set();
+        if (row.RowID) dayMap[dateKey].add(row.RowID);
       }
-      longRows = Array.isArray(longRes.data) ? longRes.data : [];
     }
-
-    const longById = buildItemsById(longRows);
-    const { itemsById, dayMap, stats } = buildCalendarMapping(
-      meetingRows, shortRows, longById, startDate, endDate
-    );
-
-    // eslint-disable-next-line no-console
-    console.info('[supabase][week] filtered rows count', stats.meetingsFilteredCount + stats.shortFilteredCount,
-      'mapped items count', stats.totalMappedItems, stats);
 
     const days = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(startDate + 'T00:00:00');
       d.setDate(d.getDate() + i);
-      const dateKey =
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      days.push({
-        date: dateKey,
-        weekday_label: HEBREW_WEEKDAY_LABELS[d.getDay()],
-        item_ids: [...(dayMap[dateKey] || new Set())]
-      });
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      days.push({ date: dateKey, weekday_label: HEBREW_WEEKDAY_LABELS[d.getDay()], item_ids: [...(dayMap[dateKey] || new Set())] });
     }
 
     return { days, items_by_id: itemsById, week_start: startDate, week_end: endDate, _source: 'supabase' };
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('[supabase][week] unexpected error:', err);
     return emptyWeekPayload(startDate, endDate, { error: String(err?.message || err) });
   }
 }
 
-/**
- * Read month calendar data from Supabase ONLY — no GAS fallback.
- * Always returns a valid payload (may be empty). Never throws.
- */
 async function readMonthFromSupabase(ym) {
   const monthPrefix = String(ym || '').slice(0, 7);
-
-  // eslint-disable-next-line no-console
-  console.info('[supabase][month] month', monthPrefix);
-
-  if (!supabase) {
-    // eslint-disable-next-line no-console
-    console.error('[supabase][month] supabase client not available');
-    return emptyMonthPayload(monthPrefix || 'unknown', { error: 'no_supabase_client' });
-  }
-
-  if (!/^\d{4}-\d{2}$/.test(monthPrefix)) {
-    // eslint-disable-next-line no-console
-    console.error('[supabase][month] invalid month format', ym);
-    return emptyMonthPayload(monthPrefix || 'unknown', { error: 'invalid_month', ym });
-  }
+  if (!/^\d{4}-\d{2}$/.test(monthPrefix)) return emptyMonthPayload(monthPrefix || 'unknown', { error: 'invalid_month', ym });
+  if (!supabase) return emptyMonthPayload(monthPrefix, { error: 'no_supabase_client' });
 
   try {
     const [yStr, mStr] = monthPrefix.split('-');
     const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
-    const startDate = `${monthPrefix}-01`;
-    const endDate = `${monthPrefix}-${String(lastDay).padStart(2, '0')}`;
-
-    const [shortRes, meetingsRes] = await Promise.all([
-      supabase.from('data_short').select('*').gte('start_date', startDate).lte('start_date', endDate),
-      supabase.from('activity_meetings').select('*').gte('meeting_date', startDate).lte('meeting_date', endDate)
-    ]);
-
-    if (shortRes.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][month] data_short query failed', shortRes.error);
-    }
-    if (meetingsRes.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][month] activity_meetings query failed', meetingsRes.error);
-    }
-
-    const shortRows = Array.isArray(shortRes.data) ? shortRes.data : [];
-    const meetingRows = Array.isArray(meetingsRes.data) ? meetingsRes.data : [];
-
-    const longRowIds = [...new Set(meetingRows.map((r) => r.source_row_id).filter(Boolean))];
-    let longRows = [];
-    if (longRowIds.length > 0) {
-      const longRes = await supabase.from('data_long').select('*').in('RowID', longRowIds);
-      if (longRes.error) {
-        // eslint-disable-next-line no-console
-        console.error('[supabase][month] data_long query failed', longRes.error);
+    const rows = (await selectActivitiesFromSupabase('*')).filter((row) => !isActivityClosed(row));
+    const matchingRows = rows.filter((row) => activityHasDateInMonth(row, monthPrefix));
+    const itemsById = buildItemsById(matchingRows);
+    const dayMap = {};
+    for (const row of matchingRows) {
+      for (const dateKey of getActivityDateColumns(row)) {
+        if (!dateKey.startsWith(monthPrefix)) continue;
+        if (!dayMap[dateKey]) dayMap[dateKey] = new Set();
+        if (row.RowID) dayMap[dateKey].add(row.RowID);
       }
-      longRows = Array.isArray(longRes.data) ? longRes.data : [];
     }
-
-    const longById = buildItemsById(longRows);
-    const { itemsById, dayMap, stats } = buildCalendarMapping(
-      meetingRows, shortRows, longById, startDate, endDate
-    );
-
-    // eslint-disable-next-line no-console
-    console.info('[supabase][month] filtered rows count', stats.meetingsFilteredCount + stats.shortFilteredCount,
-      'mapped items count', stats.totalMappedItems, stats);
 
     const cells = [];
     for (let dayNum = 1; dayNum <= lastDay; dayNum++) {
@@ -834,7 +730,6 @@ async function readMonthFromSupabase(ym) {
 
     return { month: monthPrefix, cells, items_by_id: itemsById, _source: 'supabase' };
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('[supabase][month] unexpected error:', err);
     return emptyMonthPayload(monthPrefix, { error: String(err?.message || err) });
   }
@@ -854,50 +749,51 @@ function warnDashboardSupabasePathFailed(reason, extra = {}) {
 }
 
 async function dashboardReadModelFromSupabase(month) {
-  if (!supabase) {
-    warnDashboardSupabasePathFailed('no_supabase_client', { month });
-    return null;
-  }
+  if (!supabase) return null;
   try {
     const monthPrefix = String(month || '').slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(monthPrefix)) {
-      warnDashboardSupabasePathFailed('invalid_month_format', { month });
-      return null;
+    if (!/^\d{4}-\d{2}$/.test(monthPrefix)) return null;
+    const rows = (await selectActivitiesFromSupabase('*')).filter((row) => !isActivityClosed(row));
+    const monthRows = rows.filter((row) => activityHasDateInMonth(row, monthPrefix));
+    const endingRows = rows.filter((row) => String(row?.end_date || '').slice(0, 7) === monthPrefix);
+    const instructorIds = new Set();
+    let exceptionCount = 0;
+    const activeTypeCounts = {};
+
+    for (const row of monthRows) {
+      const activityType = String(row?.activity_type || '').trim();
+      if (activityType) activeTypeCounts[activityType] = (activeTypeCounts[activityType] || 0) + 1;
+      const emp1 = String(row?.emp_id || '').trim();
+      const emp2 = String(row?.emp_id_2 || '').trim();
+      if (emp1) instructorIds.add(emp1);
+      if (emp2) instructorIds.add(emp2);
+      const hasDate = getActivityDateColumns(row).length > 0;
+      if ((!emp1 && !emp2) || !hasDate || !String(row?.activity_name || '').trim() || !String(row?.school || '').trim()) exceptionCount += 1;
     }
 
-    const sourceResult = await supabase
-      .from('dashboard_monthly_read_models')
-      .select('month,payload,source,updated_at')
-      .eq('month', monthPrefix)
-      .maybeSingle();
-    if (sourceResult.error) {
-      console.error('[supabase][dashboard] dashboard_monthly_read_models fetch failed:', sourceResult.error);
-      warnDashboardSupabasePathFailed(sourceResult.error?.message || 'dashboard_source_fetch_failed', { month: monthPrefix });
-      return null;
-    }
-    if (!sourceResult.data || !sourceResult.data.payload || typeof sourceResult.data.payload !== 'object') {
-      warnDashboardSupabasePathFailed('dashboard_source_month_missing', { month: monthPrefix });
-      return null;
-    }
-
-    const sourcePayload = sourceResult.data.payload;
-    if (sourcePayload?.error || sourcePayload?._debug?.error) {
-      warnDashboardSupabasePathFailed(sourcePayload.error || sourcePayload._debug.error, { month: monthPrefix });
-      return null;
-    }
-
+    const totals = {
+      total_short_activities: monthRows.filter(isOneDayActivity).length,
+      total_long_activities: monthRows.filter(isProgramActivity).length,
+      total_activities: monthRows.length
+    };
+    const kpi_cards = buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionCount, instructorIds.size, endingRows.length);
+    const noData = monthRows.length === 0;
     return {
-      ...sourcePayload,
-      month: sourcePayload.month || sourceResult.data.month || monthPrefix,
+      month: monthPrefix,
       requested_month: month,
-      month_fallback_used: false,
-      _source: sourceResult.data.source || 'supabase_dashboard_monthly_read_models',
-      _dashboard_source_table: 'dashboard_monthly_read_models',
-      _dashboard_source_updated_at: sourceResult.data.updated_at || null
+      totals,
+      activeTypeCounts,
+      exceptionCount,
+      uniqueInstructorCount: instructorIds.size,
+      courseEndings: endingRows.length,
+      kpi_cards,
+      cards: kpi_cards,
+      rows: monthRows,
+      no_data_message: noData ? 'אין נתונים לחודש זה' : '',
+      _source: 'supabase'
     };
   } catch (err) {
     console.error('[supabase][dashboard] unexpected error:', err);
-    warnDashboardSupabasePathFailed(err?.message || err || 'unexpected_error', { month });
     return null;
   }
 }
@@ -905,75 +801,34 @@ async function dashboardReadModelFromSupabase(month) {
 async function readEndDatesFromSupabase() {
   if (!supabase) return buildSupabaseErrorPayload({ rows: [] }, 'no_supabase_client');
   try {
-    const [longRes, meetingsRes] = await Promise.all([
-      supabase.from('data_long').select('*'),
-      supabase.from('activity_meetings').select('source_row_id,meeting_date,date,start_date,date_start,activity_date,end_date,date_end')
-    ]);
-    if (longRes.error) return buildSupabaseErrorPayload({ rows: [] }, longRes.error);
-    if (meetingsRes.error) return buildSupabaseErrorPayload({ rows: [] }, meetingsRes.error);
-    const meetingsByRow = new Map();
-    for (const m of (Array.isArray(meetingsRes.data) ? meetingsRes.data : [])) {
-      const rowId = String(m?.source_row_id || '').trim();
-      if (!rowId) continue;
-      const { dateKey } = activityMeetingDateFromCandidates(m);
-      if (!dateKey) continue;
-      if (!meetingsByRow.has(rowId)) meetingsByRow.set(rowId, []);
-      meetingsByRow.get(rowId).push(dateKey);
-    }
-    const rows = (Array.isArray(longRes.data) ? longRes.data : []).map((row) => {
-      const rowId = String(row?.RowID || '').trim();
-      const meeting_dates = (meetingsByRow.get(rowId) || []).sort();
-      return {
-        ...row,
-        source_sheet: 'data_long',
-        meeting_dates,
-        date_cols: meeting_dates
-      };
-    });
+    const rows = (await selectActivitiesFromSupabase('*'))
+      .filter((row) => !isActivityClosed(row))
+      .map((row) => ({ ...row, meeting_dates: getActivityDateColumns(row), date_cols: getActivityDateColumns(row) }));
     return { rows, _source: 'supabase' };
   } catch (error) {
     return buildSupabaseErrorPayload({ rows: [] }, error);
   }
 }
 
-function buildExceptionsFromRows(longRows, shortRows, meetingsRows = []) {
+function buildExceptionsFromRows(activityRows = []) {
   const rows = [];
-  const meetingsByRow = new Map();
-  for (const meet of meetingsRows) {
-    const rowId = String(meet?.source_row_id || '').trim();
-    if (!rowId) continue;
-    if (!meetingsByRow.has(rowId)) meetingsByRow.set(rowId, []);
-    meetingsByRow.get(rowId).push(meet);
-  }
-  const addException = (row, source_sheet, types) => {
-    if (!types.length) return;
-    rows.push({
-      ...row,
-      source_sheet,
-      exception_type: types[0],
-      exception_types: [...new Set(types)]
-    });
-  };
-  const checkRow = (row, source_sheet) => {
+  for (const row of activityRows) {
+    if (isActivityClosed(row)) continue;
     const types = [];
     const emp1 = String(row?.emp_id || '').trim();
     const emp2 = String(row?.emp_id_2 || '').trim();
     const start = String(row?.start_date || '').trim();
-    const end = String(row?.end_date || row?.date_end || '').trim();
+    const end = String(row?.end_date || '').trim();
     if (!emp1 && !emp2) types.push('missing_instructor');
     if (!start) types.push('missing_start_date');
+    if (!getActivityDateColumns(row).length) types.push('missing_meetings');
     if (start && end && end < start) types.push('late_end_date');
     if (!String(row?.activity_manager || '').trim()) types.push('missing_activity_manager');
     if (!String(row?.school || '').trim()) types.push('missing_school');
     if (!String(row?.authority || '').trim()) types.push('missing_authority');
     if (!String(row?.activity_name || '').trim()) types.push('missing_activity_name');
-    if (source_sheet === 'data_long' && !(meetingsByRow.get(String(row?.RowID || '').trim()) || []).length) {
-      types.push('missing_meetings');
-    }
-    addException(row, source_sheet, types);
-  };
-  longRows.forEach((r) => checkRow(r, 'data_long'));
-  shortRows.forEach((r) => checkRow(r, 'data_short'));
+    if (types.length) rows.push({ ...row, exception_type: types[0], exception_types: [...new Set(types)] });
+  }
   return rows;
 }
 
@@ -983,47 +838,16 @@ async function readExceptionsFromSupabase(params = {}) {
   const now = new Date();
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
-  const start = `${month}-01`;
-  const lastDay = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
-  const end = `${month}-${String(lastDay).padStart(2, '0')}`;
   try {
-    const [longRes, shortRes, meetRes] = await Promise.all([
-      supabase.from('data_long').select('*').lte('start_date', end),
-      supabase.from('data_short').select('*').gte('start_date', start).lte('start_date', end),
-      supabase.from('activity_meetings').select('*').gte('meeting_date', start).lte('meeting_date', end)
-    ]);
-    if (longRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, longRes.error);
-    if (shortRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, shortRes.error);
-    if (meetRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, meetRes.error);
-    const longRows = Array.isArray(longRes.data)
-      ? longRes.data.filter((row) => String(row?.end_date || row?.date_end || '').trim() >= start)
-      : [];
-    const shortRows = Array.isArray(shortRes.data) ? shortRes.data : [];
-    const meetingsRows = Array.isArray(meetRes.data) ? meetRes.data : [];
-    const rows = buildExceptionsFromRows(longRows, shortRows, meetingsRows);
+    const activityRows = (await selectActivitiesFromSupabase('*')).filter((row) => activityHasDateInMonth(row, month) || String(row?.end_date || '').startsWith(month));
+    const rows = buildExceptionsFromRows(activityRows);
     return { month, rows, totalExceptionRows: rows.length, _source: 'supabase' };
   } catch (error) {
     return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, error);
   }
 }
 
-/**
- * Fire-and-forget Supabase upsert/update after a successful GAS write.
- * Never throws — errors are logged only. Does not block the caller.
- *
- * For instructors: upsert on emp_id.
- * For schools (create / no-key-change edit): upsert on (authority, school, contact_name).
- * For schools (key-change edit): delete old row by origIdentity, then insert new row.
- *   This preserves 1:1 update semantics even when key fields are renamed.
- *
- * origIdentity — original {authority, school, contact_name} from the pre-edit row.
- *   Pass null for addContact (no prior row).
- *
- * GAS-only fields (_row_index, _supabase_orig) are stripped before sending to Supabase.
- *
- * ⚠️ Requires UNIQUE constraint on conflict columns. Without it, upsert inserts
- *   duplicates and this function logs the error — GAS remains source of truth.
- */
+/** Syncs contact rows into Supabase contact tables. */
 async function syncContactToSupabase(kind, row, origIdentity) {
   if (!supabase || !row || typeof row !== 'object') return;
   try {
@@ -1085,154 +909,6 @@ async function syncContactToSupabase(kind, row, origIdentity) {
   }
 }
 
-/**
- * Fire-and-forget Supabase sync after a successful GAS write for activities.
- * Never throws — errors are logged only. Does not block the caller.
- *
- * kind: 'add' | 'save' | 'submit_edit_request' | 'review_edit_request' | 'private_note'
- * payload: the object sent to GAS (before token stripping)
- * gasResponse: the normalized response returned by GAS
- *
- * Tables written:
- *   add                  → data_long / data_short (upsert on RowID)
- *   save                 → data_long / data_short (update by RowID)
- *   submit_edit_request  → edit_requests (upsert on request_id)
- *   review_edit_request  → edit_requests (update status by request_id)
- *                          + data_long/data_short (update by RowID) if approved
- *   private_note         → operations_private_notes (upsert on source_sheet,source_row_id)
- *
- * ⚠️ Requires UNIQUE constraints — see supabase/migrations/20260505_activities_write_sync.sql
- */
-async function syncActivityToSupabase(kind, payload, gasResponse) {
-  if (!supabase) return;
-  try {
-    if (kind === 'add') {
-      const rowId = gasResponse?.RowID;
-      const sourceSheet = gasResponse?.source_sheet;
-      if (!rowId || !sourceSheet) return;
-      const act = payload?.activity || payload || {};
-      const isLong = rowId.startsWith('LONG-');
-      const tableName = isLong ? 'data_long' : 'data_short';
-      const row = {
-        RowID: rowId,
-        activity_manager: String(act.activity_manager || ''),
-        authority: String(act.authority || ''),
-        school: String(act.school || ''),
-        grade: String(act.grade || ''),
-        class_group: String(act.class_group || ''),
-        activity_type: String(act.activity_type || ''),
-        activity_no: String(act.activity_no || ''),
-        activity_name: String(act.activity_name || ''),
-        sessions: String(act.sessions || ''),
-        price: String(act.price || ''),
-        funding: String(act.funding || ''),
-        start_time: String(act.start_time || ''),
-        end_time: String(act.end_time || ''),
-        emp_id: String(act.emp_id || ''),
-        instructor_name: String(act.instructor_name || ''),
-        start_date: String(act.start_date || ''),
-        end_date: String(act.end_date || act.start_date || ''),
-        status: 'פעיל',
-        notes: String(act.notes || ''),
-        finance_status: String(act.finance_status || ''),
-        finance_notes: String(act.finance_notes || ''),
-        source_sheet: sourceSheet
-      };
-      if (!isLong) {
-        row.emp_id_2 = String(act.emp_id_2 || '');
-        row.instructor_name_2 = String(act.instructor_name_2 || '');
-      }
-      for (let i = 1; i <= 35; i++) {
-        const k = `Date${i}`;
-        if (act[k] !== undefined) row[k] = String(act[k] || '');
-      }
-      const { error } = await supabase.from(tableName).upsert(row, { onConflict: 'RowID' });
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error('[supabase] activity upsert (add) failed:', error);
-      }
-
-    } else if (kind === 'save') {
-      const sourceRowId = String(payload?.source_row_id || payload?.RowID || '');
-      const changes = payload?.changes || {};
-      if (!sourceRowId || !Object.keys(changes).length) return;
-      const isLong = sourceRowId.startsWith('LONG-');
-      const tableName = isLong ? 'data_long' : 'data_short';
-      const { error } = await supabase.from(tableName).update(changes).eq('RowID', sourceRowId);
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error('[supabase] activity update (save) failed:', error);
-      }
-
-    } else if (kind === 'submit_edit_request') {
-      const requestId = gasResponse?.request_id;
-      if (!requestId) return;
-      const sourceRowId = String(payload?.source_row_id || '');
-      const isLong = sourceRowId.startsWith('LONG-');
-      const row = {
-        request_id: requestId,
-        source_sheet: isLong ? 'data_long' : 'data_short',
-        source_row_id: sourceRowId,
-        changed_fields: JSON.stringify(Object.keys(payload?.changes || {})),
-        original_values: JSON.stringify({}),
-        requested_values: JSON.stringify(payload?.changes || {}),
-        requested_at: new Date().toISOString(),
-        status: 'pending',
-        active: 'yes'
-      };
-      const { error } = await supabase.from('edit_requests').upsert(row, { onConflict: 'request_id' });
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error('[supabase] edit_requests upsert (submit) failed:', error);
-      }
-
-    } else if (kind === 'review_edit_request') {
-      const requestId = String(payload?.request_id || '');
-      const finalStatus = gasResponse?.status || payload?.status || '';
-      if (!requestId) return;
-      const { error } = await supabase
-        .from('edit_requests')
-        .update({ status: finalStatus, reviewed_at: new Date().toISOString() })
-        .eq('request_id', requestId);
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error('[supabase] edit_requests update (review) failed:', error);
-      }
-
-    } else if (kind === 'private_note') {
-      const sourceSheet = String(payload?.source_sheet || '');
-      const sourceRowId = String(payload?.source_row_id || '');
-      if (!sourceSheet || !sourceRowId) return;
-      const row = {
-        source_sheet: sourceSheet,
-        source_row_id: sourceRowId,
-        note_text: String(payload?.note || payload?.note_text || ''),
-        updated_at: new Date().toISOString(),
-        active: 'yes'
-      };
-      const { error } = await supabase
-        .from('operations_private_notes')
-        .upsert(row, { onConflict: 'source_sheet,source_row_id' });
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error('[supabase] operations_private_notes upsert failed:', error);
-      }
-    }
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[supabase] syncActivityToSupabase unexpected error:', err);
-  }
-}
-
-const RETRYABLE_SERVER_ERRORS = new Set([
-  'network_error',
-  'server_error',
-  'service_unavailable',
-  'timeout',
-  'temporarily_unavailable',
-  'internal_error'
-]);
-
 function invalidateScreenDataByAction(action) {
   const targetedMutations = {
     saveActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
@@ -1262,277 +938,6 @@ function invalidateScreenDataByAction(action) {
   });
 }
 
-function invalidateReadModelLocalCacheByAction(action) {
-  const targeted = {
-    saveActivity: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'],
-    addActivity: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'],
-    submitEditRequest: ['dashboard', 'activities', 'week', 'month', 'exceptions', 'end-dates'],
-    reviewEditRequest: ['dashboard', 'activities', 'week', 'month', 'exceptions'],
-    savePermission: ['dashboard']
-  };
-  const keys = targeted[action];
-  if (!keys?.length) return;
-  const allCache = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
-  Object.keys(allCache).forEach((cacheKey) => {
-    if (keys.some((key) => cacheKey === key || cacheKey.startsWith(`${key}?`))) {
-      delete allCache[cacheKey];
-    }
-  });
-  safeLocalStorageSetJson(READ_MODEL_CACHE_STORAGE_KEY, allCache);
-  manifestCache = { t: 0, data: null };
-}
-
-function monthReadModelKey(payload = {}) {
-  const ym = String(payload?.ym || payload?.month || '').trim();
-  return /^\d{4}-\d{2}$/.test(ym) ? ym : '__current__';
-}
-
-function clearMonthReadModelCache() {
-  monthReadModelCache.clear();
-}
-
-function safeLocalStorageGetJson(key, fallback) {
-  if (!READ_MODELS_ENABLED) return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function safeLocalStorageSetJson(key, value) {
-  if (!READ_MODELS_ENABLED) return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch { /* ignore */ }
-}
-
-async function getReadModelManifestCached() {
-  if (!READ_MODELS_ENABLED) return {};
-  const now = Date.now();
-  if (manifestCache.data && now - manifestCache.t < MANIFEST_TTL_MS) return manifestCache.data;
-  if (manifestInflight) return manifestInflight;
-  manifestInflight = request('readModelManifest', {})
-    .then((fresh) => {
-      manifestCache = { t: Date.now(), data: fresh || {} };
-      manifestInflight = null;
-      return manifestCache.data;
-    })
-    .catch((err) => {
-      manifestInflight = null;
-      throw err;
-    });
-  return manifestInflight;
-}
-
-function readModelLocalCacheKey(key, params = {}) {
-  const normalized = Object.entries(params || {})
-    .filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '')
-    .sort(([a], [b]) => a.localeCompare(b));
-  const suffix = normalized.map(([k, v]) => `${k}=${String(v).trim()}`).join('&');
-  return suffix ? `${key}?${suffix}` : key;
-}
-
-function manifestEntryForReadModel(key, params = {}) {
-  if (key === 'week' || key === 'month' || key === 'exceptions') {
-    return readModelLocalCacheKey(key, params);
-  }
-  if (key === 'dashboard') return 'dashboard';
-  if (key === 'activities') return 'activities';
-  if (key === 'end-dates') return 'end-dates';
-  if (key === 'instructors') return 'instructors';
-  return null;
-}
-
-function warnReadModelClientLegacy(screenKey, legacyAction, reason, extra = {}) {
-  try {
-    console.warn('[readModel][client] legacy action', JSON.stringify({
-      screen: String(screenKey),
-      legacy_action: String(legacyAction),
-      reason: String(reason),
-      ...extra
-    }));
-  } catch {
-    /* ignore */
-  }
-}
-
-async function requestReadModel(key, params = {}, fallbackAction, fallbackPayload = {}, options = {}) {
-  const perfBase = {
-    action: fallbackAction,
-    used_read_model: false,
-    fallback_used: false,
-    cache_hit: false,
-    sheet_reads_count: null
-  };
-  if (!READ_MODELS_ENABLED || !READ_MODEL_ENABLED_KEYS.has(key)) {
-    if (READ_MODEL_ENABLED_KEYS.has(key) && !READ_MODELS_ENABLED) {
-      warnReadModelClientLegacy(key, fallbackAction, 'read_models_client_disabled', { params });
-      return request(fallbackAction, fallbackPayload, {
-        ...perfBase,
-        fallback_used: true,
-        legacy_fallback_reason: 'read_models_client_disabled',
-        legacy_intentional: true,
-        read_model_screen_key: key,
-        ...options
-      });
-    }
-    return request(fallbackAction, fallbackPayload, {
-      ...perfBase,
-      fallback_used: true,
-      used_read_model: false,
-      legacy_fallback_reason: 'read_model_not_enabled_for_screen',
-      legacy_intentional: true,
-      read_model_screen_key: key,
-      ...options
-    });
-  }
-
-  const manifestKey = manifestEntryForReadModel(key, params);
-  const localKey = readModelLocalCacheKey(key, params);
-
-  async function fetchReadModelFresh_() {
-    const envelope = await request('readModelGet', { key, params }, {
-      action: fallbackAction,
-      used_read_model: true,
-      fallback_used: false,
-      cache_hit: false,
-      ...options
-    });
-    const data = envelope?.data ?? envelope ?? {};
-    const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
-    const nextCache = {
-      ...cachedModels,
-      [localKey]: {
-        key,
-        version: envelope?.version || '',
-        hash: envelope?.hash || '',
-        updated_at: envelope?.updated_at || '',
-        data
-      }
-    };
-    safeLocalStorageSetJson(READ_MODEL_CACHE_STORAGE_KEY, nextCache);
-    return data;
-  }
-
-  try {
-    const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
-    const hit = cachedModels?.[localKey];
-
-    if (hit && hit.data) {
-      let cacheFresh = false;
-      try {
-        const manifest = await getReadModelManifestCached();
-        const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;
-        cacheFresh =
-          !!manifestMeta &&
-          !!hit.version &&
-          !!hit.hash &&
-          hit.version === manifestMeta.version &&
-          hit.hash === manifestMeta.hash;
-      } catch (_manifestErr) {
-        cacheFresh = false;
-      }
-
-      if (cacheFresh) {
-        refreshReadModelInBackground_(key, params, localKey, manifestKey, hit);
-        pushPerfRequest({
-          action: fallbackAction,
-          duration_ms: 0,
-          slow: false,
-          payload_size: JSON.stringify(hit.data || {}).length,
-          used_read_model: true,
-          fallback_used: false,
-          cache_hit: true,
-          sheet_reads_count: null
-        });
-        return hit.data;
-      }
-
-      try {
-        return await fetchReadModelFresh_();
-      } catch (_refreshErr) {
-        warnReadModelClientLegacy(key, fallbackAction, 'read_model_refresh_failed', {
-          params,
-          error: _refreshErr?.message || String(_refreshErr)
-        });
-        const staleData = hit?.data && typeof hit.data === 'object' ? { ...hit.data, _read_model_stale: true } : hit?.data;
-        if (staleData) {
-          pushPerfRequest({
-            action: fallbackAction,
-            duration_ms: 0,
-            slow: false,
-            payload_size: JSON.stringify(staleData || {}).length,
-            used_read_model: true,
-            fallback_used: false,
-            cache_hit: true,
-            stale_cache_used: true,
-            sheet_reads_count: null
-          });
-          return staleData;
-        }
-        throw _refreshErr;
-      }
-    }
-
-    return await fetchReadModelFresh_();
-  } catch (err) {
-    warnReadModelClientLegacy(key, fallbackAction, 'read_model_get_failed', {
-      params,
-      error: err?.message || String(err)
-    });
-    const explicitLegacy = options?.forceLegacy === true || params?.force_legacy === true || String(params?.force_legacy || '').toLowerCase() === 'yes' || options?.debug === true;
-    const legacyReason = explicitLegacy ? 'read_model_get_failed_explicit' : 'read_model_get_failed_auto_fallback';
-    if (fallbackAction) {
-      return request(fallbackAction, { ...(fallbackPayload || {}), force_legacy: true }, {
-        ...perfBase,
-        fallback_used: true,
-        legacy_fallback_reason: legacyReason,
-        legacy_intentional: true,
-        read_model_screen_key: key,
-        ...options
-      });
-    }
-    throw new Error('הנתונים מתעדכנים כעת. נסו שוב בעוד מספר רגעים.');
-  }
-}
-
-async function refreshReadModelInBackground_(key, params, localKey, manifestKey, hit) {
-  if (!READ_MODELS_ENABLED) return;
-  try {
-    const manifest = await getReadModelManifestCached();
-    const manifestMeta = manifestKey ? manifest?.[manifestKey] : null;
-    if (
-      manifestMeta &&
-      hit.version &&
-      hit.hash &&
-      hit.version === manifestMeta.version &&
-      hit.hash === manifestMeta.hash
-    ) return;
-    const envelope = await request('readModelGet', { key, params });
-    const data = envelope?.data ?? envelope ?? {};
-    const cachedModels = safeLocalStorageGetJson(READ_MODEL_CACHE_STORAGE_KEY, {});
-    cachedModels[localKey] = {
-      key,
-      version: envelope?.version || '',
-      hash: envelope?.hash || '',
-      updated_at: envelope?.updated_at || '',
-      data
-    };
-    safeLocalStorageSetJson(READ_MODEL_CACHE_STORAGE_KEY, cachedModels);
-  } catch (_err) {}
-}
-
-/**
- * When true, requests include debug_perf and console logs [perf] lines with server metrics.
- * Enable any of:
- *   localStorage.setItem('ds_debug_perf', '1')
- *   localStorage.setItem('debug_perf', '1')   // legacy
- *   window.__DEBUG_PERF__ = true
- *   ?debug_perf=1 on the app URL
- * Server: set script property DEBUG_PERF=1 for all requests without client flags.
- */
 function isPerfDebugEnabled() {
   try {
     if (typeof window !== 'undefined' && window.__DEBUG_PERF__ === true) return true;
@@ -1592,81 +997,6 @@ function normalizeData(data) {
   normalized.ActivityNo = normalized.ActivityNo ?? normalized.activity_no ?? '';
 
   return normalized;
-}
-
-async function postWithTimeout(action, requestBody, timeoutOverrideMs) {
-  void action;
-  void requestBody;
-  void timeoutOverrideMs;
-  throw new Error('legacy_gas_api_disabled');
-}
-
-function emitPerfEntry(entry) {
-  pushPerfRequest({
-    ...entry,
-    slow: Number(entry?.duration_ms || 0) > 3000
-  });
-  if (isPerfDebugEnabled()) {
-    const line = {
-      action: entry.action,
-      duration_ms: entry.duration_ms,
-      server_duration_ms: entry.server_duration_ms,
-      sheet_reads_count: entry.sheet_reads_count,
-      payload_size: entry.payload_size,
-      server_payload_size: entry.server_payload_size,
-      fallback_used: entry.fallback_used,
-      legacy_fallback_reason: entry.legacy_fallback_reason,
-      cache_hit: entry.cache_hit,
-      background_refresh: entry.background_refresh
-    };
-    // eslint-disable-next-line no-console
-    console.info('[perf]', line, entry.backend_debug || '');
-  }
-}
-
-function buildPerfRequestEntry(action, requestStart, lastResponseText, perfMeta = {}, sheetReads = null, backendDebug = null) {
-  const durationMs = Math.round(performance.now() - requestStart);
-  const dbg = backendDebug && typeof backendDebug === 'object' ? backendDebug : null;
-  const fromServerCount = dbg?.sheet_reads_count;
-  const fromServerArray = Array.isArray(dbg?.sheet_reads) ? dbg.sheet_reads.length : null;
-  const mergedSheetReads =
-    sheetReads != null && sheetReads !== ''
-      ? sheetReads
-      : (fromServerCount != null ? fromServerCount : fromServerArray);
-  const serverDuration = dbg?.duration_ms ?? dbg?.total_ms ?? null;
-  const serverPayloadSize = dbg?.payload_size ?? dbg?.response_size_bytes ?? null;
-  const serverFallback = dbg?.fallback_used;
-  const legacyReason =
-    perfMeta.legacy_fallback_reason ?? dbg?.read_model_legacy_reason ?? null;
-  const bg =
-    perfMeta.background_refresh ??
-    (typeof globalThis !== 'undefined' && globalThis.__DS_BG_SCREEN_REFRESH__);
-  const mergedFallback =
-    serverFallback !== undefined && serverFallback !== null
-      ? Boolean(serverFallback)
-      : Boolean(perfMeta.fallback_used) || Boolean(dbg?.read_model_legacy_fallback) || Boolean(legacyReason);
-  return {
-    action: perfMeta.action || action,
-    duration_ms: durationMs,
-    server_duration_ms: serverDuration,
-    slow: durationMs > 3000,
-    payload_size: typeof lastResponseText === 'string' ? lastResponseText.length : null,
-    server_payload_size: serverPayloadSize,
-    used_read_model: Boolean(perfMeta.used_read_model || action === 'readModelGet'),
-    fallback_used: mergedFallback,
-    legacy_fallback_reason: legacyReason,
-    cache_hit: Boolean(perfMeta.cache_hit || dbg?.cache_hit),
-    sheet_reads_count: mergedSheetReads,
-    background_refresh: Boolean(bg),
-    backend_debug: dbg
-  };
-}
-
-async function request(action, payload = {}, perfMeta = {}) {
-  void action;
-  void payload;
-  void perfMeta;
-  throw new Error('legacy_gas_api_disabled');
 }
 
 const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,emp_id,is_active,permissions,created_at,updated_at';
@@ -1794,92 +1124,75 @@ async function readCurrentUserBySession() {
   return data;
 }
 
+function sanitizeActivityPayload(act = {}) {
+  const row = { ...act };
+  delete row.source;
+  delete row.source_sheet;
+  delete row.source_table;
+  delete row.RowID;
+  if (!row.row_id) row.row_id = String(act.row_id || act.RowID || `ACT-${crypto.randomUUID?.() || Date.now()}`).trim();
+  row.activity_family = String(row.activity_family || (String(act.source || '').trim() === 'short' ? 'one_day' : 'program')).trim();
+  row.status = String(row.status || 'פעיל');
+  for (let i = 1; i <= 35; i++) {
+    const lower = `date_${i}`;
+    const oldDateKey = `Date${i}`;
+    if (row[lower] === undefined && act[oldDateKey] !== undefined) row[lower] = act[oldDateKey];
+  }
+  return row;
+}
+
 async function upsertActivityToSupabase(payload = {}) {
   const act = payload?.activity || payload || {};
-  const source = String(act.source || '').trim() === 'short' ? 'short' : 'long';
-  const tableName = source === 'short' ? 'data_short' : 'data_long';
-  const rowId = String(act.RowID || `${source === 'short' ? 'SHORT' : 'LONG'}-${crypto.randomUUID?.() || Date.now()}`).trim();
-  const row = { ...act, RowID: rowId, source_sheet: tableName, status: String(act.status || 'פעיל') };
-  const { data, error } = await supabase.from(tableName).upsert(row, { onConflict: 'RowID' }).select().single();
+  const row = sanitizeActivityPayload(act);
+  const { data, error } = await supabase.from(ACTIVITIES_TABLE).upsert(row, { onConflict: 'row_id' }).select().single();
   if (error) throw new Error(error.message || 'save_failed');
-  return { RowID: rowId, source_sheet: tableName, row: data || row };
+  const normalized = normalizeActivityRow(data || row);
+  return { RowID: normalized.RowID, row_id: normalized.row_id, source_sheet: 'activities', row: normalized };
 }
 
 async function updateActivityInSupabase(payload = {}) {
-  const sourceRowId = String(payload?.source_row_id || payload?.RowID || '').trim();
-  const changes = payload?.changes || {};
-  if (!sourceRowId) throw new Error('missing_row_id');
-  const tableName = sourceRowId.startsWith('SHORT-') ? 'data_short' : 'data_long';
-  const { error } = await supabase.from(tableName).update(changes).eq('RowID', sourceRowId);
+  const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
+  const changes = { ...(payload?.changes || {}) };
+  if (!rowId) throw new Error('missing_row_id');
+  delete changes.RowID;
+  delete changes.source_sheet;
+  delete changes.source_table;
+  const { error } = await supabase.from(ACTIVITIES_TABLE).update(changes).eq('row_id', rowId);
   if (error) throw new Error(error.message || 'save_failed');
-  return { ok: true, RowID: sourceRowId, source_sheet: tableName };
+  return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities' };
 }
 
 async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
+  void source_sheet;
   const rowId = String(source_row_id || '').trim();
-  const sheet = String(source_sheet || '').trim();
-  const tableName = sheet === 'data_short' || rowId.startsWith('SHORT-') ? 'data_short' : 'data_long';
-  const [{ data, error }, { data: noteData }] = await Promise.all([
-    supabase.from(tableName).select('*').eq('RowID', rowId).single(),
-    supabase.from('operations_private_notes').select('note_text').eq('source_row_id', rowId).maybeSingle()
-  ]);
+  const { data, error } = await supabase.from(ACTIVITIES_TABLE).select('*').eq('row_id', rowId).single();
   if (error) throw new Error(error.message || 'detail_failed');
-  return { row: { ...(data || {}), source_sheet: tableName, private_note: noteData?.note_text ?? '' } };
+  const normalized = normalizeActivityRow(data || {});
+  return { row: { ...normalized, private_note: normalized.operations_private_notes || '' } };
 }
 
 async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
+  void source_sheet;
   const rowId = String(source_row_id || '').trim();
-  const sheet = String(source_sheet || '').trim();
-  const isShort = sheet === 'data_short' || rowId.startsWith('SHORT-');
-
-  if (isShort) {
-    const { data, error } = await supabase
-      .from('data_short')
-      .select('start_date,RowID')
-      .eq('RowID', rowId)
-      .maybeSingle();
-    if (error) throw new Error(error.message || 'dates_failed');
-    const dateKey = String(data?.start_date || '').trim().slice(0, 10);
-    const meeting_dates = dateKey ? [dateKey] : [];
-    return {
-      meeting_dates,
-      date_cols: meeting_dates,
-      rows: dateKey ? [{ source_row_id: rowId, meeting_date: dateKey }] : [],
-      source_row_id: rowId,
-      source_sheet: 'data_short'
-    };
-  }
-
   const { data, error } = await supabase
-    .from('activity_meetings')
+    .from(ACTIVITIES_TABLE)
     .select('*')
-    .eq('source_row_id', rowId)
-    .order('meeting_date', { ascending: true });
+    .eq('row_id', rowId)
+    .maybeSingle();
   if (error) throw new Error(error.message || 'dates_failed');
-  const rows = Array.isArray(data) ? data : [];
-  const meeting_dates = rows
-    .map((r) => activityMeetingDateFromCandidates(r).dateKey)
-    .filter(Boolean)
-    .sort();
+  const row = normalizeActivityRow(data || {});
+  const meeting_dates = getActivityDateColumns(row);
   return {
     meeting_dates,
     date_cols: meeting_dates,
-    rows,
+    rows: meeting_dates.map((dateKey, index) => ({ source_row_id: rowId, meeting_no: String(index + 1), meeting_date: dateKey })),
     source_row_id: rowId,
-    source_sheet: sheet
+    source_sheet: 'activities'
   };
 }
 
 async function readAllActivitiesRowsSupabase() {
-  const [longRes, shortRes] = await Promise.all([
-    supabase.from('data_long').select('*'),
-    supabase.from('data_short').select('*')
-  ]);
-  if (longRes.error) throw new Error(longRes.error.message || 'data_long_read_failed');
-  if (shortRes.error) throw new Error(shortRes.error.message || 'data_short_read_failed');
-  const longRows = (Array.isArray(longRes.data) ? longRes.data : []).map((r) => ({ ...r, source_sheet: 'data_long' }));
-  const shortRows = (Array.isArray(shortRes.data) ? shortRes.data : []).map((r) => ({ ...r, source_sheet: 'data_short' }));
-  return [...longRows, ...shortRows];
+  return selectActivitiesFromSupabase('*');
 }
 
 function filterOperationsRows(rows, params = {}) {
@@ -2011,7 +1324,7 @@ export const api = {
     const supabaseError = supabasePayload?.error || supabasePayload?._debug?.error;
     if (!supabasePayload || typeof supabasePayload !== 'object' || supabaseError) {
       warnDashboardSupabasePathFailed(supabaseError || 'dashboard_null_payload', { month, requested_month: candidate || month });
-      // Legacy GAS/read-model fallback is disabled in this Supabase-only client. Do not fabricate KPI=0 payloads.
+      // Supabase-only client: do not fabricate KPI=0 payloads when source reads fail.
       throw new Error('טעינת נתוני לוח הבקרה נכשלה. מקור Supabase לא החזיר נתונים תקינים ואין fallback פעיל.');
     }
     if (supabasePayload.month && supabasePayload.month !== month) {
@@ -2205,7 +1518,7 @@ export const api = {
     const row = {
       request_id: `REQ-${Date.now()}`,
       source_row_id,
-      source_sheet: source_row_id.startsWith('SHORT-') ? 'data_short' : 'data_long',
+      source_sheet: 'activities',
       changed_fields: Object.keys(normalizedChanges),
       requested_values: normalizedChanges,
       status: 'pending',
@@ -2228,9 +1541,7 @@ export const api = {
     if (reqRes.error || !reqRes.data) throw new Error(reqRes.error?.message || 'review_edit_request_failed');
     const reqRow = reqRes.data;
     if (nextStatus === 'approved') {
-      const sourceSheet = String(reqRow?.source_sheet || '').trim();
       const sourceRowId = String(reqRow?.source_row_id || '').trim();
-      const tableName = sourceSheet === 'data_short' || sourceRowId.startsWith('SHORT-') ? 'data_short' : 'data_long';
       const requestedValues =
         reqRow?.requested_values && typeof reqRow.requested_values === 'object'
           ? reqRow.requested_values
@@ -2239,9 +1550,9 @@ export const api = {
             })();
       if (sourceRowId && requestedValues && Object.keys(requestedValues).length) {
         const { error: applyErr } = await supabase
-          .from(tableName)
+          .from(ACTIVITIES_TABLE)
           .update(requestedValues)
-          .eq('RowID', sourceRowId);
+          .eq('row_id', sourceRowId);
         if (applyErr) throw new Error(applyErr.message || 'review_edit_request_apply_failed');
       }
     }
@@ -2309,16 +1620,14 @@ export const api = {
   },
   savePrivateNote: async (a, b, c) => {
     const payload = (typeof a === 'object' && a !== null)
-      ? { source_sheet: a.source_sheet, source_row_id: a.source_row_id, note: a.note ?? a.note_text ?? '' }
-      : { source_sheet: a, source_row_id: b, note: c };
-    const row = {
-      source_sheet: payload.source_sheet,
-      source_row_id: payload.source_row_id,
-      note_text: payload.note,
-      updated_at: new Date().toISOString(),
-      active: 'yes'
-    };
-    const { error } = await supabase.from('operations_private_notes').upsert(row, { onConflict: 'source_sheet,source_row_id' });
+      ? { source_row_id: a.source_row_id || a.row_id || a.RowID, note: a.note ?? a.note_text ?? '' }
+      : { source_row_id: b, note: c };
+    const rowId = String(payload.source_row_id || '').trim();
+    if (!rowId) throw new Error('missing_row_id');
+    const { error } = await supabase
+      .from(ACTIVITIES_TABLE)
+      .update({ operations_private_notes: String(payload.note || '') })
+      .eq('row_id', rowId);
     if (error) throw new Error(error.message || 'save_private_note_failed');
     return { ok: true };
   },
@@ -2334,9 +1643,7 @@ export const api = {
         /* ignore */
       }
       return [
-        { name: 'data_short' },
-        { name: 'data_long' },
-        { name: 'activity_meetings' },
+        { name: 'activities' },
         { name: 'contacts_instructors' },
         { name: 'contacts_schools' },
         { name: 'lists' }
@@ -2345,8 +1652,7 @@ export const api = {
     return {
       sheets,
       sheet_roles: {
-        sheet_short_activities: map.get('sheet_short_activities') || 'data_short',
-        sheet_long_activities: map.get('sheet_long_activities') || 'data_long'
+        sheet_activities: map.get('sheet_activities') || 'activities'
       },
       _source: 'supabase'
     };
@@ -2358,17 +1664,12 @@ export const api = {
     const row = {
       key: role,
       value: sheetName,
-      description: role === 'sheet_short_activities'
-        ? 'Supabase source for short activities'
-        : (role === 'sheet_long_activities' ? 'Supabase source for long activities' : 'Sheet mapping')
+      description: role === 'sheet_activities' ? 'Supabase source for activities' : 'Sheet mapping'
     };
     const { error } = await supabase.from('settings').upsert(row, { onConflict: 'key' });
     if (error) throw new Error(error.message || 'save_sheet_mapping_failed');
     return { ok: true };
   },
-  readModelManifest: async () => ({ _source: 'supabase', manifest: {} }),
-  readModelGet: async () => ({ _source: 'supabase', data: {} }),
-  readModelHealth: async () => ({ _source: 'supabase', ok: true }),
 };
 
-export { isPerfDebugEnabled, getPerfStore, READ_MODELS_ENABLED, READ_MODEL_ENABLED_KEY_LIST };
+export { isPerfDebugEnabled, getPerfStore };
