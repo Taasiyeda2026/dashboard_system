@@ -492,6 +492,18 @@ function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionC
 const HEBREW_WEEKDAY_LABELS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 /**
+ * מחזיר מחרוזת ריקה עבור null / undefined / "NULL" / "NONE" / "N/A".
+ * מונע מהמחרוזת הטקסטואלית "NULL" להיחשב כערך תקין.
+ */
+function nullStr(val) {
+  if (val === null || val === undefined) return '';
+  const s = String(val).trim();
+  const u = s.toUpperCase();
+  if (u === 'NULL' || u === 'NONE' || u === 'UNDEFINED' || u === 'N/A' || u === '-') return '';
+  return s;
+}
+
+/**
  * Normalize a date value to YYYY-MM-DD string, or '' if invalid.
  */
 function normalizeSupabaseDate(val) {
@@ -681,10 +693,10 @@ async function dashboardReadModelFromSupabase(month) {
     for (const row of monthRows) {
       const activityType = String(row?.activity_type || '').trim();
       if (activityType) activeTypeCounts[activityType] = (activeTypeCounts[activityType] || 0) + 1;
-      const emp1 = String(row?.emp_id || '').trim();
-      const emp2 = String(row?.emp_id_2 || '').trim();
-      const instructor1 = String(row?.instructor_name || '').trim();
-      const instructor2 = String(row?.instructor_name_2 || '').trim();
+      const emp1        = nullStr(row?.emp_id);
+      const emp2        = nullStr(row?.emp_id_2);
+      const instructor1 = nullStr(row?.instructor_name);
+      const instructor2 = nullStr(row?.instructor_name_2);
       if (emp1) instructorIds.add(emp1);
       if (emp2) instructorIds.add(emp2);
       if (instructor1 || emp1) instructorNames.add(instructor1 || emp1);
@@ -698,10 +710,10 @@ async function dashboardReadModelFromSupabase(month) {
       if (emp2) stats._instructors.add(emp2);
 
       const hasMeetingDates = getActivityDateColumns(row).length > 0;
-      const hasAnyDate = hasMeetingDates || String(row?.start_date || '').trim();
-      const missingInstructor = !emp1 && !instructor1;
+      const hasAnyDate = hasMeetingDates || nullStr(row?.start_date);
+      const missingInstructor = !emp1 && !emp2 && !instructor1 && !instructor2;
       const missingDate = !hasAnyDate;
-      const end = String(row?.end_date || '').trim();
+      const end = nullStr(row?.end_date);
       const isDangerousEnd = end && end > '2026-06-15';
       if (missingInstructor) missingInstructorCount += 1;
       if (missingDate) missingDateCount += 1;
@@ -783,19 +795,21 @@ function buildExceptionsFromRows(activityRows = []) {
   for (const row of activityRows) {
     if (isActivityClosed(row)) continue;
     const types = [];
-    const emp1 = String(row?.emp_id || '').trim();
-    const emp2 = String(row?.emp_id_2 || '').trim();
-    const start = String(row?.start_date || '').trim();
-    const end = String(row?.end_date || '').trim();
-    if (!emp1 && !emp2) types.push('missing_instructor');
+    const emp1        = nullStr(row?.emp_id);
+    const emp2        = nullStr(row?.emp_id_2);
+    const instructor1 = nullStr(row?.instructor_name);
+    const instructor2 = nullStr(row?.instructor_name_2);
+    const start       = nullStr(row?.start_date);
+    const end         = nullStr(row?.end_date);
+    if (!emp1 && !emp2 && !instructor1 && !instructor2) types.push('missing_instructor');
     if (!start) types.push('missing_start_date');
     if (!getActivityDateColumns(row).length) types.push('missing_meetings');
     if (start && end && end < start) types.push('late_end_date');
     if (end && end > '2026-06-15') types.push('dangerous_end_date');
-    if (!String(row?.activity_manager || '').trim()) types.push('missing_activity_manager');
-    if (!String(row?.school || '').trim()) types.push('missing_school');
-    if (!String(row?.authority || '').trim()) types.push('missing_authority');
-    if (!String(row?.activity_name || '').trim()) types.push('missing_activity_name');
+    if (!nullStr(row?.activity_manager)) types.push('missing_activity_manager');
+    if (!nullStr(row?.school)) types.push('missing_school');
+    if (!nullStr(row?.authority)) types.push('missing_authority');
+    if (!nullStr(row?.activity_name)) types.push('missing_activity_name');
     if (types.length) rows.push({ ...row, exception_type: types[0], exception_types: [...new Set(types)] });
   }
   return rows;
