@@ -3,7 +3,7 @@ import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { formatDateHe } from './shared/format-date.js';
 
 function asIso(value) {
-  const text = String(value || '').trim();
+  const text = String(value || '').trim().slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
 }
 
@@ -29,7 +29,7 @@ function normalizeRows(rows) {
   return rows
     .filter((row) => String(row?.source_sheet || '').trim() === 'data_long')
     .map((row) => {
-      const endDate = asIso(row?.end_date);
+      const endDate = asIso(row?.end_date) || asIso(row?.date_end);
       if (!endDate) return null;
       const { dates, source } = resolveDates(row);
       return { ...row, end_date: endDate, _dates: dates, _dateSource: source };
