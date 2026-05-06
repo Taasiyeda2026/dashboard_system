@@ -109,13 +109,7 @@ function rowMatchesActivitiesFilters(row, filters = {}) {
     const monthStart = `${month}-01`;
     const lastDay = new Date(y, mo, 0).getDate();
     const monthEnd = `${month}-${String(lastDay).padStart(2, '0')}`;
-    const start = String(row?.date_start || row?.start_date || '').trim();
-    const end = String(row?.end_date || row?.date_end || start).trim();
-    if (start || end) {
-      const rowStart = start || end;
-      const rowEnd = end || start;
-      if (rowStart > monthEnd || rowEnd < monthStart) return false;
-    }
+    if (!activityHasDateInRange(row, monthStart, monthEnd)) return false;
   }
 
   return true;
@@ -125,7 +119,7 @@ async function readArchiveActivitiesFromSupabase() {
   if (!supabase) return null;
   try {
     const { data, error } = await supabase
-      .from(ACTIVITIES_TABLE)
+      .from('activities')
       .select('*')
       .eq('status', CLOSED_STATUS);
     if (error) throw new Error(error.message || 'archive_read_failed');
@@ -143,7 +137,7 @@ async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
   try {
-    const { data, error } = await supabase.from(ACTIVITIES_TABLE).select('*');
+    const { data, error } = await supabase.from('activities').select('*');
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rows = (Array.isArray(data) ? data : [])
       .map(normalizeActivityRow)
@@ -224,7 +218,7 @@ function activityHasDateInMonth(row, monthPrefix) {
 }
 
 async function selectActivitiesFromSupabase(select = '*') {
-  const result = await supabase.from(ACTIVITIES_TABLE).select(select);
+  const result = await supabase.from('activities').select(select);
   if (result.error) throw new Error(result.error.message || 'activities_read_failed');
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
@@ -403,68 +397,65 @@ function buildClientSettingsFromLists(listsData) {
 }
 
 /**
- * Reads contacts_instructors and computes per-instructor activity stats
- * (programs_count, one_day_count, latest_end_date, activity_managers) from
- * activities — all client-side, no schema changes.
+ * Computes per-instructor activity stats from public.activities only.
  * Returns { rows, _source: 'supabase' } or null on any failure.
  */
 async function readInstructorsFromSupabase() {
   if (!supabase) return null;
   try {
-    const [instrResult, activityRows] = await Promise.all([
-      supabase.from('contacts_instructors').select('*'),
-      selectActivitiesFromSupabase('emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,activity_manager,status,activity_family')
-    ]);
-
-    if (instrResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load contacts_instructors (instructors screen):', instrResult.error);
-      return null;
-    }
-
-    const instrRows = Array.isArray(instrResult.data) ? instrResult.data : [];
-    const rowsForStats = activityRows.filter((row) => !isActivityClosed(row));
+    const activityRows = (await selectActivitiesFromSupabase(
+      'emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,activity_manager,status,activity_family'
+    )).filter((row) => !isActivityClosed(row));
 
     const statsMap = new Map();
     function ensureStats(id, name) {
       const k = String(id || '').trim();
       if (!k) return null;
-      if (!statsMap.has(k)) statsMap.set(k, { programs_count: 0, one_day_count: 0, latest_end_date: '', managers: new Set(), name: String(name || '').trim() });
+      if (!statsMap.has(k)) {
+        statsMap.set(k, {
+          emp_id: k,
+          full_name: String(name || k).trim(),
+          instructor_name: String(name || k).trim(),
+          programs_count: 0,
+          one_day_count: 0,
+          latest_end_date: '',
+          managers: new Set()
+        });
+      }
       return statsMap.get(k);
     }
 
-    function applyRow(row) {
+    for (const row of activityRows) {
       const pairs = [
-        [String(row.emp_id || '').trim(), String(row.instructor_name || '').trim()],
-        [String(row.emp_id_2 || '').trim(), String(row.instructor_name_2 || '').trim()]
-      ].filter(([id]) => id);
-      const d = String(row.end_date || '').trim().slice(0, 10);
-      const mgr = String(row.activity_manager || '').trim();
+        [row.emp_id, row.instructor_name],
+        [row.emp_id_2, row.instructor_name_2]
+      ];
+      const endDate = normalizeSupabaseDate(row.end_date);
+      const manager = String(row.activity_manager || '').trim();
       for (const [id, name] of pairs) {
-        const s = ensureStats(id, name);
-        if (!s) continue;
-        if (!s.name && name) s.name = name;
-        if (isProgramActivity(row)) s.programs_count += 1;
-        if (isOneDayActivity(row)) s.one_day_count += 1;
-        if (d && (!s.latest_end_date || d > s.latest_end_date)) s.latest_end_date = d;
-        if (mgr) s.managers.add(mgr);
+        const stats = ensureStats(id, name);
+        if (!stats) continue;
+        const cleanName = String(name || '').trim();
+        if (cleanName && (!stats.full_name || stats.full_name === stats.emp_id)) {
+          stats.full_name = cleanName;
+          stats.instructor_name = cleanName;
+        }
+        if (isProgramActivity(row)) stats.programs_count += 1;
+        if (isOneDayActivity(row)) stats.one_day_count += 1;
+        if (endDate && (!stats.latest_end_date || endDate > stats.latest_end_date)) stats.latest_end_date = endDate;
+        if (manager) stats.managers.add(manager);
       }
     }
 
-    for (const row of rowsForStats) applyRow(row);
-
-    const knownIds = new Set(instrRows.map((r) => String(r.emp_id || '').trim()).filter(Boolean));
-    const rows = instrRows.map((instr) => {
-      const id = String(instr.emp_id || '').trim();
-      const s = statsMap.get(id) || { programs_count: 0, one_day_count: 0, latest_end_date: '', managers: new Set() };
-      return { ...instr, programs_count: s.programs_count, one_day_count: s.one_day_count, latest_end_date: s.latest_end_date || '', activity_managers: [...s.managers] };
-    });
-
-    for (const [id, s] of statsMap.entries()) {
-      if (knownIds.has(id)) continue;
-      if ((s.programs_count + s.one_day_count) === 0) continue;
-      rows.push({ emp_id: id, full_name: s.name || id, programs_count: s.programs_count, one_day_count: s.one_day_count, latest_end_date: s.latest_end_date || '', activity_managers: [...s.managers], _synthetic: true });
-    }
+    const rows = [...statsMap.values()].map((stats) => ({
+      emp_id: stats.emp_id,
+      full_name: stats.full_name || stats.emp_id,
+      instructor_name: stats.instructor_name || stats.full_name || stats.emp_id,
+      programs_count: stats.programs_count,
+      one_day_count: stats.one_day_count,
+      latest_end_date: stats.latest_end_date || '',
+      activity_managers: [...stats.managers]
+    }));
 
     return { rows, _source: 'supabase' };
   } catch (error) {
@@ -479,17 +470,13 @@ async function readInstructorsFromSupabase() {
  * Only metrics computed from the same Supabase dashboard path are emitted.
  */
 function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionCount, uniqueInstructorCount, courseEndings) {
+  void activeTypeCounts;
   return [
     { id: 'short', action: 'kpi|short', title: String(totals.total_short_activities), subtitle: 'חד-יומי', value: totals.total_short_activities },
     { id: 'long', action: 'kpi|long', title: String(totals.total_long_activities), subtitle: 'תוכניות', value: totals.total_long_activities },
-    { id: 'active_courses', action: 'kpi|active_courses', title: String(activeTypeCounts.course || 0), subtitle: 'קורסים פעילים', value: activeTypeCounts.course || 0 },
-    { id: 'active_workshops', action: 'kpi|active_workshops', title: String(activeTypeCounts.workshop || 0), subtitle: 'סדנאות פעילות', value: activeTypeCounts.workshop || 0 },
-    { id: 'active_tours', action: 'kpi|active_tours', title: String(activeTypeCounts.tour || 0), subtitle: 'סיורים פעילים', value: activeTypeCounts.tour || 0 },
-    { id: 'active_after_school', action: 'kpi|active_after_school', title: String(activeTypeCounts.after_school || 0), subtitle: 'אפטרסקול פעיל', value: activeTypeCounts.after_school || 0 },
-    { id: 'active_escape_room', action: 'kpi|active_escape_room', title: String(activeTypeCounts.escape_room || 0), subtitle: 'חדרי בריחה פעילים', value: activeTypeCounts.escape_room || 0 },
-    { id: 'exceptions', action: 'kpi|exceptions', title: String(exceptionCount), subtitle: 'חריגות (קורסים)', value: exceptionCount },
     { id: 'instructors', action: 'kpi|instructors', title: String(uniqueInstructorCount), subtitle: 'מדריכים פעילים', value: uniqueInstructorCount },
-    { id: 'endings', action: 'kpi|endings', title: String(courseEndings), subtitle: 'סיומי קורסים', value: courseEndings }
+    { id: 'endings', action: 'kpi|endings', title: String(courseEndings), subtitle: 'סיומי קורסים', value: courseEndings },
+    { id: 'exceptions', action: 'kpi|exceptions', title: String(exceptionCount), subtitle: 'חריגות', value: exceptionCount }
   ];
 }
 
@@ -1045,7 +1032,7 @@ function sanitizeActivityPayload(act = {}) {
 async function upsertActivityToSupabase(payload = {}) {
   const act = payload?.activity || payload || {};
   const row = sanitizeActivityPayload(act);
-  const { data, error } = await supabase.from(ACTIVITIES_TABLE).upsert(row, { onConflict: 'row_id' }).select().single();
+  const { data, error } = await supabase.from('activities').upsert(row, { onConflict: 'row_id' }).select().single();
   if (error) throw new Error(error.message || 'save_failed');
   const normalized = normalizeActivityRow(data || row);
   return { RowID: normalized.RowID, row_id: normalized.row_id, source_sheet: 'activities', row: normalized };
@@ -1058,7 +1045,7 @@ async function updateActivityInSupabase(payload = {}) {
   delete changes.RowID;
   delete changes.source_sheet;
   delete changes.source_table;
-  const { error } = await supabase.from(ACTIVITIES_TABLE).update(changes).eq('row_id', rowId);
+  const { error } = await supabase.from('activities').update(changes).eq('row_id', rowId);
   if (error) throw new Error(error.message || 'save_failed');
   return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities' };
 }
@@ -1066,7 +1053,7 @@ async function updateActivityInSupabase(payload = {}) {
 async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
   void source_sheet;
   const rowId = String(source_row_id || '').trim();
-  const { data, error } = await supabase.from(ACTIVITIES_TABLE).select('*').eq('row_id', rowId).single();
+  const { data, error } = await supabase.from('activities').select('*').eq('row_id', rowId).single();
   if (error) throw new Error(error.message || 'detail_failed');
   const normalized = normalizeActivityRow(data || {});
   return { row: { ...normalized, private_note: normalized.operations_private_notes || '' } };
@@ -1076,7 +1063,7 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
   void source_sheet;
   const rowId = String(source_row_id || '').trim();
   const { data, error } = await supabase
-    .from(ACTIVITIES_TABLE)
+    .from('activities')
     .select('*')
     .eq('row_id', rowId)
     .maybeSingle();
@@ -1285,6 +1272,7 @@ export const api = {
     const allRows = await readAllActivitiesRowsSupabase();
     const empId = String(state?.user?.emp_id || state?.user?.user_id || '').trim();
     const rows = allRows.filter((row) => {
+      if (isActivityClosed(row)) return false;
       const emp1 = String(row?.emp_id || '').trim();
       const emp2 = String(row?.emp_id_2 || '').trim();
       return !!empId && (emp1 === empId || emp2 === empId);
@@ -1451,7 +1439,7 @@ export const api = {
             })();
       if (sourceRowId && requestedValues && Object.keys(requestedValues).length) {
         const { error: applyErr } = await supabase
-          .from(ACTIVITIES_TABLE)
+          .from('activities')
           .update(requestedValues)
           .eq('row_id', sourceRowId);
         if (applyErr) throw new Error(applyErr.message || 'review_edit_request_apply_failed');
@@ -1526,7 +1514,7 @@ export const api = {
     const rowId = String(payload.source_row_id || '').trim();
     if (!rowId) throw new Error('missing_row_id');
     const { error } = await supabase
-      .from(ACTIVITIES_TABLE)
+      .from('activities')
       .update({ operations_private_notes: String(payload.note || '') })
       .eq('row_id', rowId);
     if (error) throw new Error(error.message || 'save_private_note_failed');
