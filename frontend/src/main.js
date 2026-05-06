@@ -768,7 +768,6 @@ function shell(content) {
           </div>
           <button type="button" class="shell-logout-btn shell-logout-btn--sidebar" id="logoutBtn" aria-label="התנתקות" title="התנתקות">
             <span aria-hidden="true">⏻</span>
-            <span class="shell-logout-btn__text">התנתקות</span>
           </button>
         </div>
       </aside>

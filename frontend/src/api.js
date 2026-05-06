@@ -407,7 +407,7 @@ async function readInstructorsFromSupabase() {
   if (!supabase) return null;
   try {
     const activityRows = (await selectActivitiesFromSupabase(
-      'emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,activity_manager,status,activity_family'
+      'emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,activity_manager,status,activity_family,activity_type'
     )).filter((row) => !isActivityClosed(row));
 
     const statsMap = new Map();
@@ -422,7 +422,8 @@ async function readInstructorsFromSupabase() {
           programs_count: 0,
           one_day_count: 0,
           latest_end_date: '',
-          managers: new Set()
+          managers: new Set(),
+          activity_type_counts: {}
         });
       }
       return statsMap.get(k);
@@ -435,6 +436,7 @@ async function readInstructorsFromSupabase() {
       ];
       const endDate = normalizeSupabaseDate(row.end_date);
       const manager = String(row.activity_manager || '').trim();
+      const actType = String(row.activity_type || '').trim();
       for (const [id, name] of pairs) {
         const stats = ensureStats(id, name);
         if (!stats) continue;
@@ -447,6 +449,7 @@ async function readInstructorsFromSupabase() {
         if (isOneDayActivity(row)) stats.one_day_count += 1;
         if (endDate && (!stats.latest_end_date || endDate > stats.latest_end_date)) stats.latest_end_date = endDate;
         if (manager) stats.managers.add(manager);
+        if (actType) stats.activity_type_counts[actType] = (stats.activity_type_counts[actType] || 0) + 1;
       }
     }
 
@@ -457,7 +460,8 @@ async function readInstructorsFromSupabase() {
       programs_count: stats.programs_count,
       one_day_count: stats.one_day_count,
       latest_end_date: stats.latest_end_date || '',
-      activity_managers: [...stats.managers]
+      activity_managers: [...stats.managers],
+      activity_type_counts: stats.activity_type_counts
     }));
 
     return { rows, _source: 'supabase' };
@@ -654,6 +658,7 @@ async function dashboardReadModelFromSupabase(month) {
     let missingInstructorCount = 0;
     let missingDateCount = 0;
     let lateEndDateCount = 0;
+    let dangerousEndDateCount = 0;
     const operationalGapsCount = 0;
 
     function managerStats(manager) {
@@ -696,9 +701,12 @@ async function dashboardReadModelFromSupabase(month) {
       const hasAnyDate = hasMeetingDates || String(row?.start_date || '').trim();
       const missingInstructor = !emp1 && !instructor1;
       const missingDate = !hasAnyDate;
+      const end = String(row?.end_date || '').trim();
+      const isDangerousEnd = end && end > '2026-06-15';
       if (missingInstructor) missingInstructorCount += 1;
       if (missingDate) missingDateCount += 1;
-      if (missingInstructor || missingDate) stats.exceptions += 1;
+      if (isDangerousEnd) dangerousEndDateCount += 1;
+      if (missingInstructor || missingDate || isDangerousEnd) stats.exceptions += 1;
     }
 
     for (const row of endingRows) {
@@ -710,7 +718,7 @@ async function dashboardReadModelFromSupabase(month) {
       delete stats._instructors;
       return stats;
     });
-    const exceptionsCount = missingInstructorCount + missingDateCount + lateEndDateCount + operationalGapsCount;
+    const exceptionsCount = missingInstructorCount + missingDateCount + lateEndDateCount + dangerousEndDateCount + operationalGapsCount;
     const totals = {
       total_short_activities: monthRows.filter(isOneDayActivity).length,
       total_long_activities: monthRows.filter(isProgramActivity).length,
@@ -779,6 +787,7 @@ function buildExceptionsFromRows(activityRows = []) {
     if (!start) types.push('missing_start_date');
     if (!getActivityDateColumns(row).length) types.push('missing_meetings');
     if (start && end && end < start) types.push('late_end_date');
+    if (end && end > '2026-06-15') types.push('dangerous_end_date');
     if (!String(row?.activity_manager || '').trim()) types.push('missing_activity_manager');
     if (!String(row?.school || '').trim()) types.push('missing_school');
     if (!String(row?.authority || '').trim()) types.push('missing_authority');
@@ -1138,9 +1147,11 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
   if (error) throw new Error(error.message || 'dates_failed');
   const row = normalizeActivityRow(data || {});
   const meeting_dates = getActivityDateColumns(row);
+  const meeting_schedule = meeting_dates.map((d) => ({ date: d, performed: 'no' }));
   return {
     meeting_dates,
     date_cols: meeting_dates,
+    meeting_schedule,
     rows: meeting_dates.map((dateKey, index) => ({ source_row_id: rowId, meeting_no: String(index + 1), meeting_date: dateKey })),
     source_row_id: rowId,
     source_sheet: 'activities'

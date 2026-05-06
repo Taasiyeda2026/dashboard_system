@@ -4352,9 +4352,10 @@ select.ds-input {
 }
 
 .ci-list--instr-grid .ci-row__name {
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   flex: unset;
   width: 100%;
+  text-align: center;
 }
 
 .ci-list--instr-grid .instr-end-date {
@@ -7390,9 +7391,9 @@ select.ds-input {
   background: #f8fafc;
 }
 
-.ds-end-th--name   { width: 35%; }
-.ds-end-th--date   { width: 16%; }
-.ds-end-th--actions { width: 42px; }
+.ds-end-th--name   { width: 28%; }
+.ds-end-th--date   { width: 14%; }
+.ds-end-th--actions { width: 36px; }
 
 .ds-end-td {
   padding: 6px 8px;
@@ -7449,20 +7450,20 @@ select.ds-input {
 
 .ds-end-export-btn {
   background: none;
-  border: 1px solid rgba(26, 51, 88, 0.15);
+  border: 1px solid rgba(22, 101, 52, 0.2);
   border-radius: 6px;
   padding: 2px 6px;
   font-size: 0.72rem;
   cursor: pointer;
-  color: #475569;
+  color: #166534;
   transition: background 0.12s, border-color 0.12s;
   line-height: 1.4;
 }
 
 .ds-end-export-btn:hover {
-  background: rgba(59, 130, 246, 0.08);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #1e40af;
+  background: rgba(22, 101, 52, 0.1);
+  border-color: rgba(22, 101, 52, 0.4);
+  color: #14532d;
 }
 
 .ds-end-dates__dates-list {
@@ -7750,15 +7751,15 @@ select.ds-activity-add-field .ds-input,
 }
 
 .ci-list--instr-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
 }
 @media (max-width: 1280px) {
-  .ci-list--instr-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ci-list--instr-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 @media (max-width: 1000px) {
-  .ci-list--instr-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ci-list--instr-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 680px) {
   .ci-list--instr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -8656,8 +8657,10 @@ select.ds-activity-add-field .ds-input,
   right: 50%;
   transform: translateX(50%);
   display: flex;
-  gap: 8px;
-  padding: 8px;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
   border-radius: 12px;
   border: 1px solid var(--ds-border);
   background: #fff;
@@ -8667,8 +8670,8 @@ select.ds-activity-add-field .ds-input,
 .ds-accent-picker-popover[hidden] { display: none; }
 
 .ds-accent-swatch {
-  width: 26px;
-  height: 26px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
@@ -8678,12 +8681,12 @@ select.ds-activity-add-field .ds-input,
 .ds-accent-swatch.is-active { border-color: #0f172a; transform: scale(1.08); }
 
 .shell-logout-btn--sidebar {
-  width: 100%;
-  min-height: 38px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   justify-content: center;
-  gap: 6px;
 }
-.shell-logout-btn__text { font-size: 0.76rem; }
+.shell-logout-btn__text { display: none; }
 
 .shell-nav__btn.is-active {
   background: color-mix(in srgb, var(--ds-accent) 72%, #0b0d12);

@@ -1,0 +1,147 @@
+You are a senior full‑stack developer working on an existing web application.
+Your task is to implement the following UI, UX, and logic fixes and improvements.
+Do NOT refactor unrelated code.
+Make only the minimal changes required to fully satisfy each requirement.
+
+GENERAL:
+- Preserve existing functionality unless explicitly stated otherwise.
+- All changes must be responsive and not break narrow sidebars.
+- If data does not exist (value = 0 / null / empty), do not display the field.
+
+--------------------------------
+1. Interface Color Picker Button
+--------------------------------
+Problem:
+The color picker opens horizontally, causing overflow because the sidebar is too narrow.
+
+Required:
+- Change the color picker layout to open vertically instead of horizontally.
+- Reduce the size of the color circles inside the picker.
+- Ensure the picker fits entirely within a narrow sidebar.
+
+--------------------------------
+2. Logout Button
+--------------------------------
+Problem:
+The logout button displays the text "התנתקות".
+
+Required:
+- Remove the text completely.
+- Leave only the logout icon visible.
+- No tooltip unless one already exists.
+
+--------------------------------
+3. Dashboard (Main Page – Control Panel)
+--------------------------------
+Problem:
+Exceptions are not displayed.
+
+Required:
+Display the following exceptions consistently in:
+- Dashboard
+- Exceptions page
+- Exceptions summary
+
+Exceptions logic:
+- Missing start date
+- Missing instructor
+- Dangerous end date (end date later than 15.06.2026)
+
+--------------------------------
+4. Activities – Dates Display
+--------------------------------
+Problem:
+In activity views (month/week), not all dates are shown.
+
+Required:
+- In every activity opened in the activities page (month & week views),
+  display all related dates:
+  date_1 and any additional dates associated with the activity.
+
+--------------------------------
+5. Week View – Transition Animation
+--------------------------------
+Required:
+- Add a smooth animated transition when navigating between weeks
+  (previous / next week).
+
+--------------------------------
+6. Month View – Row Alignment
+--------------------------------
+Problem:
+If a specific cell wraps to a new line, the row becomes visually uneven.
+
+Required:
+- Ensure that if one cell in a row wraps, the entire row stays vertically aligned
+  and visually balanced.
+
+--------------------------------
+7. Activity End Dates Table
+--------------------------------
+Required:
+- Reduce column widths to create a compact table.
+- Ensure symmetric column widths.
+- Change the export-to-Excel icon color to green.
+
+--------------------------------
+8. Instructors Page – Card Layout
+--------------------------------
+Required:
+- Reduce the width of each instructor card by 15% (width only).
+- Center the instructor name horizontally inside the card.
+- Increase the instructor name font size by +1 (relative to current size).
+
+--------------------------------
+9. Instructors Page – Activity Types Display
+--------------------------------
+Current:
+Shows static labels like "תוכניות / חד יומיות".
+
+Required:
+- Replace with correct activity types based on actual data for that instructor
+  in the current month only:
+  - קורסים
+  - סיורים
+  - סדנאות
+  - חוג אפטרסקול
+- Display only activity types that exist (count > 0).
+- If count = 0, do not display that type at all.
+
+--------------------------------
+10. Instructors Page – Remove Field
+--------------------------------
+Required:
+- Completely remove the field "תאריך אחרון" from the instructors page UI.
+
+--------------------------------
+11. Archive Page – Missing Dates
+--------------------------------
+Problem:
+Archived activities do not show their historical dates.
+
+Required:
+- Display all dates that belonged to archived activities.
+
+--------------------------------
+12. Archive Page – Reopen Activity (Permissions)
+--------------------------------
+Required:
+- Add the ability to edit ONLY the status of an archived activity.
+- Allowed change: from "סגור" → "פתוח".
+- Once reopened, the activity must reappear in the activities page.
+
+Permissions:
+- This action is allowed ONLY for users with roles:
+  - Admin
+  - Operations Control (בקרת תפעול)
+
+- All other roles must see the status as read‑only.
+
+--------------------------------
+DELIVERY REQUIREMENTS
+--------------------------------
+- Implement all changes cleanly.
+- No console errors.
+- No UI regressions.
+- If a requirement cannot be fulfilled due to missing data or structure,
+  add a clear TODO comment in code explaining what is missing.

@@ -25,17 +25,26 @@ function applyActiveFilter(rows, activeOnly) {
 function renderInstructorRow(row, state) {
   const name       = escapeHtml(row.full_name || row.emp_id || '—');
   const empId      = String(row.emp_id || '').trim();
-  const endDate    = row.latest_end_date ? formatDateHe(row.latest_end_date) : '';
+  const typeCounts = row.activity_type_counts || {};
   const programs   = row.programs_count || 0;
   const oneDay     = row.one_day_count  || 0;
   const hasActivity = (programs + oneDay) > 0;
   const inactiveClass = hasActivity ? '' : ' ci-row--inactive';
 
-  const statsHtml = `<span class="instr-stats">
-    <span class="instr-stat"><span class="instr-stat__lbl">תוכניות</span><span class="instr-stat__num">${programs}</span></span>
-    <span class="instr-stat"><span class="instr-stat__lbl">חד-יומיות</span><span class="instr-stat__num">${oneDay}</span></span>
-    <span class="instr-stat"><span class="instr-stat__lbl">תאריך אחרון</span><span class="instr-stat__num instr-stat__num--date">${escapeHtml(endDate || '—')}</span></span>
-  </span>`;
+  const TYPE_LABELS = [
+    ['קורס', 'קורסים'],
+    ['סיור', 'סיורים'],
+    ['סדנה', 'סדנאות'],
+    ['חוג אפטרסקול', 'חוג אפטרסקול'],
+  ];
+  const typeStatParts = TYPE_LABELS
+    .map(([key, label]) => {
+      const n = typeCounts[key] || 0;
+      return `<span class="instr-stat"><span class="instr-stat__lbl">${label}</span><span class="instr-stat__num">${n}</span></span>`;
+    })
+    .join('');
+
+  const statsHtml = `<span class="instr-stats">${typeStatParts}</span>`;
 
   return `<article class="instr-card" data-instructor-item="${escapeHtml(empId)}">
     <button type="button" class="ci-row instr-summary-row${inactiveClass}" dir="rtl" data-instructor-card="${escapeHtml(empId)}" data-instructor-name="${name}">

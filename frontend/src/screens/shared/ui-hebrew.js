@@ -73,7 +73,7 @@ export function financeStatusVariant(value) {
 /** חריגות: עוצמת chip לפי סוג */
 export function exceptionTypeVariant(exceptionType) {
   const k = String(exceptionType || '').trim();
-  if (k === 'late_end_date') return 'danger';
+  if (k === 'late_end_date' || k === 'dangerous_end_date') return 'danger';
   if (k === 'missing_instructor' || k === 'missing_start_date') return 'warning';
   return 'neutral';
 }
@@ -82,6 +82,7 @@ export const HEBREW_EXCEPTION_TYPE = {
   missing_instructor:       'חסר מדריך',
   missing_start_date:       'חסר תאריך התחלה',
   late_end_date:            'תאריך סיום מאוחר',
+  dangerous_end_date:       'תאריך סיום מסוכן (אחרי יוני 2026)',
   missing_activity_manager: 'חסר מנהל פעילות',
   missing_school:           'חסרה בית ספר',
   missing_authority:        'חסרה רשות',

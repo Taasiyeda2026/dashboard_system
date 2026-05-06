@@ -235,6 +235,8 @@ export const archiveScreen = {
       });
     });
 
+    const canReopen = ['admin', 'operation_manager'].includes(state?.user?.display_role);
+
     async function openDetail(summaryRow) {
       if (!summaryRow || !ui) return;
       const cachedDetail = state?.screenDataCache?.[detailCacheKey(summaryRow)]?.data;
@@ -242,7 +244,14 @@ export const archiveScreen = {
 
       const drawerContent = (row, datesLoading) => {
         const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
-        return activityWorkDrawerHtml(row, {
+        const reopenBtn = canReopen
+          ? `<div style="padding:12px 16px 0;text-align:right">
+               <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-archive-reopen="${escapeHtml(String(row.RowID || ''))}">
+                 🔓 פתח מחדש
+               </button>
+             </div>`
+          : '';
+        return reopenBtn + activityWorkDrawerHtml(row, {
           privateNote,
           canEdit: false,
           canDirectEdit: false,
@@ -257,7 +266,7 @@ export const archiveScreen = {
       };
 
       if (cachedDetail) {
-        ui.openDrawer({ title: '', content: drawerContent(cachedDetail, false), onOpen: (contentRoot) => { hideShellHeader(contentRoot); } });
+        ui.openDrawer({ title: '', content: drawerContent(cachedDetail, false), onOpen: (contentRoot) => { hideShellHeader(contentRoot); bindReopenBtn(contentRoot, cachedDetail); } });
         return;
       }
 
@@ -265,7 +274,7 @@ export const archiveScreen = {
       ui.openDrawer({
         title: '',
         content: drawerContent(summaryRow, needDates),
-        onOpen: (contentRoot) => { hideShellHeader(contentRoot); },
+        onOpen: (contentRoot) => { hideShellHeader(contentRoot); bindReopenBtn(contentRoot, summaryRow); },
         onClose: () => {
           const shellHdr = document.querySelector('.ds-drawer > header');
           if (shellHdr) shellHdr.hidden = false;
@@ -310,6 +319,25 @@ export const archiveScreen = {
     function hideShellHeader(contentRoot) {
       const shellHdr = contentRoot.closest('.ds-drawer')?.querySelector(':scope > header');
       if (shellHdr) shellHdr.hidden = true;
+    }
+
+    function bindReopenBtn(contentRoot, row) {
+      if (!canReopen) return;
+      const btn = contentRoot.querySelector('[data-archive-reopen]');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'שומר…';
+        try {
+          await api.saveActivity({ ...row, status: 'פתוח' });
+          btn.textContent = '✓ נפתח';
+          ui.closeDrawer?.();
+          rerender();
+        } catch (_e) {
+          btn.disabled = false;
+          btn.textContent = '🔓 פתח מחדש';
+        }
+      });
     }
 
     root.addEventListener('click', (ev) => {
