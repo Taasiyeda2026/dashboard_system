@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
+import { dsCard, dsScreenStack } from './shared/layout.js';
 import { config } from '../config.js';
 
 const HEBREW_MONTHS = [
@@ -58,6 +58,22 @@ function pickNumericFallback(obj, fieldName, fallbackValue = 0) {
   if (strict.ok) return strict.value;
   const fromFallback = Number(fallbackValue);
   return Number.isFinite(fromFallback) ? fromFallback : 0;
+}
+
+const KPI_ICON_MAP = {
+  'kpi|short':       '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  'kpi|long':        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
+  'kpi|exceptions':  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  'kpi|instructors': '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
+  'kpi|endings':     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>'
+};
+
+function renderKpiCard(k) {
+  const icon = KPI_ICON_MAP[k.action] || '';
+  const alertClass = (k.id === 'exceptions' && Number(k.value || 0) > 0) ? ' ds-kpi--exceptions-alert' : '';
+  const title = escapeHtml(k.subtitle || k.title || '');
+  const value = escapeHtml(k.value != null ? String(k.value) : String(k.title || ''));
+  return `<button type="button" class="ds-interactive-card ds-interactive-card--kpi${alertClass}" data-card-action="${escapeHtml(k.action)}">${icon ? `<span class="ds-kpi-icon" aria-hidden="true">${icon}</span>` : ''}<p class="ds-interactive-card__label">${title}</p><p class="ds-interactive-card__value">${value}</p></button>`;
 }
 
 const MANAGER_DISPLAY_NAMES = {
@@ -310,31 +326,23 @@ export const dashboardScreen = {
       : '<div class="ds-empty"><p class="ds-empty__msg">אין נתונים להצגה</p></div>';
 
     const kpiHtml = kpiCards.length
-      ? kpiCards
-          .map((k) =>
-            dsInteractiveCard({
-              variant: 'kpi',
-              action: k.action,
-              title: k.subtitle || k.title || '',
-              value: k.value != null ? String(k.value) : String(k.title || ''),
-              extraClass: (k.id === 'exceptions' && Number(k.value || 0) > 0) ? 'ds-kpi--exceptions-alert' : ''
-            })
-          )
-          .join('')
+      ? kpiCards.map(renderKpiCard).join('')
       : '<p class="ds-muted">אין כרטיסי KPI להצגה.</p>';
 
     const navLoading = !!state?.dashboardNavLoading;
     const staleBanner = buildDashboardStaleBanner(data);
-    const monthNav = `<div class="ds-dash-month-nav${navLoading ? ' is-nav-loading' : ''}" dir="rtl" aria-label="בחירת חודש לתצוגה">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
-      <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))} ${navLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא" title="חודש הבא" ${navLoading ? 'disabled' : ''}>◀</button>
-    </div>`;
+    const dashHeader = `<header class="ds-dash-header" dir="rtl">
+      <h1 class="ds-dash-header__title">לוח בקרה</h1>
+      <div class="ds-dash-month-nav${navLoading ? ' is-nav-loading' : ''}" dir="rtl" aria-label="בחירת חודש לתצוגה">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
+        <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}${navLoading ? ' <span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-next aria-label="חודש הבא" title="חודש הבא" ${navLoading ? 'disabled' : ''}>◀</button>
+      </div>
+    </header>`;
 
     return dsScreenStack(`
       <div class="ds-dashboard-wrap">
-        ${dsPageHeader('לוח בקרה')}
-        ${monthNav}
+        ${dashHeader}
         ${staleBanner}
         <div data-dash-data-area>
           <div class="ds-dashboard-summary-row">

@@ -8519,3 +8519,109 @@ select.ds-activity-add-field .ds-input,
 .ds-interactive-card.is-cal-today { box-shadow: inset 0 0 0 2px rgba(29,78,216,.45); }
 .ds-end-table--compact { margin-inline: auto; width: min(100%, 1100px); }
 .ds-end-table--compact th, .ds-end-table--compact td { padding: 6px 8px; }
+
+/* ======================================================
+   Dashboard design polish – 2026-05
+   All rules below are scoped to dashboard-only elements.
+   ====================================================== */
+
+/* ── Unified title + month-nav header ── */
+.ds-dash-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px var(--ds-space-4) 12px;
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  box-shadow: var(--ds-shadow-xs);
+  text-align: center;
+}
+
+.ds-dash-header__title {
+  margin: 0;
+  font-size: 1.32rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+/* Month nav sits flush inside the header, no extra padding */
+.ds-dash-header .ds-dash-month-nav {
+  padding: 0;
+  margin: 0;
+}
+
+.ds-dash-header .ds-dash-month-nav__label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #64748b;
+  min-width: 9rem;
+}
+
+/* ── KPI card improvements ── */
+.ds-interactive-card--kpi {
+  min-height: 92px;
+  padding: 12px 10px 10px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.08), 0 0 0 0.5px rgba(15,23,42,0.03);
+  border-radius: var(--ds-radius-md);
+  gap: 2px;
+}
+
+.ds-interactive-card--kpi:hover:not(:disabled) {
+  border-color: #94a3b8;
+  box-shadow: 0 3px 8px rgba(15,23,42,0.12);
+}
+
+.ds-interactive-card--kpi .ds-interactive-card__value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+}
+
+.ds-interactive-card--kpi .ds-interactive-card__label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.01em;
+}
+
+/* ── KPI icon ── */
+.ds-kpi-icon {
+  display: block;
+  line-height: 1;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+.ds-kpi-icon svg { display: block; margin: 0 auto; }
+
+/* Exception icon gets a warm tint */
+.ds-kpi--exceptions-alert .ds-kpi-icon { color: #fca5a5; }
+.ds-kpi--exceptions-alert .ds-interactive-card__value { color: #dc2626; }
+
+/* ── Summary button – badge-like ── */
+.ds-summary-btn {
+  font-size: 0.72rem;
+  padding: 4px 11px;
+  border-color: #e2e8f0;
+  color: #475569;
+  border-radius: var(--ds-radius-full);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.ds-summary-btn.is-active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+/* ── Section card titles – a bit stronger ── */
+.ds-dashboard-wrap .ds-card__title {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.9rem;
+}
