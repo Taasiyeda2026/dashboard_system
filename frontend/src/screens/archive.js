@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { formatDateHe } from './shared/format-date.js';
+import { formatDateHe, formatActivityDateColumnsHe } from './shared/format-date.js';
 import { visibleActivityCategoryLabel } from './shared/ui-hebrew.js';
 import {
   dsCard,
@@ -33,7 +33,9 @@ const ARCHIVE_SEARCH_FIELDS = [
   'instructor_name_2',
   'authority',
   'school',
-  'activity_type'
+  'activity_type',
+  'meeting_dates',
+  'date_cols'
 ];
 
 const inflightDetailRequests = new Map();
@@ -109,6 +111,7 @@ export const archiveScreen = {
       const endHe = endRaw ? (formatDateHe(endRaw) || endRaw) : '—';
       const startRaw = String(row?.start_date || '').trim();
       const startHe = startRaw ? (formatDateHe(startRaw) || startRaw) : '—';
+      const meetingDatesHe = formatActivityDateColumnsHe(row);
 
       return `
         <tr class="ds-data-row ds-activities-row" data-list-item data-row-id="${escapeHtml(row.RowID)}">
@@ -128,8 +131,9 @@ export const archiveScreen = {
             <span class="ds-activities-cell-ellipsis">${instructor}</span>
           </td>
           <td>${escapeHtml(manager)}</td>
-          <td><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
-          <td><time class="ds-activities-date ds-archive-end-date">${escapeHtml(endHe)}</time></td>
+          <td class="ds-archive-meeting-dates"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(meetingDatesHe)}">${escapeHtml(meetingDatesHe)}</span></td>
+          <td class="ds-archive-date-col"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
+          <td class="ds-archive-date-col"><time class="ds-activities-date ds-archive-end-date">${escapeHtml(endHe)}</time></td>
         </tr>`;
     }).join('');
 
@@ -142,7 +146,7 @@ export const archiveScreen = {
       : dsTableWrap(`
           <table class="ds-table ds-table--interactive ds-table--activities-list ds-table--archive" dir="rtl">
             <colgroup>
-              <col><col><col><col><col><col><col>
+              <col><col><col><col><col><col><col><col>
             </colgroup>
             <thead>
               <tr>
@@ -151,6 +155,7 @@ export const archiveScreen = {
                 <th>בית ספר</th>
                 <th>מדריך</th>
                 <th>מנהל פעילות</th>
+                <th>תאריכי מפגשים</th>
                 <th>תאריך התחלה</th>
                 <th>תאריך סיום</th>
               </tr>

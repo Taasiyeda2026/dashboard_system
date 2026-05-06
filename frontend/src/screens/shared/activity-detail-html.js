@@ -1,5 +1,5 @@
 import { escapeHtml } from './html.js';
-import { formatDateHe } from './format-date.js';
+import { formatDateHe, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 
@@ -307,7 +307,7 @@ function blockContent(row, { settings = {} } = {}) {
     : String(row.start_date || '').trim();
   const hoursLabel =
     String(row.start_time || '').trim() && String(row.end_time || '').trim()
-      ? `${String(row.start_time).trim()}-${String(row.end_time).trim()}`
+      ? formatTimeRangeShort(row.start_time, row.end_time)
       : '—';
   const statusOptions = [
     { value: 'פעיל', label: 'פעיל' },
@@ -375,11 +375,11 @@ function blockContent(row, { settings = {} } = {}) {
         </div>
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">שעת התחלה</div>
-          ${inputHtml({ name: 'start_time', value: row.start_time, type: 'time' })}
+          ${inputHtml({ name: 'start_time', value: formatTimeShort(row.start_time), type: 'time' })}
         </div>
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">שעת סיום</div>
-          ${inputHtml({ name: 'end_time', value: row.end_time, type: 'time' })}
+          ${inputHtml({ name: 'end_time', value: formatTimeShort(row.end_time), type: 'time' })}
         </div>
       </div>
     </section>
@@ -603,6 +603,8 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
     <div>רשות: ${escapeHtml(fallback(row.authority))}</div>
     <div>שכבה: ${escapeHtml(fallback(row.grade))}</div>
     <div>קבוצה/כיתה: ${escapeHtml(fallback(row.class_group))}</div>
+    <div>שעות: ${escapeHtml(formatTimeRangeShort(row.start_time, row.end_time))}</div>
+    <div>תאריכי מפגשים: ${escapeHtml(formatActivityDateColumnsHe(row))}</div>
     ${privateNote === null ? '' : `<div>הערה תפעולית: ${escapeHtml(fallback(privateNote))}</div>`}
   `;
 }

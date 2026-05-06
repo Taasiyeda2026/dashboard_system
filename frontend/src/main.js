@@ -28,6 +28,39 @@ let loginBootstrapDurationMs = 0;
 const inflightRequests = new Map();
 const PERF_MAX_RENDERS = 150;
 
+const ACCENT_COLORS = {
+  blue:   { accent: '#1a3358', hover: '#142a49', soft: '#e8eef6', stripe: '#eef3fb', stripeHover: '#e8f0fd' },
+  green:  { accent: '#166534', hover: '#14532d', soft: '#eaf5ec', stripe: '#eaf5ec', stripeHover: '#dcf0e0' },
+  purple: { accent: '#5b21b6', hover: '#4c1d95', soft: '#f3eefa', stripe: '#f3eefa', stripeHover: '#ece0f8' },
+  orange: { accent: '#c2410c', hover: '#9a3412', soft: '#fdf3ea', stripe: '#fdf3ea', stripeHover: '#fce9d8' },
+  gray:   { accent: '#334155', hover: '#1e293b', soft: '#f1f3f6', stripe: '#f1f3f6', stripeHover: '#e8eaee' }
+};
+const ACCENT_LS_KEY = 'ds_global_accent';
+
+function accentNameFromStorage() {
+  try { return localStorage.getItem(ACCENT_LS_KEY) || localStorage.getItem('ds_activities_stripe') || 'blue'; } catch { return 'blue'; }
+}
+
+function applyGlobalAccent(name = accentNameFromStorage()) {
+  const selected = ACCENT_COLORS[name] ? name : 'blue';
+  const colors = ACCENT_COLORS[selected];
+  const root = document.documentElement;
+  root.style.setProperty('--ds-accent', colors.accent);
+  root.style.setProperty('--ds-accent-hover', colors.hover);
+  root.style.setProperty('--ds-accent-soft', colors.soft);
+  root.style.setProperty('--ds-interactive-selected', colors.soft);
+  root.style.setProperty('--ds-activities-stripe', colors.stripe);
+  root.style.setProperty('--ds-activities-stripe-hover', colors.stripeHover);
+  root.style.setProperty('--ds-focus-ring', `0 0 0 2px color-mix(in srgb, ${colors.accent} 24%, transparent)`);
+  root.style.setProperty('--ds-focus-ring-strong', `0 0 0 3px color-mix(in srgb, ${colors.accent} 30%, transparent)`);
+  document.querySelectorAll('[data-accent-picker-btn]').forEach((btn) => { btn.style.background = colors.accent; });
+  document.querySelectorAll('[data-accent-swatch]').forEach((sw) => { sw.classList.toggle('is-active', sw.dataset.accent === selected); });
+  return selected;
+}
+
+applyGlobalAccent();
+
+
 /** Timer handle for deferred prefetch — cancelled on every new navigation. */
 let prefetchTimer = null;
 let prefetchIdleId = null;
@@ -722,6 +755,22 @@ function shell(content) {
         </div>
         <hr class="shell-sidebar__divider" />
         <nav class="shell-nav">${nav}</nav>
+        <div class="shell-sidebar__footer" dir="rtl">
+          <div class="ds-accent-picker-wrap" data-accent-picker-wrap>
+            <button type="button" class="ds-accent-picker-btn" data-accent-picker-btn aria-label="צבע ממשק" title="צבע ממשק"></button>
+            <div class="ds-accent-picker-popover" data-accent-picker-popover hidden>
+              <button type="button" class="ds-accent-swatch" data-accent="blue" style="background:#1a3358" title="כחול"></button>
+              <button type="button" class="ds-accent-swatch" data-accent="green" style="background:#166534" title="ירוק"></button>
+              <button type="button" class="ds-accent-swatch" data-accent="purple" style="background:#5b21b6" title="סגול"></button>
+              <button type="button" class="ds-accent-swatch" data-accent="orange" style="background:#c2410c" title="כתום"></button>
+              <button type="button" class="ds-accent-swatch" data-accent="gray" style="background:#334155" title="אפור"></button>
+            </div>
+          </div>
+          <button type="button" class="shell-logout-btn shell-logout-btn--sidebar" id="logoutBtn" aria-label="התנתקות" title="התנתקות">
+            <span aria-hidden="true">⏻</span>
+            <span class="shell-logout-btn__text">התנתקות</span>
+          </button>
+        </div>
       </aside>
       <div class="shell-main">
         <header class="shell-top">
@@ -741,9 +790,6 @@ function shell(content) {
           ${headerNavHtml}
           <div class="shell-top__end">
             ${headerTechHtml}
-            <button type="button" class="shell-logout-btn" id="logoutBtn" aria-label="התנתקות" title="התנתקות">
-              <span aria-hidden="true">⏻</span>
-            </button>
           </div>
         </header>
         <div class="shell-stage">
@@ -1571,6 +1617,27 @@ function bindShell() {
   document.querySelectorAll('[data-mobile-close]').forEach((button) => {
     button.addEventListener('click', closeMobileNav);
   });
+
+
+  applyGlobalAccent();
+  const accentBtn = document.querySelector('[data-accent-picker-btn]');
+  const accentPop = document.querySelector('[data-accent-picker-popover]');
+  if (accentBtn && accentPop) {
+    accentBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      accentPop.hidden = !accentPop.hidden;
+    });
+    document.querySelectorAll('[data-accent-swatch]').forEach((sw) => {
+      sw.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const name = sw.dataset.accent || 'blue';
+        applyGlobalAccent(name);
+        try { localStorage.setItem(ACCENT_LS_KEY, name); } catch {}
+        accentPop.hidden = true;
+      });
+    });
+    document.addEventListener('click', () => { accentPop.hidden = true; }, { capture: true, passive: true });
+  }
 
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
     ui.closeAll();
