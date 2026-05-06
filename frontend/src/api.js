@@ -495,7 +495,7 @@ async function readInstructorsFromSupabase() {
 
 /**
  * Builds KPI card array for the dashboard from computed Supabase values.
- * KPIs that cannot be computed from Supabase columns are set to 0 and noted as GAS-only.
+ * Only metrics computed from the same Supabase dashboard path are emitted.
  */
 function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionCount, uniqueInstructorCount, courseEndings) {
   return [
@@ -843,223 +843,62 @@ async function readMonthFromSupabase(ym) {
 /**
  * Queries Supabase to build a dashboard payload for the given month (YYYY-MM).
  *
- * KPIs computable from Supabase: short, long, active_courses, active_workshops,
- * active_tours, active_after_school, active_escape_room, instructors, endings.
- *
- * KPIs that cannot yet be computed (no equivalent column): exceptions,
- * operational_gaps_count, late_end_date_count, active_courses_next_month.
- * These are set to 0 — GAS fallback is authoritative for them.
- *
- * Returns null on any failure so the caller can fall through to GAS.
+ * Reads the dashboard source-of-truth table populated by the trusted backend/sync job.
+ * Supabase errors, missing rows, invalid months, and payload debug errors return null so
+ * callers never treat fabricated KPI=0 values as real dashboard data.
  */
+function warnDashboardSupabasePathFailed(reason, extra = {}) {
+  try {
+    console.warn('[supabase][dashboard] path failed', { reason: String(reason || 'unknown'), ...extra });
+  } catch { /* ignore */ }
+}
+
 async function dashboardReadModelFromSupabase(month) {
-  if (!supabase) return buildSupabaseErrorPayload({ month, requested_month: month }, 'no_supabase_client');
+  if (!supabase) {
+    warnDashboardSupabasePathFailed('no_supabase_client', { month });
+    return null;
+  }
   try {
     const monthPrefix = String(month || '').slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(monthPrefix)) {
-      return buildSupabaseErrorPayload({ month, requested_month: month }, 'invalid_month_format', { month });
+      warnDashboardSupabasePathFailed('invalid_month_format', { month });
+      return null;
     }
 
-    const monthStart = `${monthPrefix}-01`;
-    const [yStr, mStr] = monthPrefix.split('-');
-    const y = Number(yStr);
-    const m = Number(mStr);
-    const lastDay = new Date(y, m, 0).getDate();
-    const monthEnd = `${monthPrefix}-${String(lastDay).padStart(2, '0')}`;
-
-    const [longResult, shortResult] = await Promise.all([
-      supabase.from('data_long')
-        .select('activity_type,activity_manager,start_date,end_date,date_end,emp_id,emp_id_2,instructor_name,instructor_name_2,school,authority,activity_name,status,RowID')
-        .lte('start_date', monthEnd)
-        .neq('status', 'סגור'),
-      supabase.from('data_short')
-        .select('activity_type,activity_manager,start_date,emp_id,emp_id_2,instructor_name,instructor_name_2,school,authority,activity_name,status,RowID')
-        .gte('start_date', monthStart)
-        .lte('start_date', monthEnd)
-        .neq('status', 'סגור'),
-    ]);
-
-    if (longResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][dashboard] data_long fetch failed:', longResult.error);
-      return buildSupabaseErrorPayload({ month, requested_month: month }, longResult.error);
+    const sourceResult = await supabase
+      .from('dashboard_monthly_read_models')
+      .select('month,payload,source,updated_at')
+      .eq('month', monthPrefix)
+      .maybeSingle();
+    if (sourceResult.error) {
+      console.error('[supabase][dashboard] dashboard_monthly_read_models fetch failed:', sourceResult.error);
+      warnDashboardSupabasePathFailed(sourceResult.error?.message || 'dashboard_source_fetch_failed', { month: monthPrefix });
+      return null;
     }
-    if (shortResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][dashboard] data_short fetch failed:', shortResult.error);
-      return buildSupabaseErrorPayload({ month, requested_month: month }, shortResult.error);
+    if (!sourceResult.data || !sourceResult.data.payload || typeof sourceResult.data.payload !== 'object') {
+      warnDashboardSupabasePathFailed('dashboard_source_month_missing', { month: monthPrefix });
+      return null;
     }
 
-    const allLongRows = Array.isArray(longResult.data) ? longResult.data : [];
-    const shortRows = Array.isArray(shortResult.data) ? shortResult.data : [];
-
-    // Filter long activities active during this month: started <= monthEnd AND
-    // (no end date → still active, OR end_date/date_end >= monthStart)
-    const longRows = allLongRows.filter((r) => {
-      const ed = String(r.end_date || r.date_end || '').slice(0, 10);
-      return !ed || ed >= monthStart;
-    });
-
-    // Course endings: long activities whose end falls within this month
-    const courseEndingRows = allLongRows.filter((r) => {
-      const ed = String(r.end_date || r.date_end || '').slice(0, 10);
-      return ed && ed >= monthStart && ed <= monthEnd;
-    });
-
-    const total_long_activities = longRows.length;
-    const total_short_activities = shortRows.length;
-    const course_endings = courseEndingRows.length;
-
-    const HEB_TYPE_MAP = {
-      'קורס': 'course', 'סדנה': 'workshop', 'סדנאות': 'workshop',
-      'טיול': 'tour', 'סיור': 'tour', 'צהרון': 'after_school', 'חוג': 'after_school',
-      'חדר בריחה': 'escape_room',
-      'course': 'course', 'workshop': 'workshop', 'tour': 'tour',
-      'after_school': 'after_school', 'escape_room': 'escape_room'
-    };
-    const activeTypeCounts = { course: 0, after_school: 0, workshop: 0, tour: 0, escape_room: 0 };
-    for (const r of [...longRows, ...shortRows]) {
-      const t = String(r.activity_type || '').trim();
-      const key = HEB_TYPE_MAP[t] || t;
-      if (Object.prototype.hasOwnProperty.call(activeTypeCounts, key)) activeTypeCounts[key] += 1;
+    const sourcePayload = sourceResult.data.payload;
+    if (sourcePayload?.error || sourcePayload?._debug?.error) {
+      warnDashboardSupabasePathFailed(sourcePayload.error || sourcePayload._debug.error, { month: monthPrefix });
+      return null;
     }
-
-    const instructorIds = new Set();
-    const instructorNames = new Set();
-    for (const r of longRows) {
-      const id = String(r.emp_id || '').trim();
-      const n = String(r.instructor_name || '').trim();
-      if (id) instructorIds.add(id);
-      if (n) instructorNames.add(n);
-    }
-    for (const r of shortRows) {
-      const id1 = String(r.emp_id || '').trim();
-      const id2 = String(r.emp_id_2 || '').trim();
-      const n1 = String(r.instructor_name || '').trim();
-      const n2 = String(r.instructor_name_2 || '').trim();
-      if (id1) instructorIds.add(id1);
-      if (id2) instructorIds.add(id2);
-      if (n1) instructorNames.add(n1);
-      if (n2) instructorNames.add(n2);
-    }
-    const active_instructors_count = instructorIds.size;
-    const exceptions_count = buildExceptionsFromRows(longRows, shortRows, []).length;
-
-    const managerMap = new Map();
-    function ensureManager(name) {
-      const k = String(name || '').trim();
-      if (!k) return null;
-      if (!managerMap.has(k)) managerMap.set(k, { total_long: 0, total_short: 0, instructors: new Set(), endings: 0 });
-      return managerMap.get(k);
-    }
-    for (const r of longRows) {
-      const mg = ensureManager(r.activity_manager);
-      if (!mg) continue;
-      mg.total_long += 1;
-      const id = String(r.emp_id || '').trim();
-      if (id) mg.instructors.add(id);
-    }
-    for (const r of shortRows) {
-      const mg = ensureManager(r.activity_manager);
-      if (!mg) continue;
-      mg.total_short += 1;
-      const id1 = String(r.emp_id || '').trim();
-      const id2 = String(r.emp_id_2 || '').trim();
-      if (id1) mg.instructors.add(id1);
-      if (id2) mg.instructors.add(id2);
-    }
-    for (const r of courseEndingRows) {
-      const mg = ensureManager(r.activity_manager);
-      if (!mg) continue;
-      mg.endings += 1;
-    }
-
-    const by_activity_manager = [...managerMap.entries()].map(([activity_manager, s]) => ({
-      activity_manager,
-      total_long: s.total_long,
-      total_short: s.total_short,
-      total: s.total_long + s.total_short,
-      num_instructors: s.instructors.size,
-      course_endings: s.endings,
-      exceptions: 0
-    }));
-
-    const totals = {
-      total_short_activities,
-      total_long_activities,
-      total_instructors: active_instructors_count,
-      total_course_endings_current_month: course_endings,
-      exceptions_count,
-      short: total_short_activities,
-      long: total_long_activities
-    };
-
-    const kpi_cards = buildDashboardKpiCardsFromSupabase(
-      totals,
-      activeTypeCounts,
-      exceptions_count,
-      active_instructors_count,
-      course_endings
-    );
 
     return {
-      month,
+      ...sourcePayload,
+      month: sourcePayload.month || sourceResult.data.month || monthPrefix,
       requested_month: month,
       month_fallback_used: false,
-      totals,
-      by_activity_manager,
-      summary: {
-        active_courses_current_month: total_long_activities,
-        ending_courses_current_month: course_endings,
-        active_courses_next_month: 0,
-        exceptions_count,
-        active_instructors: [...instructorNames].sort(),
-        operational_gaps_count: 0,
-        missing_instructor_count: 0,
-        missing_start_date_count: 0,
-        late_end_date_count: 0,
-        short_activities: [],
-        active_type_counts: { ...activeTypeCounts }
-      },
-      kpi_cards,
-      show_only_nonzero_kpis: false,
-      _source: 'supabase'
+      _source: sourceResult.data.source || 'supabase_dashboard_monthly_read_models',
+      _dashboard_source_table: 'dashboard_monthly_read_models',
+      _dashboard_source_updated_at: sourceResult.data.updated_at || null
     };
   } catch (err) {
-    return buildSupabaseErrorPayload({
-      month,
-      requested_month: month,
-      totals: {
-        total_short_activities: 0,
-        total_long_activities: 0,
-        total_instructors: 0,
-        total_course_endings_current_month: 0,
-        exceptions_count: 0,
-        short: 0,
-        long: 0
-      },
-      by_activity_manager: [],
-      summary: {
-        active_courses_current_month: 0,
-        ending_courses_current_month: 0,
-        active_courses_next_month: 0,
-        exceptions_count: 0,
-        active_instructors: [],
-        operational_gaps_count: 0,
-        missing_instructor_count: 0,
-        missing_start_date_count: 0,
-        late_end_date_count: 0,
-        short_activities: []
-      },
-      kpi_cards: buildDashboardKpiCardsFromSupabase(
-        { total_short_activities: 0, total_long_activities: 0 },
-        { course: 0, after_school: 0, workshop: 0, tour: 0, escape_room: 0 },
-        0,
-        0,
-        0
-      ),
-      show_only_nonzero_kpis: false
-    }, err);
+    console.error('[supabase][dashboard] unexpected error:', err);
+    warnDashboardSupabasePathFailed(err?.message || err || 'unexpected_error', { month });
+    return null;
   }
 }
 
@@ -1828,6 +1667,8 @@ async function request(action, payload = {}, perfMeta = {}) {
   throw new Error('legacy_gas_api_disabled');
 }
 
+const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,emp_id,is_active,permissions,created_at,updated_at';
+
 const SUPABASE_ROLE_ROUTES = {
   admin: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'admin-lists'],
   operation_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
@@ -1845,7 +1686,6 @@ function flattenUserRow(userRow = {}) {
     display_role_label: hebrewRole(String(userRow.role || 'authorized_user')),
     display_role2: String(permissions.display_role2 || ''),
     emp_id: String(userRow.emp_id || ''),
-    entry_code: String(userRow.entry_code || ''),
     active: userRow.is_active ? 'yes' : 'no',
     ...permissions
   };
@@ -1875,14 +1715,13 @@ async function getActiveUserByLogin(user_id, entry_code) {
   const uid = String(user_id || '').trim();
   const code = String(entry_code || '').trim();
   if (!uid || !code) throw new Error('invalid_credentials');
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('is_active', true)
-    .or(`user_id.eq.${uid},email.eq.${uid},emp_id.eq.${uid}`)
-    .limit(20);
+  const { data, error } = await supabase.rpc('login_user_by_entry_code', {
+    p_login: uid,
+    p_entry_code: code
+  });
   if (error) throw new Error(error.message || 'auth_query_failed');
-  const hit = (Array.isArray(data) ? data : []).find((r) => String(r.entry_code || '').trim() === code);
+  const rows = Array.isArray(data) ? data : (data ? [data] : []);
+  const hit = rows[0];
   if (!hit) throw new Error('invalid_credentials');
   return hit;
 }
@@ -1903,7 +1742,7 @@ async function readCurrentUserBySession() {
   if (!userId) throw new Error('unauthorized');
   const { data, error } = await supabase
     .from('users')
-    .select('*')
+    .select(USER_PUBLIC_COLUMNS)
     .eq('user_id', userId)
     .single();
   if (error || !data) throw new Error('unauthorized');
@@ -2114,17 +1953,28 @@ export const api = {
   dashboardSnapshot: (filters) => api.dashboardReadModel(filters || {}),
   dashboardSheet: (filters) => api.dashboardReadModel(filters || {}),
   dashboardReadModel: async (filters, options) => {
+    void options;
     const resolved = (filters && typeof filters === 'object') ? filters : {};
     const candidate = String(resolved.month || resolved.ym || '').trim();
     const now = new Date();
     const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
+    let month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
+    if (candidate && candidate !== month) {
+      console.warn('[dashboard] fallback month returned', { requested_month: candidate, fallback_month: month, reason: 'invalid_month_format' });
+    }
     const canonical = { ...resolved, month };
     const supabasePayload = await dashboardReadModelFromSupabase(month);
-    if (!supabasePayload || typeof supabasePayload !== 'object') {
-      return buildSupabaseErrorPayload({ month, requested_month: month, ...canonical }, 'dashboard_null_payload');
+    const supabaseError = supabasePayload?.error || supabasePayload?._debug?.error;
+    if (!supabasePayload || typeof supabasePayload !== 'object' || supabaseError) {
+      warnDashboardSupabasePathFailed(supabaseError || 'dashboard_null_payload', { month, requested_month: candidate || month });
+      // Legacy GAS/read-model fallback is disabled in this Supabase-only client. Do not fabricate KPI=0 payloads.
+      throw new Error('טעינת נתוני לוח הבקרה נכשלה. מקור Supabase לא החזיר נתונים תקינים ואין fallback פעיל.');
     }
-    return { ...supabasePayload, ...canonical };
+    if (supabasePayload.month && supabasePayload.month !== month) {
+      console.warn('[dashboard] fallback month returned', { requested_month: month, returned_month: supabasePayload.month });
+      month = supabasePayload.month;
+    }
+    return { ...supabasePayload, ...canonical, month };
   },
   archiveActivities: async () => {
     const data = await readArchiveActivitiesFromSupabase();
@@ -2200,7 +2050,7 @@ export const api = {
     return buildEditRequestGroups(rows, canReview);
   },
   permissions: async () => {
-    const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('users').select(USER_PUBLIC_COLUMNS).order('created_at', { ascending: false });
     if (error) throw new Error(error.message || 'permissions_read_failed');
     const rows = (Array.isArray(data) ? data : []).map(flattenUserRow);
     return {
@@ -2361,7 +2211,7 @@ export const api = {
   savePermission: async (row) => {
     const userId = String(row?.user_id || '').trim();
     if (!userId) throw new Error('missing_user_id');
-    const existing = await supabase.from('users').select('*').eq('user_id', userId).single();
+    const existing = await supabase.from('users').select(USER_PUBLIC_COLUMNS).eq('user_id', userId).single();
     if (existing.error || !existing.data) throw new Error('user_not_found');
     const permissions = { ...(existing.data.permissions || {}) };
     Object.entries(row || {}).forEach(([k, v]) => {
@@ -2373,7 +2223,6 @@ export const api = {
       is_active: String(row.active || '').toLowerCase() !== 'no',
       name: row.full_name ?? existing.data.name,
       emp_id: row.emp_id ?? existing.data.emp_id,
-      entry_code: row.entry_code ?? existing.data.entry_code,
       permissions: {
         ...permissions,
         display_role2: row.display_role2 ?? permissions.display_role2 ?? ''

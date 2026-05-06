@@ -1,0 +1,103 @@
+-- Migration: lock down client-facing RLS/grants and define a Supabase dashboard source table.
+-- The anon key may read only the public data needed by the app. Writes must be performed
+-- by a trusted backend/service-role process, not directly from the browser.
+
+-- A Supabase-only dashboard should be populated from the same fixed dashboard sheet/read-model
+-- contract by a backend sync job. The frontend may read this table by month; it must not
+-- synthesize KPI=0 payloads when this source is missing or unreadable.
+create table if not exists public.dashboard_monthly_read_models (
+  month text primary key check (month ~ '^[0-9]{4}-[0-9]{2}$'),
+  payload jsonb not null,
+  source text not null default 'dashboard_sheet',
+  updated_at timestamptz not null default now()
+);
+
+alter table public.dashboard_monthly_read_models enable row level security;
+
+drop policy if exists dashboard_monthly_read_models_select_public on public.dashboard_monthly_read_models;
+create policy dashboard_monthly_read_models_select_public
+on public.dashboard_monthly_read_models
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists dashboard_monthly_read_models_insert_public on public.dashboard_monthly_read_models;
+drop policy if exists dashboard_monthly_read_models_update_public on public.dashboard_monthly_read_models;
+drop policy if exists dashboard_monthly_read_models_delete_public on public.dashboard_monthly_read_models;
+
+grant select on public.dashboard_monthly_read_models to anon, authenticated;
+revoke insert, update, delete on public.dashboard_monthly_read_models from anon, authenticated;
+
+-- Undo the broad anon write grants from 20260505_grant_anon_all_tables.sql for sensitive/core data.
+revoke insert, update, delete on public.data_long from anon;
+revoke insert, update, delete on public.data_short from anon;
+revoke insert, update, delete on public.users from anon;
+revoke insert, update, delete on public.settings from anon;
+
+-- Keep browser reads explicit. entry_code is intentionally excluded from users column grants.
+revoke all on public.users from anon, authenticated;
+grant select (user_id, email, name, role, emp_id, is_active, permissions, created_at, updated_at)
+on public.users to anon, authenticated;
+
+revoke all on public.settings from anon, authenticated;
+grant select on public.settings to anon, authenticated;
+
+-- Data tables are readable by the client screens but not writable with the anon key.
+grant select on public.data_long to anon, authenticated;
+grant select on public.data_short to anon, authenticated;
+revoke insert, update, delete on public.data_long from authenticated;
+revoke insert, update, delete on public.data_short from authenticated;
+
+-- Replace permissive users write policies with read-only public access to active users.
+drop policy if exists users_insert_all on public.users;
+drop policy if exists users_update_all on public.users;
+drop policy if exists users_delete_all on public.users;
+drop policy if exists users_select_active on public.users;
+create policy users_select_active_public_safe
+on public.users
+for select
+to anon, authenticated
+using (is_active = true);
+
+-- Replace permissive settings write policies with read-only public access.
+drop policy if exists settings_insert_all on public.settings;
+drop policy if exists settings_update_all on public.settings;
+drop policy if exists settings_delete_all on public.settings;
+drop policy if exists settings_select_all on public.settings;
+create policy settings_select_public
+on public.settings
+for select
+to anon, authenticated
+using (true);
+
+-- Login validates entry_code server-side and returns only non-secret user fields.
+create or replace function public.login_user_by_entry_code(p_login text, p_entry_code text)
+returns table (
+  user_id text,
+  email text,
+  name text,
+  role text,
+  emp_id text,
+  is_active boolean,
+  permissions jsonb,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select u.user_id, u.email, u.name, u.role, u.emp_id, u.is_active, u.permissions, u.created_at, u.updated_at
+  from public.users u
+  where u.is_active = true
+    and trim(coalesce(u.entry_code, '')) = trim(coalesce(p_entry_code, ''))
+    and (
+      u.user_id = trim(coalesce(p_login, ''))
+      or u.email = trim(coalesce(p_login, ''))
+      or u.emp_id = trim(coalesce(p_login, ''))
+    )
+  limit 1;
+$$;
+
+revoke all on function public.login_user_by_entry_code(text, text) from public;
+grant execute on function public.login_user_by_entry_code(text, text) to anon, authenticated;
