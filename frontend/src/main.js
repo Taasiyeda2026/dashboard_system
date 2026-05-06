@@ -1665,6 +1665,7 @@ async function render() {
     if (!state.token) {
       lastRenderedRoute = null;
       isMobileNavOpen = false;
+      shellEventsBound = false;
       document.body.classList.remove('is-shell-nav-open');
       ui.closeAll();
       app.innerHTML = loginScreen.render(escapeHtml(loginInlineError), escapeHtml(systemNameDisplay()));
