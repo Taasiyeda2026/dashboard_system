@@ -709,6 +709,7 @@ async function dashboardReadModelFromSupabase(month) {
       if (emp1) stats._instructors.add(emp1);
       if (emp2) stats._instructors.add(emp2);
 
+      if (String(row?.activity_type || '').trim() !== 'course') continue;
       const hasMeetingDates = getActivityDateColumns(row).length > 0;
       const hasAnyDate = hasMeetingDates || nullStr(row?.start_date);
       const missingInstructor = !emp1 && !emp2 && !instructor1 && !instructor2;
@@ -794,6 +795,7 @@ function buildExceptionsFromRows(activityRows = []) {
   const rows = [];
   for (const row of activityRows) {
     if (isActivityClosed(row)) continue;
+    if (String(row?.activity_type || '').trim() !== 'course') continue;
     const types = [];
     const emp1        = nullStr(row?.emp_id);
     const emp2        = nullStr(row?.emp_id_2);
