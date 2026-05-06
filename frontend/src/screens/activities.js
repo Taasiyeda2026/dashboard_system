@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { formatDateHe } from './shared/format-date.js';
+import { formatDateHe, formatActivityDateColumnsHe } from './shared/format-date.js';
 import {
   hebrewColumn,
   visibleActivityCategoryLabel,
@@ -408,7 +408,8 @@ export const activitiesScreen = {
           row.instructor_name_2,
           row.activity_manager,
           hideEmpIds ? '' : row.emp_id,
-          hideEmpIds ? '' : row.emp_id_2
+          hideEmpIds ? '' : row.emp_id_2,
+          formatActivityDateColumnsHe(row)
         ]
           .filter(Boolean)
           .join(' ');
@@ -420,6 +421,7 @@ export const activitiesScreen = {
         <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}</div></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe)}</time></td>
+        <td class="ds-activities-col ds-activities-col--meetings"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(formatActivityDateColumnsHe(row))}">${escapeHtml(formatActivityDateColumnsHe(row))}</span></td>
         <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(String(row.notes || '—'))}">${escapeHtml(String(row.notes || '—'))}</span></td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
@@ -455,10 +457,11 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--instructor">
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--meetings">
                   <col class="ds-activities-col--notes">
                   ${canSeePrivateNotes ? '<col>' : ''}
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>הערות</th>${thPrivate}</tr></thead>
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>תאריכי מפגשים</th><th>הערות</th>${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
 
@@ -469,16 +472,6 @@ export const activitiesScreen = {
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">↻</button>
-        <div class="ds-stripe-picker-wrap" data-stripe-picker-wrap>
-          <button type="button" class="ds-stripe-picker-btn" data-stripe-picker-btn aria-label="צבע פספוס שורות" title="צבע פספוס שורות"></button>
-          <div class="ds-stripe-picker-popover" data-stripe-picker-popover hidden>
-            <button type="button" class="ds-stripe-swatch" data-stripe="blue"   style="background:#eef3fb" title="כחול"></button>
-            <button type="button" class="ds-stripe-swatch" data-stripe="green"  style="background:#eaf5ec" title="ירוק"></button>
-            <button type="button" class="ds-stripe-swatch" data-stripe="purple" style="background:#f3eefa" title="סגול"></button>
-            <button type="button" class="ds-stripe-swatch" data-stripe="orange" style="background:#fdf3ea" title="כתום"></button>
-            <button type="button" class="ds-stripe-swatch" data-stripe="gray"   style="background:#f1f3f6" title="אפור"></button>
-          </div>
-        </div>
         ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">+</button>` : ''}
       </div>
     </div>`;
@@ -947,52 +940,6 @@ export const activitiesScreen = {
       }, addActivitySig);
     }
 
-    // ——— Row-stripe color picker ———
-    const STRIPE_COLORS = {
-      blue:   { stripe: '#eef3fb', hover: '#e8f0fd' },
-      green:  { stripe: '#eaf5ec', hover: '#dcf0e0' },
-      purple: { stripe: '#f3eefa', hover: '#ece0f8' },
-      orange: { stripe: '#fdf3ea', hover: '#fce9d8' },
-      gray:   { stripe: '#f1f3f6', hover: '#e8eaee' }
-    };
-    const STRIPE_LS_KEY = 'ds_activities_stripe';
-
-    function applyStripe(name) {
-      const colors = STRIPE_COLORS[name] || STRIPE_COLORS.blue;
-      document.documentElement.style.setProperty('--ds-activities-stripe', colors.stripe);
-      document.documentElement.style.setProperty('--ds-activities-stripe-hover', colors.hover);
-      const pickerBtn = root.querySelector('[data-stripe-picker-btn]');
-      if (pickerBtn) pickerBtn.style.background = colors.stripe;
-      root.querySelectorAll('[data-stripe-swatch]').forEach((sw) => {
-        sw.classList.toggle('is-active', sw.dataset.stripe === name);
-      });
-    }
-
-    const savedStripe = (() => { try { return localStorage.getItem(STRIPE_LS_KEY) || 'blue'; } catch { return 'blue'; } })();
-    applyStripe(savedStripe);
-
-    const pickerBtn    = root.querySelector('[data-stripe-picker-btn]');
-    const pickerPop    = root.querySelector('[data-stripe-picker-popover]');
-
-    if (pickerBtn && pickerPop) {
-      pickerBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        pickerPop.hidden = !pickerPop.hidden;
-      });
-
-      root.querySelectorAll('[data-stripe]').forEach((sw) => {
-        sw.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          const name = sw.dataset.stripe;
-          applyStripe(name);
-          try { localStorage.setItem(STRIPE_LS_KEY, name); } catch {}
-          pickerPop.hidden = true;
-        });
-      });
-
-      document.addEventListener('click', () => { pickerPop.hidden = true; }, { capture: true, once: false, passive: true });
-    }
-    // ——————————————————————————————
 
     root.querySelectorAll('.ds-data-row').forEach((n) => {
       n.tabIndex = 0;

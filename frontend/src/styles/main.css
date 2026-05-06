@@ -8056,7 +8056,7 @@ select.ds-activity-add-field .ds-input,
 .ds-table--activities-list col.ds-activities-col--date       { width: 13%; }
 .ds-table--activities-list col.ds-activities-col--notes      { width: 22%; }
 
-.ds-table--archive col { width: calc(100% / 7); }
+.ds-table--archive col { width: calc(100% / 8); }
 
 .ds-table--activities-list th,
 .ds-table--activities-list td {
@@ -8624,4 +8624,93 @@ select.ds-activity-add-field .ds-input,
   font-weight: 700;
   color: #1e293b;
   font-size: 0.9rem;
+}
+
+/* Global accent controls in sidebar */
+.ds-accent-picker-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--ds-space-3);
+}
+
+.ds-accent-picker-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  padding: 0;
+  background: var(--ds-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.ds-accent-picker-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.24);
+}
+
+.ds-accent-picker-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 50%;
+  transform: translateX(50%);
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--ds-border);
+  background: #fff;
+  box-shadow: var(--ds-shadow-lg);
+  z-index: 80;
+}
+.ds-accent-picker-popover[hidden] { display: none; }
+
+.ds-accent-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color .12s, transform .12s;
+}
+.ds-accent-swatch:hover { transform: scale(1.14); }
+.ds-accent-swatch.is-active { border-color: #0f172a; transform: scale(1.08); }
+
+.shell-logout-btn--sidebar {
+  width: 100%;
+  min-height: 38px;
+  justify-content: center;
+  gap: 6px;
+}
+.shell-logout-btn__text { font-size: 0.76rem; }
+
+.shell-nav__btn.is-active {
+  background: color-mix(in srgb, var(--ds-accent) 72%, #0b0d12);
+}
+
+.ds-card,
+.ds-interactive-card--kpi,
+.ds-manager-card {
+  border-top-color: color-mix(in srgb, var(--ds-accent) 28%, var(--ds-border));
+}
+
+.ds-chip--tab.is-active,
+.ds-summary-btn.is-active {
+  border-color: var(--ds-accent);
+}
+
+.ds-table--archive th,
+.ds-table--archive td {
+  text-align: right;
+}
+.ds-table--archive th:nth-last-child(2),
+.ds-table--archive th:nth-last-child(1),
+.ds-table--archive td:nth-last-child(2),
+.ds-table--archive td:nth-last-child(1),
+.ds-table--archive .ds-archive-date-col {
+  text-align: center;
+}
+.ds-table--archive .ds-archive-meeting-dates {
+  white-space: normal;
 }

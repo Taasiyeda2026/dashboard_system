@@ -214,7 +214,10 @@ function activityHasDateInRange(row, startDate, endDate) {
 }
 
 function activityHasDateInMonth(row, monthPrefix) {
-  return getActivityDateColumns(row).some((dateKey) => dateKey.startsWith(monthPrefix));
+  const dates = getActivityDateColumns(row);
+  if (dates.some((dateKey) => dateKey.startsWith(monthPrefix))) return true;
+  // start_date is only a fallback when the activity has no meeting date columns.
+  return dates.length === 0 && String(row?.start_date || '').slice(0, 7) === monthPrefix;
 }
 
 async function selectActivitiesFromSupabase(select = '*') {
@@ -641,37 +644,102 @@ async function dashboardReadModelFromSupabase(month) {
   try {
     const monthPrefix = String(month || '').slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(monthPrefix)) return null;
-    const rows = (await selectActivitiesFromSupabase('*')).filter((row) => !isActivityClosed(row));
-    const monthRows = rows.filter((row) => activityHasDateInMonth(row, monthPrefix));
-    const endingRows = rows.filter((row) => String(row?.end_date || '').slice(0, 7) === monthPrefix);
+    const openRows = (await selectActivitiesFromSupabase('*')).filter((row) => !isActivityClosed(row));
+    const monthRows = openRows.filter((row) => activityHasDateInMonth(row, monthPrefix));
+    const endingRows = openRows.filter((row) => isProgramActivity(row) && String(row?.end_date || '').slice(0, 7) === monthPrefix);
     const instructorIds = new Set();
-    let exceptionCount = 0;
+    const instructorNames = new Set();
     const activeTypeCounts = {};
+    const byManagerMap = new Map();
+    let missingInstructorCount = 0;
+    let missingDateCount = 0;
+    let lateEndDateCount = 0;
+    const operationalGapsCount = 0;
+
+    function managerStats(manager) {
+      const key = String(manager || 'unassigned').trim() || 'unassigned';
+      if (!byManagerMap.has(key)) {
+        byManagerMap.set(key, {
+          activity_manager: key,
+          total_long: 0,
+          total_short: 0,
+          total_activities: 0,
+          num_instructors: 0,
+          _instructors: new Set(),
+          exceptions: 0,
+          course_endings: 0
+        });
+      }
+      return byManagerMap.get(key);
+    }
 
     for (const row of monthRows) {
       const activityType = String(row?.activity_type || '').trim();
       if (activityType) activeTypeCounts[activityType] = (activeTypeCounts[activityType] || 0) + 1;
       const emp1 = String(row?.emp_id || '').trim();
       const emp2 = String(row?.emp_id_2 || '').trim();
+      const instructor1 = String(row?.instructor_name || '').trim();
+      const instructor2 = String(row?.instructor_name_2 || '').trim();
       if (emp1) instructorIds.add(emp1);
       if (emp2) instructorIds.add(emp2);
-      const hasDate = getActivityDateColumns(row).length > 0;
-      if ((!emp1 && !emp2) || !hasDate || !String(row?.activity_name || '').trim() || !String(row?.school || '').trim()) exceptionCount += 1;
+      if (instructor1 || emp1) instructorNames.add(instructor1 || emp1);
+      if (instructor2 || emp2) instructorNames.add(instructor2 || emp2);
+
+      const stats = managerStats(row?.activity_manager);
+      stats.total_activities += 1;
+      if (isProgramActivity(row)) stats.total_long += 1;
+      if (isOneDayActivity(row)) stats.total_short += 1;
+      if (emp1) stats._instructors.add(emp1);
+      if (emp2) stats._instructors.add(emp2);
+
+      const hasMeetingDates = getActivityDateColumns(row).length > 0;
+      const hasAnyDate = hasMeetingDates || String(row?.start_date || '').trim();
+      const missingInstructor = !emp1 && !instructor1;
+      const missingDate = !hasAnyDate;
+      if (missingInstructor) missingInstructorCount += 1;
+      if (missingDate) missingDateCount += 1;
+      if (missingInstructor || missingDate) stats.exceptions += 1;
     }
 
+    for (const row of endingRows) {
+      managerStats(row?.activity_manager).course_endings += 1;
+    }
+
+    const by_activity_manager = [...byManagerMap.values()].map((stats) => {
+      stats.num_instructors = stats._instructors.size;
+      delete stats._instructors;
+      return stats;
+    });
+    const exceptionsCount = missingInstructorCount + missingDateCount + lateEndDateCount + operationalGapsCount;
     const totals = {
       total_short_activities: monthRows.filter(isOneDayActivity).length,
       total_long_activities: monthRows.filter(isProgramActivity).length,
-      total_activities: monthRows.length
+      total_activities: monthRows.length,
+      total_instructors: instructorIds.size,
+      total_course_endings_current_month: endingRows.length,
+      exceptions_count: exceptionsCount
     };
-    const kpi_cards = buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionCount, instructorIds.size, endingRows.length);
+    const summary = {
+      active_type_counts: activeTypeCounts,
+      active_instructors: [...instructorNames].sort((a, b) => a.localeCompare(b, 'he')),
+      active_instructors_count: instructorIds.size,
+      ending_courses_current_month: endingRows.length,
+      missing_instructor_count: missingInstructorCount,
+      missing_date_count: missingDateCount,
+      late_end_date_count: lateEndDateCount,
+      operational_gaps_count: operationalGapsCount,
+      exceptions_count: exceptionsCount
+    };
+    const kpi_cards = buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionsCount, instructorIds.size, endingRows.length);
     const noData = monthRows.length === 0;
     return {
       month: monthPrefix,
       requested_month: month,
       totals,
+      summary,
+      by_activity_manager,
       activeTypeCounts,
-      exceptionCount,
+      exceptionCount: exceptionsCount,
       uniqueInstructorCount: instructorIds.size,
       courseEndings: endingRows.length,
       kpi_cards,

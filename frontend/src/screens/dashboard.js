@@ -1,6 +1,5 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack } from './shared/layout.js';
-import { config } from '../config.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -97,11 +96,11 @@ function renderStructuredSummary(summary, ym, byManager) {
   const missingInstrField = operationalGapsField.ok ? operationalGapsField : getStrictNumericField(summary, 'missing_instructor_count');
   const lateEndField = getStrictNumericField(summary, 'late_end_date_count');
   const exceptionsTotalField = getStrictNumericField(summary, 'exceptions_count');
-  const exceptionsTotalResolved = exceptionsTotalField.ok ? exceptionsTotalField.value : 'שגיאת מיפוי';
+  const exceptionsTotalResolved = exceptionsTotalField.ok ? exceptionsTotalField.value : 0;
 
-  const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 'שגיאת מיפוי'));
-  const operationalGaps = escapeHtml(String(missingInstrField.ok ? missingInstrField.value : 'שגיאת מיפוי'));
-  const lateEnd = escapeHtml(String(lateEndField.ok ? lateEndField.value : 'שגיאת מיפוי'));
+  const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 0));
+  const operationalGaps = escapeHtml(String(missingInstrField.ok ? missingInstrField.value : 0));
+  const lateEnd = escapeHtml(String(lateEndField.ok ? lateEndField.value : 0));
   const exceptionsTotal = escapeHtml(String(exceptionsTotalResolved));
 
   const typeCounts = summary?.active_type_counts || {};
@@ -230,8 +229,8 @@ function buildDashboardStaleBanner(data) {
   if (data._snapshot_unavailable === true) {
     return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">הנתונים בהכנה — ייתכן שחלק מהמידע חסר. רעננו את הדף לאחר מספר דקות לקבלת תצוגה מלאה.</div>';
   }
-  if (data._is_stale === true) {
-    return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">מציג נתונים מהפעם הקודמת — הדף יתעדכן אוטומטית בעוד רגע.</div>';
+  if (data._read_model_stale === true || data._is_stale === true) {
+    return '<div class="ds-muted" style="margin-bottom:var(--ds-space-2)">נתוני לוח הבקרה מתעדכנים כעת — מוצגים נתוני מטמון אחרונים עד לסיום העדכון.</div>';
   }
   return '';
 }

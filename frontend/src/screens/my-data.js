@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { hebrewColumn, hebrewActivityType } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
@@ -11,6 +12,15 @@ import {
 import { isNarrowViewport } from './shared/responsive.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityRowDetailHtml } from './shared/activity-detail-html.js';
+
+
+function displayCellValue(row, column) {
+  let val = row?.[column] ?? '';
+  if (column === 'activity_type') val = hebrewActivityType(val);
+  if (column === 'start_date' || column === 'end_date') val = formatDateHe(String(val || '')) || val;
+  if (column === 'start_time' || column === 'end_time' || column === 'StartTime' || column === 'EndTime') val = formatTimeShort(val);
+  return val;
+}
 
 export const myDataScreen = {
   load: ({ api }) => api.myData(),
@@ -31,16 +41,14 @@ export const myDataScreen = {
       const rawType = String(row.activity_type || '').trim();
       const searchHay = columns
         .map((column) => {
-          let val = row?.[column] ?? '';
-          if (column === 'activity_type') val = hebrewActivityType(val);
+          const val = displayCellValue(row, column);
           return String(val);
         })
         .join(' ');
       return `
       <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${columns
         .map((column) => {
-          let val = row?.[column] ?? '';
-          if (column === 'activity_type') val = hebrewActivityType(val);
+          const val = displayCellValue(row, column);
           return `<td>${escapeHtml(val)}</td>`;
         })
         .join('')}</tr>
@@ -69,7 +77,7 @@ export const myDataScreen = {
                 variant: 'session',
                 action: `mydata:${row.RowID}`,
                 title: hideRowId ? `${row.activity_name || 'פעילות'}` : `${row.RowID} · ${row.activity_name || 'פעילות'}`,
-                subtitle: `${row.start_date || '—'} → ${row.end_date || '—'}`,
+                subtitle: `${formatDateHe(row.start_date) || '—'} → ${formatDateHe(row.end_date) || '—'}`,
                 meta: hebrewActivityType(row.activity_type)
               })}
             </div>`;
