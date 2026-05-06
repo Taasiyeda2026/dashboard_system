@@ -362,16 +362,14 @@ select {
 }
 
 .shell-sidebar__footer {
-  display: block;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   margin-top: auto;
   padding-top: var(--ds-space-4);
   border-top: 1px solid var(--ds-shell-border);
-}
-
-@media (min-width: 960px) {
-  .shell-sidebar__footer {
-    display: block;
-  }
+  gap: var(--ds-space-2);
 }
 
 .shell-backdrop {

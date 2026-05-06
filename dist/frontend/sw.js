@@ -29,7 +29,7 @@ const PRECACHE_URLS = [
   "/assets/pwa/icon-72.png",
   "/assets/pwa/icon-96.png",
   "/assets/pwa/icon-maskable-512.png",
-  "/assets/style-DeQr0n-J.css",
+  "/assets/style-w0p0t6Af.css",
   "/index.html",
   "/manifest.json"
 ];
