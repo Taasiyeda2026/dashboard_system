@@ -1,6 +1,5 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsInteractiveCard } from './shared/layout.js';
-import { config } from '../config.js';
 
 const HEBREW_MONTHS = [
   'ינואר',

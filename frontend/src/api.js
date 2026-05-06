@@ -121,15 +121,46 @@ function warnHeavyLegacyReadWithoutIntentionalFlag(action, perfMeta) {
 }
 
 
+function normalizeIsoDate(val) {
+  if (!val) return '';
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+  return m ? m[1] : '';
+}
+
+function getActivityDateColumns(row) {
+  const out = [];
+  for (let i = 1; i <= 35; i++) {
+    const snake = normalizeIsoDate(row?.[`date_${i}`]);
+    const pascal = normalizeIsoDate(row?.[`Date${i}`]);
+    const hit = snake || pascal;
+    if (hit) out.push(hit);
+  }
+  return [...new Set(out)].sort();
+}
+
+function rowInDateRangeByDateColumns(row, startDate, endDate) {
+  if (!startDate || !endDate) return true;
+  const dates = getActivityDateColumns(row);
+  return dates.some((d) => d >= startDate && d <= endDate);
+}
+
 function rowMatchesActivitiesFilters(row, filters = {}) {
   const activityType = String(filters?.activity_type || '').trim();
   const month = String(filters?.month || '').trim();
+  const status = String(filters?.status || '').trim();
 
   if (activityType && activityType !== 'all' && String(row?.activity_type || '').trim() !== activityType) return false;
+  if (status === 'closed' && String(row?.status || '').trim() !== 'סגור') return false;
+  if (status === 'active' && String(row?.status || '').trim() === 'סגור') return false;
 
   if (/^\d{4}-\d{2}$/.test(month)) {
-    const start = String(row?.date_start || row?.start_date || '').trim();
-    if (/^\d{4}-\d{2}/.test(start) && !start.startsWith(month)) return false;
+    const [yStr, mStr] = month.split('-');
+    const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
+    const start = `${month}-01`;
+    const end = `${month}-${String(lastDay).padStart(2, '0')}`;
+    if (!rowInDateRangeByDateColumns(row, start, end)) return false;
   }
 
   return true;
@@ -139,34 +170,20 @@ async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
   try {
-    const [longResult, shortResult] = await Promise.all([
-      supabase.from('data_long').select('*'),
-      supabase.from('data_short').select('*')
-    ]);
-
-    if (longResult.error) {
+    const result = await supabase.from('activities').select('*');
+    if (result.error) {
       // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load data_long:', longResult.error);
+      console.error('[supabase] Failed to load activities:', result.error);
       return null;
     }
-    if (shortResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load data_short:', shortResult.error);
-      return null;
-    }
-
-    const longRows = Array.isArray(longResult.data)
-      ? longResult.data.map((row) => ({ ...row, source_sheet: row?.source_sheet || 'data_long' }))
-      : [];
-    const shortRows = Array.isArray(shortResult.data)
-      ? shortResult.data.map((row) => ({ ...row, source_sheet: row?.source_sheet || 'data_short' }))
-      : [];
-
-    const rows = [...longRows, ...shortRows].filter((row) => rowMatchesActivitiesFilters(row, filters));
+    const allRows = Array.isArray(result.data) ? result.data : [];
+    const rows = allRows
+      .filter((row) => rowMatchesActivitiesFilters(row, { ...filters, status: filters?.status || 'active' }))
+      .map((row) => ({ ...row, source_sheet: 'activities' }));
     return { rows };
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('[supabase] Unexpected data_long/data_short fetch error:', error);
+    console.error('[supabase] Unexpected activities fetch error:', error);
     return null;
   }
 }
@@ -288,10 +305,9 @@ async function readListsFromSupabase() {
 async function readInstructorsFromSupabase() {
   if (!supabase) return null;
   try {
-    const [instrResult, longResult, shortResult] = await Promise.all([
+    const [instrResult, activitiesResult] = await Promise.all([
       supabase.from('contacts_instructors').select('*'),
-      supabase.from('data_long').select('emp_id,emp_id_2,end_date,date_end,activity_manager,status'),
-      supabase.from('data_short').select('emp_id,emp_id_2,end_date,date_end,activity_manager,status')
+      supabase.from('activities').select('emp_id,emp_id_2,end_date,date_end,activity_manager,status,activity_family')
     ]);
 
     if (instrResult.error) {
@@ -299,20 +315,14 @@ async function readInstructorsFromSupabase() {
       console.error('[supabase] Failed to load contacts_instructors (instructors screen):', instrResult.error);
       return null;
     }
-    if (longResult.error) {
+    if (activitiesResult.error) {
       // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load data_long (instructors screen):', longResult.error);
-      return null;
-    }
-    if (shortResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load data_short (instructors screen):', shortResult.error);
+      console.error('[supabase] Failed to load activities (instructors screen):', activitiesResult.error);
       return null;
     }
 
     const instrRows = Array.isArray(instrResult.data) ? instrResult.data : [];
-    const longRows = Array.isArray(longResult.data) ? longResult.data : [];
-    const shortRows = Array.isArray(shortResult.data) ? shortResult.data : [];
+    const activityRows = Array.isArray(activitiesResult.data) ? activitiesResult.data : [];
 
     const statsMap = new Map();
     function ensureStats(id) {
@@ -322,23 +332,23 @@ async function readInstructorsFromSupabase() {
       return statsMap.get(k);
     }
 
-    function applyRow(row, isLong) {
+    function applyRow(row) {
       if (String(row.status || '').trim() === 'סגור') return;
       const ids = [String(row.emp_id || '').trim(), String(row.emp_id_2 || '').trim()].filter(Boolean);
       const d = String(row.end_date || row.date_end || '').trim().slice(0, 10);
       const mgr = String(row.activity_manager || '').trim();
+      const isProgram = String(row.activity_family || '').trim() === 'program';
       for (const id of ids) {
         const s = ensureStats(id);
         if (!s) continue;
-        if (isLong) s.programs_count += 1;
+        if (isProgram) s.programs_count += 1;
         else s.one_day_count += 1;
         if (d && (!s.latest_end_date || d > s.latest_end_date)) s.latest_end_date = d;
         if (mgr) s.managers.add(mgr);
       }
     }
 
-    for (const row of longRows) applyRow(row, true);
-    for (const row of shortRows) applyRow(row, false);
+    for (const row of activityRows) applyRow(row);
 
     const rows = instrRows.map((instr) => {
       const id = String(instr.emp_id || '').trim();
@@ -570,42 +580,35 @@ async function readWeekFromSupabase(weekOffset) {
   }
 
   try {
-    const [shortRes, meetingsRes] = await Promise.all([
-      supabase.from('data_short').select('*').gte('start_date', startDate).lte('start_date', endDate),
-      supabase.from('activity_meetings').select('*').gte('meeting_date', startDate).lte('meeting_date', endDate)
-    ]);
-
-    if (shortRes.error) {
+    const activitiesRes = await supabase
+      .from('activities')
+      .select('*')
+      .neq('status', 'סגור');
+    if (activitiesRes.error) {
       // eslint-disable-next-line no-console
-      console.error('[supabase][week] data_short query failed', shortRes.error);
+      console.error('[supabase][week] activities query failed', activitiesRes.error);
+      return emptyWeekPayload(startDate, endDate, { error: activitiesRes.error.message || 'activities_query_failed' });
     }
-    if (meetingsRes.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][week] activity_meetings query failed', meetingsRes.error);
+    const activityRows = Array.isArray(activitiesRes.data) ? activitiesRes.data : [];
+    const dayMap = {};
+    const itemsById = {};
+    let mapped = 0;
+    for (const row of activityRows) {
+      const rowId = String(row?.RowID || row?.id || '').trim();
+      if (!rowId) continue;
+      const dates = getActivityDateColumns(row);
+      const inRange = dates.filter((d) => d >= startDate && d <= endDate);
+      if (!inRange.length) continue;
+      itemsById[rowId] = { ...row, RowID: rowId, source_sheet: 'activities' };
+      mapped += 1;
+      inRange.forEach((d) => {
+        if (!dayMap[d]) dayMap[d] = new Set();
+        dayMap[d].add(rowId);
+      });
     }
-
-    const shortRows = Array.isArray(shortRes.data) ? shortRes.data : [];
-    const meetingRows = Array.isArray(meetingsRes.data) ? meetingsRes.data : [];
-
-    const longRowIds = [...new Set(meetingRows.map((r) => r.source_row_id).filter(Boolean))];
-    let longRows = [];
-    if (longRowIds.length > 0) {
-      const longRes = await supabase.from('data_long').select('*').in('RowID', longRowIds);
-      if (longRes.error) {
-        // eslint-disable-next-line no-console
-        console.error('[supabase][week] data_long query failed', longRes.error);
-      }
-      longRows = Array.isArray(longRes.data) ? longRes.data : [];
-    }
-
-    const longById = buildItemsById(longRows);
-    const { itemsById, dayMap, stats } = buildCalendarMapping(
-      meetingRows, shortRows, longById, startDate, endDate
-    );
 
     // eslint-disable-next-line no-console
-    console.info('[supabase][week] filtered rows count', stats.meetingsFilteredCount + stats.shortFilteredCount,
-      'mapped items count', stats.totalMappedItems, stats);
+    console.info('[supabase][week] mapped items count', mapped);
 
     const days = [];
     for (let i = 0; i < 7; i++) {
@@ -656,42 +659,35 @@ async function readMonthFromSupabase(ym) {
     const startDate = `${monthPrefix}-01`;
     const endDate = `${monthPrefix}-${String(lastDay).padStart(2, '0')}`;
 
-    const [shortRes, meetingsRes] = await Promise.all([
-      supabase.from('data_short').select('*').gte('start_date', startDate).lte('start_date', endDate),
-      supabase.from('activity_meetings').select('*').gte('meeting_date', startDate).lte('meeting_date', endDate)
-    ]);
-
-    if (shortRes.error) {
+    const activitiesRes = await supabase
+      .from('activities')
+      .select('*')
+      .neq('status', 'סגור');
+    if (activitiesRes.error) {
       // eslint-disable-next-line no-console
-      console.error('[supabase][month] data_short query failed', shortRes.error);
+      console.error('[supabase][month] activities query failed', activitiesRes.error);
+      return emptyMonthPayload(monthPrefix, { error: activitiesRes.error.message || 'activities_query_failed' });
     }
-    if (meetingsRes.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][month] activity_meetings query failed', meetingsRes.error);
+    const activityRows = Array.isArray(activitiesRes.data) ? activitiesRes.data : [];
+    const dayMap = {};
+    const itemsById = {};
+    let mapped = 0;
+    for (const row of activityRows) {
+      const rowId = String(row?.RowID || row?.id || '').trim();
+      if (!rowId) continue;
+      const dates = getActivityDateColumns(row);
+      const inRange = dates.filter((d) => d >= startDate && d <= endDate);
+      if (!inRange.length) continue;
+      itemsById[rowId] = { ...row, RowID: rowId, source_sheet: 'activities' };
+      mapped += 1;
+      inRange.forEach((d) => {
+        if (!dayMap[d]) dayMap[d] = new Set();
+        dayMap[d].add(rowId);
+      });
     }
-
-    const shortRows = Array.isArray(shortRes.data) ? shortRes.data : [];
-    const meetingRows = Array.isArray(meetingsRes.data) ? meetingsRes.data : [];
-
-    const longRowIds = [...new Set(meetingRows.map((r) => r.source_row_id).filter(Boolean))];
-    let longRows = [];
-    if (longRowIds.length > 0) {
-      const longRes = await supabase.from('data_long').select('*').in('RowID', longRowIds);
-      if (longRes.error) {
-        // eslint-disable-next-line no-console
-        console.error('[supabase][month] data_long query failed', longRes.error);
-      }
-      longRows = Array.isArray(longRes.data) ? longRes.data : [];
-    }
-
-    const longById = buildItemsById(longRows);
-    const { itemsById, dayMap, stats } = buildCalendarMapping(
-      meetingRows, shortRows, longById, startDate, endDate
-    );
 
     // eslint-disable-next-line no-console
-    console.info('[supabase][month] filtered rows count', stats.meetingsFilteredCount + stats.shortFilteredCount,
-      'mapped items count', stats.totalMappedItems, stats);
+    console.info('[supabase][month] mapped items count', mapped);
 
     const cells = [];
     for (let dayNum = 1; dayNum <= lastDay; dayNum++) {
@@ -734,64 +730,34 @@ async function dashboardReadModelFromSupabase(month) {
     const lastDay = new Date(y, m, 0).getDate();
     const monthEnd = `${monthPrefix}-${String(lastDay).padStart(2, '0')}`;
 
-    const [longResult, shortResult, longEndingsResult] = await Promise.all([
-      supabase.from('data_long')
-        .select('activity_type,activity_manager,start_date,emp_id,status')
-        .gte('start_date', monthStart)
-        .lte('start_date', monthEnd)
-        .neq('status', 'סגור'),
-      supabase.from('data_short')
-        .select('activity_type,activity_manager,start_date,emp_id,emp_id_2,status')
-        .gte('start_date', monthStart)
-        .lte('start_date', monthEnd)
-        .neq('status', 'סגור'),
-      supabase.from('data_long')
-        .select('activity_type,activity_manager,end_date,status')
-        .gte('end_date', monthStart)
-        .lte('end_date', monthEnd)
-        .neq('status', 'סגור')
-    ]);
-
-    if (longResult.error) {
+    const activitiesResult = await supabase.from('activities').select('*');
+    if (activitiesResult.error) {
       // eslint-disable-next-line no-console
-      console.error('[supabase][dashboard] data_long fetch failed:', longResult.error);
-      return null;
-    }
-    if (shortResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][dashboard] data_short fetch failed:', shortResult.error);
-      return null;
-    }
-    if (longEndingsResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][dashboard] data_long endings fetch failed:', longEndingsResult.error);
+      console.error('[supabase][dashboard] activities fetch failed:', activitiesResult.error);
       return null;
     }
 
-    const longRows = Array.isArray(longResult.data) ? longResult.data : [];
-    const shortRows = Array.isArray(shortResult.data) ? shortResult.data : [];
-    const courseEndingRows = Array.isArray(longEndingsResult.data) ? longEndingsResult.data : [];
+    const allRows = Array.isArray(activitiesResult.data) ? activitiesResult.data : [];
+    const activeRows = allRows.filter((r) => String(r?.status || '').trim() !== 'סגור');
+    const monthRows = activeRows.filter((r) => rowInDateRangeByDateColumns(r, monthStart, monthEnd));
+    const oneDayRows = monthRows.filter((r) => String(r?.activity_family || '').trim() === 'one_day');
+    const programRows = monthRows.filter((r) => String(r?.activity_family || '').trim() === 'program');
+    const courseEndingRows = activeRows.filter((r) => {
+      const d = normalizeIsoDate(r?.end_date);
+      return !!d && d >= monthStart && d <= monthEnd;
+    });
 
-    const total_long_activities = longRows.length;
-    const total_short_activities = shortRows.length;
+    const total_long_activities = programRows.length;
+    const total_short_activities = oneDayRows.length;
     const course_endings = courseEndingRows.length;
-
     const activeTypeCounts = { course: 0, after_school: 0, workshop: 0, tour: 0, escape_room: 0 };
-    for (const r of longRows) {
+    monthRows.forEach((r) => {
       const t = String(r.activity_type || '').trim();
       if (Object.prototype.hasOwnProperty.call(activeTypeCounts, t)) activeTypeCounts[t] += 1;
-    }
-    for (const r of shortRows) {
-      const t = String(r.activity_type || '').trim();
-      if (Object.prototype.hasOwnProperty.call(activeTypeCounts, t)) activeTypeCounts[t] += 1;
-    }
+    });
 
     const instructorIds = new Set();
-    for (const r of longRows) {
-      const id = String(r.emp_id || '').trim();
-      if (id) instructorIds.add(id);
-    }
-    for (const r of shortRows) {
+    for (const r of monthRows) {
       const id1 = String(r.emp_id || '').trim();
       const id2 = String(r.emp_id_2 || '').trim();
       if (id1) instructorIds.add(id1);
@@ -806,17 +772,12 @@ async function dashboardReadModelFromSupabase(month) {
       if (!managerMap.has(k)) managerMap.set(k, { total_long: 0, total_short: 0, instructors: new Set(), endings: 0 });
       return managerMap.get(k);
     }
-    for (const r of longRows) {
+    for (const r of monthRows) {
       const mg = ensureManager(r.activity_manager);
       if (!mg) continue;
-      mg.total_long += 1;
-      const id = String(r.emp_id || '').trim();
-      if (id) mg.instructors.add(id);
-    }
-    for (const r of shortRows) {
-      const mg = ensureManager(r.activity_manager);
-      if (!mg) continue;
-      mg.total_short += 1;
+      const isProgram = String(r.activity_family || '').trim() === 'program';
+      if (isProgram) mg.total_long += 1;
+      else mg.total_short += 1;
       const id1 = String(r.emp_id || '').trim();
       const id2 = String(r.emp_id_2 || '').trim();
       if (id1) mg.instructors.add(id1);
@@ -869,8 +830,8 @@ async function dashboardReadModelFromSupabase(month) {
         exceptions_count: 0,
         active_instructors: [],
         operational_gaps_count: 0,
-        missing_instructor_count: 0,
-        missing_start_date_count: 0,
+        missing_instructor_count: monthRows.filter((r) => !String(r.emp_id || '').trim() && !String(r.emp_id_2 || '').trim()).length,
+        missing_start_date_count: monthRows.filter((r) => getActivityDateColumns(r).length === 0).length,
         late_end_date_count: 0,
         short_activities: []
       },
@@ -919,46 +880,27 @@ async function dashboardReadModelFromSupabase(month) {
 async function readEndDatesFromSupabase() {
   if (!supabase) return buildSupabaseErrorPayload({ rows: [] }, 'no_supabase_client');
   try {
-    const [longRes, meetingsRes] = await Promise.all([
-      supabase.from('data_long').select('*'),
-      supabase.from('activity_meetings').select('source_row_id,meeting_date,date,start_date,date_start,activity_date,end_date,date_end')
-    ]);
-    if (longRes.error) return buildSupabaseErrorPayload({ rows: [] }, longRes.error);
-    if (meetingsRes.error) return buildSupabaseErrorPayload({ rows: [] }, meetingsRes.error);
-    const meetingsByRow = new Map();
-    for (const m of (Array.isArray(meetingsRes.data) ? meetingsRes.data : [])) {
-      const rowId = String(m?.source_row_id || '').trim();
-      if (!rowId) continue;
-      const { dateKey } = activityMeetingDateFromCandidates(m);
-      if (!dateKey) continue;
-      if (!meetingsByRow.has(rowId)) meetingsByRow.set(rowId, []);
-      meetingsByRow.get(rowId).push(dateKey);
-    }
-    const rows = (Array.isArray(longRes.data) ? longRes.data : []).map((row) => {
-      const rowId = String(row?.RowID || '').trim();
-      const meeting_dates = (meetingsByRow.get(rowId) || []).sort();
-      return {
-        ...row,
-        source_sheet: 'data_long',
-        meeting_dates,
-        date_cols: meeting_dates
-      };
-    });
+    const res = await supabase.from('activities').select('*');
+    if (res.error) return buildSupabaseErrorPayload({ rows: [] }, res.error);
+    const rows = (Array.isArray(res.data) ? res.data : [])
+      .filter((row) => String(row?.activity_family || '').trim() === 'program')
+      .map((row) => {
+        const dates = getActivityDateColumns(row);
+        return {
+          ...row,
+          source_sheet: 'activities',
+          meeting_dates: dates,
+          date_cols: dates
+        };
+      });
     return { rows, _source: 'supabase' };
   } catch (error) {
     return buildSupabaseErrorPayload({ rows: [] }, error);
   }
 }
 
-function buildExceptionsFromRows(longRows, shortRows, meetingsRows = []) {
+function buildExceptionsFromRows(activityRows) {
   const rows = [];
-  const meetingsByRow = new Map();
-  for (const meet of meetingsRows) {
-    const rowId = String(meet?.source_row_id || '').trim();
-    if (!rowId) continue;
-    if (!meetingsByRow.has(rowId)) meetingsByRow.set(rowId, []);
-    meetingsByRow.get(rowId).push(meet);
-  }
   const addException = (row, source_sheet, types) => {
     if (!types.length) return;
     rows.push({
@@ -972,7 +914,7 @@ function buildExceptionsFromRows(longRows, shortRows, meetingsRows = []) {
     const types = [];
     const emp1 = String(row?.emp_id || '').trim();
     const emp2 = String(row?.emp_id_2 || '').trim();
-    const start = String(row?.start_date || '').trim();
+    const start = normalizeIsoDate(getActivityDateColumns(row)[0]);
     const end = String(row?.end_date || row?.date_end || '').trim();
     if (!emp1 && !emp2) types.push('missing_instructor');
     if (!start) types.push('missing_start_date');
@@ -981,13 +923,10 @@ function buildExceptionsFromRows(longRows, shortRows, meetingsRows = []) {
     if (!String(row?.school || '').trim()) types.push('missing_school');
     if (!String(row?.authority || '').trim()) types.push('missing_authority');
     if (!String(row?.activity_name || '').trim()) types.push('missing_activity_name');
-    if (source_sheet === 'data_long' && !(meetingsByRow.get(String(row?.RowID || '').trim()) || []).length) {
-      types.push('missing_meetings');
-    }
+    if (getActivityDateColumns(row).length === 0) types.push('missing_dates');
     addException(row, source_sheet, types);
   };
-  longRows.forEach((r) => checkRow(r, 'data_long'));
-  shortRows.forEach((r) => checkRow(r, 'data_short'));
+  activityRows.forEach((r) => checkRow(r, 'activities'));
   return rows;
 }
 
@@ -1001,18 +940,12 @@ async function readExceptionsFromSupabase(params = {}) {
   const lastDay = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
   const end = `${month}-${String(lastDay).padStart(2, '0')}`;
   try {
-    const [longRes, shortRes, meetRes] = await Promise.all([
-      supabase.from('data_long').select('*').lte('start_date', end).or(`end_date.gte.${start},date_end.gte.${start}`),
-      supabase.from('data_short').select('*').gte('start_date', start).lte('start_date', end),
-      supabase.from('activity_meetings').select('*').gte('meeting_date', start).lte('meeting_date', end)
-    ]);
-    if (longRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, longRes.error);
-    if (shortRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, shortRes.error);
-    if (meetRes.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, meetRes.error);
-    const longRows = Array.isArray(longRes.data) ? longRes.data : [];
-    const shortRows = Array.isArray(shortRes.data) ? shortRes.data : [];
-    const meetingsRows = Array.isArray(meetRes.data) ? meetRes.data : [];
-    const rows = buildExceptionsFromRows(longRows, shortRows, meetingsRows);
+    const res = await supabase.from('activities').select('*');
+    if (res.error) return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, res.error);
+    const activeRows = (Array.isArray(res.data) ? res.data : [])
+      .filter((r) => String(r?.status || '').trim() !== 'סגור')
+      .filter((r) => rowInDateRangeByDateColumns(r, start, end));
+    const rows = buildExceptionsFromRows(activeRows);
     return { month, rows, totalExceptionRows: rows.length, _source: 'supabase' };
   } catch (error) {
     return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, error);
@@ -1123,8 +1056,6 @@ async function syncActivityToSupabase(kind, payload, gasResponse) {
       const sourceSheet = gasResponse?.source_sheet;
       if (!rowId || !sourceSheet) return;
       const act = payload?.activity || payload || {};
-      const isLong = rowId.startsWith('LONG-');
-      const tableName = isLong ? 'data_long' : 'data_short';
       const row = {
         RowID: rowId,
         activity_manager: String(act.activity_manager || ''),
@@ -1158,7 +1089,7 @@ async function syncActivityToSupabase(kind, payload, gasResponse) {
         const k = `Date${i}`;
         if (act[k] !== undefined) row[k] = String(act[k] || '');
       }
-      const { error } = await supabase.from(tableName).upsert(row, { onConflict: 'RowID' });
+      const { error } = await supabase.from('activities').upsert(row, { onConflict: 'RowID' });
       if (error) {
         // eslint-disable-next-line no-console
         console.error('[supabase] activity upsert (add) failed:', error);
@@ -1168,9 +1099,7 @@ async function syncActivityToSupabase(kind, payload, gasResponse) {
       const sourceRowId = String(payload?.source_row_id || payload?.RowID || '');
       const changes = payload?.changes || {};
       if (!sourceRowId || !Object.keys(changes).length) return;
-      const isLong = sourceRowId.startsWith('LONG-');
-      const tableName = isLong ? 'data_long' : 'data_short';
-      const { error } = await supabase.from(tableName).update(changes).eq('RowID', sourceRowId);
+      const { error } = await supabase.from('activities').update(changes).eq('RowID', sourceRowId);
       if (error) {
         // eslint-disable-next-line no-console
         console.error('[supabase] activity update (save) failed:', error);
@@ -1180,10 +1109,9 @@ async function syncActivityToSupabase(kind, payload, gasResponse) {
       const requestId = gasResponse?.request_id;
       if (!requestId) return;
       const sourceRowId = String(payload?.source_row_id || '');
-      const isLong = sourceRowId.startsWith('LONG-');
       const row = {
         request_id: requestId,
-        source_sheet: isLong ? 'data_long' : 'data_short',
+        source_sheet: 'activities',
         source_row_id: sourceRowId,
         changed_fields: JSON.stringify(Object.keys(payload?.changes || {})),
         original_values: JSON.stringify({}),
@@ -1766,66 +1694,47 @@ async function readCurrentUserBySession() {
 
 async function upsertActivityToSupabase(payload = {}) {
   const act = payload?.activity || payload || {};
-  const source = String(act.source || '').trim() === 'short' ? 'short' : 'long';
-  const tableName = source === 'short' ? 'data_short' : 'data_long';
-  const rowId = String(act.RowID || `${source === 'short' ? 'SHORT' : 'LONG'}-${crypto.randomUUID?.() || Date.now()}`).trim();
-  const row = { ...act, RowID: rowId, source_sheet: tableName, status: String(act.status || 'פעיל') };
-  const { data, error } = await supabase.from(tableName).upsert(row, { onConflict: 'RowID' }).select().single();
+  const rowId = String(act.RowID || `ACT-${crypto.randomUUID?.() || Date.now()}`).trim();
+  const row = { ...act, RowID: rowId, source_sheet: 'activities', status: String(act.status || 'פעיל') };
+  const { data, error } = await supabase.from('activities').upsert(row, { onConflict: 'RowID' }).select().single();
   if (error) throw new Error(error.message || 'save_failed');
-  return { RowID: rowId, source_sheet: tableName, row: data || row };
+  return { RowID: rowId, source_sheet: 'activities', row: data || row };
 }
 
 async function updateActivityInSupabase(payload = {}) {
   const sourceRowId = String(payload?.source_row_id || payload?.RowID || '').trim();
   const changes = payload?.changes || {};
   if (!sourceRowId) throw new Error('missing_row_id');
-  const tableName = sourceRowId.startsWith('SHORT-') ? 'data_short' : 'data_long';
-  const { error } = await supabase.from(tableName).update(changes).eq('RowID', sourceRowId);
+  const { error } = await supabase.from('activities').update(changes).eq('RowID', sourceRowId);
   if (error) throw new Error(error.message || 'save_failed');
-  return { ok: true, RowID: sourceRowId, source_sheet: tableName };
+  return { ok: true, RowID: sourceRowId, source_sheet: 'activities' };
 }
 
 async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
   const rowId = String(source_row_id || '').trim();
-  const sheet = String(source_sheet || '').trim();
-  const tableName = sheet === 'data_short' || rowId.startsWith('SHORT-') ? 'data_short' : 'data_long';
-  const { data, error } = await supabase.from(tableName).select('*').eq('RowID', rowId).single();
+  const { data, error } = await supabase.from('activities').select('*').eq('RowID', rowId).single();
   if (error) throw new Error(error.message || 'detail_failed');
-  return { row: { ...(data || {}), source_sheet: tableName } };
+  return { row: { ...(data || {}), source_sheet: 'activities' } };
 }
 
 async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
   const rowId = String(source_row_id || '').trim();
-  const { data, error } = await supabase
-    .from('activity_meetings')
-    .select('*')
-    .eq('source_row_id', rowId)
-    .order('meeting_date', { ascending: true });
+  const { data, error } = await supabase.from('activities').select('*').eq('RowID', rowId).single();
   if (error) throw new Error(error.message || 'dates_failed');
-  const rows = Array.isArray(data) ? data : [];
-  const meeting_dates = rows
-    .map((r) => activityMeetingDateFromCandidates(r).dateKey)
-    .filter(Boolean)
-    .sort();
+  const meeting_dates = getActivityDateColumns(data || {});
   return {
     meeting_dates,
     date_cols: meeting_dates,
-    rows,
+    rows: [],
     source_row_id: rowId,
-    source_sheet: String(source_sheet || '')
+    source_sheet: String(source_sheet || 'activities')
   };
 }
 
 async function readAllActivitiesRowsSupabase() {
-  const [longRes, shortRes] = await Promise.all([
-    supabase.from('data_long').select('*'),
-    supabase.from('data_short').select('*')
-  ]);
-  if (longRes.error) throw new Error(longRes.error.message || 'data_long_read_failed');
-  if (shortRes.error) throw new Error(shortRes.error.message || 'data_short_read_failed');
-  const longRows = (Array.isArray(longRes.data) ? longRes.data : []).map((r) => ({ ...r, source_sheet: 'data_long' }));
-  const shortRows = (Array.isArray(shortRes.data) ? shortRes.data : []).map((r) => ({ ...r, source_sheet: 'data_short' }));
-  return [...longRows, ...shortRows];
+  const res = await supabase.from('activities').select('*');
+  if (res.error) throw new Error(res.error.message || 'activities_read_failed');
+  return (Array.isArray(res.data) ? res.data : []).map((r) => ({ ...r, source_sheet: 'activities' }));
 }
 
 function filterOperationsRows(rows, params = {}) {
@@ -2122,7 +2031,7 @@ export const api = {
     const row = {
       request_id: `REQ-${Date.now()}`,
       source_row_id,
-      source_sheet: source_row_id.startsWith('SHORT-') ? 'data_short' : 'data_long',
+      source_sheet: 'activities',
       changed_fields: Object.keys(normalizedChanges),
       requested_values: normalizedChanges,
       status: 'pending',
@@ -2147,7 +2056,6 @@ export const api = {
     if (nextStatus === 'approved') {
       const sourceSheet = String(reqRow?.source_sheet || '').trim();
       const sourceRowId = String(reqRow?.source_row_id || '').trim();
-      const tableName = sourceSheet === 'data_short' || sourceRowId.startsWith('SHORT-') ? 'data_short' : 'data_long';
       const requestedValues =
         reqRow?.requested_values && typeof reqRow.requested_values === 'object'
           ? reqRow.requested_values
@@ -2156,7 +2064,7 @@ export const api = {
             })();
       if (sourceRowId && requestedValues && Object.keys(requestedValues).length) {
         const { error: applyErr } = await supabase
-          .from(tableName)
+          .from('activities')
           .update(requestedValues)
           .eq('RowID', sourceRowId);
         if (applyErr) throw new Error(applyErr.message || 'review_edit_request_apply_failed');
@@ -2252,9 +2160,7 @@ export const api = {
         /* ignore */
       }
       return [
-        { name: 'data_short' },
-        { name: 'data_long' },
-        { name: 'activity_meetings' },
+        { name: 'activities' },
         { name: 'contacts_instructors' },
         { name: 'contacts_schools' },
         { name: 'lists' }
@@ -2263,8 +2169,8 @@ export const api = {
     return {
       sheets,
       sheet_roles: {
-        sheet_short_activities: map.get('sheet_short_activities') || 'data_short',
-        sheet_long_activities: map.get('sheet_long_activities') || 'data_long'
+        sheet_short_activities: map.get('sheet_short_activities') || 'activities',
+        sheet_long_activities: map.get('sheet_long_activities') || 'activities'
       },
       _source: 'supabase'
     };
