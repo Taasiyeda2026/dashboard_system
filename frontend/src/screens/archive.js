@@ -140,15 +140,9 @@ export const archiveScreen = {
     const tableSection = safeRows.length === 0
       ? dsEmptyState(emptyMsg)
       : dsTableWrap(`
-          <table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
+          <table class="ds-table ds-table--interactive ds-table--activities-list ds-table--archive" dir="rtl">
             <colgroup>
-              <col class="ds-activities-col--program">
-              <col class="ds-activities-col--authority">
-              <col class="ds-activities-col--school">
-              <col class="ds-activities-col--instructor">
-              <col>
-              <col class="ds-activities-col--date">
-              <col class="ds-activities-col--date">
+              <col><col><col><col><col><col><col>
             </colgroup>
             <thead>
               <tr>

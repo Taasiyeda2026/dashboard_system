@@ -8056,6 +8056,8 @@ select.ds-activity-add-field .ds-input,
 .ds-table--activities-list col.ds-activities-col--date       { width: 13%; }
 .ds-table--activities-list col.ds-activities-col--notes      { width: 22%; }
 
+.ds-table--archive col { width: calc(100% / 7); }
+
 .ds-table--activities-list th,
 .ds-table--activities-list td {
   overflow: hidden;
