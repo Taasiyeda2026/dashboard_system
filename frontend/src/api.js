@@ -964,7 +964,7 @@ function normalizeData(data) {
   return normalized;
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,emp_id,is_active,permissions,created_at,updated_at';
+const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,emp_id,is_active,permissions,created_at,updated_at';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor']);
 
 const SUPABASE_ROLE_ROUTES = {
@@ -1009,12 +1009,13 @@ function assertValidLoginUserRow(userRow) {
 function flattenUserRow(userRow = {}) {
   const permissions = userRow?.permissions && typeof userRow.permissions === 'object' ? userRow.permissions : {};
   const role = normalizeSupabaseRole(userRow.role);
+  const customDisplayRole = String(userRow.display_role || '').trim();
   return {
     user_id: String(userRow.user_id || ''),
     full_name: String(userRow.name || ''),
     role,
     display_role: role,
-    display_role_label: hebrewRole(role),
+    display_role_label: customDisplayRole || hebrewRole(role),
     display_role2: String(permissions.display_role2 || ''),
     emp_id: String(userRow.emp_id || ''),
     active: userRow.is_active ? 'yes' : 'no',
