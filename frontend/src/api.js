@@ -867,43 +867,44 @@ async function dashboardReadModelFromSupabase(month) {
     const lastDay = new Date(y, m, 0).getDate();
     const monthEnd = `${monthPrefix}-${String(lastDay).padStart(2, '0')}`;
 
-    const [longResult, shortResult, longEndingsResult] = await Promise.all([
+    const [longResult, shortResult] = await Promise.all([
       supabase.from('data_long')
         .select('activity_type,activity_manager,start_date,end_date,date_end,emp_id,emp_id_2,instructor_name,instructor_name_2,school,authority,activity_name,status,RowID')
         .lte('start_date', monthEnd)
-        .or(`end_date.gte.${monthStart},date_end.gte.${monthStart}`)
         .neq('status', 'סגור'),
       supabase.from('data_short')
         .select('activity_type,activity_manager,start_date,emp_id,emp_id_2,instructor_name,instructor_name_2,school,authority,activity_name,status,RowID')
         .gte('start_date', monthStart)
         .lte('start_date', monthEnd)
         .neq('status', 'סגור'),
-      supabase.from('data_long')
-        .select('activity_type,activity_manager,end_date,date_end,status')
-        .or(`end_date.gte.${monthStart},date_end.gte.${monthStart}`)
-        .or(`end_date.lte.${monthEnd},date_end.lte.${monthEnd}`)
-        .neq('status', 'סגור')
     ]);
 
     if (longResult.error) {
       // eslint-disable-next-line no-console
       console.error('[supabase][dashboard] data_long fetch failed:', longResult.error);
-      return null;
+      return buildSupabaseErrorPayload({ month, requested_month: month }, longResult.error);
     }
     if (shortResult.error) {
       // eslint-disable-next-line no-console
       console.error('[supabase][dashboard] data_short fetch failed:', shortResult.error);
-      return null;
-    }
-    if (longEndingsResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase][dashboard] data_long endings fetch failed:', longEndingsResult.error);
-      return null;
+      return buildSupabaseErrorPayload({ month, requested_month: month }, shortResult.error);
     }
 
-    const longRows = Array.isArray(longResult.data) ? longResult.data : [];
+    const allLongRows = Array.isArray(longResult.data) ? longResult.data : [];
     const shortRows = Array.isArray(shortResult.data) ? shortResult.data : [];
-    const courseEndingRows = Array.isArray(longEndingsResult.data) ? longEndingsResult.data : [];
+
+    // Filter long activities active during this month: started <= monthEnd AND
+    // (no end date → still active, OR end_date/date_end >= monthStart)
+    const longRows = allLongRows.filter((r) => {
+      const ed = String(r.end_date || r.date_end || '').slice(0, 10);
+      return !ed || ed >= monthStart;
+    });
+
+    // Course endings: long activities whose end falls within this month
+    const courseEndingRows = allLongRows.filter((r) => {
+      const ed = String(r.end_date || r.date_end || '').slice(0, 10);
+      return ed && ed >= monthStart && ed <= monthEnd;
+    });
 
     const total_long_activities = longRows.length;
     const total_short_activities = shortRows.length;
@@ -2120,6 +2121,9 @@ export const api = {
     const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
     const canonical = { ...resolved, month };
     const supabasePayload = await dashboardReadModelFromSupabase(month);
+    if (!supabasePayload || typeof supabasePayload !== 'object') {
+      return buildSupabaseErrorPayload({ month, requested_month: month, ...canonical }, 'dashboard_null_payload');
+    }
     return { ...supabasePayload, ...canonical };
   },
   archiveActivities: async () => {
