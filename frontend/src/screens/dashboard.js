@@ -164,6 +164,11 @@ function goActivitiesDrill(state, patch) {
 const ALLOWED_KPI_ACTIONS = new Set([
   'kpi|long',
   'kpi|short',
+  'kpi|active_courses',
+  'kpi|active_workshops',
+  'kpi|active_tours',
+  'kpi|active_after_school',
+  'kpi|active_escape_room',
   'kpi|exceptions',
   'kpi|instructors',
   'kpi|endings'
@@ -174,6 +179,42 @@ function filterKpiCards(cards, showOnlyNonzero) {
   const allowed = list.filter((c) => c && c.action && ALLOWED_KPI_ACTIONS.has(c.action));
   if (!showOnlyNonzero) return allowed;
   return allowed.filter((c) => c.id === 'exceptions' || Number(c.value || 0) > 0);
+}
+
+function dashboardSourceError(data) {
+  return data?.error || data?._debug?.error || '';
+}
+
+function dashboardTotalsAllZero(totals = {}) {
+  const values = [
+    totals.total_short_activities,
+    totals.total_long_activities,
+    totals.total_instructors,
+    totals.total_course_endings_current_month,
+    totals.exceptions_count,
+    totals.short,
+    totals.long
+  ].filter((v) => v !== undefined && v !== null && v !== '');
+  return values.length > 0 && values.every((v) => Number(v || 0) === 0);
+}
+
+function dashboardErrorHtml(data, ym) {
+  const errorText = dashboardSourceError(data) || 'dashboard_source_failed';
+  return dsScreenStack(`
+    <div class="ds-dashboard-wrap">
+      <header class="ds-dash-header" dir="rtl">
+        <h1 class="ds-dash-header__title">לוח בקרה</h1>
+        <div class="ds-dash-month-nav" dir="rtl" aria-label="בחירת חודש לתצוגה">
+          <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}</span>
+        </div>
+      </header>
+      ${dsCard({
+        title: 'לא ניתן לטעון את נתוני לוח הבקרה',
+        body: `<p class="ds-empty__msg">מקור הנתונים נכשל ולכן לא מוצגים כרטיסי KPI עם ערכי 0 שאינם מאומתים.</p><p class="ds-muted" dir="ltr">${escapeHtml(errorText)}</p>`,
+        padded: true
+      })}
+    </div>
+  `);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -239,7 +280,7 @@ export const dashboardScreen = {
 
     try {
       const data = await Promise.race([
-        api.dashboardReadModel({ month: ym }),
+        api.dashboardSnapshot({ month: ym }),
         guardPromise
       ]);
       clearTimeout(guardTimer);
@@ -248,7 +289,7 @@ export const dashboardScreen = {
       );
       // eslint-disable-next-line no-console
       console.info('[dashboard-load]', {
-        action: 'dashboardReadModel',
+        action: 'dashboardSnapshot',
         duration_ms: durationMs,
         is_snapshot: data?._is_snapshot !== false,
         is_stale: data?._is_stale === true,
@@ -266,7 +307,7 @@ export const dashboardScreen = {
         String(err?.message || '').includes('timeout');
       // eslint-disable-next-line no-console
       console.warn('[dashboard-load] failed', {
-        action: 'dashboardReadModel',
+        action: 'dashboardSnapshot',
         duration_ms: durationMs,
         is_timeout: isTimeout,
         error: err?.message || String(err),
@@ -277,6 +318,14 @@ export const dashboardScreen = {
   },
   render(data, { state } = {}) {
     const ym = data?.month || currentMonthYm();
+    const sourceError = dashboardSourceError(data);
+    if (sourceError) {
+      console.warn('[dashboard] source error; KPI cards suppressed', { month: ym, error: sourceError });
+      if (dashboardTotalsAllZero(data?.totals || {})) {
+        console.warn('[dashboard] totals are all zero while source error exists', { month: ym, error: sourceError });
+      }
+      return dashboardErrorHtml(data, ym);
+    }
 
     const _seenMgr = new Set();
     const managers = (Array.isArray(data.by_activity_manager) ? data.by_activity_manager : []).filter(
@@ -290,17 +339,13 @@ export const dashboardScreen = {
     const showOnly = !!data?.show_only_nonzero_kpis;
     let _kpiSource = data?.kpi_cards;
     if (!Array.isArray(_kpiSource) || _kpiSource.filter(c => c && ALLOWED_KPI_ACTIONS.has(c.action)).length === 0) {
-      const t = data?.totals || {};
-      const s = data?.summary || {};
-      _kpiSource = [
-        { id: 'short',       action: 'kpi|short',       subtitle: 'חד-יומי',           value: t.total_short_activities ?? t.short ?? 0 },
-        { id: 'long',        action: 'kpi|long',        subtitle: 'תוכניות',            value: t.total_long_activities  ?? t.long  ?? 0 },
-        { id: 'exceptions',  action: 'kpi|exceptions',  subtitle: 'חריגות (קורסים)',    value: s.exceptions_count       ?? t.exceptions_count ?? 0 },
-        { id: 'instructors', action: 'kpi|instructors', subtitle: 'מדריכים פעילים',     value: Array.isArray(s.active_instructors) ? s.active_instructors.length : (t.total_instructors ?? 0) },
-        { id: 'endings',     action: 'kpi|endings',     subtitle: 'סיומי קורסים',       value: t.total_course_endings_current_month ?? s.ending_courses_current_month ?? 0 },
-      ];
+      console.warn('[dashboard] KPI cards empty', { month: ym, has_totals: !!data?.totals, has_summary: !!data?.summary });
+      _kpiSource = [];
     }
     const kpiCards = filterKpiCards(_kpiSource, showOnly);
+    if (kpiCards.length === 0) {
+      console.warn('[dashboard] KPI cards empty after filtering', { month: ym, show_only_nonzero_kpis: showOnly });
+    }
 
     const managerCards = managers
       .map((row) => {
@@ -468,7 +513,7 @@ export const dashboardScreen = {
         }
         showDataAreaLoading();
         try {
-          const snapshotData = await api.dashboardReadModel({ month: nextYm });
+          const snapshotData = await api.dashboardSnapshot({ month: nextYm });
           putDashboardCache(cacheKey, snapshotData);
         } catch (_err) {
           // Keep currently rendered dashboard content when refresh fails.
