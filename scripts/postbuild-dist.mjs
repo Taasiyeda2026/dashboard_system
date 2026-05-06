@@ -102,7 +102,7 @@ if (hashedManifest) {
 
 const precache = new Set(['/index.html', '/manifest.json']);
 for (const u of collectAssetRefs(html, viteBaseRaw)) precache.add(u);
-for (const u of walkFiles(join(dist, 'assets'))) precache.add(u);
+for (const u of walkFiles(join(dist, 'assets'))) precache.add('/assets' + u);
 
 const swOut = join(dist, 'frontend', 'sw.js');
 let sw = readFileSync(swOut, 'utf8');

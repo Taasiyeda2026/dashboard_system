@@ -3,39 +3,35 @@
  * Static assets + app shell: cache-first. API-like requests: network only, never cached.
  * Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 340;
+const CACHE_VERSION = 343;
 const CACHE_NAME = `dashboard-static-v${CACHE_VERSION}`;
 
 /** Root-absolute paths on the deployed origin (same paths as index.html uses). */
 const PRECACHE_URLS = [
-  "/apple-touch-icon-DZF9rhdV.png",
-  "/apple-touch-icon.png",
   "/assets/apple-touch-icon-DZF9rhdV.png",
+  "/assets/apple-touch-icon.png",
+  "/assets/favicon-16.png",
+  "/assets/favicon-32.png",
   "/assets/favicon-D0Y9bj5H.ico",
-  "/assets/index-Dqm5Y-W3.js",
+  "/assets/favicon.ico",
+  "/assets/index-C_X5pebP.js",
+  "/assets/logo1-sNrSbLi9.png",
+  "/assets/logo1.png",
+  "/assets/logo2.png",
+  "/assets/logo_system-koyfqh2I.png",
+  "/assets/logo_system.png",
+  "/assets/pwa/icon-128.png",
+  "/assets/pwa/icon-144.png",
+  "/assets/pwa/icon-152.png",
+  "/assets/pwa/icon-192.png",
+  "/assets/pwa/icon-384.png",
+  "/assets/pwa/icon-512.png",
+  "/assets/pwa/icon-72.png",
+  "/assets/pwa/icon-96.png",
+  "/assets/pwa/icon-maskable-512.png",
   "/assets/style-C0ihZNnK.css",
-  "/favicon-16.png",
-  "/favicon-32.png",
-  "/favicon-D0Y9bj5H.ico",
-  "/favicon.ico",
-  "/index-Dqm5Y-W3.js",
   "/index.html",
-  "/logo1-sNrSbLi9.png",
-  "/logo1.png",
-  "/logo2.png",
-  "/logo_system-koyfqh2I.png",
-  "/logo_system.png",
-  "/manifest.json",
-  "/pwa/icon-128.png",
-  "/pwa/icon-144.png",
-  "/pwa/icon-152.png",
-  "/pwa/icon-192.png",
-  "/pwa/icon-384.png",
-  "/pwa/icon-512.png",
-  "/pwa/icon-72.png",
-  "/pwa/icon-96.png",
-  "/pwa/icon-maskable-512.png",
-  "/style-C0ihZNnK.css"
+  "/manifest.json"
 ];
 
 function workerOrigin() {
