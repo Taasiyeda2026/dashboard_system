@@ -51,7 +51,8 @@ grant select, insert, update, delete on public.settings to anon, authenticated;
 
 insert into public.settings(key, value, description)
 values
-  ('sheet_short_activities', 'data_short', 'Supabase source for short activities'),
-  ('sheet_long_activities', 'data_long', 'Supabase source for long activities'),
-  ('available_sheets', '["data_short","data_long","activity_meetings","contacts_instructors","contacts_schools","lists","edit_requests","operations_private_notes","users","settings"]', 'Available datasets for admin mapping')
-on conflict (key) do nothing;
+  ('sheet_activities', 'activities', 'Supabase source for activities'),
+  ('available_sheets', '["activities","contacts_instructors","contacts_schools","lists","edit_requests","operations_private_notes","users","settings"]', 'Available datasets for admin mapping')
+on conflict (key) do update set
+  value = excluded.value,
+  description = excluded.description;
