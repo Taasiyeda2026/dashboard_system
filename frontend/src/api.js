@@ -1668,6 +1668,7 @@ async function request(action, payload = {}, perfMeta = {}) {
 }
 
 const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,emp_id,is_active,permissions,created_at,updated_at';
+const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor']);
 
 const SUPABASE_ROLE_ROUTES = {
   admin: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'admin-lists'],
@@ -1676,14 +1677,47 @@ const SUPABASE_ROLE_ROUTES = {
   instructor: ['dashboard', 'activities', 'archive', 'week', 'month', 'instructor-contacts', 'my-data']
 };
 
+function normalizeSupabaseRole(role) {
+  const normalized = String(role || 'authorized_user').trim();
+  return VALID_SUPABASE_ROLES.has(normalized) ? normalized : 'authorized_user';
+}
+
+function getLoginStatus(row) {
+  return String(row?.login_status || row?.status || '').trim();
+}
+
+function throwLoginError(code, details = {}) {
+  const message = String(code || 'login_failed').trim() || 'login_failed';
+  try {
+    console.warn('[login-diagnostic]', { code: message, ...details });
+  } catch {
+    /* ignore */
+  }
+  const error = new Error(message);
+  error.code = message;
+  error.details = details;
+  throw error;
+}
+
+function assertValidLoginUserRow(userRow) {
+  const role = String(userRow?.role || '').trim();
+  if (!VALID_SUPABASE_ROLES.has(role)) {
+    throwLoginError('invalid_role', { role, user_id: String(userRow?.user_id || '') });
+  }
+  if (!String(userRow?.user_id || '').trim()) {
+    throwLoginError('user_not_found', { reason: 'missing_returned_user_id' });
+  }
+}
+
 function flattenUserRow(userRow = {}) {
   const permissions = userRow?.permissions && typeof userRow.permissions === 'object' ? userRow.permissions : {};
+  const role = normalizeSupabaseRole(userRow.role);
   return {
     user_id: String(userRow.user_id || ''),
     full_name: String(userRow.name || ''),
-    role: String(userRow.role || 'authorized_user'),
-    display_role: String(userRow.role || 'authorized_user'),
-    display_role_label: hebrewRole(String(userRow.role || 'authorized_user')),
+    role,
+    display_role: role,
+    display_role_label: hebrewRole(role),
     display_role2: String(permissions.display_role2 || ''),
     emp_id: String(userRow.emp_id || ''),
     active: userRow.is_active ? 'yes' : 'no',
@@ -1693,7 +1727,7 @@ function flattenUserRow(userRow = {}) {
 
 function buildBootstrapFromUser(userRow) {
   const flat = flattenUserRow(userRow);
-  const role = String(flat.role || 'authorized_user');
+  const role = normalizeSupabaseRole(flat.role);
   const allowedRoutes = SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user;
   return {
     routes: [...allowedRoutes],
@@ -1711,25 +1745,36 @@ function buildBootstrapFromUser(userRow) {
 }
 
 async function getActiveUserByLogin(user_id, entry_code) {
-  if (!supabase) throw new Error('no_supabase_client');
+  if (!supabase) throwLoginError('no_supabase_client');
   const uid = String(user_id || '').trim();
   const code = String(entry_code || '').trim();
-  if (!uid || !code) throw new Error('invalid_credentials');
+  if (!uid || !code) throwLoginError('missing_user_id_or_entry_code', { has_user_id: Boolean(uid), has_entry_code: Boolean(code) });
+
   const { data, error } = await supabase.rpc('login_user_by_entry_code', {
     p_login: uid,
     p_entry_code: code
   });
-  if (error) throw new Error(error.message || 'auth_query_failed');
+  if (error) {
+    throwLoginError('users_query_failed', { message: String(error.message || ''), code: String(error.code || '') });
+  }
+
   const rows = Array.isArray(data) ? data : (data ? [data] : []);
   const hit = rows[0];
-  if (!hit) throw new Error('invalid_credentials');
+  const status = getLoginStatus(hit);
+  if (!hit) throwLoginError('user_not_found', { login: uid });
+  if (status && status !== 'ok') {
+    const allowedStatuses = new Set(['user_not_found', 'inactive_user', 'entry_code_mismatch', 'invalid_role']);
+    throwLoginError(allowedStatuses.has(status) ? status : 'users_query_failed', { login: uid, status });
+  }
+  if (!hit.is_active) throwLoginError('inactive_user', { login: uid });
+  assertValidLoginUserRow(hit);
   return hit;
 }
 
 function makeSessionToken(userRow) {
   const claims = {
     uid: String(userRow.user_id || ''),
-    role: String(userRow.role || 'authorized_user'),
+    role: normalizeSupabaseRole(userRow.role),
     emp_id: String(userRow.emp_id || ''),
     name: String(userRow.name || '')
   };

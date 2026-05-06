@@ -3,7 +3,7 @@
  * Static assets + app shell: cache-first. API-like requests: network only, never cached.
  * Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 343;
+const CACHE_VERSION = 344;
 const CACHE_NAME = `dashboard-static-v${CACHE_VERSION}`;
 
 /** Root-absolute paths on the deployed origin (same paths as index.html uses). */
@@ -14,7 +14,7 @@ const PRECACHE_URLS = [
   "/assets/favicon-32.png",
   "/assets/favicon-D0Y9bj5H.ico",
   "/assets/favicon.ico",
-  "/assets/index-C_X5pebP.js",
+  "/assets/index-vrrEAk7t.js",
   "/assets/logo1-sNrSbLi9.png",
   "/assets/logo1.png",
   "/assets/logo2.png",
