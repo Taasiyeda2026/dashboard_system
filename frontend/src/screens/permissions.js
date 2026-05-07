@@ -14,6 +14,25 @@ const KEY_PERM_FLAGS = [
   'view_permissions'
 ];
 
+const PERMISSION_ROLE_OPTIONS = [
+  'admin',
+  'operation_manager',
+  'authorized_user',
+  'instructor',
+  'finance',
+  'activities_manager',
+  'domain_manager',
+  'instructor_manager'
+];
+
+function renderRoleOptionsHtml(selectedRole = '') {
+  const selected = String(selectedRole || '').trim();
+  return PERMISSION_ROLE_OPTIONS.map((role) => {
+    const attr = role === selected ? ' selected' : '';
+    return `<option value="${escapeHtml(role)}"${attr}>${escapeHtml(hebrewRole(role))}</option>`;
+  }).join('');
+}
+
 /** Normalized role code from API (`role`). */
 function permRowRoleCode(row) {
   const code = String(row?.role != null && row.role !== '' ? row.role : row?.display_role || '').trim();
@@ -117,10 +136,7 @@ function buildAddUserDrawerHtml(roleDefaults) {
       <div class="ds-perm-field">
         <span class="ds-muted">תפקיד</span>
         <select class="ds-input ds-input--sm" id="new-display-role">
-          <option value="instructor">מדריך/ה</option>
-          <option value="authorized_user">משתמש/ת מורשה</option>
-          <option value="operation_manager">בקר/ת תפעול</option>
-          <option value="admin">מנהל/ת</option>
+          ${renderRoleOptionsHtml('instructor')}
         </select>
       </div>
       <div data-role-preview>${buildRolePreviewHtml('instructor', roleDefaults)}</div>
@@ -173,10 +189,7 @@ function buildEditDrawerHtml(row) {
       <div class="ds-perm-field">
         <span class="ds-muted">${escapeHtml(hebrewColumn('display_role'))}</span>
         <select data-role-select data-user-id="${uid}" class="ds-input ds-input--sm">
-          <option value="admin" ${permRowRoleCode(row) === 'admin' ? 'selected' : ''}>מנהל/ת</option>
-          <option value="operation_manager" ${permRowRoleCode(row) === 'operation_manager' ? 'selected' : ''}>בקר/ת תפעול</option>
-          <option value="authorized_user" ${permRowRoleCode(row) === 'authorized_user' ? 'selected' : ''}>משתמש/ת מורשה</option>
-          <option value="instructor" ${permRowRoleCode(row) === 'instructor' ? 'selected' : ''}>מדריך/ה</option>
+          ${renderRoleOptionsHtml(permRowRoleCode(row))}
         </select>
       </div>
       <div class="ds-perm-field">

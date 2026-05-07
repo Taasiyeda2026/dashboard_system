@@ -6,14 +6,13 @@ export const UI_ACTIVITY_FAMILY_LONG = 'תוכניות';
 
 export const HEBREW_ROLE = {
   admin: 'מנהל/ת',
-  operation_manager: 'בקר/ת תפעול',
+  operation_manager: 'מנהל/ת תפעול',
   authorized_user: 'משתמש/ת מורשה',
   instructor: 'מדריך/ה',
   finance: 'כספים',
-  operation_manager: 'מנהל/ת תפעול',
   activities_manager: 'מנהל/ת פעילויות',
   domain_manager: 'מנהל/ת תחום',
-  manager_instructor: 'מדריך/ת-מנהל/ת'
+  instructor_manager: 'מנהל/ת הדרכה / מדריך/ת מנהל/ת'
 };
 
 export function hebrewRole(role) {
