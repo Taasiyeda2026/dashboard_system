@@ -133,6 +133,9 @@ export const instructorsScreen = {
     prepareRowsForSearch(allRows, [
       'full_name', 'emp_id',
       (row) => (Array.isArray(row.activity_managers) ? row.activity_managers : []).join(' '),
+      (row) => (Array.isArray(row.authorities) ? row.authorities : []).join(' '),
+      (row) => (Array.isArray(row.schools) ? row.schools : []).join(' '),
+      (row) => (Array.isArray(row.activity_names) ? row.activity_names : []).join(' '),
       'authority', 'school', 'activity_name'
     ]);
     const filters = ensureActivityListFilters(state, INSTRUCTORS_SCOPE);

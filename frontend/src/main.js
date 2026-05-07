@@ -102,7 +102,10 @@ function bindAccentPickerOnce() {
         localStorage.setItem(ACCENT_LS_KEY, selected);
         localStorage.setItem(LEGACY_STRIPE_LS_KEY, selected);
       } catch {}
-      state.clientSettings = { ...(state.clientSettings || {}), accent_color: selected };
+      state.clientSettings = { ...(state.clientSettings || {}), accent_color: selected, theme_accent: selected };
+      api.saveClientSetting?.({ key: 'accent_color', value: selected }).catch((err) => {
+        console.warn('[accent-picker] Supabase accent save failed; local choice remains active:', err);
+      });
       pop.hidden = true;
       return;
     }

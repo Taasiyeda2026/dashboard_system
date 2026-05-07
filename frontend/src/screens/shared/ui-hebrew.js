@@ -85,8 +85,7 @@ export const HEBREW_EXCEPTION_TYPE = {
   missing_activity_manager: 'חסר מנהל פעילות',
   missing_school:           'חסרה בית ספר',
   missing_authority:        'חסרה רשות',
-  missing_activity_name:    'חסר שם פעילות',
-  missing_meetings:         'חסרות פגישות'
+  missing_activity_name:    'חסר שם פעילות'
 };
 
 export function hebrewExceptionType(value) {
