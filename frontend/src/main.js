@@ -1839,6 +1839,11 @@ if ('serviceWorker' in navigator && !SERVICE_WORKER_ENABLED) {
   navigator.serviceWorker.getRegistrations()
     .then((regs) => Promise.all(regs.map((reg) => reg.unregister())))
     .catch(() => {});
+  if (typeof caches !== 'undefined') {
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+      .catch(() => {});
+  }
 }
 
 if ('serviceWorker' in navigator && SERVICE_WORKER_ENABLED) {
