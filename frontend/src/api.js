@@ -185,6 +185,7 @@ function normalizeActivityRow(row = {}) {
   }
   normalized.meeting_dates = getActivityDateColumns(normalized);
   normalized.date_cols = normalized.meeting_dates;
+  normalized.meeting_schedule = normalized.meeting_dates.map((d) => ({ date: d, performed: 'no' }));
   return normalized;
 }
 
