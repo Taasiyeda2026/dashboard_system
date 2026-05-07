@@ -204,6 +204,15 @@ function fieldViewOnly(label, viewHtml) {
   `;
 }
 
+function headerActionsHtml(exportAction) {
+  return `
+    <div class="activity-drawer__header-actions" aria-label="פעולות חלון">
+      ${exportAction ? '<button type="button" class="activity-drawer__export" data-action="export-activity-excel" title="ייצוא פעילות לאקסל" aria-label="ייצוא פעילות לאקסל">⇩</button>' : ''}
+      <button type="button" class="activity-drawer__close" data-action="close-drawer" data-ui-close-drawer aria-label="סגירה">✕</button>
+    </div>
+  `;
+}
+
 function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = true } = {}) {
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
@@ -222,24 +231,28 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
     const dateLabel = formatDateHe(summaryDate) || fallback(summaryDate);
     return `
       <div class="activity-drawer__header">
-        ${exportAction ? '<button type="button" class="activity-drawer__export" data-action="export-activity-excel" title="ייצוא פעילות לאקסל" aria-label="ייצוא פעילות לאקסל">⇩</button>' : ''}
-        <button type="button" class="activity-drawer__close" data-action="close-drawer" data-ui-close-drawer aria-label="סגירה">✕</button>
-        <h2 class="activity-drawer__title">${escapeHtml(instructorName)}</h2>
-        <div class="activity-drawer__meta">${escapeHtml(`${dateLabel} · ${rows.length} פעילויות`)}</div>
+        <div class="activity-drawer__header-top">
+          <div class="activity-drawer__heading">
+            <h2 class="activity-drawer__title">${escapeHtml(instructorName)}</h2>
+            <div class="activity-drawer__meta">${escapeHtml(`${dateLabel} · ${rows.length} פעילויות`)}</div>
+          </div>
+          ${headerActionsHtml(exportAction)}
+        </div>
       </div>
     `;
   }
   return `
     <div class="activity-drawer__header">
       <div class="activity-drawer__header-top">
-        <span class="activity-drawer__pill">${escapeHtml(activityTypeLabel(row?.activity_type))}</span>
-        ${exportAction ? '<button type="button" class="activity-drawer__export" data-action="export-activity-excel" title="ייצוא פעילות לאקסל" aria-label="ייצוא פעילות לאקסל">⇩</button>' : ''}
-        <button type="button" class="activity-drawer__close" data-action="close-drawer" data-ui-close-drawer aria-label="סגירה">✕</button>
-      </div>
-      <h2 class="activity-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
-      <div class="activity-drawer__meta">
-        <span class="activity-drawer__status">${escapeHtml(statusText(row?.status))}</span>
-        <span>${escapeHtml(fallback(row?.school))} · ${escapeHtml(fallback(row?.authority))}</span>
+        <div class="activity-drawer__heading">
+          <span class="activity-drawer__pill">${escapeHtml(activityTypeLabel(row?.activity_type))}</span>
+          <h2 class="activity-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
+          <div class="activity-drawer__meta">
+            <span class="activity-drawer__status">${escapeHtml(statusText(row?.status))}</span>
+            <span>${escapeHtml(fallback(row?.school))} · ${escapeHtml(fallback(row?.authority))}</span>
+          </div>
+        </div>
+        ${headerActionsHtml(exportAction)}
       </div>
     </div>
   `;
@@ -494,7 +507,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
       ${chainToggle}
       ${addMeetingBtn}
       <div class="activity-drawer__edit-actions" data-mode="edit" hidden>
-        <button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">${canDirectEdit ? 'שמור' : 'שליחה לאישור'}</button>
+        <button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">שמור</button>
         <button type="button" class="activity-drawer__action" data-action="cancel-edit">ביטול</button>
         <p class="ds-activity-edit-status ds-muted" role="status"></p>
       </div>

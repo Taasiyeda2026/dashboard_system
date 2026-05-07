@@ -199,7 +199,7 @@ export function bindActivityEditForm(contentRoot, {
         console.info('[submitEditRequest] changes', changes);
       }
 
-      setStatus(statusEl, 'is-pending', canDirectEdit ? 'שומר...' : 'שולח לאישור...');
+      setStatus(statusEl, 'is-pending', 'שומר...');
       if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.classList.add('is-loading');
@@ -210,8 +210,8 @@ export function bindActivityEditForm(contentRoot, {
       } else {
         await api.submitEditRequest(sourceRowId, changes);
       }
-      setStatus(statusEl, 'is-success', canDirectEdit ? '✅ נשמר בהצלחה' : '✅ בקשת העריכה נשלחה לאישור');
-      showToast(canDirectEdit ? '✅ נשמר בהצלחה' : '✅ בקשת העריכה נשלחה לאישור', 'success', 2500);
+      setStatus(statusEl, 'is-success', canDirectEdit ? '✅ נשמר בהצלחה' : '✅ העדכון התקבל');
+      showToast(canDirectEdit ? '✅ נשמר בהצלחה' : '✅ העדכון התקבל', 'success', 2500);
       if (canDirectEdit && typeof onRowSaved === 'function') onRowSaved({ sourceSheet, sourceRowId, changes, form });
       if (!canDirectEdit) {
         form.reset();

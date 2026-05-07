@@ -21,3 +21,11 @@ test('global accent variables drive key buttons, summaries, nav and activity tab
   assert.match(css, /\.ds-activities-screen \.ds-table tbody tr:nth-child\(even\) td \{[\s\S]*var\(--ds-activities-stripe/);
   assert.match(css, /\.ds-activities-screen \.ds-table th \{[\s\S]*var\(--ds-accent-soft\)/);
 });
+
+
+test('accent picker records current accent on the button and root dataset', () => {
+  const src = read('frontend/src/main.js');
+  assert.match(src, /root\.dataset\.dsAccent = selected/);
+  assert.match(src, /btn\.style\.backgroundColor = colors\.accent/);
+  assert.match(src, /btn\.dataset\.currentAccent = selected/);
+});

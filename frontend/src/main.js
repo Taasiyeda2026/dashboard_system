@@ -75,7 +75,11 @@ function applyGlobalAccent(name = accentNameFromStorage()) {
   root.style.setProperty('--ds-activities-stripe-hover', colors.stripeHover);
   root.style.setProperty('--ds-focus-ring', `0 0 0 2px color-mix(in srgb, ${colors.accent} 24%, transparent)`);
   root.style.setProperty('--ds-focus-ring-strong', `0 0 0 3px color-mix(in srgb, ${colors.accent} 30%, transparent)`);
-  document.querySelectorAll('[data-accent-picker-btn]').forEach((btn) => { btn.style.background = colors.accent; });
+  root.dataset.dsAccent = selected;
+  document.querySelectorAll('[data-accent-picker-btn]').forEach((btn) => {
+    btn.style.backgroundColor = colors.accent;
+    btn.dataset.currentAccent = selected;
+  });
   document.querySelectorAll('[data-accent-swatch]').forEach((sw) => { sw.classList.toggle('is-active', sw.dataset.accent === selected); });
   return selected;
 }
@@ -91,6 +95,7 @@ function bindAccentPickerOnce() {
     if (!pop) return;
     const swatch = ev.target.closest('[data-accent-swatch]');
     if (swatch) {
+      ev.preventDefault();
       const name = swatch.dataset.accent || 'blue';
       const selected = applyGlobalAccent(name);
       try {
@@ -103,6 +108,8 @@ function bindAccentPickerOnce() {
     }
     const btn = ev.target.closest('[data-accent-picker-btn]');
     if (btn) {
+      ev.preventDefault();
+      applyGlobalAccent();
       pop.hidden = !pop.hidden;
       return;
     }
