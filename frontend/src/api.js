@@ -1169,11 +1169,11 @@ const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
 const SUPABASE_ROLE_ROUTES = {
   admin: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists'],
   operation_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
-  authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
-  finance: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
-  activities_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
-  domain_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
-  instructor_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
+  authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  finance: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  activities_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  domain_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  instructor_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   instructor: ['dashboard', 'activities', 'archive', 'week', 'month', 'instructor-contacts', 'my-data']
 };
 
