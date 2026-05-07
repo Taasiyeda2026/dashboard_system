@@ -347,8 +347,13 @@ async function readListsFromSupabase() {
  * activity-options.js and the add-activity form.
  * Handles many category name variants so the lists table can use any naming.
  */
-function buildClientSettingsFromLists(listsData) {
+function buildClientSettingsFromLists(listsData, settingsRows = []) {
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
+  const settingValue = (key) => {
+    const row = (Array.isArray(settingsRows) ? settingsRows : []).find((item) => String(item?.key || '').trim() === key);
+    return String(row?.value || '').trim();
+  };
+  const accentColor = settingValue('accent_color') || settingValue('theme_accent') || settingValue('ui_accent_color');
   const byCategory = {};
   categories.forEach(({ category, items }) => {
     byCategory[String(category).toLowerCase()] = Array.isArray(items) ? items : [];
@@ -414,6 +419,7 @@ function buildClientSettingsFromLists(listsData) {
     },
     one_day_activity_types: shortTypes,
     program_activity_types: longTypes,
+    ...(accentColor ? { accent_color: accentColor, theme_accent: accentColor } : {}),
   };
 }
 
@@ -426,7 +432,7 @@ async function readInstructorsFromSupabase() {
   try {
     const [activityRows, contactsResult] = await Promise.all([
       selectActivitiesFromSupabase(
-        'emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,activity_manager,status,activity_family,activity_type,type,kind'
+        'row_id,emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,activity_manager,status,activity_family,activity_type,activity_name,authority,school'
       ),
       supabase.from('contacts_instructors').select('*')
     ]);
@@ -465,6 +471,9 @@ async function readInstructorsFromSupabase() {
           one_day_count: 0,
           latest_end_date: '',
           managers: new Set(),
+          authorities: new Set(),
+          schools: new Set(),
+          activity_names: new Set(),
           activity_type_counts: {}
         });
       }
@@ -496,6 +505,9 @@ async function readInstructorsFromSupabase() {
       ];
       const endDate = normalizeSupabaseDate(row.end_date);
       const manager = String(row.activity_manager || '').trim();
+      const authority = String(row.authority || '').trim();
+      const school = String(row.school || '').trim();
+      const activityName = String(row.activity_name || '').trim();
       const actType = rowActivityType(row);
       for (const [id, name] of pairs) {
         const stats = ensureStats(id || name, name || id);
@@ -504,6 +516,9 @@ async function readInstructorsFromSupabase() {
         if (isOneDayActivity(row)) stats.one_day_count += 1;
         if (endDate && (!stats.latest_end_date || endDate > stats.latest_end_date)) stats.latest_end_date = endDate;
         if (manager) stats.managers.add(manager);
+        if (authority) stats.authorities.add(authority);
+        if (school) stats.schools.add(school);
+        if (activityName) stats.activity_names.add(activityName);
         if (actType) stats.activity_type_counts[actType] = (stats.activity_type_counts[actType] || 0) + 1;
       }
     }
@@ -516,6 +531,9 @@ async function readInstructorsFromSupabase() {
       one_day_count: stats.one_day_count,
       latest_end_date: stats.latest_end_date || '',
       activity_managers: [...stats.managers],
+      authorities: [...stats.authorities],
+      schools: [...stats.schools],
+      activity_names: [...stats.activity_names],
       activity_type_counts: stats.activity_type_counts,
       has_activity_stats: (stats.programs_count + stats.one_day_count) > 0 || Object.values(stats.activity_type_counts).some((n) => Number(n) > 0)
     }));
@@ -862,7 +880,6 @@ function buildExceptionsFromRows(activityRows = []) {
     const end         = nullStr(row?.end_date);
     if (!emp1 && !emp2 && !instructor1 && !instructor2) types.push('missing_instructor');
     if (!start) types.push('missing_start_date');
-    if (!getActivityDateColumns(row).length) types.push('missing_meetings');
     if (start && end && end < start) types.push('late_end_date');
     if (end && end > '2026-06-15') types.push('dangerous_end_date');
     if (!nullStr(row?.activity_manager)) types.push('missing_activity_manager');
@@ -1404,9 +1421,10 @@ async function readSettingsRowsFromSupabase() {
 
 export const api = {
   login: async (user_id, entry_code) => {
-    const [user, listsData] = await Promise.all([
+    const [user, listsData, settingsRows] = await Promise.all([
       loginWithSupabaseAuth(user_id, entry_code),
-      readListsFromSupabase().catch(() => null)
+      readListsFromSupabase().catch(() => null),
+      readSettingsRowsFromSupabase().catch(() => [])
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
@@ -1424,17 +1442,18 @@ export const api = {
         can_request_edit: String(flat.can_request_edit || '').toLowerCase() !== 'no'
       },
       ...buildBootstrapFromUser(user),
-      client_settings: buildClientSettingsFromLists(listsData)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows)
     };
   },
   bootstrap: async () => {
-    const [user, listsData] = await Promise.all([
+    const [user, listsData, settingsRows] = await Promise.all([
       readCurrentUserBySession(),
-      readListsFromSupabase().catch(() => null)
+      readListsFromSupabase().catch(() => null),
+      readSettingsRowsFromSupabase().catch(() => [])
     ]);
     return {
       ...buildBootstrapFromUser(user),
-      client_settings: buildClientSettingsFromLists(listsData)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows)
     };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),
@@ -1559,6 +1578,18 @@ export const api = {
         instructor: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' }
       }
     };
+  },
+  saveClientSetting: async (payload) => {
+    const key = String(payload?.key || '').trim();
+    const value = String(payload?.value || '').trim();
+    if (!key) throw new Error('missing_setting_key');
+    const allowedKeys = new Set(['accent_color', 'theme_accent', 'ui_accent_color']);
+    if (!allowedKeys.has(key)) throw new Error('unsupported_setting_key');
+    const { error } = await supabase
+      .from('settings')
+      .upsert({ key, value, description: 'UI accent color' }, { onConflict: 'key' });
+    if (error) throw new Error(error.message || 'client_setting_save_failed');
+    return { ok: true, key, value };
   },
   adminSettings: async (payload) => {
     if (payload && typeof payload === 'object' && String(payload.key || '').trim()) {
