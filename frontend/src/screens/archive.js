@@ -19,6 +19,24 @@ import { getRosterUsers } from './shared/activity-options.js';
 
 const ARCHIVE_SCOPE = 'archive';
 
+const ARCHIVE_TYPE_KPIS = [
+  { label: 'קורסים',      keys: ['course', 'קורס', 'קורסים'],                                              color: 'blue'   },
+  { label: 'סדנאות',      keys: ['workshop', 'סדנה', 'סדנאות'],                                           color: 'purple' },
+  { label: 'סיורים',      keys: ['tour', 'סיור', 'סיורים'],                                               color: 'green'  },
+  { label: 'אפטרסקול',   keys: ['after_school', 'after school', 'afterschool', 'חוג אפטרסקול', 'אפטרסקול'], color: 'orange' },
+];
+
+function archiveTypeKpiHtml(rows) {
+  const cells = ARCHIVE_TYPE_KPIS.map(({ label, keys, color }) => {
+    const count = rows.filter((r) => keys.includes(String(r.activity_type || '').trim())).length;
+    return `<div class="ds-archive-kpi ds-archive-kpi--${color}">
+      <span class="ds-archive-kpi__value">${count}</span>
+      <span class="ds-archive-kpi__label">${escapeHtml(label)}</span>
+    </div>`;
+  }).join('');
+  return `<div class="ds-archive-kpi-row" dir="rtl">${cells}</div>`;
+}
+
 const ARCHIVE_FILTER_FIELDS = [
   { key: 'activity_manager', label: 'מנהל פעילות' },
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) },
@@ -194,6 +212,7 @@ export const archiveScreen = {
     return dsScreenStack(`
       <section class="ds-activities-screen">
         ${titleRow}
+        ${archiveTypeKpiHtml(filteredRows)}
         ${yearNav}
         ${toolbar}
         ${dsCard({ body: tableSection, padded: false })}
