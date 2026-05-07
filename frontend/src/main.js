@@ -33,7 +33,9 @@ const ACCENT_COLORS = {
   green:  { accent: '#166534', hover: '#14532d', soft: '#eaf5ec', stripe: '#eaf5ec', stripeHover: '#dcf0e0' },
   purple: { accent: '#5b21b6', hover: '#4c1d95', soft: '#f3eefa', stripe: '#f3eefa', stripeHover: '#ece0f8' },
   orange: { accent: '#c2410c', hover: '#9a3412', soft: '#fdf3ea', stripe: '#fdf3ea', stripeHover: '#fce9d8' },
-  gray:   { accent: '#334155', hover: '#1e293b', soft: '#f1f3f6', stripe: '#f1f3f6', stripeHover: '#e8eaee' }
+  gray:   { accent: '#334155', hover: '#1e293b', soft: '#f1f3f6', stripe: '#f1f3f6', stripeHover: '#e8eaee' },
+  pink:   { accent: '#ed608a', hover: '#d94f79', soft: '#fdebf1', stripe: '#fdebf1', stripeHover: '#fbdde7' },
+  cyan:   { accent: '#0292b7', hover: '#027b9b', soft: '#e6f7fb', stripe: '#e6f7fb', stripeHover: '#d8f1f7' }
 };
 const ACCENT_LS_KEY = 'ds_global_accent';
 const LEGACY_STRIPE_LS_KEY = 'ds_activities_stripe';
@@ -782,6 +784,8 @@ function shell(content) {
               <button type="button" class="ds-accent-swatch" data-accent="purple" style="background:#5b21b6" title="סגול"></button>
               <button type="button" class="ds-accent-swatch" data-accent="orange" style="background:#c2410c" title="כתום"></button>
               <button type="button" class="ds-accent-swatch" data-accent="gray" style="background:#334155" title="אפור"></button>
+              <button type="button" class="ds-accent-swatch" data-accent="pink" style="background:#ed608a" title="ורוד"></button>
+              <button type="button" class="ds-accent-swatch" data-accent="cyan" style="background:#0292b7" title="תכלת"></button>
             </div>
           </div>
           <button type="button" class="shell-logout-btn shell-logout-btn--sidebar" id="logoutBtn" aria-label="התנתקות" title="התנתקות">
