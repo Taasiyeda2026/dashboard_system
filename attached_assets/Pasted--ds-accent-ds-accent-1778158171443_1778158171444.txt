@@ -1,0 +1,83 @@
+לתקן את השפעת בורר הצבע הגלובלי.
+
+הבעיה:
+בורר הצבע עובד ומשנה את משתני:
+--ds-accent
+--ds-accent-hover
+--ds-accent-soft
+--ds-interactive-selected
+--ds-activities-stripe
+--ds-activities-stripe-hover
+
+אבל רוב הכותרות, התיבות והשורות לא מושפעות כי הן משתמשות בצבעים ניטרליים:
+--ds-surface
+--ds-surface-subtle
+--ds-border
+--ds-text
+--ds-interactive-hover
+
+נדרש:
+ב-frontend/src/styles/main.css להרחיב את השימוש במשתני accent כך שהצבע הנבחר ישפיע גם על:
+
+1. כותרות עמודים:
+.ds-page-header
+.ds-page-header__title
+
+2. כותרות כרטיסים:
+.ds-card__head
+.ds-card__title / כל title רלוונטי בכרטיסים
+
+3. גבולות תיבות:
+.ds-card
+.ds-page-header
+.ds-interactive-card
+.ds-table
+
+4. טבלאות:
+.ds-table th
+.ds-table tbody tr:nth-child(even) td
+.ds-table tbody tr:hover td
+
+5. תיבות KPI / summary:
+.ds-interactive-card--kpi
+.ds-summary-btn
+.ds-summary-btn.is-active
+
+הנחיה עיצובית:
+לא לצבוע הכל בצבע חזק.
+להשתמש בצבע רך ועדין:
+background: var(--ds-accent-soft)
+border-color: color-mix(in srgb, var(--ds-accent) 18%, var(--ds-border))
+color לכותרות יכול להישאר כהה, או להשתמש ב-var(--ds-accent) רק בכותרות קטנות/אייקונים.
+
+דוגמאות:
+.ds-page-header {
+  border-color: color-mix(in srgb, var(--ds-accent) 18%, var(--ds-border));
+  background: color-mix(in srgb, var(--ds-accent-soft) 55%, #fff);
+}
+
+.ds-card__head {
+  background: color-mix(in srgb, var(--ds-accent-soft) 65%, var(--ds-surface-subtle));
+  border-bottom-color: color-mix(in srgb, var(--ds-accent) 14%, var(--ds-border));
+}
+
+.ds-table th {
+  background: var(--ds-accent-soft);
+  border-bottom-color: color-mix(in srgb, var(--ds-accent) 18%, var(--ds-border));
+}
+
+.ds-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--ds-activities-stripe) 70%, #fff);
+}
+
+.ds-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--ds-accent-soft) 80%, #fff);
+}
+
+חשוב:
+לא לשנות את JS של הבורר.
+לא לשנות שמירה ל-localStorage או Supabase.
+רק לחבר יותר רכיבי CSS למשתני הצבע הקיימים.
+
+להוסיף/לעדכן test:
+accent picker should affect page headers, card headers, cards, table headers, table stripes and hover rows.

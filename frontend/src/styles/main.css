@@ -839,8 +839,8 @@ select {
   justify-content: center;
   align-items: center;
   text-align: center;
-  background: var(--ds-surface);
-  border-color: var(--ds-border);
+  background: color-mix(in srgb, var(--ds-accent-soft) 45%, var(--ds-surface));
+  border-color: color-mix(in srgb, var(--ds-accent) 18%, var(--ds-border));
   box-shadow: var(--ds-shadow-sm);
 }
 
@@ -894,8 +894,8 @@ select {
 .ds-page-header {
   padding: var(--ds-space-2) var(--ds-space-4);
   border-radius: var(--ds-radius-md);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
+  background: color-mix(in srgb, var(--ds-accent-soft) 55%, #fff);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 18%, var(--ds-border));
   box-shadow: var(--ds-shadow-xs);
 }
 
@@ -903,7 +903,7 @@ select {
   margin: 0;
   font-size: 1.08rem;
   font-weight: 700;
-  color: var(--ds-text);
+  color: var(--ds-accent);
   letter-spacing: -0.01em;
 }
 
@@ -932,8 +932,8 @@ select {
   gap: var(--ds-space-3);
   min-height: 38px;
   padding: var(--ds-space-2) var(--ds-space-4);
-  background: var(--ds-surface-subtle);
-  border-bottom: 1px solid var(--ds-border);
+  background: color-mix(in srgb, var(--ds-accent-soft) 65%, var(--ds-surface-subtle));
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-accent) 14%, var(--ds-border));
   border-top: 3px solid var(--ds-accent);
 }
 
@@ -1351,8 +1351,12 @@ span.ds-chip {
   box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-accent) 10%, transparent);
 }
 
+.ds-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--ds-activities-stripe) 70%, #fff);
+}
+
 .ds-table tbody tr:hover td {
-  background: color-mix(in srgb, var(--ds-pastel-sky) 52%, #ffffff);
+  background: color-mix(in srgb, var(--ds-accent-soft) 80%, #fff);
 }
 
 .ds-table--interactive tbody tr {
