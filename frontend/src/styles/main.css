@@ -8669,10 +8669,7 @@ select.ds-activity-add-field .ds-input,
 }
 
 .ds-accent-picker-popover {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  right: 50%;
-  transform: translateX(50%);
+  position: fixed;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -8682,7 +8679,7 @@ select.ds-activity-add-field .ds-input,
   border: 1px solid var(--ds-border);
   background: #fff;
   box-shadow: var(--ds-shadow-lg);
-  z-index: 80;
+  z-index: 9999;
 }
 .ds-accent-picker-popover[hidden] { display: none; }
 

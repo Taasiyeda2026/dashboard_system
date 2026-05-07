@@ -113,7 +113,19 @@ function bindAccentPickerOnce() {
     if (btn) {
       ev.preventDefault();
       applyGlobalAccent();
-      pop.hidden = !pop.hidden;
+      if (pop.hidden) {
+        const rect = btn.getBoundingClientRect();
+        const popW = 34;
+        let left = rect.left + rect.width / 2 - popW / 2;
+        const top = rect.top - 8;
+        left = Math.max(8, Math.min(left, window.innerWidth - popW - 8));
+        pop.style.left = `${left}px`;
+        pop.style.top = `${top}px`;
+        pop.style.transform = 'translateY(-100%)';
+        pop.hidden = false;
+      } else {
+        pop.hidden = true;
+      }
       return;
     }
     pop.hidden = true;

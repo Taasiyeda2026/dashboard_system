@@ -431,9 +431,7 @@ async function readInstructorsFromSupabase() {
   if (!supabase) return null;
   try {
     const [activityRows, contactsResult] = await Promise.all([
-      selectActivitiesFromSupabase(
-        'row_id,emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,activity_manager,status,activity_family,activity_type,activity_name,authority,school'
-      ),
+      selectActivitiesFromSupabase('*'),
       supabase.from('contacts_instructors').select('*')
     ]);
 
