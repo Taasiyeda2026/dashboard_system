@@ -1,4 +1,5 @@
 import { escapeHtml } from './html.js';
+import { exportSingleActivityToExcel } from './excel-export.js';
 
 const UI_LAYER_ID = 'ds-shared-ui-layer';
 
@@ -25,6 +26,22 @@ const HOST_MARKUP = `
         <footer class="ds-modal__footer" hidden></footer>
       </section>
     `;
+
+
+function bindDrawerExport(contentNode) {
+  if (!contentNode || contentNode.dataset.exportBound === '1') return;
+  contentNode.dataset.exportBound = '1';
+  contentNode.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target.closest('[data-action="export-activity-excel"]') : null;
+    if (!target) return;
+    event.preventDefault();
+    const form = contentNode.querySelector('[data-drawer-form]');
+    if (!form) return;
+    let row = {};
+    try { row = JSON.parse(form.dataset.exportRow || '{}'); } catch { row = {}; }
+    exportSingleActivityToExcel(row);
+  });
+}
 
 function asHtml(content) {
   if (content == null) return '';
@@ -164,11 +181,18 @@ export function createSharedInteractionLayer() {
 
     titleNode.innerHTML = defaultDrawerTitle(title);
     contentNode.innerHTML = asHtml(content);
+    bindDrawerExport(contentNode);
+    drawer.scrollTop = 0;
+    contentNode.scrollTop = 0;
     onDrawerClose = typeof onClose === 'function' ? onClose : null;
 
     drawerOpen = true;
     drawer.setAttribute('aria-hidden', 'false');
     syncLayerClasses();
+    requestAnimationFrame(() => {
+      drawer.scrollTop = 0;
+      contentNode.scrollTop = 0;
+    });
     if (typeof onOpen === 'function') onOpen(contentNode);
   }
 

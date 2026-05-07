@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { formatDateHe } from './shared/format-date.js';
+import { triggerExcelDownload } from './shared/excel-export.js';
 
 function asIso(value) {
   const text = String(value || '').trim().slice(0, 10);
@@ -98,7 +99,7 @@ function renderMonthTable(month, monthIdx) {
 
 function buildExcelBlob(rows) {
   const maxMeetingDates = rows.reduce((max, row) => Math.max(max, Array.isArray(row?._dates) ? row._dates.length : 0), 0);
-  const dateHeaders = Array.from({ length: maxMeetingDates }, (_, idx) => `תאריך סיום ${idx + 1}`);
+  const dateHeaders = Array.from({ length: maxMeetingDates }, (_, idx) => `תאריך ${idx + 1}`);
   const headers = ['שם פעילות', 'בית ספר', 'רשות', 'תאריך סיום', ...dateHeaders];
   const tableRows = rows.map((row) => {
     const dateCells = Array.from({ length: maxMeetingDates }, (_, idx) => {
@@ -120,17 +121,6 @@ function buildExcelBlob(rows) {
     <tbody>${tableRows}</tbody></table></body></html>`;
 
   return new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
-}
-
-function triggerDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a   = document.createElement('a');
-  a.href     = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 export const endDatesScreen = {
@@ -170,7 +160,7 @@ export const endDatesScreen = {
 
     root.querySelector('[data-end-dates-export]')?.addEventListener('click', () => {
       const stamp = new Date().toISOString().slice(0, 10);
-      triggerDownload(buildExcelBlob(allRows), `תאריכי_סיום_${stamp}.xls`);
+      triggerExcelDownload(buildExcelBlob(allRows), `תאריכי_סיום_${stamp}.xls`);
     });
 
     root.querySelectorAll('[data-end-row]').forEach((tr) => {
@@ -194,7 +184,7 @@ export const endDatesScreen = {
         const name  = String(row.activity_name || 'פעילות')
           .replace(/[/\\?%*:|"<>]/g, '_').slice(0, 40);
         const stamp = new Date().toISOString().slice(0, 10);
-        triggerDownload(buildExcelBlob([row]), `${name}_${stamp}.xls`);
+        triggerExcelDownload(buildExcelBlob([row]), `${name}_${stamp}.xls`);
       });
     });
   }

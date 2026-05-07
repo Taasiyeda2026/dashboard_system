@@ -246,7 +246,7 @@ export const archiveScreen = {
         const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
         const reopenBtn = canReopen
           ? `<div style="padding:12px 16px 0;text-align:right">
-               <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-archive-reopen="${escapeHtml(String(row.RowID || ''))}">
+               <button type="button" class="ds-btn ds-btn--sm ds-archive-reopen-btn" data-archive-reopen="${escapeHtml(String(row.RowID || ''))}">
                  🔓 פתח מחדש
                </button>
              </div>`

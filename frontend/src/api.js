@@ -439,7 +439,8 @@ async function readInstructorsFromSupabase() {
       const manager = String(row.activity_manager || '').trim();
       const actType = String(row.activity_type || '').trim();
       for (const [id, name] of pairs) {
-        const stats = ensureStats(id, name);
+        const fallbackId = String(id || name || '').trim();
+        const stats = ensureStats(fallbackId, name || id);
         if (!stats) continue;
         const cleanName = String(name || '').trim();
         if (cleanName && (!stats.full_name || stats.full_name === stats.emp_id)) {
@@ -796,7 +797,6 @@ function buildExceptionsFromRows(activityRows = []) {
   const rows = [];
   for (const row of activityRows) {
     if (isActivityClosed(row)) continue;
-    if (String(row?.activity_type || '').trim() !== 'course') continue;
     const types = [];
     const emp1        = nullStr(row?.emp_id);
     const emp2        = nullStr(row?.emp_id_2);
@@ -825,7 +825,18 @@ async function readExceptionsFromSupabase(params = {}) {
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
   try {
-    const activityRows = (await selectActivitiesFromSupabase('*')).filter((row) => activityHasDateInMonth(row, month) || String(row?.end_date || '').startsWith(month));
+    const activityRows = (await selectActivitiesFromSupabase('*')).filter((row) => {
+      const emp1 = nullStr(row?.emp_id);
+      const emp2 = nullStr(row?.emp_id_2);
+      const instructor1 = nullStr(row?.instructor_name);
+      const instructor2 = nullStr(row?.instructor_name_2);
+      const missingInstructor = !emp1 && !emp2 && !instructor1 && !instructor2;
+      const missingStartDate = !nullStr(row?.start_date);
+      return activityHasDateInMonth(row, month)
+        || String(row?.end_date || '').startsWith(month)
+        || missingInstructor
+        || missingStartDate;
+    });
     const rows = buildExceptionsFromRows(activityRows);
     return { month, rows, totalExceptionRows: rows.length, _source: 'supabase' };
   } catch (error) {
@@ -1336,6 +1347,10 @@ export const api = {
     const data = await readArchiveActivitiesFromSupabase();
     if (data) return data;
     return buildSupabaseErrorPayload({ rows: [] }, 'archive_supabase_failed');
+  },
+  allActivities: async () => {
+    const rows = await readAllActivitiesRowsSupabase();
+    return { rows, _source: 'supabase' };
   },
   activities: async (filters, options) => {
     const resolvedFilters = filters || {};

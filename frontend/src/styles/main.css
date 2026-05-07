@@ -8716,3 +8716,45 @@ select.ds-activity-add-field .ds-input,
 .ds-table--archive .ds-archive-meeting-dates {
   white-space: normal;
 }
+
+/* Targeted fixes: instructors density + drawer actions */
+@media (min-width: 1281px) {
+  .ci-list--instr-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1001px) and (max-width: 1280px) {
+  .ci-list--instr-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.activity-drawer__header-top {
+  gap: 8px;
+}
+.activity-drawer__export {
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 28%, var(--ds-border));
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ds-accent);
+  font-weight: 800;
+  cursor: pointer;
+}
+.activity-drawer__export:hover,
+.activity-drawer__export:focus-visible {
+  background: var(--ds-accent-soft);
+  outline: none;
+}
+.ds-archive-reopen-btn {
+  background: var(--ds-accent) !important;
+  border-color: var(--ds-accent) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-accent) 24%, transparent);
+}
+.ds-archive-reopen-btn:hover,
+.ds-archive-reopen-btn:focus-visible {
+  background: var(--ds-accent-hover) !important;
+  border-color: var(--ds-accent-hover) !important;
+}

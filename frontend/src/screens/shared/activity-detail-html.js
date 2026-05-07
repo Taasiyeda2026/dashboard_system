@@ -109,7 +109,7 @@ function normalizeActivityNameOptions(raw) {
 }
 
 function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '—', attrs = '' }) {
-  const safeValue = String(value || '');
+  const safeValue = String(value || '').trim();
   const normalized = toOptions(options);
   const all = normalized.includes(safeValue) || !safeValue ? normalized : [safeValue, ...normalized];
   const opts = [`<option value="">${escapeHtml(placeholder)}</option>`]
@@ -204,7 +204,7 @@ function fieldViewOnly(label, viewHtml) {
   `;
 }
 
-function headerHtml(row, { mode = 'single', summaryDate = '' } = {}) {
+function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = true } = {}) {
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const main = rows[0] || {};
@@ -222,6 +222,7 @@ function headerHtml(row, { mode = 'single', summaryDate = '' } = {}) {
     const dateLabel = formatDateHe(summaryDate) || fallback(summaryDate);
     return `
       <div class="activity-drawer__header">
+        ${exportAction ? '<button type="button" class="activity-drawer__export" data-action="export-activity-excel" title="ייצוא פעילות לאקסל" aria-label="ייצוא פעילות לאקסל">⇩</button>' : ''}
         <button type="button" class="activity-drawer__close" data-action="close-drawer" data-ui-close-drawer aria-label="סגירה">✕</button>
         <h2 class="activity-drawer__title">${escapeHtml(instructorName)}</h2>
         <div class="activity-drawer__meta">${escapeHtml(`${dateLabel} · ${rows.length} פעילויות`)}</div>
@@ -232,6 +233,7 @@ function headerHtml(row, { mode = 'single', summaryDate = '' } = {}) {
     <div class="activity-drawer__header">
       <div class="activity-drawer__header-top">
         <span class="activity-drawer__pill">${escapeHtml(activityTypeLabel(row?.activity_type))}</span>
+        ${exportAction ? '<button type="button" class="activity-drawer__export" data-action="export-activity-excel" title="ייצוא פעילות לאקסל" aria-label="ייצוא פעילות לאקסל">⇩</button>' : ''}
         <button type="button" class="activity-drawer__close" data-action="close-drawer" data-ui-close-drawer aria-label="סגירה">✕</button>
       </div>
       <h2 class="activity-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
@@ -257,18 +259,18 @@ function blockPeople(row, { settings = {} } = {}) {
       ${fieldViewEdit(
         'מדריך/ה 1',
         `${escapeHtml(fallback(instructor1Display))}`,
-        selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors })
+        selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors })
       )}
       ${fieldViewEdit(
         'מדריך/ה 2',
         `${escapeHtml(fallback(instructor2Display))}`,
-        selectHtml({ name: 'instructor_name_2', value: row.instructor_name_2, options: instructors })
+        selectHtml({ name: 'instructor_name_2', value: instructor2Display, options: instructors })
       )}
     `
     : fieldViewEdit(
         'מדריך/ה',
         `${escapeHtml(fallback(instructor1Display))}`,
-        selectHtml({ name: 'instructor_name', value: row.instructor_name, options: instructors })
+        selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors })
       );
   return `
     <section class="activity-drawer__section">
@@ -565,6 +567,14 @@ function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
   `;
 }
 
+function jsonAttr(value) {
+  try {
+    return escapeHtml(JSON.stringify(value || {}));
+  } catch {
+    return '{}';
+  }
+}
+
 function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, showPrivateNote = false, idx = 0, datesLoading = false } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = String(row.activity_type || '').trim();
@@ -579,6 +589,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
     : '';
   return `
     <form class="activity-drawer__form" data-drawer-form data-editing="no"
+      data-export-row="${jsonAttr(row)}"
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
       data-row-id="${escapeHtml(String(row.RowID || ''))}"
       data-can-direct-edit="${canDirectEdit ? 'yes' : 'no'}"
@@ -610,7 +621,7 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
-  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, settings = {}, datesLoading = false } = opts;
+  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, settings = {}, datesLoading = false, exportAction = true } = opts;
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const body = rows
@@ -635,7 +646,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
       `)
       .join('');
     return `
-      ${headerHtml(rows, { mode: 'summary', summaryDate })}
+      ${headerHtml(rows, { mode: 'summary', summaryDate, exportAction })}
       <div class="activity-drawer__body">
         ${body || '<div class="activity-drawer__empty">אין נתונים</div>'}
       </div>
@@ -643,7 +654,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
   }
   const one = row || {};
   return `
-    ${headerHtml(one)}
+    ${headerHtml(one, { exportAction })}
     <div class="activity-drawer__body">
       ${singleForm(one, {
         settings,

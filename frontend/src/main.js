@@ -55,6 +55,8 @@ function accentNameFromStorage() {
   try {
     return normalizeAccentName(localStorage.getItem(ACCENT_LS_KEY))
       || normalizeAccentName(localStorage.getItem(LEGACY_STRIPE_LS_KEY))
+      || normalizeAccentName(state?.clientSettings?.accent_color)
+      || normalizeAccentName(state?.clientSettings?.theme_accent)
       || 'blue';
   } catch {
     return 'blue';
@@ -95,6 +97,7 @@ function bindAccentPickerOnce() {
         localStorage.setItem(ACCENT_LS_KEY, selected);
         localStorage.setItem(LEGACY_STRIPE_LS_KEY, selected);
       } catch {}
+      state.clientSettings = { ...(state.clientSettings || {}), accent_color: selected };
       pop.hidden = true;
       return;
     }
