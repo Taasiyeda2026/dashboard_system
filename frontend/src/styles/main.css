@@ -8629,13 +8629,13 @@ select.ds-activity-add-field .ds-input,
 .ds-accent-picker-wrap {
   position: relative;
   display: flex;
+  align-items: center;
   justify-content: center;
-  margin-bottom: var(--ds-space-3);
 }
 
 .ds-accent-picker-btn {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.45);
   cursor: pointer;
