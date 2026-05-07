@@ -373,6 +373,7 @@ export const activitiesScreen = {
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canAddActivity = !!state?.user?.can_add_activity;
+    const isAdmin = state?.user?.display_role === 'admin' || state?.user?.role === 'admin';
 
     const rosterUsers = getRosterUsers(state?.clientSettings || {});
     const instructorByEmpId = rosterUsers.reduce((acc, user) => {
@@ -472,6 +473,7 @@ export const activitiesScreen = {
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">↻</button>
+        ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activities-export-all title="ייצוא כל הפעילויות לאקסל">ייצוא כל הפעילויות לאקסל</button>` : ''}
         ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">+</button>` : ''}
       </div>
     </div>`;
@@ -500,6 +502,7 @@ export const activitiesScreen = {
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canAddActivity = !!state?.user?.can_add_activity;
+    const isAdmin = state?.user?.display_role === 'admin' || state?.user?.role === 'admin';
 
     const rerenderLocal = () => {
       if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
@@ -659,6 +662,22 @@ export const activitiesScreen = {
         rerenderLocal();
       }, Math.max(0, minMs - (Date.now() - startedAt)));
     };
+
+    root.querySelector('[data-activities-export-all]')?.addEventListener('click', async (ev) => {
+      if (!isAdmin) return;
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = 'מייצא…';
+      try {
+        const res = await (typeof api.allActivities === 'function' ? api.allActivities() : api.activities({ activity_type: 'all' }));
+        exportActivitiesToExcel(Array.isArray(res?.rows) ? res.rows : [], 'כל_הפעילויות');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    });
+
     root.querySelector('[data-activities-month-prev]')?.addEventListener('click', () => runMonthShift(-1));
     root.querySelector('[data-activities-month-next]')?.addEventListener('click', () => runMonthShift(1));
     root.querySelector(`[data-list-show-more="${ACTIVITIES_SCOPE}"]`)?.addEventListener('click', (ev) => {
