@@ -6,10 +6,8 @@ import {
   dsCard,
   dsScreenStack,
   dsTableWrap,
-  dsEmptyState,
-  dsInteractiveCard
+  dsEmptyState
 } from './shared/layout.js';
-import { isNarrowViewport } from './shared/responsive.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { activityRowDetailHtml } from './shared/activity-detail-html.js';
 
@@ -30,8 +28,6 @@ export const myDataScreen = {
       ? ['activity_name', 'start_date', 'end_date', 'activity_type']
       : ['RowID', 'activity_name', 'start_date', 'end_date', 'activity_type'];
     const rows = Array.isArray(data?.rows) ? data.rows : [];
-    const narrow = isNarrowViewport();
-
     const typeFilters = [...new Set(rows.map((r) => String(r.activity_type || '').trim()).filter(Boolean))].map((t) => ({
       value: t,
       label: hebrewActivityType(t)
@@ -63,34 +59,13 @@ export const myDataScreen = {
             <tbody>${body.join('')}</tbody>
           </table>`);
 
-    const compactCards =
-      rows.length === 0
-        ? dsEmptyState('לא נמצאו רשומות')
-        : `<div class="ds-compact-list">${rows
-            .map((row) => {
-              const rawType = String(row.activity_type || '').trim();
-              const searchHay = [row.RowID, row.activity_name, row.start_date, row.end_date, hebrewActivityType(row.activity_type)]
-                .filter(Boolean)
-                .join(' ');
-              return `<div data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}">
-              ${dsInteractiveCard({
-                variant: 'session',
-                action: `mydata:${row.RowID}`,
-                title: hideRowId ? `${row.activity_name || 'פעילות'}` : `${row.RowID} · ${row.activity_name || 'פעילות'}`,
-                subtitle: `${formatDateHe(row.start_date) || '—'} → ${formatDateHe(row.end_date) || '—'}`,
-                meta: hebrewActivityType(row.activity_type)
-              })}
-            </div>`;
-            })
-            .join('')}</div>`;
-
     return dsScreenStack(`
       ${dsPageHeader('הנתונים שלי', 'הפעילויות המשויכות אליך')}
       ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפעילויות שלי…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({
         title: 'הפעילויות שלי',
-        body: narrow ? compactCards : tableBlock,
-        padded: rows.length === 0 || narrow
+        body: tableBlock,
+        padded: rows.length === 0
       })}
     `);
   },
