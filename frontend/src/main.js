@@ -1635,7 +1635,7 @@ function bindShell() {
         accentPop.hidden = true;
       });
     });
-    document.addEventListener('click', () => { accentPop.hidden = true; }, { capture: true, passive: true });
+    document.addEventListener('click', () => { accentPop.hidden = true; });
   }
 
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
