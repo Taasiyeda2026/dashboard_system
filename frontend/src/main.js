@@ -80,6 +80,33 @@ function applyGlobalAccent(name = accentNameFromStorage()) {
 
 applyGlobalAccent();
 
+let _accentPickerBound = false;
+function bindAccentPickerOnce() {
+  if (_accentPickerBound) return;
+  _accentPickerBound = true;
+  document.addEventListener('click', (ev) => {
+    const pop = document.querySelector('[data-accent-picker-popover]');
+    if (!pop) return;
+    const swatch = ev.target.closest('[data-accent-swatch]');
+    if (swatch) {
+      const name = swatch.dataset.accent || 'blue';
+      const selected = applyGlobalAccent(name);
+      try {
+        localStorage.setItem(ACCENT_LS_KEY, selected);
+        localStorage.setItem(LEGACY_STRIPE_LS_KEY, selected);
+      } catch {}
+      pop.hidden = true;
+      return;
+    }
+    const btn = ev.target.closest('[data-accent-picker-btn]');
+    if (btn) {
+      pop.hidden = !pop.hidden;
+      return;
+    }
+    pop.hidden = true;
+  });
+}
+
 
 /** Timer handle for deferred prefetch — cancelled on every new navigation. */
 let prefetchTimer = null;
@@ -1641,27 +1668,7 @@ function bindShell() {
 
 
   applyGlobalAccent();
-  const accentBtn = document.querySelector('[data-accent-picker-btn]');
-  const accentPop = document.querySelector('[data-accent-picker-popover]');
-  if (accentBtn && accentPop) {
-    accentBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      accentPop.hidden = !accentPop.hidden;
-    });
-    document.querySelectorAll('[data-accent-swatch]').forEach((sw) => {
-      sw.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        const name = sw.dataset.accent || 'blue';
-        const selected = applyGlobalAccent(name);
-        try {
-          localStorage.setItem(ACCENT_LS_KEY, selected);
-          localStorage.setItem(LEGACY_STRIPE_LS_KEY, selected);
-        } catch {}
-        accentPop.hidden = true;
-      });
-    });
-    document.addEventListener('click', () => { accentPop.hidden = true; });
-  }
+  bindAccentPickerOnce();
 
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
     ui.closeAll();

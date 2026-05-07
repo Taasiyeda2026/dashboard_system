@@ -213,7 +213,8 @@ select {
     border-inline-start: none;
     border-inline-end: 1px solid var(--ds-shell-border);
     padding: var(--ds-space-5) var(--ds-space-2);
-    overflow-y: hidden;
+    overflow-y: auto;
+    overflow-x: visible;
   }
 }
 
