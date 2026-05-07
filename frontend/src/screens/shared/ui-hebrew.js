@@ -220,6 +220,13 @@ const API_ERROR_HE = {
   'not found': 'הפריט לא נמצא',
   not_found: 'הפריט לא נמצא',
   bad_request: 'הבקשה אינה תקינה',
+  validation_error: 'השמירה נכשלה בגלל נתונים לא תקינים — בדקו את השדות ונסו שוב',
+  conflict: 'השמירה נכשלה בגלל התנגשות נתונים — רעננו ונסו שוב',
+  rls_forbidden: 'אין הרשאת שמירה לנתון הזה — פנו למנהל המערכת לבדיקת הרשאות/RLS',
+  activity_not_found_or_forbidden: 'הפעילות לא נמצאה או שאין הרשאה לערוך אותה',
+  submit_edit_request_failed: 'שליחת בקשת העריכה נכשלה — פנו למנהל המערכת',
+  save_failed: 'שמירת הפעילות נכשלה — פנו למנהל המערכת',
+  missing_row_id: 'חסר מזהה פעילות לשמירה',
   'user_id is required': 'יש להזין מזהה משתמש',
   invalid_credentials: 'מספר עובד או קוד שגויים',
   no_supabase_client: 'חיבור Supabase אינו מוגדר — פנה למנהל המערכת',
@@ -291,8 +298,16 @@ export function translateApiErrorForUser(message) {
   if (/[\u0590-\u05FF]/.test(raw)) return raw;
   const key = raw.toLowerCase();
   if (API_ERROR_HE[key]) return API_ERROR_HE[key];
+  if (key.includes('activity_not_found_or_forbidden')) return API_ERROR_HE.activity_not_found_or_forbidden;
+  if (/row-level security|rls|permission denied|violates row-level security/.test(key)) return API_ERROR_HE.rls_forbidden;
+  if (/\b(400|pgrst102|pgrst204)\b/.test(key) || key.includes('bad request')) return API_ERROR_HE.bad_request;
+  if (/\b(401|jwt|unauthorized)\b/.test(key)) return API_ERROR_HE.unauthorized;
+  if (/\b403\b/.test(key) || key.includes('forbidden')) return API_ERROR_HE.forbidden;
+  if (/\b404\b/.test(key) || key.includes('not found')) return API_ERROR_HE.not_found;
+  if (/\b409\b/.test(key) || key.includes('duplicate key') || key.includes('conflict')) return API_ERROR_HE.conflict;
+  if (/\b422\b/.test(key) || key.includes('invalid input') || key.includes('violates not-null') || key.includes('violates check')) return API_ERROR_HE.validation_error;
   if (key.includes('timeout') || key.includes('timed_out')) return API_ERROR_HE.timeout;
-  if (/^5\d\d\b/.test(key) || key.includes('internal')) return API_ERROR_HE.server_error;
-  if (key.includes('network') || key.includes('fetch')) return API_ERROR_HE.network_error;
+  if (/^5\d\d\b/.test(key) || /\b5\d\d\b/.test(key) || key.includes('internal')) return API_ERROR_HE.server_error;
+  if (key.includes('network') || key.includes('fetch') || key.includes('cors') || key.includes('failed to fetch')) return API_ERROR_HE.network_error;
   return API_ERROR_HE.server_error;
 }

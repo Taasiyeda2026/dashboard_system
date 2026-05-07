@@ -192,12 +192,17 @@ export function bindActivityEditForm(contentRoot, {
         return;
       }
 
-      if (!canDirectEdit) {
-        // eslint-disable-next-line no-console
-        console.info('[submitEditRequest] source_row_id', sourceRowId);
-        // eslint-disable-next-line no-console
-        console.info('[submitEditRequest] changes', changes);
-      }
+      const operation = canDirectEdit ? 'saveActivity' : 'submitEditRequest';
+      const debugPayload = { source_sheet: sourceSheet, source_row_id: sourceRowId, changes };
+      // eslint-disable-next-line no-console
+      console.info('[activity-save:form-submit]', {
+        operation,
+        canDirectEdit,
+        source_sheet: sourceSheet,
+        source_row_id: sourceRowId,
+        changed_fields: Object.keys(changes),
+        changes
+      });
 
       setStatus(statusEl, 'is-pending', 'שומר...');
       if (submitBtn) {
@@ -206,9 +211,9 @@ export function bindActivityEditForm(contentRoot, {
       }
 
       if (canDirectEdit) {
-        await api.saveActivity({ source_sheet: sourceSheet, source_row_id: sourceRowId, changes });
+        await api.saveActivity(debugPayload);
       } else {
-        await api.submitEditRequest(sourceRowId, changes);
+        await api.submitEditRequest(debugPayload);
       }
       setStatus(statusEl, 'is-success', canDirectEdit ? '✅ נשמר בהצלחה' : '✅ העדכון התקבל');
       showToast(canDirectEdit ? '✅ נשמר בהצלחה' : '✅ העדכון התקבל', 'success', 2500);
@@ -231,8 +236,10 @@ export function bindActivityEditForm(contentRoot, {
         });
       }
     } catch (err) {
-      const errMsg = err?.message || '';
-      const isTimeout = errMsg === 'save_timeout' || errMsg === 'request_timeout';
+      // eslint-disable-next-line no-console
+      console.error('[activity-save-error]', err);
+      const errMsg = err?.message || err?.status || err?.code || '';
+      const isTimeout = errMsg === 'save_timeout' || errMsg === 'request_timeout' || String(errMsg).toLowerCase().includes('timeout');
       setStatus(statusEl, isTimeout ? 'is-warning' : 'is-error', `⚠️ ${translateApiErrorForUser(errMsg)}`);
     } finally {
       if (submitBtn) {

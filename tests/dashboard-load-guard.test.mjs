@@ -94,6 +94,18 @@ test('translateApiErrorForUser passes through Hebrew error messages unchanged', 
 });
 
 
+test('translateApiErrorForUser maps Supabase write failures to precise Hebrew messages', async () => {
+  const src = await read(
+    new URL('../frontend/src/screens/shared/ui-hebrew.js', import.meta.url)
+  );
+  assert.match(src, /activity_not_found_or_forbidden/,
+    'activity save should expose missing row or permission failures precisely');
+  assert.match(src, /row-level security\|rls\|permission denied/,
+    'RLS and permission errors should not be hidden as network failures');
+  assert.match(src, /400\|pgrst102\|pgrst204/,
+    'validation/bad request statuses should map to a precise invalid request message');
+});
+
 test('main.js emits route-render lifecycle logs for dashboard rendering', async () => {
   const src = await read(MAIN_FILE);
   assert.match(src, /console\.info\('\[route-render:start\]'/,
