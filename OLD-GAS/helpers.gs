@@ -87,7 +87,7 @@ function isPermissionsSheetRoleCodeToken_(value) {
     'instructor_admin',
     'activities_manager',
     'domain_manager',
-    'manager_instructor'
+    'instructor_manager'
   ];
   return codes.indexOf(t) >= 0;
 }
@@ -103,7 +103,7 @@ function normalizeRole_(value) {
     case 'authorized_user':    return 'authorized_user';
     case 'activities_manager': return 'activities_manager';
     case 'domain_manager':     return 'domain_manager';
-    case 'manager_instructor': return 'manager_instructor';
+    case 'instructor_manager': return 'instructor_manager';
     case 'instructor':         return 'instructor';
     case 'instructor_admin':   return 'instructor';
   }
@@ -124,8 +124,8 @@ function normalizeRole_(value) {
     case 'מנהל פעילויות':      return 'activities_manager';
     case 'מנהל/ת תחום':
     case 'מנהל תחום':          return 'domain_manager';
-    case 'מדריך/ת-מנהל/ת':
-    case 'מדריך-מנהל':         return 'manager_instructor';
+    case 'מנהל/ת הדרכה / מדריך/ת מנהל/ת':
+    case 'מדריך-מנהל':         return 'instructor_manager';
     default:                   throw new Error('invalid_role');
   }
 }
@@ -146,7 +146,7 @@ function isAuthorizedUserTier_(role) {
     role === 'operation_manager' ||
     role === 'activities_manager' ||
     role === 'domain_manager' ||
-    role === 'manager_instructor';
+    role === 'instructor_manager';
 }
 
 function normalizeFinance_(value) {

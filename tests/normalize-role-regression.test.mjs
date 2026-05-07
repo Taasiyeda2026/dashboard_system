@@ -1,7 +1,7 @@
 /**
  * normalize-role-regression.test.mjs
  *
- * Regression tests for normalizeRole_ in backend/helpers.gs.
+ * Regression tests for normalizeRole_ in OLD-GAS/helpers.gs.
  *
  * Covers:
  *  - All internal role codes (including the previously-missing authorized_user)
@@ -16,7 +16,7 @@ import { readFile } from 'fs/promises';
 import { strict as assert } from 'assert';
 import { test } from 'node:test';
 
-const HELPERS_PATH = 'backend/helpers.gs';
+const HELPERS_PATH = 'OLD-GAS/helpers.gs';
 let src;
 
 test('load helpers.gs', async () => {
@@ -52,7 +52,7 @@ function normalizeRole(value) {
     case 'authorized_user':    return 'authorized_user';
     case 'activities_manager': return 'activities_manager';
     case 'domain_manager':     return 'domain_manager';
-    case 'manager_instructor': return 'manager_instructor';
+    case 'instructor_manager': return 'instructor_manager';
     case 'instructor':         return 'instructor';
     case 'instructor_admin':   return 'instructor';
   }
@@ -71,8 +71,8 @@ function normalizeRole(value) {
     case 'מנהל פעילויות':      return 'activities_manager';
     case 'מנהל/ת תחום':
     case 'מנהל תחום':          return 'domain_manager';
-    case 'מדריך/ת-מנהל/ת':
-    case 'מדריך-מנהל':         return 'manager_instructor';
+    case 'מנהל/ת הדרכה / מדריך/ת מנהל/ת':
+    case 'מדריך-מנהל':         return 'instructor_manager';
     default:                   throw new Error('invalid_role');
   }
 }
@@ -107,8 +107,8 @@ test('sim normalizeRole_: domain_manager', () => {
   assert.strictEqual(normalizeRole('domain_manager'), 'domain_manager');
 });
 
-test('sim normalizeRole_: manager_instructor', () => {
-  assert.strictEqual(normalizeRole('manager_instructor'), 'manager_instructor');
+test('sim normalizeRole_: instructor_manager', () => {
+  assert.strictEqual(normalizeRole('instructor_manager'), 'instructor_manager');
 });
 
 test('sim normalizeRole_: instructor', () => {
@@ -191,12 +191,12 @@ test('sim normalizeRole_: "מנהל תחום" → domain_manager', () => {
   assert.strictEqual(normalizeRole('מנהל תחום'), 'domain_manager');
 });
 
-test('sim normalizeRole_: "מדריך/ת-מנהל/ת" → manager_instructor', () => {
-  assert.strictEqual(normalizeRole('מדריך/ת-מנהל/ת'), 'manager_instructor');
+test('sim normalizeRole_: "מנהל/ת הדרכה / מדריך/ת מנהל/ת" → instructor_manager', () => {
+  assert.strictEqual(normalizeRole('מנהל/ת הדרכה / מדריך/ת מנהל/ת'), 'instructor_manager');
 });
 
-test('sim normalizeRole_: "מדריך-מנהל" → manager_instructor', () => {
-  assert.strictEqual(normalizeRole('מדריך-מנהל'), 'manager_instructor');
+test('sim normalizeRole_: "מדריך-מנהל" → instructor_manager', () => {
+  assert.strictEqual(normalizeRole('מדריך-מנהל'), 'instructor_manager');
 });
 
 // --- Unknown / invalid values must still throw ---
