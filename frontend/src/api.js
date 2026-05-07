@@ -1130,7 +1130,7 @@ function normalizeData(data) {
 
 const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,emp_id,is_active,permissions,auth_user_id,created_at,updated_at';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager']);
-const ROLES_NO_DIRECT_EDIT = new Set(['operation_manager', 'activities_manager', 'domain_manager', 'instructor_manager']);
+const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
 
 const SUPABASE_ROLE_ROUTES = {
   admin: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists'],
@@ -1205,7 +1205,7 @@ function buildBootstrapFromUser(userRow) {
       display_role_label: flat.display_role_label || hebrewRole(role)
     },
     can_add_activity: String(flat.can_add_activity || '').toLowerCase() === 'yes' || role === 'admin' || role === 'operation_manager',
-    can_edit_direct: role === 'admin' || (!ROLES_NO_DIRECT_EDIT.has(role) && String(flat.can_edit_direct || '').toLowerCase() === 'yes'),
+    can_edit_direct: ROLES_WITH_DIRECT_EDIT.has(role),
     can_request_edit: String(flat.can_request_edit || '').toLowerCase() !== 'no',
     client_settings: {}
   };
@@ -1497,7 +1497,7 @@ export const api = {
         full_name: flat.full_name,
         emp_id: flat.emp_id,
         can_add_activity: String(flat.can_add_activity || '').toLowerCase() === 'yes' || flat.role === 'admin' || flat.role === 'operation_manager',
-        can_edit_direct: flat.role === 'admin' || (!ROLES_NO_DIRECT_EDIT.has(flat.role) && String(flat.can_edit_direct || '').toLowerCase() === 'yes'),
+        can_edit_direct: ROLES_WITH_DIRECT_EDIT.has(flat.role),
         can_request_edit: String(flat.can_request_edit || '').toLowerCase() !== 'no'
       },
       ...buildBootstrapFromUser(user),
