@@ -933,12 +933,10 @@ function buildExceptionsFromRows(activityRows = []) {
     if (rowActivityType(row) !== 'course') continue;
     const types = [];
     const emp1        = nullStr(row?.emp_id);
-    const emp2        = nullStr(row?.emp_id_2);
     const instructor1 = nullStr(row?.instructor_name);
-    const instructor2 = nullStr(row?.instructor_name_2);
     const start       = nullStr(row?.start_date);
     const end         = nullStr(row?.end_date);
-    if (!emp1 && !emp2 && !instructor1 && !instructor2) types.push('missing_instructor');
+    if (!emp1 && !instructor1) types.push('missing_instructor');
     if (!start) types.push('missing_start_date');
     if (start && end && end < start) types.push('late_end_date');
     if (end && end > '2026-06-15') types.push('dangerous_end_date');
@@ -957,19 +955,55 @@ async function readExceptionsFromSupabase(params = {}) {
   const now = new Date();
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
+  const COURSE_TYPE_VALUES = ['course', 'קורס', 'קורסים'];
   try {
     const range = monthDateRange(month);
-    const activityRows = (await selectActivitiesByDateRangeFromSupabase({
+
+    // Query 1: courses active in the chosen month (date-range based)
+    const dateRangeRowsRaw = await selectActivitiesByDateRangeFromSupabase({
       startDate: range.startDate,
       endDate: range.endDate,
       activityType: 'course',
       includeEndDate: true
-    })).filter((row) => {
+    });
+    const dateRangeRows = dateRangeRowsRaw.filter((row) => {
       if (rowActivityType(row) !== 'course') return false;
       return activityHasDateInMonth(row, month)
         || String(row?.end_date || '').startsWith(month);
     });
-    const rows = buildExceptionsFromRows(activityRows);
+
+    // Query 2 + 3 (parallel): open courses with missing start_date OR missing primary instructor
+    // These won't appear in the date-range query if they have no dates at all.
+    const [missingStartResult, missingInstructorResult] = await Promise.all([
+      supabase
+        .from('activities')
+        .select('*')
+        .in('activity_type', COURSE_TYPE_VALUES)
+        .neq('status', CLOSED_STATUS)
+        .is('start_date', null),
+      supabase
+        .from('activities')
+        .select('*')
+        .in('activity_type', COURSE_TYPE_VALUES)
+        .neq('status', CLOSED_STATUS)
+        .is('emp_id', null)
+        .is('instructor_name', null)
+    ]);
+
+    const missingStartRows  = (Array.isArray(missingStartResult.data)      ? missingStartResult.data      : []).map(normalizeActivityRow);
+    const missingInstructorRows = (Array.isArray(missingInstructorResult.data) ? missingInstructorResult.data : []).map(normalizeActivityRow);
+
+    // Deduplicate by RowID across all three result sets
+    const seenIds = new Set();
+    const allRows = [];
+    for (const row of [...dateRangeRows, ...missingStartRows, ...missingInstructorRows]) {
+      const id = row?.RowID;
+      if (id != null && seenIds.has(id)) continue;
+      if (id != null) seenIds.add(id);
+      allRows.push(row);
+    }
+
+    const rows = buildExceptionsFromRows(allRows);
     return { month, rows, totalExceptionRows: rows.length, _source: 'supabase' };
   } catch (error) {
     return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, error);
