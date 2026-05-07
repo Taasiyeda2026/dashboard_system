@@ -31,6 +31,20 @@ function fallback(v) {
   return String(v || '').trim() || '—';
 }
 
+function todayStr() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+function countDoneMeetings(schedule) {
+  const today = todayStr();
+  return Array.isArray(schedule)
+    ? schedule.filter((m) => m?.date && m.date <= today).length
+    : 0;
+}
+
 function normStatus(v) {
   const raw = String(v || '').trim().toLowerCase();
   if (raw === 'closed' || raw === 'סגור') return 'closed';
@@ -420,7 +434,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
   const computedEnd = autoEndDate(row);
-  const done = Number(row?.meetings_done || 0);
+  const done = countDoneMeetings(schedule) || Number(row?.meetings_done || 0);
   const total = Number(row?.meetings_total || schedule.length || 0);
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const viewChips = buildDateChipsHtml(schedule, isOnce);
@@ -528,7 +542,7 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   const schedule = Array.isArray(datesData?.meeting_schedule) ? datesData.meeting_schedule : [];
   const activityType = String(datesData?.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
-  const done = Number(datesData?.meetings_done || 0);
+  const done = countDoneMeetings(schedule) || Number(datesData?.meetings_done || 0);
   const total = Number(datesData?.meetings_total || schedule.length || 0);
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const computedEnd = autoEndDate({ meeting_schedule: schedule }) || String(datesData?.end_date || '');
