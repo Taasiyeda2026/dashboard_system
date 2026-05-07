@@ -28,20 +28,21 @@ function renderInstructorRow(row, state) {
   const typeCounts = row.activity_type_counts || {};
   const programs   = row.programs_count || 0;
   const oneDay     = row.one_day_count  || 0;
-  const hasActivity = (programs + oneDay) > 0;
-  const inactiveClass = hasActivity ? '' : ' ci-row--inactive';
 
   const TYPE_LABELS = [
-    ['קורס', 'קורסים'],
-    ['סיור', 'סיורים'],
-    ['סדנה', 'סדנאות'],
-    ['חוג אפטרסקול', 'חוג אפטרסקול'],
+    [['course', 'קורס', 'קורסים'], 'קורסים'],
+    [['tour', 'סיור', 'סיורים'], 'סיורים'],
+    [['workshop', 'סדנה', 'סדנאות'], 'סדנאות'],
+    [['after_school', 'after school', 'afterschool', 'חוג אפטרסקול', 'אפטרסקול'], 'חוג אפטרסקול'],
   ];
-  const typeStatParts = TYPE_LABELS
-    .map(([key, label]) => {
-      const n = typeCounts[key] || 0;
-      return `<span class="instr-stat"><span class="instr-stat__lbl">${label}</span><span class="instr-stat__num">${n}</span></span>`;
-    })
+  const typeStats = TYPE_LABELS.map(([keys, label]) => ({
+    label,
+    count: keys.reduce((sum, key) => sum + Number(typeCounts[key] || 0), 0)
+  }));
+  const hasActivity = (programs + oneDay + typeStats.reduce((sum, item) => sum + item.count, 0)) > 0;
+  const inactiveClass = hasActivity ? '' : ' ci-row--inactive';
+  const typeStatParts = typeStats
+    .map(({ count, label }) => `<span class="instr-stat"><span class="instr-stat__lbl">${label}</span><span class="instr-stat__num">${count}</span></span>`)
     .join('');
 
   const statsHtml = `<span class="instr-stats">${typeStatParts}</span>`;
@@ -148,9 +149,12 @@ export const instructorsScreen = {
 
     const ymLabel = ym ? new Date(`${ym.slice(0,7)}-01T00:00:00Z`).toLocaleDateString('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
+    const mappingWarning = data && data.activities_loaded === false
+      ? '<p class="ds-muted" role="status">נתוני הפעילויות לא נטענו, ולכן לא ניתן לחשב שיוך מדריכים.</p>'
+      : '';
     const bodyHtml = visibleRows.length === 0
       ? dsEmptyState(filters.q || activeOnly ? 'לא נמצאו מדריכים לסינון זה' : 'אין נתוני מדריכים')
-      : `<div class="ci-list ci-list--instr-grid">${visibleRows.map((row) => renderInstructorRow(row, state)).join('')}</div>${
+      : `${mappingWarning}<div class="ci-list ci-list--instr-grid">${visibleRows.map((row) => renderInstructorRow(row, state)).join('')}</div>${
         hasMore ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${INSTRUCTORS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>` : ''
       }`;
 

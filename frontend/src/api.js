@@ -189,6 +189,23 @@ function normalizeActivityRow(row = {}) {
   return normalized;
 }
 
+
+function normalizeActivityTypeValue(value) {
+  const raw = String(value || '').trim();
+  const lower = raw.toLowerCase();
+  const compact = lower.replace(/[\s_-]+/g, '');
+  if (compact === 'course' || raw === 'קורס' || raw === 'קורסים') return 'course';
+  if (compact === 'workshop' || raw === 'סדנה' || raw === 'סדנאות') return 'workshop';
+  if (compact === 'tour' || raw === 'סיור' || raw === 'סיורים') return 'tour';
+  if (compact === 'afterschool' || raw === 'חוג אפטרסקול' || raw === 'אפטרסקול') return 'after_school';
+  if (compact === 'escaperoom' || raw === 'חדר בריחה') return 'escape_room';
+  return lower || raw;
+}
+
+function rowActivityType(row = {}) {
+  return normalizeActivityTypeValue(row?.activity_type || row?.type || row?.kind);
+}
+
 function isActivityClosed(row) {
   return String(row?.status || '').trim() === CLOSED_STATUS;
 }
@@ -407,19 +424,43 @@ function buildClientSettingsFromLists(listsData) {
 async function readInstructorsFromSupabase() {
   if (!supabase) return null;
   try {
-    const activityRows = (await selectActivitiesFromSupabase(
-      'emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,activity_manager,status,activity_family,activity_type'
-    )).filter((row) => !isActivityClosed(row));
+    const [activityRows, contactsResult] = await Promise.all([
+      selectActivitiesFromSupabase(
+        'emp_id,emp_id_2,instructor_name,instructor_name_2,end_date,activity_manager,status,activity_family,activity_type,type,kind'
+      ),
+      supabase.from('contacts_instructors').select('*')
+    ]);
 
+    if (contactsResult.error) {
+      // eslint-disable-next-line no-console
+      console.warn('[supabase] contacts_instructors unavailable for instructors stats:', contactsResult.error);
+    }
+
+    const activeRows = activityRows.filter((row) => !isActivityClosed(row));
     const statsMap = new Map();
+    const aliases = new Map();
+
+    function normalizeName(value) {
+      return String(value || '').trim().replace(/\s+/g, ' ');
+    }
+
+    function addAlias(alias, key) {
+      const a = normalizeName(alias).toLowerCase();
+      const k = String(key || '').trim();
+      if (a && k && !aliases.has(a)) aliases.set(a, k);
+    }
+
     function ensureStats(id, name) {
-      const k = String(id || '').trim();
+      const rawId = String(id || '').trim();
+      const cleanName = normalizeName(name);
+      const aliasKey = aliases.get(cleanName.toLowerCase()) || '';
+      const k = rawId || aliasKey || cleanName;
       if (!k) return null;
       if (!statsMap.has(k)) {
         statsMap.set(k, {
           emp_id: k,
-          full_name: String(name || k).trim(),
-          instructor_name: String(name || k).trim(),
+          full_name: cleanName || k,
+          instructor_name: cleanName || k,
           programs_count: 0,
           one_day_count: 0,
           latest_end_date: '',
@@ -427,26 +468,38 @@ async function readInstructorsFromSupabase() {
           activity_type_counts: {}
         });
       }
-      return statsMap.get(k);
+      const stats = statsMap.get(k);
+      if (cleanName && (!stats.full_name || stats.full_name === stats.emp_id)) {
+        stats.full_name = cleanName;
+        stats.instructor_name = cleanName;
+      }
+      if (rawId) addAlias(rawId, k);
+      if (cleanName) addAlias(cleanName, k);
+      return stats;
     }
 
-    for (const row of activityRows) {
+    const contacts = Array.isArray(contactsResult.data) ? contactsResult.data : [];
+    contacts.forEach((contact) => {
+      const empId = String(contact?.emp_id || contact?.employee_id || contact?.id || '').trim();
+      const name = normalizeName(contact?.full_name || contact?.name || contact?.instructor_name || contact?.guide);
+      const stats = ensureStats(empId || name, name || empId);
+      if (stats) {
+        if (empId) addAlias(empId, stats.emp_id);
+        if (name) addAlias(name, stats.emp_id);
+      }
+    });
+
+    for (const row of activeRows) {
       const pairs = [
-        [row.emp_id, row.instructor_name],
+        [row.emp_id, row.instructor_name || row.instructor || row.guide],
         [row.emp_id_2, row.instructor_name_2]
       ];
       const endDate = normalizeSupabaseDate(row.end_date);
       const manager = String(row.activity_manager || '').trim();
-      const actType = String(row.activity_type || '').trim();
+      const actType = rowActivityType(row);
       for (const [id, name] of pairs) {
-        const fallbackId = String(id || name || '').trim();
-        const stats = ensureStats(fallbackId, name || id);
+        const stats = ensureStats(id || name, name || id);
         if (!stats) continue;
-        const cleanName = String(name || '').trim();
-        if (cleanName && (!stats.full_name || stats.full_name === stats.emp_id)) {
-          stats.full_name = cleanName;
-          stats.instructor_name = cleanName;
-        }
         if (isProgramActivity(row)) stats.programs_count += 1;
         if (isOneDayActivity(row)) stats.one_day_count += 1;
         if (endDate && (!stats.latest_end_date || endDate > stats.latest_end_date)) stats.latest_end_date = endDate;
@@ -463,10 +516,12 @@ async function readInstructorsFromSupabase() {
       one_day_count: stats.one_day_count,
       latest_end_date: stats.latest_end_date || '',
       activity_managers: [...stats.managers],
-      activity_type_counts: stats.activity_type_counts
+      activity_type_counts: stats.activity_type_counts,
+      has_activity_stats: (stats.programs_count + stats.one_day_count) > 0 || Object.values(stats.activity_type_counts).some((n) => Number(n) > 0)
     }));
 
-    return { rows, _source: 'supabase' };
+    rows.sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''), 'he'));
+    return { rows, activities_loaded: true, _source: 'supabase' };
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Unexpected instructors fetch error:', error);
@@ -693,7 +748,7 @@ async function dashboardReadModelFromSupabase(month) {
     }
 
     for (const row of monthRows) {
-      const activityType = String(row?.activity_type || '').trim();
+      const activityType = rowActivityType(row);
       if (activityType) activeTypeCounts[activityType] = (activeTypeCounts[activityType] || 0) + 1;
       const emp1        = nullStr(row?.emp_id);
       const emp2        = nullStr(row?.emp_id_2);
@@ -711,7 +766,7 @@ async function dashboardReadModelFromSupabase(month) {
       if (emp1) stats._instructors.add(emp1);
       if (emp2) stats._instructors.add(emp2);
 
-      if (String(row?.activity_type || '').trim() !== 'course') continue;
+      if (rowActivityType(row) !== 'course') continue;
       const hasMeetingDates = getActivityDateColumns(row).length > 0;
       const hasAnyDate = hasMeetingDates || nullStr(row?.start_date);
       const missingInstructor = !emp1 && !emp2 && !instructor1 && !instructor2;
@@ -797,6 +852,7 @@ function buildExceptionsFromRows(activityRows = []) {
   const rows = [];
   for (const row of activityRows) {
     if (isActivityClosed(row)) continue;
+    if (rowActivityType(row) !== 'course') continue;
     const types = [];
     const emp1        = nullStr(row?.emp_id);
     const emp2        = nullStr(row?.emp_id_2);
@@ -826,6 +882,7 @@ async function readExceptionsFromSupabase(params = {}) {
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
   try {
     const activityRows = (await selectActivitiesFromSupabase('*')).filter((row) => {
+      if (rowActivityType(row) !== 'course') return false;
       const emp1 = nullStr(row?.emp_id);
       const emp2 = nullStr(row?.emp_id_2);
       const instructor1 = nullStr(row?.instructor_name);
