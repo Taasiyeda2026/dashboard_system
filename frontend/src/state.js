@@ -129,8 +129,8 @@ export function setSession(session) {
   state.token = session.token;
   const claims = parseTokenPayloadClaims(session.token);
   state.user = {
-    ...(session.user || {}),
     ...(claims || {}),
+    ...(session.user || {}),
     user_id: String((session.user && session.user.user_id) || (claims && claims.user_id) || '').trim(),
     display_role: String((session.user && session.user.display_role) || (claims && claims.display_role) || '').trim(),
     display_role_label: String((session.user && session.user.display_role_label) || '').trim(),

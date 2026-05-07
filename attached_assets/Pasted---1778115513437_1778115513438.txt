@@ -1,0 +1,79 @@
+אחרי התיקון האחרון:
+אין לי בכלל כפתור הוספת פעילות.
+וגם אין לי בכלל עמוד "אישורים" בתפריט.
+
+צריך לבדוק את מסלול ההרשאות וה־bootstrap אחרי המעבר ל־Supabase Auth.
+
+לא לשנות RLS.
+לא להריץ את supabase/write-rls-policies-draft.sql.
+לא למחוק entry_code.
+לא לשנות שוב את מנגנון ההתחברות.
+לא לפתוח הרשאות כתיבה גורפות.
+
+הבעיה:
+1. במסך פעילויות אין כפתור הוספת פעילות.
+2. בתפריט אין עמוד אישורים / edit-requests.
+3. לכן אי אפשר לבדוק כרגע את מסלול:
+   submitEditRequest → edit_requests → reviewEditRequest.
+
+נא לבדוק בקוד:
+frontend/src/api.js
+frontend/src/main.js
+frontend/src/screens/activities.js
+frontend/src/screens/edit-requests.js
+frontend/src/state.js
+וכל מקום שבו נבנים:
+state.user
+state.routes
+default_route
+can_add_activity
+can_edit_direct
+can_request_edit
+canReview
+permissions
+
+בדיקות נדרשות:
+1. אחרי login/bootstrap, להדפיס זמנית לקונסול:
+   state.user
+   state.routes
+   state.user.can_add_activity
+   state.user.can_edit_direct
+   state.user.can_request_edit
+   האם routes כולל edit-requests
+
+2. לבדוק האם public.users.permissions נטען ומפורש נכון אחרי Supabase Auth.
+
+3. לבדוק האם admin ו־operation_manager מקבלים כברירת מחדל:
+   can_add_activity = true
+   can_edit_direct = true
+   can_request_edit = true
+   route edit-requests
+
+4. לבדוק האם משתמש רגיל עם can_request_edit מקבל:
+   can_request_edit = true
+   can_edit_direct = false
+   route edit-requests רק אם הוא צריך לראות בקשות שלו
+
+5. לבדוק למה data-activities-add-btn לא מוצג:
+   בקובץ activities.js הכפתור תלוי ב:
+   state.user.can_add_activity
+
+6. לבדוק למה route edit-requests לא מופיע:
+   האם הוא לא חוזר ב־routes
+   האם הוא מסונן ב־main.js
+   האם permissions לא מתורגמות נכון אחרי Supabase Auth
+
+תיקון נדרש:
+להחזיר את מיפוי ההרשאות כמו שהיה לפני המעבר:
+- admin ו־operation_manager צריכים לראות עמוד אישורים.
+- admin ו־operation_manager צריכים לראות הוספת פעילות.
+- משתמש עם can_add_activity צריך לראות כפתור הוספה.
+- משתמש עם can_request_edit צריך לשלוח בקשת עריכה.
+- משתמש עם can_edit_direct צריך לערוך ישירות.
+
+להחזיר לי בסוף:
+1. מה הייתה הסיבה שאין כפתור הוספה
+2. מה הייתה הסיבה שאין עמוד אישורים
+3. איזה קבצים שונו
+4. איך לבדוק ידנית אחרי התיקון
+5. לא להריץ RLS

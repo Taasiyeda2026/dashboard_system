@@ -989,9 +989,9 @@ const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,emp_id,is_acti
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor']);
 
 const SUPABASE_ROLE_ROUTES = {
-  admin: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'admin-lists'],
-  operation_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  admin: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists'],
+  operation_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
+  authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
   instructor: ['dashboard', 'activities', 'archive', 'week', 'month', 'instructor-contacts', 'my-data']
 };
 
