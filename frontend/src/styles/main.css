@@ -337,7 +337,7 @@ select {
 }
 
 .shell-nav__btn.is-active {
-  background: rgba(26, 51, 88, 0.65);
+  background: color-mix(in srgb, var(--ds-accent) 65%, transparent);
   border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
@@ -628,8 +628,8 @@ select {
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
   color: var(--ds-text);
-  border-inline-start: 1px solid rgba(26, 51, 88, 0.1);
-  box-shadow: -8px 0 32px rgba(26, 51, 88, 0.14), -2px 0 8px rgba(26, 51, 88, 0.08);
+  border-inline-start: 1px solid color-mix(in srgb, var(--ds-accent) 10%, transparent);
+  box-shadow: -8px 0 32px color-mix(in srgb, var(--ds-accent) 14%, transparent), -2px 0 8px color-mix(in srgb, var(--ds-accent) 8%, transparent);
   display: flex;
   flex-direction: column;
   transform: translateX(104%);
@@ -918,7 +918,7 @@ select {
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(26, 51, 88, 0.11);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 11%, var(--ds-border));
   border-radius: var(--ds-radius-md);
   box-shadow: var(--ds-shadow-card);
   overflow: hidden;
@@ -1087,7 +1087,7 @@ select {
 .ds-btn:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--ds-accent) 26%, var(--ds-border));
   box-shadow: var(--ds-shadow-md);
-  background: linear-gradient(170deg, #ffffff 0%, #f5f8fc 100%);
+  background: linear-gradient(170deg, var(--ds-surface) 0%, var(--ds-accent-soft) 100%);
 }
 
 .ds-btn:active:not(:disabled) {
@@ -1102,22 +1102,22 @@ select {
 }
 
 .ds-btn--primary {
-  background: linear-gradient(170deg, #223f68 0%, var(--ds-accent) 100%);
+  background: linear-gradient(170deg, color-mix(in srgb, var(--ds-accent) 86%, #ffffff) 0%, var(--ds-accent) 100%);
   border-color: var(--ds-accent);
   color: #fff;
-  box-shadow: 0 6px 14px rgba(26, 51, 88, 0.22);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--ds-accent) 22%, transparent);
 }
 
 .ds-btn--primary:hover:not(:disabled) {
-  background: linear-gradient(170deg, #1b355b 0%, var(--ds-accent-hover) 100%);
+  background: linear-gradient(170deg, color-mix(in srgb, var(--ds-accent-hover) 88%, #ffffff) 0%, var(--ds-accent-hover) 100%);
   border-color: var(--ds-accent-hover);
   color: #fff;
-  box-shadow: 0 9px 16px rgba(20, 42, 73, 0.24);
+  box-shadow: 0 9px 16px color-mix(in srgb, var(--ds-accent-hover) 24%, transparent);
 }
 
 .ds-btn--primary:active:not(:disabled) {
-  background: #0e2136;
-  border-color: #0e2136;
+  background: var(--ds-accent-hover);
+  border-color: var(--ds-accent-hover);
   color: #fff;
   box-shadow: none;
 }
@@ -1345,11 +1345,11 @@ span.ds-chip {
   text-transform: none;
   letter-spacing: 0;
   color: var(--ds-text-muted);
-  background: linear-gradient(180deg, rgba(230, 242, 255, 0.9) 0%, rgba(218, 234, 255, 0.85) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ds-accent-soft) 90%, var(--ds-surface)) 0%, color-mix(in srgb, var(--ds-accent-soft) 82%, var(--ds-surface)) 100%);
   position: sticky;
   top: 0;
   z-index: 1;
-  box-shadow: 0 1px 0 rgba(26, 51, 88, 0.1);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-accent) 10%, transparent);
 }
 
 .ds-table tbody tr:hover td {
@@ -2354,7 +2354,7 @@ span.ds-chip {
   gap: 8px;
   padding: 8px 10px;
   background: #fff;
-  border: 1px solid rgba(26, 51, 88, 0.11);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 11%, var(--ds-border));
   border-radius: 14px;
   box-shadow: 0 1px 2px rgba(26, 51, 88, 0.05);
 }
@@ -3594,9 +3594,9 @@ select.ds-input {
   align-items: center;
   padding: 5px 12px;
   border-radius: var(--ds-radius-full);
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #334155;
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface);
+  color: var(--ds-text-muted);
   font-size: 0.74rem;
   font-weight: 600;
   cursor: pointer;
@@ -3605,8 +3605,8 @@ select.ds-input {
 }
 
 .ds-summary-btn:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: var(--ds-accent-soft);
+  border-color: color-mix(in srgb, var(--ds-accent) 24%, var(--ds-border));
 }
 
 .ds-summary-btn:disabled {
@@ -3615,9 +3615,9 @@ select.ds-input {
 }
 
 .ds-summary-btn.is-active {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  background: var(--ds-accent-soft);
+  border-color: color-mix(in srgb, var(--ds-accent) 34%, var(--ds-border));
+  color: var(--ds-accent);
 }
 
 .ds-summary-panel {
@@ -3634,7 +3634,7 @@ select.ds-input {
 .ds-summary-panel__content {
   font-size: 0.88rem;
   line-height: 1.85;
-  color: #334155;
+  color: var(--ds-text-muted);
 }
 
 .ds-summary-panel__title {
@@ -3647,16 +3647,16 @@ select.ds-input {
 
 .ds-summary-panel__text {
   margin: 0;
-  color: #334155;
+  color: var(--ds-text-muted);
 }
 
 .ds-summary-panel__text--districts {
-  color: #1e40af;
+  color: var(--ds-accent);
   font-size: 0.88rem;
   padding: 6px 10px;
-  background: #eff6ff;
+  background: var(--ds-accent-soft);
   border-radius: 8px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 28%, var(--ds-border));
 }
 
 
@@ -3685,7 +3685,7 @@ select.ds-input {
   margin: 0 0 6px;
   font-size: 0.9rem;
   line-height: 1.5;
-  color: #1e293b;
+  color: var(--ds-text-secondary);
 }
 
 .ds-summary-panel__list {
@@ -4230,7 +4230,7 @@ select.ds-input {
 
 .instr-summary-row:hover {
   border-color: rgba(26, 51, 88, 0.22);
-  border-inline-start-color: var(--ds-accent, #1a3358);
+  border-inline-start-color: var(--ds-accent);
   background: #f8fbff;
   box-shadow: 0 1px 4px rgba(26, 51, 88, 0.08);
 }
@@ -4252,7 +4252,7 @@ select.ds-input {
 .instr-stat__num {
   font-size: 0.88rem;
   font-weight: 700;
-  color: var(--ds-accent, #1a3358);
+  color: var(--ds-accent);
 }
 
 .instr-stat__lbl {
@@ -4968,7 +4968,7 @@ select.ds-input {
 }
 
 .ds-toast--info {
-  background: var(--ds-accent, #2a5db0);
+  background: var(--ds-accent);
   color: #fff;
 }
 
@@ -5490,8 +5490,8 @@ select.ds-input {
 }
 
 .ds-filter-select-inline.is-active {
-  border-color: var(--ds-accent, #1a3358);
-  color: var(--ds-accent, #1a3358);
+  border-color: var(--ds-accent);
+  color: var(--ds-accent);
   font-weight: 600;
 }
 
@@ -5586,15 +5586,15 @@ select.ds-input {
 }
 .ds-stripe-swatch:hover { transform: scale(1.18); }
 .ds-stripe-swatch.is-active {
-  border-color: #334155;
+  border-color: var(--ds-accent);
   transform: scale(1.12);
 }
 
 .ds-activities-screen .ds-table th {
-  background: #f7f9fc;
+  background: var(--ds-accent-soft);
   font-size: 0.78rem;
   font-weight: 800;
-  color: #334155;
+  color: var(--ds-text-muted);
   white-space: nowrap;
 }
 
@@ -6525,7 +6525,7 @@ select.ds-input {
 .ds-field__value {
   font-size: 0.85rem;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--ds-text-secondary);
   min-height: 20px;
 }
 
@@ -6694,7 +6694,7 @@ select.ds-input {
 .ds-activity-accordion__name {
   font-size: 0.88rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--ds-text-secondary);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -6866,7 +6866,7 @@ select.ds-input {
 }
 
 .ds-chain-btn.is-active {
-  background: #2f4eb3;
+  background: var(--ds-accent);
   color: #fff;
 }
 
@@ -7044,7 +7044,7 @@ select.ds-input {
 .activity-drawer__view {
   font-size: 0.85rem;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--ds-text-secondary);
   min-height: 1.2em;
 }
 
@@ -7216,9 +7216,9 @@ select.ds-input {
 }
 
 .activity-drawer__toggle.is-active {
-  background: #2f4eb3;
+  background: var(--ds-accent);
   color: #fff;
-  border-color: #2f4eb3;
+  border-color: var(--ds-accent);
 }
 
 .activity-drawer__action {
@@ -7228,12 +7228,12 @@ select.ds-input {
   padding: 4px 12px;
   font-size: 0.76rem;
   font-weight: 600;
-  color: #3b5bdb;
+  color: var(--ds-accent);
   cursor: pointer;
 }
 
 .activity-drawer__action--primary {
-  background: linear-gradient(135deg, #1a3358, #3b5bdb);
+  background: linear-gradient(135deg, var(--ds-accent-hover), var(--ds-accent));
   border: none;
   color: #fff;
   font-weight: 700;
@@ -7315,7 +7315,7 @@ select.ds-input {
 
 .activity-drawer__summary-head strong {
   font-size: 0.88rem;
-  color: #1e293b;
+  color: var(--ds-text-secondary);
   line-height: 1.3;
 }
 
@@ -7356,7 +7356,7 @@ select.ds-input {
   margin: 0 0 8px;
   font-size: 0.9rem;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--ds-text-secondary);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -7404,7 +7404,7 @@ select.ds-input {
 
 .ds-end-td--name {
   font-weight: 600;
-  color: #1e293b;
+  color: var(--ds-text-secondary);
 }
 
 .ds-end-td--date {
@@ -7482,7 +7482,7 @@ select.ds-input {
 .ds-end-dates__meta {
   margin: 8px 0 0;
   font-size: 0.74rem;
-  color: #334155;
+  color: var(--ds-text-muted);
 }
 
 .ds-end-dates__muted {
@@ -7548,7 +7548,7 @@ select.ds-input {
   font-weight: 700;
   white-space: nowrap;
   flex-shrink: 0;
-  color: var(--ds-text-primary, #1a3358);
+  color: var(--ds-accent);
 }
 
 .ds-activities-toolbar-sep {
@@ -7695,7 +7695,7 @@ select.ds-activity-add-field .ds-input,
   font-size: 0.74rem;
 }
 .shell-nav__btn.is-active {
-  background: rgba(26, 51, 88, 0.55);
+  background: color-mix(in srgb, var(--ds-accent) 55%, transparent);
   border-color: rgba(255, 255, 255, 0.24);
   box-shadow: none;
 }
@@ -7812,7 +7812,7 @@ select.ds-activity-add-field .ds-input,
   font-size: 0.76rem;
 }
 .ds-table th {
-  background: #f7f9fc;
+  background: var(--ds-accent-soft);
   box-shadow: none;
 }
 .ds-table th,
@@ -8613,15 +8613,15 @@ select.ds-activity-add-field .ds-input,
   letter-spacing: 0.01em;
 }
 .ds-summary-btn.is-active {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1d4ed8;
+  background: var(--ds-accent-soft);
+  border-color: color-mix(in srgb, var(--ds-accent) 28%, var(--ds-border));
+  color: var(--ds-accent);
 }
 
 /* ── Section card titles – a bit stronger ── */
 .ds-dashboard-wrap .ds-card__title {
   font-weight: 700;
-  color: #1e293b;
+  color: var(--ds-text-secondary);
   font-size: 0.9rem;
 }
 
@@ -8676,7 +8676,7 @@ select.ds-activity-add-field .ds-input,
   transition: border-color .12s, transform .12s;
 }
 .ds-accent-swatch:hover { transform: scale(1.14); }
-.ds-accent-swatch.is-active { border-color: #0f172a; transform: scale(1.08); }
+.ds-accent-swatch.is-active { border-color: var(--ds-text); transform: scale(1.08); }
 
 .shell-logout-btn--sidebar {
   width: 36px;
