@@ -36,13 +36,31 @@ const ACCENT_COLORS = {
   gray:   { accent: '#334155', hover: '#1e293b', soft: '#f1f3f6', stripe: '#f1f3f6', stripeHover: '#e8eaee' }
 };
 const ACCENT_LS_KEY = 'ds_global_accent';
+const LEGACY_STRIPE_LS_KEY = 'ds_activities_stripe';
+
+function normalizeAccentName(value) {
+  const raw = String(value || '').trim();
+  if (ACCENT_COLORS[raw]) return raw;
+  const lower = raw.toLowerCase();
+  const match = Object.entries(ACCENT_COLORS).find(([, colors]) =>
+    [colors.accent, colors.hover, colors.soft, colors.stripe, colors.stripeHover]
+      .some((color) => String(color).toLowerCase() === lower)
+  );
+  return match?.[0] || '';
+}
 
 function accentNameFromStorage() {
-  try { return localStorage.getItem(ACCENT_LS_KEY) || localStorage.getItem('ds_activities_stripe') || 'blue'; } catch { return 'blue'; }
+  try {
+    return normalizeAccentName(localStorage.getItem(ACCENT_LS_KEY))
+      || normalizeAccentName(localStorage.getItem(LEGACY_STRIPE_LS_KEY))
+      || 'blue';
+  } catch {
+    return 'blue';
+  }
 }
 
 function applyGlobalAccent(name = accentNameFromStorage()) {
-  const selected = ACCENT_COLORS[name] ? name : 'blue';
+  const selected = normalizeAccentName(name) || 'blue';
   const colors = ACCENT_COLORS[selected];
   const root = document.documentElement;
   root.style.setProperty('--ds-accent', colors.accent);
@@ -1630,8 +1648,11 @@ function bindShell() {
       sw.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const name = sw.dataset.accent || 'blue';
-        applyGlobalAccent(name);
-        try { localStorage.setItem(ACCENT_LS_KEY, name); } catch {}
+        const selected = applyGlobalAccent(name);
+        try {
+          localStorage.setItem(ACCENT_LS_KEY, selected);
+          localStorage.setItem(LEGACY_STRIPE_LS_KEY, selected);
+        } catch {}
         accentPop.hidden = true;
       });
     });
