@@ -54,8 +54,8 @@ export const myDataScreen = {
     const tableBlock =
       rows.length === 0
         ? dsEmptyState('לא נמצאו רשומות')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive">
-            <thead><tr>${columns.map((column) => `<th>${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
+        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--ops">
+            <thead><tr>${columns.map((column) => `<th data-col="${escapeHtml(column)}">${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
             <tbody>${body.join('')}</tbody>
           </table>`);
 

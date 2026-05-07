@@ -1321,14 +1321,12 @@ span.ds-chip {
 
 /* ——— Tables ——— */
 .ds-table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
 }
 
 .ds-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 640px;
   font-size: 0.8rem;
 }
 
@@ -8778,4 +8776,89 @@ select.ds-activity-add-field .ds-input,
 .ds-archive-reopen-btn:focus-visible {
   background: var(--ds-accent-hover) !important;
   border-color: var(--ds-accent-hover) !important;
+}
+
+/* ===== ללא גלילה אופקית — מובייל ===== */
+
+/* שבוע: 3 עמודות על טאבלט, 2 עמודות על מובייל קטן */
+@media (min-width: 481px) and (max-width: 959px) {
+  .ds-week-board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .ds-week-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* שבוע: כרטיס יום — גופן קטן יותר על מובייל */
+@media (max-width: 959px) {
+  .ds-week-col__head {
+    padding: 4px 6px;
+  }
+  .ds-week-col__dow {
+    font-size: 0.68rem;
+  }
+  .ds-week-col__date {
+    font-size: 0.72rem;
+  }
+  .ds-week-col__body {
+    padding: 4px 6px;
+  }
+}
+
+/* חודש: padding קטן יותר */
+@media (max-width: 760px) {
+  .ds-cal-wrap {
+    padding: 2px;
+    gap: 2px;
+  }
+  .ds-cal-weekdays,
+  .ds-cal-grid {
+    gap: 1px;
+  }
+  .ds-cal-wd {
+    font-size: 0.6rem;
+    padding: 1px 0;
+  }
+  .ds-cal-grid .ds-interactive-card--day-cell {
+    padding: 1px 2px;
+    font-size: 0.6rem;
+  }
+}
+
+/* טבלאות תפעול / הנתונים שלי: table-layout fixed + הסתרת עמודת end_date במובייל */
+@media (max-width: 760px) {
+  .ds-table--ops {
+    table-layout: fixed;
+  }
+  .ds-table--ops th[data-col="end_date"],
+  .ds-table--ops td:nth-child(4):not([data-col]) {
+    display: none;
+  }
+  /* סל"כ: הסתרת עמודת end_date לפי data-col */
+  .ds-table--ops [data-col="end_date"] ~ td:nth-child(4),
+  .ds-table--ops th:has(~ th[data-col="end_date"]) {
+    display: none;
+  }
+}
+
+/* הסתרת עמודת end_date בטבלאות ops על מובייל — גישה פשוטה: nth-last-child(2) */
+@media (max-width: 760px) {
+  .ds-table--ops th:nth-last-child(2),
+  .ds-table--ops td:nth-last-child(2) {
+    display: none;
+  }
+}
+
+/* פעילויות וארכיון: גופן קטן + padding צפוף */
+@media (max-width: 760px) {
+  .ds-table--activities-list th,
+  .ds-table--activities-list td,
+  .ds-table--archive th,
+  .ds-table--archive td {
+    padding: 4px 3px;
+    font-size: 0.68rem;
+  }
 }

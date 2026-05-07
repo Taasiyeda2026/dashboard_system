@@ -58,8 +58,8 @@ export const operationsScreen = {
     const tableBlock =
       rows.length === 0
         ? dsEmptyState('לא נמצאו פעילויות')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive">
-            <thead><tr>${columns.map((col) => `<th>${escapeHtml(hebrewColumn(col))}</th>`).join('')}</tr></thead>
+        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--ops">
+            <thead><tr>${columns.map((col) => `<th data-col="${escapeHtml(col)}">${escapeHtml(hebrewColumn(col))}</th>`).join('')}</tr></thead>
             <tbody>${body.join('')}</tbody>
           </table>`);
 
