@@ -17,17 +17,39 @@ const INSTRUCTOR_FILTER_FIELDS = [{
   getValues: (row) => Array.isArray(row.activity_managers) ? row.activity_managers : (row.activity_manager ? [row.activity_manager] : [])
 }];
 
-function applyActiveFilter(rows, activeOnly) {
-  if (!activeOnly) return rows;
+function applyActiveFilter(rows) {
   return rows.filter((r) => (r.programs_count || 0) + (r.one_day_count || 0) > 0);
 }
 
-function renderInstructorRow(row, state) {
+function applyDateFilter(rows, dateFrom, dateTo) {
+  if (!dateFrom && !dateTo) return rows;
+  return rows.filter((r) => {
+    const start = r.earliest_start_date || '';
+    const end   = r.latest_end_date     || '';
+    if (!start && !end) return false;
+    const rowEnd   = end   || start;
+    const rowStart = start || end;
+    if (dateTo   && rowStart > dateTo)   return false;
+    if (dateFrom && rowEnd   < dateFrom) return false;
+    return true;
+  });
+}
+
+function globalDateRange(rows) {
+  let min = '', max = '';
+  rows.forEach((r) => {
+    const s = r.earliest_start_date || '';
+    const e = r.latest_end_date     || '';
+    if (s && (!min || s < min)) min = s;
+    if (e && (!max || e > max)) max = e;
+  });
+  return { min, max };
+}
+
+function renderInstructorRow(row) {
   const name       = escapeHtml(row.full_name || row.emp_id || '—');
   const empId      = String(row.emp_id || '').trim();
   const typeCounts = row.activity_type_counts || {};
-  const programs   = row.programs_count || 0;
-  const oneDay     = row.one_day_count  || 0;
 
   const TYPE_LABELS = [
     [['course', 'קורס', 'קורסים'], 'קורסים'],
@@ -39,8 +61,6 @@ function renderInstructorRow(row, state) {
     label,
     count: keys.reduce((sum, key) => sum + Number(typeCounts[key] || 0), 0)
   }));
-  const hasActivity = (programs + oneDay + typeStats.reduce((sum, item) => sum + item.count, 0)) > 0;
-  const inactiveClass = hasActivity ? '' : ' ci-row--inactive';
   const typeStatParts = typeStats
     .map(({ count, label }) => `<span class="instr-stat"><span class="instr-stat__lbl">${label}</span><span class="instr-stat__num">${count}</span></span>`)
     .join('');
@@ -48,7 +68,7 @@ function renderInstructorRow(row, state) {
   const statsHtml = `<span class="instr-stats">${typeStatParts}</span>`;
 
   return `<article class="instr-card" data-instructor-item="${escapeHtml(empId)}">
-    <button type="button" class="ci-row instr-summary-row${inactiveClass}" dir="rtl" data-instructor-card="${escapeHtml(empId)}" data-instructor-name="${name}">
+    <button type="button" class="ci-row instr-summary-row" dir="rtl" data-instructor-card="${escapeHtml(empId)}" data-instructor-name="${name}">
       <div class="ci-row__main">
         <span class="ci-row__name">${name}</span>
         ${statsHtml}
@@ -124,12 +144,33 @@ function updatePopupBody(items, name) {
   }
 }
 
+function dateFilterBarHtml(dateFrom, dateTo, globalMin, globalMax) {
+  const minAttr = globalMin ? ` min="${escapeHtml(globalMin)}"` : '';
+  const maxAttr = globalMax ? ` max="${escapeHtml(globalMax)}"` : '';
+  const fromVal = dateFrom ? ` value="${escapeHtml(dateFrom)}"` : '';
+  const toVal   = dateTo   ? ` value="${escapeHtml(dateTo)}"` : '';
+  const hasDates = dateFrom || dateTo;
+  const clearBtn = hasDates
+    ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-instr-date-clear title="נקה סינון תאריכים">✕ נקה</button>`
+    : '';
+  return `<div class="instr-date-filter" dir="rtl" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;">
+    <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;">
+      <span class="ds-muted">מ-</span>
+      <input type="date" class="ds-input ds-input--sm" data-instr-date-from${fromVal}${minAttr}${maxAttr} style="width:140px">
+    </label>
+    <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;">
+      <span class="ds-muted">עד-</span>
+      <input type="date" class="ds-input ds-input--sm" data-instr-date-to${toVal}${minAttr}${maxAttr} style="width:140px">
+    </label>
+    ${clearBtn}
+  </div>`;
+}
+
 export const instructorsScreen = {
   load: ({ api }) => api.instructors(),
 
   render(data, { state } = {}) {
     const allRows  = Array.isArray(data?.rows) ? data.rows : [];
-    const ym       = data?.ym || '';
     prepareRowsForSearch(allRows, [
       'full_name', 'emp_id',
       (row) => (Array.isArray(row.activity_managers) ? row.activity_managers : []).join(' '),
@@ -139,35 +180,41 @@ export const instructorsScreen = {
       'authority', 'school', 'activity_name'
     ]);
     const filters = ensureActivityListFilters(state, INSTRUCTORS_SCOPE);
-    const activeOnly = false;
 
-    const locallyFiltered = applyLocalFilters(allRows, filters, { filterFields: INSTRUCTOR_FILTER_FIELDS });
-    const filtered  = applyActiveFilter(locallyFiltered, activeOnly);
-    const totalAll  = locallyFiltered.length;
+    const activeRows = applyActiveFilter(allRows);
+    const locallyFiltered = applyLocalFilters(activeRows, filters, { filterFields: INSTRUCTOR_FILTER_FIELDS });
+
+    const instrState = state._instrDateFilter = state._instrDateFilter || {};
+    const dateFrom = instrState.from || '';
+    const dateTo   = instrState.to   || '';
+
+    const { min: globalMin, max: globalMax } = globalDateRange(activeRows);
+
+    const filtered = applyDateFilter(locallyFiltered, dateFrom, dateTo);
     const { visible: visibleRows, hasMore, nextCount } = splitVisibleRows(filtered, filters);
-    const toolbarHtml = filtersToolbarHtml(INSTRUCTORS_SCOPE, allRows, state, {
+
+    const toolbarHtml = filtersToolbarHtml(INSTRUCTORS_SCOPE, activeRows, state, {
       filterFields: INSTRUCTOR_FILTER_FIELDS,
       searchPlaceholder: 'חיפוש לפי שם מדריך / מזהה / מנהל / רשות / בית ספר…'
     });
-
-    const ymLabel = ym ? new Date(`${ym.slice(0,7)}-01T00:00:00Z`).toLocaleDateString('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
     const mappingWarning = data && data.activities_loaded === false
       ? '<p class="ds-muted" role="status">נתוני הפעילויות לא נטענו, ולכן לא ניתן לחשב שיוך מדריכים.</p>'
       : '';
     const bodyHtml = visibleRows.length === 0
-      ? dsEmptyState(filters.q || activeOnly ? 'לא נמצאו מדריכים לסינון זה' : 'אין נתוני מדריכים')
-      : `${mappingWarning}<div class="ci-list ci-list--instr-grid">${visibleRows.map((row) => renderInstructorRow(row, state)).join('')}</div>${
+      ? dsEmptyState(filters.q || dateFrom || dateTo ? 'לא נמצאו מדריכים לסינון זה' : 'אין נתוני מדריכים')
+      : `${mappingWarning}<div class="ci-list ci-list--instr-grid">${visibleRows.map((row) => renderInstructorRow(row)).join('')}</div>${
         hasMore ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${INSTRUCTORS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>` : ''
       }`;
 
-    const subtitle = ymLabel ? `מדריכים · ${ymLabel}` : 'מדריכים';
+    const subtitle = `מדריכים פעילים (${filtered.length})`;
 
     return dsScreenStack(`
       <section class="ds-screen-compact-90">
       <div class="ds-screen-top-row">
         ${toolbarHtml}
       </div>
+      ${dateFilterBarHtml(dateFrom, dateTo, globalMin, globalMax)}
       ${dsCard({ title: subtitle, body: bodyHtml, padded: filtered.length === 0 })}
       </section>
     `);
@@ -180,6 +227,31 @@ export const instructorsScreen = {
       rerender();
     });
 
+    const instrState = state._instrDateFilter = state._instrDateFilter || {};
+
+    const fromInput = root.querySelector('[data-instr-date-from]');
+    const toInput   = root.querySelector('[data-instr-date-to]');
+    const clearBtn  = root.querySelector('[data-instr-date-clear]');
+
+    if (fromInput) {
+      fromInput.addEventListener('change', () => {
+        instrState.from = fromInput.value || '';
+        rerender();
+      });
+    }
+    if (toInput) {
+      toInput.addEventListener('change', () => {
+        instrState.to = toInput.value || '';
+        rerender();
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        instrState.from = '';
+        instrState.to   = '';
+        rerender();
+      });
+    }
 
     state.instructorsActivityDetailsCache = state.instructorsActivityDetailsCache || {};
 

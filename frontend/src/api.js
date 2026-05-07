@@ -515,6 +515,7 @@ async function readInstructorsFromSupabase() {
           instructor_name: cleanName || k,
           programs_count: 0,
           one_day_count: 0,
+          earliest_start_date: '',
           latest_end_date: '',
           managers: new Set(),
           authorities: new Set(),
@@ -549,6 +550,7 @@ async function readInstructorsFromSupabase() {
         [row.emp_id, row.instructor_name || row.instructor || row.guide],
         [row.emp_id_2, row.instructor_name_2]
       ];
+      const startDate = normalizeSupabaseDate(row.start_date);
       const endDate = normalizeSupabaseDate(row.end_date);
       const manager = String(row.activity_manager || '').trim();
       const authority = String(row.authority || '').trim();
@@ -560,6 +562,7 @@ async function readInstructorsFromSupabase() {
         if (!stats) continue;
         if (isProgramActivity(row)) stats.programs_count += 1;
         if (isOneDayActivity(row)) stats.one_day_count += 1;
+        if (startDate && (!stats.earliest_start_date || startDate < stats.earliest_start_date)) stats.earliest_start_date = startDate;
         if (endDate && (!stats.latest_end_date || endDate > stats.latest_end_date)) stats.latest_end_date = endDate;
         if (manager) stats.managers.add(manager);
         if (authority) stats.authorities.add(authority);
@@ -575,6 +578,7 @@ async function readInstructorsFromSupabase() {
       instructor_name: stats.instructor_name || stats.full_name || stats.emp_id,
       programs_count: stats.programs_count,
       one_day_count: stats.one_day_count,
+      earliest_start_date: stats.earliest_start_date || '',
       latest_end_date: stats.latest_end_date || '',
       activity_managers: [...stats.managers],
       authorities: [...stats.authorities],
