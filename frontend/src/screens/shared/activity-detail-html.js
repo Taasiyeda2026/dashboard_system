@@ -322,6 +322,15 @@ function blockContent(row, { settings = {} } = {}) {
   const schools = mergeListStrings(options, ['school', 'schools']);
   const authorities = mergeListStrings(options, ['authority', 'authorities']);
   const activityType = String(row.activity_type || '').trim();
+  const allActivityTypes = (() => {
+    const seen = new Set();
+    const out = [];
+    [...(settings.one_day_activity_types || []), ...(settings.program_activity_types || [])].forEach((v) => {
+      const s = String(v || '').trim();
+      if (s && !seen.has(s)) { seen.add(s); out.push(s); }
+    });
+    return out;
+  })();
   const allActivityNames = resolveActivityNameOptions(settings, activityType);
   if (!allActivityNames.length) {
     // eslint-disable-next-line no-console
@@ -347,6 +356,7 @@ function blockContent(row, { settings = {} } = {}) {
     <section class="activity-drawer__section">
       <h3 class="activity-drawer__section-title">📚</h3>
       <div class="activity-drawer__view-grid activity-drawer__grid activity-drawer__grid--two" data-mode="view">
+        ${fieldViewOnly('סוג פעילות', escapeHtml(activityTypeLabel(activityType)))}
         ${fieldViewOnly('סטטוס', escapeHtml(statusText(row.status)))}
         ${fieldViewOnly('מימון', escapeHtml(fallback(row.funding)))}
         ${fieldViewOnly('כיתה', escapeHtml(classLabel))}
@@ -354,13 +364,17 @@ function blockContent(row, { settings = {} } = {}) {
       </div>
       <div class="activity-drawer__edit-grid activity-drawer__grid activity-drawer__grid--two" data-mode="edit" hidden>
         <div class="activity-drawer__field activity-drawer__field--full">
+          <div class="activity-drawer__label">סוג פעילות</div>
+          ${selectHtml({ name: 'activity_type', value: activityType, options: allActivityTypes, placeholder: 'בחרו סוג פעילות' })}
+        </div>
+        <div class="activity-drawer__field activity-drawer__field--full">
           <div class="activity-drawer__label">${escapeHtml(nameLabel)}</div>
           ${activityNameSelectHtml('activity_name', row.activity_name, allActivityNames, activityType)}
         </div>
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">מימון</div>
           ${
-            constrainDropdowns && fundings.length
+            fundings.length
               ? selectHtml({ name: 'funding', value: row.funding, options: fundings })
               : inputHtml({ name: 'funding', value: row.funding })
           }
@@ -381,7 +395,7 @@ function blockContent(row, { settings = {} } = {}) {
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">בית ספר</div>
           ${
-            constrainDropdowns && schools.length
+            schools.length
               ? selectHtml({ name: 'school', value: row.school, options: schools })
               : inputHtml({ name: 'school', value: row.school })
           }
@@ -389,7 +403,7 @@ function blockContent(row, { settings = {} } = {}) {
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">רשות</div>
           ${
-            constrainDropdowns && authorities.length
+            authorities.length
               ? selectHtml({ name: 'authority', value: row.authority, options: authorities })
               : inputHtml({ name: 'authority', value: row.authority })
           }
