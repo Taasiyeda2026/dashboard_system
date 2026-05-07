@@ -44,7 +44,7 @@ test('exceptions source is filtered to course activities before exception checks
   const apiSrc = read('frontend/src/api.js');
   assert.match(apiSrc, /function rowActivityType\(row = \{\}\)/);
   assert.match(apiSrc, /if \(rowActivityType\(row\) !== 'course'\) continue;[\s\S]*const types = \[\];/);
-  assert.match(apiSrc, /selectActivitiesFromSupabase\('\*'\)\)\.filter\(\(row\) => \{\s*if \(rowActivityType\(row\) !== 'course'\) return false;/);
+  assert.match(apiSrc, /selectActivitiesByDateRangeFromSupabase\(\{[\s\S]*activityType: 'course',[\s\S]*includeEndDate: true[\s\S]*\}\)\)\.filter\(\(row\) => \{\s*if \(rowActivityType\(row\) !== 'course'\) return false;/);
 });
 
 test('instructors screen counts normalized activity_type keys', () => {

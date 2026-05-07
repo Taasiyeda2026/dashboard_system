@@ -244,6 +244,54 @@ async function selectActivitiesFromSupabase(select = '*') {
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
 
+function monthDateRange(ym) {
+  const monthPrefix = String(ym || '').slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(monthPrefix)) return null;
+  const [yStr, mStr] = monthPrefix.split('-');
+  const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
+  return {
+    month: monthPrefix,
+    startDate: `${monthPrefix}-01`,
+    endDate: `${monthPrefix}-${String(lastDay).padStart(2, '0')}`
+  };
+}
+
+function buildDateRangeOrFilter(startDate, endDate, { includeStartDate = true, includeEndDate = false } = {}) {
+  const clauses = [];
+  for (let i = 1; i <= 35; i++) {
+    clauses.push(`and(date_${i}.gte.${startDate},date_${i}.lte.${endDate})`);
+  }
+  if (includeStartDate) clauses.push(`and(start_date.gte.${startDate},start_date.lte.${endDate})`);
+  if (includeEndDate) clauses.push(`and(end_date.gte.${startDate},end_date.lte.${endDate})`);
+  return clauses.join(',');
+}
+
+async function selectActivitiesByDateRangeFromSupabase({
+  startDate,
+  endDate,
+  activityType = '',
+  includeEndDate = false,
+  select = '*'
+} = {}) {
+  if (!supabase) return [];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startDate || '')) || !/^\d{4}-\d{2}-\d{2}$/.test(String(endDate || ''))) {
+    throw new Error('invalid_activity_date_range');
+  }
+  let query = supabase
+    .from('activities')
+    .select(select)
+    .or(buildDateRangeOrFilter(startDate, endDate, { includeEndDate }));
+  const normalizedType = normalizeActivityTypeValue(activityType);
+  if (normalizedType && normalizedType !== 'all') {
+    query = normalizedType === 'course'
+      ? query.in('activity_type', ['course', 'קורס', 'קורסים'])
+      : query.eq('activity_type', normalizedType);
+  }
+  const result = await query;
+  if (result.error) throw new Error(result.error.message || 'activities_date_range_read_failed');
+  return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
+}
+
 /**
  * Reads contacts_instructors + contacts_schools from Supabase.
  * Returns { instructor_rows, school_rows, can_view_instructors, can_view_schools, _source }
@@ -655,7 +703,8 @@ async function readWeekFromSupabase(weekOffset) {
   if (!supabase) return emptyWeekPayload(startDate, endDate, { error: 'no_supabase_client' });
 
   try {
-    const rows = (await selectActivitiesFromSupabase('*')).filter((row) => !isActivityClosed(row));
+    const rows = (await selectActivitiesByDateRangeFromSupabase({ startDate, endDate }))
+      .filter((row) => !isActivityClosed(row));
     const matchingRows = rows.filter((row) => activityHasDateInRange(row, startDate, endDate));
     const itemsById = buildItemsById(matchingRows);
     const dayMap = {};
@@ -688,9 +737,13 @@ async function readMonthFromSupabase(ym) {
   if (!supabase) return emptyMonthPayload(monthPrefix, { error: 'no_supabase_client' });
 
   try {
+    const range = monthDateRange(monthPrefix);
     const [yStr, mStr] = monthPrefix.split('-');
     const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
-    const rows = (await selectActivitiesFromSupabase('*')).filter((row) => !isActivityClosed(row));
+    const rows = (await selectActivitiesByDateRangeFromSupabase({
+      startDate: range.startDate,
+      endDate: range.endDate
+    })).filter((row) => !isActivityClosed(row));
     const matchingRows = rows.filter((row) => activityHasDateInMonth(row, monthPrefix));
     const itemsById = buildItemsById(matchingRows);
     const dayMap = {};
@@ -733,7 +786,12 @@ async function dashboardReadModelFromSupabase(month) {
   try {
     const monthPrefix = String(month || '').slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(monthPrefix)) return null;
-    const openRows = (await selectActivitiesFromSupabase('*')).filter((row) => !isActivityClosed(row));
+    const range = monthDateRange(monthPrefix);
+    const openRows = (await selectActivitiesByDateRangeFromSupabase({
+      startDate: range.startDate,
+      endDate: range.endDate,
+      includeEndDate: true
+    })).filter((row) => !isActivityClosed(row));
     const monthRows = openRows.filter((row) => activityHasDateInMonth(row, monthPrefix));
     const endingRows = openRows.filter((row) => isProgramActivity(row) && String(row?.end_date || '').slice(0, 7) === monthPrefix);
     const instructorIds = new Set();
@@ -896,18 +954,16 @@ async function readExceptionsFromSupabase(params = {}) {
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
   try {
-    const activityRows = (await selectActivitiesFromSupabase('*')).filter((row) => {
+    const range = monthDateRange(month);
+    const activityRows = (await selectActivitiesByDateRangeFromSupabase({
+      startDate: range.startDate,
+      endDate: range.endDate,
+      activityType: 'course',
+      includeEndDate: true
+    })).filter((row) => {
       if (rowActivityType(row) !== 'course') return false;
-      const emp1 = nullStr(row?.emp_id);
-      const emp2 = nullStr(row?.emp_id_2);
-      const instructor1 = nullStr(row?.instructor_name);
-      const instructor2 = nullStr(row?.instructor_name_2);
-      const missingInstructor = !emp1 && !emp2 && !instructor1 && !instructor2;
-      const missingStartDate = !nullStr(row?.start_date);
       return activityHasDateInMonth(row, month)
-        || String(row?.end_date || '').startsWith(month)
-        || missingInstructor
-        || missingStartDate;
+        || String(row?.end_date || '').startsWith(month);
     });
     const rows = buildExceptionsFromRows(activityRows);
     return { month, rows, totalExceptionRows: rows.length, _source: 'supabase' };
