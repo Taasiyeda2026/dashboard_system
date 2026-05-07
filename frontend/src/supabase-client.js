@@ -21,4 +21,11 @@ if (supabaseUrl && supabaseAnonKey) {
   );
 }
 
+export const supabaseConfig = {
+  url: supabaseUrl,
+  hasAnonKey: Boolean(supabaseAnonKey),
+  usesFallbackUrl: supabaseUrl === FALLBACK_SUPABASE_URL,
+  usesFallbackAnonKey: supabaseAnonKey === FALLBACK_SUPABASE_PUBLISHABLE_KEY
+};
+
 export { supabase };

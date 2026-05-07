@@ -1,6 +1,6 @@
 import { state, setSession, clearScreenDataCache } from './state.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
-import { supabase } from './supabase-client.js';
+import { supabase, supabaseConfig } from './supabase-client.js';
 
 /**
  * Actions that modify server-side data.
@@ -1193,6 +1193,37 @@ async function readCurrentUserBySession() {
   return data;
 }
 
+function buildSupabaseMutationError(operation, error, fallback = 'server_error') {
+  const status = error?.status || error?.code || '';
+  const message = String(error?.message || fallback).trim();
+  const details = String(error?.details || '').trim();
+  const hint = String(error?.hint || '').trim();
+  const parts = [status, message, details, hint].filter(Boolean);
+  const apiError = new Error(parts.join(' | ') || fallback);
+  apiError.name = 'SupabaseMutationError';
+  apiError.operation = operation;
+  apiError.status = error?.status;
+  apiError.code = error?.code;
+  apiError.details = error?.details;
+  apiError.hint = error?.hint;
+  return apiError;
+}
+
+function logActivityMutationDebug(stage, operation, payload, extra = {}) {
+  // eslint-disable-next-line no-console
+  console.info(`[activity-save:${stage}]`, {
+    operation,
+    apiUrl: supabaseConfig?.url || '',
+    hasSupabaseKey: Boolean(supabaseConfig?.hasAnonKey),
+    usesFallbackUrl: Boolean(supabaseConfig?.usesFallbackUrl),
+    source_sheet: payload?.source_sheet || '',
+    source_row_id: payload?.source_row_id || payload?.row_id || payload?.RowID || '',
+    changed_fields: Object.keys(payload?.changes || {}),
+    changes: payload?.changes || {},
+    ...extra
+  });
+}
+
 function sanitizeActivityPayload(act = {}) {
   const row = { ...act };
   delete row.source;
@@ -1213,21 +1244,50 @@ function sanitizeActivityPayload(act = {}) {
 async function upsertActivityToSupabase(payload = {}) {
   const act = payload?.activity || payload || {};
   const row = sanitizeActivityPayload(act);
+  logActivityMutationDebug('request', 'addActivity', { source_sheet: 'activities', source_row_id: row.row_id, changes: row });
   const { data, error } = await supabase.from('activities').upsert(row, { onConflict: 'row_id' }).select().single();
-  if (error) throw new Error(error.message || 'save_failed');
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error('[activity-save-error]', { operation: 'addActivity', table: 'activities', error });
+    throw buildSupabaseMutationError('addActivity', error, 'save_failed');
+  }
   const normalized = normalizeActivityRow(data || row);
+  logActivityMutationDebug('success', 'addActivity', { source_sheet: 'activities', source_row_id: normalized.row_id, changes: row });
   return { RowID: normalized.RowID, row_id: normalized.row_id, source_sheet: 'activities', row: normalized };
 }
 
 async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
+  const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
   const changes = { ...(payload?.changes || {}) };
   if (!rowId) throw new Error('missing_row_id');
+  if (!Object.keys(changes).length) throw new Error('No changes to submit');
   delete changes.RowID;
+  delete changes.row_id;
   delete changes.source_sheet;
   delete changes.source_table;
-  const { error } = await supabase.from('activities').update(changes).eq('row_id', rowId);
-  if (error) throw new Error(error.message || 'save_failed');
+  const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes };
+  logActivityMutationDebug('request', 'saveActivity', debugPayload, { table: 'activities' });
+  const { data, error } = await supabase
+    .from('activities')
+    .update(changes)
+    .eq('row_id', rowId)
+    .select('row_id')
+    .maybeSingle();
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error('[activity-save-error]', { operation: 'saveActivity', table: 'activities', payload: debugPayload, error });
+    throw buildSupabaseMutationError('saveActivity', error, 'save_failed');
+  }
+  if (!data) {
+    const notFound = new Error('activity_not_found_or_forbidden');
+    notFound.status = 404;
+    notFound.operation = 'saveActivity';
+    // eslint-disable-next-line no-console
+    console.error('[activity-save-error]', { operation: 'saveActivity', table: 'activities', payload: debugPayload, error: notFound });
+    throw notFound;
+  }
+  logActivityMutationDebug('success', 'saveActivity', debugPayload, { table: 'activities' });
   return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities' };
 }
 
@@ -1581,25 +1641,27 @@ export const api = {
       : a;
     return updateActivityInSupabase(payload);
   },
-  submitEditRequest: async (source_row_id, changes) => {
-    const normalizedChanges = Object.entries(changes || {}).reduce((acc, [key, value]) => {
+  submitEditRequest: async (source_row_id, changes, source_sheet = 'activities') => {
+    const requestPayload = (source_row_id && typeof source_row_id === 'object') ? source_row_id : null;
+    const rowId = String(requestPayload?.source_row_id || source_row_id || '').trim();
+    const sourceSheet = String(requestPayload?.source_sheet || source_sheet || 'activities').trim() || 'activities';
+    const rawChanges = requestPayload?.changes || changes || {};
+    const normalizedChanges = Object.entries(rawChanges).reduce((acc, [key, value]) => {
       if (value === undefined || value === null) return acc;
       const normalizedValue = String(value).trim();
       acc[key] = normalizedValue;
       return acc;
     }, {});
-    // eslint-disable-next-line no-console
-    console.info('[submitEditRequest] source_row_id', source_row_id);
-    // eslint-disable-next-line no-console
-    console.info('[submitEditRequest] changes', normalizedChanges);
-    if (!source_row_id || !Object.keys(normalizedChanges).length) {
+    const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes: normalizedChanges };
+    logActivityMutationDebug('request', 'submitEditRequest', debugPayload, { table: 'edit_requests' });
+    if (!rowId || !Object.keys(normalizedChanges).length) {
       throw new Error('No changes to submit');
     }
     const currentUser = state?.user || {};
     const row = {
       request_id: `REQ-${Date.now()}`,
-      source_row_id,
-      source_sheet: 'activities',
+      source_row_id: rowId,
+      source_sheet: sourceSheet,
       changed_fields: Object.keys(normalizedChanges),
       requested_values: normalizedChanges,
       status: 'pending',
@@ -1609,7 +1671,12 @@ export const api = {
       requested_at: new Date().toISOString()
     };
     const { error } = await supabase.from('edit_requests').insert(row);
-    if (error) throw new Error(error.message || 'submit_edit_request_failed');
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[activity-save-error]', { operation: 'submitEditRequest', table: 'edit_requests', payload: row, error });
+      throw buildSupabaseMutationError('submitEditRequest', error, 'submit_edit_request_failed');
+    }
+    logActivityMutationDebug('success', 'submitEditRequest', debugPayload, { table: 'edit_requests', request_id: row.request_id });
     return { request_id: row.request_id, status: 'pending' };
   },
   reviewEditRequest: async (request_id, status) => {

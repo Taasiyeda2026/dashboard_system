@@ -69,10 +69,13 @@ test('user with can_request_edit only calls submitEditRequest and not saveActivi
   assert.equal(calls.some(([name]) => name === 'saveActivity'), false);
   const submitCall = calls.find(([name]) => name === 'submitEditRequest');
   assert.ok(submitCall, 'submitEditRequest should be called');
-  assert.equal(submitCall[1], 'ACT-1');
-  assert.deepEqual(submitCall[2], { activity_name: 'שם חדש' });
+  assert.deepEqual(submitCall[1], {
+    source_sheet: 'activities',
+    source_row_id: 'ACT-1',
+    changes: { activity_name: 'שם חדש' }
+  });
   assert.equal(form.querySelector('[name="activity_name"]').value, 'שם ישן');
-  assert.match(form.querySelector('.ds-activity-edit-status').textContent, /בקשת העריכה נשלחה לאישור/);
+  assert.match(form.querySelector('.ds-activity-edit-status').textContent, /העדכון התקבל/);
 });
 
 test('user with can_edit_direct calls saveActivity and not submitEditRequest', async () => {
