@@ -79,8 +79,6 @@ if (existsSync(manPath)) {
 }
 
 mkdirSync(join(dist, 'frontend'), { recursive: true });
-cpSync(join(root, 'sw.js'), join(dist, 'sw.js'));
-cpSync(join(root, 'frontend', 'sw.js'), join(dist, 'frontend', 'sw.js'));
 
 let html = readFileSync(join(dist, 'index.html'), 'utf8');
 const hashedManifest = html.match(/href="(\.\/assets\/manifest-[^"]+)"/);
@@ -100,14 +98,18 @@ if (hashedManifest) {
   }
 }
 
-const precache = new Set(['/index.html', '/manifest.json']);
-for (const u of collectAssetRefs(html, viteBaseRaw)) precache.add(u);
-for (const u of walkFiles(join(dist, 'assets'))) precache.add('/assets' + u);
+const precache = new Set(['./index.html', './manifest.json']);
+for (const u of collectAssetRefs(html, viteBaseRaw)) {
+  precache.add('.' + u);
+}
+for (const u of walkFiles(join(dist, 'assets'))) {
+  precache.add('./assets' + u);
+}
 
-const swOut = join(dist, 'frontend', 'sw.js');
-let sw = readFileSync(swOut, 'utf8');
+let sw = readFileSync(join(root, 'frontend', 'sw.js'), 'utf8');
 const sorted = [...precache].sort();
 sw = sw.replace(/const PRECACHE_URLS = \[[\s\S]*?\];/, `const PRECACHE_URLS = ${JSON.stringify(sorted, null, 2)};`);
-writeFileSync(swOut, sw);
+writeFileSync(join(dist, 'sw.js'), sw);
+writeFileSync(join(dist, 'frontend', 'sw.js'), sw);
 
 console.info('[postbuild-dist] precache entries:', sorted.length);

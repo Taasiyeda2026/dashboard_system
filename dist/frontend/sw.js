@@ -3,45 +3,40 @@
  * Static assets + app shell: cache-first. API-like requests: network only, never cached.
  * Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 345;
+const CACHE_VERSION = 346;
 const CACHE_NAME = `dashboard-static-v${CACHE_VERSION}`;
 
-/** Root-absolute paths on the deployed origin (same paths as index.html uses). */
+/** Relative paths from sw.js location — works on any origin/proxy (Replit, deploy, etc). */
 const PRECACHE_URLS = [
-  "/assets/apple-touch-icon-DZF9rhdV.png",
-  "/assets/apple-touch-icon.png",
-  "/assets/favicon-16.png",
-  "/assets/favicon-32.png",
-  "/assets/favicon-D0Y9bj5H.ico",
-  "/assets/favicon.ico",
-  "/assets/index-B2NjkDHy.js",
-  "/assets/logo1-sNrSbLi9.png",
-  "/assets/logo1.png",
-  "/assets/logo2.png",
-  "/assets/logo_system-koyfqh2I.png",
-  "/assets/logo_system.png",
-  "/assets/pwa/icon-128.png",
-  "/assets/pwa/icon-144.png",
-  "/assets/pwa/icon-152.png",
-  "/assets/pwa/icon-192.png",
-  "/assets/pwa/icon-384.png",
-  "/assets/pwa/icon-512.png",
-  "/assets/pwa/icon-72.png",
-  "/assets/pwa/icon-96.png",
-  "/assets/pwa/icon-maskable-512.png",
-  "/assets/style-B3B3PuuG.css",
-  "/index.html",
-  "/manifest.json"
+  "./assets/apple-touch-icon-DZF9rhdV.png",
+  "./assets/apple-touch-icon.png",
+  "./assets/favicon-16.png",
+  "./assets/favicon-32.png",
+  "./assets/favicon-D0Y9bj5H.ico",
+  "./assets/favicon.ico",
+  "./assets/index-B2NjkDHy.js",
+  "./assets/logo1-sNrSbLi9.png",
+  "./assets/logo1.png",
+  "./assets/logo2.png",
+  "./assets/logo_system-koyfqh2I.png",
+  "./assets/logo_system.png",
+  "./assets/pwa/icon-128.png",
+  "./assets/pwa/icon-144.png",
+  "./assets/pwa/icon-152.png",
+  "./assets/pwa/icon-192.png",
+  "./assets/pwa/icon-384.png",
+  "./assets/pwa/icon-512.png",
+  "./assets/pwa/icon-72.png",
+  "./assets/pwa/icon-96.png",
+  "./assets/pwa/icon-maskable-512.png",
+  "./assets/style-B3B3PuuG.css",
+  "./index.html",
+  "./manifest.json"
 ];
 
-function workerOrigin() {
-  return self.location.origin;
-}
-
-function absoluteUrl(path) {
+function resolveUrl(path) {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  const p = path.startsWith('/') ? path : `/${path}`;
-  return `${workerOrigin()}${p}`;
+  return new URL(path, self.location.href).href;
 }
 
 function sameOrigin(url) {
@@ -75,7 +70,7 @@ async function cacheFirst(request, cache) {
   const matchOpts = { ignoreSearch: true };
   let cached = await cache.match(request, matchOpts);
   if (!cached && isNavigationRequest(request)) {
-    cached = await cache.match(absoluteUrl('/index.html'), matchOpts);
+    cached = await cache.match(resolveUrl('./index.html'), matchOpts);
   }
   if (cached) return cached;
 
@@ -96,7 +91,7 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME).then(async (cache) => {
       for (const path of PRECACHE_URLS) {
         try {
-          await cache.add(absoluteUrl(path));
+          await cache.add(resolveUrl(path));
         } catch (e) {
           console.warn('[SW] precache skip', path, e);
         }
