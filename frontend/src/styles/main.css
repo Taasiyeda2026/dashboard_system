@@ -9020,12 +9020,18 @@ select.ds-activity-add-field .ds-input,
 }
 
 .instr-page .ci-list--instr-grid {
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 900px) {
+  .instr-page .ci-list--instr-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
   .instr-page .ci-list--instr-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -9036,8 +9042,8 @@ select.ds-activity-add-field .ds-input,
   min-height: unset;
   padding: 8px 8px 7px;
   background: color-mix(in srgb, var(--ds-accent) 5%, #fff);
-  border: 1px solid color-mix(in srgb, var(--ds-accent) 12%, transparent);
-  border-inline-start-width: 1px;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 18%, transparent);
+  border-top: 3px solid color-mix(in srgb, var(--ds-accent) 55%, transparent);
   border-radius: 10px;
   box-shadow: none;
   transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
@@ -9060,11 +9066,11 @@ select.ds-activity-add-field .ds-input,
 .instr-page .ci-row__name {
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--ds-text);
+  color: var(--ds-accent);
   text-align: center;
   width: 100%;
   padding-bottom: 5px;
-  border-bottom: 1px solid color-mix(in srgb, var(--ds-accent) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-accent) 20%, transparent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
