@@ -1060,14 +1060,16 @@ async function readExceptionsFromSupabase(params = {}) {
         .select('*')
         .in('activity_type', COURSE_TYPE_VALUES)
         .neq('status', CLOSED_STATUS)
-        .or('start_date.is.null,start_date.eq.,start_date.eq.NULL,start_date.eq.null'),
+        .or('start_date.is.null,start_date.eq.'),
       supabase
         .from('activities')
         .select('*')
         .in('activity_type', COURSE_TYPE_VALUES)
         .neq('status', CLOSED_STATUS)
-        .or('emp_id.is.null,emp_id.eq.,emp_id.eq.NULL,emp_id.eq.null')
-        .or('instructor_name.is.null,instructor_name.eq.,instructor_name.eq.NULL,instructor_name.eq.null')
+        .or('emp_id.is.null,emp_id.eq.')
+        .or('emp_id_2.is.null,emp_id_2.eq.')
+        .or('instructor_name.is.null,instructor_name.eq.')
+        .or('instructor_name_2.is.null,instructor_name_2.eq.')
     ]);
 
     const missingStartRows  = (Array.isArray(missingStartResult.data)      ? missingStartResult.data      : []).map(normalizeActivityRow);

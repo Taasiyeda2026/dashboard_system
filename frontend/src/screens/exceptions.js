@@ -18,7 +18,6 @@ import {
   splitVisibleRows
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
-import { getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
