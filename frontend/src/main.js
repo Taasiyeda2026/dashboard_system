@@ -1601,6 +1601,8 @@ async function mountScreen() {
       clearTimeout(routeLoadGuardTimer);
     }
     endPerfTimer('route:loadData');
+    // eslint-disable-next-line no-console
+    console.info('[route-load:guard]', { transitionToken, activeNavigationToken, requestedRoute, latestNavigationRoute, stateRoute: state.route, tokenMatch: transitionToken === activeNavigationToken, routeMatch: requestedRoute === latestNavigationRoute });
     if (transitionToken !== activeNavigationToken || requestedRoute !== latestNavigationRoute) return;
     if (state.route !== requestedRoute) return;
     if (firstAuthenticatedMount && state.route === 'dashboard') {
