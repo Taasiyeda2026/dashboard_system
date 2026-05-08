@@ -348,7 +348,11 @@ export const archiveScreen = {
         btn.disabled = true;
         btn.textContent = 'שומר…';
         try {
-          await api.saveActivity({ ...row, status: 'פתוח' });
+          await api.saveActivity({
+            source_sheet: row.source_sheet || 'activities',
+            source_row_id: row.RowID || row.row_id,
+            changes: { status: 'פעיל' }
+          });
           btn.textContent = '✓ נפתח';
           ui.closeDrawer?.();
           rerender();
