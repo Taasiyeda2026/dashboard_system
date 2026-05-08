@@ -8,6 +8,7 @@ import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { headerNavGridHtml } from './screens/shared/act-nav-grid.js';
 import { loginScreen } from './screens/login.js';
 import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-storage.js';
+import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindAccentPickerListenerOnce } from './accent-picker.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc  = new URL('../assets/logo1.png',      import.meta.url).href;
@@ -28,135 +29,18 @@ let loginBootstrapDurationMs = 0;
 const inflightRequests = new Map();
 const PERF_MAX_RENDERS = 150;
 
-const ACCENT_COLORS = {
-  blue:   { accent: '#1a3358', hover: '#142a49', soft: '#e8eef6', stripe: '#eef3fb', stripeHover: '#e8f0fd' },
-  green:  { accent: '#166534', hover: '#14532d', soft: '#eaf5ec', stripe: '#eaf5ec', stripeHover: '#dcf0e0' },
-  purple: { accent: '#5b21b6', hover: '#4c1d95', soft: '#f3eefa', stripe: '#f3eefa', stripeHover: '#ece0f8' },
-  orange: { accent: '#c2410c', hover: '#9a3412', soft: '#fdf3ea', stripe: '#fdf3ea', stripeHover: '#fce9d8' },
-  gray:   { accent: '#334155', hover: '#1e293b', soft: '#f1f3f6', stripe: '#f1f3f6', stripeHover: '#e8eaee' },
-  pink:   { accent: '#ed608a', hover: '#d94f79', soft: '#fdebf1', stripe: '#fdebf1', stripeHover: '#fbdde7' },
-  cyan:   { accent: '#0292b7', hover: '#027b9b', soft: '#e6f7fb', stripe: '#e6f7fb', stripeHover: '#d8f1f7' }
-};
-const ACCENT_LS_KEY = 'ds_global_accent';
-const LEGACY_STRIPE_LS_KEY = 'ds_activities_stripe';
+export { applyGlobalAccent };
 
-function normalizeAccentName(value) {
-  const raw = String(value || '').trim();
-  if (ACCENT_COLORS[raw]) return raw;
-  const lower = raw.toLowerCase();
-  const match = Object.entries(ACCENT_COLORS).find(([, colors]) =>
-    [colors.accent, colors.hover, colors.soft, colors.stripe, colors.stripeHover]
-      .some((color) => String(color).toLowerCase() === lower)
-  );
-  return match?.[0] || '';
-}
-
-function accentNameFromStorage() {
-  try {
-    return normalizeAccentName(localStorage.getItem(ACCENT_LS_KEY))
-      || normalizeAccentName(localStorage.getItem(LEGACY_STRIPE_LS_KEY))
-      || normalizeAccentName(state?.clientSettings?.accent_color)
-      || normalizeAccentName(state?.clientSettings?.theme_accent)
-      || normalizeAccentName(state?.clientSettings?.ui_accent_color)
-      || 'blue';
-  } catch {
-    return 'blue';
-  }
-}
-
-function applyGlobalAccent(name = accentNameFromStorage()) {
-  const selected = normalizeAccentName(name) || 'blue';
-  const colors = ACCENT_COLORS[selected];
-  const root = document.documentElement;
-  root.style.setProperty('--ds-accent', colors.accent);
-  root.style.setProperty('--ds-accent-hover', colors.hover);
-  root.style.setProperty('--ds-accent-soft', colors.soft);
-  root.style.setProperty('--ds-interactive-selected', colors.soft);
-  root.style.setProperty('--ds-activities-stripe', colors.stripe);
-  root.style.setProperty('--ds-activities-stripe-hover', colors.stripeHover);
-  root.style.setProperty('--ds-focus-ring', `0 0 0 2px color-mix(in srgb, ${colors.accent} 24%, transparent)`);
-  root.style.setProperty('--ds-focus-ring-strong', `0 0 0 3px color-mix(in srgb, ${colors.accent} 30%, transparent)`);
-  root.dataset.dsAccent = selected;
-  document.querySelectorAll('[data-accent-picker-btn]').forEach((btn) => {
-    btn.style.backgroundColor = colors.accent;
-    btn.dataset.currentAccent = selected;
-  });
-  document.querySelectorAll('[data-accent-swatch]').forEach((sw) => { sw.classList.toggle('is-active', sw.dataset.accent === selected); });
-  return selected;
-}
-
-applyGlobalAccent();
-
-let _accentPickerBound = false;
-function bindAccentPickerOnce() {
-  if (_accentPickerBound) return;
-  _accentPickerBound = true;
-  document.addEventListener('click', (ev) => {
-    const pop = document.querySelector('[data-accent-picker-popover]');
-    if (!pop) return;
-    const swatch = ev.target.closest('[data-accent-swatch]');
-    if (swatch) {
-      ev.preventDefault();
-      const name = swatch.dataset.accent || 'blue';
-      const selected = applyGlobalAccent(name);
-      try {
-        localStorage.setItem(ACCENT_LS_KEY, selected);
-        localStorage.setItem(LEGACY_STRIPE_LS_KEY, selected);
-      } catch {}
-      state.clientSettings = {
-        ...(state.clientSettings || {}),
-        accent_color: selected,
-        theme_accent: selected,
-        ui_accent_color: selected
-      };
-      saveRoutesToStorage(state.routes, state.route, state.clientSettings);
-      if (typeof api.saveClientSetting === 'function') {
-        Promise.all(['accent_color', 'theme_accent', 'ui_accent_color']
-          .map((key) => api.saveClientSetting({ key, value: selected })))
-          .catch((err) => {
-            console.warn('[accent-picker] Supabase accent save failed; local choice remains active:', err);
-          });
-      }
-      pop.hidden = true;
-      if (pop.parentElement === document.body) {
-        document.querySelector('[data-accent-picker-wrap]')?.appendChild(pop);
-      }
-      return;
-    }
-    const btn = ev.target.closest('[data-accent-picker-btn]');
-    if (btn) {
-      ev.preventDefault();
-      applyGlobalAccent();
-      if (pop.hidden) {
-        const rect = btn.getBoundingClientRect();
-        const popW = 36;
-        let left = rect.left + rect.width / 2 - popW / 2;
-        const top = rect.bottom + window.scrollY;
-        left = Math.max(8, Math.min(left, window.innerWidth - popW - 8));
-        document.body.appendChild(pop);
-        pop.style.position = 'fixed';
-        pop.style.left = `${left}px`;
-        pop.style.top = `${rect.top - 8}px`;
-        pop.style.transform = 'translateY(-100%)';
-        pop.style.zIndex = '99999';
-        pop.hidden = false;
-      } else {
-        pop.hidden = true;
-        if (pop.parentElement === document.body) {
-          document.querySelector('[data-accent-picker-wrap]')?.appendChild(pop);
-        }
-      }
-      return;
-    }
-    if (!pop.hidden) {
-      pop.hidden = true;
-      if (pop.parentElement === document.body) {
-        document.querySelector('[data-accent-picker-wrap]')?.appendChild(pop);
-      }
-    }
+export function bindAccentPickerOnce() {
+  bindAccentPickerListenerOnce({
+    getClientSettings: () => state.clientSettings,
+    setClientSettings: (settings) => { state.clientSettings = settings; },
+    saveRoutes: (settings) => saveRoutesToStorage(state.routes, state.route, settings),
+    saveClientSetting: api.saveClientSetting
   });
 }
 
+applyGlobalAccent(accentNameFromStorage(state.clientSettings));
 
 /** Timer handle for deferred prefetch — cancelled on every new navigation. */
 let prefetchTimer = null;
@@ -865,13 +749,13 @@ function shell(content) {
           <div class="ds-accent-picker-wrap" data-accent-picker-wrap>
             <button type="button" class="ds-accent-picker-btn" data-accent-picker-btn aria-label="צבע ממשק" title="צבע ממשק"></button>
             <div class="ds-accent-picker-popover" data-accent-picker-popover hidden>
-              <button type="button" class="ds-accent-swatch" data-accent="blue" style="background:#1a3358" title="כחול"></button>
-              <button type="button" class="ds-accent-swatch" data-accent="green" style="background:#166534" title="ירוק"></button>
-              <button type="button" class="ds-accent-swatch" data-accent="purple" style="background:#5b21b6" title="סגול"></button>
-              <button type="button" class="ds-accent-swatch" data-accent="orange" style="background:#c2410c" title="כתום"></button>
-              <button type="button" class="ds-accent-swatch" data-accent="gray" style="background:#334155" title="אפור"></button>
-              <button type="button" class="ds-accent-swatch" data-accent="pink" style="background:#ed608a" title="ורוד"></button>
-              <button type="button" class="ds-accent-swatch" data-accent="cyan" style="background:#0292b7" title="תכלת"></button>
+              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="blue" style="background:#1a3358" title="כחול"></button>
+              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="green" style="background:#166534" title="ירוק"></button>
+              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="purple" style="background:#5b21b6" title="סגול"></button>
+              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="orange" style="background:#c2410c" title="כתום"></button>
+              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="gray" style="background:#334155" title="אפור"></button>
+              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="pink" style="background:#ed608a" title="ורוד"></button>
+              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="cyan" style="background:#0292b7" title="תכלת"></button>
             </div>
           </div>
           <button type="button" class="shell-logout-btn shell-logout-btn--sidebar" id="logoutBtn" aria-label="התנתקות" title="התנתקות">
@@ -913,6 +797,8 @@ function renderShellLoadingImmediately() {
   if (shellExists) return;
   app.innerHTML = shell(screenLoadingMarkup());
   bindShell();
+  bindAccentPickerOnce();
+  applyGlobalAccent(accentNameFromStorage(state.clientSettings));
   if (loginPerfStartMs > 0 && !loginShellPerfReported) {
     loginShellPerfReported = true;
     reportPerfMilestone('login_shell_visible', performance.now() - loginPerfStartMs);
@@ -1562,6 +1448,8 @@ async function mountScreen() {
     const shellBody = rawEntry ? screen.render(rawEntry.data, { state }) : screenLoadingMarkup();
     app.innerHTML = shell(shellBody);
     bindShell();
+    bindAccentPickerOnce();
+    applyGlobalAccent(accentNameFromStorage(state.clientSettings));
     if (rawEntry) {
       beginPerfTimer('route:renderScreen');
       const renderStart = performance.now();
@@ -1750,7 +1638,7 @@ function bindShell() {
   });
 
 
-  applyGlobalAccent();
+  applyGlobalAccent(accentNameFromStorage(state.clientSettings));
   bindAccentPickerOnce();
 
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
@@ -1817,7 +1705,7 @@ async function render() {
             const bootstrapApplyStartMs = performance.now();
             applyBootstrapFromLoginData(data);
             loginBootstrapDurationMs = performance.now() - bootstrapApplyStartMs;
-            applyGlobalAccent();
+            applyGlobalAccent(accentNameFromStorage(state.clientSettings));
             renderShellLoadingImmediately();
             // eslint-disable-next-line no-console
             console.info('[login-success]', { route: state.route, routes_count: effectiveRoutes().length });
@@ -1882,47 +1770,49 @@ async function render() {
 }
 
 
-window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') {
-    closeMobileNav();
-  }
-});
+if (!globalThis.__DASHBOARD_SKIP_AUTO_RENDER__) {
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeMobileNav();
+    }
+  });
 
-window.addEventListener('resize', () => {
-  if (isDesktopViewport()) {
-    closeMobileNav();
-  }
-});
+  window.addEventListener('resize', () => {
+    if (isDesktopViewport()) {
+      closeMobileNav();
+    }
+  });
 
-if ('serviceWorker' in navigator && !SERVICE_WORKER_ENABLED) {
-  navigator.serviceWorker.getRegistrations()
-    .then((regs) => Promise.all(regs.map((reg) => reg.unregister())))
-    .catch(() => {});
-  if (typeof caches !== 'undefined') {
-    caches.keys()
-      .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+  if ('serviceWorker' in navigator && !SERVICE_WORKER_ENABLED) {
+    navigator.serviceWorker.getRegistrations()
+      .then((regs) => Promise.all(regs.map((reg) => reg.unregister())))
       .catch(() => {});
+    if (typeof caches !== 'undefined') {
+      caches.keys()
+        .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+        .catch(() => {});
+    }
   }
-}
 
-if ('serviceWorker' in navigator && SERVICE_WORKER_ENABLED) {
-  window.addEventListener('load', () => {
-    const swUrl = new URL('./sw.js', window.location.href);
-    navigator.serviceWorker
-      .register(swUrl.href, { updateViaCache: 'none' })
-      .then((reg) => {
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') {
-            reg.update().catch(() => {});
-          }
-        });
-      })
-      .catch(() => {});
+  if ('serviceWorker' in navigator && SERVICE_WORKER_ENABLED) {
+    window.addEventListener('load', () => {
+      const swUrl = new URL('./sw.js', window.location.href);
+      navigator.serviceWorker
+        .register(swUrl.href, { updateViaCache: 'none' })
+        .then((reg) => {
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              reg.update().catch(() => {});
+            }
+          });
+        })
+        .catch(() => {});
+    });
+  }
+
+  render().catch((error) => {
+    loginInlineError = translateApiErrorForUser(error?.message);
+    setSession(null);
+    render().catch(() => {});
   });
 }
-
-render().catch((error) => {
-  loginInlineError = translateApiErrorForUser(error?.message);
-  setSession(null);
-  render().catch(() => {});
-});
