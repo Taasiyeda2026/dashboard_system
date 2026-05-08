@@ -591,13 +591,14 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   sectionEl.removeAttribute('data-dates-loading');
 }
 
-function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
+function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } = {}) {
+  if (!showPrivateNote) return '';
   const privateValue =
     privateNote !== null && privateNote !== undefined
       ? privateNote
       : row.operations_private_notes;
-  const privateSection = showPrivateNote
-    ? `
+  return `
+    <section class="activity-drawer__section activity-drawer__section--private">
       <div class="activity-drawer__private">
         <div class="activity-drawer__private-badge">🔒</div>
         <div class="activity-drawer__field">
@@ -605,8 +606,11 @@ function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
           ${textareaHtml({ name: 'operations_private_notes', value: String(privateValue || ''), rows: 2, attrs: 'data-always-editable' })}
         </div>
       </div>
-    `
-    : '';
+    </section>
+  `;
+}
+
+function blockNotes(row) {
   return `
     <section class="activity-drawer__section">
       <h3 class="activity-drawer__section-title">📝</h3>
@@ -615,7 +619,6 @@ function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
         `${escapeHtml(fallback(row.notes))}`,
         textareaHtml({ name: 'notes', value: String(row.notes || ''), rows: 2 })
       )}
-      ${privateSection}
     </section>
   `;
 }
@@ -651,10 +654,11 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${editReqBadge}
       <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
       <input type="hidden" name="_activity_idx" value="${idx}">
-      ${blockNotes(row, { privateNote, showPrivateNote })}
+      ${blockPrivateNote(row, { privateNote, showPrivateNote })}
       ${blockPeople(row, { settings })}
       ${blockContent(row, { settings })}
       ${blockDates(row, { canEdit, canDirectEdit, datesLoading })}
+      ${blockNotes(row)}
     </form>
   `;
 }
