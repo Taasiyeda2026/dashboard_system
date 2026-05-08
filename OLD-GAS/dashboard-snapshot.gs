@@ -215,11 +215,7 @@ function composeDashboardPayloadFromSummarySnapshot_(ym, snap, byManagerRows, sh
   var missingInstr   = parseInt(text_(s.missing_instructor_count), 10) || 0;
   var missingDate    = parseInt(text_(s.missing_start_date_count), 10) || 0;
   var lateEnd        = parseInt(text_(s.late_end_date_count),      10) || 0;
-  var exceptCount    = resolveExceptionsCountForDashboard_({
-    missing_instructor_count: missingInstr,
-    missing_start_date_count: missingDate,
-    late_end_date_count: lateEnd
-  }, s.exceptions_count);
+  var exceptCount    = resolveExceptionsCountForDashboard_(s, s.exceptions_count);
   var activeCurrent  = parseInt(text_(s.active_courses_current_month), 10) || 0;
   var activeNext     = parseInt(text_(s.active_courses_next_month), 10) || 0;
 
@@ -273,12 +269,20 @@ function composeDashboardPayloadFromSummarySnapshot_(ym, snap, byManagerRows, sh
       ending_courses_current_month: courseEndings,
       active_courses_next_month:    activeNext,
       exceptions_count:             exceptCount,
-      current_month_exceptions_count: 0,
+      totalExceptionRows:            exceptCount,
+      total_exception_rows:          exceptCount,
+      current_month_exceptions_count: exceptCount,
       active_instructors:           allInstructorNames,
       active_instructors_by_manager: {},
       missing_instructor_count:  missingInstr,
       missing_start_date_count:  missingDate,
       late_end_date_count:       lateEnd,
+      operational_gaps_count:    missingInstr + missingDate,
+      counts: {
+        missing_instructor: missingInstr,
+        missing_start_date: missingDate,
+        late_end_date: lateEnd
+      },
       short_activities:          []
     },
     kpi_cards: kpiCards,
@@ -353,8 +357,9 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym) {
     pickField_(primaryRow, ['exceptions_count', 'exceptions'], summary.exceptions_count)
   );
   var cmExc = summary.current_month_exceptions_count;
-  summary.current_month_exceptions_count =
-    typeof cmExc === 'number' && !isNaN(cmExc) ? cmExc : (parseInt(text_(cmExc), 10) || 0);
+  summary.current_month_exceptions_count = summary.exceptions_count;
+  summary.totalExceptionRows = summary.exceptions_count;
+  summary.total_exception_rows = summary.exceptions_count;
   summary.active_courses_current_month = parseInt(text_(pickField_(primaryRow, ['active_courses', 'active_courses_current_month'], 0)), 10) ||
     summary.active_courses_current_month || 0;
   summary.ending_courses_current_month = parseInt(text_(pickField_(primaryRow, ['course_endings', 'course_endings_current_month'], 0)), 10) ||
@@ -365,6 +370,12 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym) {
     summary.missing_start_date_count || 0;
   summary.late_end_date_count = parseInt(text_(primaryRow.late_end_date_count), 10) ||
     summary.late_end_date_count || 0;
+  summary.operational_gaps_count = (summary.missing_instructor_count || 0) + (summary.missing_start_date_count || 0);
+  summary.counts = {
+    missing_instructor: summary.missing_instructor_count || 0,
+    missing_start_date: summary.missing_start_date_count || 0,
+    late_end_date: summary.late_end_date_count || 0
+  };
   if (!Array.isArray(summary.short_activities)) summary.short_activities = [];
 
   var byMgrArr = parseJsonArraySafeForDashboard_(pickField_(primaryRow, ['by_manager_json', 'by_activity_manager_json'], null), []);
@@ -394,6 +405,7 @@ function buildDashboardSnapshotPayloadFromViewRows_(primaryRow, nextRow, ym) {
     active_instructors_count: totalInstr,
     course_endings_current_month: courseEndings,
     exceptions_count: exceptCount,
+    totalExceptionRows: exceptCount,
     active_courses_current_month: activeCurrent,
     active_courses_next_month: summary.active_courses_next_month || 0
   };
@@ -818,6 +830,7 @@ function writeDashboardSummarySnapshotRow_(ym, fullData) {
     active_escape_room_current_month:  counts['active_escape_room']  || 0,
     finance_open_count:                financeOpen,
     exceptions_count:                  exceptions,
+    totalExceptionRows:                 exceptions,
     active_instructors_count:          totals.total_instructors || 0,
     course_endings_current_month:      summary.ending_courses_current_month || totals.total_course_endings_current_month || 0,
     active_courses_next_month:         summary.active_courses_next_month || 0,

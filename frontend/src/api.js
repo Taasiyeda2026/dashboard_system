@@ -824,16 +824,20 @@ async function dashboardReadModelFromSupabase(month) {
       if (activityType) totalTypeCounts[activityType] = (totalTypeCounts[activityType] || 0) + 1;
     }
 
+    const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix });
+    const exceptionError = exceptionSummary?.error || exceptionSummary?._debug?.error;
+    if (!exceptionSummary || exceptionError) {
+      warnDashboardSupabasePathFailed(exceptionError || 'exceptions_model_failed', { month: monthPrefix });
+      throw new Error('dashboard_exceptions_model_failed');
+    }
+    const exceptionCounts = exceptionSummary.counts || {};
+    const exceptionsByManager = exceptionSummary.byManager || {};
+
     // Active (open-only) summary data
     const instructorIds = new Set();
     const instructorNames = new Set();
     const activeTypeCounts = {};
     const byManagerMap = new Map();
-    let missingInstructorCount = 0;
-    let missingDateCount = 0;
-    let dangerousEndDateCount = 0;
-    let operationalGapsCount = 0;
-    let totalExceptionsActivityCount = 0;
 
     function managerStats(manager) {
       const key = String(manager || 'unassigned').trim() || 'unassigned';
@@ -871,25 +875,13 @@ async function dashboardReadModelFromSupabase(month) {
       if (emp1) stats._instructors.add(emp1);
       if (emp2) stats._instructors.add(emp2);
 
-      if (rowActivityType(row) !== 'course') continue;
-      const hasMeetingDates = getActivityDateColumns(row).length > 0;
-      const hasAnyDate = hasMeetingDates || nullStr(row?.start_date);
-      const missingInstructor = !emp1 && !emp2 && !instructor1 && !instructor2;
-      const missingDate = !hasAnyDate;
-      const end = nullStr(row?.end_date);
-      const isDangerousEnd = end && end > '2026-06-15';
-      if (missingInstructor) missingInstructorCount += 1;
-      if (missingDate) missingDateCount += 1;
-      if (isDangerousEnd) dangerousEndDateCount += 1;
-      if (missingInstructor || missingDate) operationalGapsCount += 1;
-      if (missingInstructor || missingDate || isDangerousEnd) {
-        totalExceptionsActivityCount += 1;
-        stats.exceptions += 1;
-      }
     }
 
     for (const row of endingRows) {
       managerStats(row?.activity_manager).course_endings += 1;
+    }
+    for (const [manager, count] of Object.entries(exceptionsByManager)) {
+      managerStats(manager).exceptions = Number(count || 0);
     }
 
     const by_activity_manager = [...byManagerMap.values()].map((stats) => {
@@ -897,7 +889,7 @@ async function dashboardReadModelFromSupabase(month) {
       delete stats._instructors;
       return stats;
     });
-    const exceptionsCount = totalExceptionsActivityCount;
+    const exceptionsCount = Number(exceptionSummary.totalExceptionRows || 0);
     const totals = {
       total_short_activities: allMonthRows.filter(isOneDayActivity).length,
       total_long_activities: allMonthRows.filter(isProgramActivity).length,
@@ -911,11 +903,16 @@ async function dashboardReadModelFromSupabase(month) {
       active_instructors: [...instructorNames].sort((a, b) => a.localeCompare(b, 'he')),
       active_instructors_count: instructorIds.size,
       ending_courses_current_month: endingRows.length,
-      missing_instructor_count: missingInstructorCount,
-      missing_date_count: missingDateCount,
-      late_end_date_count: dangerousEndDateCount,
-      operational_gaps_count: operationalGapsCount,
-      exceptions_count: exceptionsCount
+      missing_instructor_count: Number(exceptionCounts.missing_instructor || 0),
+      missing_start_date_count: Number(exceptionCounts.missing_start_date || 0),
+      missing_date_count: Number(exceptionCounts.missing_start_date || 0),
+      late_end_date_count: Number(exceptionCounts.late_end_date || 0),
+      operational_gaps_count: Number(exceptionCounts.missing_instructor || 0) + Number(exceptionCounts.missing_start_date || 0),
+      exceptions_count: exceptionsCount,
+      totalExceptionRows: exceptionsCount,
+      total_exception_rows: exceptionsCount,
+      totalExceptionInstances: Number(exceptionSummary.totalExceptionInstances || 0),
+      counts: exceptionCounts
     };
     // KPI cards use totalTypeCounts (all month rows including closed)
     const kpi_cards = buildDashboardKpiCardsFromSupabase(totals, totalTypeCounts, exceptionsCount, instructorIds.size, endingRows.length);
@@ -955,27 +952,64 @@ async function readEndDatesFromSupabase() {
   }
 }
 
-function buildExceptionsFromRows(activityRows = []) {
+const LATE_END_DATE_CUTOFF = '2026-06-15';
+
+function activityOverlapsMonthForExceptions(row, month) {
+  if (!/^\d{4}-\d{2}$/.test(String(month || ''))) return true;
+  const start = nullStr(row?.start_date);
+  // Missing start_date is itself an exception and must stay visible under a
+  // month filter because there is no reliable date from which to exclude it.
+  if (!start) return true;
+  const range = monthDateRange(month);
+  const end = nullStr(row?.end_date) || start;
+  return start <= range.endDate && end >= range.startDate;
+}
+
+function rowExceptionTypesFromActivity(row) {
+  const types = [];
+  const emp1        = nullStr(row?.emp_id);
+  const emp2        = nullStr(row?.emp_id_2);
+  const instructor1 = nullStr(row?.instructor_name);
+  const instructor2 = nullStr(row?.instructor_name_2);
+  const start       = nullStr(row?.start_date);
+  const end         = nullStr(row?.end_date);
+  if (!emp1 && !emp2 && !instructor1 && !instructor2) types.push('missing_instructor');
+  if (!start) types.push('missing_start_date');
+  if (end && end > LATE_END_DATE_CUTOFF) types.push('late_end_date');
+  return types;
+}
+
+function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) {
+  const includeRows = opts.include_rows !== false;
   const rows = [];
+  const counts = { missing_instructor: 0, missing_start_date: 0, late_end_date: 0 };
+  const byManager = {};
   for (const row of activityRows) {
     if (isActivityClosed(row)) continue;
     if (rowActivityType(row) !== 'course') continue;
-    const types = [];
-    const emp1        = nullStr(row?.emp_id);
-    const instructor1 = nullStr(row?.instructor_name);
-    const start       = nullStr(row?.start_date);
-    const end         = nullStr(row?.end_date);
-    if (!emp1 && !instructor1) types.push('missing_instructor');
-    if (!start) types.push('missing_start_date');
-    if (start && end && end < start) types.push('late_end_date');
-    if (end && end > '2026-06-15') types.push('dangerous_end_date');
-    if (!nullStr(row?.activity_manager)) types.push('missing_activity_manager');
-    if (!nullStr(row?.school)) types.push('missing_school');
-    if (!nullStr(row?.authority)) types.push('missing_authority');
-    if (!nullStr(row?.activity_name)) types.push('missing_activity_name');
-    if (types.length) rows.push({ ...row, exception_type: types[0], exception_types: [...new Set(types)] });
+    if (!activityOverlapsMonthForExceptions(row, month)) continue;
+    const types = rowExceptionTypesFromActivity(row);
+    if (!types.length) continue;
+    const manager = nullStr(row?.activity_manager) || 'unassigned';
+    byManager[manager] = (byManager[manager] || 0) + 1;
+    for (const type of types) counts[type] = (counts[type] || 0) + 1;
+    if (includeRows) {
+      rows.push({
+        ...row,
+        exception_type: types[0],
+        exception_types: [...new Set(types)],
+        exception_count: types.length,
+        has_multiple_exceptions: types.length > 1 ? 'yes' : 'no'
+      });
+    }
   }
-  return rows;
+  const totalExceptionRows = Object.values(byManager).reduce((sum, value) => sum + Number(value || 0), 0);
+  const totalExceptionInstances = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
+  return { rows, totalExceptionRows, totalExceptionInstances, counts, byManager };
+}
+
+function buildExceptionsFromRows(activityRows = [], month = '') {
+  return buildExceptionsModelFromRows(activityRows, month, { include_rows: true }).rows;
 }
 
 async function readExceptionsFromSupabase(params = {}) {
@@ -1009,14 +1043,14 @@ async function readExceptionsFromSupabase(params = {}) {
         .select('*')
         .in('activity_type', COURSE_TYPE_VALUES)
         .neq('status', CLOSED_STATUS)
-        .is('start_date', null),
+        .or('start_date.is.null,start_date.eq.'),
       supabase
         .from('activities')
         .select('*')
         .in('activity_type', COURSE_TYPE_VALUES)
         .neq('status', CLOSED_STATUS)
-        .is('emp_id', null)
-        .is('instructor_name', null)
+        .or('emp_id.is.null,emp_id.eq.')
+        .or('instructor_name.is.null,instructor_name.eq.')
     ]);
 
     const missingStartRows  = (Array.isArray(missingStartResult.data)      ? missingStartResult.data      : []).map(normalizeActivityRow);
@@ -1032,8 +1066,8 @@ async function readExceptionsFromSupabase(params = {}) {
       allRows.push(row);
     }
 
-    const rows = buildExceptionsFromRows(allRows);
-    return { month, rows, totalExceptionRows: rows.length, _source: 'supabase' };
+    const exceptionSummary = buildExceptionsModelFromRows(allRows, month, { include_rows: true });
+    return { month, ...exceptionSummary, _source: 'supabase' };
   } catch (error) {
     return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, error);
   }

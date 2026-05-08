@@ -41,7 +41,8 @@ function rowExceptionTypes(row) {
   const out = [];
   if (row.status === 'ארכיון' || row.status === 'canceled') return out;
   const hasInstructor =
-    (String(row.instructor_name || '').trim() !== '' || String(row.emp_id || '').trim() !== '');
+    (String(row.instructor_name || '').trim() !== '' || String(row.emp_id || '').trim() !== '' ||
+     String(row.instructor_name_2 || '').trim() !== '' || String(row.emp_id_2 || '').trim() !== '');
   if (!hasInstructor) out.push('missing_instructor');
   if (!String(row.start_date || '').trim()) out.push('missing_start_date');
   if (String(row.end_date || '') > LATE_CUTOFF) out.push('late_end_date');
@@ -81,6 +82,29 @@ function computeExceptionsModel(sourceRows, ym, opts) {
 
   const totalExceptionInstances = counts.missing_instructor + counts.missing_start_date + counts.late_end_date;
   return { rows: exceptionRows, totalExceptionInstances, totalExceptionRows, counts, byManager };
+}
+
+
+function dashboardSnapshotModel(sourceRows, ym) {
+  const exceptionSummary = computeExceptionsModel(sourceRows, ym, { include_rows: false });
+  const missingInstructor = exceptionSummary.counts.missing_instructor || 0;
+  const missingStartDate = exceptionSummary.counts.missing_start_date || 0;
+  const lateEndDate = exceptionSummary.counts.late_end_date || 0;
+  return {
+    month: ym,
+    totals: { exceptions_count: exceptionSummary.totalExceptionRows },
+    summary: {
+      exceptions_count: exceptionSummary.totalExceptionRows,
+      totalExceptionRows: exceptionSummary.totalExceptionRows,
+      late_end_date_count: lateEndDate,
+      operational_gaps_count: missingInstructor + missingStartDate,
+      missing_instructor_count: missingInstructor,
+      missing_start_date_count: missingStartDate,
+      counts: { ...exceptionSummary.counts }
+    },
+    by_activity_manager: Object.entries(exceptionSummary.byManager).map(([activity_manager, exceptions]) => ({ activity_manager, exceptions })),
+    kpi_cards: [{ id: 'exceptions', action: 'kpi|exceptions', value: exceptionSummary.totalExceptionRows }]
+  };
 }
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -147,6 +171,19 @@ const rowMissingInstructor = {
   status: 'פעיל'
 };
 
+
+// Activity with only missing_start_date: has instructor and no start date.
+const rowMissingStartDate = {
+  RowID: 'LONG-006',
+  activity_type: 'course',
+  activity_manager: 'mgr_b',
+  instructor_name: 'נועה ישראלי',
+  emp_id: 'E6',
+  start_date: '',
+  end_date: '2026-05-30',
+  status: 'פעיל'
+};
+
 // Activity outside the month with start_date set — should be excluded when filtering by month
 const rowOutOfMonth = {
   RowID: 'LONG-005',
@@ -201,6 +238,35 @@ test('count by manager is by course rows, not instances', () => {
   assert.equal(result.totalExceptionRows, 2);
 });
 
+
+test('dashboard snapshot uses the same total rows, detail counts, and manager counts as exceptions model', () => {
+  const allRows = [
+    rowMissingInstructor,
+    rowMissingStartDate,
+    rowOnlyLate,
+    rowAllThree,
+    rowNoException,
+    rowNonCourse,
+    rowOutOfMonth
+  ];
+  const exceptions = computeExceptionsModel(allRows, YM, { include_rows: true });
+  const dashboard = dashboardSnapshotModel(allRows, YM);
+  const exceptionsKpi = dashboard.kpi_cards.find((card) => card.id === 'exceptions');
+  const byManager = Object.fromEntries(dashboard.by_activity_manager.map((row) => [row.activity_manager, row.exceptions]));
+
+  assert.equal(exceptions.totalExceptionRows, 4, 'four course activities are exceptional in the selected month');
+  assert.equal(exceptions.totalExceptionInstances, 6, 'multi-exception rows still contribute each detail type');
+  assert.equal(dashboard.totals.exceptions_count, exceptions.totalExceptionRows);
+  assert.equal(exceptionsKpi.value, exceptions.totalExceptionRows);
+  assert.equal(dashboard.summary.exceptions_count, exceptions.totalExceptionRows);
+  assert.equal(dashboard.summary.totalExceptionRows, exceptions.totalExceptionRows);
+  assert.equal(dashboard.summary.late_end_date_count, exceptions.counts.late_end_date);
+  assert.equal(dashboard.summary.operational_gaps_count, exceptions.counts.missing_instructor + exceptions.counts.missing_start_date);
+  assert.deepEqual(byManager, exceptions.byManager);
+  assert.equal(exceptions.byManager.mgr_a, 2);
+  assert.equal(exceptions.byManager.mgr_b, 2);
+});
+
 test('non-course activities are never included in exceptions', () => {
   const result = computeExceptionsModel([rowNonCourse], '', { include_rows: true });
   assert.equal(result.rows.length, 0, 'workshops/tours must not appear in exceptions');
@@ -210,7 +276,7 @@ test('non-course activities are never included in exceptions', () => {
 // ─── Source-code structure tests ──────────────────────────────────────────────
 
 test('backend computeExceptionsModel_ guards month filter only when start_date exists', async () => {
-  const src = await read('backend/actions.gs');
+  const src = await read('OLD-GAS/actions.gs');
   // The fix: rowHasStart is defined and used as a guard
   assert.match(src, /var rowHasStart = !!text_\(row && row\.start_date\)/,
     'computeExceptionsModel_ must compute rowHasStart');
@@ -222,7 +288,7 @@ test('backend computeExceptionsModel_ guards month filter only when start_date e
 });
 
 test('backend has all 3 exception type keys in counts object', async () => {
-  const src = await read('backend/actions.gs');
+  const src = await read('OLD-GAS/actions.gs');
   assert.match(src, /missing_instructor:\s*0/);
   assert.match(src, /missing_start_date:\s*0/);
   assert.match(src, /late_end_date:\s*0/);

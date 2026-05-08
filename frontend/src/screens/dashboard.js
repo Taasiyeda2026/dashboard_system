@@ -103,15 +103,20 @@ function renderStructuredSummary(summary, ym, byManager) {
   const monthTitle     = hebrewMonthTitle(ym);
 
   const endingCurrentField = getStrictNumericField(summary, 'ending_courses_current_month');
-  const operationalGapsField = getStrictNumericField(summary, 'operational_gaps_count');
-  const missingInstrField = operationalGapsField.ok ? operationalGapsField : getStrictNumericField(summary, 'missing_instructor_count');
-  const lateEndField = getStrictNumericField(summary, 'late_end_date_count');
-  const exceptionsTotalField = getStrictNumericField(summary, 'exceptions_count');
-  const exceptionsTotalResolved = exceptionsTotalField.ok ? exceptionsTotalField.value : 0;
+  const counts = summary?.counts && typeof summary.counts === 'object' ? summary.counts : {};
+  const missingInstructorCount = pickNumericFallback(counts, 'missing_instructor', summary?.missing_instructor_count);
+  const missingStartDateCount = pickNumericFallback(counts, 'missing_start_date', summary?.missing_start_date_count ?? summary?.missing_date_count);
+  const lateEndCount = pickNumericFallback(counts, 'late_end_date', summary?.late_end_date_count);
+  const operationalGapsCount = missingInstructorCount + missingStartDateCount;
+  const exceptionsTotalField = getStrictNumericField(summary, 'totalExceptionRows');
+  const exceptionsTotalFallback = getStrictNumericField(summary, 'exceptions_count');
+  const exceptionsTotalResolved = exceptionsTotalField.ok
+    ? exceptionsTotalField.value
+    : (exceptionsTotalFallback.ok ? exceptionsTotalFallback.value : 0);
 
   const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 0));
-  const operationalGaps = escapeHtml(String(missingInstrField.ok ? missingInstrField.value : 0));
-  const lateEnd = escapeHtml(String(lateEndField.ok ? lateEndField.value : 0));
+  const operationalGaps = escapeHtml(String(operationalGapsCount));
+  const lateEnd = escapeHtml(String(lateEndCount));
   const exceptionsTotal = escapeHtml(String(exceptionsTotalResolved));
 
   const typeCounts = summary?.active_type_counts || {};
