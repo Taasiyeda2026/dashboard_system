@@ -18,6 +18,8 @@ import {
   splitVisibleRows
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
+import { getFilterOptionOverrides } from './shared/activity-options.js';
+import { isEmptyValue } from '../utils/empty-value.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
 
@@ -38,8 +40,8 @@ const EXCEPTION_FILTER_FIELDS = [
 ];
 
 function fieldRow(label, value) {
-  const display = (value !== undefined && value !== null && value !== '')
-    ? escapeHtml(String(value))
+  const display = !isEmptyValue(value)
+    ? escapeHtml(String(value).trim())
     : '<em style="color:var(--ds-text-muted)">—</em>';
   return `<p><strong>${escapeHtml(label)}:</strong> ${display}</p>`;
 }
@@ -63,10 +65,10 @@ function exceptionDrawerHtml(row, hideRowId) {
   const exceptionTypes = Array.isArray(row.exception_types) ? row.exception_types : [row.exception_type].filter(Boolean);
   const chips = exceptionTypes.map((et) => dsStatusChip(hebrewExceptionType(String(et || '').trim()), 'neutral')).join(' ');
 
-  const instructor  = row.instructor_name  || '';
-  const instructor2 = row.instructor_name_2 || '';
-  const startDate   = formatDateHe(row.start_date) || row.start_date || '';
-  const endDate     = formatDateHe(row.end_date)   || row.end_date   || '';
+  const instructor  = isEmptyValue(row.instructor_name) ? '' : String(row.instructor_name).trim();
+  const instructor2 = isEmptyValue(row.instructor_name_2) ? '' : String(row.instructor_name_2).trim();
+  const startDate   = isEmptyValue(row.start_date) ? '' : (formatDateHe(row.start_date) || String(row.start_date).trim());
+  const endDate     = isEmptyValue(row.end_date)   ? '' : (formatDateHe(row.end_date)   || String(row.end_date).trim());
   const grade = String(row.grade || '').trim();
   const classGroup = String(row.class_group || '').trim();
   const classDisplay = [grade, classGroup].filter(Boolean).join(' ');

@@ -164,8 +164,8 @@ function activitiesInstructorCoverageStats_(rows) {
   var withEmpId = 0;
   var missingInstructor = 0;
   list.forEach(function(row) {
-    var hasName = !!(text_(row && row.instructor_name) || text_(row && row.instructor_name_2));
-    var hasEmp = !!(text_(row && row.emp_id) || text_(row && row.emp_id_2));
+    var hasName = !isEmptyValue_(row && row.instructor_name) || !isEmptyValue_(row && row.instructor_name_2);
+    var hasEmp = !isEmptyValue_(row && row.emp_id) || !isEmptyValue_(row && row.emp_id_2);
     if (hasName) withInstructorName++;
     if (hasEmp) withEmpId++;
     if (!hasName && !hasEmp) missingInstructor++;
@@ -219,8 +219,8 @@ function filterActivitiesSnapshotRows_(rows, payload) {
 }
 
 function rowHasInstructorData_(row) {
-  var hasName = !!(text_(row && row.instructor_name) || text_(row && row.instructor_name_2) || text_(row && row.Employee) || text_(row && row.Employee2));
-  var hasEmp = !!(text_(row && row.emp_id) || text_(row && row.emp_id_2) || text_(row && row.EmployeeID) || text_(row && row.EmployeeID2));
+  var hasName = !isEmptyValue_(row && row.instructor_name) || !isEmptyValue_(row && row.instructor_name_2) || !isEmptyValue_(row && row.Employee) || !isEmptyValue_(row && row.Employee2);
+  var hasEmp = !isEmptyValue_(row && row.emp_id) || !isEmptyValue_(row && row.emp_id_2) || !isEmptyValue_(row && row.EmployeeID) || !isEmptyValue_(row && row.EmployeeID2);
   return hasName || hasEmp;
 }
 
