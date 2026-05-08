@@ -45,6 +45,42 @@ function fieldRow(label, value) {
   return `<p><strong>${escapeHtml(label)}:</strong> ${display}</p>`;
 }
 
+function normalizedExceptionTypes(row) {
+  if (Array.isArray(row?.exception_types)) return row.exception_types.map((type) => String(type || '').trim()).filter(Boolean);
+  return [row?.exception_type].map((type) => String(type || '').trim()).filter(Boolean);
+}
+
+function numericCount(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function exceptionCountFromRows(rows, type) {
+  return (Array.isArray(rows) ? rows : []).reduce(
+    (sum, row) => sum + (normalizedExceptionTypes(row).includes(type) ? 1 : 0),
+    0
+  );
+}
+
+function exceptionsOperationalSummaryHtml(data, rows) {
+  const counts = data?.counts && typeof data.counts === 'object' ? data.counts : {};
+  const missingInstructor = counts.missing_instructor !== undefined
+    ? numericCount(counts.missing_instructor)
+    : exceptionCountFromRows(rows, 'missing_instructor');
+  const missingStartDate = counts.missing_start_date !== undefined
+    ? numericCount(counts.missing_start_date)
+    : exceptionCountFromRows(rows, 'missing_start_date');
+  const operationalTotal = missingInstructor + missingStartDate;
+
+  return dsCard({
+    title: `חריגות תפעוליות: ${escapeHtml(String(operationalTotal))}`,
+    body: `<div class="ds-summary-panel__structured" dir="rtl">
+      <p class="ds-summary-panel__text">חסר מדריך: <strong>${escapeHtml(String(missingInstructor))}</strong></p>
+      <p class="ds-summary-panel__text">חסר תאריך התחלה: <strong>${escapeHtml(String(missingStartDate))}</strong></p>
+    </div>`
+  });
+}
+
 function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
@@ -61,7 +97,7 @@ function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, 
 }
 
 function exceptionDrawerHtml(row, hideRowId) {
-  const exceptionTypes = Array.isArray(row.exception_types) ? row.exception_types : [row.exception_type].filter(Boolean);
+  const exceptionTypes = normalizedExceptionTypes(row);
   const chips = exceptionTypes.map((et) => dsStatusChip(hebrewExceptionType(String(et || '').trim()), 'neutral')).join(' ');
 
   const instructor  = isEmptyValue(row.instructor_name) ? '' : String(row.instructor_name).trim();
@@ -122,12 +158,11 @@ export const exceptionsScreen = {
         ? dsEmptyState('לא נמצאו חריגות')
         : `<div class="ds-compact-list">${visibleRows
             .map((row, idx) => {
-              const et = String(row.exception_type || '').trim();
               const subtitleParts = [row.authority, row.school].filter(Boolean);
               const subtitleHtml  = subtitleParts.length
                 ? `<p class="ds-interactive-card__subtitle">${escapeHtml(subtitleParts.join(' · '))}</p>`
                 : '';
-              const exTypes = Array.isArray(row.exception_types) ? row.exception_types : [et].filter(Boolean);
+              const exTypes = normalizedExceptionTypes(row);
               const chips = exTypes.map((type) => dsStatusChip(hebrewExceptionType(type), 'neutral')).join(' ');
               const multiBadge = exTypes.length > 1 ? `<span class="ds-badge" aria-label="${escapeHtml(String(exTypes.length))} חריגות">${escapeHtml(String(exTypes.length))}</span>` : '';
               const chipHtml = `<p class="ds-interactive-card__meta">${chips} ${multiBadge}</p>`;
@@ -146,6 +181,7 @@ export const exceptionsScreen = {
 
     return dsScreenStack(`
       ${toolbarHtml}
+      <section class="ds-screen-compact-90">${exceptionsOperationalSummaryHtml(data, allRows)}</section>
       <section class="ds-screen-compact-90">${dsCard({
         title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ חריגות: ${escapeHtml(String(data?.totalExceptionRows ?? total))}`,
         body: compact,
@@ -201,7 +237,7 @@ export const exceptionsScreen = {
     }
 
     function exceptionTypeHeader(summaryRow) {
-      const exTypes = Array.isArray(summaryRow?.exception_types) ? summaryRow.exception_types : [summaryRow?.exception_type].filter(Boolean);
+      const exTypes = normalizedExceptionTypes(summaryRow);
       if (!exTypes.length) return '';
       const chips = exTypes.map((et) => dsStatusChip(hebrewExceptionType(String(et || '').trim()), 'neutral')).join(' ');
       const multiBadge = exTypes.length > 1 ? `<span class="ds-badge" aria-label="${escapeHtml(String(exTypes.length))} חריגות">${escapeHtml(String(exTypes.length))}</span>` : '';
