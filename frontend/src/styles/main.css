@@ -8970,3 +8970,123 @@ select.ds-activity-add-field .ds-input,
     font-size: 0.68rem;
   }
 }
+
+/* ============================================================
+   Instructors page redesign – 2026-05
+   Compact 2×2 icon-grid cards, accent-responsive
+   ============================================================ */
+
+.instr-page-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  margin-bottom: 6px;
+  border-radius: var(--ds-radius-md);
+  background: color-mix(in srgb, var(--ds-accent) 6%, #fff);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 14%, transparent);
+}
+
+.instr-page-header__title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--ds-accent);
+}
+
+.instr-page-header__count {
+  font-size: 0.78rem;
+  color: var(--ds-text-muted);
+}
+
+.instr-page .ds-card .ds-card__head {
+  display: none;
+}
+
+.instr-page .ci-list--instr-grid {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+  padding: 6px;
+}
+
+@media (max-width: 480px) {
+  .instr-page .ci-list--instr-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.instr-page .ci-list--instr-grid .instr-summary-row,
+.instr-page .instr-card .instr-summary-row {
+  min-height: unset;
+  padding: 8px 8px 7px;
+  background: color-mix(in srgb, var(--ds-accent) 5%, #fff);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 12%, transparent);
+  border-inline-start-width: 1px;
+  border-radius: 10px;
+  box-shadow: none;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+
+.instr-page .ci-list--instr-grid .instr-summary-row:hover,
+.instr-page .instr-card .instr-summary-row:hover {
+  background: color-mix(in srgb, var(--ds-accent) 10%, #fff);
+  border-color: color-mix(in srgb, var(--ds-accent) 28%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-accent) 10%, transparent);
+}
+
+.instr-page .ci-row__main {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  padding: 0;
+}
+
+.instr-page .ci-row__name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ds-text);
+  text-align: center;
+  width: 100%;
+  padding-bottom: 5px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-accent) 12%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.instr-page .instr-stats {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  width: 100%;
+  margin-inline-start: 0;
+}
+
+.instr-page .instr-stat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  min-height: unset;
+  background: color-mix(in srgb, var(--ds-accent) 7%, transparent);
+  border-radius: 6px;
+  padding: 0;
+  width: 100%;
+}
+
+.instr-stat__icon {
+  display: flex;
+  align-items: center;
+  color: var(--ds-accent);
+  flex-shrink: 0;
+}
+
+.instr-page .instr-stat__num {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ds-text);
+}
+
+.instr-page .instr-stat__lbl {
+  display: none;
+}

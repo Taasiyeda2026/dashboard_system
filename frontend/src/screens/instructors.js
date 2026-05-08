@@ -46,32 +46,39 @@ function globalDateRange(rows) {
   return { min, max };
 }
 
+function instructorTypeIcon(icon) {
+  const S = (d) => `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const map = {
+    book:        S('<path d="M3 2.5C4.5 2 6.5 2 8 3V14C6.5 13 4.5 13 3 13.5V2.5z"/><path d="M13 2.5C11.5 2 9.5 2 8 3V14C9.5 13 11.5 13 13 13.5V2.5z"/>'),
+    pin:         S('<path d="M8 1.5a4 4 0 0 1 4 4c0 4-4 9-4 9s-4-5-4-9a4 4 0 0 1 4-4z"/><circle cx="8" cy="5.5" r="1.4"/>'),
+    bulb:        S('<path d="M8 2a4 4 0 0 1 2.8 6.8L11 10H5l.2-1.2A4 4 0 0 1 8 2z"/><line x1="6.5" y1="12" x2="9.5" y2="12"/><line x1="7" y1="14" x2="9" y2="14"/>'),
+    schoolClock: S('<circle cx="8" cy="8" r="6"/><polyline points="8 4.5 8 8 10.5 9.5"/>'),
+  };
+  return map[icon] || '';
+}
+
+const TYPE_ITEMS = [
+  { keys: ['course', 'קורס', 'קורסים'],                                                  label: 'קורסים',    icon: 'book'        },
+  { keys: ['tour', 'סיור', 'סיורים'],                                                     label: 'סיורים',    icon: 'pin'         },
+  { keys: ['workshop', 'סדנה', 'סדנאות'],                                                 label: 'סדנאות',    icon: 'bulb'        },
+  { keys: ['after_school', 'after school', 'afterschool', 'חוג אפטרסקול', 'אפטרסקול'], label: 'אפטרסקול', icon: 'schoolClock' },
+];
+
 function renderInstructorRow(row) {
   const name       = escapeHtml(row.full_name || row.emp_id || '—');
   const empId      = String(row.emp_id || '').trim();
   const typeCounts = row.activity_type_counts || {};
 
-  const TYPE_LABELS = [
-    [['course', 'קורס', 'קורסים'], 'קורסים'],
-    [['tour', 'סיור', 'סיורים'], 'סיורים'],
-    [['workshop', 'סדנה', 'סדנאות'], 'סדנאות'],
-    [['after_school', 'after school', 'afterschool', 'חוג אפטרסקול', 'אפטרסקול'], 'חוג אפטרסקול'],
-  ];
-  const typeStats = TYPE_LABELS.map(([keys, label]) => ({
-    label,
-    count: keys.reduce((sum, key) => sum + Number(typeCounts[key] || 0), 0)
-  }));
-  const typeStatParts = typeStats
-    .map(({ count, label }) => `<span class="instr-stat"><span class="instr-stat__lbl">${label}</span><span class="instr-stat__num">${count}</span></span>`)
-    .join('');
-
-  const statsHtml = `<span class="instr-stats">${typeStatParts}</span>`;
+  const statCells = TYPE_ITEMS.map(({ keys, label, icon }) => {
+    const count = keys.reduce((sum, key) => sum + Number(typeCounts[key] || 0), 0);
+    return `<span class="instr-stat" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${count}"><span class="instr-stat__icon">${instructorTypeIcon(icon)}</span><span class="instr-stat__num">${count}</span></span>`;
+  }).join('');
 
   return `<article class="instr-card" data-instructor-item="${escapeHtml(empId)}">
     <button type="button" class="ci-row instr-summary-row" dir="rtl" data-instructor-card="${escapeHtml(empId)}" data-instructor-name="${name}">
       <div class="ci-row__main">
         <span class="ci-row__name">${name}</span>
-        ${statsHtml}
+        <span class="instr-stats">${statCells}</span>
       </div>
     </button>
   </article>`;
@@ -207,15 +214,16 @@ export const instructorsScreen = {
         hasMore ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${INSTRUCTORS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>` : ''
       }`;
 
-    const subtitle = `מדריכים פעילים (${filtered.length})`;
+    const pageHeader = `<div class="instr-page-header" dir="rtl"><span class="instr-page-header__title">מדריכים פעילים</span><span class="instr-page-header__count">${filtered.length} מדריכים</span></div>`;
 
     return dsScreenStack(`
-      <section class="ds-screen-compact-90">
+      <section class="ds-screen-compact-90 instr-page">
+      ${pageHeader}
       <div class="ds-screen-top-row">
         ${toolbarHtml}
       </div>
       ${dateFilterBarHtml(dateFrom, dateTo, globalMin, globalMax)}
-      ${dsCard({ title: subtitle, body: bodyHtml, padded: filtered.length === 0 })}
+      ${dsCard({ title: '', body: bodyHtml, padded: filtered.length === 0 })}
       </section>
     `);
   },
