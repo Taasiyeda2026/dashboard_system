@@ -602,13 +602,22 @@ async function readInstructorsFromSupabase() {
  * Only metrics computed from the same Supabase dashboard path are emitted.
  */
 function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionCount, uniqueInstructorCount, courseEndings) {
-  void activeTypeCounts;
+  void totals;
+  const typeCards = [
+    { id: 'active_courses',      action: 'kpi|active_courses',      subtitle: 'קורסים',    key: 'course' },
+    { id: 'active_workshops',    action: 'kpi|active_workshops',    subtitle: 'סדנאות',    key: 'workshop' },
+    { id: 'active_tours',        action: 'kpi|active_tours',        subtitle: 'סיורים',    key: 'tour' },
+    { id: 'active_after_school', action: 'kpi|active_after_school', subtitle: 'אפטרסקול', key: 'after_school' },
+  ].map(({ id, action, subtitle, key }) => ({
+    id, action, subtitle,
+    title: String(activeTypeCounts[key] || 0),
+    value: activeTypeCounts[key] || 0
+  }));
   return [
-    { id: 'short', action: 'kpi|short', title: String(totals.total_short_activities), subtitle: 'חד-יומי', value: totals.total_short_activities },
-    { id: 'long', action: 'kpi|long', title: String(totals.total_long_activities), subtitle: 'תוכניות', value: totals.total_long_activities },
+    ...typeCards,
     { id: 'instructors', action: 'kpi|instructors', title: String(uniqueInstructorCount), subtitle: 'מדריכים פעילים', value: uniqueInstructorCount },
-    { id: 'endings', action: 'kpi|endings', title: String(courseEndings), subtitle: 'סיומי קורסים', value: courseEndings },
-    { id: 'exceptions', action: 'kpi|exceptions', title: String(exceptionCount), subtitle: 'חריגות', value: exceptionCount }
+    { id: 'endings',     action: 'kpi|endings',     title: String(courseEndings),         subtitle: 'סיומי קורסים',   value: courseEndings },
+    { id: 'exceptions',  action: 'kpi|exceptions',  title: String(exceptionCount),        subtitle: 'חריגות',          value: exceptionCount }
   ];
 }
 
@@ -791,13 +800,29 @@ async function dashboardReadModelFromSupabase(month) {
     const monthPrefix = String(month || '').slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(monthPrefix)) return null;
     const range = monthDateRange(monthPrefix);
-    const openRows = (await selectActivitiesByDateRangeFromSupabase({
+    // Fetch all rows for the date range (open + closed) — no status filter here
+    const allRangeRows = await selectActivitiesByDateRangeFromSupabase({
       startDate: range.startDate,
       endDate: range.endDate,
       includeEndDate: true
-    })).filter((row) => !isActivityClosed(row));
+    });
+    // Open-only rows (not closed) — used for summary, instructor/manager stats, exceptions
+    const openRows = allRangeRows.filter((row) => !isActivityClosed(row));
+    // Open-only rows that have a date in this month — for summary data
     const monthRows = openRows.filter((row) => activityHasDateInMonth(row, monthPrefix));
-    const endingRows = openRows.filter((row) => isProgramActivity(row) && String(row?.end_date || '').slice(0, 7) === monthPrefix);
+    // All rows (open + closed) in this month — for KPI type counts
+    const allMonthRows = allRangeRows.filter((row) => activityHasDateInMonth(row, monthPrefix));
+    // Course endings: courses whose end_date is this month (open + closed = completed courses)
+    const endingRows = allRangeRows.filter((row) => rowActivityType(row) === 'course' && String(row?.end_date || '').slice(0, 7) === monthPrefix);
+
+    // KPI type counts — includes all activities (open + closed) for the full monthly picture
+    const totalTypeCounts = {};
+    for (const row of allMonthRows) {
+      const activityType = rowActivityType(row);
+      if (activityType) totalTypeCounts[activityType] = (totalTypeCounts[activityType] || 0) + 1;
+    }
+
+    // Active (open-only) summary data
     const instructorIds = new Set();
     const instructorNames = new Set();
     const activeTypeCounts = {};
@@ -872,9 +897,9 @@ async function dashboardReadModelFromSupabase(month) {
     });
     const exceptionsCount = totalExceptionsActivityCount;
     const totals = {
-      total_short_activities: monthRows.filter(isOneDayActivity).length,
-      total_long_activities: monthRows.filter(isProgramActivity).length,
-      total_activities: monthRows.length,
+      total_short_activities: allMonthRows.filter(isOneDayActivity).length,
+      total_long_activities: allMonthRows.filter(isProgramActivity).length,
+      total_activities: allMonthRows.length,
       total_instructors: instructorIds.size,
       total_course_endings_current_month: endingRows.length,
       exceptions_count: exceptionsCount
@@ -890,8 +915,9 @@ async function dashboardReadModelFromSupabase(month) {
       operational_gaps_count: operationalGapsCount,
       exceptions_count: exceptionsCount
     };
-    const kpi_cards = buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionsCount, instructorIds.size, endingRows.length);
-    const noData = monthRows.length === 0;
+    // KPI cards use totalTypeCounts (all month rows including closed)
+    const kpi_cards = buildDashboardKpiCardsFromSupabase(totals, totalTypeCounts, exceptionsCount, instructorIds.size, endingRows.length);
+    const noData = allMonthRows.length === 0;
     return {
       month: monthPrefix,
       requested_month: month,
@@ -899,6 +925,7 @@ async function dashboardReadModelFromSupabase(month) {
       summary,
       by_activity_manager,
       activeTypeCounts,
+      totalTypeCounts,
       exceptionCount: exceptionsCount,
       uniqueInstructorCount: instructorIds.size,
       courseEndings: endingRows.length,
