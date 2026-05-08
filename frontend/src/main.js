@@ -731,6 +731,15 @@ function resolveAllowedDefaultRoute(preferred, routes) {
   return knownRoutes[0] || 'my-data';
 }
 
+function resolveAuthenticatedRoute(preferred, routes = effectiveRoutes()) {
+  const knownRoutes = Array.isArray(routes)
+    ? routes.filter((r) => !!screenLoaders[r] && !PERMANENTLY_DISABLED_ROUTES.has(r))
+    : [];
+  if (preferred && preferred !== 'login' && knownRoutes.includes(preferred)) return preferred;
+  if (knownRoutes.includes('dashboard')) return 'dashboard';
+  return resolveAllowedDefaultRoute('', knownRoutes);
+}
+
 function bootstrapSupabaseReadonlySession() {
   if (!SUPABASE_READONLY_CUTOVER) return;
   if (!state.token) {
@@ -1473,7 +1482,7 @@ async function restoreSession() {
 
 async function mountScreen() {
   redirectIfDisabledRoute();
-  const requestedRoute = state.route;
+  let requestedRoute = state.route;
   const transitionToken = ++navigationToken;
   activeNavigationToken = transitionToken;
   latestNavigationRoute = requestedRoute;
@@ -1494,7 +1503,20 @@ async function mountScreen() {
       await restoreSession();
     }
   }
-  if (!isAllowedRoute(state.route)) state.route = resolveAllowedDefaultRoute('', state.routes);
+  if (!isAllowedRoute(state.route)) state.route = resolveAuthenticatedRoute(state.route, state.routes);
+
+  if (requestedRoute !== state.route) {
+    const previousRequestedRoute = requestedRoute;
+    requestedRoute = state.route;
+    latestNavigationRoute = requestedRoute;
+    // eslint-disable-next-line no-console
+    console.info('[route-load:corrected]', {
+      previousRequestedRoute,
+      requestedRoute,
+      stateRoute: state.route,
+      reason: previousRequestedRoute === 'login' ? 'authenticated-login-redirect' : 'route-state-correction'
+    });
+  }
 
   if (transitionToken !== activeNavigationToken || requestedRoute !== latestNavigationRoute) {
     finishRouteTransition(transitionLabel, requestedRoute, screenDataCacheKey(), mountStartMs, transitionToken);
@@ -1513,6 +1535,8 @@ async function mountScreen() {
     const fallback = effectiveRoutes().find((r) => !!screenLoaders[r]);
     if (fallback) {
       state.route = fallback;
+      requestedRoute = fallback;
+      latestNavigationRoute = fallback;
       screen = await getScreen(fallback);
     }
   }
