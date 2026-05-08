@@ -342,6 +342,26 @@ test('frontend exceptions title uses totalExceptionRows', async () => {
   );
 });
 
+test('frontend exceptions screen renders operational summary as parent total with child counts', async () => {
+  const src = await read('frontend/src/screens/exceptions.js');
+  assert.match(src, /function exceptionsOperationalSummaryHtml\(data, rows\)/,
+    'exceptions screen must render an operational summary block');
+  assert.match(src, /const operationalTotal = missingInstructor \+ missingStartDate/,
+    'operational parent count must be the sum of missing instructor and missing start date instances');
+  assert.match(src, /חריגות תפעוליות: \$\{escapeHtml\(String\(operationalTotal\)\)\}/,
+    'operational summary must display the parent category count');
+  assert.match(src, /חסר מדריך: <strong>\$\{escapeHtml\(String\(missingInstructor\)\)\}<\/strong>/,
+    'operational summary must display missing instructor as a separate exception count');
+  assert.match(src, /חסר תאריך התחלה: <strong>\$\{escapeHtml\(String\(missingStartDate\)\)\}<\/strong>/,
+    'operational summary must display missing start date as a separate exception count');
+});
+
+test('frontend exception Hebrew labels describe the missing operational details', async () => {
+  const src = await read('frontend/src/screens/shared/ui-hebrew.js');
+  assert.match(src, /missing_instructor:\s+'חסר מדריך'/);
+  assert.match(src, /missing_start_date:\s+'חסר תאריך התחלה'/);
+});
+
 test('frontend drawer shows exception type chip when opening activity detail', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
   assert.match(src, /exceptionTypeHeader/,
