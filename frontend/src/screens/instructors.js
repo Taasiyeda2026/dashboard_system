@@ -181,29 +181,18 @@ function updatePopupBody(items, name) {
   }
 }
 
-function monthFilterBarHtml(fromYm, toYm, minYm, maxYm) {
+function monthFilterBarHtml(fromYm, minYm, maxYm) {
   if (!minYm || !maxYm) return '';
   const opts = buildMonthOptions(minYm, maxYm);
-  const blankOpt = '<option value="">— הכל —</option>';
+  const blankOpt = '<option value="">— כל התקופה —</option>';
   const fromOpts = opts.map((o) =>
     `<option value="${escapeHtml(o.value)}"${o.value === fromYm ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
   ).join('');
-  const toOpts = opts.map((o) =>
-    `<option value="${escapeHtml(o.value)}"${o.value === toYm ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
-  ).join('');
-  const hasDates = fromYm || toYm;
-  const clearBtn = hasDates
-    ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-instr-date-clear title="נקה סינון חודשים">✕ נקה</button>`
+  const clearBtn = fromYm
+    ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-instr-date-clear title="נקה סינון חודש">✕</button>`
     : '';
   return `<div class="instr-date-filter" dir="rtl">
-    <label class="instr-month-label">
-      <span class="ds-muted">מ-</span>
-      <select class="ds-input ds-input--sm" data-instr-month-from>${blankOpt}${fromOpts}</select>
-    </label>
-    <label class="instr-month-label">
-      <span class="ds-muted">עד-</span>
-      <select class="ds-input ds-input--sm" data-instr-month-to>${blankOpt}${toOpts}</select>
-    </label>
+    <select class="ds-input ds-input--sm" data-instr-month-from>${blankOpt}${fromOpts}</select>
     ${clearBtn}
   </div>`;
 }
@@ -228,11 +217,10 @@ export const instructorsScreen = {
 
     const instrState = state._instrDateFilter = state._instrDateFilter || {};
     const dateFrom = instrState.from || '';
-    const dateTo   = instrState.to   || '';
 
     const { min: globalMin, max: globalMax } = globalDateRange(activeRows);
 
-    const filtered = applyDateFilter(locallyFiltered, dateFrom, dateTo);
+    const filtered = applyDateFilter(locallyFiltered, dateFrom, '');
     const { visible: visibleRows, hasMore, nextCount } = splitVisibleRows(filtered, filters);
 
     const toolbarHtml = filtersToolbarHtml(INSTRUCTORS_SCOPE, activeRows, state, {
@@ -244,7 +232,7 @@ export const instructorsScreen = {
       ? '<p class="ds-muted" role="status">נתוני הפעילויות לא נטענו, ולכן לא ניתן לחשב שיוך מדריכים.</p>'
       : '';
     const bodyHtml = visibleRows.length === 0
-      ? dsEmptyState(filters.q || dateFrom || dateTo ? 'לא נמצאו מדריכים לסינון זה' : 'אין נתוני מדריכים')
+      ? dsEmptyState(filters.q || dateFrom ? 'לא נמצאו מדריכים לסינון זה' : 'אין נתוני מדריכים')
       : `${mappingWarning}<div class="ci-list ci-list--instr-grid">${visibleRows.map((row) => renderInstructorRow(row)).join('')}</div>${
         hasMore ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${INSTRUCTORS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>` : ''
       }`;
@@ -257,7 +245,7 @@ export const instructorsScreen = {
       <div class="ds-screen-top-row">
         ${toolbarHtml}
       </div>
-      ${monthFilterBarHtml(dateFrom, dateTo, globalMin, globalMax)}
+      ${monthFilterBarHtml(dateFrom, globalMin, globalMax)}
       ${dsCard({ title: '', body: bodyHtml, padded: filtered.length === 0 })}
       </section>
     `);
@@ -273,7 +261,6 @@ export const instructorsScreen = {
     const instrState = state._instrDateFilter = state._instrDateFilter || {};
 
     const fromSel  = root.querySelector('[data-instr-month-from]');
-    const toSel    = root.querySelector('[data-instr-month-to]');
     const clearBtn = root.querySelector('[data-instr-date-clear]');
 
     if (fromSel) {
@@ -282,16 +269,9 @@ export const instructorsScreen = {
         rerender();
       });
     }
-    if (toSel) {
-      toSel.addEventListener('change', () => {
-        instrState.to = toSel.value || '';
-        rerender();
-      });
-    }
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
         instrState.from = '';
-        instrState.to   = '';
         rerender();
       });
     }
