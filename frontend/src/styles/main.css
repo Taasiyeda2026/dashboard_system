@@ -976,12 +976,24 @@ select {
   gap: var(--ds-space-3);
 }
 
+/* Dashboard KPI two-row wrapper */
+.ds-dashboard-kpi-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+}
+
 /* Dashboard KPI cards: compact, balanced, centered */
 .ds-dashboard-kpi-grid {
   grid-template-columns: repeat(auto-fit, minmax(100px, 130px));
   justify-content: center;
   margin-inline: auto;
   max-width: 720px;
+}
+
+.ds-dashboard-kpi-grid--row2 {
+  grid-template-columns: repeat(auto-fit, minmax(110px, 148px));
+  max-width: 540px;
 }
 
 @media (min-width: 720px) {

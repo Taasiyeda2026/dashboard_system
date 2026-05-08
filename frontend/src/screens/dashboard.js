@@ -393,8 +393,11 @@ export const dashboardScreen = {
       ? `<div class="ds-manager-grid">${managerCards}</div>`
       : `<div class="ds-empty"><p class="ds-empty__msg">${escapeHtml(emptyDashboardMessage)}</p></div>`;
 
+    const typeKpiCards  = kpiCards.filter((c) => String(c.action || '').startsWith('kpi|active_'));
+    const statKpiCards  = kpiCards.filter((c) => !String(c.action || '').startsWith('kpi|active_'));
     const kpiHtml = kpiCards.length
-      ? kpiCards.map(renderKpiCard).join('')
+      ? `<div class="ds-kpi-grid ds-dashboard-kpi-grid">${typeKpiCards.map(renderKpiCard).join('')}</div>
+         <div class="ds-kpi-grid ds-dashboard-kpi-grid ds-dashboard-kpi-grid--row2">${statKpiCards.map(renderKpiCard).join('')}</div>`
       : '<p class="ds-muted">אין כרטיסי KPI להצגה.</p>';
 
     const navLoading = !!state?.dashboardNavLoading;
@@ -419,7 +422,7 @@ export const dashboardScreen = {
           <div class="ds-summary-panel" data-summary-panel="national" hidden>
             <div class="ds-summary-panel__content"></div>
           </div>
-          <div class="ds-kpi-grid ds-dashboard-kpi-grid">${kpiHtml}</div>
+          <div class="ds-dashboard-kpi-rows">${kpiHtml}</div>
           <div style="margin-top: var(--ds-space-3)"></div>
           ${dsCard({
             title: 'פעילויות לפי מחוזות',
