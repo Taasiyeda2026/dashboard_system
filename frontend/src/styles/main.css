@@ -366,11 +366,11 @@ select {
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   margin-top: auto;
   padding-top: var(--ds-space-4);
   border-top: 1px solid var(--ds-shell-border);
-  gap: var(--ds-space-2);
+  gap: 6px;
 }
 
 .shell-backdrop {
@@ -8798,10 +8798,18 @@ select.ds-activity-add-field .ds-input,
 .ds-accent-swatch.is-active { border-color: var(--ds-text); transform: scale(1.08); }
 
 .shell-logout-btn--sidebar {
-  width: 36px;
-  height: 36px;
+  width: 26px;
+  height: 26px;
+  font-size: 0.82rem;
   border-radius: 50%;
   justify-content: center;
+}
+
+.shell-sidebar__footer .ds-accent-picker-btn {
+  width: 26px;
+  height: 26px;
+  border-width: 1.5px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
 }
 .shell-logout-btn__text { display: none; }
 
