@@ -1,9 +1,9 @@
 /**
  * Service worker implementation (loaded from /sw.js via importScripts so scope stays /).
- * Static assets + app shell: cache-first. API-like requests: network only, never cached.
- * Bump CACHE_VERSION after deploy to drop old caches.
+ * App shell, JS and CSS: network-first so a normal reload can pick up a new deploy.
+ * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 346;
+const CACHE_VERSION = 347;
 const CACHE_NAME = `dashboard-static-v${CACHE_VERSION}`;
 
 /** Relative paths from sw.js location — works on any origin/proxy (Replit, deploy, etc). */
@@ -43,6 +43,15 @@ function isNavigationRequest(request) {
   return request.mode === 'navigate' || (request.destination && request.destination === 'document');
 }
 
+function shouldStoreResponse(response) {
+  return response && response.ok && response.type === 'basic' && sameOrigin(new URL(response.url));
+}
+
+function withNoStore(request) {
+  if (request.cache === 'no-store') return request;
+  return new Request(request, { cache: 'no-store' });
+}
+
 async function cacheFirst(request, cache) {
   const matchOpts = { ignoreSearch: true };
   let cached = await cache.match(request, matchOpts);
@@ -52,15 +61,28 @@ async function cacheFirst(request, cache) {
   if (cached) return cached;
 
   const response = await fetch(request);
-  if (
-    response &&
-    response.ok &&
-    response.type === 'basic' &&
-    sameOrigin(new URL(response.url))
-  ) {
+  if (shouldStoreResponse(response)) {
     cache.put(request, response.clone()).catch(() => {});
   }
   return response;
+}
+
+async function networkFirst(request, cache) {
+  const matchOpts = { ignoreSearch: true };
+  try {
+    const response = await fetch(withNoStore(request));
+    if (shouldStoreResponse(response)) {
+      cache.put(request, response.clone()).catch(() => {});
+    }
+    return response;
+  } catch (err) {
+    let cached = await cache.match(request, matchOpts);
+    if (!cached && isNavigationRequest(request)) {
+      cached = await cache.match(resolveUrl('./index.html'), matchOpts);
+    }
+    if (cached) return cached;
+    throw err;
+  }
 }
 
 self.addEventListener('install', (event) => {
@@ -103,5 +125,6 @@ self.addEventListener('fetch', (event) => {
 
   if (!(isNavigationRequest(request) || isStaticAssetUrl(url))) return;
 
-  event.respondWith(caches.open(CACHE_NAME).then((cache) => cacheFirst(request, cache)));
+  const networkFresh = isNavigationRequest(request) || url.pathname.endsWith('.html') || url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
+  event.respondWith(caches.open(CACHE_NAME).then((cache) => networkFresh ? networkFirst(request, cache) : cacheFirst(request, cache)));
 });

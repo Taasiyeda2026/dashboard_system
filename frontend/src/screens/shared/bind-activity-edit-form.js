@@ -227,7 +227,7 @@ export function bindActivityEditForm(contentRoot, {
       }
       setEditMode(form, false);
       if (canDirectEdit && typeof onSaveSuccess === 'function') {
-        await onSaveSuccess({ sourceSheet, sourceRowId, changes, form });
+        await onSaveSuccess({ sourceSheet, sourceRowId, changes, form, contentRoot });
       } else if (typeof quietRefresh === 'function') {
         quietRefresh({ sourceSheet, sourceRowId, changes: canDirectEdit ? changes : {}, form });
       } else if (typeof rerender === 'function') {

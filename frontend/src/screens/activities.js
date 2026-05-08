@@ -624,7 +624,24 @@ export const activitiesScreen = {
           const entry = state?.screenDataCache?.[key];
           if (entry?.data && typeof entry.data === 'object') Object.assign(entry.data, changes || {});
         },
-        onSaveSuccess: async ({ sourceRowId }) => {
+        onSaveSuccess: async ({ sourceSheet, sourceRowId, contentRoot }) => {
+          try {
+            const rsp = await api.activityDetail(sourceRowId, sourceSheet || 'activities');
+            const freshRow = rsp?.row;
+            if (freshRow && contentRoot) {
+              putCachedActivityDetail({ RowID: sourceRowId, source_sheet: sourceSheet || 'activities' }, freshRow, state);
+              contentRoot.innerHTML = activityDrawerContent(
+                freshRow, canSeePrivateNotes, canEditActivity, !!state?.user?.can_edit_direct,
+                hideEmpIds, hideRowId, hideActivityNo,
+                mergeSettingsWithFallback(state?.clientSettings || {}, buildFallbackOptionsFromRows(activitiesRows)),
+                { datesLoading: false }
+              );
+              hideShellHeader(contentRoot);
+              bindActivityEditForm(contentRoot);
+            }
+          } catch (err) {
+            console.warn('[activity-refresh-after-save:failed]', { sourceRowId, error: err?.message || String(err) });
+          }
           rerenderLocal();
           void scheduleQuietRefresh();
           const rowNode = Array.from(root.querySelectorAll('.ds-data-row'))

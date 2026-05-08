@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { config } from './config.js';
 import { state, setSession, defaultClientSettings } from './state.js';
-import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry } from './cache-persist.js';
+import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
@@ -495,11 +495,7 @@ function _storageKey() {
 function persistCacheDelete(key) {
   if (STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE) return;
   try {
-    const raw = localStorage.getItem(_storageKey());
-    if (!raw) return;
-    const stored = JSON.parse(raw);
-    delete stored[key];
-    localStorage.setItem(_storageKey(), JSON.stringify(stored));
+    deletePersistedCacheEntry(key);
   } catch { /* ignore */ }
 }
 
@@ -520,7 +516,10 @@ function restoreScreenCacheFromStorage() {
       }
       if (now - v.t > SCREEN_CACHE_MAX_AGE_MS) { delete stored[k]; changed = true; return; }
       if (!state.screenDataCache[k]) {
-        state.screenDataCache[k] = v;
+        const data = v.data && typeof v.data === 'object' && !Array.isArray(v.data)
+          ? { ...v.data, _is_stale: true, _restored_from_storage: true }
+          : v.data;
+        state.screenDataCache[k] = { ...v, data, t: 0, storedAt: v.t, restoredFromStorage: true };
       }
     });
     if (changed) localStorage.setItem(_storageKey(), JSON.stringify(stored));
@@ -1127,8 +1126,10 @@ async function backgroundRefreshScreen(screen, cacheKey) {
         });
       }
     }
-  } catch {
+  } catch (err) {
     inflightRequests.delete(cacheKey);
+    // eslint-disable-next-line no-console
+    console.warn('[route-refresh:failed]', { route: guardedRoute, cacheKey, error: err?.message || String(err) });
   } finally {
     if (typeof globalThis !== 'undefined') globalThis.__DS_BG_SCREEN_REFRESH__ = prevBg;
     setRouteRefreshing(false);
