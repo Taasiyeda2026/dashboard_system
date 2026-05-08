@@ -158,8 +158,7 @@ function resolveActivityNameOptions(settings, activityType) {
   return [];
 }
 
-function activityNameSelectHtml(name, value, options, activityType) {
-  const safeValue = String(value || '').trim();
+function buildActivityNameOpts(options, safeValue, activityType) {
   const normalizedType = String(activityType || '').trim().toLowerCase();
   let filtered = (Array.isArray(options) ? options : []).filter((o) => {
     const parent = String(o?.parent_value || o?.activity_type || '').trim();
@@ -171,7 +170,7 @@ function activityNameSelectHtml(name, value, options, activityType) {
   if (safeValue && !all.some((o) => String(o?.label || '').trim() === safeValue)) {
     all.unshift({ label: safeValue, activity_no: '', parent_value: activityType });
   }
-  const opts = [`<option value="">—</option>`]
+  return [`<option value="">—</option>`]
     .concat(
       all.map((o) => {
         const label = String(o?.label || '').trim();
@@ -182,7 +181,13 @@ function activityNameSelectHtml(name, value, options, activityType) {
       })
     )
     .join('');
-  return `<select class="ds-input" name="${escapeHtml(name)}" data-role="activity-name-select">${opts}</select>`;
+}
+
+function activityNameSelectHtml(name, value, options, activityType) {
+  const safeValue = String(value || '').trim();
+  const allJson = escapeHtml(encodeURIComponent(JSON.stringify(Array.isArray(options) ? options : [])));
+  const opts = buildActivityNameOpts(options, safeValue, activityType);
+  return `<select class="ds-input" name="${escapeHtml(name)}" data-role="activity-name-select" data-all-activity-names="${allJson}">${opts}</select>`;
 }
 
 function autoEndDate(row) {

@@ -351,6 +351,32 @@ export function bindActivityEditForm(contentRoot, {
           if (hidden && autoNo) hidden.value = autoNo;
         }
 
+        const typeEl = ev.target.closest('[name="activity_type"]');
+        if (typeEl) {
+          const nameSel = form.querySelector('[data-role="activity-name-select"]');
+          if (nameSel && nameSel.dataset.allActivityNames) {
+            let allOptions = [];
+            try { allOptions = JSON.parse(decodeURIComponent(nameSel.dataset.allActivityNames)); } catch { allOptions = []; }
+            const newType = String(typeEl.value || '').trim().toLowerCase();
+            let filtered = allOptions.filter((o) => {
+              const parent = String(o?.parent_value || o?.activity_type || '').trim();
+              if (!parent) return true;
+              return parent.toLowerCase() === newType;
+            });
+            if (!filtered.length) filtered = allOptions;
+            const optsHtml = ['<option value="">—</option>']
+              .concat(filtered.map((o) => {
+                const label = String(o?.label || '').trim();
+                const actNo = String(o?.activity_no || '').trim();
+                const actType = String(o?.parent_value || o?.activity_type || '').trim();
+                return `<option value="${label}" data-activity-no="${actNo}" data-activity-type="${actType}">${label}</option>`;
+              }))
+              .join('');
+            nameSel.innerHTML = optsHtml;
+            nameSel.value = '';
+          }
+        }
+
         const datePicker = ev.target.closest('input[data-meeting-idx]');
         if (datePicker) {
           const idx = Number(datePicker.dataset.meetingIdx);
