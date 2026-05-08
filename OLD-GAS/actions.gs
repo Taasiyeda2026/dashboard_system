@@ -704,8 +704,25 @@ function actionDashboard_(user, payload) {
     managerActiveLong[manager] = (managerActiveLong[manager] || 0) + 1;
   });
 
-  var exceptionSummary = getExceptionsSummary_(combined, ym, { include_rows: false });
+  // חריגות חייבות להיספר מאותו מודל שמזין את actionExceptions_:
+  // לא מסננים דרך combined (שמכיל רק פעילויות שנמצאו רלוונטיות לדשבורד),
+  // כדי שפעילויות course ללא start_date ייכללו גם כאשר מסנן חודש פעיל.
+  var exceptionSummary = getExceptionsSummary_(allSummary, ym, { include_rows: false });
   managerExceptions = exceptionSummary.byManager || {};
+  Object.keys(managerExceptions).forEach(function(manager) {
+    if (!byManager[manager]) {
+      byManager[manager] = {
+        activity_manager: manager,
+        total_short: 0,
+        total_long: 0,
+        total: 0
+      };
+    }
+    if (!managerInstructorSets[manager]) managerInstructorSets[manager] = {};
+    if (!managerCourseEndings[manager]) managerCourseEndings[manager] = 0;
+    if (!managerFinanceOpen[manager]) managerFinanceOpen[manager] = 0;
+    if (!managerActiveLong[manager]) managerActiveLong[manager] = 0;
+  });
 
   Object.keys(byManager).forEach(function(manager) {
     byManager[manager].num_instructors = Object.keys(managerInstructorSets[manager] || {}).length;
@@ -896,11 +913,19 @@ function actionDashboard_(user, payload) {
       ending_courses_current_month: courseEndings,
       active_courses_next_month: countActiveByTypeInYm_(allSummary, nextYm, 'course'),
       exceptions_count: exceptionSum,
+      totalExceptionRows: exceptionSum,
+      total_exception_rows: exceptionSum,
+      operational_gaps_count: missingInstructorCount + missingStartDateCount,
       active_instructors: collectUniqueInstructorNames_(combined),
       active_instructors_by_manager: activeInstructorsByManager,
       missing_instructor_count: missingInstructorCount,
       missing_start_date_count: missingStartDateCount,
       late_end_date_count: lateEndDateCount,
+      counts: {
+        missing_instructor: missingInstructorCount,
+        missing_start_date: missingStartDateCount,
+        late_end_date: lateEndDateCount
+      },
       short_activities: shortActivitiesSummary
     },
     kpi_cards: kpi_cards,
