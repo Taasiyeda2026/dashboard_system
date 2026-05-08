@@ -803,10 +803,11 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
+  const HEADER_ALWAYS_EXCLUDE = new Set(['edit-requests', 'contacts', 'instructor-contacts']);
   const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data', 'permissions']) : new Set();
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
-    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r))
+    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r))
   });
   const headerTechHtml = '';
 
