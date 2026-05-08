@@ -643,10 +643,10 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${editReqBadge}
       <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
       <input type="hidden" name="_activity_idx" value="${idx}">
+      ${blockNotes(row, { privateNote, showPrivateNote })}
       ${blockPeople(row, { settings })}
       ${blockContent(row, { settings })}
       ${blockDates(row, { canEdit, canDirectEdit, datesLoading })}
-      ${blockNotes(row, { privateNote, showPrivateNote })}
     </form>
   `;
 }
