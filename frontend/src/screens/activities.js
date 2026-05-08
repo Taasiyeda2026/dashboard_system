@@ -322,6 +322,73 @@ function editRequestStatusLabel(status) {
   return '';
 }
 
+function buildFallbackOptionsFromRows(rows) {
+  const uniqueField = (field) => {
+    const seen = new Set();
+    const out = [];
+    rows.forEach((row) => {
+      const v = String(row?.[field] || '').trim();
+      if (v && !seen.has(v)) { seen.add(v); out.push(v); }
+    });
+    return out.sort((a, b) => a.localeCompare(b, 'he'));
+  };
+  const instructorNames = (() => {
+    const seen = new Set();
+    const out = [];
+    rows.forEach((row) => {
+      [row?.instructor_name, row?.instructor_name_2].forEach((v) => {
+        const s = String(v || '').trim();
+        if (s && !seen.has(s)) { seen.add(s); out.push(s); }
+      });
+    });
+    return out.sort((a, b) => a.localeCompare(b, 'he'));
+  })();
+  const activityNameOptions = (() => {
+    const seen = new Set();
+    const out = [];
+    rows.forEach((row) => {
+      const label = String(row?.activity_name || '').trim();
+      if (!label || seen.has(label)) return;
+      seen.add(label);
+      out.push({
+        label,
+        activity_no: String(row?.activity_no || '').trim(),
+        activity_type: String(row?.activity_type || '').trim(),
+        parent_value: String(row?.activity_type || '').trim()
+      });
+    });
+    return out.sort((a, b) => a.label.localeCompare(b.label, 'he'));
+  })();
+  return {
+    funding: uniqueField('funding'),
+    fundings: uniqueField('funding'),
+    grade: uniqueField('grade'),
+    grades: uniqueField('grade'),
+    school: uniqueField('school'),
+    schools: uniqueField('school'),
+    authority: uniqueField('authority'),
+    authorities: uniqueField('authority'),
+    activity_manager: uniqueField('activity_manager'),
+    activity_managers: uniqueField('activity_manager'),
+    instructor_name: instructorNames,
+    instructor_names: instructorNames,
+    activity_names: activityNameOptions
+  };
+}
+
+function mergeSettingsWithFallback(base, fallbackOpts) {
+  const baseOpts = (base && base.dropdown_options && typeof base.dropdown_options === 'object')
+    ? base.dropdown_options : {};
+  const merged = { ...baseOpts };
+  Object.keys(fallbackOpts).forEach((k) => {
+    const existing = Array.isArray(baseOpts[k]) ? baseOpts[k] : [];
+    if (!existing.length && fallbackOpts[k] && (Array.isArray(fallbackOpts[k]) ? fallbackOpts[k].length : false)) {
+      merged[k] = fallbackOpts[k];
+    }
+  });
+  return { ...base, dropdown_options: merged };
+}
+
 function activityDetailCacheKey(summaryRow) {
   return `activityDetail:${summaryRow.source_sheet || ''}:${summaryRow.RowID || ''}`;
 }
@@ -585,7 +652,10 @@ export const activitiesScreen = {
       const cachedDetail = getCachedActivityDetail(summaryRow, state);
       const cachedDates  = getCachedActivityDates(summaryRow, state);
       const canDirectEdit = !!state?.user?.can_edit_direct;
-      const settings = state?.clientSettings || {};
+      const settings = mergeSettingsWithFallback(
+        state?.clientSettings || {},
+        buildFallbackOptionsFromRows(activitiesRows)
+      );
 
       if (cachedDetail) {
         ui.openDrawer({
