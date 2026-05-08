@@ -1,4 +1,5 @@
 import { state, setSession, clearScreenDataCache } from './state.js';
+import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { supabase, supabaseConfig } from './supabase-client.js';
 
@@ -30,7 +31,8 @@ const MUTATING_ACTIONS = {
   reactivateUser: true,
   deleteUser: true,
   savePrivateNote: true,
-  saveSheetMapping: true
+  saveSheetMapping: true,
+  saveClientSetting: true
 };
 
 const READ_ACTIONS = {
@@ -1103,8 +1105,8 @@ function invalidateScreenDataByAction(action) {
   const targetedMutations = {
     saveActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     addActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
-    submitEditRequest: ['activities:', 'activityDetail:', 'activityDates:', 'edit-requests', 'week:', 'month:', 'dashboard:', 'end-dates'],
-    reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:'],
+    submitEditRequest: ['activities:', 'edit-requests', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'end-dates'],
+    reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:', 'activityDates:', 'week:', 'month:'],
     addUser: ['permissions', 'dashboard:'],
     deactivateUser: ['permissions', 'dashboard:'],
     reactivateUser: ['permissions', 'dashboard:'],
@@ -1113,7 +1115,8 @@ function invalidateScreenDataByAction(action) {
     savePermission: ['permissions'],
     addContact: ['contacts', 'instructor-contacts'],
     saveContact: ['contacts', 'instructor-contacts'],
-    saveSheetMapping: ['adminSettings', 'listSheets']
+    saveSheetMapping: ['adminSettings', 'listSheets', 'dashboard:', 'activities:', 'week:', 'month:'],
+    saveClientSetting: ['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:']
   };
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
@@ -1121,12 +1124,19 @@ function invalidateScreenDataByAction(action) {
     clearScreenDataCache();
     return;
   }
+  const deletedKeys = [];
   Object.keys(state.screenDataCache || {}).forEach((key) => {
     if (prefixes.some((prefix) => key === prefix || key.startsWith(prefix))) {
       delete state.screenDataCache[key];
+      deletedKeys.push(key);
     }
   });
+  deletePersistedCacheByPrefixes(prefixes);
+  try {
+    console.info('[cache-invalidate]', { action, prefixes, deletedKeys });
+  } catch { /* ignore */ }
 }
+
 
 function isPerfDebugEnabled() {
   try {
@@ -1725,6 +1735,8 @@ export const api = {
         .from('settings')
         .upsert({ key, value, description }, { onConflict: 'key' });
       if (writeErr) throw new Error(writeErr.message || 'admin_settings_save_failed');
+      clearScreenDataCache();
+      deletePersistedCacheByPrefixes(['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:']);
     }
     const rows = await readSettingsRowsFromSupabase();
     return { rows, _source: 'supabase' };
@@ -1984,5 +1996,15 @@ export const api = {
     return { ok: true };
   },
 };
+
+for (const action of Object.keys(MUTATING_ACTIONS)) {
+  const original = api[action];
+  if (typeof original !== 'function') continue;
+  api[action] = async (...args) => {
+    const result = await original(...args);
+    invalidateScreenDataByAction(action);
+    return result;
+  };
+}
 
 export { isPerfDebugEnabled, getPerfStore };

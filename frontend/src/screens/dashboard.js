@@ -529,8 +529,9 @@ export const dashboardScreen = {
         try {
           const snapshotData = await api.dashboardSnapshot({ month: nextYm });
           putDashboardCache(cacheKey, snapshotData);
-        } catch (_err) {
-          // Keep currently rendered dashboard content when refresh fails.
+        } catch (err) {
+          // Keep currently rendered dashboard content when refresh fails, but never leave the loading state active.
+          console.warn('[dashboard-refresh:failed]', { month: nextYm, error: err?.message || String(err) });
         }
       } finally {
         state.dashboardNavLoading = false;
