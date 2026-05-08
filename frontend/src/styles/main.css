@@ -178,7 +178,7 @@ select {
   right: 0;
   z-index: 30;
   width: min(86vw, 320px);
-  background: linear-gradient(180deg, #141a28 0%, #101521 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ds-accent) 38%, #0b0d12) 0%, color-mix(in srgb, var(--ds-accent) 28%, #080c16) 100%);
   border-inline-start: 1px solid var(--ds-shell-border);
   display: flex;
   flex-direction: column;
@@ -3644,7 +3644,7 @@ select.ds-input {
   margin: 0 0 10px;
   font-size: 1.02rem;
   line-height: 1.45;
-  color: #0f172a;
+  color: var(--ds-accent);
   font-weight: 700;
 }
 
@@ -7749,7 +7749,7 @@ select.ds-activity-add-field .ds-input,
 }
 
 .shell-sidebar {
-  background: linear-gradient(180deg, #172033 0%, #121a2a 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ds-accent) 40%, #0b0d12) 0%, color-mix(in srgb, var(--ds-accent) 30%, #080c16) 100%);
 }
 .shell-nav__btn {
   min-height: 36px;
@@ -8606,7 +8606,7 @@ select.ds-activity-add-field .ds-input,
   margin: 0;
   font-size: 1.32rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--ds-accent);
   letter-spacing: -0.02em;
 }
 
@@ -8814,7 +8814,7 @@ select.ds-activity-add-field .ds-input,
 .shell-logout-btn__text { display: none; }
 
 .shell-nav__btn.is-active {
-  background: color-mix(in srgb, var(--ds-accent) 72%, #0b0d12);
+  background: color-mix(in srgb, var(--ds-accent) 82%, #fff);
 }
 
 .ds-card,
