@@ -5657,6 +5657,11 @@ select.ds-input {
 
 .ds-archive-year-nav {
   padding: var(--ds-space-1) 0;
+  gap: 2px;
+}
+
+.ds-archive-year-nav .ds-chip--tab {
+  padding: 0 var(--ds-space-2);
 }
 
 .ds-archive-end-date {
