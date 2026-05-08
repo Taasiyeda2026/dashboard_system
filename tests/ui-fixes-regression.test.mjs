@@ -56,3 +56,16 @@ test('instructors screen counts normalized activity_type keys', () => {
   assert.match(screenSrc, /typeStats = TYPE_LABELS\.map/);
   assert.match(screenSrc, /keys\.reduce\(\(sum, key\) => sum \+ Number\(typeCounts\[key\] \|\| 0\), 0\)/);
 });
+
+test('activity drawer edit details use compact three-column field wrappers', () => {
+  const htmlSrc = read('frontend/src/screens/shared/activity-detail-html.js');
+  const css = read('frontend/src/styles/main.css');
+  assert.match(htmlSrc, /function fieldEditOnly\(label, editHtml, extraClass = ''\)[\s\S]*<label class="activity-drawer__label">\$\{escapeHtml\(label\)\}<\/label>[\s\S]*\$\{editHtml\}/);
+  assert.match(htmlSrc, /activity-drawer__details-edit-grid/);
+  assert.match(htmlSrc, /name: 'activity_manager'/);
+  assert.match(htmlSrc, /name: 'instructor_name'/);
+  assert.match(htmlSrc, /name: 'activity_type'/);
+  assert.match(htmlSrc, /'סטטוס'[\s\S]*name: 'status'[\s\S]*'רשות'[\s\S]*name: 'authority'[\s\S]*'כיתה'[\s\S]*name: 'grade'[\s\S]*name: 'class_group'[\s\S]*'שעות'[\s\S]*name: 'start_time'[\s\S]*name: 'end_time'/);
+  assert.match(css, /\.activity-drawer__details-edit-grid \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.activity-drawer__details-edit-grid \.ds-input,[\s\S]*width: 100%;[\s\S]*height: 34px;/);
+});

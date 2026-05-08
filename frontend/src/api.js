@@ -467,7 +467,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
     },
     one_day_activity_types: shortTypes,
     program_activity_types: longTypes,
-    ...(accentColor ? { accent_color: accentColor, theme_accent: accentColor } : {}),
+    ...(accentColor ? { accent_color: accentColor, theme_accent: accentColor, ui_accent_color: accentColor } : {}),
   };
 }
 
