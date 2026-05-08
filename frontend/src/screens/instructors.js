@@ -133,7 +133,7 @@ function buildPopupHtml(name, items) {
       <tbody>${rows}</tbody>
     </table>`;
   }
-  return `<div class="instr-popup-overlay" id="instr-popup-overlay" role="dialog" aria-modal="true" dir="rtl">
+  return `<div class="instr-popup-overlay ds-instructors-screen" id="instr-popup-overlay" role="dialog" aria-modal="true" dir="rtl">
     <div class="instr-popup" id="instr-popup">
       <div class="instr-popup__head">
         <span class="instr-popup__name">${name}</span>
@@ -240,7 +240,7 @@ export const instructorsScreen = {
     const pageHeader = `<div class="instr-page-header" dir="rtl"><span class="instr-page-header__title">מדריכים פעילים</span><span class="instr-page-header__count">${filtered.length} מדריכים</span></div>`;
 
     return dsScreenStack(`
-      <section class="ds-screen-compact-90 instr-page">
+      <section class="ds-screen-compact-90 instr-page ds-instructors-screen">
       ${pageHeader}
       <div class="ds-screen-top-row">
         ${toolbarHtml}
