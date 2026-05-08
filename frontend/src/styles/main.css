@@ -9108,6 +9108,15 @@ select.ds-activity-add-field .ds-input,
   display: none;
 }
 
+.ds-instructors-screen .ds-table,
+.ds-instructors-screen .ds-table th,
+.ds-instructors-screen .ds-table td,
+.ds-instructors-screen .instr-popup-table,
+.ds-instructors-screen .instr-popup-table th,
+.ds-instructors-screen .instr-popup-table td {
+  border-color: #d8dee8;
+}
+
 .instr-page .ci-list--instr-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
