@@ -8993,6 +8993,25 @@ select.ds-activity-add-field .ds-input,
    Compact 2×2 icon-grid cards, accent-responsive
    ============================================================ */
 
+.instr-date-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 0 6px;
+}
+
+.instr-month-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.instr-month-label select {
+  min-width: 120px;
+}
+
 .instr-page-header {
   display: flex;
   align-items: center;

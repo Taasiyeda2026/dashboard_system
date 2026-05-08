@@ -21,16 +21,46 @@ function applyActiveFilter(rows) {
   return rows.filter((r) => (r.programs_count || 0) + (r.one_day_count || 0) > 0);
 }
 
-function applyDateFilter(rows, dateFrom, dateTo) {
-  if (!dateFrom && !dateTo) return rows;
+const HEBREW_MONTH_NAMES = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+
+function ymLabel(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+  if (!m) return ym;
+  return `${HEBREW_MONTH_NAMES[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+function toYm(dateStr) {
+  return String(dateStr || '').slice(0, 7);
+}
+
+function nextYm(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(ym);
+  if (!m) return ym;
+  const [y, mo] = [Number(m[1]), Number(m[2])];
+  return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`;
+}
+
+function buildMonthOptions(minYm, maxYm) {
+  const opts = [];
+  let cur = minYm;
+  let guard = 0;
+  while (cur <= maxYm && guard++ < 120) {
+    opts.push({ value: cur, label: ymLabel(cur) });
+    cur = nextYm(cur);
+  }
+  return opts;
+}
+
+function applyDateFilter(rows, fromYm, toYm_) {
+  if (!fromYm && !toYm_) return rows;
   return rows.filter((r) => {
-    const start = r.earliest_start_date || '';
-    const end   = r.latest_end_date     || '';
-    if (!start && !end) return false;
-    const rowEnd   = end   || start;
-    const rowStart = start || end;
-    if (dateTo   && rowStart > dateTo)   return false;
-    if (dateFrom && rowEnd   < dateFrom) return false;
+    const startYm = toYm(r.earliest_start_date || '');
+    const endYm   = toYm(r.latest_end_date     || '');
+    if (!startYm && !endYm) return false;
+    const rowEndYm   = endYm   || startYm;
+    const rowStartYm = startYm || endYm;
+    if (toYm_  && rowStartYm > toYm_)  return false;
+    if (fromYm && rowEndYm   < fromYm) return false;
     return true;
   });
 }
@@ -38,8 +68,8 @@ function applyDateFilter(rows, dateFrom, dateTo) {
 function globalDateRange(rows) {
   let min = '', max = '';
   rows.forEach((r) => {
-    const s = r.earliest_start_date || '';
-    const e = r.latest_end_date     || '';
+    const s = toYm(r.earliest_start_date || '');
+    const e = toYm(r.latest_end_date     || '');
     if (s && (!min || s < min)) min = s;
     if (e && (!max || e > max)) max = e;
   });
@@ -151,23 +181,28 @@ function updatePopupBody(items, name) {
   }
 }
 
-function dateFilterBarHtml(dateFrom, dateTo, globalMin, globalMax) {
-  const minAttr = globalMin ? ` min="${escapeHtml(globalMin)}"` : '';
-  const maxAttr = globalMax ? ` max="${escapeHtml(globalMax)}"` : '';
-  const fromVal = dateFrom ? ` value="${escapeHtml(dateFrom)}"` : '';
-  const toVal   = dateTo   ? ` value="${escapeHtml(dateTo)}"` : '';
-  const hasDates = dateFrom || dateTo;
+function monthFilterBarHtml(fromYm, toYm, minYm, maxYm) {
+  if (!minYm || !maxYm) return '';
+  const opts = buildMonthOptions(minYm, maxYm);
+  const blankOpt = '<option value="">— הכל —</option>';
+  const fromOpts = opts.map((o) =>
+    `<option value="${escapeHtml(o.value)}"${o.value === fromYm ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
+  ).join('');
+  const toOpts = opts.map((o) =>
+    `<option value="${escapeHtml(o.value)}"${o.value === toYm ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
+  ).join('');
+  const hasDates = fromYm || toYm;
   const clearBtn = hasDates
-    ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-instr-date-clear title="נקה סינון תאריכים">✕ נקה</button>`
+    ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-instr-date-clear title="נקה סינון חודשים">✕ נקה</button>`
     : '';
-  return `<div class="instr-date-filter" dir="rtl" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;">
-    <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;">
+  return `<div class="instr-date-filter" dir="rtl">
+    <label class="instr-month-label">
       <span class="ds-muted">מ-</span>
-      <input type="date" class="ds-input ds-input--sm" data-instr-date-from${fromVal}${minAttr}${maxAttr} style="width:140px">
+      <select class="ds-input ds-input--sm" data-instr-month-from>${blankOpt}${fromOpts}</select>
     </label>
-    <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;">
+    <label class="instr-month-label">
       <span class="ds-muted">עד-</span>
-      <input type="date" class="ds-input ds-input--sm" data-instr-date-to${toVal}${minAttr}${maxAttr} style="width:140px">
+      <select class="ds-input ds-input--sm" data-instr-month-to>${blankOpt}${toOpts}</select>
     </label>
     ${clearBtn}
   </div>`;
@@ -222,7 +257,7 @@ export const instructorsScreen = {
       <div class="ds-screen-top-row">
         ${toolbarHtml}
       </div>
-      ${dateFilterBarHtml(dateFrom, dateTo, globalMin, globalMax)}
+      ${monthFilterBarHtml(dateFrom, dateTo, globalMin, globalMax)}
       ${dsCard({ title: '', body: bodyHtml, padded: filtered.length === 0 })}
       </section>
     `);
@@ -237,19 +272,19 @@ export const instructorsScreen = {
 
     const instrState = state._instrDateFilter = state._instrDateFilter || {};
 
-    const fromInput = root.querySelector('[data-instr-date-from]');
-    const toInput   = root.querySelector('[data-instr-date-to]');
-    const clearBtn  = root.querySelector('[data-instr-date-clear]');
+    const fromSel  = root.querySelector('[data-instr-month-from]');
+    const toSel    = root.querySelector('[data-instr-month-to]');
+    const clearBtn = root.querySelector('[data-instr-date-clear]');
 
-    if (fromInput) {
-      fromInput.addEventListener('change', () => {
-        instrState.from = fromInput.value || '';
+    if (fromSel) {
+      fromSel.addEventListener('change', () => {
+        instrState.from = fromSel.value || '';
         rerender();
       });
     }
-    if (toInput) {
-      toInput.addEventListener('change', () => {
-        instrState.to = toInput.value || '';
+    if (toSel) {
+      toSel.addEventListener('change', () => {
+        instrState.to = toSel.value || '';
         rerender();
       });
     }
