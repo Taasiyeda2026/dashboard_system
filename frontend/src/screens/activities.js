@@ -348,18 +348,22 @@ function buildFallbackOptionsFromRows(rows) {
     const out = [];
     rows.forEach((row) => {
       const label = String(row?.activity_name || '').trim();
-      if (!label || seen.has(label)) return;
-      seen.add(label);
+      const type  = String(row?.activity_type  || '').trim();
+      const sig   = `${label}|${type}`;
+      if (!label || seen.has(sig)) return;
+      seen.add(sig);
       out.push({
         label,
-        activity_no: String(row?.activity_no || '').trim(),
-        activity_type: String(row?.activity_type || '').trim(),
-        parent_value: String(row?.activity_type || '').trim()
+        activity_no:   String(row?.activity_no || '').trim(),
+        activity_type: type,
+        parent_value:  type
       });
     });
     return out.sort((a, b) => a.label.localeCompare(b.label, 'he'));
   })();
+  const allActivityTypes = uniqueField('activity_type');
   return {
+    _activityTypesFromRows: allActivityTypes,
     funding: uniqueField('funding'),
     fundings: uniqueField('funding'),
     grade: uniqueField('grade'),
@@ -380,13 +384,22 @@ function mergeSettingsWithFallback(base, fallbackOpts) {
   const baseOpts = (base && base.dropdown_options && typeof base.dropdown_options === 'object')
     ? base.dropdown_options : {};
   const merged = { ...baseOpts };
-  Object.keys(fallbackOpts).forEach((k) => {
+  const { _activityTypesFromRows, ...dropdownFallback } = fallbackOpts;
+  Object.keys(dropdownFallback).forEach((k) => {
     const existing = Array.isArray(baseOpts[k]) ? baseOpts[k] : [];
-    if (!existing.length && fallbackOpts[k] && (Array.isArray(fallbackOpts[k]) ? fallbackOpts[k].length : false)) {
-      merged[k] = fallbackOpts[k];
+    if (!existing.length && Array.isArray(dropdownFallback[k]) && dropdownFallback[k].length) {
+      merged[k] = dropdownFallback[k];
     }
   });
-  return { ...base, dropdown_options: merged };
+  const result = { ...base, dropdown_options: merged };
+  if (Array.isArray(_activityTypesFromRows) && _activityTypesFromRows.length) {
+    const hasShort = Array.isArray(base?.one_day_activity_types) && base.one_day_activity_types.length;
+    const hasLong  = Array.isArray(base?.program_activity_types)  && base.program_activity_types.length;
+    if (!hasShort && !hasLong) {
+      result.program_activity_types = _activityTypesFromRows;
+    }
+  }
+  return result;
 }
 
 function activityDetailCacheKey(summaryRow) {
@@ -1019,7 +1032,10 @@ export const activitiesScreen = {
       addBtn.addEventListener('click', () => {
         ui.openModal({
           title: 'הוספת פעילות',
-          content: addActivityModalHtml(state?.clientSettings || {}),
+          content: addActivityModalHtml(mergeSettingsWithFallback(
+            state?.clientSettings || {},
+            buildFallbackOptionsFromRows(activitiesRows)
+          )),
           actions: `
             <button type="button" class="ds-btn ds-btn--primary" data-add-activity-submit>שמור</button>
             <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>
