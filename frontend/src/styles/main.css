@@ -7107,6 +7107,18 @@ select.ds-input {
   gap: 10px 16px;
 }
 
+.activity-drawer__grid--three {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+@media (max-width: 480px) {
+  .activity-drawer__grid--three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .activity-drawer__field {
   display: grid;
   gap: 4px;

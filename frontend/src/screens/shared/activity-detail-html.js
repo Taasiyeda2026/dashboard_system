@@ -286,6 +286,14 @@ function blockPeople(row, { settings = {} } = {}) {
   const instructor2Display = resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
   const activityType = String(row.activity_type || '').trim();
   const twoInstructors = activityType === 'workshop';
+  const instructorLabel = twoInstructors ? 'מדריך/ה 1' : 'מדריך/ה';
+  const gradeVal = String(row.grade || '').trim();
+  const classGroupVal = String(row.class_group || '').trim();
+  const classLabel = [gradeVal, classGroupVal].filter(Boolean).join(' / ') || '—';
+  const hoursLabel =
+    String(row.start_time || '').trim() && String(row.end_time || '').trim()
+      ? formatTimeRangeShort(row.start_time, row.end_time)
+      : '—';
   const instructorFields = twoInstructors
     ? `
       ${fieldViewEdit(
@@ -306,8 +314,16 @@ function blockPeople(row, { settings = {} } = {}) {
       );
   return `
     <section class="activity-drawer__section">
-      <h3 class="activity-drawer__section-title">👤</h3>
-      <div class="activity-drawer__grid activity-drawer__grid--two">
+      <div class="activity-drawer__grid activity-drawer__grid--three" data-mode="view">
+        ${fieldViewOnly('מנהל פעילות', escapeHtml(fallback(row.activity_manager)))}
+        ${fieldViewOnly(instructorLabel, escapeHtml(fallback(instructor1Display)))}
+        ${fieldViewOnly('סוג פעילות', escapeHtml(activityTypeLabel(activityType)))}
+        ${fieldViewOnly('סטטוס', escapeHtml(statusText(row.status)))}
+        ${fieldViewOnly('רשות', escapeHtml(fallback(row.authority)))}
+        ${fieldViewOnly('כיתה', escapeHtml(classLabel))}
+        ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
+      </div>
+      <div class="activity-drawer__grid activity-drawer__grid--two" data-mode="edit" hidden>
         ${fieldViewEdit(
           'מנהל פעילות',
           `${escapeHtml(fallback(row.activity_manager))}`,
@@ -359,14 +375,6 @@ function blockContent(row, { settings = {} } = {}) {
   const normalizedStatus = normStatus(row.status) === 'closed' ? 'סגור' : 'פעיל';
   return `
     <section class="activity-drawer__section">
-      <h3 class="activity-drawer__section-title">📚</h3>
-      <div class="activity-drawer__view-grid activity-drawer__grid activity-drawer__grid--two" data-mode="view">
-        ${fieldViewOnly('סוג פעילות', escapeHtml(activityTypeLabel(activityType)))}
-        ${fieldViewOnly('סטטוס', escapeHtml(statusText(row.status)))}
-        ${fieldViewOnly('מימון', escapeHtml(fallback(row.funding)))}
-        ${fieldViewOnly('כיתה', escapeHtml(classLabel))}
-        ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
-      </div>
       <div class="activity-drawer__edit-grid activity-drawer__grid activity-drawer__grid--two" data-mode="edit" hidden>
         <div class="activity-drawer__field activity-drawer__field--full">
           <div class="activity-drawer__label">סוג פעילות</div>
