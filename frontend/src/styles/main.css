@@ -7113,9 +7113,57 @@ select.ds-input {
   gap: 8px 12px;
 }
 
-@media (max-width: 480px) {
-  .activity-drawer__grid--three {
+.activity-drawer__details-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 10px;
+  align-items: start;
+}
+
+.activity-drawer__details-edit-grid .activity-drawer__field {
+  min-width: 0;
+  gap: 3px;
+}
+
+.activity-drawer__details-edit-grid .ds-input,
+.activity-drawer__details-edit-grid select,
+.activity-drawer__details-edit-grid input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  min-height: 34px;
+}
+
+.activity-drawer__field-controls {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.activity-drawer__field-controls--inline {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.activity-drawer__field-controls--stacked {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 640px) {
+  .activity-drawer__details-edit-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .activity-drawer__grid--three,
+  .activity-drawer__details-edit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 360px) {
+  .activity-drawer__details-edit-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

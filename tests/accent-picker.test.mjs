@@ -29,3 +29,20 @@ test('accent picker records current accent on the button and root dataset', () =
   assert.match(src, /btn\.style\.backgroundColor = colors\.accent/);
   assert.match(src, /btn\.dataset\.currentAccent = selected/);
 });
+
+
+test('accent picker keeps all settings accent keys in sync locally and remotely', () => {
+  const src = read('frontend/src/main.js');
+  assert.match(src, /ui_accent_color: selected/);
+  assert.match(src, /saveRoutesToStorage\(state\.routes, state\.route, state\.clientSettings\)/);
+  assert.match(src, /\['accent_color', 'theme_accent', 'ui_accent_color'\]/);
+  assert.match(src, /api\.saveClientSetting\(\{ key, value: selected \}\)/);
+});
+
+test('bootstrap accent fallback reads and returns all supported settings keys', () => {
+  const main = read('frontend/src/main.js');
+  const api = read('frontend/src/api.js');
+  assert.match(main, /normalizeAccentName\(state\?\.clientSettings\?\.ui_accent_color\)/);
+  assert.match(api, /settingValue\('accent_color'\) \|\| settingValue\('theme_accent'\) \|\| settingValue\('ui_accent_color'\)/);
+  assert.match(api, /accent_color: accentColor, theme_accent: accentColor, ui_accent_color: accentColor/);
+});

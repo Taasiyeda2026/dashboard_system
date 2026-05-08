@@ -57,6 +57,7 @@ function accentNameFromStorage() {
       || normalizeAccentName(localStorage.getItem(LEGACY_STRIPE_LS_KEY))
       || normalizeAccentName(state?.clientSettings?.accent_color)
       || normalizeAccentName(state?.clientSettings?.theme_accent)
+      || normalizeAccentName(state?.clientSettings?.ui_accent_color)
       || 'blue';
   } catch {
     return 'blue';
@@ -102,11 +103,19 @@ function bindAccentPickerOnce() {
         localStorage.setItem(ACCENT_LS_KEY, selected);
         localStorage.setItem(LEGACY_STRIPE_LS_KEY, selected);
       } catch {}
-      state.clientSettings = { ...(state.clientSettings || {}), accent_color: selected, theme_accent: selected };
+      state.clientSettings = {
+        ...(state.clientSettings || {}),
+        accent_color: selected,
+        theme_accent: selected,
+        ui_accent_color: selected
+      };
+      saveRoutesToStorage(state.routes, state.route, state.clientSettings);
       if (typeof api.saveClientSetting === 'function') {
-        api.saveClientSetting({ key: 'accent_color', value: selected }).catch((err) => {
-          console.warn('[accent-picker] Supabase accent save failed; local choice remains active:', err);
-        });
+        Promise.all(['accent_color', 'theme_accent', 'ui_accent_color']
+          .map((key) => api.saveClientSetting({ key, value: selected })))
+          .catch((err) => {
+            console.warn('[accent-picker] Supabase accent save failed; local choice remains active:', err);
+          });
       }
       pop.hidden = true;
       if (pop.parentElement === document.body) {
