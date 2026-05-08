@@ -8714,8 +8714,8 @@ select.ds-activity-add-field .ds-input,
   position: absolute;
   top: calc(100% + 4px);
   inset-inline-end: 0;
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
+  background: color-mix(in srgb, var(--ds-accent) 10%, #fff);
+  border: 2px solid var(--ds-accent);
   border-radius: var(--ds-radius-md);
   padding: 10px 12px;
   font-size: 0.82rem;
@@ -8724,10 +8724,10 @@ select.ds-activity-add-field .ds-input,
   max-width: 80vw;
   text-align: right;
   direction: rtl;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
   z-index: 200;
-  color: var(--ds-text);
-  font-weight: 400;
+  color: var(--ds-accent);
+  font-weight: 700;
   white-space: normal;
 }
 .ds-kpi-info-btn:hover .ds-kpi-info-tooltip,
