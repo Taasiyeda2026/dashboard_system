@@ -479,8 +479,10 @@ select {
 
 /* ——— Header quick-nav (admin) ——— */
 .shell-header-nav {
-  flex: 1;
+  flex: 0 1 75%;
+  max-width: 75%;
   min-width: 0;
+  margin: 0 auto;
 }
 
 /* ——— Apple-style logout button ——— */
@@ -8108,6 +8110,7 @@ select.ds-activity-add-field .ds-input,
 .shell-header-nav.ds-act-nav-grid--header {
   gap: 4px;
   padding: 0;
+  justify-content: center;
 }
 
 .shell-header-nav.ds-act-nav-grid--header .ds-act-nav-item--header {
