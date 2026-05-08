@@ -2,6 +2,7 @@ import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { supabase, supabaseConfig } from './supabase-client.js';
+import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
 
 /**
  * Actions that modify server-side data.
@@ -237,7 +238,7 @@ function activityHasDateInMonth(row, monthPrefix) {
   const dates = getActivityDateColumns(row);
   if (dates.some((dateKey) => dateKey.startsWith(monthPrefix))) return true;
   // start_date is only a fallback when the activity has no meeting date columns.
-  return dates.length === 0 && String(row?.start_date || '').slice(0, 7) === monthPrefix;
+  return dates.length === 0 && normalizeSupabaseDate(row?.start_date).slice(0, 7) === monthPrefix;
 }
 
 async function selectActivitiesFromSupabase(select = '*') {
@@ -632,10 +633,10 @@ const HEBREW_WEEKDAY_LABELS = ['ראשון', 'שני', 'שלישי', 'רביעי
  * מונע מהמחרוזת הטקסטואלית "NULL" להיחשב כערך תקין.
  */
 function nullStr(val) {
-  if (val === null || val === undefined) return '';
-  const s = String(val).trim();
+  if (isEmptyValue(val)) return '';
+  const s = nonEmptyString(val);
   const u = s.toUpperCase();
-  if (u === 'NULL' || u === 'NONE' || u === 'UNDEFINED' || u === 'N/A' || u === '-') return '';
+  if (u === 'NONE' || u === 'N/A' || u === '-') return '';
   return s;
 }
 
@@ -643,8 +644,8 @@ function nullStr(val) {
  * Normalize a date value to YYYY-MM-DD string, or '' if invalid.
  */
 function normalizeSupabaseDate(val) {
-  if (!val) return '';
-  const s = String(val).trim();
+  if (isEmptyValue(val)) return '';
+  const s = nonEmptyString(val);
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
   return m ? m[1] : '';
@@ -1043,14 +1044,14 @@ async function readExceptionsFromSupabase(params = {}) {
         .select('*')
         .in('activity_type', COURSE_TYPE_VALUES)
         .neq('status', CLOSED_STATUS)
-        .or('start_date.is.null,start_date.eq.'),
+        .or('start_date.is.null,start_date.eq.,start_date.eq.NULL,start_date.eq.null'),
       supabase
         .from('activities')
         .select('*')
         .in('activity_type', COURSE_TYPE_VALUES)
         .neq('status', CLOSED_STATUS)
-        .or('emp_id.is.null,emp_id.eq.')
-        .or('instructor_name.is.null,instructor_name.eq.')
+        .or('emp_id.is.null,emp_id.eq.,emp_id.eq.NULL,emp_id.eq.null')
+        .or('instructor_name.is.null,instructor_name.eq.,instructor_name.eq.NULL,instructor_name.eq.null')
     ]);
 
     const missingStartRows  = (Array.isArray(missingStartResult.data)      ? missingStartResult.data      : []).map(normalizeActivityRow);

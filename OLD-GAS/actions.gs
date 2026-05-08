@@ -54,9 +54,9 @@ function shiftYm_(ym, deltaMonths) {
 /** פעילות עם טווח תאריכים שחופף לחודש ym (כולל קצה) */
 function activityOverlapsYm_(row, ym) {
   var b = ymBounds_(ym);
-  var s = text_(row.start_date);
-  var e = text_(row.end_date || row.start_date);
-  if (!s) return false;
+  var s = normalizeDateTextToIso_(row && row.start_date);
+  var e = normalizeDateTextToIso_(row && row.end_date) || s;
+  if (isEmptyValue_(row && row.start_date) || !s) return false;
   if (!e) e = s;
   return s <= b.last && e >= b.first;
 }
@@ -101,8 +101,8 @@ function countActiveByTypeInYm_(rows, ym, activityType) {
 function rowExceptionTypes_(row) {
   var out = [];
   if (isExcludedStatusForControl_(row && row.status)) return out;
-  var hasInstructor1 = !isNormalizedEmptyValue_(row && row.instructor_name) || !isNormalizedEmptyValue_(row && row.emp_id);
-  var hasInstructor2 = !isNormalizedEmptyValue_(row && row.instructor_name_2) || !isNormalizedEmptyValue_(row && row.emp_id_2);
+  var hasInstructor1 = !isEmptyValue_(row && row.instructor_name) || !isEmptyValue_(row && row.emp_id);
+  var hasInstructor2 = !isEmptyValue_(row && row.instructor_name_2) || !isEmptyValue_(row && row.emp_id_2);
   if (!hasInstructor1 && !hasInstructor2) out.push('missing_instructor');
   if (isDataShortRow_(row)) {
     if (!normalizeDateTextToIso_(row && row.start_date)) out.push('missing_start_date');
@@ -136,7 +136,7 @@ function computeExceptionsModel_(rows, ym, opts) {
     // active: the missing date is itself an exception and we cannot determine
     // overlap from an absent field.  Only skip overlap check when start_date
     // exists and the range does not intersect the requested month.
-    var rowHasStart = !!text_(row && row.start_date);
+    var rowHasStart = !isEmptyValue_(row && row.start_date) && !!normalizeDateTextToIso_(row && row.start_date);
     if (month && rowHasStart && !activityOverlapsYm_(row, month)) return;
     if (isExcludedStatusForControl_(row && row.status)) return;
 
@@ -4231,9 +4231,9 @@ function isActivityActiveBySpec_(row, todayIso) {
   if (settingYes_('use_status_with_dates') && st === 'ended') {
     return false;
   }
-  var s = text_(row.start_date);
-  var e = text_(row.end_date || row.start_date);
-  if (!s) return false;
+  var s = normalizeDateTextToIso_(row && row.start_date);
+  var e = normalizeDateTextToIso_(row && row.end_date) || s;
+  if (isEmptyValue_(row && row.start_date) || !s) return false;
   return todayIso >= s && todayIso <= e;
 }
 
