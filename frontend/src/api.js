@@ -1682,8 +1682,13 @@ export const api = {
     return buildEditRequestGroups(rows, canReview);
   },
   permissions: async () => {
+    if (!supabase) throw new Error('no_supabase_client');
     const { data, error } = await supabase.from('users').select(USER_PUBLIC_COLUMNS).order('created_at', { ascending: false });
-    if (error) throw new Error(error.message || 'permissions_read_failed');
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[permissions] Supabase error:', error.code, error.message, error.details, error.hint);
+      throw new Error(error.message || 'permissions_read_failed');
+    }
     const rows = (Array.isArray(data) ? data : []).map(flattenUserRow);
     return {
       rows,

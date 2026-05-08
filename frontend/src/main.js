@@ -1633,9 +1633,14 @@ async function mountScreen() {
       const msg = isRouteTimeout
         ? ROUTE_LOAD_ERROR_HE
         : (translateApiErrorForUser(err?.message) || 'אירעה שגיאה בטעינת הדף');
+      const rawErrCode = String(err?.message || '').trim();
+      const debugLine = rawErrCode && rawErrCode !== msg
+        ? `<p style="font-size:0.78rem;color:#888;margin-top:4px;direction:ltr;text-align:start;">[${rawErrCode}]</p>`
+        : '';
       screenRoot.innerHTML = `<div class="ds-loading-card" dir="rtl" role="alert">
         <p style="color:var(--ds-color-danger,#c0392b);font-weight:600;">⚠ שגיאה בטעינת הדף</p>
         <p>${msg}</p>
+        ${debugLine}
         <button type="button" class="ds-btn ds-btn--sm" style="margin-top:8px" onclick="window.location.reload()">נסה שוב</button>
       </div>`;
     }
