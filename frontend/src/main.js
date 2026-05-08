@@ -103,10 +103,15 @@ function bindAccentPickerOnce() {
         localStorage.setItem(LEGACY_STRIPE_LS_KEY, selected);
       } catch {}
       state.clientSettings = { ...(state.clientSettings || {}), accent_color: selected, theme_accent: selected };
-      api.saveClientSetting?.({ key: 'accent_color', value: selected }).catch((err) => {
-        console.warn('[accent-picker] Supabase accent save failed; local choice remains active:', err);
-      });
+      if (typeof api.saveClientSetting === 'function') {
+        api.saveClientSetting({ key: 'accent_color', value: selected }).catch((err) => {
+          console.warn('[accent-picker] Supabase accent save failed; local choice remains active:', err);
+        });
+      }
       pop.hidden = true;
+      if (pop.parentElement === document.body) {
+        document.querySelector('[data-accent-picker-wrap]')?.appendChild(pop);
+      }
       return;
     }
     const btn = ev.target.closest('[data-accent-picker-btn]');
@@ -115,20 +120,31 @@ function bindAccentPickerOnce() {
       applyGlobalAccent();
       if (pop.hidden) {
         const rect = btn.getBoundingClientRect();
-        const popW = 34;
+        const popW = 36;
         let left = rect.left + rect.width / 2 - popW / 2;
-        const top = rect.top - 8;
+        const top = rect.bottom + window.scrollY;
         left = Math.max(8, Math.min(left, window.innerWidth - popW - 8));
+        document.body.appendChild(pop);
+        pop.style.position = 'fixed';
         pop.style.left = `${left}px`;
-        pop.style.top = `${top}px`;
+        pop.style.top = `${rect.top - 8}px`;
         pop.style.transform = 'translateY(-100%)';
+        pop.style.zIndex = '99999';
         pop.hidden = false;
       } else {
         pop.hidden = true;
+        if (pop.parentElement === document.body) {
+          document.querySelector('[data-accent-picker-wrap]')?.appendChild(pop);
+        }
       }
       return;
     }
-    pop.hidden = true;
+    if (!pop.hidden) {
+      pop.hidden = true;
+      if (pop.parentElement === document.body) {
+        document.querySelector('[data-accent-picker-wrap]')?.appendChild(pop);
+      }
+    }
   });
 }
 
@@ -1765,6 +1781,7 @@ async function render() {
             const bootstrapApplyStartMs = performance.now();
             applyBootstrapFromLoginData(data);
             loginBootstrapDurationMs = performance.now() - bootstrapApplyStartMs;
+            applyGlobalAccent();
             renderShellLoadingImmediately();
             // eslint-disable-next-line no-console
             console.info('[login-success]', { route: state.route, routes_count: effectiveRoutes().length });

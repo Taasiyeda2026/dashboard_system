@@ -1,0 +1,235 @@
+בדוק ותקן את בורר הצבע במערכת dashboard_system.
+
+ריפו:
+https://github.com/Taasiyeda2026/dashboard_system.git
+
+המטרה:
+בורר הצבע חייב לשנות את צבע המערכת מיד בלחיצה, לשמור את הבחירה מקומית, לטעון אותה אחרי רענון, ואם קיימת תמיכה בשרת — לשמור גם בשרת. אסור שהבורר רק יוצג בלי להשפיע.
+
+קבצים מרכזיים לבדיקה:
+frontend/src/main.js
+frontend/src/styles/main.css
+frontend/src/api.js
+backend/actions.gs
+backend/router.gs
+backend/sheets.gs
+sw.js
+index.html
+
+הבעיה:
+ב־frontend/src/main.js כבר קיימות פונקציות הקשורות לבורר הצבע:
+ACCENT_COLORS
+normalizeAccentName
+accentNameFromStorage
+applyGlobalAccent
+bindAccentPickerOnce
+
+אבל בפועל בורר הצבע לא משנה את צבע המערכת. יש לוודא שכל השרשרת מחוברת:
+1. HTML של הבורר קיים בפועל בתוך ה־shell.
+2. הכפתור כולל data-accent-picker-btn.
+3. הפופאפ כולל data-accent-picker-popover.
+4. כל צבע כולל data-accent-swatch ו־data-accent תקין.
+5. bindAccentPickerOnce() נקראת אחרי שה־shell נוצר.
+6. applyGlobalAccent() מופעלת גם בעליית האפליקציה וגם אחרי התחברות/טעינת clientSettings.
+7. משתני CSS מתעדכנים על document.documentElement.
+8. אין CSS שמדרס את הצבעים עם ערכים קשיחים במקום var(--ds-accent).
+9. אין service worker/cache שמגישים קובץ main.js ישן.
+
+יש לבצע תיקון מלא:
+
+א. ב־frontend/src/main.js:
+לאחר כל יצירת shell, בתוך bindShell() או מיד אחרי app.innerHTML = shell(...), לקרוא:
+bindAccentPickerOnce();
+applyGlobalAccent();
+
+אם bindShell() נקראת בכל mount, עדיין bindAccentPickerOnce צריך להישאר מוגן עם _accentPickerBound כדי שלא יווצרו מאזינים כפולים.
+
+ב. בתוך shell(content), להוסיף בפוטר או באזור קבוע בסרגל הצד HTML מלא וברור לבורר הצבע:
+
+<div class="accent-picker" dir="rtl">
+  <button
+    type="button"
+    class="accent-picker__btn"
+    data-accent-picker-btn
+    aria-label="בחירת צבע מערכת"
+    title="בחירת צבע מערכת">
+  </button>
+
+  <div class="accent-picker__popover" data-accent-picker-popover hidden>
+    <button type="button" class="accent-picker__swatch" data-accent-swatch data-accent="blue" aria-label="כחול"></button>
+    <button type="button" class="accent-picker__swatch" data-accent-swatch data-accent="green" aria-label="ירוק"></button>
+    <button type="button" class="accent-picker__swatch" data-accent-swatch data-accent="purple" aria-label="סגול"></button>
+    <button type="button" class="accent-picker__swatch" data-accent-swatch data-accent="orange" aria-label="כתום"></button>
+    <button type="button" class="accent-picker__swatch" data-accent-swatch data-accent="gray" aria-label="אפור"></button>
+    <button type="button" class="accent-picker__swatch" data-accent-swatch data-accent="pink" aria-label="ורוד"></button>
+    <button type="button" class="accent-picker__swatch" data-accent-swatch data-accent="cyan" aria-label="תכלת"></button>
+  </div>
+</div>
+
+ג. לוודא שה־shell footer לא מכיל רק כפתור או מקום ריק, אלא באמת את הבורר הזה.
+
+ד. ב־frontend/src/styles/main.css:
+להוסיף CSS ברור לבורר הצבע אם חסר או אם הוא לא תקין:
+
+.accent-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.accent-picker__btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.72);
+  background: var(--ds-accent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+  cursor: pointer;
+}
+
+.accent-picker__popover {
+  position: fixed;
+  z-index: 9999;
+  width: 34px;
+  padding: 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(15,23,42,0.14);
+  box-shadow: 0 8px 24px rgba(15,23,42,0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.accent-picker__popover[hidden] {
+  display: none !important;
+}
+
+.accent-picker__swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.accent-picker__swatch[data-accent="blue"] { background: #1a3358; }
+.accent-picker__swatch[data-accent="green"] { background: #166534; }
+.accent-picker__swatch[data-accent="purple"] { background: #5b21b6; }
+.accent-picker__swatch[data-accent="orange"] { background: #c2410c; }
+.accent-picker__swatch[data-accent="gray"] { background: #334155; }
+.accent-picker__swatch[data-accent="pink"] { background: #ed608a; }
+.accent-picker__swatch[data-accent="cyan"] { background: #0292b7; }
+
+.accent-picker__swatch.is-active {
+  border-color: #111827;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.9);
+}
+
+ה. לתקן את applyGlobalAccent כך שתעדכן גם את כפתור הבורר וגם את כל הסוואצ׳ים:
+
+function applyGlobalAccent(name = accentNameFromStorage()) {
+  const selected = normalizeAccentName(name) || 'blue';
+  const colors = ACCENT_COLORS[selected] || ACCENT_COLORS.blue;
+  const root = document.documentElement;
+
+  root.style.setProperty('--ds-accent', colors.accent);
+  root.style.setProperty('--ds-accent-hover', colors.hover);
+  root.style.setProperty('--ds-accent-soft', colors.soft);
+  root.style.setProperty('--ds-interactive-selected', colors.soft);
+  root.style.setProperty('--ds-activities-stripe', colors.stripe);
+  root.style.setProperty('--ds-activities-stripe-hover', colors.stripeHover);
+  root.style.setProperty('--ds-focus-ring', `0 0 0 2px color-mix(in srgb, ${colors.accent} 24%, transparent)`);
+  root.style.setProperty('--ds-focus-ring-strong', `0 0 0 3px color-mix(in srgb, ${colors.accent} 30%, transparent)`);
+
+  root.dataset.dsAccent = selected;
+
+  document.querySelectorAll('[data-accent-picker-btn]').forEach((btn) => {
+    btn.style.backgroundColor = colors.accent;
+    btn.dataset.currentAccent = selected;
+  });
+
+  document.querySelectorAll('[data-accent-swatch]').forEach((swatch) => {
+    swatch.classList.toggle('is-active', swatch.dataset.accent === selected);
+  });
+
+  return selected;
+}
+
+ו. לתקן את אירוע הלחיצה כך שלא יישבר אם api.saveClientSetting לא קיים:
+
+const saveAccentToServer = async (selected) => {
+  if (typeof api.saveClientSetting !== 'function') return;
+  try {
+    await api.saveClientSetting({ key: 'accent_color', value: selected });
+  } catch (err) {
+    console.warn('[accent-picker] Server save failed; local choice remains active:', err);
+  }
+};
+
+ובתוך לחיצה על swatch:
+
+const selected = applyGlobalAccent(name);
+localStorage.setItem(ACCENT_LS_KEY, selected);
+localStorage.setItem(LEGACY_STRIPE_LS_KEY, selected);
+state.clientSettings = {
+  ...(state.clientSettings || {}),
+  accent_color: selected,
+  theme_accent: selected
+};
+saveAccentToServer(selected);
+pop.hidden = true;
+
+ז. ב־frontend/src/api.js:
+לבדוק אם קיימת פונקציה saveClientSetting.
+אם לא קיימת, להוסיף אותה לאובייקט api ולחבר אותה לפעולת backend בשם saveClientSetting.
+
+דוגמה:
+saveClientSetting: ({ key, value }) => request('saveClientSetting', { key, value })
+
+וכן להוסיף את saveClientSetting ל־MUTATING_ACTIONS כדי שמערכת ה־API תתייחס אליה כפעולת כתיבה.
+
+ח. ב־backend/router.gs / actions.gs:
+אם אין handler בשם saveClientSetting, להוסיף handler ששומר את ההגדרה בטבלת/גיליון ההגדרות הקיים.
+הפעולה צריכה לקבל:
+key
+value
+
+ולאפשר לפחות:
+accent_color
+theme_accent
+
+אם אין טבלת הגדרות מסודרת, לא לשבור את המערכת. במקרה כזה השמירה המקומית ב־localStorage מספיקה, אבל לא להשאיר קריאת API שבורה.
+
+ט. ב־buildClientSettingsFromLists או בכל מקום שבו נטענות הגדרות לקוח:
+לוודא ש־accent_color או theme_accent חוזרים לתוך state.clientSettings.
+אם יש accent_color בשרת, הוא צריך להשפיע על applyGlobalAccent אחרי bootstrap.
+
+י. בעיית cache / service worker:
+לבדוק אם sw.js או service worker ישן מגישים main.js ישן.
+יש לוודא:
+1. להעלות CACHE_VERSION ב־sw.js.
+2. אם SERVICE_WORKER_ENABLED=false, לבצע unregister לכל service worker קיים בזמן טעינת האפליקציה.
+3. לנקות caches קיימים:
+   caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key))));
+4. לא להשאיר מצב שבו הדפדפן טוען main.js ישן ללא קוד בורר הצבע.
+
+יא. בדיקת קבלה:
+לאחר התיקון:
+1. נכנסים למערכת.
+2. לוחצים על בורר הצבע.
+3. בוחרים ירוק.
+4. הצבע של הסיידבר, כפתורים פעילים, כותרות/דגשים שמשתמשים ב־var(--ds-accent) משתנה מיד.
+5. מרעננים את הדף.
+6. הצבע הירוק נשאר.
+7. מחליפים לסגול.
+8. הצבע משתנה מיד.
+9. אין שגיאה בקונסול.
+10. אם api.saveClientSetting לא קיים או נכשל, הבחירה עדיין נשמרת מקומית ולא נשברת.
+
+לא לבצע שינוי עיצובי רחב מעבר לתיקון בורר הצבע.
+לא לשנות שמות מסכים.
+לא לגעת במבנה נתונים של פעילויות.
+לא לשנות הרשאות.
+לתקן רק את השרשרת: HTML של הבורר → event binding → applyGlobalAccent → CSS variables → localStorage → server save אם קיים → cache/service worker.
