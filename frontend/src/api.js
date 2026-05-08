@@ -1,6 +1,7 @@
 import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
+import { cleanActivityManagerName, NO_ACTIVITY_MANAGER_LABEL } from './screens/shared/activity-options.js';
 import { supabase, supabaseConfig } from './supabase-client.js';
 
 /**
@@ -381,7 +382,7 @@ async function readListsFromSupabase() {
       const label = String(row.label ?? row.item_label ?? row.display ?? value).trim() || value;
       if (!value) continue;
       if (!catMap.has(cat)) catMap.set(cat, []);
-      catMap.get(cat).push({ label, value, _row: row });
+      catMap.get(cat).push({ label, value, _row: row, is_active: row.is_active, active: row.active });
     }
     const categories = [...catMap.entries()].map(([category, items]) => ({ category, items }));
     return { categories, _source: 'supabase' };
@@ -447,7 +448,22 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
     parent_value:  String(i._row?.parent_value  || i._row?.activity_type || i._row?.type || '').trim()
   }));
 
-  const managerNames = managerItems.map((i) => i.value || i.label).filter(Boolean);
+  const managerIsActive = (item) => {
+    const row = item?._row && typeof item._row === 'object' ? item._row : item;
+    const raw = row && Object.prototype.hasOwnProperty.call(row, 'is_active') ? row.is_active : row?.active;
+    if (raw === false || raw === 0) return false;
+    const clean = String(raw ?? '').trim().toLowerCase();
+    return !['false', '0', 'no', 'n', 'inactive', 'לא', 'לא פעיל', 'כבוי'].includes(clean);
+  };
+  const managerNames = managerItems
+    .filter(managerIsActive)
+    .map((i) => cleanActivityManagerName(i.value || i.label))
+    .filter(Boolean);
+  const managerUsers = managerItems.map((i) => ({
+    name: cleanActivityManagerName(i.value || i.label),
+    is_active: managerIsActive(i),
+    active: i.active,
+  })).filter((user) => user.name);
 
   return {
     dropdown_options: {
@@ -461,7 +477,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
       authorities:              authorityValues,
       activity_manager:         managerNames,
       activity_managers:        managerNames,
-      activities_manager_users: managerNames.map((name) => ({ name })),
+      activities_manager_users: managerUsers,
       instructor_name:          instructorUsers.map((u) => u.name),
       instructor_names:         instructorUsers.map((u) => u.name),
       instructor_users:         instructorUsers,
@@ -840,7 +856,7 @@ async function dashboardReadModelFromSupabase(month) {
     const byManagerMap = new Map();
 
     function managerStats(manager) {
-      const key = String(manager || 'unassigned').trim() || 'unassigned';
+      const key = cleanActivityManagerName(manager) || NO_ACTIVITY_MANAGER_LABEL;
       if (!byManagerMap.has(key)) {
         byManagerMap.set(key, {
           activity_manager: key,
@@ -990,7 +1006,7 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
     const types = rowExceptionTypesFromActivity(row);
     if (!types.length) continue;
-    const manager = nullStr(row?.activity_manager) || 'unassigned';
+    const manager = cleanActivityManagerName(row?.activity_manager) || NO_ACTIVITY_MANAGER_LABEL;
     byManager[manager] = (byManager[manager] || 0) + 1;
     for (const type of types) counts[type] = (counts[type] || 0) + 1;
     if (includeRows) {

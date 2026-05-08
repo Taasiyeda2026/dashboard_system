@@ -127,7 +127,8 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   if (config.optionsOverrides && typeof config.optionsOverrides === 'object') {
     Object.keys(config.optionsOverrides).forEach((k) => {
       if (Array.isArray(config.optionsOverrides[k]) && config.optionsOverrides[k].length) {
-        optionsMap[k] = config.optionsOverrides[k];
+        optionsMap[k] = Array.from(new Set([...(optionsMap[k] || []), ...config.optionsOverrides[k]]))
+          .sort((a, b) => a.localeCompare(b, 'he'));
       }
     });
   }
