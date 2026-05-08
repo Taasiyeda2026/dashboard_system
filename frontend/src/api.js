@@ -1189,7 +1189,7 @@ function normalizeData(data) {
   return normalized;
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,emp_id,is_active,permissions,auth_user_id,created_at,updated_at';
+const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager']);
 const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
 
@@ -1247,7 +1247,7 @@ function flattenUserRow(userRow = {}) {
     display_role: role,
     display_role_label: customDisplayRole || hebrewRole(role),
     display_role2: String(permissions.display_role2 || ''),
-    emp_id: String(userRow.emp_id || ''),
+    emp_id: String(userRow.user_id || ''),
     active: userRow.is_active ? 'yes' : 'no',
     ...permissions
   };
@@ -1293,7 +1293,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
 
   const { data: userRow, error: profileError } = await supabase
     .from('users')
-    .select('*')
+    .select(USER_PUBLIC_COLUMNS)
     .eq('auth_user_id', authUserId)
     .eq('is_active', true)
     .single();
@@ -1310,7 +1310,7 @@ function makeSessionToken(userRow) {
   const claims = {
     uid: String(userRow.user_id || ''),
     role: normalizeSupabaseRole(userRow.role),
-    emp_id: String(userRow.emp_id || ''),
+    emp_id: String(userRow.user_id || ''),
     name: String(userRow.name || '')
   };
   return `sb.${btoa(unescape(encodeURIComponent(JSON.stringify(claims))))}.session`;
