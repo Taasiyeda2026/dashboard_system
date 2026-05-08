@@ -602,13 +602,22 @@ async function readInstructorsFromSupabase() {
  * Only metrics computed from the same Supabase dashboard path are emitted.
  */
 function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionCount, uniqueInstructorCount, courseEndings) {
-  void activeTypeCounts;
+  void totals;
+  const typeCards = [
+    { id: 'active_courses',      action: 'kpi|active_courses',      subtitle: 'קורסים',    key: 'course' },
+    { id: 'active_workshops',    action: 'kpi|active_workshops',    subtitle: 'סדנאות',    key: 'workshop' },
+    { id: 'active_tours',        action: 'kpi|active_tours',        subtitle: 'סיורים',    key: 'tour' },
+    { id: 'active_after_school', action: 'kpi|active_after_school', subtitle: 'אפטרסקול', key: 'after_school' },
+  ].map(({ id, action, subtitle, key }) => ({
+    id, action, subtitle,
+    title: String(activeTypeCounts[key] || 0),
+    value: activeTypeCounts[key] || 0
+  }));
   return [
-    { id: 'short', action: 'kpi|short', title: String(totals.total_short_activities), subtitle: 'חד-יומי', value: totals.total_short_activities },
-    { id: 'long', action: 'kpi|long', title: String(totals.total_long_activities), subtitle: 'תוכניות', value: totals.total_long_activities },
+    ...typeCards,
     { id: 'instructors', action: 'kpi|instructors', title: String(uniqueInstructorCount), subtitle: 'מדריכים פעילים', value: uniqueInstructorCount },
-    { id: 'endings', action: 'kpi|endings', title: String(courseEndings), subtitle: 'סיומי קורסים', value: courseEndings },
-    { id: 'exceptions', action: 'kpi|exceptions', title: String(exceptionCount), subtitle: 'חריגות', value: exceptionCount }
+    { id: 'endings',     action: 'kpi|endings',     title: String(courseEndings),         subtitle: 'סיומי קורסים',   value: courseEndings },
+    { id: 'exceptions',  action: 'kpi|exceptions',  title: String(exceptionCount),        subtitle: 'חריגות',          value: exceptionCount }
   ];
 }
 
@@ -797,7 +806,7 @@ async function dashboardReadModelFromSupabase(month) {
       includeEndDate: true
     })).filter((row) => !isActivityClosed(row));
     const monthRows = openRows.filter((row) => activityHasDateInMonth(row, monthPrefix));
-    const endingRows = openRows.filter((row) => isProgramActivity(row) && String(row?.end_date || '').slice(0, 7) === monthPrefix);
+    const endingRows = openRows.filter((row) => rowActivityType(row) === 'course' && String(row?.end_date || '').slice(0, 7) === monthPrefix);
     const instructorIds = new Set();
     const instructorNames = new Set();
     const activeTypeCounts = {};

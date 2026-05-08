@@ -1499,8 +1499,8 @@ span.ds-chip {
 }
 
 .ds-act-nav-item:hover {
-  background: #f8fbff;
-  border-color: rgba(26, 51, 88, 0.24);
+  background: var(--ds-accent-soft);
+  border-color: color-mix(in srgb, var(--ds-accent) 24%, transparent);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
@@ -1928,7 +1928,7 @@ span.ds-chip {
 }
 
 .ds-week-col.is-today .ds-week-col__dow {
-  color: #1a3358;
+  color: var(--ds-accent);
 }
 
 .ds-week-col__date {
@@ -2441,16 +2441,16 @@ span.ds-chip {
   min-height: 38px;
   padding: 6px 10px;
   border-radius: 10px;
-  border-color: rgba(26, 51, 88, 0.15);
-  background: #f8fbff;
+  border-color: color-mix(in srgb, var(--ds-accent) 15%, transparent);
+  background: var(--ds-accent-soft);
   color: var(--ds-text-muted);
   box-shadow: none;
 }
 
 .ds-cal-nav .ds-btn.ds-btn--sm:hover:not(:disabled) {
-  background: #f2f7ff;
-  border-color: rgba(26, 51, 88, 0.24);
-  box-shadow: 0 1px 3px rgba(26, 51, 88, 0.09);
+  background: color-mix(in srgb, var(--ds-accent-soft) 85%, #fff);
+  border-color: color-mix(in srgb, var(--ds-accent) 24%, transparent);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.09);
 }
 
 /* ——— Scoped subtle scrollbars (weekly/shell navigation areas) ——— */
@@ -2910,7 +2910,7 @@ span.ds-chip {
 
 .ds-manager-stat:hover {
   border-color: var(--ds-border-strong);
-  background: rgba(232, 238, 246, 0.7);
+  background: color-mix(in srgb, var(--ds-accent-soft) 70%, transparent);
   box-shadow: var(--ds-shadow-xs);
 }
 
@@ -4232,10 +4232,10 @@ select.ds-input {
 }
 
 .instr-summary-row:hover {
-  border-color: rgba(26, 51, 88, 0.22);
+  border-color: color-mix(in srgb, var(--ds-accent) 22%, transparent);
   border-inline-start-color: var(--ds-accent);
-  background: #f8fbff;
-  box-shadow: 0 1px 4px rgba(26, 51, 88, 0.08);
+  background: var(--ds-accent-soft);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
 }
 
 .instr-stats {
@@ -7493,7 +7493,7 @@ select.ds-input {
 }
 
 .ds-end-row:hover td {
-  background: #eef4ff !important;
+  background: var(--ds-activities-stripe-hover) !important;
 }
 
 .ds-end-row.is-expanded td {
@@ -8484,11 +8484,11 @@ select.ds-activity-add-field .ds-input,
 }
 
 .instr-popup-table tbody tr:nth-child(even) td {
-  background: rgba(240, 246, 255, 0.5);
+  background: color-mix(in srgb, var(--ds-activities-stripe) 50%, transparent);
 }
 
 .instr-popup-table tbody tr:hover td {
-  background: rgba(59, 130, 246, 0.06);
+  background: color-mix(in srgb, var(--ds-accent-soft) 35%, transparent);
 }
 
 .instr-pt__name {
@@ -8665,6 +8665,64 @@ select.ds-activity-add-field .ds-input,
 /* Exception icon gets a warm tint */
 .ds-kpi--exceptions-alert .ds-kpi-icon { color: #fca5a5; }
 .ds-kpi--exceptions-alert .ds-interactive-card__value { color: #dc2626; }
+
+/* ── KPI info tooltip (מדריכים פעילים) ── */
+.ds-kpi-info-wrap {
+  position: relative;
+}
+.ds-kpi-info-wrap > .ds-interactive-card--kpi {
+  width: 100%;
+}
+.ds-kpi-info-btn {
+  position: absolute;
+  top: 3px;
+  inset-inline-end: 3px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--ds-text-muted);
+  padding: 0;
+  z-index: 2;
+  transition: color 0.12s, background 0.12s;
+}
+.ds-kpi-info-btn:hover,
+.ds-kpi-info-btn:focus-visible {
+  color: var(--ds-accent);
+  background: var(--ds-accent-soft);
+  outline: none;
+}
+.ds-kpi-info-tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  inset-inline-end: 0;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  width: 270px;
+  max-width: 80vw;
+  text-align: right;
+  direction: rtl;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+  z-index: 200;
+  color: var(--ds-text);
+  font-weight: 400;
+  white-space: normal;
+}
+.ds-kpi-info-btn:hover .ds-kpi-info-tooltip,
+.ds-kpi-info-btn:focus .ds-kpi-info-tooltip,
+.ds-kpi-info-btn.is-open .ds-kpi-info-tooltip {
+  display: block;
+}
 
 /* ── Summary button – badge-like ── */
 .ds-summary-btn {
