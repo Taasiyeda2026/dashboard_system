@@ -1508,7 +1508,7 @@ span.ds-chip {
   background: var(--ds-accent);
   border-color: var(--ds-accent);
   color: #fff;
-  box-shadow: 0 2px 6px rgba(26, 51, 88, 0.2);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--ds-accent) 35%, transparent);
   cursor: default;
 }
 
@@ -1869,12 +1869,12 @@ span.ds-chip {
 
 /* today מנצח על צבעי הימים */
 .ds-week-col.is-today[data-day-idx] {
-  background: linear-gradient(180deg, #edf4ff 0%, var(--ds-surface) 42%);
-  border: 1px solid rgba(59, 130, 246, 0.24);
-  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.15), 0 1px 4px rgba(26, 51, 88, 0.06);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ds-accent) 8%, #fff) 0%, var(--ds-surface) 42%);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 24%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-accent) 15%, transparent), 0 1px 4px rgba(26, 51, 88, 0.06);
 }
 .ds-week-col.is-today[data-day-idx] .ds-week-col__head {
-  background: linear-gradient(180deg, #dbe9ff 0%, rgba(237,244,255,0.6) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ds-accent) 14%, #fff) 0%, color-mix(in srgb, var(--ds-accent) 6%, #fff) 100%);
   border-bottom-color: rgba(26, 51, 88, 0.22);
 }
 
@@ -1915,7 +1915,7 @@ span.ds-chip {
 }
 
 .ds-week-col.is-today .ds-week-col__head {
-  background: linear-gradient(180deg, #deeaff 0%, rgba(238, 244, 255, 0.5) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ds-accent) 14%, #fff) 0%, color-mix(in srgb, var(--ds-accent) 5%, #fff) 100%);
   border-bottom-color: rgba(26, 51, 88, 0.18);
 }
 
@@ -2671,11 +2671,11 @@ span.ds-chip {
 
 /* TODAY — זוהר עדין + כוכבים */
 .ds-interactive-card.is-cal-today {
-  border: 1px solid rgba(59, 130, 246, 0.22);
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.13),
-              0 0 18px rgba(59, 130, 246, 0.14),
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 22%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ds-accent) 13%, transparent),
+              0 0 18px color-mix(in srgb, var(--ds-accent) 14%, transparent),
               0 4px 14px rgba(26, 51, 88, 0.07);
-  background: linear-gradient(165deg, #deeaff 0%, #eef4ff 100%);
+  background: linear-gradient(165deg, var(--ds-accent-soft) 0%, color-mix(in srgb, var(--ds-accent) 6%, #fff) 100%);
   position: relative;
   overflow: visible;
 }
@@ -2720,8 +2720,8 @@ span.ds-chip {
 /* today תמיד מנצח */
 .ds-interactive-card.is-cal-today.has-activities,
 .ds-interactive-card.is-cal-today.is-no-activities {
-  background: linear-gradient(165deg, #deeaff 0%, #eef4ff 100%);
-  border: 1px solid rgba(59, 130, 246, 0.22);
+  background: linear-gradient(165deg, var(--ds-accent-soft) 0%, color-mix(in srgb, var(--ds-accent) 6%, #fff) 100%);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 22%, transparent);
   opacity: 1;
 }
 
@@ -5402,8 +5402,8 @@ select.ds-input {
 }
 
 .ds-activities-screen .ds-chip--tab.is-active {
-  background: #e9f0fa;
-  border-color: rgba(26, 51, 88, 0.2);
+  background: var(--ds-accent-soft);
+  border-color: color-mix(in srgb, var(--ds-accent) 20%, transparent);
 }
 
 .ds-filter-panel {
@@ -6793,7 +6793,7 @@ select.ds-input {
 
 .ds-progress-bar__fill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6 0%, #6366f1 100%);
+  background: var(--ds-accent);
   border-radius: 999px;
   transition: width 0.4s ease;
   min-width: 0;
@@ -8028,8 +8028,8 @@ select.ds-activity-add-field .ds-input,
   color: #4a4f75;
 }
 .ds-interactive-card.is-cal-today {
-  background: #edf4ff;
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
+  background: color-mix(in srgb, var(--ds-accent) 8%, #fff);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ds-accent) 15%, transparent);
 }
 
 .ds-week-board {
@@ -8243,12 +8243,12 @@ select.ds-activity-add-field .ds-input,
   min-height: 30px;
   padding: 3px 10px !important;
   border-radius: 999px;
-  border: 1px solid #22d3ee;
-  background: linear-gradient(135deg, #06b6d4, #3b82f6);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 60%, transparent);
+  background: var(--ds-accent);
   color: #fff;
   font-weight: 800;
   letter-spacing: 0.02em;
-  box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.16), 0 6px 14px rgba(59, 130, 246, 0.22);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ds-accent) 16%, transparent), 0 6px 14px color-mix(in srgb, var(--ds-accent) 22%, transparent);
 }
 
 .ds-btn--today:hover:not(:disabled) {
@@ -8383,13 +8383,13 @@ select.ds-activity-add-field .ds-input,
 }
 
 .ds-week-col.is-today .ds-week-col__head {
-  background: rgba(255, 235, 59, 0.45);
-  border-bottom-color: rgba(245, 158, 11, 0.35);
+  background: color-mix(in srgb, var(--ds-accent) 18%, #fff);
+  border-bottom-color: color-mix(in srgb, var(--ds-accent) 28%, transparent);
 }
 .ds-week-col__today-badge {
-  background: rgba(255, 215, 0, 0.92);
-  color: #5b3a00;
-  border: 1px solid rgba(217, 119, 6, 0.45);
+  background: var(--ds-accent);
+  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 80%, #000);
 }
 
 /* ——— Instructor popup ——— */
@@ -8547,21 +8547,21 @@ select.ds-activity-add-field .ds-input,
 
 /* Month day cell highlighting for days with activities */
 .ds-cal-grid .ds-interactive-card--day-cell.has-activities {
-  background: rgba(59, 130, 246, 0.08);
-  border-color: rgba(59, 130, 246, 0.2);
+  background: color-mix(in srgb, var(--ds-accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--ds-accent) 20%, transparent);
 }
 
 .ds-cal-grid .ds-interactive-card--day-cell.has-activities:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.12);
+  background: color-mix(in srgb, var(--ds-accent) 12%, transparent);
 }
 
 /* Keep TODAY dominant while preserving activity indication */
 .ds-interactive-card.is-cal-today.has-activities {
-  background: linear-gradient(165deg, #deeaff 0%, #eef4ff 100%);
-  border: 1px solid rgba(59, 130, 246, 0.28);
-  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.22),
-              0 0 0 1px rgba(59, 130, 246, 0.13),
-              0 0 18px rgba(59, 130, 246, 0.14),
+  background: linear-gradient(165deg, var(--ds-accent-soft) 0%, color-mix(in srgb, var(--ds-accent) 6%, #fff) 100%);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 28%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-accent) 22%, transparent),
+              0 0 0 1px color-mix(in srgb, var(--ds-accent) 13%, transparent),
+              0 0 18px color-mix(in srgb, var(--ds-accent) 14%, transparent),
               0 4px 14px rgba(26, 51, 88, 0.07);
 }
 
@@ -8579,7 +8579,7 @@ select.ds-activity-add-field .ds-input,
 .ds-week-col__head-top { background: rgba(103, 232, 249, 0.2); margin: -12px -12px 8px; padding: 10px 12px; border-radius: 12px 12px 0 0; }
 .ds-cal-wd { font-weight: 800; }
 .ds-interactive-card.is-weekend { background: rgba(244, 114, 182, 0.16); }
-.ds-interactive-card.is-cal-today { box-shadow: inset 0 0 0 2px rgba(29,78,216,.45); }
+.ds-interactive-card.is-cal-today { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ds-accent) 45%, transparent); }
 .ds-end-table--compact { margin-inline: auto; width: min(100%, 1100px); }
 .ds-end-table--compact th, .ds-end-table--compact td { padding: 6px 8px; }
 
