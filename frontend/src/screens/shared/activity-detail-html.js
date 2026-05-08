@@ -1,5 +1,6 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
+import { activityManagerDisplayName, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL } from './activity-options.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 
@@ -29,6 +30,10 @@ function activityNameLabel(type) {
 
 function fallback(v) {
   return String(v || '').trim() || '—';
+}
+
+function managerFallback(v) {
+  return activityManagerDisplayName(v);
 }
 
 function todayStr() {
@@ -299,7 +304,7 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
 
 function blockPeople(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
-  const managers = mergeListStrings(options, ['activity_manager', 'activity_managers']);
+  const managers = getManagerUsers(settings || {});
   const instructors = mergeListStrings(options, ['instructor_name', 'instructor_names']);
   const authorities = mergeListStrings(options, ['authority', 'authorities']);
   const grades = mergeListStrings(options, ['grade', 'grades']);
@@ -328,7 +333,7 @@ function blockPeople(row, { settings = {} } = {}) {
   return `
     <section class="activity-drawer__section">
       <div class="activity-drawer__grid activity-drawer__grid--three" data-mode="view">
-        ${fieldViewOnly('מנהל פעילות', escapeHtml(fallback(row.activity_manager)))}
+        ${fieldViewOnly('מנהל פעילות', escapeHtml(managerFallback(row.activity_manager)))}
         ${fieldViewOnly(instructorLabel, escapeHtml(fallback(instructor1Display)))}
         ${fieldViewOnly('סוג פעילות', escapeHtml(activityTypeLabel(activityType)))}
         ${fieldViewOnly('סטטוס', escapeHtml(statusText(row.status)))}
@@ -339,7 +344,7 @@ function blockPeople(row, { settings = {} } = {}) {
       <div class="activity-drawer__details-edit-grid" data-mode="edit" hidden>
         ${fieldEditOnly(
           'מנהל פעילות',
-          selectHtml({ name: 'activity_manager', value: row.activity_manager, options: managers })
+          selectHtml({ name: 'activity_manager', value: cleanActivityManagerName(row.activity_manager), options: managers, placeholder: NO_ACTIVITY_MANAGER_LABEL })
         )}
         ${fieldEditOnly('מדריך/ה', instructorEditHtml)}
         ${fieldEditOnly(

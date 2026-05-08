@@ -1,5 +1,6 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatActivityDateColumnsHe } from './format-date.js';
+import { activityManagerDisplayName } from './activity-options.js';
 
 function safeFilePart(value, fallback = 'export') {
   const clean = String(value || fallback).replace(/[\\/?%*:|"<>]/g, '_').trim();
@@ -43,7 +44,7 @@ export function activityExportRow(row = {}) {
     'רשות': row.authority || '',
     'שכבה': row.grade || '',
     'קבוצה / כיתה': row.class_group || '',
-    'מנהל פעילות': row.activity_manager || '',
+    'מנהל פעילות': activityManagerDisplayName(row.activity_manager),
     'מדריך 1': row.instructor_name || row.emp_id || '',
     'מדריך 2': row.instructor_name_2 || row.emp_id_2 || '',
     'תאריך התחלה': formatDateHe(row.start_date) || row.start_date || '',

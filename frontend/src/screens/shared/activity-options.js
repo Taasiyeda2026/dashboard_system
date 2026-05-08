@@ -1,5 +1,32 @@
+export const NO_ACTIVITY_MANAGER_LABEL = 'ללא מנהל';
+
 function text(value) {
   return String(value == null ? '' : value).trim();
+}
+
+export function cleanActivityManagerName(value) {
+  const clean = text(value);
+  const upper = clean.toUpperCase();
+  if (!clean || clean === NO_ACTIVITY_MANAGER_LABEL || upper === 'NULL' || upper === 'UNDEFINED' || upper === 'NONE' || upper === 'N/A' || upper === 'UNASSIGNED' || clean === '-') return '';
+  return clean;
+}
+
+export function activityManagerDisplayName(value) {
+  return cleanActivityManagerName(value) || NO_ACTIVITY_MANAGER_LABEL;
+}
+
+function isExplicitlyInactive(value) {
+  if (value === false || value === 0) return true;
+  const clean = text(value).toLowerCase();
+  return ['false', '0', 'no', 'n', 'inactive', 'לא', 'לא פעיל', 'כבוי'].includes(clean);
+}
+
+function isActiveManagerItem(item) {
+  const row = item?._row && typeof item._row === 'object' ? item._row : item;
+  if (!row || typeof row !== 'object') return true;
+  if ('is_active' in row) return !isExplicitlyInactive(row.is_active);
+  if ('active' in row) return !isExplicitlyInactive(row.active);
+  return true;
 }
 
 function uniqueSorted(values) {
@@ -66,12 +93,13 @@ export function getRosterUsers(settings) {
     });
 }
 
-export function getManagerUsers(settings) {
+export function getManagerUsers(settings, { activeOnly = true } = {}) {
   const raw = Array.isArray(settings?.dropdown_options?.activities_manager_users)
     ? settings.dropdown_options.activities_manager_users
     : [];
-  const names = raw.map((user) => text(user?.name));
-  return uniqueSorted(names.length ? names : settings?.dropdown_options?.activity_manager);
+  const managerRows = activeOnly ? raw.filter(isActiveManagerItem) : raw;
+  const names = managerRows.map((user) => cleanActivityManagerName(user?.name));
+  return uniqueSorted(raw.length ? names : settings?.dropdown_options?.activity_manager);
 }
 
 export function getFilterOptionOverrides(settings) {

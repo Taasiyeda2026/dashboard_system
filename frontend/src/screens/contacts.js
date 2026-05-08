@@ -9,6 +9,7 @@ import {
   filtersToolbarHtml,
   bindLocalFilters
 } from './shared/activity-list-filters.js';
+import { getManagerUsers } from './shared/activity-options.js';
 
 const AVATAR_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e',
@@ -333,9 +334,7 @@ export const contactsScreen = {
     const instrRows = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
     const schoolRows = Array.isArray(data?.school_rows) ? data.school_rows : [];
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
-    const managerOptions = (Array.isArray(state?.clientSettings?.dropdown_options?.activities_manager_users)
-      ? state.clientSettings.dropdown_options.activities_manager_users.map((u) => String(u?.name || '').trim())
-      : []).filter(Boolean);
+    const managerOptions = getManagerUsers(state?.clientSettings || {});
 
     root.querySelectorAll('[data-contacts-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {

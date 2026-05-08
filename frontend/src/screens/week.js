@@ -11,14 +11,14 @@ import {
   filtersToolbarHtml,
   bindLocalFilters
 } from './shared/activity-list-filters.js';
-import { getFilterOptionOverrides } from './shared/activity-options.js';
+import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { bindActNavGrid } from './shared/act-nav-grid.js';
 
 const inflightActivityDetailRequests = new Map();
 const inflightWeekRequests = new Map();
 const WEEK_SCOPE = 'calendar';
 const CALENDAR_FILTER_FIELDS = [
-  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
   { key: 'instructor', label: 'מדריך', getValues: (row) => [row?.instructor_name, row?.instructor_name_2] },
   { key: 'activity_name', label: 'תוכנית' },
   { key: 'authority', label: 'רשות' },

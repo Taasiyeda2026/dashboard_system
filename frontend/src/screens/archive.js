@@ -15,7 +15,7 @@ import {
   bindLocalFilters,
   splitVisibleRows
 } from './shared/activity-list-filters.js';
-import { getRosterUsers } from './shared/activity-options.js';
+import { activityManagerDisplayName, getRosterUsers } from './shared/activity-options.js';
 
 const ARCHIVE_SCOPE = 'archive';
 
@@ -38,7 +38,7 @@ function archiveTypeKpiHtml(rows) {
 }
 
 const ARCHIVE_FILTER_FIELDS = [
-  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) },
   { key: 'authority', label: 'רשות' }
 ];
@@ -124,7 +124,7 @@ export const archiveScreen = {
       const authority = escapeHtml(row.authority || '—');
       const school = escapeHtml(row.school || '—');
       const instructor = escapeHtml(instructorText(row));
-      const manager = escapeHtml(row.activity_manager || '—');
+      const manager = escapeHtml(activityManagerDisplayName(row.activity_manager));
       const endRaw = String(row?.end_date || row?.start_date || '').trim();
       const endHe = endRaw ? (formatDateHe(endRaw) || endRaw) : '—';
       const startRaw = String(row?.start_date || '').trim();

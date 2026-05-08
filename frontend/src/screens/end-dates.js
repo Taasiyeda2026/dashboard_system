@@ -2,6 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { formatDateHe } from './shared/format-date.js';
 import { triggerExcelDownload } from './shared/excel-export.js';
+import { activityManagerDisplayName } from './shared/activity-options.js';
 
 function asIso(value) {
   const text = String(value || '').trim().slice(0, 10);
@@ -74,7 +75,7 @@ function renderMonthTable(month, monthIdx) {
       <tr class="ds-end-expand-row" id="ds-end-expand-${escapeHtml(rowId)}" hidden>
         <td colspan="5" class="ds-end-expand-td">
           <div class="ds-end-dates__dates-list">${pillsHtml}</div>
-          <p class="ds-end-dates__meta"><strong>מנהל פעילויות:</strong> ${escapeHtml(String(row.activity_manager || '—'))}</p>
+          <p class="ds-end-dates__meta"><strong>מנהל פעילויות:</strong> ${escapeHtml(activityManagerDisplayName(row.activity_manager))}</p>
         </td>
       </tr>`;
   }).join('');

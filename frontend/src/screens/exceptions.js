@@ -17,6 +17,7 @@ import {
   bindLocalFilters,
   splitVisibleRows
 } from './shared/activity-list-filters.js';
+import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
 
@@ -31,7 +32,7 @@ function hebrewMonthLabel(ym) {
 }
 
 const EXCEPTION_FILTER_FIELDS = [
-  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
   { key: 'authority', label: 'רשות' },
   { key: 'funding', label: 'מימון' },
   { key: 'school', label: 'בית ספר' },
@@ -80,7 +81,7 @@ function exceptionDrawerHtml(row, hideRowId) {
     ${fieldRow(hebrewColumn('authority'),        row.authority)}
     ${fieldRow(hebrewColumn('school'),           row.school)}
     ${classDisplay ? fieldRow('שכבה/כיתה', classDisplay) : ''}
-    ${fieldRow(hebrewColumn('activity_manager'), row.activity_manager)}
+    ${fieldRow(hebrewColumn('activity_manager'), activityManagerDisplayName(row.activity_manager))}
     ${fieldRow('מדריך',
         instructor  ? (row.emp_id  ? `${instructor} (${row.emp_id})`  : instructor)  : '')}
     ${instructor2 ? fieldRow('מדריך 2',

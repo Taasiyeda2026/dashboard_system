@@ -23,19 +23,21 @@ import {
   splitVisibleRows
 } from './shared/activity-list-filters.js';
 import {
+  activityManagerDisplayName,
   getActivityCatalog,
   getActivityTypesByFamily,
   getActivityNamesForType,
   getRosterUsers,
   getManagerUsers,
   getFilterOptionOverrides,
-  cleanUnique
+  cleanUnique,
+  NO_ACTIVITY_MANAGER_LABEL
 } from './shared/activity-options.js';
 
 const inflightActivityDetailRequests = new Map();
 const ACTIVITIES_SCOPE = 'activities';
 const ACTIVITY_FILTER_FIELDS = [
-  { key: 'activity_manager', label: 'מנהל פעילות' },
+  { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
   { key: 'instructor', label: 'מדריך', getValues: (row) => [row?.instructor_name, row?.instructor_name_2] },
   { key: 'activity_name', label: 'תוכנית' },
   { key: 'authority', label: 'רשות' },
@@ -180,7 +182,7 @@ function addActivityModalHtml(settings) {
       </div>
       <input type="hidden" name="source" value="long">
       <div class="ds-activity-add-grid">
-        <label class="ds-activity-add-field"><span>מנהל פעילות</span><select class="ds-input" name="activity_manager">${optionsHtml(managerOptions)}</select></label>
+        <label class="ds-activity-add-field"><span>מנהל פעילות</span><select class="ds-input" name="activity_manager">${optionsHtml(managerOptions, '', NO_ACTIVITY_MANAGER_LABEL)}</select></label>
         ${authorityField}
         ${schoolField}
         <label class="ds-activity-add-field"><span>שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions)}</select></label>
