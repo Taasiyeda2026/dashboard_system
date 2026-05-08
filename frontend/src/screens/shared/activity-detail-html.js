@@ -592,11 +592,10 @@ function blockNotes(row, { privateNote = null, showPrivateNote = false } = {}) {
     ? `
       <div class="activity-drawer__private">
         <div class="activity-drawer__private-badge">🔒</div>
-        ${fieldViewEdit(
-          'הערה תפעולית',
-          `${escapeHtml(fallback(privateValue))}`,
-          textareaHtml({ name: 'operations_private_notes', value: String(privateValue || ''), rows: 2 })
-        )}
+        <div class="activity-drawer__field">
+          <div class="activity-drawer__label">הערה תפעולית</div>
+          ${textareaHtml({ name: 'operations_private_notes', value: String(privateValue || ''), rows: 2, attrs: 'data-always-editable' })}
+        </div>
       </div>
     `
     : '';

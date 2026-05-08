@@ -7342,6 +7342,13 @@ select.ds-input {
   margin-top: 4px;
 }
 
+.activity-drawer__private [data-always-editable] {
+  width: 100%;
+  margin-top: 4px;
+  border-color: #ddd6fe;
+  background: #faf5ff;
+}
+
 .activity-drawer__private-badge {
   font-size: 0.65rem;
   font-weight: 700;
