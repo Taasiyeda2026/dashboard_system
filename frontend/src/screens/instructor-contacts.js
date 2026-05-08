@@ -138,8 +138,17 @@ export const instructorContactsScreen = {
     let searchTimer;
     root.querySelector('#instr-contacts-search')?.addEventListener('input', (ev) => {
       const next = ev.target.value || '';
+      const cursorPos = ev.target?.selectionStart ?? next.length;
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => { state.instrContactsSearch = next; rerender(); }, 280);
+      searchTimer = setTimeout(() => {
+        state.instrContactsSearch = next;
+        rerender();
+        const newInput = root.querySelector('#instr-contacts-search');
+        if (newInput) {
+          newInput.focus();
+          try { newInput.setSelectionRange(cursorPos, cursorPos); } catch (_) {}
+        }
+      }, 280);
     });
 
     root.querySelectorAll('[data-active-filter]').forEach((btn) => {

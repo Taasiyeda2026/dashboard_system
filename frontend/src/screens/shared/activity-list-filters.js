@@ -166,11 +166,17 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
   searchInput?.addEventListener('input', (ev) => {
     const nextValue = ev.target?.value || '';
     if (nextValue === String(filters.q || '')) return;
+    const cursorPos = ev.target?.selectionStart ?? nextValue.length;
     clearTimeout(searchTimer);
     const apply = () => {
       filters.q = nextValue;
       filters.visibleCount = DEFAULT_VISIBLE_LIMIT;
       rerender();
+      const newInput = root.querySelector(`[data-filter-search="${scope}"]`);
+      if (newInput) {
+        newInput.focus();
+        try { newInput.setSelectionRange(cursorPos, cursorPos); } catch (_) {}
+      }
     };
     if (debounceMs <= 0) apply();
     else searchTimer = setTimeout(apply, debounceMs);
