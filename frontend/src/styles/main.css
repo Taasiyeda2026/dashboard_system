@@ -9139,9 +9139,9 @@ select.ds-activity-add-field .ds-input,
 .instr-page .instr-card .instr-summary-row {
   min-height: unset;
   padding: 8px 8px 7px;
-  background: color-mix(in srgb, var(--ds-accent) 5%, #fff);
-  border: 1px solid color-mix(in srgb, var(--ds-accent) 18%, transparent);
-  border-top: 3px solid color-mix(in srgb, var(--ds-accent) 55%, transparent);
+  background: #f7f7f8;
+  border: 1px solid #ddd;
+  border-top: 3px solid #888;
   border-radius: 10px;
   box-shadow: none;
   transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
@@ -9149,9 +9149,9 @@ select.ds-activity-add-field .ds-input,
 
 .instr-page .ci-list--instr-grid .instr-summary-row:hover,
 .instr-page .instr-card .instr-summary-row:hover {
-  background: color-mix(in srgb, var(--ds-accent) 10%, #fff);
-  border-color: color-mix(in srgb, var(--ds-accent) 28%, transparent);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-accent) 10%, transparent);
+  background: #efefef;
+  border-color: #bbb;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 .instr-page .ci-row__main {
@@ -9168,7 +9168,7 @@ select.ds-activity-add-field .ds-input,
   text-align: center;
   width: 100%;
   padding-bottom: 5px;
-  border-bottom: 1px solid color-mix(in srgb, var(--ds-accent) 20%, transparent);
+  border-bottom: 1px solid #ddd;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -9189,7 +9189,7 @@ select.ds-activity-add-field .ds-input,
   gap: 5px;
   height: 28px;
   min-height: unset;
-  background: color-mix(in srgb, var(--ds-accent) 7%, transparent);
+  background: rgba(0,0,0,0.05);
   border-radius: 6px;
   padding: 0;
   width: 100%;
@@ -9198,7 +9198,7 @@ select.ds-activity-add-field .ds-input,
 .instr-stat__icon {
   display: flex;
   align-items: center;
-  color: var(--ds-accent);
+  color: #555;
   flex-shrink: 0;
 }
 
