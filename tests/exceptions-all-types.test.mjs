@@ -25,12 +25,24 @@ function ymBounds(ym) {
   return { first, last };
 }
 
+function isEmptyValue(value) {
+  if (value === null || value === undefined) return true;
+  const normalized = String(value).replace(/\u00A0/g, ' ').trim();
+  if (!normalized) return true;
+  const compact = normalized.replace(/\s+/g, ' ').toLowerCase();
+  return compact === 'null' || compact === 'undefined';
+}
+
+function nonEmptyString(value) {
+  return isEmptyValue(value) ? '' : String(value).trim();
+}
+
 function activityOverlapsYm(row, ym) {
   const b = ymBounds(ym);
-  const s = String(row.start_date || '');
-  const e = String(row.end_date || row.start_date || '');
+  const s = nonEmptyString(row.start_date);
+  const e = nonEmptyString(row.end_date) || s;
   if (!s) return false;
-  return s <= b.last && (e || s) >= b.first;
+  return s <= b.last && e >= b.first;
 }
 
 function rowExceptionTypes(row) {
@@ -41,10 +53,10 @@ function rowExceptionTypes(row) {
   const out = [];
   if (row.status === 'ארכיון' || row.status === 'canceled') return out;
   const hasInstructor =
-    (String(row.instructor_name || '').trim() !== '' || String(row.emp_id || '').trim() !== '' ||
-     String(row.instructor_name_2 || '').trim() !== '' || String(row.emp_id_2 || '').trim() !== '');
+    (!isEmptyValue(row.instructor_name) || !isEmptyValue(row.emp_id) ||
+     !isEmptyValue(row.instructor_name_2) || !isEmptyValue(row.emp_id_2));
   if (!hasInstructor) out.push('missing_instructor');
-  if (!String(row.start_date || '').trim()) out.push('missing_start_date');
+  if (isEmptyValue(row.start_date)) out.push('missing_start_date');
   if (String(row.end_date || '') > LATE_CUTOFF) out.push('late_end_date');
   return out;
 }
@@ -59,7 +71,7 @@ function computeExceptionsModel(sourceRows, ym, opts) {
   sourceRows.forEach((row) => {
     if (String(row.activity_type || '') !== 'course') return;
     // KEY FIX: activities without start_date are always included
-    const rowHasStart = !!String(row.start_date || '').trim();
+    const rowHasStart = !isEmptyValue(row.start_date);
     if (ym && rowHasStart && !activityOverlapsYm(row, ym)) return;
     if (row.status === 'ארכיון') return;
 
@@ -116,9 +128,9 @@ const rowAllThree = {
   RowID: 'LONG-001',
   activity_type: 'course',
   activity_manager: 'mgr_a',
-  instructor_name: '',
-  emp_id: '',
-  start_date: '',
+  instructor_name: 'NULL',
+  emp_id: ' null ',
+  start_date: 'NULL',
   end_date: '2026-07-31',  // after cutoff → late_end_date
   status: 'פעיל'
 };
@@ -197,6 +209,13 @@ const rowOutOfMonth = {
 };
 
 // ─── Numeric tests ────────────────────────────────────────────────────────────
+
+test('isEmptyValue treats textual NULL markers as empty', () => {
+  for (const value of ['', '   ', null, undefined, 'NULL', 'null', ' undefined ']) {
+    assert.equal(isEmptyValue(value), true, `${String(value)} should be empty`);
+  }
+  assert.equal(isEmptyValue('actual value'), false);
+});
 
 test('activity with all 3 exception types counts as one row and keeps details', () => {
   const result = computeExceptionsModel([rowAllThree], '', { include_rows: true });
@@ -278,10 +297,10 @@ test('non-course activities are never included in exceptions', () => {
 test('backend computeExceptionsModel_ guards month filter only when start_date exists', async () => {
   const src = await read('OLD-GAS/actions.gs');
   // The fix: rowHasStart is defined and used as a guard
-  assert.match(src, /var rowHasStart = !!text_\(row && row\.start_date\)/,
-    'computeExceptionsModel_ must compute rowHasStart');
+  assert.match(src, /var rowHasStart = !isEmptyValue_\(row && row\.start_date\) && !!normalizeDateTextToIso_\(row && row\.start_date\)/,
+    'computeExceptionsModel_ must compute rowHasStart with the unified empty-value helper');
   assert.match(src, /if \(month && rowHasStart && !activityOverlapsYm_\(row, month\)\) return;/,
-    'overlap check must be guarded by rowHasStart so no-start_date rows are always included');
+    'overlap check must be guarded by rowHasStart so no-start_date/NULL rows are always included');
   // The old unconditional check must NOT appear
   assert.doesNotMatch(src, /if \(month && !activityOverlapsYm_\(row, month\)\) return;/,
     'unconditional activityOverlapsYm_ check must be removed from computeExceptionsModel_');

@@ -12,11 +12,11 @@ function text_(value) {
 }
 
 /**
- * Unified empty-value normalization for control metrics.
- * Values such as null/undefined/blank/whitespace/"-"/"—"/"לא שובץ"/"טרם שובץ"/"לא נקבע"
- * are treated as empty.
+ * Unified empty-value normalization for control metrics and exception detection.
+ * Values such as null/undefined/blank/whitespace/"NULL"/"null"/"undefined"/"-"/"—"/
+ * "לא שובץ"/"טרם שובץ"/"לא נקבע" are treated as empty.
  */
-function isNormalizedEmptyValue_(value) {
+function isEmptyValue_(value) {
   if (value === null || value === undefined) return true;
   var raw = text_(value);
   if (!raw) return true;
@@ -33,6 +33,11 @@ function isNormalizedEmptyValue_(value) {
     compact === 'none' ||
     compact === 'null' ||
     compact === 'undefined';
+}
+
+
+function isNormalizedEmptyValue_(value) {
+  return isEmptyValue_(value);
 }
 
 function isValidIsoDateString_(value) {
