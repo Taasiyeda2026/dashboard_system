@@ -209,13 +209,27 @@ export function bindActivityEditForm(contentRoot, {
 
       if (canDirectEdit && userRole === 'activities_manager') {
         // eslint-disable-next-line no-console
-        console.warn('blocked_wrong_flow: activities_manager must use submitEditRequest, not saveActivity', {
+        console.warn('wrong_flow: activities_manager attempted saveActivity; using submitEditRequest instead', {
           action: 'saveActivity',
           row_id: sourceRowId,
           role: userRole
         });
-        setStatus(statusEl, 'is-error', 'אין לך הרשאה לערוך פעילות זו');
-        showToast('אין לך הרשאה לערוך פעילות זו', 'error', 2600);
+        await api.submitEditRequest(debugPayload);
+        setStatus(statusEl, 'is-success', '✅ בקשת העריכה נשלחה לאישור מנהל תפעול.');
+        showToast('בקשת העריכה נשלחה לאישור מנהל תפעול.', 'success', 3000);
+        form.reset();
+        updateMeetingWeekdays(form);
+        updateMoreDatesToggle(form);
+        updateEndDateDisplay(form);
+        clearScreenDataCache?.();
+        setEditMode(form, false);
+        if (typeof quietRefresh === 'function') {
+          quietRefresh({ sourceSheet, sourceRowId, changes: {}, form });
+        } else if (typeof rerender === 'function') {
+          requestAnimationFrame(() => {
+            rerender();
+          });
+        }
         return;
       }
 

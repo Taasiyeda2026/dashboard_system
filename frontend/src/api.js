@@ -1985,6 +1985,17 @@ export const api = {
     const payload = (b !== undefined && b !== null)
       ? { source_row_id: a, changes: b }
       : a;
+    const userRole = String(state?.user?.display_role || state?.user?.role || '').trim();
+    const canEditDirect = permissionFlagYes(state?.user?.can_edit_direct) || ROLES_WITH_DIRECT_EDIT.has(userRole);
+    if (userRole === 'activities_manager' && !canEditDirect) {
+      // eslint-disable-next-line no-console
+      console.warn('wrong_flow: activities_manager attempted saveActivity; using submitEditRequest instead', {
+        action: 'saveActivity',
+        row_id: String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim(),
+        role: userRole
+      });
+      return api.submitEditRequest(payload);
+    }
     return updateActivityInSupabase(payload);
   },
   submitEditRequest: async (source_row_id, changes, source_sheet = 'activities') => {
