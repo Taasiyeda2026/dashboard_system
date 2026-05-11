@@ -1488,14 +1488,81 @@ function sanitizeActivityPayload(act = {}) {
   return row;
 }
 
+const ALLOWED_ACTIVITY_COLUMNS = new Set([
+  'row_id',
+  'activity_family',
+  'activity_manager',
+  'authority',
+  'school',
+  'grade',
+  'class_group',
+  'activity_type',
+  'activity_no',
+  'activity_name',
+  'sessions',
+  'price',
+  'funding',
+  'start_time',
+  'end_time',
+  'emp_id',
+  'instructor_name',
+  'emp_id_2',
+  'instructor_name_2',
+  'start_date',
+  'end_date',
+  'status',
+  'notes',
+  'finance_status',
+  'finance_notes',
+  'operations_private_notes'
+]);
+for (let i = 1; i <= 35; i++) ALLOWED_ACTIVITY_COLUMNS.add(`date_${i}`);
+
+function normalizeDateFieldForSupabase(value) {
+  const clean = String(value ?? '').trim();
+  if (!clean) return '';
+  const normalized = normalizeSupabaseDate(clean);
+  return normalized || '';
+}
+
+function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true } = {}) {
+  const sanitized = {};
+  const source = payload && typeof payload === 'object' ? payload : {};
+  for (const [key, rawValue] of Object.entries(source)) {
+    if (!ALLOWED_ACTIVITY_COLUMNS.has(key)) continue;
+    if (!includeRowId && key === 'row_id') continue;
+    let nextValue = rawValue;
+    if (key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key)) {
+      nextValue = normalizeDateFieldForSupabase(rawValue);
+    }
+    sanitized[key] = nextValue === undefined || nextValue === null ? '' : nextValue;
+  }
+  return sanitized;
+}
+
 async function upsertActivityToSupabase(payload = {}) {
   const act = payload?.activity || payload || {};
-  const row = sanitizeActivityPayload(act);
+  const row = sanitizeActivityPayloadForSupabase(sanitizeActivityPayload(act), { includeRowId: true });
   logActivityMutationDebug('request', 'addActivity', { source_sheet: 'activities', source_row_id: row.row_id, changes: row });
   const { data, error } = await supabase.from('activities').upsert(row, { onConflict: 'row_id' }).select().single();
   if (error) {
+    const authContext = await buildActivityMutationAuthContext();
     // eslint-disable-next-line no-console
-    console.error('[activity-save-error]', { operation: 'addActivity', table: 'activities', error });
+    console.error('[activity-save-error]', {
+      action: 'addActivity',
+      table: 'activities',
+      row_id: row.row_id,
+      auth_uid: authContext.auth_uid,
+      user_id: authContext.user_id,
+      role: authContext.role,
+      can_edit_direct: authContext.can_edit_direct,
+      can_add_activity: authContext.can_add_activity,
+      supabase_error_code: error?.code || error?.status || '',
+      supabase_error_message: String(error?.message || 'save_failed'),
+      supabase_error_details: String(error?.details || ''),
+      payload: row,
+      error
+    });
     throw buildSupabaseMutationError('addActivity', error, 'save_failed');
   }
   const normalized = normalizeActivityRow(data || row);
@@ -1506,13 +1573,9 @@ async function upsertActivityToSupabase(payload = {}) {
 async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
-  const changes = { ...(payload?.changes || {}) };
+  const changes = sanitizeActivityPayloadForSupabase({ ...(payload?.changes || {}) }, { includeRowId: false });
   if (!rowId) throw new Error('missing_row_id');
   if (!Object.keys(changes).length) throw new Error('No changes to submit');
-  delete changes.RowID;
-  delete changes.row_id;
-  delete changes.source_sheet;
-  delete changes.source_table;
   const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes };
   logActivityMutationDebug('request', 'saveActivity', debugPayload, { table: 'activities' });
   const { data, error } = await supabase
@@ -1535,6 +1598,7 @@ async function updateActivityInSupabase(payload = {}) {
       can_add_activity: authContext.can_add_activity,
       supabase_error_code: error?.code || error?.status || '',
       supabase_error_message: String(error?.message || 'save_failed'),
+      supabase_error_details: String(error?.details || ''),
       payload: debugPayload,
       error
     });
@@ -1928,12 +1992,15 @@ export const api = {
     const rowId = String(requestPayload?.source_row_id || source_row_id || '').trim();
     const sourceSheet = String(requestPayload?.source_sheet || source_sheet || 'activities').trim() || 'activities';
     const rawChanges = requestPayload?.changes || changes || {};
-    const normalizedChanges = Object.entries(rawChanges).reduce((acc, [key, value]) => {
-      if (value === undefined || value === null) return acc;
-      const normalizedValue = String(value).trim();
-      acc[key] = normalizedValue;
-      return acc;
-    }, {});
+    const normalizedChanges = sanitizeActivityPayloadForSupabase(
+      Object.entries(rawChanges).reduce((acc, [key, value]) => {
+        if (value === undefined || value === null) return acc;
+        const normalizedValue = String(value).trim();
+        acc[key] = normalizedValue;
+        return acc;
+      }, {}),
+      { includeRowId: false }
+    );
     const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes: normalizedChanges };
     logActivityMutationDebug('request', 'submitEditRequest', debugPayload, { table: 'edit_requests' });
     if (!rowId || !Object.keys(normalizedChanges).length) {
@@ -1954,8 +2021,23 @@ export const api = {
     };
     const { error } = await supabase.from('edit_requests').insert(row);
     if (error) {
+      const authContext = await buildActivityMutationAuthContext();
       // eslint-disable-next-line no-console
-      console.error('[activity-save-error]', { operation: 'submitEditRequest', table: 'edit_requests', payload: row, error });
+      console.error('[activity-save-error]', {
+        action: 'submitEditRequest',
+        table: 'edit_requests',
+        row_id: rowId,
+        auth_uid: authContext.auth_uid,
+        user_id: authContext.user_id,
+        role: authContext.role,
+        can_edit_direct: authContext.can_edit_direct,
+        can_add_activity: authContext.can_add_activity,
+        supabase_error_code: error?.code || error?.status || '',
+        supabase_error_message: String(error?.message || 'submit_edit_request_failed'),
+        supabase_error_details: String(error?.details || ''),
+        payload: row,
+        error
+      });
       throw buildSupabaseMutationError('submitEditRequest', error, 'submit_edit_request_failed');
     }
     logActivityMutationDebug('success', 'submitEditRequest', debugPayload, { table: 'edit_requests', request_id: row.request_id });
@@ -1982,11 +2064,35 @@ export const api = {
               try { return JSON.parse(String(reqRow?.requested_values || '{}')); } catch { return {}; }
             })();
       if (sourceRowId && requestedValues && Object.keys(requestedValues).length) {
+        const sanitizedRequestedValues = sanitizeActivityPayloadForSupabase(requestedValues, { includeRowId: false });
         const { error: applyErr } = await supabase
           .from('activities')
-          .update(requestedValues)
+          .update(sanitizedRequestedValues)
           .eq('row_id', sourceRowId);
-        if (applyErr) throw new Error(applyErr.message || 'review_edit_request_apply_failed');
+        if (applyErr) {
+          const authContext = await buildActivityMutationAuthContext();
+          // eslint-disable-next-line no-console
+          console.error('[activity-save-error]', {
+            action: 'reviewEditRequest',
+            table: 'activities',
+            row_id: sourceRowId,
+            auth_uid: authContext.auth_uid,
+            user_id: authContext.user_id,
+            role: authContext.role,
+            can_edit_direct: authContext.can_edit_direct,
+            can_add_activity: authContext.can_add_activity,
+            supabase_error_code: applyErr?.code || applyErr?.status || '',
+            supabase_error_message: String(applyErr?.message || 'review_edit_request_apply_failed'),
+            supabase_error_details: String(applyErr?.details || ''),
+            payload: {
+              request_id: requestId,
+              source_row_id: sourceRowId,
+              requested_values: sanitizedRequestedValues
+            },
+            error: applyErr
+          });
+          throw buildSupabaseMutationError('reviewEditRequest', applyErr, 'review_edit_request_apply_failed');
+        }
       }
     }
     const reviewer = state?.user || {};
