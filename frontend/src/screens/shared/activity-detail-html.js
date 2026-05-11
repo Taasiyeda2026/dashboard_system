@@ -439,6 +439,7 @@ function buildDateChipsHtml(schedule, isOnce) {
 }
 
 function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false } = {}) {
+  const requestOnlyEdit = canEdit && !canDirectEdit;
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
@@ -530,7 +531,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
       ${chainToggle}
       ${addMeetingBtn}
       <div class="activity-drawer__edit-actions" data-mode="edit" hidden>
-        <button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">שמור</button>
+        <button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">${requestOnlyEdit ? 'שליחת בקשת עריכה לאישור' : 'שמור'}</button>
         <button type="button" class="activity-drawer__action" data-action="cancel-edit">ביטול</button>
         <p class="ds-activity-edit-status ds-muted" role="status"></p>
       </div>

@@ -99,6 +99,12 @@ function parseTokenPayloadClaims(token) {
   }
 }
 
+function normalizeBoolPermission(value) {
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['yes', 'true', '1'].includes(normalized);
+}
+
 export function clearScreenDataCache() {
   state.screenDataCache = {};
 }
@@ -138,6 +144,9 @@ export function setSession(session) {
     full_name: String((session.user && session.user.full_name) || (claims && claims.full_name) || '').trim(),
     display_role2: String((session.user && session.user.display_role2) || (claims && claims.display_role2) || '').trim()
   };
+  state.user.can_add_activity = normalizeBoolPermission(state.user.can_add_activity);
+  state.user.can_edit_direct = normalizeBoolPermission(state.user.can_edit_direct);
+  state.user.can_request_edit = normalizeBoolPermission(state.user.can_request_edit);
   const newCalKey = calendarMonthStorageKey(state.user.user_id);
   state.monthYm = (newCalKey && localStorage.getItem(newCalKey)) || '';
   try { localStorage.removeItem('dashboard_calendar_month_ym'); } catch { /* ignore */ }

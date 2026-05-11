@@ -170,6 +170,7 @@ export function bindActivityEditForm(contentRoot, {
     const sourceSheet = form.getAttribute('data-source-sheet') || '';
     const sourceRowId = form.getAttribute('data-row-id') || '';
     const canDirectEdit = String(form.dataset.canDirectEdit || '') === 'yes';
+    const canRequestEdit = !canDirectEdit;
     const changes = {};
     const initialValues = form._initialValues || {};
 
@@ -204,7 +205,7 @@ export function bindActivityEditForm(contentRoot, {
         changes
       });
 
-      setStatus(statusEl, 'is-pending', 'שומר...');
+      setStatus(statusEl, 'is-pending', canDirectEdit ? 'שומר...' : 'שולח בקשת עריכה...');
       if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.classList.add('is-loading');
@@ -212,11 +213,21 @@ export function bindActivityEditForm(contentRoot, {
 
       if (canDirectEdit) {
         await api.saveActivity(debugPayload);
-      } else {
+      } else if (canRequestEdit) {
         await api.submitEditRequest(debugPayload);
+      } else {
+        throw new Error('insufficient_permissions_for_edit');
       }
-      setStatus(statusEl, 'is-success', canDirectEdit ? '✅ נשמר בהצלחה' : '✅ העדכון התקבל');
-      showToast(canDirectEdit ? '✅ נשמר בהצלחה' : '✅ העדכון התקבל', 'success', 2500);
+      setStatus(
+        statusEl,
+        'is-success',
+        canDirectEdit ? '✅ נשמר בהצלחה' : '✅ בקשת העריכה נשלחה לאישור מנהל המערכת.'
+      );
+      showToast(
+        canDirectEdit ? '✅ נשמר בהצלחה' : 'בקשת העריכה נשלחה לאישור מנהל המערכת.',
+        'success',
+        3000
+      );
       if (canDirectEdit && typeof onRowSaved === 'function') onRowSaved({ sourceSheet, sourceRowId, changes, form });
       if (!canDirectEdit) {
         form.reset();
