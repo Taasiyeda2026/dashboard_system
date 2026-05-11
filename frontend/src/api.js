@@ -1518,6 +1518,32 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
 ]);
 for (let i = 1; i <= 35; i++) ALLOWED_ACTIVITY_COLUMNS.add(`date_${i}`);
 
+/**
+ * Drawer forms use input names `meeting_date_0`, `meeting_date_1`, … (0-based).
+ * public.activities stores them as `date_1` … `date_35`. Map before sanitizing.
+ * Drops `meeting_performed_*` (not a DB column).
+ */
+function mapMeetingDateFieldNamesToSupabase(changes = {}) {
+  if (!changes || typeof changes !== 'object') return {};
+  const out = { ...changes };
+  for (const key of Object.keys(out)) {
+    const m = /^meeting_date_(\d+)$/.exec(key);
+    if (m) {
+      const idx0 = Number(m[1]);
+      if (Number.isFinite(idx0) && idx0 >= 0 && idx0 < 35) {
+        const dateKey = `date_${idx0 + 1}`;
+        out[dateKey] = out[key];
+      }
+      delete out[key];
+      continue;
+    }
+    if (/^meeting_performed_\d+$/.test(key)) {
+      delete out[key];
+    }
+  }
+  return out;
+}
+
 function normalizeDateFieldForSupabase(value) {
   const clean = String(value ?? '').trim();
   if (!clean) return '';
@@ -1573,7 +1599,10 @@ async function upsertActivityToSupabase(payload = {}) {
 async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
-  const changes = sanitizeActivityPayloadForSupabase({ ...(payload?.changes || {}) }, { includeRowId: false });
+  const changes = sanitizeActivityPayloadForSupabase(
+    mapMeetingDateFieldNamesToSupabase({ ...(payload?.changes || {}) }),
+    { includeRowId: false }
+  );
   if (!rowId) throw new Error('missing_row_id');
   if (!Object.keys(changes).length) throw new Error('No changes to submit');
   const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes };
@@ -2003,13 +2032,14 @@ export const api = {
     const rowId = String(requestPayload?.source_row_id || source_row_id || '').trim();
     const sourceSheet = String(requestPayload?.source_sheet || source_sheet || 'activities').trim() || 'activities';
     const rawChanges = requestPayload?.changes || changes || {};
+    const reducedChanges = Object.entries(rawChanges).reduce((acc, [key, value]) => {
+      if (value === undefined || value === null) return acc;
+      const normalizedValue = String(value).trim();
+      acc[key] = normalizedValue;
+      return acc;
+    }, {});
     const normalizedChanges = sanitizeActivityPayloadForSupabase(
-      Object.entries(rawChanges).reduce((acc, [key, value]) => {
-        if (value === undefined || value === null) return acc;
-        const normalizedValue = String(value).trim();
-        acc[key] = normalizedValue;
-        return acc;
-      }, {}),
+      mapMeetingDateFieldNamesToSupabase(reducedChanges),
       { includeRowId: false }
     );
     const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes: normalizedChanges };
@@ -2075,7 +2105,10 @@ export const api = {
               try { return JSON.parse(String(reqRow?.requested_values || '{}')); } catch { return {}; }
             })();
       if (sourceRowId && requestedValues && Object.keys(requestedValues).length) {
-        const sanitizedRequestedValues = sanitizeActivityPayloadForSupabase(requestedValues, { includeRowId: false });
+        const sanitizedRequestedValues = sanitizeActivityPayloadForSupabase(
+          mapMeetingDateFieldNamesToSupabase(requestedValues),
+          { includeRowId: false }
+        );
         const { error: applyErr } = await supabase
           .from('activities')
           .update(sanitizedRequestedValues)
