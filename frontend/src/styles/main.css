@@ -6450,6 +6450,58 @@ select.ds-input {
   justify-content: flex-end;
 }
 
+.ds-er-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-3);
+  background: var(--ds-surface-subtle);
+  border-block-end: 1px solid var(--ds-border-subtle);
+}
+
+.ds-er-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.ds-er-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--ds-space-2) var(--ds-space-4);
+  padding: var(--ds-space-3);
+  font-size: 0.9rem;
+}
+
+.ds-er-meta-grid p {
+  margin: 0;
+}
+
+.ds-er-requester-line {
+  margin: 0;
+  padding: 0 var(--ds-space-3) var(--ds-space-2);
+  font-size: 0.9rem;
+}
+
+.ds-er-section-title {
+  margin: 0;
+  padding: var(--ds-space-2) var(--ds-space-3) 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.ds-er-warn {
+  margin: var(--ds-space-2) var(--ds-space-3);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-radius: var(--ds-radius);
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 0.88rem;
+}
+
 /* Drawer redesign blocks */
 .ds-drawer__header--activity {
   display: flex;

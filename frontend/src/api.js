@@ -1703,8 +1703,11 @@ function filterOperationsRows(rows, params = {}) {
   });
 }
 
-function buildEditRequestGroups(rows = [], canReview = false) {
+function buildEditRequestGroups(rows = [], canReview = false, activityByRowId = {}) {
   const groups = rows.map((row) => {
+    const sourceRowId = String(row?.source_row_id || '').trim();
+    const activityRow = sourceRowId && activityByRowId[sourceRowId] ? activityByRowId[sourceRowId] : null;
+
     const changedFields =
       Array.isArray(row?.changed_fields) ? row.changed_fields
         : (() => {
@@ -1722,11 +1725,32 @@ function buildEditRequestGroups(rows = [], canReview = false) {
         : (() => {
             try { return JSON.parse(String(row?.original_values || '{}')); } catch { return {}; }
           })();
-    const fields = (Array.isArray(changedFields) ? changedFields : []).map((fieldName) => ({
-      field_name: String(fieldName || ''),
-      old_value: String(originalValues?.[fieldName] ?? ''),
-      new_value: String(requestedValues?.[fieldName] ?? '')
-    })).filter((f) => f.field_name);
+
+    const fields = (Array.isArray(changedFields) ? changedFields : []).map((fieldName) => {
+      const fn = String(fieldName || '');
+      if (!fn) return null;
+      const hasOriginalKey = Object.prototype.hasOwnProperty.call(originalValues, fn);
+      const oldFromSnapshot = hasOriginalKey
+        ? String(originalValues[fn] ?? '').trim()
+        : (activityRow ? String(activityRow[fn] ?? '').trim() : '');
+      const newVal = String(requestedValues?.[fn] ?? '').trim();
+      return {
+        field_name: fn,
+        old_value: oldFromSnapshot,
+        new_value: newVal
+      };
+    }).filter(Boolean);
+
+    const activityName =
+      String(row?.activity_name || '').trim() ||
+      String(activityRow?.activity_name || '').trim();
+    const authority =
+      String(row?.authority || '').trim() ||
+      String(activityRow?.authority || '').trim();
+    const school =
+      String(row?.school || '').trim() ||
+      String(activityRow?.school || '').trim();
+
     return {
       request_id: String(row?.request_id || ''),
       status: String(row?.status || 'pending'),
@@ -1734,8 +1758,14 @@ function buildEditRequestGroups(rows = [], canReview = false) {
       requested_by_user_id: String(row?.requested_by_user_id || ''),
       requested_at: String(row?.requested_at || ''),
       review_note: String(row?.review_note || ''),
-      source_row_id: String(row?.source_row_id || ''),
-      activity_name: String(row?.activity_name || ''),
+      source_row_id: sourceRowId,
+      source_sheet: String(row?.source_sheet || 'activities'),
+      activity_name: activityName,
+      authority,
+      school,
+      activity: activityRow,
+      /** אישור מותר רק כשיש שורת פעילות נטענת מה־DB — אחרת חסר הקשר לפני/אחרי */
+      can_approve: Boolean(activityRow),
       fields
     };
   });
@@ -1896,7 +1926,21 @@ export const api = {
     if (error) throw new Error(error.message || 'edit_requests_read_failed');
     const rows = Array.isArray(data) ? data : [];
     const canReview = ['admin', 'operation_manager'].includes(String(state?.user?.display_role || ''));
-    return buildEditRequestGroups(rows, canReview);
+    const uniqueIds = [...new Set(
+      rows
+        .map((r) => String(r?.source_row_id || '').trim())
+        .filter((id) => id.length > 0)
+    )];
+    const activityByRowId = {};
+    await Promise.all(uniqueIds.map(async (id) => {
+      try {
+        const rsp = await readActivityDetailFromSupabase(id, 'activities');
+        activityByRowId[id] = rsp?.row || null;
+      } catch {
+        activityByRowId[id] = null;
+      }
+    }));
+    return buildEditRequestGroups(rows, canReview, activityByRowId);
   },
   permissions: async () => {
     if (!supabase) throw new Error('no_supabase_client');
@@ -2048,12 +2092,34 @@ export const api = {
       throw new Error('No changes to submit');
     }
     const currentUser = state?.user || {};
+    const changedKeys = Object.keys(normalizedChanges);
+    let originalValuesMap = {};
+    let snapshotName = '';
+    let snapshotSchool = '';
+    let snapshotAuthority = '';
+    try {
+      const { row: liveRow } = await readActivityDetailFromSupabase(rowId, sourceSheet);
+      if (liveRow) {
+        snapshotName = String(liveRow.activity_name || '').trim();
+        snapshotSchool = String(liveRow.school || '').trim();
+        snapshotAuthority = String(liveRow.authority || '').trim();
+        for (const key of changedKeys) {
+          originalValuesMap[key] = String(liveRow[key] ?? '').trim();
+        }
+      }
+    } catch {
+      originalValuesMap = {};
+    }
     const row = {
       request_id: `REQ-${Date.now()}`,
       source_row_id: rowId,
       source_sheet: sourceSheet,
-      changed_fields: Object.keys(normalizedChanges),
-      requested_values: normalizedChanges,
+      activity_name: snapshotName,
+      school: snapshotSchool,
+      authority: snapshotAuthority,
+      changed_fields: JSON.stringify(changedKeys),
+      original_values: JSON.stringify(originalValuesMap),
+      requested_values: JSON.stringify(normalizedChanges),
       status: 'pending',
       active: 'yes',
       requested_by_user_id: String(currentUser?.user_id || '').trim(),
