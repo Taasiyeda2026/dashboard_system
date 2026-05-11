@@ -982,22 +982,35 @@ function activityOverlapsMonthForExceptions(row, month) {
   return start <= range.endDate && end >= range.startDate;
 }
 
-function rowExceptionTypesFromActivity(row) {
+function rowExceptionTypesFromActivity(row, opts = {}) {
   const types = [];
+  const knownIds    = opts.knownInstructorIds; // Set<string> | undefined
   const emp1        = nullStr(row?.emp_id);
   const emp2        = nullStr(row?.emp_id_2);
   const instructor1 = nullStr(row?.instructor_name);
   const instructor2 = nullStr(row?.instructor_name_2);
   const start       = nullStr(row?.start_date);
   const end         = nullStr(row?.end_date);
-  if (!emp1 && !emp2 && !instructor1 && !instructor2) types.push('missing_instructor');
-  if (!start) types.push('missing_start_date');
+
+  // Instructor check: if the known list is available, emp_id must be in it to count.
+  // If no list is available, fall back to checking that at least one name/id field is filled.
+  const isValidId = (id) => !!id && (!knownIds || knownIds.has(id));
+  const hasValidInstructor = isValidId(emp1) || isValidId(emp2) ||
+    (!knownIds && (!!instructor1 || !!instructor2));
+  if (!hasValidInstructor) types.push('missing_instructor');
+
+  // Start-date check: also accept date_1 as a fallback real date.
+  const date1 = nullStr(row?.date_1 || row?.Date1);
+  const isRealDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
+  if (!start && !isRealDate(date1)) types.push('missing_start_date');
+
   if (end && end > LATE_END_DATE_CUTOFF) types.push('late_end_date');
   return types;
 }
 
 function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) {
   const includeRows = opts.include_rows !== false;
+  const knownInstructorIds = opts.knownInstructorIds; // Set<string> | undefined
   const rows = [];
   const counts = { missing_instructor: 0, missing_start_date: 0, late_end_date: 0 };
   const byManager = {};
@@ -1005,7 +1018,7 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
     if (isActivityClosed(row)) continue;
     if (rowActivityType(row) !== 'course') continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
-    const types = rowExceptionTypesFromActivity(row);
+    const types = rowExceptionTypesFromActivity(row, { knownInstructorIds });
     if (!types.length) continue;
     const manager = cleanActivityManagerName(row?.activity_manager) || NO_ACTIVITY_MANAGER_LABEL;
     byManager[manager] = (byManager[manager] || 0) + 1;
@@ -1052,40 +1065,59 @@ async function readExceptionsFromSupabase(params = {}) {
         || String(row?.end_date || '').startsWith(month);
     });
 
-    // Query 2 + 3 (parallel): open courses with missing start_date OR missing primary instructor
-    // These won't appear in the date-range query if they have no dates at all.
-    const [missingStartResult, missingInstructorResult] = await Promise.all([
-      supabase
-        .from('activities')
-        .select('*')
-        .in('activity_type', COURSE_TYPE_VALUES)
-        .neq('status', CLOSED_STATUS)
-        .or('start_date.is.null,start_date.eq.'),
-      supabase
-        .from('activities')
-        .select('*')
-        .in('activity_type', COURSE_TYPE_VALUES)
-        .neq('status', CLOSED_STATUS)
+    // Fetch known instructor IDs from contacts list (for cross-reference validation)
+    const instrListResult = await supabase.from('contacts_instructors').select('emp_id');
+    const knownInstructorIds = new Set(
+      (Array.isArray(instrListResult.data) ? instrListResult.data : [])
+        .map((r) => nullStr(r?.emp_id))
+        .filter(Boolean)
+    );
+
+    // Query 2 + 3 + 4 (parallel):
+    // 2 — open courses with missing start_date AND missing date_1
+    // 3 — open courses where all instructor fields are empty
+    // 4 — open courses where emp_id is set but NOT in the known instructors list
+    const queryBase = () =>
+      supabase.from('activities').select('*').in('activity_type', COURSE_TYPE_VALUES).neq('status', CLOSED_STATUS);
+
+    const knownIdsList = [...knownInstructorIds];
+
+    const [missingStartResult, missingInstructorResult, invalidInstructorResult] = await Promise.all([
+      // 2: missing start_date (date_1 check is done in rowExceptionTypesFromActivity)
+      queryBase().or('start_date.is.null,start_date.eq.'),
+      // 3: all instructor fields are empty
+      queryBase()
         .or('emp_id.is.null,emp_id.eq.')
         .or('emp_id_2.is.null,emp_id_2.eq.')
         .or('instructor_name.is.null,instructor_name.eq.')
-        .or('instructor_name_2.is.null,instructor_name_2.eq.')
+        .or('instructor_name_2.is.null,instructor_name_2.eq.'),
+      // 4: emp_id is present but not in the official instructors list
+      knownIdsList.length > 0
+        ? queryBase()
+            .not('emp_id', 'is', null)
+            .neq('emp_id', '')
+            .not('emp_id', 'in', `(${knownIdsList.join(',')})`)
+        : Promise.resolve({ data: [] })
     ]);
 
-    const missingStartRows  = (Array.isArray(missingStartResult.data)      ? missingStartResult.data      : []).map(normalizeActivityRow);
+    const missingStartRows      = (Array.isArray(missingStartResult.data)      ? missingStartResult.data      : []).map(normalizeActivityRow);
     const missingInstructorRows = (Array.isArray(missingInstructorResult.data) ? missingInstructorResult.data : []).map(normalizeActivityRow);
+    const invalidInstructorRows = (Array.isArray(invalidInstructorResult.data) ? invalidInstructorResult.data : []).map(normalizeActivityRow);
 
-    // Deduplicate by RowID across all three result sets
+    // Deduplicate by RowID across all result sets
     const seenIds = new Set();
     const allRows = [];
-    for (const row of [...dateRangeRows, ...missingStartRows, ...missingInstructorRows]) {
+    for (const row of [...dateRangeRows, ...missingStartRows, ...missingInstructorRows, ...invalidInstructorRows]) {
       const id = row?.RowID;
       if (id != null && seenIds.has(id)) continue;
       if (id != null) seenIds.add(id);
       allRows.push(row);
     }
 
-    const exceptionSummary = buildExceptionsModelFromRows(allRows, month, { include_rows: true });
+    const exceptionSummary = buildExceptionsModelFromRows(allRows, month, {
+      include_rows: true,
+      knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined
+    });
     return { month, ...exceptionSummary, _source: 'supabase' };
   } catch (error) {
     return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, error);
