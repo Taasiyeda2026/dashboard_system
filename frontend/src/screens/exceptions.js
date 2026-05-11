@@ -81,12 +81,13 @@ function exceptionsOperationalSummaryHtml(data, rows) {
   });
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
     canEdit,
     canDirectEdit,
+    canRequestEdit,
     hideEmpIds: !!hideEmpIds,
     hideRowId,
     hideActivityNo,
@@ -261,6 +262,7 @@ export const exceptionsScreen = {
           canSeePrivateNotes,
           canEditActivity,
           !!state?.user?.can_edit_direct,
+          !!state?.user?.can_request_edit,
           hideEmpIds,
           hideRowId,
           hideActivityNo,
@@ -279,6 +281,7 @@ export const exceptionsScreen = {
             canSeePrivateNotes,
             canEditActivity,
             !!state?.user?.can_edit_direct,
+            !!state?.user?.can_request_edit,
             hideEmpIds,
             hideRowId,
             hideActivityNo,

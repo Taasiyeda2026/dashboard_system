@@ -50,7 +50,7 @@ function weekItemMeta(item) {
   return names || 'ללא מדריך';
 }
 
-function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, canDirectEdit, showPrivateNote, settings, mode = 'single') {
+function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, canDirectEdit, canRequestEdit, showPrivateNote, settings, mode = 'single') {
   if (mode === 'summary') {
     const rows = Array.isArray(itemOrItems) ? itemOrItems : [];
     return activityWorkDrawerHtml(rows, {
@@ -59,6 +59,7 @@ function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo
       privateNote: showPrivateNote ? '—' : null,
       canEdit: !!canEdit,
       canDirectEdit: !!canDirectEdit,
+      canRequestEdit: !!canRequestEdit,
       hideEmpIds: !!hideEmpIds,
       hideRowId: !!hideRowId,
       hideActivityNo: !!hideActivityNo,
@@ -72,6 +73,7 @@ function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo
     privateNote,
     canEdit: !!canEdit,
     canDirectEdit: !!canDirectEdit,
+    canRequestEdit: !!canRequestEdit,
     hideEmpIds: !!hideEmpIds,
     hideRowId: !!hideRowId,
     hideActivityNo: !!hideActivityNo,
@@ -427,6 +429,7 @@ export const weekScreen = {
             hideActivityNo,
               canEditActivity,
               !!state?.user?.can_edit_direct,
+              !!state?.user?.can_request_edit,
             showPrivateNote,
             state?.clientSettings || {},
             currMode

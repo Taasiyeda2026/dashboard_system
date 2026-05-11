@@ -274,6 +274,7 @@ export const archiveScreen = {
           privateNote,
           canEdit: false,
           canDirectEdit: false,
+          canRequestEdit: false,
           hideEmpIds,
           hideRowId,
           hideActivityNo,

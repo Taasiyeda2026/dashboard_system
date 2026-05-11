@@ -300,12 +300,13 @@ function applyActivitiesLocalFilters(rows, state, settings) {
   return applyLocalFilters(monthRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS });
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
     canEdit,
     canDirectEdit,
+    canRequestEdit,
     hideEmpIds: !!hideEmpIds,
     hideRowId,
     hideActivityNo,
@@ -633,7 +634,7 @@ export const activitiesScreen = {
             if (freshRow && contentRoot) {
               putCachedActivityDetail({ RowID: sourceRowId, source_sheet: sourceSheet || 'activities' }, freshRow, state);
               contentRoot.innerHTML = activityDrawerContent(
-                freshRow, canSeePrivateNotes, canEditActivity, !!state?.user?.can_edit_direct,
+                freshRow, canSeePrivateNotes, canEditActivity, !!state?.user?.can_edit_direct, !!state?.user?.can_request_edit,
                 hideEmpIds, hideRowId, hideActivityNo,
                 mergeSettingsWithFallback(state?.clientSettings || {}, buildFallbackOptionsFromRows(activitiesRows)),
                 { datesLoading: false }
@@ -684,6 +685,7 @@ export const activitiesScreen = {
       const cachedDetail = getCachedActivityDetail(summaryRow, state);
       const cachedDates  = getCachedActivityDates(summaryRow, state);
       const canDirectEdit = !!state?.user?.can_edit_direct;
+      const canRequestEdit = !!state?.user?.can_request_edit;
       const settings = mergeSettingsWithFallback(
         state?.clientSettings || {},
         buildFallbackOptionsFromRows(activitiesRows)
@@ -693,7 +695,7 @@ export const activitiesScreen = {
         ui.openDrawer({
           title: '',
           content: activityDrawerContent(
-            cachedDetail, canSeePrivateNotes, canEditActivity, canDirectEdit,
+            cachedDetail, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
             hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading: false }
           ),
           onOpen: makeOnOpen,
@@ -709,7 +711,7 @@ export const activitiesScreen = {
       ui.openDrawer({
         title: '',
         content: activityDrawerContent(
-          summaryRow, canSeePrivateNotes, canEditActivity, canDirectEdit,
+          summaryRow, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
           hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading: needDates }
         ),
         onOpen: makeOnOpen,
