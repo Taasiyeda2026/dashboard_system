@@ -1272,6 +1272,10 @@ function normalizeSupabaseRole(role) {
   return VALID_SUPABASE_ROLES.has(normalized) ? normalized : 'authorized_user';
 }
 
+function permissionFlagYes(value) {
+  return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
+}
+
 function getLoginStatus(row) {
   return String(row?.status || '').trim();
 }
@@ -1320,6 +1324,8 @@ function buildBootstrapFromUser(userRow) {
   const flat = flattenUserRow(userRow);
   const role = normalizeSupabaseRole(flat.role);
   const allowedRoutes = SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user;
+  const canEditDirect = ROLES_WITH_DIRECT_EDIT.has(role) || permissionFlagYes(flat.can_edit_direct);
+  const canRequestEdit = canEditDirect || permissionFlagYes(flat.can_request_edit) || role !== 'instructor';
   return {
     routes: [...allowedRoutes],
     default_route: allowedRoutes[0] || 'dashboard',
@@ -1328,9 +1334,9 @@ function buildBootstrapFromUser(userRow) {
       display_role2: flat.display_role2 || '',
       display_role_label: flat.display_role_label || hebrewRole(role)
     },
-    can_add_activity: String(flat.can_add_activity || '').toLowerCase() === 'yes' || role === 'admin' || role === 'operation_manager',
-    can_edit_direct: ROLES_WITH_DIRECT_EDIT.has(role),
-    can_request_edit: String(flat.can_request_edit || '').toLowerCase() !== 'no',
+    can_add_activity: permissionFlagYes(flat.can_add_activity) || role === 'admin' || role === 'operation_manager',
+    can_edit_direct: canEditDirect,
+    can_request_edit: canRequestEdit,
     client_settings: {}
   };
 }
@@ -1675,9 +1681,9 @@ export const api = {
         display_role2: flat.display_role2,
         full_name: flat.full_name,
         emp_id: flat.emp_id,
-        can_add_activity: String(flat.can_add_activity || '').toLowerCase() === 'yes' || flat.role === 'admin' || flat.role === 'operation_manager',
-        can_edit_direct: ROLES_WITH_DIRECT_EDIT.has(flat.role),
-        can_request_edit: String(flat.can_request_edit || '').toLowerCase() !== 'no'
+        can_add_activity: permissionFlagYes(flat.can_add_activity) || flat.role === 'admin' || flat.role === 'operation_manager',
+        can_edit_direct: ROLES_WITH_DIRECT_EDIT.has(flat.role) || permissionFlagYes(flat.can_edit_direct),
+        can_request_edit: (ROLES_WITH_DIRECT_EDIT.has(flat.role) || permissionFlagYes(flat.can_edit_direct) || permissionFlagYes(flat.can_request_edit) || flat.role !== 'instructor')
       },
       ...buildBootstrapFromUser(user),
       client_settings: buildClientSettingsFromLists(listsData, settingsRows)
