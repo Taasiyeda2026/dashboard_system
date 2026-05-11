@@ -1409,6 +1409,47 @@ function buildSupabaseMutationError(operation, error, fallback = 'server_error')
   return apiError;
 }
 
+async function buildActivityMutationAuthContext() {
+  const context = {
+    auth_uid: '',
+    user_id: '',
+    role: '',
+    can_edit_direct: null,
+    can_add_activity: null
+  };
+  if (!supabase) return context;
+  try {
+    const { data: authData } = await supabase.auth.getUser();
+    context.auth_uid = String(authData?.user?.id || '').trim();
+  } catch {
+    /* ignore */
+  }
+  if (!context.auth_uid) return context;
+  try {
+    const [{ data: roleData }, { data: canEditData }, { data: canAddData }] = await Promise.all([
+      supabase.rpc('app_current_role'),
+      supabase.rpc('app_can_edit_direct'),
+      supabase.rpc('app_can_add_activity')
+    ]);
+    context.role = typeof roleData === 'string' ? roleData : '';
+    context.can_edit_direct = typeof canEditData === 'boolean' ? canEditData : null;
+    context.can_add_activity = typeof canAddData === 'boolean' ? canAddData : null;
+  } catch {
+    /* ignore */
+  }
+  try {
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('user_id')
+      .eq('auth_user_id', context.auth_uid)
+      .maybeSingle();
+    context.user_id = String(userRow?.user_id || '').trim();
+  } catch {
+    /* ignore */
+  }
+  return context;
+}
+
 function logActivityMutationDebug(stage, operation, payload, extra = {}) {
   // eslint-disable-next-line no-console
   console.info(`[activity-save:${stage}]`, {
@@ -1475,8 +1516,22 @@ async function updateActivityInSupabase(payload = {}) {
     .select('row_id')
     .maybeSingle();
   if (error) {
+    const authContext = await buildActivityMutationAuthContext();
     // eslint-disable-next-line no-console
-    console.error('[activity-save-error]', { operation: 'saveActivity', table: 'activities', payload: debugPayload, error });
+    console.error('[activity-save-error]', {
+      action: 'saveActivity',
+      table: 'activities',
+      row_id: rowId,
+      auth_uid: authContext.auth_uid,
+      user_id: authContext.user_id,
+      role: authContext.role,
+      can_edit_direct: authContext.can_edit_direct,
+      can_add_activity: authContext.can_add_activity,
+      supabase_error_code: error?.code || error?.status || '',
+      supabase_error_message: String(error?.message || 'save_failed'),
+      payload: debugPayload,
+      error
+    });
     throw buildSupabaseMutationError('saveActivity', error, 'save_failed');
   }
   if (!data) {
