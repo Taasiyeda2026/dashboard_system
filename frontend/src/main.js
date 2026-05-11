@@ -31,6 +31,12 @@ const PERF_MAX_RENDERS = 150;
 
 export { applyGlobalAccent };
 
+function permissionEnabled(value) {
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['yes', 'true', '1'].includes(normalized);
+}
+
 export function bindAccentPickerOnce() {
   bindAccentPickerListenerOnce({
     getClientSettings: () => state.clientSettings,
@@ -1322,9 +1328,9 @@ function backgroundSyncBootstrap() {
       if (bootstrap.profile.display_role_label != null) {
         state.user.display_role_label = String(bootstrap.profile.display_role_label);
       }
-      state.user.can_add_activity = !!bootstrap.can_add_activity;
-      state.user.can_edit_direct = !!bootstrap.can_edit_direct;
-      state.user.can_request_edit = !!bootstrap.can_request_edit;
+      state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
+      state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);
+      state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
       localStorage.setItem('dashboard_user', JSON.stringify(state.user));
     }
     if (!isAllowedRoute(state.route)) {
@@ -1359,9 +1365,9 @@ async function restoreSession() {
     if (bootstrap.profile.display_role_label != null) {
       state.user.display_role_label = String(bootstrap.profile.display_role_label);
     }
-    state.user.can_add_activity = !!bootstrap.can_add_activity;
-    state.user.can_edit_direct = !!bootstrap.can_edit_direct;
-    state.user.can_request_edit = !!bootstrap.can_request_edit;
+    state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
+    state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);
+    state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
     localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   }
 }

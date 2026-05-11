@@ -33,7 +33,23 @@ function calendarMonthStorageKey(userId) {
   return userId ? `dashboard_calendar_month_ym:${userId}` : null;
 }
 
-const _initStoredUser = JSON.parse(localStorage.getItem('dashboard_user') || 'null');
+function normalizeBoolPermission(value) {
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['yes', 'true', '1'].includes(normalized);
+}
+
+function normalizeStoredUserFlags(user) {
+  if (!user || typeof user !== 'object') return user;
+  return {
+    ...user,
+    can_add_activity: normalizeBoolPermission(user.can_add_activity),
+    can_edit_direct: normalizeBoolPermission(user.can_edit_direct),
+    can_request_edit: normalizeBoolPermission(user.can_request_edit)
+  };
+}
+
+const _initStoredUser = normalizeStoredUserFlags(JSON.parse(localStorage.getItem('dashboard_user') || 'null'));
 const _initCalKey = calendarMonthStorageKey(_initStoredUser?.user_id);
 const _initMonthYm = (_initCalKey && localStorage.getItem(_initCalKey)) || '';
 if (_initCalKey) { try { localStorage.removeItem('dashboard_calendar_month_ym'); } catch { /* ignore */ } }
@@ -97,12 +113,6 @@ function parseTokenPayloadClaims(token) {
   } catch {
     return null;
   }
-}
-
-function normalizeBoolPermission(value) {
-  if (typeof value === 'boolean') return value;
-  const normalized = String(value || '').trim().toLowerCase();
-  return ['yes', 'true', '1'].includes(normalized);
 }
 
 export function clearScreenDataCache() {
