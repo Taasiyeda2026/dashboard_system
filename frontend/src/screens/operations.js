@@ -141,6 +141,7 @@ export const operationsScreen = {
           privateNote,
           canEdit: canEditActivity,
           canDirectEdit,
+          canRequestEdit: !!state?.user?.can_request_edit,
           hideEmpIds,
           hideRowId,
           hideActivityNo,

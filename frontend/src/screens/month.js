@@ -367,6 +367,7 @@ export const monthScreen = {
               privateNote,
               canEdit: canEditActivity,
               canDirectEdit: !!state?.user?.can_edit_direct,
+              canRequestEdit: !!state?.user?.can_request_edit,
               hideEmpIds,
               hideRowId,
               hideActivityNo,

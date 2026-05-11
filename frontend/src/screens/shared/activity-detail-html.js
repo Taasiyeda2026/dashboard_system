@@ -614,7 +614,7 @@ function jsonAttr(value) {
   }
 }
 
-function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, showPrivateNote = false, idx = 0, datesLoading = false } = {}) {
+function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, showPrivateNote = false, idx = 0, datesLoading = false } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = String(row.activity_type || '').trim();
   const editReqStatus = String(row.edit_request_status || '').trim();
@@ -632,6 +632,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
       data-row-id="${escapeHtml(String(row.RowID || ''))}"
       data-can-direct-edit="${canDirectEdit ? 'yes' : 'no'}"
+      data-can-request-edit="${canRequestEdit ? 'yes' : 'no'}"
       data-auto-end-date="${escapeHtml(computedEnd)}"
       data-is-once="${ONCE_TYPES.includes(activityType) ? 'yes' : 'no'}">
       ${editReqBadge}
@@ -661,7 +662,7 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
-  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, settings = {}, datesLoading = false, exportAction = true } = opts;
+  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, settings = {}, datesLoading = false, exportAction = true } = opts;
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const body = rows
@@ -679,6 +680,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
             privateNote,
             canEdit,
             canDirectEdit,
+            canRequestEdit,
             showPrivateNote: privateNote !== null,
             idx,
           })}
@@ -701,6 +703,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
         privateNote,
         canEdit,
         canDirectEdit,
+        canRequestEdit,
         showPrivateNote: privateNote !== null,
         datesLoading,
         idx: 0,

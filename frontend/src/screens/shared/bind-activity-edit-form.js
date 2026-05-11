@@ -170,7 +170,7 @@ export function bindActivityEditForm(contentRoot, {
     const sourceSheet = form.getAttribute('data-source-sheet') || '';
     const sourceRowId = form.getAttribute('data-row-id') || '';
     const canDirectEdit = String(form.dataset.canDirectEdit || '') === 'yes';
-    const canRequestEdit = !canDirectEdit;
+    const canRequestEdit = String(form.dataset.canRequestEdit || '') === 'yes';
     const changes = {};
     const initialValues = form._initialValues || {};
 
