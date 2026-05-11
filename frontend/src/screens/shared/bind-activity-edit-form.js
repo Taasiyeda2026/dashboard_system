@@ -2,6 +2,7 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
+import { state } from '../../state.js';
 
 function setEditMode(form, editing) {
   form.dataset.editing = editing ? 'yes' : 'no';
@@ -171,6 +172,7 @@ export function bindActivityEditForm(contentRoot, {
     const sourceRowId = form.getAttribute('data-row-id') || '';
     const canDirectEdit = String(form.dataset.canDirectEdit || '') === 'yes';
     const canRequestEdit = String(form.dataset.canRequestEdit || '') === 'yes';
+    const userRole = String(state?.user?.display_role || state?.user?.role || '').trim();
     const changes = {};
     const initialValues = form._initialValues || {};
 
@@ -205,6 +207,24 @@ export function bindActivityEditForm(contentRoot, {
         changes
       });
 
+      if (canDirectEdit && userRole === 'activities_manager') {
+        // eslint-disable-next-line no-console
+        console.warn('blocked_wrong_flow: activities_manager must use submitEditRequest, not saveActivity', {
+          action: 'saveActivity',
+          row_id: sourceRowId,
+          role: userRole
+        });
+        setStatus(statusEl, 'is-error', 'אין לך הרשאה לערוך פעילות זו');
+        showToast('אין לך הרשאה לערוך פעילות זו', 'error', 2600);
+        return;
+      }
+
+      if (!canDirectEdit && !canRequestEdit) {
+        setStatus(statusEl, 'is-error', 'אין לך הרשאה לערוך פעילות זו');
+        showToast('אין לך הרשאה לערוך פעילות זו', 'error', 2600);
+        return;
+      }
+
       setStatus(statusEl, 'is-pending', canDirectEdit ? 'שומר...' : 'שולח בקשת עריכה...');
       if (submitBtn) {
         submitBtn.disabled = true;
@@ -221,10 +241,10 @@ export function bindActivityEditForm(contentRoot, {
       setStatus(
         statusEl,
         'is-success',
-        canDirectEdit ? '✅ נשמר בהצלחה' : '✅ בקשת העריכה נשלחה לאישור מנהל המערכת.'
+        canDirectEdit ? '✅ הפעילות נשמרה בהצלחה' : '✅ בקשת העריכה נשלחה לאישור מנהל תפעול.'
       );
       showToast(
-        canDirectEdit ? '✅ נשמר בהצלחה' : 'בקשת העריכה נשלחה לאישור מנהל המערכת.',
+        canDirectEdit ? 'הפעילות נשמרה בהצלחה' : 'בקשת העריכה נשלחה לאישור מנהל תפעול.',
         'success',
         3000
       );
