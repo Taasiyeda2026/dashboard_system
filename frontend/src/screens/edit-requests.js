@@ -1,18 +1,13 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewColumn } from './shared/ui-hebrew.js';
+import { hebrewColumn, hebrewActivityType } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
   dsCard,
   dsScreenStack,
-  dsFilterBar,
   dsStatusChip,
   dsEmptyState
 } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
-
-function hebrewFieldName(field) {
-  return hebrewColumn(field) || escapeHtml(field);
-}
 
 function statusLabel(status) {
   if (status === 'pending') return 'ממתין';
@@ -30,27 +25,110 @@ function statusVariant(status) {
   return 'neutral';
 }
 
-function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (isNaN(d)) return iso;
-  return d.toLocaleDateString('he-IL', { year: 'numeric', month: '2-digit', day: '2-digit' });
+/** תאריך ISO YYYY-MM-DD → DD/MM/YYYY לתצוגה */
+function formatDateDisplay(iso) {
+  const s = String(iso || '').trim();
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  const t = Date.parse(s);
+  if (!Number.isNaN(t)) {
+    const dt = new Date(t);
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const yy = dt.getFullYear();
+    return `${dd}/${mm}/${yy}`;
+  }
+  return s;
+}
+
+function fieldLabelHe(field) {
+  const f = String(field || '').trim();
+  if (!f) return 'שדה';
+  if (f === 'status') return 'סטטוס פעילות';
+  const m = /^date_(\d+)$/.exec(f);
+  if (m) return `מפגש ${Number(m[1])}`;
+  return hebrewColumn(f);
+}
+
+function formatFieldValueForDisplay(fieldName, raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  const fn = String(fieldName || '');
+  if (fn === 'start_date' || fn === 'end_date' || /^date_\d+$/.test(fn)) {
+    return formatDateDisplay(s) || s;
+  }
+  if (fn === 'activity_type') {
+    const he = hebrewActivityType(s);
+    return he && he !== 'לא מסווג' ? he : s;
+  }
+  return s;
+}
+
+function displayOldNew(fieldName, oldVal, newVal) {
+  const o = String(oldVal ?? '').trim();
+  const n = String(newVal ?? '').trim();
+  const oldDisp = o ? formatFieldValueForDisplay(fieldName, o) : '';
+  const newDisp = n ? formatFieldValueForDisplay(fieldName, n) : '';
+  return {
+    oldHtml: oldDisp ? escapeHtml(oldDisp) : '<span class="ds-muted">לא הוגדר</span>',
+    newHtml: newDisp ? escapeHtml(newDisp) : '<span class="ds-muted">נמחק / ריק</span>'
+  };
+}
+
+function instructorLine(activity) {
+  if (!activity) return '—';
+  const n1 = String(activity.instructor_name || '').trim();
+  const n2 = String(activity.instructor_name_2 || '').trim();
+  const e1 = String(activity.emp_id || '').trim();
+  const e2 = String(activity.emp_id_2 || '').trim();
+  const parts = [];
+  if (n1 || e1) parts.push(n1 ? (e1 ? `${n1} (${e1})` : n1) : e1);
+  if (n2 || e2) parts.push(n2 ? (e2 ? `${n2} (${e2})` : n2) : e2);
+  return parts.length ? parts.join(' · ') : '—';
 }
 
 function renderGroup(group, canReview) {
-  const fieldsRows = (group.fields || []).map((f) => `
-    <tr>
-      <td class="ds-er-field-name">${hebrewFieldName(f.field_name)}</td>
-      <td class="ds-er-old">${escapeHtml(f.old_value || '—')}</td>
-      <td class="ds-er-arrow">←</td>
-      <td class="ds-er-new">${escapeHtml(f.new_value || '—')}</td>
-    </tr>
-  `).join('');
+  const activity = group.activity || null;
+  const hasActivity = Boolean(activity);
+  const titleName = String(group.activity_name || activity?.activity_name || '').trim() || 'פעילות ללא שם';
+  const rowId = String(group.source_row_id || '').trim();
+  const activityType = activity
+    ? (() => {
+        const t = String(activity.activity_type || '').trim();
+        const he = hebrewActivityType(t);
+        return he && he !== 'לא מסווג' ? he : (t || '—');
+      })()
+    : '—';
+  const authority = String(group.authority || activity?.authority || '').trim() || '—';
+  const school = String(group.school || activity?.school || '').trim() || '—';
+  const manager = String(activity?.activity_manager || '').trim() || '—';
+  const startD = activity ? formatDateDisplay(String(activity.start_date || '').trim()) : '';
+  const endD = activity ? formatDateDisplay(String(activity.end_date || '').trim()) : '';
+  const startEnd = [startD, endD].filter(Boolean).join(' — ') || '—';
 
-  const actionsHtml = (canReview && group.status === 'pending') ? `
+  const warnIncomplete = !hasActivity
+    ? `<div class="ds-er-warn" role="alert">לא נמצאו פרטי פעילות מלאים לבדיקה — לא ניתן לאשר עד שנטענת הפעילות מהמערכת.</div>`
+    : '';
+
+  const fieldsRows = (group.fields || []).map((f) => {
+    const { oldHtml, newHtml } = displayOldNew(f.field_name, f.old_value, f.new_value);
+    return `
+    <tr>
+      <td class="ds-er-field-name">${escapeHtml(fieldLabelHe(f.field_name))}</td>
+      <td class="ds-er-old">${oldHtml}</td>
+      <td class="ds-er-arrow">→</td>
+      <td class="ds-er-new">${newHtml}</td>
+    </tr>`;
+  }).join('');
+
+  const canApprove = canReview && group.status === 'pending' && group.can_approve !== false;
+  const actionsHtml = canApprove ? `
     <div class="ds-er-actions">
-      <button class="ds-btn ds-btn--success ds-btn--sm" data-action="approve" data-request-id="${escapeHtml(group.request_id)}">אישור</button>
-      <button class="ds-btn ds-btn--danger ds-btn--sm" data-action="reject" data-request-id="${escapeHtml(group.request_id)}">דחייה</button>
+      <button type="button" class="ds-btn ds-btn--success ds-btn--sm" data-action="approve" data-request-id="${escapeHtml(group.request_id)}">אישור</button>
+      <button type="button" class="ds-btn ds-btn--danger ds-btn--sm" data-action="reject" data-request-id="${escapeHtml(group.request_id)}">דחייה</button>
     </div>
   ` : '';
 
@@ -59,24 +137,36 @@ function renderGroup(group, canReview) {
   ` : '';
 
   return `
-    <div class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}">
-      <div class="ds-er-group-head">
-        <div class="ds-er-group-meta">
-          <span class="ds-er-requester">${escapeHtml(group.requested_by_name || group.requested_by_user_id || '—')}</span>
-          <span class="ds-muted ds-er-date">${formatDate(group.requested_at)}</span>
-          <span class="ds-er-row-id ds-muted">${escapeHtml(group.activity_name || '')}</span>
-          <span class="ds-er-row-id ds-muted">${escapeHtml(group.source_row_id || '')}</span>
-        </div>
+    <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}">
+      <header class="ds-er-card-head">
+        <h3 class="ds-er-card-title">בקשת עריכה לפעילות: ${escapeHtml(titleName)}</h3>
         <div>${dsStatusChip(statusLabel(group.status), statusVariant(group.status))}</div>
+      </header>
+      <div class="ds-er-meta-grid" dir="rtl">
+        <p><span class="ds-muted">מזהה:</span> <strong>${escapeHtml(rowId || '—')}</strong></p>
+        <p><span class="ds-muted">סוג:</span> ${escapeHtml(activityType)}</p>
+        <p><span class="ds-muted">רשות:</span> ${escapeHtml(authority)}</p>
+        <p><span class="ds-muted">בית ספר:</span> ${escapeHtml(school)}</p>
+        <p><span class="ds-muted">מנהל פעילות:</span> ${escapeHtml(manager)}</p>
+        <p><span class="ds-muted">מדריך:</span> ${escapeHtml(instructorLine(activity))}</p>
+        <p><span class="ds-muted">תאריכי התחלה–סיום:</span> ${escapeHtml(startEnd)}</p>
       </div>
+      <p class="ds-er-requester-line" dir="rtl">
+        <span class="ds-muted">נשלח על ידי:</span>
+        ${escapeHtml(group.requested_by_name || group.requested_by_user_id || '—')}
+        <span class="ds-muted"> · בתאריך </span>
+        ${escapeHtml(formatDateDisplay(group.requested_at) || String(group.requested_at || '—'))}
+      </p>
+      ${warnIncomplete}
+      <h4 class="ds-er-section-title">מה השתנה?</h4>
       <div class="ds-table-wrap ds-er-fields-wrap">
         <table class="ds-table ds-er-fields-table">
           <thead>
             <tr>
               <th>שדה</th>
-              <th>ערך קיים</th>
+              <th>ערך נוכחי</th>
               <th></th>
-              <th>ערך חדש</th>
+              <th>ערך מבוקש</th>
             </tr>
           </thead>
           <tbody>${fieldsRows}</tbody>
@@ -84,7 +174,7 @@ function renderGroup(group, canReview) {
       </div>
       ${reviewerNoteHtml}
       ${actionsHtml}
-    </div>
+    </article>
   `;
 }
 
@@ -104,7 +194,7 @@ export const editRequestsScreen = {
     ];
 
     const filterChips = statusFilters.map((f) => `
-      <button class="ds-chip${f.value === 'pending' ? ' is-active' : ''}"
+      <button type="button" class="ds-chip${f.value === 'pending' ? ' is-active' : ''}"
         data-er-filter="${escapeHtml(f.value)}">${escapeHtml(f.label)}</button>
     `).join('');
 
@@ -120,7 +210,7 @@ export const editRequestsScreen = {
         title: `בקשות (${validGroups.length})`,
         padded: false,
         body: `
-          <div class="ds-filter-bar ds-er-filter-bar">${filterChips}</div>
+          <div class="ds-filter-bar ds-er-filter-bar" dir="rtl">${filterChips}</div>
           <div class="ds-er-list" data-er-list>${groupsHtml}</div>
         `
       })}
@@ -163,7 +253,7 @@ export const editRequestsScreen = {
               groupEl.remove();
             } else {
               groupEl.dataset.status = status;
-              const statusChipWrap = groupEl.querySelector('.ds-er-group-head > div:last-child');
+              const statusChipWrap = groupEl.querySelector('.ds-er-card-head > div:last-child');
               if (statusChipWrap) statusChipWrap.innerHTML = dsStatusChip(statusLabel(status), statusVariant(status));
               groupEl.querySelector('.ds-er-actions')?.remove();
             }

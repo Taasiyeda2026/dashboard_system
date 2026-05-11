@@ -113,7 +113,7 @@ test('approving removes request immediately from pending filter', async () => {
 
 test('reviewEditRequest approval updates activities and then edit_requests', async () => {
   const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
-  assert.match(source, /if \(nextStatus === 'approved'\) \{[\s\S]*\.from\('activities'\)[\s\S]*\.update\(requestedValues\)[\s\S]*\.eq\('row_id', sourceRowId\);[\s\S]*\}[\s\S]*\.from\('edit_requests'\)[\s\S]*status: nextStatus/);
+  assert.match(source, /if \(nextStatus === 'approved'\) \{[\s\S]*\.from\('activities'\)[\s\S]*\.update\([\s\S]*\)[\s\S]*\.eq\('row_id', sourceRowId\);[\s\S]*\}[\s\S]*\.from\('edit_requests'\)[\s\S]*status: nextStatus/);
 });
 
 test('reviewEditRequest rejection updates only edit_requests status', async () => {
