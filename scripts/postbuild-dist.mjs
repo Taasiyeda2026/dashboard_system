@@ -58,21 +58,29 @@ mkdirSync(join(dist, 'assets'), { recursive: true });
 cpSync(join(root, 'frontend', 'assets'), join(dist, 'assets'), { recursive: true });
 
 const viteBaseRaw = process.env.VITE_BASE || './';
+const isAbsoluteBase = viteBaseRaw.startsWith('/') && viteBaseRaw !== '/';
+const basePrefix = isAbsoluteBase
+  ? viteBaseRaw.replace(/\/$/, '') + '/'
+  : './';
 const manPath = join(dist, 'manifest.json');
 if (existsSync(manPath)) {
   const m = JSON.parse(readFileSync(manPath, 'utf8'));
-  const isAbsoluteBase = viteBaseRaw.startsWith('/') && viteBaseRaw !== '/';
-  const basePrefix = isAbsoluteBase
-    ? viteBaseRaw.replace(/\/$/, '') + '/'
-    : './';
-  m.start_url = isAbsoluteBase ? basePrefix + 'index.html' : './index.html';
+  m.start_url = basePrefix;
   m.scope = basePrefix;
-  m.id = isAbsoluteBase ? basePrefix + 'index.html' : './index.html';
+  m.id = basePrefix;
   m.icons = (m.icons || []).map((icon) => {
     const src = String(icon.src || '');
-    const next = src
-      .replace(/^\.\.\/assets\//, './assets/')
-      .replace(/^\.\/frontend\/assets\//, './assets/');
+    const assetPath = src
+      .replace(/^\.\.\/assets\//, 'assets/')
+      .replace(/^\.\/frontend\/assets\//, 'assets/')
+      .replace(/^\.\/assets\//, 'assets/')
+      .replace(/^\/[^/]+\/assets\//, 'assets/')
+      .replace(/^\/assets\//, 'assets/');
+    const next = isAbsoluteBase && assetPath.startsWith('assets/')
+      ? basePrefix + assetPath
+      : assetPath.startsWith('assets/')
+        ? './' + assetPath
+        : src;
     return { ...icon, src: next };
   });
   writeFileSync(manPath, JSON.stringify(m, null, 2));
@@ -81,14 +89,13 @@ if (existsSync(manPath)) {
 mkdirSync(join(dist, 'frontend'), { recursive: true });
 
 let html = readFileSync(join(dist, 'index.html'), 'utf8');
-const hashedManifest = html.match(/href="(\.\/assets\/manifest-[^"]+)"/);
+const manifestHref = isAbsoluteBase ? basePrefix + 'manifest.json' : './manifest.json';
+const hashedManifest = html.match(/href="((?:\.|\/[^"]*)?\/assets\/manifest-[^"]+)"/);
 if (hashedManifest) {
-  const orphan = join(dist, hashedManifest[1].replace(/^\.\//, ''));
-  html = html.replace(
-    /<link rel="manifest" href="\.\/assets\/manifest-[^"]+"\s*\/?>/,
-    '<link rel="manifest" href="./manifest.json" />'
-  );
-  writeFileSync(join(dist, 'index.html'), html);
+  const orphanRel = hashedManifest[1]
+    .replace(/^\.\//, '')
+    .replace(new RegExp('^' + basePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '');
+  const orphan = join(dist, orphanRel);
   if (existsSync(orphan)) {
     try {
       unlinkSync(orphan);
@@ -97,6 +104,11 @@ if (hashedManifest) {
     }
   }
 }
+html = html.replace(
+  /<link rel="manifest" href="[^"]+"\s*\/?>/,
+  `<link rel="manifest" href="${manifestHref}" />`
+);
+writeFileSync(join(dist, 'index.html'), html);
 
 const precache = new Set(['./index.html', './manifest.json']);
 for (const u of collectAssetRefs(html, viteBaseRaw)) {
