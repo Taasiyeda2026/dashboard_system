@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { exportActivitiesToExcel } from './shared/excel-export.js';
 import { formatDateHe, formatActivityDateColumnsHe } from './shared/format-date.js';
 import {
   hebrewColumn,
@@ -778,6 +779,8 @@ export const activitiesScreen = {
       try {
         const res = await (typeof api.allActivities === 'function' ? api.allActivities() : api.activities({ activity_type: 'all' }));
         exportActivitiesToExcel(Array.isArray(res?.rows) ? res.rows : [], 'כל_הפעילויות');
+      } catch (err) {
+        console.error('Failed to export all activities to Excel', err);
       } finally {
         btn.disabled = false;
         btn.textContent = originalText;
