@@ -7,8 +7,8 @@ import {
   dsEmptyState,
   dsStatusChip
 } from './shared/layout.js';
-const MIN_SEARCH_CHARS = 4;
-const SEARCH_DEBOUNCE_MS = 450;
+const MIN_SEARCH_CHARS = 1;
+const SEARCH_DEBOUNCE_MS = 150;
 
 const AVATAR_PALETTE = [
   '#ef4444','#f97316','#eab308','#22c55e',
@@ -167,7 +167,6 @@ export const instructorContactsScreen = {
         apply();
         return;
       }
-      if (len < MIN_SEARCH_CHARS) return;
       searchTimer = setTimeout(apply, SEARCH_DEBOUNCE_MS);
     });
 

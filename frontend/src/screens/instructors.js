@@ -256,7 +256,7 @@ export const instructorsScreen = {
   },
 
   bind({ root, data, state, rerender, api }) {
-    bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 450 });
+    bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 150 });
     root.querySelector(`[data-list-show-more="${INSTRUCTORS_SCOPE}"]`)?.addEventListener('click', (ev) => {
       ensureActivityListFilters(state, INSTRUCTORS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);
       rerender();
