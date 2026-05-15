@@ -350,7 +350,7 @@ export const contactsScreen = {
         rerender();
       });
     });
-    bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, { debounceMs: 450 });
+    bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, { debounceMs: 150 });
 
     const bindCopyBtns = (container) => {
       container.querySelectorAll('[data-copy-email]').forEach((btn) => {

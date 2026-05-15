@@ -272,7 +272,7 @@ export const archiveScreen = {
     const rerenderLocal = () => rerender();
 
     bindLocalFilters(root, state, ARCHIVE_SCOPE, rerenderLocal, {
-      debounceMs: 450,
+      debounceMs: 150,
       onClear: () => { state.archiveYear = ''; }
     });
 

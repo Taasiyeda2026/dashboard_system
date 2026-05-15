@@ -750,7 +750,7 @@ export const activitiesScreen = {
         .catch(() => {});
     }
 
-    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 450, onClear: () => {
+    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 150, onClear: () => {
       state.activityQuickFamily = '';
       state.activityQuickManager = '';
       state.activityEndingCurrentMonth = false;

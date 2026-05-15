@@ -304,7 +304,7 @@ export const weekScreen = {
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const showPrivateNote = state?.user?.display_role === 'operation_manager';
-    bindLocalFilters(root, state, WEEK_SCOPE, rerender, { debounceMs: 450 });
+    bindLocalFilters(root, state, WEEK_SCOPE, rerender, { debounceMs: 150 });
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });

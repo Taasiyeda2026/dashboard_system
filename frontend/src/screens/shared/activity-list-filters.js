@@ -1,7 +1,7 @@
 import { escapeHtml } from './html.js';
 
-export const MIN_SEARCH_CHARS = 4;
-export const SEARCH_DEBOUNCE_MS = 450;
+export const MIN_SEARCH_CHARS = 1;
+export const SEARCH_DEBOUNCE_MS = 150;
 const DEFAULT_SEARCH_DEBOUNCE_MS = SEARCH_DEBOUNCE_MS;
 const DEFAULT_VISIBLE_LIMIT = 200;
 const FILTER_OPTIONS_CACHE = new WeakMap();
@@ -177,8 +177,8 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
     const cursorPos = ev.target?.selectionStart ?? nextValue.length;
     clearTimeout(searchTimer);
 
-    // Keep the typed value in state immediately, but only apply expensive
-    // filtering/rerendering when the query is empty or long enough.
+    // Keep the typed value in state immediately and debounce only the local
+    // filtering/rerendering work so one-character searches feel responsive.
     filters.q = nextValue;
 
     const apply = () => {
@@ -193,13 +193,11 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
     };
 
     const trimmedLength = normalizeText(nextValue).length;
-    if (trimmedLength === 0) {
+    if (trimmedLength === 0 || debounceMs <= 0) {
       apply();
       return;
     }
-    if (trimmedLength < MIN_SEARCH_CHARS) return;
-    if (debounceMs <= 0) apply();
-    else searchTimer = setTimeout(apply, debounceMs);
+    searchTimer = setTimeout(apply, debounceMs);
   });
 
   root.querySelectorAll(`[data-filter-scope="${scope}"][data-filter-field]`).forEach((node) => {
