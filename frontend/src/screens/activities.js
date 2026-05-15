@@ -36,6 +36,133 @@ import {
 } from './shared/activity-options.js';
 
 const inflightActivityDetailRequests = new Map();
+
+const ADMIN_SUMMARY_TYPES = [
+  { key: 'course', label: 'קורסים' },
+  { key: 'workshop', label: 'סדנאות' },
+  { key: 'tour', label: 'סיורים' },
+  { key: 'after_school', label: 'אפטרסקול' }
+];
+const ADMIN_SUMMARY_TYPE_LABEL_BY_KEY = Object.fromEntries(ADMIN_SUMMARY_TYPES.map((item) => [item.key, item.label]));
+const ADMIN_SUMMARY_DISTRICTS = ['מחוז צפון', 'מחוז דרום'];
+const ADMIN_SUMMARY_DISTRICT_FIELDS = ['district', 'region', 'area', 'authority_district'];
+
+function isAdminUser(state) {
+  return state?.user?.display_role === 'admin' || state?.user?.role === 'admin';
+}
+
+function normalizeAdminSummaryText(value) {
+  return String(value == null ? '' : value).trim();
+}
+
+function normalizeAdminSummarySearchText(value) {
+  return normalizeAdminSummaryText(value).toLowerCase().replace(/[\s_\-]+/g, '');
+}
+
+function normalizeAdminActivityType(value) {
+  const raw = normalizeAdminSummaryText(value);
+  const compact = normalizeAdminSummarySearchText(raw);
+  if (['course', 'courses', 'קורס', 'קורסים'].includes(compact)) return { key: 'course', label: 'קורסים' };
+  if (['workshop', 'workshops', 'סדנה', 'סדנאות'].includes(compact)) return { key: 'workshop', label: 'סדנאות' };
+  if (['tour', 'tours', 'סיור', 'סיורים', 'טיול', 'טיולים'].includes(compact)) return { key: 'tour', label: 'סיורים' };
+  if (['afterschool', 'after_school', 'חוגאפטרסקול', 'אפטרסקול'].map(normalizeAdminSummarySearchText).includes(compact)) {
+    return { key: 'after_school', label: 'אפטרסקול' };
+  }
+  return { key: 'other', label: raw || 'אחר' };
+}
+
+function normalizeAdminDistrict(row = {}) {
+  const raw = ADMIN_SUMMARY_DISTRICT_FIELDS.map((field) => normalizeAdminSummaryText(row?.[field])).find(Boolean) || '';
+  const compact = normalizeAdminSummarySearchText(raw);
+  if (!compact) return 'ללא מחוז';
+  if (compact.includes('צפון') || compact.includes('north')) return 'מחוז צפון';
+  if (compact.includes('דרום') || compact.includes('south')) return 'מחוז דרום';
+  return raw;
+}
+
+function createAdminSummaryBucket(label) {
+  return {
+    label,
+    counts: { course: 0, workshop: 0, tour: 0, after_school: 0, other: 0, total: 0 },
+    byName: new Map()
+  };
+}
+
+function addRowToAdminSummaryBucket(bucket, row = {}) {
+  const type = normalizeAdminActivityType(row.activity_type || row.activity_family || row.type);
+  const name = normalizeAdminSummaryText(row.activity_name || row.name || row.program_name) || 'ללא שם פעילות';
+  bucket.counts.total += 1;
+  bucket.counts[type.key] = (bucket.counts[type.key] || 0) + 1;
+  const detailKey = `${name}|${type.key}|${type.label}`;
+  const existing = bucket.byName.get(detailKey) || { name, typeKey: type.key, typeLabel: type.label, count: 0 };
+  existing.count += 1;
+  bucket.byName.set(detailKey, existing);
+}
+
+function buildAdminActivitiesSummary(rows) {
+  const buckets = new Map();
+  ADMIN_SUMMARY_DISTRICTS.forEach((label) => buckets.set(label, createAdminSummaryBucket(label)));
+  const total = createAdminSummaryBucket('סה״כ כללי');
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const district = normalizeAdminDistrict(row);
+    if (!buckets.has(district)) buckets.set(district, createAdminSummaryBucket(district));
+    addRowToAdminSummaryBucket(buckets.get(district), row);
+    addRowToAdminSummaryBucket(total, row);
+  });
+  const districtBuckets = Array.from(buckets.values()).filter((bucket) => ADMIN_SUMMARY_DISTRICTS.includes(bucket.label) || bucket.counts.total > 0);
+  return { districts: districtBuckets, total };
+}
+
+function adminSummaryCountsHtml(bucket) {
+  const other = Number(bucket?.counts?.other || 0);
+  return `<div class="ds-admin-summary__kpis">
+    ${ADMIN_SUMMARY_TYPES.map(({ key, label }) => `<div class="ds-admin-summary__kpi"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(bucket?.counts?.[key] || 0))}</strong></div>`).join('')}
+    ${other > 0 ? `<div class="ds-admin-summary__kpi"><span>אחר</span><strong>${escapeHtml(String(other))}</strong></div>` : ''}
+    <div class="ds-admin-summary__kpi ds-admin-summary__kpi--total"><span>סה״כ כל הפעילויות</span><strong>${escapeHtml(String(bucket?.counts?.total || 0))}</strong></div>
+  </div>`;
+}
+
+function adminSummaryDetailsHtml(bucket) {
+  const rows = Array.from(bucket?.byName?.values?.() || [])
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'he'));
+  if (!rows.length) return '<p class="ds-admin-summary__empty">אין פעילויות להצגה.</p>';
+  return `<ul class="ds-admin-summary__details">
+    ${rows.map((item) => {
+      const typeLabel = ADMIN_SUMMARY_TYPE_LABEL_BY_KEY[item.typeKey] || item.typeLabel || 'אחר';
+      return `<li><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(String(item.count))} ${escapeHtml(typeLabel)}</strong></li>`;
+    }).join('')}
+  </ul>`;
+}
+
+function adminSummarySectionHtml(bucket, { total = false } = {}) {
+  return `<section class="ds-admin-summary__section${total ? ' ds-admin-summary__section--total' : ''}" dir="rtl">
+    <h3>${escapeHtml(bucket.label)}</h3>
+    ${adminSummaryCountsHtml(bucket)}
+    <h4>פירוט לפי שם פעילות</h4>
+    ${adminSummaryDetailsHtml(bucket)}
+  </section>`;
+}
+
+function adminSummaryLoadingHtml() {
+  return '<div class="ds-admin-summary" dir="rtl"><p class="ds-admin-summary__loading">טוען סיכום…</p></div>';
+}
+
+function adminSummaryErrorHtml() {
+  return '<div class="ds-admin-summary" dir="rtl"><p class="ds-admin-summary__error">לא ניתן לטעון את סיכום האדמין כרגע</p></div>';
+}
+
+function renderAdminActivitiesSummary(rows) {
+  const summary = buildAdminActivitiesSummary(rows);
+  return `<div class="ds-admin-summary" dir="rtl">
+    <header class="ds-admin-summary__intro">
+      <h2>סיכום אדמין – כלל הפעילויות</h2>
+      <p>הסיכום מבוסס על כלל הפעילויות שהוחזרו מהמערכת, ללא סינון חודש או סטטוס.</p>
+    </header>
+    ${summary.districts.map((bucket) => adminSummarySectionHtml(bucket)).join('')}
+    ${adminSummarySectionHtml(summary.total, { total: true })}
+  </div>`;
+}
+
 const ACTIVITIES_SCOPE = 'activities';
 const ACTIVITY_FILTER_FIELDS = [
   { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
@@ -459,7 +586,7 @@ export const activitiesScreen = {
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canAddActivity = !!state?.user?.can_add_activity;
-    const isAdmin = state?.user?.display_role === 'admin' || state?.user?.role === 'admin';
+    const isAdmin = isAdminUser(state);
 
     const rosterUsers = getRosterUsers(state?.clientSettings || {});
     const instructorByEmpId = rosterUsers.reduce((acc, user) => {
@@ -559,7 +686,7 @@ export const activitiesScreen = {
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">↻</button>
-        ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activities-export-all title="ייצוא כל הפעילויות לאקסל">ייצוא כל הפעילויות לאקסל</button>` : ''}
+        ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-export-all title="ייצוא כל הפעילויות לאקסל">ייצוא לאקסל</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-admin-summary title="סיכום אדמין לכלל הפעילויות">סיכום אדמין</button>` : ''}
         ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">+</button>` : ''}
       </div>
     </div>`;
@@ -588,7 +715,7 @@ export const activitiesScreen = {
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canAddActivity = !!state?.user?.can_add_activity;
-    const isAdmin = state?.user?.display_role === 'admin' || state?.user?.role === 'admin';
+    const isAdmin = isAdminUser(state);
 
     const rerenderLocal = () => {
       if (typeof rerenderActivitiesView === 'function') rerenderActivitiesView();
@@ -770,6 +897,10 @@ export const activitiesScreen = {
       }, Math.max(0, minMs - (Date.now() - startedAt)));
     };
 
+    async function loadAllActivitiesForAdmin() {
+      return typeof api.allActivities === 'function' ? api.allActivities() : api.activities({ activity_type: 'all' });
+    }
+
     root.querySelector('[data-activities-export-all]')?.addEventListener('click', async (ev) => {
       if (!isAdmin) return;
       const btn = ev.currentTarget;
@@ -777,13 +908,31 @@ export const activitiesScreen = {
       const originalText = btn.textContent;
       btn.textContent = 'מייצא…';
       try {
-        const res = await (typeof api.allActivities === 'function' ? api.allActivities() : api.activities({ activity_type: 'all' }));
+        const res = await loadAllActivitiesForAdmin();
         exportActivitiesToExcel(Array.isArray(res?.rows) ? res.rows : [], 'כל_הפעילויות');
       } catch (err) {
         console.error('Failed to export all activities to Excel', err);
       } finally {
         btn.disabled = false;
         btn.textContent = originalText;
+      }
+    });
+
+    root.querySelector('[data-activities-admin-summary]')?.addEventListener('click', async (ev) => {
+      if (!isAdmin || !ui) return;
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      ui.openDrawer({ title: 'סיכום אדמין – כלל הפעילויות', content: adminSummaryLoadingHtml() });
+      try {
+        const res = await loadAllActivitiesForAdmin();
+        const drawerContent = document.querySelector('.ds-drawer__content');
+        if (drawerContent) drawerContent.innerHTML = renderAdminActivitiesSummary(Array.isArray(res?.rows) ? res.rows : []);
+      } catch (err) {
+        console.error('[admin-summary:failed]', err);
+        const drawerContent = document.querySelector('.ds-drawer__content');
+        if (drawerContent) drawerContent.innerHTML = adminSummaryErrorHtml();
+      } finally {
+        btn.disabled = false;
       }
     });
 
