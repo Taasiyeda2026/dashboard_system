@@ -85,6 +85,37 @@ test('entering a valid start_date or date_1 removes missing_start_date automatic
   assert.equal(rowExceptionTypesFromActivity(activeCourse({ start_date: '', date_1: '2026-05-10' })).includes('missing_start_date'), false);
 });
 
+
+test('textual null markers in start_date/date_1 are treated as missing_start_date', () => {
+  const bothTextual = activeCourse({ RowID: 'A-5', start_date: 'NULL', date_1: '' });
+  const date1Textual = activeCourse({ RowID: 'A-6', start_date: '', date_1: 'NULL' });
+  const undefinedWhitespace = activeCourse({ RowID: 'A-7', start_date: ' undefined ', date_1: ' ' });
+
+  assert.equal(rowExceptionTypesFromActivity(bothTextual).includes('missing_start_date'), true);
+  assert.equal(rowExceptionTypesFromActivity(date1Textual).includes('missing_start_date'), true);
+  assert.equal(rowExceptionTypesFromActivity(undefinedWhitespace).includes('missing_start_date'), true);
+});
+
+test('closed and non-course rows are excluded from course exceptions', () => {
+  const workshop = activeCourse({ RowID: 'A-8', activity_type: 'workshop', start_date: '', date_1: '' });
+  const closed = activeCourse({ RowID: 'A-9', status: 'סגור', start_date: '', date_1: '' });
+
+  const model = buildExceptionsModelFromRows([workshop, closed], '2026-05', { include_rows: true });
+
+  assert.equal(model.totalExceptionRows, 0);
+  assert.equal(model.rows.length, 0);
+  assert.equal(model.counts.missing_start_date, 0);
+});
+
+test('Supabase missing-start candidates are loaded broadly and filtered in code', async () => {
+  const source = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+
+  const block = source.match(/const \[missingStartResult[\s\S]*?\] = await Promise\.all\(\[([\s\S]*?)\n    \]\);/);
+  assert.ok(block, 'readExceptionsFromSupabase should fetch parallel exception candidate queries');
+  assert.match(block[1], /queryBase\(\),/);
+  assert.doesNotMatch(block[1], /start_date\.is\.null,start_date\.eq\.[\s\S]*date_1\.is\.null,date_1\.eq\./);
+});
+
 test('allActivities export path reads all activities without applying month/date filters', async () => {
   const source = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 

@@ -1103,7 +1103,7 @@ async function readExceptionsFromSupabase(params = {}) {
     );
 
     // Query 2 + 3 + 4 (parallel):
-    // 2 — open courses with missing start_date AND missing date_1
+    // 2 — broad open-course candidates for missing_start_date
     // 3 — open courses where all instructor fields are empty
     // 4 — open courses where emp_id is set but NOT in the known instructors list
     const queryBase = () =>
@@ -1112,12 +1112,14 @@ async function readExceptionsFromSupabase(params = {}) {
     const knownIdsList = [...knownInstructorIds];
 
     const [missingStartResult, missingInstructorResult, invalidInstructorResult] = await Promise.all([
-      // 2: missing start_date AND missing date_1. This query is intentionally
+      // 2: broad missing-start candidates. This query is intentionally
       // not constrained by month: undated courses must stay visible as
       // missing_start_date exceptions even while a month filter is active.
-      queryBase()
-        .or('start_date.is.null,start_date.eq.')
-        .or('date_1.is.null,date_1.eq.'),
+      // Keep this broad instead of relying on Supabase .or() null/blank
+      // filters so textual markers like "NULL", "null", "undefined" and
+      // whitespace-only values are normalized and classified in code by
+      // rowExceptionTypesFromActivity/buildExceptionsModelFromRows.
+      queryBase(),
       // 3: all instructor fields are empty
       queryBase()
         .or('emp_id.is.null,emp_id.eq.')
