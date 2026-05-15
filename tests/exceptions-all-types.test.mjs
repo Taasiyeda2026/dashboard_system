@@ -342,30 +342,42 @@ test('frontend exceptions title uses totalExceptionRows', async () => {
   );
 });
 
-test('frontend exceptions screen renders top summary with operational and end-date groups', async () => {
+test('frontend exceptions screen renders unique-activity top summary', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
   assert.match(src, /function exceptionsOperationalSummaryHtml\(data, rows\)/,
     'exceptions screen must render an exceptions summary block');
-  assert.match(src, /counts\.late_end_date/,
-    'summary must use late_end_date from data.counts when available');
+  assert.match(src, /function exceptionActivityKey\(row\)/,
+    'summary must key exception activities for dedupe');
+  assert.match(src, /row\?\.RowID, row\?\.row_id, row\?\.source_row_id/,
+    'summary must dedupe with the supported row id fields first');
+  assert.match(src, /row\?\.activity_name,[\s\S]*row\?\.activity_type,[\s\S]*row\?\.school,[\s\S]*row\?\.authority,[\s\S]*row\?\.start_date,[\s\S]*row\?\.end_date/,
+    'summary must fall back to the business activity fields when no id exists');
+  assert.match(src, /function uniqueExceptionActivityCount\(rows, predicate\)/,
+    'summary must count unique activities, not exception-type instances');
   assert.match(src, /exceptionCountFromRows\(rows, 'late_end_date'\)/,
-    'summary must fall back to rows.exception_types for late_end_date');
-  assert.match(src, /const operationalTotal = missingInstructor \+ missingStartDate/,
-    'operational parent count must be the sum of missing instructor and missing start date instances');
-  assert.match(src, /const allExceptionsTotal = operationalTotal \+ endDateTotal/,
-    'top summary total must include both operational and end-date exception groups');
-  assert.match(src, /סה״כ חריגות: \$\{escapeHtml\(String\(allExceptionsTotal\)\)\}/,
-    'summary title must display all exception instances');
+    'summary must count unique late_end_date activities from rows');
+  assert.match(src, /uniqueExceptionActivityCount\(rows, \(types\) => types\.includes\('missing_instructor'\) \|\| types\.includes\('missing_start_date'\)\)/,
+    'operational parent count must dedupe activities with either operational exception');
+  assert.doesNotMatch(src, /const operationalTotal = missingInstructor \+ missingStartDate/,
+    'operational parent count must not be the sum of child exception counts when rows are available');
+  assert.match(src, /const totalExceptionRows = optionalNumericCount\(data\?\.totalExceptionRows\)/,
+    'top summary must prefer totalExceptionRows when supplied');
+  assert.match(src, /const allExceptionsTotal = totalExceptionRows \?\? uniqueExceptionActivityCount\(rows\)/,
+    'top summary must fall back to unique rows when totalExceptionRows is not supplied');
+  assert.match(src, /סה״כ פעילויות חריגות: \$\{escapeHtml\(String\(allExceptionsTotal\)\)\}/,
+    'summary title must display unique exceptional activities');
   assert.match(src, /חריגות תפעוליות: <strong>\$\{escapeHtml\(String\(operationalTotal\)\)\}<\/strong>/,
     'summary must display the operational parent category count');
   assert.match(src, /חסר מדריך: <strong>\$\{escapeHtml\(String\(missingInstructor\)\)\}<\/strong>/,
-    'operational summary must display missing instructor as a separate exception count');
+    'operational summary must display missing instructor as a separate unique activity count');
   assert.match(src, /חסר תאריך התחלה: <strong>\$\{escapeHtml\(String\(missingStartDate\)\)\}<\/strong>/,
-    'operational summary must display missing start date as a separate exception count');
-  assert.match(src, /חריגות תאריך סיום: <strong>\$\{escapeHtml\(String\(endDateTotal\)\)\}<\/strong>/,
-    'summary must display the end-date exception group count');
+    'operational summary must display missing start date as a separate unique activity count');
+  assert.doesNotMatch(src, /חריגות תאריך סיום/,
+    'summary must not duplicate the late end date row with an end-date group label');
   assert.match(src, /תאריך סיום מאוחר: <strong>\$\{escapeHtml\(String\(lateEndDate\)\)\}<\/strong>/,
-    'summary must display late end date as a separate exception count');
+    'summary must display late end date as a separate unique activity count');
+  assert.match(src, /פעילות עם כמה סוגי חריגה נספרת פעם אחת בסה״כ/,
+    'summary should explain that multi-exception activities are counted once in the total');
 });
 
 test('frontend exception Hebrew labels describe the exception details clearly', async () => {
