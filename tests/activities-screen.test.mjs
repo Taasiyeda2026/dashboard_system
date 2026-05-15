@@ -120,12 +120,17 @@ test('activities render: non-admin does not see admin toolbar buttons', () => {
 test('activities source includes admin summary all-activities loading and district/type safeguards', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
-  assert.match(source, /function buildAdminActivitiesSummary\(rows\)/);
+  assert.match(source, /function buildAdminActivitiesSummary\(rows, settings = \{\}\)/);
   assert.match(source, /api\.allActivities/);
   assert.match(source, /טוען סיכום…/);
   assert.match(source, /\[admin-summary:failed\]/);
-  assert.match(source, /ADMIN_SUMMARY_DISTRICT_FIELDS = \['district', 'region', 'area', 'authority_district'\]/);
+  assert.match(source, /ADMIN_SUMMARY_MANAGER_LIST_FIELDS = \[[\s\S]*'district'[\s\S]*'region'[\s\S]*'area'[\s\S]*'group'[\s\S]*'parent_value'[\s\S]*'metadata'[\s\S]*'zone'/);
   assert.match(source, /course[\s\S]*workshop[\s\S]*tour[\s\S]*after_school/);
+
+  assert.match(source, /buildAdminSummaryManagerDistrictLookup\(settings\)/);
+  assert.match(source, /uniqueAdminSummaryRows\(rows\)/);
+  assert.match(source, /ADMIN_SUMMARY_DEDUPE_ID_FIELDS = \['RowID', 'row_id', 'source_row_id'\]/);
+  assert.match(source, /activity_name', 'activity_type', 'school', 'authority', 'start_date', 'end_date'/);
 });
 
 

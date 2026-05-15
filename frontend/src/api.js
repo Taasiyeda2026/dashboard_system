@@ -429,7 +429,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
     return getItems(...keys).map((i) => i.value).filter(Boolean);
   }
 
-  const managerItems    = getItems('activity_manager', 'activity_managers', 'manager', 'managers');
+  const managerItems    = getItems('activity_manager', 'activity_managers', 'activities_manager_users', 'activity_manager_users', 'manager', 'managers');
   const instructorItems = getItems('instructor_users', 'instructor_name', 'instructor', 'instructors', 'instructor_names');
   const activityNameItems = getItems('activity_names', 'activity_name', 'activities', 'activity');
   const fundingValues   = getValues('funding', 'fundings');
@@ -467,11 +467,27 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
     .filter(managerIsActive)
     .map((i) => cleanActivityManagerName(i.value || i.label))
     .filter(Boolean);
-  const managerUsers = managerItems.map((i) => ({
-    name: cleanActivityManagerName(i.value || i.label),
-    is_active: managerIsActive(i),
-    active: i.active,
-  })).filter((user) => user.name);
+  const managerUsers = managerItems.map((i) => {
+    const row = i?._row && typeof i._row === 'object' ? i._row : {};
+    return {
+      name: cleanActivityManagerName(i.value || i.label),
+      value: i.value,
+      label: i.label,
+      is_active: managerIsActive(i),
+      active: i.active,
+      district: row.district,
+      region: row.region,
+      area: row.area,
+      group: row.group,
+      parent_value: row.parent_value,
+      metadata: row.metadata,
+      zone: row.zone,
+      manager_district: row.manager_district,
+      activity_manager_district: row.activity_manager_district,
+      manager_region: row.manager_region,
+      activity_manager_region: row.activity_manager_region,
+    };
+  }).filter((user) => user.name);
 
   return {
     dropdown_options: {
