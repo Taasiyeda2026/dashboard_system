@@ -44,16 +44,19 @@ const ARCHIVE_FILTER_FIELDS = [
 ];
 
 const ARCHIVE_SEARCH_FIELDS = [
-  'RowID',
-  'activity_name',
-  'activity_manager',
-  'instructor_name',
-  'instructor_name_2',
-  'authority',
-  'school',
-  'activity_type',
-  'meeting_dates',
-  'date_cols'
+  'RowID', 'row_id', 'source_row_id',
+  'activity_no', 'activity_number', 'activity_name', 'activity_type', 'activity_family',
+  'activity_manager', 'manager_name',
+  'instructor_name', 'instructor_name_2', 'Instructor', 'Instructor2',
+  'emp_id', 'emp_id_2', 'EmployeeID', 'EmployeeID2',
+  'authority', 'school', 'grade', 'class_group', 'group', 'class',
+  'funding', 'status',
+  'start_date', 'end_date', 'date_1', 'meeting_dates', 'date_cols',
+  'notes', 'description',
+  (row) => activityManagerDisplayName(row?.activity_manager),
+  (row) => Array.from({ length: 30 }, (_, i) => row?.[`date_${i + 1}`]).filter(Boolean).join(' '),
+  (row) => Array.isArray(row?.meeting_dates) ? row.meeting_dates.join(' ') : '',
+  (row) => Array.isArray(row?.date_cols) ? row.date_cols.join(' ') : ''
 ];
 
 const inflightDetailRequests = new Map();
@@ -83,6 +86,38 @@ function yearOptions(rows) {
     if (y !== '—') years.add(y);
   });
   return Array.from(years).sort((a, b) => b.localeCompare(a));
+}
+
+function todayIso() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function reopenModalHtml(today) {
+  return `<div class="ds-perm-edit-form" dir="rtl" data-archive-reopen-form>
+    <p class="ds-muted">כדי להחזיר את הפעילות לפעילה, יש לבחור תאריך התחלה חדש.<br>ניתן לבחור רק תאריך מהיום והלאה.</p>
+    <label class="ds-perm-field">
+      <span class="ds-muted">תאריך התחלה חדש</span>
+      <input class="ds-input ds-input--sm" type="date" name="start_date" min="${escapeHtml(today)}" required data-reopen-start>
+    </label>
+    <label class="ds-perm-field">
+      <span class="ds-muted">תאריך סיום חדש</span>
+      <input class="ds-input ds-input--sm" type="date" name="end_date" min="${escapeHtml(today)}" data-reopen-end>
+    </label>
+    <p class="ds-muted" role="alert" data-reopen-error></p>
+  </div>`;
+}
+
+function clearArchiveReopenCaches(state) {
+  const prefixes = ['archive', 'archiveDetail:', 'archiveDates:', 'activities:', 'month:', 'week:', 'dashboard:'];
+  Object.keys(state?.screenDataCache || {}).forEach((key) => {
+    if (prefixes.some((prefix) => key === prefix || key.startsWith(prefix))) {
+      delete state.screenDataCache[key];
+    }
+  });
 }
 
 function applyArchiveFilters(rows, state) {
@@ -237,7 +272,7 @@ export const archiveScreen = {
     const rerenderLocal = () => rerender();
 
     bindLocalFilters(root, state, ARCHIVE_SCOPE, rerenderLocal, {
-      debounceMs: 300,
+      debounceMs: 450,
       onClear: () => { state.archiveYear = ''; }
     });
 
@@ -345,22 +380,76 @@ export const archiveScreen = {
       if (!canReopen) return;
       const btn = contentRoot.querySelector('[data-archive-reopen]');
       if (!btn) return;
-      btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        btn.textContent = 'שומר…';
-        try {
-          await api.saveActivity({
-            source_sheet: row.source_sheet || 'activities',
-            source_row_id: row.RowID || row.row_id,
-            changes: { status: 'פעיל' }
-          });
-          btn.textContent = '✓ נפתח';
-          ui.closeDrawer?.();
-          rerender();
-        } catch (_e) {
-          btn.disabled = false;
-          btn.textContent = '🔓 פתח מחדש';
-        }
+      btn.addEventListener('click', () => {
+        const today = todayIso();
+        ui.openModal({
+          title: 'פתיחה מחדש של פעילות',
+          content: reopenModalHtml(today),
+          actions: `
+            <button type="button" class="ds-btn ds-btn--ghost" data-ui-close-modal>ביטול</button>
+            <button type="button" class="ds-btn ds-btn--primary" data-archive-reopen-confirm>אישור פתיחה מחדש</button>
+          `
+        });
+
+        const modal = document.querySelector('.ds-modal');
+        const startInput = modal?.querySelector('[data-reopen-start]');
+        const endInput = modal?.querySelector('[data-reopen-end]');
+        const errorEl = modal?.querySelector('[data-reopen-error]');
+        const confirmBtn = modal?.querySelector('[data-archive-reopen-confirm]');
+        const setError = (msg) => { if (errorEl) errorEl.textContent = msg || ''; };
+
+        startInput?.addEventListener('input', () => {
+          const start = String(startInput.value || '').trim();
+          if (endInput) endInput.min = start || today;
+          setError('');
+        });
+        endInput?.addEventListener('input', () => setError(''));
+
+        confirmBtn?.addEventListener('click', async () => {
+          const selectedStartDate = String(startInput?.value || '').trim();
+          const selectedEndDate = String(endInput?.value || '').trim();
+          if (!selectedStartDate) {
+            setError('יש לבחור תאריך התחלה חדש.');
+            startInput?.focus();
+            return;
+          }
+          if (selectedStartDate < today) {
+            setError('תאריך ההתחלה חייב להיות מהיום והלאה.');
+            startInput?.focus();
+            return;
+          }
+          if (selectedEndDate && selectedEndDate < selectedStartDate) {
+            setError('תאריך הסיום לא יכול להיות לפני תאריך ההתחלה.');
+            endInput?.focus();
+            return;
+          }
+
+          const finalEndDate = selectedEndDate || selectedStartDate;
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'שומר…';
+          try {
+            await api.saveActivity({
+              source_sheet: row.source_sheet || 'activities',
+              source_row_id: row.RowID || row.row_id,
+              changes: {
+                status: 'פעיל',
+                start_date: selectedStartDate,
+                end_date: finalEndDate,
+                date_1: selectedStartDate
+              }
+            });
+            ui.closeModal?.();
+            ui.closeDrawer?.();
+            clearArchiveReopenCaches(state);
+            state.activitiesMonthYm = selectedStartDate.slice(0, 7);
+            state.route = 'activities';
+            rerender();
+          } catch (_e) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'אישור פתיחה מחדש';
+            setError('שמירת הפתיחה מחדש נכשלה. נסו שוב.');
+          }
+        });
       });
     }
 

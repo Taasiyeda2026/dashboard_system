@@ -46,16 +46,18 @@ const ACTIVITY_FILTER_FIELDS = [
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
 ];
 const ACTIVITY_SEARCH_FIELDS = [
-  'RowID',
-  'activity_name',
-  'activity_manager',
-  'instructor_name',
-  'instructor_name_2',
-  'authority',
-  'school',
-  'funding',
-  'status',
-  'activity_type'
+  'RowID', 'row_id', 'source_row_id',
+  'activity_no', 'activity_number', 'activity_name', 'activity_type', 'activity_family',
+  'activity_manager', 'manager_name',
+  'instructor_name', 'instructor_name_2', 'Instructor', 'Instructor2',
+  'emp_id', 'emp_id_2', 'EmployeeID', 'EmployeeID2',
+  'authority', 'school', 'grade', 'class_group', 'group', 'class',
+  'funding', 'status',
+  'start_date', 'end_date', 'date_1', 'meeting_dates', 'date_cols',
+  'notes', 'description',
+  (row) => Array.from({ length: 30 }, (_, i) => row?.[`date_${i + 1}`]).filter(Boolean).join(' '),
+  (row) => Array.isArray(row?.meeting_dates) ? row.meeting_dates.join(' ') : '',
+  (row) => Array.isArray(row?.date_cols) ? row.date_cols.join(' ') : ''
 ];
 
 /** שם תצוגה למדריך/ים — כולל כינויים מה־API ומ־normalizeData (Employee וכו'). */
@@ -747,7 +749,7 @@ export const activitiesScreen = {
         .catch(() => {});
     }
 
-    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 420, onClear: () => {
+    bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 450, onClear: () => {
       state.activityQuickFamily = '';
       state.activityQuickManager = '';
       state.activityEndingCurrentMonth = false;

@@ -1,6 +1,8 @@
 import { escapeHtml } from './html.js';
 
-const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
+export const MIN_SEARCH_CHARS = 4;
+export const SEARCH_DEBOUNCE_MS = 450;
+const DEFAULT_SEARCH_DEBOUNCE_MS = SEARCH_DEBOUNCE_MS;
 const DEFAULT_VISIBLE_LIMIT = 200;
 const FILTER_OPTIONS_CACHE = new WeakMap();
 
@@ -28,14 +30,18 @@ export function prepareRowsForSearch(rows, fields) {
   const list = Array.isArray(rows) ? rows : [];
   list.forEach((row) => {
     if (!row || typeof row !== 'object') return;
-    if (!row.__searchText) row.__searchText = buildSearchText(row, fields);
+    row.__searchText = buildSearchText(row, fields);
   });
   return list;
 }
 
 export function ensureActivityListFilters(state, scope) {
   state.listFilters = state.listFilters || {};
-  state.listFilters[scope] = state.listFilters[scope] || { q: '', visibleCount: DEFAULT_VISIBLE_LIMIT };
+  state.listFilters[scope] = state.listFilters[scope] || { q: '', appliedQ: '', visibleCount: DEFAULT_VISIBLE_LIMIT };
+  if (!Object.prototype.hasOwnProperty.call(state.listFilters[scope], 'appliedQ')) {
+    const q = normalizeText(state.listFilters[scope].q || '');
+    state.listFilters[scope].appliedQ = q.length >= MIN_SEARCH_CHARS ? state.listFilters[scope].q : '';
+  }
   if (typeof state.listFilters[scope].visibleCount !== 'number') {
     state.listFilters[scope].visibleCount = DEFAULT_VISIBLE_LIMIT;
   }
@@ -74,7 +80,9 @@ export function collectFilterOptions(rows, fields) {
 export function applyLocalFilters(rows, filters, config = {}) {
   const list = Array.isArray(rows) ? rows : [];
   const scoped = filters || {};
-  const search = normalizeText(scoped.q || '');
+  const rawSearch = Object.prototype.hasOwnProperty.call(scoped, 'appliedQ') ? scoped.appliedQ : scoped.q;
+  const normalizedSearch = normalizeText(rawSearch || '');
+  const search = normalizedSearch.length >= MIN_SEARCH_CHARS ? normalizedSearch : '';
   const filterFields = Array.isArray(config.filterFields) ? config.filterFields : [];
 
   return list.filter((row) => {
@@ -166,11 +174,15 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
   let searchTimer;
   searchInput?.addEventListener('input', (ev) => {
     const nextValue = ev.target?.value || '';
-    if (nextValue === String(filters.q || '')) return;
     const cursorPos = ev.target?.selectionStart ?? nextValue.length;
     clearTimeout(searchTimer);
+
+    // Keep the typed value in state immediately, but only apply expensive
+    // filtering/rerendering when the query is empty or long enough.
+    filters.q = nextValue;
+
     const apply = () => {
-      filters.q = nextValue;
+      filters.appliedQ = nextValue;
       filters.visibleCount = DEFAULT_VISIBLE_LIMIT;
       rerender();
       const newInput = root.querySelector(`[data-filter-search="${scope}"]`);
@@ -179,6 +191,13 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
         try { newInput.setSelectionRange(cursorPos, cursorPos); } catch (_) {}
       }
     };
+
+    const trimmedLength = normalizeText(nextValue).length;
+    if (trimmedLength === 0) {
+      apply();
+      return;
+    }
+    if (trimmedLength < MIN_SEARCH_CHARS) return;
     if (debounceMs <= 0) apply();
     else searchTimer = setTimeout(apply, debounceMs);
   });
@@ -195,7 +214,7 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
 
   clearBtn?.addEventListener('click', () => {
     const prevVisibleCount = state.listFilters?.[scope]?.visibleCount;
-    state.listFilters[scope] = { q: '', visibleCount: typeof prevVisibleCount === 'number' ? prevVisibleCount : DEFAULT_VISIBLE_LIMIT };
+    state.listFilters[scope] = { q: '', appliedQ: '', visibleCount: typeof prevVisibleCount === 'number' ? prevVisibleCount : DEFAULT_VISIBLE_LIMIT };
     if (typeof options.onClear === 'function') options.onClear();
     rerender();
   });

@@ -192,7 +192,7 @@ export const exceptionsScreen = {
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
     const allRows   = (Array.isArray(data?.rows) ? data.rows : []);
-    bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 300 });
+    bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 450 });
     root.querySelector(`[data-list-show-more="${EXCEPTIONS_SCOPE}"]`)?.addEventListener('click', (ev) => {
       ensureActivityListFilters(state, EXCEPTIONS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);
       rerender();

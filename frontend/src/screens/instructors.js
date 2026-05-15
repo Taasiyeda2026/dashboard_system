@@ -203,12 +203,16 @@ export const instructorsScreen = {
   render(data, { state } = {}) {
     const allRows  = Array.isArray(data?.rows) ? data.rows : [];
     prepareRowsForSearch(allRows, [
-      'full_name', 'emp_id',
+      'full_name', 'name', 'instructor_name', 'emp_id', 'employee_id', 'EmployeeID',
+      'activity_name', 'activity_type', 'activity_manager', 'authority', 'school',
+      'status', 'start_date', 'end_date', 'earliest_start_date', 'latest_end_date',
+      'mobile', 'phone', 'email', 'employment_type', 'direct_manager',
       (row) => (Array.isArray(row.activity_managers) ? row.activity_managers : []).join(' '),
       (row) => (Array.isArray(row.authorities) ? row.authorities : []).join(' '),
       (row) => (Array.isArray(row.schools) ? row.schools : []).join(' '),
       (row) => (Array.isArray(row.activity_names) ? row.activity_names : []).join(' '),
-      'authority', 'school', 'activity_name'
+      (row) => (Array.isArray(row.activity_types) ? row.activity_types : []).join(' '),
+      (row) => row.activity_type_counts ? Object.keys(row.activity_type_counts).join(' ') : ''
     ]);
     const filters = ensureActivityListFilters(state, INSTRUCTORS_SCOPE);
 
@@ -252,7 +256,7 @@ export const instructorsScreen = {
   },
 
   bind({ root, data, state, rerender, api }) {
-    bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 300 });
+    bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 450 });
     root.querySelector(`[data-list-show-more="${INSTRUCTORS_SCOPE}"]`)?.addEventListener('click', (ev) => {
       ensureActivityListFilters(state, INSTRUCTORS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);
       rerender();
