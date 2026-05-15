@@ -80,7 +80,7 @@ export function exceptionTypeVariant(exceptionType) {
 export const HEBREW_EXCEPTION_TYPE = {
   missing_instructor:       'חסר מדריך',
   missing_start_date:       'חסר תאריך התחלה',
-  late_end_date:            'תאריך סיום',
+  late_end_date:            'תאריך סיום מאוחר',
   dangerous_end_date:       'תאריך סיום',
   missing_activity_manager: 'חסר מנהל פעילות',
   missing_school:           'חסרה בית ספר',

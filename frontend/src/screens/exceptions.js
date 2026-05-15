@@ -70,13 +70,21 @@ function exceptionsOperationalSummaryHtml(data, rows) {
   const missingStartDate = counts.missing_start_date !== undefined
     ? numericCount(counts.missing_start_date)
     : exceptionCountFromRows(rows, 'missing_start_date');
+  const lateEndDate = counts.late_end_date !== undefined
+    ? numericCount(counts.late_end_date)
+    : exceptionCountFromRows(rows, 'late_end_date');
   const operationalTotal = missingInstructor + missingStartDate;
+  const endDateTotal = lateEndDate;
+  const allExceptionsTotal = operationalTotal + endDateTotal;
 
   return dsCard({
-    title: `חריגות תפעוליות: ${escapeHtml(String(operationalTotal))}`,
+    title: `סה״כ חריגות: ${escapeHtml(String(allExceptionsTotal))}`,
     body: `<div class="ds-summary-panel__structured" dir="rtl">
+      <p class="ds-summary-panel__text">חריגות תפעוליות: <strong>${escapeHtml(String(operationalTotal))}</strong></p>
       <p class="ds-summary-panel__text">חסר מדריך: <strong>${escapeHtml(String(missingInstructor))}</strong></p>
       <p class="ds-summary-panel__text">חסר תאריך התחלה: <strong>${escapeHtml(String(missingStartDate))}</strong></p>
+      <p class="ds-summary-panel__text">חריגות תאריך סיום: <strong>${escapeHtml(String(endDateTotal))}</strong></p>
+      <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${escapeHtml(String(lateEndDate))}</strong></p>
     </div>`
   });
 }
