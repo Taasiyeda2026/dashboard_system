@@ -98,8 +98,8 @@ function renderInstrCard(row) {
     </button>`;
 }
 
-function instrTabHtml(rows, searchQ) {
-  const filtered = searchQ ? applyLocalFilters(rows, { q: searchQ }, { filterFields: [] }) : rows;
+function instrTabHtml(rows, filters) {
+  const filtered = applyLocalFilters(rows, filters, { filterFields: [] });
   const body = filtered.length === 0
     ? dsEmptyState('לא נמצאו אנשי קשר')
     : `<div class="ci-person-grid">${filtered.map((r) => renderInstrCard(r)).join('')}</div>`;
@@ -264,8 +264,8 @@ function renderLetterSection(letter, authoritiesMap) {
   </div>`;
 }
 
-function schoolTabHtml(rows, searchQ) {
-  const filtered = searchQ ? applyLocalFilters(rows, { q: searchQ }, { filterFields: [] }) : rows;
+function schoolTabHtml(rows, filters) {
+  const filtered = applyLocalFilters(rows, filters, { filterFields: [] });
   if (filtered.length === 0) return { filtered, body: dsEmptyState('לא נמצאו אנשי קשר') };
   const authorityGroups = groupByAuthorityThenSchool(filtered);
   const byLetter = groupByLetter(authorityGroups);
@@ -289,14 +289,22 @@ export const contactsScreen = {
   render(data, { state } = {}) {
     const instrRows  = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
     const schoolRows = Array.isArray(data?.school_rows)     ? data.school_rows     : [];
-    prepareRowsForSearch(instrRows, ['full_name', 'contact_name', 'mobile', 'phone', 'email', 'authority', 'school', 'role', 'contact_role']);
-    prepareRowsForSearch(schoolRows, ['full_name', 'contact_name', 'mobile', 'phone', 'email', 'authority', 'school', 'role', 'contact_role']);
+    prepareRowsForSearch(instrRows, [
+      'full_name', 'name', 'contact_name', 'emp_id', 'employee_id',
+      'mobile', 'phone', 'email', 'authority', 'school',
+      'role', 'contact_role', 'employment_type', 'direct_manager', 'active',
+      'notes', 'address', 'activity_name', 'activity_type'
+    ]);
+    prepareRowsForSearch(schoolRows, [
+      'full_name', 'name', 'contact_name', 'emp_id', 'employee_id',
+      'mobile', 'phone', 'email', 'authority', 'school',
+      'role', 'contact_role', 'position', 'active', 'notes', 'address',
+      'instructor_name', 'activity_name', 'activity_type'
+    ]);
     const filters = ensureActivityListFilters(state, CONTACTS_SCOPE);
     const canViewInstr  = data?.can_view_instructors !== false;
     const canViewSchool = data?.can_view_schools     !== false;
     const tab     = state?.contactsTab || (canViewInstr ? 'instr' : 'school');
-    const searchQ = filters.q || '';
-
     const tabBtns = [
       canViewInstr  && { key: 'instr',  label: `אנשי קשר מדריכים (${instrRows.length})`  },
       canViewSchool && { key: 'school', label: `אנשי קשר בתי ספר (${schoolRows.length})` }
@@ -308,10 +316,10 @@ export const contactsScreen = {
     let listHtml    = '';
 
     if (tab === 'instr' && canViewInstr) {
-      const { body } = instrTabHtml(instrRows, searchQ);
+      const { body } = instrTabHtml(instrRows, filters);
       listHtml = body;
     } else if (tab === 'school' && canViewSchool) {
-      const { body } = schoolTabHtml(schoolRows, searchQ);
+      const { body } = schoolTabHtml(schoolRows, filters);
       listHtml = body;
     }
     searchInput = filtersToolbarHtml(CONTACTS_SCOPE, tab === 'instr' ? instrRows : schoolRows, state, {
@@ -342,7 +350,7 @@ export const contactsScreen = {
         rerender();
       });
     });
-    bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, { debounceMs: 420 });
+    bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, { debounceMs: 450 });
 
     const bindCopyBtns = (container) => {
       container.querySelectorAll('[data-copy-email]').forEach((btn) => {

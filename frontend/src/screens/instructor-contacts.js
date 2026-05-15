@@ -7,6 +7,9 @@ import {
   dsEmptyState,
   dsStatusChip
 } from './shared/layout.js';
+const MIN_SEARCH_CHARS = 4;
+const SEARCH_DEBOUNCE_MS = 450;
+
 const AVATAR_PALETTE = [
   '#ef4444','#f97316','#eab308','#22c55e',
   '#3b82f6','#8b5cf6','#ec4899','#14b8a6',
@@ -42,16 +45,19 @@ function drawerHtml(row, hideEmpIds) {
   return `<div class="ds-details-grid" dir="rtl">${lines}</div>`;
 }
 
+function normalizeSearch(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 function applySearch(rows, q) {
-  if (!q) return rows;
-  const lq = q.toLowerCase();
-  return rows.filter((r) =>
-    String(r.full_name || '').toLowerCase().includes(lq) ||
-    String(r.emp_id || '').toLowerCase().includes(lq) ||
-    String(r.email || '').toLowerCase().includes(lq) ||
-    String(r.mobile || '').toLowerCase().includes(lq) ||
-    hebrewEmploymentType(r.employment_type).toLowerCase().includes(lq)
-  );
+  const lq = normalizeSearch(q);
+  if (!lq) return rows;
+  return rows.filter((r) => [
+    r.full_name, r.name, r.emp_id, r.employee_id,
+    r.email, r.mobile, r.phone, r.address,
+    r.employment_type, hebrewEmploymentType(r.employment_type),
+    r.direct_manager, r.active, r.authority, r.school, r.role, r.notes
+  ].some((value) => normalizeSearch(value).includes(lq)));
 }
 
 function renderContactCard(row) {
@@ -79,13 +85,17 @@ export const instructorContactsScreen = {
   render(data, { state } = {}) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const searchQ = state?.instrContactsSearch || '';
+    if (!Object.prototype.hasOwnProperty.call(state, 'instrContactsAppliedSearch')) {
+      state.instrContactsAppliedSearch = normalizeSearch(searchQ).length >= MIN_SEARCH_CHARS ? searchQ : '';
+    }
+    const appliedSearchQ = state?.instrContactsAppliedSearch || '';
     const activeFilter = state?.instrContactsActiveFilter || '';
 
     const contactsSource = state?.clientSettings?.instructor_contacts_source;
     const contactsLabel = hebrewSheetLabel(contactsSource || 'contacts_instructors');
     const sourceSheetName = escapeHtml(contactsSource || 'contacts_instructors');
 
-    let rows = applySearch(allRows, searchQ);
+    let rows = applySearch(allRows, appliedSearchQ);
     if (activeFilter) {
       rows = rows.filter((r) => String(r.active || '').toLowerCase() === activeFilter);
     }
@@ -140,15 +150,25 @@ export const instructorContactsScreen = {
       const next = ev.target.value || '';
       const cursorPos = ev.target?.selectionStart ?? next.length;
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        state.instrContactsSearch = next;
+      state.instrContactsSearch = next;
+
+      const apply = () => {
+        state.instrContactsAppliedSearch = next;
         rerender();
         const newInput = root.querySelector('#instr-contacts-search');
         if (newInput) {
           newInput.focus();
           try { newInput.setSelectionRange(cursorPos, cursorPos); } catch (_) {}
         }
-      }, 280);
+      };
+
+      const len = normalizeSearch(next).length;
+      if (len === 0) {
+        apply();
+        return;
+      }
+      if (len < MIN_SEARCH_CHARS) return;
+      searchTimer = setTimeout(apply, SEARCH_DEBOUNCE_MS);
     });
 
     root.querySelectorAll('[data-active-filter]').forEach((btn) => {
