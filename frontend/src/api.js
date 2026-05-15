@@ -232,14 +232,21 @@ function getActivityDateColumns(row = {}) {
 }
 
 function activityHasDateInRange(row, startDate, endDate) {
-  return getActivityDateColumns(row).some((dateKey) => dateKey >= startDate && dateKey <= endDate);
+  const dates = getActivityDateColumns(row);
+  if (dates.length > 0) {
+    return dates.some((dateKey) => dateKey >= startDate && dateKey <= endDate);
+  }
+
+  const start = normalizeSupabaseDate(row?.start_date ?? row?.date_start);
+  if (!start) return false;
+  const end = normalizeSupabaseDate(row?.end_date ?? row?.date_end) || start;
+  return start <= endDate && end >= startDate;
 }
 
 function activityHasDateInMonth(row, monthPrefix) {
-  const dates = getActivityDateColumns(row);
-  if (dates.some((dateKey) => dateKey.startsWith(monthPrefix))) return true;
-  // start_date is only a fallback when the activity has no meeting date columns.
-  return dates.length === 0 && normalizeSupabaseDate(row?.start_date).slice(0, 7) === monthPrefix;
+  const range = monthDateRange(monthPrefix);
+  if (!range) return false;
+  return activityHasDateInRange(row, range.startDate, range.endDate);
 }
 
 async function selectActivitiesFromSupabase(select = '*') {
@@ -973,12 +980,18 @@ const LATE_END_DATE_CUTOFF = '2026-06-15';
 
 function activityOverlapsMonthForExceptions(row, month) {
   if (!/^\d{4}-\d{2}$/.test(String(month || ''))) return true;
-  const start = nullStr(row?.start_date);
+
+  const range = monthDateRange(month);
+  const dates = getActivityDateColumns(row);
+  if (dates.length > 0) {
+    return dates.some((dateKey) => dateKey >= range.startDate && dateKey <= range.endDate);
+  }
+
+  const start = normalizeSupabaseDate(row?.start_date ?? row?.date_start);
   // Missing start_date is itself an exception and must stay visible under a
   // month filter because there is no reliable date from which to exclude it.
   if (!start) return true;
-  const range = monthDateRange(month);
-  const end = nullStr(row?.end_date) || start;
+  const end = normalizeSupabaseDate(row?.end_date ?? row?.date_end) || start;
   return start <= range.endDate && end >= range.startDate;
 }
 
@@ -989,8 +1002,8 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   const emp2        = nullStr(row?.emp_id_2);
   const instructor1 = nullStr(row?.instructor_name);
   const instructor2 = nullStr(row?.instructor_name_2);
-  const start       = nullStr(row?.start_date);
-  const end         = nullStr(row?.end_date);
+  const start       = normalizeSupabaseDate(row?.start_date ?? row?.date_start);
+  const end         = normalizeSupabaseDate(row?.end_date ?? row?.date_end);
 
   // Instructor check: if the known list is available, emp_id must be in it to count.
   // If no list is available, fall back to checking that at least one name/id field is filled.
@@ -999,10 +1012,10 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
     (!knownIds && (!!instructor1 || !!instructor2));
   if (!hasValidInstructor) types.push('missing_instructor');
 
-  // Start-date check: also accept date_1 as a fallback real date.
-  const date1 = nullStr(row?.date_1 || row?.Date1);
-  const isRealDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
-  if (!start && !isRealDate(date1)) types.push('missing_start_date');
+  // Start-date check: date_1 is a real scheduling date too, so either a
+  // valid start_date or a valid first meeting date resolves this exception.
+  const date1 = normalizeSupabaseDate(row?.date_1 ?? row?.Date1);
+  if (!start && !date1) types.push('missing_start_date');
 
   if (end && end > LATE_END_DATE_CUTOFF) types.push('late_end_date');
   return types;
@@ -1083,8 +1096,12 @@ async function readExceptionsFromSupabase(params = {}) {
     const knownIdsList = [...knownInstructorIds];
 
     const [missingStartResult, missingInstructorResult, invalidInstructorResult] = await Promise.all([
-      // 2: missing start_date (date_1 check is done in rowExceptionTypesFromActivity)
-      queryBase().or('start_date.is.null,start_date.eq.'),
+      // 2: missing start_date AND missing date_1. This query is intentionally
+      // not constrained by month: undated courses must stay visible as
+      // missing_start_date exceptions even while a month filter is active.
+      queryBase()
+        .or('start_date.is.null,start_date.eq.')
+        .or('date_1.is.null,date_1.eq.'),
       // 3: all instructor fields are empty
       queryBase()
         .or('emp_id.is.null,emp_id.eq.')
@@ -2369,4 +2386,12 @@ for (const action of Object.keys(MUTATING_ACTIONS)) {
   };
 }
 
-export { isPerfDebugEnabled, getPerfStore };
+export {
+  isPerfDebugEnabled,
+  getPerfStore,
+  activityHasDateInRange,
+  rowMatchesActivitiesFilters,
+  rowExceptionTypesFromActivity,
+  buildExceptionsModelFromRows,
+  normalizeActivityRow
+};

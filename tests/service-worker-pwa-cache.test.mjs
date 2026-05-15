@@ -24,7 +24,7 @@ test('service worker entry and implementation use the same bumped cache version'
   assert.ok(entryVersion, 'root service worker should expose an entry version');
   assert.ok(cacheVersion, 'frontend service worker should expose a cache version');
   assert.equal(entryVersion[1], cacheVersion[1], 'entry import query should bust to the same SW version as the cache');
-  assert.ok(Number(cacheVersion[1]) >= 348, 'cache version should be bumped past the previous v347 cache');
+  assert.ok(Number(cacheVersion[1]) >= 349, 'cache version should be bumped past the previous v348 cache');
   assert.match(rootSw, /frontend\/sw\.js\?v=\$\{SW_ENTRY_VERSION\}/, 'root SW import should include a version query');
 });
 
