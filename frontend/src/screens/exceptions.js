@@ -55,36 +55,67 @@ function numericCount(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function optionalNumericCount(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function exceptionActivityKey(row) {
+  const explicitId = [row?.RowID, row?.row_id, row?.source_row_id]
+    .map((value) => String(value ?? '').trim())
+    .find(Boolean);
+  if (explicitId) return `id:${explicitId}`;
+  return [
+    row?.activity_name,
+    row?.activity_type,
+    row?.school,
+    row?.authority,
+    row?.start_date,
+    row?.end_date
+  ].map((value) => String(value ?? '').trim()).join('|');
+}
+
+function uniqueExceptionActivityCount(rows, predicate) {
+  const seen = new Set();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const types = normalizedExceptionTypes(row);
+    if (!types.length || (predicate && !predicate(types, row))) continue;
+    seen.add(exceptionActivityKey(row));
+  }
+  return seen.size;
+}
+
 function exceptionCountFromRows(rows, type) {
-  return (Array.isArray(rows) ? rows : []).reduce(
-    (sum, row) => sum + (normalizedExceptionTypes(row).includes(type) ? 1 : 0),
-    0
-  );
+  return uniqueExceptionActivityCount(rows, (types) => types.includes(type));
 }
 
 function exceptionsOperationalSummaryHtml(data, rows) {
   const counts = data?.counts && typeof data.counts === 'object' ? data.counts : {};
-  const missingInstructor = counts.missing_instructor !== undefined
-    ? numericCount(counts.missing_instructor)
-    : exceptionCountFromRows(rows, 'missing_instructor');
-  const missingStartDate = counts.missing_start_date !== undefined
-    ? numericCount(counts.missing_start_date)
-    : exceptionCountFromRows(rows, 'missing_start_date');
-  const lateEndDate = counts.late_end_date !== undefined
-    ? numericCount(counts.late_end_date)
-    : exceptionCountFromRows(rows, 'late_end_date');
-  const operationalTotal = missingInstructor + missingStartDate;
-  const endDateTotal = lateEndDate;
-  const allExceptionsTotal = operationalTotal + endDateTotal;
+  const hasRows = Array.isArray(rows) && rows.length > 0;
+  const missingInstructor = hasRows
+    ? exceptionCountFromRows(rows, 'missing_instructor')
+    : numericCount(counts.missing_instructor);
+  const missingStartDate = hasRows
+    ? exceptionCountFromRows(rows, 'missing_start_date')
+    : numericCount(counts.missing_start_date);
+  const lateEndDate = hasRows
+    ? exceptionCountFromRows(rows, 'late_end_date')
+    : numericCount(counts.late_end_date);
+  const operationalTotal = hasRows
+    ? uniqueExceptionActivityCount(rows, (types) => types.includes('missing_instructor') || types.includes('missing_start_date'))
+    : numericCount(data?.operationalTotal ?? data?.operational_gaps_unique_count);
+  const totalExceptionRows = optionalNumericCount(data?.totalExceptionRows);
+  const allExceptionsTotal = totalExceptionRows ?? uniqueExceptionActivityCount(rows);
 
   return dsCard({
-    title: `סה״כ חריגות: ${escapeHtml(String(allExceptionsTotal))}`,
+    title: `סה״כ פעילויות חריגות: ${escapeHtml(String(allExceptionsTotal))}`,
     body: `<div class="ds-summary-panel__structured" dir="rtl">
       <p class="ds-summary-panel__text">חריגות תפעוליות: <strong>${escapeHtml(String(operationalTotal))}</strong></p>
       <p class="ds-summary-panel__text">חסר מדריך: <strong>${escapeHtml(String(missingInstructor))}</strong></p>
       <p class="ds-summary-panel__text">חסר תאריך התחלה: <strong>${escapeHtml(String(missingStartDate))}</strong></p>
-      <p class="ds-summary-panel__text">חריגות תאריך סיום: <strong>${escapeHtml(String(endDateTotal))}</strong></p>
       <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${escapeHtml(String(lateEndDate))}</strong></p>
+      <p class="ds-summary-panel__text"><small>פעילות עם כמה סוגי חריגה נספרת פעם אחת בסה״כ.</small></p>
     </div>`
   });
 }
@@ -192,7 +223,7 @@ export const exceptionsScreen = {
       ${toolbarHtml}
       <section class="ds-screen-compact-90">${exceptionsOperationalSummaryHtml(data, allRows)}</section>
       <section class="ds-screen-compact-90">${dsCard({
-        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ חריגות: ${escapeHtml(String(data?.totalExceptionRows ?? total))}`,
+        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ פעילויות חריגות: ${escapeHtml(String(data?.totalExceptionRows ?? total))}`,
         body: compact,
         padded: visibleRows.length === 0
       })}</section>
