@@ -3,8 +3,9 @@
  * App shell, JS and CSS: network-first so a normal reload can pick up a new deploy.
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 347;
-const CACHE_NAME = `dashboard-static-v${CACHE_VERSION}`;
+const CACHE_VERSION = 348;
+const CACHE_PREFIX = 'dashboard-static-v';
+const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
 /** Relative paths from sw.js location — works on any origin/proxy (Replit, deploy, etc). */
 const PRECACHE_URLS = [
@@ -57,9 +58,13 @@ function isStaticAssetUrl(url) {
   if (p.endsWith('/index.html') || p === '/' || p.endsWith('.html')) return true;
   if (p.endsWith('.js') || p.endsWith('.css')) return true;
   if (p.endsWith('.png') || p.endsWith('.ico') || p.endsWith('.svg') || p.endsWith('.webp')) return true;
-  if (p.endsWith('.json') && p.includes('manifest')) return true;
+  if (isManifestUrl(url)) return true;
   if (p.endsWith('.woff2') || p.endsWith('.woff')) return true;
   return false;
+}
+
+function isManifestUrl(url) {
+  return url.pathname.endsWith('/manifest.json') || (url.pathname.endsWith('.json') && url.pathname.includes('manifest'));
 }
 
 function isNavigationRequest(request) {
@@ -70,9 +75,27 @@ function shouldStoreResponse(response) {
   return response && response.ok && response.type === 'basic' && sameOrigin(new URL(response.url));
 }
 
+async function deleteOutdatedCaches() {
+  const keys = await caches.keys();
+  await Promise.all(
+    keys
+      .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+      .map((key) => caches.delete(key))
+  );
+}
+
 function withNoStore(request) {
   if (request.cache === 'no-store') return request;
   return new Request(request, { cache: 'no-store' });
+}
+
+async function precacheFresh(cache, path) {
+  const url = resolveUrl(path);
+  const response = await fetch(new Request(url, { cache: 'reload' }));
+  if (!shouldStoreResponse(response)) {
+    throw new Error(`Unexpected precache response for ${path}: ${response.status}`);
+  }
+  await cache.put(url, response.clone());
 }
 
 async function cacheFirst(request, cache) {
@@ -113,25 +136,19 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME).then(async (cache) => {
       for (const path of PRECACHE_URLS) {
         try {
-          await cache.add(resolveUrl(path));
+          await precacheFresh(cache, path);
         } catch (e) {
           console.warn('[SW] precache skip', path, e);
         }
       }
+      await deleteOutdatedCaches();
       self.skipWaiting();
     })
   );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
-      )
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil(deleteOutdatedCaches().then(() => self.clients.claim()));
 });
 
 self.addEventListener('fetch', (event) => {
@@ -148,6 +165,6 @@ self.addEventListener('fetch', (event) => {
 
   if (!(isNavigationRequest(request) || isStaticAssetUrl(url))) return;
 
-  const networkFresh = isNavigationRequest(request) || url.pathname.endsWith('.html') || url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
+  const networkFresh = isNavigationRequest(request) || url.pathname.endsWith('.html') || url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || isManifestUrl(url);
   event.respondWith(caches.open(CACHE_NAME).then((cache) => networkFresh ? networkFirst(request, cache) : cacheFirst(request, cache)));
 });
