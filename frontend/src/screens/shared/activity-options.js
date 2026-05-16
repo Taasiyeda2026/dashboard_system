@@ -1,3 +1,75 @@
+const UNASSIGNED_INSTRUCTOR_LABELS = new Set([
+  '-',
+  '—',
+  'לא שובץ',
+  'לא משובץ',
+  'טרם שובץ',
+  'לא נקבע',
+  'אין',
+  'none',
+  'null',
+  'undefined',
+  'n/a',
+  'unassigned'
+]);
+
+export function cleanInstructorName(value) {
+  const clean = text(value).replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  if (UNASSIGNED_INSTRUCTOR_LABELS.has(clean.toLowerCase())) return '';
+  return clean;
+}
+
+const INSTRUCTOR_NAME_FIELDS = [
+  'instructor_name',
+  'instructorName',
+  'guide_name',
+  'guideName',
+  'teacher_name',
+  'teacherName',
+  'facilitator_name',
+  'facilitatorName',
+  'instructor',
+  'guide',
+  'teacher',
+  'facilitator',
+  'Instructor',
+  'Guide',
+  'Teacher',
+  'Facilitator',
+  'שם מדריך',
+  'מדריך'
+];
+
+export function resolveActivityInstructorName(row = {}, { secondary = false } = {}) {
+  if (!row || typeof row !== 'object') return '';
+  const numberedFields = secondary
+    ? [
+        'instructor_name_2',
+        'instructorName2',
+        'guide_name_2',
+        'guideName2',
+        'teacher_name_2',
+        'teacherName2',
+        'facilitator_name_2',
+        'facilitatorName2',
+        'instructor2',
+        'guide2',
+        'teacher2',
+        'facilitator2',
+        'Instructor2',
+        'Guide2',
+        'Teacher2',
+        'Facilitator2'
+      ]
+    : INSTRUCTOR_NAME_FIELDS;
+  for (const field of numberedFields) {
+    const clean = cleanInstructorName(row[field]);
+    if (clean) return clean;
+  }
+  return '';
+}
+
 export const NO_ACTIVITY_MANAGER_LABEL = 'ללא מנהל';
 
 function text(value) {

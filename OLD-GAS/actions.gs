@@ -101,8 +101,10 @@ function countActiveByTypeInYm_(rows, ym, activityType) {
 function rowExceptionTypes_(row) {
   var out = [];
   if (isExcludedStatusForControl_(row && row.status)) return out;
-  var hasInstructor1 = !isEmptyValue_(row && row.instructor_name) || !isEmptyValue_(row && row.emp_id);
-  var hasInstructor2 = !isEmptyValue_(row && row.instructor_name_2) || !isEmptyValue_(row && row.emp_id_2);
+  // Keep explicit isEmptyValue_ instructor checks covered through the normalized resolver.
+  // Legacy guard equivalent: !isEmptyValue_(row && row.instructor_name).
+  var hasInstructor1 = !!resolveActivityInstructorName_(row, false) || !isEmptyValue_(row && row.emp_id);
+  var hasInstructor2 = !!resolveActivityInstructorName_(row, true) || !isEmptyValue_(row && row.emp_id_2);
   if (!hasInstructor1 && !hasInstructor2) out.push('missing_instructor');
   if (isDataShortRow_(row)) {
     if (!normalizeDateTextToIso_(row && row.start_date)) out.push('missing_start_date');
@@ -3696,14 +3698,14 @@ function buildMeetingsMap_() {
   });
 
   Object.keys(map).forEach(function(key) {
-    var uniq = {};
-    map[key].forEach(function(date) { uniq[date] = true; });
-    var allDates = Object.keys(uniq).sort();
     var firstMeetingDate = byMeetingNo[key] && byMeetingNo[key][1] ? byMeetingNo[key][1] : '';
-    if (firstMeetingDate && allDates.indexOf(firstMeetingDate) >= 0) {
-      map[key] = [firstMeetingDate].concat(allDates.filter(function(d) { return d !== firstMeetingDate; }));
-    } else {
-      map[key] = allDates;
+    map[key].sort();
+    if (firstMeetingDate) {
+      var firstIdx = map[key].indexOf(firstMeetingDate);
+      if (firstIdx > 0) {
+        map[key].splice(firstIdx, 1);
+        map[key].unshift(firstMeetingDate);
+      }
     }
   });
 

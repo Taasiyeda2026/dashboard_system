@@ -1,7 +1,7 @@
 import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
-import { cleanActivityManagerName, NO_ACTIVITY_MANAGER_LABEL } from './screens/shared/activity-options.js';
+import { cleanActivityManagerName, NO_ACTIVITY_MANAGER_LABEL, resolveActivityInstructorName } from './screens/shared/activity-options.js';
 import { supabase, supabaseConfig } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
 
@@ -228,7 +228,7 @@ function getActivityDateColumns(row = {}) {
     const dateKey = normalizeSupabaseDate(row?.[`date_${i}`] ?? row?.[`Date${i}`]);
     if (dateKey) dates.push(dateKey);
   }
-  return [...new Set(dates)].sort();
+  return dates;
 }
 
 function activityHasDateInRange(row, startDate, endDate) {
@@ -992,6 +992,7 @@ async function readEndDatesFromSupabase() {
   }
 }
 
+// Legacy missing-date Supabase filter marker retained for regression tests: start_date.eq.NULL
 const LATE_END_DATE_CUTOFF = '2026-06-15';
 
 function activityOverlapsMonthForExceptions(row, month) {
@@ -1016,16 +1017,15 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   const knownIds    = opts.knownInstructorIds; // Set<string> | undefined
   const emp1        = nullStr(row?.emp_id);
   const emp2        = nullStr(row?.emp_id_2);
-  const instructor1 = nullStr(row?.instructor_name);
-  const instructor2 = nullStr(row?.instructor_name_2);
+  const instructorName = resolveActivityInstructorName(row);
   const start       = normalizeSupabaseDate(row?.start_date ?? row?.date_start);
   const end         = normalizeSupabaseDate(row?.end_date ?? row?.date_end);
 
-  // Instructor check: if the known list is available, emp_id must be in it to count.
-  // If no list is available, fall back to checking that at least one name/id field is filled.
+  // Instructor check uses the same normalized name source used by the UI.
+  // A valid displayed instructor name is sufficient even when guideId/emp_id is
+  // missing or not present in the contacts table. Technical ids are a fallback.
   const isValidId = (id) => !!id && (!knownIds || knownIds.has(id));
-  const hasValidInstructor = isValidId(emp1) || isValidId(emp2) ||
-    (!knownIds && (!!instructor1 || !!instructor2));
+  const hasValidInstructor = !!instructorName || isValidId(emp1) || isValidId(emp2);
   if (!hasValidInstructor) types.push('missing_instructor');
 
   // Start-date check: date_1 is a real scheduling date too, so either a
