@@ -24,7 +24,7 @@ test('service worker entry and implementation use the same bumped cache version'
   assert.ok(entryVersion, 'root service worker should expose an entry version');
   assert.ok(cacheVersion, 'frontend service worker should expose a cache version');
   assert.equal(entryVersion[1], cacheVersion[1], 'entry import query should bust to the same SW version as the cache');
-  assert.ok(Number(cacheVersion[1]) >= 349, 'cache version should be bumped past the previous v348 cache');
+  assert.ok(Number(cacheVersion[1]) >= 355, 'cache version should be bumped past the previous v354 cache');
   assert.match(rootSw, /frontend\/sw\.js\?v=\$\{SW_ENTRY_VERSION\}/, 'root SW import should include a version query');
 });
 
@@ -34,7 +34,16 @@ test('service worker removes old dashboard caches during install and activate', 
   assert.match(frontendSw, /const CACHE_PREFIX = 'dashboard-static-v';/);
   assert.match(frontendSw, /key\.startsWith\(CACHE_PREFIX\) && key !== CACHE_NAME/, 'cleanup should target old dashboard cache versions');
   assert.match(frontendSw, /await deleteOutdatedCaches\(\);[\s\S]*self\.skipWaiting\(\);/, 'install should clean old caches before taking control');
-  assert.match(frontendSw, /event\.waitUntil\(deleteOutdatedCaches\(\)\.then\(\(\) => self\.clients\.claim\(\)\)\)/, 'activate should also clean old caches and claim clients');
+  assert.match(frontendSw, /deleteOutdatedCaches\(\)\.then\(async \(deletedKeys\) => \{[\s\S]*await self\.clients\.claim\(\);[\s\S]*await reloadClientsAfterCacheUpgrade\(deletedKeys\);/, 'activate should clean old caches, claim clients, and reload windows after a cache upgrade');
+});
+
+test('service worker reloads open dashboard windows after deleting old cache versions', async () => {
+  const frontendSw = await read(FRONTEND_SW_FILE);
+
+  assert.match(frontendSw, /return outdatedKeys;/, 'cache cleanup should report deleted old cache names');
+  assert.match(frontendSw, /async function reloadClientsAfterCacheUpgrade\(deletedKeys\)/, 'service worker should define forced client reload after cache upgrade');
+  assert.match(frontendSw, /self\.clients\.matchAll\(\{ type: 'window', includeUncontrolled: true \}\)/, 'reload should include currently open dashboard windows');
+  assert.match(frontendSw, /client\.navigate\(client\.url\)/, 'open clients should be navigated to fetch the fresh app shell and assets');
 });
 
 test('service worker fetches app shell and manifest fresh after deploy', async () => {
