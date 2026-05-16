@@ -76,6 +76,89 @@ function globalDateRange(rows) {
   return { min, max };
 }
 
+
+function currentYm() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function resolveInstructorDetailsTargetYm(selectedYm) {
+  const candidate = String(selectedYm || '').trim().slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm();
+}
+
+function normalizeInstructorIdentity(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function instructorMatchesActivity(row, empId, instrName) {
+  const targetEmpId = String(empId || '').trim();
+  const normalizedTargets = new Set([
+    normalizeInstructorIdentity(instrName),
+    normalizeInstructorIdentity(empId)
+  ].filter(Boolean));
+
+  if (targetEmpId && (String(row.emp_id || '').trim() === targetEmpId || String(row.emp_id_2 || '').trim() === targetEmpId)) {
+    return true;
+  }
+
+  return [row.instructor_name, row.instructor_name_2].some((value) => {
+    const normalized = normalizeInstructorIdentity(value);
+    return normalized && normalizedTargets.has(normalized);
+  });
+}
+
+function activityHasMeetingInMonth(row, targetYm) {
+  let hasMeetingDate = false;
+  let hasMeetingInTargetMonth = false;
+  for (let i = 1; i <= 35; i++) {
+    const d = String((row[`date_${i}`] || row[`Date${i}`]) || '').trim();
+    if (!d) continue;
+    hasMeetingDate = true;
+    if (d.startsWith(targetYm)) hasMeetingInTargetMonth = true;
+  }
+  return { hasMeetingDate, hasMeetingInTargetMonth };
+}
+
+function activityOverlapsFallbackMonth(row, targetYm) {
+  const startYm = toYm(row.start_date || '');
+  const endYm = toYm(row.end_date || '');
+  if (!startYm && !endYm) return false;
+  const rowStartYm = startYm || endYm;
+  const rowEndYm = endYm || startYm;
+  return rowStartYm <= targetYm && rowEndYm >= targetYm;
+}
+
+function activityInDetailsMonth(row, targetYm) {
+  if (!targetYm) return true;
+  const { hasMeetingDate, hasMeetingInTargetMonth } = activityHasMeetingInMonth(row, targetYm);
+  if (hasMeetingDate) return hasMeetingInTargetMonth;
+  return activityOverlapsFallbackMonth(row, targetYm);
+}
+
+export function buildInstructorActivityDetailsForMonth(allRows, { empId, instrName, targetYm } = {}) {
+  const items = [];
+  const seenRowIds = new Set();
+  (Array.isArray(allRows) ? allRows : []).forEach((r) => {
+    if (String(r.status || '').trim() === 'סגור') return;
+    if (!instructorMatchesActivity(r, empId, instrName)) return;
+    if (!activityInDetailsMonth(r, targetYm)) return;
+
+    const rowId = String(r.row_id || r.RowID || '').trim();
+    if (rowId) {
+      if (seenRowIds.has(rowId)) return;
+      seenRowIds.add(rowId);
+    }
+
+    items.push({
+      activity_name: String(r.activity_name || '—'),
+      school:        String(r.school || '—'),
+      authority:     String(r.authority || '—')
+    });
+  });
+  return items;
+}
+
 function instructorTypeIcon(icon) {
   const S = (d) => `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const map = {
@@ -288,7 +371,9 @@ export const instructorsScreen = {
         const instrName  = String(btn.dataset.instructorName || '').trim();
         if (!empId) return;
 
-        const cached = state.instructorsActivityDetailsCache[empId];
+        const targetYm = resolveInstructorDetailsTargetYm(instrState.from);
+        const cacheKey = `${empId}:${targetYm}`;
+        const cached = state.instructorsActivityDetailsCache[cacheKey];
         if (Array.isArray(cached)) {
           openPopup(instrName, cached);
           return;
@@ -300,40 +385,12 @@ export const instructorsScreen = {
           const cachedActivities = state?.screenDataCache?.['activities:all']?.data;
           const res = cachedActivities || await api.activities({ activity_type: 'all' });
           const allRows = Array.isArray(res?.rows) ? res.rows : [];
-          const ym = String(res?.ym || '').slice(0, 7);
+          const items = buildInstructorActivityDetailsForMonth(allRows, { empId, instrName, targetYm });
 
-          const myRows = allRows.filter((r) => {
-            if (String(r.status || '').trim() === 'סגור') return false;
-            return String(r.emp_id || '').trim() === empId || String(r.emp_id_2 || '').trim() === empId;
-          });
-
-          const items = [];
-          const seen = new Set();
-          myRows.forEach((r) => {
-            const isLong = String(r.activity_family || '').trim() === 'program';
-            if (!isLong && ym && !String(r.start_date || '').startsWith(ym)) return;
-            if (isLong && ym) {
-              let hasMeeting = false;
-              for (let i = 1; i <= 35; i++) {
-                const d = String((r[`date_${i}`] || r[`Date${i}`]) || '').trim();
-                if (d && d.startsWith(ym)) { hasMeeting = true; break; }
-              }
-              if (!hasMeeting) return;
-            }
-            const key = `${r.activity_name}|${r.school}|${r.authority}`;
-            if (seen.has(key)) return;
-            seen.add(key);
-            items.push({
-              activity_name: String(r.activity_name || '—'),
-              school:        String(r.school || '—'),
-              authority:     String(r.authority || '—')
-            });
-          });
-
-          state.instructorsActivityDetailsCache[empId] = items;
+          state.instructorsActivityDetailsCache[cacheKey] = items;
           updatePopupBody(items, instrName);
         } catch (_e) {
-          state.instructorsActivityDetailsCache[empId] = [];
+          state.instructorsActivityDetailsCache[cacheKey] = [];
           updatePopupBody([], instrName);
         }
       });

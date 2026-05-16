@@ -25,7 +25,6 @@ import {
 } from './shared/activity-list-filters.js';
 import {
   activityManagerDisplayName,
-  cleanActivityManagerName,
   getActivityCatalog,
   getActivityTypesByFamily,
   getActivityNamesForType,
@@ -37,26 +36,6 @@ import {
 } from './shared/activity-options.js';
 
 const inflightActivityDetailRequests = new Map();
-
-const ADMIN_SUMMARY_TYPES = [
-  { key: 'course', label: 'קורסים' },
-  { key: 'workshop', label: 'סדנאות' },
-  { key: 'tour', label: 'סיורים' },
-  { key: 'after_school', label: 'אפטרסקול' }
-];
-const ADMIN_SUMMARY_TYPE_LABEL_BY_KEY = Object.fromEntries(ADMIN_SUMMARY_TYPES.map((item) => [item.key, item.label]));
-const ADMIN_SUMMARY_DISTRICTS = ['מחוז צפון', 'מחוז דרום'];
-const ADMIN_SUMMARY_UNASSIGNED_DISTRICT = 'ללא מחוז';
-const ADMIN_SUMMARY_MANAGER_LIST_FIELDS = [
-  'district', 'region', 'area', 'group', 'parent_value', 'metadata', 'zone',
-  'manager_district', 'activity_manager_district', 'manager_region', 'activity_manager_region'
-];
-const ADMIN_SUMMARY_MANAGER_NAME_FIELDS = ['name', 'value', 'label', 'activity_manager', 'manager', 'full_name'];
-const ADMIN_SUMMARY_DEDUPE_ID_FIELDS = ['RowID', 'row_id', 'source_row_id'];
-const ADMIN_SUMMARY_DEDUPE_FALLBACK_FIELDS = ['activity_name', 'activity_type', 'school', 'authority', 'start_date', 'end_date'];
-const ADMIN_SUMMARY_MANAGER_OPTION_KEYS = [
-  'activities_manager_users', 'activity_manager_users', 'activity_manager', 'activity_managers', 'manager', 'managers'
-];
 
 function isAdminUser(state) {
   return state?.user?.display_role === 'admin' || state?.user?.role === 'admin';
@@ -82,86 +61,15 @@ function normalizeAdminActivityType(value) {
   return { key: 'other', label: raw || 'אחר' };
 }
 
-function normalizeAdminDistrictValue(value) {
-  const raw = normalizeAdminSummaryText(value);
-  const compact = normalizeAdminSummarySearchText(raw);
-  if (!compact) return '';
-  if (compact.includes('צפון') || compact.includes('north')) return 'מחוז צפון';
-  if (compact.includes('דרום') || compact.includes('south')) return 'מחוז דרום';
-  return '';
-}
-
-function adminSummaryCandidateValues(value) {
-  if (value == null) return [];
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return [value];
-  if (Array.isArray(value)) return value.flatMap((item) => adminSummaryCandidateValues(item));
-  if (typeof value === 'object') {
-    const direct = [];
-    ADMIN_SUMMARY_MANAGER_LIST_FIELDS.forEach((field) => {
-      if (field in value) direct.push(...adminSummaryCandidateValues(value[field]));
-    });
-    return direct;
-  }
-  return [];
-}
-
-function resolveAdminSummaryManagerDistrict(managerItem = {}) {
-  const row = managerItem?._row && typeof managerItem._row === 'object' ? managerItem._row : null;
-  const sources = [managerItem, row].filter(Boolean);
-  for (const source of sources) {
-    for (const field of ADMIN_SUMMARY_MANAGER_LIST_FIELDS) {
-      const values = adminSummaryCandidateValues(source?.[field]);
-      for (const value of values) {
-        const district = normalizeAdminDistrictValue(value);
-        if (district) return district;
-      }
-    }
-  }
-  return '';
-}
-
-function managerNamesFromSettingsItem(item) {
-  const row = item?._row && typeof item._row === 'object' ? item._row : null;
-  const sources = [item, row].filter(Boolean);
-  const names = [];
-  sources.forEach((source) => {
-    ADMIN_SUMMARY_MANAGER_NAME_FIELDS.forEach((field) => {
-      const clean = cleanActivityManagerName(source?.[field]);
-      if (clean) names.push(clean);
-    });
-  });
-  if (typeof item === 'string') {
-    const clean = cleanActivityManagerName(item);
-    if (clean) names.push(clean);
-  }
-  return names;
-}
-
-function buildAdminSummaryManagerDistrictLookup(settings = {}) {
-  const lookup = new Map();
-  const options = settings?.dropdown_options || {};
-  ADMIN_SUMMARY_MANAGER_OPTION_KEYS.forEach((key) => {
-    const list = Array.isArray(options?.[key]) ? options[key] : [];
-    list.forEach((item) => {
-      const district = resolveAdminSummaryManagerDistrict(item);
-      if (!district) return;
-      managerNamesFromSettingsItem(item).forEach((name) => {
-        lookup.set(normalizeAdminSummarySearchText(name), district);
-      });
-    });
-  });
-  return lookup;
-}
-
-function adminSummaryRowManagerName(row = {}) {
-  return cleanActivityManagerName(row.activity_manager || row.manager_name || row.manager || row.activityManager);
-}
-
-function normalizeAdminDistrict(row = {}, managerDistrictLookup = new Map()) {
-  const managerName = adminSummaryRowManagerName(row);
-  if (!managerName) return ADMIN_SUMMARY_UNASSIGNED_DISTRICT;
-  return managerDistrictLookup.get(normalizeAdminSummarySearchText(managerName)) || ADMIN_SUMMARY_UNASSIGNED_DISTRICT;
-}
+const ADMIN_SUMMARY_TYPES = [
+  { key: 'course', label: 'קורסים' },
+  { key: 'workshop', label: 'סדנאות' },
+  { key: 'tour', label: 'סיורים' },
+  { key: 'after_school', label: 'אפטרסקול' }
+];
+const ADMIN_SUMMARY_TYPE_LABEL_BY_KEY = Object.fromEntries(ADMIN_SUMMARY_TYPES.map((item) => [item.key, item.label]));
+const ADMIN_SUMMARY_DEDUPE_ID_FIELDS = ['RowID', 'row_id', 'source_row_id'];
+const ADMIN_SUMMARY_DEDUPE_FALLBACK_FIELDS = ['activity_name', 'activity_type', 'school', 'authority', 'start_date', 'end_date'];
 
 function adminSummaryDedupeKey(row = {}) {
   for (const field of ADMIN_SUMMARY_DEDUPE_ID_FIELDS) {
@@ -203,22 +111,12 @@ function addRowToAdminSummaryBucket(bucket, row = {}) {
 }
 
 function buildAdminActivitiesSummary(rows, settings = {}) {
-  const buckets = new Map();
-  ADMIN_SUMMARY_DISTRICTS.forEach((label) => buckets.set(label, createAdminSummaryBucket(label)));
-  const total = createAdminSummaryBucket('סה״כ כללי');
-  const managerDistrictLookup = buildAdminSummaryManagerDistrictLookup(settings);
+  void settings;
+  const total = createAdminSummaryBucket('');
   uniqueAdminSummaryRows(rows).forEach((row) => {
-    const district = normalizeAdminDistrict(row, managerDistrictLookup);
-    if (!buckets.has(district)) buckets.set(district, createAdminSummaryBucket(district));
-    addRowToAdminSummaryBucket(buckets.get(district), row);
     addRowToAdminSummaryBucket(total, row);
   });
-  const districtBuckets = ADMIN_SUMMARY_DISTRICTS
-    .map((label) => buckets.get(label))
-    .filter(Boolean);
-  const unassigned = buckets.get(ADMIN_SUMMARY_UNASSIGNED_DISTRICT);
-  if (unassigned?.counts?.total > 0) districtBuckets.push(unassigned);
-  return { districts: districtBuckets, total };
+  return { total };
 }
 
 function adminSummaryCountsHtml(bucket) {
@@ -242,11 +140,10 @@ function adminSummaryDetailsHtml(bucket) {
   </ul>`;
 }
 
-function adminSummarySectionHtml(bucket, { total = false } = {}) {
-  return `<section class="ds-admin-summary__section${total ? ' ds-admin-summary__section--total' : ''}" dir="rtl">
-    <h3>${escapeHtml(bucket.label)}</h3>
+function adminSummarySectionHtml(bucket) {
+  return `<section class="ds-admin-summary__section ds-admin-summary__section--total" dir="rtl">
     ${adminSummaryCountsHtml(bucket)}
-    <h4>פירוט לפי שם פעילות</h4>
+    <h3>פירוט לפי שם פעילות</h3>
     ${adminSummaryDetailsHtml(bucket)}
   </section>`;
 }
@@ -259,15 +156,14 @@ function adminSummaryErrorHtml() {
   return '<div class="ds-admin-summary" dir="rtl"><p class="ds-admin-summary__error">לא ניתן לטעון את סיכום האדמין כרגע</p></div>';
 }
 
-function renderAdminActivitiesSummary(rows, settings = {}) {
+export function renderAdminActivitiesSummary(rows, settings = {}) {
   const summary = buildAdminActivitiesSummary(rows, settings);
   return `<div class="ds-admin-summary" dir="rtl">
     <header class="ds-admin-summary__intro">
       <h2>סיכום אדמין – כלל הפעילויות</h2>
       <p>הסיכום מבוסס על כלל הפעילויות שהוחזרו מהמערכת, ללא סינון חודש או סטטוס.</p>
     </header>
-    ${summary.districts.map((bucket) => adminSummarySectionHtml(bucket)).join('')}
-    ${adminSummarySectionHtml(summary.total, { total: true })}
+    ${adminSummarySectionHtml(summary.total)}
   </div>`;
 }
 

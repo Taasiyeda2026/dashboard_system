@@ -117,20 +117,54 @@ test('activities render: non-admin does not see admin toolbar buttons', () => {
   assert.doesNotMatch(html, /סיכום אדמין/);
 });
 
-test('activities source includes admin summary all-activities loading and district/type safeguards', async () => {
+test('activities source includes admin summary all-activities loading and no district buckets', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
   assert.match(source, /function buildAdminActivitiesSummary\(rows, settings = \{\}\)/);
   assert.match(source, /api\.allActivities/);
   assert.match(source, /טוען סיכום…/);
   assert.match(source, /\[admin-summary:failed\]/);
-  assert.match(source, /ADMIN_SUMMARY_MANAGER_LIST_FIELDS = \[[\s\S]*'district'[\s\S]*'region'[\s\S]*'area'[\s\S]*'group'[\s\S]*'parent_value'[\s\S]*'metadata'[\s\S]*'zone'/);
   assert.match(source, /course[\s\S]*workshop[\s\S]*tour[\s\S]*after_school/);
 
-  assert.match(source, /buildAdminSummaryManagerDistrictLookup\(settings\)/);
   assert.match(source, /uniqueAdminSummaryRows\(rows\)/);
   assert.match(source, /ADMIN_SUMMARY_DEDUPE_ID_FIELDS = \['RowID', 'row_id', 'source_row_id'\]/);
   assert.match(source, /activity_name', 'activity_type', 'school', 'authority', 'start_date', 'end_date'/);
+  assert.doesNotMatch(source, /summary\.districts/);
+  assert.doesNotMatch(source, /ADMIN_SUMMARY_DISTRICTS/);
+  assert.doesNotMatch(source, /buildAdminSummaryManagerDistrictLookup/);
+});
+
+test('admin activities summary renders one total summary without district sections', async () => {
+  const { renderAdminActivitiesSummary } = await import('../frontend/src/screens/activities.js');
+  const rows = [
+    { RowID: 'A1', activity_name: 'פעילות א', activity_type: 'course', activity_manager: 'מנהל צפון' },
+    { RowID: 'A2', activity_name: 'פעילות ב', activity_type: 'workshop', activity_manager: 'מנהל דרום' },
+    { RowID: 'A3', activity_name: 'פעילות ג', activity_type: 'tour' },
+    { RowID: 'A4', activity_name: 'פעילות ד', activity_type: 'after_school' },
+    { RowID: 'A5', activity_name: 'פעילות א', activity_type: 'course' }
+  ];
+
+  const html = renderAdminActivitiesSummary(rows, {
+    dropdown_options: {
+      activity_managers: [
+        { name: 'מנהל צפון', district: 'מחוז צפון' },
+        { name: 'מנהל דרום', district: 'מחוז דרום' }
+      ]
+    }
+  });
+
+  assert.equal((html.match(/סיכום אדמין – כלל הפעילויות/g) || []).length, 1);
+  assert.doesNotMatch(html, /מחוז צפון/);
+  assert.doesNotMatch(html, /מחוז דרום/);
+  assert.doesNotMatch(html, /ללא מחוז/);
+  assert.doesNotMatch(html, /סה״כ כללי/);
+  assert.equal((html.match(/פירוט לפי שם פעילות/g) || []).length, 1);
+  assert.match(html, />קורסים<\/span><strong>2<\/strong>/);
+  assert.match(html, />סדנאות<\/span><strong>1<\/strong>/);
+  assert.match(html, />סיורים<\/span><strong>1<\/strong>/);
+  assert.match(html, />אפטרסקול<\/span><strong>1<\/strong>/);
+  assert.match(html, />סה״כ כל הפעילויות<\/span><strong>5<\/strong>/);
+  assert.equal((html.match(/פעילות א/g) || []).length, 1);
 });
 
 
