@@ -1,6 +1,6 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
-import { activityManagerDisplayName, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL } from './activity-options.js';
+import { activityManagerDisplayName, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL, resolveActivityInstructorName } from './activity-options.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 
@@ -309,8 +309,8 @@ function blockPeople(row, { settings = {} } = {}) {
   const authorities = mergeListStrings(options, ['authority', 'authorities']);
   const grades = mergeListStrings(options, ['grade', 'grades']);
   const instructorLookup = buildInstructorLookup(settings);
-  const instructor1Display = resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
-  const instructor2Display = resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
+  const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
+  const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
   const activityType = String(row.activity_type || '').trim();
   const twoInstructors = activityType === 'workshop';
   const instructorLabel = twoInstructors ? 'מדריך/ה 1' : 'מדריך/ה';

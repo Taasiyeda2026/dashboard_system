@@ -81,20 +81,22 @@ function writeRowsToViewSheet_(sheetName, rows) {
 /**
  * Collects all ISO date strings from a source row's Date1–Date35 fields.
  * Falls back to start_date if none found.
- * Returns a sorted, de-duplicated array of ISO date strings.
+ *
+ * A date is not a meeting identity: Date2 and Date3 may legitimately contain
+ * the same date. Preserve one item per populated meeting column and keep column
+ * order so downstream effective RowIDs remain tied to meeting number.
  */
 function collectActivityDatesFromSourceRow_(row) {
-  var seen = {};
   var dates = [];
   for (var i = 1; i <= 35; i++) {
     var d = normalizeDateToIsoFlexible_(row['Date' + i]);
-    if (d && !seen[d]) { seen[d] = true; dates.push(d); }
+    if (d) dates.push(d);
   }
   if (!dates.length) {
     var start = normalizeDateToIsoFlexible_(row.start_date);
-    if (start && !seen[start]) dates.push(start);
+    if (start) dates.push(start);
   }
-  return dates.sort();
+  return dates;
 }
 
 /**
@@ -229,9 +231,7 @@ function buildMeetingsByActivityMapFromView_(meetingViewRows) {
     map[rowId].push(d);
   });
   Object.keys(map).forEach(function(rowId) {
-    var uniq = {};
-    map[rowId].forEach(function(d) { uniq[d] = true; });
-    map[rowId] = Object.keys(uniq).sort();
+    map[rowId].sort();
   });
   return map;
 }

@@ -497,3 +497,31 @@ function jsonResponse_(payload, perfMeta) {
     .createTextOutput(JSON.stringify(body))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+
+function cleanInstructorName_(value) {
+  var raw = text_(value).replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+  if (isEmptyValue_(raw)) return '';
+  return raw;
+}
+
+function resolveActivityInstructorName_(row, secondary) {
+  var src = row || {};
+  var fields = secondary ? [
+    'instructor_name_2', 'instructorName2', 'guide_name_2', 'guideName2',
+    'teacher_name_2', 'teacherName2', 'facilitator_name_2', 'facilitatorName2',
+    'instructor2', 'guide2', 'teacher2', 'facilitator2',
+    'Instructor2', 'Guide2', 'Teacher2', 'Facilitator2'
+  ] : [
+    'instructor_name', 'instructorName', 'guide_name', 'guideName',
+    'teacher_name', 'teacherName', 'facilitator_name', 'facilitatorName',
+    'instructor', 'guide', 'teacher', 'facilitator',
+    'Instructor', 'Guide', 'Teacher', 'Facilitator',
+    'שם מדריך', 'מדריך'
+  ];
+  for (var i = 0; i < fields.length; i++) {
+    var clean = cleanInstructorName_(src[fields[i]]);
+    if (clean) return clean;
+  }
+  return '';
+}

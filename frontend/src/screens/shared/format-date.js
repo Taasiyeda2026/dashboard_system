@@ -30,8 +30,13 @@ export function formatTimeRangeShort(startValue, endValue) {
 }
 
 /**
- * Reads all activity meeting date columns from the unified public.activities row.
+ * Reads activity meeting date columns from the unified public.activities row.
  * Supports both Supabase date_1..date_35 and accidental legacy Date1..Date35 keys.
+ *
+ * Important: a date is not a meeting identity. Two consecutive meetings can
+ * legitimately have the same date, so this helper preserves one entry per
+ * populated meeting column instead of de-duplicating by date. Column order is
+ * preserved so callers can keep meeting-number semantics (date_2 stays meeting 2).
  */
 export function getActivityDateColumns(row = {}) {
   const dates = [];
@@ -41,7 +46,7 @@ export function getActivityDateColumns(row = {}) {
     const m = /^(\d{4}-\d{2}-\d{2})/.exec(text);
     if (m) dates.push(m[1]);
   }
-  return [...new Set(dates)].sort();
+  return dates;
 }
 
 export function formatActivityDateColumnsHe(row = {}) {
