@@ -3,7 +3,7 @@
  * App shell, JS and CSS: network-first so a normal reload can pick up a new deploy.
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 354;
+const CACHE_VERSION = 355;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -15,7 +15,7 @@ const PRECACHE_URLS = [
   "./assets/favicon-32.png",
   "./assets/favicon-D0Y9bj5H.ico",
   "./assets/favicon.ico",
-  "./assets/index-DArOhZXY.js",
+  "./assets/index-C6PDWofB.js",
   "./assets/logo1-sNrSbLi9.png",
   "./assets/logo1.png",
   "./assets/logo2.png",
@@ -77,10 +77,24 @@ function shouldStoreResponse(response) {
 
 async function deleteOutdatedCaches() {
   const keys = await caches.keys();
+  const outdatedKeys = keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME);
+  await Promise.all(outdatedKeys.map((key) => caches.delete(key)));
+  return outdatedKeys;
+}
+
+async function reloadClientsAfterCacheUpgrade(deletedKeys) {
+  if (!deletedKeys || deletedKeys.length === 0) return;
+  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   await Promise.all(
-    keys
-      .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
-      .map((key) => caches.delete(key))
+    clients.map((client) => {
+      try {
+        const clientUrl = new URL(client.url);
+        if (!sameOrigin(clientUrl) || typeof client.navigate !== 'function') return Promise.resolve();
+        return client.navigate(client.url);
+      } catch (e) {
+        return Promise.resolve();
+      }
+    })
   );
 }
 
@@ -148,7 +162,12 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(deleteOutdatedCaches().then(() => self.clients.claim()));
+  event.waitUntil(
+    deleteOutdatedCaches().then(async (deletedKeys) => {
+      await self.clients.claim();
+      await reloadClientsAfterCacheUpgrade(deletedKeys);
+    })
+  );
 });
 
 self.addEventListener('fetch', (event) => {
