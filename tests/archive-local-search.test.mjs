@@ -6,9 +6,9 @@ import { archiveScreen } from '../frontend/src/screens/archive.js';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const rows = [
-  { RowID: '1', activity_name: 'אלפא תוכנית', activity_type: 'course', authority: 'חיפה', school: 'אלון', instructor_name: 'דנה', activity_manager: 'מנהל א', start_date: '2024-01-01', end_date: '2024-02-01' },
+  { RowID: '1', activity_name: 'אלפא תוכנית', activity_type: 'course', authority: 'חיפה', school: 'אלון', instructor_name: 'דנה', activity_manager: 'מנהל א', start_date: '2025-01-01', end_date: '2025-02-01' },
   { RowID: '2', activity_name: 'ביתא סדנה', activity_type: 'workshop', authority: 'נתניה', school: 'ברוש', instructor_name: 'נועה', activity_manager: 'מנהל ב', start_date: '2023-01-01', end_date: '2023-02-01' },
-  { RowID: '3', activity_name: 'גמא סיור', activity_type: 'tour', authority: 'תל אביב', school: 'גפן', instructor_name: 'רוני', activity_manager: 'מנהל ג', start_date: '2024-03-01', end_date: '2024-04-01' }
+  { RowID: '3', activity_name: 'גמא סיור', activity_type: 'tour', authority: 'תל אביב', school: 'גפן', instructor_name: 'רוני', activity_manager: 'מנהל ג', start_date: '2025-03-01', end_date: '2025-04-01' }
 ];
 
 function mountArchive(state = {}) {
@@ -100,8 +100,8 @@ test('archive show more and year filter continue to work', () => {
     assert.equal(rerenderCount, 0);
     assert.equal(root.querySelectorAll('[data-row-id]').length, 3);
 
-    root.querySelector('[data-archive-year="2024"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-    assert.equal(state.archiveYear, '2024');
+    root.querySelector('[data-archive-year="2025"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.equal(state.archiveYear, '2025');
     assert.equal(rerenderCount, 1);
   } finally {
     cleanup();

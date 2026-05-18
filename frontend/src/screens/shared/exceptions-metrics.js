@@ -29,10 +29,11 @@ export function uniqueExceptionActivityCount(rows, predicate) {
   return seen.size;
 }
 
+/** חריגות תפעוליות = רק סוגי חריגה מעמוד חריגות שאינם חסר מדריך / חסר תאריך התחלה */
 export function computeOperationalExceptionsTotal({ rows, fallback = 0 } = {}) {
   const list = asList(rows);
   if (list.length > 0) {
-    return uniqueExceptionActivityCount(list, (types) => types.includes('missing_instructor') || types.includes('missing_start_date'));
+    return uniqueExceptionActivityCount(list, (types) => types.includes('late_end_date'));
   }
   const n = Number(fallback);
   return Number.isFinite(n) ? n : 0;

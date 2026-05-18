@@ -109,13 +109,15 @@ function dashboardSnapshotModel(sourceRows, ym) {
       exceptions_count: exceptionSummary.totalExceptionRows,
       totalExceptionRows: exceptionSummary.totalExceptionRows,
       late_end_date_count: lateEndDate,
-      operational_gaps_count: missingInstructor + missingStartDate,
+      operational_gaps_count: lateEndDate,
+      operational_gaps_unique_count: lateEndDate,
+      operationalTotal: lateEndDate,
       missing_instructor_count: missingInstructor,
       missing_start_date_count: missingStartDate,
       counts: { ...exceptionSummary.counts }
     },
     by_activity_manager: Object.entries(exceptionSummary.byManager).map(([activity_manager, exceptions]) => ({ activity_manager, exceptions })),
-    kpi_cards: [{ id: 'exceptions', action: 'kpi|exceptions', value: exceptionSummary.totalExceptionRows }]
+    kpi_cards: [{ id: 'exceptions', action: 'kpi|exceptions', value: lateEndDate }]
   };
 }
 
@@ -276,11 +278,11 @@ test('dashboard snapshot uses the same total rows, detail counts, and manager co
   assert.equal(exceptions.totalExceptionRows, 4, 'four course activities are exceptional in the selected month');
   assert.equal(exceptions.totalExceptionInstances, 6, 'multi-exception rows still contribute each detail type');
   assert.equal(dashboard.totals.exceptions_count, exceptions.totalExceptionRows);
-  assert.equal(exceptionsKpi.value, exceptions.totalExceptionRows);
+  assert.equal(exceptionsKpi.value, exceptions.counts.late_end_date);
   assert.equal(dashboard.summary.exceptions_count, exceptions.totalExceptionRows);
   assert.equal(dashboard.summary.totalExceptionRows, exceptions.totalExceptionRows);
   assert.equal(dashboard.summary.late_end_date_count, exceptions.counts.late_end_date);
-  assert.equal(dashboard.summary.operational_gaps_count, exceptions.counts.missing_instructor + exceptions.counts.missing_start_date);
+  assert.equal(dashboard.summary.operational_gaps_count, exceptions.counts.late_end_date);
   assert.deepEqual(byManager, exceptions.byManager);
   assert.equal(exceptions.byManager.mgr_a, 2);
   assert.equal(exceptions.byManager.mgr_b, 2);
@@ -344,36 +346,31 @@ test('frontend exceptions title uses totalExceptionRows', async () => {
 
 test('frontend exceptions screen renders unique-activity top summary', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
+  const metricsSrc = await read('frontend/src/screens/shared/exceptions-metrics.js');
   assert.match(src, /function exceptionsOperationalSummaryHtml\(data, rows\)/,
     'exceptions screen must render an exceptions summary block');
-  assert.match(src, /function exceptionActivityKey\(row\)/,
+  assert.match(metricsSrc, /function exceptionActivityKey\(row\)/,
     'summary must key exception activities for dedupe');
-  assert.match(src, /row\?\.RowID, row\?\.row_id, row\?\.source_row_id/,
+  assert.match(metricsSrc, /row\?\.RowID, row\?\.row_id, row\?\.source_row_id/,
     'summary must dedupe with the supported row id fields first');
-  assert.match(src, /row\?\.activity_name,[\s\S]*row\?\.activity_type,[\s\S]*row\?\.school,[\s\S]*row\?\.authority,[\s\S]*row\?\.start_date,[\s\S]*row\?\.end_date/,
+  assert.match(metricsSrc, /row\?\.activity_name,[\s\S]*row\?\.activity_type,[\s\S]*row\?\.school,[\s\S]*row\?\.authority,[\s\S]*row\?\.start_date,[\s\S]*row\?\.end_date/,
     'summary must fall back to the business activity fields when no id exists');
-  assert.match(src, /function uniqueExceptionActivityCount\(rows, predicate\)/,
+  assert.match(metricsSrc, /function uniqueExceptionActivityCount\(rows, predicate\)/,
     'summary must count unique activities, not exception-type instances');
+  assert.match(metricsSrc, /uniqueExceptionActivityCount\(list, \(types\) => types\.includes\('late_end_date'\)\)/,
+    'operational count must include only late_end_date exception type');
   assert.match(src, /exceptionCountFromRows\(rows, 'late_end_date'\)/,
     'summary must count unique late_end_date activities from rows');
-  assert.match(src, /uniqueExceptionActivityCount\(rows, \(types\) => types\.includes\('missing_instructor'\) \|\| types\.includes\('missing_start_date'\)\)/,
-    'operational parent count must dedupe activities with either operational exception');
-  assert.doesNotMatch(src, /const operationalTotal = missingInstructor \+ missingStartDate/,
-    'operational parent count must not be the sum of child exception counts when rows are available');
   assert.match(src, /const totalExceptionRows = optionalNumericCount\(data\?\.totalExceptionRows\)/,
     'top summary must prefer totalExceptionRows when supplied');
   assert.match(src, /const allExceptionsTotal = totalExceptionRows \?\? uniqueExceptionActivityCount\(rows\)/,
     'top summary must fall back to unique rows when totalExceptionRows is not supplied');
   assert.match(src, /סה״כ פעילויות חריגות: \$\{escapeHtml\(String\(allExceptionsTotal\)\)\}/,
     'summary title must display unique exceptional activities');
-  assert.match(src, /חריגות תפעוליות: <strong>\$\{escapeHtml\(String\(operationalTotal\)\)\}<\/strong>/,
-    'summary must display the operational parent category count');
   assert.match(src, /חסר מדריך: <strong>\$\{escapeHtml\(String\(missingInstructor\)\)\}<\/strong>/,
-    'operational summary must display missing instructor as a separate unique activity count');
+    'summary must display missing instructor as a separate unique activity count');
   assert.match(src, /חסר תאריך התחלה: <strong>\$\{escapeHtml\(String\(missingStartDate\)\)\}<\/strong>/,
-    'operational summary must display missing start date as a separate unique activity count');
-  assert.doesNotMatch(src, /חריגות תאריך סיום/,
-    'summary must not duplicate the late end date row with an end-date group label');
+    'summary must display missing start date as a separate unique activity count');
   assert.match(src, /תאריך סיום מאוחר: <strong>\$\{escapeHtml\(String\(lateEndDate\)\)\}<\/strong>/,
     'summary must display late end date as a separate unique activity count');
   assert.match(src, /פעילות עם כמה סוגי חריגה נספרת פעם אחת בסה״כ/,

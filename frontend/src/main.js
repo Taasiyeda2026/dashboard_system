@@ -1621,6 +1621,12 @@ function bindShell() {
     if (route === 'activities') {
       state.activityQuickFamily = '';
       state.activityQuickManager = '';
+      state.activitiesGapFilter = '';
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('gap');
+        window.history.replaceState({}, '', url);
+      } catch { /* ignore */ }
     }
     state.route = route;
     render();
