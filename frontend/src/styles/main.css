@@ -8956,6 +8956,42 @@ select.ds-activity-add-field .ds-input,
   color: var(--ds-accent);
 }
 
+.ds-dashboard-summary-row {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 var(--ds-space-2);
+}
+
+.ds-dashboard-summary-title {
+  margin: 0;
+  color: var(--ds-accent);
+  font-size: 1.02rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.ds-dashboard-kpi-rows {
+  margin-top: 0;
+}
+
+.ds-manager-card--district .ds-manager-card__name {
+  font-weight: 800;
+  color: var(--ds-text);
+}
+
+.instr-date-filter--nav {
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.instr-date-filter__label {
+  min-width: 132px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--ds-text);
+}
+
 /* ── Section card titles – a bit stronger ── */
 .ds-dashboard-wrap .ds-card__title {
   font-weight: 700;

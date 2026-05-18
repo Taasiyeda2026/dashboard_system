@@ -422,7 +422,7 @@ export const dashboardScreen = {
         ${staleBanner}
         <div data-dash-data-area>
           <div class="ds-dashboard-summary-row">
-            <button type="button" class="ds-summary-btn" data-summary-target="national" aria-label="סיכום">סיכום</button>
+            <h2 class="ds-dashboard-summary-title">סיכום</h2>
           </div>
           <div class="ds-summary-panel" data-summary-panel="national" hidden>
             <div class="ds-summary-panel__content"></div>
@@ -551,12 +551,7 @@ export const dashboardScreen = {
       applyYm(shiftYm(state.dashboardMonthYm || currentMonthYm(), 1));
     });
 
-    root.querySelectorAll('.ds-summary-btn[data-summary-target]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const target = btn.dataset.summaryTarget || '';
-        handleSummaryClick(target);
-      });
-    });
+    handleSummaryClick('national');
 
     root.querySelectorAll('[data-kpi-info-toggle]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
