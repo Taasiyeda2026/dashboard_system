@@ -8317,6 +8317,7 @@ select.ds-activity-add-field .ds-input,
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.01em;
+  color: #1a2a42;
   background: #f4f7fb;
   border-bottom: 2px solid rgba(26, 51, 88, 0.2);
   vertical-align: middle;
@@ -8330,8 +8331,13 @@ select.ds-activity-add-field .ds-input,
   vertical-align: middle;
   text-align: right;
 }
+
+.ds-table--activities-list th:nth-child(5),
+.ds-table--activities-list td:nth-child(5),
 .ds-table--activities-list th:nth-child(6),
-.ds-table--activities-list td:nth-child(6) {
+.ds-table--activities-list td:nth-child(6),
+.ds-table--activities-list th:nth-child(7),
+.ds-table--activities-list td:nth-child(7) {
   text-align: center;
 }
 
