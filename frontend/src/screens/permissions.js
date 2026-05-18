@@ -378,7 +378,7 @@ export const permissionsScreen = {
 
     return dsScreenStack(`
       <section class="ds-perm-screen">
-        ${dsPageHeader('הרשאות', 'ניהול גישה ודגלי הרשאה — תואם לגיליון permissions')}
+        ${dsPageHeader('הרשאות', '')}
         ${safeRows.length ? dsKpiGrid(kpis) : ''}
         ${toolsBar}
         ${dsCard({

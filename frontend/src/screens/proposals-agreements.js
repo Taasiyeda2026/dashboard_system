@@ -57,7 +57,7 @@ export function buildProposalsAgreementsSearchText(row = {}) {
     row.school_framework,
     row.document_type,
     row.activity_type_group,
-    row.activity_names,
+    Array.isArray(row.activity_names) ? row.activity_names.join(' ') : row.activity_names,
     row.notes,
     row.contact_name,
     row.contact_role,
@@ -73,7 +73,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     school_framework:    text(row.school_framework),
     document_type:       text(row.document_type),
     activity_type_group: text(row.activity_type_group),
-    activity_names:      text(row.activity_names),
+    activity_names:      Array.isArray(row.activity_names) ? row.activity_names.map(text).filter(Boolean) : text(row.activity_names).split(',').map(text).filter(Boolean),
     contact_name:        text(row.contact_name),
     contact_role:        text(row.contact_role),
     phone:               text(row.phone),
@@ -127,7 +127,7 @@ function detailRowsHtml(row) {
   return FORM_FIELDS.map((key) => `
     <div class="ds-pa-detail-row">
       <span class="ds-pa-detail-label">${escapeHtml(FIELD_LABELS[key] || key)}</span>
-      <span class="ds-pa-detail-value">${escapeHtml(row[key] || '—')}</span>
+      <span class="ds-pa-detail-value">${escapeHtml(key === 'activity_names' ? ((Array.isArray(row[key]) ? row[key] : []).join(', ') || '—') : (row[key] || '—'))}</span>
     </div>`).join('');
 }
 
@@ -179,10 +179,13 @@ function formFieldHtml(key, value = '', activityNameOptions = []) {
   }
   if (key === 'activity_names') {
     const attrs = required ? ' required aria-required="true"' : '';
-    const optionsHtml = ['<option value="">— בחרו שם פעילות —</option>',
-      ...activityNameOptions.map((v) => optionHtml(v, value))
-    ].join('');
-    return `<label class="ds-pa-form-field"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><select class="ds-input ds-input--sm" name="${key}"${attrs}>${optionsHtml}</select></label>`;
+    const selectedValues = Array.isArray(value) ? value : text(value).split(',').map(text).filter(Boolean);
+    const optionsHtml = activityNameOptions.map((v) => {
+      const safe = escapeHtml(v);
+      const sel = selectedValues.includes(v) ? ' selected' : '';
+      return `<option value="${safe}"${sel}>${safe}</option>`;
+    }).join('');
+    return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><select class="ds-input ds-input--sm" name="${key}" multiple size="6"${attrs}>${optionsHtml}</select></label>`;
   }
   if (key === 'notes') {
     return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}</span><textarea class="ds-input ds-input--sm" name="${key}" rows="2">${escapeHtml(value || '')}</textarea></label>`;
@@ -241,7 +244,14 @@ export function updateProposalsAgreementsTableOnly(root, rows) {
 function payloadFromForm(form) {
   const formData = new FormData(form);
   const payload = {};
-  FORM_FIELDS.forEach((key) => { payload[key] = text(formData.get(key)); });
+  FORM_FIELDS.forEach((key) => {
+    if (key === 'activity_names') {
+      const values = formData.getAll(key).map(text).filter(Boolean);
+      payload[key] = Array.from(new Set(values));
+      return;
+    }
+    payload[key] = text(formData.get(key));
+  });
   return payload;
 }
 
@@ -289,7 +299,7 @@ export const proposalsAgreementsScreen = {
   bind({ root, data, state, api }) {
     if (!root || data?.unauthorized || !canAccessProposalsAgreements(state)) return;
     data.rows = sortRows((Array.isArray(data.rows) ? data.rows : []).map(normalizeProposalAgreementRow));
-    const activityNameOptions = Array.isArray(data?.activityNameOptions) ? data.activityNameOptions : [];
+    const activityNameOptions = Array.from(new Set((Array.isArray(data?.activityNameOptions) ? data.activityNameOptions : []).map((v) => text(v)).filter(Boolean)));
     let debounceTimer = null;
 
     const refreshTable = () => updateProposalsAgreementsTableOnly(root, displayRows(data, currentFilters(root)));
