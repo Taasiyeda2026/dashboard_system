@@ -432,7 +432,7 @@ export const dashboardScreen = {
         ${staleBanner}
         <div data-dash-data-area>
           <div class="ds-dashboard-summary-row">
-            <h2 class="ds-dashboard-summary-title">סיכום</h2>
+            <button type="button" class="ds-summary-btn ds-dashboard-summary-title" data-summary-target="national" aria-expanded="false">סיכום</button>
           </div>
           <div class="ds-summary-panel" data-summary-panel="national" hidden>
             <div class="ds-summary-panel__content"></div>
@@ -505,6 +505,7 @@ export const dashboardScreen = {
         if (btn) {
           btn.textContent = 'סיכום';
           btn.classList.remove('is-active');
+          btn.setAttribute('aria-expanded', 'false');
         }
       } else {
         panel.hidden = false;
@@ -512,6 +513,7 @@ export const dashboardScreen = {
         if (btn) {
           btn.textContent = 'סגור ✕';
           btn.classList.add('is-active');
+          btn.setAttribute('aria-expanded', 'true');
         }
       }
       toggleSummaryButton(target, false);
@@ -562,6 +564,11 @@ export const dashboardScreen = {
     });
 
     handleSummaryClick('national');
+
+    root.querySelector('.ds-summary-btn[data-summary-target]')?.addEventListener('click', (e) => {
+      const target = e.currentTarget.dataset.summaryTarget || '';
+      if (target) handleSummaryClick(target);
+    });
 
     root.querySelectorAll('[data-kpi-info-toggle]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
