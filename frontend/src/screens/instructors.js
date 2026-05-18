@@ -380,9 +380,7 @@ export const instructorsScreen = {
       rerender();
     });
     root.querySelector('[data-instr-month-next]')?.addEventListener('click', () => {
-      const next = nextYm(instrState.from || currentYm());
-      const cap = currentYm();
-      instrState.from = next > cap ? cap : next;
+      instrState.from = nextYm(instrState.from || currentYm());
       rerender();
     });
 
