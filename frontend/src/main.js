@@ -509,7 +509,8 @@ const screenLabels = {
   'admin-home': 'בית — ניהול',
   'admin-settings': 'הגדרות מערכת',
   'admin-lists': 'ניהול רשימות',
-  archive: 'ארכיון'
+  archive: 'ארכיון',
+  'proposals-agreements': 'הצעות והסכמים'
 };
 
 const screenLoaders = {
@@ -528,7 +529,8 @@ const screenLoaders = {
   'admin-home': () => import('./screens/admin-home.js').then((m) => m.adminHomeScreen),
   'admin-settings': () => import('./screens/admin-settings.js').then((m) => m.adminSettingsScreen),
   'admin-lists': () => import('./screens/admin-lists.js').then((m) => m.adminListsScreen),
-  archive: () => import('./screens/archive.js').then((m) => m.archiveScreen)
+  archive: () => import('./screens/archive.js').then((m) => m.archiveScreen),
+  'proposals-agreements': () => import('./screens/proposals-agreements.js').then((m) => m.proposalsAgreementsScreen)
 };
 const loadedScreens = new Map();
 const loadingScreens = new Map();
@@ -726,7 +728,7 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
-  const HEADER_ALWAYS_EXCLUDE = new Set(['edit-requests', 'contacts', 'instructor-contacts']);
+  const HEADER_ALWAYS_EXCLUDE = new Set(['edit-requests', 'contacts', 'instructor-contacts', 'proposals-agreements']);
   const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data', 'permissions']) : new Set();
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
