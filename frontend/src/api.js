@@ -958,9 +958,9 @@ async function dashboardReadModelFromSupabase(month) {
       missing_start_date_count: Number(exceptionCounts.missing_start_date || 0),
       missing_date_count: Number(exceptionCounts.missing_start_date || 0),
       late_end_date_count: Number(exceptionCounts.late_end_date || 0),
-      operational_gaps_count: Number(exceptionCounts.late_end_date || 0),
-      operational_gaps_unique_count: Number(exceptionCounts.late_end_date || 0),
-      operationalTotal: Number(exceptionCounts.late_end_date || 0),
+      operational_gaps_count: Number(exceptionSummary.operationalUniqueCount || 0),
+      operational_gaps_unique_count: Number(exceptionSummary.operationalUniqueCount || 0),
+      operationalTotal: Number(exceptionSummary.operationalUniqueCount || 0),
       exceptions_count: exceptionsCount,
       totalExceptionRows: exceptionsCount,
       total_exception_rows: exceptionsCount,
@@ -1056,6 +1056,7 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
   const rows = [];
   const counts = { missing_instructor: 0, missing_start_date: 0, late_end_date: 0 };
   const byManager = {};
+  let operationalUniqueCount = 0;
   for (const row of activityRows) {
     if (isActivityClosed(row)) continue;
     if (rowActivityType(row) !== 'course') continue;
@@ -1065,6 +1066,9 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
     const manager = cleanActivityManagerName(row?.activity_manager) || NO_ACTIVITY_MANAGER_LABEL;
     byManager[manager] = (byManager[manager] || 0) + 1;
     for (const type of types) counts[type] = (counts[type] || 0) + 1;
+    if (types.includes('missing_instructor') || types.includes('missing_start_date')) {
+      operationalUniqueCount += 1;
+    }
     if (includeRows) {
       rows.push({
         ...row,
@@ -1077,7 +1081,7 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
   }
   const totalExceptionRows = Object.values(byManager).reduce((sum, value) => sum + Number(value || 0), 0);
   const totalExceptionInstances = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
-  return { rows, totalExceptionRows, totalExceptionInstances, counts, byManager };
+  return { rows, totalExceptionRows, totalExceptionInstances, operationalUniqueCount, counts, byManager };
 }
 
 function buildExceptionsFromRows(activityRows = [], month = '') {

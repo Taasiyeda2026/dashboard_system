@@ -118,9 +118,11 @@ function renderStructuredSummary(summary, ym, byManager) {
     : (exceptionsTotalFallback.ok ? exceptionsTotalFallback.value : 0);
 
   const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 0));
-  const operationalGaps = escapeHtml(String(lateEndCount));
+  const operationalUniqueField = getStrictNumericField(summary, 'operational_gaps_unique_count');
+  const operationalUniqueCount = operationalUniqueField.ok ? operationalUniqueField.value : 0;
+  const missingInstructor = missingInstructorCount;
+  const missingStartDate  = missingStartDateCount;
   const lateEnd = escapeHtml(String(lateEndCount));
-  const exceptionsTotal = escapeHtml(String(exceptionsTotalResolved));
 
   const typeCounts = summary?.active_type_counts || {};
   const typeRows = ACTIVITY_TYPE_ORDER
@@ -161,10 +163,12 @@ function renderStructuredSummary(summary, ym, byManager) {
     <p class="ds-summary-panel__text">${escapeHtml(allInstructors || '—')}</p>
 
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
-      <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש:</strong></h4>
-      <p class="ds-summary-panel__text"><strong>סה״כ חריגות: ${exceptionsTotal}</strong></p>
-      <p class="ds-summary-panel__text">תאריך סיום: <strong>${lateEnd}</strong></p>
-      <p class="ds-summary-panel__text">פערים תפעוליים: <strong>${operationalGaps}</strong></p>
+      <h4 class="ds-summary-panel__inner-title"><strong>חריגות תפעוליות החודש:</strong></h4>
+      <p class="ds-summary-panel__text">
+        <strong>חריגות תפעוליות: ${escapeHtml(String(operationalUniqueCount))}</strong>
+        <span class="ds-muted"> (חסר מדריך: ${escapeHtml(String(missingInstructor))} · חסר תאריך התחלה: ${escapeHtml(String(missingStartDate))})</span>
+      </p>
+      <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${lateEnd}</strong></p>
     </div>
   </div>`;
 }
