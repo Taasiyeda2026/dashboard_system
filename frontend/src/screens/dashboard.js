@@ -373,11 +373,13 @@ export const dashboardScreen = {
     }
     const kpiCards = filterKpiCards(_kpiSource, showOnly).map((card) => {
       if (card?.action !== 'kpi|exceptions') return card;
-      const value = computeOperationalExceptionsTotal({
-        rows: [],
-        fallback: data?.summary?.late_end_date_count ?? data?.summary?.counts?.late_end_date ?? data?.totals?.late_end_date_count
-      });
-      return { ...card, value };
+      const totalExceptions =
+        data?.summary?.totalExceptionRows ??
+        data?.summary?.total_exception_rows ??
+        data?.summary?.exceptions_count ??
+        data?.totals?.exceptions_count ??
+        0;
+      return { ...card, value: Number(totalExceptions) };
     });
     if (kpiCards.length === 0) {
       console.warn('[dashboard] KPI cards empty after filtering', { month: ym, show_only_nonzero_kpis: showOnly });
