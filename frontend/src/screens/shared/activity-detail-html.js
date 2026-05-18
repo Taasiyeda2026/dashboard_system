@@ -302,51 +302,25 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
   `;
 }
 
-function blockPeople(row, { settings = {} } = {}) {
-  const options = settings?.dropdown_options || {};
-  const managers = getManagerUsers(settings || {});
-  const instructors = mergeListStrings(options, ['instructor_name', 'instructor_names']);
-  const authorities = mergeListStrings(options, ['authority', 'authorities']);
-  const grades = mergeListStrings(options, ['grade', 'grades']);
-  const instructorLookup = buildInstructorLookup(settings);
-  const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
-  const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
+function blockActivityDetails(row, { settings = {} } = {}) {
   const activityType = String(row.activity_type || '').trim();
-  const twoInstructors = activityType === 'workshop';
-  const instructorLabel = twoInstructors ? 'מדריך/ה 1' : 'מדריך/ה';
-  const gradeVal = String(row.grade || '').trim();
-  const classGroupVal = String(row.class_group || '').trim();
-  const classLabel = [gradeVal, classGroupVal].filter(Boolean).join(' / ') || '—';
-  const hoursLabel =
-    String(row.start_time || '').trim() && String(row.end_time || '').trim()
-      ? formatTimeRangeShort(row.start_time, row.end_time)
-      : '—';
+  const allActivityNames = resolveActivityNameOptions(settings, activityType);
+  if (!allActivityNames.length) {
+    // eslint-disable-next-line no-console
+    console.warn('[activity-edit] activity name options missing from client settings');
+  }
   const statusOptions = ['פעיל', 'סגור'];
   const normalizedStatus = normStatus(row.status) === 'closed' ? 'סגור' : 'פעיל';
-  const instructorEditHtml = twoInstructors
-    ? `<div class="activity-drawer__field-controls activity-drawer__field-controls--stacked">
-        ${selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors })}
-        ${selectHtml({ name: 'instructor_name_2', value: instructor2Display, options: instructors })}
-      </div>`
-    : selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors });
 
   return `
-    <section class="activity-drawer__section">
-      <div class="activity-drawer__grid activity-drawer__grid--three" data-mode="view">
-        ${fieldViewOnly('מנהל פעילות', escapeHtml(managerFallback(row.activity_manager)))}
-        ${fieldViewOnly(instructorLabel, escapeHtml(fallback(instructor1Display)))}
-        ${fieldViewOnly('סוג פעילות', escapeHtml(activityTypeLabel(activityType)))}
-        ${fieldViewOnly('סטטוס', escapeHtml(statusText(row.status)))}
-        ${fieldViewOnly('רשות', escapeHtml(fallback(row.authority)))}
-        ${fieldViewOnly('כיתה', escapeHtml(classLabel))}
-        ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
-      </div>
-      <div class="activity-drawer__details-edit-grid" data-mode="edit" hidden>
+    <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
+      <h3 class="activity-drawer__section-title">פרטי פעילות</h3>
+      <div class="activity-drawer__details-edit-grid">
         ${fieldEditOnly(
-          'מנהל פעילות',
-          selectHtml({ name: 'activity_manager', value: cleanActivityManagerName(row.activity_manager), options: managers, placeholder: NO_ACTIVITY_MANAGER_LABEL })
+          activityNameLabel(activityType),
+          activityNameSelectHtml('activity_name', row.activity_name, allActivityNames, activityType),
+          'activity-drawer__field--full'
         )}
-        ${fieldEditOnly('מדריך/ה', instructorEditHtml)}
         ${fieldEditOnly(
           'סוג פעילות',
           selectHtml({ name: 'activity_type', value: activityType, options: resolveAllActivityTypes(settings), placeholder: 'בחרו סוג פעילות' })
@@ -355,6 +329,21 @@ function blockPeople(row, { settings = {} } = {}) {
           'סטטוס',
           selectHtml({ name: 'status', value: normalizedStatus, options: statusOptions, placeholder: 'פעיל' })
         )}
+      </div>
+    </section>
+  `;
+}
+
+function blockAssignment(row, { settings = {} } = {}) {
+  const options = settings?.dropdown_options || {};
+  const schools = mergeListStrings(options, ['school', 'schools']);
+  const authorities = mergeListStrings(options, ['authority', 'authorities']);
+  const grades = mergeListStrings(options, ['grade', 'grades']);
+
+  return `
+    <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
+      <h3 class="activity-drawer__section-title">שיוך ומיקום</h3>
+      <div class="activity-drawer__details-edit-grid">
         ${fieldEditOnly(
           'רשות',
           authorities.length
@@ -362,14 +351,50 @@ function blockPeople(row, { settings = {} } = {}) {
             : inputHtml({ name: 'authority', value: row.authority })
         )}
         ${fieldEditOnly(
-          'כיתה',
-          `<div class="activity-drawer__field-controls activity-drawer__field-controls--inline">
-            ${selectHtml({ name: 'grade', value: row.grade, options: grades })}
-            ${inputHtml({ name: 'class_group', value: row.class_group, attrs: 'placeholder="כיתה"' })}
-          </div>`
+          'בית ספר',
+          schools.length
+            ? selectHtml({ name: 'school', value: row.school, options: schools })
+            : inputHtml({ name: 'school', value: row.school })
         )}
         ${fieldEditOnly(
-          'שעות',
+          'כיתה / קבוצה',
+          `<div class="activity-drawer__field-controls activity-drawer__field-controls--inline">
+            ${selectHtml({ name: 'grade', value: row.grade, options: grades })}
+            ${inputHtml({ name: 'class_group', value: row.class_group, attrs: 'placeholder="קבוצה"' })}
+          </div>`
+        )}
+      </div>
+    </section>
+  `;
+}
+
+function blockTeamTimes(row, { settings = {} } = {}) {
+  const options = settings?.dropdown_options || {};
+  const managers = getManagerUsers(settings || {});
+  const instructors = mergeListStrings(options, ['instructor_name', 'instructor_names']);
+  const instructorLookup = buildInstructorLookup(settings);
+  const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
+  const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
+  const activityType = String(row.activity_type || '').trim();
+  const twoInstructors = activityType === 'workshop';
+  const instructorEditHtml = twoInstructors
+    ? `<div class="activity-drawer__field-controls activity-drawer__field-controls--stacked">
+        ${selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors })}
+        ${selectHtml({ name: 'instructor_name_2', value: instructor2Display, options: instructors })}
+      </div>`
+    : selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors });
+
+  return `
+    <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
+      <h3 class="activity-drawer__section-title">צוות וזמנים</h3>
+      <div class="activity-drawer__details-edit-grid">
+        ${fieldEditOnly(
+          'מנהל פעילות',
+          selectHtml({ name: 'activity_manager', value: cleanActivityManagerName(row.activity_manager), options: managers, placeholder: NO_ACTIVITY_MANAGER_LABEL })
+        )}
+        ${fieldEditOnly(twoInstructors ? 'מדריך/ה 1 + 2' : 'מדריך/ה', instructorEditHtml)}
+        ${fieldEditOnly(
+          'שעת התחלה / סיום',
           `<div class="activity-drawer__field-controls activity-drawer__field-controls--inline">
             ${inputHtml({ name: 'start_time', value: formatTimeShort(row.start_time), type: 'time' })}
             ${inputHtml({ name: 'end_time', value: formatTimeShort(row.end_time), type: 'time' })}
@@ -381,44 +406,51 @@ function blockPeople(row, { settings = {} } = {}) {
   `;
 }
 
-function blockContent(row, { settings = {} } = {}) {
+function blockExtraEditInfo(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
   const fundings = mergeListStrings(options, ['funding', 'fundings']);
-  const schools = mergeListStrings(options, ['school', 'schools']);
-  const activityType = String(row.activity_type || '').trim();
-  const allActivityNames = resolveActivityNameOptions(settings, activityType);
-  if (!allActivityNames.length) {
-    // eslint-disable-next-line no-console
-    console.warn('[activity-edit] activity name options missing from client settings');
-  }
-  const nameLabel = activityNameLabel(activityType);
+
   return `
-    <section class="activity-drawer__section">
-      <div class="activity-drawer__edit-grid activity-drawer__grid activity-drawer__grid--two" data-mode="edit" hidden>
-        <div class="activity-drawer__field activity-drawer__field--full">
-          <div class="activity-drawer__label">${escapeHtml(nameLabel)}</div>
-          ${activityNameSelectHtml('activity_name', row.activity_name, allActivityNames, activityType)}
-        </div>
-        <div class="activity-drawer__field">
-          <div class="activity-drawer__label">מימון</div>
-          ${
-            fundings.length
-              ? selectHtml({ name: 'funding', value: row.funding, options: fundings })
-              : inputHtml({ name: 'funding', value: row.funding })
-          }
-        </div>
-        <div class="activity-drawer__field">
-          <div class="activity-drawer__label">מחיר</div>
-          ${inputHtml({ name: 'price', value: row.price })}
-        </div>
-        <div class="activity-drawer__field">
-          <div class="activity-drawer__label">בית ספר</div>
-          ${
-            schools.length
-              ? selectHtml({ name: 'school', value: row.school, options: schools })
-              : inputHtml({ name: 'school', value: row.school })
-          }
-        </div>
+    <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
+      <h3 class="activity-drawer__section-title">מידע משלים</h3>
+      <div class="activity-drawer__details-edit-grid">
+        ${fieldEditOnly(
+          'מימון',
+          fundings.length
+            ? selectHtml({ name: 'funding', value: row.funding, options: fundings })
+            : inputHtml({ name: 'funding', value: row.funding })
+        )}
+        ${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}
+      </div>
+    </section>
+  `;
+}
+
+function blockSupplementalView(row, { settings = {} } = {}) {
+  const instructorLookup = buildInstructorLookup(settings);
+  const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
+  const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
+  const activityType = String(row.activity_type || '').trim();
+  const twoInstructors = activityType === 'workshop';
+  const gradeVal = String(row.grade || '').trim();
+  const classGroupVal = String(row.class_group || '').trim();
+  const classLabel = [gradeVal, classGroupVal].filter(Boolean).join(' / ') || '—';
+  const hoursLabel =
+    String(row.start_time || '').trim() && String(row.end_time || '').trim()
+      ? formatTimeRangeShort(row.start_time, row.end_time)
+      : '—';
+  const fundingPrice = [row.funding, row.price].map((v) => String(v || '').trim()).filter(Boolean).join(' · ') || '—';
+
+  return `
+    <section class="activity-drawer__section activity-drawer__section--supplemental" data-mode="view">
+      <h3 class="activity-drawer__section-title">מידע משלים</h3>
+      <div class="activity-drawer__grid activity-drawer__grid--three activity-drawer__view-grid">
+        ${fieldViewOnly('מנהל פעילות', escapeHtml(managerFallback(row.activity_manager)))}
+        ${fieldViewOnly(twoInstructors ? 'מדריך/ה 1' : 'מדריך/ה', escapeHtml(fallback(instructor1Display)))}
+        ${twoInstructors ? fieldViewOnly('מדריך/ה 2', escapeHtml(fallback(instructor2Display))) : ''}
+        ${fieldViewOnly('כיתה / קבוצה', escapeHtml(classLabel))}
+        ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
+        ${fieldViewOnly('מימון / מחיר', escapeHtml(fundingPrice))}
       </div>
     </section>
   `;
@@ -438,8 +470,7 @@ function buildDateChipsHtml(schedule, isOnce) {
     .join('') || '<div class="activity-drawer__date-chip">—</div>';
 }
 
-function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false } = {}) {
-  const requestOnlyEdit = canEdit && !canDirectEdit;
+function blockDates(row, { canEdit = false, datesLoading = false } = {}) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
@@ -521,7 +552,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
   return `
     <section class="activity-drawer__section" data-dates-section${loadingAttr}>
       <div class="activity-drawer__section-head">
-        <h3 class="activity-drawer__section-title">📅</h3>
+        <h3 class="activity-drawer__section-title">מפגשים ותאריכים</h3>
         ${canEdit ? '<button type="button" class="activity-drawer__action" data-action="start-edit" data-mode="view">✏️ עריכה</button>' : ''}
       </div>
       ${progressHtml}
@@ -530,7 +561,17 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
       </div>
       ${chainToggle}
       ${addMeetingBtn}
-      <div class="activity-drawer__edit-actions" data-mode="edit" hidden>
+    </section>
+  `;
+}
+
+
+function blockEditActions({ canEdit = false, canDirectEdit = false } = {}) {
+  if (!canEdit) return '';
+  const requestOnlyEdit = canEdit && !canDirectEdit;
+  return `
+    <section class="activity-drawer__section activity-drawer__section--actions" data-mode="edit" hidden>
+      <div class="activity-drawer__edit-actions">
         <button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">${requestOnlyEdit ? 'שליחת בקשת עריכה לאישור' : 'שמור'}</button>
         <button type="button" class="activity-drawer__action" data-action="cancel-edit">ביטול</button>
         <p class="ds-activity-edit-status ds-muted" role="status"></p>
@@ -639,10 +680,14 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
       <input type="hidden" name="_activity_idx" value="${idx}">
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
-      ${blockPeople(row, { settings })}
-      ${blockContent(row, { settings })}
-      ${blockDates(row, { canEdit, canDirectEdit, datesLoading })}
+      ${blockActivityDetails(row, { settings })}
+      ${blockAssignment(row, { settings })}
+      ${blockTeamTimes(row, { settings })}
+      ${blockDates(row, { canEdit, datesLoading })}
+      ${blockExtraEditInfo(row, { settings })}
       ${blockNotes(row)}
+      ${blockSupplementalView(row, { settings })}
+      ${blockEditActions({ canEdit, canDirectEdit })}
     </form>
   `;
 }

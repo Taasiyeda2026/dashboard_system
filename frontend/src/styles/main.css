@@ -7135,11 +7135,22 @@ select.ds-input {
   background: #f8fafc;
   border: 1px solid #e8eef6;
   border-radius: 12px;
-  padding: 14px 16px;
+  padding: 12px 14px;
+}
+
+.activity-drawer__section--edit-group,
+.activity-drawer__section--supplemental {
+  padding: 10px 12px;
+}
+
+.activity-drawer__section--actions {
+  background: #fff;
+  border-style: dashed;
+  padding: 10px 12px;
 }
 
 .activity-drawer__section-title {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   font-size: 0.72rem;
   font-weight: 800;
   color: #64748b;
@@ -7451,13 +7462,12 @@ select.ds-input {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 .activity-drawer__private {
-  border-top: 1px dashed #e2e8f0;
-  padding-top: 10px;
-  margin-top: 4px;
+  display: grid;
+  gap: 6px;
 }
 
 .activity-drawer__private [data-always-editable] {
