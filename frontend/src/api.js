@@ -231,15 +231,23 @@ function getActivityDateColumns(row = {}) {
   return dates;
 }
 
+function firstNormalizedDate(...values) {
+  for (const value of values) {
+    const normalized = normalizeSupabaseDate(value);
+    if (normalized) return normalized;
+  }
+  return '';
+}
+
 function activityHasDateInRange(row, startDate, endDate) {
   const dates = getActivityDateColumns(row);
   if (dates.length > 0) {
     return dates.some((dateKey) => dateKey >= startDate && dateKey <= endDate);
   }
 
-  const start = normalizeSupabaseDate(row?.start_date ?? row?.date_start);
+  const start = firstNormalizedDate(row?.start_date, row?.date_start);
   if (!start) return false;
-  const end = normalizeSupabaseDate(row?.end_date ?? row?.date_end) || start;
+  const end = firstNormalizedDate(row?.end_date, row?.date_end) || start;
   return start <= endDate && end >= startDate;
 }
 
@@ -1004,11 +1012,11 @@ function activityOverlapsMonthForExceptions(row, month) {
     return dates.some((dateKey) => dateKey >= range.startDate && dateKey <= range.endDate);
   }
 
-  const start = normalizeSupabaseDate(row?.start_date ?? row?.date_start);
+  const start = firstNormalizedDate(row?.start_date, row?.date_start);
   // Missing start_date is itself an exception and must stay visible under a
   // month filter because there is no reliable date from which to exclude it.
   if (!start) return true;
-  const end = normalizeSupabaseDate(row?.end_date ?? row?.date_end) || start;
+  const end = firstNormalizedDate(row?.end_date, row?.date_end) || start;
   return start <= range.endDate && end >= range.startDate;
 }
 
@@ -1018,8 +1026,8 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   const emp1        = nullStr(row?.emp_id);
   const emp2        = nullStr(row?.emp_id_2);
   const instructorName = resolveActivityInstructorName(row);
-  const start       = normalizeSupabaseDate(row?.start_date ?? row?.date_start);
-  const end         = normalizeSupabaseDate(row?.end_date ?? row?.date_end);
+  const start       = firstNormalizedDate(row?.start_date, row?.date_start);
+  const end         = firstNormalizedDate(row?.end_date, row?.date_end);
 
   // Instructor check uses the same normalized name source used by the UI.
   // A valid displayed instructor name is sufficient even when guideId/emp_id is
@@ -1111,7 +1119,7 @@ async function readExceptionsFromSupabase(params = {}) {
 
     const knownIdsList = [...knownInstructorIds];
 
-    const [missingStartResult, missingInstructorResult, invalidInstructorResult] = await Promise.all([
+    const [missingStartResult, missingInstructorResult, invalidInstructorResult, lateEndDateResult] = await Promise.all([
       // 2: broad missing-start candidates. This query is intentionally
       // not constrained by month: undated courses must stay visible as
       // missing_start_date exceptions even while a month filter is active.
@@ -1132,17 +1140,22 @@ async function readExceptionsFromSupabase(params = {}) {
             .not('emp_id', 'is', null)
             .neq('emp_id', '')
             .not('emp_id', 'in', `(${knownIdsList.join(',')})`)
-        : Promise.resolve({ data: [] })
+        : Promise.resolve({ data: [] }),
+      // 5: explicit late end-date candidates. The exception type is still
+      // recomputed below from normalized current row data, so edited rows whose
+      // end date is no longer late are naturally removed.
+      queryBase().gt('end_date', LATE_END_DATE_CUTOFF)
     ]);
 
     const missingStartRows      = (Array.isArray(missingStartResult.data)      ? missingStartResult.data      : []).map(normalizeActivityRow);
     const missingInstructorRows = (Array.isArray(missingInstructorResult.data) ? missingInstructorResult.data : []).map(normalizeActivityRow);
     const invalidInstructorRows = (Array.isArray(invalidInstructorResult.data) ? invalidInstructorResult.data : []).map(normalizeActivityRow);
+    const lateEndDateRows       = (Array.isArray(lateEndDateResult.data)       ? lateEndDateResult.data       : []).map(normalizeActivityRow);
 
     // Deduplicate by RowID across all result sets
     const seenIds = new Set();
     const allRows = [];
-    for (const row of [...dateRangeRows, ...missingStartRows, ...missingInstructorRows, ...invalidInstructorRows]) {
+    for (const row of [...dateRangeRows, ...missingStartRows, ...missingInstructorRows, ...invalidInstructorRows, ...lateEndDateRows]) {
       const id = row?.RowID;
       if (id != null && seenIds.has(id)) continue;
       if (id != null) seenIds.add(id);

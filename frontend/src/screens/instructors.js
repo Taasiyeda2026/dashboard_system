@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { formatDateHe } from './shared/format-date.js';
+import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
 import {
   ensureActivityListFilters,
   prepareRowsForSearch,
@@ -151,9 +152,16 @@ export function buildInstructorActivityDetailsForMonth(allRows, { empId, instrNa
     }
 
     items.push({
+      RowID: String(r.RowID || r.row_id || r.source_row_id || '').trim(),
+      row_id: String(r.row_id || r.RowID || '').trim(),
+      source_row_id: String(r.source_row_id || r.RowID || r.row_id || '').trim(),
+      source_sheet: String(r.source_sheet || r.source_table || 'activities').trim(),
+      source_table: String(r.source_table || 'activities').trim(),
       activity_name: String(r.activity_name || '—'),
       school:        String(r.school || '—'),
-      authority:     String(r.authority || '—')
+      authority:     String(r.authority || '—'),
+      start_date:    String(r.start_date || '').trim(),
+      end_date:      String(r.end_date || r.date_end || '').trim()
     });
   });
   return items;
@@ -197,6 +205,21 @@ function renderInstructorRow(row) {
   </article>`;
 }
 
+function popupActivityKey(it, idx) {
+  return String(it?.RowID || it?.row_id || it?.source_row_id || idx || '').trim();
+}
+
+function renderPopupActivityRows(items) {
+  return (Array.isArray(items) ? items : []).map((it, idx) => {
+    const key = popupActivityKey(it, idx);
+    return `<tr data-instr-popup-activity-row="${escapeHtml(key)}">
+      <td class="instr-pt__name"><button type="button" class="instr-popup-activity-btn" data-instr-popup-activity="${escapeHtml(key)}" title="פתח פרטי פעילות">${escapeHtml(String(it.activity_name || '—'))}</button></td>
+      <td class="instr-pt__school">${escapeHtml(String(it.school || '—'))}</td>
+      <td class="instr-pt__authority">${escapeHtml(String(it.authority || '—'))}</td>
+    </tr>`;
+  }).join('');
+}
+
 function buildPopupHtml(name, items) {
   let bodyHtml;
   if (!items) {
@@ -204,16 +227,11 @@ function buildPopupHtml(name, items) {
   } else if (items.length === 0) {
     bodyHtml = '<p class="instr-popup__empty">אין פעילויות משויכות.</p>';
   } else {
-    const rows = items.map((it) => `<tr>
-      <td class="instr-pt__name">${escapeHtml(String(it.activity_name || '—'))}</td>
-      <td class="instr-pt__school">${escapeHtml(String(it.school || '—'))}</td>
-      <td class="instr-pt__authority">${escapeHtml(String(it.authority || '—'))}</td>
-    </tr>`).join('');
     bodyHtml = `<table class="instr-popup-table" dir="rtl">
       <thead><tr>
         <th>פעילות</th><th>בית ספר</th><th>רשות</th>
       </tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody>${renderPopupActivityRows(items)}</tbody>
     </table>`;
   }
   return `<div class="instr-popup-overlay ds-instructors-screen" id="instr-popup-overlay" role="dialog" aria-modal="true" dir="rtl">
@@ -231,17 +249,32 @@ function removePopup() {
   document.getElementById('instr-popup-overlay')?.remove();
 }
 
-function openPopup(name, items) {
+function bindPopupActivityClicks(items, onActivityOpen) {
+  if (typeof onActivityOpen !== 'function') return;
+  const byKey = new Map();
+  (Array.isArray(items) ? items : []).forEach((it, idx) => byKey.set(popupActivityKey(it, idx), it));
+  document.querySelectorAll('[data-instr-popup-activity]').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const hit = byKey.get(String(btn.dataset.instrPopupActivity || '').trim());
+      if (hit) onActivityOpen(hit);
+    });
+  });
+}
+
+function openPopup(name, items, onActivityOpen) {
   removePopup();
   document.body.insertAdjacentHTML('beforeend', buildPopupHtml(name, items));
   const overlay = document.getElementById('instr-popup-overlay');
   overlay.addEventListener('click', (e) => { if (e.target === overlay) removePopup(); });
   document.getElementById('instr-popup-close')?.addEventListener('click', removePopup);
+  bindPopupActivityClicks(items, onActivityOpen);
   const onKey = (e) => { if (e.key === 'Escape') { removePopup(); document.removeEventListener('keydown', onKey); } };
   document.addEventListener('keydown', onKey);
 }
 
-function updatePopupBody(items, name) {
+function updatePopupBody(items, name, onActivityOpen) {
   const overlay = document.getElementById('instr-popup-overlay');
   if (!overlay) return;
   const popup = document.getElementById('instr-popup');
@@ -252,15 +285,11 @@ function updatePopupBody(items, name) {
   if (items.length === 0) {
     body.innerHTML = '<p class="instr-popup__empty">אין פעילויות משויכות.</p>';
   } else {
-    const rows = items.map((it) => `<tr>
-      <td class="instr-pt__name">${escapeHtml(String(it.activity_name || '—'))}</td>
-      <td class="instr-pt__school">${escapeHtml(String(it.school || '—'))}</td>
-      <td class="instr-pt__authority">${escapeHtml(String(it.authority || '—'))}</td>
-    </tr>`).join('');
     body.innerHTML = `<table class="instr-popup-table" dir="rtl">
       <thead><tr><th>פעילות</th><th>בית ספר</th><th>רשות</th></tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody>${renderPopupActivityRows(items)}</tbody>
     </table>`;
+    bindPopupActivityClicks(items, onActivityOpen);
   }
 }
 
@@ -338,7 +367,7 @@ export const instructorsScreen = {
     `);
   },
 
-  bind({ root, data, state, rerender, api }) {
+  bind({ root, data, state, rerender, api, ui }) {
     bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 150 });
     root.querySelector(`[data-list-show-more="${INSTRUCTORS_SCOPE}"]`)?.addEventListener('click', (ev) => {
       ensureActivityListFilters(state, INSTRUCTORS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);
@@ -365,6 +394,81 @@ export const instructorsScreen = {
 
     state.instructorsActivityDetailsCache = state.instructorsActivityDetailsCache || {};
 
+    const detailCache = state.screenDataCache || (state.screenDataCache = {});
+    const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
+    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
+
+    const detailKey = (row) => `instructorActivityDetail:${row?.source_sheet || ''}:${row?.RowID || row?.row_id || row?.source_row_id || ''}`;
+    const datesKey = (row) => `instructorActivityDates:${row?.source_sheet || ''}:${row?.RowID || row?.row_id || row?.source_row_id || ''}`;
+
+    function hideShellHeader(contentRoot) {
+      const shellHdr = contentRoot.closest('.ds-drawer')?.querySelector(':scope > header');
+      if (shellHdr) shellHdr.hidden = true;
+    }
+
+    function drawerContent(row, datesLoading = false) {
+      const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
+      return activityWorkDrawerHtml(row, {
+        privateNote,
+        canEdit: false,
+        canDirectEdit: false,
+        canRequestEdit: false,
+        hideEmpIds,
+        hideRowId,
+        hideActivityNo,
+        settings: state?.clientSettings || {},
+        showFinance: false,
+        showFinanceFields: false,
+        datesLoading
+      });
+    }
+
+    async function openActivityFromPopup(summaryRow) {
+      if (!summaryRow || !ui) return;
+      const rowId = summaryRow.RowID || summaryRow.row_id || summaryRow.source_row_id;
+      if (!rowId) return;
+      removePopup();
+      const cachedDetail = detailCache[detailKey(summaryRow)]?.data;
+      const cachedDates = detailCache[datesKey(summaryRow)]?.data;
+      const initialRow = cachedDetail || summaryRow;
+      const needDates = !cachedDates;
+      const onClose = () => {
+        const shellHdr = document.querySelector('.ds-drawer > header');
+        if (shellHdr) shellHdr.hidden = false;
+      };
+      ui.openDrawer({
+        title: '',
+        content: drawerContent(initialRow, needDates),
+        onOpen: hideShellHeader,
+        onClose
+      });
+      if (cachedDates) {
+        const sectionEl = document.querySelector('[data-dates-section]');
+        if (sectionEl) patchDrawerDatesSection(sectionEl, cachedDates);
+      } else {
+        api.activityDates(rowId, summaryRow.source_sheet || 'activities')
+          .then((datesData) => {
+            detailCache[datesKey(summaryRow)] = { data: datesData, t: Date.now() };
+            const sectionEl = document.querySelector('[data-dates-section]');
+            if (sectionEl) patchDrawerDatesSection(sectionEl, datesData);
+          })
+          .catch(() => {
+            const sectionEl = document.querySelector('[data-dates-section]');
+            if (sectionEl) sectionEl.removeAttribute('data-dates-loading');
+          });
+      }
+      if (!cachedDetail) {
+        try {
+          const rsp = await api.activityDetail(rowId, summaryRow.source_sheet || 'activities');
+          const row = rsp?.row || summaryRow;
+          detailCache[detailKey(summaryRow)] = { data: row, t: Date.now() };
+          ui.openDrawer({ title: '', content: drawerContent(row, false), onOpen: hideShellHeader, onClose });
+        } catch (_) {}
+      }
+    }
+
     root.querySelectorAll('[data-instructor-card]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const empId      = String(btn.dataset.instructorCard || '').trim();
@@ -375,11 +479,11 @@ export const instructorsScreen = {
         const cacheKey = `${empId}:${targetYm}`;
         const cached = state.instructorsActivityDetailsCache[cacheKey];
         if (Array.isArray(cached)) {
-          openPopup(instrName, cached);
+          openPopup(instrName, cached, openActivityFromPopup);
           return;
         }
 
-        openPopup(instrName, null);
+        openPopup(instrName, null, openActivityFromPopup);
 
         try {
           const cachedActivities = state?.screenDataCache?.['activities:all']?.data;
@@ -388,10 +492,10 @@ export const instructorsScreen = {
           const items = buildInstructorActivityDetailsForMonth(allRows, { empId, instrName, targetYm });
 
           state.instructorsActivityDetailsCache[cacheKey] = items;
-          updatePopupBody(items, instrName);
+          updatePopupBody(items, instrName, openActivityFromPopup);
         } catch (_e) {
           state.instructorsActivityDetailsCache[cacheKey] = [];
-          updatePopupBody([], instrName);
+          updatePopupBody([], instrName, openActivityFromPopup);
         }
       });
     });

@@ -15,7 +15,7 @@ const PRECACHE_URLS = [
   "./assets/favicon-32.png",
   "./assets/favicon-D0Y9bj5H.ico",
   "./assets/favicon.ico",
-  "./assets/index-C6PDWofB.js",
+  "./assets/index-F80P2ldw.js",
   "./assets/logo1-sNrSbLi9.png",
   "./assets/logo1.png",
   "./assets/logo2.png",
@@ -30,7 +30,7 @@ const PRECACHE_URLS = [
   "./assets/pwa/icon-72.png",
   "./assets/pwa/icon-96.png",
   "./assets/pwa/icon-maskable-512.png",
-  "./assets/style-CM6Hboyi.css",
+  "./assets/style-6IPpui3o.css",
   "./index.html",
   "./manifest.json"
 ];

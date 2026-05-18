@@ -5,6 +5,18 @@ export const SEARCH_DEBOUNCE_MS = 150;
 const DEFAULT_SEARCH_DEBOUNCE_MS = SEARCH_DEBOUNCE_MS;
 const DEFAULT_VISIBLE_LIMIT = 200;
 const FILTER_OPTIONS_CACHE = new WeakMap();
+const SEARCH_FIELDS_IDS = new WeakMap();
+let searchFieldsIdSeq = 0;
+
+function searchFieldsKey(fields) {
+  if (!Array.isArray(fields)) return 'default';
+  let id = SEARCH_FIELDS_IDS.get(fields);
+  if (!id) {
+    id = `fields:${++searchFieldsIdSeq}`;
+    SEARCH_FIELDS_IDS.set(fields, id);
+  }
+  return id;
+}
 
 export function normalizeText(value) {
   return String(value == null ? '' : value)
@@ -28,9 +40,18 @@ export function buildSearchText(row, fields) {
 
 export function prepareRowsForSearch(rows, fields) {
   const list = Array.isArray(rows) ? rows : [];
+  const fieldsKey = searchFieldsKey(fields);
   list.forEach((row) => {
     if (!row || typeof row !== 'object') return;
-    row.__searchText = buildSearchText(row, fields);
+    if (row.__searchFieldsKey === fieldsKey && typeof row.__searchText === 'string') return;
+    const searchText = buildSearchText(row, fields);
+    try {
+      Object.defineProperty(row, '__searchText', { value: searchText, writable: true, configurable: true });
+      Object.defineProperty(row, '__searchFieldsKey', { value: fieldsKey, writable: true, configurable: true });
+    } catch (_) {
+      row.__searchText = searchText;
+      row.__searchFieldsKey = fieldsKey;
+    }
   });
   return list;
 }

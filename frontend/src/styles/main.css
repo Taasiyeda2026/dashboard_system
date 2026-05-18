@@ -8251,12 +8251,13 @@ select.ds-activity-add-field .ds-input,
   table-layout: fixed;
 }
 
-.ds-table--activities-list col.ds-activities-col--program   { width: 13%; }
-.ds-table--activities-list col.ds-activities-col--authority  { width: 13%; }
-.ds-table--activities-list col.ds-activities-col--school     { width: 13%; }
-.ds-table--activities-list col.ds-activities-col--instructor { width: 13%; }
-.ds-table--activities-list col.ds-activities-col--date       { width: 13%; }
-.ds-table--activities-list col.ds-activities-col--notes      { width: 22%; }
+.ds-table--activities-list col.ds-activities-col--program   { width: 15%; }
+.ds-table--activities-list col.ds-activities-col--authority  { width: 10%; }
+.ds-table--activities-list col.ds-activities-col--school     { width: 12%; }
+.ds-table--activities-list col.ds-activities-col--instructor { width: 11%; }
+.ds-table--activities-list col.ds-activities-col--date       { width: 9%; }
+.ds-table--activities-list col.ds-activities-col--meetings   { width: 18%; }
+.ds-table--activities-list col.ds-activities-col--notes      { width: 13%; }
 
 .ds-table--archive col { width: calc(100% / 8); }
 
@@ -8290,9 +8291,7 @@ select.ds-activity-add-field .ds-input,
   vertical-align: middle;
   text-align: right;
 }
-.ds-table--activities-list th:nth-child(5),
 .ds-table--activities-list th:nth-child(6),
-.ds-table--activities-list td:nth-child(5),
 .ds-table--activities-list td:nth-child(6) {
   text-align: center;
 }
@@ -8358,6 +8357,18 @@ select.ds-activity-add-field .ds-input,
   text-align: center;
   font-variant-numeric: tabular-nums;
   direction: ltr;
+}
+
+.ds-activities-date-range {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.7rem;
+  white-space: nowrap;
 }
 
 /* === 2026-04 targeted fixes: dashboard/week/month/activities/instructors === */
@@ -9388,4 +9399,37 @@ select.ds-activity-add-field .ds-input,
     flex-direction: column;
     gap: 0.2rem;
   }
+}
+
+.instr-popup-activity-btn {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-accent);
+  font: inherit;
+  font-weight: 700;
+  text-align: right;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instr-popup-activity-btn:hover,
+.instr-popup-activity-btn:focus-visible {
+  color: color-mix(in srgb, var(--ds-accent) 78%, #000);
+  text-decoration: underline;
+  outline: none;
+}
+
+.ds-activities-manager-line {
+  display: block;
+  max-width: 100%;
+  margin-top: 2px;
+  color: var(--ds-text-muted);
+  font-size: 0.62rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
