@@ -40,7 +40,6 @@ function normalizeRows(rows, managerFilter = '') {
   const currentYm = currentMonthYm();
   const selectedManager = String(managerFilter || '').trim();
   return rows
-    .filter((row) => String(row?.activity_family || '').trim() === 'program')
     .map((row) => {
       const endDate = asIso(row?.end_date) || asIso(row?.date_end);
       if (!endDate) return null;

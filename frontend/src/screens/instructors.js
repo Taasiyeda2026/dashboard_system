@@ -35,10 +35,14 @@ function toYm(dateStr) {
 }
 
 function nextYm(ym) {
-  const m = /^(\d{4})-(\d{2})$/.exec(ym);
-  if (!m) return ym;
-  const [y, mo] = [Number(m[1]), Number(m[2])];
-  return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`;
+  return shiftMonth(ym, 1);
+}
+
+function shiftMonth(ym, delta) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+  if (!m) return currentYm();
+  const date = new Date(Number(m[1]), Number(m[2]) - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function buildMonthOptions(minYm, maxYm) {
@@ -295,17 +299,11 @@ function updatePopupBody(items, name, onActivityOpen) {
 
 function monthFilterBarHtml(fromYm, minYm, maxYm) {
   if (!minYm || !maxYm) return '';
-  const opts = buildMonthOptions(minYm, maxYm);
-  const blankOpt = '<option value="">— כל התקופה —</option>';
-  const fromOpts = opts.map((o) =>
-    `<option value="${escapeHtml(o.value)}"${o.value === fromYm ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
-  ).join('');
-  const clearBtn = fromYm
-    ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-instr-date-clear title="נקה סינון חודש">✕</button>`
-    : '';
-  return `<div class="instr-date-filter" dir="rtl">
-    <select class="ds-input ds-input--sm" data-instr-month-from>${blankOpt}${fromOpts}</select>
-    ${clearBtn}
+  const monthText = ymLabel(fromYm);
+  return `<div class="instr-date-filter instr-date-filter--nav" dir="rtl" aria-label="בחירת חודש">
+    <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-instr-month-prev title="חודש קודם" aria-label="חודש קודם">▶</button>
+    <span class="instr-date-filter__label">${escapeHtml(monthText)}</span>
+    <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-instr-month-next title="חודש הבא" aria-label="חודש הבא">◀</button>
   </div>`;
 }
 
@@ -332,7 +330,8 @@ export const instructorsScreen = {
     const locallyFiltered = applyLocalFilters(activeRows, filters, { filterFields: INSTRUCTOR_FILTER_FIELDS });
 
     const instrState = state._instrDateFilter = state._instrDateFilter || {};
-    const dateFrom = instrState.from || '';
+    if (!instrState.from) instrState.from = currentYm();
+    const dateFrom = instrState.from || currentYm();
 
     const { min: globalMin, max: globalMax } = globalDateRange(activeRows);
 
@@ -368,7 +367,7 @@ export const instructorsScreen = {
   },
 
   bind({ root, data, state, rerender, api, ui }) {
-    bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 150 });
+    bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 300 });
     root.querySelector(`[data-list-show-more="${INSTRUCTORS_SCOPE}"]`)?.addEventListener('click', (ev) => {
       ensureActivityListFilters(state, INSTRUCTORS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);
       rerender();
@@ -376,21 +375,16 @@ export const instructorsScreen = {
 
     const instrState = state._instrDateFilter = state._instrDateFilter || {};
 
-    const fromSel  = root.querySelector('[data-instr-month-from]');
-    const clearBtn = root.querySelector('[data-instr-date-clear]');
-
-    if (fromSel) {
-      fromSel.addEventListener('change', () => {
-        instrState.from = fromSel.value || '';
-        rerender();
-      });
-    }
-    if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
-        instrState.from = '';
-        rerender();
-      });
-    }
+    root.querySelector('[data-instr-month-prev]')?.addEventListener('click', () => {
+      instrState.from = shiftMonth(instrState.from || currentYm(), -1);
+      rerender();
+    });
+    root.querySelector('[data-instr-month-next]')?.addEventListener('click', () => {
+      const next = nextYm(instrState.from || currentYm());
+      const cap = currentYm();
+      instrState.from = next > cap ? cap : next;
+      rerender();
+    });
 
     state.instructorsActivityDetailsCache = state.instructorsActivityDetailsCache || {};
 
