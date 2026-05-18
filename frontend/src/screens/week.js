@@ -50,7 +50,7 @@ function weekItemMeta(item) {
   return names || 'ללא מדריך';
 }
 
-function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, canDirectEdit, canRequestEdit, showPrivateNote, settings, mode = 'single') {
+function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, canDirectEdit, canRequestEdit, showPrivateNote, settings, instructorLimited = false, mode = 'single') {
   if (mode === 'summary') {
     const rows = Array.isArray(itemOrItems) ? itemOrItems : [];
     return activityWorkDrawerHtml(rows, {
@@ -63,7 +63,8 @@ function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo
       hideEmpIds: !!hideEmpIds,
       hideRowId: !!hideRowId,
       hideActivityNo: !!hideActivityNo,
-      settings: settings || {}
+      settings: settings || {},
+      instructorLimited: !!instructorLimited
     });
   }
   const item = itemOrItems;
@@ -77,7 +78,8 @@ function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo
     hideEmpIds: !!hideEmpIds,
     hideRowId: !!hideRowId,
     hideActivityNo: !!hideActivityNo,
-    settings: settings || {}
+    settings: settings || {},
+    instructorLimited: !!instructorLimited
   });
 }
 
@@ -303,7 +305,9 @@ export const weekScreen = {
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
-    const showPrivateNote = state?.user?.display_role === 'operation_manager';
+    const userRole = String(state?.user?.display_role || '');
+    const showPrivateNote = userRole === 'operation_manager';
+    const instructorLimited = userRole === 'instructor';
     bindLocalFilters(root, state, WEEK_SCOPE, rerender, { debounceMs: 150 });
 
     const bindActivityEditForm = (contentRoot) =>
@@ -429,9 +433,10 @@ export const weekScreen = {
             hideActivityNo,
               canEditActivity,
               !!state?.user?.can_edit_direct,
-              !!state?.user?.can_request_edit,
+            !!state?.user?.can_request_edit,
             showPrivateNote,
             state?.clientSettings || {},
+            instructorLimited,
             currMode
           ),
           onOpen: canEditActivity ? bindActivityEditForm : undefined
