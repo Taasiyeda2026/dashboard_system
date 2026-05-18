@@ -93,7 +93,7 @@ test('activities table keeps expected columns structure', () => {
     }]
   };
   const html = activitiesScreen.render(data, { state: baseState() });
-  assert.match(html, /<th>תוכנית \/ סוג<\/th><th>רשות<\/th><th>בית ספר<\/th><th>מדריך<\/th><th>תאריך התחלה<\/th><th>תאריך סיום<\/th><th>תאריכי מפגשים<\/th><th>הערות<\/th>/);
+  assert.match(html, /<th>תוכנית \/ סוג<\/th><th>רשות<\/th><th>בית ספר<\/th><th>מדריך<\/th><th>מנהל פעילות<\/th><th>תאריך התחלה<\/th><th>תאריך סיום<\/th>/);
   assert.match(html, /10\/04\/2026, 17\/04\/2026/);
 });
 

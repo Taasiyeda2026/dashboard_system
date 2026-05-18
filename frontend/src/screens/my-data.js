@@ -17,6 +17,7 @@ function displayCellValue(row, column) {
   if (column === 'activity_type') val = hebrewActivityType(val);
   if (column === 'start_date' || column === 'end_date') val = formatDateHe(String(val || '')) || val;
   if (column === 'start_time' || column === 'end_time' || column === 'StartTime' || column === 'EndTime') val = formatTimeShort(val);
+  if (column === 'peer_instructor') val = row?.peer_instructor || 'אין מדריך נוסף';
   return val;
 }
 
@@ -24,16 +25,28 @@ export const myDataScreen = {
   load: ({ api }) => api.myData(),
   render(data, { state } = {}) {
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
+    const userEmpId = String(state?.user?.emp_id || state?.user?.employee_id || '').trim();
+    const rowsAll = Array.isArray(data?.rows) ? data.rows : [];
+    const rows = rowsAll.filter((row) => {
+      const e1 = String(row?.emp_id || '').trim();
+      const e2 = String(row?.emp_id_2 || '').trim();
+      if (!userEmpId) return true;
+      return e1 === userEmpId || e2 === userEmpId;
+    });
     const columns = hideRowId
-      ? ['activity_name', 'start_date', 'end_date', 'activity_type']
-      : ['RowID', 'activity_name', 'start_date', 'end_date', 'activity_type'];
-    const rows = Array.isArray(data?.rows) ? data.rows : [];
-    const typeFilters = [...new Set(rows.map((r) => String(r.activity_type || '').trim()).filter(Boolean))].map((t) => ({
+      ? ['activity_name', 'activity_type', 'start_date', 'end_date', 'peer_instructor']
+      : ['RowID', 'activity_name', 'activity_type', 'start_date', 'end_date', 'peer_instructor'];
+    const preparedRows = rows.map((row) => {
+      const isPrimary = userEmpId && String(row?.emp_id || '').trim() === userEmpId;
+      const peer = isPrimary ? String(row?.instructor_name_2 || '').trim() : String(row?.instructor_name || '').trim();
+      return { ...row, peer_instructor: peer || 'אין מדריך נוסף' };
+    });
+    const typeFilters = [...new Set(preparedRows.map((r) => String(r.activity_type || '').trim()).filter(Boolean))].map((t) => ({
       value: t,
       label: hebrewActivityType(t)
     }));
 
-    const body = rows.map((row) => {
+    const body = preparedRows.map((row) => {
       const rawType = String(row.activity_type || '').trim();
       const searchHay = columns
         .map((column) => {
@@ -52,7 +65,7 @@ export const myDataScreen = {
     });
 
     const tableBlock =
-      rows.length === 0
+      preparedRows.length === 0
         ? dsEmptyState('לא נמצאו רשומות')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--ops">
             <thead><tr>${columns.map((column) => `<th data-col="${escapeHtml(column)}">${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
@@ -61,17 +74,23 @@ export const myDataScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('הנתונים שלי', 'הפעילויות המשויכות אליך')}
-      ${rows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפעילויות שלי…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
+      ${preparedRows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפעילויות שלי…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({
         title: 'הפעילויות שלי',
         body: tableBlock,
-        padded: rows.length === 0
+        padded: preparedRows.length === 0
       })}
     `);
   },
   bind({ root, data, ui, state, rerender, clearScreenDataCache }) {
     bindPageListTools(root);
-    const rows = Array.isArray(data?.rows) ? data.rows : [];
+    const userEmpId = String(state?.user?.emp_id || state?.user?.employee_id || '').trim();
+    const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => {
+      if (!userEmpId) return true;
+      const e1 = String(row?.emp_id || '').trim();
+      const e2 = String(row?.emp_id_2 || '').trim();
+      return e1 === userEmpId || e2 === userEmpId;
+    });
     const rowById = new Map(rows.map((row) => [String(row.RowID), row]));
 
     root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
