@@ -9688,3 +9688,72 @@ select.ds-activity-add-field .ds-input,
     font-size: 0.82rem;
   }
 }
+
+/* Permissions screen refinements */
+.ds-perm-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--ds-space-2);
+}
+
+.ds-perm-tools__q {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.ds-perm-tools__select {
+  flex: 0 0 170px;
+  min-width: 150px;
+}
+
+.ds-perm-table th,
+.ds-perm-table td {
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+
+.ds-perm-table td .ds-btn {
+  min-height: 28px;
+  padding: 2px 8px;
+}
+
+.ds-perm-detail-section + .ds-perm-detail-section {
+  margin-top: var(--ds-space-3);
+}
+
+.ds-perm-detail-title {
+  margin: 0 0 var(--ds-space-2);
+  font-size: 0.82rem;
+}
+
+.ds-perm-detail-grid {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.ds-perm-detail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+  padding: 6px 8px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface-raised);
+}
+
+@media (max-width: 900px) {
+  .ds-perm-tools {
+    align-items: stretch;
+  }
+
+  .ds-perm-tools__q,
+  .ds-perm-tools__select,
+  .ds-perm-tools .ds-btn {
+    flex: 1 1 100%;
+    min-width: 100%;
+    max-width: 100%;
+  }
+}

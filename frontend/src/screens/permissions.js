@@ -1,7 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { hebrewPermissionField, hebrewRole, translateApiErrorForUser, hebrewColumn } from './shared/ui-hebrew.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState, dsStatusChip, dsKpiGrid } from './shared/layout.js';
-import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
 import { showToast } from './shared/toast.js';
 import { showConfirmModal } from './shared/interactions.js';
 
@@ -226,7 +225,7 @@ function renderUserRow(row, canEdit, isAdmin, currentUserId, adminCount) {
   const editBtn = canEdit
     ? `<button type="button" class="ds-btn ds-btn--sm" data-edit-perm data-user-id="${uid}" title="עריכת הרשאות">עריכה</button>`
     : '';
-  const expandBtn = `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-expand-perm data-user-id="${uid}" aria-expanded="false" title="הצג הרשאות">▾ הרשאות</button>`;
+  const permissionsBtn = `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-view-perm data-user-id="${uid}" title="צפייה בהרשאות">הרשאות</button>`;
   const deactivateBtn = isAdmin && isActive && !isSelf
     ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-deactivate-user data-user-id="${uid}">השבת</button>`
     : '';
@@ -240,36 +239,57 @@ function renderUserRow(row, canEdit, isAdmin, currentUserId, adminCount) {
       : `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-delete-user data-user-id="${uid}">מחק</button>`
     : '';
 
-  const actionBtns = [expandBtn, editBtn, deactivateBtn, reactivateBtn, deleteBtn].filter(Boolean).join(' ');
+  const actionBtns = [editBtn, permissionsBtn, deactivateBtn, reactivateBtn, deleteBtn].filter(Boolean).join(' ');
 
-  return `<tr class="ds-perm-row" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}">
+  return `<tr class="ds-perm-row" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}" data-status-filter="${isActive ? 'yes' : 'no'}">
     <td style="font-weight:600;">${escapeHtml(row.full_name || uid)}</td>
-    <td class="ds-muted" style="font-size:0.75rem;">${uid}</td>
+    <td class="ds-muted" style="font-size:0.75rem;">${escapeHtml(row.entry_code || '—')}</td>
     <td>${dsStatusChip(label, roleChipKind(code))}</td>
     <td>${dsStatusChip(activeLabel, activeKind)}</td>
     <td><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${actionBtns}</div></td>
   </tr>`;
 }
 
-function renderExpandRow(row) {
-  const uid = escapeHtml(row.user_id);
-  const keys = sortedPermissionEditorKeys(row);
-  const textFields = keys
-    .filter((k) => !k.startsWith('view_') && !k.startsWith('can_'))
-    .map((k) => {
-      const val = escapeHtml(String(row[k] ?? ''));
-      return `<div class="ds-perm-field"><span class="ds-muted">${escapeHtml(hebrewPermissionField(k))}</span><span>${val || '—'}</span></div>`;
+function buildPermissionsDetailsHtml(row) {
+  const keys = sortedPermissionEditorKeys(row).filter((k) => k.startsWith('view_') || k.startsWith('can_'));
+  const groups = [
+    { label: 'לוח בקרה', keys: ['view_admin'] },
+    { label: 'פעילויות', keys: ['view_activities', 'can_add_activity', 'can_edit_direct', 'can_request_edit', 'can_review_requests'] },
+    { label: 'ארכיון', keys: ['view_archive'] },
+    { label: 'הצעות', keys: ['view_offers'] },
+    { label: 'אנשי קשר', keys: ['view_contacts'] },
+    { label: 'אישורים', keys: ['view_approvals'] },
+    { label: 'הרשאות', keys: ['view_permissions'] },
+    { label: 'ניהול משתמשים', keys: ['view_user_management'] },
+    { label: 'נתונים אישיים', keys: ['view_profile'] }
+  ];
+
+  const known = new Set(groups.flatMap((g) => g.keys));
+  const extraKeys = keys.filter((k) => !known.has(k));
+  if (extraKeys.length) groups.push({ label: 'הרשאות נוספות', keys: extraKeys });
+
+  const sections = groups
+    .map((group) => {
+      const rows = group.keys
+        .filter((k) => keys.includes(k))
+        .map((k) => {
+          const active = String(row[k] || '').toLowerCase() === 'yes';
+          return `<div class="ds-perm-detail-item">
+            <span>${escapeHtml(hebrewPermissionField(k))}</span>
+            ${dsStatusChip(active ? 'מאופשר' : 'חסום', active ? 'success' : 'neutral')}
+          </div>`;
+        })
+        .join('');
+      if (!rows) return '';
+      return `<section class="ds-perm-detail-section">
+        <h4 class="ds-perm-detail-title">${group.label}</h4>
+        <div class="ds-perm-detail-grid">${rows}</div>
+      </section>`;
     })
+    .filter(Boolean)
     .join('');
-  const flagGrid = buildPermFlagGrid(row, keys);
-  return `<tr class="ds-perm-expand-row" id="perm-expand-${uid}" hidden>
-    <td colspan="5" style="padding:var(--ds-space-3,12px) var(--ds-space-4,16px);background:var(--ds-surface-subtle,#f7f8f9);">
-      <div class="ds-perm-body" dir="rtl">
-        ${textFields ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">${textFields}</div>` : ''}
-        ${flagGrid}
-      </div>
-    </td>
-  </tr>`;
+
+  return `<div class="ds-perm-details" dir="rtl">${sections || '<p class="ds-muted">לא נמצאו הרשאות להצגה.</p>'}</div>`;
 }
 
 export const permissionsScreen = {
@@ -295,15 +315,13 @@ export const permissionsScreen = {
       ...(instructorCount > 0 ? [{ label: 'מדריכים', value: String(instructorCount) }] : [])
     ];
 
-    const rowPairs = safeRows.map((row) =>
-      renderUserRow(row, canEdit, isAdmin, state?.user?.user_id, adminCount) + renderExpandRow(row)
-    ).join('');
+    const rowPairs = safeRows.map((row) => renderUserRow(row, canEdit, isAdmin, state?.user?.user_id, adminCount)).join('');
 
     const body =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו שורות הרשאה')
         : `<div class="ds-table-wrap" dir="rtl"><table class="ds-table ds-perm-table">
-            <thead><tr><th>שם מלא</th><th>מ"ש</th><th>תפקיד</th><th>סטטוס</th><th style="text-align:start;">פעולות</th></tr></thead>
+            <thead><tr><th>שם</th><th>מספר עובד</th><th>תפקיד</th><th>סטטוס</th><th style="text-align:start;">פעולות</th></tr></thead>
             <tbody>${rowPairs}</tbody>
           </table></div>`;
 
@@ -312,15 +330,30 @@ export const permissionsScreen = {
       label: hebrewRole(r)
     }));
 
-    const addUserBtn = isAdmin
-      ? `<div dir="rtl" style="margin-bottom:var(--space-3,12px)"><button type="button" class="ds-btn ds-btn--primary" data-add-user>הוסף משתמש</button></div>`
+    const statusFilters = [
+      { value: 'yes', label: 'פעיל/ה' },
+      { value: 'no', label: 'לא פעיל/ה' }
+    ];
+
+    const toolsBar = safeRows.length
+      ? `<div class="ds-perm-tools" role="search" aria-label="חיפוש וסינון משתמשים">
+          <input type="search" class="ds-input ds-input--sm ds-perm-tools__q" data-page-q placeholder="חיפוש משתמש…" aria-label="חיפוש משתמש" />
+          <select class="ds-input ds-input--sm ds-perm-tools__select" data-page-role-filter aria-label="סינון לפי תפקיד">
+            <option value="">כל התפקידים</option>
+            ${roleFilters.map((f) => `<option value="${escapeHtml(String(f.value))}">${escapeHtml(f.label)}</option>`).join('')}
+          </select>
+          <select class="ds-input ds-input--sm ds-perm-tools__select" data-page-status-filter aria-label="סינון לפי סטטוס">
+            <option value="">כל הסטטוסים</option>
+            ${statusFilters.map((f) => `<option value="${f.value}">${f.label}</option>`).join('')}
+          </select>
+          ${isAdmin ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-add-user>הוסף משתמש</button>' : ''}
+        </div>`
       : '';
 
     return dsScreenStack(`
       ${dsPageHeader('הרשאות', 'ניהול גישה ודגלי הרשאה — תואם לגיליון permissions')}
       ${safeRows.length ? dsKpiGrid(kpis) : ''}
-      ${safeRows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש משתמש…', filterLabel: 'תפקיד', filters: roleFilters }) : ''}
-      ${addUserBtn}
+      ${toolsBar}
       ${dsCard({
         title: 'משתמשים והרשאות',
         badge: `${safeRows.length} משתמשים`,
@@ -330,9 +363,33 @@ export const permissionsScreen = {
     `);
   },
   bind({ root, data, api, ui, rerender, clearScreenDataCache }) {
-    bindPageListTools(root);
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
 
+    const searchInput = root.querySelector('[data-page-q]');
+    const roleFilter = root.querySelector('[data-page-role-filter]');
+    const statusFilter = root.querySelector('[data-page-status-filter]');
+    const listRows = Array.from(root.querySelectorAll('[data-list-item]'));
+    let searchTimer = null;
+    const applyFilters = () => {
+      const q = String(searchInput?.value || '').trim().toLowerCase();
+      const role = String(roleFilter?.value || '').trim();
+      const status = String(statusFilter?.value || '').trim();
+      listRows.forEach((el) => {
+        const hay = String(el.getAttribute('data-search') || '').toLowerCase();
+        const rowRole = String(el.getAttribute('data-filter') || '').trim();
+        const rowStatus = String(el.getAttribute('data-status-filter') || '').trim();
+        const okQ = !q || hay.includes(q);
+        const okRole = !role || rowRole === role;
+        const okStatus = !status || rowStatus === status;
+        el.toggleAttribute('hidden', !(okQ && okRole && okStatus));
+      });
+    };
+    searchInput?.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(applyFilters, 120);
+    });
+    roleFilter?.addEventListener('change', applyFilters);
+    statusFilter?.addEventListener('change', applyFilters);
     const addUserBtn = root.querySelector('[data-add-user]');
     if (addUserBtn && ui) {
       addUserBtn.addEventListener('click', () => {
@@ -477,20 +534,6 @@ export const permissionsScreen = {
       });
     });
 
-    /* Expand/collapse permission detail rows */
-    root.querySelectorAll('[data-expand-perm]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const userId = btn.dataset.userId;
-        const expandRow = root.querySelector(`#perm-expand-${CSS.escape(userId)}`);
-        if (!expandRow) return;
-        const isOpen = !expandRow.hidden;
-        expandRow.hidden = isOpen;
-        btn.setAttribute('aria-expanded', String(!isOpen));
-        btn.textContent = isOpen ? '▾ הרשאות' : '▴ הרשאות';
-      });
-    });
-
     function openEditModal(row) {
       if (!row || !ui) return;
       const userId = String(row.user_id);
@@ -537,6 +580,19 @@ export const permissionsScreen = {
         });
       });
     }
+
+    root.querySelectorAll('[data-view-perm]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const userId = btn.dataset.userId;
+        const row = safeRows.find((r) => String(r.user_id) === String(userId));
+        if (!row || !ui) return;
+        ui.openDrawer({
+          title: `הרשאות משתמש — ${row.full_name || userId}` ,
+          content: buildPermissionsDetailsHtml(row)
+        });
+      });
+    });
 
     root.querySelectorAll('[data-edit-perm]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
