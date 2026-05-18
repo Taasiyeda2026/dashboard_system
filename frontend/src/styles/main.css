@@ -8272,11 +8272,11 @@ select.ds-activity-add-field .ds-input,
 }
 
 .shell-header-nav.ds-act-nav-grid--header .ds-act-nav-item--header {
-  min-height: 24px;
-  height: 24px;
-  padding: 1px 6px;
-  border-radius: 7px;
-  font-size: 0.56rem;
+  min-height: 22px;
+  height: 22px;
+  padding: 1px 4px;
+  border-radius: 6px;
+  font-size: 0.52rem;
   line-height: 1;
   gap: 0;
 }
