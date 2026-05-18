@@ -3667,6 +3667,12 @@ select.ds-input {
   color: var(--ds-text-muted);
 }
 
+.ds-summary-panel__sub {
+  font-size: 0.88em;
+  color: var(--ds-text-muted);
+  opacity: 0.85;
+}
+
 .ds-summary-panel__text--districts {
   color: var(--ds-accent);
   font-size: 0.88rem;

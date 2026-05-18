@@ -111,9 +111,7 @@ function exceptionsOperationalSummaryHtml(data, rows) {
   return dsCard({
     title: `סה״כ פעילויות חריגות: ${escapeHtml(String(allExceptionsTotal))}`,
     body: `<div class="ds-summary-panel__structured" dir="rtl">
-      <p class="ds-summary-panel__text">חריגות תפעוליות: <strong>${escapeHtml(String(operationalTotal))}</strong></p>
-      <p class="ds-summary-panel__text">חסר מדריך: <strong>${escapeHtml(String(missingInstructor))}</strong></p>
-      <p class="ds-summary-panel__text">חסר תאריך התחלה: <strong>${escapeHtml(String(missingStartDate))}</strong></p>
+      <p class="ds-summary-panel__text">חריגות תפעוליות: <strong>${escapeHtml(String(operationalTotal))}</strong> <span class="ds-summary-panel__sub">(חסר מדריך ${escapeHtml(String(missingInstructor))}, חסר תאריך התחלה ${escapeHtml(String(missingStartDate))})</span></p>
       <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${escapeHtml(String(lateEndDate))}</strong></p>
       <p class="ds-summary-panel__text"><small>פעילות עם כמה סוגי חריגה נספרת פעם אחת בסה״כ.</small></p>
     </div>`
