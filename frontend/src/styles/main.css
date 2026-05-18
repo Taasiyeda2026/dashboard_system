@@ -976,7 +976,7 @@ select {
   display: flex;
   flex-direction: column;
   gap: var(--ds-space-3);
-  zoom: 0.7;
+  zoom: 0.8;
 }
 
 /* Dashboard KPI two-row wrapper */

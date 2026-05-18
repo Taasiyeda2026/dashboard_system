@@ -569,8 +569,6 @@ export const dashboardScreen = {
       applyYm(shiftYm(state.dashboardMonthYm || currentMonthYm(), 1));
     });
 
-    handleSummaryClick('national');
-
     root.querySelector('.ds-summary-btn[data-summary-target]')?.addEventListener('click', (e) => {
       const target = e.currentTarget.dataset.summaryTarget || '';
       if (target) handleSummaryClick(target);
