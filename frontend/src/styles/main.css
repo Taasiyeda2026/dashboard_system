@@ -9613,18 +9613,40 @@ select.ds-activity-add-field .ds-input,
 }
 
 .ds-pa-form {
-  margin: 10px 0 14px;
-  padding: 12px;
+  margin: 8px 0 12px;
+  padding: 10px 12px;
   border: 1px solid var(--ds-color-border, #e2e8f0);
   border-radius: var(--ds-radius-lg, 14px);
   background: var(--ds-color-surface-soft, #f8fafc);
 }
 
+.ds-pa-form-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 .ds-pa-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 12px 0;
+  gap: 7px 12px;
+  margin: 0 0 10px;
+}
+
+.ds-pa-form-field {
+  display: grid;
+  gap: 3px;
+  color: var(--ds-color-text-muted, #64748b);
+  font-size: 0.8rem;
+}
+
+.ds-pa-form-field .ds-input,
+.ds-pa-form-field select.ds-input,
+.ds-pa-form-field textarea.ds-input {
+  font-size: 0.82rem;
+  padding: 4px 7px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .ds-pa-form-field--wide {
@@ -9633,9 +9655,9 @@ select.ds-activity-add-field .ds-input,
 
 .ds-pa-form-error {
   min-height: 1.2em;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   color: var(--ds-color-danger, #b91c1c);
-  font-size: 0.84rem;
+  font-size: 0.82rem;
 }
 
 @media (max-width: 720px) {

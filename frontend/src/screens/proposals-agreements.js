@@ -1,20 +1,23 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from './shared/layout.js';
-import { getActivityCatalog } from './shared/activity-options.js';
 
 export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const SEARCH_DEBOUNCE_MS = 280;
 
+const DOCUMENT_TYPE_OPTIONS = ['הצעת מחיר', 'הסכם'];
+const ACTIVITY_TYPE_GROUP_OPTIONS = ['הצעה משולבת', 'פעילויות קיץ', 'שנה הבאה'];
+
 const FIELD_LABELS = {
-  client_authority: 'לקוח / רשות',
-  school_framework: 'בית ספר / מסגרת',
-  document_type: 'סוג מסמך',
+  client_authority:  'לקוח / רשות',
+  school_framework:  'בית ספר / מסגרת',
+  document_type:     'סוג מסמך',
   activity_type_group: 'סוג פעילות',
-  notes: 'הערות',
-  contact_name: 'שם איש קשר',
-  contact_role: 'תפקיד איש קשר',
-  phone: 'טלפון',
-  email: 'דוא״ל'
+  activity_names:    'שם הפעילויות',
+  contact_name:      'שם איש קשר',
+  contact_role:      'תפקיד איש קשר',
+  phone:             'טלפון',
+  email:             'דוא״ל',
+  notes:             'הערות'
 };
 
 const REQUIRED_FIELDS = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'];
@@ -23,6 +26,7 @@ const FORM_FIELDS = [
   'school_framework',
   'document_type',
   'activity_type_group',
+  'activity_names',
   'contact_name',
   'contact_role',
   'phone',
@@ -53,6 +57,7 @@ export function buildProposalsAgreementsSearchText(row = {}) {
     row.school_framework,
     row.document_type,
     row.activity_type_group,
+    row.activity_names,
     row.notes,
     row.contact_name,
     row.contact_role,
@@ -63,18 +68,19 @@ export function buildProposalsAgreementsSearchText(row = {}) {
 
 export function normalizeProposalAgreementRow(row = {}) {
   const normalized = {
-    id: text(row.id),
-    client_authority: text(row.client_authority),
-    school_framework: text(row.school_framework),
-    document_type: text(row.document_type),
+    id:                  text(row.id),
+    client_authority:    text(row.client_authority),
+    school_framework:    text(row.school_framework),
+    document_type:       text(row.document_type),
     activity_type_group: text(row.activity_type_group),
-    contact_name: text(row.contact_name),
-    contact_role: text(row.contact_role),
-    phone: text(row.phone),
-    email: text(row.email),
-    notes: text(row.notes),
-    created_at: text(row.created_at),
-    updated_at: text(row.updated_at)
+    activity_names:      text(row.activity_names),
+    contact_name:        text(row.contact_name),
+    contact_role:        text(row.contact_role),
+    phone:               text(row.phone),
+    email:               text(row.email),
+    notes:               text(row.notes),
+    created_at:          text(row.created_at),
+    updated_at:          text(row.updated_at)
   };
   normalized._searchText = buildProposalsAgreementsSearchText(normalized);
   return normalized;
@@ -120,7 +126,7 @@ function contactSummary(row) {
 function detailRowsHtml(row) {
   return FORM_FIELDS.map((key) => `
     <div class="ds-pa-detail-row">
-      <span class="ds-pa-detail-label">${escapeHtml(FIELD_LABELS[key])}</span>
+      <span class="ds-pa-detail-label">${escapeHtml(FIELD_LABELS[key] || key)}</span>
       <span class="ds-pa-detail-value">${escapeHtml(row[key] || '—')}</span>
     </div>`).join('');
 }
@@ -148,26 +154,47 @@ function tableHtml(rows) {
   `);
 }
 
-function formFieldHtml(key, value = '', activityOptions = []) {
-  const label = FIELD_LABELS[key] || key;
-  const required = REQUIRED_FIELDS.includes(key);
+function selectField(key, label, options, selectedValue, required) {
   const attrs = required ? ' required aria-required="true"' : '';
-  const val = escapeHtml(value || '');
-  if (key === 'notes') {
-    return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><textarea class="ds-input" name="${key}" rows="3"${attrs}>${val}</textarea></label>`;
-  }
-  const listAttr = key === 'activity_type_group' ? ' list="proposalsAgreementsActivityOptions"' : '';
-  const datalist = key === 'activity_type_group'
-    ? `<datalist id="proposalsAgreementsActivityOptions">${activityOptions.map((item) => `<option value="${escapeHtml(item)}"></option>`).join('')}</datalist>`
-    : '';
-  return `<label class="ds-pa-form-field"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><input class="ds-input ds-input--sm" name="${key}" value="${val}"${listAttr}${attrs}></label>${datalist}`;
+  const optionsHtml = ['<option value="">— בחרו —</option>',
+    ...options.map((v) => optionHtml(v, selectedValue))
+  ].join('');
+  return `<label class="ds-pa-form-field"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><select class="ds-input ds-input--sm" name="${key}"${attrs}>${optionsHtml}</select></label>`;
 }
 
-function formHtml(mode, row = {}, activityOptions = []) {
+function textField(key, label, value, required) {
+  const attrs = required ? ' required aria-required="true"' : '';
+  return `<label class="ds-pa-form-field"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><input class="ds-input ds-input--sm" name="${key}" value="${escapeHtml(value || '')}"${attrs}></label>`;
+}
+
+function formFieldHtml(key, value = '', activityNameOptions = []) {
+  const label = FIELD_LABELS[key] || key;
+  const required = REQUIRED_FIELDS.includes(key);
+
+  if (key === 'document_type') {
+    return selectField(key, label, DOCUMENT_TYPE_OPTIONS, value, required);
+  }
+  if (key === 'activity_type_group') {
+    return selectField(key, label, ACTIVITY_TYPE_GROUP_OPTIONS, value, required);
+  }
+  if (key === 'activity_names') {
+    const attrs = required ? ' required aria-required="true"' : '';
+    const optionsHtml = ['<option value="">— בחרו שם פעילות —</option>',
+      ...activityNameOptions.map((v) => optionHtml(v, value))
+    ].join('');
+    return `<label class="ds-pa-form-field"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><select class="ds-input ds-input--sm" name="${key}"${attrs}>${optionsHtml}</select></label>`;
+  }
+  if (key === 'notes') {
+    return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}</span><textarea class="ds-input ds-input--sm" name="${key}" rows="2">${escapeHtml(value || '')}</textarea></label>`;
+  }
+  return textField(key, label, value, required);
+}
+
+function formHtml(mode, row = {}, activityNameOptions = []) {
   const title = mode === 'edit' ? 'עריכת רשומה' : 'הוספת הצעה / הסכם';
-  return `<form class="ds-pa-form" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" dir="rtl">
-    <h3>${escapeHtml(title)}</h3>
-    <div class="ds-pa-form-grid">${FORM_FIELDS.map((key) => formFieldHtml(key, row[key] || '', activityOptions)).join('')}</div>
+  return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" dir="rtl">
+    <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
+    <div class="ds-pa-form-grid">${FORM_FIELDS.map((key) => formFieldHtml(key, row[key] || '', activityNameOptions)).join('')}</div>
     <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
     <div class="ds-pa-form-actions">
       <button type="submit" class="ds-btn ds-btn--primary ds-btn--sm">שמירה</button>
@@ -176,7 +203,7 @@ function formHtml(mode, row = {}, activityOptions = []) {
   </form>`;
 }
 
-function drawerHtml(row, activityOptions) {
+function drawerHtml(row, activityNameOptions = []) {
   if (!row) return `<aside class="ds-pa-drawer" data-pa-drawer hidden></aside>`;
   return `<aside class="ds-pa-drawer" data-pa-drawer data-pa-drawer-id="${escapeHtml(row.id)}" aria-live="polite" dir="rtl">
     <div class="ds-pa-drawer-panel">
@@ -192,20 +219,14 @@ function drawerHtml(row, activityOptions) {
   </aside>`;
 }
 
-function activityOptionsFromState(state) {
-  const catalog = typeof getActivityCatalog === 'function' ? getActivityCatalog(state?.clientSettings || {}) : [];
-  return Array.from(new Set(catalog.map((item) => text(item.label || item.activity_type)).filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b, 'he'));
-}
-
 function displayRows(data, filters = {}) {
   return sortRows((Array.isArray(data?.rows) ? data.rows : []).map(normalizeProposalAgreementRow)).filter((row) => rowMatches(row, filters));
 }
 
 function currentFilters(root) {
   return {
-    q: root.querySelector('[data-pa-search]')?.value || '',
-    document_type: root.querySelector('[data-pa-filter="document_type"]')?.value || '',
+    q:                   root.querySelector('[data-pa-search]')?.value || '',
+    document_type:       root.querySelector('[data-pa-filter="document_type"]')?.value || '',
     activity_type_group: root.querySelector('[data-pa-filter="activity_type_group"]')?.value || ''
   };
 }
@@ -249,7 +270,6 @@ export const proposalsAgreementsScreen = {
     }
     const rows = displayRows(data, {});
     const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
-    const activityOptions = activityOptionsFromState(state);
     return dsScreenStack(`
       ${dsPageHeader('הצעות והסכמים', 'ניהול הצעות, הסכמים ופרטי קשר לרשומה')}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
@@ -262,14 +282,14 @@ export const proposalsAgreementsScreen = {
         <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> רשומות</div>
         <div data-pa-form-host hidden></div>
         ${dsCard({ title: 'רשומות', padded: false, body: `<div data-pa-table-region>${tableHtml(rows)}</div>` })}
-        ${drawerHtml(null, activityOptions)}
+        ${drawerHtml(null)}
       </section>
     `);
   },
   bind({ root, data, state, api }) {
     if (!root || data?.unauthorized || !canAccessProposalsAgreements(state)) return;
     data.rows = sortRows((Array.isArray(data.rows) ? data.rows : []).map(normalizeProposalAgreementRow));
-    const activityOptions = activityOptionsFromState(state);
+    const activityNameOptions = Array.isArray(data?.activityNameOptions) ? data.activityNameOptions : [];
     let debounceTimer = null;
 
     const refreshTable = () => updateProposalsAgreementsTableOnly(root, displayRows(data, currentFilters(root)));
@@ -285,7 +305,7 @@ export const proposalsAgreementsScreen = {
     const openForm = (mode, row = {}) => {
       if (!formHost) return;
       formHost.hidden = false;
-      formHost.innerHTML = formHtml(mode, row, activityOptions);
+      formHost.innerHTML = formHtml(mode, row, activityNameOptions);
       formHost.querySelector('input,textarea,select')?.focus?.();
     };
     const closeForm = () => {
@@ -300,19 +320,19 @@ export const proposalsAgreementsScreen = {
       if (rowEl) {
         const row = data.rows.find((item) => text(item.id) === text(rowEl.dataset.paRowId));
         const drawer = root.querySelector('[data-pa-drawer]');
-        if (drawer && row) drawer.outerHTML = drawerHtml(row, activityOptions);
+        if (drawer && row) drawer.outerHTML = drawerHtml(row, activityNameOptions);
         return;
       }
       if (event.target.closest?.('[data-pa-close-drawer]')) {
         const drawer = root.querySelector('[data-pa-drawer]');
-        if (drawer) drawer.outerHTML = drawerHtml(null, activityOptions);
+        if (drawer) drawer.outerHTML = drawerHtml(null, activityNameOptions);
         return;
       }
       const editBtn = event.target.closest?.('[data-pa-edit-row]');
       if (editBtn) {
         const row = data.rows.find((item) => text(item.id) === text(editBtn.dataset.paEditRow));
         const host = root.querySelector('[data-pa-inline-form]');
-        if (host && row) host.innerHTML = formHtml('edit', row, activityOptions);
+        if (host && row) host.innerHTML = formHtml('edit', row, activityNameOptions);
         return;
       }
       if (event.target.closest?.('[data-pa-cancel-form]')) {
@@ -351,7 +371,7 @@ export const proposalsAgreementsScreen = {
         const drawer = root.querySelector('[data-pa-drawer]');
         if (drawer && mode === 'edit') {
           const updated = data.rows.find((item) => text(item.id) === id);
-          drawer.outerHTML = drawerHtml(updated, activityOptions);
+          drawer.outerHTML = drawerHtml(updated, activityNameOptions);
         }
       } catch (err) {
         if (errorEl) errorEl.textContent = `שגיאה בשמירה: ${err?.message || err}`;
