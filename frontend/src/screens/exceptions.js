@@ -19,6 +19,7 @@ import {
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
+import { normalizedExceptionTypes, uniqueExceptionActivityCount, computeOperationalExceptionsTotal } from './shared/exceptions-metrics.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
 
@@ -45,11 +46,6 @@ function fieldRow(label, value) {
   return `<p><strong>${escapeHtml(label)}:</strong> ${display}</p>`;
 }
 
-function normalizedExceptionTypes(row) {
-  if (Array.isArray(row?.exception_types)) return row.exception_types.map((type) => String(type || '').trim()).filter(Boolean);
-  return [row?.exception_type].map((type) => String(type || '').trim()).filter(Boolean);
-}
-
 function numericCount(value) {
   const n = Number(value || 0);
   return Number.isFinite(n) ? n : 0;
@@ -59,31 +55,6 @@ function optionalNumericCount(value) {
   if (value === undefined || value === null || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
-}
-
-function exceptionActivityKey(row) {
-  const explicitId = [row?.RowID, row?.row_id, row?.source_row_id]
-    .map((value) => String(value ?? '').trim())
-    .find(Boolean);
-  if (explicitId) return `id:${explicitId}`;
-  return [
-    row?.activity_name,
-    row?.activity_type,
-    row?.school,
-    row?.authority,
-    row?.start_date,
-    row?.end_date
-  ].map((value) => String(value ?? '').trim()).join('|');
-}
-
-function uniqueExceptionActivityCount(rows, predicate) {
-  const seen = new Set();
-  for (const row of Array.isArray(rows) ? rows : []) {
-    const types = normalizedExceptionTypes(row);
-    if (!types.length || (predicate && !predicate(types, row))) continue;
-    seen.add(exceptionActivityKey(row));
-  }
-  return seen.size;
 }
 
 function exceptionCountFromRows(rows, type) {
@@ -102,9 +73,10 @@ function exceptionsOperationalSummaryHtml(data, rows) {
   const lateEndDate = hasRows
     ? exceptionCountFromRows(rows, 'late_end_date')
     : numericCount(counts.late_end_date);
-  const operationalTotal = hasRows
-    ? uniqueExceptionActivityCount(rows, (types) => types.includes('missing_instructor') || types.includes('missing_start_date'))
-    : numericCount(data?.operationalTotal ?? data?.operational_gaps_unique_count);
+  const operationalTotal = computeOperationalExceptionsTotal({
+    rows: hasRows ? rows : [],
+    fallback: data?.operationalTotal ?? data?.operational_gaps_unique_count
+  });
   const totalExceptionRows = optionalNumericCount(data?.totalExceptionRows);
   const allExceptionsTotal = totalExceptionRows ?? uniqueExceptionActivityCount(rows);
 
