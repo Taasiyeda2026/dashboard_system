@@ -317,7 +317,9 @@ export const monthScreen = {
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
-    const showPrivateNote = state?.user?.display_role === 'operation_manager';
+    const userRole = String(state?.user?.display_role || '');
+    const showPrivateNote = userRole === 'operation_manager';
+    const instructorLimited = userRole === 'instructor';
     bindLocalFilters(root, state, MONTH_SCOPE, rerender, { debounceMs: 150 });
     const cells = Array.isArray(data?.cells) ? data.cells : [];
     const itemsById = data?.items_by_id && typeof data.items_by_id === 'object' ? data.items_by_id : {};
@@ -371,7 +373,8 @@ export const monthScreen = {
               hideEmpIds,
               hideRowId,
               hideActivityNo,
-              settings: state?.clientSettings || {}
+              settings: state?.clientSettings || {},
+              instructorLimited
             }),
             onOpen: canEditActivity ? bindActivityEditForm : undefined
           });

@@ -84,7 +84,7 @@ export const myDataScreen = {
         const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
         ui.openDrawer({
           title: hideRowId ? 'פירוט פעילות' : `פירוט ${hit.RowID}`,
-          content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo })
+          content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo, hideFunding: true, hideNotes: true })
         });
       });
       rowNode.addEventListener('keydown', (event) => {
@@ -105,7 +105,7 @@ export const myDataScreen = {
       const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
       ui.openDrawer({
         title: hideRowId ? 'פירוט פעילות' : `פירוט ${hit.RowID}`,
-        content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo })
+        content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo, hideFunding: true, hideNotes: true })
       });
     });
   }

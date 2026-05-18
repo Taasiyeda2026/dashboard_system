@@ -1455,7 +1455,7 @@ const SUPABASE_ROLE_ROUTES = {
   activities_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   domain_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   instructor_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  instructor: ['dashboard', 'activities', 'archive', 'week', 'month', 'instructor-contacts', 'my-data']
+  instructor: ['my-data', 'week', 'month']
 };
 
 function normalizeSupabaseRole(role) {
@@ -1519,7 +1519,7 @@ function buildBootstrapFromUser(userRow) {
   const canRequestEdit = canEditDirect || permissionFlagYes(flat.can_request_edit) || role !== 'instructor';
   return {
     routes: [...allowedRoutes],
-    default_route: allowedRoutes[0] || 'dashboard',
+    default_route: allowedRoutes[0] || 'my-data',
     profile: {
       full_name: flat.full_name,
       display_role2: flat.display_role2 || '',
@@ -1530,6 +1530,51 @@ function buildBootstrapFromUser(userRow) {
     can_request_edit: canRequestEdit,
     client_settings: {}
   };
+}
+
+function getInstructorIdentitySet() {
+  const user = state?.user || {};
+  const values = [user.emp_id, user.user_id].map((v) => String(v || '').trim()).filter(Boolean);
+  return new Set(values);
+}
+
+function isInstructorAssignedRow(row, idsSet) {
+  if (!idsSet || idsSet.size === 0) return false;
+  const emp1 = String(row?.emp_id || '').trim();
+  const emp2 = String(row?.emp_id_2 || '').trim();
+  return idsSet.has(emp1) || idsSet.has(emp2);
+}
+
+function filterCalendarPayloadForInstructor(payload) {
+  const idsSet = getInstructorIdentitySet();
+  if (idsSet.size === 0) return payload;
+  const srcItemsById = payload?.items_by_id && typeof payload.items_by_id === 'object' ? payload.items_by_id : {};
+  const allowedItemsById = {};
+  for (const [rowId, row] of Object.entries(srcItemsById)) {
+    if (isInstructorAssignedRow(row, idsSet)) allowedItemsById[rowId] = row;
+  }
+  const hasItem = (id) => Object.prototype.hasOwnProperty.call(allowedItemsById, id);
+  if (Array.isArray(payload?.days)) {
+    return {
+      ...payload,
+      items_by_id: allowedItemsById,
+      days: payload.days.map((day) => ({
+        ...day,
+        item_ids: (Array.isArray(day?.item_ids) ? day.item_ids : []).filter((id) => hasItem(String(id || '')))
+      }))
+    };
+  }
+  if (Array.isArray(payload?.cells)) {
+    return {
+      ...payload,
+      items_by_id: allowedItemsById,
+      cells: payload.cells.map((cell) => ({
+        ...cell,
+        item_ids: (Array.isArray(cell?.item_ids) ? cell.item_ids : []).filter((id) => hasItem(String(id || '')))
+      }))
+    };
+  }
+  return payload;
 }
 
 async function loginWithSupabaseAuth(user_id, entry_code) {
@@ -2082,7 +2127,10 @@ export const api = {
     const resolved = (params && typeof params === 'object') ? params : {};
     const weekOffset = Number.parseInt(resolved.week_offset, 10);
     const offset = Number.isFinite(weekOffset) ? weekOffset : 0;
-    return readWeekFromSupabase(offset);
+    const payload = await readWeekFromSupabase(offset);
+    return String(state?.user?.display_role || '') === 'instructor'
+      ? filterCalendarPayloadForInstructor(payload)
+      : payload;
   },
   month: async (params) => {
     const resolved = (params && typeof params === 'object') ? params : {};
@@ -2090,7 +2138,10 @@ export const api = {
     const now = new Date();
     const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const ym = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
-    return readMonthFromSupabase(ym);
+    const payload = await readMonthFromSupabase(ym);
+    return String(state?.user?.display_role || '') === 'instructor'
+      ? filterCalendarPayloadForInstructor(payload)
+      : payload;
   },
   exceptions: (params, options) => {
     const resolved = (params && typeof params === 'object') ? params : {};
@@ -2114,12 +2165,10 @@ export const api = {
   endDates: () => readEndDatesFromSupabase(),
   myData: async () => {
     const allRows = await readAllActivitiesRowsSupabase();
-    const empId = String(state?.user?.emp_id || state?.user?.user_id || '').trim();
+    const idsSet = getInstructorIdentitySet();
     const rows = allRows.filter((row) => {
       if (isActivityClosed(row)) return false;
-      const emp1 = String(row?.emp_id || '').trim();
-      const emp2 = String(row?.emp_id_2 || '').trim();
-      return !!empId && (emp1 === empId || emp2 === empId);
+      return isInstructorAssignedRow(row, idsSet);
     });
     return { rows, _source: 'supabase' };
   },

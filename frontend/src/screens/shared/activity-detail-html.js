@@ -426,7 +426,7 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
   `;
 }
 
-function blockSupplementalView(row, { settings = {} } = {}) {
+function blockSupplementalView(row, { settings = {}, hideFunding = false } = {}) {
   const instructorLookup = buildInstructorLookup(settings);
   const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
   const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
@@ -450,7 +450,7 @@ function blockSupplementalView(row, { settings = {} } = {}) {
         ${twoInstructors ? fieldViewOnly('מדריך/ה 2', escapeHtml(fallback(instructor2Display))) : ''}
         ${fieldViewOnly('כיתה / קבוצה', escapeHtml(classLabel))}
         ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
-        ${fieldViewOnly('מימון', escapeHtml(fundingDisplay))}
+        ${hideFunding ? '' : fieldViewOnly('מימון', escapeHtml(fundingDisplay))}
       </div>
     </section>
   `;
@@ -634,7 +634,8 @@ function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } =
   `;
 }
 
-function blockNotes(row) {
+function blockNotes(row, { hidden = false } = {}) {
+  if (hidden) return '';
   return `
     <section class="activity-drawer__section">
       <h3 class="activity-drawer__section-title">📝</h3>
@@ -655,7 +656,7 @@ function jsonAttr(value) {
   }
 }
 
-function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, showPrivateNote = false, idx = 0, datesLoading = false } = {}) {
+function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = String(row.activity_type || '').trim();
   const editReqStatus = String(row.edit_request_status || '').trim();
@@ -684,15 +685,15 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${blockAssignment(row, { settings })}
       ${blockTeamTimes(row, { settings })}
       ${blockDates(row, { canEdit, datesLoading })}
-      ${blockExtraEditInfo(row, { settings })}
-      ${blockNotes(row)}
-      ${blockSupplementalView(row, { settings })}
+      ${instructorLimited ? '' : blockExtraEditInfo(row, { settings })}
+      ${blockNotes(row, { hidden: instructorLimited })}
+      ${blockSupplementalView(row, { settings, hideFunding: instructorLimited })}
       ${blockEditActions({ canEdit, canDirectEdit })}
     </form>
   `;
 }
 
-export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo = false } = {}) {
+export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo = false, hideFunding = false, hideNotes = false } = {}) {
   return `
     <div>שם פעילות: ${escapeHtml(fallback(row.activity_name))}</div>
     <div>סוג פעילות: ${escapeHtml(activityTypeLabel(row.activity_type))}</div>
@@ -701,13 +702,15 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
     <div>שכבה: ${escapeHtml(fallback(row.grade))}</div>
     <div>קבוצה/כיתה: ${escapeHtml(fallback(row.class_group))}</div>
     <div>שעות: ${escapeHtml(formatTimeRangeShort(row.start_time, row.end_time))}</div>
+    ${hideFunding ? '' : `<div>מימון: ${escapeHtml(fallback(row.funding))}</div>`}
     <div>תאריכי מפגשים: ${escapeHtml(formatActivityDateColumnsHe(row))}</div>
+    ${hideNotes ? '' : `<div>הערות: ${escapeHtml(fallback(row.notes))}</div>`}
     ${privateNote === null ? '' : `<div>הערה תפעולית: ${escapeHtml(fallback(privateNote))}</div>`}
   `;
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
-  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, settings = {}, datesLoading = false, exportAction = true } = opts;
+  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false } = opts;
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const body = rows
@@ -728,6 +731,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
             canRequestEdit,
             showPrivateNote: privateNote !== null,
             idx,
+            instructorLimited
           })}
         </div>
       `)
@@ -752,6 +756,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
         showPrivateNote: privateNote !== null,
         datesLoading,
         idx: 0,
+        instructorLimited
       })}
     </div>
   `;
