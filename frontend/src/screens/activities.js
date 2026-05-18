@@ -425,13 +425,30 @@ function heMonthLabel(ym) {
   return HE_MONTHS[Number(m[2]) - 1] || monthLabel(ym);
 }
 
+
+function compareActivityDefaultOrder(a, b) {
+  const collator = compareActivityDefaultOrder._collator || (compareActivityDefaultOrder._collator = new Intl.Collator('he', { sensitivity: 'base', numeric: true }));
+  const text = (row, key) => String(row?.[key] || '').trim();
+  const byAuthority = collator.compare(text(a, 'authority'), text(b, 'authority'));
+  if (byAuthority) return byAuthority;
+  const bySchool = collator.compare(text(a, 'school'), text(b, 'school'));
+  if (bySchool) return bySchool;
+  const instructorA = String(a?.instructor_name || a?.Instructor || a?.instructor_name_2 || a?.Instructor2 || '').trim();
+  const instructorB = String(b?.instructor_name || b?.Instructor || b?.instructor_name_2 || b?.Instructor2 || '').trim();
+  const byInstructor = collator.compare(instructorA, instructorB);
+  if (byInstructor) return byInstructor;
+  const byName = collator.compare(text(a, 'activity_name'), text(b, 'activity_name'));
+  if (byName) return byName;
+  return String(a?.start_date || '').localeCompare(String(b?.start_date || ''));
+}
+
 function applyActivitiesLocalFilters(rows, state, settings) {
   const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
   if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
   const familyRows = applyClientFilters(rows, state, settings);
   const monthRows = familyRows.filter((row) => activityOverlapsMonth(row, state.activitiesMonthYm));
   prepareRowsForSearch(monthRows, ACTIVITY_SEARCH_FIELDS);
-  return applyLocalFilters(monthRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS });
+  return applyLocalFilters(monthRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
 }
 
 function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
@@ -614,6 +631,7 @@ export const activitiesScreen = {
         const startHe = formatDateHe(row.start_date) || '—';
         const endRaw = String(row?.end_date || row?.date_end || '').trim() || String(row?.start_date || '').trim();
         const endHe = endRaw ? formatDateHe(endRaw) || '—' : '—';
+        const managerLabel = activityManagerDisplayName(row.activity_manager);
         const rowSearch = [
           hideRowId ? '' : row.RowID,
           visibleActivityCategoryLabel(row.activity_type),
@@ -625,6 +643,7 @@ export const activitiesScreen = {
           row.instructor_name,
           row.instructor_name_2,
           row.activity_manager,
+          managerLabel,
           hideEmpIds ? '' : row.emp_id,
           hideEmpIds ? '' : row.emp_id_2,
           formatActivityDateColumnsHe(row)
@@ -636,7 +655,7 @@ export const activitiesScreen = {
         <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.school || '—')}">${escapeHtml(row.school || '—')}</span></td>
-        <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}</div></td>
+        <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}<span class="ds-activities-manager-line" title="${escapeHtml(managerLabel || '—')}">מנהל: ${escapeHtml(managerLabel || '—')}</span></div></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe)}</time></td>
         <td class="ds-activities-col ds-activities-col--meetings"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(formatActivityDateColumnsHe(row))}">${escapeHtml(formatActivityDateColumnsHe(row))}</span></td>
