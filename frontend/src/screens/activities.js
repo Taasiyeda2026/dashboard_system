@@ -685,13 +685,11 @@ export const activitiesScreen = {
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe)}</time></td>
         <td class="ds-activities-col ds-activities-col--meetings">${(() => { const nd = nextMeetingDate(row); const ndHe = nd ? (formatDateHe(nd) || nd) : ''; return ndHe ? `<time class="ds-activities-date" title="${escapeHtml(nd)}">${escapeHtml(ndHe)}</time>` : '<span class="ds-activities-date ds-activities-date--none">—</span>'; })()}</td>
         <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(String(row.notes || '—'))}">${escapeHtml(String(row.notes || '—'))}</span></td>
-        ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
     `;
       })
       .join('');
 
-    const thPrivate = canSeePrivateNotes ? `<th>${hebrewColumn('private_note')}</th>` : '';
 
     const fundingOptions = mergeOptions(state?.clientSettings || {}, ['funding', 'fundings']);
     const centralOptions = getFilterOptionOverrides(state?.clientSettings || {});
@@ -721,9 +719,8 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--meetings">
                   <col class="ds-activities-col--notes">
-                  ${canSeePrivateNotes ? '<col>' : ''}
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>הערות</th>${thPrivate}</tr></thead>
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>הערות</th></tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
 
