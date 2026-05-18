@@ -9931,3 +9931,27 @@ select.ds-activity-add-field .ds-input,
   border-color: var(--ds-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-accent) 24%, transparent);
 }
+
+/* task polish: dashboard/instructors/proposals/drawer */
+.ds-interactive-card.ds-interactive-card--kpi { cursor: pointer; }
+.ds-interactive-card.ds-interactive-card--kpi:hover { background: color-mix(in srgb, var(--ds-surface) 88%, var(--ds-accent) 12%); }
+
+.instr-page .instr-page-header { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; text-align:center; }
+.instr-page .instr-page-header__title { color: var(--ds-accent); }
+.instr-page .instr-page-header__count { display:inline-flex; align-items:center; justify-content:center; padding:2px 10px; border-radius:999px; background:var(--ds-surface-2); border:1px solid var(--ds-border); }
+.instr-page .instr-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px, 280px)); justify-content:center; gap:20px; }
+.instr-page .instr-card { width:100%; max-width:280px; }
+.instr-page .instr-stat__num.is-zero { opacity:.45; }
+
+.activity-drawer__header { background: transparent; border-bottom:1px solid var(--ds-border); }
+.activity-drawer__title { font-size:1.25rem; }
+.activity-drawer__meta { font-size:.85rem; }
+.activity-drawer__pill { width:auto; padding:2px 8px; min-height:24px; }
+.activity-drawer__progress-meta { display:flex; align-items:center; gap:10px; white-space:nowrap; }
+@media (max-width: 720px) { .activity-drawer__progress-meta { white-space:normal; } }
+
+.ds-pa-records-shell { border:1px solid var(--ds-border); border-radius:14px; box-shadow: var(--ds-shadow-sm); overflow:hidden; background:var(--ds-surface); }
+.ds-pa-records-shell .ds-table-wrap { margin:0; border:none; border-radius:0; box-shadow:none; }
+.ds-pa-records-shell .ds-pa-table thead th { background:var(--ds-surface-2); }
+.ds-pa-records-shell .ds-pa-table tbody tr + tr td { border-top:1px solid var(--ds-border); }
+.ds-pa-records-shell .ds-pa-empty-row td { text-align:center; padding:22px 8px; }
