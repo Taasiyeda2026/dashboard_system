@@ -163,9 +163,10 @@ function renderStructuredSummary(summary, ym, byManager) {
     <p class="ds-summary-panel__text">${escapeHtml(allInstructors || '—')}</p>
 
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
-      <h4 class="ds-summary-panel__inner-title"><strong>חריגות תפעוליות החודש:</strong></h4>
+      <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש:</strong></h4>
+      <p class="ds-summary-panel__text"><strong>סה״כ חריגות: ${escapeHtml(String(exceptionsTotalResolved))}</strong></p>
       <p class="ds-summary-panel__text">
-        <strong>חריגות תפעוליות: ${escapeHtml(String(operationalUniqueCount))}</strong>
+        חריגות תפעוליות: <strong>${escapeHtml(String(operationalUniqueCount))}</strong>
         <span class="ds-muted"> (חסר מדריך: ${escapeHtml(String(missingInstructor))} · חסר תאריך התחלה: ${escapeHtml(String(missingStartDate))})</span>
       </p>
       <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${lateEnd}</strong></p>
