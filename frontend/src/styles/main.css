@@ -9449,3 +9449,174 @@ select.ds-activity-add-field .ds-input,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ——— Proposals & agreements screen ——— */
+.ds-pa-screen {
+  direction: rtl;
+}
+
+.ds-pa-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+
+.ds-pa-search,
+.ds-pa-filter,
+.ds-pa-form-field {
+  display: grid;
+  gap: 4px;
+  color: var(--ds-color-text-muted, #64748b);
+  font-size: 0.82rem;
+}
+
+.ds-pa-search {
+  min-width: 220px;
+  flex: 1 1 260px;
+}
+
+.ds-pa-filter {
+  min-width: 150px;
+}
+
+.ds-pa-local-status {
+  margin: 0 0 8px;
+  color: var(--ds-color-text-muted, #64748b);
+  font-size: 0.86rem;
+}
+
+.ds-pa-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.ds-pa-table th,
+.ds-pa-table td {
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.ds-pa-table tbody tr {
+  cursor: pointer;
+}
+
+.ds-pa-table tbody tr:hover,
+.ds-pa-table tbody tr:focus {
+  background: var(--ds-color-surface-hover, rgba(37, 99, 235, 0.06));
+  outline: none;
+}
+
+.ds-pa-notes {
+  max-width: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-pa-empty-row td {
+  text-align: center;
+  color: var(--ds-color-text-muted, #64748b);
+}
+
+.ds-pa-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: flex-start;
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.ds-pa-drawer[hidden] {
+  display: none;
+}
+
+.ds-pa-drawer-panel {
+  width: min(430px, 92vw);
+  height: 100%;
+  overflow: auto;
+  background: var(--ds-color-surface, #fff);
+  border-inline-start: 1px solid var(--ds-color-border, #e2e8f0);
+  box-shadow: var(--ds-shadow-lg, 0 18px 45px rgba(15, 23, 42, 0.16));
+  padding: 16px;
+}
+
+.ds-pa-drawer-head,
+.ds-pa-form-actions,
+.ds-pa-drawer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ds-pa-drawer-head h3,
+.ds-pa-form h3 {
+  margin: 0;
+  color: var(--ds-color-text, #0f172a);
+}
+
+.ds-pa-detail-grid {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.ds-pa-detail-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 34%) 1fr;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ds-color-border-subtle, #eef2f7);
+}
+
+.ds-pa-detail-label {
+  color: var(--ds-color-text-muted, #64748b);
+  font-size: 0.8rem;
+}
+
+.ds-pa-detail-value,
+.ds-pa-contact-line {
+  color: var(--ds-color-text, #0f172a);
+  font-size: 0.9rem;
+}
+
+.ds-pa-form {
+  margin: 10px 0 14px;
+  padding: 12px;
+  border: 1px solid var(--ds-color-border, #e2e8f0);
+  border-radius: var(--ds-radius-lg, 14px);
+  background: var(--ds-color-surface-soft, #f8fafc);
+}
+
+.ds-pa-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.ds-pa-form-field--wide {
+  grid-column: 1 / -1;
+}
+
+.ds-pa-form-error {
+  min-height: 1.2em;
+  margin: 0 0 8px;
+  color: var(--ds-color-danger, #b91c1c);
+  font-size: 0.84rem;
+}
+
+@media (max-width: 720px) {
+  .ds-pa-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ds-pa-table th,
+  .ds-pa-table td {
+    padding: 7px 8px;
+    font-size: 0.82rem;
+  }
+}

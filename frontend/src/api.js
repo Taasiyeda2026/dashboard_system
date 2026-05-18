@@ -34,7 +34,9 @@ const MUTATING_ACTIONS = {
   deleteUser: true,
   savePrivateNote: true,
   saveSheetMapping: true,
-  saveClientSetting: true
+  saveClientSetting: true,
+  addProposalAgreement: true,
+  updateProposalAgreement: true
 };
 
 const READ_ACTIONS = {
@@ -57,6 +59,7 @@ const READ_ACTIONS = {
   operationsDetail: true,
   editRequests: true,
   permissions: true,
+  proposalsAgreements: true,
   adminSettings: true,
   adminLists: true,
   listSheets: true,
@@ -1249,7 +1252,9 @@ function invalidateScreenDataByAction(action) {
     addContact: ['contacts', 'instructor-contacts'],
     saveContact: ['contacts', 'instructor-contacts'],
     saveSheetMapping: ['adminSettings', 'listSheets', 'dashboard:', 'activities:', 'week:', 'month:'],
-    saveClientSetting: ['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:']
+    saveClientSetting: ['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:'],
+    addProposalAgreement: ['proposals-agreements'],
+    updateProposalAgreement: ['proposals-agreements']
   };
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
@@ -1332,17 +1337,98 @@ function normalizeData(data) {
   return normalized;
 }
 
+
+const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type,contact_name,contact_role,contact_phone,contact_email,notes,created_at,updated_at';
+
+function canUseProposalsAgreementsApi() {
+  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+  return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(role);
+}
+
+function assertCanUseProposalsAgreementsApi() {
+  if (!canUseProposalsAgreementsApi()) throw new Error('proposals_agreements_forbidden');
+}
+
+function cleanProposalAgreementText(value) {
+  return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+function buildProposalAgreementSearchText(row = {}) {
+  return [
+    row.id,
+    row.client_authority,
+    row.school_framework,
+    row.document_type,
+    row.activity_type,
+    row.notes,
+    row.contact_name,
+    row.contact_role,
+    row.contact_phone,
+    row.contact_email
+  ].map(cleanProposalAgreementText).filter(Boolean).join(' ').toLowerCase();
+}
+
+function normalizeProposalAgreementRow(row = {}) {
+  const normalized = {
+    id: cleanProposalAgreementText(row.id),
+    client_authority: cleanProposalAgreementText(row.client_authority),
+    school_framework: cleanProposalAgreementText(row.school_framework),
+    document_type: cleanProposalAgreementText(row.document_type),
+    activity_type: cleanProposalAgreementText(row.activity_type),
+    contact_name: cleanProposalAgreementText(row.contact_name),
+    contact_role: cleanProposalAgreementText(row.contact_role),
+    contact_phone: cleanProposalAgreementText(row.contact_phone),
+    contact_email: cleanProposalAgreementText(row.contact_email),
+    notes: cleanProposalAgreementText(row.notes),
+    created_at: cleanProposalAgreementText(row.created_at),
+    updated_at: cleanProposalAgreementText(row.updated_at)
+  };
+  normalized._searchText = buildProposalAgreementSearchText(normalized);
+  return normalized;
+}
+
+function sanitizeProposalAgreementPayload(payload = {}) {
+  const row = {
+    client_authority: cleanProposalAgreementText(payload.client_authority),
+    school_framework: cleanProposalAgreementText(payload.school_framework),
+    document_type: cleanProposalAgreementText(payload.document_type),
+    activity_type: cleanProposalAgreementText(payload.activity_type),
+    contact_name: cleanProposalAgreementText(payload.contact_name),
+    contact_role: cleanProposalAgreementText(payload.contact_role),
+    contact_phone: cleanProposalAgreementText(payload.contact_phone),
+    contact_email: cleanProposalAgreementText(payload.contact_email),
+    notes: cleanProposalAgreementText(payload.notes)
+  };
+  const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type'].filter((key) => !row[key]);
+  if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
+  return row;
+}
+
+async function readProposalsAgreementsFromSupabase() {
+  assertCanUseProposalsAgreementsApi();
+  const { data, error } = await supabase
+    .from('proposals_agreements')
+    .select(PROPOSALS_AGREEMENTS_COLUMNS)
+    .order('client_authority', { ascending: true })
+    .order('school_framework', { ascending: true })
+    .order('document_type', { ascending: true })
+    .order('activity_type', { ascending: true });
+  if (error) throw new Error(error.message || 'proposals_agreements_read_failed');
+  return { rows: (Array.isArray(data) ? data : []).map(normalizeProposalAgreementRow), _source: 'supabase' };
+}
+
 const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager']);
 const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
 
 const SUPABASE_ROLE_ROUTES = {
-  admin: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists'],
-  operation_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
+  admin: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists'],
+  operation_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
   authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   finance: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   activities_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  domain_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  domain_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   instructor_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   instructor: ['dashboard', 'activities', 'archive', 'week', 'month', 'instructor-contacts', 'my-data']
 };
@@ -2042,6 +2128,7 @@ export const api = {
     }));
     return buildEditRequestGroups(rows, canReview, activityByRowId);
   },
+  proposalsAgreements: async () => readProposalsAgreementsFromSupabase(),
   permissions: async () => {
     if (!supabase) throw new Error('no_supabase_client');
     const { data, error } = await supabase.from('users').select(USER_PUBLIC_COLUMNS).order('created_at', { ascending: false });
@@ -2096,6 +2183,31 @@ export const api = {
     const supabaseData = await readListsFromSupabase();
     if (supabaseData) return supabaseData;
     return buildSupabaseErrorPayload({ categories: [] }, 'admin_lists_supabase_failed');
+  },
+  addProposalAgreement: async (payload) => {
+    assertCanUseProposalsAgreementsApi();
+    const insert = sanitizeProposalAgreementPayload(payload);
+    const { data, error } = await supabase
+      .from('proposals_agreements')
+      .insert(insert)
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .single();
+    if (error) throw new Error(error.message || 'proposals_agreement_add_failed');
+    return { ok: true, row: normalizeProposalAgreementRow(data) };
+  },
+  updateProposalAgreement: async (id, payload) => {
+    assertCanUseProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const patch = sanitizeProposalAgreementPayload(payload);
+    const { data, error } = await supabase
+      .from('proposals_agreements')
+      .update(patch)
+      .eq('id', rowId)
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .single();
+    if (error) throw new Error(error.message || 'proposals_agreement_update_failed');
+    return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
   addContact: async (payload) => {
     const kind = String(payload?.kind || '').trim();
