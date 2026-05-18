@@ -439,7 +439,7 @@ function blockSupplementalView(row, { settings = {} } = {}) {
     String(row.start_time || '').trim() && String(row.end_time || '').trim()
       ? formatTimeRangeShort(row.start_time, row.end_time)
       : '—';
-  const fundingPrice = [row.funding, row.price].map((v) => String(v || '').trim()).filter(Boolean).join(' · ') || '—';
+  const fundingDisplay = String(row.funding || '').trim() || '—';
 
   return `
     <section class="activity-drawer__section activity-drawer__section--supplemental" data-mode="view">
@@ -450,7 +450,7 @@ function blockSupplementalView(row, { settings = {} } = {}) {
         ${twoInstructors ? fieldViewOnly('מדריך/ה 2', escapeHtml(fallback(instructor2Display))) : ''}
         ${fieldViewOnly('כיתה / קבוצה', escapeHtml(classLabel))}
         ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
-        ${fieldViewOnly('מימון / מחיר', escapeHtml(fundingPrice))}
+        ${fieldViewOnly('מימון', escapeHtml(fundingDisplay))}
       </div>
     </section>
   `;
