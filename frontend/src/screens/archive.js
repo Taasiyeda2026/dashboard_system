@@ -12,12 +12,15 @@ import {
   ensureActivityListFilters,
   prepareRowsForSearch,
   applyLocalFilters,
-  bindLocalFilters,
+  normalizeText,
   splitVisibleRows
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getRosterUsers } from './shared/activity-options.js';
 
 const ARCHIVE_SCOPE = 'archive';
+const ARCHIVE_SEARCH_DEBOUNCE_MS = 280;
+const ARCHIVE_MIN_SEARCH_CHARS = 2;
+const ARCHIVE_DEFAULT_VISIBLE_LIMIT = 200;
 
 const ARCHIVE_TYPE_KPIS = [
   { label: 'קורסים',      keys: ['course', 'קורס', 'קורסים'],                                              color: 'blue'   },
@@ -120,6 +123,15 @@ function clearArchiveReopenCaches(state) {
   });
 }
 
+function archiveEffectiveFilters(filters) {
+  const rawSearch = Object.prototype.hasOwnProperty.call(filters || {}, 'appliedQ') ? filters.appliedQ : filters?.q;
+  const normalizedSearch = normalizeText(rawSearch || '');
+  return {
+    ...(filters || {}),
+    appliedQ: normalizedSearch.length >= ARCHIVE_MIN_SEARCH_CHARS ? rawSearch : ''
+  };
+}
+
 function applyArchiveFilters(rows, state) {
   const filters = ensureActivityListFilters(state, ARCHIVE_SCOPE);
   let out = Array.isArray(rows) ? rows.slice() : [];
@@ -127,8 +139,81 @@ function applyArchiveFilters(rows, state) {
   if (year) {
     out = out.filter((row) => endYear(row) === year);
   }
-  prepareRowsForSearch(out, ARCHIVE_SEARCH_FIELDS);
-  return applyLocalFilters(out, filters, { filterFields: ARCHIVE_FILTER_FIELDS });
+  return applyLocalFilters(out, archiveEffectiveFilters(filters), { filterFields: ARCHIVE_FILTER_FIELDS });
+}
+
+function archiveTableRowsHtml(rows) {
+  return rows.map((row) => {
+    const name = escapeHtml(row.activity_name || '—');
+    const typeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
+    const authority = escapeHtml(row.authority || '—');
+    const school = escapeHtml(row.school || '—');
+    const instructor = escapeHtml(instructorText(row));
+    const manager = escapeHtml(activityManagerDisplayName(row.activity_manager));
+    const endRaw = String(row?.end_date || row?.start_date || '').trim();
+    const endHe = endRaw ? (formatDateHe(endRaw) || endRaw) : '—';
+    const startRaw = String(row?.start_date || '').trim();
+    const startHe = startRaw ? (formatDateHe(startRaw) || startRaw) : '—';
+    const meetingDatesHe = formatActivityDateColumnsHe(row);
+
+    return `
+      <tr class="ds-data-row ds-activities-row" data-list-item data-row-id="${escapeHtml(row.RowID)}">
+        <td class="ds-activities-col ds-activities-col--program">
+          <div class="ds-activities-program-cell">
+            <strong class="ds-activities-program-name" title="${name}">${name}</strong>
+            <span class="ds-activities-program-type">${typeLabel}</span>
+          </div>
+        </td>
+        <td class="ds-activities-col ds-activities-col--authority">
+          <span class="ds-activities-cell-ellipsis" title="${authority}">${authority}</span>
+        </td>
+        <td class="ds-activities-col ds-activities-col--school">
+          <span class="ds-activities-cell-ellipsis" title="${school}">${school}</span>
+        </td>
+        <td class="ds-activities-col ds-activities-col--instructor">
+          <span class="ds-activities-cell-ellipsis">${instructor}</span>
+        </td>
+        <td>${escapeHtml(manager)}</td>
+        <td class="ds-archive-meeting-dates"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(meetingDatesHe)}">${escapeHtml(meetingDatesHe)}</span></td>
+        <td class="ds-archive-date-col"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
+        <td class="ds-archive-date-col"><time class="ds-activities-date ds-archive-end-date">${escapeHtml(endHe)}</time></td>
+      </tr>`;
+  }).join('');
+}
+
+function renderArchiveTableSection(rows, state, allRowsCount = rows.length) {
+  const listFilters = ensureActivityListFilters(state, ARCHIVE_SCOPE);
+  const { visible: safeRows, hasMore, nextCount } = splitVisibleRows(rows, listFilters);
+  const emptyMsg = allRowsCount === 0
+    ? 'אין פעילויות סגורות בארכיון'
+    : 'לא נמצאו פעילויות התואמות לסינון';
+
+  if (safeRows.length === 0) return dsEmptyState(emptyMsg);
+
+  return dsTableWrap(`
+      <table class="ds-table ds-table--interactive ds-table--activities-list ds-table--archive" dir="rtl">
+        <colgroup>
+          <col><col><col><col><col><col><col><col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th>תוכנית / סוג</th>
+            <th>רשות</th>
+            <th>בית ספר</th>
+            <th>מדריך</th>
+            <th>מנהל פעילות</th>
+            <th>תאריכי מפגשים</th>
+            <th>תאריך התחלה</th>
+            <th>תאריך סיום</th>
+          </tr>
+        </thead>
+        <tbody>${archiveTableRowsHtml(safeRows)}</tbody>
+      </table>`) +
+    (hasMore
+      ? `<div style="display:flex;justify-content:center;padding:12px 0">
+           <button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ARCHIVE_SCOPE}" data-next-count="${nextCount}">הצג עוד</button>
+         </div>`
+      : '');
 }
 
 export const archiveScreen = {
@@ -138,10 +223,9 @@ export const archiveScreen = {
 
   render(data, { state }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
+    prepareRowsForSearch(allRows, ARCHIVE_SEARCH_FIELDS);
     const filteredRows = applyArchiveFilters(allRows, state);
     const listFilters = ensureActivityListFilters(state, ARCHIVE_SCOPE);
-    const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
-    const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
 
     const years = yearOptions(allRows);
     const selectedYear = String(state.archiveYear || '').trim();
@@ -152,74 +236,6 @@ export const archiveScreen = {
         `<button type="button" class="ds-chip--tab${selectedYear === y ? ' is-active' : ''}" data-archive-year="${escapeHtml(y)}">${escapeHtml(y)}</button>`
       )
     ].join('');
-
-    const tableRows = safeRows.map((row) => {
-      const name = escapeHtml(row.activity_name || '—');
-      const typeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
-      const authority = escapeHtml(row.authority || '—');
-      const school = escapeHtml(row.school || '—');
-      const instructor = escapeHtml(instructorText(row));
-      const manager = escapeHtml(activityManagerDisplayName(row.activity_manager));
-      const endRaw = String(row?.end_date || row?.start_date || '').trim();
-      const endHe = endRaw ? (formatDateHe(endRaw) || endRaw) : '—';
-      const startRaw = String(row?.start_date || '').trim();
-      const startHe = startRaw ? (formatDateHe(startRaw) || startRaw) : '—';
-      const meetingDatesHe = formatActivityDateColumnsHe(row);
-
-      return `
-        <tr class="ds-data-row ds-activities-row" data-list-item data-row-id="${escapeHtml(row.RowID)}">
-          <td class="ds-activities-col ds-activities-col--program">
-            <div class="ds-activities-program-cell">
-              <strong class="ds-activities-program-name" title="${name}">${name}</strong>
-              <span class="ds-activities-program-type">${typeLabel}</span>
-            </div>
-          </td>
-          <td class="ds-activities-col ds-activities-col--authority">
-            <span class="ds-activities-cell-ellipsis" title="${authority}">${authority}</span>
-          </td>
-          <td class="ds-activities-col ds-activities-col--school">
-            <span class="ds-activities-cell-ellipsis" title="${school}">${school}</span>
-          </td>
-          <td class="ds-activities-col ds-activities-col--instructor">
-            <span class="ds-activities-cell-ellipsis">${instructor}</span>
-          </td>
-          <td>${escapeHtml(manager)}</td>
-          <td class="ds-archive-meeting-dates"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(meetingDatesHe)}">${escapeHtml(meetingDatesHe)}</span></td>
-          <td class="ds-archive-date-col"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
-          <td class="ds-archive-date-col"><time class="ds-activities-date ds-archive-end-date">${escapeHtml(endHe)}</time></td>
-        </tr>`;
-    }).join('');
-
-    const emptyMsg = allRows.length === 0
-      ? 'אין פעילויות סגורות בארכיון'
-      : 'לא נמצאו פעילויות התואמות לסינון';
-
-    const tableSection = safeRows.length === 0
-      ? dsEmptyState(emptyMsg)
-      : dsTableWrap(`
-          <table class="ds-table ds-table--interactive ds-table--activities-list ds-table--archive" dir="rtl">
-            <colgroup>
-              <col><col><col><col><col><col><col><col>
-            </colgroup>
-            <thead>
-              <tr>
-                <th>תוכנית / סוג</th>
-                <th>רשות</th>
-                <th>בית ספר</th>
-                <th>מדריך</th>
-                <th>מנהל פעילות</th>
-                <th>תאריכי מפגשים</th>
-                <th>תאריך התחלה</th>
-                <th>תאריך סיום</th>
-              </tr>
-            </thead>
-            <tbody>${tableRows}</tbody>
-          </table>`) +
-        (hasMore
-          ? `<div style="display:flex;justify-content:center;padding:12px 0">
-               <button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ARCHIVE_SCOPE}" data-next-count="${nextCount}">הצג עוד</button>
-             </div>`
-          : '');
 
     const toolbar = `
       <div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ARCHIVE_SCOPE}">
@@ -241,8 +257,10 @@ export const archiveScreen = {
 
     const titleRow = `
       <div class="ds-activities-title-row" dir="rtl">
-        <h2 class="ds-activities-page-title">ארכיון פעילויות · ${total} פעילויות סגורות</h2>
+        <h2 class="ds-activities-page-title">ארכיון פעילויות · ${filteredRows.length} פעילויות סגורות</h2>
       </div>`;
+
+    const tableSection = `<div data-archive-table-section>${renderArchiveTableSection(filteredRows, state, allRows.length)}</div>`;
 
     return dsScreenStack(`
       <section class="ds-activities-screen">
@@ -269,22 +287,78 @@ export const archiveScreen = {
       return acc;
     }, {});
 
-    const rerenderLocal = () => rerender();
+    prepareRowsForSearch(allRows, ARCHIVE_SEARCH_FIELDS);
 
-    bindLocalFilters(root, state, ARCHIVE_SCOPE, rerenderLocal, {
-      debounceMs: 150,
-      onClear: () => { state.archiveYear = ''; }
+    const rerenderLocal = () => rerender();
+    const tableContainer = root.querySelector('[data-archive-table-section]');
+    let searchTimer;
+    let searchFrame;
+
+    const replaceTableSection = () => {
+      if (!tableContainer) return;
+      const filteredRows = applyArchiveFilters(allRows, state);
+      tableContainer.innerHTML = renderArchiveTableSection(filteredRows, state, allRows.length);
+    };
+
+    const scheduleTableFilter = () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        if (searchFrame && typeof globalThis.cancelAnimationFrame === 'function') {
+          globalThis.cancelAnimationFrame(searchFrame);
+        }
+        const run = () => {
+          searchFrame = null;
+          replaceTableSection();
+        };
+        searchFrame = typeof globalThis.requestAnimationFrame === 'function'
+          ? globalThis.requestAnimationFrame(run)
+          : setTimeout(run, 0);
+      }, ARCHIVE_SEARCH_DEBOUNCE_MS);
+    };
+
+    const searchInput = root.querySelector(`[data-filter-search="${ARCHIVE_SCOPE}"]`);
+    searchInput?.addEventListener('input', (ev) => {
+      const filters = ensureActivityListFilters(state, ARCHIVE_SCOPE);
+      const nextValue = ev.target?.value || '';
+      const nextSearch = normalizeText(nextValue);
+      const prevAppliedSearch = normalizeText(filters.appliedQ || '');
+      filters.q = nextValue;
+
+      if (nextSearch.length >= ARCHIVE_MIN_SEARCH_CHARS) {
+        filters.appliedQ = nextValue;
+        filters.visibleCount = ARCHIVE_DEFAULT_VISIBLE_LIMIT;
+        scheduleTableFilter();
+        return;
+      }
+
+      filters.appliedQ = '';
+      if (prevAppliedSearch) {
+        filters.visibleCount = ARCHIVE_DEFAULT_VISIBLE_LIMIT;
+        scheduleTableFilter();
+      }
     });
 
-    root.querySelector(`[data-list-show-more="${ARCHIVE_SCOPE}"]`)?.addEventListener('click', (ev) => {
-      const next = Number(ev.currentTarget?.dataset?.nextCount || 200);
-      ensureActivityListFilters(state, ARCHIVE_SCOPE).visibleCount = next;
+    root.querySelector(`[data-filter-clear="${ARCHIVE_SCOPE}"]`)?.addEventListener('click', () => {
+      const filters = ensureActivityListFilters(state, ARCHIVE_SCOPE);
+      filters.q = '';
+      filters.appliedQ = '';
+      filters.visibleCount = ARCHIVE_DEFAULT_VISIBLE_LIMIT;
+      state.archiveYear = '';
       rerenderLocal();
+    });
+
+    root.addEventListener('click', (ev) => {
+      const showMoreBtn = ev.target.closest(`[data-list-show-more="${ARCHIVE_SCOPE}"]`);
+      if (!showMoreBtn) return;
+      const next = Number(showMoreBtn.dataset?.nextCount || ARCHIVE_DEFAULT_VISIBLE_LIMIT);
+      ensureActivityListFilters(state, ARCHIVE_SCOPE).visibleCount = next;
+      replaceTableSection();
     });
 
     root.querySelectorAll('[data-archive-year]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.archiveYear = String(btn.dataset.archiveYear || '').trim();
+        ensureActivityListFilters(state, ARCHIVE_SCOPE).visibleCount = ARCHIVE_DEFAULT_VISIBLE_LIMIT;
         rerenderLocal();
       });
     });
