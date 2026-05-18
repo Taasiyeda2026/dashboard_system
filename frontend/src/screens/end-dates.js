@@ -27,12 +27,19 @@ function resolveDates(row) {
   return { dates: [], source: 'none' };
 }
 
+function currentMonthStart() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
 function normalizeRows(rows) {
+  const minDate = currentMonthStart();
   return rows
     .filter((row) => String(row?.activity_family || '').trim() === 'program')
     .map((row) => {
       const endDate = asIso(row?.end_date) || asIso(row?.date_end);
       if (!endDate) return null;
+      if (endDate < minDate) return null;
       const { dates, source } = resolveDates(row);
       return { ...row, end_date: endDate, _dates: dates, _dateSource: source };
     })
