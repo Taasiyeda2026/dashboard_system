@@ -586,6 +586,31 @@ function putCachedActivityDates(summaryRow, data, s) {
   }
 }
 
+/**
+ * Returns the nearest upcoming meeting date (today or future) from a row's date columns.
+ * Returns '' if all dates have passed or none exist.
+ */
+function nextMeetingDate(row) {
+  const today = new Date().toISOString().slice(0, 10);
+  const dates = [];
+  // Collect from meeting_dates / date_cols array (already normalised)
+  const cols = Array.isArray(row?.meeting_dates) ? row.meeting_dates
+    : Array.isArray(row?.date_cols) ? row.date_cols : [];
+  for (const d of cols) {
+    const s = String(d || '').trim().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) dates.push(s);
+  }
+  // Also scan date_1..date_35 / Date1..Date35 directly
+  for (let i = 1; i <= 35; i++) {
+    const v = row?.[`date_${i}`] || row?.[`Date${i}`] || '';
+    const s = String(v).trim().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s) && !dates.includes(s)) dates.push(s);
+  }
+  if (!dates.length) return '';
+  const future = dates.filter((d) => d >= today).sort();
+  return future.length ? future[0] : '';
+}
+
 export const activitiesScreen = {
   async load({ api, state }) {
     if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
@@ -658,7 +683,7 @@ export const activitiesScreen = {
         <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}<span class="ds-activities-manager-line" title="${escapeHtml(managerLabel || '—')}">מנהל: ${escapeHtml(managerLabel || '—')}</span></div></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe)}</time></td>
-        <td class="ds-activities-col ds-activities-col--meetings"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(formatActivityDateColumnsHe(row))}">${escapeHtml(formatActivityDateColumnsHe(row))}</span></td>
+        <td class="ds-activities-col ds-activities-col--meetings">${(() => { const nd = nextMeetingDate(row); const ndHe = nd ? (formatDateHe(nd) || nd) : ''; return ndHe ? `<time class="ds-activities-date" title="${escapeHtml(nd)}">${escapeHtml(ndHe)}</time>` : '<span class="ds-activities-date ds-activities-date--none">—</span>'; })()}</td>
         <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(String(row.notes || '—'))}">${escapeHtml(String(row.notes || '—'))}</span></td>
         ${canSeePrivateNotes ? `<td>${escapeHtml(row.private_note || '')}</td>` : ''}
       </tr>
@@ -698,7 +723,7 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--notes">
                   ${canSeePrivateNotes ? '<col>' : ''}
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>תאריכי מפגשים</th><th>הערות</th>${thPrivate}</tr></thead>
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>הערות</th>${thPrivate}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
 

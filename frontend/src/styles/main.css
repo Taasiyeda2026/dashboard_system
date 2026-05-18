@@ -8256,7 +8256,7 @@ select.ds-activity-add-field .ds-input,
 .ds-table--activities-list col.ds-activities-col--school     { width: 12%; }
 .ds-table--activities-list col.ds-activities-col--instructor { width: 11%; }
 .ds-table--activities-list col.ds-activities-col--date       { width: 9%; }
-.ds-table--activities-list col.ds-activities-col--meetings   { width: 18%; }
+.ds-table--activities-list col.ds-activities-col--meetings   { width: 9%; }
 .ds-table--activities-list col.ds-activities-col--notes      { width: 13%; }
 
 .ds-table--archive col { width: calc(100% / 8); }
