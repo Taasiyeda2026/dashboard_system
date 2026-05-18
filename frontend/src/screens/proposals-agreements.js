@@ -291,7 +291,7 @@ export const proposalsAgreementsScreen = {
         </div>
         <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> רשומות</div>
         <div data-pa-form-host hidden></div>
-        ${dsCard({ title: 'רשומות', padded: false, body: `<div data-pa-table-region>${tableHtml(rows)}</div>` })}
+        ${dsCard({ title: 'רשומות', padded: false, body: `<div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows)}</div>` })}
         ${drawerHtml(null)}
       </section>
     `);

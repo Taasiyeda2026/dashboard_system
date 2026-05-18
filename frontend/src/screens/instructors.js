@@ -196,7 +196,7 @@ function renderInstructorRow(row) {
 
   const statCells = TYPE_ITEMS.map(({ keys, label, icon }) => {
     const count = keys.reduce((sum, key) => sum + Number(typeCounts[key] || 0), 0);
-    return `<span class="instr-stat" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${count}"><span class="instr-stat__icon">${instructorTypeIcon(icon)}</span><span class="instr-stat__num">${count}</span></span>`;
+    return `<span class="instr-stat" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${count}"><span class="instr-stat__icon">${instructorTypeIcon(icon)}</span><span class="instr-stat__num${count === 0 ? ' is-zero' : ''}">${count}</span></span>`;
   }).join('');
 
   return `<article class="instr-card" data-instructor-item="${escapeHtml(empId)}">

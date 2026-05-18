@@ -107,7 +107,6 @@ function renderStructuredSummary(summary, ym, byManager) {
   const missingInstructorCount = pickNumericFallback(counts, 'missing_instructor', summary?.missing_instructor_count);
   const missingStartDateCount = pickNumericFallback(counts, 'missing_start_date', summary?.missing_start_date_count ?? summary?.missing_date_count);
   const lateEndCount = pickNumericFallback(counts, 'late_end_date', summary?.late_end_date_count);
-  const operationalGapsCount = missingInstructorCount + missingStartDateCount;
   const exceptionsTotalField = getStrictNumericField(summary, 'totalExceptionRows');
   const exceptionsTotalFallback = getStrictNumericField(summary, 'exceptions_count');
   const exceptionsTotalResolved = exceptionsTotalField.ok
@@ -115,7 +114,7 @@ function renderStructuredSummary(summary, ym, byManager) {
     : (exceptionsTotalFallback.ok ? exceptionsTotalFallback.value : 0);
 
   const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 0));
-  const operationalGaps = escapeHtml(String(operationalGapsCount));
+  const operationalGaps = escapeHtml(String(exceptionsTotalResolved));
   const lateEnd = escapeHtml(String(lateEndCount));
   const exceptionsTotal = escapeHtml(String(exceptionsTotalResolved));
 
@@ -580,6 +579,20 @@ export const dashboardScreen = {
       }
       if (action === 'kpi|active_courses' || action === 'kpi|active_workshops' || action === 'kpi|active_tours' || action === 'kpi|active_after_school' || action === 'kpi|active_escape_room') {
         goActivitiesDrill(state, { activityQuickFamily: 'long' });
+        const quickTypeMap = {
+          'kpi|active_courses': 'course',
+          'kpi|active_workshops': 'workshop',
+          'kpi|active_tours': 'tour',
+          'kpi|active_after_school': 'after_school',
+          'kpi|active_escape_room': 'escape_room'
+        };
+        state.listFilters = state.listFilters || {};
+        const prev = state.listFilters.activities || {};
+        state.listFilters.activities = {
+          ...prev,
+          activity_type: quickTypeMap[action] || '',
+          visibleCount: 200
+        };
         ui.closeAll();
         rerender();
         return;
@@ -593,6 +606,7 @@ export const dashboardScreen = {
       }
       if (action === 'kpi|endings') {
         state.route = 'end-dates';
+        state.endDatesMonthYm = state.dashboardMonthYm || currentMonthYm();
         ui.closeAll();
         rerender();
         return;
