@@ -9,24 +9,24 @@ const FIELD_LABELS = {
   client_authority: 'לקוח / רשות',
   school_framework: 'בית ספר / מסגרת',
   document_type: 'סוג מסמך',
-  activity_type: 'סוג פעילות',
+  activity_type_group: 'סוג פעילות',
   notes: 'הערות',
   contact_name: 'שם איש קשר',
   contact_role: 'תפקיד איש קשר',
-  contact_phone: 'טלפון',
-  contact_email: 'דוא״ל'
+  phone: 'טלפון',
+  email: 'דוא״ל'
 };
 
-const REQUIRED_FIELDS = ['client_authority', 'school_framework', 'document_type', 'activity_type'];
+const REQUIRED_FIELDS = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'];
 const FORM_FIELDS = [
   'client_authority',
   'school_framework',
   'document_type',
-  'activity_type',
+  'activity_type_group',
   'contact_name',
   'contact_role',
-  'contact_phone',
-  'contact_email',
+  'phone',
+  'email',
   'notes'
 ];
 
@@ -52,12 +52,12 @@ export function buildProposalsAgreementsSearchText(row = {}) {
     row.client_authority,
     row.school_framework,
     row.document_type,
-    row.activity_type,
+    row.activity_type_group,
     row.notes,
     row.contact_name,
     row.contact_role,
-    row.contact_phone,
-    row.contact_email
+    row.phone,
+    row.email
   ].map(normalizeSearch).filter(Boolean).join(' ');
 }
 
@@ -67,11 +67,11 @@ export function normalizeProposalAgreementRow(row = {}) {
     client_authority: text(row.client_authority),
     school_framework: text(row.school_framework),
     document_type: text(row.document_type),
-    activity_type: text(row.activity_type),
+    activity_type_group: text(row.activity_type_group),
     contact_name: text(row.contact_name),
     contact_role: text(row.contact_role),
-    contact_phone: text(row.contact_phone),
-    contact_email: text(row.contact_email),
+    phone: text(row.phone),
+    email: text(row.email),
     notes: text(row.notes),
     created_at: text(row.created_at),
     updated_at: text(row.updated_at)
@@ -85,7 +85,7 @@ function sortRows(rows) {
     text(a.client_authority).localeCompare(text(b.client_authority), 'he') ||
     text(a.school_framework).localeCompare(text(b.school_framework), 'he') ||
     text(a.document_type).localeCompare(text(b.document_type), 'he') ||
-    text(a.activity_type).localeCompare(text(b.activity_type), 'he')
+    text(a.activity_type_group).localeCompare(text(b.activity_type_group), 'he')
   ));
 }
 
@@ -93,7 +93,7 @@ function rowMatches(row, filters) {
   const q = normalizeSearch(filters.q);
   if (q && !normalizeSearch(row._searchText).includes(q)) return false;
   if (filters.document_type && text(row.document_type) !== filters.document_type) return false;
-  if (filters.activity_type && text(row.activity_type) !== filters.activity_type) return false;
+  if (filters.activity_type_group && text(row.activity_type_group) !== filters.activity_type_group) return false;
   return true;
 }
 
@@ -113,7 +113,7 @@ function filterSelectHtml(key, label, values) {
 }
 
 function contactSummary(row) {
-  const parts = [row.contact_name, row.contact_role, row.contact_phone, row.contact_email].map(text).filter(Boolean);
+  const parts = [row.contact_name, row.contact_role, row.phone, row.email].map(text).filter(Boolean);
   return parts.length ? parts.join(' · ') : '—';
 }
 
@@ -121,7 +121,7 @@ function detailRowsHtml(row) {
   return FORM_FIELDS.map((key) => `
     <div class="ds-pa-detail-row">
       <span class="ds-pa-detail-label">${escapeHtml(FIELD_LABELS[key])}</span>
-      <span class="ds-pa-detail-value">${escapeHtml(key.startsWith('contact_') ? (row[key] || '—') : (row[key] || '—'))}</span>
+      <span class="ds-pa-detail-value">${escapeHtml(row[key] || '—')}</span>
     </div>`).join('');
 }
 
@@ -134,7 +134,7 @@ export function proposalsAgreementsTableRowsHtml(rows) {
       <td>${escapeHtml(row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(row.document_type || '—')}</td>
-      <td>${escapeHtml(row.activity_type || '—')}</td>
+      <td>${escapeHtml(row.activity_type_group || '—')}</td>
       <td class="ds-pa-notes" title="${escapeHtml(row.notes || '')}">${escapeHtml(row.notes || '—')}</td>
     </tr>`).join('');
 }
@@ -156,8 +156,8 @@ function formFieldHtml(key, value = '', activityOptions = []) {
   if (key === 'notes') {
     return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><textarea class="ds-input" name="${key}" rows="3"${attrs}>${val}</textarea></label>`;
   }
-  const listAttr = key === 'activity_type' ? ' list="proposalsAgreementsActivityOptions"' : '';
-  const datalist = key === 'activity_type'
+  const listAttr = key === 'activity_type_group' ? ' list="proposalsAgreementsActivityOptions"' : '';
+  const datalist = key === 'activity_type_group'
     ? `<datalist id="proposalsAgreementsActivityOptions">${activityOptions.map((item) => `<option value="${escapeHtml(item)}"></option>`).join('')}</datalist>`
     : '';
   return `<label class="ds-pa-form-field"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><input class="ds-input ds-input--sm" name="${key}" value="${val}"${listAttr}${attrs}></label>${datalist}`;
@@ -206,7 +206,7 @@ function currentFilters(root) {
   return {
     q: root.querySelector('[data-pa-search]')?.value || '',
     document_type: root.querySelector('[data-pa-filter="document_type"]')?.value || '',
-    activity_type: root.querySelector('[data-pa-filter="activity_type"]')?.value || ''
+    activity_type_group: root.querySelector('[data-pa-filter="activity_type_group"]')?.value || ''
   };
 }
 
@@ -256,7 +256,7 @@ export const proposalsAgreementsScreen = {
         <div class="ds-pa-toolbar">
           <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
           ${filterSelectHtml('document_type', 'סוג מסמך', uniqueValues(rawRows, 'document_type'))}
-          ${filterSelectHtml('activity_type', 'סוג פעילות', uniqueValues(rawRows, 'activity_type'))}
+          ${filterSelectHtml('activity_type_group', 'סוג פעילות', uniqueValues(rawRows, 'activity_type_group'))}
           <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-add>הוספה</button>
         </div>
         <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> רשומות</div>

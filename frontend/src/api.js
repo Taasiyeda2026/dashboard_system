@@ -1339,7 +1339,7 @@ function normalizeData(data) {
 
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type,contact_name,contact_role,contact_phone,contact_email,notes,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,contact_name,contact_role,phone,email,notes,created_at,updated_at';
 
 function canUseProposalsAgreementsApi() {
   const role = String(state?.user?.display_role || state?.user?.role || '').trim();
@@ -1360,12 +1360,12 @@ function buildProposalAgreementSearchText(row = {}) {
     row.client_authority,
     row.school_framework,
     row.document_type,
-    row.activity_type,
+    row.activity_type_group,
     row.notes,
     row.contact_name,
     row.contact_role,
-    row.contact_phone,
-    row.contact_email
+    row.phone,
+    row.email
   ].map(cleanProposalAgreementText).filter(Boolean).join(' ').toLowerCase();
 }
 
@@ -1375,11 +1375,11 @@ function normalizeProposalAgreementRow(row = {}) {
     client_authority: cleanProposalAgreementText(row.client_authority),
     school_framework: cleanProposalAgreementText(row.school_framework),
     document_type: cleanProposalAgreementText(row.document_type),
-    activity_type: cleanProposalAgreementText(row.activity_type),
+    activity_type_group: cleanProposalAgreementText(row.activity_type_group),
     contact_name: cleanProposalAgreementText(row.contact_name),
     contact_role: cleanProposalAgreementText(row.contact_role),
-    contact_phone: cleanProposalAgreementText(row.contact_phone),
-    contact_email: cleanProposalAgreementText(row.contact_email),
+    phone: cleanProposalAgreementText(row.phone),
+    email: cleanProposalAgreementText(row.email),
     notes: cleanProposalAgreementText(row.notes),
     created_at: cleanProposalAgreementText(row.created_at),
     updated_at: cleanProposalAgreementText(row.updated_at)
@@ -1393,14 +1393,14 @@ function sanitizeProposalAgreementPayload(payload = {}) {
     client_authority: cleanProposalAgreementText(payload.client_authority),
     school_framework: cleanProposalAgreementText(payload.school_framework),
     document_type: cleanProposalAgreementText(payload.document_type),
-    activity_type: cleanProposalAgreementText(payload.activity_type),
+    activity_type_group: cleanProposalAgreementText(payload.activity_type_group),
     contact_name: cleanProposalAgreementText(payload.contact_name),
     contact_role: cleanProposalAgreementText(payload.contact_role),
-    contact_phone: cleanProposalAgreementText(payload.contact_phone),
-    contact_email: cleanProposalAgreementText(payload.contact_email),
+    phone: cleanProposalAgreementText(payload.phone),
+    email: cleanProposalAgreementText(payload.email),
     notes: cleanProposalAgreementText(payload.notes)
   };
-  const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type'].filter((key) => !row[key]);
+  const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'].filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
   return row;
 }
@@ -1413,7 +1413,7 @@ async function readProposalsAgreementsFromSupabase() {
     .order('client_authority', { ascending: true })
     .order('school_framework', { ascending: true })
     .order('document_type', { ascending: true })
-    .order('activity_type', { ascending: true });
+    .order('activity_type_group', { ascending: true });
   if (error) throw new Error(error.message || 'proposals_agreements_read_failed');
   return { rows: (Array.isArray(data) ? data : []).map(normalizeProposalAgreementRow), _source: 'supabase' };
 }
