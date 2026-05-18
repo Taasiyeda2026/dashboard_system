@@ -266,12 +266,12 @@ export const proposalsAgreementsScreen = {
   },
   render(data = {}, { state } = {}) {
     if (data?.unauthorized || !canAccessProposalsAgreements(state)) {
-      return dsScreenStack(`${dsPageHeader('הצעות והסכמים', 'גישה מוגבלת למורשים בלבד')}${dsEmptyState('אין לך הרשאה לצפות במסך זה')}`);
+      return dsScreenStack(`${dsPageHeader('הצעות', 'גישה מוגבלת למורשים בלבד')}${dsEmptyState('אין לך הרשאה לצפות במסך זה')}`);
     }
     const rows = displayRows(data, {});
     const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
     return dsScreenStack(`
-      ${dsPageHeader('הצעות והסכמים', 'ניהול הצעות, הסכמים ופרטי קשר לרשומה')}
+      ${dsPageHeader('הצעות', 'ניהול הצעות, הסכמים ופרטי קשר לרשומה')}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <div class="ds-pa-toolbar">
           <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>

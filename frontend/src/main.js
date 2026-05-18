@@ -510,7 +510,7 @@ const screenLabels = {
   'admin-settings': 'הגדרות מערכת',
   'admin-lists': 'ניהול רשימות',
   archive: 'ארכיון',
-  'proposals-agreements': 'הצעות והסכמים'
+  'proposals-agreements': 'הצעות'
 };
 
 const screenLoaders = {

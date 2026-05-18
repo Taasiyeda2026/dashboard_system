@@ -9519,12 +9519,28 @@ select.ds-activity-add-field .ds-input,
 .ds-pa-table {
   table-layout: fixed;
   width: 100%;
+  font-size: 0.86rem;
+}
+
+.ds-pa-table thead th:nth-child(1) { width: 22%; }
+.ds-pa-table thead th:nth-child(2) { width: 22%; }
+.ds-pa-table thead th:nth-child(3) { width: 14%; }
+.ds-pa-table thead th:nth-child(4) { width: 16%; }
+.ds-pa-table thead th:nth-child(5) { width: auto; }
+
+.ds-pa-table th {
+  font-weight: 700;
+  color: var(--ds-color-text, #0f172a);
+  background: var(--ds-color-surface-soft, #f8fafc);
 }
 
 .ds-pa-table th,
 .ds-pa-table td {
-  padding: 8px 10px;
+  padding: 7px 10px;
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ds-pa-table tbody tr {
@@ -9538,10 +9554,10 @@ select.ds-activity-add-field .ds-input,
 }
 
 .ds-pa-notes {
-  max-width: 1px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--ds-color-text-muted, #64748b);
 }
 
 .ds-pa-empty-row td {
@@ -9614,10 +9630,11 @@ select.ds-activity-add-field .ds-input,
 
 .ds-pa-form {
   margin: 8px 0 12px;
-  padding: 10px 12px;
+  padding: 10px 14px;
   border: 1px solid var(--ds-color-border, #e2e8f0);
   border-radius: var(--ds-radius-lg, 14px);
   background: var(--ds-color-surface-soft, #f8fafc);
+  max-width: 680px;
 }
 
 .ds-pa-form-title {
