@@ -1,5 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack } from './shared/layout.js';
+import { computeOperationalExceptionsTotal } from './shared/exceptions-metrics.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -65,6 +66,8 @@ const KPI_ICON_MAP = {
   'kpi|exceptions':         '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
   'kpi|instructors':        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
   'kpi|endings':            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+  'kpi|missing_instructor': '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="23" y2="12"/><line x1="23" y1="8" x2="19" y2="12"/></svg>',
+  'kpi|missing_start_date': '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/></svg>',
   'kpi|active_courses':     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>',
   'kpi|active_workshops':   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>',
   'kpi|active_tours':       '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>',
@@ -185,7 +188,9 @@ const ALLOWED_KPI_ACTIONS = new Set([
   'kpi|active_escape_room',
   'kpi|exceptions',
   'kpi|instructors',
-  'kpi|endings'
+  'kpi|endings',
+  'kpi|missing_instructor',
+  'kpi|missing_start_date'
 ]);
 
 function filterKpiCards(cards, showOnlyNonzero) {
@@ -356,7 +361,13 @@ export const dashboardScreen = {
       console.warn('[dashboard] KPI cards empty', { month: ym, has_totals: !!data?.totals, has_summary: !!data?.summary });
       _kpiSource = [];
     }
-    const kpiCards = filterKpiCards(_kpiSource, showOnly);
+    const kpiCards = filterKpiCards(_kpiSource, showOnly).map((card) => {
+      if (card?.action !== 'kpi|exceptions') return card;
+      const value = computeOperationalExceptionsTotal({
+        fallback: data?.summary?.operational_gaps_unique_count ?? data?.summary?.operationalTotal ?? data?.totals?.exceptions_count
+      });
+      return { ...card, value };
+    });
     if (kpiCards.length === 0) {
       console.warn('[dashboard] KPI cards empty after filtering', { month: ym, show_only_nonzero_kpis: showOnly });
     }
@@ -607,6 +618,19 @@ export const dashboardScreen = {
       if (action === 'kpi|endings') {
         state.route = 'end-dates';
         state.endDatesMonthYm = state.dashboardMonthYm || currentMonthYm();
+        ui.closeAll();
+        rerender();
+        return;
+      }
+      if (action === 'kpi|missing_instructor' || action === 'kpi|missing_start_date') {
+        state.route = 'exceptions';
+        state.exceptionsMonthYm = state.dashboardMonthYm || currentMonthYm();
+        resetExceptionsFilters('');
+        state.activityListFilters = state.activityListFilters || {};
+        state.activityListFilters.exceptions = {
+          ...(state.activityListFilters.exceptions || {}),
+          exception_type: action === 'kpi|missing_instructor' ? 'missing_instructor' : 'missing_start_date'
+        };
         ui.closeAll();
         rerender();
         return;
