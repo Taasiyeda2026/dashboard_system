@@ -1,5 +1,5 @@
 import { escapeHtml } from './html.js';
-import { formatDateHe, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
+import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL, resolveActivityInstructorName } from './activity-options.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
@@ -202,11 +202,9 @@ function autoEndDate(row) {
 }
 
 function fmtWeekdayShort(iso) {
-  if (!iso) return '—';
-  const date = new Date(`${iso}T12:00:00`);
-  const map = ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'יום ש׳'];
-  if (Number.isNaN(date.getTime())) return '—';
-  return map[date.getDay()] || '—';
+  const formatted = formatDateHeWithWeekday(iso);
+  if (!formatted || formatted === '—') return '—';
+  return String(formatted).split(' · ')[0] || '—';
 }
 
 function fieldViewEdit(label, viewHtml, editHtml) {
@@ -462,8 +460,7 @@ function buildDateChipsHtml(schedule, isOnce) {
       const isDone = String(item?.performed || '').toLowerCase() === 'yes';
       return `
         <div class="activity-drawer__date-chip ${isDone ? 'is-done' : ''}" data-date-card>
-          <span>${escapeHtml(formatDateHe(item?.date || ''))}</span>
-          <span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>
+          <span>${escapeHtml(formatDateHeWithWeekday(item?.date || ''))}</span>
         </div>
       `;
     })
@@ -517,7 +514,7 @@ function blockDates(row, { canEdit = false, datesLoading = false } = {}) {
 
   const loadingAttr = datesLoading ? ' data-dates-loading="true"' : '';
   const progressHtml = datesLoading
-    ? `<div class="activity-drawer__progress" data-mode="view" data-dates-progress>
+    ? `<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
           <span class="ds-muted">טוען תאריכי מפגשים...</span>
         </div>
@@ -525,14 +522,15 @@ function blockDates(row, { canEdit = false, datesLoading = false } = {}) {
           <div class="activity-drawer__progress-fill" style="width:0%"></div>
         </div>
       </div>
-      <div class="activity-drawer__end-date" data-mode="view">
+      <div class="activity-drawer__end-date">
         <span>🏁 תאריך סיום</span>
         <strong data-computed-end-display>—</strong>
+      </div>
       </div>
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
         <div class="activity-drawer__date-chip ds-muted" aria-busy="true">טוען...</div>
       </div>`
-    : `<div class="activity-drawer__progress" data-mode="view" data-dates-progress>
+    : `<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
           <span>${done} מתוך ${total} מפגשים</span>
           <span>${progressPct}%</span>
@@ -541,9 +539,10 @@ function blockDates(row, { canEdit = false, datesLoading = false } = {}) {
           <div class="activity-drawer__progress-fill" style="width:${progressPct}%"></div>
         </div>
       </div>
-      <div class="activity-drawer__end-date" data-mode="view">
+      <div class="activity-drawer__end-date">
         <span>🏁 תאריך סיום</span>
-        <strong data-computed-end-display>${escapeHtml(formatDateHe(computedEnd) || '—')}</strong>
+        <strong data-computed-end-display>${escapeHtml(formatDateHeWithWeekday(computedEnd) || '—')}</strong>
+      </div>
       </div>
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
         ${viewChips}
@@ -607,7 +606,7 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   if (progressFill) progressFill.style.width = `${progressPct}%`;
 
   const endDisplay = sectionEl.querySelector('[data-computed-end-display]');
-  if (endDisplay) endDisplay.textContent = formatDateHe(computedEnd) || '—';
+  if (endDisplay) endDisplay.textContent = formatDateHeWithWeekday(computedEnd) || '—';
 
   const chipsDiv = sectionEl.querySelector('[data-dates-view-chips]');
   if (chipsDiv) chipsDiv.innerHTML = buildDateChipsHtml(schedule, isOnce);

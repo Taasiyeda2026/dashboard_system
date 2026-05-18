@@ -278,7 +278,7 @@ export const monthScreen = {
 
     const navLoading = !!state.monthNavLoading;
     const gridHtml = `
-      <div class="ds-cal-wrap ds-screen-compact-90${hideSaturday ? ' ds-cal-wrap--hide-shabbat' : ''}${navLoading ? ' is-inline-loading' : ''}" dir="rtl">
+      <div class="ds-cal-wrap${hideSaturday ? ' ds-cal-wrap--hide-shabbat' : ''}${navLoading ? ' is-inline-loading' : ''}" dir="rtl">
         <div class="ds-cal-weekdays" role="row">${weekdayRow}</div>
         <div class="ds-cal-grid" role="grid" aria-label="לוח חודש">${slots.join('')}</div>
       </div>`;

@@ -83,14 +83,7 @@ function endYear(row) {
   return d || '—';
 }
 
-function yearOptions(rows) {
-  const years = new Set();
-  rows.forEach((row) => {
-    const y = endYear(row);
-    if (y !== '—') years.add(y);
-  });
-  return Array.from(years).sort((a, b) => b.localeCompare(a));
-}
+const ARCHIVE_FIXED_YEARS = ['2026', '2025'];
 
 function todayIso() {
   const d = new Date();
@@ -133,13 +126,16 @@ function archiveEffectiveFilters(filters) {
   };
 }
 
+function applyArchiveYearFilter(rows, state) {
+  const year = String(state.archiveYear || '').trim();
+  const list = Array.isArray(rows) ? rows : [];
+  if (!year) return list.slice();
+  return list.filter((row) => endYear(row) === year);
+}
+
 function applyArchiveFilters(rows, state) {
   const filters = ensureActivityListFilters(state, ARCHIVE_SCOPE);
-  let out = Array.isArray(rows) ? rows.slice() : [];
-  const year = String(state.archiveYear || '').trim();
-  if (year) {
-    out = out.filter((row) => endYear(row) === year);
-  }
+  let out = applyArchiveYearFilter(rows, state);
   const typeFilterLabel = String(state.archiveTypeFilter || '').trim();
   if (typeFilterLabel) {
     const matchType = ARCHIVE_TYPE_KPIS.find((k) => k.label === typeFilterLabel);
@@ -230,12 +226,12 @@ export const archiveScreen = {
     const filteredRows = applyArchiveFilters(allRows, state);
     const listFilters = ensureActivityListFilters(state, ARCHIVE_SCOPE);
 
-    const years = yearOptions(allRows);
     const selectedYear = String(state.archiveYear || '').trim();
+    const yearScopedRows = applyArchiveYearFilter(allRows, state);
 
     const yearBtns = [
       `<button type="button" class="ds-chip--tab${!selectedYear ? ' is-active' : ''}" data-archive-year="">הכל</button>`,
-      ...years.map((y) =>
+      ...ARCHIVE_FIXED_YEARS.map((y) =>
         `<button type="button" class="ds-chip--tab${selectedYear === y ? ' is-active' : ''}" data-archive-year="${escapeHtml(y)}">${escapeHtml(y)}</button>`
       )
     ].join('');
@@ -268,7 +264,7 @@ export const archiveScreen = {
     return dsScreenStack(`
       <section class="ds-activities-screen">
         ${titleRow}
-        ${archiveTypeKpiHtml(filteredRows, String(state.archiveTypeFilter || '').trim())}
+        ${archiveTypeKpiHtml(yearScopedRows, String(state.archiveTypeFilter || '').trim())}
         ${yearNav}
         ${toolbar}
         ${dsCard({ body: tableSection, padded: false })}
@@ -297,10 +293,20 @@ export const archiveScreen = {
     let searchTimer;
     let searchFrame;
 
-    const replaceTableSection = () => {
-      if (!tableContainer) return;
+    const replaceArchiveView = () => {
       const filteredRows = applyArchiveFilters(allRows, state);
-      tableContainer.innerHTML = renderArchiveTableSection(filteredRows, state, allRows.length);
+      const yearScopedRows = applyArchiveYearFilter(allRows, state);
+      if (tableContainer) {
+        tableContainer.innerHTML = renderArchiveTableSection(filteredRows, state, allRows.length);
+      }
+      const kpiRow = root.querySelector('.ds-archive-kpi-row');
+      if (kpiRow) {
+        kpiRow.outerHTML = archiveTypeKpiHtml(yearScopedRows, String(state.archiveTypeFilter || '').trim());
+      }
+      const titleEl = root.querySelector('.ds-activities-page-title');
+      if (titleEl) {
+        titleEl.textContent = `ארכיון פעילויות · ${filteredRows.length} פעילויות סגורות`;
+      }
     };
 
     const scheduleTableFilter = () => {
@@ -311,7 +317,7 @@ export const archiveScreen = {
         }
         const run = () => {
           searchFrame = null;
-          replaceTableSection();
+          replaceArchiveView();
         };
         searchFrame = typeof globalThis.requestAnimationFrame === 'function'
           ? globalThis.requestAnimationFrame(run)
@@ -355,22 +361,24 @@ export const archiveScreen = {
       if (!showMoreBtn) return;
       const next = Number(showMoreBtn.dataset?.nextCount || ARCHIVE_DEFAULT_VISIBLE_LIMIT);
       ensureActivityListFilters(state, ARCHIVE_SCOPE).visibleCount = next;
-      replaceTableSection();
+      replaceArchiveView();
     });
 
-    root.querySelectorAll('[data-archive-year]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.archiveYear = String(btn.dataset.archiveYear || '').trim();
+    root.addEventListener('click', (ev) => {
+      const yearBtn = ev.target.closest('[data-archive-year]');
+      if (yearBtn) {
+        state.archiveYear = String(yearBtn.dataset.archiveYear || '').trim();
         ensureActivityListFilters(state, ARCHIVE_SCOPE).visibleCount = ARCHIVE_DEFAULT_VISIBLE_LIMIT;
         rerenderLocal();
-      });
-    });
-    root.querySelectorAll('[data-archive-kpi]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const value = btn.dataset.archiveKpi || '';
+        return;
+      }
+      const kpiBtn = ev.target.closest('[data-archive-kpi]');
+      if (kpiBtn) {
+        const value = kpiBtn.dataset.archiveKpi || '';
         state.archiveTypeFilter = state.archiveTypeFilter === value ? '' : value;
-        refresh();
-      });
+        ensureActivityListFilters(state, ARCHIVE_SCOPE).visibleCount = ARCHIVE_DEFAULT_VISIBLE_LIMIT;
+        replaceArchiveView();
+      }
     });
 
     const canReopen = ['admin', 'operation_manager'].includes(state?.user?.display_role);

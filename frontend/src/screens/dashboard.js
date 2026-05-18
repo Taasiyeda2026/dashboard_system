@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack } from './shared/layout.js';
 import { computeOperationalExceptionsTotal } from './shared/exceptions-metrics.js';
+import { syncActivitiesGapQuery } from './shared/route-query.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -117,7 +118,7 @@ function renderStructuredSummary(summary, ym, byManager) {
     : (exceptionsTotalFallback.ok ? exceptionsTotalFallback.value : 0);
 
   const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 0));
-  const operationalGaps = escapeHtml(String(exceptionsTotalResolved));
+  const operationalGaps = escapeHtml(String(lateEndCount));
   const lateEnd = escapeHtml(String(lateEndCount));
   const exceptionsTotal = escapeHtml(String(exceptionsTotalResolved));
 
@@ -176,6 +177,10 @@ function goActivitiesDrill(state, patch) {
   state.activityQuickManager = patch.activityQuickManager ?? '';
   state.activityEndingCurrentMonth = !!patch.activityEndingCurrentMonth;
   state.activitiesMonthYm = state.dashboardMonthYm || currentMonthYm();
+  if (Object.prototype.hasOwnProperty.call(patch, 'activitiesGapFilter')) {
+    state.activitiesGapFilter = patch.activitiesGapFilter || '';
+    syncActivitiesGapQuery(state.activitiesGapFilter);
+  }
 }
 
 const ALLOWED_KPI_ACTIONS = new Set([
@@ -364,7 +369,8 @@ export const dashboardScreen = {
     const kpiCards = filterKpiCards(_kpiSource, showOnly).map((card) => {
       if (card?.action !== 'kpi|exceptions') return card;
       const value = computeOperationalExceptionsTotal({
-        fallback: data?.summary?.operational_gaps_unique_count ?? data?.summary?.operationalTotal ?? data?.totals?.exceptions_count
+        rows: [],
+        fallback: data?.summary?.late_end_date_count ?? data?.summary?.counts?.late_end_date ?? data?.totals?.late_end_date_count
       });
       return { ...card, value };
     });
@@ -630,14 +636,11 @@ export const dashboardScreen = {
         return;
       }
       if (action === 'kpi|missing_instructor' || action === 'kpi|missing_start_date') {
-        state.route = 'exceptions';
-        state.exceptionsMonthYm = state.dashboardMonthYm || currentMonthYm();
-        resetExceptionsFilters('');
-        state.activityListFilters = state.activityListFilters || {};
-        state.activityListFilters.exceptions = {
-          ...(state.activityListFilters.exceptions || {}),
-          exception_type: action === 'kpi|missing_instructor' ? 'missing_instructor' : 'missing_start_date'
-        };
+        const gapFilter = action === 'kpi|missing_instructor' ? 'missing_instructor' : 'missing_start_date';
+        goActivitiesDrill(state, {
+          activityQuickFamily: 'long',
+          activitiesGapFilter: gapFilter
+        });
         ui.closeAll();
         rerender();
         return;

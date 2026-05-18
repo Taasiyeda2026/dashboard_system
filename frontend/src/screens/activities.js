@@ -34,6 +34,8 @@ import {
   cleanUnique,
   NO_ACTIVITY_MANAGER_LABEL
 } from './shared/activity-options.js';
+import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
+import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 
 const inflightActivityDetailRequests = new Map();
 
@@ -442,13 +444,20 @@ function compareActivityDefaultOrder(a, b) {
   return String(a?.start_date || '').localeCompare(String(b?.start_date || ''));
 }
 
+function applyActivitiesGapFilter(rows, gapFilter) {
+  const gap = String(gapFilter || '').trim();
+  if (!isActivitiesGapQueryValue(gap)) return rows;
+  return rows.filter((row) => rowMatchesActivityGapFilter(row, gap));
+}
+
 function applyActivitiesLocalFilters(rows, state, settings) {
   const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
   if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
   const familyRows = applyClientFilters(rows, state, settings);
   const monthRows = familyRows.filter((row) => activityOverlapsMonth(row, state.activitiesMonthYm));
-  prepareRowsForSearch(monthRows, ACTIVITY_SEARCH_FIELDS);
-  return applyLocalFilters(monthRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
+  const gapRows = applyActivitiesGapFilter(monthRows, state.activitiesGapFilter);
+  prepareRowsForSearch(gapRows, ACTIVITY_SEARCH_FIELDS);
+  return applyLocalFilters(gapRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
 }
 
 function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
@@ -935,10 +944,19 @@ export const activitiesScreen = {
         .catch(() => {});
     }
 
+    const gapFromQuery = readActivitiesGapFromQuery();
+    if (gapFromQuery) state.activitiesGapFilter = gapFromQuery;
+    else if (!isActivitiesGapQueryValue(state.activitiesGapFilter)) {
+      state.activitiesGapFilter = '';
+    }
+    syncActivitiesGapQuery(state.activitiesGapFilter);
+
     bindLocalFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal, { debounceMs: 150, onClear: () => {
       state.activityQuickFamily = '';
       state.activityQuickManager = '';
       state.activityEndingCurrentMonth = false;
+      state.activitiesGapFilter = '';
+      syncActivitiesGapQuery('');
       state.activityTab = 'all';
       state.activityFinanceStatus = '';
     } });

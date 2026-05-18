@@ -159,14 +159,15 @@ export const endDatesScreen = {
       ? `<div class="ds-end-dates__months">${months.map((m, i) => renderMonthTable(m, i)).join('')}</div>`
       : dsEmptyState('לא נמצאו פעילויות מתמשכות עם תאריך סיום');
 
-    return dsScreenStack(
-      dsCard({
-        title: 'תאריכי סיום פעילויות',
-        badge: monthBadge,
-        body: `${headerTools}${body}`,
-        padded: true
-      })
-    );
+    return dsScreenStack(`
+      <section class="ds-end-dates-screen" dir="rtl">
+        <h1 class="ds-end-dates-page-title">תאריכי סיום פעילויות</h1>
+        ${dsCard({
+          badge: monthBadge,
+          body: `${headerTools}${body}`,
+          padded: true
+        })}
+      </section>`);
   },
 
   bind({ root, data, state, refresh }) {

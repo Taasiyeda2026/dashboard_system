@@ -75,7 +75,7 @@ test('screen authorization allows only domain_manager, operation_manager and adm
   for (const role of ['domain_manager', 'operation_manager', 'admin']) {
     assert.equal(canAccessProposalsAgreements(stateFor(role)), true, `${role} should be allowed`);
     const html = proposalsAgreementsScreen.render({ rows: [] }, { state: stateFor(role) });
-    assert.match(html, /הצעות והסכמים/);
+    assert.match(html, /הצעות/);
     assert.doesNotMatch(html, /אין לך הרשאה/);
   }
 
@@ -89,7 +89,7 @@ test('screen authorization allows only domain_manager, operation_manager and adm
 test('proposals-agreements route is registered and role-gated in route definitions', async () => {
   const mainSource = await readFile(MAIN_FILE, 'utf8');
   const apiSource = await readFile(API_FILE, 'utf8');
-  assert.match(mainSource, /'proposals-agreements': 'הצעות והסכמים'/);
+  assert.match(mainSource, /'proposals-agreements': 'הצעות'/);
   assert.match(mainSource, /'proposals-agreements': \(\) => import\('\.\/screens\/proposals-agreements\.js'\)/);
   assert.match(apiSource, /admin: \[[^\]]*'proposals-agreements'/);
   assert.match(apiSource, /operation_manager: \[[^\]]*'proposals-agreements'/);

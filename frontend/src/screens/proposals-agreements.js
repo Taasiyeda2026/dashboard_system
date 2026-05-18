@@ -66,18 +66,22 @@ export function buildProposalsAgreementsSearchText(row = {}) {
   ].map(normalizeSearch).filter(Boolean).join(' ');
 }
 
+function normalizeActivityNames(value) {
+  return Array.isArray(value) ? value.map(text).filter(Boolean) : text(value).split(',').map(text).filter(Boolean);
+}
+
 export function normalizeProposalAgreementRow(row = {}) {
   const normalized = {
     id:                  text(row.id),
     client_authority:    text(row.client_authority),
     school_framework:    text(row.school_framework),
     document_type:       text(row.document_type),
-    activity_type_group: text(row.activity_type_group),
-    activity_names:      Array.isArray(row.activity_names) ? row.activity_names.map(text).filter(Boolean) : text(row.activity_names).split(',').map(text).filter(Boolean),
+    activity_type_group: text(row.activity_type_group || row.activity_type),
+    activity_names:      normalizeActivityNames(row.activity_names),
     contact_name:        text(row.contact_name),
     contact_role:        text(row.contact_role),
-    phone:               text(row.phone),
-    email:               text(row.email),
+    phone:               text(row.phone || row.contact_phone),
+    email:               text(row.email || row.contact_email),
     notes:               text(row.notes),
     created_at:          text(row.created_at),
     updated_at:          text(row.updated_at)

@@ -278,7 +278,7 @@ export const weekScreen = {
       </nav>
       ${toolbarHtml}
       ${weekEmptyNotice}
-      <div class="ds-week-board ds-screen-compact-90${navLoading ? ' is-inline-loading' : ''}${navDirection}" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
+      <div class="ds-week-board${navLoading ? ' is-inline-loading' : ''}${navDirection}" style="--week-cols:${safeDays.length || 7}" role="region" aria-label="לוח שבוע">${body}</div>
     `);
     return html;
   },

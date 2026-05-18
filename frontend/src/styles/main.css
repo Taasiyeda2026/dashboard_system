@@ -5674,10 +5674,10 @@ select.ds-input {
   text-align: center;
 }
 
-.ds-archive-kpi--blue   { background: #dbeafe; border-color: #93c5fd; color: #1e3a5f; }
-.ds-archive-kpi--purple { background: #ede9fe; border-color: #c4b5fd; color: #3b1f6e; }
-.ds-archive-kpi--green  { background: #dcfce7; border-color: #86efac; color: #14532d; }
-.ds-archive-kpi--orange { background: #ffedd5; border-color: #fdba74; color: #7c2d12; }
+.ds-archive-kpi--blue   { background: var(--ds-pastel-sky); border-color: var(--ds-border); color: var(--ds-accent); }
+.ds-archive-kpi--purple { background: var(--ds-pastel-lilac); border-color: var(--ds-border); color: var(--ds-accent); }
+.ds-archive-kpi--green  { background: var(--ds-pastel-mint); border-color: var(--ds-border); color: var(--ds-success); }
+.ds-archive-kpi--orange { background: var(--ds-pastel-sand); border-color: var(--ds-border); color: var(--ds-warning); }
 
 .ds-archive-year-nav {
   padding: var(--ds-space-1) 0;
@@ -7286,8 +7286,24 @@ select.ds-input {
   margin: 0;
 }
 
-.activity-drawer__progress {
+.activity-drawer__progress-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
   margin-bottom: 12px;
+}
+
+@media (min-width: 960px) {
+  .activity-drawer__progress-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: var(--ds-space-3);
+  }
+}
+
+.activity-drawer__progress {
+  margin-bottom: 0;
 }
 
 .activity-drawer__progress-meta {
@@ -7295,13 +7311,13 @@ select.ds-input {
   justify-content: space-between;
   margin-bottom: 4px;
   font-size: 0.72rem;
-  color: #64748b;
+  color: var(--ds-text-muted);
   font-weight: 600;
 }
 
 .activity-drawer__progress-track {
   height: 6px;
-  background: #e2e8f0;
+  background: var(--ds-muted-bg);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -7309,7 +7325,7 @@ select.ds-input {
 .activity-drawer__progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #6366f1, #22c55e);
+  background: linear-gradient(90deg, var(--ds-accent), var(--ds-success));
   transition: width 0.4s ease;
 }
 
@@ -7318,19 +7334,19 @@ select.ds-input {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
+  background: var(--ds-pastel-sky);
+  border: 1px solid var(--ds-border);
   border-radius: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   flex-wrap: wrap;
   font-size: 0.72rem;
-  color: #64748b;
+  color: var(--ds-text-muted);
 }
 
 .activity-drawer__end-date strong {
   font-size: 0.9rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--ds-text);
 }
 
 .activity-drawer__dates--view {
@@ -7575,6 +7591,19 @@ select.ds-input {
 }
 
 /* ——— End dates screen ——— */
+.ds-end-dates-screen {
+  max-width: min(100%, 1100px);
+  margin-inline: auto;
+}
+
+.ds-end-dates-page-title {
+  margin: 0 0 var(--ds-space-3);
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--ds-accent);
+}
+
 .ds-end-dates__head-tools {
   display: flex;
   justify-content: flex-start;
@@ -7600,8 +7629,8 @@ select.ds-input {
 .ds-end-dates__month-count {
   font-size: 0.72rem;
   font-weight: 600;
-  background: rgba(59, 130, 246, 0.1);
-  color: #1e40af;
+  background: var(--ds-accent-soft);
+  color: var(--ds-accent);
   border-radius: 999px;
   padding: 1px 7px;
 }
@@ -8790,7 +8819,6 @@ select.ds-activity-add-field .ds-input,
 }
 
 
-.ds-screen-compact-90 { zoom: .9; }
 .ds-week-col__head { background: #fff !important; }
 .ds-week-col__head-top { background: rgba(103, 232, 249, 0.2); margin: -12px -12px 8px; padding: 10px 12px; border-radius: 12px 12px 0 0; }
 .ds-cal-wd { font-weight: 800; }

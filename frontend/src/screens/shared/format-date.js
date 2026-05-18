@@ -1,3 +1,5 @@
+const HEBREW_WEEKDAY_LABELS = ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'יום ש׳'];
+
 /**
  * Converts an ISO date string (YYYY-MM-DD) to Hebrew display format (DD/MM/YYYY).
  * Returns the input unchanged if it isn't a valid ISO date.
@@ -8,6 +10,17 @@ export function formatDateHe(iso) {
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return iso;
   return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** תצוגה אחידה: יום א׳ · 17/05/2026 */
+export function formatDateHeWithWeekday(iso) {
+  const s = String(iso || '').trim().slice(0, 10);
+  const datePart = formatDateHe(s);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return datePart || '—';
+  const date = new Date(`${s}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return datePart || '—';
+  const weekday = HEBREW_WEEKDAY_LABELS[date.getDay()] || '';
+  return weekday ? `${weekday} · ${datePart}` : datePart;
 }
 
 

@@ -958,7 +958,9 @@ async function dashboardReadModelFromSupabase(month) {
       missing_start_date_count: Number(exceptionCounts.missing_start_date || 0),
       missing_date_count: Number(exceptionCounts.missing_start_date || 0),
       late_end_date_count: Number(exceptionCounts.late_end_date || 0),
-      operational_gaps_count: Number(exceptionCounts.missing_instructor || 0) + Number(exceptionCounts.missing_start_date || 0),
+      operational_gaps_count: Number(exceptionCounts.late_end_date || 0),
+      operational_gaps_unique_count: Number(exceptionCounts.late_end_date || 0),
+      operationalTotal: Number(exceptionCounts.late_end_date || 0),
       exceptions_count: exceptionsCount,
       totalExceptionRows: exceptionsCount,
       total_exception_rows: exceptionsCount,
@@ -1339,7 +1341,36 @@ function normalizeData(data) {
 
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,activity_names,contact_name,contact_role,phone,email,notes,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type,contact_name,contact_role,contact_phone,contact_email,notes,created_at,updated_at';
+const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
+
+function parseActivityNamesFromNotes(notes) {
+  const raw = String(notes ?? '');
+  const idx = raw.indexOf(PA_ACTIVITY_NAMES_MARKER);
+  if (idx < 0) {
+    return { notes: raw.trim(), activity_names: [] };
+  }
+  const cleanNotes = raw.slice(0, idx).trimEnd();
+  const jsonPart = raw.slice(idx + PA_ACTIVITY_NAMES_MARKER.length).trim();
+  try {
+    const parsed = JSON.parse(jsonPart);
+    const activity_names = Array.isArray(parsed)
+      ? parsed.map(cleanProposalAgreementText).filter(Boolean)
+      : [];
+    return { notes: cleanNotes, activity_names };
+  } catch {
+    return { notes: cleanNotes, activity_names: [] };
+  }
+}
+
+function notesWithActivityNames(notes, activity_names) {
+  const { notes: cleanNotes } = parseActivityNamesFromNotes(notes);
+  const names = Array.isArray(activity_names)
+    ? activity_names.map(cleanProposalAgreementText).filter(Boolean)
+    : [];
+  if (!names.length) return cleanNotes;
+  return `${cleanNotes}${cleanNotes ? '\n' : ''}${PA_ACTIVITY_NAMES_MARKER}${JSON.stringify(names)}`;
+}
 
 function canUseProposalsAgreementsApi() {
   const role = String(state?.user?.display_role || state?.user?.role || '').trim();
@@ -1355,12 +1386,14 @@ function cleanProposalAgreementText(value) {
 }
 
 function buildProposalAgreementSearchText(row = {}) {
+  const activityNames = Array.isArray(row.activity_names) ? row.activity_names.join(' ') : '';
   return [
     row.id,
     row.client_authority,
     row.school_framework,
     row.document_type,
     row.activity_type_group,
+    activityNames,
     row.notes,
     row.contact_name,
     row.contact_role,
@@ -1369,19 +1402,29 @@ function buildProposalAgreementSearchText(row = {}) {
   ].map(cleanProposalAgreementText).filter(Boolean).join(' ').toLowerCase();
 }
 
+function normalizeProposalAgreementActivityNames(value) {
+  if (Array.isArray(value)) return value.map(cleanProposalAgreementText).filter(Boolean);
+  return cleanProposalAgreementText(value).split(',').map(cleanProposalAgreementText).filter(Boolean);
+}
+
 function normalizeProposalAgreementRow(row = {}) {
+  const parsedNotes = parseActivityNamesFromNotes(row.notes);
   const normalized = {
     id:                  cleanProposalAgreementText(row.id),
     client_authority:    cleanProposalAgreementText(row.client_authority),
     school_framework:    cleanProposalAgreementText(row.school_framework),
     document_type:       cleanProposalAgreementText(row.document_type),
-    activity_type_group: cleanProposalAgreementText(row.activity_type_group),
-    activity_names:      Array.isArray(row.activity_names) ? row.activity_names.map(cleanProposalAgreementText).filter(Boolean) : cleanProposalAgreementText(row.activity_names).split(',').map(cleanProposalAgreementText).filter(Boolean),
+    activity_type_group: cleanProposalAgreementText(row.activity_type_group || row.activity_type),
+    activity_names:      normalizeProposalAgreementActivityNames(
+      Array.isArray(row.activity_names) && row.activity_names.length
+        ? row.activity_names
+        : parsedNotes.activity_names
+    ),
     contact_name:        cleanProposalAgreementText(row.contact_name),
     contact_role:        cleanProposalAgreementText(row.contact_role),
-    phone:               cleanProposalAgreementText(row.phone),
-    email:               cleanProposalAgreementText(row.email),
-    notes:               cleanProposalAgreementText(row.notes),
+    phone:               cleanProposalAgreementText(row.phone || row.contact_phone),
+    email:               cleanProposalAgreementText(row.email || row.contact_email),
+    notes:               parsedNotes.notes,
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };
@@ -1390,19 +1433,19 @@ function normalizeProposalAgreementRow(row = {}) {
 }
 
 function sanitizeProposalAgreementPayload(payload = {}) {
+  const activity_names = normalizeProposalAgreementActivityNames(payload.activity_names);
   const row = {
-    client_authority:    cleanProposalAgreementText(payload.client_authority),
-    school_framework:    cleanProposalAgreementText(payload.school_framework),
-    document_type:       cleanProposalAgreementText(payload.document_type),
-    activity_type_group: cleanProposalAgreementText(payload.activity_type_group),
-    activity_names:      Array.isArray(payload.activity_names) ? payload.activity_names.map(cleanProposalAgreementText).filter(Boolean) : cleanProposalAgreementText(payload.activity_names).split(',').map(cleanProposalAgreementText).filter(Boolean),
-    contact_name:        cleanProposalAgreementText(payload.contact_name),
-    contact_role:        cleanProposalAgreementText(payload.contact_role),
-    phone:               cleanProposalAgreementText(payload.phone),
-    email:               cleanProposalAgreementText(payload.email),
-    notes:               cleanProposalAgreementText(payload.notes)
+    client_authority: cleanProposalAgreementText(payload.client_authority),
+    school_framework: cleanProposalAgreementText(payload.school_framework),
+    document_type:    cleanProposalAgreementText(payload.document_type),
+    activity_type:    cleanProposalAgreementText(payload.activity_type_group),
+    contact_name:     cleanProposalAgreementText(payload.contact_name),
+    contact_role:     cleanProposalAgreementText(payload.contact_role),
+    contact_phone:    cleanProposalAgreementText(payload.phone),
+    contact_email:    cleanProposalAgreementText(payload.email),
+    notes:            notesWithActivityNames(payload.notes, activity_names)
   };
-  const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'].filter((key) => !row[key]);
+  const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type'].filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
   return row;
 }
@@ -1432,7 +1475,7 @@ async function readProposalsAgreementsFromSupabase() {
       .order('client_authority', { ascending: true })
       .order('school_framework', { ascending: true })
       .order('document_type', { ascending: true })
-      .order('activity_type_group', { ascending: true }),
+      .order('activity_type', { ascending: true }),
     readProposalActivityNamesFromSupabase()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');

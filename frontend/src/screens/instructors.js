@@ -355,7 +355,7 @@ export const instructorsScreen = {
     const pageHeader = `<div class="instr-page-header" dir="rtl"><span class="instr-page-header__title">מדריכים פעילים</span><span class="instr-page-header__count">${filtered.length} מדריכים</span></div>`;
 
     return dsScreenStack(`
-      <section class="ds-screen-compact-90 instr-page ds-instructors-screen">
+      <section class="instr-page ds-instructors-screen">
       ${pageHeader}
       <div class="ds-screen-top-row">
         ${toolbarHtml}
