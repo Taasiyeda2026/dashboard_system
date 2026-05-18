@@ -728,7 +728,7 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
-  const HEADER_ALWAYS_EXCLUDE = new Set(['edit-requests', 'contacts', 'instructor-contacts', 'proposals-agreements']);
+  const HEADER_ALWAYS_EXCLUDE = new Set(['edit-requests', 'contacts', 'instructor-contacts', 'proposals-agreements', 'week', 'month']);
   const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data', 'permissions']) : new Set();
   const headerNavHtml = headerNavGridHtml({
     route: state.route,

@@ -7710,6 +7710,29 @@ select.ds-input {
 
 /* ——— Activities title + month nav: one row ——— */
 
+.ds-activities-view-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 4px 4px;
+  direction: rtl;
+}
+
+.ds-activities-view-btn {
+  background: var(--ds-accent);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  opacity: 0.92;
+  transition: opacity 0.15s;
+}
+
+.ds-activities-view-btn:hover {
+  opacity: 1;
+}
+
 .ds-activities-title-row {
   display: inline-flex;
   align-items: center;
