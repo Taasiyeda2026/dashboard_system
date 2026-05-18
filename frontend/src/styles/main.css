@@ -964,7 +964,7 @@ select {
 /* ——— KPI ——— */
 .ds-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 320px));
   gap: var(--ds-space-2);
 }
 
@@ -1647,6 +1647,10 @@ span.ds-chip {
   margin: 0;
   color: var(--ds-text-secondary);
   font-size: 0.86rem;
+  border: 1px solid var(--ds-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--ds-shadow-xs);
 }
 
 .ds-details-grid strong {
@@ -1803,6 +1807,7 @@ span.ds-chip {
   border: none;
   border-bottom: 2px solid transparent;
   border-radius: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-accent) 22%, var(--ds-border));
   color: var(--ds-text-secondary);
   font-size: 0.78rem;
   font-weight: 600;
@@ -2020,7 +2025,7 @@ span.ds-chip {
 
 @media (min-width: 640px) {
   .ds-week-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(280px, 320px));
   }
 }
 
@@ -2064,6 +2069,10 @@ span.ds-chip {
 .ds-detail-dl {
   margin: 0;
   font-size: 0.86rem;
+  border: 1px solid var(--ds-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--ds-shadow-xs);
 }
 
 .ds-detail-dl > div {
@@ -2163,6 +2172,10 @@ span.ds-chip {
 .ds-perm-body p {
   margin: 0;
   font-size: 0.86rem;
+  border: 1px solid var(--ds-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--ds-shadow-xs);
 }
 
 .ds-perm-field {
@@ -2681,7 +2694,7 @@ span.ds-chip {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+  max-width: 320px;
 }
 
 /* TODAY — זוהר עדין + כוכבים */
@@ -3418,7 +3431,7 @@ select[data-role-select]:focus-visible {
 
 .ds-input {
   width: 100%;
-  max-width: 100%;
+  max-width: 320px;
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-sm);
   background: var(--ds-surface);
@@ -3519,7 +3532,7 @@ select.ds-input {
 
 .ds-add-activity-modal__grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 320px));
   gap: 10px;
 }
 
@@ -3657,6 +3670,7 @@ select.ds-input {
 
 .ds-summary-panel__title {
   margin: 0 0 10px;
+  justify-content: center;
   font-size: 1.02rem;
   line-height: 1.45;
   color: var(--ds-accent);
@@ -4893,7 +4907,7 @@ select.ds-input {
 
 @media (max-width: 760px) {
   .sc-school-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(280px, 320px));
   }
 
   .sc-contact-list {
@@ -5632,6 +5646,7 @@ select.ds-input {
 }
 
 .ds-archive-kpi {
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -5694,7 +5709,7 @@ select.ds-input {
 
 @media (max-width: 760px) {
   .ds-filter-panel__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(280px, 320px));
   }
 }
 
@@ -5806,7 +5821,8 @@ select.ds-input {
 }
 
 .ds-finance-actions-head {
-  min-width: 220px;
+  min-width: 280px;
+  max-width: 360px;
 }
 
 .ds-finance-actions-cell {
@@ -6632,7 +6648,7 @@ select.ds-input {
 
 .ds-field-grid--2 {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 320px));
   gap: 8px 12px;
 }
 
@@ -6661,7 +6677,7 @@ select.ds-input {
 
 .ds-drawer-content-edit-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 320px));
   gap: 8px 12px;
 }
 
@@ -6911,7 +6927,7 @@ select.ds-input {
 }
 
 .ds-dates-grid--2col {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 320px));
 }
 
 .ds-dates-grid--3col .ds-date-chip,
@@ -7032,8 +7048,8 @@ select.ds-input {
 }
 
 .activity-drawer__header {
-  background: linear-gradient(135deg, #1e293b 0%, #1e3a5f 100%);
-  color: #f8fafc;
+  background: var(--ds-surface);
+  color: var(--ds-text);
   padding: 16px 18px 14px;
   margin: calc(-1 * var(--ds-space-4, 16px)) calc(-1 * var(--ds-space-4, 16px)) 12px;
   border-radius: 0;
@@ -7173,7 +7189,7 @@ select.ds-input {
 
 .activity-drawer__grid--two {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 320px));
   gap: 10px 16px;
 }
 
@@ -7211,7 +7227,7 @@ select.ds-input {
 }
 
 .activity-drawer__field-controls--inline {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 320px));
 }
 
 .activity-drawer__field-controls--stacked {
@@ -7220,14 +7236,14 @@ select.ds-input {
 
 @media (max-width: 640px) {
   .activity-drawer__details-edit-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(280px, 320px));
   }
 }
 
 @media (max-width: 480px) {
   .activity-drawer__grid--three,
   .activity-drawer__details-edit-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(280px, 320px));
   }
 }
 
@@ -7326,7 +7342,7 @@ select.ds-input {
 
 .activity-drawer__dates--edit {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 320px));
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -7843,7 +7859,7 @@ select.ds-input {
 
 .ds-activity-add-date-rows {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 320px));
   gap: 6px;
 }
 
@@ -7861,7 +7877,7 @@ select.ds-input {
 
 @media (max-width: 1100px) {
   .sc-card-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(280px, 320px));
   }
 }
 
@@ -7887,7 +7903,7 @@ select.ds-input {
 
 .ds-activity-add-field .ds-input {
   width: 100%;
-  max-width: 100%;
+  max-width: 320px;
   min-height: 28px;
   font-size: 0.77rem;
   padding: 3px 6px;
@@ -7897,7 +7913,7 @@ select.ds-activity-add-field .ds-input,
 .ds-activity-add-field select.ds-input {
   min-height: 28px;
   width: 100%;
-  max-width: 100%;
+  max-width: 320px;
 }
 
 .ds-activity-add-field textarea.ds-input {
@@ -8002,7 +8018,7 @@ select.ds-activity-add-field .ds-input,
   .ci-list--instr-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 680px) {
-  .ci-list--instr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ci-list--instr-grid { grid-template-columns: repeat(2, minmax(280px, 320px)); }
 }
 @media (max-width: 420px) {
   .ci-list--instr-grid { grid-template-columns: 1fr; }
@@ -8379,7 +8395,7 @@ select.ds-activity-add-field .ds-input,
 
 .ds-activities-instructor-name {
   display: inline-block;
-  max-width: 100%;
+  max-width: 320px;
   font-size: 0.74rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -8503,6 +8519,10 @@ select.ds-activity-add-field .ds-input,
   height: 26px;
   padding: 0;
   font-size: 0.86rem;
+  border: 1px solid var(--ds-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--ds-shadow-xs);
 }
 
 .ds-week-col__head {
@@ -9035,9 +9055,13 @@ select.ds-activity-add-field .ds-input,
 .ds-table--archive .ds-archive-date-col {
   text-align: center;
 }
-.ds-table--archive .ds-archive-meeting-dates {
-  white-space: normal;
-}
+.ds-table--archive col:nth-child(1) { width: 250px; }
+.ds-table--archive col:nth-child(2) { width: 170px; }
+.ds-table--archive col:nth-child(3) { width: 220px; }
+.ds-table--archive col:nth-child(4) { width: 180px; }
+.ds-table--archive col:nth-child(5) { width: 180px; }
+.ds-table--archive col:nth-child(6) { width: 130px; }
+.ds-table--archive col:nth-child(7) { width: 130px; }
 
 /* Targeted fixes: instructors density + drawer actions */
 @media (min-width: 1281px) {
@@ -9092,7 +9116,7 @@ select.ds-activity-add-field .ds-input,
 }
 @media (max-width: 480px) {
   .ds-week-board {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(280px, 320px));
   }
 }
 
@@ -9471,7 +9495,7 @@ select.ds-activity-add-field .ds-input,
 
 .ds-activities-manager-line {
   display: block;
-  max-width: 100%;
+  max-width: 320px;
   margin-top: 2px;
   color: var(--ds-text-muted);
   font-size: 0.62rem;
@@ -9483,6 +9507,8 @@ select.ds-activity-add-field .ds-input,
 /* ——— Proposals & agreements screen ——— */
 .ds-pa-screen {
   direction: rtl;
+  max-width: 1080px;
+  margin-inline: auto;
 }
 
 .ds-pa-toolbar {
@@ -9503,24 +9529,34 @@ select.ds-activity-add-field .ds-input,
 }
 
 .ds-pa-search {
-  min-width: 220px;
+  min-width: 280px;
+  max-width: 360px;
   flex: 1 1 260px;
 }
 
 .ds-pa-filter {
-  min-width: 150px;
+  min-width: 160px;
+  max-width: 220px;
 }
 
 .ds-pa-local-status {
   margin: 0 0 8px;
   color: var(--ds-color-text-muted, #64748b);
   font-size: 0.86rem;
+  border: 1px solid var(--ds-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--ds-shadow-xs);
 }
 
 .ds-pa-table {
   table-layout: fixed;
   width: 100%;
   font-size: 0.86rem;
+  border: 1px solid var(--ds-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--ds-shadow-xs);
 }
 
 .ds-pa-table thead th:nth-child(1) { width: 22%; }
@@ -9646,9 +9682,10 @@ select.ds-activity-add-field .ds-input,
 
 .ds-pa-form-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 320px));
   gap: 7px 12px;
   margin: 0 0 10px;
+  justify-content: center;
 }
 
 .ds-pa-form-field {
@@ -9663,7 +9700,7 @@ select.ds-activity-add-field .ds-input,
 .ds-pa-form-field textarea.ds-input {
   font-size: 0.82rem;
   padding: 4px 7px;
-  max-width: 100%;
+  max-width: 320px;
   box-sizing: border-box;
 }
 
@@ -9755,7 +9792,7 @@ select.ds-activity-add-field .ds-input,
   .ds-perm-tools .ds-btn {
     flex: 1 1 100%;
     min-width: 100%;
-    max-width: 100%;
+    max-width: 320px;
   }
 }
 
@@ -9790,7 +9827,8 @@ select.ds-activity-add-field .ds-input,
 
 .ds-perm-screen .ds-perm-tools__q {
   flex: 1 1 260px;
-  min-width: 220px;
+  min-width: 280px;
+  max-width: 360px;
   order: 1;
 }
 
@@ -9843,12 +9881,17 @@ select.ds-activity-add-field .ds-input,
   .ds-perm-screen .ds-perm-tools .ds-btn {
     flex: 1 1 100%;
     min-width: 100%;
-    max-width: 100%;
+    max-width: 320px;
     height: auto;
     min-height: 34px;
   }
 
   .ds-perm-screen .ds-kpi-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(280px, 320px));
   }
+}
+
+.ds-archive-kpi.is-active {
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-accent) 24%, transparent);
 }

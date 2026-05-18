@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { formatDateHe, formatActivityDateColumnsHe } from './shared/format-date.js';
+import { formatDateHe } from './shared/format-date.js';
 import { visibleActivityCategoryLabel } from './shared/ui-hebrew.js';
 import {
   dsCard,
@@ -29,13 +29,14 @@ const ARCHIVE_TYPE_KPIS = [
   { label: 'אפטרסקול',   keys: ['after_school', 'after school', 'afterschool', 'חוג אפטרסקול', 'אפטרסקול'], color: 'orange' },
 ];
 
-function archiveTypeKpiHtml(rows) {
+function archiveTypeKpiHtml(rows, activeLabel = '') {
   const cells = ARCHIVE_TYPE_KPIS.map(({ label, keys, color }) => {
     const count = rows.filter((r) => keys.includes(String(r.activity_type || '').trim())).length;
-    return `<div class="ds-archive-kpi ds-archive-kpi--${color}">
+    const activeClass = activeLabel === label ? ' is-active' : '';
+    return `<button type="button" class="ds-archive-kpi ds-archive-kpi--${color}${activeClass}" data-archive-kpi="${escapeHtml(label)}">
       <span class="ds-archive-kpi__value">${count}</span>
       <span class="ds-archive-kpi__label">${escapeHtml(label)}</span>
-    </div>`;
+    </button>`;
   }).join('');
   return `<div class="ds-archive-kpi-row" dir="rtl">${cells}</div>`;
 }
@@ -139,6 +140,11 @@ function applyArchiveFilters(rows, state) {
   if (year) {
     out = out.filter((row) => endYear(row) === year);
   }
+  const typeFilterLabel = String(state.archiveTypeFilter || '').trim();
+  if (typeFilterLabel) {
+    const matchType = ARCHIVE_TYPE_KPIS.find((k) => k.label === typeFilterLabel);
+    if (matchType) out = out.filter((row) => matchType.keys.includes(String(row.activity_type || '').trim()));
+  }
   return applyLocalFilters(out, archiveEffectiveFilters(filters), { filterFields: ARCHIVE_FILTER_FIELDS });
 }
 
@@ -154,7 +160,6 @@ function archiveTableRowsHtml(rows) {
     const endHe = endRaw ? (formatDateHe(endRaw) || endRaw) : '—';
     const startRaw = String(row?.start_date || '').trim();
     const startHe = startRaw ? (formatDateHe(startRaw) || startRaw) : '—';
-    const meetingDatesHe = formatActivityDateColumnsHe(row);
 
     return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-row-id="${escapeHtml(row.RowID)}">
@@ -174,7 +179,6 @@ function archiveTableRowsHtml(rows) {
           <span class="ds-activities-cell-ellipsis">${instructor}</span>
         </td>
         <td>${escapeHtml(manager)}</td>
-        <td class="ds-archive-meeting-dates"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(meetingDatesHe)}">${escapeHtml(meetingDatesHe)}</span></td>
         <td class="ds-archive-date-col"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
         <td class="ds-archive-date-col"><time class="ds-activities-date ds-archive-end-date">${escapeHtml(endHe)}</time></td>
       </tr>`;
@@ -193,7 +197,7 @@ function renderArchiveTableSection(rows, state, allRowsCount = rows.length) {
   return dsTableWrap(`
       <table class="ds-table ds-table--interactive ds-table--activities-list ds-table--archive" dir="rtl">
         <colgroup>
-          <col><col><col><col><col><col><col><col>
+          <col><col><col><col><col><col><col>
         </colgroup>
         <thead>
           <tr>
@@ -202,7 +206,6 @@ function renderArchiveTableSection(rows, state, allRowsCount = rows.length) {
             <th>בית ספר</th>
             <th>מדריך</th>
             <th>מנהל פעילות</th>
-            <th>תאריכי מפגשים</th>
             <th>תאריך התחלה</th>
             <th>תאריך סיום</th>
           </tr>
@@ -265,7 +268,7 @@ export const archiveScreen = {
     return dsScreenStack(`
       <section class="ds-activities-screen">
         ${titleRow}
-        ${archiveTypeKpiHtml(filteredRows)}
+        ${archiveTypeKpiHtml(filteredRows, String(state.archiveTypeFilter || '').trim())}
         ${yearNav}
         ${toolbar}
         ${dsCard({ body: tableSection, padded: false })}
@@ -360,6 +363,13 @@ export const archiveScreen = {
         state.archiveYear = String(btn.dataset.archiveYear || '').trim();
         ensureActivityListFilters(state, ARCHIVE_SCOPE).visibleCount = ARCHIVE_DEFAULT_VISIBLE_LIMIT;
         rerenderLocal();
+      });
+    });
+    root.querySelectorAll('[data-archive-kpi]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const value = btn.dataset.archiveKpi || '';
+        state.archiveTypeFilter = state.archiveTypeFilter === value ? '' : value;
+        refresh();
       });
     });
 

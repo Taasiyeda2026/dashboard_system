@@ -31,15 +31,21 @@ function currentMonthStart() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
+function currentMonthYm() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
-function normalizeRows(rows) {
-  const minDate = currentMonthStart();
+function normalizeRows(rows, managerFilter = '') {
+  const currentYm = currentMonthYm();
+  const selectedManager = String(managerFilter || '').trim();
   return rows
     .filter((row) => String(row?.activity_family || '').trim() === 'program')
     .map((row) => {
       const endDate = asIso(row?.end_date) || asIso(row?.date_end);
       if (!endDate) return null;
-      if (endDate < minDate) return null;
+      if (endDate.slice(0, 7) !== currentYm) return null;
+      if (selectedManager && String(row?.activity_manager || '').trim() !== selectedManager) return null;
       const { dates, source } = resolveDates(row);
       return { ...row, end_date: endDate, _dates: dates, _dateSource: source };
     })
@@ -136,10 +142,17 @@ export const endDatesScreen = {
 
   render(data) {
     const rawRows = Array.isArray(data?.rows) ? data.rows : [];
-    const rows    = normalizeRows(rawRows);
+    const managerFilter = String(data?.selectedManager || '');
+    const rows    = normalizeRows(rawRows, managerFilter);
+    const managerOptions = Array.from(new Set(rawRows.map((r) => String(r?.activity_manager || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'he'));
     const months  = groupByMonth(rows);
+    const monthBadge = `חודש ${monthLabelFromIso(`${currentMonthStart()}`)} ${rows.length}`;
 
     const headerTools = `<div class="ds-end-dates__head-tools">
+      <label class="ds-end-dates__manager-filter"><span>מנהל פעילויות</span><select class="ds-input ds-input--sm" data-end-manager>
+        <option value="">כל מנהלי הפעילויות</option>
+        ${managerOptions.map((m) => `<option value="${escapeHtml(m)}"${managerFilter === m ? ' selected' : ''}>${escapeHtml(activityManagerDisplayName(m))}</option>`).join('')}
+      </select></label>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-end-dates-export title="ייצוא כל הפעילויות לאקסל" aria-label="ייצוא הכל לאקסל">⬇ ייצוא הכל</button>
     </div>`;
 
@@ -150,15 +163,15 @@ export const endDatesScreen = {
     return dsScreenStack(
       dsCard({
         title: 'תאריכי סיום פעילויות',
-        badge: `${rows.length} פעילויות`,
+        badge: monthBadge,
         body: `${headerTools}${body}`,
         padded: true
       })
     );
   },
 
-  bind({ root, data }) {
-    const allRows = normalizeRows(Array.isArray(data?.rows) ? data.rows : []);
+  bind({ root, data, state, refresh }) {
+    const allRows = normalizeRows(Array.isArray(data?.rows) ? data.rows : [], data?.selectedManager || '');
     const months  = groupByMonth(allRows);
 
     const rowMap = new Map();
@@ -194,6 +207,11 @@ export const endDatesScreen = {
         const stamp = new Date().toISOString().slice(0, 10);
         triggerExcelDownload(buildExcelBlob([row]), `${name}_${stamp}.xls`);
       });
+    });
+    root.querySelector('[data-end-manager]')?.addEventListener('change', (e) => {
+      data.selectedManager = e.target.value || '';
+      state.endDatesManager = data.selectedManager;
+      refresh();
     });
   }
 };
