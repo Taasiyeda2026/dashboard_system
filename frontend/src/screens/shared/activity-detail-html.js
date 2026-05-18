@@ -204,7 +204,7 @@ function autoEndDate(row) {
 function fmtWeekdayShort(iso) {
   if (!iso) return '—';
   const date = new Date(`${iso}T12:00:00`);
-  const map = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+  const map = ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'יום ש׳'];
   if (Number.isNaN(date.getTime())) return '—';
   return map[date.getDay()] || '—';
 }
