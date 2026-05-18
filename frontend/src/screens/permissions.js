@@ -116,6 +116,32 @@ function buildPermFlagGrid(row, keys) {
   return `<div class="ds-perm-flag-grid">${chips}</div>`;
 }
 
+
+function resolveEmployeeNumber(row) {
+  const source = row && typeof row === 'object' ? row : {};
+  const preferredKeys = [
+    'entry_code',
+    'employee_number',
+    'employeeNumber',
+    'employee_id',
+    'employeeId',
+    'worker_number',
+    'payroll_number',
+    'payrollNumber',
+    'ms',
+    'id'
+  ];
+
+  for (const key of preferredKeys) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+    const value = source[key];
+    if (value == null) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return '—';
+}
+
 function buildAddUserDrawerHtml(roleDefaults) {
   return `<div class="ds-perm-edit-form" dir="rtl">
     <div class="ds-perm-edit-section">
@@ -243,7 +269,7 @@ function renderUserRow(row, canEdit, isAdmin, currentUserId, adminCount) {
 
   return `<tr class="ds-perm-row" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}" data-status-filter="${isActive ? 'yes' : 'no'}">
     <td style="font-weight:600;">${escapeHtml(row.full_name || uid)}</td>
-    <td class="ds-muted" style="font-size:0.75rem;">${escapeHtml(row.entry_code || '—')}</td>
+    <td class="ds-muted" style="font-size:0.75rem;">${escapeHtml(resolveEmployeeNumber(row))}</td>
     <td>${dsStatusChip(label, roleChipKind(code))}</td>
     <td>${dsStatusChip(activeLabel, activeKind)}</td>
     <td><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${actionBtns}</div></td>
@@ -351,15 +377,17 @@ export const permissionsScreen = {
       : '';
 
     return dsScreenStack(`
-      ${dsPageHeader('הרשאות', 'ניהול גישה ודגלי הרשאה — תואם לגיליון permissions')}
-      ${safeRows.length ? dsKpiGrid(kpis) : ''}
-      ${toolsBar}
-      ${dsCard({
+      <section class="ds-perm-screen">
+        ${dsPageHeader('הרשאות', 'ניהול גישה ודגלי הרשאה — תואם לגיליון permissions')}
+        ${safeRows.length ? dsKpiGrid(kpis) : ''}
+        ${toolsBar}
+        ${dsCard({
         title: 'משתמשים והרשאות',
         badge: `${safeRows.length} משתמשים`,
         body,
         padded: safeRows.length === 0
       })}
+      </section>
     `);
   },
   bind({ root, data, api, ui, rerender, clearScreenDataCache }) {
