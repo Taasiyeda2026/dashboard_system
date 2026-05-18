@@ -1631,6 +1631,19 @@ function normalizeDateFieldForSupabase(value) {
   return normalized || '';
 }
 
+/**
+ * Given a sanitized payload that may contain date_1..date_35,
+ * returns the latest non-empty YYYY-MM-DD value, or '' if none found.
+ */
+function deriveEndDateFromDates(sanitized = {}) {
+  let last = '';
+  for (let i = 1; i <= 35; i++) {
+    const v = String(sanitized[`date_${i}`] || '').trim().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v) && v > last) last = v;
+  }
+  return last;
+}
+
 function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true } = {}) {
   const sanitized = {};
   const source = payload && typeof payload === 'object' ? payload : {};
@@ -1649,6 +1662,8 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
 async function upsertActivityToSupabase(payload = {}) {
   const act = payload?.activity || payload || {};
   const row = sanitizeActivityPayloadForSupabase(sanitizeActivityPayload(act), { includeRowId: true });
+  const derivedEnd = deriveEndDateFromDates(row);
+  if (derivedEnd) row.end_date = derivedEnd;
   logActivityMutationDebug('request', 'addActivity', { source_sheet: 'activities', source_row_id: row.row_id, changes: row });
   const { data, error } = await supabase.from('activities').upsert(row, { onConflict: 'row_id' }).select().single();
   if (error) {
@@ -1683,6 +1698,11 @@ async function updateActivityInSupabase(payload = {}) {
     mapMeetingDateFieldNamesToSupabase({ ...(payload?.changes || {}) }),
     { includeRowId: false }
   );
+  const hasMeetingDateChange = Object.keys(changes).some((k) => /^date_\d+$/.test(k));
+  if (hasMeetingDateChange) {
+    const derivedEnd = deriveEndDateFromDates(changes);
+    if (derivedEnd) changes.end_date = derivedEnd;
+  }
   if (!rowId) throw new Error('missing_row_id');
   if (!Object.keys(changes).length) throw new Error('No changes to submit');
   const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes };
