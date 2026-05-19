@@ -616,21 +616,29 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
 
 function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } = {}) {
   if (!showPrivateNote) return '';
-  const privateValue =
-    privateNote !== null && privateNote !== undefined
+  const privateValue = String(
+    (privateNote !== null && privateNote !== undefined)
       ? privateNote
-      : row.operations_private_notes;
-  return `
-    <section class="activity-drawer__section activity-drawer__section--private">
-      <div class="activity-drawer__private">
-        <div class="activity-drawer__private-badge">🔒</div>
+      : (row.operations_private_notes ?? row.private_note ?? '')
+  ).trim();
+
+  const viewPart = privateValue
+    ? `<div class="activity-drawer__view" data-mode="view">
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">הערה תפעולית</div>
-          ${textareaHtml({ name: 'operations_private_notes', value: String(privateValue || ''), rows: 2, attrs: 'data-always-editable' })}
+          <div class="activity-drawer__value">${escapeHtml(privateValue)}</div>
         </div>
-      </div>
-    </section>
-  `;
+      </div>`
+    : '';
+
+  const editPart = `<div class="activity-drawer__edit" data-mode="edit" hidden>
+    <div class="activity-drawer__field">
+      <div class="activity-drawer__label">הערה תפעולית</div>
+      ${textareaHtml({ name: 'operations_private_notes', value: privateValue, rows: 2, attrs: 'placeholder="הוספת הערה תפעולית"' })}
+    </div>
+  </div>`;
+
+  return `<section class="activity-drawer__section">${viewPart}${editPart}</section>`;
 }
 
 function blockNotes(row, { hidden = false } = {}) {
