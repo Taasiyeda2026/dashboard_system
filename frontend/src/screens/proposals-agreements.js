@@ -208,13 +208,17 @@ function formFieldHtml(key, value = '', activityNameOptions = []) {
   }
   if (key === 'activity_names') {
     const attrs = required ? ' required aria-required="true"' : '';
-    const selectedValues = Array.isArray(value) ? value : text(value).split(',').map(text).filter(Boolean);
-    const optionsHtml = activityNameOptions.map((v) => {
+    const selectedValues = Array.isArray(value) ? value.map(text).filter(Boolean) : text(value).split(',').map(text).filter(Boolean);
+    const allOptions = Array.from(new Set([...activityNameOptions, ...selectedValues])).filter(Boolean).sort((a, b) => a.localeCompare(b, 'he'));
+    if (!allOptions.length) {
+      return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}</span><p class="ds-muted" style="font-size:0.8rem;margin:2px 0">אין פעילויות זמינות ברשימה</p></label>`;
+    }
+    const optionsHtml = allOptions.map((v) => {
       const safe = escapeHtml(v);
       const sel = selectedValues.includes(v) ? ' selected' : '';
       return `<option value="${safe}"${sel}>${safe}</option>`;
     }).join('');
-    return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><select class="ds-input ds-input--sm" name="${key}" multiple size="6"${attrs}>${optionsHtml}</select></label>`;
+    return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><select class="ds-input ds-input--sm" name="${key}" multiple size="${Math.min(allOptions.length, 7)}"${attrs}>${optionsHtml}</select></label>`;
   }
   if (key === 'proposal_date') {
     return `<label class="ds-pa-form-field"><span>${escapeHtml(label)}</span><input class="ds-input ds-input--sm" type="date" name="${key}" value="${escapeHtml(value || '')}"></label>`;
@@ -229,7 +233,7 @@ function formHtml(mode, row = {}, activityNameOptions = []) {
   const title = mode === 'edit' ? 'עריכת רשומה' : 'הוספת הצעה / הסכם';
   return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" dir="rtl">
     <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
-    <div class="ds-pa-form-grid">${FORM_FIELDS.map((key) => formFieldHtml(key, row[key] || '', activityNameOptions)).join('')}</div>
+    <div class="ds-pa-form-grid">${FORM_FIELDS.map((key) => formFieldHtml(key, key === 'activity_names' ? (Array.isArray(row[key]) ? row[key] : []) : (row[key] || ''), activityNameOptions)).join('')}</div>
     <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
     <div class="ds-pa-form-actions">
       <button type="submit" class="ds-btn ds-btn--primary ds-btn--sm">שמירה</button>
