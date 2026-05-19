@@ -87,7 +87,10 @@ function renderMonthTable(month, monthIdx) {
       <tr class="ds-end-expand-row" id="ds-end-expand-${escapeHtml(rowId)}" hidden>
         <td colspan="5" class="ds-end-expand-td">
           <div class="ds-end-dates__dates-list">${pillsHtml}</div>
-          <p class="ds-end-dates__meta"><strong>מנהל פעילויות:</strong> ${escapeHtml(activityManagerDisplayName(row.activity_manager))}</p>
+          <div class="ds-end-expand-meta">
+            <span><strong>מנהל פעילויות:</strong> ${escapeHtml(activityManagerDisplayName(row.activity_manager))}</span>
+            <span><strong>מדריך:</strong> ${escapeHtml(String(row.instructor_name || '').trim() || 'ללא')}${String(row.instructor_name_2 || '').trim() ? ` · ${escapeHtml(String(row.instructor_name_2).trim())}` : ''}</span>
+          </div>
         </td>
       </tr>`;
   }).join('');
@@ -100,8 +103,8 @@ function renderMonthTable(month, monthIdx) {
     <table class="ds-end-table ds-end-table--compact" dir="rtl">
       <thead><tr>
         <th class="ds-end-th ds-end-th--name">שם פעילות</th>
-        <th class="ds-end-th">בית ספר</th>
-        <th class="ds-end-th">רשות</th>
+        <th class="ds-end-th ds-end-th--school">בית ספר</th>
+        <th class="ds-end-th ds-end-th--auth">רשות</th>
         <th class="ds-end-th ds-end-th--date">תאריך סיום</th>
         <th class="ds-end-th ds-end-th--actions"></th>
       </tr></thead>
