@@ -37,13 +37,15 @@ function currentMonthYm() {
 }
 
 function normalizeRows(rows, managerFilter = '') {
-  const currentYm = currentMonthYm();
+  const monthStart = currentMonthStart();
   const selectedManager = String(managerFilter || '').trim();
   return rows
     .map((row) => {
       const endDate = asIso(row?.end_date) || asIso(row?.date_end);
       if (!endDate) return null;
-      if (endDate.slice(0, 7) !== currentYm) return null;
+      const status = String(row?.status || '').trim();
+      if (status !== 'פעיל') return null;
+      if (endDate < monthStart) return null;
       if (selectedManager && String(row?.activity_manager || '').trim() !== selectedManager) return null;
       const { dates, source } = resolveDates(row);
       return { ...row, end_date: endDate, _dates: dates, _dateSource: source };
@@ -158,7 +160,7 @@ export const endDatesScreen = {
 
     const body = months.length
       ? `<div class="ds-end-dates__months">${months.map((m, i) => renderMonthTable(m, i)).join('')}</div>`
-      : dsEmptyState('לא נמצאו פעילויות מתמשכות עם תאריך סיום');
+      : dsEmptyState('אין פעילויות פעילות להצגה');
 
     return dsScreenStack(`
       <section class="ds-end-dates-screen" dir="rtl">
