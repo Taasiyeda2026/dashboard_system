@@ -328,7 +328,7 @@ export const proposalsAgreementsScreen = {
     const rows = displayRows(data, {});
     const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
     return dsScreenStack(`
-      ${dsPageHeader('הצעות', 'ניהול הצעות, הסכמים ופרטי קשר לרשומה')}
+      ${dsPageHeader('הצעות')}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <div class="ds-pa-toolbar">
           <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
