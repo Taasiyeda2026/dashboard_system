@@ -1846,14 +1846,14 @@ function mapMeetingDateFieldNamesToSupabase(changes = {}) {
 
 function normalizeDateFieldForSupabase(value) {
   const clean = String(value ?? '').trim();
-  if (!clean) return '';
+  if (!clean) return null;
   const normalized = normalizeSupabaseDate(clean);
-  return normalized || '';
+  return normalized || null;
 }
 
 /**
  * Given a sanitized payload that may contain date_1..date_35,
- * returns the latest non-empty YYYY-MM-DD value, or '' if none found.
+ * returns the latest non-empty YYYY-MM-DD value, or null if none found.
  */
 function deriveEndDateFromDates(sanitized = {}) {
   let last = '';
@@ -1861,7 +1861,7 @@ function deriveEndDateFromDates(sanitized = {}) {
     const v = String(sanitized[`date_${i}`] || '').trim().slice(0, 10);
     if (/^\d{4}-\d{2}-\d{2}$/.test(v) && v > last) last = v;
   }
-  return last;
+  return last || null;
 }
 
 function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true } = {}) {
@@ -1874,7 +1874,7 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
     if (key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key)) {
       nextValue = normalizeDateFieldForSupabase(rawValue);
     }
-    sanitized[key] = nextValue === undefined || nextValue === null ? '' : nextValue;
+    sanitized[key] = nextValue === undefined ? '' : nextValue;
   }
   return sanitized;
 }
@@ -1883,9 +1883,9 @@ async function upsertActivityToSupabase(payload = {}) {
   const act = payload?.activity || payload || {};
   const row = sanitizeActivityPayloadForSupabase(sanitizeActivityPayload(act), { includeRowId: true });
   const derivedEnd = deriveEndDateFromDates(row);
-  if (derivedEnd) row.end_date = derivedEnd;
+  row.end_date = derivedEnd || null;
   logActivityMutationDebug('request', 'addActivity', { source_sheet: 'activities', source_row_id: row.row_id, changes: row });
-  const { data, error } = await supabase.from('activities').upsert(row, { onConflict: 'row_id' }).select().single();
+  const { data, error } = await supabase.from('activities').insert(row).select().single();
   if (error) {
     const authContext = await buildActivityMutationAuthContext();
     // eslint-disable-next-line no-console
@@ -1921,7 +1921,7 @@ async function updateActivityInSupabase(payload = {}) {
   const hasMeetingDateChange = Object.keys(changes).some((k) => /^date_\d+$/.test(k));
   if (hasMeetingDateChange) {
     const derivedEnd = deriveEndDateFromDates(changes);
-    changes.end_date = derivedEnd || '';
+    changes.end_date = derivedEnd || null;
   }
   if (!rowId) throw new Error('missing_row_id');
   if (!Object.keys(changes).length) throw new Error('No changes to submit');
