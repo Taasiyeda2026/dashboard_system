@@ -5559,9 +5559,9 @@ select.ds-input {
 
 .ds-activities-screen .ds-table th,
 .ds-activities-screen .ds-table td {
-  padding: 8px 9px;
+  padding: 5px 7px;
   vertical-align: middle;
-  line-height: 1.25;
+  line-height: 1.2;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
@@ -7715,7 +7715,7 @@ select.ds-input {
 .ds-end-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   table-layout: fixed;
 }
 
@@ -7730,11 +7730,11 @@ select.ds-input {
   background: #f1f5f9;
 }
 
-.ds-end-th--name   { width: 26%; }
-.ds-end-th--school { width: 24%; }
-.ds-end-th--auth   { width: 24%; }
-.ds-end-th--date   { width: 14%; }
-.ds-end-th--actions { width: 32px; }
+.ds-end-th--name   { width: 24%; }
+.ds-end-th--school { width: 22%; }
+.ds-end-th--auth   { width: 22%; }
+.ds-end-th--date   { width: 12%; }
+.ds-end-th--actions { width: 28px; }
 
 .ds-end-td {
   padding: 3px 6px;
@@ -8428,13 +8428,13 @@ select.ds-activity-add-field .ds-input,
   table-layout: fixed;
 }
 
-.ds-table--activities-list col.ds-activities-col--program   { width: 15%; }
-.ds-table--activities-list col.ds-activities-col--authority  { width: 10%; }
-.ds-table--activities-list col.ds-activities-col--school     { width: 12%; }
-.ds-table--activities-list col.ds-activities-col--instructor { width: 11%; }
-.ds-table--activities-list col.ds-activities-col--date       { width: 9%; }
-.ds-table--activities-list col.ds-activities-col--meetings   { width: 9%; }
-.ds-table--activities-list col.ds-activities-col--notes      { width: 13%; }
+.ds-table--activities-list col.ds-activities-col--program   { width: 14%; }
+.ds-table--activities-list col.ds-activities-col--authority  { width: 9%; }
+.ds-table--activities-list col.ds-activities-col--school     { width: 11%; }
+.ds-table--activities-list col.ds-activities-col--instructor { width: 10%; }
+.ds-table--activities-list col.ds-activities-col--date       { width: 8%; }
+.ds-table--activities-list col.ds-activities-col--meetings   { width: 8%; }
+.ds-table--activities-list col.ds-activities-col--notes      { width: 11%; }
 
 .ds-table--archive col { width: calc(100% / 8); }
 
@@ -8451,7 +8451,7 @@ select.ds-activity-add-field .ds-input,
 }
 
 .ds-table--activities-list th {
-  padding: 7px 8px;
+  padding: 5px 7px;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.01em;
@@ -8463,8 +8463,8 @@ select.ds-activity-add-field .ds-input,
 }
 
 .ds-table--activities-list td {
-  padding: 7px 8px;
-  height: 36px;
+  padding: 4px 7px;
+  height: 30px;
   line-height: 1.15;
   vertical-align: middle;
   text-align: right;
@@ -9203,6 +9203,7 @@ select.ds-activity-add-field .ds-input,
 .ds-table--archive th,
 .ds-table--archive td {
   text-align: right;
+  padding: 4px 7px;
 }
 .ds-table--archive th:nth-last-child(2),
 .ds-table--archive th:nth-last-child(1),
@@ -9211,13 +9212,13 @@ select.ds-activity-add-field .ds-input,
 .ds-table--archive .ds-archive-date-col {
   text-align: center;
 }
-.ds-table--archive col:nth-child(1) { width: 250px; }
-.ds-table--archive col:nth-child(2) { width: 190px; }
-.ds-table--archive col:nth-child(3) { width: 190px; }
-.ds-table--archive col:nth-child(4) { width: 190px; }
-.ds-table--archive col:nth-child(5) { width: 190px; }
-.ds-table--archive col:nth-child(6) { width: 130px; }
-.ds-table--archive col:nth-child(7) { width: 130px; }
+.ds-table--archive col:nth-child(1) { width: 200px; }
+.ds-table--archive col:nth-child(2) { width: 155px; }
+.ds-table--archive col:nth-child(3) { width: 155px; }
+.ds-table--archive col:nth-child(4) { width: 155px; }
+.ds-table--archive col:nth-child(5) { width: 155px; }
+.ds-table--archive col:nth-child(6) { width: 105px; }
+.ds-table--archive col:nth-child(7) { width: 105px; }
 
 /* Targeted fixes: instructors density + drawer actions */
 @media (min-width: 1281px) {
