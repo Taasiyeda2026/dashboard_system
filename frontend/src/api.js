@@ -1564,7 +1564,11 @@ function flattenUserRow(userRow = {}) {
 function buildBootstrapFromUser(userRow) {
   const flat = flattenUserRow(userRow);
   const role = normalizeSupabaseRole(flat.role);
-  const allowedRoutes = SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user;
+  const allowedRoutes = [...(SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user)];
+  const hasFinanceAccess = permissionFlagYes((userRow?.permissions || {}).finance_access);
+  const financeIdx = allowedRoutes.indexOf('finance');
+  if (hasFinanceAccess && financeIdx === -1) allowedRoutes.push('finance');
+  if (!hasFinanceAccess && financeIdx >= 0) allowedRoutes.splice(financeIdx, 1);
   const canEditDirect = ROLES_WITH_DIRECT_EDIT.has(role) || permissionFlagYes(flat.can_edit_direct);
   const canRequestEdit = canEditDirect || permissionFlagYes(flat.can_request_edit) || role !== 'instructor';
   return {

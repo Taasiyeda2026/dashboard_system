@@ -156,6 +156,7 @@ const PERMISSION_FIELD_LABELS = {
   view_exceptions: 'צפייה — חריגות',
   view_my_data: 'צפייה — הנתונים שלי',
   view_operations_data: 'צפייה — נתוני תפעול',
+  finance_access: 'גישה — כספים / גבייה',
   view_contacts_instructors: 'צפייה — אנשי קשר מדריכים',
   'view_contacts_instructors 2': 'צפייה — אנשי קשר מדריכים (2)',
   view_permissions: 'צפייה — הרשאות',
