@@ -1481,7 +1481,7 @@ async function readProposalsAgreementsFromSupabase() {
       .order('client_authority', { ascending: true })
       .order('school_framework', { ascending: true })
       .order('document_type', { ascending: true })
-      .order('activity_type', { ascending: true }),
+      .order('activity_type_group', { ascending: true }),
     readProposalActivityNamesFromSupabase()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
