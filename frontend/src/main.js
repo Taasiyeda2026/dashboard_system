@@ -191,14 +191,14 @@ function schedulePostLoginPrefetch() {
   // dashboard painted immediately from localStorage — there is no hydration
   // competition to worry about, so we can start much sooner.  The 4 s floor is
   // preserved only when the caches are fully cold (very first load / hard clear).
-  const _PREFETCH_WARM_SCREENS = ['activities', 'week', 'month'];
+  const _PREFETCH_WARM_SCREENS = ['activities', 'week', 'month', 'end-dates', 'archive'];
   const _prefetchAnyWarm = _PREFETCH_WARM_SCREENS.some((r) => {
     if (!isAllowedRoute(r)) return false;
     const hit = state.screenDataCache[buildScreenDataCacheKey(r, state)];
     const ttl = SCREEN_CACHE_TTL_MS[r] ?? DEFAULT_CACHE_TTL_MS;
     return !!(hit && Date.now() - hit.t < ttl);
   });
-  const _prefetchDelay = _prefetchAnyWarm ? 2000 : 8000;
+  const _prefetchDelay = _prefetchAnyWarm ? 1200 : 3500;
 
   prefetchTimer = setTimeout(() => {
     prefetchTimer = null;
@@ -1043,7 +1043,7 @@ async function prefetchFromDashboardIfNeeded() {
   if (!state.token) return;
   if (state.route !== 'dashboard') return;
 
-  const PREFETCH_SCREENS = ['activities', 'week', 'month'];
+  const PREFETCH_SCREENS = ['activities', 'week', 'month', 'end-dates', 'archive'];
   const toFetch = PREFETCH_SCREENS.filter((r) => isAllowedRoute(r));
   if (!toFetch.length) return;
 
