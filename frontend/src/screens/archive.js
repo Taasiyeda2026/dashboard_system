@@ -174,7 +174,7 @@ function archiveTableRowsHtml(rows) {
         <td class="ds-activities-col ds-activities-col--instructor">
           <span class="ds-activities-cell-ellipsis">${instructor}</span>
         </td>
-        <td>${escapeHtml(manager)}</td>
+        <td class="ds-activities-col ds-activities-col--manager">${escapeHtml(manager)}</td>
         <td class="ds-archive-date-col"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
         <td class="ds-archive-date-col"><time class="ds-activities-date ds-archive-end-date">${escapeHtml(endHe)}</time></td>
       </tr>`;
@@ -193,7 +193,13 @@ function renderArchiveTableSection(rows, state, allRowsCount = rows.length) {
   return dsTableWrap(`
       <table class="ds-table ds-table--interactive ds-table--activities-list ds-table--archive" dir="rtl">
         <colgroup>
-          <col><col><col><col><col><col><col>
+          <col class="ds-activities-col--program">
+          <col class="ds-activities-col--authority">
+          <col class="ds-activities-col--school">
+          <col class="ds-activities-col--instructor">
+          <col class="ds-activities-col--manager">
+          <col class="ds-activities-col--date">
+          <col class="ds-activities-col--date">
         </colgroup>
         <thead>
           <tr>

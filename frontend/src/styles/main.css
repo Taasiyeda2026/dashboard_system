@@ -8432,11 +8432,10 @@ select.ds-activity-add-field .ds-input,
 .ds-table--activities-list col.ds-activities-col--authority  { width: 9%; }
 .ds-table--activities-list col.ds-activities-col--school     { width: 11%; }
 .ds-table--activities-list col.ds-activities-col--instructor { width: 10%; }
+.ds-table--activities-list col.ds-activities-col--manager    { width: 10%; }
 .ds-table--activities-list col.ds-activities-col--date       { width: 8%; }
 .ds-table--activities-list col.ds-activities-col--meetings   { width: 8%; }
 .ds-table--activities-list col.ds-activities-col--notes      { width: 11%; }
-
-.ds-table--archive col { width: calc(100% / 8); }
 
 .ds-table--activities-list th,
 .ds-table--activities-list td {
@@ -8918,6 +8917,27 @@ select.ds-activity-add-field .ds-input,
 .ds-interactive-card.is-cal-today { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ds-accent) 45%, transparent); }
 .ds-end-table--compact { margin-inline: auto; width: min(100%, 1100px); }
 .ds-end-table--compact th, .ds-end-table--compact td { padding: 6px 8px; }
+.ds-end-table--compact {
+  width: 100%;
+  table-layout: fixed;
+}
+.ds-end-table--compact col.ds-end-col--name { width: 28%; }
+.ds-end-table--compact col.ds-end-col--school { width: 24%; }
+.ds-end-table--compact col.ds-end-col--authority { width: 24%; }
+.ds-end-table--compact col.ds-end-col--date { width: 18%; }
+.ds-end-table--compact col.ds-end-col--actions { width: 6%; }
+.ds-end-table--compact th,
+.ds-end-table--compact td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-end-table--compact th.ds-end-th--date,
+.ds-end-table--compact td.ds-end-td--date,
+.ds-end-table--compact th.ds-end-th--actions,
+.ds-end-table--compact td.ds-end-td--actions {
+  text-align: center;
+}
 
 /* ======================================================
    Dashboard design polish – 2026-05
@@ -9200,10 +9220,17 @@ select.ds-activity-add-field .ds-input,
   border-color: var(--ds-accent);
 }
 
+.ds-table--archive {
+  width: 100%;
+  table-layout: fixed;
+}
 .ds-table--archive th,
 .ds-table--archive td {
   text-align: right;
   padding: 4px 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ds-table--archive th:nth-last-child(2),
 .ds-table--archive th:nth-last-child(1),
@@ -9212,13 +9239,12 @@ select.ds-activity-add-field .ds-input,
 .ds-table--archive .ds-archive-date-col {
   text-align: center;
 }
-.ds-table--archive col:nth-child(1) { width: 200px; }
-.ds-table--archive col:nth-child(2) { width: 155px; }
-.ds-table--archive col:nth-child(3) { width: 155px; }
-.ds-table--archive col:nth-child(4) { width: 155px; }
-.ds-table--archive col:nth-child(5) { width: 155px; }
-.ds-table--archive col:nth-child(6) { width: 105px; }
-.ds-table--archive col:nth-child(7) { width: 105px; }
+.ds-table--archive col.ds-activities-col--program { width: 22%; }
+.ds-table--archive col.ds-activities-col--authority,
+.ds-table--archive col.ds-activities-col--school,
+.ds-table--archive col.ds-activities-col--instructor,
+.ds-table--archive col.ds-activities-col--manager { width: 14%; }
+.ds-table--archive col.ds-activities-col--date { width: 11%; }
 
 /* Targeted fixes: instructors density + drawer actions */
 @media (min-width: 1281px) {

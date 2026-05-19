@@ -27,25 +27,18 @@ function resolveDates(row) {
   return { dates: [], source: 'none' };
 }
 
-function currentMonthStart() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-}
-function currentMonthYm() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+function isClosedStatus(value) {
+  const status = String(value || '').trim().toLowerCase();
+  return status === 'סגור' || status === 'closed' || status === 'inactive';
 }
 
 function normalizeRows(rows, managerFilter = '') {
-  const monthStart = currentMonthStart();
   const selectedManager = String(managerFilter || '').trim();
   return rows
     .map((row) => {
       const endDate = asIso(row?.end_date) || asIso(row?.date_end);
       if (!endDate) return null;
-      const status = String(row?.status || '').trim();
-      if (status !== 'פעיל') return null;
-      if (endDate < monthStart) return null;
+      if (isClosedStatus(row?.status)) return null;
       if (selectedManager && String(row?.activity_manager || '').trim() !== selectedManager) return null;
       const { dates, source } = resolveDates(row);
       return { ...row, end_date: endDate, _dates: dates, _dateSource: source };
@@ -103,6 +96,13 @@ function renderMonthTable(month, monthIdx) {
       <span class="ds-end-dates__month-count">${month.rows.length}</span>
     </h3>
     <table class="ds-end-table ds-end-table--compact" dir="rtl">
+      <colgroup>
+        <col class="ds-end-col--name">
+        <col class="ds-end-col--school">
+        <col class="ds-end-col--authority">
+        <col class="ds-end-col--date">
+        <col class="ds-end-col--actions">
+      </colgroup>
       <thead><tr>
         <th class="ds-end-th ds-end-th--name">שם פעילות</th>
         <th class="ds-end-th ds-end-th--school">בית ספר</th>
@@ -144,9 +144,9 @@ function buildExcelBlob(rows) {
 export const endDatesScreen = {
   load: ({ api }) => api.endDates(),
 
-  render(data) {
+  render(data, { state }) {
     const rawRows = Array.isArray(data?.rows) ? data.rows : [];
-    const managerFilter = String(data?.selectedManager || '');
+    const managerFilter = String(state?.endDatesManager || data?.selectedManager || '');
     const rows    = normalizeRows(rawRows, managerFilter);
     const managerOptions = Array.from(new Set(rawRows.map((r) => String(r?.activity_manager || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'he'));
     const months  = groupByMonth(rows);
@@ -172,8 +172,9 @@ export const endDatesScreen = {
       </section>`);
   },
 
-  bind({ root, data, state, refresh }) {
-    const allRows = normalizeRows(Array.isArray(data?.rows) ? data.rows : [], data?.selectedManager || '');
+  bind({ root, data, state, rerender }) {
+    const managerFilter = String(state?.endDatesManager || data?.selectedManager || '');
+    const allRows = normalizeRows(Array.isArray(data?.rows) ? data.rows : [], managerFilter);
     const months  = groupByMonth(allRows);
 
     const rowMap = new Map();
@@ -213,7 +214,7 @@ export const endDatesScreen = {
     root.querySelector('[data-end-manager]')?.addEventListener('change', (e) => {
       data.selectedManager = e.target.value || '';
       state.endDatesManager = data.selectedManager;
-      refresh();
+      rerender();
     });
   }
 };
