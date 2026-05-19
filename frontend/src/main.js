@@ -510,7 +510,8 @@ const screenLabels = {
   'admin-settings': 'הגדרות מערכת',
   'admin-lists': 'ניהול רשימות',
   archive: 'ארכיון',
-  'proposals-agreements': 'הצעות'
+  'proposals-agreements': 'הצעות',
+  finance: 'כספים / גבייה'
 };
 
 const screenLoaders = {
@@ -530,7 +531,8 @@ const screenLoaders = {
   'admin-settings': () => import('./screens/admin-settings.js').then((m) => m.adminSettingsScreen),
   'admin-lists': () => import('./screens/admin-lists.js').then((m) => m.adminListsScreen),
   archive: () => import('./screens/archive.js').then((m) => m.archiveScreen),
-  'proposals-agreements': () => import('./screens/proposals-agreements.js').then((m) => m.proposalsAgreementsScreen)
+  'proposals-agreements': () => import('./screens/proposals-agreements.js').then((m) => m.proposalsAgreementsScreen),
+  finance: () => import('./screens/finance.js').then((m) => m.financeScreen)
 };
 const loadedScreens = new Map();
 const loadingScreens = new Map();
@@ -601,7 +603,7 @@ function effectiveRoutes() {
  * Routes that are permanently disabled regardless of user permissions.
  * Any attempt to navigate to these is silently redirected to dashboard (or the first allowed route).
  */
-const PERMANENTLY_DISABLED_ROUTES = new Set(['finance']);
+const PERMANENTLY_DISABLED_ROUTES = new Set([]);
 
 function redirectIfDisabledRoute() {
   if (!PERMANENTLY_DISABLED_ROUTES.has(state.route)) return;

@@ -10,7 +10,8 @@ const KEY_PERM_FLAGS = [
   'can_request_edit',
   'can_review_requests',
   'view_admin',
-  'view_permissions'
+  'view_permissions',
+  'finance_access'
 ];
 
 const PERMISSION_ROLE_OPTIONS = [
@@ -79,7 +80,8 @@ function sortedPermissionEditorKeys(row) {
       k === 'display_role2' ||
       k === 'default_view' ||
       k.startsWith('view_') ||
-      k.startsWith('can_')
+      k.startsWith('can_') ||
+      k === 'finance_access'
     );
   });
   const rank = (k) => {
