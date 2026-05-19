@@ -7359,7 +7359,7 @@ select.ds-input {
 
 .activity-drawer__dates--edit {
   display: grid;
-  grid-template-columns: repeat(2, minmax(280px, 320px));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -7596,6 +7596,22 @@ select.ds-input {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+}
+
+.activity-drawer__form input[type="date"],
+.activity-drawer__form input[type="time"],
+.activity-drawer__form input[type="datetime-local"],
+.activity-drawer__form input[type="month"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.activity-drawer__date-card {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .ds-drawer:has(.activity-drawer__header) > .ds-drawer__header {
