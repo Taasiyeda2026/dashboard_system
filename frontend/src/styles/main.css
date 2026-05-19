@@ -9245,6 +9245,9 @@ select.ds-activity-add-field .ds-input,
 .ds-table--archive col.ds-activities-col--instructor,
 .ds-table--archive col.ds-activities-col--manager { width: 14%; }
 .ds-table--archive col.ds-activities-col--date { width: 11%; }
+.ds-table--archive .ds-archive-col-manager {
+  text-align: right;
+}
 
 /* Targeted fixes: instructors density + drawer actions */
 @media (min-width: 1281px) {

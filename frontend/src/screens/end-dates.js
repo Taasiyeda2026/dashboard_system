@@ -32,13 +32,23 @@ function isClosedStatus(value) {
   return status === 'סגור' || status === 'closed' || status === 'inactive';
 }
 
+function localTodayIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function normalizeRows(rows, managerFilter = '') {
   const selectedManager = String(managerFilter || '').trim();
+  const today = localTodayIso();
   return rows
     .map((row) => {
       const endDate = asIso(row?.end_date) || asIso(row?.date_end);
       if (!endDate) return null;
       if (isClosedStatus(row?.status)) return null;
+      if (endDate < today) return null;
       if (selectedManager && String(row?.activity_manager || '').trim() !== selectedManager) return null;
       const { dates, source } = resolveDates(row);
       return { ...row, end_date: endDate, _dates: dates, _dateSource: source };
@@ -183,7 +193,7 @@ export const endDatesScreen = {
     });
 
     root.querySelector('[data-end-dates-export]')?.addEventListener('click', () => {
-      const stamp = new Date().toISOString().slice(0, 10);
+      const stamp = localTodayIso();
       triggerExcelDownload(buildExcelBlob(allRows), `תאריכי_סיום_${stamp}.xls`);
     });
 
@@ -207,7 +217,7 @@ export const endDatesScreen = {
         if (!row) return;
         const name  = String(row.activity_name || 'פעילות')
           .replace(/[/\\?%*:|"<>]/g, '_').slice(0, 40);
-        const stamp = new Date().toISOString().slice(0, 10);
+        const stamp = localTodayIso();
         triggerExcelDownload(buildExcelBlob([row]), `${name}_${stamp}.xls`);
       });
     });
