@@ -161,27 +161,23 @@ function detailRowsHtml(row) {
 
 export function proposalsAgreementsTableRowsHtml(rows) {
   if (!rows.length) {
-    return `<tr class="ds-pa-empty-row"><td colspan="7">אין רשומות להצגה</td></tr>`;
+    return `<tr class="ds-pa-empty-row"><td colspan="6">אין רשומות להצגה</td></tr>`;
   }
-  return rows.map((row) => {
-    const activityNamesDisplay = Array.isArray(row.activity_names) ? row.activity_names.join('; ') : (row.activity_names || '');
-    return `
+  return rows.map((row) => `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td>${escapeHtml(row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
+      <td>${escapeHtml(row.contact_name || '')}</td>
       <td>${escapeHtml(row.document_type || '—')}</td>
       <td>${escapeHtml(row.activity_type_group || '—')}</td>
-      <td>${escapeHtml(activityNamesDisplay)}</td>
       <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
-      <td class="ds-pa-notes" title="${escapeHtml(row.notes || '')}">${escapeHtml(row.notes || '')}</td>
-    </tr>`;
-  }).join('');
+    </tr>`).join('');
 }
 
 function tableHtml(rows) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <thead><tr><th>לקוח / רשות</th><th>בית ספר / מסגרת</th><th>סוג מסמך</th><th>סוג פעילות</th><th>שם הפעילויות</th><th>תאריך הצעה</th><th>הערות</th></tr></thead>
+      <thead><tr><th>לקוח / רשות</th><th>בית ספר / מסגרת</th><th>איש קשר</th><th>סוג מסמך</th><th>סוג פעילות</th><th>תאריך הצעה</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows)}</tbody>
     </table>
   `);

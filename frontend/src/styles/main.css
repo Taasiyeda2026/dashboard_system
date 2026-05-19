@@ -9704,13 +9704,12 @@ select.ds-activity-add-field .ds-input,
   box-shadow: var(--ds-shadow-xs);
 }
 
-.ds-pa-table thead th:nth-child(1) { width: 18%; }
-.ds-pa-table thead th:nth-child(2) { width: 18%; }
-.ds-pa-table thead th:nth-child(3) { width: 10%; }
-.ds-pa-table thead th:nth-child(4) { width: 12%; }
-.ds-pa-table thead th:nth-child(5) { width: 22%; }
-.ds-pa-table thead th:nth-child(6) { width: 9%; }
-.ds-pa-table thead th:nth-child(7) { width: auto; }
+.ds-pa-table thead th:nth-child(1) { width: 22%; }
+.ds-pa-table thead th:nth-child(2) { width: 22%; }
+.ds-pa-table thead th:nth-child(3) { width: 16%; }
+.ds-pa-table thead th:nth-child(4) { width: 13%; }
+.ds-pa-table thead th:nth-child(5) { width: 15%; }
+.ds-pa-table thead th:nth-child(6) { width: 12%; }
 
 .ds-pa-table th {
   font-weight: 700;
