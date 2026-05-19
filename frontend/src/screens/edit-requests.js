@@ -178,6 +178,12 @@ function renderGroup(group, canReview) {
   `;
 }
 
+const CLOSED_STATUSES = new Set(['approved', 'rejected']);
+
+function isOpen(group) {
+  return !CLOSED_STATUSES.has(String(group?.status || '').trim());
+}
+
 export const editRequestsScreen = {
   load: ({ api }) => api.editRequests(),
   render(data) {
@@ -185,56 +191,25 @@ export const editRequestsScreen = {
     const validGroups = groups.filter((group) => Array.isArray(group?.fields) && group.fields.length > 0);
     const canReview = !!data?.canReview;
 
-    const statusFilters = [
-      { value: '', label: 'הכול' },
-      { value: 'pending', label: 'ממתינים' },
-      { value: 'approved', label: 'מאושרים' },
-      { value: 'rejected', label: 'נדחו' },
-      { value: 'conflict', label: 'קונפליקט' }
-    ];
+    const openGroups = validGroups.filter(isOpen);
 
-    const filterChips = statusFilters.map((f) => `
-      <button type="button" class="ds-chip${f.value === 'pending' ? ' is-active' : ''}"
-        data-er-filter="${escapeHtml(f.value)}">${escapeHtml(f.label)}</button>
-    `).join('');
-
-    const groupsHtml = validGroups.length === 0
-      ? dsEmptyState('אין בקשות עריכה')
-      : validGroups.map((g) => renderGroup(g, canReview)).join('');
+    const groupsHtml = openGroups.length === 0
+      ? dsEmptyState('אין בקשות פתוחות כרגע')
+      : openGroups.map((g) => renderGroup(g, canReview)).join('');
 
     const subtitle = canReview ? 'בקשות עריכה הממתינות לאישורך' : 'בקשות עריכה שהגשת';
 
     return dsScreenStack(`
       ${dsPageHeader('בקשות עריכה', subtitle)}
       ${dsCard({
-        title: `בקשות (${validGroups.length})`,
+        title: `בקשות פתוחות (${openGroups.length})`,
         padded: false,
-        body: `
-          <div class="ds-filter-bar ds-er-filter-bar" dir="rtl">${filterChips}</div>
-          <div class="ds-er-list" data-er-list>${groupsHtml}</div>
-        `
+        body: `<div class="ds-er-list" data-er-list>${groupsHtml}</div>`
       })}
     `);
   },
-  bind({ root, data, api, rerender, clearScreenDataCache }) {
+  bind({ root, api, rerender, clearScreenDataCache }) {
     if (!root) return;
-
-    const list = root.querySelector('[data-er-list]');
-    let activeFilter = 'pending';
-
-    root.querySelectorAll('[data-er-filter]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        root.querySelectorAll('[data-er-filter]').forEach((b) => b.classList.remove('is-active'));
-        btn.classList.add('is-active');
-        const filterVal = btn.dataset.erFilter;
-        activeFilter = filterVal;
-        if (!list) return;
-        list.querySelectorAll('.ds-er-group').forEach((g) => {
-          const show = !filterVal || g.dataset.status === filterVal;
-          g.style.display = show ? '' : 'none';
-        });
-      });
-    });
 
     root.querySelectorAll('[data-action]').forEach((btn) => {
       btn.addEventListener('click', async () => {
@@ -248,16 +223,7 @@ export const editRequestsScreen = {
         try {
           await api.reviewEditRequest(requestId, status);
           const groupEl = btn.closest('.ds-er-group');
-          if (groupEl) {
-            if (activeFilter === 'pending') {
-              groupEl.remove();
-            } else {
-              groupEl.dataset.status = status;
-              const statusChipWrap = groupEl.querySelector('.ds-er-card-head > div:last-child');
-              if (statusChipWrap) statusChipWrap.innerHTML = dsStatusChip(statusLabel(status), statusVariant(status));
-              groupEl.querySelector('.ds-er-actions')?.remove();
-            }
-          }
+          groupEl?.remove();
           clearScreenDataCache?.();
           showToast(status === 'approved' ? 'הבקשה אושרה' : 'הבקשה נדחתה', 'success');
           rerender?.();
@@ -267,7 +233,5 @@ export const editRequestsScreen = {
         }
       });
     });
-
-    root.querySelectorAll('[data-er-filter]')[1]?.click();
   }
 };
