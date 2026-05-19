@@ -9201,10 +9201,10 @@ select.ds-activity-add-field .ds-input,
   text-align: center;
 }
 .ds-table--archive col:nth-child(1) { width: 250px; }
-.ds-table--archive col:nth-child(2) { width: 170px; }
-.ds-table--archive col:nth-child(3) { width: 220px; }
-.ds-table--archive col:nth-child(4) { width: 180px; }
-.ds-table--archive col:nth-child(5) { width: 180px; }
+.ds-table--archive col:nth-child(2) { width: 190px; }
+.ds-table--archive col:nth-child(3) { width: 190px; }
+.ds-table--archive col:nth-child(4) { width: 190px; }
+.ds-table--archive col:nth-child(5) { width: 190px; }
 .ds-table--archive col:nth-child(6) { width: 130px; }
 .ds-table--archive col:nth-child(7) { width: 130px; }
 
