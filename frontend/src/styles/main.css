@@ -9704,11 +9704,13 @@ select.ds-activity-add-field .ds-input,
   box-shadow: var(--ds-shadow-xs);
 }
 
-.ds-pa-table thead th:nth-child(1) { width: 22%; }
-.ds-pa-table thead th:nth-child(2) { width: 22%; }
-.ds-pa-table thead th:nth-child(3) { width: 14%; }
-.ds-pa-table thead th:nth-child(4) { width: 16%; }
-.ds-pa-table thead th:nth-child(5) { width: auto; }
+.ds-pa-table thead th:nth-child(1) { width: 18%; }
+.ds-pa-table thead th:nth-child(2) { width: 18%; }
+.ds-pa-table thead th:nth-child(3) { width: 10%; }
+.ds-pa-table thead th:nth-child(4) { width: 12%; }
+.ds-pa-table thead th:nth-child(5) { width: 22%; }
+.ds-pa-table thead th:nth-child(6) { width: 9%; }
+.ds-pa-table thead th:nth-child(7) { width: auto; }
 
 .ds-pa-table th {
   font-weight: 700;
@@ -9816,7 +9818,9 @@ select.ds-activity-add-field .ds-input,
   border: 1px solid var(--ds-color-border, #e2e8f0);
   border-radius: var(--ds-radius-lg, 14px);
   background: var(--ds-color-surface-soft, #f8fafc);
-  max-width: 680px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .ds-pa-form-title {
@@ -9827,10 +9831,9 @@ select.ds-activity-add-field .ds-input,
 
 .ds-pa-form-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(280px, 320px));
+  grid-template-columns: repeat(2, 1fr);
   gap: 7px 12px;
   margin: 0 0 10px;
-  justify-content: center;
 }
 
 .ds-pa-form-field {
@@ -9838,6 +9841,7 @@ select.ds-activity-add-field .ds-input,
   gap: 3px;
   color: var(--ds-color-text-muted, #64748b);
   font-size: 0.8rem;
+  min-width: 0;
 }
 
 .ds-pa-form-field .ds-input,
@@ -9845,7 +9849,8 @@ select.ds-activity-add-field .ds-input,
 .ds-pa-form-field textarea.ds-input {
   font-size: 0.82rem;
   padding: 4px 7px;
-  max-width: 320px;
+  width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
 }
 

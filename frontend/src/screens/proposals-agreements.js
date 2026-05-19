@@ -164,7 +164,7 @@ export function proposalsAgreementsTableRowsHtml(rows) {
     return `<tr class="ds-pa-empty-row"><td colspan="7">אין רשומות להצגה</td></tr>`;
   }
   return rows.map((row) => {
-    const activityNamesDisplay = Array.isArray(row.activity_names) ? row.activity_names.join(', ') : (row.activity_names || '');
+    const activityNamesDisplay = Array.isArray(row.activity_names) ? row.activity_names.join('; ') : (row.activity_names || '');
     return `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td>${escapeHtml(row.client_authority || '—')}</td>
@@ -258,8 +258,19 @@ function drawerHtml(row, activityNameOptions = []) {
   </aside>`;
 }
 
+function dedupeById(rows) {
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = text(row.id);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function displayRows(data, filters = {}) {
-  return sortRows((Array.isArray(data?.rows) ? data.rows : []).map(normalizeProposalAgreementRow)).filter((row) => rowMatches(row, filters));
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  return dedupeById(sortRows(rows)).filter((row) => rowMatches(row, filters));
 }
 
 function currentFilters(root) {
@@ -334,7 +345,10 @@ export const proposalsAgreementsScreen = {
   },
   bind({ root, data, state, api }) {
     if (!root || data?.unauthorized || !canAccessProposalsAgreements(state)) return;
-    data.rows = sortRows((Array.isArray(data.rows) ? data.rows : []).map(normalizeProposalAgreementRow));
+    const seenIds = new Set();
+    data.rows = sortRows((Array.isArray(data.rows) ? data.rows : [])
+      .map(normalizeProposalAgreementRow)
+      .filter((r) => { const k = text(r.id); if (!k || seenIds.has(k)) return false; seenIds.add(k); return true; }));
     const activityNameOptions = Array.from(new Set((Array.isArray(data?.activityNameOptions) ? data.activityNameOptions : []).map((v) => text(v)).filter(Boolean)));
     let debounceTimer = null;
 
