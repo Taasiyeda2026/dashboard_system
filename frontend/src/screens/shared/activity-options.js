@@ -70,7 +70,7 @@ export function resolveActivityInstructorName(row = {}, { secondary = false } = 
   return '';
 }
 
-export const NO_ACTIVITY_MANAGER_LABEL = 'ללא מנהל';
+export const NO_ACTIVITY_MANAGER_LABEL = 'ללא';
 
 function text(value) {
   return String(value == null ? '' : value).trim();
@@ -79,7 +79,7 @@ function text(value) {
 export function cleanActivityManagerName(value) {
   const clean = text(value);
   const upper = clean.toUpperCase();
-  if (!clean || clean === NO_ACTIVITY_MANAGER_LABEL || upper === 'NULL' || upper === 'UNDEFINED' || upper === 'NONE' || upper === 'N/A' || upper === 'UNASSIGNED' || clean === '-') return '';
+  if (!clean || clean === 'ללא' || clean === 'ללא מנהל' || upper === 'NULL' || upper === 'UNDEFINED' || upper === 'NONE' || upper === 'N/A' || upper === 'UNASSIGNED' || clean === '-') return '';
   return clean;
 }
 
