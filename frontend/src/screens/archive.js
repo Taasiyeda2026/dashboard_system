@@ -174,7 +174,7 @@ function archiveTableRowsHtml(rows) {
         <td class="ds-activities-col ds-activities-col--instructor">
           <span class="ds-activities-cell-ellipsis">${instructor}</span>
         </td>
-        <td class="ds-activities-col ds-activities-col--manager">${escapeHtml(manager)}</td>
+        <td class="ds-activities-col ds-activities-col--manager ds-archive-col-manager">${escapeHtml(manager)}</td>
         <td class="ds-archive-date-col"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
         <td class="ds-archive-date-col"><time class="ds-activities-date ds-archive-end-date">${escapeHtml(endHe)}</time></td>
       </tr>`;
@@ -207,7 +207,7 @@ function renderArchiveTableSection(rows, state, allRowsCount = rows.length) {
             <th>רשות</th>
             <th>בית ספר</th>
             <th>מדריך</th>
-            <th>מנהל פעילות</th>
+            <th class="ds-archive-col-manager">מנהל פעילות</th>
             <th>תאריך התחלה</th>
             <th>תאריך סיום</th>
           </tr>
