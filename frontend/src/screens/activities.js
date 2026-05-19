@@ -348,7 +348,6 @@ function addActivityModalHtml(settings) {
         <input type="hidden" name="emp_id_2" value="">
         <label class="ds-activity-add-field"><span>תאריך התחלה</span><input class="ds-input" name="start_date" type="date"></label>
         <label class="ds-activity-add-field"><span>תאריך סיום</span><input class="ds-input" name="end_date" type="date"></label>
-        <label class="ds-activity-add-field"><span>תדירות</span><select class="ds-input" name="frequency" data-add-frequency>${optionsHtml(['weekly', 'biweekly'], 'weekly', 'בחרו תדירות')}</select></label>
         <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-date-rows-wrap>
           <span>תאריכי מפגשים</span>
           <div class="ds-activity-add-date-rows" data-add-date-rows></div>
@@ -1112,11 +1111,10 @@ export const activitiesScreen = {
       syncSessionDateRows(form);
     }
 
-    function computeNextSessionDate(baseIso, index, frequency) {
+    function computeNextSessionDate(baseIso, index) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(baseIso || ''))) return '';
       const base = new Date(`${baseIso}T00:00:00`);
-      const stepDays = frequency === 'biweekly' ? 14 : 7;
-      base.setDate(base.getDate() + (index * stepDays));
+      base.setDate(base.getDate() + (index * 7));
       return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
     }
 
@@ -1125,10 +1123,9 @@ export const activitiesScreen = {
       const container = form.querySelector('[data-add-date-rows]');
       if (!container) return;
       const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
-      const frequency = String(form.querySelector('[data-add-frequency]')?.value || 'weekly').trim();
       const prev = Array.from(container.querySelectorAll('input[data-add-session-date]')).map((input) => String(input.value || '').trim());
       container.innerHTML = Array.from({ length: sessions }, (_, idx) => {
-        const value = prev[idx] || computeNextSessionDate(startDate, idx, frequency);
+        const value = prev[idx] || computeNextSessionDate(startDate, idx);
         return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
       }).join('');
     }
@@ -1158,7 +1155,6 @@ export const activitiesScreen = {
       }, addActivitySig);
       form.querySelector('[data-add-sessions]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[name="start_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
-      form.querySelector('[data-add-frequency]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
     }
 
     async function submitAddActivityForm(form, submitBtn) {
@@ -1200,8 +1196,7 @@ export const activitiesScreen = {
         instructor_name_2: isShort ? '' : get('instructor_name_2'),
         emp_id_2: isShort ? '' : pickEmp(get('instructor_name_2')),
         start_date: get('start_date'),
-        end_date: get('end_date') || '',
-        frequency: get('frequency'),
+        end_date: get('end_date') || null,
         status: 'פעיל',
         notes: get('notes')
       };
@@ -1211,26 +1206,14 @@ export const activitiesScreen = {
       });
       if (!payload.end_date) {
         const lastDate = [...dateInputs].map((input) => String(input.value || '').trim()).filter(Boolean).pop();
-        payload.end_date = lastDate || payload.start_date || '';
+        payload.end_date = lastDate || payload.start_date || null;
       }
 
       const required = [
-        ['source', 'מקור'],
         ['activity_type', 'סוג פעילות'],
         ['activity_name', 'שם פעילות'],
-        ['activity_manager', 'מנהל פעילות'],
         ['authority', 'רשות'],
-        ['school', 'בית ספר'],
-        ['start_date', 'תאריך התחלה'],
-        ['end_date', 'תאריך סיום'],
-        ['sessions', 'מספר מפגשים'],
-        ['price', 'מחיר'],
-        ['funding', 'מימון'],
-        ['start_time', 'שעת התחלה'],
-        ['end_time', 'שעת סיום'],
-        ['instructor_name', 'מדריך/ה'],
-        ['emp_id', 'מספר עובד'],
-        ['notes', 'הערות']
+        ['school', 'בית ספר']
       ];
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
       if (missing.length) {
