@@ -145,14 +145,12 @@ export const endDatesScreen = {
     const rows    = normalizeRows(rawRows, managerFilter);
     const managerOptions = Array.from(new Set(rawRows.map((r) => String(r?.activity_manager || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'he'));
     const months  = groupByMonth(rows);
-    const monthBadge = `חודש ${monthLabelFromIso(`${currentMonthStart()}`)} ${rows.length}`;
-
     const headerTools = `<div class="ds-end-dates__head-tools">
       <label class="ds-end-dates__manager-filter"><span>מנהל פעילויות</span><select class="ds-input ds-input--sm" data-end-manager>
         <option value="">כל מנהלי הפעילויות</option>
         ${managerOptions.map((m) => `<option value="${escapeHtml(m)}"${managerFilter === m ? ' selected' : ''}>${escapeHtml(activityManagerDisplayName(m))}</option>`).join('')}
       </select></label>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-end-dates-export title="ייצוא כל הפעילויות לאקסל" aria-label="ייצוא הכל לאקסל">⬇ ייצוא הכל</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-end-dates-export title="ייצוא כל הפעילויות לאקסל" aria-label="ייצוא הכל לאקסל">↓ ייצוא הכל</button>
     </div>`;
 
     const body = months.length
@@ -163,7 +161,6 @@ export const endDatesScreen = {
       <section class="ds-end-dates-screen" dir="rtl">
         <h1 class="ds-end-dates-page-title">תאריכי סיום פעילויות</h1>
         ${dsCard({
-          badge: monthBadge,
           body: `${headerTools}${body}`,
           padded: true
         })}

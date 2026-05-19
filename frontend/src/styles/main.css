@@ -7609,23 +7609,43 @@ select.ds-input {
 }
 
 .ds-end-dates-page-title {
-  margin: 0 0 var(--ds-space-3);
+  margin: 0 0 8px;
   text-align: center;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 800;
   color: var(--ds-accent);
 }
 
 .ds-end-dates__head-tools {
   display: flex;
-  justify-content: flex-start;
-  margin-bottom: 12px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: #f8fafc;
+  border: 1px solid #e8eef6;
+  border-radius: 8px;
+}
+
+.ds-end-dates__manager-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ds-end-dates__manager-filter select {
+  flex: 0 0 auto;
 }
 
 .ds-end-dates__months {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 .ds-end-dates__month-title {
@@ -7657,12 +7677,12 @@ select.ds-input {
 .ds-end-th {
   text-align: right;
   font-size: 0.71rem;
-  font-weight: 700;
-  color: #475569;
+  font-weight: 800;
+  color: #1e293b;
   padding: 5px 8px;
-  border-bottom: 2px solid rgba(26, 51, 88, 0.14);
+  border-bottom: 2px solid rgba(26, 51, 88, 0.18);
   white-space: nowrap;
-  background: #f8fafc;
+  background: #f1f5f9;
 }
 
 .ds-end-th--name   { width: 28%; }
@@ -7670,7 +7690,7 @@ select.ds-input {
 .ds-end-th--actions { width: 36px; }
 
 .ds-end-td {
-  padding: 6px 8px;
+  padding: 4px 8px;
   border-bottom: 1px solid rgba(26, 51, 88, 0.07);
   vertical-align: middle;
   overflow: hidden;
@@ -7723,21 +7743,25 @@ select.ds-input {
 }
 
 .ds-end-export-btn {
-  background: none;
-  border: 1px solid rgba(22, 101, 52, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
   border-radius: 6px;
-  padding: 2px 6px;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   cursor: pointer;
-  color: #166534;
-  transition: background 0.12s, border-color 0.12s;
-  line-height: 1.4;
+  color: #475569;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  line-height: 1;
 }
 
 .ds-end-export-btn:hover {
-  background: rgba(22, 101, 52, 0.1);
-  border-color: rgba(22, 101, 52, 0.4);
-  color: #14532d;
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #1e293b;
 }
 
 .ds-end-dates__dates-list {
