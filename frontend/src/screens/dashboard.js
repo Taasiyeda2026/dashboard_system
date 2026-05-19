@@ -137,7 +137,7 @@ function renderStructuredSummary(summary, ym, byManager) {
     .join('');
 
   const districtRows = (Array.isArray(byManager) ? byManager : []).filter(
-    (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned'
+    (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned' && row.activity_manager !== 'ללא' && row.activity_manager !== 'ללא מנהל'
   );
   const districtByName = districtRows.reduce((acc, row) => {
     const label = MANAGER_DISPLAY_NAMES[row.activity_manager] || row.activity_manager;
@@ -359,7 +359,7 @@ export const dashboardScreen = {
     const _seenMgr = new Set();
     const managers = (Array.isArray(data.by_activity_manager) ? data.by_activity_manager : []).filter(
       (row) => {
-        if (!row.activity_manager || row.activity_manager === 'activity_manager' || row.activity_manager === 'unassigned') return false;
+        if (!row.activity_manager || row.activity_manager === 'activity_manager' || row.activity_manager === 'unassigned' || row.activity_manager === 'ללא' || row.activity_manager === 'ללא מנהל') return false;
         if (_seenMgr.has(row.activity_manager)) return false;
         _seenMgr.add(row.activity_manager);
         return true;
