@@ -262,7 +262,7 @@ export const archiveScreen = {
     const tableSection = `<div data-archive-table-section>${renderArchiveTableSection(filteredRows, state, allRows.length)}</div>`;
 
     return dsScreenStack(`
-      <section class="ds-activities-screen">
+      <section class="ds-activities-screen ds-activities-screen--archive">
         ${titleRow}
         ${archiveTypeKpiHtml(yearScopedRows, String(state.archiveTypeFilter || '').trim())}
         ${yearNav}

@@ -5683,10 +5683,37 @@ select.ds-input {
 .ds-archive-year-nav {
   padding: var(--ds-space-1) 0;
   gap: 2px;
+  justify-content: center;
 }
 
 .ds-archive-year-nav .ds-chip--tab {
   padding: 0 var(--ds-space-2);
+}
+
+.ds-activities-screen--archive {
+  gap: 6px;
+}
+
+.ds-activities-screen--archive .ds-archive-kpi-row {
+  padding: 4px 0 2px;
+  gap: 8px;
+}
+
+.ds-activities-screen--archive .ds-archive-kpi {
+  padding: 8px 14px 6px;
+  min-width: 90px;
+}
+
+.ds-activities-screen--archive .ds-archive-kpi__value {
+  font-size: 1.4rem;
+}
+
+.ds-activities-screen--archive .ds-activities-title-row {
+  padding: 4px 10px;
+}
+
+.ds-activities-screen--archive .ds-activities-main-toolbar {
+  padding: 5px 8px;
 }
 
 .ds-archive-end-date {
