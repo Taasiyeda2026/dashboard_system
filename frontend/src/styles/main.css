@@ -10063,6 +10063,50 @@ select.ds-activity-add-field .ds-input,
 .activity-drawer__progress-meta { display:flex; align-items:center; gap:10px; white-space:nowrap; }
 @media (max-width: 720px) { .activity-drawer__progress-meta { white-space:normal; } }
 
+.ds-overdue-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.ds-overdue-dialog {
+  background: #fff;
+  border: 2px solid #dc2626;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.22);
+  padding: 28px 32px 24px;
+  max-width: min(90vw, 420px);
+  text-align: center;
+  direction: rtl;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.ds-overdue-icon {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.ds-overdue-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.ds-overdue-body {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #334155;
+  line-height: 1.6;
+}
+
 .ds-pa-records-shell { border:1px solid var(--ds-border); border-radius:14px; box-shadow: var(--ds-shadow-sm); overflow:hidden; background:var(--ds-surface); }
 .ds-pa-records-shell .ds-table-wrap { margin:0; border:none; border-radius:0; box-shadow:none; }
 .ds-pa-records-shell .ds-pa-table thead th { background:var(--ds-surface-2); }

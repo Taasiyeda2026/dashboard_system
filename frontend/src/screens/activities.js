@@ -767,6 +767,43 @@ export const activitiesScreen = {
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
 
+    (function showOverdueWarningIfNeeded() {
+      if (!root) return;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const allRows = Array.isArray(data?.rows) ? data.rows : [];
+      const overdue = allRows.filter((row) => {
+        const status = String(row?.status || '').trim();
+        const endRaw = String(row?.end_date || '').trim();
+        if (!endRaw || status !== 'פתוח') return false;
+        const endDate = new Date(endRaw);
+        return !isNaN(endDate.getTime()) && endDate < today;
+      });
+      if (!overdue.length) return;
+      const existing = root.querySelector('[data-overdue-warning]');
+      if (existing) return;
+      const el = document.createElement('div');
+      el.setAttribute('data-overdue-warning', '');
+      el.setAttribute('role', 'alertdialog');
+      el.setAttribute('aria-modal', 'true');
+      el.setAttribute('dir', 'rtl');
+      el.className = 'ds-overdue-overlay';
+      el.innerHTML = `
+        <div class="ds-overdue-dialog">
+          <div class="ds-overdue-icon" aria-hidden="true">⚠️</div>
+          <h3 class="ds-overdue-title">פעילויות פתוחות שתאריך הסיום שלהן חלף</h3>
+          <p class="ds-overdue-body">קיימות <strong>${overdue.length}</strong> פעילויות בסטטוס <strong>פתוח</strong> שתאריך הסיום שלהן כבר עבר.<br>מומלץ לבדוק ולעדכן את הסטטוס שלהן.</p>
+          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-overdue-close>הבנתי</button>
+        </div>`;
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('[data-overdue-close]') || e.target === el) el.remove();
+      });
+      document.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Escape') { el.remove(); document.removeEventListener('keydown', onKey); }
+      }, { once: true });
+      root.appendChild(el);
+    })();
+
     const activitiesRows = Array.isArray(data?.rows) ? data.rows : [];
     const filteredRows      = applyActivitiesLocalFilters(activitiesRows, state, state?.clientSettings);
     const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
