@@ -666,7 +666,8 @@ select {
 
 .ds-drawer__content {
   padding: var(--ds-space-4);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   color: var(--ds-text);
   overscroll-behavior: contain;
@@ -7189,7 +7190,7 @@ select.ds-input {
 
 .activity-drawer__grid--two {
   display: grid;
-  grid-template-columns: repeat(2, minmax(280px, 320px));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px 16px;
 }
 
@@ -7227,7 +7228,7 @@ select.ds-input {
 }
 
 .activity-drawer__field-controls--inline {
-  grid-template-columns: repeat(2, minmax(280px, 320px));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .activity-drawer__field-controls--stacked {
@@ -7236,14 +7237,14 @@ select.ds-input {
 
 @media (max-width: 640px) {
   .activity-drawer__details-edit-grid {
-    grid-template-columns: repeat(2, minmax(280px, 320px));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 480px) {
   .activity-drawer__grid--three,
   .activity-drawer__details-edit-grid {
-    grid-template-columns: repeat(2, minmax(280px, 320px));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -7584,6 +7585,17 @@ select.ds-input {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.activity-drawer__form input,
+.activity-drawer__form select,
+.activity-drawer__form textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .ds-drawer:has(.activity-drawer__header) > .ds-drawer__header {
