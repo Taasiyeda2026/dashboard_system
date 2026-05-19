@@ -1336,6 +1336,7 @@ function backgroundSyncBootstrap() {
       state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
       state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);
       state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
+      state.user.finance_access = !!bootstrap.has_finance_access;
       localStorage.setItem('dashboard_user', JSON.stringify(state.user));
     }
     const routesChanged = normalizedRoutes.length !== prevRouteSet.size ||
@@ -1377,6 +1378,7 @@ async function restoreSession() {
     state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
     state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);
     state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
+    state.user.finance_access = !!bootstrap.has_finance_access;
     localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   }
 }

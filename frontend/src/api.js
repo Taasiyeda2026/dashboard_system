@@ -1583,6 +1583,7 @@ function buildBootstrapFromUser(userRow) {
   return {
     routes: [...allowedRoutes],
     default_route: allowedRoutes[0] || 'my-data',
+    has_finance_access: hasFinanceAccess,
     profile: {
       full_name: flat.full_name,
       display_role2: flat.display_role2 || '',
@@ -2125,7 +2126,8 @@ export const api = {
         emp_id: flat.emp_id,
         can_add_activity: permissionFlagYes(flat.can_add_activity) || flat.role === 'admin' || flat.role === 'operation_manager',
         can_edit_direct: ROLES_WITH_DIRECT_EDIT.has(flat.role) || permissionFlagYes(flat.can_edit_direct),
-        can_request_edit: (ROLES_WITH_DIRECT_EDIT.has(flat.role) || permissionFlagYes(flat.can_edit_direct) || permissionFlagYes(flat.can_request_edit) || flat.role !== 'instructor')
+        can_request_edit: (ROLES_WITH_DIRECT_EDIT.has(flat.role) || permissionFlagYes(flat.can_edit_direct) || permissionFlagYes(flat.can_request_edit) || flat.role !== 'instructor'),
+        finance_access: permissionFlagYes(flat.finance_access)
       },
       ...buildBootstrapFromUser(user),
       client_settings: buildClientSettingsFromLists(listsData, settingsRows)
