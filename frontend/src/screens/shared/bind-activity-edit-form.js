@@ -148,6 +148,31 @@ function updateMoreDatesToggle(form) {
   syncMeetingRemoveButtons(form);
 }
 
+function buildMeetingDatesSnapshot(form) {
+  const pickers = Array.from(form.querySelectorAll('[data-meeting-dates-edit] input[data-meeting-idx]')).sort(
+    (a, b) => Number(a.dataset.meetingIdx) - Number(b.dataset.meetingIdx)
+  );
+  const dates = pickers
+    .map((picker) => String(picker?.value || '').trim())
+    .filter((value) => value);
+  const normalized = Array.from({ length: 35 }, (_, idx) => String(dates[idx] || '').trim());
+  let endDate = '';
+  normalized.forEach((value) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) endDate = value;
+  });
+  return { dates: normalized, endDate };
+}
+
+function hasMeetingDatesChanged(form, initialValues = {}) {
+  const { dates } = buildMeetingDatesSnapshot(form);
+  for (let i = 0; i < 35; i++) {
+    const current = String(dates[i] || '').trim();
+    const prev = String(initialValues[`meeting_date_${i}`] ?? initialValues[`date_${i + 1}`] ?? '').trim();
+    if (current !== prev) return true;
+  }
+  return false;
+}
+
 export function bindActivityEditForm(contentRoot, {
   api,
   clearScreenDataCache,
@@ -187,6 +212,14 @@ export function bindActivityEditForm(contentRoot, {
       if (nextValue === prevValue) return;
       changes[name] = nextValue;
     });
+
+    if (hasMeetingDatesChanged(form, initialValues)) {
+      const snapshot = buildMeetingDatesSnapshot(form);
+      for (let i = 0; i < 35; i++) {
+        changes[`meeting_date_${i}`] = snapshot.dates[i];
+      }
+      changes.end_date = snapshot.endDate;
+    }
 
     try {
       if (!Object.keys(changes).length) {
