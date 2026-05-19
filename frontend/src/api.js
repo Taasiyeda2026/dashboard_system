@@ -1345,7 +1345,7 @@ function normalizeData(data) {
 
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,contact_name,contact_role,phone,email,notes,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,contact_name,contact_role,phone,email,notes,created_at,updated_at';
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -1419,6 +1419,7 @@ function normalizeProposalAgreementRow(row = {}) {
     school_framework:    cleanProposalAgreementText(row.school_framework),
     document_type:       cleanProposalAgreementText(row.document_type),
     activity_type_group: cleanProposalAgreementText(row.activity_type_group),
+    proposal_date:       cleanProposalAgreementText(row.proposal_date),
     activity_names:      normalizeProposalAgreementActivityNames(
       Array.isArray(row.activity_names) && row.activity_names.length
         ? row.activity_names
@@ -1443,6 +1444,7 @@ function sanitizeProposalAgreementPayload(payload = {}) {
     school_framework: cleanProposalAgreementText(payload.school_framework),
     document_type:    cleanProposalAgreementText(payload.document_type),
     activity_type_group: cleanProposalAgreementText(payload.activity_type_group),
+    proposal_date:       cleanProposalAgreementText(payload.proposal_date) || null,
     contact_name:        cleanProposalAgreementText(payload.contact_name),
     contact_role:        cleanProposalAgreementText(payload.contact_role),
     phone:               cleanProposalAgreementText(payload.phone),

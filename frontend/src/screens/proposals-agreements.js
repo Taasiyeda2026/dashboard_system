@@ -8,16 +8,17 @@ const DOCUMENT_TYPE_OPTIONS = ['הצעת מחיר', 'הסכם'];
 const ACTIVITY_TYPE_GROUP_OPTIONS = ['הצעה משולבת', 'פעילויות קיץ', 'שנה הבאה'];
 
 const FIELD_LABELS = {
-  client_authority:  'לקוח / רשות',
-  school_framework:  'בית ספר / מסגרת',
-  document_type:     'סוג מסמך',
+  client_authority:    'לקוח / רשות',
+  school_framework:    'בית ספר / מסגרת',
+  document_type:       'סוג מסמך',
   activity_type_group: 'סוג פעילות',
-  activity_names:    'שם הפעילויות',
-  contact_name:      'שם איש קשר',
-  contact_role:      'תפקיד איש קשר',
-  phone:             'טלפון',
-  email:             'דוא״ל',
-  notes:             'הערות'
+  proposal_date:       'תאריך הצעה',
+  activity_names:      'שם הפעילויות',
+  contact_name:        'שם איש קשר',
+  contact_role:        'תפקיד איש קשר',
+  phone:               'טלפון',
+  email:               'דוא״ל',
+  notes:               'הערות'
 };
 
 const REQUIRED_FIELDS = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'];
@@ -26,6 +27,7 @@ const FORM_FIELDS = [
   'school_framework',
   'document_type',
   'activity_type_group',
+  'proposal_date',
   'activity_names',
   'contact_name',
   'contact_role',
@@ -77,6 +79,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     school_framework:    text(row.school_framework),
     document_type:       text(row.document_type),
     activity_type_group: text(row.activity_type_group),
+    proposal_date:       text(row.proposal_date),
     activity_names:      normalizeActivityNames(row.activity_names),
     contact_name:        text(row.contact_name),
     contact_role:        text(row.contact_role),
@@ -88,6 +91,16 @@ export function normalizeProposalAgreementRow(row = {}) {
   };
   normalized._searchText = buildProposalsAgreementsSearchText(normalized);
   return normalized;
+}
+
+function formatDateDisplay(iso) {
+  const s = String(iso || '').trim();
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  return s;
 }
 
 function sortRows(rows) {
@@ -128,16 +141,27 @@ function contactSummary(row) {
 }
 
 function detailRowsHtml(row) {
-  return FORM_FIELDS.map((key) => `
+  return FORM_FIELDS.map((key) => {
+    let displayValue;
+    if (key === 'activity_names') {
+      displayValue = (Array.isArray(row[key]) ? row[key] : []).join(', ') || '';
+    } else if (key === 'proposal_date') {
+      displayValue = formatDateDisplay(row[key]);
+    } else {
+      displayValue = row[key] || '';
+    }
+    if (!displayValue) return '';
+    return `
     <div class="ds-pa-detail-row">
       <span class="ds-pa-detail-label">${escapeHtml(FIELD_LABELS[key] || key)}</span>
-      <span class="ds-pa-detail-value">${escapeHtml(key === 'activity_names' ? ((Array.isArray(row[key]) ? row[key] : []).join(', ') || '—') : (row[key] || '—'))}</span>
-    </div>`).join('');
+      <span class="ds-pa-detail-value">${escapeHtml(displayValue)}</span>
+    </div>`;
+  }).join('');
 }
 
 export function proposalsAgreementsTableRowsHtml(rows) {
   if (!rows.length) {
-    return `<tr class="ds-pa-empty-row"><td colspan="5">אין רשומות להצגה</td></tr>`;
+    return `<tr class="ds-pa-empty-row"><td colspan="6">אין רשומות להצגה</td></tr>`;
   }
   return rows.map((row) => `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
@@ -145,14 +169,15 @@ export function proposalsAgreementsTableRowsHtml(rows) {
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(row.document_type || '—')}</td>
       <td>${escapeHtml(row.activity_type_group || '—')}</td>
-      <td class="ds-pa-notes" title="${escapeHtml(row.notes || '')}">${escapeHtml(row.notes || '—')}</td>
+      <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
+      <td class="ds-pa-notes" title="${escapeHtml(row.notes || '')}">${escapeHtml(row.notes || '')}</td>
     </tr>`).join('');
 }
 
 function tableHtml(rows) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <thead><tr><th>לקוח / רשות</th><th>בית ספר / מסגרת</th><th>סוג מסמך</th><th>סוג פעילות</th><th>הערות</th></tr></thead>
+      <thead><tr><th>לקוח / רשות</th><th>בית ספר / מסגרת</th><th>סוג מסמך</th><th>סוג פעילות</th><th>תאריך הצעה</th><th>הערות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows)}</tbody>
     </table>
   `);
@@ -190,6 +215,9 @@ function formFieldHtml(key, value = '', activityNameOptions = []) {
       return `<option value="${safe}"${sel}>${safe}</option>`;
     }).join('');
     return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><select class="ds-input ds-input--sm" name="${key}" multiple size="6"${attrs}>${optionsHtml}</select></label>`;
+  }
+  if (key === 'proposal_date') {
+    return `<label class="ds-pa-form-field"><span>${escapeHtml(label)}</span><input class="ds-input ds-input--sm" type="date" name="${key}" value="${escapeHtml(value || '')}"></label>`;
   }
   if (key === 'notes') {
     return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}</span><textarea class="ds-input ds-input--sm" name="${key}" rows="2">${escapeHtml(value || '')}</textarea></label>`;
