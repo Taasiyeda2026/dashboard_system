@@ -774,8 +774,10 @@ export const activitiesScreen = {
       const allRows = Array.isArray(data?.rows) ? data.rows : [];
       const overdue = allRows.filter((row) => {
         const status = String(row?.status || '').trim();
+        if (status === 'סגור' || status === 'closed' || status === 'inactive') return false;
+        if (status !== 'פתוח') return false;
         const endRaw = String(row?.end_date || '').trim();
-        if (!endRaw || status !== 'פתוח') return false;
+        if (!endRaw) return false;
         const endDate = new Date(endRaw);
         return !isNaN(endDate.getTime()) && endDate < today;
       });
