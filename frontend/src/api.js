@@ -1544,8 +1544,17 @@ function assertValidLoginUserRow(userRow) {
   }
 }
 
+function parsePermissions(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw) || {}; } catch { return {}; }
+  }
+  return {};
+}
+
 function flattenUserRow(userRow = {}) {
-  const permissions = userRow?.permissions && typeof userRow.permissions === 'object' ? userRow.permissions : {};
+  const permissions = parsePermissions(userRow?.permissions);
   const role = normalizeSupabaseRole(userRow.role);
   const customDisplayRole = String(userRow.display_role || '').trim();
   return {
@@ -1565,7 +1574,7 @@ function buildBootstrapFromUser(userRow) {
   const flat = flattenUserRow(userRow);
   const role = normalizeSupabaseRole(flat.role);
   const allowedRoutes = [...(SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user)];
-  const hasFinanceAccess = permissionFlagYes((userRow?.permissions || {}).finance_access);
+  const hasFinanceAccess = permissionFlagYes(parsePermissions(userRow?.permissions).finance_access);
   const financeIdx = allowedRoutes.indexOf('finance');
   if (hasFinanceAccess && financeIdx === -1) allowedRoutes.push('finance');
   if (!hasFinanceAccess && financeIdx >= 0) allowedRoutes.splice(financeIdx, 1);

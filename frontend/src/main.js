@@ -1316,6 +1316,7 @@ function tryRestoreRoutesInstant() {
 function backgroundSyncBootstrap() {
   if (!state.token) return;
   api.bootstrap().then((bootstrap) => {
+    const prevRouteSet = new Set(state.effectiveRoutes || []);
     if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
       state.clientSettings = { ...defaultClientSettings(), ...bootstrap.client_settings };
     }
@@ -1337,8 +1338,12 @@ function backgroundSyncBootstrap() {
       state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
       localStorage.setItem('dashboard_user', JSON.stringify(state.user));
     }
+    const routesChanged = normalizedRoutes.length !== prevRouteSet.size ||
+      normalizedRoutes.some((r) => !prevRouteSet.has(r));
     if (!isAllowedRoute(state.route)) {
       state.route = newDefault;
+      render().catch(() => {});
+    } else if (routesChanged) {
       render().catch(() => {});
     } else {
       updateNavActiveClasses();
