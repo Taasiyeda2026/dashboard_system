@@ -1345,7 +1345,7 @@ function normalizeData(data) {
 
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type,contact_name,contact_role,contact_phone,contact_email,notes,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,contact_name,contact_role,phone,email,notes,created_at,updated_at';
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -1418,7 +1418,7 @@ function normalizeProposalAgreementRow(row = {}) {
     client_authority:    cleanProposalAgreementText(row.client_authority),
     school_framework:    cleanProposalAgreementText(row.school_framework),
     document_type:       cleanProposalAgreementText(row.document_type),
-    activity_type_group: cleanProposalAgreementText(row.activity_type_group || row.activity_type),
+    activity_type_group: cleanProposalAgreementText(row.activity_type_group),
     activity_names:      normalizeProposalAgreementActivityNames(
       Array.isArray(row.activity_names) && row.activity_names.length
         ? row.activity_names
@@ -1442,14 +1442,14 @@ function sanitizeProposalAgreementPayload(payload = {}) {
     client_authority: cleanProposalAgreementText(payload.client_authority),
     school_framework: cleanProposalAgreementText(payload.school_framework),
     document_type:    cleanProposalAgreementText(payload.document_type),
-    activity_type:    cleanProposalAgreementText(payload.activity_type_group),
-    contact_name:     cleanProposalAgreementText(payload.contact_name),
-    contact_role:     cleanProposalAgreementText(payload.contact_role),
-    contact_phone:    cleanProposalAgreementText(payload.phone),
-    contact_email:    cleanProposalAgreementText(payload.email),
-    notes:            notesWithActivityNames(payload.notes, activity_names)
+    activity_type_group: cleanProposalAgreementText(payload.activity_type_group),
+    contact_name:        cleanProposalAgreementText(payload.contact_name),
+    contact_role:        cleanProposalAgreementText(payload.contact_role),
+    phone:               cleanProposalAgreementText(payload.phone),
+    email:               cleanProposalAgreementText(payload.email),
+    notes:               notesWithActivityNames(payload.notes, activity_names)
   };
-  const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type'].filter((key) => !row[key]);
+  const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'].filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
   return row;
 }

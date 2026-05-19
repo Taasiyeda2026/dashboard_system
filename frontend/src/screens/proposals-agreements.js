@@ -76,7 +76,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     client_authority:    text(row.client_authority),
     school_framework:    text(row.school_framework),
     document_type:       text(row.document_type),
-    activity_type_group: text(row.activity_type_group || row.activity_type),
+    activity_type_group: text(row.activity_type_group),
     activity_names:      normalizeActivityNames(row.activity_names),
     contact_name:        text(row.contact_name),
     contact_role:        text(row.contact_role),
