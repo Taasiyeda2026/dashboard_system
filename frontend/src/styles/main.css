@@ -5681,9 +5681,11 @@ select.ds-input {
 .ds-archive-kpi--orange { background: var(--ds-pastel-sand); border-color: var(--ds-border); color: var(--ds-warning); }
 
 .ds-archive-year-nav {
-  padding: var(--ds-space-1) 0;
-  gap: 2px;
+  padding: 0;
+  gap: 4px;
   justify-content: center;
+  width: fit-content;
+  margin-inline: auto;
 }
 
 .ds-archive-year-nav .ds-chip--tab {
