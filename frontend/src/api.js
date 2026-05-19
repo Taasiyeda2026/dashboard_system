@@ -1921,7 +1921,7 @@ async function updateActivityInSupabase(payload = {}) {
   const hasMeetingDateChange = Object.keys(changes).some((k) => /^date_\d+$/.test(k));
   if (hasMeetingDateChange) {
     const derivedEnd = deriveEndDateFromDates(changes);
-    if (derivedEnd) changes.end_date = derivedEnd;
+    changes.end_date = derivedEnd || '';
   }
   if (!rowId) throw new Error('missing_row_id');
   if (!Object.keys(changes).length) throw new Error('No changes to submit');
