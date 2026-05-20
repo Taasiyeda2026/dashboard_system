@@ -510,9 +510,31 @@ const screenLabels = {
   'admin-settings': 'הגדרות מערכת',
   'admin-lists': 'ניהול רשימות',
   archive: 'ארכיון',
-  'proposals-agreements': 'הצעות',
+  'proposals-agreements': 'הצעות והסכמים',
   finance: 'כספים / גבייה'
 };
+
+function navLabelForRoute(route) {
+  const base = screenLabels[route] || 'מסך';
+  if (route !== 'edit-requests') return base;
+  const count = Number(state.openEditRequestsCount);
+  if (!Number.isFinite(count) || count <= 0) return base;
+  return `${base} (${count})`;
+}
+
+async function refreshOpenEditRequestsCount() {
+  if (!isAllowedRoute('edit-requests')) return;
+  try {
+    const count = await api.editRequestsOpenCount();
+    const normalized = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+    if (state.openEditRequestsCount !== normalized) {
+      state.openEditRequestsCount = normalized;
+      if (state.token) scheduleRender();
+    }
+  } catch {
+    // Keep existing count on transient failures.
+  }
+}
 
 const screenLoaders = {
   dashboard: () => import('./screens/dashboard.js').then((m) => m.dashboardScreen),
@@ -718,7 +740,7 @@ function shell(content) {
     )
     .map(
       (route) =>
-        `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${screenLabels[route] || 'מסך'}</button>`
+        `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${navLabelForRoute(route)}</button>`
     )
     .join('');
 
@@ -1349,6 +1371,7 @@ function backgroundSyncBootstrap() {
     } else {
       updateNavActiveClasses();
     }
+    refreshOpenEditRequestsCount().catch(() => {});
   }).catch(() => {});
 }
 
@@ -1381,6 +1404,7 @@ async function restoreSession() {
     state.user.finance_access = !!bootstrap.has_finance_access;
     localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   }
+  refreshOpenEditRequestsCount().catch(() => {});
 }
 
 async function mountScreen() {
@@ -1727,6 +1751,7 @@ async function render() {
             beginPerfTimer('login:applyBootstrap');
             const bootstrapApplyStartMs = performance.now();
             applyBootstrapFromLoginData(data);
+            refreshOpenEditRequestsCount().catch(() => {});
             loginBootstrapDurationMs = performance.now() - bootstrapApplyStartMs;
             applyGlobalAccent(accentNameFromStorage(state.clientSettings));
             renderShellLoadingImmediately();

@@ -80,7 +80,9 @@ export const state = {
   /** הגדרות UI ממקור הנתונים (bootstrap / login) */
   clientSettings: defaultClientSettings(),
   /** @type {Record<string, { data: unknown, t: number }>} */
-  screenDataCache: {}
+  screenDataCache: {},
+  /** Sidebar badge for open approval requests (null = not loaded yet). */
+  openEditRequestsCount: null
 };
 
 function parseTokenPayloadClaims(token) {
@@ -140,6 +142,7 @@ export function setSession(session) {
     state.monthYm = '';
     state.clientSettings = defaultClientSettings();
     state.screenDataCache = {};
+    state.openEditRequestsCount = null;
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
     try { localStorage.removeItem('dashboard_calendar_month_ym'); } catch { /* ignore */ }
@@ -166,6 +169,7 @@ export function setSession(session) {
   state.monthYm = (newCalKey && localStorage.getItem(newCalKey)) || '';
   try { localStorage.removeItem('dashboard_calendar_month_ym'); } catch { /* ignore */ }
   state.screenDataCache = {};
+  state.openEditRequestsCount = null;
   localStorage.setItem('dashboard_token', session.token);
   localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   sessionStorage.setItem('ds_session_alive', '1');

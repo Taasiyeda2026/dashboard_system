@@ -2270,6 +2270,15 @@ export const api = {
     }));
     return buildEditRequestGroups(rows, canReview, activityByRowId);
   },
+  editRequestsOpenCount: async () => {
+    const openStatuses = ['pending', 'open', 'awaiting approval', 'awaiting_approval'];
+    const { count, error } = await supabase
+      .from('edit_requests')
+      .select('request_id', { count: 'exact', head: true })
+      .in('status', openStatuses);
+    if (error) throw new Error(error.message || 'edit_requests_open_count_failed');
+    return Number.isFinite(count) ? Number(count) : 0;
+  },
   proposalsAgreements: async () => readProposalsAgreementsFromSupabase(),
   permissions: async () => {
     if (!supabase) throw new Error('no_supabase_client');
