@@ -524,8 +524,18 @@ function buildFallbackOptionsFromRows(rows) {
     return out.sort((a, b) => a.label.localeCompare(b.label, 'he'));
   })();
   const allActivityTypes = uniqueField('activity_type');
+  const oneDayTypesFromRows = cleanUnique(rows
+    .filter((row) => String(row?.activity_family || '').trim() === 'one_day' || String(row?.source || '').trim() === 'short')
+    .map((row) => String(row?.activity_type || '').trim())
+    .filter(Boolean));
+  const programTypesFromRows = cleanUnique(rows
+    .filter((row) => String(row?.activity_family || '').trim() !== 'one_day' && String(row?.source || '').trim() !== 'short')
+    .map((row) => String(row?.activity_type || '').trim())
+    .filter(Boolean));
   return {
     _activityTypesFromRows: allActivityTypes,
+    _oneDayActivityTypesFromRows: oneDayTypesFromRows,
+    _programActivityTypesFromRows: programTypesFromRows,
     funding: uniqueField('funding'),
     fundings: uniqueField('funding'),
     grade: uniqueField('grade'),
@@ -546,7 +556,12 @@ function mergeSettingsWithFallback(base, fallbackOpts) {
   const baseOpts = (base && base.dropdown_options && typeof base.dropdown_options === 'object')
     ? base.dropdown_options : {};
   const merged = { ...baseOpts };
-  const { _activityTypesFromRows, ...dropdownFallback } = fallbackOpts;
+  const {
+    _activityTypesFromRows,
+    _oneDayActivityTypesFromRows,
+    _programActivityTypesFromRows,
+    ...dropdownFallback
+  } = fallbackOpts;
   Object.keys(dropdownFallback).forEach((k) => {
     const existing = Array.isArray(baseOpts[k]) ? baseOpts[k] : [];
     if (!existing.length && Array.isArray(dropdownFallback[k]) && dropdownFallback[k].length) {
@@ -557,8 +572,15 @@ function mergeSettingsWithFallback(base, fallbackOpts) {
   if (Array.isArray(_activityTypesFromRows) && _activityTypesFromRows.length) {
     const hasShort = Array.isArray(base?.one_day_activity_types) && base.one_day_activity_types.length;
     const hasLong  = Array.isArray(base?.program_activity_types)  && base.program_activity_types.length;
-    if (!hasShort && !hasLong) {
-      result.program_activity_types = _activityTypesFromRows;
+    if (!hasShort) {
+      result.one_day_activity_types = Array.isArray(_oneDayActivityTypesFromRows) && _oneDayActivityTypesFromRows.length
+        ? _oneDayActivityTypesFromRows
+        : [];
+    }
+    if (!hasLong) {
+      result.program_activity_types = Array.isArray(_programActivityTypesFromRows) && _programActivityTypesFromRows.length
+        ? _programActivityTypesFromRows
+        : _activityTypesFromRows;
     }
   }
   return result;
@@ -639,7 +661,8 @@ export const activitiesScreen = {
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canAddActivity = !!state?.user?.can_add_activity;
+    const canAddActivity = !!state?.user?.can_add_activity
+      || ['admin', 'operation_manager'].includes(String(state?.user?.display_role || ''));
     const isAdmin = isAdminUser(state);
 
     const rosterUsers = getRosterUsers(state?.clientSettings || {});
@@ -812,7 +835,8 @@ export const activitiesScreen = {
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canAddActivity = !!state?.user?.can_add_activity;
+    const canAddActivity = !!state?.user?.can_add_activity
+      || ['admin', 'operation_manager'].includes(String(state?.user?.display_role || ''));
     const isAdmin = isAdminUser(state);
 
     const rerenderLocal = () => {
