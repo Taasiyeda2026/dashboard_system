@@ -36,7 +36,8 @@ const MUTATING_ACTIONS = {
   saveSheetMapping: true,
   saveClientSetting: true,
   addProposalAgreement: true,
-  updateProposalAgreement: true
+  updateProposalAgreement: true,
+  deleteProposalAgreement: true
 };
 
 const READ_ACTIONS = {
@@ -1260,7 +1261,8 @@ function invalidateScreenDataByAction(action) {
     saveSheetMapping: ['adminSettings', 'listSheets', 'dashboard:', 'activities:', 'week:', 'month:'],
     saveClientSetting: ['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:'],
     addProposalAgreement: ['proposals-agreements'],
-    updateProposalAgreement: ['proposals-agreements']
+    updateProposalAgreement: ['proposals-agreements'],
+    deleteProposalAgreement: ['proposals-agreements']
   };
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
@@ -2348,6 +2350,18 @@ export const api = {
       .single();
     if (error) throw new Error(error.message || 'proposals_agreement_update_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
+  },
+
+  deleteProposalAgreement: async (id) => {
+    assertCanUseProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const { error } = await supabase
+      .from('proposals_agreements')
+      .delete()
+      .eq('id', rowId);
+    if (error) throw new Error(error.message || 'proposals_agreement_delete_failed');
+    return { ok: true, id: rowId };
   },
   addContact: async (payload) => {
     const kind = String(payload?.kind || '').trim();

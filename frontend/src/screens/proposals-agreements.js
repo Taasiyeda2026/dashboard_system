@@ -252,7 +252,10 @@ function drawerHtml(row, activityNameOptions = []) {
       </header>
       <div class="ds-pa-detail-grid">${detailRowsHtml(row)}</div>
       <p class="ds-pa-contact-line"><span class="ds-muted">פרטי קשר:</span> ${escapeHtml(contactSummary(row))}</p>
-      <div class="ds-pa-drawer-actions"><button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-edit-row="${escapeHtml(row.id)}">עריכה</button></div>
+      <div class="ds-pa-drawer-actions">
+        <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-edit-row="${escapeHtml(row.id)}">עריכה</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-delete-row="${escapeHtml(row.id)}">מחיקה</button>
+      </div>
       <div data-pa-inline-form></div>
     </div>
   </aside>`;
@@ -313,7 +316,7 @@ function replaceLocalRow(data, savedRow) {
   const idx = rows.findIndex((row) => text(row.id) === normalized.id);
   if (idx >= 0) rows[idx] = normalized;
   else rows.unshift(normalized);
-  data.rows = sortRows(rows.map(normalizeProposalAgreementRow));
+  data.rows = dedupeById(sortRows(rows.map(normalizeProposalAgreementRow)));
 }
 
 export const proposalsAgreementsScreen = {
@@ -345,6 +348,10 @@ export const proposalsAgreementsScreen = {
   },
   bind({ root, data, state, api }) {
     if (!root || data?.unauthorized || !canAccessProposalsAgreements(state)) return;
+    if (root._paAbort) root._paAbort.abort();
+    const abortController = new AbortController();
+    root._paAbort = abortController;
+    const { signal } = abortController;
     const seenIds = new Set();
     data.rows = sortRows((Array.isArray(data.rows) ? data.rows : [])
       .map(normalizeProposalAgreementRow)
@@ -358,8 +365,8 @@ export const proposalsAgreementsScreen = {
       debounceTimer = setTimeout(refreshTable, SEARCH_DEBOUNCE_MS);
     };
 
-    root.querySelector('[data-pa-search]')?.addEventListener('input', debouncedRefresh);
-    root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable));
+    root.querySelector('[data-pa-search]')?.addEventListener('input', debouncedRefresh, { signal });
+    root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable, { signal }));
 
     const formHost = root.querySelector('[data-pa-form-host]');
     const openForm = (mode, row = {}) => {
@@ -374,7 +381,7 @@ export const proposalsAgreementsScreen = {
       formHost.innerHTML = '';
     };
 
-    root.querySelector('[data-pa-add]')?.addEventListener('click', () => openForm('add'));
+    root.querySelector('[data-pa-add]')?.addEventListener('click', () => openForm('add'), { signal });
     root.addEventListener('click', async (event) => {
       const rowEl = event.target.closest?.('[data-pa-row-id]');
       if (rowEl) {
@@ -395,28 +402,53 @@ export const proposalsAgreementsScreen = {
         if (host && row) host.innerHTML = formHtml('edit', row, activityNameOptions);
         return;
       }
+      const deleteBtn = event.target.closest?.('[data-pa-delete-row]');
+      if (deleteBtn) {
+        const id = text(deleteBtn.dataset.paDeleteRow);
+        const row = data.rows.find((item) => text(item.id) === id);
+        if (!row) return;
+        if (!window.confirm('למחוק את ההצעה/ההסכם?')) return;
+        deleteBtn.disabled = true;
+        try {
+          await api.deleteProposalAgreement(id);
+          data.rows = dedupeById((Array.isArray(data.rows) ? data.rows : []).filter((item) => text(item.id) !== id).map(normalizeProposalAgreementRow));
+          refreshTable();
+          const drawer = root.querySelector('[data-pa-drawer]');
+          if (drawer) drawer.outerHTML = drawerHtml(null, activityNameOptions);
+        } catch (err) {
+          deleteBtn.disabled = false;
+          window.alert(`שגיאה במחיקה: ${err?.message || err}`);
+        }
+        return;
+      }
       if (event.target.closest?.('[data-pa-cancel-form]')) {
         const inlineForm = event.target.closest('[data-pa-inline-form]');
         if (inlineForm) inlineForm.innerHTML = '';
         closeForm();
       }
-    });
+    }, { signal });
 
     root.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
       const rowEl = event.target.closest?.('[data-pa-row-id]');
       if (rowEl) rowEl.click();
-    });
+    }, { signal });
 
     root.addEventListener('submit', async (event) => {
       const form = event.target.closest?.('[data-pa-form]');
       if (!form) return;
       event.preventDefault();
       const errorEl = form.querySelector('[data-pa-form-error]');
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (form.dataset.saving === 'yes') return;
+      form.dataset.saving = 'yes';
+      if (submitBtn) submitBtn.disabled = true;
       const payload = payloadFromForm(form);
       const validationError = validatePayload(payload);
       if (validationError) {
         if (errorEl) errorEl.textContent = validationError;
+        form.dataset.saving = '';
+        if (submitBtn) submitBtn.disabled = false;
         return;
       }
       const mode = form.dataset.paMode;
@@ -435,7 +467,9 @@ export const proposalsAgreementsScreen = {
         }
       } catch (err) {
         if (errorEl) errorEl.textContent = `שגיאה בשמירה: ${err?.message || err}`;
+        form.dataset.saving = '';
+        if (submitBtn) submitBtn.disabled = false;
       }
-    });
+    }, { signal });
   }
 };
