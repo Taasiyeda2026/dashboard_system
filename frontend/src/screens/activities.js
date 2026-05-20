@@ -1329,10 +1329,9 @@ export const activitiesScreen = {
       addBtn.addEventListener('click', () => {
         ui.openModal({
           title: 'הוספת פעילות',
-          content: addActivityModalHtml(mergeSettingsWithFallback(
-            state?.clientSettings || {},
-            buildFallbackOptionsFromRows(activitiesRows)
-          )),
+          // חשוב: חלון הוספת פעילות חייב להשתמש ב-client settings האחידים
+          // (כמו admin), ללא בניית רשימות fallback מתוך rows חלקיים של המסך.
+          content: addActivityModalHtml(state?.clientSettings || {}),
           actions: `
             <button type="button" class="ds-btn ds-btn--primary" data-add-activity-submit>שמור</button>
             <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>
