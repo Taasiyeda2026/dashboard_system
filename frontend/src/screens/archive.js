@@ -523,18 +523,28 @@ export const archiveScreen = {
           }
 
           const finalEndDate = selectedEndDate || selectedStartDate;
+          const dateKeys = Array.from({ length: 35 }, (_, idx) => `date_${idx + 1}`);
+          let lastExistingDateKey = '';
+          for (const key of dateKeys) {
+            const value = String(row?.[key] || '').trim();
+            if (value) lastExistingDateKey = key;
+          }
+          const changes = {
+            status: 'פעיל',
+            end_date: finalEndDate,
+            [lastExistingDateKey || 'date_1']: finalEndDate
+          };
+          if (!String(row?.start_date || '').trim()) {
+            changes.start_date = selectedStartDate;
+          }
+
           confirmBtn.disabled = true;
           confirmBtn.textContent = 'שומר…';
           try {
             await api.saveActivity({
               source_sheet: row.source_sheet || 'activities',
               source_row_id: row.RowID || row.row_id,
-              changes: {
-                status: 'פעיל',
-                start_date: selectedStartDate,
-                end_date: finalEndDate,
-                date_1: selectedStartDate
-              }
+              changes
             });
             ui.closeModal?.();
             ui.closeDrawer?.();
