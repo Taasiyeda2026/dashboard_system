@@ -1919,7 +1919,8 @@ async function updateActivityInSupabase(payload = {}) {
     { includeRowId: false }
   );
   const hasMeetingDateChange = Object.keys(changes).some((k) => /^date_\d+$/.test(k));
-  if (hasMeetingDateChange) {
+  const hasExplicitEndDate = Object.prototype.hasOwnProperty.call(changes, 'end_date');
+  if (hasMeetingDateChange && !hasExplicitEndDate) {
     const derivedEnd = deriveEndDateFromDates(changes);
     changes.end_date = derivedEnd || null;
   }
