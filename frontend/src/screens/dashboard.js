@@ -252,6 +252,7 @@ function dashboardErrorHtml(data, ym) {
 
 const DASHBOARD_LOAD_GUARD_MS = 22000;
 const DASHBOARD_LOAD_ERROR_HE = 'לא ניתן לטעון את לוח הבקרה כרגע. נסו לרענן או בדקו את חיבור השרת.';
+const DASHBOARD_INFO_TEXT = 'לוח הבקרה מציג את פעילויות החודש הנוכחי. החלוקה לפי מחוזות מתייחסת רק לפעילויות שעדיין לא הסתיימו, כדי להציג תמונת מצב תפעולית עדכנית.';
 
 /** Snapshot / read-model status line above dashboard body (controlled copy). */
 function buildDashboardStaleBanner(data) {
@@ -430,8 +431,12 @@ export const dashboardScreen = {
 
     const navLoading = !!state?.dashboardNavLoading;
     const staleBanner = buildDashboardStaleBanner(data);
+    const infoIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
     const dashHeader = `<header class="ds-dash-header" dir="rtl">
-      <h1 class="ds-dash-header__title">לוח בקרה</h1>
+      <div class="ds-dash-header__title-row">
+        <h1 class="ds-dash-header__title">לוח בקרה</h1>
+        <button type="button" class="ds-dash-info-btn" aria-label="מה מוצג כאן?">${infoIcon}<span class="ds-dash-info-tooltip" role="tooltip">${escapeHtml(DASHBOARD_INFO_TEXT)}</span></button>
+      </div>
       <div class="ds-dash-month-nav${navLoading ? ' is-nav-loading' : ''}" dir="rtl" aria-label="בחירת חודש לתצוגה">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-dash-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
         <span class="ds-dash-month-nav__label">${escapeHtml(hebrewMonthTitle(ym))}${navLoading ? ' <span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>

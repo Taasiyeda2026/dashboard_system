@@ -8966,6 +8966,54 @@ select.ds-activity-add-field .ds-input,
   letter-spacing: -0.02em;
 }
 
+.ds-dash-header__title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ds-dash-info-btn {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ds-border);
+  background: #fff;
+  color: var(--ds-text-muted);
+  border-radius: 999px;
+  cursor: help;
+}
+.ds-dash-info-btn:hover,
+.ds-dash-info-btn:focus-visible {
+  color: var(--ds-accent);
+  border-color: var(--ds-accent);
+  outline: none;
+}
+.ds-dash-info-tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-end: 0;
+  width: min(340px, 84vw);
+  text-align: right;
+  background: #fff;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  box-shadow: var(--ds-shadow-md);
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ds-text);
+  z-index: 150;
+}
+.ds-dash-info-btn:hover .ds-dash-info-tooltip,
+.ds-dash-info-btn:focus .ds-dash-info-tooltip,
+.ds-dash-info-btn:focus-visible .ds-dash-info-tooltip {
+  display: block;
+}
+
 /* Month nav sits flush inside the header, no extra padding */
 .ds-dash-header .ds-dash-month-nav {
   padding: 0;
