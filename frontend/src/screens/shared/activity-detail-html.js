@@ -44,10 +44,14 @@ function todayStr() {
 }
 
 function countDoneMeetings(schedule) {
-  const today = todayStr();
   return Array.isArray(schedule)
-    ? schedule.filter((m) => m?.date && m.date <= today).length
+    ? schedule.filter((m) => String(m?.performed || '').trim().toLowerCase() === 'yes').length
     : 0;
+}
+
+function numericOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function normStatus(v) {
@@ -472,8 +476,10 @@ function blockDates(row, { canEdit = false, datesLoading = false } = {}) {
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
   const computedEnd = autoEndDate(row);
-  const done = countDoneMeetings(schedule) || Number(row?.meetings_done || 0);
-  const total = Number(row?.meetings_total || schedule.length || 0);
+  const doneFromSchedule = countDoneMeetings(schedule);
+  const doneFallback = numericOrNull(row?.meetings_done);
+  const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
+  const total = numericOrNull(row?.meetings_total) ?? schedule.length ?? 0;
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const viewChips = buildDateChipsHtml(schedule, isOnce);
   const editDates = isOnce ? schedule.slice(0, 1) : schedule;
@@ -592,8 +598,10 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   const schedule = Array.isArray(datesData?.meeting_schedule) ? datesData.meeting_schedule : [];
   const activityType = String(datesData?.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
-  const done = countDoneMeetings(schedule) || Number(datesData?.meetings_done || 0);
-  const total = Number(datesData?.meetings_total || schedule.length || 0);
+  const doneFromSchedule = countDoneMeetings(schedule);
+  const doneFallback = numericOrNull(datesData?.meetings_done);
+  const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
+  const total = numericOrNull(datesData?.meetings_total) ?? schedule.length ?? 0;
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const computedEnd = autoEndDate({ meeting_schedule: schedule }) || String(datesData?.end_date || '');
 
