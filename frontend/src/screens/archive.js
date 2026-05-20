@@ -83,6 +83,17 @@ function endYear(row) {
   return d || '—';
 }
 
+function archiveReviewFlag(row) {
+  const status = String(row?.status || '').trim().toLowerCase();
+  const isArchived = status === 'סגור' || status === 'closed' || status === 'inactive';
+  if (!isArchived) return false;
+  const total = Number(row?.meetings_total);
+  const done = Number(row?.meetings_done);
+  if (!Number.isFinite(total) || total <= 0) return false;
+  if (!Number.isFinite(done) || done < 0) return false;
+  return done < total;
+}
+
 const ARCHIVE_FIXED_YEARS = ['2026', '2025'];
 
 function todayIso() {
@@ -147,6 +158,7 @@ function applyArchiveFilters(rows, state) {
 function archiveTableRowsHtml(rows) {
   return rows.map((row) => {
     const name = escapeHtml(row.activity_name || '—');
+    const needsReview = archiveReviewFlag(row);
     const typeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
     const authority = escapeHtml(row.authority || '—');
     const school = escapeHtml(row.school || '—');
@@ -162,6 +174,7 @@ function archiveTableRowsHtml(rows) {
         <td class="ds-activities-col ds-activities-col--program">
           <div class="ds-activities-program-cell">
             <strong class="ds-activities-program-name" title="${name}">${name}</strong>
+            ${needsReview ? '<span class="ds-status-pill ds-status-pill--subtle" title="פעילות בארכיון עם מפגשים לא מלאים">דורש בדיקה</span>' : ''}
             <span class="ds-activities-program-type">${typeLabel}</span>
           </div>
         </td>
