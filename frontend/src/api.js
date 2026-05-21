@@ -38,7 +38,8 @@ const MUTATING_ACTIONS = {
   addProposalAgreement: true,
   updateProposalAgreement: true,
   updateProposalAgreementStatus: true,
-  deleteProposalAgreement: true
+  deleteProposalAgreement: true,
+  saveProposalAgreementItems: true
 };
 
 const READ_ACTIONS = {
@@ -1271,7 +1272,8 @@ function invalidateScreenDataByAction(action) {
     addProposalAgreement: ['proposals-agreements'],
     updateProposalAgreement: ['proposals-agreements'],
     updateProposalAgreementStatus: ['proposals-agreements'],
-    deleteProposalAgreement: ['proposals-agreements']
+    deleteProposalAgreement: ['proposals-agreements'],
+    saveProposalAgreementItems: ['proposals-agreements']
   };
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
@@ -1481,7 +1483,8 @@ function sanitizeProposalAgreementPayload(payload = {}) {
     email:               cleanProposalAgreementText(payload.email),
     notes:               parseActivityNamesFromNotes(payload.notes).notes,
     status:              PA_VALID_STATUSES_SET.has(rawStatus) ? rawStatus : 'draft',
-    approval_note:       cleanProposalAgreementText(payload.approval_note)
+    approval_note:       cleanProposalAgreementText(payload.approval_note),
+    total_amount:        payload.total_amount != null ? Number(payload.total_amount) || null : null
   };
   const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'].filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
@@ -2438,6 +2441,62 @@ export const api = {
       .single();
     if (error) throw new Error(error.message || 'proposals_agreement_status_update_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
+  },
+  readProposalAgreementItems: async (proposalId) => {
+    assertCanUseProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(proposalId);
+    if (!rowId) return [];
+    const { data, error } = await supabase
+      .from('proposal_agreement_items')
+      .select('id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,sort_order')
+      .eq('proposal_agreement_id', rowId)
+      .order('sort_order', { ascending: true });
+    if (error) throw new Error(error.message || 'items_read_failed');
+    return (Array.isArray(data) ? data : []).map((item) => ({
+      id:             cleanProposalAgreementText(item.id),
+      item_name:      cleanProposalAgreementText(item.item_name),
+      item_type:      cleanProposalAgreementText(item.item_type),
+      gefen_number:   cleanProposalAgreementText(item.gefen_number),
+      meetings_count: item.meetings_count != null ? Number(item.meetings_count) : null,
+      hours_count:    item.hours_count != null ? Number(item.hours_count) : null,
+      quantity:       item.quantity != null ? Number(item.quantity) || 1 : 1,
+      unit_price:     item.unit_price != null ? Number(item.unit_price) : null,
+      total_price:    item.total_price != null ? Number(item.total_price) : null,
+      description:    cleanProposalAgreementText(item.description),
+      sort_order:     Number(item.sort_order) || 0
+    }));
+  },
+  saveProposalAgreementItems: async (proposalId, items) => {
+    assertCanUseProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(proposalId);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const { error: delError } = await supabase
+      .from('proposal_agreement_items')
+      .delete()
+      .eq('proposal_agreement_id', rowId);
+    if (delError) throw new Error(delError.message || 'items_delete_failed');
+    const validItems = (Array.isArray(items) ? items : [])
+      .filter((i) => cleanProposalAgreementText(i.item_name))
+      .map((item, idx) => ({
+        proposal_agreement_id: rowId,
+        item_name:      cleanProposalAgreementText(item.item_name),
+        item_type:      cleanProposalAgreementText(item.item_type),
+        gefen_number:   cleanProposalAgreementText(item.gefen_number),
+        meetings_count: item.meetings_count != null ? Number(item.meetings_count) || null : null,
+        hours_count:    item.hours_count != null ? Number(item.hours_count) || null : null,
+        quantity:       Number(item.quantity) || 1,
+        unit_price:     item.unit_price != null ? Number(item.unit_price) || null : null,
+        total_price:    item.total_price != null ? Number(item.total_price) || null : null,
+        description:    cleanProposalAgreementText(item.description),
+        sort_order:     idx
+      }));
+    if (!validItems.length) return { ok: true, items: [] };
+    const { data, error } = await supabase
+      .from('proposal_agreement_items')
+      .insert(validItems)
+      .select('id,item_name,sort_order');
+    if (error) throw new Error(error.message || 'items_insert_failed');
+    return { ok: true, items: Array.isArray(data) ? data : [] };
   },
   addContact: async (payload) => {
     const kind = String(payload?.kind || '').trim();

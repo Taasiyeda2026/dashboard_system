@@ -6,6 +6,7 @@ const SEARCH_DEBOUNCE_MS = 280;
 
 const DOCUMENT_TYPE_OPTIONS = ['הצעת מחיר', 'הסכם'];
 const ACTIVITY_TYPE_GROUP_OPTIONS = ['הצעה משולבת', 'פעילויות קיץ', 'שנה הבאה'];
+const ITEM_TYPE_OPTIONS = ['סדנה', 'קורס', 'הדרכה', 'פעילות', 'ייעוץ', 'ליווי'];
 
 export const STATUS_OPTIONS = ['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled'];
 export const STATUS_LABELS = {
@@ -34,17 +35,8 @@ const FIELD_LABELS = {
 
 const REQUIRED_FIELDS = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'];
 const FORM_FIELDS = [
-  'client_authority',
-  'school_framework',
-  'document_type',
-  'activity_type_group',
-  'proposal_date',
-  'activity_names',
-  'contact_name',
-  'contact_role',
-  'phone',
-  'email',
-  'notes'
+  'client_authority', 'school_framework', 'document_type', 'activity_type_group',
+  'proposal_date', 'activity_names', 'contact_name', 'contact_role', 'phone', 'email', 'notes'
 ];
 
 function userRole(state) {
@@ -65,17 +57,10 @@ function normalizeSearch(value) {
 
 export function buildProposalsAgreementsSearchText(row = {}) {
   return [
-    row.id,
-    row.client_authority,
-    row.school_framework,
-    row.document_type,
+    row.id, row.client_authority, row.school_framework, row.document_type,
     row.activity_type_group,
     Array.isArray(row.activity_names) ? row.activity_names.join(' ') : row.activity_names,
-    row.notes,
-    row.contact_name,
-    row.contact_role,
-    row.phone,
-    row.email,
+    row.notes, row.contact_name, row.contact_role, row.phone, row.email,
     row.status ? (STATUS_LABELS[row.status] || row.status) : ''
   ].map(normalizeSearch).filter(Boolean).join(' ');
 }
@@ -100,6 +85,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     notes:               text(row.notes),
     status:              STATUS_OPTIONS.includes(text(row.status)) ? text(row.status) : 'draft',
     approval_note:       text(row.approval_note),
+    total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
     created_at:          text(row.created_at),
     updated_at:          text(row.updated_at)
   };
@@ -115,6 +101,11 @@ function formatDateDisplay(iso) {
     return `${d}/${m}/${y}`;
   }
   return s;
+}
+
+function formatCurrency(num) {
+  if (num == null || num === '' || isNaN(Number(num))) return '';
+  return Number(num).toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function sortRows(rows) {
@@ -277,17 +268,12 @@ function clientSelectHtml(contactOptions, row) {
   const pairs = [];
   for (const c of (Array.isArray(contactOptions) ? contactOptions : [])) {
     const key = `${text(c.authority)}||${text(c.school)}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      pairs.push({ authority: text(c.authority), school: text(c.school) });
-    }
+    if (!seen.has(key)) { seen.add(key); pairs.push({ authority: text(c.authority), school: text(c.school) }); }
   }
   pairs.sort((a, b) => a.authority.localeCompare(b.authority, 'he') || a.school.localeCompare(b.school, 'he'));
-
   const rowAuth = text(row.client_authority);
   const rowSchool = text(row.school_framework);
   const selectedVal = rowAuth ? `${rowAuth}||${rowSchool}` : '';
-
   const optionsHtml = ['<option value="">— בחרו לקוח קיים —</option>',
     ...pairs.map((p) => {
       const val = `${p.authority}||${p.school}`;
@@ -315,7 +301,218 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
   </label>`;
 }
 
-function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = []) {
+// ─── Items editor ────────────────────────────────────────────────────────────
+
+function itemRowHtml(item = {}, idx = 0) {
+  const n = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? escapeHtml(String(v)) : '';
+  const calcTotal = (Number(item.quantity) || 0) && (Number(item.unit_price) || 0)
+    ? String(((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)).toFixed(2))
+    : n(item.total_price);
+  return `<tr class="ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}">
+    <td class="ds-pa-ic-name"><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></td>
+    <td class="ds-pa-ic-type"><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(item.item_type || '')}" list="pa-item-type-list" placeholder="סוג"></td>
+    <td class="ds-pa-ic-gefen"><input class="ds-input ds-input--sm" name="gefen_number" value="${escapeHtml(item.gefen_number || '')}" placeholder="גפ״ן"></td>
+    <td class="ds-pa-ic-num"><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></td>
+    <td class="ds-pa-ic-num"><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></td>
+    <td class="ds-pa-ic-num"><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></td>
+    <td class="ds-pa-ic-num"><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></td>
+    <td class="ds-pa-ic-total"><input class="ds-input ds-input--sm" name="total_price" value="${calcTotal}" readonly data-pa-item-total></td>
+    <td class="ds-pa-ic-desc"><input class="ds-input ds-input--sm" name="description" value="${escapeHtml(item.description || '')}" placeholder="תיאור"></td>
+    <td class="ds-pa-ic-del"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-item aria-label="הסר">×</button></td>
+  </tr>`;
+}
+
+function itemsEditorHtml(items = []) {
+  const startItems = items.length ? items : [{}];
+  const rowsHtml = startItems.map((item, idx) => itemRowHtml(item, idx)).join('');
+  return `<div class="ds-pa-items-section">
+    <div class="ds-pa-items-header">
+      <span style="font-size:0.76rem;color:var(--ds-color-text-muted,#64748b);font-weight:600">שורות הצעה</span>
+      <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item>+ הוסף שורה</button>
+    </div>
+    <div class="ds-pa-items-table-wrap">
+      <table class="ds-pa-items-table">
+        <thead><tr>
+          <th class="ds-pa-ic-name">שם פעילות / תוכנית</th>
+          <th class="ds-pa-ic-type">סוג</th>
+          <th class="ds-pa-ic-gefen">גפ״ן</th>
+          <th class="ds-pa-ic-num" title="מספר מפגשים">מפגשים</th>
+          <th class="ds-pa-ic-num" title="מספר שעות">שעות</th>
+          <th class="ds-pa-ic-num">כמות</th>
+          <th class="ds-pa-ic-num">מחיר יח׳</th>
+          <th class="ds-pa-ic-total">סה״כ</th>
+          <th class="ds-pa-ic-desc">תיאור</th>
+          <th class="ds-pa-ic-del"></th>
+        </tr></thead>
+        <tbody data-pa-items-body>${rowsHtml}</tbody>
+      </table>
+    </div>
+    <datalist id="pa-item-type-list">${ITEM_TYPE_OPTIONS.map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
+    <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>
+  </div>`;
+}
+
+function extractItemsFromForm(form) {
+  return Array.from(form.querySelectorAll('[data-pa-item-row]')).map((row) => ({
+    item_name:      text(row.querySelector('[name="item_name"]')?.value),
+    item_type:      text(row.querySelector('[name="item_type"]')?.value),
+    gefen_number:   text(row.querySelector('[name="gefen_number"]')?.value),
+    meetings_count: parseFloat(row.querySelector('[name="meetings_count"]')?.value) || null,
+    hours_count:    parseFloat(row.querySelector('[name="hours_count"]')?.value) || null,
+    quantity:       parseFloat(row.querySelector('[name="quantity"]')?.value) || 1,
+    unit_price:     parseFloat(row.querySelector('[name="unit_price"]')?.value) || null,
+    total_price:    parseFloat(row.querySelector('[data-pa-item-total]')?.value) || null,
+    description:    text(row.querySelector('[name="description"]')?.value)
+  })).filter((item) => item.item_name);
+}
+
+// ─── Items summary (drawer read-only) ────────────────────────────────────────
+
+function itemsSummaryHtml(items = []) {
+  if (!Array.isArray(items) || !items.length) {
+    return '<p class="ds-muted" style="font-size:0.8rem;margin:4px 0">אין שורות הצעה</p>';
+  }
+  const total = items.reduce((s, i) => {
+    const t = Number(i.total_price) || ((Number(i.quantity) || 1) * (Number(i.unit_price) || 0));
+    return s + t;
+  }, 0);
+  const rows = items.map((item) => {
+    const t = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
+    return `<tr>
+      <td>${escapeHtml(item.item_name || '')}</td>
+      <td>${escapeHtml(item.item_type || '')}</td>
+      <td>${item.quantity != null ? item.quantity : ''}</td>
+      <td>${item.unit_price != null ? '₪' + formatCurrency(item.unit_price) : ''}</td>
+      <td>${t ? '₪' + formatCurrency(t) : ''}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="ds-pa-items-summary">
+    <h4 style="font-size:0.82rem;margin:8px 0 4px;font-weight:600">שורות הצעה</h4>
+    <table class="ds-pa-items-summary-table">
+      <thead><tr><th>פעילות</th><th>סוג</th><th>כמות</th><th>מחיר יח׳</th><th>סה״כ</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="font-size:0.83rem;margin:4px 0;text-align:start">סה״כ: <strong>₪${formatCurrency(total)}</strong></p>
+  </div>`;
+}
+
+// ─── Preview document ─────────────────────────────────────────────────────────
+
+function proposalPreviewBodyHtml(row, items = []) {
+  const activityTypeGroup = text(row.activity_type_group);
+  const isAnnual = activityTypeGroup === 'שנה הבאה';
+  const isSummer = activityTypeGroup === 'פעילויות קיץ';
+  const dateDisplay = formatDateDisplay(row.proposal_date) || formatDateDisplay(new Date().toISOString().slice(0, 10));
+  const totalSum = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 1) * (Number(i.unit_price) || 0))), 0);
+
+  const costTableHtml = items.length ? `
+    <table class="pa-cost-table">
+      <thead><tr><th>שם פעילות / תוכנית</th><th>סוג</th><th>כמות</th><th>מחיר יח׳</th><th>סה״כ שורה</th><th>הערות</th></tr></thead>
+      <tbody>
+        ${items.map((item) => {
+          const qty = Number(item.quantity) || 1;
+          const price = Number(item.unit_price) || 0;
+          const total = Number(item.total_price) || (qty * price);
+          return `<tr>
+            <td>${escapeHtml(item.item_name || '')}</td>
+            <td>${escapeHtml(item.item_type || '')}</td>
+            <td>${qty}</td>
+            <td>${price ? '₪' + formatCurrency(price) : '—'}</td>
+            <td>${total ? '₪' + formatCurrency(total) : '—'}</td>
+            <td>${escapeHtml(item.description || '')}</td>
+          </tr>`;
+        }).join('')}
+        <tr class="pa-cost-total-row">
+          <td colspan="4" style="font-weight:700;text-align:start">סה״כ:</td>
+          <td colspan="2" style="font-weight:700">₪${formatCurrency(totalSum)}</td>
+        </tr>
+      </tbody>
+    </table>` : '<p style="color:#6b7280">לא הוגדרו שורות הצעה.</p>';
+
+  const actNamesHtml = Array.isArray(row.activity_names) && row.activity_names.length
+    ? `<section class="pa-section"><h3>הפעילות המוצעת</h3><ul>${row.activity_names.map((n) => `<li>${escapeHtml(n)}</li>`).join('')}</ul></section>`
+    : '';
+
+  const openingText = isSummer
+    ? `תעשיידע שמחה להציע פעילויות קיץ מקצועיות ומועשרות לתלמידי ${escapeHtml(row.school_framework || row.client_authority || '')}. הפעילויות מתוכננות לעורר סקרנות, יצירתיות ושיתוף פעולה.`
+    : isAnnual
+    ? `תעשיידע שמחה להציע תוכנית שנתית מקיפה עבור ${escapeHtml(row.school_framework || row.client_authority || '')}. התוכנית מותאמת אישית לצרכי המוסד ומשלבת למידה משמעותית עם חוויה מעשית.`
+    : `תעשיידע שמחה להציע הצעה משולבת הכוללת מגוון פעילויות וסדנאות עבור ${escapeHtml(row.school_framework || row.client_authority || '')}. ההצעה מותאמת לצרכים הייחודיים של המוסד ומשלבת תכנים בתחומים שונים.`;
+
+  const paymentTerms = isAnnual
+    ? 'תשלום ב-3 תשלומים שווים: תחילת שנת לימודים, ינואר, יוני.'
+    : '50% בחתימה על ההסכם, 50% עם ביצוע הפעילות.';
+
+  const schoolResponsibilities = isAnnual ? `
+    <section class="pa-section">
+      <h3>אחריות בית הספר / המסגרת</h3>
+      <ul>
+        <li>מסירת לוח שנה מלא בתחילת שנת הלימודים</li>
+        <li>מינוי רכז/ת פנים-בית-ספרי/ת מטעם המוסד</li>
+        <li>הכנת חדר/כיתה מתאים לפעילויות</li>
+        <li>הודעה על שינויים לפחות שבועיים לפני המועד המתוכנן</li>
+      </ul>
+    </section>
+    <section class="pa-section">
+      <h3>שינויים וביטולים</h3>
+      <ul>
+        <li>ביטול פעילות עד 14 ימים לפני המועד: ללא חיוב</li>
+        <li>ביטול בין 7–14 ימים לפני: 30% מעלות הפעילות</li>
+        <li>ביטול בתוך 7 ימים לפני: 50% מעלות הפעילות</li>
+        <li>ביטול ביום הפעילות: 100% מעלות הפעילות</li>
+      </ul>
+    </section>` : '';
+
+  return `
+    <div class="pa-doc-header">
+      <div>
+        <div class="pa-doc-company">תעשיידע</div>
+        <div class="pa-doc-tagline">חינוך מקצועי וחוויות למידה</div>
+      </div>
+      <div class="pa-doc-meta">
+        <div>תאריך: ${escapeHtml(dateDisplay)}</div>
+        ${row.id ? `<div style="font-size:0.8rem;color:#6b7280">מ/ה: ${escapeHtml(row.id.slice(0, 8).toUpperCase())}</div>` : ''}
+      </div>
+    </div>
+    <hr class="pa-doc-divider">
+    <div class="pa-doc-address">
+      <p>לכבוד</p>
+      <p><strong>${escapeHtml(row.client_authority || '')}</strong></p>
+      ${row.school_framework ? `<p>${escapeHtml(row.school_framework)}</p>` : ''}
+      ${row.contact_name ? `<p>לידי: ${escapeHtml(row.contact_name)}${row.contact_role ? ', ' + escapeHtml(row.contact_role) : ''}</p>` : ''}
+    </div>
+    <p class="pa-doc-subject"><strong>הנדון: ${escapeHtml(row.document_type || 'הצעת מחיר')} — ${escapeHtml(activityTypeGroup || '')}</strong></p>
+    <section class="pa-section"><p>${openingText}</p></section>
+    ${actNamesHtml}
+    <section class="pa-section"><h3>טבלת עלויות</h3>${costTableHtml}</section>
+    <section class="pa-section">
+      <h3>אחריות תעשיידע</h3>
+      <ul>
+        <li>אספקת מדריכים מקצועיים ומנוסים</li>
+        <li>ציוד מלא לכל פעילות</li>
+        <li>תיאום מלא מול גורמי המוסד</li>
+        <li>כיסוי ביטוחי לכל פעילות</li>
+      </ul>
+    </section>
+    ${schoolResponsibilities}
+    <section class="pa-section"><h3>תנאי תשלום</h3><p>${paymentTerms}</p></section>
+    <div class="pa-doc-signature">
+      <div class="pa-sig-block">
+        <div class="pa-sig-line"></div>
+        <div>חתימה ושם</div>
+        <div style="font-size:0.85rem;color:#6b7280">תעשיידע</div>
+      </div>
+      <div class="pa-sig-block">
+        <div class="pa-sig-line"></div>
+        <div>חתימה ושם</div>
+        <div style="font-size:0.85rem;color:#6b7280">${escapeHtml(row.school_framework || row.client_authority || '')}</div>
+      </div>
+    </div>`;
+}
+
+// ─── Form ─────────────────────────────────────────────────────────────────────
+
+function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = []) {
   const title = mode === 'edit' ? 'עריכת הצעה / הסכם' : 'יצירת הצעת מחיר / הסכם';
   const rowActivity = Array.isArray(row.activity_names) ? row.activity_names : [];
   const currentStatus = STATUS_OPTIONS.includes(text(row.status)) ? text(row.status) : 'draft';
@@ -354,6 +551,8 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [])
 
     <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm" name="notes" rows="2">${escapeHtml(text(row.notes))}</textarea></label>
 
+    ${itemsEditorHtml(items)}
+
     <input type="hidden" name="status" data-pa-status-input value="${escapeHtml(currentStatus)}">
     <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
     <div class="ds-pa-form-actions">
@@ -364,11 +563,15 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [])
   </form>`;
 }
 
+// ─── Drawer ───────────────────────────────────────────────────────────────────
+
 function drawerActionButtons(row, state) {
   const status = text(row?.status) || 'draft';
   const role = state ? String(state?.user?.display_role || state?.user?.role || '').trim() : '';
   const isAdminRole = role === 'admin';
   const buttons = [];
+
+  buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-preview="${escapeHtml(row.id)}">תצוגה מקדימה</button>`);
 
   if (['draft', 'returned_for_changes'].includes(status) || isAdminRole) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-edit-row="${escapeHtml(row.id)}">עריכה</button>`);
@@ -380,6 +583,9 @@ function drawerActionButtons(row, state) {
     if (status === 'pending_approval') {
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}">אישור</button>`);
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}">החזרה לתיקון</button>`);
+    }
+    if (status === 'approved') {
+      buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-print="${escapeHtml(row.id)}">הדפסה / PDF</button>`);
     }
     if (!['cancelled', 'approved'].includes(status)) {
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}">ביטול</button>`);
@@ -396,6 +602,11 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       <span class="ds-pa-detail-label">${escapeHtml(FIELD_LABELS.approval_note)}</span>
       <span class="ds-pa-detail-value">${escapeHtml(text(row.approval_note))}</span>
     </div>` : '';
+  const totalHtml = row.total_amount != null ? `
+    <div class="ds-pa-detail-row">
+      <span class="ds-pa-detail-label">סה״כ</span>
+      <span class="ds-pa-detail-value"><strong>₪${formatCurrency(row.total_amount)}</strong></span>
+    </div>` : '';
 
   return `<aside class="ds-pa-drawer" data-pa-drawer data-pa-drawer-id="${escapeHtml(row.id)}" aria-live="polite" dir="rtl">
     <div class="ds-pa-drawer-panel">
@@ -405,13 +616,17 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       </header>
       <div class="ds-pa-drawer-status" style="margin-bottom:8px">${statusBadgeHtml(row.status)}</div>
       <div class="ds-pa-detail-grid">${detailRowsHtml(row)}</div>
+      ${totalHtml}
       ${approvalNoteHtml}
       ${contactDetailRowsHtml(row)}
+      <div data-pa-drawer-items style="margin:8px 0"><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
       <div class="ds-pa-drawer-actions">${drawerActionButtons(row, state)}</div>
       <div data-pa-inline-form></div>
     </div>
   </aside>`;
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function dedupeById(rows) {
   const seen = new Set();
@@ -456,6 +671,8 @@ function payloadFromForm(form) {
     payload[key] = text(formData.get(key));
   });
   payload.status = text(formData.get('status')) || 'draft';
+  const items = extractItemsFromForm(form);
+  payload.total_amount = items.reduce((s, i) => s + (Number(i.total_price) || 0), 0) || null;
   return payload;
 }
 
@@ -472,6 +689,8 @@ function replaceLocalRow(data, savedRow) {
   else rows.unshift(normalized);
   data.rows = dedupeById(sortRows(rows.map(normalizeProposalAgreementRow)));
 }
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export const proposalsAgreementsScreen = {
   load: ({ api, state }) => {
@@ -525,6 +744,8 @@ export const proposalsAgreementsScreen = {
     root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable, { signal }));
 
     const formHost = root.querySelector('[data-pa-form-host]');
+
+    // ── Activity picker setup ─────────────────────────────────────────────────
     const closeAllActivityDropdowns = () => {
       root.querySelectorAll('[data-pa-activity-picker]').forEach((picker) => {
         const dropdown = picker.querySelector('[data-pa-activity-dropdown]');
@@ -556,13 +777,13 @@ export const proposalsAgreementsScreen = {
         search?.addEventListener('input', () => {
           const q = normalizeSearch(search.value);
           optionsHost.querySelectorAll('.ds-pa-activity-option').forEach((option) => {
-            const label = normalizeSearch(option.textContent);
-            option.hidden = q ? !label.includes(q) : false;
+            option.hidden = q ? !normalizeSearch(option.textContent).includes(q) : false;
           });
         }, { signal });
       });
     };
 
+    // ── Contact / client setup ────────────────────────────────────────────────
     const fillContactFields = (form, contact) => {
       if (!form || !contact) return;
       const map = {
@@ -597,19 +818,14 @@ export const proposalsAgreementsScreen = {
         const val = clientSelect.value;
         if (!val) return;
         const [authority, school] = val.split('||');
-        const matches = contactOptions.filter(
-          (c) => text(c.authority) === authority && text(c.school) === school
-        );
+        const matches = contactOptions.filter((c) => text(c.authority) === authority && text(c.school) === school);
         const authInput = form.querySelector('input[name="client_authority"]');
         const schoolInput = form.querySelector('input[name="school_framework"]');
         if (authInput) authInput.value = authority;
         if (schoolInput) schoolInput.value = school;
         const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
         if (matches.length > 1) {
-          if (pickerHost) {
-            pickerHost.innerHTML = contactPickerHtml(contactOptions, authority, school, '');
-            setupContactPicker(pickerHost, form);
-          }
+          if (pickerHost) { pickerHost.innerHTML = contactPickerHtml(contactOptions, authority, school, ''); setupContactPicker(pickerHost, form); }
         } else {
           if (pickerHost) pickerHost.innerHTML = '';
           if (matches.length === 1) fillContactFields(form, matches[0]);
@@ -617,24 +833,76 @@ export const proposalsAgreementsScreen = {
       }, { signal });
     };
 
-    const openForm = (mode, row = {}) => {
+    // ── Items calc ────────────────────────────────────────────────────────────
+    const calcItemRow = (rowEl) => {
+      const qty = parseFloat(rowEl.querySelector('[data-pa-item-qty]')?.value || '0') || 0;
+      const price = parseFloat(rowEl.querySelector('[data-pa-item-price]')?.value || '0') || 0;
+      const totalInput = rowEl.querySelector('[data-pa-item-total]');
+      const total = qty && price ? qty * price : 0;
+      if (totalInput) totalInput.value = total ? total.toFixed(2) : '';
+      return total;
+    };
+
+    const calcGrandTotal = (container) => {
+      let sum = 0;
+      container.querySelectorAll('[data-pa-item-row]').forEach((rowEl) => { sum += calcItemRow(rowEl); });
+      const el = container.querySelector('[data-pa-grand-total]');
+      if (el) el.textContent = sum ? `₪${formatCurrency(sum)}` : '';
+      return sum;
+    };
+
+    const setupItemCalc = (container) => { calcGrandTotal(container); };
+
+    // ── Form open/close ───────────────────────────────────────────────────────
+    const openForm = async (mode, row = {}, preloadedItems = []) => {
       if (!formHost) return;
+      let items = preloadedItems;
+      if (mode === 'edit' && text(row.id) && !preloadedItems.length) {
+        try {
+          if (typeof api.readProposalAgreementItems === 'function') {
+            items = await api.readProposalAgreementItems(text(row.id));
+          }
+        } catch { items = []; }
+      }
       formHost.hidden = false;
-      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions);
+      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items);
       setupActivityPickers(formHost);
       setupClientSelector(formHost);
+      setupItemCalc(formHost);
       const pickerHost = formHost.querySelector('[data-pa-contact-picker-host]');
       if (pickerHost && pickerHost.children.length) {
         setupContactPicker(pickerHost, formHost.querySelector('[data-pa-form]'));
       }
       formHost.querySelector('select,input,textarea')?.focus?.();
     };
+
     const closeForm = () => {
       if (!formHost) return;
       formHost.hidden = true;
       formHost.innerHTML = '';
     };
 
+    // ── Preview ───────────────────────────────────────────────────────────────
+    const openPreview = (row, items) => {
+      document.getElementById('pa-preview-overlay')?.remove();
+      const overlay = document.createElement('div');
+      overlay.id = 'pa-preview-overlay';
+      overlay.className = 'ds-pa-preview-overlay';
+      overlay.setAttribute('dir', 'rtl');
+      overlay.innerHTML = `
+        <div class="ds-pa-preview-toolbar no-print">
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
+          <button type="button" class="ds-btn ds-btn--sm" id="pa-preview-close">✕ סגירה</button>
+          <span class="ds-muted" style="font-size:0.8rem">${escapeHtml(row.client_authority || '')}${row.school_framework ? ' — ' + escapeHtml(row.school_framework) : ''}</span>
+        </div>
+        <div class="ds-pa-preview-doc">${proposalPreviewBodyHtml(row, items)}</div>`;
+      document.body.appendChild(overlay);
+      overlay.querySelector('#pa-print-btn')?.addEventListener('click', () => window.print());
+      overlay.querySelector('#pa-preview-close')?.addEventListener('click', () => overlay.remove());
+      overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.remove(); });
+    };
+
+    // ── Save ──────────────────────────────────────────────────────────────────
     const saveForm = async (form, statusOverride) => {
       const errorEl = form.querySelector('[data-pa-form-error]');
       if (form.dataset.saving === 'yes') return;
@@ -656,13 +924,18 @@ export const proposalsAgreementsScreen = {
         const result = mode === 'edit'
           ? await api.updateProposalAgreement(id, payload)
           : await api.addProposalAgreement(payload);
-        replaceLocalRow(data, result?.row || { ...payload, id });
+        const savedId = text(result?.row?.id || id);
+        const items = extractItemsFromForm(form);
+        if (savedId && typeof api.saveProposalAgreementItems === 'function') {
+          try { await api.saveProposalAgreementItems(savedId, items); } catch { /* non-fatal */ }
+        }
+        replaceLocalRow(data, result?.row || { ...payload, id: savedId });
         refreshTable();
         closeForm();
         const drawer = root.querySelector('[data-pa-drawer]');
         if (drawer && mode === 'edit') {
           const updated = data.rows.find((item) => text(item.id) === id);
-          drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
+          if (updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
         }
       } catch (err) {
         if (errorEl) errorEl.textContent = `שגיאה בשמירה: ${err?.message || err}`;
@@ -671,15 +944,43 @@ export const proposalsAgreementsScreen = {
       }
     };
 
+    // ── Add button ────────────────────────────────────────────────────────────
     root.querySelector('[data-pa-add]')?.addEventListener('click', () => openForm('add'), { signal });
 
+    // ── Input handler (items calc) ────────────────────────────────────────────
+    root.addEventListener('input', (event) => {
+      const target = event.target;
+      if (target.closest?.('[data-pa-item-qty]') || target.dataset?.paItemQty != null ||
+          target.closest?.('[data-pa-item-price]') || target.dataset?.paItemPrice != null ||
+          target.matches?.('[data-pa-item-qty]') || target.matches?.('[data-pa-item-price]')) {
+        const itemRow = target.closest('[data-pa-item-row]');
+        const form = target.closest('[data-pa-form]');
+        if (itemRow) calcItemRow(itemRow);
+        if (form) calcGrandTotal(form);
+      }
+    }, { signal });
+
+    // ── Click handler ─────────────────────────────────────────────────────────
     root.addEventListener('click', async (event) => {
       const rowEl = event.target.closest?.('[data-pa-row-id]');
       if (rowEl) {
         closeAllActivityDropdowns();
         const row = data.rows.find((item) => text(item.id) === text(rowEl.dataset.paRowId));
         const drawer = root.querySelector('[data-pa-drawer]');
-        if (drawer && row) drawer.outerHTML = drawerHtml(row, activityNameOptions, state);
+        if (drawer && row) {
+          drawer.outerHTML = drawerHtml(row, activityNameOptions, state);
+          // Load items for drawer display
+          const newDrawer = root.querySelector('[data-pa-drawer]');
+          const itemsHost = newDrawer?.querySelector('[data-pa-drawer-items]');
+          if (itemsHost && text(row.id) && typeof api.readProposalAgreementItems === 'function') {
+            try {
+              const items = await api.readProposalAgreementItems(text(row.id));
+              if (itemsHost.isConnected) itemsHost.innerHTML = itemsSummaryHtml(items);
+            } catch { if (itemsHost.isConnected) itemsHost.innerHTML = ''; }
+          } else if (itemsHost) {
+            itemsHost.innerHTML = '';
+          }
+        }
         return;
       }
 
@@ -694,14 +995,57 @@ export const proposalsAgreementsScreen = {
         const row = data.rows.find((item) => text(item.id) === text(editBtn.dataset.paEditRow));
         const host = root.querySelector('[data-pa-inline-form]');
         if (host && row) {
-          host.innerHTML = formHtml('edit', row, activityNameOptions, contactOptions);
+          let items = [];
+          try {
+            if (typeof api.readProposalAgreementItems === 'function') {
+              items = await api.readProposalAgreementItems(text(row.id));
+            }
+          } catch { items = []; }
+          host.innerHTML = formHtml('edit', row, activityNameOptions, contactOptions, items);
           setupActivityPickers(host);
           setupClientSelector(host);
+          setupItemCalc(host);
           const pickerHost = host.querySelector('[data-pa-contact-picker-host]');
           if (pickerHost && pickerHost.children.length) {
             setupContactPicker(pickerHost, host.querySelector('[data-pa-form]'));
           }
         }
+        return;
+      }
+
+      // Preview button
+      const previewBtn = event.target.closest?.('[data-pa-preview]');
+      if (previewBtn) {
+        const id = text(previewBtn.dataset.paPreview);
+        const row = data.rows.find((r) => text(r.id) === id);
+        if (!row) return;
+        previewBtn.disabled = true;
+        let items = [];
+        try {
+          if (typeof api.readProposalAgreementItems === 'function') {
+            items = await api.readProposalAgreementItems(id);
+          }
+        } catch { items = []; }
+        previewBtn.disabled = false;
+        openPreview(row, items);
+        return;
+      }
+
+      // Print button (direct, admin + approved)
+      const printBtn = event.target.closest?.('[data-pa-print]');
+      if (printBtn) {
+        const id = text(printBtn.dataset.paPrint);
+        const row = data.rows.find((r) => text(r.id) === id);
+        if (!row) return;
+        printBtn.disabled = true;
+        let items = [];
+        try {
+          if (typeof api.readProposalAgreementItems === 'function') {
+            items = await api.readProposalAgreementItems(id);
+          }
+        } catch { items = []; }
+        printBtn.disabled = false;
+        openPreview(row, items);
         return;
       }
 
@@ -756,8 +1100,31 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
-      if (!event.target.closest?.('[data-pa-activity-picker]')) {
-        closeAllActivityDropdowns();
+      if (!event.target.closest?.('[data-pa-activity-picker]')) closeAllActivityDropdowns();
+
+      // Items: add row
+      const addItemBtn = event.target.closest?.('[data-pa-add-item]');
+      if (addItemBtn) {
+        const form = addItemBtn.closest('[data-pa-form]');
+        const tbody = form?.querySelector('[data-pa-items-body]');
+        if (!tbody) return;
+        const idx = tbody.querySelectorAll('[data-pa-item-row]').length;
+        const tmp = document.createElement('tbody');
+        tmp.innerHTML = itemRowHtml({}, idx);
+        tbody.appendChild(tmp.firstElementChild);
+        if (form) calcGrandTotal(form);
+        tbody.querySelector(`[data-pa-item-idx="${idx}"] [name="item_name"]`)?.focus();
+        return;
+      }
+
+      // Items: remove row
+      const removeItemBtn = event.target.closest?.('[data-pa-remove-item]');
+      if (removeItemBtn) {
+        const itemRow = removeItemBtn.closest('[data-pa-item-row]');
+        const form = removeItemBtn.closest('[data-pa-form]');
+        if (itemRow) itemRow.remove();
+        if (form) calcGrandTotal(form);
+        return;
       }
 
       const saveDraftBtn = event.target.closest?.('[data-pa-save-draft]');
