@@ -400,12 +400,19 @@ function itemsSummaryHtml(items = []) {
 
 // ─── Preview document ─────────────────────────────────────────────────────────
 
-function proposalPreviewBodyHtml(row, items = []) {
+const TEMPLATE_KEY_BY_GROUP = {
+  'פעילויות קיץ': 'summer',
+  'שנה הבאה': 'next_year',
+  'הצעה משולבת': 'combined'
+};
+
+function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const activityTypeGroup = text(row.activity_type_group);
-  const isAnnual = activityTypeGroup === 'שנה הבאה';
-  const isSummer = activityTypeGroup === 'פעילויות קיץ';
   const dateDisplay = formatDateDisplay(row.proposal_date) || formatDateDisplay(new Date().toISOString().slice(0, 10));
   const totalSum = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 1) * (Number(i.unit_price) || 0))), 0);
+  const byKey = new Map((Array.isArray(templateSections) ? templateSections : []).map((s) => [text(s.section_key), s]));
+  const sectionBody = (key, fallback = '') => text(byKey.get(key)?.section_body) || fallback;
+  const sectionTitle = (key, fallback = '') => text(byKey.get(key)?.section_title) || fallback;
 
   const costTableHtml = items.length ? `
     <table class="pa-cost-table">
@@ -435,35 +442,12 @@ function proposalPreviewBodyHtml(row, items = []) {
     ? `<section class="pa-section"><h3>הפעילות המוצעת</h3><ul>${row.activity_names.map((n) => `<li>${escapeHtml(n)}</li>`).join('')}</ul></section>`
     : '';
 
-  const openingText = isSummer
-    ? `תעשיידע שמחה להציע פעילויות קיץ מקצועיות ומועשרות לתלמידי ${escapeHtml(row.school_framework || row.client_authority || '')}. הפעילויות מתוכננות לעורר סקרנות, יצירתיות ושיתוף פעולה.`
-    : isAnnual
-    ? `תעשיידע שמחה להציע תוכנית שנתית מקיפה עבור ${escapeHtml(row.school_framework || row.client_authority || '')}. התוכנית מותאמת אישית לצרכי המוסד ומשלבת למידה משמעותית עם חוויה מעשית.`
-    : `תעשיידע שמחה להציע הצעה משולבת הכוללת מגוון פעילויות וסדנאות עבור ${escapeHtml(row.school_framework || row.client_authority || '')}. ההצעה מותאמת לצרכים הייחודיים של המוסד ומשלבת תכנים בתחומים שונים.`;
-
-  const paymentTerms = isAnnual
-    ? 'תשלום ב-3 תשלומים שווים: תחילת שנת לימודים, ינואר, יוני.'
-    : '50% בחתימה על ההסכם, 50% עם ביצוע הפעילות.';
-
-  const schoolResponsibilities = isAnnual ? `
-    <section class="pa-section">
-      <h3>אחריות בית הספר / המסגרת</h3>
-      <ul>
-        <li>מסירת לוח שנה מלא בתחילת שנת הלימודים</li>
-        <li>מינוי רכז/ת פנים-בית-ספרי/ת מטעם המוסד</li>
-        <li>הכנת חדר/כיתה מתאים לפעילויות</li>
-        <li>הודעה על שינויים לפחות שבועיים לפני המועד המתוכנן</li>
-      </ul>
-    </section>
-    <section class="pa-section">
-      <h3>שינויים וביטולים</h3>
-      <ul>
-        <li>ביטול פעילות עד 14 ימים לפני המועד: ללא חיוב</li>
-        <li>ביטול בין 7–14 ימים לפני: 30% מעלות הפעילות</li>
-        <li>ביטול בתוך 7 ימים לפני: 50% מעלות הפעילות</li>
-        <li>ביטול ביום הפעילות: 100% מעלות הפעילות</li>
-      </ul>
-    </section>` : '';
+  const openingText = sectionBody('opening', '—');
+  const orgResponsibility = sectionBody('organization_responsibility', '—');
+  const schoolResponsibility = sectionBody('school_responsibility', '');
+  const paymentTerms = sectionBody('payment_terms', '—');
+  const changesCancellation = sectionBody('changes_cancellations', '');
+  const remarks = sectionBody('remarks', '');
 
   return `
     <div class="pa-doc-header">
@@ -484,20 +468,14 @@ function proposalPreviewBodyHtml(row, items = []) {
       ${row.contact_name ? `<p>לידי: ${escapeHtml(row.contact_name)}${row.contact_role ? ', ' + escapeHtml(row.contact_role) : ''}</p>` : ''}
     </div>
     <p class="pa-doc-subject"><strong>הנדון: ${escapeHtml(row.document_type || 'הצעת מחיר')} — ${escapeHtml(activityTypeGroup || '')}</strong></p>
-    <section class="pa-section"><p>${openingText}</p></section>
+    <section class="pa-section"><h3>${escapeHtml(sectionTitle('opening', 'פתיח'))}</h3><p>${escapeHtml(openingText || '—')}</p></section>
     ${actNamesHtml}
     <section class="pa-section"><h3>טבלת עלויות</h3>${costTableHtml}</section>
-    <section class="pa-section">
-      <h3>אחריות תעשיידע</h3>
-      <ul>
-        <li>אספקת מדריכים מקצועיים ומנוסים</li>
-        <li>ציוד מלא לכל פעילות</li>
-        <li>תיאום מלא מול גורמי המוסד</li>
-        <li>כיסוי ביטוחי לכל פעילות</li>
-      </ul>
-    </section>
-    ${schoolResponsibilities}
-    <section class="pa-section"><h3>תנאי תשלום</h3><p>${paymentTerms}</p></section>
+    <section class="pa-section"><h3>${escapeHtml(sectionTitle('organization_responsibility', 'אחריות תעשיידע'))}</h3><p>${escapeHtml(orgResponsibility || '—')}</p></section>
+    ${schoolResponsibility ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'))}</h3><p>${escapeHtml(schoolResponsibility)}</p></section>` : ''}
+    <section class="pa-section"><h3>${escapeHtml(sectionTitle('payment_terms', 'תנאי תשלום'))}</h3><p>${escapeHtml(paymentTerms || '—')}</p></section>
+    ${changesCancellation ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('changes_cancellations', 'שינויים וביטולים'))}</h3><p>${escapeHtml(changesCancellation)}</p></section>` : ''}
+    ${remarks ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('remarks', 'הערות'))}</h3><p>${escapeHtml(remarks)}</p></section>` : ''}
     <div class="pa-doc-signature">
       <div class="pa-sig-block">
         <div class="pa-sig-line"></div>
@@ -587,7 +565,7 @@ function drawerActionButtons(row, state) {
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}">החזרה לתיקון</button>`);
     }
     if (status === 'approved') {
-      buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-print="${escapeHtml(row.id)}">הדפסה / PDF</button>`);
+      buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-print="${escapeHtml(row.id)}">הורדת PDF</button>`);
     }
     if (!['cancelled', 'approved'].includes(status)) {
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}">ביטול</button>`);
@@ -736,6 +714,7 @@ export const proposalsAgreementsScreen = {
       .filter((r) => { const k = text(r.id); if (!k || seenIds.has(k)) return false; seenIds.add(k); return true; }));
     const activityNameOptions = Array.from(new Set((Array.isArray(data?.activityNameOptions) ? data.activityNameOptions : []).map((v) => text(v)).filter(Boolean)));
     const proposalActivityPricing = Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : [];
+    const proposalTemplateSections = Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : [];
     const contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
     let debounceTimer = null;
 
@@ -891,6 +870,8 @@ export const proposalsAgreementsScreen = {
 
     // ── Preview ───────────────────────────────────────────────────────────────
     const openPreview = (row, items) => {
+      const templateKey = TEMPLATE_KEY_BY_GROUP[text(row.activity_type_group)] || 'combined';
+      const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
       overlay.id = 'pa-preview-overlay';
@@ -902,7 +883,7 @@ export const proposalsAgreementsScreen = {
           <button type="button" class="ds-btn ds-btn--sm" id="pa-preview-close">✕ סגירה</button>
           <span class="ds-muted" style="font-size:0.8rem">${escapeHtml(row.client_authority || '')}${row.school_framework ? ' — ' + escapeHtml(row.school_framework) : ''}</span>
         </div>
-        <div class="ds-pa-preview-doc">${proposalPreviewBodyHtml(row, items)}</div>`;
+        <div class="ds-pa-preview-doc">${proposalPreviewBodyHtml(row, items, templateSections)}</div>`;
       document.body.appendChild(overlay);
       overlay.querySelector('#pa-print-btn')?.addEventListener('click', () => window.print());
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', () => overlay.remove());
