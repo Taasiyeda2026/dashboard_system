@@ -10421,9 +10421,28 @@ select.ds-input {
   font-size: 0.94rem; line-height: 1.65; direction: rtl;
   color: #1e293b;
 }
+.pa-doc-header-brand {
+  margin-bottom: 10px;
+}
 .pa-doc-header {
   display: flex; justify-content: space-between; align-items: flex-start;
   margin-bottom: 12px;
+}
+.pa-doc-company-block { display: block; }
+.pa-doc-logo {
+  display: block; max-width: 100%; height: auto;
+}
+.pa-doc-logo--header {
+  width: min(360px, 72%);
+}
+.pa-doc-logo--footer {
+  width: min(180px, 42%);
+}
+.pa-doc-logo-fallback {
+  font-size: 0.88rem; color: #334155; font-weight: 600;
+}
+.pa-doc-logo-fallback--footer {
+  font-size: 0.78rem; color: #64748b;
 }
 .pa-doc-company { font-size: 1.5rem; font-weight: 800; color: #1e3a5f; }
 .pa-doc-tagline { font-size: 0.82rem; color: #6b7280; }
@@ -10448,6 +10467,9 @@ select.ds-input {
 }
 .pa-cost-table thead { background: #f8fafc; font-weight: 600; }
 .pa-cost-total-row { background: #f0f9ff; }
+.pa-doc-footer {
+  margin-top: 26px; padding-top: 12px; border-top: 1px solid #e5e7eb;
+}
 .pa-doc-signature {
   display: flex; gap: 40px; margin-top: 40px; flex-wrap: wrap;
 }
