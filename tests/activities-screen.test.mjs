@@ -117,6 +117,20 @@ test('activities render: non-admin does not see admin toolbar buttons', () => {
   assert.doesNotMatch(html, /סיכום אדמין/);
 });
 
+test('activities render: operation_manager sees add activity button', () => {
+  const state = baseState();
+  state.user = { display_role: 'operation_manager', role: 'operation_manager', can_add_activity: false };
+  const html = activitiesScreen.render({ rows: [] }, { state });
+  assert.match(html, /data-activities-add-btn/);
+});
+
+test('activities render: authorized_user without can_add_activity does not see add activity button', () => {
+  const state = baseState();
+  state.user = { display_role: 'authorized_user', role: 'authorized_user', can_add_activity: false };
+  const html = activitiesScreen.render({ rows: [] }, { state });
+  assert.doesNotMatch(html, /data-activities-add-btn/);
+});
+
 test('activities source includes admin summary all-activities loading and no district buckets', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
@@ -178,6 +192,11 @@ test('activities screen wires add-activity form submit to api.addActivity flow',
   assert.match(source, /document\.addEventListener\('submit'[\s\S]*submitAddActivityForm/);
   assert.match(source, /await api\.addActivity\(payload\)/);
   assert.match(source, /statusEl\) statusEl\.textContent = `שגיאה בשמירה:/);
+  assert.match(source, /const allTypes = getActivityTypes\(settings\);/);
+  assert.doesNotMatch(source, /data-add-family=/);
+  assert.match(source, /const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set\(\['workshop', 'tour', 'escape_room'\]\);/);
+  assert.match(source, /sessionsInput\.disabled = isOneDay/);
+  assert.match(source, /activity_family: isOneDay \? 'one_day' : 'program'/);
 });
 
 test('activity drawer uses instructor emp_id fallback for display consistency', async () => {

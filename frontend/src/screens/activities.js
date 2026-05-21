@@ -26,6 +26,7 @@ import {
 import {
   activityManagerDisplayName,
   getActivityCatalog,
+  getActivityTypes,
   getActivityTypesByFamily,
   getActivityNamesForType,
   getRosterUsers,
@@ -228,6 +229,17 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
+const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set(['workshop', 'tour', 'escape_room']);
+
+function normalizeActivityTypeKey(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  return raw.replace(/[\s-]+/g, '_');
+}
+
+function isOneDayActivityTypeValue(value) {
+  return ONE_DAY_ACTIVITY_TYPE_KEYS.has(normalizeActivityTypeKey(value));
+}
 
 function optionsHtml(values, selected = '', placeholder = '—') {
   const safeSelected = String(selected || '');
@@ -279,10 +291,8 @@ function datalistHtml(id, values) {
 }
 
 function addActivityModalHtml(settings) {
-  const oneDayTypes = resolveOneDayTypes(settings);
-  const programTypes = getActivityTypesByFamily(settings, 'long');
-  const allTypes = cleanUnique([...getActivityTypesByFamily(settings, 'short'), ...programTypes]);
   const allActivityNames = getActivityCatalog(settings);
+  const allTypes = getActivityTypes(settings);
   const rosterUsers = getRosterUsers(settings);
   const rosterNames = rosterUsers.map((u) => u.name);
   const managerRoleNames = getManagerUsers(settings);
@@ -294,9 +304,7 @@ function addActivityModalHtml(settings) {
     ? managerRoleNames
     : mergeOptions(settings, ['activity_manager', 'activity_managers']);
   const instructorOptions = rosterNames.length ? rosterNames : mergeOptions(settings, ['instructor_name', 'instructor_names']);
-  const initialFamily = 'long';
-  const initialTypes = programTypes.length ? programTypes : allTypes;
-  const initialType = initialTypes[0] || '';
+  const initialType = allTypes[0] || '';
   const initialActivityNames = getActivityNamesForType(settings, initialType);
   const sessionsList = Array.from({ length: 35 }, (_, i) => String(i + 1));
 
@@ -312,11 +320,7 @@ function addActivityModalHtml(settings) {
     <form class="ds-activity-add-form" dir="rtl" data-add-activity-form
       data-add-activity-names="${escapeHtml(encodeURIComponent(JSON.stringify(allActivityNames)))}"
       data-add-roster-users="${escapeHtml(encodeURIComponent(JSON.stringify(rosterUsers)))}">
-      <div class="ds-toolbar" style="justify-content:flex-start">
-        <button type="button" class="ds-chip--tab is-active" data-add-family="long">תוכניות</button>
-        <button type="button" class="ds-chip--tab" data-add-family="short">חד-יומיות</button>
-      </div>
-      <input type="hidden" name="source" value="long">
+      <input type="hidden" name="source" value="catalog">
       <div class="ds-activity-add-grid">
         <label class="ds-activity-add-field"><span>מנהל פעילות</span><select class="ds-input" name="activity_manager">${optionsHtml(managerOptions, '', NO_ACTIVITY_MANAGER_LABEL)}</select></label>
         ${authorityField}
@@ -325,10 +329,8 @@ function addActivityModalHtml(settings) {
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
         <label class="ds-activity-add-field"><span>סוג פעילות</span>
           <select class="ds-input" name="activity_type" data-add-activity-type
-            data-one-day-types="${escapeHtml(JSON.stringify(oneDayTypes))}"
-            data-program-types="${escapeHtml(JSON.stringify(programTypes))}"
             data-all-types="${escapeHtml(JSON.stringify(allTypes))}">
-            ${optionsHtml(initialTypes, initialType)}
+            ${optionsHtml(allTypes, initialType)}
           </select>
         </label>
         <label class="ds-activity-add-field"><span>שם פעילות</span>
@@ -361,7 +363,8 @@ function addActivityModalHtml(settings) {
 }
 
 function resolveOneDayTypes(settings) {
-  return getActivityTypesByFamily(settings, 'short');
+  const legacy = getActivityTypesByFamily(settings, 'short');
+  return Array.isArray(legacy) ? legacy : [];
 }
 
 function isShortFamily(row, oneDayTypes) {
@@ -371,6 +374,7 @@ function isShortFamily(row, oneDayTypes) {
 function applyClientFilters(rows, state, settings) {
   let out = Array.isArray(rows) ? rows.slice() : [];
   const oneDayTypes = resolveOneDayTypes(settings);
+  if (!oneDayTypes.length) return out;
   if (state.activityQuickFamily === 'short') {
     out = out.filter((row) => isShortFamily(row, oneDayTypes));
   } else if (state.activityQuickFamily === 'long') {
@@ -1105,31 +1109,19 @@ export const activitiesScreen = {
 
     function updateAddFormByFamily(form) {
       const sourceInput = form.querySelector('input[name="source"]');
-      const familyBtns = Array.from(form.querySelectorAll('[data-add-family]'));
-      const activeBtn = familyBtns.find((b) => b.classList.contains('is-active'));
-      const family = String(activeBtn?.dataset.addFamily || 'long');
-      const isShort = family === 'short';
-      if (sourceInput) sourceInput.value = isShort ? 'short' : 'long';
+      if (sourceInput) sourceInput.value = 'catalog';
 
       const sessionsSel = form.querySelector('[data-add-sessions]');
-      if (sessionsSel) {
-        sessionsSel.value = isShort ? '1' : (String(sessionsSel.value || '1') || '1');
-        sessionsSel.disabled = isShort;
-      }
+      if (sessionsSel) sessionsSel.value = String(sessionsSel.value || '1') || '1';
 
       const secondInstructorField = form.querySelector('[data-field-instructor2]');
-      if (secondInstructorField) secondInstructorField.style.display = isShort ? '' : 'none';
+      if (secondInstructorField) secondInstructorField.style.display = 'none';
 
       const typeSel = form.querySelector('[data-add-activity-type]');
       if (typeSel) {
-        let oneDayTypes = [];
-        let programTypes = [];
         let allTypes = [];
-        try { oneDayTypes = JSON.parse(typeSel.dataset.oneDayTypes || '[]'); } catch {}
-        try { programTypes = JSON.parse(typeSel.dataset.programTypes || '[]'); } catch {}
         try { allTypes = JSON.parse(typeSel.dataset.allTypes || '[]'); } catch {}
-        const nextTypes = (isShort ? oneDayTypes : programTypes).length ? (isShort ? oneDayTypes : programTypes) : allTypes;
-        typeSel.innerHTML = optionsHtml(nextTypes, nextTypes[0] || '');
+        typeSel.innerHTML = optionsHtml(allTypes, allTypes[0] || '');
       }
       refreshActivityNameSelect(form);
       syncSessionDateRows(form);
@@ -1143,7 +1135,16 @@ export const activitiesScreen = {
     }
 
     function syncSessionDateRows(form) {
-      const sessions = Math.max(1, Number(form.querySelector('[data-add-sessions]')?.value || '1'));
+      const typeValue = String(form.querySelector('[name="activity_type"]')?.value || '').trim();
+      const isOneDay = isOneDayActivityTypeValue(typeValue);
+      const sessionsInput = form.querySelector('[data-add-sessions]');
+      const sessionsField = form.querySelector('[data-field-sessions]');
+      if (sessionsInput) {
+        sessionsInput.value = isOneDay ? '1' : String(sessionsInput.value || '1');
+        sessionsInput.disabled = isOneDay;
+      }
+      if (sessionsField) sessionsField.style.opacity = isOneDay ? '0.72' : '';
+      const sessions = isOneDay ? 1 : Math.max(1, Number(sessionsInput?.value || '1'));
       const container = form.querySelector('[data-add-date-rows]');
       if (!container) return;
       const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
@@ -1162,16 +1163,9 @@ export const activitiesScreen = {
 
       updateAddFormByFamily(form);
       syncSessionDateRows(form);
-      form.querySelectorAll('[data-add-family]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          form.querySelectorAll('[data-add-family]').forEach((b) => b.classList.remove('is-active'));
-          btn.classList.add('is-active');
-          updateAddFormByFamily(form);
-        }, addActivitySig);
-      });
-
       form.querySelector('[data-add-activity-type]')?.addEventListener('change', () => {
         refreshActivityNameSelect(form);
+        syncSessionDateRows(form);
       }, addActivitySig);
 
       form.querySelector('[data-add-activity-name]')?.addEventListener('change', () => {
@@ -1187,7 +1181,7 @@ export const activitiesScreen = {
       const roster = decodeJsonAttr(form.dataset.addRosterUsers, []);
       const fd = new (window?.FormData || FormData)(form);
       const get = (k) => String(fd.get(k) || '').trim();
-      const familySource = get('source') || 'long';
+      const familySource = get('source') || 'catalog';
       const selectedName = get('activity_name');
       const hit = activityMap.find((x) => {
         const label = String(x?.label || '').trim();
@@ -1198,8 +1192,8 @@ export const activitiesScreen = {
         const u = roster.find((r) => String(r?.name || '').trim() === name);
         return String(u?.emp_id || '').trim();
       };
-      const isShort = familySource === 'short';
-      const sessionsValue = isShort ? '1' : get('sessions') || '1';
+      const sessionsValue = get('sessions') || '1';
+      const isOneDay = isOneDayActivityTypeValue(get('activity_type'));
       const payload = {
         source: familySource,
         activity_manager: get('activity_manager'),
@@ -1210,15 +1204,15 @@ export const activitiesScreen = {
         activity_type: get('activity_type'),
         activity_name: selectedName,
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
-        sessions: sessionsValue,
+        sessions: isOneDay ? '1' : sessionsValue,
         price: get('price'),
         funding: get('funding'),
         start_time: get('start_time'),
         end_time: get('end_time'),
         instructor_name: get('instructor_name'),
         emp_id: pickEmp(get('instructor_name')),
-        instructor_name_2: isShort ? '' : get('instructor_name_2'),
-        emp_id_2: isShort ? '' : pickEmp(get('instructor_name_2')),
+        instructor_name_2: '',
+        emp_id_2: '',
         start_date: get('start_date'),
         end_date: get('end_date') || null,
         status: 'פעיל',
@@ -1228,9 +1222,21 @@ export const activitiesScreen = {
       dateInputs.forEach((input, index) => {
         payload[`Date${index + 1}`] = String(input.value || '').trim();
       });
+      if (isOneDay) {
+        for (let i = 2; i <= 35; i++) payload[`Date${i}`] = '';
+        payload.Date1 = String(payload.Date1 || get('start_date') || '').trim();
+      }
       if (!payload.end_date) {
         const lastDate = [...dateInputs].map((input) => String(input.value || '').trim()).filter(Boolean).pop();
         payload.end_date = lastDate || payload.start_date || null;
+      }
+      if (isOneDay) {
+        const oneDate = String(payload.Date1 || payload.start_date || payload.end_date || '').trim();
+        if (oneDate) {
+          payload.Date1 = oneDate;
+          payload.start_date = oneDate;
+          payload.end_date = oneDate;
+        }
       }
 
       const required = [
@@ -1261,7 +1267,7 @@ export const activitiesScreen = {
         const localRow = {
           RowID: rsp?.RowID || '',
           source_sheet: rsp?.source_sheet || 'activities',
-          activity_family: payload.source === 'short' ? 'one_day' : 'program',
+          activity_family: isOneDay ? 'one_day' : 'program',
           activity_manager: payload.activity_manager,
           authority: payload.authority,
           school: payload.school,

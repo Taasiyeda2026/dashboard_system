@@ -461,12 +461,18 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
   }));
 
   const activityNames = activityNameItems.map((i) => ({
-    label:        i.label || i.value,
-    value:        i.value,
-    activity_no:  String(i._row?.activity_no  || i._row?.number      || '').trim(),
+    label:         i.label || i.value,
+    label_he:      String(i._row?.label_he || i.label || i.value || '').trim(),
+    value:         i.value || String(i._row?.activity_name || i.label || '').trim(),
+    activity_name: String(i._row?.activity_name || i.value || i.label || '').trim(),
+    activity_no:   String(i._row?.activity_no  || i._row?.number      || '').trim(),
     activity_type: String(i._row?.activity_type || i._row?.parent_value || i._row?.type || '').trim(),
-    parent_value:  String(i._row?.parent_value  || i._row?.activity_type || i._row?.type || '').trim()
+    parent_value:  String(i._row?.parent_value  || i._row?.activity_type || i._row?.type || '').trim(),
+    type:          String(i._row?.type || i._row?.activity_type || i._row?.parent_value || '').trim(),
+    active:        i._row?.active ?? i._row?.is_active ?? i.active,
+    sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
   }));
+  const activityTypes = [...new Set(activityNames.map((row) => String(row.activity_type || row.parent_value || row.type || '').trim()).filter(Boolean))];
 
   const managerIsActive = (item) => {
     const row = item?._row && typeof item._row === 'object' ? item._row : item;
@@ -520,7 +526,8 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
       activity_names:           activityNames,
     },
     one_day_activity_types: shortTypes,
-    program_activity_types: longTypes,
+    program_activity_types: longTypes.length ? longTypes : activityTypes,
+    activity_types: activityTypes,
     ...(accentColor ? { accent_color: accentColor, theme_accent: accentColor, ui_accent_color: accentColor } : {}),
   };
 }
