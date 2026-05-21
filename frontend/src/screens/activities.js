@@ -322,40 +322,47 @@ function addActivityModalHtml(settings) {
       data-add-roster-users="${escapeHtml(encodeURIComponent(JSON.stringify(rosterUsers)))}">
       <input type="hidden" name="source" value="catalog">
       <div class="ds-activity-add-grid">
-        <label class="ds-activity-add-field"><span>מנהל פעילות</span><select class="ds-input" name="activity_manager">${optionsHtml(managerOptions, '', NO_ACTIVITY_MANAGER_LABEL)}</select></label>
-        ${authorityField}
-        ${schoolField}
-        <label class="ds-activity-add-field"><span>שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions)}</select></label>
-        <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
-        <label class="ds-activity-add-field"><span>סוג פעילות</span>
+        <p class="ds-activity-add-section">פרטי פעילות</p>
+        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>סוג פעילות</span>
           <select class="ds-input" name="activity_type" data-add-activity-type
             data-all-types="${escapeHtml(JSON.stringify(allTypes))}">
             ${optionsHtml(allTypes, initialType)}
           </select>
         </label>
-        <label class="ds-activity-add-field"><span>שם פעילות</span>
+        <label class="ds-activity-add-field ds-activity-add-field--wide"><span>שם פעילות</span>
           <select class="ds-input" name="activity_name" data-add-activity-name>
             ${optionsHtml(initialActivityNames.map((o) => o.label), '', 'בחרו שם פעילות')}
           </select>
         </label>
         <input type="hidden" name="activity_no" value="" data-add-activity-no>
-        <label class="ds-activity-add-field" data-field-sessions><span>מספר מפגשים</span><select class="ds-input" name="sessions" data-add-sessions>${optionsHtml(sessionsList, '1')}</select></label>
-        <label class="ds-activity-add-field"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
-        <label class="ds-activity-add-field"><span>מימון</span><select class="ds-input" name="funding">${optionsHtml(fundingOptions)}</select></label>
-        <label class="ds-activity-add-field"><span>שעת התחלה</span><select class="ds-input" name="start_time">${optionsHtml(TIME_OPTIONS)}</select></label>
-        <label class="ds-activity-add-field"><span>שעת סיום</span><select class="ds-input" name="end_time">${optionsHtml(TIME_OPTIONS)}</select></label>
-        <label class="ds-activity-add-field"><span>מדריך/ה</span><select class="ds-input" name="instructor_name" data-add-instructor>${optionsHtml(instructorOptions)}</select></label>
-        <input type="hidden" name="emp_id" value="">
-        <label class="ds-activity-add-field" data-field-instructor2 style="display:none"><span>מדריך/ה 2</span><select class="ds-input" name="instructor_name_2" data-add-instructor-2>${optionsHtml(instructorOptions)}</select></label>
-        <input type="hidden" name="emp_id_2" value="">
-        <label class="ds-activity-add-field" data-field-start-date><span>תאריך התחלה</span><input class="ds-input" name="start_date" type="date"></label>
-        <label class="ds-activity-add-field" data-field-end-date><span>תאריך סיום</span><input class="ds-input" name="end_date" type="date"></label>
-        <label class="ds-activity-add-field" data-field-one-day-date style="display:none"><span>תאריך הפעילות</span><input class="ds-input" name="one_day_date" type="date"></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-sessions><span>מספר מפגשים</span><select class="ds-input" name="sessions" data-add-sessions>${optionsHtml(sessionsList, '1')}</select></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מימון</span><select class="ds-input" name="funding">${optionsHtml(fundingOptions)}</select></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
+        <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
+        <label class="ds-activity-add-field"><span>שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions)}</select></label>
+        ${authorityField}
+        ${schoolField}
+
+        <p class="ds-activity-add-section">תאריכים ושעות</p>
+        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>שעת התחלה</span><select class="ds-input" name="start_time">${optionsHtml(TIME_OPTIONS)}</select></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>שעת סיום</span><select class="ds-input" name="end_time">${optionsHtml(TIME_OPTIONS)}</select></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-start-date><span>תאריך התחלה</span><input class="ds-input" name="start_date" type="date"></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-end-date><span>תאריך סיום</span><input class="ds-input" name="end_date" type="date"></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-one-day-date style="display:none"><span>תאריך הפעילות</span><input class="ds-input" name="one_day_date" type="date"></label>
         <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-date-rows-wrap>
           <span>תאריכי מפגשים</span>
           <div class="ds-activity-add-date-rows" data-add-date-rows></div>
         </div>
-        <label class="ds-activity-add-field"><span>הערות</span><textarea class="ds-input" name="notes" rows="2"></textarea></label>
+
+        <p class="ds-activity-add-section">צוות וניהול</p>
+        <label class="ds-activity-add-field"><span>מנהל פעילות</span><select class="ds-input" name="activity_manager">${optionsHtml(managerOptions, '', NO_ACTIVITY_MANAGER_LABEL)}</select></label>
+        <label class="ds-activity-add-field"><span>מדריך/ה</span><select class="ds-input" name="instructor_name" data-add-instructor>${optionsHtml(instructorOptions)}</select></label>
+        <input type="hidden" name="emp_id" value="">
+        <label class="ds-activity-add-field" data-field-instructor2 style="display:none"><span>מדריך/ה 2</span><select class="ds-input" name="instructor_name_2" data-add-instructor-2>${optionsHtml(instructorOptions)}</select></label>
+        <input type="hidden" name="emp_id_2" value="">
+
+        <p class="ds-activity-add-section">הערות</p>
+        <label class="ds-activity-add-field ds-activity-add-field--span2"><span>הערות</span><textarea class="ds-input" name="notes" rows="2"></textarea></label>
       </div>
       <button type="submit" hidden aria-hidden="true"></button>
       <p class="ds-muted" role="status" data-add-activity-status></p>
