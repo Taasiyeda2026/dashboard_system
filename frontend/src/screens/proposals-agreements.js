@@ -7,6 +7,7 @@ const SEARCH_DEBOUNCE_MS = 280;
 const DOCUMENT_TYPE_OPTIONS = ['הצעת מחיר', 'הסכם'];
 const ACTIVITY_TYPE_GROUP_OPTIONS = ['הצעה משולבת', 'פעילויות קיץ', 'שנה הבאה'];
 const ITEM_TYPE_OPTIONS = ['סדנה', 'קורס', 'הדרכה', 'פעילות', 'ייעוץ', 'ליווי'];
+const PUBLIC_BASE = import.meta.env?.BASE_URL || './';
 
 export const STATUS_OPTIONS = ['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled'];
 export const STATUS_LABELS = {
@@ -459,7 +460,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   return `
     <div class="pa-doc-header-brand">
       <img
-        src="/proposals/proposal-header-logo.png"
+        src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
         alt="לוגו תעשיידע"
         class="pa-doc-logo pa-doc-logo--header"
         loading="eager"
@@ -498,7 +499,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     ${signatureText ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('signature', 'חתימה'))}</h3><p>${escapeHtml(signatureText)}</p></section>` : ''}
     <footer class="pa-doc-footer">
       <img
-        src="/proposals/proposal-footer-logo.png"
+        src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
         alt="לוגו תחתון תעשיידע"
         class="pa-doc-logo pa-doc-logo--footer"
         loading="lazy"
