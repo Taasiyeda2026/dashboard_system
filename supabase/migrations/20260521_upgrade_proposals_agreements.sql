@@ -51,7 +51,7 @@ END $$;
 -- 4. Add proposal_date and activity_names (present in API but missing from original migration).
 ALTER TABLE public.proposals_agreements
   ADD COLUMN IF NOT EXISTS proposal_date date,
-  ADD COLUMN IF NOT EXISTS activity_names jsonb;
+  ADD COLUMN IF NOT EXISTS activity_names jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 -- 5. Add status and workflow audit fields.
 ALTER TABLE public.proposals_agreements
@@ -127,3 +127,20 @@ CREATE POLICY proposal_agreement_items_update
 REVOKE ALL ON public.proposal_agreement_items FROM anon;
 GRANT SELECT, INSERT, UPDATE ON public.proposal_agreement_items TO authenticated;
 REVOKE DELETE ON public.proposal_agreement_items FROM authenticated;
+
+-- updated_at trigger for proposal_agreement_items.
+CREATE OR REPLACE FUNCTION public.touch_proposal_agreement_items_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_touch_proposal_agreement_items_updated_at ON public.proposal_agreement_items;
+CREATE TRIGGER trg_touch_proposal_agreement_items_updated_at
+BEFORE UPDATE ON public.proposal_agreement_items
+FOR EACH ROW
+EXECUTE FUNCTION public.touch_proposal_agreement_items_updated_at();

@@ -549,5 +549,8 @@ test('upgrade migration adds status column with constraint and new indexes', asy
   assert.match(upgradeMigration, /proposals_agreements_status_idx/);
   assert.match(upgradeMigration, /proposals_agreements_proposal_date_idx/);
   assert.match(upgradeMigration, /add column if not exists approval_note/i);
+  assert.match(upgradeMigration, /activity_names jsonb not null default '\[\]'::jsonb/i);
+  assert.match(upgradeMigration, /touch_proposal_agreement_items_updated_at/);
+  assert.match(upgradeMigration, /trg_touch_proposal_agreement_items_updated_at/);
   assert.match(upgradeMigration, /proposal_agreement_items/);
 });
