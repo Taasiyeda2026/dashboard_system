@@ -1,8 +1,8 @@
 const COURSE_OPTIONS = [
-  { key: 'english', label: 'אנגלית', icon: '📘' },
-  { key: 'computers', label: 'מחשבים', icon: '💻' },
-  { key: 'hebrew', label: 'עברית', icon: '📝' },
-  { key: 'employability', label: 'כישורי תעסוקה', icon: '🧩' }
+  { key: 'biomimicry', label: 'ביומימיקרי', icon: '🦋' },
+  { key: 'rokchim-olam', label: 'רוקחים עולם', icon: '🧪' },
+  { key: 'ai', label: 'בינה מלאכותית', icon: '🤖' },
+  { key: 'premium', label: 'פרימיום', icon: '⭐' }
 ];
 
 const INVITATION_TYPES = [
@@ -10,6 +10,32 @@ const INVITATION_TYPES = [
   { key: 'tour', label: 'סיור' },
   { key: 'graduation', label: 'מפגש סיום קורס' }
 ];
+
+
+const TEMPLATE_CONTENT = {
+  'biomimicry:graduation': {
+    title: 'הזמנה למפגש הסיום',
+    subtitle: 'קורס ביומימיקרי – המצאות\nבהשראה מן הטבע',
+    body1: 'לאורך התהליך יצאו התלמידים למסע חקר בעקבות הטבע: הם התבוננו בבעלי חיים, בצמחים ובתופעות טבע וגילו כיצד הטבע יכול לעורר השראה לפיתוח פתרונות טכנולוגיים חדשניים.',
+    body2: 'במפגש ניחשף לרעיונות המקוריים של התלמידים ולדרך שבה סקרנות, יצירתיות, מדע וטכנולוגיה התחברו לחוויית למידה משמעותית בהשראת הטבע.',
+    closing: 'נשמח לראותכם!',
+    participants: 'הנהלת בית הספר ומחנכת הכיתה: ______\nהגב׳ יעל אביב, מנהלת תחום החינוך והפדגוגיה – תעשיידע\nהגב׳ הילה רוזן, אחראית הדרכה ומנחת הקבוצה – תעשיידע'
+  },
+  'rokchim-olam:tour': {
+    title: 'הזמנה לסיור לימודי',
+    subtitle: 'במסגרת קורס “רוקחים עולם”',
+    body1: 'הצטרפו אלינו לסיור לימודי בחברת פארמה, כחלק מתהליך הלמידה בקורס “רוקחים עולם”.',
+    body2: 'במהלך הסיור ייחשפו התלמידים לעולם הפרמצבטיקה, לתהליכי פיתוח וייצור בתעשיית התרופות, ולדרך שבה מדע, חדשנות וטכנולוגיה משתלבים בעולם הבריאות.'
+  },
+  'rokchim-olam:lecture': {
+    title: 'הזמנה להרצאה',
+    subtitle: 'במסגרת קורס “רוקחים עולם”',
+    body1: 'אנו מזמינים את התלמידים להרצאה מיוחדת במסגרת קורס “רוקחים עולם”, שתפתח צוהר לעולם הפרמצבטיקה, המחקר והחדשנות בתעשיית הבריאות.',
+    body2: 'במהלך ההרצאה ייחשפו התלמידים לתהליכים, אתגרים ורעיונות מעולם התרופות, ויבינו כיצד ידע מדעי הופך לפתרונות המשפיעים על חיי היום־יום.'
+  }
+};
+
+const getTemplate = (s) => TEMPLATE_CONTENT[`${s.course}:${s.type}`] || {};
 
 const PRESET_BACKGROUNDS = {
   soft: 'radial-gradient(circle at 10% 18%, rgba(18,185,129,0.16), transparent 24%), radial-gradient(circle at 88% 16%, rgba(14,165,233,0.16), transparent 23%), radial-gradient(circle at 92% 82%, rgba(217,249,157,0.24), transparent 24%), linear-gradient(90deg, rgba(18,185,129,0.08) 0 9%, transparent 9% 91%, rgba(14,165,233,0.08) 91% 100%)',
@@ -42,7 +68,7 @@ function ensureInvitationStyles() {
     .inv-head{font-size:52px;font-weight:800;line-height:1.05;margin:10px 0;color:#102033}.inv-sub{font-size:27px;font-weight:800;color:#0f766e;line-height:1.2}
     .inv-year{display:inline-flex;padding:5px 18px;border-radius:999px;background:rgba(20,184,166,.1);color:#058669;font-size:22px;font-weight:800;margin-top:8px}
     .inv-school{font-size:19px;margin:6px 0 10px;padding:6px 16px;border-radius:999px;background:rgba(248,250,252,.92);border:1px solid rgba(226,232,240,.88)}
-    .inv-event{background:linear-gradient(135deg, rgba(255,255,255,.96), rgba(240,249,255,.92));padding:13px 22px;border-radius:18px;border:2px solid rgba(20,184,166,.18);font-size:20px;line-height:1.6;margin:12px 0}
+    .inv-body{font-size:22px;line-height:1.7;text-align:right;margin:12px 0}.inv-body p{margin:0 0 8px}.inv-event{background:linear-gradient(135deg, rgba(255,255,255,.96), rgba(240,249,255,.92));padding:13px 22px;border-radius:18px;border:2px solid rgba(20,184,166,.18);font-size:20px;line-height:1.6;margin:12px 0}
     .inv-participants{width:100%;text-align:right;background:rgba(248,250,252,.72);border:1px solid rgba(226,232,240,.88);border-radius:18px;padding:14px 18px;font-size:16px;line-height:1.8}
     .inv-closing{font-size:34px;color:#058669;font-weight:800;margin-top:12px}
     @media print{@page{size:A4 portrait;margin:0} .inv-panel{display:none !important}.inv-shell{display:block}.inv-a4{width:210mm;height:297mm;min-height:0;margin:0;box-shadow:none;padding:28mm 20mm 18mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -53,8 +79,11 @@ function ensureInvitationStyles() {
 
 const typeLabel = (s) => INVITATION_TYPES.find((t) => t.key === s.type)?.label || '';
 const courseLabel = (s) => COURSE_OPTIONS.find((c) => c.key === s.course)?.label || '';
+const showHostField = (s) => s.type === 'tour' || s.type === 'lecture';
+const showSpeakerField = (s) => s.type === 'lecture';
 
 function invitationPreviewHtml(s) {
+  const tpl = getTemplate(s);
   return `<article class="inv-a4" id="invitation-page" style="background:${s.backgroundCss};background-size:cover;background-position:center;">
       <div class="inv-ribbon right"></div><div class="inv-ribbon left"></div>
       <header class="inv-logos">
@@ -62,13 +91,14 @@ function invitationPreviewHtml(s) {
       </header>
       <section class="inv-content">
         <div class="inv-badge">${typeLabel(s)} · ${courseLabel(s)}</div>
-        <h1 class="inv-head">${s.title || 'הזמנה למפגש הסיום'}</h1>
-        <div class="inv-sub">${s.subtitle || 'בתכנית ביומימיקרי ולמידה מבוססת חדשנות'}</div>
-        <div class="inv-year">${s.schoolYear || 'שנת הלימודים תשפ"ו'}</div>
-        <div class="inv-school">${s.school || 'בית ספר'} · ${s.className || 'כיתה'} · ${s.host || 'חברה מארחת'}</div>
-        <div class="inv-event"><strong>יום:</strong> ${s.day || '______'} · <strong>תאריך:</strong> ${s.date || '______'} · <strong>שעה:</strong> ${s.time || '______'} · <strong>מיקום:</strong> ${s.location || '______'}</div>
-        <div class="inv-participants"><strong>בהשתתפות:</strong><br>${s.participants || 'נציגי צוות החינוך, מנחים מקצועיים, תלמידים והורים.'}</div>
-        <div class="inv-closing">${s.closing || 'נשמח לראותכם!'}</div>
+        <h1 class="inv-head">${s.title || tpl.title || 'הזמנה'}</h1>
+        <div class="inv-sub">${(s.subtitle || tpl.subtitle || '').replace(/\n/g, '<br>')}</div>
+        <div class="inv-year">${s.schoolYear || 'שנת לימודים'}</div>
+        <div class="inv-school">${s.className || 'כיתה / קהל יעד'} · ${s.school || 'בית ספר'}</div>
+        <div class="inv-body"><p>${s.body1 || tpl.body1 || ''}</p><p>${s.body2 || tpl.body2 || ''}</p></div>
+        <div class="inv-event"><strong>יום:</strong> ${s.day || '______'} | <strong>תאריך:</strong> ${s.date || '______'} | <strong>שעה:</strong> ${s.time || '______'}<br><strong>מיקום:</strong> ${s.location || '______'}</div>
+        <div class="inv-participants"><strong>בהשתתפות:</strong><br>${(s.participants || tpl.participants || 'משתתפים / נציגים').replace(/\n/g, '<br>')}</div>
+        <div class="inv-closing">${s.closing || tpl.closing || 'נשמח לראותכם!'}</div>
       </section>
     </article>`;
 }
@@ -79,8 +109,8 @@ export const invitationsScreen = {
     ensureInvitationStyles();
     const formState = {
       course: COURSE_OPTIONS[0].key, type: INVITATION_TYPES[0].key,
-      school: '', className: '', host: '', title: '', subtitle: '', schoolYear: '',
-      day: '', date: '', time: '', location: '', participants: '', closing: '',
+      school: '', className: '', host: '', speaker: '', title: '', subtitle: '', schoolYear: '',
+      day: '', date: '', time: '', location: '', body1: '', body2: '', participants: '', closing: '',
       backgroundCss: PRESET_BACKGROUNDS.soft, logos: { education: '', taasiyeda: '', school: '' }
     };
     return `<section class="inv-shell" data-invitations-root>
@@ -88,8 +118,9 @@ export const invitationsScreen = {
         <h2 class="inv-title">מחולל הזמנות</h2><p class="inv-muted">טופס קומפקטי + תצוגת A4 מלאה.</p>
         <div class="inv-grid">${COURSE_OPTIONS.map((c) => `<button type="button" class="inv-chip ${formState.course === c.key ? 'active' : ''}" data-course="${c.key}">${c.icon} ${c.label}</button>`).join('')}</div>
         <div class="inv-grid" style="grid-template-columns:1fr;">${INVITATION_TYPES.map((t) => `<button type="button" class="inv-chip ${formState.type === t.key ? 'active' : ''}" data-type="${t.key}">${t.label}</button>`).join('')}</div>
-        ${[['title','כותרת'],['subtitle','כותרת משנה'],['schoolYear','שנת לימודים'],['school','בית ספר'],['className','כיתה'],['host','חברה מארחת'],['day','יום'],['date','תאריך'],['time','שעה'],['location','מיקום'],['closing','משפט סיום']].map(([k,l])=>`<label class="inv-field"><span>${l}</span><input data-field="${k}" value="${formState[k] || ''}"/></label>`).join('')}
-        <label class="inv-field"><span>בהשתתפות</span><textarea data-field="participants"></textarea></label>
+        ${[['schoolYear','שנת לימודים'],['className','כיתה / קהל יעד'],['school','בית ספר'],['title','כותרת אירוע'],['day','יום'],['date','תאריך'],['time','שעה'],['location','מיקום'],['participants','משתתפים / נציגים'],['closing','משפט סיום']].map(([k,l])=>`<label class=\"inv-field\"><span>${l}</span>${k==='participants'?`<textarea data-field=\"${k}\">${formState[k] || ''}</textarea>`:`<input data-field=\"${k}\" value=\"${formState[k] || ''}\"/>`}</label>`).join('')}
+        <div data-host-field class="inv-field" style="display:none"><span>חברה מארחת</span><input data-field="host" value=""/></div>
+        <div data-speaker-field class="inv-field" style="display:none"><span>שם מרצה / אורח</span><input data-field="speaker" value=""/></div>
         <label class="inv-field"><span>רקע מובנה</span><select data-background-preset><option value="soft">רקע עדין</option><option value="clean">רקע בהיר</option><option value="aqua">רקע טורקיז</option></select></label>
         <label class="inv-field"><span>העלאת תמונת רקע</span><input type="file" accept="image/*" data-background-upload /></label>
         ${['education','taasiyeda','school'].map((k)=>`<label class="inv-field"><span>לוגו ${k === 'education' ? 'משרד החינוך' : k === 'taasiyeda' ? 'תעשיידע' : 'בית ספר'}</span><input type="file" accept="image/*" data-logo-upload="${k}" /></label>`).join('')}
@@ -100,11 +131,13 @@ export const invitationsScreen = {
   },
   bind({ root }) {
     const host = root?.querySelector('[data-invitations-root]'); if (!host) return;
-    const formState = { course: COURSE_OPTIONS[0].key, type: INVITATION_TYPES[0].key, school: '', className: '', host: '', title: '', subtitle: '', schoolYear: '', day: '', date: '', time: '', location: '', participants: '', closing: '', backgroundCss: PRESET_BACKGROUNDS.soft, logos: { education: '', taasiyeda: '', school: '' } };
+    const formState = { course: COURSE_OPTIONS[0].key, type: INVITATION_TYPES[0].key, school: '', className: '', host: '', speaker: '', title: '', subtitle: '', schoolYear: '', day: '', date: '', time: '', location: '', body1: '', body2: '', participants: '', closing: '', backgroundCss: PRESET_BACKGROUNDS.soft, logos: { education: '', taasiyeda: '', school: '' } };
     const repaint = () => {
       host.querySelectorAll('[data-course]').forEach((el) => el.classList.toggle('active', el.dataset.course === formState.course));
       host.querySelectorAll('[data-type]').forEach((el) => el.classList.toggle('active', el.dataset.type === formState.type));
       const p = host.querySelector('[data-inv-preview]'); if (p) p.innerHTML = invitationPreviewHtml(formState);
+      const h=host.querySelector('[data-host-field]'); if (h) h.style.display = showHostField(formState) ? '' : 'none';
+      const sp=host.querySelector('[data-speaker-field]'); if (sp) sp.style.display = showSpeakerField(formState) ? '' : 'none';
     };
     host.querySelectorAll('[data-course]').forEach((el) => el.addEventListener('click', () => { formState.course = el.dataset.course || formState.course; repaint(); }));
     host.querySelectorAll('[data-type]').forEach((el) => el.addEventListener('click', () => { formState.type = el.dataset.type || formState.type; repaint(); }));
