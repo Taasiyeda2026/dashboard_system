@@ -790,10 +790,20 @@ test('api source has readProposalAgreementItems and saveProposalAgreementItems',
   const apiSource = await readFile(API_FILE, 'utf8');
   assert.match(apiSource, /readProposalAgreementItems/);
   assert.match(apiSource, /saveProposalAgreementItems/);
+  assert.match(apiSource, /readProposalActivityPricing/);
+  assert.match(apiSource, /proposal_activity_pricing/);
+  assert.match(apiSource, /is_active_for_proposals/);
   assert.match(apiSource, /saveProposalAgreementItems: true/);
   assert.match(apiSource, /upsertProposalClientContactIfNeeded/);
   assert.match(apiSource, /payload\?\.is_new_client === true/);
   assert.match(apiSource, /total_amount.*payload\.total_amount/);
+});
+
+test('items editor includes pricing selector and uses pricing autofill fields', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(screenSource, /data-pa-pricing-select/);
+  assert.match(screenSource, /description_for_proposal/);
+  assert.match(screenSource, /payload\.activity_names = itemNames/);
 });
 
 test('upgrade migration adds status column with constraint and new indexes', async () => {
