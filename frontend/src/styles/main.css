@@ -9980,6 +9980,66 @@ select.ds-input {
   grid-column: 1 / -1;
 }
 
+.ds-pa-activity-picker {
+  position: relative;
+}
+
+.ds-pa-activity-trigger {
+  text-align: right;
+  min-height: 32px;
+}
+
+.ds-pa-activity-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.ds-pa-chip {
+  border: 1px solid var(--ds-color-border, #e2e8f0);
+  background: var(--ds-color-surface, #fff);
+  border-radius: 999px;
+  font-size: 0.76rem;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+
+.ds-pa-activity-dropdown {
+  position: absolute;
+  z-index: 6;
+  inset-inline: 0;
+  margin-top: 6px;
+  border: 1px solid var(--ds-color-border, #e2e8f0);
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+  box-shadow: var(--ds-shadow-sm);
+}
+
+.ds-pa-activity-search {
+  margin-bottom: 6px;
+}
+
+.ds-pa-activity-options {
+  max-height: 210px;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+}
+
+.ds-pa-activity-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+  border-radius: 8px;
+}
+
+.ds-pa-activity-option:hover {
+  background: var(--ds-color-surface-soft, #f8fafc);
+}
+
 .ds-pa-form-error {
   min-height: 1.2em;
   margin: 0 0 6px;
