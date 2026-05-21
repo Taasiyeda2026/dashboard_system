@@ -10422,36 +10422,47 @@ select.ds-input {
   color: #1e293b;
 }
 .pa-doc-header-brand {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  text-align: center;
 }
 .pa-doc-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 12px;
+  display: flex; justify-content: space-between; align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 10px;
 }
-.pa-doc-company-block { display: block; }
+.pa-doc-company-block { display: none; }
 .pa-doc-logo {
   display: block; max-width: 100%; height: auto;
 }
 .pa-doc-logo--header {
-  width: min(260px, 55%);
+  width: min(240px, 45%);
+  margin-inline: auto;
 }
 .pa-doc-logo--footer {
-  width: min(260px, 55%);
+  width: min(220px, 45%);
 }
 .pa-doc-logo-fallback {
-  font-size: 0.88rem; color: #334155; font-weight: 600;
+  font-size: 0.92rem; color: #334155; font-weight: 700;
+  text-align: center;
 }
 .pa-doc-logo-fallback--footer {
   font-size: 0.78rem; color: #64748b;
 }
 .pa-doc-company { font-size: 1.5rem; font-weight: 800; color: #1e3a5f; }
 .pa-doc-tagline { font-size: 0.82rem; color: #6b7280; }
-.pa-doc-meta    { text-align: start; font-size: 0.85rem; color: #374151; }
+.pa-doc-meta    {
+  margin-inline-start: auto;
+  text-align: start;
+  font-size: 0.85rem;
+  color: #374151;
+  display: grid;
+  gap: 2px;
+}
 .pa-doc-divider { border: none; border-top: 2px solid #1e3a5f; margin: 14px 0; }
 .pa-doc-address { margin: 14px 0; font-size: 0.9rem; line-height: 1.6; }
 .pa-doc-address p { margin: 0; }
 .pa-doc-subject { margin: 16px 0 10px; font-size: 0.95rem; }
-.pa-section { margin: 14px 0; }
+.pa-section { margin: 16px 0; }
 .pa-section h3 {
   font-size: 0.93rem; font-weight: 700; margin: 0 0 6px;
   border-bottom: 1px solid #e5e7eb; padding-bottom: 3px;
@@ -10468,9 +10479,10 @@ select.ds-input {
 .pa-cost-table thead { background: #f8fafc; font-weight: 600; }
 .pa-cost-total-row { background: #f0f9ff; }
 .pa-doc-footer {
-  margin-top: 18px; padding-top: 10px; border-top: 1px solid #e5e7eb;
+  margin-top: 30px; padding-top: 14px; border-top: 1px solid #e5e7eb;
   break-inside: avoid;
   page-break-inside: avoid;
+  text-align: center;
 }
 .pa-doc-signature {
   display: flex; gap: 40px; margin-top: 40px; flex-wrap: wrap;
@@ -10485,17 +10497,20 @@ select.ds-input {
    ═══════════════════════════════════════════════════════════════════ */
 @media print {
   body > *:not(#pa-preview-overlay) { display: none !important; }
+  body, html { background: #fff !important; }
   #pa-preview-overlay {
     position: static !important; background: #fff !important; overflow: visible !important;
   }
+  #pa-preview-overlay * { visibility: visible !important; }
   .ds-pa-preview-toolbar { display: none !important; }
   .ds-pa-preview-doc {
     box-shadow: none !important; border: none !important;
     margin: 0 !important; padding: 20px !important; max-width: 100% !important;
   }
   .pa-doc-footer {
-    margin-top: 14px !important;
-    padding-top: 8px !important;
+    margin-top: 22px !important;
+    padding-top: 10px !important;
+    page-break-inside: avoid !important;
   }
   .pa-doc-divider { border-top: 1.5px solid #000; }
 }
