@@ -457,8 +457,19 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const signatureText = sectionBody('signature', '');
 
   return `
+    <div class="pa-doc-header-brand">
+      <img
+        src="/proposals/proposal-header-logo.png"
+        alt="לוגו תעשיידע"
+        class="pa-doc-logo pa-doc-logo--header"
+        loading="eager"
+        decoding="async"
+        onerror="this.style.display='none'; this.nextElementSibling.hidden = false;"
+      >
+      <div class="pa-doc-logo-fallback" hidden>תעשיידע — חינוך מקצועי וחוויות למידה</div>
+    </div>
     <div class="pa-doc-header">
-      <div>
+      <div class="pa-doc-company-block">
         <div class="pa-doc-company">תעשיידע</div>
         <div class="pa-doc-tagline">חינוך מקצועי וחוויות למידה</div>
       </div>
@@ -484,7 +495,18 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     <section class="pa-section"><h3>${escapeHtml(sectionTitle('payment_terms', 'תנאי תשלום'))}</h3><p>${escapeHtml(paymentTerms || '—')}</p></section>
     ${changesCancellation ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('cancellation_terms', 'שינויים וביטולים'))}</h3><p>${escapeHtml(changesCancellation)}</p></section>` : ''}
     ${remarks ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('notes', 'הערות'))}</h3><p>${escapeHtml(remarks)}</p></section>` : ''}
-    ${signatureText ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('signature', 'חתימה'))}</h3><p>${escapeHtml(signatureText)}</p></section>` : ''}`;
+    ${signatureText ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('signature', 'חתימה'))}</h3><p>${escapeHtml(signatureText)}</p></section>` : ''}
+    <footer class="pa-doc-footer">
+      <img
+        src="/proposals/proposal-footer-logo.png"
+        alt="לוגו תחתון תעשיידע"
+        class="pa-doc-logo pa-doc-logo--footer"
+        loading="lazy"
+        decoding="async"
+        onerror="this.style.display='none'; this.nextElementSibling.hidden = false;"
+      >
+      <div class="pa-doc-logo-fallback pa-doc-logo-fallback--footer" hidden>תעשיידע</div>
+    </footer>`;
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
