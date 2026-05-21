@@ -7970,14 +7970,14 @@ select.ds-input {
 .ds-activity-add-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 6px 8px;
-  margin-top: 4px;
+  gap: 5px 8px;
+  margin-top: 2px;
 }
 
 .ds-activity-add-section {
   grid-column: 1 / -1;
-  margin: 4px 0 0;
-  padding-top: 4px;
+  margin: 3px 0 0;
+  padding-top: 3px;
   border-top: 1px solid rgba(15, 23, 42, 0.08);
   font-size: 0.74rem;
   font-weight: 700;
@@ -8003,12 +8003,12 @@ select.ds-input {
 .ds-activity-add-field {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
 .ds-activity-add-field > span {
-  font-size: 0.71rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: #334155;
   line-height: 1.2;
@@ -8017,10 +8017,24 @@ select.ds-input {
 .ds-activity-add-field .ds-input {
   width: 100%;
   max-width: 100%;
-  min-height: 30px;
-  font-size: 0.8rem;
+  min-height: 31px;
+  font-size: 0.79rem;
   line-height: 1.2;
   padding: 3px 7px;
+}
+
+.ds-activity-add-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.ds-activity-add-field--entity .ds-btn--xs {
+  padding: 2px 6px;
+  min-height: 24px;
+  font-size: 0.7rem;
+  line-height: 1.1;
 }
 
 .ds-activity-add-field.ds-activity-add-field--compact {
@@ -8033,7 +8047,7 @@ select.ds-input {
 
 .ds-activity-add-field textarea.ds-input {
   resize: vertical;
-  min-height: 52px;
+  min-height: 48px;
 }
 
 @media (min-width: 760px) {
@@ -8048,7 +8062,7 @@ select.ds-input {
   .ds-activity-add-grid,
   .ds-activity-add-date-rows {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px 10px;
+    gap: 5px 9px;
   }
 }
 
