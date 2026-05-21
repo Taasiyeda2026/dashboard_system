@@ -194,6 +194,9 @@ test('activities screen wires add-activity form submit to api.addActivity flow',
   assert.match(source, /statusEl\) statusEl\.textContent = `שגיאה בשמירה:/);
   assert.match(source, /const allTypes = getActivityTypes\(settings\);/);
   assert.doesNotMatch(source, /data-add-family=/);
+  assert.match(source, /const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set\(\['workshop', 'tour', 'escape_room'\]\);/);
+  assert.match(source, /sessionsInput\.disabled = isOneDay/);
+  assert.match(source, /activity_family: isOneDay \? 'one_day' : 'program'/);
 });
 
 test('activity drawer uses instructor emp_id fallback for display consistency', async () => {

@@ -229,6 +229,17 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
+const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set(['workshop', 'tour', 'escape_room']);
+
+function normalizeActivityTypeKey(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  return raw.replace(/[\s-]+/g, '_');
+}
+
+function isOneDayActivityTypeValue(value) {
+  return ONE_DAY_ACTIVITY_TYPE_KEYS.has(normalizeActivityTypeKey(value));
+}
 
 function optionsHtml(values, selected = '', placeholder = '—') {
   const safeSelected = String(selected || '');
@@ -1124,7 +1135,16 @@ export const activitiesScreen = {
     }
 
     function syncSessionDateRows(form) {
-      const sessions = Math.max(1, Number(form.querySelector('[data-add-sessions]')?.value || '1'));
+      const typeValue = String(form.querySelector('[name="activity_type"]')?.value || '').trim();
+      const isOneDay = isOneDayActivityTypeValue(typeValue);
+      const sessionsInput = form.querySelector('[data-add-sessions]');
+      const sessionsField = form.querySelector('[data-field-sessions]');
+      if (sessionsInput) {
+        sessionsInput.value = isOneDay ? '1' : String(sessionsInput.value || '1');
+        sessionsInput.disabled = isOneDay;
+      }
+      if (sessionsField) sessionsField.style.opacity = isOneDay ? '0.72' : '';
+      const sessions = isOneDay ? 1 : Math.max(1, Number(sessionsInput?.value || '1'));
       const container = form.querySelector('[data-add-date-rows]');
       if (!container) return;
       const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
@@ -1145,6 +1165,7 @@ export const activitiesScreen = {
       syncSessionDateRows(form);
       form.querySelector('[data-add-activity-type]')?.addEventListener('change', () => {
         refreshActivityNameSelect(form);
+        syncSessionDateRows(form);
       }, addActivitySig);
 
       form.querySelector('[data-add-activity-name]')?.addEventListener('change', () => {
@@ -1172,6 +1193,7 @@ export const activitiesScreen = {
         return String(u?.emp_id || '').trim();
       };
       const sessionsValue = get('sessions') || '1';
+      const isOneDay = isOneDayActivityTypeValue(get('activity_type'));
       const payload = {
         source: familySource,
         activity_manager: get('activity_manager'),
@@ -1182,7 +1204,7 @@ export const activitiesScreen = {
         activity_type: get('activity_type'),
         activity_name: selectedName,
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
-        sessions: sessionsValue,
+        sessions: isOneDay ? '1' : sessionsValue,
         price: get('price'),
         funding: get('funding'),
         start_time: get('start_time'),
@@ -1200,9 +1222,21 @@ export const activitiesScreen = {
       dateInputs.forEach((input, index) => {
         payload[`Date${index + 1}`] = String(input.value || '').trim();
       });
+      if (isOneDay) {
+        for (let i = 2; i <= 35; i++) payload[`Date${i}`] = '';
+        payload.Date1 = String(payload.Date1 || get('start_date') || '').trim();
+      }
       if (!payload.end_date) {
         const lastDate = [...dateInputs].map((input) => String(input.value || '').trim()).filter(Boolean).pop();
         payload.end_date = lastDate || payload.start_date || null;
+      }
+      if (isOneDay) {
+        const oneDate = String(payload.Date1 || payload.start_date || payload.end_date || '').trim();
+        if (oneDate) {
+          payload.Date1 = oneDate;
+          payload.start_date = oneDate;
+          payload.end_date = oneDate;
+        }
       }
 
       const required = [
@@ -1233,7 +1267,7 @@ export const activitiesScreen = {
         const localRow = {
           RowID: rsp?.RowID || '',
           source_sheet: rsp?.source_sheet || 'activities',
-          activity_family: payload.source === 'short' ? 'one_day' : 'program',
+          activity_family: isOneDay ? 'one_day' : 'program',
           activity_manager: payload.activity_manager,
           authority: payload.authority,
           school: payload.school,
