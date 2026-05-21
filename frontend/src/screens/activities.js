@@ -348,8 +348,9 @@ function addActivityModalHtml(settings) {
         <input type="hidden" name="emp_id" value="">
         <label class="ds-activity-add-field" data-field-instructor2 style="display:none"><span>מדריך/ה 2</span><select class="ds-input" name="instructor_name_2" data-add-instructor-2>${optionsHtml(instructorOptions)}</select></label>
         <input type="hidden" name="emp_id_2" value="">
-        <label class="ds-activity-add-field"><span>תאריך התחלה</span><input class="ds-input" name="start_date" type="date"></label>
-        <label class="ds-activity-add-field"><span>תאריך סיום</span><input class="ds-input" name="end_date" type="date"></label>
+        <label class="ds-activity-add-field" data-field-start-date><span>תאריך התחלה</span><input class="ds-input" name="start_date" type="date"></label>
+        <label class="ds-activity-add-field" data-field-end-date><span>תאריך סיום</span><input class="ds-input" name="end_date" type="date"></label>
+        <label class="ds-activity-add-field" data-field-one-day-date style="display:none"><span>תאריך הפעילות</span><input class="ds-input" name="one_day_date" type="date"></label>
         <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-date-rows-wrap>
           <span>תאריכי מפגשים</span>
           <div class="ds-activity-add-date-rows" data-add-date-rows></div>
@@ -1139,6 +1140,23 @@ export const activitiesScreen = {
       const isOneDay = isOneDayActivityTypeValue(typeValue);
       const sessionsInput = form.querySelector('[data-add-sessions]');
       const sessionsField = form.querySelector('[data-field-sessions]');
+      const oneDayDateField = form.querySelector('[data-field-one-day-date]');
+      const startDateField = form.querySelector('[data-field-start-date]');
+      const endDateField = form.querySelector('[data-field-end-date]');
+      const sessionsDatesWrap = form.querySelector('[data-add-date-rows-wrap]');
+      const startDateInput = form.querySelector('[name="start_date"]');
+      const endDateInput = form.querySelector('[name="end_date"]');
+      const oneDayDateInput = form.querySelector('[name="one_day_date"]');
+      if (isOneDay) {
+        const fallbackDate = String(oneDayDateInput?.value || startDateInput?.value || endDateInput?.value || '').trim();
+        if (oneDayDateInput) oneDayDateInput.value = fallbackDate;
+        if (startDateInput) startDateInput.value = fallbackDate;
+        if (endDateInput) endDateInput.value = fallbackDate;
+      }
+      if (oneDayDateField) oneDayDateField.style.display = isOneDay ? '' : 'none';
+      if (startDateField) startDateField.style.display = isOneDay ? 'none' : '';
+      if (endDateField) endDateField.style.display = isOneDay ? 'none' : '';
+      if (sessionsDatesWrap) sessionsDatesWrap.style.display = isOneDay ? 'none' : '';
       if (sessionsInput) {
         sessionsInput.value = isOneDay ? '1' : String(sessionsInput.value || '1');
         sessionsInput.disabled = isOneDay;
@@ -1173,6 +1191,7 @@ export const activitiesScreen = {
       }, addActivitySig);
       form.querySelector('[data-add-sessions]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[name="start_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
+      form.querySelector('[name="one_day_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
     }
 
     async function submitAddActivityForm(form, submitBtn) {
@@ -1194,6 +1213,7 @@ export const activitiesScreen = {
       };
       const sessionsValue = get('sessions') || '1';
       const isOneDay = isOneDayActivityTypeValue(get('activity_type'));
+      const oneDayDate = String(get('one_day_date') || get('start_date') || get('end_date') || '').trim();
       const payload = {
         source: familySource,
         activity_manager: get('activity_manager'),
@@ -1213,30 +1233,29 @@ export const activitiesScreen = {
         emp_id: pickEmp(get('instructor_name')),
         instructor_name_2: '',
         emp_id_2: '',
-        start_date: get('start_date'),
-        end_date: get('end_date') || null,
+        start_date: isOneDay ? oneDayDate : get('start_date'),
+        end_date: isOneDay ? oneDayDate || null : get('end_date') || null,
         status: 'פעיל',
         notes: get('notes')
       };
-      const dateInputs = Array.from(form.querySelectorAll('input[data-add-session-date]'));
-      dateInputs.forEach((input, index) => {
-        payload[`Date${index + 1}`] = String(input.value || '').trim();
-      });
       if (isOneDay) {
-        for (let i = 2; i <= 35; i++) payload[`Date${i}`] = '';
-        payload.Date1 = String(payload.Date1 || get('start_date') || '').trim();
+        const selectedDate = String(oneDayDate || payload.start_date || payload.end_date || '').trim();
+        if (selectedDate) {
+          payload.start_date = selectedDate;
+          payload.end_date = selectedDate;
+          payload.Date1 = selectedDate;
+          payload.date_1 = selectedDate;
+        }
+      } else {
+        const dateInputs = Array.from(form.querySelectorAll('input[data-add-session-date]'));
+        dateInputs.forEach((input, index) => {
+          payload[`Date${index + 1}`] = String(input.value || '').trim();
+        });
       }
       if (!payload.end_date) {
+        const dateInputs = isOneDay ? [] : Array.from(form.querySelectorAll('input[data-add-session-date]'));
         const lastDate = [...dateInputs].map((input) => String(input.value || '').trim()).filter(Boolean).pop();
         payload.end_date = lastDate || payload.start_date || null;
-      }
-      if (isOneDay) {
-        const oneDate = String(payload.Date1 || payload.start_date || payload.end_date || '').trim();
-        if (oneDate) {
-          payload.Date1 = oneDate;
-          payload.start_date = oneDate;
-          payload.end_date = oneDate;
-        }
       }
 
       const required = [
