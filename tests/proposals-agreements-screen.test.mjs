@@ -234,6 +234,23 @@ test('migration creates proposals_agreements with indexes, updated_at trigger an
   assert.match(migration, /for update[\s\S]*using \(public\.app_can_use_proposals_agreements\(\)\)/);
 });
 
+
+test('preview uses only existing proposal template section keys and required keys are referenced', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  const calledKeys = new Set();
+  const re = /section(?:Body|Title)\('([^']+)'/g;
+  let m;
+  while ((m = re.exec(screenSource)) !== null) calledKeys.add(m[1]);
+
+  for (const requiredKey of ['intro', 'activity_intro', 'taasiyeda_responsibility', 'school_responsibility', 'payment_terms', 'cancellation_terms', 'notes', 'signature']) {
+    assert.ok(calledKeys.has(requiredKey), `missing expected template key usage: ${requiredKey}`);
+  }
+
+  for (const legacyKey of ['opening', 'organization_responsibility', 'changes_cancellations', 'remarks']) {
+    assert.equal(calledKeys.has(legacyKey), false, `legacy key should not be used: ${legacyKey}`);
+  }
+});
+
 test('add button opens compact form with draft and pending-approval actions', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: sampleRows, contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
