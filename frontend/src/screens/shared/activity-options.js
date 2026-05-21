@@ -120,9 +120,15 @@ export function getActivityCatalog(settings) {
   return rows
     .map((row) => ({
       label: text(row?.label || row?.activity_name || row?.value),
+      label_he: text(row?.label_he || row?.label || row?.activity_name || row?.value),
+      value: text(row?.value || row?.activity_name || row?.label),
+      activity_name: text(row?.activity_name || row?.value || row?.label),
       activity_no: text(row?.activity_no),
-      activity_type: text(row?.activity_type || row?.parent_value),
-      parent_value: text(row?.parent_value || row?.activity_type)
+      activity_type: text(row?.activity_type || row?.parent_value || row?.type),
+      parent_value: text(row?.parent_value || row?.activity_type || row?.type),
+      type: text(row?.type || row?.activity_type || row?.parent_value),
+      active: row?.active,
+      sort_order: row?.sort_order
     }))
     .filter((row) => row.label)
     .filter((row) => {
@@ -131,6 +137,17 @@ export function getActivityCatalog(settings) {
       seen.add(sig);
       return true;
     });
+}
+
+export function getActivityTypes(settings) {
+  const catalog = getActivityCatalog(settings);
+  const fromCatalog = cleanUnique(
+    catalog
+      .map((item) => item.activity_type || item.parent_value || item.type)
+      .filter(Boolean)
+  );
+  if (fromCatalog.length) return fromCatalog;
+  return getActivityTypesByFamily(settings);
 }
 
 export function getActivityTypesByFamily(settings, family) {
@@ -145,7 +162,7 @@ export function getActivityNamesForType(settings, activityType) {
   const type = text(activityType);
   return getActivityCatalog(settings)
     .filter((row) => {
-      const parent = text(row.parent_value || row.activity_type);
+      const parent = text(row.activity_type || row.parent_value || row.type);
       return !type || !parent || parent === type;
     });
 }
