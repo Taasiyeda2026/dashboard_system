@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>מערכת להכנת הזמנה</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&family=Rubik:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    * { box-sizing: border-box; }
+
+    :root {
+      --green: #12b981;
+      --green-dark: #058669;
+      --blue: #14b8a6;
+      --blue-dark: #0f766e;
+      --aqua: #5eead4;
+      --leaf: #d9f99d;
+      --cream: #fffdf6;
+      --ink: #102033;
+      --text: #334155;
+      --muted: #64748b;
+      --line: #dbe5ef;
+      --soft: #f8fafc;
+      --panel: #ffffff;
+      --shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      font-family: 'Heebo', sans-serif;
+      direction: rtl;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 10%, rgba(103, 232, 249, 0.32), transparent 28%),
+        radial-gradient(circle at 92% 78%, rgba(217, 249, 157, 0.38), transparent 32%),
+        linear-gradient(135deg, #dce7f3 0%, #cbd5e1 100%);
+    }
+
+    body {
+      min-height: 100vh;
+    }
+
+    @media screen {
+      body {
+        zoom: 75%;
+      }
+    }
+
+    .screen {
+      min-height: 100vh;
+      display: none;
+    }
+
+    .screen.active { display: grid; }
+
+    #course-screen.active {
+      place-items: center;
+      padding: 28px;
+      overflow: hidden;
+    }
+
+    .course-shell {
+      width: min(820px, 100%);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,255,255,0.9)),
+        radial-gradient(circle at 15% 15%, rgba(18,185,129,0.22), transparent 34%),
+        radial-gradient(circle at 85% 82%, rgba(14,165,233,0.22), transparent 32%);
+      border: 1px solid rgba(255,255,255,0.72);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+      padding: 38px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .course-shell::before,
+    .course-shell::after {
+      content: '';
+      position: absolute;
+      border-radius: 999px;
+      pointer-events: none;
+    }
+
+    .course-shell::before {
+      width: 170px;
+      height: 170px;
+      top: -70px;
+      right: -56px;
+      background: rgba(18,185,129,0.15);
+      border: 1px solid rgba(18,185,129,0.22);
+    }
+
+    .course-shell::after {
+      width: 130px;
+      height: 130px;
+      bottom: -50px;
+      left: -42px;
+      background: rgba(14,165,233,0.14);
+      border: 1px solid rgba(14,165,233,0.2);
+    }
+
+    .course-kicker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 7px 14px;
+      margin-bottom: 14px;
+      border-radius: 999px;
+      background: rgba(18,185,129,0.12);
+      color: var(--green-dark);
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .course-shell h1 {
+      margin: 0 0 8px;
+      font-family: 'Rubik', sans-serif;
+      font-size: 38px;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+    }
+
+    .course-shell p {
+      margin: 0 0 26px;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.5;
+    }
+
+    .course-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .course-btn {
+      min-height: 112px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px;
+      font-family: inherit;
+      font-size: 20px;
+      font-weight: 800;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: 0.18s ease;
+    }
+
+    .course-btn i { font-size: 30px; }
+
+    .active-course {
+      cursor: pointer;
+      background:
+        linear-gradient(135deg, rgba(18,185,129,0.18), rgba(14,165,233,0.16)),
+        #ffffff;
+      color: var(--ink);
+      border-color: rgba(18,185,129,0.42);
+    }
+
+    .active-course:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+    }
+
+    .disabled-course {
+      cursor: not-allowed;
+      background: rgba(248,250,252,0.78);
+      color: #94a3b8;
+      opacity: 0.86;
+    }
+
+    .disabled-course small {
+      font-size: 12px;
+      font-weight: 700;
+      color: #94a3b8;
+    }
+
+    #builder-screen.active {
+      grid-template-columns: 310px 1fr;
+      gap: 28px;
+      padding: 28px;
+      align-items: start;
+    }
+
+    .app-panel {
+      background: rgba(255,255,255,0.94);
+      border: 1px solid rgba(255,255,255,0.75);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+      height: calc(100vh - 56px);
+      overflow-y: auto;
+      position: sticky;
+      top: 28px;
+    }
+
+    .app-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .app-title h2 {
+      margin: 0;
+      font-family: 'Rubik', sans-serif;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .app-title i {
+      color: var(--green);
+      font-size: 22px;
+    }
+
+    .steps-indicator {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .step-pill {
+      width: 72px;
+      border: 1px solid var(--line);
+      background: #f1f5f9;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 6px 8px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .step-pill.active {
+      background: linear-gradient(135deg, rgba(18,185,129,0.16), rgba(14,165,233,0.15));
+      color: var(--ink);
+      border-color: rgba(14,165,233,0.35);
+    }
+
+    .step-view { display: none; }
+    .step-view.active { display: block; }
+
+    .step-card {
+      width: fit-content;
+      max-width: 100%;
+      background: linear-gradient(135deg, rgba(248,250,252,0.95), rgba(239,246,255,0.82));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 8px 12px;
+      margin: 0 auto 10px;
+    }
+
+    .step-card h3 {
+      margin: 0;
+      font-family: 'Rubik', sans-serif;
+      font-size: 15px;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+
+    .step-card p {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .logo-upload-grid {
+      width: 240px;
+      max-width: 100%;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 7px;
+      margin: 0 auto 10px;
+    }
+
+    .mini-upload {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 6px;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 7px 9px;
+      cursor: pointer;
+    }
+
+    .mini-upload-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #475569;
+      text-align: right;
+    }
+
+    .mini-upload-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(14,165,233,0.1);
+      color: var(--blue-dark);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .mini-file-name {
+      grid-column: 1 / -1;
+      min-height: 14px;
+      font-size: 11px;
+      color: var(--green-dark);
+      font-weight: 700;
+      text-align: right;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .form-grid {
+      width: 240px;
+      max-width: 100%;
+      display: grid;
+      gap: 8px;
+      margin: 0 auto;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .input-group label {
+      font-size: 13px;
+      font-weight: 800;
+      color: #475569;
+    }
+
+    .input-group input,
+    .input-group textarea {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 7px 9px;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--ink);
+      background: #ffffff;
+      transition: 0.18s ease;
+    }
+
+    .input-group textarea {
+      min-height: 78px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    .input-group input:focus,
+    .input-group textarea:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(14,165,233,0.12);
+    }
+
+    .readonly-note {
+      font-size: 12px;
+      color: var(--muted);
+      background: #fff;
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 10px;
+      line-height: 1.45;
+    }
+
+    .upload-box {
+      border: 2px dashed #93c5fd;
+      background: linear-gradient(135deg, #eff6ff, #ecfeff);
+      border-radius: 18px;
+      padding: 18px;
+      text-align: center;
+      display: block;
+      cursor: pointer;
+    }
+
+    .upload-box i {
+      font-size: 34px;
+      color: var(--blue);
+      margin-bottom: 8px;
+    }
+
+    .upload-box strong {
+      display: block;
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    .upload-box span {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .file-name {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--green-dark);
+      font-weight: 800;
+      min-height: 20px;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .actions.single {
+      width: 240px;
+      max-width: 100%;
+      grid-template-columns: 1fr;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 13px;
+      padding: 11px 12px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: 0.18s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--green), #18c2a5);
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(18,185,129,0.22);
+    }
+
+    .btn-primary:hover { background: var(--green-dark); transform: translateY(-1px); }
+    .btn-secondary { background: #e2e8f0; color: var(--ink); }
+    .btn-secondary:hover { background: #cbd5e1; transform: translateY(-1px); }
+
+    .btn-blue {
+      background: linear-gradient(135deg, var(--blue), #22c7d9);
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(14,165,233,0.2);
+    }
+
+    .btn-blue:hover { background: var(--blue-dark); transform: translateY(-1px); }
+
+    .preview-wrap {
+      min-height: calc(100vh - 56px);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .a4-page {
+      width: 794px;
+      min-height: 1123px;
+      background-color: var(--cream);
+      background-image: none;
+      background-size: cover;
+      background-position: center;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 104px 76px 70px;
+      transition: background-image 0.35s ease;
+      overflow: hidden;
+    }
+
+    .a4-page::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 10% 18%, rgba(18,185,129,0.16), transparent 24%),
+        radial-gradient(circle at 88% 16%, rgba(14,165,233,0.16), transparent 23%),
+        radial-gradient(circle at 92% 82%, rgba(217,249,157,0.24), transparent 24%),
+        linear-gradient(90deg, rgba(18,185,129,0.08) 0 9%, transparent 9% 91%, rgba(14,165,233,0.08) 91% 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .a4-page.has-background::before {
+      background: linear-gradient(90deg, rgba(255,255,255,0.22) 0 10%, transparent 10% 90%, rgba(255,255,255,0.22) 90% 100%);
+    }
+
+    .page-ribbon {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 66px;
+      z-index: 1;
+      opacity: 0.92;
+      pointer-events: none;
+    }
+
+    .page-ribbon.right {
+      right: 0;
+      background:
+        radial-gradient(circle at 50% 14%, rgba(255,255,255,0.92) 0 6px, transparent 7px),
+        radial-gradient(circle at 45% 31%, rgba(18,185,129,0.42), transparent 26px),
+        radial-gradient(circle at 60% 60%, rgba(14,165,233,0.28), transparent 30px),
+        linear-gradient(180deg, rgba(18,185,129,0.4), rgba(14,165,233,0.18));
+    }
+
+    .page-ribbon.left {
+      left: 0;
+      background:
+        radial-gradient(circle at 50% 80%, rgba(255,255,255,0.9) 0 7px, transparent 8px),
+        radial-gradient(circle at 50% 22%, rgba(14,165,233,0.35), transparent 28px),
+        radial-gradient(circle at 56% 58%, rgba(217,249,157,0.45), transparent 28px),
+        linear-gradient(180deg, rgba(14,165,233,0.22), rgba(18,185,129,0.34));
+    }
+
+    .decor-bubble {
+      position: absolute;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.68);
+      background: rgba(255,255,255,0.42);
+      box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .bubble-1 { width: 118px; height: 118px; top: 62px; right: 64px; }
+    .bubble-2 { width: 88px; height: 88px; bottom: 86px; left: 78px; }
+    .bubble-3 { width: 54px; height: 54px; top: 170px; left: 92px; }
+
+    .logos-header {
+      position: absolute;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      min-height: 58px;
+      padding: 8px 20px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.76);
+      border: 1px solid rgba(255,255,255,0.72);
+      box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .logo-slot {
+      width: 118px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: rgba(248,250,252,0.72);
+      border: 1px dashed rgba(148,163,184,0.5);
+      overflow: hidden;
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+      line-height: 1.15;
+    }
+
+    .logo-slot img {
+      display: none;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .logo-slot.has-logo {
+      background: transparent;
+      border-color: transparent;
+    }
+
+    .logo-slot.has-logo span { display: none; }
+    .logo-slot.has-logo img { display: block; }
+
+    .content-area {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 13px;
+      z-index: 2;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid rgba(255,255,255,0.82);
+      border-radius: 34px;
+      padding: 46px 46px 40px;
+      box-shadow: 0 22px 52px rgba(15,23,42,0.12);
+      position: relative;
+    }
+
+    .a4-page.has-background .content-area {
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.66);
+      box-shadow: 0 22px 52px rgba(0,0,0,0.13);
+    }
+
+    .invite-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(18,185,129,0.12), rgba(14,165,233,0.12));
+      color: #06775f;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .theme-icons {
+      font-size: 34px;
+      margin-bottom: 0;
+      display: flex;
+      gap: 18px;
+    }
+
+    .theme-icons .fa-leaf { color: var(--green); filter: drop-shadow(0 2px 4px rgba(16,185,129,0.2)); }
+    .theme-icons .fa-microchip { color: var(--blue); filter: drop-shadow(0 2px 4px rgba(14,165,233,0.2)); }
+
+    .invite-title,
+    .invite-subtitle { font-family: 'Rubik', sans-serif; margin: 0; }
+
+    .invite-title {
+      font-size: 52px;
+      color: var(--ink);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.035em;
+    }
+
+    .invite-subtitle {
+      max-width: 600px;
+      color: var(--blue-dark);
+      font-weight: 800;
+      line-height: 1.18;
+      margin-bottom: 0;
+    }
+
+    .invite-subtitle .subtitle-line {
+      display: block;
+      font-size: 28px;
+    }
+
+    .school-year-title {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 0 2px;
+      padding: 5px 18px;
+      border-radius: 999px;
+      background: rgba(20,184,166,0.10);
+      color: var(--green-dark);
+      font-family: 'Rubik', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: 0.01em;
+    }
+
+    .school-info {
+      color: #334155;
+      font-size: 19px;
+      font-weight: 600;
+      margin: 2px 0 8px;
+      line-height: 1.42;
+      padding: 6px 16px;
+      border-radius: 999px;
+      background: rgba(248,250,252,0.92);
+      border: 1px solid rgba(226,232,240,0.88);
+    }
+
+    .school-info span {
+      font-weight: 500;
+    }
+
+    .divider {
+      width: 88px;
+      height: 5px;
+      background: linear-gradient(90deg, var(--green), var(--blue));
+      border-radius: 3px;
+      margin: 5px auto 3px;
+    }
+
+    .main-text {
+      color: #26384d;
+      font-size: 20px;
+      line-height: 1.62;
+      margin: 0 0 10px;
+      text-align: center;
+      max-width: 600px;
+    }
+
+    .main-text p {
+      margin: 0;
+    }
+
+    .main-text p + p {
+      margin-top: 14px;
+    }
+
+    .event-details {
+      background: linear-gradient(135deg, rgba(255,255,255,0.96), rgba(240,249,255,0.92));
+      padding: 13px 22px;
+      border-radius: 18px;
+      color: var(--ink);
+      font-weight: 500;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: 2px solid rgba(20, 184, 166, 0.18);
+      margin: 3px 0 14px;
+      font-size: 20px;
+      line-height: 1.55;
+      box-shadow: 0 10px 22px rgba(20,184,166,0.08);
+    }
+
+    .event-row {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px 14px;
+    }
+
+    .event-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .event-item strong {
+      font-weight: 800;
+      color: #0f3f3b;
+    }
+
+    .event-item span {
+      font-weight: 600;
+    }
+
+    .event-item i {
+      margin: 0;
+    }
+
+    .event-icon-day { color: #14b8a6; }
+    .event-icon-date { color: #0ea5e9; }
+    .event-icon-time { color: #8b5cf6; }
+    .event-icon-location { color: #10b981; }
+
+    .event-separator {
+      color: #94a3b8;
+      font-weight: 700;
+    }
+
+    .event-location {
+      color: #102033;
+    }
+
+    .participants {
+      width: 100%;
+      font-size: 16.5px;
+      line-height: 1.82;
+      color: var(--ink);
+      margin: 0;
+      text-align: right;
+      align-self: stretch;
+      background: rgba(248,250,252,0.72);
+      border: 1px solid rgba(226,232,240,0.88);
+      border-radius: 18px;
+      padding: 14px 18px;
+    }
+
+    .participants strong {
+      display: inline-block;
+      color: #064e45;
+      font-size: 17.5px;
+      font-weight: 900;
+      margin-bottom: 4px;
+    }
+
+    .participant-name {
+      font-weight: 700;
+      color: #16263a;
+    }
+
+    .closing-text {
+      color: var(--green-dark);
+      margin-top: 8px;
+      font-size: 34px;
+      font-family: 'Rubik', sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    @media (max-width: 1100px) {
+      #builder-screen.active { grid-template-columns: 1fr; }
+      .app-panel { position: static; height: auto; }
+    }
+
+    @media (max-width: 700px) {
+      .course-grid { grid-template-columns: 1fr; }
+      .course-shell { padding: 22px; }
+
+      .logos-header {
+        width: calc(100% - 44px);
+        gap: 8px;
+        padding: 7px 10px;
+      }
+
+      .logo-slot {
+        width: 31%;
+        min-width: 78px;
+        height: 38px;
+      }
+    }
+
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+
+      html,
+      body {
+        width: 210mm;
+        height: 297mm;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        overflow: hidden;
+      }
+
+      #course-screen,
+      .app-panel {
+        display: none !important;
+      }
+
+      #builder-screen,
+      #builder-screen.active {
+        display: block !important;
+        width: 210mm;
+        height: 297mm;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .preview-wrap {
+        display: block;
+        width: 210mm;
+        height: 297mm;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .a4-page {
+        width: 210mm;
+        height: 297mm;
+        min-height: 0;
+        margin: 0;
+        padding: 28mm 20mm 18mm;
+        box-shadow: none;
+        page-break-before: avoid;
+        page-break-after: avoid;
+        page-break-inside: avoid;
+        break-before: avoid;
+        break-after: avoid;
+        break-inside: avoid;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="screen active" id="course-screen">
+    <div class="course-shell">
+      <div class="course-kicker"><i class="fa-solid fa-paper-plane"></i> יצירת הזמנה</div>
+      <h1>בחירת קורס להזמנה</h1>
+      <p>בחרו את הקורס שאליו ניצור את ההזמנה. כרגע רק ביומימיקרי פעיל.</p>
+
+      <div class="course-grid">
+        <button class="course-btn active-course" type="button" data-course="biomimicry">
+          <i class="fa-solid fa-leaf"></i>
+          ביומימיקרי
+        </button>
+        <button class="course-btn disabled-course" type="button" disabled>
+          <i class="fa-solid fa-brain"></i>
+          בינה מלאכותית
+          <small>בקרוב</small>
+        </button>
+        <button class="course-btn disabled-course" type="button" disabled>
+          <i class="fa-solid fa-flask-vial"></i>
+          רוקחים עולם
+          <small>בקרוב</small>
+        </button>
+        <button class="course-btn disabled-course" type="button" disabled>
+          <i class="fa-solid fa-star"></i>
+          פרימיום
+          <small>בקרוב</small>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="builder-screen">
+    <aside class="app-panel">
+      <div class="app-title">
+        <h2>מערכת להכנת הזמנה</h2>
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+      </div>
+
+      <button class="btn btn-secondary" type="button" id="back-to-courses" style="width:100%; margin-bottom:12px;">
+        <i class="fa-solid fa-arrow-right"></i>
+        חזרה לבחירת קורס
+      </button>
+
+      <div class="steps-indicator" aria-label="שלבי הכנת הזמנה">
+        <div class="step-pill active" id="pill-1">1<br />פרטים</div>
+        <div class="step-pill" id="pill-2">2<br />רקע</div>
+        <div class="step-pill" id="pill-3">3<br />הפקה</div>
+      </div>
+
+      <section class="step-view active" id="step-1">
+        <div class="step-card">
+          <h3>שלב 1: מילוי פרטי ההזמנה</h3>
+        </div>
+
+        <div class="logo-upload-grid">
+          <label class="mini-upload" for="logo-education-upload">
+            <span class="mini-upload-title">לוגו משרד החינוך</span>
+            <span class="mini-upload-btn"><i class="fa-solid fa-upload"></i> העלאה</span>
+            <input type="file" id="logo-education-upload" accept="image/png, image/jpeg, image/webp, image/svg+xml" style="display:none;" data-logo-target="logo-education" />
+            <span class="mini-file-name" id="logo-education-name"></span>
+          </label>
+
+          <label class="mini-upload" for="logo-taasiyeda-upload">
+            <span class="mini-upload-title">לוגו תעשיידע</span>
+            <span class="mini-upload-btn"><i class="fa-solid fa-upload"></i> העלאה</span>
+            <input type="file" id="logo-taasiyeda-upload" accept="image/png, image/jpeg, image/webp, image/svg+xml" style="display:none;" data-logo-target="logo-taasiyeda" />
+            <span class="mini-file-name" id="logo-taasiyeda-name"></span>
+          </label>
+
+          <label class="mini-upload" for="logo-school-upload">
+            <span class="mini-upload-title">לוגו בית הספר</span>
+            <span class="mini-upload-btn"><i class="fa-solid fa-upload"></i> העלאה</span>
+            <input type="file" id="logo-school-upload" accept="image/png, image/jpeg, image/webp, image/svg+xml" style="display:none;" data-logo-target="logo-school" />
+            <span class="mini-file-name" id="logo-school-name"></span>
+          </label>
+        </div>
+
+        <div class="form-grid">
+          <div class="input-group">
+            <label for="input-class">תלמידי כיתה</label>
+            <input type="text" id="input-class" value="ה'1" data-target="field-class" />
+          </div>
+          <div class="input-group">
+            <label for="input-school">בית ספר</label>
+            <input type="text" id="input-school" value="סמילנסקי, רחובות" data-target="field-school" />
+          </div>
+          <div class="input-group">
+            <label for="input-school-year">שנת לימודים</label>
+            <input type="text" id="input-school-year" value="תשפ״ו" data-target="field-school-year" />
+          </div>
+          <div class="input-group">
+            <label for="input-day">יום</label>
+            <input type="text" id="input-day" placeholder="לדוגמה: שלישי" data-target="field-day" />
+          </div>
+          <div class="input-group">
+            <label for="input-date">תאריך</label>
+            <input type="text" id="input-date" placeholder="לדוגמה: 24.06.26" data-target="field-date" />
+          </div>
+          <div class="input-group">
+            <label for="input-time">שעה</label>
+            <input type="text" id="input-time" placeholder="לדוגמה: 18:00" data-target="field-time" />
+          </div>
+          <div class="input-group">
+            <label for="input-location">מיקום</label>
+            <input type="text" id="input-location" placeholder="לדוגמה: אולם בית הספר" data-target="field-location" />
+          </div>
+          <div class="input-group">
+            <label for="input-teacher">מחנכת הכיתה</label>
+            <input type="text" id="input-teacher" placeholder="לדוגמה: רותם כהן" data-target="field-teacher" />
+          </div>
+          <div class="input-group">
+            <label for="input-taasiyeda">מתוך תעשיידע</label>
+            <textarea id="input-taasiyeda">הגב׳ יעל אביב, מנהלת תחום חינוך ופדגוגיה – תעשיידע
+הגב׳ הילה רוזן, אחראית הדרכה ומנחת הקבוצה – תעשיידע</textarea>
+          </div>
+        </div>
+
+        <div class="actions single">
+          <button class="btn btn-primary" type="button" id="continue-to-upload">
+            המשך להעלאת רקע
+            <i class="fa-solid fa-arrow-left"></i>
+          </button>
+        </div>
+      </section>
+
+      <section class="step-view" id="step-2">
+        <div class="step-card">
+          <h3>שלב 2: העלאת תמונת רקע</h3>
+          <p>כאן מעלים תמונת רקע להזמנה. לאחר העלאה התמונה תופיע מאחורי תיבת ההזמנה.</p>
+        </div>
+
+        <label class="upload-box" for="bg-upload">
+          <i class="fa-regular fa-image"></i>
+          <strong>בחר תמונת רקע מהמחשב</strong>
+          <span>מומלץ להשתמש בתמונה אנכית או בתמונה איכותית עם מקום לטקסט במרכז.</span>
+          <span class="btn btn-blue"><i class="fa-solid fa-upload"></i> העלאת תמונה</span>
+          <input type="file" id="bg-upload" accept="image/png, image/jpeg, image/webp" style="display:none;" />
+          <div class="file-name" id="file-name"></div>
+        </label>
+
+        <div class="readonly-note">
+          ניתן לחזור לשלב הקודם ולתקן פרטים בכל רגע. הרקע לא יופיע בשלב 1 ורק לאחר העלאה בשלב זה הוא יתווסף לתצוגה.
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-secondary" type="button" data-go-step="1"><i class="fa-solid fa-arrow-right"></i> חזרה לפרטים</button>
+          <button class="btn btn-primary" type="button" data-go-step="3">המשך להפקה <i class="fa-solid fa-arrow-left"></i></button>
+        </div>
+      </section>
+
+      <section class="step-view" id="step-3">
+        <div class="step-card">
+          <h3>שלב 3: הפקה ויצירה</h3>
+          <p>כאן בודקים את ההזמנה הסופית ומפיקים אותה להדפסה או לשמירה כ-PDF.</p>
+        </div>
+
+        <div class="readonly-note">
+          לפני ההפקה כדאי לוודא שכל הפרטים מלאים, שתמונת הרקע מתאימה ושהטקסט קריא על גבי הרקע.
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-secondary" type="button" data-go-step="2"><i class="fa-solid fa-arrow-right"></i> חזרה לרקע</button>
+          <button class="btn btn-blue" type="button" id="print-btn"><i class="fa-solid fa-print"></i> הפק / שמור כ-PDF</button>
+        </div>
+      </section>
+    </aside>
+
+    <main class="preview-wrap">
+      <div class="a4-page" id="invitation-page">
+        <div class="page-ribbon right"></div>
+        <div class="page-ribbon left"></div>
+        <div class="decor-bubble bubble-1"></div>
+        <div class="decor-bubble bubble-2"></div>
+        <div class="decor-bubble bubble-3"></div>
+
+        <header class="logos-header" aria-label="לוגואים">
+          <div class="logo-slot" id="logo-slot-education"><span>משרד החינוך</span><img id="logo-education" alt="לוגו משרד החינוך" /></div>
+          <div class="logo-slot" id="logo-slot-taasiyeda"><span>תעשיידע</span><img id="logo-taasiyeda" alt="לוגו תעשיידע" /></div>
+          <div class="logo-slot" id="logo-slot-school"><span>בית הספר</span><img id="logo-school" alt="לוגו בית הספר" /></div>
+        </header>
+
+        <div class="content-area">
+
+          <h1 class="invite-title">הזמנה למפגש הסיום</h1>
+          <h2 class="invite-subtitle">
+            <span class="subtitle-line">קורס ביומימיקרי – המצאות</span>
+            <span class="subtitle-line">בהשראה מן הטבע</span>
+          </h2>
+
+          <div class="school-year-title" id="field-school-year">תשפ״ו</div>
+
+          <p class="school-info">תלמידי כיתה <span id="field-class">ה'1</span> | בית ספר <span id="field-school">סמילנסקי, רחובות</span></p>
+
+          <div class="divider"></div>
+
+          <div class="main-text">
+            <p>
+              לאורך התהליך יצאו התלמידים למסע חקר בעקבות הטבע: הם התבוננו בבעלי חיים, בצמחים ובתופעות טבע וגילו כיצד הטבע יכול לעורר השראה לפיתוח פתרונות טכנולוגיים חדשניים.
+            </p>
+            <p>
+              במפגש ניחשף לרעיונות המקוריים של התלמידים ולדרך שבה סקרנות, יצירתיות, מדע וטכנולוגיה התחברו לחוויית למידה משמעותית בהשראת הטבע.
+            </p>
+          </div>
+
+          <div class="event-details">
+            <div class="event-row">
+              <span class="event-item"><i class="fa-regular fa-calendar event-icon-day"></i> <strong>יום:</strong> <span id="field-day">______</span></span>
+              <span class="event-separator">|</span>
+              <span class="event-item"><i class="fa-solid fa-hashtag event-icon-date"></i> <strong>תאריך:</strong> <span id="field-date">______</span></span>
+              <span class="event-separator">|</span>
+              <span class="event-item"><i class="fa-regular fa-clock event-icon-time"></i> <strong>שעה:</strong> <span id="field-time">______</span></span>
+            </div>
+            <div class="event-row event-location">
+              <span class="event-item"><i class="fa-solid fa-location-dot event-icon-location"></i> <strong>מיקום:</strong> <span id="field-location">______</span></span>
+            </div>
+          </div>
+
+          <p class="participants">
+            <strong>בהשתתפות:</strong><br />
+            הנהלת בית הספר | מחנכת הכיתה: <span id="field-teacher">______</span><br />
+            <span id="field-taasiyeda"><span class="participant-name">הגב׳ יעל אביב</span>, מנהלת תחום החינוך והפדגוגיה – תעשיידע<br /><span class="participant-name">הגב׳ הילה רוזן</span>, אחראית הדרכה ומנחת הקבוצה – תעשיידע</span>
+          </p>
+
+          <div class="closing-text">נשמח לראותכם!</div>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const state = {
+        currentStep: 1,
+        hasBackground: false,
+        backgroundImage: ''
+      };
+
+      function getElement(id) {
+        return document.getElementById(id);
+      }
+
+      function setScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(function (screen) {
+          screen.classList.remove('active');
+        });
+
+        const nextScreen = getElement(screenId);
+        if (nextScreen) nextScreen.classList.add('active');
+      }
+
+      function goToStep(stepNumber) {
+        state.currentStep = stepNumber;
+
+        document.querySelectorAll('.step-view').forEach(function (step) {
+          step.classList.remove('active');
+        });
+
+        document.querySelectorAll('.step-pill').forEach(function (pill) {
+          pill.classList.remove('active');
+        });
+
+        const step = getElement('step-' + stepNumber);
+        const pill = getElement('pill-' + stepNumber);
+        const page = getElement('invitation-page');
+
+        if (step) step.classList.add('active');
+        if (pill) pill.classList.add('active');
+        if (!page) return;
+
+        if (stepNumber === 1) {
+          page.style.backgroundImage = 'none';
+          page.classList.remove('has-background');
+          return;
+        }
+
+        if (state.hasBackground) {
+          page.style.backgroundImage = state.backgroundImage;
+          page.classList.add('has-background');
+        }
+      }
+
+      function updateField(targetId, value) {
+        const target = getElement(targetId);
+        if (!target) return;
+
+        const cleanValue = String(value || '').trim();
+        target.textContent = cleanValue !== '' ? cleanValue : '______';
+      }
+
+      function updateTaasiyeda(value) {
+        const target = getElement('field-taasiyeda');
+        if (!target) return;
+
+        const cleanValue = String(value || '').trim();
+
+        if (cleanValue === '') {
+          target.textContent = '______';
+          return;
+        }
+
+        target.innerHTML = '';
+
+        cleanValue.split(String.fromCharCode(10)).forEach(function (line, index) {
+          if (index > 0) target.appendChild(document.createElement('br'));
+
+          const commaIndex = line.indexOf(',');
+          if (commaIndex > -1) {
+            const name = document.createElement('span');
+            name.className = 'participant-name';
+            name.textContent = line.slice(0, commaIndex);
+            target.appendChild(name);
+            target.appendChild(document.createTextNode(line.slice(commaIndex)));
+          } else {
+            target.appendChild(document.createTextNode(line));
+          }
+        });
+      }
+
+      function bindInputs() {
+        document.querySelectorAll('[data-target]').forEach(function (input) {
+          const targetId = input.getAttribute('data-target');
+
+          input.addEventListener('input', function () {
+            updateField(targetId, input.value);
+          });
+
+          updateField(targetId, input.value);
+        });
+
+        const taasiyedaInput = getElement('input-taasiyeda');
+        if (taasiyedaInput) {
+          taasiyedaInput.addEventListener('input', function () {
+            updateTaasiyeda(taasiyedaInput.value);
+          });
+
+          updateTaasiyeda(taasiyedaInput.value);
+        }
+      }
+
+      function bindNavigation() {
+        const biomimicryButton = document.querySelector('[data-course="biomimicry"]');
+        const backToCoursesButton = getElement('back-to-courses');
+        const continueToUploadButton = getElement('continue-to-upload');
+        const printButton = getElement('print-btn');
+
+        if (biomimicryButton) {
+          biomimicryButton.addEventListener('click', function () {
+            setScreen('builder-screen');
+            goToStep(1);
+          });
+        }
+
+        if (backToCoursesButton) {
+          backToCoursesButton.addEventListener('click', function () {
+            setScreen('course-screen');
+          });
+        }
+
+        if (continueToUploadButton) {
+          continueToUploadButton.addEventListener('click', function () {
+            goToStep(2);
+
+            const uploadInput = getElement('bg-upload');
+            if (uploadInput) uploadInput.click();
+          });
+        }
+
+        document.querySelectorAll('[data-go-step]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            const stepNumber = Number(button.getAttribute('data-go-step'));
+            if (!Number.isNaN(stepNumber)) goToStep(stepNumber);
+          });
+        });
+
+        if (printButton) {
+          printButton.addEventListener('click', function () {
+            window.print();
+          });
+        }
+      }
+
+      function bindLogoUploads() {
+        document.querySelectorAll('[data-logo-target]').forEach(function (input) {
+          input.addEventListener('change', function (event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+
+            reader.onload = function (loadEvent) {
+              const logoId = input.getAttribute('data-logo-target');
+              const img = getElement(logoId);
+              if (!img) return;
+
+              const slot = img.parentElement;
+              img.src = loadEvent.target.result;
+              if (slot) slot.classList.add('has-logo');
+
+              const nameId = input.id.replace('-upload', '-name');
+              const nameElement = getElement(nameId);
+              if (nameElement) nameElement.textContent = file.name;
+            };
+
+            reader.readAsDataURL(file);
+          });
+        });
+      }
+
+      function bindBackgroundUpload() {
+        const backgroundInput = getElement('bg-upload');
+        if (!backgroundInput) return;
+
+        backgroundInput.addEventListener('change', function (event) {
+          const file = event.target.files && event.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+
+          reader.onload = function (loadEvent) {
+            state.hasBackground = true;
+            state.backgroundImage = 'url("' + loadEvent.target.result + '")';
+
+            const fileName = getElement('file-name');
+            if (fileName) fileName.textContent = 'נבחר קובץ: ' + file.name;
+
+            if (state.currentStep !== 1) {
+              const page = getElement('invitation-page');
+              if (!page) return;
+
+              page.style.backgroundImage = state.backgroundImage;
+              page.classList.add('has-background');
+            }
+          };
+
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function runTests() {
+        console.assert(getElement('course-screen'), 'בדיקה: קיים מסך בחירת קורס');
+        console.assert(getElement('builder-screen'), 'בדיקה: קיים מסך בניית הזמנה');
+        console.assert(getElement('course-screen').classList.contains('active'), 'בדיקה: מסך הקורסים פעיל בהתחלה');
+        console.assert(!getElement('builder-screen').classList.contains('active'), 'בדיקה: מסך הבנייה מוסתר בהתחלה');
+        console.assert(getElement('continue-to-upload'), 'בדיקה: קיים כפתור המשך להעלאת רקע');
+        console.assert(getElement('bg-upload') && getElement('bg-upload').type === 'file', 'בדיקה: קיים שדה בחירת קובץ תמונה');
+ 
