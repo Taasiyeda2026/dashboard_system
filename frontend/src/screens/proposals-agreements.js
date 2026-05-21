@@ -220,7 +220,6 @@ function formFieldHtml(key, value = '', activityNameOptions = []) {
     return selectField(key, label, ACTIVITY_TYPE_GROUP_OPTIONS, value, required);
   }
   if (key === 'activity_names') {
-    const attrs = required ? ' required aria-required="true"' : '';
     const selectedValues = Array.isArray(value) ? value.map(text).filter(Boolean) : text(value).split(',').map(text).filter(Boolean);
     const allOptions = Array.from(new Set([...activityNameOptions, ...selectedValues])).filter(Boolean).sort((a, b) => a.localeCompare(b, 'he'));
     if (!allOptions.length) {
@@ -228,10 +227,20 @@ function formFieldHtml(key, value = '', activityNameOptions = []) {
     }
     const optionsHtml = allOptions.map((v) => {
       const safe = escapeHtml(v);
-      const sel = selectedValues.includes(v) ? ' selected' : '';
-      return `<option value="${safe}"${sel}>${safe}</option>`;
+      const checked = selectedValues.includes(v) ? ' checked' : '';
+      return `<label class="ds-pa-activity-option"><input type="checkbox" value="${safe}"${checked}><span>${safe}</span></label>`;
     }).join('');
-    return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}${required ? ' *' : ''}</span><select class="ds-input ds-input--sm" name="${key}" multiple size="${Math.min(allOptions.length, 7)}"${attrs}>${optionsHtml}</select></label>`;
+    return `<label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(label)}${required ? ' *' : ''}</span>
+      <div class="ds-pa-activity-picker" data-pa-activity-picker data-required="${required ? 'yes' : 'no'}">
+        <button type="button" class="ds-input ds-input--sm ds-pa-activity-trigger" data-pa-activity-toggle aria-expanded="false">בחרו שמות פעילויות</button>
+        <div class="ds-pa-activity-chips" data-pa-activity-chips></div>
+        <div class="ds-pa-activity-dropdown" data-pa-activity-dropdown hidden>
+          <input class="ds-input ds-input--sm ds-pa-activity-search" data-pa-activity-search placeholder="חיפוש פעילות..." autocomplete="off">
+          <div class="ds-pa-activity-options" data-pa-activity-options>${optionsHtml}</div>
+        </div>
+        <div data-pa-activity-hidden-inputs></div>
+      </div>
+    </label>`;
   }
   if (key === 'proposal_date') {
     return `<label class="ds-pa-form-field"><span>${escapeHtml(label)}</span><input class="ds-input ds-input--sm" type="date" name="${key}" value="${escapeHtml(value || '')}"></label>`;
@@ -382,10 +391,47 @@ export const proposalsAgreementsScreen = {
     root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable, { signal }));
 
     const formHost = root.querySelector('[data-pa-form-host]');
+    const closeAllActivityDropdowns = () => {
+      root.querySelectorAll('[data-pa-activity-picker]').forEach((picker) => {
+        const dropdown = picker.querySelector('[data-pa-activity-dropdown]');
+        const trigger = picker.querySelector('[data-pa-activity-toggle]');
+        if (dropdown) dropdown.hidden = true;
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+      });
+    };
+    const setupActivityPickers = (container) => {
+      container?.querySelectorAll?.('[data-pa-activity-picker]')?.forEach((picker) => {
+        const trigger = picker.querySelector('[data-pa-activity-toggle]');
+        const chipsHost = picker.querySelector('[data-pa-activity-chips]');
+        const dropdown = picker.querySelector('[data-pa-activity-dropdown]');
+        const search = picker.querySelector('[data-pa-activity-search]');
+        const optionsHost = picker.querySelector('[data-pa-activity-options]');
+        const hiddenInputsHost = picker.querySelector('[data-pa-activity-hidden-inputs]');
+        const checkboxes = Array.from(picker.querySelectorAll('.ds-pa-activity-option input[type="checkbox"]'));
+        const sync = () => {
+          const selected = checkboxes.filter((cb) => cb.checked).map((cb) => text(cb.value)).filter(Boolean);
+          chipsHost.innerHTML = selected.length
+            ? selected.map((item) => `<button type="button" class="ds-pa-chip" data-pa-chip-remove="${escapeHtml(item)}">${escapeHtml(item)} <span aria-hidden="true">×</span></button>`).join('')
+            : '<span class="ds-muted">לא נבחרו פעילויות</span>';
+          trigger.textContent = selected.length ? `נבחרו ${selected.length} פעילויות` : 'בחרו שמות פעילויות';
+          hiddenInputsHost.innerHTML = selected.map((item) => `<input type="hidden" name="activity_names" value="${escapeHtml(item)}">`).join('');
+        };
+        sync();
+        checkboxes.forEach((cb) => cb.addEventListener('change', sync, { signal }));
+        search?.addEventListener('input', () => {
+          const q = normalizeSearch(search.value);
+          optionsHost.querySelectorAll('.ds-pa-activity-option').forEach((option) => {
+            const label = normalizeSearch(option.textContent);
+            option.hidden = q ? !label.includes(q) : false;
+          });
+        }, { signal });
+      });
+    };
     const openForm = (mode, row = {}) => {
       if (!formHost) return;
       formHost.hidden = false;
       formHost.innerHTML = formHtml(mode, row, activityNameOptions);
+      setupActivityPickers(formHost);
       formHost.querySelector('input,textarea,select')?.focus?.();
     };
     const closeForm = () => {
@@ -398,6 +444,7 @@ export const proposalsAgreementsScreen = {
     root.addEventListener('click', async (event) => {
       const rowEl = event.target.closest?.('[data-pa-row-id]');
       if (rowEl) {
+        closeAllActivityDropdowns();
         const row = data.rows.find((item) => text(item.id) === text(rowEl.dataset.paRowId));
         const drawer = root.querySelector('[data-pa-drawer]');
         if (drawer && row) drawer.outerHTML = drawerHtml(row, activityNameOptions);
@@ -413,7 +460,36 @@ export const proposalsAgreementsScreen = {
         const row = data.rows.find((item) => text(item.id) === text(editBtn.dataset.paEditRow));
         const host = root.querySelector('[data-pa-inline-form]');
         if (host && row) host.innerHTML = formHtml('edit', row, activityNameOptions);
+        setupActivityPickers(host);
         return;
+      }
+      const toggleBtn = event.target.closest?.('[data-pa-activity-toggle]');
+      if (toggleBtn) {
+        const picker = toggleBtn.closest('[data-pa-activity-picker]');
+        const dropdown = picker?.querySelector('[data-pa-activity-dropdown]');
+        const isOpen = dropdown && !dropdown.hidden;
+        closeAllActivityDropdowns();
+        if (dropdown && !isOpen) {
+          dropdown.hidden = false;
+          toggleBtn.setAttribute('aria-expanded', 'true');
+          picker.querySelector('[data-pa-activity-search]')?.focus();
+        }
+        return;
+      }
+      const chipRemoveBtn = event.target.closest?.('[data-pa-chip-remove]');
+      if (chipRemoveBtn) {
+        const picker = chipRemoveBtn.closest('[data-pa-activity-picker]');
+        const targetValue = text(chipRemoveBtn.dataset.paChipRemove);
+        const checkbox = Array.from(picker?.querySelectorAll('.ds-pa-activity-option input[type="checkbox"]') || [])
+          .find((cb) => text(cb.value) === targetValue);
+        if (checkbox) {
+          checkbox.checked = false;
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return;
+      }
+      if (!event.target.closest?.('[data-pa-activity-picker]')) {
+        closeAllActivityDropdowns();
       }
       const deleteBtn = event.target.closest?.('[data-pa-delete-row]');
       if (deleteBtn) {
