@@ -687,8 +687,7 @@ export const activitiesScreen = {
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canAddActivity = !!state?.user?.can_add_activity
-      || ['admin', 'operation_manager'].includes(String(state?.user?.display_role || ''));
+    const canAddActivity = !!state?.user?.can_add_activity;
     const isAdmin = isAdminUser(state);
 
     const rosterUsers = getRosterUsers(state?.clientSettings || {});
@@ -861,8 +860,7 @@ export const activitiesScreen = {
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canAddActivity = !!state?.user?.can_add_activity
-      || ['admin', 'operation_manager'].includes(String(state?.user?.display_role || ''));
+    const canAddActivity = !!state?.user?.can_add_activity;
     const isAdmin = isAdminUser(state);
 
     const rerenderLocal = () => {

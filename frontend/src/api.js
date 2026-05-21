@@ -1631,8 +1631,8 @@ function buildBootstrapFromUser(userRow) {
   const financeIdx = allowedRoutes.indexOf('finance');
   if (hasFinanceAccess && financeIdx === -1) allowedRoutes.push('finance');
   if (!hasFinanceAccess && financeIdx >= 0) allowedRoutes.splice(financeIdx, 1);
-  const canEditDirect = ROLES_WITH_DIRECT_EDIT.has(role) || permissionFlagYes(flat.can_edit_direct);
-  const canRequestEdit = canEditDirect || permissionFlagYes(flat.can_request_edit) || role !== 'instructor';
+  const canEditDirect = permissionFlagYes(flat.can_edit_direct);
+  const canRequestEdit = canEditDirect || permissionFlagYes(flat.can_request_edit);
   return {
     routes: [...allowedRoutes],
     default_route: allowedRoutes[0] || 'my-data',
@@ -1642,7 +1642,7 @@ function buildBootstrapFromUser(userRow) {
       display_role2: flat.display_role2 || '',
       display_role_label: flat.display_role_label || hebrewRole(role)
     },
-    can_add_activity: permissionFlagYes(flat.can_add_activity) || role === 'admin' || role === 'operation_manager',
+    can_add_activity: permissionFlagYes(flat.can_add_activity),
     can_edit_direct: canEditDirect,
     can_request_edit: canRequestEdit,
     client_settings: {}
@@ -2178,9 +2178,9 @@ export const api = {
         display_role2: flat.display_role2,
         full_name: flat.full_name,
         emp_id: flat.emp_id,
-        can_add_activity: permissionFlagYes(flat.can_add_activity) || flat.role === 'admin' || flat.role === 'operation_manager',
-        can_edit_direct: ROLES_WITH_DIRECT_EDIT.has(flat.role) || permissionFlagYes(flat.can_edit_direct),
-        can_request_edit: (ROLES_WITH_DIRECT_EDIT.has(flat.role) || permissionFlagYes(flat.can_edit_direct) || permissionFlagYes(flat.can_request_edit) || flat.role !== 'instructor'),
+        can_add_activity: permissionFlagYes(flat.can_add_activity),
+        can_edit_direct: permissionFlagYes(flat.can_edit_direct),
+        can_request_edit: (permissionFlagYes(flat.can_edit_direct) || permissionFlagYes(flat.can_request_edit)),
         finance_access: permissionFlagYes(flat.finance_access)
       },
       ...buildBootstrapFromUser(user),
@@ -2344,7 +2344,7 @@ export const api = {
       rows,
       roleDefaults: {
         admin: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'yes' },
-        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'no' },
+        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'no', view_permissions: 'no' },
         authorized_user: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
         finance: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
         activities_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
@@ -2501,7 +2501,7 @@ export const api = {
       ? { source_row_id: a, changes: b }
       : a;
     const userRole = String(state?.user?.display_role || state?.user?.role || '').trim();
-    const canEditDirect = permissionFlagYes(state?.user?.can_edit_direct) || ROLES_WITH_DIRECT_EDIT.has(userRole);
+    const canEditDirect = permissionFlagYes(state?.user?.can_edit_direct);
     if (userRole === 'activities_manager' && !canEditDirect) {
       // eslint-disable-next-line no-console
       console.warn('wrong_flow: activities_manager attempted saveActivity; using submitEditRequest instead', {
