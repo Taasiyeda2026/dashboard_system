@@ -465,12 +465,12 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
         class="pa-doc-logo pa-doc-logo--header"
         loading="eager"
         decoding="async"
-        onerror="this.style.display='none'; this.nextElementSibling.hidden = false; var doc = this.closest('.ds-pa-preview-doc'); if (doc) { var companyBlock = doc.querySelector('.pa-doc-company-block'); if (companyBlock) companyBlock.hidden = false; }"
+        onerror="this.style.display='none'; this.nextElementSibling.hidden = false;"
       >
       <div class="pa-doc-logo-fallback" hidden>תעשיידע — חינוך מקצועי וחוויות למידה</div>
     </div>
     <div class="pa-doc-header">
-      <div class="pa-doc-company-block" hidden>
+      <div class="pa-doc-company-block" aria-hidden="true">
         <div class="pa-doc-company">תעשיידע</div>
         <div class="pa-doc-tagline">חינוך מקצועי וחוויות למידה</div>
       </div>
@@ -890,7 +890,9 @@ export const proposalsAgreementsScreen = {
 
     // ── Preview ───────────────────────────────────────────────────────────────
     const openPreview = (row, items) => {
-      const templateKey = TEMPLATE_KEY_BY_GROUP[text(row.activity_type_group)] || 'combined';
+      // Always rebuild preview from current state + current templates
+      const freshRow = data.rows.find((r) => text(r.id) === text(row.id)) || row;
+      const templateKey = TEMPLATE_KEY_BY_GROUP[text(freshRow.activity_type_group)] || 'combined';
       const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
@@ -901,9 +903,9 @@ export const proposalsAgreementsScreen = {
         <div class="ds-pa-preview-toolbar no-print">
           <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
           <button type="button" class="ds-btn ds-btn--sm" id="pa-preview-close">✕ סגירה</button>
-          <span class="ds-muted" style="font-size:0.8rem">${escapeHtml(row.client_authority || '')}${row.school_framework ? ' — ' + escapeHtml(row.school_framework) : ''}</span>
+          <span class="ds-muted" style="font-size:0.8rem">${escapeHtml(freshRow.client_authority || '')}${freshRow.school_framework ? ' — ' + escapeHtml(freshRow.school_framework) : ''}</span>
         </div>
-        <div class="ds-pa-preview-doc">${proposalPreviewBodyHtml(row, items, templateSections)}</div>`;
+        <div class="ds-pa-preview-doc">${proposalPreviewBodyHtml(freshRow, items, templateSections)}</div>`;
       document.body.appendChild(overlay);
       overlay.querySelector('#pa-print-btn')?.addEventListener('click', () => window.print());
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', () => overlay.remove());
