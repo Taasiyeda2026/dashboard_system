@@ -140,7 +140,9 @@ function detailRowsHtml(row) {
     if (['contact_name', 'contact_role', 'phone', 'email'].includes(key)) return '';
     let displayValue;
     if (key === 'activity_names') {
-      displayValue = (Array.isArray(row[key]) ? row[key] : []).join(', ') || '';
+      const items = (Array.isArray(row[key]) ? row[key] : []).map(text).filter(Boolean);
+      if (!items.length) return '';
+      displayValue = `<ul class="ds-pa-activity-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
     } else if (key === 'proposal_date') {
       displayValue = formatDateDisplay(row[key]);
     } else {
@@ -150,7 +152,7 @@ function detailRowsHtml(row) {
     return `
     <div class="ds-pa-detail-row">
       <span class="ds-pa-detail-label">${escapeHtml(FIELD_LABELS[key] || key)}</span>
-      <span class="ds-pa-detail-value">${escapeHtml(displayValue)}</span>
+      <span class="ds-pa-detail-value">${key === 'activity_names' ? displayValue : escapeHtml(displayValue)}</span>
     </div>`;
   }).join('');
 }
@@ -178,17 +180,17 @@ export function proposalsAgreementsTableRowsHtml(rows) {
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td>${escapeHtml(row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
-      <td>${escapeHtml(row.contact_name || '')}</td>
       <td>${escapeHtml(row.document_type || '—')}</td>
       <td>${escapeHtml(row.activity_type_group || '—')}</td>
       <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
+      <td>${escapeHtml(row.notes || '')}</td>
     </tr>`).join('');
 }
 
 function tableHtml(rows) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <thead><tr><th>לקוח / רשות</th><th>בית ספר / מסגרת</th><th>איש קשר</th><th>סוג מסמך</th><th>סוג פעילות</th><th>תאריך הצעה</th></tr></thead>
+      <thead><tr><th>לקוח / רשות</th><th>בית ספר / מסגרת</th><th>סוג מסמך</th><th>סוג פעילות</th><th>תאריך הצעה</th><th>הערות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows)}</tbody>
     </table>
   `);
