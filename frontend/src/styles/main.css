@@ -9982,11 +9982,16 @@ select.ds-input {
 
 .ds-pa-activity-picker {
   position: relative;
+  max-width: 100%;
 }
 
 .ds-pa-activity-trigger {
   text-align: right;
   min-height: 32px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .ds-pa-activity-chips {
@@ -9994,6 +9999,9 @@ select.ds-input {
   gap: 6px;
   flex-wrap: wrap;
   margin-top: 6px;
+  max-height: 62px;
+  overflow: auto;
+  padding-inline-end: 2px;
 }
 
 .ds-pa-chip {
@@ -10008,32 +10016,44 @@ select.ds-input {
 .ds-pa-activity-dropdown {
   position: absolute;
   z-index: 6;
-  inset-inline: 0;
+  inset-inline-start: 0;
+  inline-size: min(380px, 100%);
   margin-top: 6px;
   border: 1px solid var(--ds-color-border, #e2e8f0);
   border-radius: 10px;
   background: #fff;
-  padding: 8px;
+  padding: 7px;
   box-shadow: var(--ds-shadow-sm);
 }
 
 .ds-pa-activity-search {
   margin-bottom: 6px;
+  min-height: 30px;
+  padding-block: 3px;
 }
 
 .ds-pa-activity-options {
-  max-height: 210px;
+  max-height: 240px;
   overflow: auto;
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .ds-pa-activity-option {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 2px 4px;
+  gap: 7px;
+  padding: 2px 5px;
   border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.ds-pa-activity-option input[type="checkbox"] {
+  inline-size: 14px;
+  block-size: 14px;
+  margin: 0;
+  flex: 0 0 auto;
 }
 
 .ds-pa-activity-option:hover {
@@ -10056,6 +10076,10 @@ select.ds-input {
   .ds-pa-table td {
     padding: 7px 8px;
     font-size: 0.82rem;
+  }
+
+  .ds-pa-activity-dropdown {
+    inline-size: 100%;
   }
 }
 
