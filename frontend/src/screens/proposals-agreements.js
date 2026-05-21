@@ -442,12 +442,19 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     ? `<section class="pa-section"><h3>הפעילות המוצעת</h3><ul>${row.activity_names.map((n) => `<li>${escapeHtml(n)}</li>`).join('')}</ul></section>`
     : '';
 
-  const openingText = sectionBody('opening', '—');
-  const orgResponsibility = sectionBody('organization_responsibility', '—');
+  const introText = sectionBody('intro', '—');
+  const orgResponsibility = sectionBody('taasiyeda_responsibility', '—');
   const schoolResponsibility = sectionBody('school_responsibility', '');
   const paymentTerms = sectionBody('payment_terms', '—');
-  const changesCancellation = sectionBody('changes_cancellations', '');
-  const remarks = sectionBody('remarks', '');
+  const changesCancellation = sectionBody('cancellation_terms', '');
+  const remarks = sectionBody('notes', '');
+  const activityIntro = sectionBody('activity_intro', '');
+  const summerActivityIntro = sectionBody('summer_activity_intro', '');
+  const nextYearActivityIntro = sectionBody('next_year_activity_intro', '');
+  const activityIntroSections = activityTypeGroup === 'הצעה משולבת'
+    ? [summerActivityIntro, nextYearActivityIntro].filter(Boolean)
+    : [activityIntro].filter(Boolean);
+  const signatureText = sectionBody('signature', '');
 
   return `
     <div class="pa-doc-header">
@@ -468,26 +475,16 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
       ${row.contact_name ? `<p>לידי: ${escapeHtml(row.contact_name)}${row.contact_role ? ', ' + escapeHtml(row.contact_role) : ''}</p>` : ''}
     </div>
     <p class="pa-doc-subject"><strong>הנדון: ${escapeHtml(row.document_type || 'הצעת מחיר')} — ${escapeHtml(activityTypeGroup || '')}</strong></p>
-    <section class="pa-section"><h3>${escapeHtml(sectionTitle('opening', 'פתיח'))}</h3><p>${escapeHtml(openingText || '—')}</p></section>
+    <section class="pa-section"><h3>${escapeHtml(sectionTitle('intro', 'פתיח'))}</h3><p>${escapeHtml(introText || '—')}</p></section>
     ${actNamesHtml}
+    ${activityIntroSections.map((sectionText) => `<section class="pa-section"><h3>${escapeHtml(sectionTitle('activity_intro', 'מבוא פעילות'))}</h3><p>${escapeHtml(sectionText)}</p></section>`).join('')}
     <section class="pa-section"><h3>טבלת עלויות</h3>${costTableHtml}</section>
-    <section class="pa-section"><h3>${escapeHtml(sectionTitle('organization_responsibility', 'אחריות תעשיידע'))}</h3><p>${escapeHtml(orgResponsibility || '—')}</p></section>
+    <section class="pa-section"><h3>${escapeHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'))}</h3><p>${escapeHtml(orgResponsibility || '—')}</p></section>
     ${schoolResponsibility ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'))}</h3><p>${escapeHtml(schoolResponsibility)}</p></section>` : ''}
     <section class="pa-section"><h3>${escapeHtml(sectionTitle('payment_terms', 'תנאי תשלום'))}</h3><p>${escapeHtml(paymentTerms || '—')}</p></section>
-    ${changesCancellation ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('changes_cancellations', 'שינויים וביטולים'))}</h3><p>${escapeHtml(changesCancellation)}</p></section>` : ''}
-    ${remarks ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('remarks', 'הערות'))}</h3><p>${escapeHtml(remarks)}</p></section>` : ''}
-    <div class="pa-doc-signature">
-      <div class="pa-sig-block">
-        <div class="pa-sig-line"></div>
-        <div>חתימה ושם</div>
-        <div style="font-size:0.85rem;color:#6b7280">תעשיידע</div>
-      </div>
-      <div class="pa-sig-block">
-        <div class="pa-sig-line"></div>
-        <div>חתימה ושם</div>
-        <div style="font-size:0.85rem;color:#6b7280">${escapeHtml(row.school_framework || row.client_authority || '')}</div>
-      </div>
-    </div>`;
+    ${changesCancellation ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('cancellation_terms', 'שינויים וביטולים'))}</h3><p>${escapeHtml(changesCancellation)}</p></section>` : ''}
+    ${remarks ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('notes', 'הערות'))}</h3><p>${escapeHtml(remarks)}</p></section>` : ''}
+    ${signatureText ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('signature', 'חתימה'))}</h3><p>${escapeHtml(signatureText)}</p></section>` : ''}`;
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
