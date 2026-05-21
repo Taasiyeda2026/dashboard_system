@@ -1222,7 +1222,10 @@ export const activitiesScreen = {
       dateInputs.forEach((input, index) => {
         payload[`Date${index + 1}`] = String(input.value || '').trim();
       });
-      if (isOneDay) payload.Date1 = String(payload.Date1 || get('start_date') || '').trim();
+      if (isOneDay) {
+        for (let i = 2; i <= 35; i++) payload[`Date${i}`] = '';
+        payload.Date1 = String(payload.Date1 || get('start_date') || '').trim();
+      }
       if (!payload.end_date) {
         const lastDate = [...dateInputs].map((input) => String(input.value || '').trim()).filter(Boolean).pop();
         payload.end_date = lastDate || payload.start_date || null;
