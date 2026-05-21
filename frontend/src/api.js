@@ -1491,6 +1491,28 @@ function sanitizeProposalAgreementPayload(payload = {}) {
   return row;
 }
 
+
+async function upsertProposalClientContactIfNeeded(payload = {}, options = {}) {
+  const isNewClient = options?.isNewClient === true;
+  if (!isNewClient) return;
+  const authority = cleanProposalAgreementText(payload.client_authority);
+  const school = cleanProposalAgreementText(payload.school_framework);
+  const contact_name = cleanProposalAgreementText(payload.contact_name);
+  if (!authority || !school || !contact_name) return;
+  const contactRow = {
+    authority,
+    school,
+    contact_name,
+    contact_role: cleanProposalAgreementText(payload.contact_role),
+    phone: cleanProposalAgreementText(payload.phone),
+    email: cleanProposalAgreementText(payload.email)
+  };
+  const { error } = await supabase
+    .from('contacts_schools')
+    .upsert(contactRow, { onConflict: 'authority,school,contact_name' });
+  if (error) throw new Error(error.message || 'proposal_contact_upsert_failed');
+}
+
 async function readProposalActivityNamesFromSupabase() {
   try {
     const { data, error } = await supabase
@@ -2392,6 +2414,7 @@ export const api = {
   addProposalAgreement: async (payload) => {
     assertCanUseProposalsAgreementsApi();
     const insert = sanitizeProposalAgreementPayload(payload);
+    await upsertProposalClientContactIfNeeded(insert, { isNewClient: payload?.is_new_client === true });
     const { data, error } = await supabase
       .from('proposals_agreements')
       .insert(insert)
@@ -2405,6 +2428,7 @@ export const api = {
     const rowId = cleanProposalAgreementText(id);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     const patch = sanitizeProposalAgreementPayload(payload);
+    await upsertProposalClientContactIfNeeded(patch, { isNewClient: payload?.is_new_client === true });
     const { data, error } = await supabase
       .from('proposals_agreements')
       .update(patch)

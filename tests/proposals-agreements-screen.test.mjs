@@ -344,6 +344,7 @@ test('new client toggle button shows hint and clears client selector', async () 
       const hint = form.querySelector('[data-pa-new-client-hint]');
       assert.equal(hint.hidden, false, 'hint should be visible after toggle');
       assert.equal(clientSelect.value, '', 'client selector should be cleared');
+      assert.equal(form.dataset.paNewClient, 'yes', 'form should mark new client mode');
     }
   );
 });
@@ -380,6 +381,7 @@ test('save draft sends status=draft and send-for-approval sends status=pending_a
 
       assert.equal(savedPayloads.length, 1, 'one save call');
       assert.equal(savedPayloads[0].status, 'draft', 'draft save should set status=draft');
+      assert.equal(savedPayloads[0].is_new_client, false, 'default save should not mark as new client');
 
       // Re-open form for pending_approval test
       root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -394,6 +396,46 @@ test('save draft sends status=draft and send-for-approval sends status=pending_a
 
       assert.equal(savedPayloads.length, 2, 'second save call');
       assert.equal(savedPayloads[1].status, 'pending_approval', 'pending save should set status=pending_approval');
+    }
+  );
+});
+
+
+
+test('saving after new client toggle sends is_new_client=true', async () => {
+  const savedPayloads = [];
+  const mockApi = {
+    addProposalAgreement: async (payload) => {
+      savedPayloads.push({ ...payload });
+      return { ok: true, row: { ...payload, id: 'new-client-id' } };
+    }
+  };
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: mockApi
+      });
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form = root.querySelector('[data-pa-form]');
+      form.querySelector('[data-pa-new-client-toggle]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+
+      form.querySelector('input[name="client_authority"]').value = 'רשות חדשה';
+      form.querySelector('input[name="school_framework"]').value = 'בית ספר חדש';
+      form.querySelector('select[name="document_type"]').value = 'הצעת מחיר';
+      form.querySelector('select[name="activity_type_group"]').value = 'פעילויות קיץ';
+      form.querySelector('input[name="contact_name"]').value = 'שרון חדש';
+
+      form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      assert.equal(savedPayloads.length, 1);
+      assert.equal(savedPayloads[0].is_new_client, true, 'new-client save should mark is_new_client=true');
     }
   );
 });
@@ -749,6 +791,8 @@ test('api source has readProposalAgreementItems and saveProposalAgreementItems',
   assert.match(apiSource, /readProposalAgreementItems/);
   assert.match(apiSource, /saveProposalAgreementItems/);
   assert.match(apiSource, /saveProposalAgreementItems: true/);
+  assert.match(apiSource, /upsertProposalClientContactIfNeeded/);
+  assert.match(apiSource, /payload\?\.is_new_client === true/);
   assert.match(apiSource, /total_amount.*payload\.total_amount/);
 });
 

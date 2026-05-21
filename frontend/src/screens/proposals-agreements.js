@@ -817,6 +817,7 @@ export const proposalsAgreementsScreen = {
       clientSelect.addEventListener('change', () => {
         const val = clientSelect.value;
         if (!val) return;
+        form.dataset.paNewClient = 'no';
         const [authority, school] = val.split('||');
         const matches = contactOptions.filter((c) => text(c.authority) === authority && text(c.school) === school);
         const authInput = form.querySelector('input[name="client_authority"]');
@@ -910,6 +911,7 @@ export const proposalsAgreementsScreen = {
       const allBtns = form.querySelectorAll('button');
       allBtns.forEach((b) => { b.disabled = true; });
       const payload = payloadFromForm(form);
+      payload.is_new_client = form.dataset.paNewClient === 'yes';
       if (statusOverride) payload.status = statusOverride;
       const validationError = validatePayload(payload);
       if (validationError) {
@@ -1166,7 +1168,9 @@ export const proposalsAgreementsScreen = {
         const hint = form?.querySelector('[data-pa-new-client-hint]');
         const clientSelect = form?.querySelector('[data-pa-client-select]');
         if (clientSelect) clientSelect.value = '';
-        if (hint) hint.hidden = !hint.hidden;
+        const isNewClient = form?.dataset.paNewClient === 'yes';
+        if (form) form.dataset.paNewClient = isNewClient ? 'no' : 'yes';
+        if (hint) hint.hidden = isNewClient;
         form?.querySelector('input[name="client_authority"]')?.focus();
         return;
       }
