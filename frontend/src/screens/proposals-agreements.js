@@ -465,12 +465,12 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
         class="pa-doc-logo pa-doc-logo--header"
         loading="eager"
         decoding="async"
-        onerror="this.style.display='none'; this.nextElementSibling.hidden = false;"
+        onerror="this.style.display='none'; this.nextElementSibling.hidden = false; var doc = this.closest('.ds-pa-preview-doc'); if (doc) { var companyBlock = doc.querySelector('.pa-doc-company-block'); if (companyBlock) companyBlock.hidden = false; }"
       >
       <div class="pa-doc-logo-fallback" hidden>תעשיידע — חינוך מקצועי וחוויות למידה</div>
     </div>
     <div class="pa-doc-header">
-      <div class="pa-doc-company-block">
+      <div class="pa-doc-company-block" hidden>
         <div class="pa-doc-company">תעשיידע</div>
         <div class="pa-doc-tagline">חינוך מקצועי וחוויות למידה</div>
       </div>

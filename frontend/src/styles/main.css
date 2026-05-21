@@ -10433,10 +10433,10 @@ select.ds-input {
   display: block; max-width: 100%; height: auto;
 }
 .pa-doc-logo--header {
-  width: min(360px, 72%);
+  width: min(260px, 55%);
 }
 .pa-doc-logo--footer {
-  width: min(180px, 42%);
+  width: min(260px, 55%);
 }
 .pa-doc-logo-fallback {
   font-size: 0.88rem; color: #334155; font-weight: 600;
@@ -10468,7 +10468,9 @@ select.ds-input {
 .pa-cost-table thead { background: #f8fafc; font-weight: 600; }
 .pa-cost-total-row { background: #f0f9ff; }
 .pa-doc-footer {
-  margin-top: 26px; padding-top: 12px; border-top: 1px solid #e5e7eb;
+  margin-top: 18px; padding-top: 10px; border-top: 1px solid #e5e7eb;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 .pa-doc-signature {
   display: flex; gap: 40px; margin-top: 40px; flex-wrap: wrap;
@@ -10490,6 +10492,10 @@ select.ds-input {
   .ds-pa-preview-doc {
     box-shadow: none !important; border: none !important;
     margin: 0 !important; padding: 20px !important; max-width: 100% !important;
+  }
+  .pa-doc-footer {
+    margin-top: 14px !important;
+    padding-top: 8px !important;
   }
   .pa-doc-divider { border-top: 1.5px solid #000; }
 }
