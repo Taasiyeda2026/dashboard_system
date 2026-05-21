@@ -1555,6 +1555,29 @@ async function readProposalActivityPricingFromSupabase() {
   }
 }
 
+async function readProposalTemplateSectionsFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('proposal_template_sections')
+      .select('template_key,template_name,activity_type_group,section_key,section_title,section_body,sort_order')
+      .eq('is_active', true)
+      .order('template_key', { ascending: true })
+      .order('sort_order', { ascending: true });
+    if (error) return [];
+    return (Array.isArray(data) ? data : []).map((row) => ({
+      template_key: cleanProposalAgreementText(row?.template_key),
+      template_name: cleanProposalAgreementText(row?.template_name),
+      activity_type_group: cleanProposalAgreementText(row?.activity_type_group),
+      section_key: cleanProposalAgreementText(row?.section_key),
+      section_title: cleanProposalAgreementText(row?.section_title),
+      section_body: cleanProposalAgreementText(row?.section_body),
+      sort_order: Number(row?.sort_order) || 0
+    }));
+  } catch {
+    return [];
+  }
+}
+
 async function readContactsSchoolsForProposals() {
   try {
     const { data, error } = await supabase
@@ -1577,7 +1600,7 @@ async function readContactsSchoolsForProposals() {
 
 async function readProposalsAgreementsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
-  const [paResult, activityNameOptions, contactOptions, proposalActivityPricing] = await Promise.all([
+  const [paResult, activityNameOptions, contactOptions, proposalActivityPricing, proposalTemplateSections] = await Promise.all([
     supabase
       .from('proposals_agreements')
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
@@ -1587,7 +1610,8 @@ async function readProposalsAgreementsFromSupabase() {
       .order('activity_type_group', { ascending: true }),
     readProposalActivityNamesFromSupabase(),
     readContactsSchoolsForProposals(),
-    readProposalActivityPricingFromSupabase()
+    readProposalActivityPricingFromSupabase(),
+    readProposalTemplateSectionsFromSupabase()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
   return {
@@ -1595,6 +1619,7 @@ async function readProposalsAgreementsFromSupabase() {
     activityNameOptions,
     contactOptions,
     proposalActivityPricing,
+    proposalTemplateSections,
     _source: 'supabase'
   };
 }
@@ -2521,6 +2546,10 @@ export const api = {
   readProposalActivityPricing: async () => {
     assertCanUseProposalsAgreementsApi();
     return readProposalActivityPricingFromSupabase();
+  },
+  readProposalTemplateSections: async () => {
+    assertCanUseProposalsAgreementsApi();
+    return readProposalTemplateSectionsFromSupabase();
   },
   saveProposalAgreementItems: async (proposalId, items) => {
     assertCanUseProposalsAgreementsApi();
