@@ -511,7 +511,8 @@ const screenLabels = {
   'admin-lists': 'ניהול רשימות',
   archive: 'ארכיון',
   'proposals-agreements': 'הצעות והסכמים',
-  finance: 'כספים / גבייה'
+  finance: 'כספים / גבייה',
+  invitations: 'הזמנות'
 };
 
 function navLabelForRoute(route) {
@@ -554,7 +555,8 @@ const screenLoaders = {
   'admin-lists': () => import('./screens/admin-lists.js').then((m) => m.adminListsScreen),
   archive: () => import('./screens/archive.js').then((m) => m.archiveScreen),
   'proposals-agreements': () => import('./screens/proposals-agreements.js').then((m) => m.proposalsAgreementsScreen),
-  finance: () => import('./screens/finance.js').then((m) => m.financeScreen)
+  finance: () => import('./screens/finance.js').then((m) => m.financeScreen),
+  invitations: () => import('./screens/invitations.js').then((m) => m.invitationsScreen)
 };
 const loadedScreens = new Map();
 const loadingScreens = new Map();
@@ -608,7 +610,9 @@ function applySettingsToRoutes(routes, settings = state.clientSettings) {
   }
   const blocked = navDisabledRoutesSet(settings);
   const seen = new Set();
-  return (Array.isArray(routes) ? routes : []).filter((route) => {
+  const baseRoutes = Array.isArray(routes) ? routes : [];
+  if (!baseRoutes.includes('invitations')) baseRoutes.push('invitations');
+  return baseRoutes.filter((route) => {
     if (!route || blocked.has(route) || seen.has(route)) return false;
     if (!screenLoaders[route]) return false;
     seen.add(route);
