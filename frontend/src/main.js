@@ -727,7 +727,7 @@ const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'ad
 function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
-  const isAdminUser = state?.user?.display_role === 'admin' || state?.user?.display_role === 'operation_manager';
+  const isAdminUser = state?.user?.display_role === 'admin';
   // לאדמין: הנתונים שלי — מוסתר לחלוטין; הרשאות — בסרגל בלבד
   const adminSidebarExclude = isAdminUser ? new Set(['my-data']) : new Set();
   const nav = effectiveRoutes()
