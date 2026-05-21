@@ -290,7 +290,7 @@ select {
 .shell-nav {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
 }
@@ -370,7 +370,7 @@ select {
   margin-top: auto;
   padding-top: var(--ds-space-4);
   border-top: 1px solid var(--ds-shell-border);
-  gap: 6px;
+  gap: 4px;
 }
 
 .shell-backdrop {
@@ -398,7 +398,7 @@ select {
 .shell-user {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   font-size: 0.78rem;
 }
 
@@ -418,12 +418,12 @@ select {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   text-align: center;
 }
 
 .shell-sidebar__user-name {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 700;
   color: var(--ds-shell-text);
   word-break: break-word;
@@ -912,7 +912,7 @@ select {
 
 .ds-page-header__subtitle {
   margin: var(--ds-space-1) 0 0;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   color: var(--ds-text-muted);
   font-weight: 500;
 }
@@ -1087,7 +1087,7 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   border-radius: var(--ds-radius-sm);
   border: 1px solid var(--ds-border);
   background: var(--ds-surface);
@@ -1431,7 +1431,7 @@ span.ds-chip {
   min-height: 22px;
   padding: 3px 4px;
   font-size: 0.47rem;
-  gap: 2px;
+  gap: 1px;
   white-space: nowrap;
   flex-direction: column;
   background: var(--ds-surface);
@@ -1475,7 +1475,7 @@ span.ds-chip {
   .ds-act-nav-grid--header {
     display: flex;
     overflow-x: auto;
-    gap: 6px;
+    gap: 4px;
     justify-content: flex-start;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x proximity;
@@ -1499,7 +1499,7 @@ span.ds-chip {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   min-height: 42px;
   padding: 8px 10px;
   background: #fff;
@@ -1530,7 +1530,7 @@ span.ds-chip {
 
 .ds-act-nav-item.is-active .ds-act-nav-item__label {
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
 }
 
 .ds-act-nav-item__icon {
@@ -1588,7 +1588,7 @@ span.ds-chip {
 .ds-compact-list .ds-interactive-card--session {
   min-height: unset;
   padding: var(--ds-space-2);
-  gap: 2px;
+  gap: 1px;
 }
 
 .ds-compact-list .ds-interactive-card__title {
@@ -1678,7 +1678,7 @@ span.ds-chip {
 .ds-exc-badge {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   font-size: 0.7rem;
   font-weight: 700;
   padding: 1px 6px;
@@ -1700,7 +1700,7 @@ span.ds-chip {
 /* ——— */
 .ds-detail-date-stack {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   padding: var(--ds-space-2);
   border: 1px dashed color-mix(in srgb, var(--ds-accent) 22%, var(--ds-border));
   border-radius: var(--ds-radius-sm);
@@ -1714,7 +1714,7 @@ span.ds-chip {
 .ds-date-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 }
 
@@ -1737,7 +1737,7 @@ span.ds-chip {
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ds-meeting-list__item {
@@ -1782,7 +1782,7 @@ span.ds-chip {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   border-bottom: 1px solid var(--ds-border);
   padding: 0 var(--ds-space-1) 0 0;
   background: var(--ds-surface);
@@ -1800,7 +1800,7 @@ span.ds-chip {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 
 .ds-chip--tab {
@@ -1904,7 +1904,7 @@ span.ds-chip {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 2px;
+  gap: 1px;
   padding: var(--ds-space-2) var(--ds-space-2) var(--ds-space-1);
   border-bottom: 1px solid rgba(26, 51, 88, 0.12);
   background: #ffffff;
@@ -2047,7 +2047,7 @@ span.ds-chip {
 
 .ds-day-card h3 {
   margin: 0 0 var(--ds-space-2);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 700;
   color: var(--ds-text);
 }
@@ -2789,7 +2789,7 @@ span.ds-chip {
 
   .ds-cal-weekdays,
   .ds-cal-grid {
-    gap: 2px;
+    gap: 1px;
   }
 }
 
@@ -2842,7 +2842,7 @@ span.ds-chip {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
   box-shadow: var(--ds-shadow-xs);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -2902,7 +2902,7 @@ span.ds-chip {
 
 .ds-manager-card__name {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 700;
   color: var(--ds-text);
   text-align: right;
@@ -2977,7 +2977,7 @@ span.ds-chip {
 .ds-person-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   padding: var(--ds-space-2);
 }
 
@@ -3062,7 +3062,7 @@ span.ds-chip {
 .ds-mini-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 /* ——— States ——— */
@@ -3082,7 +3082,7 @@ span.ds-chip {
 }
 
 .ds-muted {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   color: var(--ds-text-muted);
 }
 
@@ -3382,7 +3382,7 @@ span.ds-chip {
 .perm-active-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--ds-text-secondary);
@@ -3837,7 +3837,7 @@ select.ds-input {
   grid-column: 1;
   grid-row: 1;
   font-weight: 600;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
 }
 
 .ds-contact-line__sub {
@@ -3863,7 +3863,7 @@ select.ds-input {
 .ds-contact-detail-grid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   padding-top: var(--ds-space-2);
   font-size: 0.78rem;
 }
@@ -3908,14 +3908,14 @@ select.ds-input {
 
 .muted {
   color: var(--ds-text-muted);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
 }
 
 .compact-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 600;
   color: var(--ds-text-secondary);
   cursor: pointer;
@@ -4015,7 +4015,7 @@ select.ds-input {
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-sm);
   padding: 6px 10px;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-family: inherit;
   background: var(--ds-surface);
   color: var(--ds-text);
@@ -4043,8 +4043,8 @@ select.ds-input {
 .ds-toggle-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
+  gap: 4px;
+  font-size: 0.76rem;
   cursor: pointer;
   user-select: none;
   color: var(--ds-text-secondary);
@@ -4141,7 +4141,7 @@ select.ds-input {
 }
 
 .ci-school-head {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 700;
   color: var(--ds-accent);
   background: var(--ds-surface-raised);
@@ -4149,7 +4149,7 @@ select.ds-input {
   border-bottom: 1px solid var(--ds-border);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ci-count {
@@ -4326,7 +4326,7 @@ select.ds-input {
 .instr-act-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 5px 8px;
   border-radius: 6px;
   font-size: 0.85rem;
@@ -4358,7 +4358,7 @@ select.ds-input {
 /* ——— Instructors grid layout (ci-list--instr-grid) ——— */
 .ci-list--instr-grid {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   padding: var(--ds-space-2);
 }
 
@@ -4410,7 +4410,7 @@ select.ds-input {
 .sc-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .sc-school-block {
@@ -4466,7 +4466,7 @@ select.ds-input {
   padding: 8px 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .sc-contact-entry {
@@ -4549,13 +4549,13 @@ select.ds-input {
 .ci-person-card__info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
   flex: 1;
 }
 
 .ci-person-card__name {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 700;
   color: var(--ds-text);
   overflow: hidden;
@@ -4582,12 +4582,12 @@ select.ds-input {
 .ci-df {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 4px;
   font-size: 0.8rem;
 }
 
 .ci-df__icon {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   flex-shrink: 0;
   width: 18px;
   text-align: center;
@@ -4639,7 +4639,7 @@ select.ds-input {
 .sc-alpha-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   padding: 10px 0 14px;
   direction: rtl;
 }
@@ -4741,7 +4741,7 @@ select.ds-input {
 .sc-school-stack {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .sc-card {
@@ -4841,7 +4841,7 @@ select.ds-input {
 .sc-person {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   background: var(--ds-surface-subtle);
   border: 1px solid var(--ds-border);
   border-radius: 10px;
@@ -4880,14 +4880,14 @@ select.ds-input {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
 .sc-person__contact-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   font-size: 0.78rem;
   color: var(--ds-text-secondary);
   min-width: 0;
@@ -4942,7 +4942,7 @@ select.ds-input {
 }
 
 .ds-btn--contact-add {
-  min-height: 30px;
+  min-height: 32px;
   padding: 2px 8px;
   font-size: 0.72rem;
   border-radius: 999px;
@@ -4960,7 +4960,7 @@ select.ds-input {
   color: var(--ds-shell-text);
   padding: 8px 22px;
   border-radius: var(--ds-radius-full);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 500;
   opacity: 0;
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -5107,7 +5107,7 @@ select.ds-input {
 
 .ds-finance-group-title {
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   color: var(--ds-accent);
   margin-left: 8px;
 }
@@ -5160,7 +5160,7 @@ select.ds-input {
   gap: var(--ds-space-2);
   padding: var(--ds-space-2) var(--ds-space-3);
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   cursor: pointer;
   user-select: none;
   background: var(--ds-surface);
@@ -5172,7 +5172,7 @@ select.ds-input {
 
 .ds-meetings-panel__counts {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   margin-inline-start: auto;
 }
 
@@ -5198,7 +5198,7 @@ select.ds-input {
 .ds-meetings-panel__body {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   padding: var(--ds-space-2) var(--ds-space-3);
 }
 
@@ -5292,7 +5292,7 @@ select.ds-input {
 .ds-info-banner {
   border-radius: var(--ds-radius-md);
   padding: var(--ds-space-3) var(--ds-space-4);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   line-height: 1.5;
   margin-bottom: var(--ds-space-2);
   display: flex;
@@ -5340,13 +5340,13 @@ select.ds-input {
   margin-bottom: var(--ds-space-2);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ds-list-chip-wrap {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ds-list-item-chip {
@@ -5460,7 +5460,7 @@ select.ds-input {
 .ds-filter-panel__grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 }
 
@@ -5656,7 +5656,7 @@ select.ds-input {
   padding: 14px 20px 10px;
   border-radius: 14px;
   border: 1.5px solid transparent;
-  gap: 2px;
+  gap: 1px;
   flex: 1 1 110px;
   max-width: 160px;
   box-shadow: 0 1px 4px 0 rgba(0,0,0,0.06);
@@ -5693,7 +5693,7 @@ select.ds-input {
 }
 
 .ds-activities-screen--archive {
-  gap: 6px;
+  gap: 4px;
 }
 
 .ds-activities-screen--archive .ds-archive-kpi-row {
@@ -6025,7 +6025,7 @@ select.ds-input {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .ds-fg-card__title {
@@ -6104,7 +6104,7 @@ select.ds-input {
 }
 
 .ds-fg-card__chevron {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   color: var(--ds-text-muted);
   flex-shrink: 0;
   transition: transform 0.2s ease;
@@ -6126,7 +6126,7 @@ select.ds-input {
   padding: var(--ds-space-2) var(--ds-space-3);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 /* Sub-groups — school within a 2-level group */
@@ -6151,7 +6151,7 @@ select.ds-input {
   padding: var(--ds-space-2) var(--ds-space-3);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 /* Individual activity row */
@@ -6261,7 +6261,7 @@ select.ds-input {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   padding: var(--ds-space-2) 0 var(--ds-space-1);
   border-top: 1px solid var(--ds-border);
   margin-top: 4px;
@@ -6342,12 +6342,12 @@ select.ds-input {
 
 .ds-fg-drawer-header__badges {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
 .ds-fg-drawer-header__notes {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   color: var(--ds-text);
   background: var(--ds-warning-soft);
   border: 1px solid var(--ds-status-warning-border);
@@ -6374,7 +6374,7 @@ select.ds-input {
   .ds-fg-activity__info {
     flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
+    gap: 1px;
   }
 
   .ds-fg-activity__edit-btn {
@@ -6488,7 +6488,7 @@ select.ds-input {
 }
 
 .ds-er-reviewer-note {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   padding: var(--ds-space-2) var(--ds-space-3);
   border-block-start: 1px solid var(--ds-border-subtle);
   background: var(--ds-surface-subtle);
@@ -6559,7 +6559,7 @@ select.ds-input {
 .ds-drawer__header--activity {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 5px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.25);
   padding: 16px 18px 13px;
   margin-bottom: 8px;
@@ -6752,7 +6752,7 @@ select.ds-input {
 .ds-date-chip-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 }
 
@@ -6766,8 +6766,8 @@ select.ds-input {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 7px;
-  min-height: 30px;
+  gap: 5px;
+  min-height: 32px;
 }
 
 .ds-date-chip__value {
@@ -6901,7 +6901,7 @@ select.ds-input {
 .ds-progress-bar-wrap {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   margin-bottom: 9px;
   flex-wrap: wrap;
 }
@@ -7010,7 +7010,7 @@ select.ds-input {
 
 .ds-input--date {
   font-size: 0.76rem;
-  padding: 4px 7px;
+  padding: 3px 7px;
 }
 
 /* Chain toggle */
@@ -7099,7 +7099,7 @@ select.ds-input {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 4px;
 }
 
 .activity-drawer__header-actions {
@@ -7252,7 +7252,7 @@ select.ds-input {
 
 .activity-drawer__field-controls {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -7397,7 +7397,7 @@ select.ds-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
   border-radius: 8px;
   padding: 6px 8px;
   font-size: 0.72rem;
@@ -7420,7 +7420,7 @@ select.ds-input {
 .activity-drawer__date-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -7431,13 +7431,13 @@ select.ds-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
 }
 
 .activity-drawer__date-card-top-aside {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .activity-drawer__date-remove {
@@ -7474,7 +7474,7 @@ select.ds-input {
 
 .activity-drawer__date-mode {
   display: inline-flex;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
@@ -7530,7 +7530,7 @@ select.ds-input {
 
 .activity-drawer__private {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .activity-drawer__private [data-always-editable] {
@@ -7622,7 +7622,8 @@ select.ds-input {
 .activity-drawer__form select,
 .activity-drawer__form textarea {
   width: 100%;
-  max-width: 100%;
+  max-width: 250px;
+  min-height: 34px;
   min-width: 0;
   box-sizing: border-box;
 }
@@ -7632,7 +7633,8 @@ select.ds-input {
 .activity-drawer__form input[type="datetime-local"],
 .activity-drawer__form input[type="month"] {
   width: 100%;
-  max-width: 100%;
+  max-width: 250px;
+  min-height: 34px;
   min-width: 0;
   box-sizing: border-box;
 }
@@ -7675,7 +7677,7 @@ select.ds-input {
 .ds-end-dates__manager-filter {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   font-size: 0.78rem;
   font-weight: 600;
   color: #475569;
@@ -7700,7 +7702,7 @@ select.ds-input {
   color: var(--ds-text-secondary);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ds-end-dates__month-count {
@@ -7793,7 +7795,7 @@ select.ds-input {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 20px;
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 0.78rem;
   color: #334155;
 }
@@ -7852,7 +7854,7 @@ select.ds-input {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 6px;
+  gap: 4px;
   padding: 0 4px 4px;
   direction: rtl;
 }
@@ -7875,7 +7877,7 @@ select.ds-input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   padding: 6px 10px;
   border: 1px solid rgba(26, 51, 88, 0.12);
   border-radius: 14px;
@@ -7900,7 +7902,7 @@ select.ds-input {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 8px 10px;
   background: var(--ds-surface);
   border: 1px solid rgba(26, 51, 88, 0.12);
@@ -7911,7 +7913,7 @@ select.ds-input {
 .ds-activities-main-toolbar__actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   margin-inline-start: auto;
 }
 
@@ -7950,7 +7952,7 @@ select.ds-input {
   flex: 0 0 auto;
   width: 160px;
   min-width: 120px;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   padding: 6px 10px;
 }
 
@@ -8016,7 +8018,8 @@ select.ds-input {
 
 .ds-activity-add-field .ds-input {
   width: 100%;
-  max-width: 100%;
+  max-width: 250px;
+  min-height: 34px;
   min-height: 31px;
   font-size: 0.79rem;
   line-height: 1.2;
@@ -8027,7 +8030,7 @@ select.ds-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ds-activity-add-field--entity .ds-btn--xs {
@@ -8070,7 +8073,7 @@ select.ds-input {
   .ds-activity-add-grid,
   .ds-activity-add-date-rows {
     grid-template-columns: 1fr;
-    gap: 6px;
+    gap: 4px;
   }
 
   .ds-activity-add-field.ds-activity-add-field--compact {
@@ -8134,7 +8137,7 @@ select.ds-input {
 
 .ds-toolbar--filters-inline,
 .ds-filter-panel__grid {
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 }
 .ds-input,
@@ -8143,7 +8146,7 @@ select.ds-input {
 .ds-filter-select-inline,
 .ds-btn,
 .ds-chip--tab {
-  min-height: 32px;
+  min-height: 34px;
 }
 .ds-filter-search-sm {
   width: 180px;
@@ -8209,7 +8212,7 @@ select.ds-input {
 .ds-activities-main-toolbar {
   flex-wrap: wrap;
   padding: 6px 8px;
-  row-gap: 6px;
+  row-gap: 4px;
 }
 .ds-activities-page-title {
   font-size: 0.94rem;
@@ -8262,12 +8265,12 @@ select.ds-input {
 
 .ds-cal-wrap {
   padding: 6px;
-  gap: 6px;
+  gap: 4px;
 }
 
 /* ===== Regression fix: compact activities UI + clean header nav ===== */
 .ds-act-nav-item--header {
-  min-height: 30px;
+  min-height: 32px;
   padding: 4px 8px;
   border-radius: 8px;
   font-size: 0.65rem;
@@ -8283,18 +8286,18 @@ select.ds-input {
 
 .ds-activities-main-toolbar {
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: 4px;
   padding: 6px 8px;
 }
 
 .ds-activities-main-toolbar .ds-input,
 .ds-activities-main-toolbar__actions .ds-btn {
-  min-height: 32px;
+  min-height: 34px;
 }
 
 .ds-toolbar--filters-inline {
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: 4px;
   padding: 6px 8px;
   border: 1px solid rgba(26, 51, 88, 0.12);
   border-radius: 10px;
@@ -8348,7 +8351,7 @@ select.ds-input {
 }
 .ds-cal-weekdays,
 .ds-cal-grid {
-  gap: 6px;
+  gap: 4px;
 }
 .ds-cal-wd {
   font-size: 0.66rem;
@@ -8432,7 +8435,7 @@ select.ds-input {
 }
 .ds-week-group__badge {
   font-size: 0.56rem;
-  padding: 2px 5px;
+  padding: 1px 4px;
 }
 
 
@@ -8496,7 +8499,7 @@ select.ds-input {
 }
 
 .ds-table--activities-list td {
-  padding: 4px 7px;
+  padding: 3px 7px;
   height: 30px;
   line-height: 1.15;
   vertical-align: middle;
@@ -8606,7 +8609,7 @@ select.ds-input {
 }
 
 .ds-btn--today {
-  min-height: 30px;
+  min-height: 32px;
   padding: 3px 10px !important;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--ds-accent) 60%, transparent);
@@ -8625,7 +8628,7 @@ select.ds-input {
 
 .instr-summary-row {
   min-height: 96px;
-  padding: 7px;
+  padding: 6px;
 }
 
 
@@ -8641,7 +8644,7 @@ select.ds-input {
   width: 30px;
   min-width: 30px;
   height: 30px;
-  min-height: 30px;
+  min-height: 32px;
   padding: 0;
 }
 
@@ -8663,7 +8666,7 @@ select.ds-input {
   min-width: 86px;
   max-width: 128px;
   flex: 0 1 112px;
-  min-height: 30px;
+  min-height: 32px;
 }
 
 .ds-activities-main-toolbar .ds-btn--icon-only {
@@ -9069,7 +9072,7 @@ select.ds-input {
   border: 1.5px solid #e2e8f0;
   box-shadow: 0 1px 3px rgba(15,23,42,0.08), 0 0 0 0.5px rgba(15,23,42,0.03);
   border-radius: var(--ds-radius-md);
-  gap: 2px;
+  gap: 1px;
 }
 
 .ds-interactive-card--kpi:hover:not(:disabled) {
@@ -9144,7 +9147,7 @@ select.ds-input {
   border: 2px solid var(--ds-accent);
   border-radius: var(--ds-radius-md);
   padding: 10px 12px;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   line-height: 1.6;
   width: 270px;
   max-width: 80vw;
@@ -9251,7 +9254,7 @@ select.ds-input {
   flex-direction: column;
   align-items: center;
   gap: 5px;
-  padding: 7px;
+  padding: 6px;
   border-radius: 12px;
   border: 1px solid var(--ds-border);
   background: #fff;
@@ -9274,7 +9277,7 @@ select.ds-input {
 .shell-logout-btn--sidebar {
   width: 26px;
   height: 26px;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   border-radius: 50%;
   justify-content: center;
 }
@@ -9309,7 +9312,7 @@ select.ds-input {
 .ds-table--archive th,
 .ds-table--archive td {
   text-align: right;
-  padding: 4px 7px;
+  padding: 3px 7px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -9408,7 +9411,7 @@ select.ds-input {
 @media (max-width: 760px) {
   .ds-cal-wrap {
     padding: 2px;
-    gap: 2px;
+    gap: 1px;
   }
   .ds-cal-weekdays,
   .ds-cal-grid {
@@ -9563,7 +9566,7 @@ select.ds-input {
 }
 
 .instr-page .ci-row__name {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 700;
   color: var(--ds-accent);
   text-align: center;
@@ -9690,7 +9693,7 @@ select.ds-input {
 }
 
 .ds-admin-summary__kpi span {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   color: var(--muted, #64748b);
 }
 
@@ -9793,7 +9796,7 @@ select.ds-input {
   display: grid;
   gap: 4px;
   color: var(--ds-color-text-muted, #64748b);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
 }
 
 .ds-pa-search {
@@ -9935,49 +9938,63 @@ select.ds-input {
 }
 
 .ds-pa-form {
-  margin: 8px 0 12px;
-  padding: 10px 14px;
+  margin: 6px 0 10px;
+  padding: 8px 10px;
   border: 1px solid var(--ds-color-border, #e2e8f0);
-  border-radius: var(--ds-radius-lg, 14px);
+  border-radius: 10px;
   background: var(--ds-color-surface-soft, #f8fafc);
-  width: 100%;
+  width: min(840px, 100%);
   box-sizing: border-box;
   overflow: hidden;
 }
 
 .ds-pa-form-title {
-  margin: 0 0 8px;
-  font-size: 0.95rem;
+  margin: 0 0 6px;
+  font-size: 0.88rem;
   font-weight: 600;
 }
 
 .ds-pa-form-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 7px 12px;
-  margin: 0 0 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 10px;
+  margin: 0 0 8px;
 }
 
 .ds-pa-form-field {
   display: grid;
   gap: 3px;
   color: var(--ds-color-text-muted, #64748b);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   min-width: 0;
+  max-width: 250px;
 }
 
 .ds-pa-form-field .ds-input,
 .ds-pa-form-field select.ds-input,
 .ds-pa-form-field textarea.ds-input {
-  font-size: 0.82rem;
-  padding: 4px 7px;
+  font-size: 0.76rem;
+  padding: 3px 7px;
   width: 100%;
-  max-width: 100%;
+  max-width: 250px;
+  min-height: 34px;
   box-sizing: border-box;
 }
 
+
+.ds-pa-form-field textarea.ds-input {
+  min-height: 62px;
+  resize: vertical;
+}
 .ds-pa-form-field--wide {
   grid-column: 1 / -1;
+  max-width: 100%;
+}
+
+.ds-pa-form-field--wide .ds-input,
+.ds-pa-form-field--wide textarea.ds-input,
+.ds-pa-form-field--wide .ds-pa-activity-picker {
+  max-width: 100%;
 }
 
 .ds-pa-activity-picker {
@@ -9987,7 +10004,7 @@ select.ds-input {
 
 .ds-pa-activity-trigger {
   text-align: right;
-  min-height: 32px;
+  min-height: 34px;
   width: 100%;
   display: inline-flex;
   align-items: center;
@@ -9996,10 +10013,10 @@ select.ds-input {
 
 .ds-pa-activity-chips {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
-  margin-top: 6px;
-  max-height: 62px;
+  margin-top: 4px;
+  max-height: 54px;
   overflow: auto;
   padding-inline-end: 2px;
 }
@@ -10008,8 +10025,8 @@ select.ds-input {
   border: 1px solid var(--ds-color-border, #e2e8f0);
   background: var(--ds-color-surface, #fff);
   border-radius: 999px;
-  font-size: 0.76rem;
-  padding: 1px 8px;
+  font-size: 0.7rem;
+  padding: 1px 6px;
   cursor: pointer;
 }
 
@@ -10017,41 +10034,41 @@ select.ds-input {
   position: absolute;
   z-index: 6;
   inset-inline-start: 0;
-  inline-size: min(380px, 100%);
-  margin-top: 6px;
+  inline-size: min(320px, 100%);
+  margin-top: 4px;
   border: 1px solid var(--ds-color-border, #e2e8f0);
   border-radius: 10px;
   background: #fff;
-  padding: 7px;
+  padding: 6px;
   box-shadow: var(--ds-shadow-sm);
 }
 
 .ds-pa-activity-search {
   margin-bottom: 6px;
-  min-height: 30px;
+  min-height: 32px;
   padding-block: 3px;
 }
 
 .ds-pa-activity-options {
-  max-height: 240px;
+  max-height: 160px;
   overflow: auto;
   display: grid;
-  gap: 2px;
+  gap: 1px;
 }
 
 .ds-pa-activity-option {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 2px 5px;
+  gap: 5px;
+  padding: 1px 4px;
   border-radius: 8px;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   line-height: 1.25;
 }
 
 .ds-pa-activity-option input[type="checkbox"] {
-  inline-size: 14px;
-  block-size: 14px;
+  inline-size: 13px;
+  block-size: 13px;
   margin: 0;
   flex: 0 0 auto;
 }
@@ -10064,18 +10081,31 @@ select.ds-input {
   min-height: 1.2em;
   margin: 0 0 6px;
   color: var(--ds-color-danger, #b91c1c);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
 }
 
 @media (max-width: 720px) {
+  .ds-pa-form {
+    width: 100%;
+    padding: 8px;
+  }
+
   .ds-pa-form-grid {
     grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .ds-pa-form-field,
+  .ds-pa-form-field .ds-input,
+  .ds-pa-form-field select.ds-input,
+  .ds-pa-form-field textarea.ds-input {
+    max-width: 100%;
   }
 
   .ds-pa-table th,
   .ds-pa-table td {
     padding: 7px 8px;
-    font-size: 0.82rem;
+    font-size: 0.76rem;
   }
 
   .ds-pa-activity-dropdown {
@@ -10119,7 +10149,7 @@ select.ds-input {
 
 .ds-perm-detail-title {
   margin: 0 0 var(--ds-space-2);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
 }
 
 .ds-perm-detail-grid {
