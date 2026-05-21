@@ -303,13 +303,15 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
 
 // ─── Items editor ────────────────────────────────────────────────────────────
 
-function itemRowHtml(item = {}, idx = 0) {
+function itemRowHtml(item = {}, idx = 0, pricingOptions = []) {
   const n = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? escapeHtml(String(v)) : '';
   const calcTotal = (Number(item.quantity) || 0) && (Number(item.unit_price) || 0)
     ? String(((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)).toFixed(2))
     : n(item.total_price);
+  const selectedPricingName = text(item.pricing_activity_name || item.item_name);
+  const pricingSelectOptions = ['<option value="">— בחירה מהירה —</option>', ...pricingOptions.map((row) => optionHtml(row.activity_name, selectedPricingName))].join('');
   return `<tr class="ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}">
-    <td class="ds-pa-ic-name"><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></td>
+    <td class="ds-pa-ic-name"><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></td>
     <td class="ds-pa-ic-type"><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(item.item_type || '')}" list="pa-item-type-list" placeholder="סוג"></td>
     <td class="ds-pa-ic-gefen"><input class="ds-input ds-input--sm" name="gefen_number" value="${escapeHtml(item.gefen_number || '')}" placeholder="גפ״ן"></td>
     <td class="ds-pa-ic-num"><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></td>
@@ -322,9 +324,9 @@ function itemRowHtml(item = {}, idx = 0) {
   </tr>`;
 }
 
-function itemsEditorHtml(items = []) {
+function itemsEditorHtml(items = [], pricingOptions = []) {
   const startItems = items.length ? items : [{}];
-  const rowsHtml = startItems.map((item, idx) => itemRowHtml(item, idx)).join('');
+  const rowsHtml = startItems.map((item, idx) => itemRowHtml(item, idx, pricingOptions)).join('');
   return `<div class="ds-pa-items-section">
     <div class="ds-pa-items-header">
       <span style="font-size:0.76rem;color:var(--ds-color-text-muted,#64748b);font-weight:600">שורות הצעה</span>
@@ -512,7 +514,7 @@ function proposalPreviewBodyHtml(row, items = []) {
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 
-function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = []) {
+function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = []) {
   const title = mode === 'edit' ? 'עריכת הצעה / הסכם' : 'יצירת הצעת מחיר / הסכם';
   const rowActivity = Array.isArray(row.activity_names) ? row.activity_names : [];
   const currentStatus = STATUS_OPTIONS.includes(text(row.status)) ? text(row.status) : 'draft';
@@ -551,7 +553,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
 
     <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm" name="notes" rows="2">${escapeHtml(text(row.notes))}</textarea></label>
 
-    ${itemsEditorHtml(items)}
+    ${itemsEditorHtml(items, pricingOptions)}
 
     <input type="hidden" name="status" data-pa-status-input value="${escapeHtml(currentStatus)}">
     <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
@@ -672,7 +674,9 @@ function payloadFromForm(form) {
   });
   payload.status = text(formData.get('status')) || 'draft';
   const items = extractItemsFromForm(form);
-  payload.total_amount = items.reduce((s, i) => s + (Number(i.total_price) || 0), 0) || null;
+  const itemNames = Array.from(new Set(items.map((i) => text(i.item_name)).filter(Boolean)));
+  if (itemNames.length) payload.activity_names = itemNames;
+  payload.total_amount = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 0) * (Number(i.unit_price) || 0))), 0) || null;
   return payload;
 }
 
@@ -731,6 +735,7 @@ export const proposalsAgreementsScreen = {
       .map(normalizeProposalAgreementRow)
       .filter((r) => { const k = text(r.id); if (!k || seenIds.has(k)) return false; seenIds.add(k); return true; }));
     const activityNameOptions = Array.from(new Set((Array.isArray(data?.activityNameOptions) ? data.activityNameOptions : []).map((v) => text(v)).filter(Boolean)));
+    const proposalActivityPricing = Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : [];
     const contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
     let debounceTimer = null;
 
@@ -853,6 +858,7 @@ export const proposalsAgreementsScreen = {
     };
 
     const setupItemCalc = (container) => { calcGrandTotal(container); };
+    const pricingByName = new Map(proposalActivityPricing.map((row) => [text(row.activity_name), row]));
 
     // ── Form open/close ───────────────────────────────────────────────────────
     const openForm = async (mode, row = {}, preloadedItems = []) => {
@@ -866,7 +872,7 @@ export const proposalsAgreementsScreen = {
         } catch { items = []; }
       }
       formHost.hidden = false;
-      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items);
+      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing);
       setupActivityPickers(formHost);
       setupClientSelector(formHost);
       setupItemCalc(formHost);
@@ -961,6 +967,27 @@ export const proposalsAgreementsScreen = {
         if (form) calcGrandTotal(form);
       }
     }, { signal });
+    root.addEventListener('change', (event) => {
+      const pricingSelect = event.target.closest?.('[data-pa-pricing-select]');
+      if (!pricingSelect) return;
+      const itemRow = pricingSelect.closest('[data-pa-item-row]');
+      const form = pricingSelect.closest('[data-pa-form]');
+      const picked = pricingByName.get(text(pricingSelect.value));
+      if (!itemRow || !picked) return;
+      const setValue = (name, value) => {
+        const input = itemRow.querySelector(`[name="${name}"]`);
+        if (input) input.value = value == null ? '' : String(value);
+      };
+      setValue('item_name', picked.activity_name || '');
+      setValue('item_type', picked.item_type || '');
+      setValue('gefen_number', picked.gefen_number || '');
+      setValue('hours_count', picked.hours_count);
+      setValue('meetings_count', picked.meetings_count);
+      setValue('unit_price', picked.unit_price);
+      setValue('description', picked.description_for_proposal || '');
+      calcItemRow(itemRow);
+      if (form) calcGrandTotal(form);
+    }, { signal });
 
     // ── Click handler ─────────────────────────────────────────────────────────
     root.addEventListener('click', async (event) => {
@@ -1003,7 +1030,7 @@ export const proposalsAgreementsScreen = {
               items = await api.readProposalAgreementItems(text(row.id));
             }
           } catch { items = []; }
-          host.innerHTML = formHtml('edit', row, activityNameOptions, contactOptions, items);
+          host.innerHTML = formHtml('edit', row, activityNameOptions, contactOptions, items, proposalActivityPricing);
           setupActivityPickers(host);
           setupClientSelector(host);
           setupItemCalc(host);
@@ -1112,7 +1139,7 @@ export const proposalsAgreementsScreen = {
         if (!tbody) return;
         const idx = tbody.querySelectorAll('[data-pa-item-row]').length;
         const tmp = document.createElement('tbody');
-        tmp.innerHTML = itemRowHtml({}, idx);
+        tmp.innerHTML = itemRowHtml({}, idx, proposalActivityPricing);
         tbody.appendChild(tmp.firstElementChild);
         if (form) calcGrandTotal(form);
         tbody.querySelector(`[data-pa-item-idx="${idx}"] [name="item_name"]`)?.focus();

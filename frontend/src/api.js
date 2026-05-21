@@ -1529,6 +1529,32 @@ async function readProposalActivityNamesFromSupabase() {
   }
 }
 
+async function readProposalActivityPricingFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('proposal_activity_pricing')
+      .select('activity_name,proposal_group,item_type,gefen_number,hours_count,meetings_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order')
+      .eq('is_active_for_proposals', true)
+      .order('sort_order', { ascending: true });
+    if (error) return [];
+    return (Array.isArray(data) ? data : []).map((row) => ({
+      activity_name: cleanProposalAgreementText(row?.activity_name),
+      proposal_group: cleanProposalAgreementText(row?.proposal_group),
+      item_type: cleanProposalAgreementText(row?.item_type),
+      gefen_number: cleanProposalAgreementText(row?.gefen_number),
+      hours_count: row?.hours_count != null ? Number(row.hours_count) || null : null,
+      meetings_count: row?.meetings_count != null ? Number(row.meetings_count) || null : null,
+      unit_duration: row?.unit_duration != null ? Number(row.unit_duration) || null : null,
+      unit_price: row?.unit_price != null ? Number(row.unit_price) || null : null,
+      hourly_price: row?.hourly_price != null ? Number(row.hourly_price) || null : null,
+      description_for_proposal: cleanProposalAgreementText(row?.description_for_proposal),
+      sort_order: Number(row?.sort_order) || 0
+    }));
+  } catch {
+    return [];
+  }
+}
+
 async function readContactsSchoolsForProposals() {
   try {
     const { data, error } = await supabase
@@ -1551,7 +1577,7 @@ async function readContactsSchoolsForProposals() {
 
 async function readProposalsAgreementsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
-  const [paResult, activityNameOptions, contactOptions] = await Promise.all([
+  const [paResult, activityNameOptions, contactOptions, proposalActivityPricing] = await Promise.all([
     supabase
       .from('proposals_agreements')
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
@@ -1560,13 +1586,15 @@ async function readProposalsAgreementsFromSupabase() {
       .order('document_type', { ascending: true })
       .order('activity_type_group', { ascending: true }),
     readProposalActivityNamesFromSupabase(),
-    readContactsSchoolsForProposals()
+    readContactsSchoolsForProposals(),
+    readProposalActivityPricingFromSupabase()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
   return {
     rows: (Array.isArray(paResult.data) ? paResult.data : []).map(normalizeProposalAgreementRow),
     activityNameOptions,
     contactOptions,
+    proposalActivityPricing,
     _source: 'supabase'
   };
 }
@@ -2489,6 +2517,10 @@ export const api = {
       description:    cleanProposalAgreementText(item.description),
       sort_order:     Number(item.sort_order) || 0
     }));
+  },
+  readProposalActivityPricing: async () => {
+    assertCanUseProposalsAgreementsApi();
+    return readProposalActivityPricingFromSupabase();
   },
   saveProposalAgreementItems: async (proposalId, items) => {
     assertCanUseProposalsAgreementsApi();
