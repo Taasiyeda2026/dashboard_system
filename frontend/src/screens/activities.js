@@ -356,9 +356,9 @@ function addActivityModalHtml(settings) {
 
         <p class="ds-activity-add-section">צוות וניהול</p>
         <label class="ds-activity-add-field"><span>מנהל פעילות</span><select class="ds-input" name="activity_manager">${optionsHtml(managerOptions, '', NO_ACTIVITY_MANAGER_LABEL)}</select></label>
-        <label class="ds-activity-add-field"><span>מדריך/ה</span><select class="ds-input" name="instructor_name" data-add-instructor>${optionsHtml(instructorOptions)}</select></label>
+        <label class="ds-activity-add-field"><span>מדריך/ה ראשי/ת</span><select class="ds-input" name="instructor_name" data-add-instructor>${optionsHtml(instructorOptions)}</select></label>
         <input type="hidden" name="emp_id" value="">
-        <label class="ds-activity-add-field" data-field-instructor2 style="display:none"><span>מדריך/ה 2</span><select class="ds-input" name="instructor_name_2" data-add-instructor-2>${optionsHtml(instructorOptions)}</select></label>
+        <label class="ds-activity-add-field" data-field-instructor2><span>מדריך/ה נוסף/ת (אופציונלי)</span><select class="ds-input" name="instructor_name_2" data-add-instructor-2>${optionsHtml(instructorOptions)}</select></label>
         <input type="hidden" name="emp_id_2" value="">
 
         <p class="ds-activity-add-section">הערות</p>
@@ -1122,9 +1122,6 @@ export const activitiesScreen = {
       const sessionsSel = form.querySelector('[data-add-sessions]');
       if (sessionsSel) sessionsSel.value = String(sessionsSel.value || '1') || '1';
 
-      const secondInstructorField = form.querySelector('[data-field-instructor2]');
-      if (secondInstructorField) secondInstructorField.style.display = 'none';
-
       const typeSel = form.querySelector('[data-add-activity-type]');
       if (typeSel) {
         let allTypes = [];
@@ -1238,8 +1235,8 @@ export const activitiesScreen = {
         end_time: get('end_time'),
         instructor_name: get('instructor_name'),
         emp_id: pickEmp(get('instructor_name')),
-        instructor_name_2: '',
-        emp_id_2: '',
+        instructor_name_2: get('instructor_name_2'),
+        emp_id_2: pickEmp(get('instructor_name_2')),
         start_date: isOneDay ? oneDayDate : get('start_date'),
         end_date: isOneDay ? oneDayDate || null : get('end_date') || null,
         status: 'פעיל',
