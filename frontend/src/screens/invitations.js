@@ -58,8 +58,9 @@ function ensureInvitationStyles() {
     .inv-field textarea{min-height:54px;resize:vertical}
     .inv-actions{display:grid;gap:8px;margin-top:10px}.inv-btn{border:0;border-radius:10px;padding:10px;font-weight:800;cursor:pointer}
     .inv-btn.print{background:linear-gradient(135deg,#14b8a6,#0ea5e9);color:#fff}
-    .inv-preview-wrap{display:flex;justify-content:center;align-items:flex-start;padding:8px 0}
-    .inv-a4{width:794px;min-height:1123px;background:#fffdf6;position:relative;box-shadow:0 18px 48px rgba(2,8,23,.24);padding:102px 76px 70px;overflow:hidden;display:flex;justify-content:center;align-items:center}
+    .inv-preview-wrap{display:flex;justify-content:center;align-items:flex-start;overflow:auto;max-height:calc(100vh - 32px);padding:14px}
+    .inv-a4-stage{display:flex;justify-content:center;align-items:flex-start;min-width:100%}
+    .inv-a4{width:794px;min-height:1123px;background:#fffdf6;position:relative;box-shadow:0 18px 48px rgba(2,8,23,.24);padding:102px 76px 70px;overflow:hidden;display:flex;justify-content:center;align-items:center;transform-origin:top center}
     .inv-ribbon{position:absolute;top:0;bottom:0;width:66px;opacity:.92;pointer-events:none}.inv-ribbon.right{right:0;background:radial-gradient(circle at 50% 14%, rgba(255,255,255,.92) 0 6px, transparent 7px),radial-gradient(circle at 45% 31%, rgba(18,185,129,.42), transparent 26px),linear-gradient(180deg, rgba(18,185,129,.4), rgba(14,165,233,.18))}.inv-ribbon.left{left:0;background:radial-gradient(circle at 50% 80%, rgba(255,255,255,.9) 0 7px, transparent 8px),radial-gradient(circle at 50% 22%, rgba(14,165,233,.35), transparent 28px),linear-gradient(180deg, rgba(14,165,233,.22), rgba(18,185,129,.34))}
     .inv-logos{position:absolute;top:24px;left:50%;transform:translateX(-50%);display:flex;gap:18px;padding:8px 20px;background:rgba(255,255,255,.76);border-radius:999px;border:1px solid rgba(255,255,255,.72);z-index:3}
     .inv-logo-slot{width:118px;height:42px;border-radius:12px;background:rgba(248,250,252,.72);border:1px dashed rgba(148,163,184,.5);display:flex;align-items:center;justify-content:center;overflow:hidden;color:#94a3b8;font-size:11px;font-weight:800}.inv-logo-slot img{display:none;width:100%;height:100%;object-fit:contain}.inv-logo-slot.has-logo img{display:block}.inv-logo-slot.has-logo span{display:none}
@@ -71,8 +72,9 @@ function ensureInvitationStyles() {
     .inv-body{font-size:22px;line-height:1.7;text-align:right;margin:12px 0}.inv-body p{margin:0 0 8px}.inv-event{background:linear-gradient(135deg, rgba(255,255,255,.96), rgba(240,249,255,.92));padding:13px 22px;border-radius:18px;border:2px solid rgba(20,184,166,.18);font-size:20px;line-height:1.6;margin:12px 0}
     .inv-participants{width:100%;text-align:right;background:rgba(248,250,252,.72);border:1px solid rgba(226,232,240,.88);border-radius:18px;padding:14px 18px;font-size:16px;line-height:1.8}
     .inv-closing{font-size:34px;color:#058669;font-weight:800;margin-top:12px}
-    @media print{@page{size:A4 portrait;margin:0} .inv-panel{display:none !important}.inv-shell{display:block}.inv-a4{width:210mm;height:297mm;min-height:0;margin:0;box-shadow:none;padding:28mm 20mm 18mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-    @media (max-width:1200px){.inv-shell{grid-template-columns:1fr}.inv-panel{position:static;max-height:none}}
+    @media print{@page{size:A4 portrait;margin:0} .inv-panel{display:none !important}.inv-shell{display:block}.inv-preview-wrap{overflow:visible !important;max-height:none !important;padding:0 !important}.inv-a4-stage{min-width:0 !important}.inv-a4{width:210mm;height:297mm;min-height:0;margin:0;box-shadow:none;padding:28mm 20mm 18mm;transform:none !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+    @media (max-width:1380px){.inv-a4{transform:scale(.82)}}
+    @media (max-width:1200px){.inv-shell{grid-template-columns:1fr}.inv-panel{position:static;max-height:none}.inv-preview-wrap{max-height:none}.inv-a4{transform:scale(.76)}}
   `;
   document.head.appendChild(style);
 }
@@ -84,7 +86,7 @@ const showSpeakerField = (s) => s.type === 'lecture';
 
 function invitationPreviewHtml(s) {
   const tpl = getTemplate(s);
-  return `<article class="inv-a4" id="invitation-page" style="background:${s.backgroundCss};background-size:cover;background-position:center;">
+  return `<div class="inv-a4-stage"><article class="inv-a4" id="invitation-page" style="background:${s.backgroundCss};background-size:cover;background-position:center;">
       <div class="inv-ribbon right"></div><div class="inv-ribbon left"></div>
       <header class="inv-logos">
         ${['education','taasiyeda','school'].map((k) => `<div class="inv-logo-slot ${s.logos[k] ? 'has-logo' : ''}"><span>${k === 'education' ? 'משרד החינוך' : k === 'taasiyeda' ? 'תעשיידע' : 'בית הספר'}</span>${s.logos[k] ? `<img src="${s.logos[k]}" alt="${k}"/>` : '<img alt=""/>'}</div>`).join('')}
@@ -100,7 +102,7 @@ function invitationPreviewHtml(s) {
         <div class="inv-participants"><strong>בהשתתפות:</strong><br>${(s.participants || tpl.participants || 'משתתפים / נציגים').replace(/\n/g, '<br>')}</div>
         <div class="inv-closing">${s.closing || tpl.closing || 'נשמח לראותכם!'}</div>
       </section>
-    </article>`;
+    </article></div>`;
 }
 
 export const invitationsScreen = {
