@@ -14,8 +14,8 @@ const FIELD_LABELS = {
   activity_type_group: 'סוג פעילות',
   proposal_date:       'תאריך הצעה',
   activity_names:      'שם הפעילויות',
-  contact_name:        'שם איש קשר',
-  contact_role:        'תפקיד איש קשר',
+  contact_name:        'איש קשר',
+  contact_role:        'תפקיד',
   phone:               'טלפון',
   email:               'דוא״ל',
   notes:               'הערות'
@@ -135,13 +135,9 @@ function filterSelectHtml(key, label, values) {
   return `<label class="ds-pa-filter"><span>${escapeHtml(label)}</span><select class="ds-input ds-input--sm" data-pa-filter="${escapeHtml(key)}">${options}</select></label>`;
 }
 
-function contactSummary(row) {
-  const parts = [row.contact_name, row.contact_role, row.phone, row.email].map(text).filter(Boolean);
-  return parts.length ? parts.join(' · ') : '—';
-}
-
 function detailRowsHtml(row) {
   return FORM_FIELDS.map((key) => {
+    if (['contact_name', 'contact_role', 'phone', 'email'].includes(key)) return '';
     let displayValue;
     if (key === 'activity_names') {
       displayValue = (Array.isArray(row[key]) ? row[key] : []).join(', ') || '';
@@ -157,6 +153,21 @@ function detailRowsHtml(row) {
       <span class="ds-pa-detail-value">${escapeHtml(displayValue)}</span>
     </div>`;
   }).join('');
+}
+
+function contactDetailRowsHtml(row = {}) {
+  const contactFields = ['contact_name', 'contact_role', 'phone', 'email'];
+  const rows = contactFields.map((key) => {
+    const value = text(row[key]);
+    if (!value) return '';
+    return `
+    <div class="ds-pa-detail-row">
+      <span class="ds-pa-detail-label">${escapeHtml(FIELD_LABELS[key] || key)}</span>
+      <span class="ds-pa-detail-value">${escapeHtml(value)}</span>
+    </div>`;
+  }).join('');
+  if (!rows) return '';
+  return `<section class="ds-pa-contact-section"><h4 class="ds-pa-contact-title">אנשי קשר</h4>${rows}</section>`;
 }
 
 export function proposalsAgreementsTableRowsHtml(rows) {
@@ -251,7 +262,7 @@ function drawerHtml(row, activityNameOptions = []) {
         <button type="button" class="ds-btn ds-btn--sm" data-pa-close-drawer aria-label="סגירת פרטי רשומה">✕</button>
       </header>
       <div class="ds-pa-detail-grid">${detailRowsHtml(row)}</div>
-      <p class="ds-pa-contact-line"><span class="ds-muted">פרטי קשר:</span> ${escapeHtml(contactSummary(row))}</p>
+      ${contactDetailRowsHtml(row)}
       <div class="ds-pa-drawer-actions">
         <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-edit-row="${escapeHtml(row.id)}">עריכה</button>
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-delete-row="${escapeHtml(row.id)}">מחיקה</button>
