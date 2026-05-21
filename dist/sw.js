@@ -3,7 +3,7 @@
  * App shell, JS and CSS: network-first so a normal reload can pick up a new deploy.
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 407;
+const CACHE_VERSION = 410;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -15,7 +15,7 @@ const PRECACHE_URLS = [
   "./assets/favicon-32.png",
   "./assets/favicon-D0Y9bj5H.ico",
   "./assets/favicon.ico",
-  "./assets/index-DbJ_X7vL.js",
+  "./assets/index-BhyoifUu.js",
   "./assets/logo1-sNrSbLi9.png",
   "./assets/logo1.png",
   "./assets/logo2.png",
@@ -30,7 +30,7 @@ const PRECACHE_URLS = [
   "./assets/pwa/icon-72.png",
   "./assets/pwa/icon-96.png",
   "./assets/pwa/icon-maskable-512.png",
-  "./assets/style-Bauq48BP.css",
+  "./assets/style-gmNpalxU.css",
   "./index.html",
   "./manifest.json"
 ];
@@ -82,15 +82,19 @@ async function deleteOutdatedCaches() {
   return outdatedKeys;
 }
 
-async function notifyClientsOfUpdate() {
+async function reloadClientsAfterCacheUpgrade(deletedKeys) {
+  if (!Array.isArray(deletedKeys) || !deletedKeys.length) return;
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  clients.forEach((client) => {
-    try { client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION }); } catch (e) { /* ignore */ }
-  });
+  await Promise.all(clients.map(async (client) => {
+    try {
+      await client.navigate(client.url);
+    } catch (e) {
+      try { client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION }); } catch (_) { /* ignore */ }
+    }
+  }));
 }
 
 function withNoStore(request) {
-  if (request.cache === 'no-store') return request;
   return new Request(request, { cache: 'no-store' });
 }
 
@@ -156,11 +160,10 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    deleteOutdatedCaches().then(async () => {
+    deleteOutdatedCaches().then(async (deletedKeys) => {
       // Claim all open tabs so this SW serves them right away.
       await self.clients.claim();
-      // Notify tabs that a new version is active (app can show a toast if desired).
-      await notifyClientsOfUpdate();
+      await reloadClientsAfterCacheUpgrade(deletedKeys);
     })
   );
 });
@@ -196,7 +199,7 @@ self.addEventListener('fetch', (event) => {
     url.pathname.endsWith('.html') ||
     url.pathname.endsWith('.js') ||
     url.pathname.endsWith('.css') ||
-    isManifestUrl(url)
+    url.pathname.endsWith('/manifest.json') || isManifestUrl(url)
   );
 
   event.respondWith(

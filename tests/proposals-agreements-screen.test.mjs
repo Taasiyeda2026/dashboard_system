@@ -24,13 +24,41 @@ if (!globalThis.localStorage) {
   };
 }
 
+/**
+ * Runs fn(root, dom) inside a JSDOM context with all required globals patched.
+ * AbortController is swapped to JSDOM's version so { signal } in addEventListener works.
+ * A real URL is set so localStorage is available.
+ */
+async function withJSDOM(html, fn) {
+  const dom = new JSDOM(`<main id="root">${html}</main>`, { url: 'http://localhost/' });
+  const saved = {
+    document: globalThis.document,
+    window: globalThis.window,
+    FormData: globalThis.FormData,
+    AbortController: globalThis.AbortController
+  };
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.FormData = dom.window.FormData;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const root = dom.window.document.getElementById('root');
+    await fn(root, dom);
+  } finally {
+    globalThis.document = saved.document;
+    globalThis.window = saved.window;
+    globalThis.FormData = saved.FormData;
+    globalThis.AbortController = saved.AbortController;
+  }
+}
+
 const MAIN_FILE = new URL('../frontend/src/main.js', import.meta.url);
 const API_FILE = new URL('../frontend/src/api.js', import.meta.url);
 const ACT_NAV_FILE = new URL('../frontend/src/screens/shared/act-nav-grid.js', import.meta.url);
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -51,12 +79,13 @@ const sampleRows = [
     id: '11111111-1111-1111-1111-111111111111',
     client_authority: 'רשות א',
     school_framework: 'בית ספר א',
-    document_type: 'הצעה',
-    activity_type: 'רובוטיקה',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'פעילויות קיץ',
+    status: 'draft',
     contact_name: 'דנה קשר',
     contact_role: 'מנהלת',
-    contact_phone: '050-1111111',
-    contact_email: 'dana@example.com',
+    phone: '050-1111111',
+    email: 'dana@example.com',
     notes: 'הערה קצרה'
   },
   {
@@ -64,10 +93,38 @@ const sampleRows = [
     client_authority: 'רשות ב',
     school_framework: 'מסגרת ב',
     document_type: 'הסכם',
-    activity_type: 'יזמות',
+    activity_type_group: 'שנה הבאה',
+    status: 'pending_approval',
     contact_name: 'יוסי קשר',
-    contact_phone: '050-2222222',
+    phone: '050-2222222',
     notes: 'רשומה שנייה'
+  }
+];
+
+const sampleContactOptions = [
+  {
+    authority: 'רשות א',
+    school: 'בית ספר א',
+    contact_name: 'דנה קשר',
+    contact_role: 'מנהלת',
+    phone: '050-1111111',
+    email: 'dana@example.com'
+  },
+  {
+    authority: 'רשות א',
+    school: 'בית ספר א',
+    contact_name: 'מיכל כהן',
+    contact_role: 'רכזת',
+    phone: '050-3333333',
+    email: 'michal@example.com'
+  },
+  {
+    authority: 'רשות ב',
+    school: 'מסגרת ב',
+    contact_name: 'יוסי קשר',
+    contact_role: '',
+    phone: '050-2222222',
+    email: ''
   }
 ];
 
@@ -89,7 +146,7 @@ test('screen authorization allows only domain_manager, operation_manager and adm
 test('proposals-agreements route is registered and role-gated in route definitions', async () => {
   const mainSource = await readFile(MAIN_FILE, 'utf8');
   const apiSource = await readFile(API_FILE, 'utf8');
-  assert.match(mainSource, /'proposals-agreements': 'הצעות'/);
+  assert.match(mainSource, /'proposals-agreements': 'הצעות/);
   assert.match(mainSource, /'proposals-agreements': \(\) => import\('\.\/screens\/proposals-agreements\.js'\)/);
   assert.match(apiSource, /admin: \[[^\]]*'proposals-agreements'/);
   assert.match(apiSource, /operation_manager: \[[^\]]*'proposals-agreements'/);
@@ -98,11 +155,17 @@ test('proposals-agreements route is registered and role-gated in route definitio
   assert.doesNotMatch(apiSource, /instructor: \[[^\]]*'proposals-agreements'/);
 });
 
-test('table structure includes required outer columns', () => {
+test('table structure includes all required columns including status', () => {
   const html = proposalsAgreementsScreen.render({ rows: sampleRows }, { state: stateFor('admin') });
-  assert.match(html, /<th>לקוח \/ רשות<\/th><th>בית ספר \/ מסגרת<\/th><th>סוג מסמך<\/th><th>סוג פעילות<\/th><th>הערות<\/th>/);
+  assert.match(html, /<th>לקוח \/ רשות<\/th>/);
+  assert.match(html, /<th>בית ספר \/ מסגרת<\/th>/);
+  assert.match(html, /<th>סוג מסמך<\/th>/);
+  assert.match(html, /<th>סוג פעילות<\/th>/);
+  assert.match(html, /<th>תאריך הצעה<\/th>/);
+  assert.match(html, /<th>סטטוס<\/th>/);
+  assert.match(html, /<th>הערות<\/th>/);
   assert.match(html, /data-pa-table-region/);
-  assert.match(html, /table-layout: fixed|ds-pa-table/);
+  assert.match(html, /ds-pa-table/);
 });
 
 test('contact details are hidden from the outer table and available only in drawer markup', () => {
@@ -127,16 +190,7 @@ test('page is excluded from header nav and ACT_SUBNAV_ITEMS', async () => {
 });
 
 test('local search debounces 280ms and updates only table region and counter', async () => {
-  const dom = new JSDOM(`<main id="root">${proposalsAgreementsScreen.render({ rows: sampleRows }, { state: stateFor('admin') })}</main>`);
-  const previousDocument = globalThis.document;
-  const previousWindow = globalThis.window;
-  const previousFormData = globalThis.FormData;
-  globalThis.window = dom.window;
-  globalThis.document = dom.window.document;
-  globalThis.FormData = dom.window.FormData;
-
-  try {
-    const root = dom.window.document.getElementById('root');
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: sampleRows }, { state: stateFor('admin') }), async (root, dom) => {
     proposalsAgreementsScreen.bind({ root, data: { rows: [...sampleRows] }, state: stateFor('admin'), api: {} });
     const headerNode = root.querySelector('.ds-page-header');
     const toolbarNode = root.querySelector('.ds-pa-toolbar');
@@ -155,11 +209,7 @@ test('local search debounces 280ms and updates only table region and counter', a
     assert.match(root.querySelector('[data-pa-results-count]').textContent, /^1$/);
     assert.match(tableRegion.textContent, /רשות ב/);
     assert.doesNotMatch(tableRegion.textContent, /רשות א/);
-  } finally {
-    globalThis.document = previousDocument;
-    globalThis.window = previousWindow;
-    globalThis.FormData = previousFormData;
-  }
+  });
 });
 
 test('screen and API source enforce authorization before API/Supabase calls', async () => {
@@ -182,4 +232,322 @@ test('migration creates proposals_agreements with indexes, updated_at trigger an
   assert.match(migration, /for select[\s\S]*to authenticated[\s\S]*app_can_use_proposals_agreements\(\)/);
   assert.match(migration, /for insert[\s\S]*with check \(public\.app_can_use_proposals_agreements\(\)\)/);
   assert.match(migration, /for update[\s\S]*using \(public\.app_can_use_proposals_agreements\(\)\)/);
+});
+
+test('add button opens compact form with draft and pending-approval actions', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: sampleRows, contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [...sampleRows], activityNameOptions: ['רובוטיקה', 'יזמות'], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+      const formHost = root.querySelector('[data-pa-form-host]');
+      assert.ok(formHost.hidden, 'form host should be hidden initially');
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+
+      assert.equal(formHost.hidden, false, 'form host should be visible after clicking add');
+      const form = formHost.querySelector('[data-pa-form]');
+      assert.ok(form, 'form element should exist');
+      assert.match(form.innerHTML, /שמירת טיוטה/);
+      assert.match(form.innerHTML, /שליחה לאישור/);
+      assert.match(form.innerHTML, /data-pa-client-select/);
+      assert.match(form.innerHTML, /לקוח חדש/);
+    }
+  );
+});
+
+test('client selector auto-fills contact fields when existing client is chosen', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form = root.querySelector('[data-pa-form]');
+      const clientSelect = form.querySelector('[data-pa-client-select]');
+
+      // Select "רשות ב" which has exactly one contact
+      clientSelect.value = 'רשות ב||מסגרת ב';
+      clientSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+      const authorityInput = form.querySelector('input[name="client_authority"]');
+      const schoolInput = form.querySelector('input[name="school_framework"]');
+      const contactInput = form.querySelector('input[name="contact_name"]');
+      const phoneInput = form.querySelector('input[name="phone"]');
+
+      assert.equal(authorityInput.value, 'רשות ב', 'authority should be filled');
+      assert.equal(schoolInput.value, 'מסגרת ב', 'school should be filled');
+      assert.equal(contactInput.value, 'יוסי קשר', 'contact_name should be auto-filled');
+      assert.equal(phoneInput.value, '050-2222222', 'phone should be auto-filled');
+    }
+  );
+});
+
+test('multiple contacts for same client shows contact picker dropdown', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form = root.querySelector('[data-pa-form]');
+      const clientSelect = form.querySelector('[data-pa-client-select]');
+
+      // "רשות א" has 2 contacts → should show contact picker
+      clientSelect.value = 'רשות א||בית ספר א';
+      clientSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+      const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+      assert.ok(pickerHost, 'contact picker host should exist');
+      assert.match(pickerHost.innerHTML, /data-pa-contact-select/, 'contact picker select should appear');
+      assert.match(pickerHost.innerHTML, /דנה קשר/, 'first contact should be in picker');
+      assert.match(pickerHost.innerHTML, /מיכל כהן/, 'second contact should be in picker');
+    }
+  );
+});
+
+test('new client toggle button shows hint and clears client selector', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form = root.querySelector('[data-pa-form]');
+      const clientSelect = form.querySelector('[data-pa-client-select]');
+
+      // Pre-select a client
+      clientSelect.value = 'רשות ב||מסגרת ב';
+
+      // Click new client toggle
+      form.querySelector('[data-pa-new-client-toggle]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+
+      const hint = form.querySelector('[data-pa-new-client-hint]');
+      assert.equal(hint.hidden, false, 'hint should be visible after toggle');
+      assert.equal(clientSelect.value, '', 'client selector should be cleared');
+    }
+  );
+});
+
+test('save draft sends status=draft and send-for-approval sends status=pending_approval', async () => {
+  const savedPayloads = [];
+  const mockApi = {
+    addProposalAgreement: async (payload) => {
+      savedPayloads.push({ ...payload });
+      return { ok: true, row: { ...payload, id: 'new-id-123' } };
+    }
+  };
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: [] },
+        state: stateFor('admin'),
+        api: mockApi
+      });
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form = root.querySelector('[data-pa-form]');
+
+      form.querySelector('input[name="client_authority"]').value = 'רשות בדיקה';
+      form.querySelector('input[name="school_framework"]').value = 'בית ספר בדיקה';
+      form.querySelector('select[name="document_type"]').value = 'הצעת מחיר';
+      form.querySelector('select[name="activity_type_group"]').value = 'פעילויות קיץ';
+
+      form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      assert.equal(savedPayloads.length, 1, 'one save call');
+      assert.equal(savedPayloads[0].status, 'draft', 'draft save should set status=draft');
+
+      // Re-open form for pending_approval test
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form2 = root.querySelector('[data-pa-form]');
+      form2.querySelector('input[name="client_authority"]').value = 'רשות בדיקה 2';
+      form2.querySelector('input[name="school_framework"]').value = 'בית ספר בדיקה 2';
+      form2.querySelector('select[name="document_type"]').value = 'הסכם';
+      form2.querySelector('select[name="activity_type_group"]').value = 'שנה הבאה';
+
+      form2.querySelector('[data-pa-save-pending]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      assert.equal(savedPayloads.length, 2, 'second save call');
+      assert.equal(savedPayloads[1].status, 'pending_approval', 'pending save should set status=pending_approval');
+    }
+  );
+});
+
+test('status filter shows only matching rows', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: sampleRows }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({ root, data: { rows: [...sampleRows] }, state: stateFor('admin'), api: {} });
+
+      const statusFilter = root.querySelector('[data-pa-filter="status"]');
+      assert.ok(statusFilter, 'status filter should exist');
+
+      statusFilter.value = 'draft';
+      statusFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+      assert.match(root.querySelector('[data-pa-results-count]').textContent, /^1$/);
+      assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות א/);
+      assert.doesNotMatch(root.querySelector('[data-pa-table-region]').textContent, /רשות ב/);
+
+      statusFilter.value = '';
+      statusFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      assert.match(root.querySelector('[data-pa-results-count]').textContent, /^2$/);
+    }
+  );
+});
+
+test('status badge is rendered in table rows with correct labels', () => {
+  const html = proposalsAgreementsScreen.render({ rows: sampleRows }, { state: stateFor('admin') });
+  assert.match(html, /טיוטה/);
+  assert.match(html, /ממתין לאישור/);
+  // Badge markup
+  assert.match(html, /ds-pa-badge/);
+});
+
+test('multiple activity selections are preserved on save', async () => {
+  const savedPayloads = [];
+  const mockApi = {
+    addProposalAgreement: async (payload) => {
+      savedPayloads.push({ ...payload });
+      return { ok: true, row: { ...payload, id: 'act-id-001' } };
+    }
+  };
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(
+      { rows: [], activityNameOptions: ['רובוטיקה', 'יזמות', 'מייקרים'] },
+      { state: stateFor('admin') }
+    ),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: ['רובוטיקה', 'יזמות', 'מייקרים'], contactOptions: [] },
+        state: stateFor('admin'),
+        api: mockApi
+      });
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form = root.querySelector('[data-pa-form]');
+
+      form.querySelector('input[name="client_authority"]').value = 'רשות ג';
+      form.querySelector('input[name="school_framework"]').value = 'בית ספר ג';
+      form.querySelector('select[name="document_type"]').value = 'הצעת מחיר';
+      form.querySelector('select[name="activity_type_group"]').value = 'הצעה משולבת';
+
+      const checkboxes = form.querySelectorAll('.ds-pa-activity-option input[type="checkbox"]');
+      const first = [...checkboxes].find((cb) => cb.value === 'רובוטיקה');
+      const second = [...checkboxes].find((cb) => cb.value === 'יזמות');
+      if (first) { first.checked = true; first.dispatchEvent(new dom.window.Event('change', { bubbles: true })); }
+      if (second) { second.checked = true; second.dispatchEvent(new dom.window.Event('change', { bubbles: true })); }
+
+      form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      assert.equal(savedPayloads.length, 1, 'one save call');
+      const saved = savedPayloads[0];
+      assert.ok(Array.isArray(saved.activity_names), 'activity_names should be array');
+      assert.equal(saved.activity_names.length, 2, 'two activities should be saved');
+      assert.ok(saved.activity_names.includes('רובוטיקה'), 'רובוטיקה should be in saved activities');
+      assert.ok(saved.activity_names.includes('יזמות'), 'יזמות should be in saved activities');
+    }
+  );
+});
+
+test('no duplicate rows after save and update', async () => {
+  const existingRow = {
+    id: 'dup-test-id-001',
+    client_authority: 'רשות קיימת',
+    school_framework: 'בית ספר קיים',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'פעילויות קיץ',
+    status: 'draft',
+    notes: ''
+  };
+  const updatedRow = { ...existingRow, notes: 'הערה חדשה', status: 'pending_approval' };
+  const mockApi = {
+    updateProposalAgreement: async () => ({ ok: true, row: updatedRow })
+  };
+
+  const localData = { rows: [existingRow] };
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [existingRow] }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: localData,
+        state: stateFor('admin'),
+        api: mockApi
+      });
+
+      const rowEl = root.querySelector(`[data-pa-row-id="${existingRow.id}"]`);
+      rowEl.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const editBtn = root.querySelector(`[data-pa-edit-row="${existingRow.id}"]`);
+      assert.ok(editBtn, 'edit button should exist');
+      editBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+
+      const inlineForm = root.querySelector('[data-pa-inline-form]');
+      const form = inlineForm?.querySelector('[data-pa-form]');
+      assert.ok(form, 'inline form should exist');
+
+      form.querySelector('[data-pa-save-pending]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      const ids = localData.rows.map((r) => r.id);
+      const uniqueIds = new Set(ids);
+      assert.equal(ids.length, uniqueIds.size, 'no duplicate IDs in data.rows after update');
+      assert.equal(ids.length, 1, 'still exactly one row');
+    }
+  );
+});
+
+test('status constants exported and complete', () => {
+  assert.ok(Array.isArray(STATUS_OPTIONS), 'STATUS_OPTIONS should be an array');
+  assert.ok(typeof STATUS_LABELS === 'object', 'STATUS_LABELS should be an object');
+  for (const s of STATUS_OPTIONS) {
+    assert.ok(STATUS_LABELS[s], `${s} should have a Hebrew label`);
+  }
+  assert.ok(STATUS_OPTIONS.includes('draft'));
+  assert.ok(STATUS_OPTIONS.includes('pending_approval'));
+  assert.ok(STATUS_OPTIONS.includes('approved'));
+  assert.ok(STATUS_OPTIONS.includes('cancelled'));
+  assert.ok(STATUS_OPTIONS.includes('returned_for_changes'));
+});
+
+test('upgrade migration adds status column with constraint and new indexes', async () => {
+  const upgradeMigration = await readFile(
+    new URL('../supabase/migrations/20260521_upgrade_proposals_agreements.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(upgradeMigration, /add column if not exists status text/i);
+  assert.match(upgradeMigration, /proposals_agreements_status_check/);
+  assert.match(upgradeMigration, /'draft'[\s\S]*'pending_approval'[\s\S]*'returned_for_changes'[\s\S]*'approved'[\s\S]*'cancelled'/);
+  assert.match(upgradeMigration, /proposals_agreements_status_idx/);
+  assert.match(upgradeMigration, /proposals_agreements_proposal_date_idx/);
+  assert.match(upgradeMigration, /add column if not exists approval_note/i);
+  assert.match(upgradeMigration, /proposal_agreement_items/);
 });
