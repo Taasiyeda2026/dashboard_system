@@ -196,7 +196,9 @@ test('activities screen wires add-activity form submit to api.addActivity flow',
   assert.doesNotMatch(source, /data-add-family=/);
   assert.match(source, /const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set\(\['workshop', 'tour', 'escape_room'\]\);/);
   assert.match(source, /sessionsInput\.disabled = isOneDay/);
+  assert.match(source, /sessionsField\.style\.display = isOneDay \? 'none' : ''/);
   assert.match(source, /activity_family: isOneDay \? 'one_day' : 'program'/);
+  assert.doesNotMatch(source, /for \(let i = 2; i <= 35; i\+\+\) payload\[`Date/);
 });
 
 test('activity drawer uses instructor emp_id fallback for display consistency', async () => {

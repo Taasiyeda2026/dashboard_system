@@ -1143,7 +1143,7 @@ export const activitiesScreen = {
         sessionsInput.value = isOneDay ? '1' : String(sessionsInput.value || '1');
         sessionsInput.disabled = isOneDay;
       }
-      if (sessionsField) sessionsField.style.opacity = isOneDay ? '0.72' : '';
+      if (sessionsField) sessionsField.style.display = isOneDay ? 'none' : '';
       const sessions = isOneDay ? 1 : Math.max(1, Number(sessionsInput?.value || '1'));
       const container = form.querySelector('[data-add-date-rows]');
       if (!container) return;
