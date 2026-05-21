@@ -308,13 +308,27 @@ function addActivityModalHtml(settings) {
   const initialActivityNames = getActivityNamesForType(settings, initialType);
   const sessionsList = Array.from({ length: 35 }, (_, i) => String(i + 1));
 
-  const authorityField = authorityOptions.length
-    ? `<label class="ds-activity-add-field"><span>רשות</span><input class="ds-input" name="authority" type="text" list="add-authority-list" autocomplete="off">${datalistHtml('add-authority-list', authorityOptions)}</label>`
-    : `<label class="ds-activity-add-field"><span>רשות</span><input class="ds-input" name="authority" type="text"></label>`;
+  const authorityField = `
+    <div class="ds-activity-add-field ds-activity-add-field--entity" data-entity-field="authority">
+      <div class="ds-activity-add-label-row">
+        <span>רשות</span>
+        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-entity-toggle="authority">+ רשות חדשה</button>
+      </div>
+      <input class="ds-input" name="authority" type="text" list="add-authority-list" autocomplete="off" data-entity-select="authority">
+      ${datalistHtml('add-authority-list', authorityOptions)}
+      <input class="ds-input" name="authority_custom" type="text" placeholder="הזנת רשות חדשה" style="display:none" data-entity-custom="authority">
+    </div>`;
 
-  const schoolField = schoolOptions.length
-    ? `<label class="ds-activity-add-field"><span>בית ספר</span><input class="ds-input" name="school" type="text" list="add-school-list" autocomplete="off">${datalistHtml('add-school-list', schoolOptions)}</label>`
-    : `<label class="ds-activity-add-field"><span>בית ספר</span><input class="ds-input" name="school" type="text"></label>`;
+  const schoolField = `
+    <div class="ds-activity-add-field ds-activity-add-field--entity" data-entity-field="school">
+      <div class="ds-activity-add-label-row">
+        <span>בית ספר</span>
+        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-entity-toggle="school">+ בית ספר חדש</button>
+      </div>
+      <input class="ds-input" name="school" type="text" list="add-school-list" autocomplete="off" data-entity-select="school">
+      ${datalistHtml('add-school-list', schoolOptions)}
+      <input class="ds-input" name="school_custom" type="text" placeholder="הזנת בית ספר חדש" style="display:none" data-entity-custom="school">
+    </div>`;
 
   return `
     <form class="ds-activity-add-form" dir="rtl" data-add-activity-form
@@ -1196,6 +1210,37 @@ export const activitiesScreen = {
       form.querySelector('[data-add-sessions]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[name="start_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[name="one_day_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
+      bindEntityFieldToggle(form, 'authority');
+      bindEntityFieldToggle(form, 'school');
+    }
+
+    function bindEntityFieldToggle(form, entityKey) {
+      const toggleBtn = form.querySelector(`[data-entity-toggle="${entityKey}"]`);
+      const selectInput = form.querySelector(`[data-entity-select="${entityKey}"]`);
+      const customInput = form.querySelector(`[data-entity-custom="${entityKey}"]`);
+      if (!toggleBtn || !selectInput || !customInput) return;
+      let useCustom = false;
+      const render = () => {
+        selectInput.style.display = useCustom ? 'none' : '';
+        customInput.style.display = useCustom ? '' : 'none';
+        customInput.disabled = !useCustom;
+        selectInput.disabled = useCustom;
+        toggleBtn.textContent = useCustom
+          ? (entityKey === 'authority' ? 'בחירה מהרשימה' : 'בחירה מהרשימה')
+          : (entityKey === 'authority' ? '+ רשות חדשה' : '+ בית ספר חדש');
+        if (useCustom) {
+          selectInput.value = '';
+          customInput.focus();
+        } else {
+          customInput.value = '';
+          selectInput.focus();
+        }
+      };
+      toggleBtn.addEventListener('click', () => {
+        useCustom = !useCustom;
+        render();
+      }, addActivitySig);
+      render();
     }
 
     async function submitAddActivityForm(form, submitBtn) {
@@ -1205,6 +1250,10 @@ export const activitiesScreen = {
       const fd = new (window?.FormData || FormData)(form);
       const get = (k) => String(fd.get(k) || '').trim();
       const familySource = get('source') || 'catalog';
+      const authorityCustom = get('authority_custom');
+      const schoolCustom = get('school_custom');
+      const authorityValue = authorityCustom || get('authority');
+      const schoolValue = schoolCustom || get('school');
       const selectedName = get('activity_name');
       const hit = activityMap.find((x) => {
         const label = String(x?.label || '').trim();
@@ -1221,8 +1270,8 @@ export const activitiesScreen = {
       const payload = {
         source: familySource,
         activity_manager: get('activity_manager'),
-        authority: get('authority'),
-        school: get('school'),
+        authority: authorityValue,
+        school: schoolValue,
         grade: get('grade'),
         class_group: get('class_group'),
         activity_type: get('activity_type'),
