@@ -3,7 +3,7 @@
  * App shell, JS and CSS: network-first so a normal reload can pick up a new deploy.
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 355;
+const CACHE_VERSION = 403;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -15,7 +15,7 @@ const PRECACHE_URLS = [
   "./assets/favicon-32.png",
   "./assets/favicon-D0Y9bj5H.ico",
   "./assets/favicon.ico",
-  "./assets/index-F80P2ldw.js",
+  "./assets/index-BIZ-Kx9s.js",
   "./assets/logo1-sNrSbLi9.png",
   "./assets/logo1.png",
   "./assets/logo2.png",
@@ -30,7 +30,7 @@ const PRECACHE_URLS = [
   "./assets/pwa/icon-72.png",
   "./assets/pwa/icon-96.png",
   "./assets/pwa/icon-maskable-512.png",
-  "./assets/style-6IPpui3o.css",
+  "./assets/style-BcftOQQK.css",
   "./index.html",
   "./manifest.json"
 ];
@@ -82,20 +82,11 @@ async function deleteOutdatedCaches() {
   return outdatedKeys;
 }
 
-async function reloadClientsAfterCacheUpgrade(deletedKeys) {
-  if (!deletedKeys || deletedKeys.length === 0) return;
+async function notifyClientsOfUpdate() {
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  await Promise.all(
-    clients.map((client) => {
-      try {
-        const clientUrl = new URL(client.url);
-        if (!sameOrigin(clientUrl) || typeof client.navigate !== 'function') return Promise.resolve();
-        return client.navigate(client.url);
-      } catch (e) {
-        return Promise.resolve();
-      }
-    })
-  );
+  clients.forEach((client) => {
+    try { client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION }); } catch (e) { /* ignore */ }
+  });
 }
 
 function withNoStore(request) {
@@ -155,7 +146,9 @@ self.addEventListener('install', (event) => {
           console.warn('[SW] precache skip', path, e);
         }
       }
+      // Delete stale caches immediately on install so activate sees a clean state.
       await deleteOutdatedCaches();
+      // Take control immediately — don't wait for old SW to die.
       self.skipWaiting();
     })
   );
@@ -163,11 +156,20 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    deleteOutdatedCaches().then(async (deletedKeys) => {
+    deleteOutdatedCaches().then(async () => {
+      // Claim all open tabs so this SW serves them right away.
       await self.clients.claim();
-      await reloadClientsAfterCacheUpgrade(deletedKeys);
+      // Notify tabs that a new version is active (app can show a toast if desired).
+      await notifyClientsOfUpdate();
     })
   );
+});
+
+/** Allow the app to trigger skipWaiting via postMessage({ type: 'SKIP_WAITING' }). */
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {
@@ -175,15 +177,31 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+
+  // External origins (Supabase, CDNs, etc.) — never intercept.
   if (!sameOrigin(url)) return;
 
+  // API-like same-origin routes — always hit the network.
   if (isApiLikeUrl(url)) {
     event.respondWith(fetch(request));
     return;
   }
 
+  // Only handle navigation + static assets; let everything else pass through.
   if (!(isNavigationRequest(request) || isStaticAssetUrl(url))) return;
 
-  const networkFresh = isNavigationRequest(request) || url.pathname.endsWith('.html') || url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || isManifestUrl(url);
-  event.respondWith(caches.open(CACHE_NAME).then((cache) => networkFresh ? networkFirst(request, cache) : cacheFirst(request, cache)));
+  // HTML / JS / CSS / manifest — network-first so a reload always gets the latest.
+  const networkFresh = (
+    isNavigationRequest(request) ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    isManifestUrl(url)
+  );
+
+  event.respondWith(
+    caches.open(CACHE_NAME).then((cache) =>
+      networkFresh ? networkFirst(request, cache) : cacheFirst(request, cache)
+    )
+  );
 });
