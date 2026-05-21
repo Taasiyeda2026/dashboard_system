@@ -37,6 +37,7 @@ const MUTATING_ACTIONS = {
   saveClientSetting: true,
   addProposalAgreement: true,
   updateProposalAgreement: true,
+  updateProposalAgreementStatus: true,
   deleteProposalAgreement: true
 };
 
@@ -1269,6 +1270,7 @@ function invalidateScreenDataByAction(action) {
     saveClientSetting: ['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:'],
     addProposalAgreement: ['proposals-agreements'],
     updateProposalAgreement: ['proposals-agreements'],
+    updateProposalAgreementStatus: ['proposals-agreements'],
     deleteProposalAgreement: ['proposals-agreements']
   };
   const prefixes = targetedMutations[action];
@@ -1354,7 +1356,7 @@ function normalizeData(data) {
 
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,created_at,updated_at';
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -1398,8 +1400,17 @@ function cleanProposalAgreementText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
+const PA_STATUS_LABELS = {
+  draft:                'טיוטה',
+  pending_approval:     'ממתין לאישור',
+  returned_for_changes: 'הוחזר לתיקון',
+  approved:             'מאושר',
+  cancelled:            'בוטל'
+};
+
 function buildProposalAgreementSearchText(row = {}) {
   const activityNames = Array.isArray(row.activity_names) ? row.activity_names.join(' ') : '';
+  const statusLabel = PA_STATUS_LABELS[cleanProposalAgreementText(row.status)] || cleanProposalAgreementText(row.status);
   return [
     row.id,
     row.client_authority,
@@ -1411,7 +1422,8 @@ function buildProposalAgreementSearchText(row = {}) {
     row.contact_name,
     row.contact_role,
     row.phone,
-    row.email
+    row.email,
+    statusLabel
   ].map(cleanProposalAgreementText).filter(Boolean).join(' ').toLowerCase();
 }
 
@@ -1422,6 +1434,8 @@ function normalizeProposalAgreementActivityNames(value) {
 
 function normalizeProposalAgreementRow(row = {}) {
   const parsedNotes = parseActivityNamesFromNotes(row.notes);
+  const PA_VALID_STATUSES = new Set(['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
+  const rawStatus = cleanProposalAgreementText(row.status);
   const normalized = {
     id:                  cleanProposalAgreementText(row.id),
     client_authority:    cleanProposalAgreementText(row.client_authority),
@@ -1439,6 +1453,9 @@ function normalizeProposalAgreementRow(row = {}) {
     phone:               cleanProposalAgreementText(row.phone || row.contact_phone),
     email:               cleanProposalAgreementText(row.email || row.contact_email),
     notes:               parsedNotes.notes,
+    status:              PA_VALID_STATUSES.has(rawStatus) ? rawStatus : 'draft',
+    approval_note:       cleanProposalAgreementText(row.approval_note),
+    total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };
@@ -1446,8 +1463,11 @@ function normalizeProposalAgreementRow(row = {}) {
   return normalized;
 }
 
+const PA_VALID_STATUSES_SET = new Set(['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
+
 function sanitizeProposalAgreementPayload(payload = {}) {
   const activity_names = normalizeProposalAgreementActivityNames(payload.activity_names);
+  const rawStatus = cleanProposalAgreementText(payload.status);
   const row = {
     client_authority:    cleanProposalAgreementText(payload.client_authority),
     school_framework:    cleanProposalAgreementText(payload.school_framework),
@@ -1459,7 +1479,9 @@ function sanitizeProposalAgreementPayload(payload = {}) {
     contact_role:        cleanProposalAgreementText(payload.contact_role),
     phone:               cleanProposalAgreementText(payload.phone),
     email:               cleanProposalAgreementText(payload.email),
-    notes:               parseActivityNamesFromNotes(payload.notes).notes
+    notes:               parseActivityNamesFromNotes(payload.notes).notes,
+    status:              PA_VALID_STATUSES_SET.has(rawStatus) ? rawStatus : 'draft',
+    approval_note:       cleanProposalAgreementText(payload.approval_note)
   };
   const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'].filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
@@ -1482,9 +1504,29 @@ async function readProposalActivityNamesFromSupabase() {
   }
 }
 
+async function readContactsSchoolsForProposals() {
+  try {
+    const { data, error } = await supabase
+      .from('contacts_schools')
+      .select('authority,school,contact_name,contact_role,phone,email,mobile')
+      .order('authority', { ascending: true });
+    if (error) return [];
+    return (Array.isArray(data) ? data : []).map((c) => ({
+      authority:    cleanProposalAgreementText(c.authority),
+      school:       cleanProposalAgreementText(c.school),
+      contact_name: cleanProposalAgreementText(c.contact_name),
+      contact_role: cleanProposalAgreementText(c.contact_role),
+      phone:        cleanProposalAgreementText(c.phone || c.mobile || ''),
+      email:        cleanProposalAgreementText(c.email || '')
+    })).filter((c) => c.authority);
+  } catch {
+    return [];
+  }
+}
+
 async function readProposalsAgreementsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
-  const [paResult, activityNameOptions] = await Promise.all([
+  const [paResult, activityNameOptions, contactOptions] = await Promise.all([
     supabase
       .from('proposals_agreements')
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
@@ -1492,12 +1534,14 @@ async function readProposalsAgreementsFromSupabase() {
       .order('school_framework', { ascending: true })
       .order('document_type', { ascending: true })
       .order('activity_type_group', { ascending: true }),
-    readProposalActivityNamesFromSupabase()
+    readProposalActivityNamesFromSupabase(),
+    readContactsSchoolsForProposals()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
   return {
     rows: (Array.isArray(paResult.data) ? paResult.data : []).map(normalizeProposalAgreementRow),
     activityNameOptions,
+    contactOptions,
     _source: 'supabase'
   };
 }
@@ -2378,6 +2422,22 @@ export const api = {
       .eq('id', rowId);
     if (error) throw new Error(error.message || 'proposals_agreement_delete_failed');
     return { ok: true, id: rowId };
+  },
+  updateProposalAgreementStatus: async (id, status, approvalNote = '') => {
+    assertCanUseProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    const cleanStatus = cleanProposalAgreementText(status);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    if (!PA_VALID_STATUSES_SET.has(cleanStatus)) throw new Error('invalid_proposal_agreement_status');
+    const patch = { status: cleanStatus, approval_note: cleanProposalAgreementText(approvalNote) };
+    const { data, error } = await supabase
+      .from('proposals_agreements')
+      .update(patch)
+      .eq('id', rowId)
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .single();
+    if (error) throw new Error(error.message || 'proposals_agreement_status_update_failed');
+    return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
   addContact: async (payload) => {
     const kind = String(payload?.kind || '').trim();
