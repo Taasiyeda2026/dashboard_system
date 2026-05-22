@@ -470,10 +470,6 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
       <div class="pa-doc-logo-fallback" hidden>תעשיידע — חינוך מקצועי וחוויות למידה</div>
     </div>
     <div class="pa-doc-header">
-      <div class="pa-doc-company-block" aria-hidden="true">
-        <div class="pa-doc-company">תעשיידע</div>
-        <div class="pa-doc-tagline">חינוך מקצועי וחוויות למידה</div>
-      </div>
       <div class="pa-doc-meta">
         <div>תאריך: ${escapeHtml(dateDisplay)}</div>
         ${row.id ? `<div style="font-size:0.8rem;color:#6b7280">מ/ה: ${escapeHtml(row.id.slice(0, 8).toUpperCase())}</div>` : ''}

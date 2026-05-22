@@ -10422,15 +10422,14 @@ select.ds-input {
   color: #1e293b;
 }
 .pa-doc-header-brand {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   text-align: center;
 }
 .pa-doc-header {
-  display: flex; justify-content: space-between; align-items: flex-end;
-  gap: 16px;
-  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
 }
-.pa-doc-company-block { display: none; }
 .pa-doc-logo {
   display: block; max-width: 100%; height: auto;
 }
@@ -10448,15 +10447,14 @@ select.ds-input {
 .pa-doc-logo-fallback--footer {
   font-size: 0.78rem; color: #64748b;
 }
-.pa-doc-company { font-size: 1.5rem; font-weight: 800; color: #1e3a5f; }
-.pa-doc-tagline { font-size: 0.82rem; color: #6b7280; }
 .pa-doc-meta    {
-  margin-inline-start: auto;
-  text-align: start;
+  text-align: center;
   font-size: 0.85rem;
   color: #374151;
   display: grid;
-  gap: 2px;
+  gap: 3px;
+  padding-top: 2px;
+  line-height: 1.45;
 }
 .pa-doc-divider { border: none; border-top: 2px solid #1e3a5f; margin: 14px 0; }
 .pa-doc-address { margin: 14px 0; font-size: 0.9rem; line-height: 1.6; }
@@ -10479,7 +10477,7 @@ select.ds-input {
 .pa-cost-table thead { background: #f8fafc; font-weight: 600; }
 .pa-cost-total-row { background: #f0f9ff; }
 .pa-doc-footer {
-  margin-top: 30px; padding-top: 14px; border-top: 1px solid #e5e7eb;
+  margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb;
   break-inside: avoid;
   page-break-inside: avoid;
   text-align: center;
@@ -10508,9 +10506,13 @@ select.ds-input {
     margin: 0 !important; padding: 20px !important; max-width: 100% !important;
   }
   .pa-doc-footer {
-    margin-top: 22px !important;
-    padding-top: 10px !important;
+    margin-top: 28px !important;
+    padding-top: 14px !important;
     page-break-inside: avoid !important;
+  }
+  .pa-doc-logo--header,
+  .pa-doc-logo--footer {
+    display: block !important;
   }
   .pa-doc-divider { border-top: 1.5px solid #000; }
 }
