@@ -407,41 +407,61 @@ const TEMPLATE_KEY_BY_GROUP = {
   'הצעה משולבת': 'combined'
 };
 
+function templateBodyText(section) {
+  return String(section?.section_body == null ? '' : section.section_body)
+    .replace(/\r\n?/g, '\n')
+    .trim();
+}
+
+function proposalTitle(row) {
+  const activityTypeGroup = text(row.activity_type_group);
+  if (activityTypeGroup === 'פעילויות קיץ') return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו';
+  if (activityTypeGroup === 'שנה הבאה') return 'הצעת מחיר לתוכניות תעשיידע | תשפ״ז';
+  return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו + תשפ״ז';
+}
+
+function sectionBodyHtml(value) {
+  const body = String(value || '').trim();
+  if (!body) return '<p>—</p>';
+  const lines = body.split('\n').map((line) => line.trim()).filter(Boolean);
+  const bulletLines = lines.filter((line) => /^[•·*-]\s*/.test(line));
+  if (lines.length > 1 && bulletLines.length === lines.length) {
+    return `<ul>${lines.map((line) => `<li>${escapeHtml(line.replace(/^[•·*-]\s*/, ''))}</li>`).join('')}</ul>`;
+  }
+  return lines.map((line) => {
+    if (/^[•·*-]\s*/.test(line)) {
+      return `<ul><li>${escapeHtml(line.replace(/^[•·*-]\s*/, ''))}</li></ul>`;
+    }
+    return `<p>${escapeHtml(line)}</p>`;
+  }).join('');
+}
+
+function proposalLineHtml(item = {}) {
+  const parts = [];
+  if (item.meetings_count != null && item.meetings_count !== '') parts.push(`${formatCurrency(item.meetings_count)} מפגשים`);
+  if (item.hours_count != null && item.hours_count !== '') parts.push(`${formatCurrency(item.hours_count)} שעות`);
+  const total = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
+  if (total) parts.push(`${formatCurrency(total)} ₪`);
+  const suffix = parts.length ? `: ${parts.join(' | ')}` : '';
+  const desc = text(item.description);
+  return `<li><strong>${escapeHtml(item.item_name || '')}</strong>${escapeHtml(suffix)}${desc ? `<br><span>${escapeHtml(desc)}</span>` : ''}</li>`;
+}
+
+function proposalItemsListHtml(items = []) {
+  if (!Array.isArray(items) || !items.length) return '<p class="pa-muted">לא הוגדרו שורות הצעה.</p>';
+  return `<ul class="pa-cost-lines">${items.map(proposalLineHtml).join('')}</ul>`;
+}
+
+function sectionHtml(title, body, className = '') {
+  return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(title)}</h3>${sectionBodyHtml(body)}</section>`;
+}
+
 function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const activityTypeGroup = text(row.activity_type_group);
   const dateDisplay = formatDateDisplay(row.proposal_date) || formatDateDisplay(new Date().toISOString().slice(0, 10));
-  const totalSum = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 1) * (Number(i.unit_price) || 0))), 0);
   const byKey = new Map((Array.isArray(templateSections) ? templateSections : []).map((s) => [text(s.section_key), s]));
-  const sectionBody = (key, fallback = '') => text(byKey.get(key)?.section_body) || fallback;
+  const sectionBody = (key, fallback = '') => templateBodyText(byKey.get(key)) || fallback;
   const sectionTitle = (key, fallback = '') => text(byKey.get(key)?.section_title) || fallback;
-
-  const costTableHtml = items.length ? `
-    <table class="pa-cost-table">
-      <thead><tr><th>שם פעילות / תוכנית</th><th>סוג</th><th>כמות</th><th>מחיר יח׳</th><th>סה״כ שורה</th><th>הערות</th></tr></thead>
-      <tbody>
-        ${items.map((item) => {
-          const qty = Number(item.quantity) || 1;
-          const price = Number(item.unit_price) || 0;
-          const total = Number(item.total_price) || (qty * price);
-          return `<tr>
-            <td>${escapeHtml(item.item_name || '')}</td>
-            <td>${escapeHtml(item.item_type || '')}</td>
-            <td>${qty}</td>
-            <td>${price ? '₪' + formatCurrency(price) : '—'}</td>
-            <td>${total ? '₪' + formatCurrency(total) : '—'}</td>
-            <td>${escapeHtml(item.description || '')}</td>
-          </tr>`;
-        }).join('')}
-        <tr class="pa-cost-total-row">
-          <td colspan="4" style="font-weight:700;text-align:start">סה״כ:</td>
-          <td colspan="2" style="font-weight:700">₪${formatCurrency(totalSum)}</td>
-        </tr>
-      </tbody>
-    </table>` : '<p style="color:#6b7280">לא הוגדרו שורות הצעה.</p>';
-
-  const actNamesHtml = Array.isArray(row.activity_names) && row.activity_names.length
-    ? `<section class="pa-section"><h3>הפעילות המוצעת</h3><ul>${row.activity_names.map((n) => `<li>${escapeHtml(n)}</li>`).join('')}</ul></section>`
-    : '';
 
   const introText = sectionBody('intro', '—');
   const orgResponsibility = sectionBody('taasiyeda_responsibility', '—');
@@ -453,46 +473,42 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const summerActivityIntro = sectionBody('summer_activity_intro', '');
   const nextYearActivityIntro = sectionBody('next_year_activity_intro', '');
   const activityIntroSections = activityTypeGroup === 'הצעה משולבת'
-    ? [summerActivityIntro, nextYearActivityIntro].filter(Boolean)
-    : [activityIntro].filter(Boolean);
+    ? [
+        { title: 'קיץ תשפ״ו', body: summerActivityIntro || activityIntro },
+        { title: 'שנת הלימודים תשפ״ז', body: nextYearActivityIntro || activityIntro }
+      ].filter((section) => section.body)
+    : [{ title: sectionTitle('activity_intro', 'הפעילות המוצעת'), body: activityIntro }].filter((section) => section.body);
   const signatureText = sectionBody('signature', '');
+  const activityNames = Array.isArray(row.activity_names) ? row.activity_names.map(text).filter(Boolean) : [];
 
   return `
-    <div class="pa-doc-header-brand">
+    <header class="pa-doc-header">
       <img
         src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
         alt="לוגו תעשיידע"
         class="pa-doc-logo pa-doc-logo--header"
         loading="eager"
         decoding="async"
-        onerror="this.style.display='none'; this.nextElementSibling.hidden = false;"
+        onerror="this.style.display='none';"
       >
-      <div class="pa-doc-logo-fallback" hidden>תעשיידע — חינוך מקצועי וחוויות למידה</div>
-    </div>
-    <div class="pa-doc-header">
-      <div class="pa-doc-meta">
-        <div>תאריך: ${escapeHtml(dateDisplay)}</div>
-        ${row.id ? `<div style="font-size:0.8rem;color:#6b7280">מ/ה: ${escapeHtml(row.id.slice(0, 8).toUpperCase())}</div>` : ''}
-      </div>
-    </div>
-    <hr class="pa-doc-divider">
+      <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
+    </header>
     <div class="pa-doc-address">
-      <p>לכבוד</p>
-      <p><strong>${escapeHtml(row.client_authority || '')}</strong></p>
+      <p><strong>לכבוד:</strong></p>
+      ${row.contact_name ? `<p>${escapeHtml(row.contact_name)}</p>` : ''}
       ${row.school_framework ? `<p>${escapeHtml(row.school_framework)}</p>` : ''}
-      ${row.contact_name ? `<p>לידי: ${escapeHtml(row.contact_name)}${row.contact_role ? ', ' + escapeHtml(row.contact_role) : ''}</p>` : ''}
+      ${row.client_authority ? `<p>${escapeHtml(row.client_authority)}</p>` : ''}
     </div>
-    <p class="pa-doc-subject"><strong>הנדון: ${escapeHtml(row.document_type || 'הצעת מחיר')} — ${escapeHtml(activityTypeGroup || '')}</strong></p>
-    <section class="pa-section"><h3>${escapeHtml(sectionTitle('intro', 'פתיח'))}</h3><p>${escapeHtml(introText || '—')}</p></section>
-    ${actNamesHtml}
-    ${activityIntroSections.map((sectionText) => `<section class="pa-section"><h3>${escapeHtml(sectionTitle('activity_intro', 'מבוא פעילות'))}</h3><p>${escapeHtml(sectionText)}</p></section>`).join('')}
-    <section class="pa-section"><h3>טבלת עלויות</h3>${costTableHtml}</section>
-    <section class="pa-section"><h3>${escapeHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'))}</h3><p>${escapeHtml(orgResponsibility || '—')}</p></section>
-    ${schoolResponsibility ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'))}</h3><p>${escapeHtml(schoolResponsibility)}</p></section>` : ''}
-    <section class="pa-section"><h3>${escapeHtml(sectionTitle('payment_terms', 'תנאי תשלום'))}</h3><p>${escapeHtml(paymentTerms || '—')}</p></section>
-    ${changesCancellation ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('cancellation_terms', 'שינויים וביטולים'))}</h3><p>${escapeHtml(changesCancellation)}</p></section>` : ''}
-    ${remarks ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('notes', 'הערות'))}</h3><p>${escapeHtml(remarks)}</p></section>` : ''}
-    ${signatureText ? `<section class="pa-section"><h3>${escapeHtml(sectionTitle('signature', 'חתימה'))}</h3><p>${escapeHtml(signatureText)}</p></section>` : ''}
+    <h1 class="pa-doc-title">${escapeHtml(proposalTitle(row))}</h1>
+    ${sectionHtml(sectionTitle('intro', 'פתיח'), introText)}
+    ${activityIntroSections.map((section) => sectionHtml(section.title, section.body, 'pa-section--activity')).join('')}
+    ${activityNames.length ? `<section class="pa-section"><h3>הפעילות המוצעת</h3><ul>${activityNames.map((n) => `<li>${escapeHtml(n)}</li>`).join('')}</ul></section>` : ''}
+    <section class="pa-section"><h3>${activityTypeGroup === 'פעילויות קיץ' ? 'עלות הפעילות' : 'עלויות ותנאי תשלום'}</h3>${proposalItemsListHtml(items)}${sectionBodyHtml(paymentTerms)}</section>
+    ${sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility)}
+    ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility) : ''}
+    ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation) : ''}
+    ${remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : ''}
+    <section class="pa-section pa-section--signature">${sectionBodyHtml(signatureText || 'בברכה,\nעידן נחום, סמנכ״ל כספים ותפעול.')}</section>
     <footer class="pa-doc-footer">
       <img
         src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
@@ -500,9 +516,8 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
         class="pa-doc-logo pa-doc-logo--footer"
         loading="lazy"
         decoding="async"
-        onerror="this.style.display='none'; this.nextElementSibling.hidden = false;"
+        onerror="this.style.display='none';"
       >
-      <div class="pa-doc-logo-fallback pa-doc-logo-fallback--footer" hidden>תעשיידע</div>
     </footer>`;
 }
 
