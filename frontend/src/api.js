@@ -968,6 +968,7 @@ async function dashboardReadModelFromSupabase(month) {
       missing_start_date_count: Number(exceptionCounts.missing_start_date || 0),
       missing_date_count: Number(exceptionCounts.missing_start_date || 0),
       late_end_date_count: Number(exceptionCounts.late_end_date || 0),
+      end_date_passed_count: Number(exceptionCounts.end_date_passed || 0),
       operational_gaps_count: Number(exceptionSummary.operationalUniqueCount || 0),
       operational_gaps_unique_count: Number(exceptionSummary.operationalUniqueCount || 0),
       operationalTotal: Number(exceptionSummary.operationalUniqueCount || 0),
@@ -1042,6 +1043,8 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   const instructorName = resolveActivityInstructorName(row);
   const start       = firstNormalizedDate(row?.start_date, row?.date_start);
   const end         = firstNormalizedDate(row?.end_date, row?.date_end);
+  const now = new Date();
+  const todayLocalIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   // Instructor check uses the same normalized name source used by the UI.
   // A valid displayed instructor name is sufficient even when guideId/emp_id is
@@ -1059,6 +1062,10 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   const lateMeetingDates = lateEndThreshold
     ? meetingDates.filter((dateKey) => dateKey > lateEndThreshold)
     : [];
+  if (end && end < todayLocalIso) {
+    types.push('end_date_passed');
+  }
+
   if (lateMeetingDates.length > 0) {
     types.push('late_end_date');
     row._late_end_date_threshold = lateEndThreshold;
@@ -1074,7 +1081,7 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
   const includeRows = opts.include_rows !== false;
   const knownInstructorIds = opts.knownInstructorIds; // Set<string> | undefined
   const rows = [];
-  const counts = { missing_instructor: 0, missing_start_date: 0, late_end_date: 0 };
+  const counts = { missing_instructor: 0, missing_start_date: 0, late_end_date: 0, end_date_passed: 0 };
   const byManager = {};
   let operationalUniqueCount = 0;
   for (const row of activityRows) {
