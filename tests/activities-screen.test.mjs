@@ -208,6 +208,13 @@ test('activity drawer uses instructor emp_id fallback for display consistency', 
   assert.match(source, /resolveInstructorDisplayName\(row\.instructor_name,\s*row\.emp_id,\s*instructorLookup\)/);
 });
 
+test('activity drawer progress auto-counts past dates and groups duplicate dates in view chips', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(new URL('../frontend/src/screens/shared/activity-detail-html.js', import.meta.url), 'utf8');
+  assert.match(source, /const autoDoneByDate = \/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(date\) && date < today/);
+  assert.match(source, /const countLabel = count > 1 \? ` · \$\{count\} מפגשים` : '';/);
+});
+
 
 test('admin all-activities Excel export is imported and logs failures', async () => {
   const fs = await import('node:fs/promises');
