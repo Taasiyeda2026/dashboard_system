@@ -44,8 +44,14 @@ function todayStr() {
 }
 
 function countDoneMeetings(schedule) {
+  const today = todayStr();
   return Array.isArray(schedule)
-    ? schedule.filter((m) => String(m?.performed || '').trim().toLowerCase() === 'yes').length
+    ? schedule.filter((m) => {
+      const performed = String(m?.performed || '').trim().toLowerCase() === 'yes';
+      const date = String(m?.date || '').trim();
+      const autoDoneByDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && date < today;
+      return performed || autoDoneByDate;
+    }).length
     : 0;
 }
 
@@ -459,12 +465,28 @@ function blockSupplementalView(row, { settings = {}, hideFunding = false } = {})
 }
 
 function buildDateChipsHtml(schedule, isOnce) {
-  return (isOnce ? schedule.slice(0, 1) : schedule)
-    .map((item) => {
-      const isDone = String(item?.performed || '').toLowerCase() === 'yes';
+  const source = isOnce ? schedule.slice(0, 1) : schedule;
+  const grouped = source.reduce((acc, item) => {
+    const date = String(item?.date || '').trim();
+    const key = date || '__empty__';
+    if (!acc.has(key)) {
+      acc.set(key, { item, count: 0, doneCount: 0 });
+    }
+    const entry = acc.get(key);
+    entry.count += 1;
+    const performed = String(item?.performed || '').toLowerCase() === 'yes';
+    const autoDoneByDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && date < todayStr();
+    if (performed || autoDoneByDate) entry.doneCount += 1;
+    return acc;
+  }, new Map());
+
+  return Array.from(grouped.values())
+    .map(({ item, count, doneCount }) => {
+      const isDone = doneCount > 0;
+      const countLabel = count > 1 ? ` · ${count} מפגשים` : '';
       return `
         <div class="activity-drawer__date-chip ${isDone ? 'is-done' : ''}" data-date-card>
-          <span>${escapeHtml(formatDateHeWithWeekday(item?.date || ''))}</span>
+          <span>${escapeHtml(`${formatDateHeWithWeekday(item?.date || '')}${countLabel}`)}</span>
         </div>
       `;
     })
