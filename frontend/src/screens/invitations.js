@@ -128,6 +128,7 @@ export const invitationsScreen = { load: async () => ({}), render() { ensureInvi
       }
       return printRoot;
     };
+    ensurePrintRoot();
     const cleanupPrintRoot = () => {
       const printRoot = document.getElementById('print-root');
       if (printRoot) printRoot.innerHTML = '';
@@ -145,11 +146,10 @@ export const invitationsScreen = { load: async () => ({}), render() { ensureInvi
       clonedPage.style.scale = 'none';
       printRoot.appendChild(clonedPage);
       document.body.classList.add('printing-invitation');
-      const cleanup = () => {
-        cleanupPrintRoot();
-        window.removeEventListener('afterprint', cleanup);
-      };
-      window.addEventListener('afterprint', cleanup, { once: true });
       window.print();
-    }); window.addEventListener('resize', repaint); repaint(); }
+    });
+    window.addEventListener('afterprint', cleanupPrintRoot);
+    window.addEventListener('resize', repaint);
+    repaint();
+  }
 };
