@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>בניית הזמנה — תעשיידע</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Heebo',sans-serif;direction:rtl;font-size:13px;background:#f0f2f4;color:#1a1a2e}
@@ -13,9 +12,7 @@ body{font-family:'Heebo',sans-serif;direction:rtl;font-size:13px;background:#f0f
 .panel{background:#f7f8fa;border-left:1px solid #e0e3e8;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .field-row.trio{grid-template-columns:1fr 1fr 1fr}
-select,input[type=text],input[type=date],input[type=time],textarea{
-  width:100%;font-family:'Heebo',sans-serif;font-size:12px;direction:rtl;color:#1a1a2e;
-  border:1px solid #d0d4dc;border-radius:5px;padding:4px 7px;background:#fff;outline:none}
+select,input[type=text],input[type=date],input[type=time],textarea{width:100%;font-family:'Heebo',sans-serif;font-size:12px;direction:rtl;color:#1a1a2e;border:1px solid #d0d4dc;border-radius:5px;padding:4px 7px;background:#fff;outline:none}
 select:focus,input:focus,textarea:focus{border-color:#1a8c6e}
 textarea{resize:none;height:48px;font-size:11px}
 .lbl{font-size:10px;color:#888;margin-bottom:2px;display:block}
@@ -23,7 +20,7 @@ textarea{resize:none;height:48px;font-size:11px}
 .color-pair label{font-size:11px;color:#666}
 .color-pair input[type=color]{width:26px;height:22px;border:1px solid #d0d4dc;border-radius:4px;padding:1px;cursor:pointer;background:none}
 .bg-row{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
-.bg-th{height:28px;border-radius:4px;border:2px solid transparent;cursor:pointer;background-size:cover;background-position:center}
+.bg-th{height:28px;border-radius:4px;border:2px solid transparent;cursor:pointer;background-size:cover;background-position:center;background-color:#dde}
 .bg-th.sel{border-color:#1a8c6e}
 .logo-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 .lchip{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #d0d4dc;border-radius:12px;padding:2px 8px;font-size:11px;cursor:grab;user-select:none;white-space:nowrap}
@@ -37,38 +34,40 @@ textarea{resize:none;height:48px;font-size:11px}
 .btn-clr{width:100%;padding:6px;border-radius:7px;font-family:'Heebo',sans-serif;font-size:12px;cursor:pointer;background:none;border:1px solid #d0d4dc;color:#666;margin-top:4px}
 .btn-clr:hover{background:#eee}
 .sep{height:1px;background:#e4e7ec}
-.preview{background:#d8dfe6;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:20px 12px;overflow-y:auto}
+.preview{background:#d8dfe6;display:flex;flex-direction:column;align-items:center;padding:20px 12px;overflow-y:auto}
 .preview-lbl{font-size:9px;color:#999;letter-spacing:.5px;margin-bottom:10px}
 #card{width:148mm;min-height:210mm;position:relative;overflow:hidden;box-shadow:0 4px 28px rgba(0,0,0,.22);direction:rtl;font-family:'Heebo',sans-serif;display:flex;flex-direction:column}
 .cbg{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center}
 .cframe{position:absolute;inset:5mm;border-radius:10px;border:1.5px solid rgba(255,255,255,.55);pointer-events:none;z-index:3}
 .cwrap{position:relative;z-index:2;flex:1;display:flex;flex-direction:column}
-.c-logos{display:flex;align-items:center;justify-content:space-around;padding:3.5mm 6mm 3mm;background:rgba(255,255,255,.42);border-bottom:1px solid rgba(255,255,255,.45)}
-.c-logo-item{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:800;color:#1a3a5c;line-height:1.2}
-.c-logo-sep{width:1px;height:18px;background:rgba(26,58,92,.18);flex-shrink:0}
-.c-logo-item img{height:20px;width:auto;object-fit:contain}
+.c-logos{display:flex;align-items:center;justify-content:center;gap:6mm;padding:4mm 10mm 3.5mm;background:rgba(255,255,255,.42);border-bottom:1px solid rgba(255,255,255,.45)}
+.c-logo-item{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#1a3a5c;line-height:1.2}
+.c-logo-sep{width:1px;height:26px;background:rgba(26,58,92,.2);flex-shrink:0}
+.c-logo-item img{height:28px;width:auto;object-fit:contain}
 .c-main{padding:4mm 7mm 3mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
-.c-title{font-weight:900;line-height:1.05;margin-bottom:1mm}
-.c-sub-event{font-weight:700;line-height:1.1;margin-bottom:1.5mm}
-.c-course{font-weight:800;line-height:1.2;margin-bottom:1mm}
-.c-year{font-size:11px;font-weight:700;margin-bottom:2mm}
-.c-school{font-size:9px;color:#444;margin-bottom:2.5mm}
+.c-title{font-weight:900;line-height:1.05;margin-bottom:1mm;font-size:10.5mm}
+.c-sub-event{font-weight:700;line-height:1.1;margin-bottom:1mm;font-size:7.5mm}
+.c-course-label{font-size:4mm;font-weight:500;margin-bottom:0.5mm}
+.c-course{font-weight:800;line-height:1.2;margin-bottom:1mm;font-size:7.5mm}
+.c-year{font-size:4.8mm;font-weight:700;margin-bottom:2mm}
+.c-school{font-size:4.8mm;color:#444;margin-bottom:2.5mm}
 .c-school strong{font-weight:700}
 .c-divider{width:100%;height:1px;background:rgba(26,58,92,.1);margin:1.5mm 0}
-.c-opening{font-size:9px;color:#333;line-height:1.6;margin:1mm 0}
+.c-opening{font-size:3.7mm;color:#333;line-height:1.6;margin:1mm 0}
 .c-opening strong{font-weight:700;color:#1a3a5c}
-.c-para{font-size:8.5px;color:#444;line-height:1.6;margin:.5mm 0}
+.c-para{font-size:3.7mm;color:#444;line-height:1.6;margin:.5mm 0}
 .c-box{background:rgba(255,255,255,.5);border:1px solid rgba(26,140,110,.22);border-radius:8px;padding:2mm 3.5mm;margin:1.5mm 0;width:100%;text-align:right}
-.c-info-row{display:flex;align-items:center;gap:4px;font-size:9px;color:#333;line-height:1.7}
+.c-info-row{display:flex;align-items:center;gap:4px;font-size:4.8mm;color:#333;line-height:1.7}
 .c-info-row strong{font-weight:700}
-.c-part-title{font-size:9px;font-weight:700;margin-bottom:1px}
-.c-part-line{font-size:8.5px;color:#444;line-height:1.65}
+.c-part-title{font-size:3.5mm;font-weight:700;margin-bottom:1px}
+.c-part-line{font-size:3.5mm;color:#444;line-height:1.65}
 .c-part-line strong{font-weight:700;color:#222}
-.c-closing{font-size:14px;font-weight:900;margin-top:auto;padding-top:2mm;text-align:center}
-.c-footer{display:flex;align-items:center;justify-content:space-around;padding:2mm 6mm;background:rgba(255,255,255,.42);border-top:1px solid rgba(255,255,255,.45);margin-top:1.5mm}
-.c-footer-item{display:flex;align-items:center;gap:3px;font-size:7px;font-weight:700;color:rgba(26,58,92,.65)}
-.c-footer-sep{width:1px;height:14px;background:rgba(26,58,92,.15)}
-.c-footer-item img{height:13px;width:auto;object-fit:contain}
+.c-closing{font-size:7.5mm;font-weight:900;margin-top:auto;padding-top:2mm;text-align:center}
+.c-sub-closing{font-size:3.5mm;font-weight:700;text-align:center;margin-top:1mm}
+.c-footer{display:flex;align-items:center;justify-content:center;gap:6mm;padding:2.5mm 10mm;background:rgba(255,255,255,.42);border-top:1px solid rgba(255,255,255,.45);margin-top:1.5mm}
+.c-footer-item{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:rgba(26,58,92,.65)}
+.c-footer-sep{width:1px;height:16px;background:rgba(26,58,92,.15)}
+.c-footer-item img{height:15px;width:auto;object-fit:contain}
 </style>
 </head>
 <body>
@@ -78,7 +77,7 @@ textarea{resize:none;height:48px;font-size:11px}
     <span class="lbl">לוגואים — גרור לסדר</span>
     <div class="logo-row" id="logo-zone">
       <div class="lchip" draggable="true" data-id="mohe">🏛️ משרד החינוך</div>
-      <div class="lchip" draggable="true" data-id="taas">⚡ תעשיידע</div>
+      <div class="lchip" draggable="true" data-id="taas"><img id="taas-chip-img" src="" style="height:16px;display:none"> תעשיידע</div>
       <div class="lchip lchip-add" id="logo-add">＋ לוגו</div>
     </div>
     <input type="file" id="logo-file" accept="image/*" style="display:none">
@@ -124,8 +123,23 @@ textarea{resize:none;height:48px;font-size:11px}
   <div class="sep"></div>
   <div>
     <span class="lbl">בהשתתפות</span>
+    <div style="display:grid;grid-template-columns:80px 1fr;gap:6px;margin-bottom:6px">
+      <select id="teacher-title" onchange="up()" style="font-size:11px">
+        <option value="מחנכת">מחנכת</option>
+        <option value="מחנך">מחנך</option>
+      </select>
+      <input type="text" id="teacher-name" placeholder="שם המחנכ/ת" style="font-size:11px" oninput="up()">
+    </div>
     <div id="parts"></div>
     <button class="btn-clr" style="font-size:11px;padding:4px;margin-top:2px" onclick="addPart()">+ הוסף משתתף/ת</button>
+  </div>
+  <div class="sep"></div>
+  <div>
+    <span class="lbl">משפט סיום</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <input type="text" id="closing1" value="נשמח לראותכם!" oninput="up()">
+      <input type="text" id="closing2" value="מחכים לראותכם 🎉" oninput="up()">
+    </div>
   </div>
   <div class="sep"></div>
   <div><span class="lbl">רקע</span><div class="bg-row" id="bg-row"></div></div>
@@ -147,39 +161,55 @@ textarea{resize:none;height:48px;font-size:11px}
 </div>
 
 <script>
-const BASE='https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/invitations/';
-const BG_URLS=[1,2,3,4,5,6].map(n=>`${BASE}background-${n}.png`);
+const RAW = 'https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/invitations/';
+const BG_URLS = [1,2,3,4,5,6].map(n => RAW + 'backgrounds/background-' + n + '.png');
+const TAAS_LOGO = RAW + 'logos/taasiyeda-logo.png';
+const MOHE_LOGO = RAW + 'logos/mohe-logo.png'; // אם קיים, אחרת נשתמש באימוג'י
+
 const DAYS=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-let selBg=0,logoOrder=['mohe','taas'],customLogos={};
+let selBg=0, logoOrder=['mohe','taas'], customLogos={};
+let taasLogoLoaded=false, moheLogoLoaded=false;
 let parts=[
   {t:'גב׳',n:'יעל אביב',r:'מנהלת תחום חינוך ופדגוגיה, תעשיידע'},
   {t:'גב׳',n:'הילה רוזן',r:'אחראית הדרכה ומנחת הקבוצה, תעשיידע'},
 ];
 
+// נסה לטעון לוגו תעשיידע
+const taasImg = new Image();
+taasImg.onload = () => { taasLogoLoaded=true; up(); };
+taasImg.onerror = () => { taasLogoLoaded=false; };
+taasImg.src = TAAS_LOGO;
+
+// נסה לטעון לוגו משרד החינוך
+const moheImg = new Image();
+moheImg.onload = () => { moheLogoLoaded=true; up(); };
+moheImg.onerror = () => { moheLogoLoaded=false; };
+moheImg.src = MOHE_LOGO;
+
 function initBg(){
-  const row=document.getElementById('bg-row');row.innerHTML='';
+  const row=document.getElementById('bg-row'); row.innerHTML='';
   BG_URLS.forEach((url,i)=>{
     const d=document.createElement('div');
     d.className='bg-th'+(i===selBg?' sel':'');
-    d.style.backgroundImage=`url(${url})`;
-    d.title=`רקע ${i+1}`;
+    d.style.backgroundImage='url('+url+')';
+    d.title='רקע '+(i+1);
     d.onclick=()=>{selBg=i;initBg();up()};
     row.appendChild(d);
   });
 }
 
 function renderParts(){
-  const c=document.getElementById('parts');c.innerHTML='';
+  const c=document.getElementById('parts'); c.innerHTML='';
   parts.forEach((p,i)=>{
-    const r=document.createElement('div');r.className='part-row';
-    r.innerHTML=`
-      <select style="font-size:11px" onchange="parts[${i}].t=this.value;up()">
-        ${['','גב׳','מר','ד״ר','פרופ׳'].map(v=>`<option ${p.t===v?'selected':''}>${v}</option>`).join('')}
-      </select>
-      <input type="text" placeholder="שם" value="${p.n}" style="font-size:11px" oninput="parts[${i}].n=this.value;up()">
-      <input type="text" placeholder="תפקיד" value="${p.r}" style="font-size:11px" oninput="parts[${i}].r=this.value;up()">
-      <button class="del-btn" onclick="parts.splice(${i},1);renderParts();up()">×</button>`;
+    const r=document.createElement('div'); r.className='part-row';
+    r.innerHTML=
+      '<select style="font-size:11px" onchange="parts['+i+'].t=this.value;up()">'+
+      ['','גב׳','מר','ד״ר','פרופ׳'].map(v=>'<option '+(p.t===v?'selected':'')+'>'+v+'</option>').join('')+
+      '</select>'+
+      '<input type="text" placeholder="שם" value="'+p.n+'" style="font-size:11px" oninput="parts['+i+'].n=this.value;up()">'+
+      '<input type="text" placeholder="תפקיד" value="'+p.r+'" style="font-size:11px" oninput="parts['+i+'].r=this.value;up()">'+
+      '<button class="del-btn" onclick="parts.splice('+i+',1);renderParts();up()">×</button>';
     c.appendChild(r);
   });
 }
@@ -188,7 +218,7 @@ function addPart(){parts.push({t:'גב׳',n:'',r:''});renderParts();}
 function fmtDate(v){
   if(!v) return null;
   const d=new Date(v+'T12:00:00');
-  return `יום ${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return 'יום '+DAYS[d.getDay()]+', '+d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear();
 }
 function getCourseName(){
   const s=document.getElementById('course-sel').value;
@@ -196,37 +226,50 @@ function getCourseName(){
 }
 function darken(hex){
   let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
-  r=Math.round(r*0.6);g=Math.round(g*0.6);b=Math.round(b*0.6);
-  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+  return '#'+[Math.round(r*.6),Math.round(g*.6),Math.round(b*.6)].map(v=>v.toString(16).padStart(2,'0')).join('');
 }
 
 function onTypeChange(){
   const t=document.getElementById('ev-type').value;
-  const box=document.getElementById('extra');box.innerHTML='';
+  const box=document.getElementById('extra'); box.innerHTML='';
   if(t==='lecture'){
-    box.innerHTML=`<div class="field-row" style="margin-top:4px">
-      <div><span class="lbl">שם המרצה</span><input type="text" id="lec-name" oninput="up()"></div>
-      <div><span class="lbl">נושא</span><input type="text" id="lec-topic" oninput="up()"></div>
-    </div>
-    <div style="margin-top:4px"><span class="lbl">חברה / מוסד</span><input type="text" id="lec-org" oninput="up()"></div>`;
+    box.innerHTML='<div class="field-row" style="margin-top:4px">'+
+      '<div><span class="lbl">שם המרצה</span><input type="text" id="lec-name" oninput="up()"></div>'+
+      '<div><span class="lbl">נושא</span><input type="text" id="lec-topic" oninput="up()"></div>'+
+      '</div><div style="margin-top:4px"><span class="lbl">חברה / מוסד</span><input type="text" id="lec-org" oninput="up()"></div>';
   } else if(t==='tour'){
-    box.innerHTML=`<div class="field-row" style="margin-top:4px">
-      <div><span class="lbl">מקום הסיור</span><input type="text" id="tour-place" oninput="up()"></div>
-      <div><span class="lbl">חברה מארחת</span><input type="text" id="tour-org" oninput="up()"></div>
-    </div>`;
+    box.innerHTML='<div class="field-row" style="margin-top:4px">'+
+      '<div><span class="lbl">מקום הסיור</span><input type="text" id="tour-place" oninput="up()"></div>'+
+      '<div><span class="lbl">חברה מארחת</span><input type="text" id="tour-org" oninput="up()"></div>'+
+      '</div>';
   }
   up();
 }
 
-function logosBarHTML(){
+function logoItemHTML(id, size, textSize, cls){
+  if(id==='mohe'){
+    if(moheLogoLoaded) return '<div class="'+cls+'"><img src="'+MOHE_LOGO+'" style="height:'+size+'px"></div>';
+    return '<div class="'+cls+'"><span style="font-size:'+(size+4)+'px">🏛️</span><span style="font-size:'+textSize+'px">משרד<br>החינוך</span></div>';
+  }
+  if(id==='taas'){
+    if(taasLogoLoaded) return '<div class="'+cls+'"><img src="'+TAAS_LOGO+'" style="height:'+size+'px"></div>';
+    return '<div class="'+cls+'"><span style="font-size:'+(size+4)+'px">⚡</span><span style="font-size:'+textSize+'px">תעשיידע</span></div>';
+  }
+  if(customLogos[id]) return '<div class="'+cls+'"><img src="'+customLogos[id]+'" style="height:'+size+'px"></div>';
+  return '';
+}
+
+function logosBarHTML(footer){
+  const size=footer?15:28, textSize=footer?8:10;
+  const sepCls=footer?'c-footer-sep':'c-logo-sep';
+  const itemCls=footer?'c-footer-item':'c-logo-item';
+  const wrapCls=footer?'c-footer':'c-logos';
   let items='';
   logoOrder.forEach((id,i)=>{
-    if(i>0) items+=`<div class="c-logo-sep"></div>`;
-    if(id==='mohe') items+=`<div class="c-logo-item"><span style="font-size:22px">🏛️</span><span>משרד<br>החינוך</span></div>`;
-    else if(id==='taas') items+=`<div class="c-logo-item"><span style="font-size:22px">⚡</span><span>תעשיידע</span></div>`;
-    else if(customLogos[id]) items+=`<div class="c-logo-item"><img src="${customLogos[id]}"></div>`;
+    if(i>0) items+='<div class="'+sepCls+'"></div>';
+    items+=logoItemHTML(id, size, textSize, itemCls);
   });
-  return `<div class="c-logos">${items}</div>`;
+  return '<div class="'+wrapCls+'">'+items+'</div>';
 }
 
 function buildCard(){
@@ -242,76 +285,68 @@ function buildCard(){
   const b1=document.getElementById('b1').value;
   const b2=document.getElementById('b2').value;
   const course=getCourseName();
+  const closing1=document.getElementById('closing1').value||'נשמח לראותכם!';
+  const closing2=document.getElementById('closing2').value;
   const evLabel=type==='end'?'למפגש הסיום':type==='lecture'?'להרצאת אורח':'לסיור לימודי';
+  const teacherTitle=document.getElementById('teacher-title').value;
+  const teacherName=document.getElementById('teacher-name').value;
 
   let opening='';
   if(type==='end'){
-    opening=`<div class="c-opening">אנו שמחים להזמינכם <strong>${evLabel}</strong> של קורס <strong>${course}</strong></div>`;
+    opening='<div class="c-opening">אנו שמחים להזמינכם <strong>'+evLabel+'</strong> של קורס <strong>'+course+'</strong></div>';
   } else if(type==='lecture'){
     const ln=document.getElementById('lec-name')?.value||'';
     const lt=document.getElementById('lec-topic')?.value||'';
     const lo=document.getElementById('lec-org')?.value||'';
-    opening=`<div class="c-opening">אנו שמחים להזמינכם <strong>${evLabel}</strong>${ln?' עם <strong>'+ln+'</strong>':''}${lt?' | <strong>'+lt+'</strong>':''}${lo?' — '+lo:''}</div>`;
+    opening='<div class="c-opening">אנו שמחים להזמינכם <strong>'+evLabel+'</strong>'+(ln?' עם <strong>'+ln+'</strong>':'')+(lt?' | <strong>'+lt+'</strong>':'')+(lo?' — '+lo:'')+'</div>';
   } else {
     const tp=document.getElementById('tour-place')?.value||'';
     const to=document.getElementById('tour-org')?.value||'';
-    opening=`<div class="c-opening">אנו שמחים להזמינכם <strong>${evLabel}</strong>${tp?' ב<strong>'+tp+'</strong>':''}${to?' | <strong>'+to+'</strong>':''}</div>`;
+    opening='<div class="c-opening">אנו שמחים להזמינכם <strong>'+evLabel+'</strong>'+(tp?' ב<strong>'+tp+'</strong>':'')+(to?' | <strong>'+to+'</strong>':'')+'</div>';
   }
 
-  let partsHTML=`<div class="c-part-title" style="color:${c1}">בהשתתפות:</div>`;
-  partsHTML+=`<div class="c-part-line">הנהלת בית הספר | מחנכת הכיתה: ______</div>`;
+  let partsHTML='<div class="c-part-title" style="color:'+c1+'">בהשתתפות:</div>';
+  partsHTML+='<div class="c-part-line">הנהלת בית הספר</div>';
+  partsHTML+='<div class="c-part-line">'+teacherTitle+' הכיתה'+(teacherName?' — <strong>'+teacherName+'</strong>':'')+'</div>';
   parts.filter(p=>p.n||p.r).forEach(p=>{
-    partsHTML+=`<div class="c-part-line">${p.t?p.t+' ':''}<strong>${p.n}</strong>${p.r?`<span style="font-weight:400">, ${p.r}</span>`:''}</div>`;
+    partsHTML+='<div class="c-part-line">'+(p.t?p.t+' ':'')+
+      '<strong>'+p.n+'</strong>'+(p.r?'<span style="font-weight:400">, '+p.r+'</span>':'')+'</div>';
   });
 
-  const footerItems=logoOrder.map((id,i)=>{
-    let inner='';
-    if(id==='mohe') inner=`<span style="font-size:11px">🏛️</span><span>משרד החינוך</span>`;
-    else if(id==='taas') inner=`<span style="font-size:11px">⚡</span><span>תעשיידע</span>`;
-    else if(customLogos[id]) inner=`<img src="${customLogos[id]}">`;
-    return (i>0?'<div class="c-footer-sep"></div>':'')+`<div class="c-footer-item">${inner}</div>`;
-  }).join('');
-
-  return `
-${logosBarHTML()}
-<div class="c-main">
-  <div class="c-title" style="font-size:26px;color:${c1}">הזמנה</div>
-  <div class="c-sub-event" style="font-size:14px;color:${c1}">${evLabel}</div>
-  <div class="c-course" style="font-size:13px;color:${c2}">${course}</div>
-  <div class="c-year" style="color:${darken(c2)}">${year}</div>
-  ${(school||grade)?`<div class="c-school">תלמידי כיתה <strong>${grade||'____'}</strong> | בית ספר <strong>${school||'______'}</strong></div>`:''}
-  <div class="c-divider"></div>
-  ${opening}
-  ${b1?`<div class="c-para">${b1}</div>`:''}
-  ${b2?`<div class="c-para">${b2}</div>`:''}
-  <div class="c-box">
-    ${date?`<div class="c-info-row">📅 <strong>${date}</strong></div>`:''}
-    ${time?`<div class="c-info-row">⏰ ${time}</div>`:''}
-    ${loc?`<div class="c-info-row">📍 ${loc}</div>`:''}
-  </div>
-  <div class="c-box">${partsHTML}</div>
-  <div class="c-closing" style="color:${c2}">נשמח לראותכם!</div>
-</div>
-<div class="c-footer">${footerItems}</div>`;
+  return logosBarHTML(false)+
+    '<div class="c-main">'+
+    '<div class="c-title" style="color:'+c1+'">הזמנה</div>'+
+    '<div class="c-sub-event" style="color:'+c1+'">'+evLabel+'</div>'+
+    '<div class="c-course-label" style="color:'+c1+'">קורס</div>'+
+    '<div class="c-course" style="color:'+c2+'">'+course+'</div>'+
+    '<div class="c-year" style="color:'+darken(c2)+'">'+year+'</div>'+
+    ((school||grade)?'<div class="c-school">תלמידי כיתה <strong>'+(grade||'____')+'</strong> | בית ספר <strong>'+(school||'______')+'</strong></div>':'')+
+    '<div class="c-divider"></div>'+
+    opening+
+    (b1?'<div class="c-para">'+b1+'</div>':'')+
+    (b2?'<div class="c-para">'+b2+'</div>':'')+
+    '<div class="c-box">'+
+    (date?'<div class="c-info-row">📅 <strong>'+date+'</strong></div>':'')+
+    (time?'<div class="c-info-row">⏰ '+time+'</div>':'')+
+    (loc?'<div class="c-info-row">📍 '+loc+'</div>':'')+
+    '</div>'+
+    '<div class="c-box">'+partsHTML+'</div>'+
+    '<div class="c-closing" style="color:'+c2+'">'+closing1+'</div>'+
+    (closing2?'<div class="c-sub-closing" style="color:'+darken(c2)+'">'+closing2+'</div>':'')+
+    '</div>'+
+    logosBarHTML(true);
 }
 
 function up(){
   document.getElementById('course-custom').style.display=
     document.getElementById('course-sel').value==='__c'?'block':'none';
-  document.getElementById('cbg').style.backgroundImage=`url(${BG_URLS[selBg]})`;
+  document.getElementById('cbg').style.backgroundImage='url('+BG_URLS[selBg]+')';
   document.getElementById('cwrap').innerHTML=buildCard();
   renderParts();
 }
 
-function doPrint(){
-  const bgUrl=BG_URLS[selBg];
-  const inner=buildCard();
-  const w=window.open('','_blank','width=680,height=980');
-  w.document.write(`<!DOCTYPE html><html dir="rtl"><head>
-<meta charset="UTF-8"><title>הזמנה</title>
-<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
+function getCardCSS(bgUrl){
+  return `*{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Heebo',sans-serif;background:#ccc;display:flex;flex-direction:column;align-items:center;padding:20px;direction:rtl}
 @page{size:A5 portrait;margin:0}
 @media print{body{background:none;padding:0}.np{display:none}#card{box-shadow:none!important}}
@@ -320,57 +355,69 @@ body{font-family:'Heebo',sans-serif;background:#ccc;display:flex;flex-direction:
 .cbg{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;background-image:url(${bgUrl})}
 .cframe{position:absolute;inset:5mm;border-radius:10px;border:1.5px solid rgba(255,255,255,.55);pointer-events:none;z-index:3}
 .cwrap{position:relative;z-index:2;flex:1;display:flex;flex-direction:column}
-.c-logos{display:flex;align-items:center;justify-content:space-around;padding:3.5mm 6mm 3mm;background:rgba(255,255,255,.42);border-bottom:1px solid rgba(255,255,255,.45)}
-.c-logo-item{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:800;color:#1a3a5c;line-height:1.2}
-.c-logo-sep{width:1px;height:18px;background:rgba(26,58,92,.18)}
-.c-logo-item img{height:20px;width:auto;object-fit:contain}
+.c-logos{display:flex;align-items:center;justify-content:center;gap:6mm;padding:4mm 10mm 3.5mm;background:rgba(255,255,255,.42);border-bottom:1px solid rgba(255,255,255,.45)}
+.c-logo-item{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#1a3a5c;line-height:1.2}
+.c-logo-sep{width:1px;height:26px;background:rgba(26,58,92,.2)}
+.c-logo-item img{height:28px;width:auto;object-fit:contain}
 .c-main{padding:4mm 7mm 3mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
-.c-title{font-weight:900;line-height:1.05;margin-bottom:1mm}
-.c-sub-event{font-weight:700;line-height:1.1;margin-bottom:1.5mm}
-.c-course{font-weight:800;line-height:1.2;margin-bottom:1mm}
-.c-year{font-size:11px;font-weight:700;margin-bottom:2mm}
-.c-school{font-size:9px;color:#444;margin-bottom:2.5mm}
+.c-title{font-weight:900;line-height:1.05;margin-bottom:1mm;font-size:10.5mm}
+.c-sub-event{font-weight:700;line-height:1.1;margin-bottom:1mm;font-size:7.5mm}
+.c-course-label{font-size:4mm;font-weight:500;margin-bottom:0.5mm}
+.c-course{font-weight:800;line-height:1.2;margin-bottom:1mm;font-size:7.5mm}
+.c-year{font-size:4.8mm;font-weight:700;margin-bottom:2mm}
+.c-school{font-size:4.8mm;color:#444;margin-bottom:2.5mm}
 .c-school strong{font-weight:700}
 .c-divider{width:100%;height:1px;background:rgba(26,58,92,.1);margin:1.5mm 0}
-.c-opening{font-size:9px;color:#333;line-height:1.6;margin:1mm 0}
+.c-opening{font-size:3.7mm;color:#333;line-height:1.6;margin:1mm 0}
 .c-opening strong{font-weight:700;color:#1a3a5c}
-.c-para{font-size:8.5px;color:#444;line-height:1.6;margin:.5mm 0}
+.c-para{font-size:3.7mm;color:#444;line-height:1.6;margin:.5mm 0}
 .c-box{background:rgba(255,255,255,.5);border:1px solid rgba(26,140,110,.22);border-radius:8px;padding:2mm 3.5mm;margin:1.5mm 0;width:100%;text-align:right}
-.c-info-row{display:flex;align-items:center;gap:4px;font-size:9px;color:#333;line-height:1.7}
+.c-info-row{display:flex;align-items:center;gap:4px;font-size:4.8mm;color:#333;line-height:1.7}
 .c-info-row strong{font-weight:700}
-.c-part-title{font-size:9px;font-weight:700;margin-bottom:1px}
-.c-part-line{font-size:8.5px;color:#444;line-height:1.65}
+.c-part-title{font-size:3.5mm;font-weight:700;margin-bottom:1px}
+.c-part-line{font-size:3.5mm;color:#444;line-height:1.65}
 .c-part-line strong{font-weight:700;color:#222}
-.c-closing{font-size:14px;font-weight:900;margin-top:auto;padding-top:2mm;text-align:center}
-.c-footer{display:flex;align-items:center;justify-content:space-around;padding:2mm 6mm;background:rgba(255,255,255,.42);border-top:1px solid rgba(255,255,255,.45);margin-top:1.5mm}
-.c-footer-item{display:flex;align-items:center;gap:3px;font-size:7px;font-weight:700;color:rgba(26,58,92,.65)}
-.c-footer-sep{width:1px;height:14px;background:rgba(26,58,92,.15)}
-.c-footer-item img{height:13px;width:auto}
-</style></head><body>
-<div class="np"><button onclick="window.print()">🖨️ הדפס / שמור כ-PDF</button></div>
-<div id="card"><div class="cbg"></div><div class="cframe"></div><div class="cwrap">${inner}</div></div>
-</body></html>`);
+.c-closing{font-size:7.5mm;font-weight:900;margin-top:auto;padding-top:2mm;text-align:center}
+.c-sub-closing{font-size:3.5mm;font-weight:700;text-align:center;margin-top:1mm}
+.c-footer{display:flex;align-items:center;justify-content:center;gap:6mm;padding:2.5mm 10mm;background:rgba(255,255,255,.42);border-top:1px solid rgba(255,255,255,.45);margin-top:1.5mm}
+.c-footer-item{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:rgba(26,58,92,.65)}
+.c-footer-sep{width:1px;height:16px;background:rgba(26,58,92,.15)}
+.c-footer-item img{height:15px;width:auto}`;
+}
+
+function doPrint(){
+  const inner=buildCard();
+  const w=window.open('','_blank','width=680,height=980');
+  w.document.write('<!DOCTYPE html><html dir="rtl"><head>'+
+    '<meta charset="UTF-8"><title>הזמנה</title>'+
+    '<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">'+
+    '<style>'+getCardCSS(BG_URLS[selBg])+'</style></head><body>'+
+    '<div class="np"><button onclick="window.print()">🖨️ הדפס / שמור כ-PDF</button></div>'+
+    '<div id="card"><div class="cbg"></div><div class="cframe"></div><div class="cwrap">'+inner+'</div></div>'+
+    '</body></html>');
   w.document.close();
 }
 
 function doReset(){
-  ['school','grade','ev-loc','b1','b2','course-custom'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['school','grade','ev-loc','b1','b2','course-custom','teacher-name'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('ev-date').value='';
   document.getElementById('ev-time').value='';
   document.getElementById('ev-type').value='end';
+  document.getElementById('teacher-title').value='מחנכת';
   document.getElementById('course-sel').value=document.getElementById('course-sel').options[0].value;
   document.getElementById('c1').value='#1a3a5c';
   document.getElementById('c2').value='#1a8c6e';
+  document.getElementById('closing1').value='נשמח לראותכם!';
+  document.getElementById('closing2').value='מחכים לראותכם 🎉';
   parts=[
     {t:'גב׳',n:'יעל אביב',r:'מנהלת תחום חינוך ופדגוגיה, תעשיידע'},
     {t:'גב׳',n:'הילה רוזן',r:'אחראית הדרכה ומנחת הקבוצה, תעשיידע'},
   ];
-  selBg=0;logoOrder=['mohe','taas'];customLogos={};
-  const zone=document.getElementById('logo-zone');
-  [...zone.querySelectorAll('.lchip[data-id]')].forEach(c=>{
+  selBg=0; logoOrder=['mohe','taas']; customLogos={};
+  [...document.querySelectorAll('#logo-zone .lchip[data-id]')].forEach(c=>{
     if(!['mohe','taas'].includes(c.dataset.id)) c.remove();
   });
-  onTypeChange();initBg();up();
+  onTypeChange(); initBg(); up();
 }
 
 function setupDrag(){
@@ -384,7 +431,7 @@ function setupDrag(){
       if(!from||from===to) return;
       const fi=logoOrder.indexOf(from),ti=logoOrder.indexOf(to);
       if(fi>-1&&ti>-1){logoOrder.splice(fi,1);logoOrder.splice(ti,0,from);}
-      const fe=document.querySelector(`[data-id="${from}"]`),te=document.querySelector(`[data-id="${to}"]`);
+      const fe=document.querySelector('[data-id="'+from+'"]'),te=document.querySelector('[data-id="'+to+'"]');
       if(fe&&te&&fe.parentNode===te.parentNode) fi<ti?te.after(fe):te.before(fe);
       up();
     };
@@ -400,15 +447,17 @@ document.getElementById('logo-file').onchange=function(){
     customLogos[id]=e.target.result;
     logoOrder.push(id);
     const chip=document.createElement('div');
-    chip.className='lchip';chip.draggable=true;chip.dataset.id=id;
-    chip.innerHTML=`<img src="${e.target.result}" style="height:14px"> <button onclick="event.stopPropagation();logoOrder=logoOrder.filter(x=>x!=='${id}');delete customLogos['${id}'];this.parentNode.remove();up()" style="background:none;border:none;cursor:pointer;font-size:12px;color:#999;padding:0">×</button>`;
+    chip.className='lchip'; chip.draggable=true; chip.dataset.id=id;
+    chip.innerHTML='<img src="'+e.target.result+'" style="height:14px"> '+
+      '<button onclick="event.stopPropagation();logoOrder=logoOrder.filter(x=>x!==\''+id+'\');delete customLogos[\''+id+'\'];this.parentNode.remove();up()" '+
+      'style="background:none;border:none;cursor:pointer;font-size:12px;color:#999;padding:0">×</button>';
     document.getElementById('logo-add').before(chip);
-    setupDrag();up();
+    setupDrag(); up();
   };
   reader.readAsDataURL(this.files[0]);
 };
 
-initBg();renderParts();onTypeChange();setupDrag();
+initBg(); renderParts(); onTypeChange(); setupDrag();
 </script>
 </body>
 </html>
