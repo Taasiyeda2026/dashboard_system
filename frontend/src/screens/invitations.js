@@ -38,9 +38,10 @@ function ensureInvitationStyles() {
   .inv-title{margin:0 0 8px;font-size:20px}.inv-field{display:grid;gap:4px;margin-bottom:8px}.inv-field input,.inv-field textarea,.inv-field select{border:1px solid #cbd5e1;border-radius:10px;padding:8px;font:inherit}
   .inv-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}.inv-chip{border:1px solid #dbe5ef;background:#f8fafc;border-radius:12px;padding:10px;cursor:pointer}.inv-chip.active{background:#dcfce7;border-color:#86efac}
   .inv-btn{width:100%;border:0;border-radius:12px;padding:11px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#14b8a6,#22c7d9);color:#fff}
-  .preview-wrap{overflow:auto;display:flex;justify-content:center;align-items:flex-start;max-height:calc(100vh - 32px);padding:8px}
-  .a4-scale-wrap{width:100%;display:flex;justify-content:center;transform:scale(var(--a4-scale,1));transform-origin:top center}
-  .a4-page{width:794px;min-height:1123px;padding:102px 76px 70px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background-color:#fffdf6;background-image:none;background-size:cover;background-position:center;box-shadow:0 18px 42px rgba(15,23,42,.16)}
+  .invitation-preview-viewport{overflow:auto;display:flex;justify-content:center;align-items:flex-start;max-height:calc(100vh - 32px);padding:8px;scroll-padding-top:8px}
+  .invitation-preview-wrapper{width:100%;display:flex;justify-content:center;align-items:flex-start}
+  .invitation-preview-scale{width:794px;height:1123px;display:flex;justify-content:center;align-items:flex-start;transform:scale(var(--a4-scale,1));transform-origin:top center}
+  .invitation-print-page{width:794px;min-height:1123px;padding:102px 76px 70px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background-color:#fffdf6;background-image:none;background-size:cover;background-position:center;box-shadow:0 18px 42px rgba(15,23,42,.16)}
   .page-ribbon{position:absolute;top:0;bottom:0;width:66px;z-index:1;opacity:.92}.page-ribbon.right{right:0;background:radial-gradient(circle at 50% 14%, rgba(255,255,255,0.92) 0 6px, transparent 7px),radial-gradient(circle at 45% 31%, rgba(18,185,129,0.42), transparent 26px),radial-gradient(circle at 60% 60%, rgba(14,165,233,0.28), transparent 30px),linear-gradient(180deg, rgba(18,185,129,0.4), rgba(14,165,233,0.18))}.page-ribbon.left{left:0;background:radial-gradient(circle at 50% 80%, rgba(255,255,255,0.9) 0 7px, transparent 8px),radial-gradient(circle at 50% 22%, rgba(14,165,233,0.35), transparent 28px),radial-gradient(circle at 56% 58%, rgba(217,249,157,0.45), transparent 28px),linear-gradient(180deg, rgba(14,165,233,0.22), rgba(18,185,129,0.34))}
   .decor-bubble{position:absolute;border-radius:999px;border:1px solid rgba(255,255,255,0.68);background:rgba(255,255,255,0.42);box-shadow:0 10px 24px rgba(15,23,42,0.08);z-index:1}.bubble-1{width:118px;height:118px;top:62px;right:64px}.bubble-2{width:88px;height:88px;bottom:86px;left:78px}.bubble-3{width:54px;height:54px;top:170px;left:92px}
   .logos-header{position:absolute;top:24px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:18px;padding:8px 20px;border-radius:999px;background:rgba(255,255,255,0.76);border:1px solid rgba(255,255,255,0.72)}
@@ -51,15 +52,48 @@ function ensureInvitationStyles() {
   .event-details{background:linear-gradient(135deg, rgba(255,255,255,0.96), rgba(240,249,255,0.92));padding:13px 22px;border-radius:18px;border:2px solid rgba(20,184,166,.18);font-size:20px;line-height:1.55}
   .participants{width:100%;font-size:16.5px;line-height:1.82;text-align:right;background:rgba(248,250,252,0.72);border:1px solid rgba(226,232,240,0.88);border-radius:18px;padding:14px 18px}
   .closing-text{color:#058669;margin-top:8px;font-size:34px;font-weight:800}
-  @media (max-width:1200px){.inv-shell{grid-template-columns:1fr}.inv-panel{position:static;height:auto}.preview-wrap{max-height:none}}
-  @media print{@page{size:A4 portrait;margin:0} .inv-panel{display:none!important}.inv-shell{display:block}.preview-wrap{display:block;width:210mm;height:297mm;margin:0;padding:0;overflow:hidden}.a4-scale-wrap{transform:none!important}.a4-page{width:210mm;height:297mm;min-height:0;padding:28mm 20mm 18mm;box-shadow:none;page-break-inside:avoid;break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  @media (max-width:1200px){.inv-shell{grid-template-columns:1fr}.inv-panel{position:static;height:auto}.invitation-preview-viewport{max-height:none}}
+  @media print{
+    @page{size:A4 portrait;margin:0}
+    html,body{width:210mm!important;height:297mm!important;margin:0!important;padding:0!important;overflow:hidden!important;background:white!important}
+    body *{visibility:hidden!important}
+    .invitation-print-page,.invitation-print-page *{visibility:visible!important}
+    .invitation-print-page{
+      position:fixed!important;
+      top:0!important;
+      right:0!important;
+      left:auto!important;
+      width:210mm!important;
+      height:297mm!important;
+      min-height:297mm!important;
+      margin:0!important;
+      padding:26mm 18mm 18mm!important;
+      transform:none!important;
+      scale:none!important;
+      box-shadow:none!important;
+      overflow:hidden!important;
+      page-break-before:avoid!important;
+      page-break-after:avoid!important;
+      page-break-inside:avoid!important;
+      break-before:avoid!important;
+      break-after:avoid!important;
+      break-inside:avoid!important;
+      -webkit-print-color-adjust:exact!important;
+      print-color-adjust:exact!important
+    }
+    .invitation-preview-viewport,.invitation-preview-scale,.invitation-preview-wrapper{
+      transform:none!important;
+      scale:none!important;
+      overflow:visible!important
+    }
+  }
   `;
   document.head.appendChild(style);
 }
 
 function invitationPreviewHtml(s) {
   const t = getTemplate(s);
-  return `<div class="a4-scale-wrap"><div class="a4-page ${s.hasBackground ? 'has-background' : ''}" id="invitation-page" style="background-image:${s.backgroundCss};">
+  return `<div class="invitation-preview-wrapper"><div class="invitation-preview-scale"><div class="invitation-print-page ${s.hasBackground ? 'has-background' : ''}" id="invitation-page" style="background-image:${s.backgroundCss};">
     <div class="page-ribbon right"></div><div class="page-ribbon left"></div>
     <div class="decor-bubble bubble-1"></div><div class="decor-bubble bubble-2"></div><div class="decor-bubble bubble-3"></div>
     <header class="logos-header">
@@ -70,14 +104,14 @@ function invitationPreviewHtml(s) {
     <div class="main-text"><p>${s.body1 || t.body1}</p><p>${s.body2 || t.body2}</p></div>
     <div class="event-details"><strong>יום:</strong> ${s.day || '______'} | <strong>תאריך:</strong> ${s.date || '______'} | <strong>שעה:</strong> ${s.time || '______'}<br><strong>מיקום:</strong> ${s.location || '______'}</div>
     <p class="participants"><strong>בהשתתפות:</strong><br>${(s.participants || t.participants).replace(/\n/g, '<br>')}</p>
-    <div class="closing-text">${s.closing || t.closing}</div></div></div></div>`;
+    <div class="closing-text">${s.closing || t.closing}</div></div></div></div></div>`;
 }
 
-export const invitationsScreen = { load: async () => ({}), render() { ensureInvitationStyles(); const s = { course: 'biomimicry', type: 'graduation', school: '', className: '', title: '', subtitle: '', schoolYear: '', day: '', date: '', time: '', location: '', body1: '', body2: '', participants: '', closing: '', backgroundCss: PRESET_BACKGROUNDS.soft, hasBackground: false, logos: { education: '', taasiyeda: '', school: '' } }; return `<section class="inv-shell" data-invitations-root><aside class="inv-panel"><h2 class="inv-title">מחולל הזמנות</h2><div class="inv-grid">${COURSE_OPTIONS.map((c) => `<button type="button" class="inv-chip ${s.course === c.key ? 'active' : ''}" data-course="${c.key}">${c.icon} ${c.label}</button>`).join('')}</div><div class="inv-grid" style="grid-template-columns:1fr">${INVITATION_TYPES.map((t) => `<button type="button" class="inv-chip ${s.type === t.key ? 'active' : ''}" data-type="${t.key}">${t.label}</button>`).join('')}</div>${[['schoolYear','שנת לימודים'],['className','כיתה'],['school','בית ספר'],['title','כותרת'],['subtitle','כותרת משנה'],['day','יום'],['date','תאריך'],['time','שעה'],['location','מיקום'],['body1','פסקה 1'],['body2','פסקה 2'],['participants','משתתפים'],['closing','סיום']].map(([k,l])=>`<label class="inv-field"><span>${l}</span>${['subtitle','participants','body1','body2'].includes(k)?`<textarea data-field="${k}"></textarea>`:`<input data-field="${k}"/>`}</label>`).join('')}<label class="inv-field"><span>רקע מובנה</span><select data-background-preset><option value="soft">רקע עדין</option><option value="clean">רקע בהיר</option></select></label><label class="inv-field"><span>העלאת תמונת רקע</span><input type="file" accept="image/*" data-background-upload /></label>${['education','taasiyeda','school'].map((k)=>`<label class="inv-field"><span>לוגו ${k}</span><input type="file" accept="image/*" data-logo-upload="${k}"/></label>`).join('')}<button type="button" class="inv-btn" data-print>הפק / שמור כ-PDF</button></aside><main class="preview-wrap" data-inv-preview>${invitationPreviewHtml(s)}</main></section>`; },
-  bind({ root }) { const host = root?.querySelector('[data-invitations-root]'); if (!host) return; const state = { course: 'biomimicry', type: 'graduation', school: '', className: '', title: '', subtitle: '', schoolYear: '', day: '', date: '', time: '', location: '', body1: '', body2: '', participants: '', closing: '', backgroundCss: PRESET_BACKGROUNDS.soft, hasBackground: false, logos: { education: '', taasiyeda: '', school: '' } }; const repaint = () => { host.querySelectorAll('[data-course]').forEach((el) => el.classList.toggle('active', el.dataset.course === state.course)); host.querySelectorAll('[data-type]').forEach((el) => el.classList.toggle('active', el.dataset.type === state.type)); const p = host.querySelector('[data-inv-preview]'); if (p) p.innerHTML = invitationPreviewHtml(state); const wrap = p?.querySelector('.a4-scale-wrap'); const avail = p?.clientWidth || 900; if (wrap) wrap.style.setProperty('--a4-scale', String(Math.min(1, (avail - 24) / 794))); };
+export const invitationsScreen = { load: async () => ({}), render() { ensureInvitationStyles(); const s = { course: 'biomimicry', type: 'graduation', school: '', className: '', title: '', subtitle: '', schoolYear: '', day: '', date: '', time: '', location: '', body1: '', body2: '', participants: '', closing: '', backgroundCss: PRESET_BACKGROUNDS.soft, hasBackground: false, logos: { education: '', taasiyeda: '', school: '' } }; return `<section class="inv-shell" data-invitations-root><aside class="inv-panel"><h2 class="inv-title">מחולל הזמנות</h2><div class="inv-grid">${COURSE_OPTIONS.map((c) => `<button type="button" class="inv-chip ${s.course === c.key ? 'active' : ''}" data-course="${c.key}">${c.icon} ${c.label}</button>`).join('')}</div><div class="inv-grid" style="grid-template-columns:1fr">${INVITATION_TYPES.map((t) => `<button type="button" class="inv-chip ${s.type === t.key ? 'active' : ''}" data-type="${t.key}">${t.label}</button>`).join('')}</div>${[['schoolYear','שנת לימודים'],['className','כיתה'],['school','בית ספר'],['title','כותרת'],['subtitle','כותרת משנה'],['day','יום'],['date','תאריך'],['time','שעה'],['location','מיקום'],['body1','פסקה 1'],['body2','פסקה 2'],['participants','משתתפים'],['closing','סיום']].map(([k,l])=>`<label class="inv-field"><span>${l}</span>${['subtitle','participants','body1','body2'].includes(k)?`<textarea data-field="${k}"></textarea>`:`<input data-field="${k}"/>`}</label>`).join('')}<label class="inv-field"><span>רקע מובנה</span><select data-background-preset><option value="soft">רקע עדין</option><option value="clean">רקע בהיר</option></select></label><label class="inv-field"><span>העלאת תמונת רקע</span><input type="file" accept="image/*" data-background-upload /></label>${['education','taasiyeda','school'].map((k)=>`<label class="inv-field"><span>לוגו ${k}</span><input type="file" accept="image/*" data-logo-upload="${k}"/></label>`).join('')}<button type="button" class="inv-btn" data-print>הפק / שמור כ-PDF</button></aside><main class="invitation-preview-viewport" data-inv-preview>${invitationPreviewHtml(s)}</main></section>`; },
+  bind({ root }) { const host = root?.querySelector('[data-invitations-root]'); if (!host) return; const state = { course: 'biomimicry', type: 'graduation', school: '', className: '', title: '', subtitle: '', schoolYear: '', day: '', date: '', time: '', location: '', body1: '', body2: '', participants: '', closing: '', backgroundCss: PRESET_BACKGROUNDS.soft, hasBackground: false, logos: { education: '', taasiyeda: '', school: '' } }; const repaint = () => { host.querySelectorAll('[data-course]').forEach((el) => el.classList.toggle('active', el.dataset.course === state.course)); host.querySelectorAll('[data-type]').forEach((el) => el.classList.toggle('active', el.dataset.type === state.type)); const p = host.querySelector('[data-inv-preview]'); if (p) p.innerHTML = invitationPreviewHtml(state); const wrap = p?.querySelector('.invitation-preview-scale'); const availWidth = p?.clientWidth || 900; const availHeight = p?.clientHeight || 1200; if (wrap) { const widthScale = (availWidth - 24) / 794; const heightScale = (availHeight - 24) / 1123; const nextScale = Math.max(0.5, Math.min(1, widthScale, heightScale)); wrap.style.setProperty('--a4-scale', String(nextScale)); wrap.style.width = `${Math.round(794 * nextScale)}px`; wrap.style.height = `${Math.round(1123 * nextScale)}px`; } if (p) p.scrollTop = 0; };
     host.querySelectorAll('[data-course]').forEach((el) => el.addEventListener('click', () => { state.course = el.dataset.course || state.course; repaint(); })); host.querySelectorAll('[data-type]').forEach((el) => el.addEventListener('click', () => { state.type = el.dataset.type || state.type; repaint(); })); host.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('input', (e) => { const f = e.target?.dataset?.field; if (!f) return; state[f] = e.target.value || ''; repaint(); }));
     host.querySelector('[data-background-preset]')?.addEventListener('change', (e) => { state.backgroundCss = PRESET_BACKGROUNDS[e.target.value] || PRESET_BACKGROUNDS.soft; state.hasBackground = true; repaint(); });
     host.querySelector('[data-background-upload]')?.addEventListener('change', (e) => { const file = e.target.files?.[0]; if (!file) return; const r = new FileReader(); r.onload = () => { state.backgroundCss = `url('${r.result}')`; state.hasBackground = true; repaint(); }; r.readAsDataURL(file); });
     host.querySelectorAll('[data-logo-upload]').forEach((i) => i.addEventListener('change', (e) => { const k = e.target.dataset.logoUpload; const f = e.target.files?.[0]; if (!k || !f) return; const r = new FileReader(); r.onload = () => { state.logos[k] = String(r.result || ''); repaint(); }; r.readAsDataURL(f); }));
-    host.querySelector('[data-print]')?.addEventListener('click', () => window.print()); window.addEventListener('resize', repaint); repaint(); }
+    host.querySelector('[data-print]')?.addEventListener('click', () => { document.body.classList.add('printing-invitation'); window.print(); setTimeout(() => document.body.classList.remove('printing-invitation'), 500); }); window.addEventListener('resize', repaint); repaint(); }
 };
