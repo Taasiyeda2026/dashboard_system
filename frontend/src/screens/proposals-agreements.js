@@ -311,18 +311,25 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = []) {
     : n(item.total_price);
   const selectedPricingName = text(item.pricing_activity_name || item.item_name);
   const pricingSelectOptions = ['<option value="">— בחירה מהירה —</option>', ...pricingOptions.map((row) => optionHtml(row.activity_name, selectedPricingName))].join('');
-  return `<tr class="ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}">
-    <td class="ds-pa-ic-name"><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></td>
-    <td class="ds-pa-ic-type"><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(item.item_type || '')}" list="pa-item-type-list" placeholder="סוג"></td>
-    <td class="ds-pa-ic-gefen"><input class="ds-input ds-input--sm" name="gefen_number" value="${escapeHtml(item.gefen_number || '')}" placeholder="גפ״ן"></td>
-    <td class="ds-pa-ic-num"><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></td>
-    <td class="ds-pa-ic-num"><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></td>
-    <td class="ds-pa-ic-num"><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></td>
-    <td class="ds-pa-ic-num"><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></td>
-    <td class="ds-pa-ic-total"><input class="ds-input ds-input--sm" name="total_price" value="${calcTotal}" readonly data-pa-item-total></td>
-    <td class="ds-pa-ic-desc"><input class="ds-input ds-input--sm" name="description" value="${escapeHtml(item.description || '')}" placeholder="תיאור"></td>
-    <td class="ds-pa-ic-del"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-item aria-label="הסר">×</button></td>
-  </tr>`;
+  return `<article class="ds-pa-item-card ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}">
+    <label class="ds-pa-item-field ds-pa-item-field--full"><span>בחירה מהירה</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select></label>
+    <div class="ds-pa-item-grid">
+      <label class="ds-pa-item-field"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
+      <label class="ds-pa-item-field"><span>סוג</span><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(item.item_type || '')}" list="pa-item-type-list" placeholder="סוג"></label>
+    </div>
+    <div class="ds-pa-item-grid ds-pa-item-grid--numbers">
+      <label class="ds-pa-item-field"><span>מספר גפ״ן</span><input class="ds-input ds-input--sm" name="gefen_number" value="${escapeHtml(item.gefen_number || '')}" placeholder="גפ״ן"></label>
+      <label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
+      <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>
+    </div>
+    <div class="ds-pa-item-grid ds-pa-item-grid--numbers">
+      <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
+      <label class="ds-pa-item-field"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
+      <label class="ds-pa-item-field"><span>סה״כ שורה</span><input class="ds-input ds-input--sm" name="total_price" value="${calcTotal}" readonly data-pa-item-total></label>
+    </div>
+    <label class="ds-pa-item-field ds-pa-item-field--full"><span>תיאור / הערות</span><input class="ds-input ds-input--sm" name="description" value="${escapeHtml(item.description || '')}" placeholder="תיאור"></label>
+    <div class="ds-pa-item-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-item aria-label="הסר שורה">הסר שורה</button></div>
+  </article>`;
 }
 
 function itemsEditorHtml(items = [], pricingOptions = []) {
@@ -333,23 +340,7 @@ function itemsEditorHtml(items = [], pricingOptions = []) {
       <span style="font-size:0.76rem;color:var(--ds-color-text-muted,#64748b);font-weight:600">שורות הצעה</span>
       <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item>+ הוסף שורה</button>
     </div>
-    <div class="ds-pa-items-table-wrap">
-      <table class="ds-pa-items-table">
-        <thead><tr>
-          <th class="ds-pa-ic-name">שם פעילות / תוכנית</th>
-          <th class="ds-pa-ic-type">סוג</th>
-          <th class="ds-pa-ic-gefen">גפ״ן</th>
-          <th class="ds-pa-ic-num" title="מספר מפגשים">מפגשים</th>
-          <th class="ds-pa-ic-num" title="מספר שעות">שעות</th>
-          <th class="ds-pa-ic-num">כמות</th>
-          <th class="ds-pa-ic-num">מחיר יח׳</th>
-          <th class="ds-pa-ic-total">סה״כ</th>
-          <th class="ds-pa-ic-desc">תיאור</th>
-          <th class="ds-pa-ic-del"></th>
-        </tr></thead>
-        <tbody data-pa-items-body>${rowsHtml}</tbody>
-      </table>
-    </div>
+    <div class="ds-pa-items-list" data-pa-items-body>${rowsHtml}</div>
     <datalist id="pa-item-type-list">${ITEM_TYPE_OPTIONS.map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>
   </div>`;
@@ -434,6 +425,8 @@ function proposalLineHtml(item = {}) {
   else if (duration) parts.push(duration);
   const total = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
   if (total) parts.push(`${formatCurrency(total)} ₪`);
+  const gefenNumber = text(item.gefen_number);
+  if (gefenNumber) parts.push(`גפ״ן ${gefenNumber}`);
   const itemName = text(item.item_name);
   if (!itemName) return '';
   const suffix = parts.length ? `: ${parts.join(' | ')}` : '';
@@ -498,39 +491,41 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
 
   return `
     <header class="pa-doc-header">
-      <div class="pa-doc-header-brand">
-        <img
-          src="${PUBLIC_BASE}proposal-header-logo.png"
-          alt="לוגו תעשיידע"
-          class="pa-doc-logo pa-doc-logo--header"
-          loading="eager"
-          decoding="async"
-          onerror="this.style.display='none';this.parentElement?.querySelector('.pa-doc-company-block')?.removeAttribute('hidden');"
-        >
-        <div class="pa-doc-company-block" hidden>תעשיידע</div>
-      </div>
-      <div class="pa-doc-head-meta">
-        <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
-        <div class="pa-doc-address">
-          <p><strong>לכבוד:</strong></p>
-          ${row.contact_name ? `<p>${escapeHtml(row.contact_name)}</p>` : ''}
-          ${row.school_framework ? `<p>${escapeHtml(row.school_framework)}</p>` : ''}
-          ${row.client_authority ? `<p>${escapeHtml(row.client_authority)}</p>` : ''}
+      <div class="pa-doc-topline">
+        <div class="pa-doc-header-brand">
+          <img
+            src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
+            alt="לוגו תעשיידע"
+            class="pa-doc-logo pa-doc-logo--header"
+            loading="eager"
+            decoding="async"
+            onerror="this.style.display='none';this.parentElement?.querySelector('.pa-doc-company-block')?.removeAttribute('hidden');"
+          >
+          <div class="pa-doc-company-block" hidden>תעשיידע</div>
         </div>
+        <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
+      </div>
+      <div class="pa-doc-address">
+        <p><strong>לכבוד:</strong></p>
+        ${row.contact_name ? `<p>${escapeHtml(row.contact_name)}</p>` : ''}
+        ${row.contact_role ? `<p>${escapeHtml(row.contact_role)}</p>` : ''}
+        ${row.school_framework ? `<p>${escapeHtml(row.school_framework)}</p>` : ''}
+        ${row.client_authority ? `<p>${escapeHtml(row.client_authority)}</p>` : ''}
       </div>
     </header>
+    <hr class="pa-doc-divider">
     <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
     ${introText ? sectionBodyHtml(introText) : ''}
     ${activitySectionHtml ? `<section class="pa-section"><h3>${sectionTitle('activity_intro', 'הפעילות המוצעת')}:</h3>${activitySectionHtml}</section>` : ''}
-    ${(paymentTerms || proposalItemsListHtml(items)) ? `<section class="pa-section"><h3>${activityTypeGroup === 'פעילויות קיץ' ? 'עלויות ותנאי תשלום' : 'עלויות ותנאי תשלום'}:</h3>${proposalItemsListHtml(items)}${paymentTerms ? sectionBodyHtml(paymentTerms) : ''}</section>` : ''}
     ${orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility) : ''}
     ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility) : ''}
+    ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלויות ותנאי תשלום'), paymentTerms) : ''}
     ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation) : ''}
     ${remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : ''}
     ${signatureSectionHtml(signatureText)}
     <footer class="pa-doc-footer">
       <img
-        src="${PUBLIC_BASE}proposal-footer-logo.png"
+        src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
         alt="לוגו תחתון תעשיידע"
         class="pa-doc-logo pa-doc-logo--footer"
         loading="lazy"
