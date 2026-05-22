@@ -3,7 +3,7 @@
  * App shell, JS and CSS: network-first so a normal reload can pick up a new deploy.
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 420;
+const CACHE_VERSION = 421;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -15,7 +15,14 @@ const PRECACHE_URLS = [
   "./assets/favicon-32.png",
   "./assets/favicon-D0Y9bj5H.ico",
   "./assets/favicon.ico",
-  "./assets/index-DEI6uRsA.js",
+  "./assets/index-CQNF4AWP.js",
+  "./assets/invitations/backgrounds/background-1.png",
+  "./assets/invitations/backgrounds/background-2.png",
+  "./assets/invitations/backgrounds/background-3.png",
+  "./assets/invitations/backgrounds/background-4.png",
+  "./assets/invitations/backgrounds/background-5.png",
+  "./assets/invitations/logos/education-logo.png",
+  "./assets/invitations/logos/taasiyeda-logo.png",
   "./assets/logo1-sNrSbLi9.png",
   "./assets/logo1.png",
   "./assets/logo2.png",
@@ -30,7 +37,7 @@ const PRECACHE_URLS = [
   "./assets/pwa/icon-72.png",
   "./assets/pwa/icon-96.png",
   "./assets/pwa/icon-maskable-512.png",
-  "./assets/style-C-SNCWTl.css",
+  "./assets/style-OopJiR-D.css",
   "./index.html",
   "./manifest.json"
 ];
