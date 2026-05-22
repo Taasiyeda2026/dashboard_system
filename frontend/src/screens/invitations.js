@@ -817,7 +817,7 @@ export const invitationsScreen = {
       return `${baseStyle.replace('.invitation-screen-root .preview #card{zoom:.50}', '')}
 body{font-family:'Heebo',sans-serif;background:#ccc;display:flex;flex-direction:column;align-items:center;padding:20px;direction:rtl}
 @page{size:A5 portrait;margin:0}
-@media print{body{background:none;padding:0}.np{display:none}#card{box-shadow:none!important}}
+@media print{html,body{width:148mm;height:210mm;margin:0;padding:0;overflow:hidden}body{background:none;display:flex;align-items:flex-start;justify-content:center}.np{display:none}#card{width:148mm;height:210mm;min-height:210mm;max-height:210mm;box-shadow:none!important;position:relative;left:50%;transform:translateX(-50%) scale(.99);transform-origin:top center;margin:0 auto}}
 .np{margin-bottom:14px}
 .np button{background:#1a8c6e;color:#fff;border:none;padding:9px 22px;border-radius:7px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;cursor:pointer}
 .cbg{${bgStyle}}`;
