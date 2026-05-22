@@ -10413,20 +10413,21 @@ select.ds-input {
   padding: 8px 16px; display: flex; gap: 8px; align-items: center;
 }
 .ds-pa-preview-doc {
+  background: #fff;
+  color: #111827;
+  direction: rtl;
   width: 794px;
   max-width: 100%;
   min-height: 1123px;
   margin: 24px auto 48px;
-  background: #fff;
+  padding: 36px 58px 44px;
+  font-family: Arial, "Noto Sans Hebrew", sans-serif;
+  font-size: 10pt;
+  line-height: 1.5;
+  letter-spacing: 0.15px;
+  box-shadow: none;
   border: none;
   border-radius: 0;
-  padding: 36px 58px 44px;
-  box-shadow: none;
-  font-family: Arial, "Noto Sans Hebrew", sans-serif;
-  font-size: 13.5px;
-  line-height: 1.55;
-  direction: rtl;
-  color: #111827;
 }
 .pa-doc-header {
   margin-bottom: 8px;
@@ -10448,58 +10449,90 @@ select.ds-input {
   display: block; max-width: 100%; height: auto;
 }
 .pa-doc-logo--header {
-  width: 150px;
+  width: 155px;
   max-width: 32%;
   margin-inline: 0;
 }
 .pa-doc-logo--footer {
   width: 170px;
-  max-width: 42%;
+  max-width: 40%;
   margin-inline: auto;
   opacity: 0.9;
 }
 .pa-doc-date {
   justify-self: start;
   color: #111827;
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 9pt;
+  line-height: 1.5;
+  text-align: left;
+  margin-bottom: 4pt;
 }
 .pa-doc-address {
   margin: 0;
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 10pt;
+  line-height: 1.5;
   text-align: right;
+  margin-bottom: 4pt;
 }
 .pa-doc-address p { margin: 0 0 2px; }
 .pa-doc-subject {
-  margin: 14px 0 10px;
+  margin: 10pt 0 8pt;
   color: #1f4e79;
-  font-size: 14px;
+  font-size: 11pt;
   font-weight: 700;
   text-decoration: underline;
+  line-height: 1.5;
   text-align: center;
 }
 .pa-section {
-  margin: 13px 0;
+  margin: 8pt 0;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 .pa-section h3 {
-  color: #1f4e79;
-  font-size: 13.5px;
+  font-size: 10pt;
   font-weight: 700;
   text-decoration: underline;
-  margin: 0 0 5px;
+  color: #1f4e79;
+  margin: 0 0 4pt;
+  line-height: 1.5;
+  letter-spacing: 0.15px;
   padding: 0;
   border: 0;
+  background: transparent;
 }
-.pa-section p { margin: 0; white-space: pre-line; }
-.pa-cost-line { margin: 0; white-space: pre-line; }
-.pa-section--signature {
-  margin-top: 24px;
+.pa-section p,
+.pa-doc-intro,
+.pa-proposal-lines,
+.pa-cost-line {
+  font-size: 10pt;
+  line-height: 1.5;
+  letter-spacing: 0.15px;
+  margin: 0 0 4pt;
+  white-space: pre-line;
+}
+.pa-doc-signature-simple {
+  margin-top: 28pt;
+  text-align: left;
+  font-size: 9pt;
+  line-height: 1.5;
+  letter-spacing: 0.15px;
+}
+.pa-doc-signature-line-wrap {
+  display: inline-block;
+  text-align: left;
+}
+.pa-doc-signature-simple p {
+  margin: 0 0 4pt;
+}
+.pa-doc-signature-line {
+  display: inline-block;
+  min-width: 160px;
+  border-top: 1px solid #111827;
+  padding-top: 4pt;
 }
 .pa-doc-footer {
-  margin-top: 26px;
+  margin-top: 18pt;
   padding-top: 0;
   border: 0;
   break-inside: avoid;
@@ -10548,9 +10581,12 @@ select.ds-input {
     margin: 0 !important;
     padding: 0 !important;
     max-width: none !important;
-    font-size: 13.5px !important;
-    line-height: 1.55 !important;
+    font-size: 10pt !important;
+    line-height: 1.5 !important;
+    letter-spacing: 0.15px !important;
   }
+  .pa-doc-date { font-size: 9pt !important; line-height: 1.5 !important; }
+  .pa-doc-signature-simple { font-size: 9pt !important; line-height: 1.5 !important; }
   .pa-doc-footer {
     margin-top: 28px !important;
     padding-top: 0 !important;

@@ -450,6 +450,25 @@ function sectionHtml(title, body, className = '') {
   return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(title)}</h3>${sectionBodyHtml(body)}</section>`;
 }
 
+function signatureSectionHtml(signatureText) {
+  const fallback = 'בברכה,\n\nעידן נחום, סמנכ״ל כספים ותפעול.';
+  const raw = text(signatureText) ? signatureText : fallback;
+  const lines = String(raw || '')
+    .split(/\r?\n/)
+    .map((line) => String(line || '').trim())
+    .filter(Boolean);
+  if (!lines.length) return '';
+  const [closingLine, ...nameLines] = lines;
+  const signerName = nameLines.join(' ');
+  return `<section class="pa-doc-signature-simple">
+    <p>${escapeHtml(closingLine)}</p>
+    <div class="pa-doc-signature-line-wrap">
+      <span class="pa-doc-signature-line"></span>
+      ${signerName ? `<p>${escapeHtml(signerName)}</p>` : ''}
+    </div>
+  </section>`;
+}
+
 function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const activityTypeGroup = text(row.activity_type_group);
   const dateDisplay = formatDateDisplay(row.proposal_date) || formatDateDisplay(new Date().toISOString().slice(0, 10));
@@ -508,7 +527,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility) : ''}
     ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation) : ''}
     ${remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : ''}
-    ${(signatureText || 'בברכה,\n\nעידן נחום, סמנכ״ל כספים ותפעול.') ? `<section class="pa-section pa-section--signature">${sectionBodyHtml(signatureText || 'בברכה,\n\nעידן נחום, סמנכ״ל כספים ותפעול.')}</section>` : ''}
+    ${signatureSectionHtml(signatureText)}
     <footer class="pa-doc-footer">
       <img
         src="${PUBLIC_BASE}proposal-footer-logo.png"
