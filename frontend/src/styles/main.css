@@ -9294,6 +9294,86 @@ select.ds-input {
   background: color-mix(in srgb, var(--ds-accent) 82%, #fff);
 }
 
+/* ===== Sidebar navigation layout polish (width, spacing, centering, scrolling) ===== */
+:root {
+  --ds-sidebar-w: 148px;
+}
+
+@media (min-width: 960px) {
+  .shell-sidebar {
+    width: var(--ds-sidebar-w);
+    min-width: var(--ds-sidebar-w);
+    padding: var(--ds-space-4) 10px;
+    gap: var(--ds-space-2);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .shell-nav {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-inline: 2px;
+  }
+}
+
+.shell-nav {
+  gap: 6px;
+}
+
+.shell-nav__btn {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.shell-nav__btn.is-active {
+  padding-inline: 14px;
+}
+
+.shell-nav__btn.is-active::before {
+  inset-inline-start: 8px;
+  top: 7px;
+  bottom: 7px;
+}
+
+/* Keep scrollbar subtle in sidebar/nav so it doesn't feel like a cramped inner window */
+.shell-sidebar,
+.shell-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(170, 187, 211, 0.45) transparent;
+}
+
+.shell-sidebar::-webkit-scrollbar,
+.shell-nav::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.shell-sidebar::-webkit-scrollbar-track,
+.shell-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.shell-sidebar::-webkit-scrollbar-thumb,
+.shell-nav::-webkit-scrollbar-thumb {
+  background: rgba(170, 187, 211, 0.45);
+  border: 1px solid transparent;
+}
+
+@media (max-width: 959px) {
+  .shell-sidebar {
+    width: min(84vw, 320px);
+    max-width: 320px;
+  }
+}
+
 .ds-card,
 .ds-interactive-card--kpi,
 .ds-manager-card {
