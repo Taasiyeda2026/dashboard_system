@@ -417,20 +417,30 @@ function sectionBodyHtml(value) {
   return `<p class="pa-doc-paragraph">${escapeHtml(body)}</p>`;
 }
 
+function sectionHeadingText(rawTitle, fallback = '') {
+  const title = text(rawTitle) || fallback;
+  if (!title) return '';
+  return /[:：]\s*$/.test(title) ? title : `${title}:`;
+}
+
 function proposalLineHtml(item = {}) {
   const parts = [];
   const duration = text(item.unit_duration);
-  if (item.meetings_count != null && item.meetings_count !== '') parts.push(`${formatCurrency(item.meetings_count)} מפגשים`);
-  if (item.hours_count != null && item.hours_count !== '') parts.push(`${formatCurrency(item.hours_count)} שעות`);
-  else if (duration) parts.push(duration);
+  const meetings = item.meetings_count != null && item.meetings_count !== '' ? `${formatCurrency(item.meetings_count)} מפגשים` : '';
+  const hours = item.hours_count != null && item.hours_count !== '' ? `${formatCurrency(item.hours_count)} שעות` : '';
+  if (duration) parts.push(duration);
+  else {
+    if (meetings) parts.push(meetings);
+    if (hours) parts.push(hours);
+  }
   const total = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
   if (total) parts.push(`${formatCurrency(total)} ₪`);
   const gefenNumber = text(item.gefen_number);
   if (gefenNumber) parts.push(`גפ״ן ${gefenNumber}`);
   const itemName = text(item.item_name);
   if (!itemName) return '';
-  const suffix = parts.length ? `: ${parts.join(' | ')}` : '';
-  return `<p class="pa-cost-line">· ${escapeHtml(itemName)}${escapeHtml(suffix)}</p>`;
+  const suffix = parts.length ? `: ${parts.join(' | ')}` : ':';
+  return `<p class="pa-cost-line">· <strong>${escapeHtml(itemName)}</strong>${escapeHtml(suffix)}</p>`;
 }
 
 function proposalItemsListHtml(items = []) {
@@ -440,7 +450,7 @@ function proposalItemsListHtml(items = []) {
 }
 
 function sectionHtml(title, body, className = '') {
-  return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(title)}</h3>${sectionBodyHtml(body)}</section>`;
+  return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(sectionHeadingText(title))}</h3>${sectionBodyHtml(body)}</section>`;
 }
 
 function signatureSectionHtml(signatureText) {
@@ -479,15 +489,31 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const summerActivityIntro = sectionBody('summer_activity_intro', '');
   const nextYearActivityIntro = sectionBody('next_year_activity_intro', '');
   const signatureText = sectionBody('signature', '');
+
   const itemsByGroup = Array.isArray(items) ? items.reduce((acc, item) => {
-    const group = text(item.activity_type_group) || activityTypeGroup;
+    const itemType = text(item.item_type);
+    const unitDuration = text(item.unit_duration);
+    const explicitGroup = text(item.activity_type_group);
+    let group = explicitGroup || activityTypeGroup;
+    if (activityTypeGroup === 'הצעה משולבת' && !explicitGroup) {
+      if (unitDuration === '45 דקות' || /סדנה|חדר בריחה/.test(itemType)) group = 'פעילויות קיץ';
+      else group = 'שנה הבאה';
+    }
     if (!acc[group]) acc[group] = [];
     acc[group].push(item);
     return acc;
   }, {}) : {};
-  const activitySectionHtml = activityTypeGroup === 'הצעה משולבת'
-    ? `${summerActivityIntro ? sectionBodyHtml(summerActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['פעילויות קיץ'] || [])}${nextYearActivityIntro ? sectionBodyHtml(nextYearActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['שנה הבאה'] || [])}`
-    : `${activityIntro ? sectionBodyHtml(activityIntro) : ''}${proposalItemsListHtml(itemsByGroup[activityTypeGroup] || items)}`;
+
+  const sections = [];
+  if (activityTypeGroup === 'הצעה משולבת') {
+    const summerBlock = `${summerActivityIntro ? sectionBodyHtml(summerActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['פעילויות קיץ'] || [])}`;
+    const nextYearBlock = `${nextYearActivityIntro ? sectionBodyHtml(nextYearActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['שנה הבאה'] || [])}`;
+    if (summerBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText('הפעילות המוצעת – קיץ תשפ״ו'))}</h3>${summerBlock}</section>`);
+    if (nextYearBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText('הפעילות המוצעת – שנת הלימודים תשפ״ז'))}</h3>${nextYearBlock}</section>`);
+  } else {
+    const activityBlock = `${activityIntro ? sectionBodyHtml(activityIntro) : ''}${proposalItemsListHtml(itemsByGroup[activityTypeGroup] || items)}`;
+    if (activityBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText(sectionTitle('activity_intro', 'הפעילות המוצעת')))}</h3>${activityBlock}</section>`);
+  }
 
   return `
     <header class="pa-doc-header">
@@ -515,7 +541,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     <hr class="pa-doc-divider">
     <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
     ${introText ? `<p class="pa-doc-intro">${escapeHtml(introText)}</p>` : ''}
-    ${activitySectionHtml ? `<section class="pa-section"><h3>${sectionTitle('activity_intro', 'הפעילות המוצעת')}</h3>${activitySectionHtml}</section>` : ''}
+    ${sections.join('')}
     ${orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility) : ''}
     ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility) : ''}
     ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלויות ותנאי תשלום'), paymentTerms) : ''}
