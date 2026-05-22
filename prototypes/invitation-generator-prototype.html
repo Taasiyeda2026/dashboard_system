@@ -6,611 +6,79 @@
 <title>בניית הזמנה — תעשיידע</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden}
-body{font-family:'Heebo',sans-serif;direction:rtl;font-size:13px;background:#f0f2f4;color:#1a1a2e}
-.app{display:grid;grid-template-columns:300px minmax(0,1fr);height:100dvh;overflow:hidden}
-.panel{background:#f7f8fa;border-left:1px solid #e0e3e8;overflow-y:scroll;max-height:100dvh;min-height:0;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
-.field-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.field-row.trio{grid-template-columns:1fr 1fr 1fr}
-select,input[type=text],input[type=date],input[type=time],textarea{width:100%;font-family:'Heebo',sans-serif;font-size:12px;direction:rtl;color:#1a1a2e;border:1px solid #d0d4dc;border-radius:5px;padding:4px 7px;background:#fff;outline:none}
-select:focus,input:focus,textarea:focus{border-color:#1a8c6e}
+*{box-sizing:border-box;margin:0;padding:0} html,body{height:100%;overflow:hidden}
+body{font-family:'Heebo',sans-serif;background:#f0f2f4;color:#1a1a2e}
+.app{display:grid;grid-template-columns:320px minmax(0,1fr);height:100dvh;overflow:hidden}
+.panel{background:#f7f8fa;border-left:1px solid #e0e3e8;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.preview{background:#d8dfe6;display:flex;flex-direction:column;align-items:center;padding:10px 8px;overflow:auto}
+.preview #card{zoom:.5}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}.field-row.trio{grid-template-columns:1fr 1fr 1fr}
+.lbl{font-size:10px;color:#888;margin-bottom:2px;display:block}.sep{height:1px;background:#e4e7ec}
+select,input[type=text],input[type=date],input[type=time],textarea{width:100%;font:12px 'Heebo',sans-serif;border:1px solid #d0d4dc;border-radius:5px;padding:4px 7px}
 textarea{resize:none;height:48px;font-size:11px}
-.lbl{font-size:10px;color:#888;margin-bottom:2px;display:block}
-.color-pair{display:flex;gap:6px;align-items:center}
-.color-pair label{font-size:11px;color:#666}
-.color-pair input[type=color]{width:26px;height:22px;border:1px solid #d0d4dc;border-radius:4px;padding:1px;cursor:pointer;background:none}
-.bg-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
-.bg-th{height:48px;border-radius:4px;border:2px solid transparent;cursor:pointer;background-size:cover;background-position:center;background-color:#dde;aspect-ratio:148/210}
-.bg-th.sel{border-color:#1a8c6e}
-.logo-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
-.lchip{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #d0d4dc;border-radius:12px;padding:2px 8px;font-size:11px;cursor:grab;user-select:none;white-space:nowrap}
-.lchip.ghost{opacity:.35}
-.lchip-add{cursor:pointer;border-style:dashed;color:#1a6fb5}
-.part-row{display:grid;grid-template-columns:18px 46px 1fr 1fr 18px;gap:4px;margin-bottom:4px;align-items:start}
-.part-row select,.part-row input{font-size:11px}
-.part-row.dragging{opacity:.45}
-.drag-handle{cursor:grab;color:#999;font-size:13px;line-height:1.7;text-align:center;user-select:none}
-.del-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:13px;line-height:1;padding:2px 0}
-.action-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.btn-print{width:100%;padding:6px;border-radius:7px;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;background:#1a8c6e;color:#fff;border:none}
-.btn-print:hover{background:#157a5e}
-.btn-clr{width:100%;padding:6px;border-radius:7px;font-family:'Heebo',sans-serif;font-size:12px;cursor:pointer;background:none;border:1px solid #d0d4dc;color:#666;margin-top:4px}
-.btn-clr:hover{background:#eee}
-.action-row .btn-clr{margin-top:0}
-.sep{height:1px;background:#e4e7ec}
-.preview{background:#d8dfe6;display:flex;flex-direction:column;align-items:center;padding:10px 8px;height:100dvh;min-height:0;overflow:auto}
-.preview-lbl{font-size:9px;color:#999;letter-spacing:.5px;margin-bottom:6px}
-.preview #card{zoom:.50}
-#card{width:148mm;min-height:210mm;position:relative;overflow:hidden;box-shadow:0 4px 28px rgba(0,0,0,.22);direction:rtl;font-family:'Heebo',sans-serif;display:flex;flex-direction:column}
-.cbg{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center}
-.cframe{position:absolute;inset:5mm;border-radius:10px;border:1.5px solid rgba(255,255,255,.55);pointer-events:none;z-index:3}
-.cwrap{position:relative;z-index:2;flex:1;display:flex;flex-direction:column}
-.c-logos{display:flex;align-items:center;justify-content:center;gap:1mm;padding:7mm 10mm 1mm;background:rgba(255,255,255,.42);border-bottom:1px solid rgba(255,255,255,.45)}
-.c-logo-item{width:36mm;height:16mm;display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:800;color:#1a3a5c;line-height:1.2}
-.c-logo-sep{width:1px;height:26px;background:rgba(26,58,92,.2);flex-shrink:0}
-.c-logo-item img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
-.c-main{padding:2mm 7mm 3mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
-.c-title{font-weight:900;line-height:1.02;margin-bottom:0;font-size:15mm}
-.c-sub-event{font-weight:700;line-height:1.1;margin-bottom:1mm;font-size:7mm}
-.c-course-label{font-size:4mm;font-weight:500;margin-bottom:0.5mm}
-.c-course{font-weight:500;line-height:1.12;margin-bottom:1mm;font-size:7.5mm}
-.c-course .course-main{display:block;font-size:7.5mm;line-height:1.08;font-weight:500}
-.c-course .course-sub{display:block;font-size:6.3mm;line-height:1.08;font-weight:500}
-.c-year{font-size:4.8mm;font-weight:700;margin-bottom:2mm}
-.c-school{font-size:4mm;color:#333;margin:1.5mm 0}
-.c-school strong{font-weight:700}
-.c-divider{width:100%;height:1px;background:rgba(26,58,92,.1);margin:1.5mm 0}
-.c-opening{font-size:4mm;color:#333;line-height:1.4;margin:1mm auto;max-width:none;width:80%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
-.c-opening strong{font-weight:700;color:var(--accent-color,#1a8c6e)}
-.c-para{font-size:4mm;color:#333;line-height:1.4;margin:.5mm auto;text-align:right;max-width:none;width:80%;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
-.c-section-title{font-size:3.45mm;font-weight:800;color:var(--accent-color,#1a8c6e);line-height:1.2;margin:1.5mm auto .5mm;max-width:none;width:80%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
-.c-box{background:rgba(255,255,255,.5);border:1px solid rgba(26,140,110,.22);border-radius:8px;padding:2mm 4.5mm;margin:1.5mm 0;width:100%;text-align:right}
-.c-participants-box{width:80%;max-width:none;margin-left:auto;margin-right:auto;align-self:center}
-.c-details-box{width:75%;max-width:none;margin-left:auto;margin-right:auto;align-self:center}
-.c-details-box{display:flex;flex-direction:column;align-items:center;gap:1.2mm;background:transparent;border-color:rgba(26,140,110,.18);text-align:center}
-.c-participants-box{background:rgba(255,255,255,.38);border-color:rgba(26,140,110,.12);padding:1.6mm 4mm}
-.c-details-top{display:flex;align-items:center;justify-content:center;gap:4mm;width:100%;flex-wrap:wrap}
-.c-details-location{justify-content:center;text-align:center;width:100%;font-size:4.4mm;line-height:1.5}
-.c-details-box .c-info-row{justify-content:center;text-align:center}
-.c-info-row{display:flex;align-items:center;gap:4px;font-size:4.8mm;color:#333;line-height:1.7}
-.c-info-row strong{font-weight:700}
-.c-part-title{font-size:3.2mm;font-weight:700;margin-bottom:1px}
-.c-part-line{font-size:3.2mm;color:#333;line-height:1.45}
-.c-part-line strong{font-weight:700;color:#333}
-.c-closing{font-size:6.8mm;font-weight:900;margin-top:auto;padding-top:2mm;text-align:center}
-.c-footer{display:flex;align-items:center;justify-content:center;text-align:center;padding:1mm 7mm;background:#fff;border-top:0.25mm solid #fff;margin-top:0;margin-bottom:0;backdrop-filter:none;min-height:5mm;position:relative;z-index:4;width:100%}
-.c-footer-sentence{font-size:3mm;font-weight:600;line-height:1.18;letter-spacing:.035em;text-shadow:-0.3px -0.3px 0 rgba(30,38,46,.25),0.3px -0.3px 0 rgba(30,38,46,.25),-0.3px 0.3px 0 rgba(30,38,46,.25),0.3px 0.3px 0 rgba(30,38,46,.25),0 1px 1.5px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.35mm}
-.c-footer-sentence span{ text-shadow:inherit }
+.color-pair{display:flex;gap:6px;align-items:center}.color-pair input{width:26px;height:22px}
+.bg-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.bg-th{height:48px;border:2px solid transparent;border-radius:4px;cursor:pointer;background-size:cover;background-position:center}.bg-th.sel{border-color:#1a8c6e}
+.logo-row{display:flex;gap:5px;flex-wrap:wrap}.lchip{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #d0d4dc;border-radius:12px;padding:2px 8px;font-size:11px;cursor:grab}.lchip-add{border-style:dashed;cursor:pointer}
+.part-row{display:grid;grid-template-columns:18px 46px 1fr 1fr 18px;gap:4px;margin-bottom:4px}.drag-handle{cursor:grab;text-align:center;color:#999}.btn-print,.btn-clr{padding:6px;border-radius:7px;font-family:'Heebo',sans-serif;cursor:pointer}.btn-print{background:#1a8c6e;color:#fff;border:0}.btn-clr{border:1px solid #d0d4dc;background:none}
+#card{width:148mm;min-height:210mm;position:relative;overflow:hidden;box-shadow:0 4px 28px rgba(0,0,0,.22);display:flex;flex-direction:column}
+.cbg{position:absolute;inset:0;background-size:cover;background-position:center}.cframe{position:absolute;inset:5mm;border-radius:10px;border:1.5px solid rgba(255,255,255,.55)}
+.cwrap{position:relative;z-index:1;flex:1;display:flex;flex-direction:column}.c-logos{display:flex;justify-content:center;align-items:center;gap:1mm;padding:7mm 10mm 1mm;background:rgba(255,255,255,.42)}
+.c-logo-item{width:36mm;height:16mm;display:flex;align-items:center;justify-content:center}.c-logo-item img{max-width:100%;max-height:100%;object-fit:contain}.c-logo-sep{width:1px;height:26px;background:rgba(26,58,92,.2)}
+.c-main{padding:2mm 7mm 3mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}.c-title{font-size:15mm;font-weight:900}.c-sub-event{font-size:7mm}.c-course{font-size:7.5mm}
+.c-opening,.c-para,.c-section-title{width:80%;text-align:right}.c-box{border:1px solid rgba(26,140,110,.22);border-radius:8px;padding:2mm 4.5mm;width:80%}.c-closing{font-size:6.8mm;font-weight:900;margin-top:auto}
+.c-footer{margin-top:auto;background:#fff;border-top:.25mm solid #fff;min-height:5mm;display:flex;justify-content:center;align-items:center;padding:1mm 7mm}.c-footer-sentence{font-size:3mm}
 </style>
 </head>
 <body>
-<div class="app">
-<div class="panel">
-  <div>
-    <span class="lbl">לוגואים — גרור לסדר</span>
-    <div class="logo-row" id="logo-zone">
-      <div class="lchip" draggable="true" data-id="mohe"><img id="mohe-chip-img" src="" style="height:16px;display:none"> משרד החינוך</div>
-      <div class="lchip" draggable="true" data-id="taas"><img id="taas-chip-img" src="" style="height:16px;display:none"> תעשיידע</div>
-      <div class="lchip lchip-add" id="logo-add">＋ לוגו</div>
-    </div>
-    <input type="file" id="logo-file" accept="image/*" style="display:none">
-  </div>
-  <div class="sep"></div>
-  <div class="field-row">
-    <div><span class="lbl">סוג אירוע</span>
-      <select id="ev-type" onchange="onTypeChange()">
-        <option value="end">מפגש סיום</option>
-        <option value="lecture">הרצאת אורח</option>
-        <option value="tour">סיור לימודי</option>
-      </select>
-    </div>
-    <div><span class="lbl">קורס</span>
-      <select id="course-sel" onchange="up()">
-        <option value="ביומימיקרי – המצאות בהשראת הטבע">קורס ביומימיקרי</option>
-        <option value="רוקחים עולם">רוקחים עולם</option>
-        <option value="פרימיום">פרימיום</option>
-        <option value="__c">אחר...</option>
-      </select>
-    </div>
-  </div>
-  <input type="text" id="course-custom" placeholder="שם קורס" style="display:none" oninput="up()">
-  <div class="field-row trio">
-    <div class="color-pair"><input type="color" id="c1" value="#1a3a5c" oninput="up()"><label>כותרת ראשית</label></div>
-    <div class="color-pair"><input type="color" id="c2" value="#1a8c6e" oninput="up()"><label>כותרות</label></div>
-    <div class="color-pair"><input type="color" id="c3" value="#1a8c6e" oninput="up()"><label>שם קורס / סיום</label></div>
-  </div>
-  <div class="sep"></div>
-  <div class="field-row trio">
-    <div><span class="lbl">בית ספר</span><input type="text" id="school" placeholder='ע"ש הרצל' oninput="up()"></div>
-    <div><span class="lbl">כיתה</span><input type="text" id="grade" placeholder="ז׳2" oninput="up()"></div>
-    <div><span class="lbl">שנה</span><select id="year" onchange="up()"><option>תשפ״ו</option><option>תשפ״ז</option></select></div>
-  </div>
-  <div class="field-row">
-    <div><span class="lbl">📅 תאריך</span><input type="date" id="ev-date" oninput="up()"></div>
-    <div><span class="lbl">⏰ שעה</span><input type="time" id="ev-time" oninput="up()"></div>
-  </div>
-  <div><span class="lbl">📍 מיקום</span><input type="text" id="ev-loc" oninput="up()"></div>
-  <div id="extra"></div>
-  <div class="sep"></div>
-  <div><span class="lbl">פסקה 1</span><textarea id="b1" maxlength="200" oninput="up()" placeholder="לאורך התהליך יצאו התלמידים למסע חקר..."></textarea></div>
-  <div><span class="lbl">מה מצפה לנו</span><textarea id="b2" maxlength="200" oninput="up()" placeholder="במפגש ניחשף לרעיונות המקוריים..."></textarea></div>
-  <div class="sep"></div>
-  <div>
-    <span class="lbl">בהשתתפות — גרור לסידור</span>
-    <div id="parts"></div>
-    <button class="btn-clr" style="font-size:11px;padding:4px;margin-top:2px" onclick="addPart()">+ הוסף משתתף/ת</button>
-  </div>
-  <div class="sep"></div>
-  <div>
-    <span class="lbl">משפט סיום</span>
-    <input type="text" id="closing1" value="נשמח לראותכם!" oninput="up()">
-  </div>
-  <div class="sep"></div>
-  <div><span class="lbl">רקע</span><div class="bg-row" id="bg-row"></div></div>
-  <div class="sep"></div>
-  <div class="action-row">
-    <button class="btn-print" onclick="doPrint()">PDF</button>
-    <button class="btn-clr" onclick="doReset()">איפוס</button>
-  </div>
-</div>
-
-<div class="preview">
-  <div class="preview-lbl">A5 — תצוגה מקדימה</div>
-  <div id="card">
-    <div class="cbg" id="cbg"></div>
-    <div class="cframe"></div>
-    <div class="cwrap" id="cwrap"></div>
-  </div>
-</div>
-</div>
-
+<div class="app"><div class="panel">
+<div><span class="lbl">לוגואים — גרור לסדר</span><div class="logo-row" id="logo-zone"><div class="lchip" draggable="true" data-id="mohe">🏛️ משרד החינוך</div><div class="lchip" draggable="true" data-id="taas">⚡ תעשיידע</div><div class="lchip" draggable="true" data-id="school-logo">🏫 <span id="school-logo-label">לוגו בית ספר</span></div><div class="lchip lchip-add" id="logo-add">＋ לוגו נוסף</div></div><input type="file" id="logo-file" accept="image/*" style="display:none"></div>
+<div class="sep"></div>
+<div class="field-row"><div><span class="lbl">סוג אירוע</span><select id="ev-type"><option value="end">מפגש סיום</option><option value="lecture">הרצאת אורח</option><option value="tour">סיור לימודי</option></select></div><div><span class="lbl">קורס</span><select id="course-sel"><option value="ביומימיקרי – המצאות בהשראת הטבע">ביומימיקרי – המצאות בהשראת הטבע</option><option value="רוקחים עולם">רוקחים עולם</option><option value="בינה מלאכותית – חשיבה ביקורתית במציאות טכנולוגית">בינה מלאכותית – חשיבה ביקורתית במציאות טכנולוגית</option><option value="יזמות פרימיום – אסם">יזמות פרימיום – אסם</option><option value="יזמות פרימיום – מארוול">יזמות פרימיום – מארוול</option><option value="__c">אחר</option></select></div></div>
+<input type="text" id="course-custom" placeholder="שם קורס" style="display:none">
+<div class="field-row trio"><div class="color-pair"><input type="color" id="c1" value="#1a3a5c"><label>כותרת ראשית</label></div><div class="color-pair"><input type="color" id="c2" value="#1a8c6e"><label>כותרות</label></div><div class="color-pair"><input type="color" id="c3" value="#1a8c6e"><label>שם קורס / סיום</label></div></div>
+<div class="field-row trio"><div><span class="lbl">בית ספר</span><input id="school" type="text"></div><div><span class="lbl">כיתה</span><input id="grade" type="text"></div><div><span class="lbl">שנה</span><select id="year"><option>תשפ״ו</option><option>תשפ״ז</option></select></div></div>
+<div class="field-row"><div><span class="lbl">תאריך</span><input type="date" id="ev-date"></div><div><span class="lbl">שעה</span><input type="time" id="ev-time"></div></div><div><span class="lbl">מיקום</span><input id="ev-loc" type="text"></div><div id="extra"></div>
+<div><span class="lbl">פסקה 1</span><textarea id="b1"></textarea><button class="btn-clr" id="suggest-b1">ניסוח מומלץ</button></div>
+<div><span class="lbl">פסקה 2 / מה מצפה לנו</span><textarea id="b2"></textarea><button class="btn-clr" id="suggest-b2">ניסוח מומלץ</button></div>
+<div><span class="lbl">בהשתתפות — גרור לסידור</span><div id="parts"></div><button class="btn-clr" id="add-part">+ הוסף משתתף/ת</button><button class="btn-clr" id="suggest-parts">השלמת משתתפים חשובים</button></div>
+<div><span class="lbl">משפט סיום</span><input type="text" id="closing1" value="נשמח לראותכם!"></div><div><span class="lbl">רקע</span><div class="bg-row" id="bg-row"></div></div>
+<div class="field-row"><button class="btn-print" id="btn-print">PDF</button><button class="btn-clr" id="btn-reset">איפוס</button></div>
+</div><div class="preview"><div class="preview-lbl">A5 — תצוגה מקדימה</div><div id="card"><div class="cbg" id="cbg"></div><div class="cframe"></div><div class="cwrap" id="cwrap"></div></div></div></div>
 <script>
-const RAW = 'https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/invitations/';
-const BG_URLS = [
-  {type:'solid', label:'לבן', value:'#ffffff'},
-  ...[1,2,3,4,5,6,7,8].map(n => ({type:'image', label:'רקע '+n, value:RAW + 'backgrounds/background-' + n + '.png'}))
-];
-const TAAS_LOGO = RAW + 'logos/taasiyeda-logo.png';
-const MOHE_LOGO = RAW + 'logos/education-logo.png';
-
-const DAYS=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const STORAGE_KEY='taasiyeda_invitation_builder_state_v1';
-let isRestoring=false;
-let selBg=0, logoOrder=['mohe','taas'], customLogos={};
-let taasLogoLoaded=false, moheLogoLoaded=false;
-const DEFAULT_PARTS=[
-  {t:'גב׳',n:'יעל אביב',r:'מנהלת תחום חינוך ופדגוגיה, תעשיידע'},
-  {t:'גב׳',n:'הילה רוזן',r:'אחראית הדרכה ומנחת הקבוצה, תעשיידע'},
-];
-let parts=JSON.parse(JSON.stringify(DEFAULT_PARTS));
-
-// נסה לטעון לוגו תעשיידע
-const taasImg = new Image();
-taasImg.onload = () => {
-  taasLogoLoaded=true;
-  const chip=document.getElementById('taas-chip-img');
-  if(chip){ chip.src=TAAS_LOGO; chip.style.display='inline-block'; }
-  up();
+const RAW='https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/invitations/'; const STORAGE_KEY='taasiyeda_invitation_builder_state_v2';
+const BG_URLS=[{type:'solid',label:'לבן',value:'#fff'},...[1,2,3,4,5,6,7,8].map(n=>({type:'image',label:'רקע '+n,value:RAW+'backgrounds/background-'+n+'.png'}))];
+const COURSE_TEXT={
+'ביומימיקרי – המצאות בהשראת הטבע':{b1:'מסע חקר בהשראת הטבע לפתרונות טכנולוגיים.',b2:'נכיר רעיונות וטכנולוגיות שפותחו מהשראה מהטבע.'},
+'רוקחים עולם':{b1:'התלמידים התנסו בעולמות הפארמצבטיקה והרוקחות.',b2:'נציג תהליכי פיתוח, ניסוי ובקרה מעולם הרוקחות.'},
+'בינה מלאכותית – חשיבה ביקורתית במציאות טכנולוגית':{b1:'התלמידים חקרו נתונים, אלגוריתמים ואתגרי AI.',b2:'נעמיק בחשיבה ביקורתית במציאות טכנולוגית משתנה.'},
+'יזמות פרימיום – אסם':{b1:'פיתוח רעיון למוצר בדגש איכות, בטיחות ואחריות.',b2:'נציג יצירתיות, תהליך יזמי ויישום טכנולוגי בליווי אסם.'},
+'יזמות פרימיום – מארוול':{b1:'פיתוח רעיון למוצר בדגש יצירתיות וחשיבה עסקית.',b2:'נציג פתרונות טכנולוגיים בליווי חברה מאמצת מארוול.'},
+'__default':{b1:'התלמידים השתתפו בתהליך חקר, יצירה והתנסות משמעותית.',b2:'במפגש נציג תוצרים, תובנות ותהליך הלמידה.'}
 };
-taasImg.onerror = () => { taasLogoLoaded=false; };
-taasImg.src = TAAS_LOGO;
-
-// נסה לטעון לוגו משרד החינוך
-const moheImg = new Image();
-moheImg.onload = () => {
-  moheLogoLoaded=true;
-  const chip=document.getElementById('mohe-chip-img');
-  if(chip){ chip.src=MOHE_LOGO; chip.style.display='inline-block'; }
-  up();
-};
-moheImg.onerror = () => { moheLogoLoaded=false; };
-moheImg.src = MOHE_LOGO;
-
-function initBg(){
-  const row=document.getElementById('bg-row'); row.innerHTML='';
-  BG_URLS.forEach((bg,i)=>{
-    const d=document.createElement('div');
-    d.className='bg-th'+(i===selBg?' sel':'');
-    d.title=bg.label;
-    if(bg.type==='solid'){
-      d.style.backgroundColor=bg.value;
-      d.style.backgroundImage='none';
-    } else {
-      d.style.backgroundImage='url('+bg.value+')';
-    }
-    d.onclick=()=>{selBg=i;initBg();up()};
-    row.appendChild(d);
-  });
-}
-
-function renderParts(){
-  const c=document.getElementById('parts'); c.innerHTML='';
-  parts.forEach((p,i)=>{
-    const r=document.createElement('div');
-    r.className='part-row';
-    r.draggable=true;
-    r.dataset.index=i;
-    r.innerHTML=
-      '<div class="drag-handle" title="גרירה לסידור">⋮⋮</div>'+ 
-      '<select style="font-size:11px" onchange="parts['+i+'].t=this.value;up()">'+
-      ['גב׳','מר'].map(v=>'<option '+(p.t===v?'selected':'')+'>'+v+'</option>').join('')+
-      '</select>'+ 
-      '<input type="text" placeholder="שם" value="'+p.n+'" style="font-size:11px" oninput="parts['+i+'].n=this.value;up()">'+
-      '<input type="text" placeholder="תפקיד" value="'+p.r+'" style="font-size:11px" oninput="parts['+i+'].r=this.value;up()">'+
-      '<button class="del-btn" onclick="parts.splice('+i+',1);renderParts();up()">×</button>';
-    r.ondragstart=e=>{e.dataTransfer.setData('partIndex',i);r.classList.add('dragging')};
-    r.ondragend=()=>r.classList.remove('dragging');
-    r.ondragover=e=>e.preventDefault();
-    r.ondrop=e=>{
-      e.preventDefault();
-      const from=Number(e.dataTransfer.getData('partIndex'));
-      const to=Number(r.dataset.index);
-      if(Number.isNaN(from)||Number.isNaN(to)||from===to) return;
-      const moved=parts.splice(from,1)[0];
-      parts.splice(to,0,moved);
-      renderParts();
-      up();
-    };
-    c.appendChild(r);
-  });
-}
-function addPart(){parts.push({t:'גב׳',n:'',r:''});renderParts();up();}
-
-function saveState(){
-  if(isRestoring) return;
-  const ids=['ev-type','course-sel','course-custom','c1','c2','c3','school','grade','year','ev-date','ev-time','ev-loc','b1','b2','closing1'];
-  const fields={};
-  ids.forEach(id=>{const el=document.getElementById(id); if(el) fields[id]=el.value;});
-  const state={fields,parts,selBg,logoOrder,customLogos};
-  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){}
-}
-
-function restoreState(){
-  const raw=localStorage.getItem(STORAGE_KEY);
-  if(!raw) return;
-  try{
-    isRestoring=true;
-    const state=JSON.parse(raw);
-    if(state.fields){
-      Object.entries(state.fields).forEach(([id,value])=>{
-        const el=document.getElementById(id);
-        if(el) el.value=value;
-      });
-    }
-    if(Array.isArray(state.parts)) parts=state.parts;
-    if(typeof state.selBg==='number') selBg=state.selBg;
-    if(Array.isArray(state.logoOrder)) logoOrder=state.logoOrder;
-    if(state.customLogos && typeof state.customLogos==='object') customLogos=state.customLogos;
-    isRestoring=false;
-  }catch(e){isRestoring=false;}
-}
-
-function rebuildCustomLogoChips(){
-  Object.entries(customLogos).forEach(([id,src])=>{
-    if(document.querySelector('[data-id="'+id+'"]')) return;
-    const chip=document.createElement('div');
-    chip.className='lchip'; chip.draggable=true; chip.dataset.id=id;
-    chip.innerHTML='<img src="'+src+'" style="height:14px"> '+
-      '<button onclick="event.stopPropagation();logoOrder=logoOrder.filter(x=>x!==\''+id+'\');delete customLogos[\''+id+'\'];this.parentNode.remove();up()" '+
-      'style="background:none;border:none;cursor:pointer;font-size:12px;color:#999;padding:0">×</button>';
-    document.getElementById('logo-add').before(chip);
-  });
-}
-
-function fmtDate(v){
-  if(!v) return null;
-  const d=new Date(v+'T12:00:00');
-  const day=String(d.getDate()).padStart(2,'0');
-  const month=String(d.getMonth()+1).padStart(2,'0');
-  const year=d.getFullYear();
-  return {
-    day:'יום '+DAYS[d.getDay()],
-    date:day+'.'+month+'.'+year
-  };
-}
-function getCourseName(){
-  const s=document.getElementById('course-sel').value;
-  return s==='__c'?(document.getElementById('course-custom').value||''):s;
-}
-function getCourseDisplayHTML(course){
-  if(course==='ביומימיקרי – המצאות בהשראת הטבע'){
-    return '<span class="course-main">של קורס ביומימיקרי</span><span class="course-sub">המצאות בהשראת הטבע</span>';
-  }
-  return course;
-}
-function getHeaderEventText(type, course, evLabel){
-  if(type==='end'){
-    return 'למפגש הסיום';
-  }
-  return evLabel;
-}
-function getCourseOpeningText(course){
-  return course;
-}
-function getCourseFileNameText(course){
-  if(course==='ביומימיקרי – המצאות בהשראת הטבע') return 'ביומימיקרי';
-  return (course||'קורס').replace(/קורס\s*/g,'').trim() || 'קורס';
-}
-function getEventFileNameText(type){
-  if(type==='end') return 'מפגש סיום';
-  if(type==='lecture') return 'הרצאת אורח';
-  if(type==='tour') return 'סיור לימודי';
-  return 'אירוע';
-}
-function getPdfFileName(){
-  const type=document.getElementById('ev-type').value;
-  const course=getCourseFileNameText(getCourseName());
-  return 'הזמנה - '+getEventFileNameText(type)+' '+course;
-}
-function darken(hex){
-  let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
-  return '#'+[Math.round(r*.6),Math.round(g*.6),Math.round(b*.6)].map(v=>v.toString(16).padStart(2,'0')).join('');
-}
-
-function onTypeChange(){
-  const t=document.getElementById('ev-type').value;
-  const box=document.getElementById('extra'); box.innerHTML='';
-  if(t==='lecture'){
-    box.innerHTML='<div class="field-row" style="margin-top:4px">'+
-      '<div><span class="lbl">שם המרצה</span><input type="text" id="lec-name" oninput="up()"></div>'+
-      '<div><span class="lbl">נושא</span><input type="text" id="lec-topic" oninput="up()"></div>'+
-      '</div><div style="margin-top:4px"><span class="lbl">חברה / מוסד</span><input type="text" id="lec-org" oninput="up()"></div>';
-  } else if(t==='tour'){
-    box.innerHTML='<div class="field-row" style="margin-top:4px">'+
-      '<div><span class="lbl">מקום הסיור</span><input type="text" id="tour-place" oninput="up()"></div>'+
-      '<div><span class="lbl">חברה מארחת</span><input type="text" id="tour-org" oninput="up()"></div>'+
-      '</div>';
-  }
-  up();
-}
-
-function logoItemHTML(id, size, textSize, cls){
-  if(id==='mohe'){
-    if(moheLogoLoaded) return '<div class="'+cls+'"><img src="'+MOHE_LOGO+'"></div>';
-    return '<div class="'+cls+'"><span style="font-size:'+(size+4)+'px">🏛️</span><span style="font-size:'+textSize+'px">משרד<br>החינוך</span></div>';
-  }
-  if(id==='taas'){
-    if(taasLogoLoaded) return '<div class="'+cls+'"><img src="'+TAAS_LOGO+'"></div>';
-    return '<div class="'+cls+'"><span style="font-size:'+(size+4)+'px">⚡</span><span style="font-size:'+textSize+'px">תעשיידע</span></div>';
-  }
-  if(customLogos[id]) return '<div class="'+cls+'"><img src="'+customLogos[id]+'"></div>';
-  return '';
-}
-
-function logosBarHTML(footer){
-  if(footer){
-    return '<div class="c-footer"><div class="c-footer-sentence">'+
-      '<span style="color:#1e262e">תעשיידע – </span>'+ 
-      '<span class="bright-word" style="color:#fdf58c">מובילים </span>'+ 
-      '<span class="bright-word" style="color:#73e4ff">דור אחד קדימה, </span>'+ 
-      '<span style="color:#fb1881">בחדשנות, </span>'+ 
-      '<span style="color:#4ddfc2">סקרנות </span>'+ 
-      '<span class="bright-word" style="color:#fcaf3e">ויזמות טכנולוגית</span>'+ 
-      '</div></div>';
-  }
-  const size=56, textSize=10;
-  const sepCls='c-logo-sep';
-  const itemCls='c-logo-item';
-  const wrapCls='c-logos';
-  let items='';
-  logoOrder.forEach((id,i)=>{
-    if(i>0) items+='<div class="'+sepCls+'"></div>';
-    items+=logoItemHTML(id, size, textSize, itemCls);
-  });
-  return '<div class="'+wrapCls+'">'+items+'</div>';
-}
-
-function getColorVars(){
-  const c1=document.getElementById('c1').value;
-  const c2=document.getElementById('c2').value;
-  const c3=document.getElementById('c3').value;
-  return {c1,c2,c3,style:`--main-color:${c1};--accent-color:${c2};--course-color:${c3};`};
-}
-
-function buildCard(){
-  const {c1,c2,c3}=getColorVars();
-  const type=document.getElementById('ev-type').value;
-  const school=document.getElementById('school').value;
-  const grade=document.getElementById('grade').value;
-  const year=document.getElementById('year').value;
-  const date=fmtDate(document.getElementById('ev-date').value);
-  const time=document.getElementById('ev-time').value;
-  const loc=document.getElementById('ev-loc').value;
-  const b1=document.getElementById('b1').value;
-  const b2=document.getElementById('b2').value;
-  const course=getCourseName();
-  const closing1=document.getElementById('closing1').value||'נשמח לראותכם!';
-  const evLabel=type==='end'?'למפגש הסיום':type==='lecture'?'להרצאת אורח':'לסיור לימודי';
-
-  let opening='';
-  if(type==='end'){
-    opening='<div class="c-opening">אנו שמחים להזמינכם למפגש הסיום של קורס <strong>'+getCourseOpeningText(course)+'</strong>, שהתקיים בבית הספר במסגרת התוכניות החינוכיות של עמותת תעשיידע.</div>';
-  } else if(type==='lecture'){
-    const ln=document.getElementById('lec-name')?.value||'';
-    const lt=document.getElementById('lec-topic')?.value||'';
-    const lo=document.getElementById('lec-org')?.value||'';
-    opening='<div class="c-opening">אנו שמחים להזמינכם <strong>'+evLabel+'</strong>'+(ln?' עם <strong>'+ln+'</strong>':'')+(lt?' | <strong>'+lt+'</strong>':'')+(lo?' — '+lo:'')+'</div>';
-  } else {
-    const tp=document.getElementById('tour-place')?.value||'';
-    const to=document.getElementById('tour-org')?.value||'';
-    opening='<div class="c-opening">אנו שמחים להזמינכם <strong>'+evLabel+'</strong>'+(tp?' ב<strong>'+tp+'</strong>':'')+(to?' | <strong>'+to+'</strong>':'')+'</div>';
-  }
-
-  let partsHTML='<div class="c-part-title" style="color:'+c2+'">בהשתתפות:</div>';
-  parts.filter(p=>p.n||p.r).forEach(p=>{
-    partsHTML+='<div class="c-part-line">'+(p.t?p.t+' ':'')+
-      '<strong>'+p.n+'</strong>'+(p.r?'<span style="font-weight:400">, '+p.r+'</span>':'')+'</div>';
-  });
-
-  return logosBarHTML(false)+
-    '<div class="c-main">'+
-    '<div class="c-title" style="color:'+c1+'">הזמנה</div>'+
-    '<div class="c-sub-event" style="color:'+c1+'">'+getHeaderEventText(type, course, evLabel)+'</div>'+
-    '<div class="c-course" style="color:'+c3+'">'+getCourseDisplayHTML(course)+'</div>'+
-    ((school||grade)?'<div class="c-school">כיתה <strong>'+(grade||'____')+'</strong> | בית ספר <strong>'+(school||'______')+'</strong> | <strong>'+year+'</strong></div>':'<div class="c-year">'+year+'</div>')+
-    '<div class="c-divider"></div>'+
-    opening+
-    '<div class="c-box c-details-box">'+
-    '<div class="c-details-top">'+
-      (date?'<div class="c-info-row">⚙️ <strong>'+date.day+'</strong></div>':'')+
-      (date?'<div class="c-info-row">📅 <strong>'+date.date+'</strong></div>':'')+
-      (time?'<div class="c-info-row">⏰ <strong>'+time+'</strong></div>':'')+
-    '</div>'+
-    (loc?'<div class="c-info-row c-details-location">📍 '+loc+'</div>':'')+
-    '</div>'+
-    (b1?'<div class="c-para">'+b1+'</div>':'')+
-    (b2?'<div class="c-section-title">מה מצפה לנו:</div><div class="c-para">'+b2+'</div>':'')+
-    '<div class="c-box c-participants-box">'+partsHTML+'</div>'+
-    '<div class="c-closing" style="color:'+c3+'">'+closing1+'</div>'+
-    '</div>'+
-    logosBarHTML(true);
-}
-
-function up(){
-  document.getElementById('course-custom').style.display=
-    document.getElementById('course-sel').value==='__c'?'block':'none';
-  const colorVars=getColorVars();
-  document.getElementById('card').setAttribute('style',colorVars.style);
-  const bg=BG_URLS[selBg];
-  const cbg=document.getElementById('cbg');
-  if(bg.type==='solid'){
-    cbg.style.backgroundImage='none';
-    cbg.style.backgroundColor=bg.value;
-  } else {
-    cbg.style.backgroundColor='transparent';
-    cbg.style.backgroundImage='url('+bg.value+')';
-  }
-  document.getElementById('cwrap').innerHTML=buildCard();
-  saveState();
-}
-
-function getCardCSS(bg){
-  const bgStyle = bg.type==='solid' ? `background-color:${bg.value};background-image:none` : `background-image:url(${bg.value})`;
-  return `*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Heebo',sans-serif;background:#ccc;display:flex;flex-direction:column;align-items:center;padding:20px;direction:rtl}
-@page{size:A5 portrait;margin:0}
-@media print{body{background:none;padding:0}.np{display:none}#card{box-shadow:none!important}}
-.np{margin-bottom:14px}.np button{background:#1a8c6e;color:#fff;border:none;padding:9px 22px;border-radius:7px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;cursor:pointer}
-#card{width:148mm;min-height:210mm;position:relative;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.25);direction:rtl;font-family:'Heebo',sans-serif;display:flex;flex-direction:column}
-.cbg{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;${bgStyle}}
-.cframe{position:absolute;inset:5mm;border-radius:10px;border:1.5px solid rgba(255,255,255,.55);pointer-events:none;z-index:3}
-.cwrap{position:relative;z-index:2;flex:1;display:flex;flex-direction:column}
-.c-logos{display:flex;align-items:center;justify-content:center;gap:1mm;padding:7mm 10mm 1mm;background:rgba(255,255,255,.42);border-bottom:1px solid rgba(255,255,255,.45)}
-.c-logo-item{width:36mm;height:16mm;display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:800;color:#1a3a5c;line-height:1.2}
-.c-logo-sep{width:1px;height:26px;background:rgba(26,58,92,.2)}
-.c-logo-item img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
-.c-main{padding:2mm 7mm 3mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
-.c-title{font-weight:900;line-height:1.02;margin-bottom:0;font-size:15mm}
-.c-sub-event{font-weight:700;line-height:1.1;margin-bottom:1mm;font-size:7mm}
-.c-course-label{font-size:4mm;font-weight:500;margin-bottom:0.5mm}
-.c-course{font-weight:500;line-height:1.12;margin-bottom:1mm;font-size:7.5mm}
-.c-course .course-main{display:block;font-size:7.5mm;line-height:1.08;font-weight:500}
-.c-course .course-sub{display:block;font-size:6.3mm;line-height:1.08;font-weight:500}
-.c-year{font-size:4.8mm;font-weight:700;margin-bottom:2mm}
-.c-school{font-size:4mm;color:#333;margin:1.5mm 0}
-.c-school strong{font-weight:700}
-.c-divider{width:100%;height:1px;background:rgba(26,58,92,.1);margin:1.5mm 0}
-.c-opening{font-size:4mm;color:#333;line-height:1.4;margin:1mm auto;max-width:none;width:80%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
-.c-opening strong{font-weight:700;color:var(--accent-color,#1a8c6e)}
-.c-para{font-size:4mm;color:#333;line-height:1.4;margin:.5mm auto;text-align:right;max-width:none;width:80%;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
-.c-section-title{font-size:3.45mm;font-weight:800;color:var(--accent-color,#1a8c6e);line-height:1.2;margin:1.5mm auto .5mm;max-width:none;width:80%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
-.c-box{background:rgba(255,255,255,.5);border:1px solid rgba(26,140,110,.22);border-radius:8px;padding:2mm 4.5mm;margin:1.5mm 0;width:100%;text-align:right}
-.c-participants-box{width:80%;max-width:none;margin-left:auto;margin-right:auto;align-self:center}
-.c-details-box{width:75%;max-width:none;margin-left:auto;margin-right:auto;align-self:center}
-.c-details-box{display:flex;flex-direction:column;align-items:center;gap:1.2mm;background:transparent;border-color:rgba(26,140,110,.18);text-align:center}
-.c-participants-box{background:rgba(255,255,255,.38);border-color:rgba(26,140,110,.12);padding:1.6mm 4mm}
-.c-details-top{display:flex;align-items:center;justify-content:center;gap:4mm;width:100%;flex-wrap:wrap}
-.c-details-location{justify-content:center;text-align:center;width:100%;font-size:4.4mm;line-height:1.5}
-.c-details-box .c-info-row{justify-content:center;text-align:center}
-.c-info-row{display:flex;align-items:center;gap:4px;font-size:4.8mm;color:#333;line-height:1.7}
-.c-info-row strong{font-weight:700}
-.c-part-title{font-size:3.2mm;font-weight:700;margin-bottom:1px}
-.c-part-line{font-size:3.2mm;color:#333;line-height:1.45}
-.c-part-line strong{font-weight:700;color:#333}
-.c-closing{font-size:6.8mm;font-weight:900;margin-top:auto;padding-top:2mm;text-align:center}
-.c-footer{display:flex;align-items:center;justify-content:center;text-align:center;padding:1mm 7mm;background:#fff;border-top:0.25mm solid #fff;margin-top:0;margin-bottom:0;min-height:5mm;position:relative;z-index:4;width:100%}
-.c-footer-sentence{font-size:3mm;font-weight:600;line-height:1.18;letter-spacing:.035em;text-shadow:-0.3px -0.3px 0 rgba(30,38,46,.25),0.3px -0.3px 0 rgba(30,38,46,.25),-0.3px 0.3px 0 rgba(30,38,46,.25),0.3px 0.3px 0 rgba(30,38,46,.25),0 1px 1.5px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.35mm}
-.c-footer-sentence span{ text-shadow:inherit }`;
-}
-
-function doPrint(){
-  const inner=buildCard();
-  const colorVars=getColorVars();
-  const pdfName=getPdfFileName();
-  const w=window.open('','_blank','width=680,height=980');
-  w.document.write('<!DOCTYPE html><html dir="rtl"><head>'+ 
-    '<meta charset="UTF-8"><title>'+pdfName+'</title>'+ 
-    '<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">'+
-    '<style>'+getCardCSS(BG_URLS[selBg])+'</style></head><body>'+ 
-    '<div class="np"><button onclick="window.print()">PDF</button></div>'+ 
-    '<div id="card" style="'+colorVars.style+'"><div class="cbg"></div><div class="cframe"></div><div class="cwrap">'+inner+'</div></div>'+ 
-    '<script>window.onafterprint=function(){setTimeout(function(){window.close()},250)};<\/script>'+ 
-    '</body></html>');
-  w.document.close();
-  w.document.title=pdfName;
-}
-
-function doReset(){
-  localStorage.removeItem(STORAGE_KEY);
-  ['school','grade','ev-loc','b1','b2','course-custom'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('ev-date').value='';
-  document.getElementById('ev-time').value='';
-  document.getElementById('ev-type').value='end';
-  document.getElementById('course-sel').value=document.getElementById('course-sel').options[0].value;
-  document.getElementById('c1').value='#1a3a5c';
-  document.getElementById('c2').value='#1a8c6e';
-  document.getElementById('c3').value='#1a8c6e';
-  document.getElementById('closing1').value='נשמח לראותכם!';
-  parts=JSON.parse(JSON.stringify(DEFAULT_PARTS));
-  selBg=0; logoOrder=['mohe','taas']; customLogos={};
-  [...document.querySelectorAll('#logo-zone .lchip[data-id]')].forEach(c=>{
-    if(!['mohe','taas'].includes(c.dataset.id)) c.remove();
-  });
-  onTypeChange(); initBg(); renderParts(); setupDrag(); up();
-}
-
-function setupDrag(){
-  document.querySelectorAll('#logo-zone .lchip[draggable=true]').forEach(chip=>{
-    chip.ondragstart=e=>{e.dataTransfer.setData('lid',chip.dataset.id);chip.classList.add('ghost')};
-    chip.ondragend=()=>chip.classList.remove('ghost');
-    chip.ondragover=e=>e.preventDefault();
-    chip.ondrop=e=>{
-      e.preventDefault();
-      const from=e.dataTransfer.getData('lid'),to=chip.dataset.id;
-      if(!from||from===to) return;
-      const fi=logoOrder.indexOf(from),ti=logoOrder.indexOf(to);
-      if(fi>-1&&ti>-1){logoOrder.splice(fi,1);logoOrder.splice(ti,0,from);}
-      const fe=document.querySelector('[data-id="'+from+'"]'),te=document.querySelector('[data-id="'+to+'"]');
-      if(fe&&te&&fe.parentNode===te.parentNode) fi<ti?te.after(fe):te.before(fe);
-      up();
-    };
-  });
-}
-
-document.getElementById('logo-add').onclick=()=>document.getElementById('logo-file').click();
-document.getElementById('logo-file').onchange=function(){
-  if(!this.files[0]) return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const id='cu_'+Date.now();
-    customLogos[id]=e.target.result;
-    logoOrder.push(id);
-    const chip=document.createElement('div');
-    chip.className='lchip'; chip.draggable=true; chip.dataset.id=id;
-    chip.innerHTML='<img src="'+e.target.result+'" style="height:14px"> '+
-      '<button onclick="event.stopPropagation();logoOrder=logoOrder.filter(x=>x!==\''+id+'\');delete customLogos[\''+id+'\'];this.parentNode.remove();up()" '+
-      'style="background:none;border:none;cursor:pointer;font-size:12px;color:#999;padding:0">×</button>';
-    document.getElementById('logo-add').before(chip);
-    setupDrag(); up();
-  };
-  reader.readAsDataURL(this.files[0]);
-};
-
-restoreState();
-rebuildCustomLogoChips();
-initBg(); renderParts(); onTypeChange(); setupDrag(); up();
+let parts=[{t:'גב׳',n:'יעל אביב',r:'מנהלת תחום חינוך ופדגוגיה, תעשיידע'}],selBg=0,logoOrder=['mohe','taas','school-logo'],customLogos={},isRestoring=false,prevCourse='';
+function getCourseName(){const s=courseSel.value;return s==='__c'?(courseCustom.value||'קורס'):s}
+function getCourseParts(){return COURSE_TEXT[getCourseName()]||COURSE_TEXT.__default}
+function applySuggestedText(target){const t=getCourseParts(); if(target!=='b2') b1.value=t.b1; if(target!=='b1') b2.value=t.b2; up()}
+function applySuggestedParticipants(){[['גב׳','מנהלת בית הספר','מנהל/ת בית הספר'],['מר','נציג/ת רשות','נציג/ת רשות מקומית']].forEach(x=>{if(!parts.some(p=>p.n===x[1])) parts.push({t:x[0],n:x[1],r:x[2]})}); renderParts(); up()}
+function onCourseChange(){courseCustom.style.display=courseSel.value==='__c'?'block':'none'; const old=COURSE_TEXT[prevCourse]||COURSE_TEXT.__default; const cur=getCourseParts(); if(!b1.value||b1.value===old.b1)b1.value=cur.b1; if(!b2.value||b2.value===old.b2)b2.value=cur.b2; prevCourse=getCourseName(); up()}
+function onTypeChange(){extra.innerHTML=''; if(evType.value==='lecture') extra.innerHTML='<div class="field-row"><input id="lec-name" placeholder="שם המרצה"><input id="lec-topic" placeholder="נושא"></div>'; if(evType.value==='tour') extra.innerHTML='<div class="field-row"><input id="tour-place" placeholder="מקום הסיור"><input id="tour-org" placeholder="חברה מארחת"></div>'; setupEvents(); up()}
+function fmtDate(v){if(!v)return null; const d=new Date(v+'T12:00:00'); return d.toLocaleDateString('he-IL')}
+function getCourseDisplayHTML(){const c=getCourseName(); if(c==='יזמות פרימיום – אסם'||c==='יזמות פרימיום – מארוול'){const m=c.includes('אסם')?'אסם':'מארוול'; return '<span>של קורס יזמות פרימיום</span><span style="display:block;font-size:6mm">בליווי חברה מאמצת: '+m+'</span>'} return 'של קורס '+c}
+function getCourseOpeningText(){return getCourseName()} function getCourseFileNameText(){return getCourseName()==='__c'?'קורס':getCourseName()} function getPdfFileName(){const et={end:'מפגש סיום',lecture:'הרצאת אורח',tour:'סיור לימודי'}; return 'הזמנה - '+et[evType.value]+' '+getCourseFileNameText()}
+function logosBarHTML(footer){if(footer)return '<div class="c-footer"><div class="c-footer-sentence">תעשיידע – מובילים דור אחד קדימה</div></div>'; return '<div class="c-logos">'+logoOrder.map((id,i)=>`${i?'<div class="c-logo-sep"></div>':''}<div class="c-logo-item">${id==='school-logo'&&!customLogos[id]?'<span>לוגו בית ספר</span>':'<img src="'+(customLogos[id]||'')+'">'}</div>`).join('')+'</div>'}
+function buildCard(){return logosBarHTML(false)+'<div class="c-main"><div class="c-title" style="color:'+c1.value+'">הזמנה</div><div class="c-sub-event" style="color:'+c1.value+'">'+(evType.value==='end'?'למפגש הסיום':evType.value==='lecture'?'להרצאת אורח':'לסיור לימודי')+'</div><div class="c-course" style="color:'+c3.value+'">'+getCourseDisplayHTML()+'</div><div>'+school.value+' | '+grade.value+' | '+year.value+'</div><div class="c-opening">'+getCourseOpeningText()+'</div><div class="c-box">📅 '+(fmtDate(evDate.value)||'')+' ⏰ '+evTime.value+' 📍 '+evLoc.value+'</div><div class="c-para">'+b1.value+'</div><div class="c-section-title">מה מצפה לנו</div><div class="c-para">'+b2.value+'</div><div class="c-box">'+parts.map(p=>`${p.t} <strong>${p.n}</strong> ${p.r}`).join('<br>')+'</div><div class="c-closing" style="color:'+c3.value+'">'+closing1.value+'</div></div>'+logosBarHTML(true)}
+function renderParts(){partsEl.innerHTML=''; parts.forEach((p,i)=>{const r=document.createElement('div'); r.className='part-row'; r.draggable=true; r.innerHTML=`<div class="drag-handle">⋮⋮</div><select><option ${p.t==='גב׳'?'selected':''}>גב׳</option><option ${p.t==='מר'?'selected':''}>מר</option></select><input value="${p.n}"><input value="${p.r}"><button>×</button>`; const [sel,nm,rl,del]=[r.children[1],r.children[2],r.children[3],r.children[4]]; sel.onchange=()=>{p.t=sel.value;up()};nm.oninput=()=>{p.n=nm.value;saveState()};rl.oninput=()=>{p.r=rl.value;saveState()};del.onclick=()=>{parts.splice(i,1);renderParts();up()}; r.ondragstart=e=>e.dataTransfer.setData('i',i);r.ondragover=e=>e.preventDefault();r.ondrop=e=>{const from=+e.dataTransfer.getData('i');const to=i;const m=parts.splice(from,1)[0];parts.splice(to,0,m);renderParts();up()}; partsEl.appendChild(r)})}
+function addPart(){parts.push({t:'גב׳',n:'',r:''});renderParts();up()} function initBg(){bgRow.innerHTML=''; BG_URLS.forEach((b,i)=>{const d=document.createElement('div'); d.className='bg-th'+(i===selBg?' sel':''); if(b.type==='solid')d.style.background=b.value; else d.style.backgroundImage='url('+b.value+')'; d.onclick=()=>{selBg=i;initBg();up()}; bgRow.appendChild(d)})}
+function saveState(){if(isRestoring)return; const ids=['ev-type','course-sel','course-custom','c1','c2','c3','school','grade','year','ev-date','ev-time','ev-loc','b1','b2','closing1']; const fields={}; ids.forEach(id=>fields[id]=document.getElementById(id).value); localStorage.setItem(STORAGE_KEY,JSON.stringify({fields,parts,selBg,logoOrder,customLogos,prevCourse}))}
+function restoreState(){const raw=localStorage.getItem(STORAGE_KEY); if(!raw)return; isRestoring=true; const s=JSON.parse(raw); Object.entries(s.fields||{}).forEach(([id,v])=>{const el=document.getElementById(id); if(el)el.value=v}); parts=s.parts||parts; selBg=s.selBg||0; logoOrder=s.logoOrder||logoOrder; customLogos=s.customLogos||{}; prevCourse=s.prevCourse||getCourseName(); isRestoring=false}
+function rebuildCustomLogoChips(){if(customLogos['school-logo']) schoolLogoLabel.textContent='לוגו בית ספר ✓'}
+function up(){const bg=BG_URLS[selBg]; cbg.style.backgroundColor=bg.type==='solid'?bg.value:'transparent'; cbg.style.backgroundImage=bg.type==='image'?'url('+bg.value+')':'none'; cwrap.innerHTML=buildCard(); saveState()}
+function doPrint(){const w=window.open('','_blank'); w.document.write('<html dir="rtl"><head><title>'+getPdfFileName()+'</title><style>body{font-family:Heebo}#card{zoom:1}</style></head><body><button onclick="print()">PDF</button>'+document.getElementById('card').outerHTML+'<script>onafterprint=()=>setTimeout(()=>close(),200)<\/script></body></html>'); w.document.close()}
+function doReset(){localStorage.removeItem(STORAGE_KEY); location.reload()}
+function setupDrag(){document.querySelectorAll('#logo-zone .lchip[draggable=true]').forEach(ch=>{ch.ondragstart=e=>e.dataTransfer.setData('lid',ch.dataset.id);ch.ondragover=e=>e.preventDefault();ch.ondrop=e=>{const from=e.dataTransfer.getData('lid'),to=ch.dataset.id;const fi=logoOrder.indexOf(from),ti=logoOrder.indexOf(to); if(fi>-1&&ti>-1){logoOrder.splice(fi,1);logoOrder.splice(ti,0,from)}; up()}})}
+function setupEvents(){document.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id!=='logo-file') {el.oninput=up;el.onchange=up}}); courseSel.onchange=onCourseChange; evType.onchange=onTypeChange; document.getElementById('suggest-b1').onclick=e=>{e.preventDefault();applySuggestedText('b1')}; document.getElementById('suggest-b2').onclick=e=>{e.preventDefault();applySuggestedText('b2')}; document.getElementById('suggest-parts').onclick=e=>{e.preventDefault();applySuggestedParticipants()}; document.getElementById('add-part').onclick=e=>{e.preventDefault();addPart()}; document.getElementById('btn-print').onclick=doPrint; document.getElementById('btn-reset').onclick=doReset; logoAdd.onclick=()=>logoFile.click(); logoFile.onchange=function(){const f=this.files[0]; if(!f)return; const r=new FileReader(); r.onload=e=>{customLogos['school-logo']=e.target.result; schoolLogoLabel.textContent='לוגו בית ספר ✓'; up()}; r.readAsDataURL(f)}}
+function boot(){window.evType=evType; restoreState(); rebuildCustomLogoChips(); initBg(); renderParts(); setupDrag(); setupEvents(); onCourseChange(); onTypeChange(); up()}
+window.onCourseChange=onCourseChange; window.applySuggestedText=applySuggestedText; window.applySuggestedParticipants=applySuggestedParticipants; window.onTypeChange=onTypeChange; window.initBg=initBg; window.renderParts=renderParts; window.addPart=addPart; window.saveState=saveState; window.restoreState=restoreState; window.rebuildCustomLogoChips=rebuildCustomLogoChips; window.fmtDate=fmtDate; window.getCourseName=getCourseName; window.getCourseParts=getCourseParts; window.getCourseDisplayHTML=getCourseDisplayHTML; window.getCourseOpeningText=getCourseOpeningText; window.getCourseFileNameText=getCourseFileNameText; window.getPdfFileName=getPdfFileName; window.logosBarHTML=logosBarHTML; window.buildCard=buildCard; window.up=up; window.doPrint=doPrint; window.doReset=doReset; window.setupDrag=setupDrag; window.setupEvents=setupEvents; window.boot=boot;
+boot();
 </script>
-</body>
-</html>
+</body></html>
