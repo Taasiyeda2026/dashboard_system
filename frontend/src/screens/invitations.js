@@ -58,8 +58,9 @@ function ensureInvitationStyles() {
     @page{size:A4 portrait;margin:0}
     html,body{width:210mm!important;height:297mm!important;margin:0!important;padding:0!important;overflow:hidden!important;background:white!important}
     body.printing-invitation *{visibility:hidden!important}
-    body.printing-invitation .invitation-print-page,body.printing-invitation .invitation-print-page *{visibility:visible!important}
-    .invitation-print-page{
+    body.printing-invitation #print-root,body.printing-invitation #print-root *{visibility:visible!important}
+    #print-root{position:fixed!important;inset:0!important;display:flex!important;align-items:flex-start!important;justify-content:center!important;overflow:hidden!important;background:white!important;z-index:2147483647!important}
+    #print-root .invitation-print-page{
       position:fixed!important;
       top:0!important;
       right:0!important;
@@ -82,7 +83,7 @@ function ensureInvitationStyles() {
       -webkit-print-color-adjust:exact!important;
       print-color-adjust:exact!important
     }
-    .invitation-preview-viewport,.invitation-preview-scale,.invitation-preview-wrapper{
+    #print-root .invitation-preview-viewport,#print-root .invitation-preview-scale,#print-root .invitation-preview-wrapper{
       transform:none!important;
       scale:none!important;
       overflow:visible!important
@@ -118,15 +119,37 @@ export const invitationsScreen = { load: async () => ({}), render() { ensureInvi
     host.querySelector('[data-background-preset]')?.addEventListener('change', (e) => { state.backgroundCss = PRESET_BACKGROUNDS[e.target.value] || PRESET_BACKGROUNDS.soft; state.hasBackground = true; repaint(); });
     host.querySelector('[data-background-upload]')?.addEventListener('change', (e) => { const file = e.target.files?.[0]; if (!file) return; const r = new FileReader(); r.onload = () => { state.backgroundCss = `url('${r.result}')`; state.hasBackground = true; repaint(); }; r.readAsDataURL(file); });
     host.querySelectorAll('[data-logo-upload]').forEach((i) => i.addEventListener('change', (e) => { const k = e.target.dataset.logoUpload; const f = e.target.files?.[0]; if (!k || !f) return; const r = new FileReader(); r.onload = () => { state.logos[k] = String(r.result || ''); repaint(); }; r.readAsDataURL(f); }));
+    const ensurePrintRoot = () => {
+      let printRoot = document.getElementById('print-root');
+      if (!printRoot) {
+        printRoot = document.createElement('div');
+        printRoot.id = 'print-root';
+        document.body.appendChild(printRoot);
+      }
+      return printRoot;
+    };
+    const cleanupPrintRoot = () => {
+      const printRoot = document.getElementById('print-root');
+      if (printRoot) printRoot.innerHTML = '';
+      document.body.classList.remove('printing-invitation');
+    };
     host.querySelector('[data-print]')?.addEventListener('click', () => {
       if (!state.course || !state.type) return;
+      const sourcePage = host.querySelector('.invitation-print-page');
+      if (!sourcePage) return;
+      const printRoot = ensurePrintRoot();
+      printRoot.innerHTML = '';
+      const clonedPage = sourcePage.cloneNode(true);
+      clonedPage.removeAttribute('id');
+      clonedPage.style.transform = 'none';
+      clonedPage.style.scale = 'none';
+      printRoot.appendChild(clonedPage);
       document.body.classList.add('printing-invitation');
       const cleanup = () => {
-        document.body.classList.remove('printing-invitation');
+        cleanupPrintRoot();
         window.removeEventListener('afterprint', cleanup);
       };
-      window.addEventListener('afterprint', cleanup);
+      window.addEventListener('afterprint', cleanup, { once: true });
       window.print();
-      setTimeout(cleanup, 1200);
     }); window.addEventListener('resize', repaint); repaint(); }
 };
