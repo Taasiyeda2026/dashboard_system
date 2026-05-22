@@ -414,7 +414,7 @@ function proposalTitle(row) {
 function sectionBodyHtml(value) {
   const body = String(value || '').trim();
   if (!body) return '';
-  return `<p>${escapeHtml(body)}</p>`;
+  return `<p class="pa-doc-paragraph">${escapeHtml(body)}</p>`;
 }
 
 function proposalLineHtml(item = {}) {
@@ -436,7 +436,7 @@ function proposalLineHtml(item = {}) {
 function proposalItemsListHtml(items = []) {
   if (!Array.isArray(items) || !items.length) return '';
   const lines = items.map(proposalLineHtml).filter(Boolean).join('');
-  return lines || '';
+  return lines ? `<div class="pa-proposal-lines">${lines}</div>` : '';
 }
 
 function sectionHtml(title, body, className = '') {
@@ -499,9 +499,8 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
             class="pa-doc-logo pa-doc-logo--header"
             loading="eager"
             decoding="async"
-            onerror="this.style.display='none';this.parentElement?.querySelector('.pa-doc-company-block')?.removeAttribute('hidden');"
+            onerror="this.style.display='none';"
           >
-          <div class="pa-doc-company-block" hidden>תעשיידע</div>
         </div>
         <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
       </div>
@@ -515,8 +514,8 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     </header>
     <hr class="pa-doc-divider">
     <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
-    ${introText ? sectionBodyHtml(introText) : ''}
-    ${activitySectionHtml ? `<section class="pa-section"><h3>${sectionTitle('activity_intro', 'הפעילות המוצעת')}:</h3>${activitySectionHtml}</section>` : ''}
+    ${introText ? `<p class="pa-doc-intro">${escapeHtml(introText)}</p>` : ''}
+    ${activitySectionHtml ? `<section class="pa-section"><h3>${sectionTitle('activity_intro', 'הפעילות המוצעת')}</h3>${activitySectionHtml}</section>` : ''}
     ${orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility) : ''}
     ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility) : ''}
     ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלויות ותנאי תשלום'), paymentTerms) : ''}

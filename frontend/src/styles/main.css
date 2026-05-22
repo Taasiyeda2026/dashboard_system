@@ -10354,6 +10354,9 @@ select.ds-input {
    Proposals – Items editor
    ═══════════════════════════════════════════════════════════════════ */
 .ds-pa-items-section { margin: 10px 0 8px; }
+.ds-pa-items-section,
+.ds-pa-items-list,
+.ds-pa-item-card { min-width: 0; overflow-x: clip; }
 .ds-pa-items-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 5px;
@@ -10368,10 +10371,12 @@ select.ds-input {
   gap: 8px;
 }
 .ds-pa-item-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.ds-pa-item-grid--numbers { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ds-pa-item-grid--numbers { grid-template-columns: repeat(3, minmax(84px, 1fr)); }
 .ds-pa-item-field { display: grid; gap: 4px; min-width: 0; }
 .ds-pa-item-field span { font-size: 0.71rem; color: var(--ds-color-text-muted, #64748b); }
 .ds-pa-item-field--full { grid-column: 1 / -1; }
+.ds-pa-item-field--full .ds-input,
+.ds-pa-item-field--full select { width: 100%; }
 .ds-pa-item-card .ds-input {
   min-height: 30px; padding: 3px 6px; font-size: 0.76rem;
   width: 100%; box-sizing: border-box;
@@ -10506,6 +10511,7 @@ select.ds-input {
   background: transparent;
 }
 .pa-section p,
+.pa-doc-paragraph,
 .pa-doc-intro,
 .pa-proposal-lines,
 .pa-cost-line {
@@ -10515,6 +10521,7 @@ select.ds-input {
   margin: 0 0 4pt;
   white-space: pre-line;
 }
+.pa-doc-paragraph { margin: 0 0 4pt; }
 .pa-doc-signature-simple {
   margin-top: 28pt;
   text-align: left;
