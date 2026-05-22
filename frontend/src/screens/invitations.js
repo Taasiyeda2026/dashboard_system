@@ -96,11 +96,11 @@ function ensureStyles() {
 .invitation-screen-root .cframe{position:absolute;inset:5mm;border-radius:10px;border:1.5px solid rgba(255,255,255,.55);pointer-events:none;z-index:3}
 .invitation-screen-root .cwrap{position:relative;z-index:2;flex:1;display:flex;flex-direction:column}
 .invitation-screen-root .c-logos{display:flex;align-items:center;justify-content:center;gap:1mm;padding:7mm 10mm 1mm;background:rgba(255,255,255,.42);border-bottom:1px solid rgba(255,255,255,.45)}
-.invitation-screen-root .c-logo-item{width:36mm;height:16mm;display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:800;color:#1a3a5c;line-height:1.2}
+.invitation-screen-root .c-logo-item{width:32mm;height:14mm;display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:800;color:#1a3a5c;line-height:1.2}
 .invitation-screen-root .c-logo-sep{width:1px;height:26px;background:rgba(26,58,92,.2);flex-shrink:0}
 .invitation-screen-root .c-logo-item img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 .invitation-screen-root .c-main{padding:2mm 7mm 3mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
-.invitation-screen-root .c-title{font-weight:900;line-height:1.02;margin-bottom:0;font-size:15mm}
+.invitation-screen-root .c-title{font-weight:900;line-height:1.02;margin-bottom:0;font-size:14mm}
 .invitation-screen-root .c-sub-event{font-weight:700;line-height:1.1;margin-bottom:1mm;font-size:7mm}
 .invitation-screen-root .c-course{font-weight:500;line-height:1.12;margin-bottom:1mm;font-size:7.5mm}
 .invitation-screen-root .c-course .course-main{display:block;font-size:7.5mm;line-height:1.08;font-weight:500}
@@ -110,9 +110,9 @@ function ensureStyles() {
 .invitation-screen-root .c-school{font-size:4mm;color:#333;margin:1.5mm 0}
 .invitation-screen-root .c-school strong{font-weight:700}
 .invitation-screen-root .c-divider{width:100%;height:1px;background:rgba(26,58,92,.1);margin:1.5mm 0}
-.invitation-screen-root .c-opening{font-size:4mm;color:#333;line-height:1.4;margin:1mm auto;max-width:none;width:80%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
+.invitation-screen-root .c-opening{font-size:4mm;color:#333;line-height:1.35;margin:1mm auto;max-width:none;width:80%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
 .invitation-screen-root .c-opening strong{font-weight:700;color:var(--accent-color,#1a8c6e)}
-.invitation-screen-root .c-para{font-size:4mm;color:#333;line-height:1.4;margin:.5mm auto;text-align:right;max-width:none;width:80%;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
+.invitation-screen-root .c-para{font-size:4mm;color:#333;line-height:1.35;margin:.5mm auto;text-align:right;max-width:none;width:80%;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
 .invitation-screen-root .c-section-title{font-size:3.45mm;font-weight:800;color:var(--accent-color,#1a8c6e);line-height:1.2;margin:1.5mm auto .5mm;max-width:none;width:80%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
 .invitation-screen-root .c-box{background:rgba(255,255,255,.5);border:1px solid rgba(26,140,110,.22);border-radius:8px;padding:2mm 4.5mm;margin:1.5mm 0;width:100%;text-align:right}
 .invitation-screen-root .c-participants-box{width:80%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;background:rgba(255,255,255,.38);border-color:rgba(26,140,110,.12);padding:1.6mm 4mm}
@@ -125,7 +125,7 @@ function ensureStyles() {
 .invitation-screen-root .c-part-title{font-size:3.2mm;font-weight:700;margin-bottom:1px}
 .invitation-screen-root .c-part-line{font-size:3.2mm;color:#333;line-height:1.45}
 .invitation-screen-root .c-part-line strong{font-weight:700;color:#333}
-.invitation-screen-root .c-closing{font-size:6.8mm;font-weight:900;margin-top:auto;padding-top:2mm;text-align:center}
+.invitation-screen-root .c-closing{font-size:6.2mm;font-weight:900;margin-top:auto;padding-top:2mm;text-align:center}
 .invitation-screen-root .c-footer{display:flex;align-items:center;justify-content:center;text-align:center;padding:1mm 7mm;background:#fff;border-top:.25mm solid #fff;margin-top:0;margin-bottom:0;backdrop-filter:none;min-height:5mm;position:relative;z-index:4;width:100%}
 .invitation-screen-root .c-footer-sentence{font-size:3mm;font-weight:600;line-height:1.18;letter-spacing:.035em;text-shadow:-.3px -.3px 0 rgba(30,38,46,.25),.3px -.3px 0 rgba(30,38,46,.25),-.3px .3px 0 rgba(30,38,46,.25),.3px .3px 0 rgba(30,38,46,.25),0 1px 1.5px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.35mm}
 .invitation-screen-root .c-footer-sentence span{text-shadow:inherit}
