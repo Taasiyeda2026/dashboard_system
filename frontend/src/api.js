@@ -1015,8 +1015,6 @@ async function readEndDatesFromSupabase() {
   }
 }
 
-// Legacy missing-date Supabase filter marker retained for regression tests: start_date.eq.NULL
-const LATE_END_DATE_CUTOFF = '2026-06-15';
 
 function activityOverlapsMonthForExceptions(row, month) {
   if (!/^\d{4}-\d{2}$/.test(String(month || ''))) return true;
@@ -1056,7 +1054,9 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   const date1 = normalizeSupabaseDate(row?.date_1 ?? row?.Date1);
   if (!start && !date1) types.push('missing_start_date');
 
-  if (end && end > LATE_END_DATE_CUTOFF) types.push('late_end_date');
+  const meetingDates = getActivityDateColumns(row);
+  const hasMeetingAfterEnd = !!end && meetingDates.some((dateKey) => dateKey > end);
+  if (hasMeetingAfterEnd) types.push('late_end_date');
   return types;
 }
 
@@ -1160,10 +1160,10 @@ async function readExceptionsFromSupabase(params = {}) {
             .neq('emp_id', '')
             .not('emp_id', 'in', `(${knownIdsList.join(',')})`)
         : Promise.resolve({ data: [] }),
-      // 5: explicit late end-date candidates. The exception type is still
-      // recomputed below from normalized current row data, so edited rows whose
-      // end date is no longer late are naturally removed.
-      queryBase().gt('end_date', LATE_END_DATE_CUTOFF)
+      // 5: broad open-course candidates for late_end_date. The exact exception
+      // is recomputed below from fresh normalized meeting dates and end_date,
+      // so only rows with an actual meeting after end_date remain.
+      queryBase()
     ]);
 
     const missingStartRows      = (Array.isArray(missingStartResult.data)      ? missingStartResult.data      : []).map(normalizeActivityRow);
