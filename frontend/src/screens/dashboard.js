@@ -111,6 +111,7 @@ function renderStructuredSummary(summary, ym, byManager) {
   const missingInstructorCount = pickNumericFallback(counts, 'missing_instructor', summary?.missing_instructor_count);
   const missingStartDateCount = pickNumericFallback(counts, 'missing_start_date', summary?.missing_start_date_count ?? summary?.missing_date_count);
   const lateEndCount = pickNumericFallback(counts, 'late_end_date', summary?.late_end_date_count);
+  const endDatePassedCount = pickNumericFallback(counts, 'end_date_passed', summary?.end_date_passed_count);
   const exceptionsTotalField = getStrictNumericField(summary, 'totalExceptionRows');
   const exceptionsTotalFallback = getStrictNumericField(summary, 'exceptions_count');
   const exceptionsTotalResolved = exceptionsTotalField.ok
@@ -123,6 +124,7 @@ function renderStructuredSummary(summary, ym, byManager) {
   const missingInstructor = missingInstructorCount;
   const missingStartDate  = missingStartDateCount;
   const lateEnd = escapeHtml(String(lateEndCount));
+  const endDatePassed = escapeHtml(String(endDatePassedCount));
 
   const typeCounts = summary?.active_type_counts || {};
   const typeRows = ACTIVITY_TYPE_ORDER
@@ -170,6 +172,7 @@ function renderStructuredSummary(summary, ym, byManager) {
         <span class="ds-muted"> (חסר מדריך: ${escapeHtml(String(missingInstructor))} · חסר תאריך התחלה: ${escapeHtml(String(missingStartDate))})</span>
       </p>
       <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${lateEnd}</strong></p>
+      <p class="ds-summary-panel__text">תאריך סיום חלף: <strong>${endDatePassed}</strong></p>
     </div>
   </div>`;
 }

@@ -73,6 +73,9 @@ function exceptionsOperationalSummaryHtml(data, rows) {
   const lateEndDate = hasRows
     ? exceptionCountFromRows(rows, 'late_end_date')
     : numericCount(counts.late_end_date);
+  const endDatePassed = hasRows
+    ? exceptionCountFromRows(rows, 'end_date_passed')
+    : numericCount(counts.end_date_passed);
   const totalExceptionRows = optionalNumericCount(data?.totalExceptionRows);
   const allExceptionsTotal = totalExceptionRows ?? uniqueExceptionActivityCount(rows);
 
@@ -82,6 +85,7 @@ function exceptionsOperationalSummaryHtml(data, rows) {
       <p class="ds-summary-panel__text">חסר מדריך: <strong>${escapeHtml(String(missingInstructor))}</strong></p>
       <p class="ds-summary-panel__text">חסר תאריך התחלה: <strong>${escapeHtml(String(missingStartDate))}</strong></p>
       <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${escapeHtml(String(lateEndDate))}</strong></p>
+      <p class="ds-summary-panel__text">תאריך סיום חלף: <strong>${escapeHtml(String(endDatePassed))}</strong></p>
       <p class="ds-summary-panel__text"><small>פעילות עם כמה סוגי חריגה נספרת פעם אחת בסה״כ.</small></p>
     </div>`
   });
