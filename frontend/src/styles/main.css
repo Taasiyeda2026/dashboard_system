@@ -10603,7 +10603,7 @@ select.ds-input {
 }
 .pa-doc-paragraph { margin: 0 0 4pt; }
 .pa-doc-signature-simple {
-  margin-top: 28pt;
+  margin-top: 8pt;
   text-align: left;
   font-size: 9pt;
   line-height: 1.5;
@@ -10778,6 +10778,6 @@ select.ds-input {
     text-align: left !important;
     font-size: 9pt !important;
     line-height: 1.5 !important;
-    margin-top: 28pt !important;
+    margin-top: 8pt !important;
   }
 }
