@@ -1036,6 +1036,7 @@ function activityOverlapsMonthForExceptions(row, month) {
 function rowExceptionTypesFromActivity(row, opts = {}) {
   const types = [];
   const knownIds    = opts.knownInstructorIds; // Set<string> | undefined
+  const lateEndThreshold = normalizeSupabaseDate(opts.lateEndDateThreshold);
   const emp1        = nullStr(row?.emp_id);
   const emp2        = nullStr(row?.emp_id_2);
   const instructorName = resolveActivityInstructorName(row);
@@ -1055,8 +1056,17 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   if (!start && !date1) types.push('missing_start_date');
 
   const meetingDates = getActivityDateColumns(row);
-  const hasMeetingAfterEnd = !!end && meetingDates.some((dateKey) => dateKey > end);
-  if (hasMeetingAfterEnd) types.push('late_end_date');
+  const lateMeetingDates = lateEndThreshold
+    ? meetingDates.filter((dateKey) => dateKey > lateEndThreshold)
+    : [];
+  if (lateMeetingDates.length > 0) {
+    types.push('late_end_date');
+    row._late_end_date_threshold = lateEndThreshold;
+    row._late_end_date_hits = lateMeetingDates;
+  } else {
+    row._late_end_date_threshold = lateEndThreshold || '';
+    row._late_end_date_hits = [];
+  }
   return types;
 }
 
@@ -1071,7 +1081,10 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
     if (isActivityClosed(row)) continue;
     if (rowActivityType(row) !== 'course') continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
-    const types = rowExceptionTypesFromActivity(row, { knownInstructorIds });
+    const types = rowExceptionTypesFromActivity(row, {
+      knownInstructorIds,
+      lateEndDateThreshold: opts.lateEndDateThreshold
+    });
     if (!types.length) continue;
     const manager = cleanActivityManagerName(row?.activity_manager) || NO_ACTIVITY_MANAGER_LABEL;
     byManager[manager] = (byManager[manager] || 0) + 1;
@@ -1107,6 +1120,11 @@ async function readExceptionsFromSupabase(params = {}) {
   const COURSE_TYPE_VALUES = ['course', 'קורס', 'קורסים'];
   try {
     const range = monthDateRange(month);
+    const settingsPromise = supabase
+      .from('settings')
+      .select('key,value')
+      .eq('key', 'late_end_date_threshold')
+      .maybeSingle();
 
     // Query 1: courses active in the chosen month (date-range based)
     const dateRangeRowsRaw = await selectActivitiesByDateRangeFromSupabase({
@@ -1138,7 +1156,7 @@ async function readExceptionsFromSupabase(params = {}) {
 
     const knownIdsList = [...knownInstructorIds];
 
-    const [missingStartResult, missingInstructorResult, invalidInstructorResult, lateEndDateResult] = await Promise.all([
+    const [missingStartResult, missingInstructorResult, invalidInstructorResult, lateEndDateResult, lateEndThresholdResult] = await Promise.all([
       // 2: broad missing-start candidates. This query is intentionally
       // not constrained by month: undated courses must stay visible as
       // missing_start_date exceptions even while a month filter is active.
@@ -1161,10 +1179,19 @@ async function readExceptionsFromSupabase(params = {}) {
             .not('emp_id', 'in', `(${knownIdsList.join(',')})`)
         : Promise.resolve({ data: [] }),
       // 5: broad open-course candidates for late_end_date. The exact exception
-      // is recomputed below from fresh normalized meeting dates and end_date,
-      // so only rows with an actual meeting after end_date remain.
-      queryBase()
+      // is recomputed below from fresh normalized meeting dates and the
+      // configurable late_end_date_threshold.
+      queryBase(),
+      settingsPromise
     ]);
+    const lateEndDateThresholdRaw = lateEndThresholdResult?.data?.value;
+    const lateEndDateThreshold = normalizeSupabaseDate(lateEndDateThresholdRaw);
+    if (!lateEndDateThreshold) {
+      console.warn('[exceptions] late_end_date_threshold missing/invalid in settings; late_end_date exceptions disabled until key is fixed.', {
+        key: 'late_end_date_threshold',
+        raw: lateEndDateThresholdRaw ?? null
+      });
+    }
 
     const missingStartRows      = (Array.isArray(missingStartResult.data)      ? missingStartResult.data      : []).map(normalizeActivityRow);
     const missingInstructorRows = (Array.isArray(missingInstructorResult.data) ? missingInstructorResult.data : []).map(normalizeActivityRow);
@@ -1183,9 +1210,10 @@ async function readExceptionsFromSupabase(params = {}) {
 
     const exceptionSummary = buildExceptionsModelFromRows(allRows, month, {
       include_rows: true,
-      knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined
+      knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined,
+      lateEndDateThreshold
     });
-    return { month, ...exceptionSummary, _source: 'supabase' };
+    return { month, late_end_date_threshold: lateEndDateThreshold || '', ...exceptionSummary, _source: 'supabase' };
   } catch (error) {
     return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, error);
   }

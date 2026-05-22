@@ -114,6 +114,9 @@ function exceptionDrawerHtml(row, hideRowId) {
   const grade = String(row.grade || '').trim();
   const classGroup = String(row.class_group || '').trim();
   const classDisplay = [grade, classGroup].filter(Boolean).join(' ');
+  const lateThreshold = String(row?._late_end_date_threshold || '').trim();
+  const lateHits = Array.isArray(row?._late_end_date_hits) ? row._late_end_date_hits : [];
+  const lateHitsHe = lateHits.map((date) => formatDateHe(date) || String(date || '').trim()).filter(Boolean).join(', ');
 
   return `<div class="ds-details-grid" dir="rtl">
     ${hideRowId ? '' : `<p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>`}
@@ -132,6 +135,8 @@ function exceptionDrawerHtml(row, hideRowId) {
     ${fieldRow(hebrewColumn('end_date'),    endDate)}
     ${fieldRow(hebrewColumn('sessions'),    row.sessions)}
     ${fieldRow(hebrewColumn('status'),      row.status)}
+    ${lateThreshold ? fieldRow('סף חריגת תאריך סיום מאוחר', formatDateHe(lateThreshold) || lateThreshold) : ''}
+    ${lateHitsHe ? fieldRow('מפגשים אחרי הסף', lateHitsHe) : ''}
     ${row.notes ? fieldRow('הערות', row.notes) : ''}
   </div>`;
 }

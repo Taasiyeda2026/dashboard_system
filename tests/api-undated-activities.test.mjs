@@ -85,6 +85,32 @@ test('entering a valid start_date or date_1 removes missing_start_date automatic
   assert.equal(rowExceptionTypesFromActivity(activeCourse({ start_date: '', date_1: '2026-05-10' })).includes('missing_start_date'), false);
 });
 
+test('late_end_date is computed from threshold and date_1..date_35 (not end_date)', () => {
+  const row = activeCourse({
+    RowID: 'A-10',
+    start_date: '2026-05-01',
+    end_date: '2026-05-31',
+    date_1: '2026-06-16',
+    date_2: '2026-06-10'
+  });
+  const types = rowExceptionTypesFromActivity(row, { lateEndDateThreshold: '2026-06-15' });
+  assert.equal(types.includes('late_end_date'), true);
+  assert.deepEqual(row._late_end_date_hits, ['2026-06-16']);
+  assert.equal(row._late_end_date_threshold, '2026-06-15');
+});
+
+test('without valid threshold, late_end_date is not inferred and keeps safe fallback metadata', () => {
+  const row = activeCourse({
+    RowID: 'A-11',
+    end_date: '2026-05-01',
+    date_1: '2026-06-20'
+  });
+  const types = rowExceptionTypesFromActivity(row, { lateEndDateThreshold: 'not-a-date' });
+  assert.equal(types.includes('late_end_date'), false);
+  assert.deepEqual(row._late_end_date_hits, []);
+  assert.equal(row._late_end_date_threshold, '');
+});
+
 
 test('textual null markers in start_date/date_1 are treated as missing_start_date', () => {
   const bothTextual = activeCourse({ RowID: 'A-5', start_date: 'NULL', date_1: '' });
