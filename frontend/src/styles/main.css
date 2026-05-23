@@ -10503,9 +10503,9 @@ select.ds-input {
   direction: rtl;
   width: 794px;
   max-width: 100%;
-  min-height: 1123px;
+  min-height: 297mm;
   margin: 24px auto 48px;
-  padding: 36px 58px 44px;
+  padding: 36px 58px 18mm;
   font-family: Arial, "Noto Sans Hebrew", sans-serif;
   font-size: 10pt;
   line-height: 1.5;
@@ -10513,6 +10513,8 @@ select.ds-input {
   box-shadow: none;
   border: none;
   border-radius: 0;
+  display: flex;
+  flex-direction: column;
 }
 .pa-doc-header {
   margin-bottom: 8px;
@@ -10537,10 +10539,12 @@ select.ds-input {
   margin-inline: 0;
 }
 .pa-doc-logo--footer {
-  width: 230px;
-  max-width: 55%;
+  width: auto;
+  height: auto;
+  max-width: 48mm;
   margin-inline: auto;
   opacity: 0.95;
+  transform: none;
 }
 .pa-doc-date {
   justify-self: start;
@@ -10640,12 +10644,16 @@ select.ds-input {
   padding-top: 4pt;
 }
 .pa-doc-footer {
-  margin-top: 26px;
-  padding-top: 0;
+  margin-top: auto;
+  width: 100%;
+  padding-top: 10mm;
   border: 0;
   break-inside: avoid;
   page-break-inside: avoid;
   text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 @media (max-width: 720px) {
@@ -10716,9 +10724,11 @@ select.ds-input {
     position: static !important;
     width: auto !important;
     max-width: none !important;
-    min-height: 0 !important;
+    min-height: 297mm !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 0 0 14mm !important;
+    display: flex !important;
+    flex-direction: column !important;
     box-shadow: none !important;
     border: none !important;
     background: #fff !important;
@@ -10792,12 +10802,22 @@ select.ds-input {
     display: block !important;
   }
 
+  .pa-doc-footer {
+    margin-top: auto !important;
+    width: 100% !important;
+    padding-top: 10mm !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
   .pa-doc-logo--footer {
-    width: 230px !important;
-    max-width: 55% !important;
+    width: auto !important;
+    max-width: 48mm !important;
     height: auto !important;
     opacity: 0.95 !important;
     display: block !important;
+    transform: none !important;
   }
 
   .pa-doc-signature-simple {
