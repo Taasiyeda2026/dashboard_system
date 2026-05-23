@@ -15,27 +15,16 @@ function ensureCatalogStyles() {
 .catalog-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:linear-gradient(180deg,#f8fbff,#f1f6fd);border:1px solid #dbe8f4;border-radius:14px;padding:10px 12px}
 .catalog-filter{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #d5e4f3;border-radius:10px;padding:6px 10px;font-size:13px;color:#334155;font-weight:600}
 .catalog-filter select{border:none;background:transparent;font:inherit;color:#0f172a;min-width:94px;outline:none}
-.catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:14px;align-items:stretch}
-.catalog-card{position:relative;border:1px solid #dbe6f1;background:#fff;border-radius:16px;padding:14px;display:grid;grid-template-rows:auto auto auto auto 1fr;gap:10px;min-height:292px;cursor:pointer;transition:.18s ease box-shadow,.18s ease transform,.18s ease border-color;overflow:hidden}
-.catalog-card::before{content:'';position:absolute;inset:0 0 auto 0;height:7px;background:#c7d2fe}
-.catalog-card:hover{transform:translateY(-2px);border-color:#94a3b8;box-shadow:0 12px 24px rgba(15,23,42,.10)}
-.catalog-card h3{margin:0;font-size:22px;line-height:1.25;color:#0f172a}
-.catalog-lead{min-height:44px;max-height:84px;margin:0;font-size:14px;line-height:1.5;color:#475569;overflow:hidden}
-.catalog-chipline{display:flex;gap:7px;flex-wrap:wrap}
-.catalog-chip{font-size:11px;border-radius:999px;padding:3px 9px;color:#1e293b;background:#e7eef7;border:1px solid #d2deec;font-weight:700}
-.catalog-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;color:#334155;margin-top:auto}
-.catalog-meta div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:7px 8px;line-height:1.35;min-height:58px}
-.catalog-meta strong{display:block;margin-bottom:2px;color:#0f172a;font-size:11px}
+.catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:stretch}
+.catalog-card{position:relative;border:1px solid #dbe6f1;background:#fff;border-radius:14px;padding:14px 12px;min-height:74px;cursor:pointer;transition:.18s ease box-shadow,.18s ease transform,.18s ease border-color;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center}
+.catalog-card::before{content:'';position:absolute;inset:0 0 auto 0;height:5px;background:#c7d2fe}
+.catalog-card:hover{transform:translateY(-2px);border-color:#94a3b8;box-shadow:0 8px 18px rgba(15,23,42,.10)}
+.catalog-card h3{margin:0;font-size:17px;line-height:1.25;color:#0f172a;font-weight:800}
 .catalog-card--elementary{background:linear-gradient(180deg,#fdfeff 0,#f2faff 100%);border-color:#c9e6f7}
 .catalog-card--elementary::before{background:linear-gradient(90deg,#93c5fd,#67e8f9,#5eead4)}
-.catalog-card--elementary .catalog-chip{background:#effcff;border-color:#bae6fd;color:#135178}
-.catalog-card--elementary .catalog-meta div{background:#f6fcff;border-color:#d8edf8}
 .catalog-card--middle{background:linear-gradient(180deg,#f6f9ff 0,#e8f0ff 100%);border-color:#b8cbec}
 .catalog-card--middle::before{background:linear-gradient(90deg,#1e3a8a,#1d4ed8,#2563eb)}
 .catalog-card--middle h3{color:#0e2145}
-.catalog-card--middle .catalog-lead{color:#334155}
-.catalog-card--middle .catalog-chip{background:#e6eefc;border-color:#bfdbfe;color:#1e3a8a}
-.catalog-card--middle .catalog-meta div{background:#f2f7ff;border-color:#d5e1f9}
 .catalog-card--neutral::before{background:linear-gradient(90deg,#94a3b8,#cbd5e1)}
 .catalog-detail-actions{display:flex;gap:8px;flex-wrap:wrap}
 .catalog-btn{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font:inherit}
@@ -64,7 +53,7 @@ function ensureCatalogStyles() {
 .catalog-a4--neutral .catalog-box{background:#f8fafc}
 @media (max-width:900px){.catalog-a4{width:100%;min-height:auto;padding:14px}.catalog-frame-grid{grid-template-columns:1fr 1fr}.catalog-list-grid{grid-template-columns:1fr}}
 @media (max-width:760px){.catalog-grid{grid-template-columns:1fr}.catalog-header h2{font-size:24px}.catalog-filter{font-size:12px}}
-@media (max-width:640px){.catalog-meta,.catalog-frame-grid,.catalog-list-grid{grid-template-columns:1fr}.catalog-card{min-height:unset}}
+@media (max-width:640px){.catalog-frame-grid,.catalog-list-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}}
 @media print {
   body *{visibility:hidden !important}
   .catalog-print-zone,.catalog-print-zone *{visibility:visible !important}
@@ -147,9 +136,6 @@ export const catalogScreen = {
         <div class="catalog-grid">
           ${filtered.map((p) => `<article class="catalog-card ${toneClassForProgram(p, 'catalog-card')}" data-audience-level="${escapeHtml(p.audienceLevel)}" data-page-template="${escapeHtml(p.pageTemplate)}" data-catalog-open="${escapeHtml(p.id)}">
             <h3>${escapeHtml(p.name)}</h3>
-            <p class="catalog-lead">${escapeHtml(p.shortDescription || p.coreIdea || 'לא סופק תיאור')}</p>
-            <div class="catalog-chipline"><span class="catalog-chip">${escapeHtml(p.audienceLevel)}</span><span class="catalog-chip">${escapeHtml(p.productType)}</span><span class="catalog-chip">${escapeHtml(p.grades)}</span></div>
-            <div class="catalog-meta"><div><strong>כיתות</strong>${escapeHtml(p.grades)}</div><div><strong>היקף</strong>${escapeHtml(p.scope)}</div><div><strong>משך מפגש</strong>${escapeHtml(p.sessionDuration)}</div><div><strong>מס׳ גפ״ן</strong>${escapeHtml(p.gefenNumber || '—')}</div></div>
           </article>`).join('') || '<p class="ds-muted">לא נמצאו תוכניות עבור הסינון שנבחר.</p>'}
         </div>
       </section>`;
