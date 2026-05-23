@@ -839,3 +839,30 @@ test('upgrade migration adds status column with constraint and new indexes', asy
   assert.match(upgradeMigration, /trg_touch_proposal_agreement_items_updated_at/);
   assert.match(upgradeMigration, /proposal_agreement_items/);
 });
+
+test('custom_document_sections migration is present', async () => {
+  const migration = await readFile(new URL('../supabase/migrations/20260523_add_custom_document_sections_to_proposals_agreements.sql', import.meta.url), 'utf8');
+  assert.match(migration, /custom_document_sections jsonb not null default '\{\}'::jsonb/i);
+});
+
+test('preview prefers custom_document_sections when present', async () => {
+  const row = { ...sampleRows[0], custom_document_sections: [{ section_key: 'intro', section_title: 'פתיח', section_body: 'טקסט מותאם להצעה' }] };
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data: { rows: [row], proposalTemplateSections: [{ template_key: 'summer', section_key: 'intro', section_title: 'פתיח', section_body: 'טקסט תבנית' }] }, state: stateFor('admin'), api: { readProposalAgreementItems: async () => [] } });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    assert.match(dom.window.document.body.innerHTML, /טקסט מותאם להצעה/);
+  });
+});
+
+test('approved proposal has no edit document button', async () => {
+  const row = { ...sampleRows[0], status: 'approved' };
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data: { rows: [row] }, state: stateFor('admin'), api: { readProposalAgreementItems: async () => [] } });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    assert.equal(Boolean(root.querySelector('[data-pa-edit-document]')), false);
+  });
+});

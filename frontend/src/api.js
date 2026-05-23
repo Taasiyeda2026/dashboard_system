@@ -1393,7 +1393,7 @@ function normalizeData(data) {
 
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,created_at,updated_at';
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -1493,6 +1493,7 @@ function normalizeProposalAgreementRow(row = {}) {
     status:              PA_VALID_STATUSES.has(rawStatus) ? rawStatus : 'draft',
     approval_note:       cleanProposalAgreementText(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
+    custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [],
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };
@@ -1519,7 +1520,8 @@ function sanitizeProposalAgreementPayload(payload = {}) {
     notes:               parseActivityNamesFromNotes(payload.notes).notes,
     status:              PA_VALID_STATUSES_SET.has(rawStatus) ? rawStatus : 'draft',
     approval_note:       cleanProposalAgreementText(payload.approval_note),
-    total_amount:        payload.total_amount != null ? Number(payload.total_amount) || null : null
+    total_amount:        payload.total_amount != null ? Number(payload.total_amount) || null : null,
+    custom_document_sections: Array.isArray(payload.custom_document_sections) ? payload.custom_document_sections : []
   };
   const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'].filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
@@ -2585,6 +2587,25 @@ export const api = {
   readProposalTemplateSections: async () => {
     assertCanUseProposalsAgreementsApi();
     return readProposalTemplateSectionsFromSupabase();
+  },
+
+  saveProposalAgreementCustomDocumentSections: async (proposalId, sections) => {
+    assertCanUseProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(proposalId);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const cleanSections = (Array.isArray(sections) ? sections : []).map((section) => ({
+      section_key: cleanProposalAgreementText(section?.section_key),
+      section_title: cleanProposalAgreementText(section?.section_title),
+      section_body: String(section?.section_body == null ? '' : section.section_body).trim()
+    })).filter((section) => section.section_key);
+    const { data, error } = await supabase
+      .from('proposals_agreements')
+      .update({ custom_document_sections: cleanSections })
+      .eq('id', rowId)
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .single();
+    if (error) throw new Error(error.message || 'proposals_agreement_custom_document_sections_update_failed');
+    return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
   saveProposalAgreementItems: async (proposalId, items) => {
     assertCanUseProposalsAgreementsApi();
