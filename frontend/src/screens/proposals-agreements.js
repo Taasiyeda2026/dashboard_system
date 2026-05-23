@@ -460,9 +460,9 @@ function sectionLinesHtml(value, options = {}) {
     const original = String(line || '');
     const trimmed = original.trim();
     if (!trimmed) return '<span class="pa-section-line pa-section-line--empty">&nbsp;</span>';
-    const bulletMatch = trimmed.match(/^[·•-]\s*(.*)$/);
+    const bulletMatch = trimmed.match(/^[·•-]\s+(.+)$/);
     const isBullet = alwaysBullet || Boolean(bulletMatch);
-    const body = isBullet ? (bulletMatch ? bulletMatch[1] : trimmed) : trimmed;
+    const body = isBullet ? (bulletMatch ? bulletMatch[1].trim() : trimmed) : trimmed;
     const marker = isBullet ? '<span class="pa-section-bullet-marker">·</span>' : '';
     return `<span class="pa-section-line${isBullet ? ' pa-section-line--bullet' : ''}">${marker}${escapeHtml(body)}</span>`;
   }).join('');
