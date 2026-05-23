@@ -1,736 +1,130 @@
-
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>קטלוג תוכניות תעשיידע | אתר</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <title>קטלוג תוכניות תלמידים תשפ״ז</title>
   <style>
-    :root {
-      --accent: #7f5aa2;
-      --accent-dark: #4d2f68;
-      --accent-soft: #f4eff9;
-      --accent-line: #d8c8e6;
-      --accent-warm: #eef7f5;
-      --accent-warm-line: #c9e3dd;
-      --text: #2d2b31;
-      --muted: #6f6678;
-      --line: #e2dae9;
-      --paper: #ffffff;
-      --bg: #f3f4f6;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      background: var(--bg);
-      font-family: "Assistant", "Segoe UI", Arial, sans-serif;
-      color: var(--text);
-    }
-
-    .toolbar {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: rgba(255,255,255,.94);
-      border-bottom: 1px solid var(--line);
-      padding: 10px 16px;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      justify-content: center;
-      direction: rtl;
-    }
-
-    .toolbar label {
-      font-size: 14px;
-      font-weight: 800;
-      color: var(--accent-dark);
-    }
-
-    .toolbar select,
-    .toolbar button {
-      font-family: inherit;
-      border: 1px solid var(--accent-line);
-      background: #fff;
-      color: var(--text);
-      border-radius: 8px;
-      padding: 7px 12px;
-      font-size: 14px;
-      font-weight: 700;
-    }
-
-    .toolbar button {
-      cursor: pointer;
-      background: var(--accent-soft);
-      color: var(--accent-dark);
-    }
-
-    .load-status {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
-    }
-
-    .page {
-      width: 210mm;
-      min-height: 297mm;
-      margin: 16px auto;
-      background: var(--paper);
-      padding: 10mm 11mm 9mm;
-      box-shadow: 0 8px 24px rgba(0,0,0,.08);
-      border: 1px solid #e8e3ec;
-      display: flex;
-      flex-direction: column;
-      gap: 4.2mm;
-    }
-
-    .hero {
-      min-height: 35mm;
-      background: linear-gradient(120deg, #f3ecfb 0%, #f7f1fb 54%, #eef7f5 100%);
-      color: var(--text);
-      border: 1px solid var(--accent-line);
-      padding: 6mm 7mm;
-      display: grid;
-      grid-template-columns: 31mm 1fr;
-      gap: 6mm;
-      align-items: center;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .hero::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, transparent 58%, rgba(127,90,162,.10) 58.2%, transparent 59%),
-                  linear-gradient(55deg, transparent 66%, rgba(78,154,139,.08) 66.2%, transparent 67%);
-      pointer-events: none;
-    }
-
-    .logo-box {
-      height: 22mm;
-      border: 1px solid var(--accent-line);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 11px;
-      line-height: 1.35;
-      text-align: center;
-      color: var(--accent-dark);
-      background: rgba(255,255,255,.58);
-      opacity: .96;
-      z-index: 1;
-    }
-
-    .hero-content { z-index: 1; }
-
-    .eyebrow {
-      font-size: 12px;
-      font-weight: 800;
-      margin-bottom: 2mm;
-      color: var(--accent-dark);
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 26px;
-      line-height: 1.05;
-      font-weight: 900;
-      letter-spacing: -.3px;
-      color: #3d3743;
-    }
-
-    .subtitle {
-      margin-top: 3mm;
-      background: rgba(255,255,255,.72);
-      border-right: 4px solid var(--accent);
-      border-top: 1px solid var(--accent-line);
-      border-bottom: 1px solid var(--accent-line);
-      border-left: 1px solid var(--accent-line);
-      padding: 2.5mm 4mm;
-      font-size: 14px;
-      font-weight: 700;
-      line-height: 1.35;
-      color: #443a4d;
-    }
-
-    .info-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      border: 1px solid var(--accent-line);
-      background: #fff;
-    }
-
-    .info-item {
-      padding: 2.5mm 2mm;
-      min-height: 14mm;
-      border-left: 1px solid var(--accent-line);
-      text-align: center;
-      background: linear-gradient(180deg, #ffffff 0%, #fbf8fd 100%);
-    }
-
-    .info-item:last-child { border-left: 0; }
-
-    .info-label {
-      font-size: 10.5px;
-      color: var(--muted);
-      font-weight: 800;
-      margin-bottom: 1mm;
-    }
-
-    .info-value {
-      font-size: 13px;
-      color: var(--accent-dark);
-      font-weight: 900;
-      line-height: 1.25;
-    }
-
-    .top-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 4mm;
-    }
-
-    .card {
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, #ffffff 0%, #fcfafe 100%);
-      padding: 3.8mm;
-      min-height: 38mm;
-    }
-
-    .card.tint {
-      background: var(--accent-soft);
-      border-color: var(--accent-line);
-    }
-
-    .section-title {
-      color: var(--accent-dark);
-      font-size: 13.5px;
-      font-weight: 900;
-      margin: 0 0 2.2mm;
-      padding-bottom: 1.4mm;
-      border-bottom: 2px solid var(--accent-line);
-    }
-
-    .card p,
-    .card li {
-      font-size: 11.7px;
-      line-height: 1.45;
-    }
-
-    .card p { margin: 0; }
-
-    ul {
-      margin: 0;
-      padding: 0 4mm 0 0;
-    }
-
-    li {
-      margin-bottom: 1.1mm;
-    }
-
-    .why-strip {
-      border: 1px solid var(--accent-warm-line);
-      background: var(--accent-warm);
-    }
-
-    .strip-title {
-      background: #dff0ec;
-      color: #315f58;
-      padding: 2mm 4mm;
-      font-size: 13.5px;
-      font-weight: 900;
-      border-bottom: 1px solid var(--accent-warm-line);
-    }
-
-    .strip-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-    }
-
-    .strip-item {
-      padding: 3mm 4mm;
-      border-left: 1px solid var(--accent-warm-line);
-      min-height: 22mm;
-      background: rgba(255,255,255,.42);
-    }
-
-    .strip-item:last-child { border-left: 0; }
-
-    .strip-question {
-      color: #315f58;
-      font-size: 12.5px;
-      font-weight: 900;
-      margin-bottom: 1.5mm;
-    }
-
-    .strip-answer {
-      font-size: 11.6px;
-      line-height: 1.45;
-      color: var(--text);
-    }
-
-    .syllabus {
-      border: 1px solid var(--line);
-      overflow: hidden;
-    }
-
-    .syllabus-title {
-      background: #efe6f6;
-      color: var(--accent-dark);
-      padding: 2mm 4mm;
-      font-size: 13.5px;
-      font-weight: 900;
-      border-bottom: 1px solid var(--accent-line);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-    }
-
-    th, td {
-      border-top: 1px solid var(--line);
-      padding: 1.7mm 2.2mm;
-      vertical-align: top;
-      font-size: 10.8px;
-      line-height: 1.35;
-    }
-
-    th {
-      background: #f6effa;
-      color: var(--accent-dark);
-      font-weight: 900;
-      text-align: right;
-    }
-
-    .num { width: 15mm; text-align: center; font-weight: 900; color: var(--accent-dark); }
-    .topic { width: 36mm; font-weight: 900; }
-
-    .takeaways-box {
-      border: 1px solid var(--accent-line);
-      background: #fbf8fd;
-      padding: 3mm 4mm;
-    }
-
-    .takeaways-title {
-      color: var(--accent-dark);
-      font-size: 13.5px;
-      font-weight: 900;
-      margin-bottom: 2mm;
-    }
-
-    .takeaways-list {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 2.2mm;
-      align-items: stretch;
-    }
-
-    .takeaway-item {
-      border: 1px solid var(--accent-line);
-      background: #ffffff;
-      padding: 2.4mm 2mm;
-      min-height: 14mm;
-      font-size: 11.5px;
-      line-height: 1.25;
-      font-weight: 800;
-      color: var(--accent-dark);
-      text-align: center;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .closing-box {
-      border: 1px solid var(--accent-line);
-      background: linear-gradient(120deg, #f7f1fb 0%, #eef7f5 100%);
-      padding: 3.2mm 4.5mm;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 5mm;
-      align-items: center;
-    }
-
-    .closing-title {
-      color: var(--accent-dark);
-      font-size: 14px;
-      font-weight: 900;
-      margin-bottom: 1mm;
-    }
-
-    .closing-text {
-      font-size: 12.2px;
-      line-height: 1.45;
-      color: #3f3946;
-      font-weight: 700;
-    }
-
-    .closing-mark {
-      width: 18mm;
-      height: 18mm;
-      border-radius: 50%;
-      border: 1px solid var(--accent-line);
-      background: rgba(255,255,255,.62);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--accent-dark);
-      font-size: 18px;
-      font-weight: 900;
-    }
-
-    .footer-note {
-      margin-top: auto;
-      padding-top: 2.5mm;
-      border-top: 1px solid var(--line);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      color: var(--muted);
-      font-size: 10.5px;
-    }
-
-    .empty-note {
-      color: var(--muted);
-      font-size: 11px;
-      line-height: 1.4;
-    }
-
-    @page { size: A4; margin: 0; }
-
+    :root { --primary:#5e3f80; --line:#ddd4e7; --bg:#f6f5f8; --paper:#fff; --text:#2e2a33; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    .toolbar{display:flex;gap:8px;justify-content:center;align-items:center;position:sticky;top:0;background:#ffffffde;border-bottom:1px solid var(--line);padding:10px;backdrop-filter: blur(3px)}
+    button{border:1px solid var(--line);background:#fff;padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer}
+    .primary{background:#f1ebf8;color:var(--primary);border-color:#cdb9e3}
+    h1{margin:6px 0 2px;text-align:center;font-size:28px}
+    .subtitle{text-align:center;margin:0 0 18px;color:#62576f}
+    .group{background:var(--paper);border:1px solid var(--line);padding:14px;border-radius:12px;margin-bottom:14px}
+    .group h2{margin:0 0 10px;color:var(--primary);font-size:20px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+    .program-btn{min-height:52px;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px 10px;line-height:1.2;font-size:15px;font-weight:700;background:#fff;border:1px solid var(--line);border-radius:10px}
+    .program-btn:hover{border-color:#b79ad4;background:#faf7fe}
+    #programView{display:none;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}
+    .head{border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px}
+    .meta{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:14px}
+    .meta div{background:#f8f6fc;padding:8px;border-radius:8px}
+    table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
+    th,td{border:1px solid #d9d0e5;padding:7px;vertical-align:top}
+    th{background:#f2ecf9}
+    .muted{color:#736982;font-size:13px}
     @media print {
-      body { background: #fff; }
-      .toolbar { display: none; }
-      .page {
-        margin: 0;
-        width: 210mm;
-        min-height: 297mm;
-        box-shadow: none;
-        border: 0;
-        page-break-after: always;
-      }
+      body{background:#fff}
+      .toolbar,#catalogView{display:none!important}
+      #programView{display:block!important;border:none;padding:0}
+      .wrap{max-width:100%;padding:0}
     }
   </style>
 </head>
 <body>
   <div class="toolbar">
-    <label for="programSelect">בחירת תוכנית:</label>
-    <select id="programSelect"></select>
-    <button type="button" onclick="window.print()">הדפסה / PDF</button>
-    <span id="loadStatus" class="load-status" aria-live="polite"></span>
+    <button id="backBtn" class="primary" style="display:none">חזרה לכל התוכניות</button>
+    <button id="printBtn">הדפסה / PDF</button>
+    <span id="status" class="muted">טוען נתונים…</span>
   </div>
+  <div class="wrap">
+    <section id="catalogView">
+      <h1>קטלוג תוכניות תלמידים תשפ״ז</h1>
+      <p class="subtitle">בחרו תוכנית להצגת עמוד מלא</p>
+      <div class="group">
+        <h2>יסודי</h2>
+        <div id="elementaryGrid" class="grid"></div>
+      </div>
+      <div class="group">
+        <h2>חטיבות</h2>
+        <div id="middleGrid" class="grid"></div>
+      </div>
+    </section>
 
-  <main class="page" id="page"></main>
+    <section id="programView"></section>
+  </div>
+<script>
+let programs=[]; let activeProgram=null;
+const statusEl=document.getElementById('status');
+const catalogView=document.getElementById('catalogView');
+const programView=document.getElementById('programView');
+const backBtn=document.getElementById('backBtn');
 
-  <script>
-    const DATA_FILE = "./catalog_programs_tashpaz.json";
+function normalizeLevel(v){
+  if(!v) return 'לא משויך';
+  if(String(v).includes('יסודי')) return 'יסודי';
+  if(String(v).includes('חטיבה')) return 'חטיבות';
+  return 'לא משויך';
+}
+function createProgramButton(p){
+  const b=document.createElement('button');
+  b.className='program-btn'; b.textContent=p.title;
+  b.onclick=()=>openProgram(p.id);
+  return b;
+}
+function renderCatalog(){
+  const e=document.getElementById('elementaryGrid');
+  const m=document.getElementById('middleGrid');
+  e.innerHTML='';m.innerHTML='';
+  const elementary=programs.filter(p=>normalizeLevel(p.audienceLevel)==='יסודי');
+  const middle=programs.filter(p=>normalizeLevel(p.audienceLevel)==='חטיבות');
+  elementary.forEach(p=>e.appendChild(createProgramButton(p)));
+  middle.forEach(p=>m.appendChild(createProgramButton(p)));
+  if(!elementary.length)e.innerHTML='<div class="muted">אין תוכניות משויכות.</div>';
+  if(!middle.length)m.innerHTML='<div class="muted">אין תוכניות משויכות.</div>';
+}
+function openProgram(id){
+  const p=programs.find(x=>x.id===id); if(!p) return;
+  activeProgram=p;
+  backBtn.style.display='inline-block'; catalogView.style.display='none'; programView.style.display='block';
+  const syllabusRows=(p.syllabus||[]).map(s=>`<tr><td>${s.meeting||''}</td><td>${s.topic||''}</td><td>${s.description||''}</td><td>${s.sourcePage||''}</td></tr>`).join('');
+  programView.innerHTML=`<div class="head"><h2>${p.title}</h2><div class="muted">${p.subtitle||''}</div></div>
+  <div class="meta">
+    <div><strong>שכבה:</strong> ${p.audienceLevel||'לא משויך'}</div>
+    <div><strong>סוג מוצר:</strong> ${p.productType||''}</div>
+    <div><strong>מס׳ תוכנית:</strong> ${p.gefenNumber||''}</div>
+    <div><strong>היקף:</strong> ${p.scope||''}</div>
+  </div>
+  <h3>סילבוס</h3>
+  <table><thead><tr><th>מפגש</th><th>נושא</th><th>תיאור קצר לקטלוג</th><th>עמוד מקור</th></tr></thead><tbody>${syllabusRows}</tbody></table>`;
+  history.replaceState({},'',`?program=${encodeURIComponent(p.id)}`);
+}
+function backToCatalog(){
+  activeProgram=null; programView.style.display='none'; catalogView.style.display='block'; backBtn.style.display='none'; history.replaceState({},'',location.pathname);
+}
+backBtn.onclick=backToCatalog;
+document.getElementById('printBtn').onclick=()=>{
+  if(!activeProgram){ alert('יש לבחור תוכנית לפני הדפסה.'); return; }
+  window.print();
+};
 
-    const fallbackData = {
-      metadata: { catalog: "קטלוג תוכניות תשפ״ז" },
-      programs: [{
-        title: "המצאות בהשראה מן הטבע – ביומימיקרי",
-        subtitle: "חדשנות טכנולוגית בהשראת הטבע",
-        audienceLevel: "יסודי",
-        productType: "תוכנית",
-        pageTemplate: "program_elementary",
-        grades: "ד׳–ו׳",
-        scope: "10 מפגשים",
-        duration: "90 דקות",
-        gefenNumber: "6089",
-        domain: ["ביומימיקרי", "STEM", "יזמות"],
-        sections: {
-          openingStatement: "הטבע לא רק יפה – הוא גם חכם. בתוכנית זו התלמידים לומדים להתבונן בטבע כמאגר רעיונות לפתרונות טכנולוגיים חדשניים.",
-          mainIdea: "תוכנית חקר ויזמות המחברת בין טבע, מדע וטכנולוגיה. התלמידים מגלים כיצד בעלי חיים, צמחים ותופעות טבע יכולים לשמש השראה לפיתוח פתרונות שימושיים ובני־קיימא.",
-          programFlow: "המשתתפים חוקרים תופעות מן הטבע, מזהים מנגנונים ועקרונות פעולה, משווים אותם למערכות טכנולוגיות, מפתחים רעיון לפתרון, בונים אב־טיפוס ומציגים את תהליך החשיבה שלהם.",
-          studentDevelopment: ["חשיבה ביומימטית", "חקר מדעי", "פתרון בעיות", "עבודת צוות"],
-          schoolValue: "תוכנית מובנית המחזקת למידה פעילה, סקרנות מדעית וחיבור בין STEM, קיימות וחדשנות.",
-          finalOutcome: "אב־טיפוס ביומימטי, מצגת קבוצתית והצגת תהליך החקר והפיתוח."
-        },
-        syllabus: []
-      }]
-    };
-
-    const page = document.getElementById("page");
-    const programSelect = document.getElementById("programSelect");
-    const loadStatus = document.getElementById("loadStatus");
-    let catalogData = fallbackData;
-
-    function safe(value, fallback = "") {
-      if (Array.isArray(value)) return value.filter(Boolean).join(", ");
-      return value == null || value === "" ? fallback : String(value);
-    }
-
-    function escapeHTML(value) {
-      return safe(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    function asList(items) {
-      if (!items) return [];
-      if (Array.isArray(items)) return items.filter(Boolean);
-      return String(items).split(/[,\n•]+/).map(item => item.trim()).filter(Boolean);
-    }
-
-    function getEyebrow(program) {
-      const parts = [
-        safe(program.productType, "תוכנית"),
-        safe(program.audienceLevel),
-        safe(program.domain)
-      ].filter(Boolean);
-      return parts.join(" | ");
-    }
-
-    function getTemplateLabels(program) {
-      const type = safe(program.productType, "תוכנית");
-      if (type.includes("סיור")) {
-        return {
-          flowTitle: "מה קורה בסיור",
-          finalTitle: "שיא הסיור / תוצר מסכם",
-          valueTitle: "הערך לבית הספר",
-          takeawaysTitle: "מה מקבלים המשתתפים",
-          closingTitle: "סיור שמחבר בין למידה, חוויה ועולם אמיתי"
-        };
-      }
-      if (type.includes("סדנה")) {
-        return {
-          flowTitle: "מה עושים בסדנה",
-          finalTitle: "תוצר הסדנה",
-          valueTitle: "הערך לבית הספר",
-          takeawaysTitle: "מה מקבלים המשתתפים",
-          closingTitle: "סדנה קצרה שמחברת בין התנסות, ידע והנאה"
-        };
-      }
-      return {
-        flowTitle: "מה קורה בתוכנית",
-        finalTitle: "תוצר מסכם / שיא תהליך",
-        valueTitle: "הערך לבית הספר",
-        takeawaysTitle: "מה מקבלים המשתתפים",
-        closingTitle: "תוכנית שמתחילה בהתבוננות — ומובילה לחשיבה חדשנית"
-      };
-    }
-
-    function getTakeaways(program) {
-      const s = program.sections || {};
-      const type = safe(program.productType, "תוכנית");
-
-      if (Array.isArray(program.participantsReceive) && program.participantsReceive.length) {
-        return program.participantsReceive.slice(0, 4);
-      }
-
-      if (type.includes("סיור")) {
-        return [
-          "חשיפה לעולם תוכן אמיתי",
-          "למידה מחוץ לכיתה",
-          "חיבור לתעשייה / סביבה",
-          safe(s.finalOutcome, "פעילות מסכמת")
-        ];
-      }
-
-      return [
-        "מפגשי חקר והתנסות פעילה",
-        "עבודה קבוצתית מונחית",
-        safe(s.studentDevelopment?.[0], "פיתוח רעיון"),
-        safe(s.finalOutcome, "תוצר מסכם להצגה")
-      ];
-    }
-
-    function getClosingText(program) {
-      const s = program.sections || {};
-      const type = safe(program.productType, "תוכנית");
-
-      if (type.includes("סיור")) {
-        return safe(s.finalOutcome, "דרך מפגש עם עולם אמיתי, התלמידים מחברים בין ידע, סקרנות וחוויה לימודית משמעותית.");
-      }
-
-      if (type.includes("סדנה")) {
-        return safe(s.finalOutcome, "דרך עשייה והתנסות, התלמידים מגלים רעיון מדעי בדרך נגישה, פעילה וחווייתית.");
-      }
-
-      return safe(
-        s.finalOutcome,
-        "דרך חקר, דמיון ופיתוח רעיונות, התלמידים מגלים שהלמידה היא נקודת פתיחה לפתרונות חדשים."
-      );
-    }
-
-    function renderInfoItem(label, value) {
-      return `
-        <div class="info-item">
-          <div class="info-label">${escapeHTML(label)}</div>
-          <div class="info-value">${escapeHTML(value || "—")}</div>
-        </div>
-      `;
-    }
-
-    function renderList(items) {
-      const cleanItems = asList(items);
-      if (!cleanItems.length) return `<p class="empty-note">המידע יושלם בהמשך.</p>`;
-      return `<ul>${cleanItems.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul>`;
-    }
-
-    function renderSyllabus(program) {
-      const syllabus = Array.isArray(program.syllabus) ? program.syllabus : [];
-      if (!syllabus.length) return "";
-
-      return `
-        <section class="syllabus">
-          <div class="syllabus-title">${safe(program.productType).includes("סיור") ? "מבנה הסיור" : "סילבוס התוכנית"}</div>
-          <table>
-            <thead>
-              <tr>
-                <th class="num">${safe(program.productType).includes("סיור") ? "תחנה" : "מפגש"}</th>
-                <th class="topic">נושא</th>
-                <th>מה עושים</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${syllabus.map(item => `
-                <tr>
-                  <td class="num">${escapeHTML(item.meeting || item.stop || "")}</td>
-                  <td class="topic">${escapeHTML(item.topic || "")}</td>
-                  <td>${escapeHTML(item.description || "")}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </section>
-      `;
-    }
-
-    function renderProgram(program) {
-      const s = program.sections || {};
-      const labels = getTemplateLabels(program);
-      const takeaways = getTakeaways(program);
-
-      page.innerHTML = `
-        <section class="hero">
-          <div class="logo-box">תעשיידע<br>חינוך טכנולוגי<br>וחדשנות</div>
-          <div class="hero-content">
-            <div class="eyebrow">${escapeHTML(getEyebrow(program))}</div>
-            <h1>${escapeHTML(program.title)}</h1>
-            <div class="subtitle">${escapeHTML(s.openingStatement || program.subtitle)}</div>
-          </div>
-        </section>
-
-        <section class="info-grid" aria-label="פרטי התוכנית">
-          ${renderInfoItem("כיתות", program.grades)}
-          ${renderInfoItem("היקף", program.scope)}
-          ${renderInfoItem("משך מפגש", program.duration)}
-          ${renderInfoItem("מספר גפ״ן", program.gefenNumber)}
-        </section>
-
-        <section class="top-grid">
-          <article class="card tint">
-            <h2 class="section-title">${escapeHTML(labels.flowTitle)}</h2>
-            <p>${escapeHTML(s.programFlow || "המידע יושלם בהמשך.")}</p>
-          </article>
-
-          <article class="card">
-            <h2 class="section-title">הרעיון המרכזי</h2>
-            <p>${escapeHTML(s.mainIdea || "המידע יושלם בהמשך.")}</p>
-          </article>
-
-          <article class="card">
-            <h2 class="section-title">מה התלמידים מפתחים</h2>
-            ${renderList(s.studentDevelopment)}
-          </article>
-
-          <article class="card tint">
-            <h2 class="section-title">${escapeHTML(labels.finalTitle)}</h2>
-            <p>${escapeHTML(s.finalOutcome || "המידע יושלם בהמשך.")}</p>
-          </article>
-        </section>
-
-        <section class="why-strip">
-          <div class="strip-title">${escapeHTML(labels.valueTitle)}</div>
-          <div class="strip-grid">
-            <div class="strip-item">
-              <div class="strip-question">למה לבחור בזה?</div>
-              <div class="strip-answer">${escapeHTML(s.schoolValue || "המידע יושלם בהמשך.")}</div>
-            </div>
-            <div class="strip-item">
-              <div class="strip-question">איך זה נראה בכיתה?</div>
-              <div class="strip-answer">${escapeHTML(s.programFlow || "למידה פעילה, חקר, שיח, התנסות והצגה מסכמת.")}</div>
-            </div>
-            <div class="strip-item">
-              <div class="strip-question">מה התלמידים לוקחים איתם?</div>
-              <div class="strip-answer">${escapeHTML(asList(s.studentDevelopment).join(", ") || "סקרנות, ביטחון להתנסות וכלים לחשיבה עצמאית.")}</div>
-            </div>
-          </div>
-        </section>
-
-        ${renderSyllabus(program)}
-
-        <section class="takeaways-box">
-          <div class="takeaways-title">${escapeHTML(labels.takeawaysTitle)}</div>
-          <div class="takeaways-list">
-            ${takeaways.slice(0, 4).map(item => `<div class="takeaway-item">${escapeHTML(item)}</div>`).join("")}
-          </div>
-        </section>
-
-        <section class="closing-box">
-          <div>
-            <div class="closing-title">${escapeHTML(labels.closingTitle)}</div>
-            <div class="closing-text">${escapeHTML(getClosingText(program))}</div>
-          </div>
-          <div class="closing-mark">✓</div>
-        </section>
-
-        <div class="footer-note">
-          <span>עמותת תעשיידע — חינוך טכנולוגי, חדשנות ויזמות</span>
-          <span>${escapeHTML(catalogData.metadata?.catalog || "קטלוג תוכניות תשפ״ז")}</span>
-        </div>
-      `;
-    }
-
-    function setupSelector(programs) {
-      programSelect.innerHTML = programs.map((program, index) => {
-        const label = `${program.title || "ללא שם"} — ${program.audienceLevel || ""} / ${program.productType || ""}`;
-        return `<option value="${index}">${escapeHTML(label)}</option>`;
-      }).join("");
-
-      const params = new URLSearchParams(window.location.search);
-      const requestedSlug = params.get("program") || params.get("slug");
-      const requestedIndex = requestedSlug
-        ? programs.findIndex(program => program.slug === requestedSlug || String(program.id) === requestedSlug)
-        : 0;
-
-      programSelect.value = String(requestedIndex >= 0 ? requestedIndex : 0);
-      renderProgram(programs[Number(programSelect.value)]);
-
-      programSelect.addEventListener("change", event => {
-        renderProgram(programs[Number(event.target.value)]);
-      });
-    }
-
-    async function init() {
-      try {
-        const response = await fetch(DATA_FILE, { cache: "no-store" });
-        if (!response.ok) throw new Error("JSON file not found");
-        catalogData = await response.json();
-        if (loadStatus) loadStatus.textContent = "";
-      } catch (error) {
-        console.warn("Using fallback data because JSON could not be loaded:", error);
-        catalogData = fallbackData;
-        if (loadStatus) loadStatus.textContent = "לא נמצא קובץ JSON — מוצגים נתוני דוגמה";
-      }
-
-      const programs = Array.isArray(catalogData.programs) ? catalogData.programs : fallbackData.programs;
-      setupSelector(programs);
-    }
-
-    init();
-  </script>
+(async function init(){
+  try{
+    const res=await fetch('./catalog_programs_tashpaz.json?v=2026-05-23-1',{cache:'no-store'});
+    const data=await res.json();
+    programs=Array.isArray(data.programs)?data.programs:[];
+    renderCatalog();
+    const qp=new URLSearchParams(location.search).get('program');
+    if(qp) openProgram(qp);
+    statusEl.textContent=`נטענו ${programs.length} תוכניות`;
+  }catch(e){
+    console.error(e); statusEl.textContent='שגיאה בטעינת הקטלוג';
+  }
+})();
+</script>
 </body>
 </html>
