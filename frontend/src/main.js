@@ -512,7 +512,8 @@ const screenLabels = {
   archive: 'ארכיון',
   'proposals-agreements': 'הצעות והסכמים',
   finance: 'כספים / גבייה',
-  invitations: 'הזמנות'
+  invitations: 'הזמנות',
+  catalog: 'קטלוג'
 };
 
 function navLabelForRoute(route) {
@@ -556,7 +557,8 @@ const screenLoaders = {
   archive: () => import('./screens/archive.js').then((m) => m.archiveScreen),
   'proposals-agreements': () => import('./screens/proposals-agreements.js').then((m) => m.proposalsAgreementsScreen),
   finance: () => import('./screens/finance.js').then((m) => m.financeScreen),
-  invitations: () => import('./screens/invitations.js').then((m) => m.invitationsScreen)
+  invitations: () => import('./screens/invitations.js').then((m) => m.invitationsScreen),
+  catalog: () => import('./screens/catalog.js').then((m) => m.catalogScreen)
 };
 const loadedScreens = new Map();
 const loadingScreens = new Map();
@@ -612,6 +614,7 @@ function applySettingsToRoutes(routes, settings = state.clientSettings) {
   const seen = new Set();
   const baseRoutes = Array.isArray(routes) ? routes : [];
   if (!baseRoutes.includes('invitations')) baseRoutes.push('invitations');
+  if (!baseRoutes.includes('catalog')) baseRoutes.push('catalog');
   return baseRoutes.filter((route) => {
     if (!route || blocked.has(route) || seen.has(route)) return false;
     if (!screenLoaders[route]) return false;
