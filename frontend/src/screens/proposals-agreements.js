@@ -746,6 +746,15 @@ export function updateProposalsAgreementsTableOnly(root, rows) {
   if (counter) counter.textContent = String(rows.length);
 }
 
+
+function setDocumentEditMode(root, enabled) {
+  const drawer = root?.querySelector('[data-pa-drawer]');
+  const panel = drawer?.querySelector('.ds-pa-drawer-panel');
+  if (!drawer || !panel) return;
+  drawer.classList.toggle('is-doc-editing', !!enabled);
+  panel.classList.toggle('is-doc-editing', !!enabled);
+}
+
 function payloadFromForm(form) {
   const formData = new FormData(form);
   const payload = {};
@@ -1106,6 +1115,7 @@ export const proposalsAgreementsScreen = {
       if (event.target.closest?.('[data-pa-close-drawer]')) {
         const drawer = root.querySelector('[data-pa-drawer]');
         if (drawer) drawer.outerHTML = drawerHtml(null, activityNameOptions, state);
+        setDocumentEditMode(root, false);
         return;
       }
 
@@ -1121,6 +1131,7 @@ export const proposalsAgreementsScreen = {
             }
           } catch { items = []; }
           host.innerHTML = formHtml('edit', row, activityNameOptions, contactOptions, items, proposalActivityPricing);
+          setDocumentEditMode(root, false);
           setupActivityPickers(host);
           setupClientSelector(host);
           setupItemCalc(host);
@@ -1147,13 +1158,14 @@ export const proposalsAgreementsScreen = {
         }));
         const host = root.querySelector('[data-pa-inline-form]');
         if (!host) return;
-        host.innerHTML = `<div class="ds-pa-form" data-pa-doc-edit-wrap>
+        host.innerHTML = `<div class="ds-pa-form ds-pa-doc-edit-form" data-pa-doc-edit-wrap>
           <h4>עריכת מסמך</h4>${documentSectionsEditorHtml(workingSections)}
           <div class="ds-pa-form-actions">
             <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-doc-save="${escapeHtml(id)}">שמירת עריכת מסמך</button>
             <button type="button" class="ds-btn ds-btn--sm" data-pa-doc-reset="${escapeHtml(id)}">איפוס לתבנית מקור</button>
             <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-doc-cancel>ביטול</button>
           </div></div>`;
+        setDocumentEditMode(root, true);
         return;
       }
 
@@ -1175,6 +1187,7 @@ export const proposalsAgreementsScreen = {
           : await api.updateProposalAgreement(id, { ...row, custom_document_sections: sections });
         replaceLocalRow(data, result?.row || { ...row, custom_document_sections: sections });
         wrap.remove();
+        setDocumentEditMode(root, false);
         refreshTable();
         return;
       }
@@ -1189,12 +1202,14 @@ export const proposalsAgreementsScreen = {
           : await api.updateProposalAgreement(id, { ...row, custom_document_sections: [] });
         replaceLocalRow(data, result?.row || { ...row, custom_document_sections: [] });
         docResetBtn.closest('[data-pa-doc-edit-wrap]')?.remove();
+        setDocumentEditMode(root, false);
         refreshTable();
         return;
       }
 
       if (event.target.closest?.('[data-pa-doc-cancel]')) {
         event.target.closest('[data-pa-doc-edit-wrap]')?.remove();
+        setDocumentEditMode(root, false);
         return;
       }
 
@@ -1339,6 +1354,7 @@ export const proposalsAgreementsScreen = {
           refreshTable();
           const drawer = root.querySelector('[data-pa-drawer]');
           if (drawer) drawer.outerHTML = drawerHtml(null, activityNameOptions, state);
+        setDocumentEditMode(root, false);
         } catch (err) {
           deleteBtn.disabled = false;
           window.alert(`שגיאה במחיקה: ${err?.message || err}`);
