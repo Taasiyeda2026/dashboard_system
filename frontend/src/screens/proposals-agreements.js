@@ -87,6 +87,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     status:              STATUS_OPTIONS.includes(text(row.status)) ? text(row.status) : 'draft',
     approval_note:       text(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
+    custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [],
     created_at:          text(row.created_at),
     updated_at:          text(row.updated_at)
   };
@@ -488,10 +489,27 @@ function signatureSectionHtml(signatureText) {
   </section>`;
 }
 
+
+function resolveDocumentSections(row, templateSections = []) {
+  const fallback = Array.isArray(templateSections) ? templateSections : [];
+  const custom = Array.isArray(row?.custom_document_sections) ? row.custom_document_sections : [];
+  return custom.length ? custom : fallback;
+}
+
+function documentSectionsEditorHtml(sections = []) {
+  const rows = (Array.isArray(sections) ? sections : []).map((section, idx) => `
+    <label class="ds-pa-form-field ds-pa-form-field--wide">
+      <span>${escapeHtml(text(section.section_title) || text(section.section_key) || `סעיף ${idx + 1}`)}</span>
+      <textarea class="ds-input ds-input--sm" rows="4" data-pa-doc-body="${escapeHtml(text(section.section_key))}">${escapeHtml(String(section.section_body || ''))}</textarea>
+    </label>`).join('');
+  return `<div class="ds-pa-doc-editor" data-pa-doc-editor>${rows}</div>`;
+}
+
 function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const activityTypeGroup = text(row.activity_type_group);
   const dateDisplay = formatDateDisplay(row.proposal_date) || formatDateDisplay(new Date().toISOString().slice(0, 10));
-  const byKey = new Map((Array.isArray(templateSections) ? templateSections : []).map((s) => [text(s.section_key), s]));
+  const sectionsSource = resolveDocumentSections(row, templateSections);
+  const byKey = new Map((Array.isArray(sectionsSource) ? sectionsSource : []).map((s) => [text(s.section_key), s]));
   const sectionBody = (key, fallback = '') => templateBodyText(byKey.get(key)) || fallback;
   const sectionTitle = (key, fallback = '') => text(byKey.get(key)?.section_title) || fallback;
 
@@ -641,6 +659,9 @@ function drawerActionButtons(row, state) {
 
   if (['draft', 'returned_for_changes'].includes(status) || isAdminRole) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-edit-row="${escapeHtml(row.id)}">עריכה</button>`);
+  }
+  if (['draft', 'returned_for_changes'].includes(status)) {
+    buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-edit-document="${escapeHtml(row.id)}">עריכת מסמך</button>`);
   }
   if (['draft', 'returned_for_changes'].includes(status) && !isAdminRole) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="pending_approval" data-pa-action-id="${escapeHtml(row.id)}">שליחה לאישור</button>`);
@@ -1108,6 +1129,72 @@ export const proposalsAgreementsScreen = {
             setupContactPicker(pickerHost, host.querySelector('[data-pa-form]'));
           }
         }
+        return;
+      }
+
+
+      const editDocumentBtn = event.target.closest?.('[data-pa-edit-document]');
+      if (editDocumentBtn) {
+        const id = text(editDocumentBtn.dataset.paEditDocument);
+        const row = data.rows.find((r) => text(r.id) === id);
+        if (!row || text(row.status) === 'approved') return;
+        const templateKey = TEMPLATE_KEY_BY_GROUP[text(row.activity_type_group)] || 'combined';
+        const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
+        const workingSections = resolveDocumentSections(row, templateSections).map((section) => ({
+          section_key: text(section.section_key),
+          section_title: text(section.section_title),
+          section_body: String(section.section_body || '')
+        }));
+        const host = root.querySelector('[data-pa-inline-form]');
+        if (!host) return;
+        host.innerHTML = `<div class="ds-pa-form" data-pa-doc-edit-wrap>
+          <h4>עריכת מסמך</h4>${documentSectionsEditorHtml(workingSections)}
+          <div class="ds-pa-form-actions">
+            <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-doc-save="${escapeHtml(id)}">שמירת עריכת מסמך</button>
+            <button type="button" class="ds-btn ds-btn--sm" data-pa-doc-reset="${escapeHtml(id)}">איפוס לתבנית מקור</button>
+            <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-doc-cancel>ביטול</button>
+          </div></div>`;
+        return;
+      }
+
+      const docSaveBtn = event.target.closest?.('[data-pa-doc-save]');
+      if (docSaveBtn) {
+        const id = text(docSaveBtn.dataset.paDocSave);
+        const row = data.rows.find((r) => text(r.id) === id);
+        const wrap = docSaveBtn.closest('[data-pa-doc-edit-wrap]');
+        if (!row || !wrap) return;
+        const templateKey = TEMPLATE_KEY_BY_GROUP[text(row.activity_type_group)] || 'combined';
+        const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
+        const sections = templateSections.map((section) => ({
+          section_key: text(section.section_key),
+          section_title: text(section.section_title),
+          section_body: String((Array.from(wrap.querySelectorAll('[data-pa-doc-body]')).find((el) => text(el.dataset.paDocBody) === text(section.section_key))?.value) || '')
+        }));
+        const result = typeof api.saveProposalAgreementCustomDocumentSections === 'function'
+          ? await api.saveProposalAgreementCustomDocumentSections(id, sections)
+          : await api.updateProposalAgreement(id, { ...row, custom_document_sections: sections });
+        replaceLocalRow(data, result?.row || { ...row, custom_document_sections: sections });
+        wrap.remove();
+        refreshTable();
+        return;
+      }
+
+      const docResetBtn = event.target.closest?.('[data-pa-doc-reset]');
+      if (docResetBtn) {
+        const id = text(docResetBtn.dataset.paDocReset);
+        const row = data.rows.find((r) => text(r.id) === id);
+        if (!row) return;
+        const result = typeof api.saveProposalAgreementCustomDocumentSections === 'function'
+          ? await api.saveProposalAgreementCustomDocumentSections(id, [])
+          : await api.updateProposalAgreement(id, { ...row, custom_document_sections: [] });
+        replaceLocalRow(data, result?.row || { ...row, custom_document_sections: [] });
+        docResetBtn.closest('[data-pa-doc-edit-wrap]')?.remove();
+        refreshTable();
+        return;
+      }
+
+      if (event.target.closest?.('[data-pa-doc-cancel]')) {
+        event.target.closest('[data-pa-doc-edit-wrap]')?.remove();
         return;
       }
 
