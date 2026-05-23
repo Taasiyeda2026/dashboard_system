@@ -460,7 +460,7 @@ function sectionLinesHtml(value, options = {}) {
     const original = String(line || '');
     const trimmed = original.trim();
     if (!trimmed) return '<span class="pa-section-line pa-section-line--empty">&nbsp;</span>';
-    const bulletMatch = trimmed.match(/^[·•-]\s+(.+)$/);
+    const bulletMatch = trimmed.match(/^[·•-]\s*(.+)$/);
     const isBullet = alwaysBullet || Boolean(bulletMatch);
     const body = isBullet ? (bulletMatch ? bulletMatch[1].trim() : trimmed) : trimmed;
     const marker = isBullet ? '<span class="pa-section-bullet-marker">·</span>' : '';
@@ -505,6 +505,31 @@ function documentSectionsEditorHtml(sections = []) {
   return `<div class="ds-pa-doc-editor" data-pa-doc-editor>${rows}</div>`;
 }
 
+const STRUCTURED_SECTION_DEFAULTS = {
+  taasiyeda_responsibility: [
+    '· ביצוע התוכנית בהתאם לסילבוס המאושר, באמצעות מדריך מוסמך מטעמה.',
+    '· אספקת חומרי ההדרכה, הציוד הנלווה וכלל המשאבים הנדרשים להפעלת התוכנית.',
+    '· ליווי מקצועי ותיאום שוטף של ההפעלה מול צוות בית הספר.',
+    '· ביצוע משוב לצורך הערכת שביעות רצון ושמירה על איכות ההדרכה.'
+  ].join('\n'),
+  school_responsibility: [
+    '· מינוי אחראי לתיאום הפעילות ולקשר שוטף עם תעשיידע.',
+    '· נוכחות מורה מטעם בית הספר בכל מפגשי הקורס.',
+    '· עדכון מראש על כל שינוי במועדי הפעילות או בלוחות הזמנים.',
+    '· העמדת כיתה מתאימה וציוד בסיסי: מקרן, לוח וחיבור תקין לאינטרנט.'
+  ].join('\n'),
+  payment_terms: [
+    '· התשלום יחולק לשני חלקים: חשבונית ראשונה תונפק בתחילת הפעילות וחשבונית שנייה תונפק עם הגעת הפעילות למחצית היקפה.',
+    '· כל חשבונית תשולם בתנאי שוטף + 30 ממועד הנפקתה.'
+  ].join('\n'),
+  cancellation_terms: [
+    '· במקרה של הפסקת התוכנית ביוזמת בית הספר, ייגבה תשלום מלא עבור המפגשים שהתקיימו בפועל וכן 10% מעלות המפגשים שלא התקיימו.',
+    '· מפגש שיבוטל על ידי בית הספר בהתראה של פחות מ-48 שעות (2 ימי עבודה), ייחשב כמפגש שבוצע בפועל ויחויב בהתאם.',
+    '· במקרה של הפסקת לימודים פרונטליים, בהתאם להנחיות משרד החינוך או בשל מצב חירום, התוכנית תועבר ללמידה מקוונת ללא שינוי בעלות. עם חזרת הלימודים הפרונטליים, הפעילות תימשך בבית הספר כרגיל.',
+    '· כל שינוי בהיקף הפעילות או במועדי הביצוע יתואם מראש ובכתב בין הצדדים.'
+  ].join('\n')
+};
+
 function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const activityTypeGroup = text(row.activity_type_group);
   const dateDisplay = formatDateDisplay(row.proposal_date) || formatDateDisplay(new Date().toISOString().slice(0, 10));
@@ -514,10 +539,10 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const sectionTitle = (key, fallback = '') => text(byKey.get(key)?.section_title) || fallback;
 
   const introText = sectionBody('intro', '');
-  const orgResponsibility = sectionBody('taasiyeda_responsibility', '');
-  const schoolResponsibility = sectionBody('school_responsibility', '');
-  const paymentTerms = sectionBody('payment_terms', '—');
-  const changesCancellation = sectionBody('cancellation_terms', '');
+  const orgResponsibility = sectionBody('taasiyeda_responsibility', STRUCTURED_SECTION_DEFAULTS.taasiyeda_responsibility);
+  const schoolResponsibility = sectionBody('school_responsibility', STRUCTURED_SECTION_DEFAULTS.school_responsibility);
+  const paymentTerms = sectionBody('payment_terms', STRUCTURED_SECTION_DEFAULTS.payment_terms);
+  const changesCancellation = sectionBody('cancellation_terms', STRUCTURED_SECTION_DEFAULTS.cancellation_terms);
   const remarks = sectionBody('notes', '');
   const activityIntro = sectionBody('activity_intro', '');
   const summerActivityIntro = sectionBody('summer_activity_intro', '');
