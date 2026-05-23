@@ -46,21 +46,44 @@ function normalizeProgram(item, idx) {
   const p = item && typeof item === 'object' ? item : {};
   return {
     id: String(p.id || p.programId || p.slug || `program-${idx + 1}`),
-    name: String(p.name || p.programName || 'ללא שם'),
+    name: String(p.name || p.programName || p.title || 'ללא שם'),
     audienceLevel: String(p.audienceLevel || 'לא צוין'),
     productType: String(p.productType || 'תוכנית'),
     grades: String(p.grades || 'לא צוין'),
     scope: String(p.scope || p.meetings || 'לא צוין'),
-    sessionDuration: String(p.sessionDuration || 'לא צוין'),
+    sessionDuration: String(p.sessionDuration || p.duration || 'לא צוין'),
     gefenNumber: String(p.gefenNumber || p.gefen || ''),
-    shortDescription: String(p.shortDescription || p.openingLine || ''),
-    coreIdea: String(p.coreIdea || p.description || ''),
-    goals: String(p.goals || ''),
-    schoolValue: String(p.schoolValue || ''),
+    shortDescription: String(
+      p.shortDescription ||
+      p.openingLine ||
+      p.subtitle ||
+      p.sections?.openingStatement ||
+      ''
+    ),
+    coreIdea: String(
+      p.coreIdea ||
+      p.description ||
+      p.sections?.mainIdea ||
+      ''
+    ),
+    goals: String(
+      p.goals ||
+      p.sections?.programFlow ||
+      ''
+    ),
+    schoolValue: String(
+      p.schoolValue ||
+      p.sections?.schoolValue ||
+      ''
+    ),
     syllabus: Array.isArray(p.syllabus) ? p.syllabus : [],
     stations: Array.isArray(p.stations) ? p.stations : [],
     participantsReceive: Array.isArray(p.participantsReceive) ? p.participantsReceive : [],
-    closingBox: String(p.closingBox || ''),
+    closingBox: String(
+      p.closingBox ||
+      p.sections?.finalOutcome ||
+      ''
+    ),
     footer: String(p.footer || ''),
     pageTemplate: String(p.pageTemplate || 'default')
   };
