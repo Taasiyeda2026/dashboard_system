@@ -10590,18 +10590,35 @@ select.ds-input {
   border: 0;
   background: transparent;
 }
-.pa-section p,
-.pa-doc-paragraph,
 .pa-doc-intro,
-.pa-proposal-lines,
-.pa-cost-line {
+.pa-section-body {
   font-size: 10pt;
   line-height: 1.5;
   letter-spacing: 0.15px;
   margin: 0 0 4pt;
-  white-space: pre-line;
 }
-.pa-doc-paragraph { margin: 0 0 4pt; }
+.pa-section-body {
+  margin: 0;
+}
+.pa-section-line {
+  display: block;
+  margin: 0 0 4pt;
+}
+.pa-section-line--bullet {
+  margin: 0 0 3pt;
+  padding-right: 12pt;
+  text-indent: -8pt;
+}
+.pa-section-line--empty {
+  margin: 0 0 3pt;
+}
+.pa-section-bullet-marker {
+  display: inline-block;
+  width: 8pt;
+}
+.pa-proposal-lines {
+  margin-top: 2pt;
+}
 .pa-doc-signature-simple {
   margin-top: 8pt;
   text-align: left;
@@ -10728,13 +10745,22 @@ select.ds-input {
     line-height: 1.5 !important;
   }
 
-  .pa-section p,
+  .pa-section-body,
+  .pa-section-line,
   .pa-doc-intro,
   .pa-proposal-lines {
     font-size: 10pt !important;
     line-height: 1.5 !important;
+  }
+
+  .pa-section-line {
     margin: 0 0 4pt !important;
-    white-space: pre-line !important;
+  }
+
+  .pa-section-line--bullet {
+    margin: 0 0 3pt !important;
+    padding-right: 12pt !important;
+    text-indent: -8pt !important;
   }
 
   .pa-doc-date {

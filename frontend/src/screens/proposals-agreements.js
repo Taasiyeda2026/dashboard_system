@@ -412,9 +412,7 @@ function proposalTitle(row) {
 }
 
 function sectionBodyHtml(value) {
-  const body = String(value || '').trim();
-  if (!body) return '';
-  return `<p class="pa-doc-paragraph">${escapeHtml(body)}</p>`;
+  return sectionLinesHtml(value);
 }
 
 function sectionHeadingText(rawTitle, fallback = '') {
@@ -440,17 +438,35 @@ function proposalLineHtml(item = {}) {
   const itemName = text(item.item_name);
   if (!itemName) return '';
   const suffix = parts.length ? `: ${parts.join(' | ')}` : ':';
-  return `<p class="pa-cost-line">· <strong>${escapeHtml(itemName)}</strong>${escapeHtml(suffix)}</p>`;
+  return `· ${itemName}${suffix}`;
 }
 
 function proposalItemsListHtml(items = []) {
   if (!Array.isArray(items) || !items.length) return '';
-  const lines = items.map(proposalLineHtml).filter(Boolean).join('');
-  return lines ? `<div class="pa-proposal-lines">${lines}</div>` : '';
+  const lines = items.map(proposalLineHtml).filter(Boolean).join('\n');
+  return lines ? sectionLinesHtml(lines, { alwaysBullet: true, className: 'pa-proposal-lines' }) : '';
 }
 
 function sectionHtml(title, body, className = '') {
   return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(sectionHeadingText(title))}</h3>${sectionBodyHtml(body)}</section>`;
+}
+
+function sectionLinesHtml(value, options = {}) {
+  const { alwaysBullet = false, className = '' } = options;
+  const raw = String(value == null ? '' : value).replace(/\r\n?/g, '\n');
+  const lines = raw.split('\n');
+  const rendered = lines.map((line) => {
+    const original = String(line || '');
+    const trimmed = original.trim();
+    if (!trimmed) return '<span class="pa-section-line pa-section-line--empty">&nbsp;</span>';
+    const bulletMatch = trimmed.match(/^[·•-]\s*(.*)$/);
+    const isBullet = alwaysBullet || Boolean(bulletMatch);
+    const body = isBullet ? (bulletMatch ? bulletMatch[1] : trimmed) : trimmed;
+    const marker = isBullet ? '<span class="pa-section-bullet-marker">·</span>' : '';
+    return `<span class="pa-section-line${isBullet ? ' pa-section-line--bullet' : ''}">${marker}${escapeHtml(body)}</span>`;
+  }).join('');
+  if (!rendered.trim()) return '';
+  return `<div class="pa-section-body${className ? ` ${className}` : ''}">${rendered}</div>`;
 }
 
 function signatureSectionHtml(signatureText) {
@@ -540,7 +556,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     </header>
     <hr class="pa-doc-divider">
     <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
-    ${introText ? `<p class="pa-doc-intro">${escapeHtml(introText)}</p>` : ''}
+    ${introText ? sectionLinesHtml(introText, { className: 'pa-doc-intro' }) : ''}
     ${sections.join('')}
     ${orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility) : ''}
     ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility) : ''}
