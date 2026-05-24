@@ -88,6 +88,12 @@ function normalizeAudienceLevel(value) {
 
 function normalizeProductType(value) {
   const raw = String(value || '').trim();
+  const normalized = raw.toLowerCase();
+  if (normalized === 'course') return 'תוכנית';
+  if (normalized === 'after_school') return 'חוג';
+  if (normalized === 'workshop') return 'סדנה';
+  if (normalized === 'tour') return 'סיור';
+  if (normalized === 'escape_room') return 'סדנה';
   if (raw === 'חוגים') return 'חוג';
   if (raw === 'סיורים') return 'סיור';
   if (raw === 'סדנאות') return 'סדנה';
@@ -116,8 +122,8 @@ function normalizeProgram(item, idx) {
   const syllabus = Array.isArray(p.syllabus) ? p.syllabus : [];
   const firstSyllabusDescription = syllabus.find((x) => x && typeof x === 'object' && x.description)?.description || '';
   return {
-    id: String(p.id || p.programId || p.slug || `program-${idx + 1}`),
-    name: String(pickFirstNonEmpty(p.activity_name, p.name, p.title, p.program_name, p.programName) || 'ללא שם'),
+    id: String(pickFirstNonEmpty(p.activity_no, p.id, p.programId, p.slug) || `program-${idx + 1}`),
+    name: String(pickFirstNonEmpty(p.catalog_title, p.activity_name, p.label_he, p.label, p.name, p.title, p.program_name, p.programName) || 'ללא שם'),
     audienceLevel: normalizeAudienceLevel(p.audience_level || p.audienceLevel || 'לא צוין'),
     productType: normalizeProductType(p.item_type || p.productType || 'תוכנית'),
     grades: String(pickFirstNonEmpty(p.grades, p.targetGrades) || 'לא צוין'),
@@ -185,25 +191,33 @@ function renderCatalogGroup(title, programs) {
 export const catalogScreen = {
   load: async () => {
     if (!supabase) throw new Error('חיבור Supabase אינו זמין');
-    let query = supabase
-      .from('proposal_activity_pricing')
-      .select('*')
-      .eq('is_active_for_catalog', true)
-      .order('sort_order', { ascending: true });
-
-    const withProposals = await query.eq('is_active_for_proposals', true);
-    let rows = [];
-    if (!withProposals.error) rows = Array.isArray(withProposals.data) ? withProposals.data : [];
-    else {
-      const fallback = await supabase
+    const [listsRes, detailsRes, pricingRes] = await Promise.all([
+      supabase
+        .from('lists')
+        .select('activity_no,activity_name,label_he,label,type,activity_type,audience_level,target_grades,gefen_number,sort_order')
+        .eq('category', 'activity_names')
+        .eq('active', true)
+        .order('sort_order', { ascending: true }),
+      supabase
+        .from('catalog_program_details')
+        .select('activity_no,catalog_title,catalog_subtitle,audience_level,target_grades,domain,scope,session_duration,gefen_number,opening_line,core_idea,program_flow,student_develops,school_value,final_outcome,syllabus,page_template')
+        .eq('is_active_for_catalog', true),
+      supabase
         .from('proposal_activity_pricing')
-        .select('*')
-        .eq('is_active_for_catalog', true)
-        .order('sort_order', { ascending: true });
-      if (fallback.error) throw new Error('טעינת הקטלוג נכשלה');
-      rows = Array.isArray(fallback.data) ? fallback.data : [];
-    }
-    const programs = rows.map(normalizeProgram);
+        .select('activity_no,activity_name,item_type,meetings_count,hours_count,unit_price,hourly_price')
+    ]);
+    if (listsRes.error) throw new Error('טעינת הקטלוג נכשלה');
+    const listRows = Array.isArray(listsRes.data) ? listsRes.data : [];
+    const detailRows = Array.isArray(detailsRes.data) ? detailsRes.data : [];
+    const pricingRows = Array.isArray(pricingRes.data) ? pricingRes.data : [];
+    const detailsByNo = new Map(detailRows.map((r) => [String(r.activity_no || '').trim(), r]));
+    const pricingByNo = new Map(pricingRows.map((r) => [String(r.activity_no || '').trim(), r]));
+    const programs = listRows.map((row) => {
+      const key = String(row.activity_no || '').trim();
+      const details = detailsByNo.get(key) || {};
+      const pricing = pricingByNo.get(key) || {};
+      return normalizeProgram({ ...row, ...pricing, ...details });
+    });
     return { programs, selectedId: '', audience: 'הכול', type: 'הכול' };
   },
 
