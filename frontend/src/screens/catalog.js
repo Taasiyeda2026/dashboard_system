@@ -218,7 +218,7 @@ export const catalogScreen = {
       const pricing = pricingByNo.get(key) || {};
       return normalizeProgram({ ...row, ...pricing, ...details });
     });
-    return { programs, selectedId: '', audience: 'הכול', type: 'הכול' };
+    return { programs, selectedId: '', audience: 'הכול', type: 'הכול', groupMode: '' };
   },
 
   render: (data) => {
@@ -227,12 +227,30 @@ export const catalogScreen = {
     const type = data.type || 'הכול';
     const selected = data.programs.find((p) => p.id === data.selectedId) || null;
 
-    if (!selected) {
-      const filtered = data.programs.filter((p) => (audience === 'הכול' || p.audienceLevel === audience) && (type === 'הכול' || p.productType === type));
-      const elementaryPrograms = filtered.filter((p) => p.audienceLevel === 'יסודי' && p.productType === 'תוכנית');
-      const middlePrograms = filtered.filter((p) => p.audienceLevel === 'חטיבה' && p.productType === 'תוכנית');
-      const workshopAndTours = filtered.filter((p) => isStandaloneActivity(p));
+    const filtered = data.programs.filter((p) => (audience === 'הכול' || p.audienceLevel === audience) && (type === 'הכול' || p.productType === type));
+    const elementaryPrograms = filtered.filter((p) => p.audienceLevel === 'יסודי' && p.productType === 'תוכנית');
+    const middlePrograms = filtered.filter((p) => p.audienceLevel === 'חטיבה' && p.productType === 'תוכנית');
+    const workshopAndTours = filtered.filter((p) => isStandaloneActivity(p));
 
+    if (!selected && data.groupMode === 'standalone') {
+      return `<section class="catalog-screen">
+        <header class="catalog-header"><h2>סדנאות, סיורים וחוגים</h2><p class="ds-muted">כל הסדנאות, הסיורים והחוגים במקום אחד</p></header>
+        <div class="catalog-toolbar">
+          <label class="catalog-filter">שכבת גיל <select data-catalog-filter="audience">${AUDIENCE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === audience ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
+          <label class="catalog-filter">סוג פעילות <select data-catalog-filter="type">${TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === type ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
+        </div>
+        <div class="catalog-detail-actions">
+          <button class="catalog-btn" data-catalog-back>חזרה לקטלוג</button>
+        </div>
+        <section class="catalog-group">
+          <div class="catalog-group-grid">
+            ${workshopAndTours.length ? workshopAndTours.map(renderCatalogCard).join('') : '<p class="catalog-empty">אין פריטים להצגה</p>'}
+          </div>
+        </section>
+      </section>`;
+    }
+
+    if (!selected) {
       return `<section class="catalog-screen">
         <header class="catalog-header"><h2>קטלוג תוכניות תלמידים תשפ״ז</h2><p class="ds-muted">בחירת תוכנית לפי שכבת גיל וסוג פעילות</p></header>
         <div class="catalog-toolbar">
@@ -242,7 +260,14 @@ export const catalogScreen = {
         <div class="catalog-groups">
           ${renderCatalogGroup('יסודי', elementaryPrograms)}
           ${renderCatalogGroup('חטיבה', middlePrograms)}
-          ${renderCatalogGroup('סדנאות, סיורים וחוגים', workshopAndTours)}
+          <section class="catalog-group">
+            <h3 class="catalog-group-title">סדנאות, סיורים וחוגים</h3>
+            <div class="catalog-group-grid">
+              <article class="catalog-card catalog-card--neutral" data-catalog-group-open="standalone">
+                <h3>סדנאות, סיורים וחוגים</h3>
+              </article>
+            </div>
+          </section>
         </div>
       </section>`;
     }
@@ -279,14 +304,27 @@ export const catalogScreen = {
     });
 
     root.addEventListener('click', (ev) => {
+      const selected = data.programs.find((p) => p.id === data.selectedId) || null;
       const openCard = ev.target.closest('[data-catalog-open]');
       if (openCard) {
         data.selectedId = openCard.dataset.catalogOpen;
         rerender();
         return;
       }
-      if (ev.target.closest('[data-catalog-back]')) {
+      if (ev.target.closest('[data-catalog-group-open="standalone"]')) {
+        data.groupMode = 'standalone';
         data.selectedId = '';
+        rerender();
+        return;
+      }
+      if (ev.target.closest('[data-catalog-back]')) {
+        if (selected && isStandaloneActivity(selected)) {
+          data.selectedId = '';
+          data.groupMode = 'standalone';
+        } else {
+          data.selectedId = '';
+          data.groupMode = '';
+        }
         rerender();
         return;
       }
