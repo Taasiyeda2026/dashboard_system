@@ -125,20 +125,20 @@ function ensureStyles() {
 .invitation-screen-root .c-part-title{font-size:3.05mm;font-weight:700;margin-bottom:1px;line-height:1.35}
 .invitation-screen-root .c-part-line{font-size:3.05mm;color:#333;line-height:1.35}
 .invitation-screen-root .c-part-line strong{font-weight:700;color:#333}
-.invitation-screen-root .c-closing{font-size:5.7mm;font-weight:900;margin-top:auto;padding-top:1.4mm;text-align:center;line-height:1.05}
+.invitation-screen-root .c-closing{font-size:5.7mm;font-weight:900;margin-top:2mm;padding-top:1.4mm;text-align:center;line-height:1.05}
 .invitation-screen-root .c-footer{display:flex;align-items:center;justify-content:center;text-align:center;padding:1mm 6mm;background:#fff;border-top:.25mm solid #fff;margin-top:0;margin-bottom:0;backdrop-filter:none;min-height:5mm;position:relative;z-index:4;width:100%}
 .invitation-screen-root .c-footer-sentence{font-size:2.8mm;font-weight:600;line-height:1.12;letter-spacing:.035em;text-shadow:-.3px -.3px 0 rgba(30,38,46,.25),.3px -.3px 0 rgba(30,38,46,.25),-.3px .3px 0 rgba(30,38,46,.25),.3px .3px 0 rgba(30,38,46,.25),0 1px 1.5px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.35mm}
-.invitation-screen-root #card.fit-a5-compact .c-title{font-size:9.5mm}
-.invitation-screen-root #card.fit-a5-compact .c-sub-event{font-size:5mm}
-.invitation-screen-root #card.fit-a5-compact .c-course,.invitation-screen-root #card.fit-a5-compact .c-course .course-main{font-size:5.4mm}
-.invitation-screen-root #card.fit-a5-compact .c-course .course-sub{font-size:4.7mm}
-.invitation-screen-root #card.fit-a5-compact .c-course .course-company{font-size:3.5mm}
-.invitation-screen-root #card.fit-a5-compact .c-opening,.invitation-screen-root #card.fit-a5-compact .c-para{font-size:3.25mm;line-height:1.18}
-.invitation-screen-root #card.fit-a5-compact .c-main{padding:1mm 5.5mm 1.5mm}
-.invitation-screen-root #card.fit-a5-compact .c-box{padding:1mm 3mm;margin:.7mm 0}
-.invitation-screen-root #card.fit-a5-compact .c-info-row{font-size:3.75mm;line-height:1.25}
-.invitation-screen-root #card.fit-a5-compact .c-part-title,.invitation-screen-root #card.fit-a5-compact .c-part-line{font-size:2.75mm;line-height:1.22}
-.invitation-screen-root #card.fit-a5-compact .c-closing{font-size:4.7mm}
+.invitation-screen-root #card.fit-a5-compact .c-title{font-size:11.3mm}
+.invitation-screen-root #card.fit-a5-compact .c-sub-event{font-size:5.8mm}
+.invitation-screen-root #card.fit-a5-compact .c-course,.invitation-screen-root #card.fit-a5-compact .c-course .course-main{font-size:6.2mm}
+.invitation-screen-root #card.fit-a5-compact .c-course .course-sub{font-size:5.2mm}
+.invitation-screen-root #card.fit-a5-compact .c-course .course-company{font-size:3.8mm}
+.invitation-screen-root #card.fit-a5-compact .c-opening,.invitation-screen-root #card.fit-a5-compact .c-para{font-size:3.6mm;line-height:1.24}
+.invitation-screen-root #card.fit-a5-compact .c-main{padding:1.6mm 6mm 2mm}
+.invitation-screen-root #card.fit-a5-compact .c-box{padding:1.3mm 3.4mm;margin:1mm 0}
+.invitation-screen-root #card.fit-a5-compact .c-info-row{font-size:4mm;line-height:1.32}
+.invitation-screen-root #card.fit-a5-compact .c-part-title,.invitation-screen-root #card.fit-a5-compact .c-part-line{font-size:2.95mm;line-height:1.28}
+.invitation-screen-root #card.fit-a5-compact .c-closing{font-size:5.3mm;margin-top:1.8mm}
 .invitation-screen-root #card.fit-a5-tight .c-title{font-size:8.8mm}
 .invitation-screen-root #card.fit-a5-tight .c-sub-event{font-size:4.6mm}
 .invitation-screen-root #card.fit-a5-tight .c-course,.invitation-screen-root #card.fit-a5-tight .c-course .course-main{font-size:5mm}
@@ -838,30 +838,47 @@ export const invitationsScreen = {
 
       card.classList.remove('fit-a5-compact', 'fit-a5-tight');
 
-      const OVERFLOW_EPSILON_PX = 1;
-      const overflow = () => (cwrap.scrollHeight - card.clientHeight) > OVERFLOW_EPSILON_PX;
+      const OVERFLOW_EPSILON_PX = 12;
+      const TIGHT_OVERFLOW_EPSILON_PX = 10;
+      const UNDERFLOW_EPSILON_PX = 36;
+      const overflowAmount = () => cwrap.scrollHeight - card.clientHeight;
 
       return new Promise((resolve) => {
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            if (!overflow()) {
+            const baseOverflow = overflowAmount();
+            if (baseOverflow <= OVERFLOW_EPSILON_PX) {
               resolve();
               return;
             }
 
             card.classList.add('fit-a5-compact');
             requestAnimationFrame(() => {
-              if (!overflow()) {
+              const compactOverflow = overflowAmount();
+
+              if (compactOverflow <= OVERFLOW_EPSILON_PX) {
+                if (compactOverflow < -UNDERFLOW_EPSILON_PX) {
+                  card.classList.remove('fit-a5-compact');
+                }
+                resolve();
+                return;
+              }
+
+              if (compactOverflow <= TIGHT_OVERFLOW_EPSILON_PX) {
                 resolve();
                 return;
               }
 
               card.classList.add('fit-a5-tight');
               requestAnimationFrame(() => {
-                if (overflow()) {
+                const tightOverflow = overflowAmount();
+                if (tightOverflow <= OVERFLOW_EPSILON_PX && tightOverflow < -UNDERFLOW_EPSILON_PX) {
+                  card.classList.remove('fit-a5-tight', 'fit-a5-compact');
+                } else if (tightOverflow > OVERFLOW_EPSILON_PX) {
                   console.warn('[invitations] A5 content still overflows after tight fit', {
                     cardHeight: card.clientHeight,
-                    contentHeight: cwrap.scrollHeight
+                    contentHeight: cwrap.scrollHeight,
+                    overflowPx: tightOverflow
                   });
                 }
                 resolve();
@@ -920,19 +937,30 @@ function fitInvitationToA5(card){
   var cwrap=card.querySelector('.cwrap');
   if(!cwrap) return Promise.resolve();
   card.classList.remove('fit-a5-compact','fit-a5-tight');
-  var OVERFLOW_EPSILON_PX=1;
-  function overflow(){return (cwrap.scrollHeight-card.clientHeight)>OVERFLOW_EPSILON_PX}
+  var OVERFLOW_EPSILON_PX=12;
+  var TIGHT_OVERFLOW_EPSILON_PX=10;
+  var UNDERFLOW_EPSILON_PX=36;
+  function overflowAmount(){return cwrap.scrollHeight-card.clientHeight}
   return new Promise(function(resolve){
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){
-        if(!overflow()){resolve();return;}
+        var baseOverflow=overflowAmount();
+        if(baseOverflow<=OVERFLOW_EPSILON_PX){resolve();return;}
         card.classList.add('fit-a5-compact');
         requestAnimationFrame(function(){
-          if(!overflow()){resolve();return;}
+          var compactOverflow=overflowAmount();
+          if(compactOverflow<=OVERFLOW_EPSILON_PX){
+            if(compactOverflow<-UNDERFLOW_EPSILON_PX){card.classList.remove('fit-a5-compact');}
+            resolve();return;
+          }
+          if(compactOverflow<=TIGHT_OVERFLOW_EPSILON_PX){resolve();return;}
           card.classList.add('fit-a5-tight');
           requestAnimationFrame(function(){
-            if(overflow()){
-              console.warn('[invitations] A5 content still overflows after tight fit',{cardHeight:card.clientHeight,contentHeight:cwrap.scrollHeight});
+            var tightOverflow=overflowAmount();
+            if(tightOverflow<=OVERFLOW_EPSILON_PX && tightOverflow<-UNDERFLOW_EPSILON_PX){
+              card.classList.remove('fit-a5-tight','fit-a5-compact');
+            }else if(tightOverflow>OVERFLOW_EPSILON_PX){
+              console.warn('[invitations] A5 content still overflows after tight fit',{cardHeight:card.clientHeight,contentHeight:cwrap.scrollHeight,overflowPx:tightOverflow});
             }
             resolve();
           });
