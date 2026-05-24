@@ -1,6 +1,5 @@
+import { supabase } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
-
-const DATA_URL = './catalog/catalog_programs_tashpaz.json';
 const AUDIENCE_OPTIONS = ['הכול', 'יסודי', 'חטיבה'];
 const TYPE_OPTIONS = ['הכול', 'תוכנית', 'סדנה', 'סיור', 'חוג'];
 
@@ -103,29 +102,38 @@ function inferScope(p) {
   return 'לא צוין';
 }
 
+function pickFirstNonEmpty(...values) {
+  for (const value of values) {
+    if (value == null) continue;
+    const asString = String(value).trim();
+    if (asString) return value;
+  }
+  return '';
+}
+
 function normalizeProgram(item, idx) {
   const p = item && typeof item === 'object' ? item : {};
   const syllabus = Array.isArray(p.syllabus) ? p.syllabus : [];
   const firstSyllabusDescription = syllabus.find((x) => x && typeof x === 'object' && x.description)?.description || '';
   return {
     id: String(p.id || p.programId || p.slug || `program-${idx + 1}`),
-    name: String(p.name || p.programName || p.title || 'ללא שם'),
-    audienceLevel: normalizeAudienceLevel(p.audienceLevel || 'לא צוין'),
-    productType: normalizeProductType(p.productType || 'תוכנית'),
-    grades: String(p.grades || p.targetGrades || 'לא צוין'),
-    scope: inferScope(p),
-    sessionDuration: String(p.sessionDuration || p.duration || 'לא צוין'),
-    gefenNumber: String(p.gefenNumber || p.gefen || ''),
-    shortDescription: String(p.shortDescription || p.openingLine || p.subtitle || p.sections?.openingStatement || firstSyllabusDescription || ''),
-    coreIdea: String(p.coreIdea || p.description || p.sections?.mainIdea || firstSyllabusDescription || ''),
-    goals: String(p.goals || p.sections?.programFlow || ''),
-    schoolValue: String(p.schoolValue || p.sections?.schoolValue || ''),
-    syllabus,
+    name: String(pickFirstNonEmpty(p.activity_name, p.name, p.title, p.program_name, p.programName) || 'ללא שם'),
+    audienceLevel: normalizeAudienceLevel(p.audience_level || p.audienceLevel || 'לא צוין'),
+    productType: normalizeProductType(p.item_type || p.productType || 'תוכנית'),
+    grades: String(pickFirstNonEmpty(p.grades, p.targetGrades) || 'לא צוין'),
+    scope: String(pickFirstNonEmpty(p.meetings_count, p.scope, p.meetings) || inferScope(p)),
+    sessionDuration: String(pickFirstNonEmpty(p.unit_duration, p.sessionDuration, p.duration) || 'לא צוין'),
+    gefenNumber: String(pickFirstNonEmpty(p.gefen_number, p.gefenNumber, p.gefen) || ''),
+    shortDescription: String(pickFirstNonEmpty(p.catalog_short_description, p.description_short, p.shortDescription, p.openingLine, p.subtitle, p.sections?.openingStatement, firstSyllabusDescription) || ''),
+    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.description_for_proposal, p.coreIdea, p.description, p.sections?.mainIdea, firstSyllabusDescription) || ''),
+    goals: String(pickFirstNonEmpty(p.catalog_goals, p.goals, p.sections?.programFlow) || ''),
+    schoolValue: String(pickFirstNonEmpty(p.catalog_school_value, p.schoolValue, p.sections?.schoolValue) || ''),
+    syllabus: Array.isArray(p.catalog_syllabus) && p.catalog_syllabus.length ? p.catalog_syllabus : syllabus,
     stations: Array.isArray(p.stations) ? p.stations : [],
-    participantsReceive: Array.isArray(p.participantsReceive) ? p.participantsReceive : [],
-    closingBox: String(p.closingBox || p.sections?.finalOutcome || ''),
-    footer: String(p.footer || ''),
-    pageTemplate: String(p.pageTemplate || 'default')
+    participantsReceive: Array.isArray(p.catalog_participants_receive) ? p.catalog_participants_receive : (Array.isArray(p.participantsReceive) ? p.participantsReceive : []),
+    closingBox: String(pickFirstNonEmpty(p.catalog_closing_box, p.closingBox, p.sections?.finalOutcome) || ''),
+    footer: String(pickFirstNonEmpty(p.catalog_footer, p.footer) || ''),
+    pageTemplate: String(pickFirstNonEmpty(p.catalog_page_template, p.pageTemplate) || 'default')
   };
 }
 
@@ -176,10 +184,26 @@ function renderCatalogGroup(title, programs) {
 
 export const catalogScreen = {
   load: async () => {
-    const res = await fetch(DATA_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error('טעינת הקטלוג נכשלה');
-    const data = await res.json();
-    const programs = (Array.isArray(data) ? data : data.programs || []).map(normalizeProgram);
+    if (!supabase) throw new Error('חיבור Supabase אינו זמין');
+    let query = supabase
+      .from('proposal_activity_pricing')
+      .select('*')
+      .eq('is_active_for_catalog', true)
+      .order('sort_order', { ascending: true });
+
+    const withProposals = await query.eq('is_active_for_proposals', true);
+    let rows = [];
+    if (!withProposals.error) rows = Array.isArray(withProposals.data) ? withProposals.data : [];
+    else {
+      const fallback = await supabase
+        .from('proposal_activity_pricing')
+        .select('*')
+        .eq('is_active_for_catalog', true)
+        .order('sort_order', { ascending: true });
+      if (fallback.error) throw new Error('טעינת הקטלוג נכשלה');
+      rows = Array.isArray(fallback.data) ? fallback.data : [];
+    }
+    const programs = rows.map(normalizeProgram);
     return { programs, selectedId: '', audience: 'הכול', type: 'הכול' };
   },
 

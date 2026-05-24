@@ -176,7 +176,7 @@ self.addEventListener('fetch', (event) => {
     url.pathname.endsWith('.html') ||
     url.pathname.endsWith('.js') ||
     url.pathname.endsWith('.css') ||
-    url.pathname.endsWith('/manifest.json') || isManifestUrl(url) || url.pathname.endsWith('/catalog_programs_tashpaz.json')
+    url.pathname.endsWith('/manifest.json') || isManifestUrl(url)
   );
 
   event.respondWith(
