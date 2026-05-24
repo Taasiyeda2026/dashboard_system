@@ -125,7 +125,13 @@ function normalizeProgram(item, idx) {
     id: String(pickFirstNonEmpty(p.activity_no, p.id, p.programId, p.slug) || `program-${idx + 1}`),
     name: String(pickFirstNonEmpty(p.catalog_title, p.activity_name, p.label_he, p.label, p.name, p.title, p.program_name, p.programName) || 'ללא שם'),
     audienceLevel: normalizeAudienceLevel(p.audience_level || p.audienceLevel || 'לא צוין'),
-    productType: normalizeProductType(p.item_type || p.productType || 'תוכנית'),
+    productType: normalizeProductType(
+      p.item_type ||
+      p.productType ||
+      p.activity_type ||
+      p.type ||
+      'תוכנית'
+    ),
     grades: String(pickFirstNonEmpty(p.grades, p.targetGrades) || 'לא צוין'),
     scope: String(pickFirstNonEmpty(p.meetings_count, p.scope, p.meetings) || inferScope(p)),
     sessionDuration: String(pickFirstNonEmpty(p.unit_duration, p.sessionDuration, p.duration) || 'לא צוין'),
