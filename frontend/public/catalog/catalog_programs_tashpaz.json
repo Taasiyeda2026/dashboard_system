@@ -1,80 +1,19 @@
 {
   "metadata": {
     "catalog": "קטלוג תוכניות תלמידים תשפ״ז",
-    "schemaVersion": "1.0",
-    "sourceFile": "טבלת_קטלוג_תוכניות_תלמידים_תשפז (2).xlsx",
-    "programCount": 13,
-    "charLimits": {
-      "openingStatement": {
-        "label": "משפט פתיחה לקטלוג",
-        "min": 80,
-        "max": 110
-      },
-      "mainIdea": {
-        "label": "הרעיון המרכזי",
-        "min": 200,
-        "max": 250
-      },
-      "programFlow": {
-        "label": "מה קורה בתוכנית",
-        "min": 300,
-        "max": 350
-      },
-      "studentDevelopment": {
-        "label": "מה התלמידים מפתחים",
-        "min": 90,
-        "max": 110
-      },
-      "schoolValue": {
-        "label": "מה בית הספר / הרשות מקבלים",
-        "min": 90,
-        "max": 110
-      },
-      "finalOutcome": {
-        "label": "תוצר מסכם / שיא תהליך",
-        "min": 130,
-        "max": 200
-      }
-    },
-    "notes": [
-      "הקובץ נוצר מתוך המידע הקיים באקסל בלבד.",
-      "הסילבוס שויך לפי שם התוכנית תחילה, ובמקרה הצורך לפי מספר תוכנית.",
-      "השדות audienceLevel, productType ו-pageTemplate נגזרו מהנתונים לצורך בחירת תבנית עמוד."
-    ]
+    "sourceType": "json",
+    "note": "קובץ זה הוא מקור המידע של הקטלוג. אין לקרוא אקסל בזמן ריצה.",
+    "programCount": 15,
+    "totalSyllabusItems": 124
   },
   "programs": [
     {
-      "id": 1,
-      "slug": "program-01",
+      "id": "program-01",
+      "programNumber": 1,
       "title": "המצאות בהשראה מן הטבע – ביומימיקרי",
-      "subtitle": "חדשנות טכנולוגית בהשראת הטבע",
       "audienceLevel": "יסודי",
+      "audienceLevelNeedsReview": false,
       "productType": "תוכנית",
-      "pageTemplate": "program_elementary",
-      "grades": "ד׳–ו׳",
-      "activityType": "קורס תהליכי",
-      "domain": [
-        "ביומימיקרי",
-        "STEM",
-        "יזמות"
-      ],
-      "scope": "10 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": "6089",
-      "sections": {
-        "openingStatement": "הטבע לא רק יפה – הוא גם חכם. בתוכנית זו התלמידים לומדים להתבונן בטבע כמאגר רעיונות לפתרונות טכנולוגיים חדשניים.",
-        "mainIdea": "תוכנית חקר ויזמות המחברת בין טבע, מדע וטכנולוגיה. התלמידים מגלים כיצד בעלי חיים, צמחים ותופעות טבע יכולים לשמש השראה לפיתוח פתרונות שימושיים ובני־קיימא.",
-        "programFlow": "המשתתפים חוקרים תופעות מן הטבע, מזהים מנגנונים ועקרונות פעולה, משווים אותם למערכות טכנולוגיות, מפתחים רעיון לפתרון, בונים אב־טיפוס ומציגים את תהליך החשיבה שלהם.",
-        "studentDevelopment": [
-          "חשיבה ביומימטית",
-          "חקר מדעי",
-          "פתרון בעיות",
-          "עבודת צוות",
-          "פרזנטציה והצגת רעיון"
-        ],
-        "schoolValue": "תוכנית מובנית המחזקת למידה פעילה, סקרנות מדעית וחיבור בין STEM, קיימות וחדשנות. מתאימה לבתי ספר המעוניינים להציע לתלמידים תהליך משמעותי של חקר, יצירה ויישום.",
-        "finalOutcome": "אב־טיפוס ביומימטי, מצגת קבוצתית והצגת תהליך החקר והפיתוח."
-      },
       "syllabus": [
         {
           "meeting": "1",
@@ -131,69 +70,15 @@
           "sourcePage": "עמ׳ 4"
         }
       ],
-      "source": {
-        "programSheetRow": 2,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 111,
-          "status": "ארוך מדי"
-        },
-        "mainIdea": {
-          "characters": 152,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 160,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 72,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 157,
-          "status": "ארוך מדי"
-        },
-        "finalOutcome": {
-          "characters": 57,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 9
     },
     {
-      "id": 2,
-      "slug": "program-02",
+      "id": "program-02",
+      "programNumber": 2,
       "title": "משחקי קופסה – פיתוח ופיצוח משחקי לוח",
-      "subtitle": "עיצוב משחקים ככלי לפיתוח חשיבה, יצירתיות ועבודת צוות",
       "audienceLevel": "יסודי",
+      "audienceLevelNeedsReview": false,
       "productType": "תוכנית",
-      "pageTemplate": "program_elementary",
-      "grades": "ד׳–ו׳",
-      "activityType": "קורס תהליכי",
-      "domain": [
-        "עיצוב משחקים",
-        "חשיבה אסטרטגית",
-        "יזמות"
-      ],
-      "scope": "12 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": "27342",
-      "sections": {
-        "openingStatement": "כל משחק טוב מתחיל ברעיון – וכל רעיון טוב מתחיל בשאלה.",
-        "mainIdea": "תוכנית חווייתית שבה התלמידים לומדים כיצד משחק נבנה: מרעיון ראשוני, דרך חוקים, אתגר, איזון וחוויית משתמש, ועד משחק קופסה מקורי שניתן להציג ולשחק בו.",
-        "programFlow": "המשתתפים מנתחים משחקים מוכרים, מפתחים גרסאות חדשות, בונים עולם משחק, מגדירים חוקים ותנאי ניצחון, בודקים את המשחק דרך ניסוי ומשוב ומשפרים אותו לקראת הצגה מסכמת.",
-        "studentDevelopment": [
-          "חשיבה עיצובית",
-          "חשיבה אסטרטגית",
-          "קבלת החלטות",
-          "עבודת צוות",
-          "ניסוי, משוב ושיפור"
-        ],
-        "schoolValue": "מסלול קל להפעלה אך בעל עומק פדגוגי, המחבר בין משחק, יצירה, חשיבה מסדר גבוה ופיתוח מיומנויות חברתיות. מתאים כקורס העשרה שמייצר תוצר מוחשי וברור.",
-        "finalOutcome": "משחק קופסה קבוצתי מקורי, כולל חוקים, לוח/קלפים, עיצוב והצגה באירוע מסכם."
-      },
       "syllabus": [
         {
           "meeting": "1",
@@ -256,69 +141,15 @@
           "sourcePage": "עמ׳ 5"
         }
       ],
-      "source": {
-        "programSheetRow": 3,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 53,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 147,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 159,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 74,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 143,
-          "status": "ארוך מדי"
-        },
-        "finalOutcome": {
-          "characters": 72,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 10
     },
     {
-      "id": 3,
-      "slug": "program-03",
+      "id": "program-03",
+      "programNumber": 3,
       "title": "טכנולוגיות החלל – חדשנות טכנולוגית בהשראת החלל",
-      "subtitle": "מהחלל אל כדור הארץ: רעיונות, פיתוחים וספין־אוף טכנולוגי",
       "audienceLevel": "יסודי",
+      "audienceLevelNeedsReview": false,
       "productType": "תוכנית",
-      "pageTemplate": "program_elementary",
-      "grades": "ד׳–ו׳",
-      "activityType": "קורס תהליכי",
-      "domain": [
-        "חלל",
-        "טכנולוגיה",
-        "יזמות"
-      ],
-      "scope": "9 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": "57651",
-      "sections": {
-        "openingStatement": "כל רעיון גדול מתחיל בצעד קטן – גם כשההשראה מגיעה מהחלל.",
-        "mainIdea": "תוכנית המכניסה את התלמידים לעולם חקר החלל ומראה כיצד טכנולוגיות שפותחו למשימות חלל הופכות לפתרונות שימושיים בחיי היומיום.",
-        "programFlow": "התלמידים מכירים מושגי יסוד בחקר החלל, לומדים על תנאי החיים בחלל ועל טכנולוגיות ספין־אוף, מבצעים חקר שוק, מפתחים רעיון בהשראת החלל, בונים דגם ומתרגלים פיץ׳ יזמי.",
-        "studentDevelopment": [
-          "סקרנות מדעית",
-          "חשיבה טכנולוגית",
-          "חקר שוק",
-          "פיתוח אב־טיפוס",
-          "הצגה מול קהל"
-        ],
-        "schoolValue": "תוכנית עדכנית המחברת בין מדע, חדשנות ותעשייה, ומאפשרת לתלמידים לחוות כיצד ידע מדעי יכול להפוך לרעיון יישומי בעל ערך.",
-        "finalOutcome": "רעיון טכנולוגי מקורי, אב־טיפוס קבוצתי ופרזנטציה מסכמת."
-      },
       "syllabus": [
         {
           "meeting": "1",
@@ -375,69 +206,15 @@
           "sourcePage": "עמ׳ 6"
         }
       ],
-      "source": {
-        "programSheetRow": 4,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 55,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 121,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 160,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 68,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 116,
-          "status": "ארוך מדי"
-        },
-        "finalOutcome": {
-          "characters": 54,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 9
     },
     {
-      "id": 4,
-      "slug": "program-04",
+      "id": "program-04",
+      "programNumber": 4,
       "title": "מנהיגות ירוקה – אחריות סביבתית חכמה (AI)",
-      "subtitle": "קיימות, יזמות ובינה מלאכותית לפתרון אתגרים סביבתיים",
       "audienceLevel": "יסודי",
+      "audienceLevelNeedsReview": false,
       "productType": "תוכנית",
-      "pageTemplate": "program_elementary",
-      "grades": "ד׳–ו׳",
-      "activityType": "קורס תהליכי",
-      "domain": [
-        "קיימות",
-        "AI",
-        "מנהיגות"
-      ],
-      "scope": "10 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": null,
-      "sections": {
-        "openingStatement": "מה שנראה בלתי אפשרי היום, הופך למציאות של מחר – בקיימות, בטכנולוגיה ובבינה מלאכותית.",
-        "mainIdea": "תוכנית המשלבת קיימות, אחריות חברתית וכלי בינה מלאכותית כדי לעודד תלמידים לזהות אתגר סביבתי אמיתי ולפתח לו פתרון יצירתי ובר־יישום.",
-        "programFlow": "המשתתפים לומדים על קיימות ומנהיגות, מתנסים בכלי AI, חוקרים בעיה מהסביבה הקרובה, מגבשים רעיון לפתרון ירוק, מעצבים תוצר חזותי ומתרגלים הצגה מול קהל.",
-        "studentDevelopment": [
-          "מודעות סביבתית",
-          "חשיבה אתית",
-          "שימוש מושכל ב־AI",
-          "יזמות ירוקה",
-          "עבודת צוות ופרזנטציה"
-        ],
-        "schoolValue": "תוכנית רלוונטית לעולם משתנה, המחברת בין ערכים, טכנולוגיה ועשייה קהילתית. מתאימה לבתי ספר המבקשים לקדם אחריות סביבתית דרך למידה מעשית ועכשווית.",
-        "finalOutcome": "מיזם סביבתי־טכנולוגי, פוסטר/תוצר חזותי ופיץ׳ מסכם בפני קהל."
-      },
       "syllabus": [
         {
           "meeting": "1",
@@ -500,69 +277,15 @@
           "sourcePage": "עמ׳ 13"
         }
       ],
-      "source": {
-        "programSheetRow": 5,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 84,
-          "status": "תקין"
-        },
-        "mainIdea": {
-          "characters": 129,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 146,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 79,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 142,
-          "status": "ארוך מדי"
-        },
-        "finalOutcome": {
-          "characters": 59,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 10
     },
     {
-      "id": 5,
-      "slug": "program-05",
+      "id": "program-05",
+      "programNumber": 5,
       "title": "פורצות דרך – יזמות, טכנולוגיה, הובלה והעצמה לבנות",
-      "subtitle": "מסע יזמי־טכנולוגי לפיתוח קול אישי, מסוגלות והובלה",
-      "audienceLevel": "חטיבה",
+      "audienceLevel": "חטיבות",
+      "audienceLevelNeedsReview": false,
       "productType": "תוכנית",
-      "pageTemplate": "program_middle",
-      "grades": "ז׳–י׳",
-      "activityType": "קורס תהליכי לבנות",
-      "domain": [
-        "יזמות",
-        "טכנולוגיה",
-        "העצמה מגדרית"
-      ],
-      "scope": "12 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": null,
-      "sections": {
-        "openingStatement": "המובילות של מחר נבנות היום – רעיון אחר רעיון, צעד אחר צעד.",
-        "mainIdea": "תוכנית עומק לבנות חטיבת הביניים, המשלבת יזמות טכנולוגית עם העצמה אישית ומגדרית. המשתתפות מפתחות מיזם מקורי משלב זיהוי הצורך ועד להצגה מקצועית.",
-        "programFlow": "התלמידות חוקרות נשים מעוררות השראה, מזהות אתגר מהחיים, מגדירות קהל יעד, מגבשות רעיון, בונות אב־טיפוס, ממתגות את המיזם ומציגות אותו באירוע שיא.",
-        "studentDevelopment": [
-          "תחושת מסוגלות",
-          "קול אישי",
-          "חשיבה יזמית",
-          "עבודת צוות",
-          "עמידה מול קהל"
-        ],
-        "schoolValue": "תוכנית תהליכית עם ערך חינוכי־חברתי ברור, המאפשרת לבית הספר לקדם מצוינות, מנהיגות נשית, חדשנות ותחושת שייכות במרחב בטוח ותומך.",
-        "finalOutcome": "מיזם טכנולוגי, אב־טיפוס, מיתוג, פיץ׳ ואירוע סיום להצגת המיזמים."
-      },
       "syllabus": [
         {
           "meeting": "1",
@@ -637,69 +360,15 @@
           "sourcePage": "עמ׳ 7"
         }
       ],
-      "source": {
-        "programSheetRow": 6,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 58,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 142,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 142,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 63,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 125,
-          "status": "ארוך מדי"
-        },
-        "finalOutcome": {
-          "characters": 63,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 12
     },
     {
-      "id": 6,
-      "slug": "program-06",
+      "id": "program-06",
+      "programNumber": 6,
       "title": "רוקחים עולם – יזמות לעולם הפרמצבטיקה",
-      "subtitle": "כימיה, מדעי החיים ויזמות בעולם התרופות",
-      "audienceLevel": "חטיבה",
+      "audienceLevel": "חטיבות",
+      "audienceLevelNeedsReview": true,
       "productType": "תוכנית",
-      "pageTemplate": "program_middle",
-      "grades": "ז׳–י׳",
-      "activityType": "קורס תהליכי",
-      "domain": [
-        "פרמצבטיקה",
-        "כימיה",
-        "יזמות"
-      ],
-      "scope": "14 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": "46091",
-      "sections": {
-        "openingStatement": "בין מדע לדמיון – מטיפה אחת של יצירתיות יכולים להיוולד פתרונות שמשנים חיים.",
-        "mainIdea": "תוכנית יזמית־מדעית החושפת את המשתתפים לעולמות התרופות, הכימיה ומדעי החיים, ומדגימה כיצד רעיון מדעי יכול להפוך לפתרון רפואי בעל משמעות.",
-        "programFlow": "המשתתפים חוקרים צורך רפואי, לומדים על תהליך פיתוח תרופה, בונים פרסונה, מעצבים פתרון, מקבלים משוב מקצועי, יוצרים דגם ופוסטר ומציגים את המיזם.",
-        "studentDevelopment": [
-          "חקר מדעי",
-          "חשיבה עיצובית",
-          "יזמות רפואית",
-          "שימוש בכלים דיגיטליים",
-          "הצגה מקצועית"
-        ],
-        "schoolValue": "תוכנית ייחודית המחברת בין לימודי מדע לבין עולם תעשיות הבריאות, ומחזקת מסוגלות מדעית, סקרנות והכוונה למסלולים עתידיים בתחומי STEM.",
-        "finalOutcome": "דגם למוצר/פתרון, פוסטר מדעי־שיווקי, מצגת מקצועית והצגת מיזמים."
-      },
       "syllabus": [
         {
           "meeting": "1–4",
@@ -732,69 +401,15 @@
           "sourcePage": "עמ׳ 9"
         }
       ],
-      "source": {
-        "programSheetRow": 7,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 74,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 134,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 140,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 74,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 129,
-          "status": "ארוך מדי"
-        },
-        "finalOutcome": {
-          "characters": 62,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 5
     },
     {
-      "id": 7,
-      "slug": "program-07",
+      "id": "program-07",
+      "programNumber": 7,
       "title": "יזמות פרימיום",
-      "subtitle": "מיומנויות העתיד דרך פיתוח מיזם מחובר לתעשייה",
-      "audienceLevel": "חטיבה",
+      "audienceLevel": "חטיבות",
+      "audienceLevelNeedsReview": true,
       "productType": "תוכנית",
-      "pageTemplate": "program_middle",
-      "grades": "ז׳–י׳",
-      "activityType": "קורס תהליכי",
-      "domain": [
-        "יזמות",
-        "חדשנות",
-        "תעשייה"
-      ],
-      "scope": "12 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": null,
-      "sections": {
-        "openingStatement": "להעיז לחשוב אחרת, לשאול שאלות ולמצוא פתרונות שלא נראו קודם.",
-        "mainIdea": "קורס יזמות יישומי שבו המשתתפים עוברים תהליך מלא מרעיון למיזם, תוך חיבור לעולם התעשייה, עבודה בצוותים ופיתוח כלים להצגת רעיון בעל ערך.",
-        "programFlow": "המשתתפים מזהים אתגר, חוקרים צורך וקהל יעד, מפתחים רעיונות, מבצעים בדיקת היתכנות, מקבלים משוב מקצועי, מאפיינים מוצר, בונים מודל ומכינים פוסטר ופיץ׳.",
-        "studentDevelopment": [
-          "חשיבה יזמית",
-          "חקר שוק",
-          "קבלת החלטות",
-          "עבודה בצוות",
-          "תקשורת ופרזנטציה"
-        ],
-        "schoolValue": "תוכנית רחבה וגמישה המאפשרת לבית הספר לחבר תלמידים לעולם העבודה והחדשנות דרך למידה פעילה, מפגש עם תעשייה ותרגול מיומנויות עתיד.",
-        "finalOutcome": "מיזם קבוצתי, מודל/סקיצה, פוסטר ופיץ׳ מסכם."
-      },
       "syllabus": [
         {
           "meeting": "1",
@@ -863,69 +478,15 @@
           "sourcePage": "עמ׳ 8"
         }
       ],
-      "source": {
-        "programSheetRow": 8,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 59,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 133,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 147,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 64,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 126,
-          "status": "ארוך מדי"
-        },
-        "finalOutcome": {
-          "characters": 42,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 11
     },
     {
-      "id": 8,
-      "slug": "program-08",
+      "id": "program-08",
+      "programNumber": 8,
       "title": "השמיים אינם הגבול – חקר ויישומים טכנולוגיים בתוכנית החלל",
-      "subtitle": "חקר חלל, לוויינים ויישומים טכנולוגיים מתקדמים",
-      "audienceLevel": "חטיבה",
+      "audienceLevel": "חטיבות",
+      "audienceLevelNeedsReview": true,
       "productType": "תוכנית",
-      "pageTemplate": "program_middle",
-      "grades": "ז׳–י׳",
-      "activityType": "קורס תהליכי",
-      "domain": [
-        "חלל",
-        "הנדסה",
-        "טכנולוגיה"
-      ],
-      "scope": "10 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": "57646",
-      "sections": {
-        "openingStatement": "מה שנראה בלתי אפשרי היום, הוא המציאות של מחר – בחלל כמו גם כאן על פני האדמה.",
-        "mainIdea": "תוכנית חקר וחדשנות המובילה את התלמידים למסע בעולם החלל, הלוויינים והיישומים הטכנולוגיים המשפיעים על החיים בכדור הארץ.",
-        "programFlow": "התלמידים לומדים על מבנה החלל, לוויינים, תקשורת, צילום, חישה מרחוק וננו־לוויינים, פוגשים מומחים ובסיום מפתחים רעיון יישומי בהשראת טכנולוגיות חלל.",
-        "studentDevelopment": [
-          "חשיבה הנדסית",
-          "אוריינות חלל",
-          "פתרון בעיות",
-          "חשיבה עיצובית",
-          "פיתוח רעיון טכנולוגי"
-        ],
-        "schoolValue": "תוכנית מעוררת השראה המחזקת אופק טכנולוגי, גאווה ישראלית וסקרנות מדעית, ומתאימה לבתי ספר המבקשים לחשוף תלמידים לעולמות עתידיים.",
-        "finalOutcome": "רעיון ליישום טכנולוגי בתחום החלל והצגת מיזמים/תוצרים מסכמים."
-      },
       "syllabus": [
         {
           "meeting": "1",
@@ -988,68 +549,15 @@
           "sourcePage": "עמ׳ 12"
         }
       ],
-      "source": {
-        "programSheetRow": 9,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 76,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 117,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 144,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 76,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 126,
-          "status": "ארוך מדי"
-        },
-        "finalOutcome": {
-          "characters": 60,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 10
     },
     {
-      "id": 9,
-      "slug": "program-09",
+      "id": "program-09",
+      "programNumber": 9,
       "title": "סודות ויסודות הבינה המלאכותית",
-      "subtitle": "חשיבה ביקורתית במציאות טכנולוגית חדשנית",
-      "audienceLevel": "חטיבה",
+      "audienceLevel": "יסודי",
+      "audienceLevelNeedsReview": true,
       "productType": "תוכנית",
-      "pageTemplate": "program_middle",
-      "grades": "ז׳–ח׳",
-      "activityType": "קורס תהליכי",
-      "domain": [
-        "בינה מלאכותית",
-        "אוריינות דיגיטלית"
-      ],
-      "scope": "8 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": "9545",
-      "sections": {
-        "openingStatement": "הבינה המלאכותית לא רק משנה את העתיד – היא מזמינה אותנו לעצב אותו.",
-        "mainIdea": "תוכנית היכרות נגישה וחווייתית עם עולם ה־AI, המשלבת התנסות בכלים דיגיטליים, שיח ביקורתי ויצירת פרויקט מסכם גם ללא ידע טכנולוגי מוקדם.",
-        "programFlow": "המשתתפים מכירים מושגי יסוד בבינה מלאכותית, מתנסים בפרומפטים, בכלי יצירה ובסוגיות אתיות, עובדים בצוותים ומפתחים פרויקט גמר קצר.",
-        "studentDevelopment": [
-          "אוריינות AI",
-          "חשיבה ביקורתית",
-          "פתרון בעיות",
-          "יצירה דיגיטלית",
-          "עבודת צוות"
-        ],
-        "schoolValue": "קורס עדכני ונגיש שמאפשר לבית הספר לפתוח לתלמידים שער לעולם ה־AI בצורה אחראית, יצירתית ומובנת.",
-        "finalOutcome": "פרויקט גמר קבוצתי/אישי, פרזנטציה ותיק כלים דיגיטלי."
-      },
       "syllabus": [
         {
           "meeting": "1",
@@ -1100,69 +608,15 @@
           "sourcePage": "עמ׳ 10"
         }
       ],
-      "source": {
-        "programSheetRow": 10,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 65,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 132,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 126,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 68,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 93,
-          "status": "תקין"
-        },
-        "finalOutcome": {
-          "characters": 51,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 8
     },
     {
-      "id": 10,
-      "slug": "program-10",
+      "id": "program-10",
+      "programNumber": 10,
       "title": "AI יישומי – הבינה המלאכותית במציאות טכנולוגית משתנה",
-      "subtitle": "יישומי AI בתחומי החיים והעתיד",
-      "audienceLevel": "חטיבה",
+      "audienceLevel": "חטיבות",
+      "audienceLevelNeedsReview": false,
       "productType": "תוכנית",
-      "pageTemplate": "program_middle",
-      "grades": "ז׳–י׳",
-      "activityType": "קורס תהליכי",
-      "domain": [
-        "AI",
-        "טכנולוגיה",
-        "חשיבה ביקורתית"
-      ],
-      "scope": "9 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": "53819",
-      "sections": {
-        "openingStatement": "מי שלומד להבין את הבינה המלאכותית – לומד להבין את העתיד.",
-        "mainIdea": "תוכנית יישומית ובין־תחומית המעמיקה בהשפעת הבינה המלאכותית על רפואה, חקלאות, תעשייה, תחבורה וחינוך, ומטפחת חשיבה ביקורתית ויזמית.",
-        "programFlow": "המשתתפים לומדים מושגי יסוד ב־AI, מנתחים מקרי בוחן מעולמות שונים, דנים בדילמות אתיות ומפתחים רעיון חדשני או אב־טיפוס רעיוני בתחום יישומי נבחר.",
-        "studentDevelopment": [
-          "הבנת מערכות AI",
-          "ניתוח מקרי בוחן",
-          "חשיבה אתית",
-          "יזמות טכנולוגית",
-          "הצגת רעיון מבוסס חקר"
-        ],
-        "schoolValue": "תוכנית שמעניקה לתלמידים שפה עדכנית להבנת עולם משתנה ומחברת בין טכנולוגיה, חברה, תעשייה וחיי היומיום.",
-        "finalOutcome": "עבודת חקר, רעיון/אב־טיפוס רעיוני ופרזנטציה מסכמת."
-      },
       "syllabus": [
         {
           "meeting": "1",
@@ -1219,69 +673,15 @@
           "sourcePage": "עמ׳ 11"
         }
       ],
-      "source": {
-        "programSheetRow": 11,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 56,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 128,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 141,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 82,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 100,
-          "status": "תקין"
-        },
-        "finalOutcome": {
-          "characters": 49,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 9
     },
     {
-      "id": 11,
-      "slug": "program-11",
+      "id": "program-11",
+      "programNumber": 11,
       "title": "ביומימיקרי – חדשנות סביבתית־טכנולוגית בהשראה מן הטבע",
-      "subtitle": "חקר ביומימטי מעמיק לתלמידי חטיבה ותיכון",
-      "audienceLevel": "חטיבה",
+      "audienceLevel": "חטיבות",
+      "audienceLevelNeedsReview": false,
       "productType": "תוכנית",
-      "pageTemplate": "program_middle",
-      "grades": "ז׳–י׳",
-      "activityType": "קורס תהליכי",
-      "domain": [
-        "ביומימיקרי",
-        "קיימות",
-        "הנדסה"
-      ],
-      "scope": "10 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": "82835",
-      "sections": {
-        "openingStatement": "הטבע לא ממציא – הוא משכלל. אנחנו רק צריכים ללמוד להקשיב.",
-        "mainIdea": "תוכנית חקר מתקדמת המבוססת על חשיבה ביומימטית: התבוננות במנגנונים טבעיים, הפשטת עקרונות פעולה ותרגומם לפתרון טכנולוגי מקיים.",
-        "programFlow": "המשתתפים יוצאים לחקר סביבתי, מנתחים מנגנונים מהטבע, מפתחים קונספט טכנולוגי, בונים אב־טיפוס או פוסטר מדעי ומציגים את התהליך.",
-        "studentDevelopment": [
-          "חשיבה מערכתית",
-          "חשיבה אנלוגית",
-          "חקר סביבתי",
-          "קיימות",
-          "פיתוח קונספט והצגה מדעית"
-        ],
-        "schoolValue": "תוכנית עומק המחברת בין מדעי החיים, הנדסה וקיימות, ומאפשרת לתלמידים לחוות חקר רציני עם תוצר ברור וערך סביבתי.",
-        "finalOutcome": "אב־טיפוס/דגם, פוסטר מדעי ופרזנטציה מסכמת."
-      },
       "syllabus": [
         {
           "meeting": "1",
@@ -1344,226 +744,16 @@
           "sourcePage": "עמ׳ 14"
         }
       ],
-      "source": {
-        "programSheetRow": 12,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 56,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 123,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 123,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 74,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 108,
-          "status": "תקין"
-        },
-        "finalOutcome": {
-          "characters": 41,
-          "status": "קצר מדי"
-        }
-      }
+      "syllabusCount": 10
     },
     {
-      "id": 12,
-      "slug": "program-12",
-      "title": "התנסות בתעשייה – סיור לימודי חווייתי",
-      "subtitle": "סיור המחבר בין הכיתה לעולם העבודה והחדשנות",
-      "audienceLevel": "תיכון",
-      "productType": "סיור",
-      "pageTemplate": "tour_high",
-      "grades": "י׳–י״ב",
-      "activityType": "סיור יומי",
-      "domain": [
-        "תעשייה",
-        "קריירה",
-        "חדשנות"
-      ],
-      "scope": "סיור יומי",
-      "duration": "יום פעילות",
-      "gefenNumber": "13990",
-      "sections": {
-        "openingStatement": "את מה שלומדים מהשטח – לא שוכחים בכיתה.",
-        "mainIdea": "סיור לימודי המאפשר לתלמידים הצצה ישירה לעולם התעשייה, ההייטק והחדשנות בישראל, תוך חיבור בין הלמידה בכיתה לבין מציאות העבודה.",
-        "programFlow": "המשתתפים מבקרים באתרי תעשייה, חברות הייטק או מרכזי חדשנות, פוגשים אנשי מקצוע, נחשפים לתהליכי ייצור ופיתוח ומקיימים שיח רפלקטיבי על לימודים, מגמות וקריירה.",
-        "studentDevelopment": [
-          "חשיבה תעסוקתית",
-          "סקרנות מקצועית",
-          "הבנת תהליכים תעשייתיים",
-          "רפלקציה",
-          "תכנון עתידי"
-        ],
-        "schoolValue": "פעילות קצרה וממוקדת שמחזקת את הרלוונטיות של הלמידה ומאפשרת לתלמידים לפגוש את עולם העבודה באופן חי, אמיתי ומעורר השראה.",
-        "finalOutcome": "סיור מקצועי, שיח עם אנשי מקצוע ועיבוד חווייתי־רפלקטיבי."
-      },
-      "syllabus": [
-        {
-          "meeting": "יום פעילות",
-          "topic": "סיור לימודי בתעשייה",
-          "description": "ביקור באתר תעשייה, הייטק או חדשנות, מפגש עם אנשי מקצוע, היכרות עם תהליכי עבודה ושיח מסכם.",
-          "sourcePage": "עמ׳ 16"
-        }
-      ],
-      "source": {
-        "programSheetRow": 13,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 38,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 124,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 154,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 76,
-          "status": "קצר מדי"
-        },
-        "schoolValue": {
-          "characters": 118,
-          "status": "ארוך מדי"
-        },
-        "finalOutcome": {
-          "characters": 55,
-          "status": "קצר מדי"
-        }
-      }
-    },
-    {
-      "id": 13,
-      "slug": "program-13",
-      "title": "אופק לתעשייה – מחברים בין חינוך לתעשייה",
-      "subtitle": "חשיפה לעולם העבודה במציאות טכנולוגית משתנה",
-      "audienceLevel": "חטיבה ותיכון",
-      "productType": "תוכנית",
-      "pageTemplate": "program_middle_high",
-      "grades": "ז׳–י״ב",
-      "activityType": "קורס / תוכנית חשיפה",
-      "domain": [
-        "תעשייה",
-        "חדשנות",
-        "קריירה"
-      ],
-      "scope": "9 מפגשים",
-      "duration": "90 דקות",
-      "gefenNumber": "52279",
-      "sections": {
-        "openingStatement": "העתיד כבר כאן – מי שצועד אליו היום, ממציא אותו מחר.",
-        "mainIdea": "תוכנית חשיפה וחיבור לעולם התעשייה, היזמות והטכנולוגיה, המגשרת בין הלמידה הבית־ספרית לבין אתגרי השטח והעולם המקצועי.",
-        "programFlow": "המשתתפים לומדים על התפתחות התעשייה בישראל, חדשנות, יזמות ותעשייה 4.0, פוגשים תעשיינים ומנטורים, משתתפים ברב־שיח ויוצאים לסיור מקצועי.",
-        "studentDevelopment": [
-          "היכרות עם עולם העבודה",
-          "מוטיבציה ללמידה טכנולוגית",
-          "חשיבה עתידית",
-          "שיח עם מומחים",
-          "תכנון קריירה"
-        ],
-        "schoolValue": "תוכנית מערכתית המחזקת קשרי חינוך־תעשייה ומאפשרת לתלמידים להבין כיצד ידע, טכנולוגיה ויוזמה באים לידי ביטוי בעולם האמיתי.",
-        "finalOutcome": "סיור בתעשייה, מפגש עם אנשי מקצוע וסיכום תובנות על עתיד לימודי ותעסוקתי."
-      },
-      "syllabus": [
-        {
-          "meeting": "1",
-          "topic": "התעשייה בישראל",
-          "description": "התפתחות התעשייה בישראל, תמונת מצב ומגמות לעתיד.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "2",
-          "topic": "המצאות פורצות דרך",
-          "description": "היכרות עם המצאות ישראליות ששינו את העולם.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "3",
-          "topic": "מפתחות למצוינות",
-          "description": "מהי תעשייה מצוינת ומהם הגורמים שמובילים למצוינות.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "4",
-          "topic": "חדשנות ויזמות",
-          "description": "למידה על תרבות חדשנות ויזמות בתעשייה הישראלית.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "5",
-          "topic": "תעשייה 4.0",
-          "description": "היכרות עם מרכיבי התעשייה החכמה והשפעתה הצפויה.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "6",
-          "topic": "מפגש עם תעשיין/ית",
-          "description": "מפגש השראה עם דמות מפתח מהתעשייה.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "7",
-          "topic": "רב־שיח",
-          "description": "שיח בין התלמידים לבין פאנל תעשיינים על מסרים לבני נוער.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "8–9",
-          "topic": "סיור בתעשייה",
-          "description": "ביקור בחברה תעשייתית, היכרות עם מתקנים ושיחה עם עובדים ומנהלים.",
-          "sourcePage": "עמ׳ 15"
-        }
-      ],
-      "source": {
-        "programSheetRow": 14,
-        "syllabusMatchedBy": "title"
-      },
-      "characterCheck": {
-        "openingStatement": {
-          "characters": 51,
-          "status": "קצר מדי"
-        },
-        "mainIdea": {
-          "characters": 115,
-          "status": "קצר מדי"
-        },
-        "programFlow": {
-          "characters": 133,
-          "status": "קצר מדי"
-        },
-        "studentDevelopment": {
-          "characters": 91,
-          "status": "תקין"
-        },
-        "schoolValue": {
-          "characters": 119,
-          "status": "ארוך מדי"
-        },
-        "finalOutcome": {
-          "characters": 71,
-          "status": "קצר מדי"
-        }
-      }
-    }
-  ],
-  "unmatchedSyllabusGroups": [
-    {
+      "id": "program-12",
+      "programNumber": 12,
       "title": "חוג מייקרים",
-      "items": [
+      "audienceLevel": "יסודי",
+      "audienceLevelNeedsReview": false,
+      "productType": "חוג",
+      "syllabus": [
         {
           "meeting": "מסלול גמיש",
           "topic": "סדנאות בודדות / 16 / 32 מפגשים",
@@ -1582,11 +772,34 @@
           "description": "חיבור בין פעילות מעשית לבין עיקרון מדעי פשוט וברור.",
           "sourcePage": "עמ׳ 18"
         }
-      ]
+      ],
+      "syllabusCount": 3
     },
     {
+      "id": "program-13",
+      "programNumber": 13,
+      "title": "התנסות בתעשייה – סיור לימודי חווייתי",
+      "audienceLevel": "יסודי",
+      "audienceLevelNeedsReview": true,
+      "productType": "סיור",
+      "syllabus": [
+        {
+          "meeting": "יום פעילות",
+          "topic": "סיור לימודי בתעשייה",
+          "description": "ביקור באתר תעשייה, הייטק או חדשנות, מפגש עם אנשי מקצוע, היכרות עם תהליכי עבודה ושיח מסכם.",
+          "sourcePage": "עמ׳ 16"
+        }
+      ],
+      "syllabusCount": 1
+    },
+    {
+      "id": "program-14",
+      "programNumber": 14,
       "title": "חוג צעירים להיי־טק",
-      "items": [
+      "audienceLevel": "יסודי",
+      "audienceLevelNeedsReview": false,
+      "productType": "תוכנית",
+      "syllabus": [
         {
           "meeting": "חלק א׳",
           "topic": "השראה מהטבע",
@@ -1641,7 +854,67 @@
           "description": "פעילות מסכמת המחזקת מסוגלות והשראה להמשך יצירה.",
           "sourcePage": "עמ׳ 19"
         }
-      ]
+      ],
+      "syllabusCount": 9
+    },
+    {
+      "id": "program-15",
+      "programNumber": 15,
+      "title": "אופק לתעשייה – מחברים בין חינוך לתעשייה",
+      "audienceLevel": "חטיבות",
+      "audienceLevelNeedsReview": true,
+      "productType": "תוכנית",
+      "syllabus": [
+        {
+          "meeting": "1",
+          "topic": "התעשייה בישראל",
+          "description": "התפתחות התעשייה בישראל, תמונת מצב ומגמות לעתיד.",
+          "sourcePage": "עמ׳ 15"
+        },
+        {
+          "meeting": "2",
+          "topic": "המצאות פורצות דרך",
+          "description": "היכרות עם המצאות ישראליות ששינו את העולם.",
+          "sourcePage": "עמ׳ 15"
+        },
+        {
+          "meeting": "3",
+          "topic": "מפתחות למצוינות",
+          "description": "מהי תעשייה מצוינת ומהם הגורמים שמובילים למצוינות.",
+          "sourcePage": "עמ׳ 15"
+        },
+        {
+          "meeting": "4",
+          "topic": "חדשנות ויזמות",
+          "description": "למידה על תרבות חדשנות ויזמות בתעשייה הישראלית.",
+          "sourcePage": "עמ׳ 15"
+        },
+        {
+          "meeting": "5",
+          "topic": "תעשייה 4.0",
+          "description": "היכרות עם מרכיבי התעשייה החכמה והשפעתה הצפויה.",
+          "sourcePage": "עמ׳ 15"
+        },
+        {
+          "meeting": "6",
+          "topic": "מפגש עם תעשיין/ית",
+          "description": "מפגש השראה עם דמות מפתח מהתעשייה.",
+          "sourcePage": "עמ׳ 15"
+        },
+        {
+          "meeting": "7",
+          "topic": "רב־שיח",
+          "description": "שיח בין התלמידים לבין פאנל תעשיינים על מסרים לבני נוער.",
+          "sourcePage": "עמ׳ 15"
+        },
+        {
+          "meeting": "8–9",
+          "topic": "סיור בתעשייה",
+          "description": "ביקור בחברה תעשייתית, היכרות עם מתקנים ושיחה עם עובדים ומנהלים.",
+          "sourcePage": "עמ׳ 15"
+        }
+      ],
+      "syllabusCount": 8
     }
   ]
 }
