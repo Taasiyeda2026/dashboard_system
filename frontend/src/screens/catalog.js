@@ -2,7 +2,7 @@ import { escapeHtml } from './shared/html.js';
 
 const DATA_URL = './catalog/catalog_programs_tashpaz.json';
 const AUDIENCE_OPTIONS = ['הכול', 'יסודי', 'חטיבה'];
-const TYPE_OPTIONS = ['הכול', 'תוכנית', 'סדנה', 'סיור'];
+const TYPE_OPTIONS = ['הכול', 'תוכנית', 'סדנה', 'סיור', 'חוג'];
 
 function ensureCatalogStyles() {
   if (document.getElementById('catalog-screen-styles')) return;
@@ -15,11 +15,15 @@ function ensureCatalogStyles() {
 .catalog-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:linear-gradient(180deg,#f8fbff,#f1f6fd);border:1px solid #dbe8f4;border-radius:14px;padding:10px 12px}
 .catalog-filter{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #d5e4f3;border-radius:10px;padding:6px 10px;font-size:13px;color:#334155;font-weight:600}
 .catalog-filter select{border:none;background:transparent;font:inherit;color:#0f172a;min-width:94px;outline:none}
-.catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:stretch}
-.catalog-card{position:relative;border:1px solid #dbe6f1;background:#fff;border-radius:14px;padding:14px 12px;min-height:74px;cursor:pointer;transition:.18s ease box-shadow,.18s ease transform,.18s ease border-color;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center}
+.catalog-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:start}
+.catalog-group{background:linear-gradient(180deg,#ffffff,#f8fbff);border:1px solid #dbe6f1;border-radius:18px;padding:14px;min-width:0}
+.catalog-group-title{margin:0 0 12px;font-size:18px;line-height:1.2;font-weight:900;color:#0f172a;text-align:center}
+.catalog-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}
+.catalog-card{position:relative;border:1px solid #dbe6f1;background:#fff;border-radius:14px;padding:13px 10px;min-height:68px;cursor:pointer;transition:.18s ease box-shadow,.18s ease transform,.18s ease border-color;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center}
 .catalog-card::before{content:'';position:absolute;inset:0 0 auto 0;height:5px;background:#c7d2fe}
 .catalog-card:hover{transform:translateY(-2px);border-color:#94a3b8;box-shadow:0 8px 18px rgba(15,23,42,.10)}
-.catalog-card h3{margin:0;font-size:17px;line-height:1.25;color:#0f172a;font-weight:800}
+.catalog-card h3{margin:0;font-size:15.5px;line-height:1.25;color:#0f172a;font-weight:800}
+.catalog-empty{margin:0;color:#64748b;font-size:13px;line-height:1.5;text-align:center;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;padding:14px 10px}
 .catalog-card--elementary{background:linear-gradient(180deg,#fdfeff 0,#f2faff 100%);border-color:#c9e6f7}
 .catalog-card--elementary::before{background:linear-gradient(90deg,#93c5fd,#67e8f9,#5eead4)}
 .catalog-card--middle{background:linear-gradient(180deg,#f6f9ff 0,#e8f0ff 100%);border-color:#b8cbec}
@@ -52,8 +56,9 @@ function ensureCatalogStyles() {
 .catalog-a4--middle .catalog-box{background:#f6f9ff;border-color:#d8e3f9}
 .catalog-a4--neutral .catalog-box{background:#f8fafc}
 @media (max-width:900px){.catalog-a4{width:100%;min-height:auto;padding:14px}.catalog-frame-grid{grid-template-columns:1fr 1fr}.catalog-list-grid{grid-template-columns:1fr}}
-@media (max-width:760px){.catalog-grid{grid-template-columns:1fr}.catalog-header h2{font-size:24px}.catalog-filter{font-size:12px}}
-@media (max-width:640px){.catalog-frame-grid,.catalog-list-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}}
+@media (max-width:1100px){.catalog-groups{grid-template-columns:1fr}.catalog-group-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.catalog-header h2{font-size:24px}.catalog-filter{font-size:12px}}
+@media (max-width:640px){.catalog-frame-grid,.catalog-list-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}.catalog-group-grid{grid-template-columns:1fr}}
 @media print {
   body *{visibility:hidden !important}
   .catalog-print-zone,.catalog-print-zone *{visibility:visible !important}
@@ -75,22 +80,47 @@ function toneClassForProgram(program, prefix) {
   return `${prefix}--neutral`;
 }
 
+function normalizeAudienceLevel(value) {
+  const raw = String(value || '').trim();
+  if (raw === 'חטיבות' || raw === 'חטיבה' || raw === 'חט״ב') return 'חטיבה';
+  if (raw === 'יסודי') return 'יסודי';
+  return raw || 'לא צוין';
+}
+
+function normalizeProductType(value) {
+  const raw = String(value || '').trim();
+  if (raw === 'חוגים') return 'חוג';
+  if (raw === 'סיורים') return 'סיור';
+  if (raw === 'סדנאות') return 'סדנה';
+  return raw || 'תוכנית';
+}
+
+function inferScope(p) {
+  if (p.scope) return String(p.scope);
+  if (p.meetings) return String(p.meetings);
+  if (p.syllabusCount) return `${String(p.syllabusCount)} מפגשים`;
+  if (Array.isArray(p.syllabus) && p.syllabus.length) return `${String(p.syllabus.length)} מפגשים`;
+  return 'לא צוין';
+}
+
 function normalizeProgram(item, idx) {
   const p = item && typeof item === 'object' ? item : {};
+  const syllabus = Array.isArray(p.syllabus) ? p.syllabus : [];
+  const firstSyllabusDescription = syllabus.find((x) => x && typeof x === 'object' && x.description)?.description || '';
   return {
     id: String(p.id || p.programId || p.slug || `program-${idx + 1}`),
     name: String(p.name || p.programName || p.title || 'ללא שם'),
-    audienceLevel: String(p.audienceLevel || 'לא צוין'),
-    productType: String(p.productType || 'תוכנית'),
-    grades: String(p.grades || 'לא צוין'),
-    scope: String(p.scope || p.meetings || 'לא צוין'),
+    audienceLevel: normalizeAudienceLevel(p.audienceLevel || 'לא צוין'),
+    productType: normalizeProductType(p.productType || 'תוכנית'),
+    grades: String(p.grades || p.targetGrades || 'לא צוין'),
+    scope: inferScope(p),
     sessionDuration: String(p.sessionDuration || p.duration || 'לא צוין'),
     gefenNumber: String(p.gefenNumber || p.gefen || ''),
-    shortDescription: String(p.shortDescription || p.openingLine || p.subtitle || p.sections?.openingStatement || ''),
-    coreIdea: String(p.coreIdea || p.description || p.sections?.mainIdea || ''),
+    shortDescription: String(p.shortDescription || p.openingLine || p.subtitle || p.sections?.openingStatement || firstSyllabusDescription || ''),
+    coreIdea: String(p.coreIdea || p.description || p.sections?.mainIdea || firstSyllabusDescription || ''),
     goals: String(p.goals || p.sections?.programFlow || ''),
     schoolValue: String(p.schoolValue || p.sections?.schoolValue || ''),
-    syllabus: Array.isArray(p.syllabus) ? p.syllabus : [],
+    syllabus,
     stations: Array.isArray(p.stations) ? p.stations : [],
     participantsReceive: Array.isArray(p.participantsReceive) ? p.participantsReceive : [],
     closingBox: String(p.closingBox || p.sections?.finalOutcome || ''),
@@ -102,12 +132,46 @@ function normalizeProgram(item, idx) {
 function sectionLabelsByType(type) {
   if (type === 'סדנה') return { happening: 'מה עושים בסדנה', syllabus: 'עיקרון מדעי / ערך לימודי', outcome: 'תוצר הסדנה' };
   if (type === 'סיור') return { happening: 'מה קורה בסיור', syllabus: 'תחנות / מוקדי ביקור', outcome: 'ערך חינוכי לבית הספר' };
+  if (type === 'חוג') return { happening: 'מה קורה בחוג', syllabus: 'מבנה החוג / רצף מפגשים', outcome: 'תוצרי למידה והתנסות' };
   return { happening: 'מה קורה בתוכנית', syllabus: 'סילבוס התוכנית', outcome: 'תוצר מסכם / שיא תהליך' };
 }
 
+function listItemText(item) {
+  if (item && typeof item === 'object') {
+    const meeting = item.meeting ? `מפגש ${item.meeting}` : '';
+    const topic = item.topic ? String(item.topic) : '';
+    const description = item.description ? String(item.description) : '';
+    const parts = [];
+    if (meeting && topic) parts.push(`${meeting} – ${topic}`);
+    else if (meeting) parts.push(meeting);
+    else if (topic) parts.push(topic);
+    if (description) parts.push(description);
+    return parts.join(': ') || JSON.stringify(item);
+  }
+  return String(item);
+}
+
 function listFromTextOrArray(arr, fallback = 'לא סופק מידע') {
-  if (Array.isArray(arr) && arr.length) return arr.map((x) => `<li>${escapeHtml(String(x))}</li>`).join('');
+  if (Array.isArray(arr) && arr.length) return arr.map((x) => `<li>${escapeHtml(listItemText(x))}</li>`).join('');
   return `<li>${escapeHtml(fallback)}</li>`;
+}
+function isStandaloneActivity(program) {
+  return program.productType === 'סדנה' || program.productType === 'סיור' || program.productType === 'חוג';
+}
+
+function renderCatalogCard(program) {
+  return `<article class="catalog-card ${toneClassForProgram(program, 'catalog-card')}" data-audience-level="${escapeHtml(program.audienceLevel)}" data-page-template="${escapeHtml(program.pageTemplate)}" data-catalog-open="${escapeHtml(program.id)}">
+    <h3>${escapeHtml(program.name)}</h3>
+  </article>`;
+}
+
+function renderCatalogGroup(title, programs) {
+  return `<section class="catalog-group">
+    <h3 class="catalog-group-title">${escapeHtml(title)}</h3>
+    <div class="catalog-group-grid">
+      ${programs.length ? programs.map(renderCatalogCard).join('') : '<p class="catalog-empty">אין פריטים להצגה</p>'}
+    </div>
+  </section>`;
 }
 
 export const catalogScreen = {
@@ -127,22 +191,26 @@ export const catalogScreen = {
 
     if (!selected) {
       const filtered = data.programs.filter((p) => (audience === 'הכול' || p.audienceLevel === audience) && (type === 'הכול' || p.productType === type));
+      const elementaryPrograms = filtered.filter((p) => p.audienceLevel === 'יסודי' && p.productType === 'תוכנית');
+      const middlePrograms = filtered.filter((p) => p.audienceLevel === 'חטיבה' && p.productType === 'תוכנית');
+      const workshopAndTours = filtered.filter((p) => isStandaloneActivity(p));
+
       return `<section class="catalog-screen">
         <header class="catalog-header"><h2>קטלוג תוכניות תלמידים תשפ״ז</h2><p class="ds-muted">בחירת תוכנית לפי שכבת גיל וסוג פעילות</p></header>
         <div class="catalog-toolbar">
           <label class="catalog-filter">שכבת גיל <select data-catalog-filter="audience">${AUDIENCE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === audience ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
           <label class="catalog-filter">סוג פעילות <select data-catalog-filter="type">${TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === type ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
         </div>
-        <div class="catalog-grid">
-          ${filtered.map((p) => `<article class="catalog-card ${toneClassForProgram(p, 'catalog-card')}" data-audience-level="${escapeHtml(p.audienceLevel)}" data-page-template="${escapeHtml(p.pageTemplate)}" data-catalog-open="${escapeHtml(p.id)}">
-            <h3>${escapeHtml(p.name)}</h3>
-          </article>`).join('') || '<p class="ds-muted">לא נמצאו תוכניות עבור הסינון שנבחר.</p>'}
+        <div class="catalog-groups">
+          ${renderCatalogGroup('יסודי', elementaryPrograms)}
+          ${renderCatalogGroup('חטיבה', middlePrograms)}
+          ${renderCatalogGroup('סדנאות, סיורים וחוגים', workshopAndTours)}
         </div>
       </section>`;
     }
 
     const labels = sectionLabelsByType(selected.productType);
-    const syllabusSource = selected.productType === 'סיור' ? selected.stations : selected.syllabus;
+    const syllabusSource = selected.productType === 'סיור' && selected.stations.length ? selected.stations : selected.syllabus;
     const a4ToneClass = toneClassForProgram(selected, 'catalog-a4');
     return `<section class="catalog-screen catalog-print-zone">
       <div class="catalog-detail-actions catalog-print-hide">
