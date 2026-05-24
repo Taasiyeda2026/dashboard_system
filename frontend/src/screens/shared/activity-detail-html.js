@@ -593,14 +593,15 @@ function blockDates(row, { canEdit = false, datesLoading = false } = {}) {
 }
 
 
-function blockEditActions({ canEdit = false, canDirectEdit = false } = {}) {
-  if (!canEdit) return '';
+function blockEditActions({ canEdit = false, canDirectEdit = false, canDeleteActivity = false } = {}) {
+  if (!canEdit && !canDeleteActivity) return '';
   const requestOnlyEdit = canEdit && !canDirectEdit;
   return `
     <section class="activity-drawer__section activity-drawer__section--actions" data-mode="edit" hidden>
       <div class="activity-drawer__edit-actions">
-        <button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">${requestOnlyEdit ? 'שליחת בקשת עריכה לאישור' : 'שמור'}</button>
-        <button type="button" class="activity-drawer__action" data-action="cancel-edit">ביטול</button>
+        ${canEdit ? `<button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">${requestOnlyEdit ? 'שליחת בקשת עריכה לאישור' : 'שמור'}</button>
+        <button type="button" class="activity-drawer__action" data-action="cancel-edit">ביטול</button>` : ''}
+        ${canDeleteActivity ? '<button type="button" class="activity-drawer__action activity-drawer__action--danger" data-action="delete-activity">מחק פעילות</button>' : ''}
         <p class="ds-activity-edit-status ds-muted" role="status"></p>
       </div>
     </section>
@@ -693,7 +694,7 @@ function jsonAttr(value) {
   }
 }
 
-function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
+function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = String(row.activity_type || '').trim();
   const editReqStatus = String(row.edit_request_status || '').trim();
@@ -725,7 +726,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${instructorLimited ? '' : blockExtraEditInfo(row, { settings })}
       ${blockNotes(row, { hidden: instructorLimited })}
       ${blockSupplementalView(row, { settings, hideFunding: instructorLimited })}
-      ${blockEditActions({ canEdit, canDirectEdit })}
+      ${blockEditActions({ canEdit, canDirectEdit, canDeleteActivity })}
     </form>
   `;
 }
@@ -747,7 +748,7 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
-  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false } = opts;
+  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false } = opts;
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const body = rows
@@ -766,6 +767,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
             canEdit,
             canDirectEdit,
             canRequestEdit,
+            canDeleteActivity,
             showPrivateNote: privateNote !== null,
             idx,
             instructorLimited
@@ -790,6 +792,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
         canEdit,
         canDirectEdit,
         canRequestEdit,
+        canDeleteActivity,
         showPrivateNote: privateNote !== null,
         datesLoading,
         idx: 0,

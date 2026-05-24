@@ -40,6 +40,7 @@ const MUTATING_ACTIONS = {
   updateProposalAgreementStatus: true,
   deleteProposalAgreement: true,
   saveProposalAgreementItems: true
+  ,deleteActivity: true
 };
 
 const READ_ACTIONS = {
@@ -151,7 +152,7 @@ async function readActivitiesFromSupabase(filters = {}) {
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rows = (Array.isArray(data) ? data : [])
       .map(normalizeActivityRow)
-      .filter((row) => !isActivityClosed(row))
+      .filter((row) => !isActivityInactive(row))
       .filter((row) => rowMatchesActivitiesFilters(row, filters));
     return { rows, _source: 'supabase' };
   } catch (error) {
@@ -174,6 +175,7 @@ function buildSupabaseErrorPayload(base, error, extra = {}) {
 
 const ACTIVITIES_TABLE = 'activities';
 const CLOSED_STATUS = 'סגור';
+const DELETED_STATUS = 'נמחק';
 
 function normalizeActivityRow(row = {}) {
   const rowId = String(row?.row_id ?? row?.RowID ?? '').trim();
@@ -219,6 +221,12 @@ function rowActivityType(row = {}) {
 function isActivityClosed(row) {
   return String(row?.status || '').trim() === CLOSED_STATUS;
 }
+function isActivityDeleted(row) {
+  return String(row?.status || '').trim() === DELETED_STATUS;
+}
+function isActivityInactive(row) {
+  return isActivityClosed(row) || isActivityDeleted(row);
+}
 
 function isProgramActivity(row) {
   return String(row?.activity_family || '').trim() === 'program';
@@ -235,6 +243,11 @@ function getActivityDateColumns(row = {}) {
     if (dateKey) dates.push(dateKey);
   }
   return dates;
+}
+function hasAnyActivityDate(row = {}) {
+  if (normalizeSupabaseDate(row?.start_date ?? row?.date_start)) return true;
+  if (normalizeSupabaseDate(row?.end_date ?? row?.date_end)) return true;
+  return getActivityDateColumns(row).length > 0;
 }
 
 function firstNormalizedDate(...values) {
@@ -551,7 +564,7 @@ async function readInstructorsFromSupabase() {
       console.warn('[supabase] contacts_instructors unavailable for instructors stats:', contactsResult.error);
     }
 
-    const activeRows = activityRows.filter((row) => !isActivityClosed(row));
+    const activeRows = activityRows.filter((row) => !isActivityInactive(row));
     const statsMap = new Map();
     const aliases = new Map();
 
@@ -780,7 +793,7 @@ async function readWeekFromSupabase(weekOffset) {
 
   try {
     const rows = (await selectActivitiesByDateRangeFromSupabase({ startDate, endDate }))
-      .filter((row) => !isActivityClosed(row));
+      .filter((row) => !isActivityInactive(row));
     const matchingRows = rows.filter((row) => activityHasDateInRange(row, startDate, endDate));
     const itemsById = buildItemsById(matchingRows);
     const dayMap = {};
@@ -819,7 +832,7 @@ async function readMonthFromSupabase(ym) {
     const rows = (await selectActivitiesByDateRangeFromSupabase({
       startDate: range.startDate,
       endDate: range.endDate
-    })).filter((row) => !isActivityClosed(row));
+    })).filter((row) => !isActivityInactive(row));
     const matchingRows = rows.filter((row) => activityHasDateInMonth(row, monthPrefix));
     const itemsById = buildItemsById(matchingRows);
     const dayMap = {};
@@ -870,7 +883,7 @@ async function dashboardReadModelFromSupabase(month) {
       includeEndDate: true
     });
     // Open-only rows (not closed) — used for summary, instructor/manager stats, exceptions
-    const openRows = allRangeRows.filter((row) => !isActivityClosed(row));
+    const openRows = allRangeRows.filter((row) => !isActivityInactive(row));
     // Open-only rows that have a date in this month — for summary data
     const monthRows = openRows.filter((row) => activityHasDateInMonth(row, monthPrefix));
     // All rows (open + closed) in this month — for KPI type counts
@@ -1008,7 +1021,7 @@ async function readEndDatesFromSupabase() {
   if (!supabase) return buildSupabaseErrorPayload({ rows: [] }, 'no_supabase_client');
   try {
     const rows = (await selectActivitiesFromSupabase('*'))
-      .filter((row) => !isActivityClosed(row))
+      .filter((row) => !isActivityInactive(row))
       .map((row) => ({ ...row, meeting_dates: getActivityDateColumns(row), date_cols: getActivityDateColumns(row) }));
     return { rows, _source: 'supabase' };
   } catch (error) {
@@ -1085,7 +1098,7 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
   const byManager = {};
   let operationalUniqueCount = 0;
   for (const row of activityRows) {
-    if (isActivityClosed(row)) continue;
+    if (isActivityInactive(row)) continue;
     if (rowActivityType(row) !== 'course') continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
     const types = rowExceptionTypesFromActivity(row, {
@@ -1159,7 +1172,7 @@ async function readExceptionsFromSupabase(params = {}) {
     // 3 — open courses where all instructor fields are empty
     // 4 — open courses where emp_id is set but NOT in the known instructors list
     const queryBase = () =>
-      supabase.from('activities').select('*').in('activity_type', COURSE_TYPE_VALUES).neq('status', CLOSED_STATUS);
+      supabase.from('activities').select('*').in('activity_type', COURSE_TYPE_VALUES).not('status', 'in', '("סגור","נמחק")');
 
     const knownIdsList = [...knownInstructorIds];
 
@@ -1220,9 +1233,22 @@ async function readExceptionsFromSupabase(params = {}) {
       knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined,
       lateEndDateThreshold
     });
-    return { month, late_end_date_threshold: lateEndDateThreshold || '', ...exceptionSummary, _source: 'supabase' };
+    const { data: allActivitiesRaw, error: allActivitiesError } = await supabase.from('activities').select('*');
+    if (allActivitiesError) throw new Error(allActivitiesError.message || 'activities_read_failed');
+    const undatedRows = (Array.isArray(allActivitiesRaw) ? allActivitiesRaw : [])
+      .map(normalizeActivityRow)
+      .filter((row) => !isActivityInactive(row))
+      .filter((row) => !hasAnyActivityDate(row));
+    return {
+      month,
+      late_end_date_threshold: lateEndDateThreshold || '',
+      ...exceptionSummary,
+      undatedRows,
+      undatedCount: undatedRows.length,
+      _source: 'supabase'
+    };
   } catch (error) {
-    return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0 }, error);
+    return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0, undatedRows: [], undatedCount: 0 }, error);
   }
 }
 
@@ -2732,6 +2758,18 @@ export const api = {
       return api.submitEditRequest(payload);
     }
     return updateActivityInSupabase(payload);
+  },
+  deleteActivity: async (source_row_id) => {
+    const rowId = String(source_row_id || '').trim();
+    if (!rowId) throw new Error('missing_row_id');
+    const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+    if (!['admin', 'operation_manager'].includes(role)) throw new Error('forbidden_delete_activity');
+    const { error } = await supabase
+      .from('activities')
+      .update({ status: DELETED_STATUS })
+      .eq('row_id', rowId);
+    if (error) throw new Error(error.message || 'delete_activity_failed');
+    return { ok: true, row_id: rowId, status: DELETED_STATUS };
   },
   submitEditRequest: async (source_row_id, changes, source_sheet = 'activities') => {
     const requestPayload = (source_row_id && typeof source_row_id === 'object') ? source_row_id : null;

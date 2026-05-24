@@ -91,13 +91,14 @@ function exceptionsOperationalSummaryHtml(data, rows) {
   });
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, hideEmpIds, hideRowId, hideActivityNo, settings) {
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
     canEdit,
     canDirectEdit,
     canRequestEdit,
+    canDeleteActivity,
     hideEmpIds: !!hideEmpIds,
     hideRowId,
     hideActivityNo,
@@ -169,6 +170,7 @@ export const exceptionsScreen = {
       ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${EXCEPTIONS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
       : '';
 
+    const undatedRows = Array.isArray(data?.undatedRows) ? data.undatedRows : [];
     const compact =
       visibleRows.length === 0
         ? dsEmptyState('לא נמצאו חריגות')
@@ -203,6 +205,10 @@ export const exceptionsScreen = {
         body: compact,
         padded: visibleRows.length === 0
       })}</section>
+      <section>${dsCard({
+        title: `פעילויות ללא תאריך · ${escapeHtml(String(data?.undatedCount ?? undatedRows.length))}`,
+        body: undatedRows.length === 0 ? dsEmptyState('אין פעילויות ללא תאריך') : `<div class="ds-compact-list">${undatedRows.map((row) => `<div data-list-item><button type="button" class="ds-interactive-card ds-interactive-card--session" data-card-action="${escapeHtml(`undated:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml([row.activity_type, row.authority, row.school].filter(Boolean).join(' · '))}</p></button></div>`).join('')}</div>`
+      })}</section>
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
@@ -215,6 +221,7 @@ export const exceptionsScreen = {
     const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const canDeleteActivity = ['admin', 'operation_manager'].includes(String(state?.user?.display_role || '').trim());
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
 
@@ -278,6 +285,7 @@ export const exceptionsScreen = {
           canEditActivity,
           !!state?.user?.can_edit_direct,
           !!state?.user?.can_request_edit,
+          canDeleteActivity,
           hideEmpIds,
           hideRowId,
           hideActivityNo,
@@ -297,6 +305,7 @@ export const exceptionsScreen = {
             canEditActivity,
             !!state?.user?.can_edit_direct,
             !!state?.user?.can_request_edit,
+            canDeleteActivity,
             hideEmpIds,
             hideRowId,
             hideActivityNo,
@@ -308,8 +317,10 @@ export const exceptionsScreen = {
       } catch {}
     }
 
-    const openAt = (idx) => {
-      const hit = allRows[idx];
+    const allUndatedRows = (Array.isArray(data?.undatedRows) ? data.undatedRows : []);
+    const openAt = (idx, group = 'exception') => {
+      const list = group === 'undated' ? allUndatedRows : allRows;
+      const hit = list[idx];
       if (!hit || !ui) return;
       if (!api) {
         ui.openDrawer({
@@ -322,10 +333,17 @@ export const exceptionsScreen = {
     };
 
     ui?.bindInteractiveCards(root, (action) => {
-      if (!action.startsWith('exception:')) return;
-      const rowId = action.slice('exception:'.length);
-      const idx = allRows.findIndex((row) => String(row.RowID) === rowId);
-      openAt(idx);
+      if (action.startsWith('exception:')) {
+        const rowId = action.slice('exception:'.length);
+        const idx = allRows.findIndex((row) => String(row.RowID) === rowId);
+        openAt(idx);
+        return;
+      }
+      if (action.startsWith('undated:')) {
+        const undatedId = action.slice('undated:'.length);
+        const undatedIdx = allUndatedRows.findIndex((row) => String(row.RowID) === undatedId);
+        openAt(undatedIdx, 'undated');
+      }
     });
   }
 };
