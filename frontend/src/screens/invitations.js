@@ -95,44 +95,44 @@ function ensureStyles() {
 .invitation-screen-root .cbg{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center}
 .invitation-screen-root .cframe{position:absolute;inset:5mm;border-radius:10px;border:1.5px solid rgba(255,255,255,.55);pointer-events:none;z-index:3}
 .invitation-screen-root .cwrap{position:relative;z-index:2;flex:1;display:flex;flex-direction:column}
-.invitation-screen-root .c-logos{display:flex;align-items:center;justify-content:center;gap:1mm;padding:7mm 10mm 1mm;background:transparent;border-bottom:none}
+.invitation-screen-root .c-logos{display:flex;align-items:center;justify-content:center;gap:1mm;padding:5mm 10mm .5mm;background:transparent;border-bottom:none}
 .invitation-screen-root .c-logo-item{width:32mm;height:14mm;display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:800;color:#1a3a5c;line-height:1.2}
 .invitation-screen-root .c-logo-sep{width:1px;height:26px;background:rgba(26,58,92,.2);flex-shrink:0}
 .invitation-screen-root .c-logo-item img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
-.invitation-screen-root .c-main{padding:2.6mm 6.5mm 2.8mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
-.invitation-screen-root .c-title{font-weight:900;line-height:1;margin-bottom:0;font-size:12.5mm}
-.invitation-screen-root .c-sub-event{font-weight:700;line-height:1.08;margin-bottom:1mm;font-size:6.2mm}
-.invitation-screen-root .c-course{font-weight:500;line-height:1.08;margin-bottom:1mm;font-size:6.8mm}
-.invitation-screen-root .c-course .course-main{display:block;font-size:6.8mm;line-height:1.06;font-weight:500}
+.invitation-screen-root .c-main{padding:1.6mm 6mm 2mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
+.invitation-screen-root .c-title{font-weight:900;line-height:.95;margin-bottom:0;font-size:10.8mm}
+.invitation-screen-root .c-sub-event{font-weight:700;line-height:1.08;margin-bottom:.6mm;font-size:5.6mm}
+.invitation-screen-root .c-course{font-weight:500;line-height:1.04;margin-bottom:.6mm;font-size:6.1mm}
+.invitation-screen-root .c-course .course-main{display:block;font-size:6.1mm;line-height:1.04;font-weight:500}
 .invitation-screen-root .c-course .course-sub{display:block;font-size:5.6mm;line-height:1.06;font-weight:500}
 .invitation-screen-root .c-course .course-company{display:block;font-size:4mm;line-height:1.1;font-weight:500;margin-top:.8mm}
 .invitation-screen-root .c-year{font-size:4.8mm;font-weight:700;margin-bottom:2mm}
-.invitation-screen-root .c-school{font-size:4mm;color:#333;margin:1.5mm 0}
+.invitation-screen-root .c-school{font-size:3.7mm;color:#333;margin:1mm 0}
 .invitation-screen-root .c-school strong{font-weight:700}
-.invitation-screen-root .c-divider{width:100%;height:1px;background:rgba(26,58,92,.1);margin:1.5mm 0}
-.invitation-screen-root .c-opening{font-size:3.85mm;color:#333;line-height:1.28;margin:1mm auto;max-width:none;width:82%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.2mm;box-sizing:border-box}
+.invitation-screen-root .c-divider{width:100%;height:1px;background:rgba(26,58,92,.1);margin:1mm 0}
+.invitation-screen-root .c-opening{font-size:3.65mm;color:#333;line-height:1.22;margin:.7mm auto;max-width:none;width:88%;text-align:right;align-self:center;margin-inline:auto;padding-inline:2mm;box-sizing:border-box}
 .invitation-screen-root .c-opening strong{font-weight:700;color:var(--accent-color,#1a8c6e)}
-.invitation-screen-root .c-para{font-size:3.85mm;color:#333;line-height:1.28;margin:.5mm auto;text-align:right;max-width:none;width:82%;align-self:center;margin-inline:auto;padding-inline:4.2mm;box-sizing:border-box}
-.invitation-screen-root .c-section-title{font-size:3.3mm;font-weight:800;color:var(--accent-color,#1a8c6e);line-height:1.15;margin:1.2mm auto .5mm;max-width:none;width:82%;text-align:right;align-self:center;margin-inline:auto;padding-inline:0;box-sizing:border-box}
+.invitation-screen-root .c-para{font-size:3.65mm;color:#333;line-height:1.22;margin:.4mm auto;text-align:right;max-width:none;width:88%;align-self:center;margin-inline:auto;padding-inline:2mm;box-sizing:border-box}
+.invitation-screen-root .c-section-title{font-size:3.1mm;font-weight:800;color:var(--accent-color,#1a8c6e);line-height:1.15;margin:.8mm auto .25mm;max-width:none;width:88%;text-align:right;align-self:center;margin-inline:auto;padding-inline:0;box-sizing:border-box}
 .invitation-screen-root .c-box{background:rgba(255,255,255,.5);border:1px solid rgba(26,140,110,.22);border-radius:8px;padding:1.6mm 4mm;margin:1.2mm 0;width:100%;text-align:right}
-.invitation-screen-root .c-participants-box{width:80%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;background:rgba(255,255,255,.38);border-color:rgba(26,140,110,.12);padding:1.2mm 3.5mm}
-.invitation-screen-root .c-details-box{width:76%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;display:flex;flex-direction:column;align-items:center;gap:.9mm;background:transparent;border-color:rgba(26,140,110,.18);text-align:center;padding:1.4mm 3.5mm}
+.invitation-screen-root .c-participants-box{width:82%;max-width:none;margin:.8mm auto;align-self:center;background:rgba(255,255,255,.38);border-color:rgba(26,140,110,.12);padding:.9mm 3mm}
+.invitation-screen-root .c-details-box{width:82%;max-width:none;margin:.8mm auto;align-self:center;display:flex;flex-direction:column;align-items:center;gap:.35mm;background:transparent;border-color:rgba(26,140,110,.18);text-align:center;padding:1mm 3mm}
 .invitation-screen-root .c-details-top{display:flex;align-items:center;justify-content:center;gap:4mm;width:100%;flex-wrap:wrap}
-.invitation-screen-root .c-details-location{justify-content:center;text-align:center;width:100%;font-size:4.4mm;line-height:1.5}
+.invitation-screen-root .c-details-location{justify-content:center;text-align:center;width:100%;font-size:4.05mm;line-height:1.25}
 .invitation-screen-root .c-details-box .c-info-row{justify-content:center;text-align:center}
-.invitation-screen-root .c-info-row{display:flex;align-items:center;gap:4px;font-size:4.3mm;color:#333;line-height:1.4}
+.invitation-screen-root .c-info-row{display:flex;align-items:center;gap:4px;font-size:4mm;color:#333;line-height:1.25}
 .invitation-screen-root .c-info-row strong{font-weight:700}
-.invitation-screen-root .c-part-title{font-size:3mm;font-weight:700;margin-bottom:1px;line-height:1.32}
-.invitation-screen-root .c-part-line{font-size:3mm;color:#333;line-height:1.32}
-.invitation-screen-root .c-part-line strong{font-size:3mm;font-weight:700;color:#333;line-height:1.32}
-.invitation-screen-root .c-part-line span{font-size:3mm;font-weight:400;line-height:1.32}
-.invitation-screen-root .c-closing{font-size:5.7mm;font-weight:900;margin-top:2mm;padding-top:1.2mm;text-align:center;line-height:1.05}
-.invitation-screen-root .c-footer{display:flex;align-items:center;justify-content:center;text-align:center;padding:1mm 6mm;background:#fff;border-top:.25mm solid #fff;margin-top:0;margin-bottom:0;backdrop-filter:none;min-height:5mm;position:relative;z-index:4;width:100%}
-.invitation-screen-root .c-footer-sentence{font-size:2.45mm;font-weight:600;line-height:1.3;letter-spacing:.006em;text-shadow:none;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:1.5mm}
-.invitation-screen-root #card.fit-a5-relaxed .c-main{padding-top:2.8mm;padding-bottom:3.2mm}
-.invitation-screen-root #card.fit-a5-relaxed .c-opening{margin:1.3mm auto}
-.invitation-screen-root #card.fit-a5-relaxed .c-para{margin:.9mm auto}
-.invitation-screen-root #card.fit-a5-relaxed .c-closing{margin-top:2.3mm}
+.invitation-screen-root .c-part-title{font-size:2.8mm;font-weight:700;margin-bottom:1px;line-height:1.22}
+.invitation-screen-root .c-part-line{font-size:2.8mm;color:#333;line-height:1.22}
+.invitation-screen-root .c-part-line strong{font-size:2.8mm;font-weight:700;color:#333;line-height:1.22}
+.invitation-screen-root .c-part-line span{font-size:2.8mm;font-weight:400;line-height:1.22}
+.invitation-screen-root .c-closing{font-size:5.1mm;font-weight:900;margin-top:1mm;padding-top:.5mm;text-align:center;line-height:1.05}
+.invitation-screen-root .c-footer{display:flex;align-items:center;justify-content:center;text-align:center;padding:.7mm 5mm;background:#fff;border-top:.25mm solid #fff;margin-top:0;margin-bottom:0;backdrop-filter:none;min-height:4.2mm;position:relative;z-index:4;width:100%}
+.invitation-screen-root .c-footer-sentence{font-size:2.2mm;font-weight:600;line-height:1.3;letter-spacing:.006em;text-shadow:none;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:1.5mm}
+.invitation-screen-root #card.fit-a5-relaxed .c-main{padding-top:1.8mm;padding-bottom:2.2mm}
+.invitation-screen-root #card.fit-a5-relaxed .c-opening{margin:.85mm auto}
+.invitation-screen-root #card.fit-a5-relaxed .c-para{margin:.55mm auto}
+.invitation-screen-root #card.fit-a5-relaxed .c-closing{margin-top:1.2mm}
 .invitation-screen-root #card.fit-a5-compact .c-title{font-size:11.9mm}
 .invitation-screen-root #card.fit-a5-compact .c-sub-event{font-size:6mm}
 .invitation-screen-root #card.fit-a5-compact .c-course,.invitation-screen-root #card.fit-a5-compact .c-course .course-main{font-size:6.45mm}
@@ -845,7 +845,7 @@ export const invitationsScreen = {
       const COMPACT_TRIGGER_PX = 36;
       const TIGHT_TRIGGER_PX = 72;
       const UNDERFLOW_EPSILON_PX = 56;
-      const RELAXED_UNDERFLOW_PX = 62;
+      const RELAXED_UNDERFLOW_PX = 120;
       const overflowAmount = () => cwrap.scrollHeight - card.clientHeight;
 
       return new Promise((resolve) => {
@@ -952,7 +952,7 @@ function fitInvitationToA5(card){
   var COMPACT_TRIGGER_PX=36;
   var TIGHT_TRIGGER_PX=72;
   var UNDERFLOW_EPSILON_PX=56;
-  var RELAXED_UNDERFLOW_PX=62;
+  var RELAXED_UNDERFLOW_PX=120;
   function overflowAmount(){return cwrap.scrollHeight-card.clientHeight}
   return new Promise(function(resolve){
     requestAnimationFrame(function(){
