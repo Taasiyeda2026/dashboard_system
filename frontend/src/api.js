@@ -1577,19 +1577,12 @@ async function upsertProposalClientContactIfNeeded(payload = {}, options = {}) {
 }
 
 async function readProposalActivityNamesFromSupabase() {
-  try {
-    const { data, error } = await supabase
-      .from('lists')
-      .select('label')
-      .eq('category', 'activity_names')
-      .order('label', { ascending: true });
-    if (error) return [];
-    return (Array.isArray(data) ? data : [])
-      .map((item) => String(item?.label || '').trim())
-      .filter(Boolean);
-  } catch (e) {
-    return [];
-  }
+  const pricingRows = await readProposalActivityPricingFromSupabase();
+  return Array.from(new Set(
+    pricingRows
+      .map((row) => cleanProposalAgreementText(row?.activity_name))
+      .filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, 'he'));
 }
 
 async function readProposalActivityPricingFromSupabase() {
@@ -1663,7 +1656,7 @@ async function readContactsSchoolsForProposals() {
 
 async function readProposalsAgreementsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
-  const [paResult, activityNameOptions, contactOptions, proposalActivityPricing, proposalTemplateSections] = await Promise.all([
+  const [paResult, contactOptions, proposalActivityPricing, proposalTemplateSections] = await Promise.all([
     supabase
       .from('proposals_agreements')
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
@@ -1671,12 +1664,14 @@ async function readProposalsAgreementsFromSupabase() {
       .order('school_framework', { ascending: true })
       .order('document_type', { ascending: true })
       .order('activity_type_group', { ascending: true }),
-    readProposalActivityNamesFromSupabase(),
     readContactsSchoolsForProposals(),
     readProposalActivityPricingFromSupabase(),
     readProposalTemplateSectionsFromSupabase()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
+  const activityNameOptions = Array.from(new Set((Array.isArray(proposalActivityPricing) ? proposalActivityPricing : [])
+    .map((row) => cleanProposalAgreementText(row?.activity_name))
+    .filter(Boolean))).sort((a, b) => a.localeCompare(b, 'he'));
   return {
     rows: (Array.isArray(paResult.data) ? paResult.data : []).map(normalizeProposalAgreementRow),
     activityNameOptions,
