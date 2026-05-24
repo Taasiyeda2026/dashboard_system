@@ -100,8 +100,8 @@ function ensureStyles() {
 .invitation-screen-root .c-logo-sep{width:1px;height:26px;background:rgba(26,58,92,.2);flex-shrink:0}
 .invitation-screen-root .c-logo-item img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 .invitation-screen-root .c-main{padding:1.5mm 6mm 2mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
-.invitation-screen-root .c-title{font-weight:900;line-height:1;margin-bottom:0;font-size:10.5mm}
-.invitation-screen-root .c-sub-event{font-weight:700;line-height:1.05;margin-bottom:1mm;font-size:5.5mm}
+.invitation-screen-root .c-title{font-weight:900;line-height:1;margin-bottom:0;font-size:14mm}
+.invitation-screen-root .c-sub-event{font-weight:700;line-height:1.05;margin-bottom:1mm;font-size:9mm}
 .invitation-screen-root .c-course{font-weight:500;line-height:1.08;margin-bottom:1mm;font-size:6mm}
 .invitation-screen-root .c-course .course-main{display:block;font-size:6mm;line-height:1.05;font-weight:500}
 .invitation-screen-root .c-course .course-sub{display:block;font-size:5mm;line-height:1.05;font-weight:500}
