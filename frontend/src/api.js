@@ -2019,6 +2019,20 @@ function normalizeDateFieldForSupabase(value) {
   return normalized || null;
 }
 
+function normalizeBigintFieldForSupabase(value) {
+  if (value === null || value === undefined) return null;
+  const clean = String(value).trim();
+  if (!clean) return null;
+  const parsed = Number(clean);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeTimeFieldForSupabase(value) {
+  const clean = String(value ?? '').trim();
+  if (!clean) return null;
+  return /^\d{2}:\d{2}$/.test(clean) ? clean : null;
+}
+
 /**
  * Given a sanitized payload that may contain date_1..date_35,
  * returns the latest non-empty YYYY-MM-DD value, or null if none found.
@@ -2035,14 +2049,20 @@ function deriveEndDateFromDates(sanitized = {}) {
 function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true } = {}) {
   const sanitized = {};
   const source = payload && typeof payload === 'object' ? payload : {};
+  const bigintFields = new Set(['activity_no', 'sessions', 'price', 'emp_id']);
+  const timeFields = new Set(['start_time', 'end_time']);
   for (const [key, rawValue] of Object.entries(source)) {
     if (!ALLOWED_ACTIVITY_COLUMNS.has(key)) continue;
     if (!includeRowId && key === 'row_id') continue;
     let nextValue = rawValue;
     if (key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key)) {
       nextValue = normalizeDateFieldForSupabase(rawValue);
+    } else if (bigintFields.has(key)) {
+      nextValue = normalizeBigintFieldForSupabase(rawValue);
+    } else if (timeFields.has(key)) {
+      nextValue = normalizeTimeFieldForSupabase(rawValue);
     }
-    sanitized[key] = nextValue === undefined ? '' : nextValue;
+    sanitized[key] = nextValue === undefined ? null : nextValue;
   }
   return sanitized;
 }

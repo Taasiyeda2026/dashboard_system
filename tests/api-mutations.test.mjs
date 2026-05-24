@@ -111,6 +111,16 @@ test('api mutation cache invalidation map includes required keys', async () => {
   assert.match(source, /addActivity:\s*\['activities:',\s*'activityDetail:'/);
 });
 
+test('sanitizeActivityPayloadForSupabase normalizes bigint/time empty values to null', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  assert.match(source, /function normalizeBigintFieldForSupabase\(value\)/);
+  assert.match(source, /function normalizeTimeFieldForSupabase\(value\)/);
+  assert.match(source, /const bigintFields = new Set\(\['activity_no', 'sessions', 'price', 'emp_id'\]\)/);
+  assert.match(source, /const timeFields = new Set\(\['start_time', 'end_time'\]\)/);
+  assert.match(source, /sanitized\[key\] = nextValue === undefined \? null : nextValue;/);
+});
+
 test('read-model rollout excludes finance from normal paths and keeps end-dates', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
