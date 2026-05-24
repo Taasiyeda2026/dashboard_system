@@ -114,13 +114,9 @@ document.getElementById('printBtn').onclick=()=>{
 
 (async function init(){
   try{
-    const res=await fetch('./catalog_programs_tashpaz.json?v=2026-05-23-1',{cache:'no-store'});
-    const data=await res.json();
-    programs=Array.isArray(data.programs)?data.programs:[];
-    renderCatalog();
-    const qp=new URLSearchParams(location.search).get('program');
-    if(qp) openProgram(qp);
-    statusEl.textContent=`נטענו ${programs.length} תוכניות`;
+    console.warn('catalog.html legacy page is disabled: catalog data is now loaded from Supabase via app route only.');
+    statusEl.textContent='דף ישן הושבת. יש לפתוח את הקטלוג מתוך המערכת הראשית (Supabase).';
+    catalogView.innerHTML = '<p class="muted">הקטלוג הועבר למערכת הראשית ומוטען מ-Supabase בלבד.</p>';
   }catch(e){
     console.error(e); statusEl.textContent='שגיאה בטעינת הקטלוג';
   }
