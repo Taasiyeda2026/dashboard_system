@@ -1265,6 +1265,7 @@ export const activitiesScreen = {
       const sessionsValue = get('sessions') || '1';
       const isOneDay = isOneDayActivityTypeValue(get('activity_type'));
       const oneDayDate = String(get('one_day_date') || get('start_date') || get('end_date') || '').trim();
+      let meetingDateValues = [];
       const payload = {
         source: familySource,
         activity_manager: get('activity_manager'),
@@ -1292,6 +1293,7 @@ export const activitiesScreen = {
       if (isOneDay) {
         const selectedDate = String(oneDayDate || payload.start_date || payload.end_date || '').trim();
         if (selectedDate) {
+          meetingDateValues = [selectedDate];
           payload.start_date = selectedDate;
           payload.end_date = selectedDate;
           payload.Date1 = selectedDate;
@@ -1299,13 +1301,13 @@ export const activitiesScreen = {
         }
       } else {
         const dateInputs = Array.from(form.querySelectorAll('input[data-add-session-date]'));
+        meetingDateValues = dateInputs.map((input) => String(input.value || '').trim());
         dateInputs.forEach((input, index) => {
           payload[`Date${index + 1}`] = String(input.value || '').trim();
         });
       }
       if (!payload.end_date) {
-        const dateInputs = isOneDay ? [] : Array.from(form.querySelectorAll('input[data-add-session-date]'));
-        const lastDate = [...dateInputs].map((input) => String(input.value || '').trim()).filter(Boolean).pop();
+        const lastDate = meetingDateValues.filter(Boolean).pop();
         payload.end_date = lastDate || payload.start_date || null;
       }
 
@@ -1351,7 +1353,7 @@ export const activitiesScreen = {
           end_date: payload.end_date,
           status: 'פעיל',
           private_note: '',
-          meeting_dates: dateInputs.map((input) => String(input.value || '').trim()).filter(Boolean)
+          meeting_dates: meetingDateValues.filter(Boolean)
         };
         if (localRow.RowID) activitiesRows.unshift(localRow);
         rerenderLocal();
