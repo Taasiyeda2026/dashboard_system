@@ -1577,6 +1577,20 @@ async function upsertProposalClientContactIfNeeded(payload = {}, options = {}) {
 }
 
 async function readProposalActivityNamesFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('lists')
+      .select('activity_name,label_he,label')
+      .eq('category', 'activity_names')
+      .eq('active', true)
+      .order('sort_order', { ascending: true });
+    if (!error && Array.isArray(data)) {
+      return Array.from(new Set(data.map((row) => cleanProposalAgreementText(row?.activity_name || row?.label_he || row?.label)).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b, 'he'));
+    }
+  } catch {
+    // fallback below
+  }
   const pricingRows = await readProposalActivityPricingFromSupabase();
   return Array.from(new Set(
     pricingRows
@@ -1589,11 +1603,12 @@ async function readProposalActivityPricingFromSupabase() {
   try {
     const { data, error } = await supabase
       .from('proposal_activity_pricing')
-      .select('activity_name,proposal_group,item_type,gefen_number,hours_count,meetings_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order')
+      .select('activity_no,activity_name,proposal_group,item_type,gefen_number,hours_count,meetings_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order')
       .eq('is_active_for_proposals', true)
       .order('sort_order', { ascending: true });
     if (error) return [];
     return (Array.isArray(data) ? data : []).map((row) => ({
+      activity_no: cleanProposalAgreementText(row?.activity_no),
       activity_name: cleanProposalAgreementText(row?.activity_name),
       proposal_group: cleanProposalAgreementText(row?.proposal_group),
       item_type: cleanProposalAgreementText(row?.item_type),
@@ -1669,9 +1684,7 @@ async function readProposalsAgreementsFromSupabase() {
     readProposalTemplateSectionsFromSupabase()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
-  const activityNameOptions = Array.from(new Set((Array.isArray(proposalActivityPricing) ? proposalActivityPricing : [])
-    .map((row) => cleanProposalAgreementText(row?.activity_name))
-    .filter(Boolean))).sort((a, b) => a.localeCompare(b, 'he'));
+  const activityNameOptions = await readProposalActivityNamesFromSupabase();
   return {
     rows: (Array.isArray(paResult.data) ? paResult.data : []).map(normalizeProposalAgreementRow),
     activityNameOptions,

@@ -310,8 +310,11 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = []) {
   const calcTotal = (Number(item.quantity) || 0) && (Number(item.unit_price) || 0)
     ? String(((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)).toFixed(2))
     : n(item.total_price);
-  const selectedPricingName = text(item.pricing_activity_name || item.item_name);
-  const pricingSelectOptions = ['<option value="">— בחירה מהירה —</option>', ...pricingOptions.map((row) => optionHtml(row.activity_name, selectedPricingName))].join('');
+  const selectedPricingKey = text(item.pricing_activity_no || item.pricing_activity_name || item.item_name);
+  const pricingSelectOptions = ['<option value="">— בחירה מהירה —</option>', ...pricingOptions.map((row) => {
+    const value = text(row.activity_no || row.activity_name);
+    return optionHtml(value, selectedPricingKey, row.activity_name);
+  })].join('');
   return `<article class="ds-pa-item-card ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}">
     <label class="ds-pa-item-field ds-pa-item-field--full"><span>בחירה מהירה</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select></label>
     <div class="ds-pa-item-grid">
@@ -979,6 +982,28 @@ export const proposalsAgreementsScreen = {
 
     const setupItemCalc = (container) => { calcGrandTotal(container); };
     const pricingByName = new Map(proposalActivityPricing.map((row) => [text(row.activity_name), row]));
+    const pricingByNo = new Map(proposalActivityPricing.map((row) => [text(row.activity_no), row]).filter(([k]) => k));
+    const pricingFallbackByName = {
+      workshop_space: proposalActivityPricing.find((row) => text(row.activity_name) === 'סדנת חלל') || null,
+      workshop_makers: proposalActivityPricing.find((row) => text(row.activity_name) === 'סדנת מייקרים') || null,
+      escape_room: proposalActivityPricing.find((row) => text(row.activity_name) === 'חדר בריחה דיגיטלי') || null
+    };
+    const workshopSpaceCodes = new Set(['001', '002', '013']);
+
+    const resolvePricingRow = ({ activityNo, activityName, itemType }) => {
+      const no = text(activityNo);
+      const name = text(activityName);
+      const type = text(itemType).toLowerCase();
+      if (no && pricingByNo.has(no)) return pricingByNo.get(no);
+      if (name && pricingByName.has(name)) return pricingByName.get(name);
+      if (type === 'tour') return no ? pricingByNo.get(no) || null : null;
+      if (type === 'escape_room') return pricingFallbackByName.escape_room;
+      if (type === 'workshop') {
+        if (workshopSpaceCodes.has(no)) return pricingFallbackByName.workshop_space || pricingFallbackByName.workshop_makers;
+        return pricingFallbackByName.workshop_makers || pricingFallbackByName.workshop_space;
+      }
+      return null;
+    };
 
     // ── Form open/close ───────────────────────────────────────────────────────
     const openForm = async (mode, row = {}, preloadedItems = []) => {
@@ -1096,7 +1121,13 @@ export const proposalsAgreementsScreen = {
       if (!pricingSelect) return;
       const itemRow = pricingSelect.closest('[data-pa-item-row]');
       const form = pricingSelect.closest('[data-pa-form]');
-      const picked = pricingByName.get(text(pricingSelect.value));
+      const selectedKey = text(pricingSelect.value);
+      const itemTypeInput = itemRow?.querySelector?.('[name="item_type"]');
+      const picked = resolvePricingRow({
+        activityNo: selectedKey,
+        activityName: selectedKey,
+        itemType: itemTypeInput?.value
+      });
       if (!itemRow || !picked) return;
       const setValue = (name, value) => {
         const input = itemRow.querySelector(`[name="${name}"]`);
@@ -1109,6 +1140,7 @@ export const proposalsAgreementsScreen = {
       setValue('meetings_count', picked.meetings_count);
       setValue('unit_price', picked.unit_price);
       setValue('description', picked.description_for_proposal || '');
+      if (picked.activity_no) setValue('pricing_activity_no', picked.activity_no);
       calcItemRow(itemRow);
       if (form) calcGrandTotal(form);
     }, { signal });
