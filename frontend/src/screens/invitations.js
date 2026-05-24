@@ -110,10 +110,10 @@ function ensureStyles() {
 .invitation-screen-root .c-school{font-size:4mm;color:#333;margin:1.5mm 0}
 .invitation-screen-root .c-school strong{font-weight:700}
 .invitation-screen-root .c-divider{width:100%;height:1px;background:rgba(26,58,92,.1);margin:1.5mm 0}
-.invitation-screen-root .c-opening{font-size:3.85mm;color:#333;line-height:1.28;margin:1mm auto;max-width:none;width:82%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
+.invitation-screen-root .c-opening{font-size:3.85mm;color:#333;line-height:1.28;margin:1mm auto;max-width:none;width:82%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.2mm;box-sizing:border-box}
 .invitation-screen-root .c-opening strong{font-weight:700;color:var(--accent-color,#1a8c6e)}
-.invitation-screen-root .c-para{font-size:3.85mm;color:#333;line-height:1.28;margin:.5mm auto;text-align:right;max-width:none;width:82%;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
-.invitation-screen-root .c-section-title{font-size:3.3mm;font-weight:800;color:var(--accent-color,#1a8c6e);line-height:1.15;margin:1.2mm auto .5mm;max-width:none;width:82%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.5mm;box-sizing:border-box}
+.invitation-screen-root .c-para{font-size:3.85mm;color:#333;line-height:1.28;margin:.5mm auto;text-align:right;max-width:none;width:82%;align-self:center;margin-inline:auto;padding-inline:4.2mm;box-sizing:border-box}
+.invitation-screen-root .c-section-title{font-size:3.3mm;font-weight:800;color:var(--accent-color,#1a8c6e);line-height:1.15;margin:1.2mm auto .5mm;max-width:none;width:82%;text-align:right;align-self:center;margin-inline:auto;padding-inline:4.2mm;box-sizing:border-box}
 .invitation-screen-root .c-box{background:rgba(255,255,255,.5);border:1px solid rgba(26,140,110,.22);border-radius:8px;padding:1.6mm 4mm;margin:1.2mm 0;width:100%;text-align:right}
 .invitation-screen-root .c-participants-box{width:80%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;background:rgba(255,255,255,.38);border-color:rgba(26,140,110,.12);padding:1.2mm 3.5mm}
 .invitation-screen-root .c-details-box{width:76%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;display:flex;flex-direction:column;align-items:center;gap:.9mm;background:transparent;border-color:rgba(26,140,110,.18);text-align:center;padding:1.4mm 3.5mm}
@@ -125,24 +125,24 @@ function ensureStyles() {
 .invitation-screen-root .c-part-title{font-size:3.05mm;font-weight:700;margin-bottom:1px;line-height:1.35}
 .invitation-screen-root .c-part-line{font-size:3.05mm;color:#333;line-height:1.35}
 .invitation-screen-root .c-part-line strong{font-weight:700;color:#333}
-.invitation-screen-root .c-closing{font-size:5.7mm;font-weight:900;margin-top:2mm;padding-top:1.4mm;text-align:center;line-height:1.05}
+.invitation-screen-root .c-closing{font-size:5.7mm;font-weight:900;margin-top:2mm;padding-top:1.2mm;text-align:center;line-height:1.05}
 .invitation-screen-root .c-footer{display:flex;align-items:center;justify-content:center;text-align:center;padding:1mm 6mm;background:#fff;border-top:.25mm solid #fff;margin-top:0;margin-bottom:0;backdrop-filter:none;min-height:5mm;position:relative;z-index:4;width:100%}
-.invitation-screen-root .c-footer-sentence{font-size:2.45mm;font-weight:600;line-height:1.25;letter-spacing:.05em;text-shadow:-.3px -.3px 0 rgba(30,38,46,.25),.3px -.3px 0 rgba(30,38,46,.25),-.3px .3px 0 rgba(30,38,46,.25),.3px .3px 0 rgba(30,38,46,.25),0 1px 1.5px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.9mm}
+.invitation-screen-root .c-footer-sentence{font-size:2.45mm;font-weight:600;line-height:1.28;letter-spacing:.02em;text-shadow:none;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:1.1mm}
 .invitation-screen-root #card.fit-a5-relaxed .c-main{padding-top:2.8mm;padding-bottom:3.2mm}
 .invitation-screen-root #card.fit-a5-relaxed .c-opening{margin:1.3mm auto}
 .invitation-screen-root #card.fit-a5-relaxed .c-para{margin:.9mm auto}
 .invitation-screen-root #card.fit-a5-relaxed .c-closing{margin-top:2.3mm}
-.invitation-screen-root #card.fit-a5-compact .c-title{font-size:11.3mm}
-.invitation-screen-root #card.fit-a5-compact .c-sub-event{font-size:5.8mm}
-.invitation-screen-root #card.fit-a5-compact .c-course,.invitation-screen-root #card.fit-a5-compact .c-course .course-main{font-size:6.2mm}
-.invitation-screen-root #card.fit-a5-compact .c-course .course-sub{font-size:5.2mm}
-.invitation-screen-root #card.fit-a5-compact .c-course .course-company{font-size:3.8mm}
-.invitation-screen-root #card.fit-a5-compact .c-opening,.invitation-screen-root #card.fit-a5-compact .c-para{font-size:3.6mm;line-height:1.24}
-.invitation-screen-root #card.fit-a5-compact .c-main{padding:1.6mm 6mm 2mm}
-.invitation-screen-root #card.fit-a5-compact .c-box{padding:1.3mm 3.4mm;margin:1mm 0}
-.invitation-screen-root #card.fit-a5-compact .c-info-row{font-size:4mm;line-height:1.32}
-.invitation-screen-root #card.fit-a5-compact .c-part-title,.invitation-screen-root #card.fit-a5-compact .c-part-line{font-size:2.95mm;line-height:1.28}
-.invitation-screen-root #card.fit-a5-compact .c-closing{font-size:5.3mm;margin-top:1.8mm}
+.invitation-screen-root #card.fit-a5-compact .c-title{font-size:11.9mm}
+.invitation-screen-root #card.fit-a5-compact .c-sub-event{font-size:6mm}
+.invitation-screen-root #card.fit-a5-compact .c-course,.invitation-screen-root #card.fit-a5-compact .c-course .course-main{font-size:6.45mm}
+.invitation-screen-root #card.fit-a5-compact .c-course .course-sub{font-size:5.35mm}
+.invitation-screen-root #card.fit-a5-compact .c-course .course-company{font-size:3.9mm}
+.invitation-screen-root #card.fit-a5-compact .c-opening,.invitation-screen-root #card.fit-a5-compact .c-para{font-size:3.72mm;line-height:1.26}
+.invitation-screen-root #card.fit-a5-compact .c-main{padding:1.9mm 6.2mm 2.2mm}
+.invitation-screen-root #card.fit-a5-compact .c-box{padding:1.4mm 3.6mm;margin:1.1mm 0}
+.invitation-screen-root #card.fit-a5-compact .c-info-row{font-size:4.1mm;line-height:1.34}
+.invitation-screen-root #card.fit-a5-compact .c-part-title,.invitation-screen-root #card.fit-a5-compact .c-part-line{font-size:3mm;line-height:1.3}
+.invitation-screen-root #card.fit-a5-compact .c-closing{font-size:5.45mm;margin-top:2mm}
 .invitation-screen-root #card.fit-a5-tight .c-title{font-size:8.8mm}
 .invitation-screen-root #card.fit-a5-tight .c-sub-event{font-size:4.6mm}
 .invitation-screen-root #card.fit-a5-tight .c-course,.invitation-screen-root #card.fit-a5-tight .c-course .course-main{font-size:5mm}
@@ -155,7 +155,7 @@ function ensureStyles() {
 .invitation-screen-root #card.fit-a5-tight .c-closing{font-size:4.2mm;padding-top:.5mm}
 .invitation-screen-root #card.fit-a5-tight .c-logos{padding:5mm 8mm .5mm}
 .invitation-screen-root #card.fit-a5-tight .c-logo-item{width:28mm;height:11mm}
-.invitation-screen-root .c-footer-sentence span{text-shadow:inherit}
+.invitation-screen-root .c-footer-sentence span{-webkit-text-stroke:.25px rgba(30,38,46,.35);text-shadow:none}
 @media (max-width:1200px){.invitation-screen-root .app{grid-template-columns:300px minmax(0,1fr)}}
 `;
   document.head.appendChild(style);
@@ -710,11 +710,9 @@ export const invitationsScreen = {
           <div class="c-footer">
             <div class="c-footer-sentence">
               <span style="color:#1e262e">תעשיידע – </span>
-              <span class="bright-word" style="color:#fdf58c">מובילים </span>
-              <span class="bright-word" style="color:#73e4ff">דור אחד קדימה, </span>
+              <span style="color:#4cb7e8">מובילים דור אחד קדימה, </span>
               <span style="color:#fb1881">בחדשנות, </span>
-              <span style="color:#4ddfc2">סקרנות </span>
-              <span class="bright-word" style="color:#fcaf3e">ויזמות טכנולוגית</span>
+              <span style="color:#f7a233">סקרנות ויזמות טכנולוגית</span>
             </div>
           </div>`;
       }
@@ -842,10 +840,11 @@ export const invitationsScreen = {
 
       card.classList.remove('fit-a5-relaxed', 'fit-a5-compact', 'fit-a5-tight');
 
-      const OVERFLOW_EPSILON_PX = 12;
-      const TIGHT_OVERFLOW_EPSILON_PX = 10;
-      const UNDERFLOW_EPSILON_PX = 36;
-      const RELAXED_UNDERFLOW_PX = 42;
+      const OVERFLOW_EPSILON_PX = 20;
+      const COMPACT_TRIGGER_PX = 28;
+      const TIGHT_TRIGGER_PX = 56;
+      const UNDERFLOW_EPSILON_PX = 44;
+      const RELAXED_UNDERFLOW_PX = 52;
       const overflowAmount = () => cwrap.scrollHeight - card.clientHeight;
 
       return new Promise((resolve) => {
@@ -854,6 +853,11 @@ export const invitationsScreen = {
             const baseOverflow = overflowAmount();
             if (baseOverflow <= OVERFLOW_EPSILON_PX) {
               if (baseOverflow < -RELAXED_UNDERFLOW_PX) card.classList.add('fit-a5-relaxed');
+              resolve();
+              return;
+            }
+
+            if (baseOverflow <= COMPACT_TRIGGER_PX) {
               resolve();
               return;
             }
@@ -870,7 +874,7 @@ export const invitationsScreen = {
                 return;
               }
 
-              if (compactOverflow <= TIGHT_OVERFLOW_EPSILON_PX) {
+              if (compactOverflow <= TIGHT_TRIGGER_PX) {
                 resolve();
                 return;
               }
@@ -943,10 +947,11 @@ function fitInvitationToA5(card){
   var cwrap=card.querySelector('.cwrap');
   if(!cwrap) return Promise.resolve();
   card.classList.remove('fit-a5-relaxed','fit-a5-compact','fit-a5-tight');
-  var OVERFLOW_EPSILON_PX=12;
-  var TIGHT_OVERFLOW_EPSILON_PX=10;
-  var UNDERFLOW_EPSILON_PX=36;
-  var RELAXED_UNDERFLOW_PX=42;
+  var OVERFLOW_EPSILON_PX=20;
+  var COMPACT_TRIGGER_PX=28;
+  var TIGHT_TRIGGER_PX=56;
+  var UNDERFLOW_EPSILON_PX=44;
+  var RELAXED_UNDERFLOW_PX=52;
   function overflowAmount(){return cwrap.scrollHeight-card.clientHeight}
   return new Promise(function(resolve){
     requestAnimationFrame(function(){
@@ -956,6 +961,7 @@ function fitInvitationToA5(card){
           if(baseOverflow<-RELAXED_UNDERFLOW_PX){card.classList.add('fit-a5-relaxed');}
           resolve();return;
         }
+        if(baseOverflow<=COMPACT_TRIGGER_PX){resolve();return;}
         card.classList.add('fit-a5-compact');
         requestAnimationFrame(function(){
           var compactOverflow=overflowAmount();
@@ -963,7 +969,7 @@ function fitInvitationToA5(card){
             if(compactOverflow<-UNDERFLOW_EPSILON_PX){card.classList.remove('fit-a5-compact');}
             resolve();return;
           }
-          if(compactOverflow<=TIGHT_OVERFLOW_EPSILON_PX){resolve();return;}
+          if(compactOverflow<=TIGHT_TRIGGER_PX){resolve();return;}
           card.classList.add('fit-a5-tight');
           requestAnimationFrame(function(){
             var tightOverflow=overflowAmount();
