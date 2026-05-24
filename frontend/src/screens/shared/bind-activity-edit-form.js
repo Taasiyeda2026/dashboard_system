@@ -358,6 +358,27 @@ export function bindActivityEditForm(contentRoot, {
         void saveActivityForm(form);
         return;
       }
+      if (ev.target.closest('[data-action="delete-activity"]')) {
+        ev.preventDefault();
+        const rowId = String(form.getAttribute('data-row-id') || '').trim();
+        if (!rowId) return;
+        const ok = window.confirm('מחיקת פעילות מיועדת רק לפעילות שנוצרה בטעות או בכפילות. הפעילות תוסר מהמסכים הפעילים. להמשיך?');
+        if (!ok) return;
+        api.deleteActivity(rowId)
+          .then(async () => {
+            showToast('הפעילות הוסרה מהמסכים הפעילים', 'success', 2400);
+            clearScreenDataCache?.();
+            if (typeof onSaveSuccess === 'function') {
+              await onSaveSuccess({ sourceSheet: form.getAttribute('data-source-sheet') || '', sourceRowId: rowId, changes: { status: 'נמחק' }, form, contentRoot });
+            } else if (typeof rerender === 'function') {
+              rerender();
+            }
+          })
+          .catch((err) => {
+            showToast(translateApiErrorForUser(err?.message || 'delete_activity_failed'), 'error', 3000);
+          });
+        return;
+      }
 
       const chainBtn = ev.target.closest('[data-date-mode]');
       if (chainBtn) {
