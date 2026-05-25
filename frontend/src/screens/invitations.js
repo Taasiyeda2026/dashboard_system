@@ -126,8 +126,8 @@ function ensureStyles() {
 .invitation-screen-root .c-part-line{font-size:2.9mm;color:#333;line-height:1.3}
 .invitation-screen-root .c-part-line strong{font-weight:700;color:#333}
 .invitation-screen-root .c-closing{font-size:5.2mm;font-weight:900;margin-top:1.4mm;padding-top:.6mm;text-align:center;line-height:1.05}
-.invitation-screen-root .c-footer{position:absolute;bottom:1.2mm;left:0;right:0;z-index:5;background:transparent;border:none;padding:0 6mm;min-height:0;pointer-events:none}
-.invitation-screen-root .c-footer-sentence{font-size:2.1mm;line-height:1.15;font-weight:600;letter-spacing:0;text-shadow:none;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:1.2mm}
+.invitation-screen-root .c-footer{position:absolute;bottom:1.2mm;left:50%;transform:translateX(-50%);z-index:5;width:auto;max-width:88%;background:#fff;border:.35mm solid rgba(26,58,92,.18);border-radius:6mm;padding:.9mm 4mm;min-height:0;pointer-events:none;box-shadow:0 .6mm 2mm rgba(0,0,0,.06)}
+.invitation-screen-root .c-footer-sentence{font-size:2.1mm;line-height:1.15;font-weight:600;letter-spacing:0;text-shadow:none;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:1.2mm;white-space:normal}
 .invitation-screen-root #card.fit-a5-compact .c-title{font-size:9.5mm}
 .invitation-screen-root #card.fit-a5-compact .c-sub-event{font-size:5mm}
 .invitation-screen-root #card.fit-a5-compact .c-course,.invitation-screen-root #card.fit-a5-compact .c-course .course-main{font-size:5.4mm}
