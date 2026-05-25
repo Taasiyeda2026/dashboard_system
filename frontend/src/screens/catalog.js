@@ -18,6 +18,10 @@ function ensureCatalogStyles() {
 .catalog-group{background:linear-gradient(180deg,#ffffff,#f8fbff);border:1px solid #dbe6f1;border-radius:18px;padding:14px;min-width:0}
 .catalog-group-title{margin:0 0 12px;font-size:18px;line-height:1.2;font-weight:900;color:#0f172a;text-align:center}
 .catalog-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}
+.catalog-subgroup-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}
+.catalog-subgroup-card{position:relative;border:1px solid #cbd5e1;background:#f8fafc;border-radius:12px;padding:12px 10px;cursor:pointer;text-align:center;font-size:15px;font-weight:800;color:#0f172a;transition:.18s ease box-shadow,.18s ease transform,.18s ease border-color}
+.catalog-subgroup-card:hover{transform:translateY(-1px);box-shadow:0 6px 14px rgba(15,23,42,.08);border-color:#94a3b8}
+.catalog-subgroup-card.is-active{background:#dbeafe;border-color:#2563eb;color:#1e3a8a}
 .catalog-card{position:relative;border:1px solid #dbe6f1;background:#fff;border-radius:14px;padding:13px 10px;min-height:68px;cursor:pointer;transition:.18s ease box-shadow,.18s ease transform,.18s ease border-color;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center}
 .catalog-card::before{content:'';position:absolute;inset:0 0 auto 0;height:5px;background:#c7d2fe}
 .catalog-card:hover{transform:translateY(-2px);border-color:#94a3b8;box-shadow:0 8px 18px rgba(15,23,42,.10)}
@@ -179,6 +183,28 @@ function isStandaloneActivity(program) {
   return program.productType === 'סדנה' || program.productType === 'סיור' || program.productType === 'חוג';
 }
 
+function isAfterSchoolProgram(program) {
+  const haystack = [program.productType, program.name, program.coreIdea, program.shortDescription]
+    .map((v) => String(v || '').toLowerCase())
+    .join(' ');
+  return haystack.includes('after_school') || haystack.includes('אפטרסקול') || haystack.includes('חוג');
+}
+
+function isEscapeRoomProgram(program) {
+  const haystack = [program.name, program.coreIdea, program.shortDescription]
+    .map((v) => String(v || '').toLowerCase())
+    .join(' ');
+  return haystack.includes('חדר בריחה') || haystack.includes('escape room') || haystack.includes('escape_room');
+}
+
+function isTamirWorkshop(program) {
+  if (program.productType !== 'סדנה') return false;
+  const haystack = [program.name, program.coreIdea, program.shortDescription]
+    .map((v) => String(v || '').toLowerCase())
+    .join(' ');
+  return haystack.includes('תמיר');
+}
+
 function renderCatalogCard(program) {
   return `<article class="catalog-card ${toneClassForProgram(program, 'catalog-card')}" data-audience-level="${escapeHtml(program.audienceLevel)}" data-page-template="${escapeHtml(program.pageTemplate)}" data-catalog-open="${escapeHtml(program.id)}">
     <h3>${escapeHtml(program.name)}</h3>
@@ -206,6 +232,7 @@ export const catalogScreen = {
       audience: 'הכול',
       type: 'הכול',
       groupMode: '',
+      standaloneCategory: 'escape',
       loadError: payload?.error ? 'לא ניתן לטעון את נתוני הקטלוג. בדקו חיבור והרשאות.' : ''
     };
   },
@@ -221,9 +248,19 @@ export const catalogScreen = {
     const middlePrograms = filtered.filter((p) => p.audienceLevel === 'חטיבה' && p.productType === 'תוכנית');
     const workshopAndTours = filtered.filter((p) => isStandaloneActivity(p));
 
+    const standaloneByCategory = {
+      escape: workshopAndTours.filter((p) => isEscapeRoomProgram(p)),
+      makers: workshopAndTours.filter((p) => p.productType === 'סדנה' && !isEscapeRoomProgram(p) && !isTamirWorkshop(p)),
+      tours: workshopAndTours.filter((p) => p.productType === 'סיור'),
+      classes: workshopAndTours.filter((p) => p.productType === 'חוג' || isAfterSchoolProgram(p))
+    };
+    const standaloneLabels = { escape: 'חדרי בריחה', makers: 'מייקרים', tours: 'סיורים', classes: 'חוגים' };
+    const selectedStandaloneCategory = standaloneByCategory[data.standaloneCategory] ? data.standaloneCategory : 'escape';
+
     if (!selected && data.groupMode === 'standalone') {
+      const selectedStandalonePrograms = standaloneByCategory[selectedStandaloneCategory] || [];
       return `<section class="catalog-screen">
-        <header class="catalog-header"><h2>סדנאות, סיורים וחוגים</h2><p class="ds-muted">כל הסדנאות, הסיורים והחוגים במקום אחד</p></header>
+        <header class="catalog-header"><h2>סיורים, סדנאות</h2><p class="ds-muted">בחירה ממוקדת לפי 4 קבוצות פעילות</p></header>
         <div class="catalog-toolbar">
           <label class="catalog-filter">שכבת גיל <select data-catalog-filter="audience">${AUDIENCE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === audience ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
           <label class="catalog-filter">סוג פעילות <select data-catalog-filter="type">${TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === type ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
@@ -233,8 +270,14 @@ export const catalogScreen = {
           <button class="catalog-btn" data-catalog-back>חזרה לקטלוג</button>
         </div>
         <section class="catalog-group">
+          <div class="catalog-subgroup-grid">
+            ${Object.entries(standaloneLabels).map(([key, label]) => `<button class="catalog-subgroup-card ${selectedStandaloneCategory === key ? 'is-active' : ''}" data-catalog-subgroup="${escapeHtml(key)}">${escapeHtml(label)}</button>`).join('')}
+          </div>
+        </section>
+        <section class="catalog-group">
+          <h3 class="catalog-group-title">${escapeHtml(standaloneLabels[selectedStandaloneCategory])}</h3>
           <div class="catalog-group-grid">
-            ${workshopAndTours.length ? workshopAndTours.map(renderCatalogCard).join('') : '<p class="catalog-empty">אין פריטים להצגה</p>'}
+            ${selectedStandalonePrograms.length ? selectedStandalonePrograms.map(renderCatalogCard).join('') : '<p class="catalog-empty">אין פריטים להצגה</p>'}
           </div>
         </section>
       </section>`;
@@ -304,6 +347,15 @@ export const catalogScreen = {
       }
       if (ev.target.closest('[data-catalog-group-open="standalone"]')) {
         data.groupMode = 'standalone';
+        data.standaloneCategory = 'escape';
+        data.selectedId = '';
+        rerender();
+        return;
+      }
+      const subgroupButton = ev.target.closest('[data-catalog-subgroup]');
+      if (subgroupButton) {
+        data.groupMode = 'standalone';
+        data.standaloneCategory = subgroupButton.dataset.catalogSubgroup || 'escape';
         data.selectedId = '';
         rerender();
         return;
