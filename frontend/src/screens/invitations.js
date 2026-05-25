@@ -115,7 +115,7 @@ function ensureStyles() {
 .invitation-screen-root .c-para{font-size:3.95mm;color:#333;line-height:1.35;margin:.5mm auto;text-align:right;max-width:none;width:70%;align-self:center;margin-inline:auto;padding-inline:5mm;box-sizing:border-box}
 .invitation-screen-root .c-section-title{font-size:3.95mm;font-weight:800;color:var(--accent-color,#1a8c6e);line-height:1.35;margin:1mm auto .4mm;max-width:none;width:70%;text-align:right;align-self:center;margin-inline:auto;padding-inline:5mm;box-sizing:border-box}
 .invitation-screen-root .c-box{background:rgba(255,255,255,.5);border:1px solid rgba(26,140,110,.22);border-radius:8px;padding:1.3mm 3.5mm;margin:1mm 0;width:100%;text-align:right}
-.invitation-screen-root .c-participants-box{width:70%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;background:rgba(255,255,255,.38);border-color:rgba(26,140,110,.12);padding:1.2mm 5.15mm}
+.invitation-screen-root .c-participants-box{width:60%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;background:rgba(255,255,255,.38);border-color:rgba(26,140,110,.12);padding:1.2mm 5.15mm}
 .invitation-screen-root .c-details-box{width:60%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;display:flex;flex-direction:column;align-items:center;gap:.7mm;background:transparent;border-color:rgba(26,140,110,.18);text-align:center;padding:1.2mm 3mm}
 .invitation-screen-root .c-details-top{display:flex;align-items:center;justify-content:center;gap:4mm;width:100%;flex-wrap:wrap}
 .invitation-screen-root .c-details-location{justify-content:center;text-align:center;width:100%;font-size:4.4mm;line-height:1.5}
@@ -758,7 +758,7 @@ export const invitationsScreen = {
       let opening = '';
 
       if (type === 'end') {
-        opening = `<div class="c-opening">אנו שמחים להזמינכם למפגש הסיום של קורס <strong>${esc(getCourseOpeningText(course))}</strong>, שהתקיים בבית הספר במסגרת התוכניות החינוכיות של עמותת תעשיידע.</div>`;
+        opening = `<div class="c-opening">אנו שמחים להזמינכם למפגש הסיום של קורס <strong>${esc(getCourseOpeningText(course))}</strong>, שהתקיים בבית הספר במסגרת התוכניות החינוכיות של תעשיידע.</div>`;
       } else if (type === 'lecture') {
         const lecturer = $('lec-name')?.value || '';
         const topic = $('lec-topic')?.value || '';
