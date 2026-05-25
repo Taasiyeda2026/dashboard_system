@@ -894,6 +894,17 @@ export const activitiesScreen = {
       return true;
     };
     const patchLocalRowFromSave = ({ sourceRowId, changes }) => {
+      const normalizedStatus = String(changes?.status || '').trim();
+      if (normalizedStatus === 'נמחק') {
+        const rowId = String(sourceRowId || '');
+        const removeByRowId = (arr) => {
+          const idx = arr.findIndex((row) => String(row?.RowID || '') === rowId);
+          if (idx >= 0) arr.splice(idx, 1);
+        };
+        removeByRowId(activitiesRows);
+        removeByRowId(filteredRows);
+        return;
+      }
       if (!upsertLocalRow(sourceRowId, changes || {})) return;
       const summaryHit = filteredRows.find((row) => String(row?.RowID || '') === String(sourceRowId || ''));
       if (summaryHit) Object.assign(summaryHit, changes || {});

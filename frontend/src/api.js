@@ -1318,6 +1318,7 @@ function invalidateScreenDataByAction(action) {
   const targetedMutations = {
     saveActivity: ['activities:', 'activityDetail:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     addActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
+    deleteActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'archive', 'end-dates', 'exceptions:'],
     submitEditRequest: ['activities:', 'edit-requests', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'end-dates'],
     reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:'],
     addUser: ['permissions', 'dashboard:'],
