@@ -2329,6 +2329,63 @@ async function readSettingsRowsFromSupabase() {
   }));
 }
 
+
+
+async function readCatalogProgramsFromSupabase() {
+  if (!supabase) throw new Error('no_supabase_client');
+  const [listsRes, detailsRes, pricingRes] = await Promise.all([
+    supabase
+      .from('lists')
+      .select('activity_no,activity_name,label_he,label,type,activity_type,audience_level,target_grades,gefen_number,sort_order,category,active')
+      .eq('category', 'activity_names')
+      .eq('active', true)
+      .order('sort_order', { ascending: true }),
+    supabase
+      .from('catalog_program_details')
+      .select('activity_no,catalog_title,catalog_subtitle,audience_level,target_grades,domain,scope,session_duration,gefen_number,opening_line,core_idea,program_flow,student_develops,school_value,final_outcome,syllabus,page_template,is_active_for_catalog')
+      .eq('is_active_for_catalog', true),
+    supabase
+      .from('proposal_activity_pricing')
+      .select('activity_no,activity_name,item_type,meetings_count,hours_count,unit_price,hourly_price')
+  ]);
+
+  const logReadError = (source, table, error) => {
+    if (!error) return;
+    console.error('[catalog-load-error]', {
+      source,
+      table,
+      operation: 'select',
+      message: String(error?.message || error || 'unknown_error')
+    });
+  };
+
+  logReadError('catalog', 'lists', listsRes?.error);
+  logReadError('catalog', 'catalog_program_details', detailsRes?.error);
+  logReadError('catalog', 'proposal_activity_pricing', pricingRes?.error);
+
+  if (listsRes?.error) {
+    return {
+      programs: [],
+      error: 'לא ניתן לטעון את נתוני הקטלוג. בדקו חיבור והרשאות.'
+    };
+  }
+
+  const listRows = Array.isArray(listsRes?.data) ? listsRes.data : [];
+  const detailRows = Array.isArray(detailsRes?.data) ? detailsRes.data : [];
+  const pricingRows = Array.isArray(pricingRes?.data) ? pricingRes.data : [];
+  const detailsByNo = new Map(detailRows.map((row) => [String(row?.activity_no || '').trim(), row]));
+  const pricingByNo = new Map(pricingRows.map((row) => [String(row?.activity_no || '').trim(), row]));
+
+  const programs = listRows.map((row) => {
+    const key = String(row?.activity_no || '').trim();
+    return { ...row, ...(pricingByNo.get(key) || {}), ...(detailsByNo.get(key) || {}) };
+  });
+
+  return {
+    programs,
+    error: (detailsRes?.error || pricingRes?.error) ? 'לא ניתן לטעון את נתוני הקטלוג. בדקו חיבור והרשאות.' : ''
+  };
+}
 export const api = {
   login: async (user_id, entry_code) => {
     const [user, listsData, settingsRows] = await Promise.all([
@@ -2451,6 +2508,7 @@ export const api = {
     return buildSupabaseErrorPayload({ instructor_rows: [], school_rows: [], can_view_instructors: true, can_view_schools: true }, 'contacts_supabase_failed');
   },
   endDates: () => readEndDatesFromSupabase(),
+  getCatalogPrograms: () => readCatalogProgramsFromSupabase(),
   myData: async () => {
     const allRows = await readAllActivitiesRowsSupabase();
     const idsSet = getInstructorIdentitySet();
