@@ -4,8 +4,17 @@ import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from '
 export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const SEARCH_DEBOUNCE_MS = 280;
 
-const DOCUMENT_TYPE_OPTIONS = ['הצעת מחיר', 'הסכם'];
-const ACTIVITY_TYPE_GROUP_OPTIONS = ['הצעה משולבת', 'פעילויות קיץ', 'שנה הבאה'];
+const ACTIVITY_TYPE_GROUP_OPTIONS = ['קיץ תשפ״ו', 'תוכניות תשפ״ז', 'קיץ תשפ״ו + תשפ״ז'];
+const LEGACY_GROUP_MAP = {
+  'פעילויות קיץ': 'קיץ תשפ״ו',
+  'שנה הבאה':    'תוכניות תשפ״ז',
+  'הצעה משולבת': 'קיץ תשפ״ו + תשפ״ז'
+};
+const PROPOSAL_GROUP_FOR_TYPE = {
+  'קיץ תשפ״ו':          ['summer', 'קיץ', 'קיץ תשפ״ו', 'פעילויות קיץ'],
+  'תוכניות תשפ״ז':       ['next_year', 'תשפ״ז', 'שנה הבאה', 'תוכניות תשפ״ז'],
+  'קיץ תשפ״ו + תשפ״ז':  null
+};
 const ITEM_TYPE_OPTIONS = ['סדנה', 'קורס', 'הדרכה', 'פעילות', 'ייעוץ', 'ליווי'];
 const PUBLIC_BASE = import.meta.env?.BASE_URL || './';
 
@@ -21,8 +30,7 @@ export const STATUS_LABELS = {
 const FIELD_LABELS = {
   client_authority:    'לקוח / רשות',
   school_framework:    'בית ספר / מסגרת',
-  document_type:       'סוג מסמך',
-  activity_type_group: 'סוג פעילות',
+  activity_type_group: 'סוג הצעה',
   proposal_date:       'תאריך הצעה',
   activity_names:      'שם הפעילויות',
   contact_name:        'איש קשר',
@@ -34,7 +42,8 @@ const FIELD_LABELS = {
   approval_note:       'הערת אישור'
 };
 
-const REQUIRED_FIELDS = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'];
+const REQUIRED_FIELDS_DRAFT = ['client_authority', 'school_framework', 'activity_type_group'];
+const REQUIRED_FIELDS_PENDING = ['client_authority', 'school_framework', 'activity_type_group', 'proposal_date'];
 const FORM_FIELDS = [
   'client_authority', 'school_framework', 'document_type', 'activity_type_group',
   'proposal_date', 'activity_names', 'contact_name', 'contact_role', 'phone', 'email', 'notes'
@@ -71,12 +80,13 @@ function normalizeActivityNames(value) {
 }
 
 export function normalizeProposalAgreementRow(row = {}) {
+  const rawGroup = text(row.activity_type_group);
   const normalized = {
     id:                  text(row.id),
     client_authority:    text(row.client_authority),
     school_framework:    text(row.school_framework),
-    document_type:       text(row.document_type),
-    activity_type_group: text(row.activity_type_group),
+    document_type:       text(row.document_type) || 'הצעת מחיר',
+    activity_type_group: LEGACY_GROUP_MAP[rawGroup] || rawGroup,
     proposal_date:       text(row.proposal_date),
     activity_names:      normalizeActivityNames(row.activity_names),
     contact_name:        text(row.contact_name),
@@ -114,7 +124,6 @@ function sortRows(rows) {
   return [...(Array.isArray(rows) ? rows : [])].sort((a, b) => (
     text(a.client_authority).localeCompare(text(b.client_authority), 'he') ||
     text(a.school_framework).localeCompare(text(b.school_framework), 'he') ||
-    text(a.document_type).localeCompare(text(b.document_type), 'he') ||
     text(a.activity_type_group).localeCompare(text(b.activity_type_group), 'he')
   ));
 }
@@ -122,7 +131,6 @@ function sortRows(rows) {
 function rowMatches(row, filters) {
   const q = normalizeSearch(filters.q);
   if (q && !normalizeSearch(row._searchText).includes(q)) return false;
-  if (filters.document_type && text(row.document_type) !== filters.document_type) return false;
   if (filters.activity_type_group && text(row.activity_type_group) !== filters.activity_type_group) return false;
   if (filters.status && text(row.status) !== filters.status) return false;
   return true;
@@ -166,7 +174,7 @@ function statusBadgeHtml(status) {
 
 function detailRowsHtml(row) {
   return FORM_FIELDS.map((key) => {
-    if (['contact_name', 'contact_role', 'phone', 'email'].includes(key)) return '';
+    if (['contact_name', 'contact_role', 'phone', 'email', 'document_type'].includes(key)) return '';
     let displayValue;
     if (key === 'activity_names') {
       const items = (Array.isArray(row[key]) ? row[key] : []).map(text).filter(Boolean);
@@ -203,24 +211,23 @@ function contactDetailRowsHtml(row = {}) {
 
 export function proposalsAgreementsTableRowsHtml(rows) {
   if (!rows.length) {
-    return `<tr class="ds-pa-empty-row"><td colspan="7">אין רשומות להצגה</td></tr>`;
+    return `<tr class="ds-pa-empty-row"><td colspan="6">אין רשומות להצגה</td></tr>`;
   }
   return rows.map((row) => `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td>${escapeHtml(row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
-      <td>${escapeHtml(row.document_type || '—')}</td>
       <td>${escapeHtml(row.activity_type_group || '—')}</td>
       <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td>${statusBadgeHtml(row.status)}</td>
-      <td>${escapeHtml(row.notes || '')}</td>
+      <td>${row.total_amount != null ? `₪${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
     </tr>`).join('');
 }
 
 function tableHtml(rows) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <thead><tr><th>לקוח / רשות</th><th>בית ספר / מסגרת</th><th>סוג מסמך</th><th>סוג פעילות</th><th>תאריך הצעה</th><th>סטטוס</th><th>הערות</th></tr></thead>
+      <thead><tr><th>לקוח / רשות</th><th>בית ספר / מסגרת</th><th>סוג הצעה</th><th>תאריך הצעה</th><th>סטטוס</th><th>סה״כ</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows)}</tbody>
     </table>
   `);
@@ -332,6 +339,8 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = []) {
       <label class="ds-pa-item-field"><span>סה״כ שורה</span><input class="ds-input ds-input--sm" name="total_price" value="${calcTotal}" readonly data-pa-item-total></label>
     </div>
     <label class="ds-pa-item-field ds-pa-item-field--full"><span>תיאור / הערות</span><input class="ds-input ds-input--sm" name="description" value="${escapeHtml(item.description || '')}" placeholder="תיאור"></label>
+    <input type="hidden" name="unit_duration" value="${escapeHtml(item.unit_duration || '')}">
+    <input type="hidden" name="proposal_group" value="${escapeHtml(item.proposal_group || '')}">
     <div class="ds-pa-item-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-item aria-label="הסר שורה">הסר שורה</button></div>
   </article>`;
 }
@@ -360,7 +369,9 @@ function extractItemsFromForm(form) {
     quantity:       parseFloat(row.querySelector('[name="quantity"]')?.value) || 1,
     unit_price:     parseFloat(row.querySelector('[name="unit_price"]')?.value) || null,
     total_price:    parseFloat(row.querySelector('[data-pa-item-total]')?.value) || null,
-    description:    text(row.querySelector('[name="description"]')?.value)
+    description:    text(row.querySelector('[name="description"]')?.value),
+    unit_duration:  text(row.querySelector('[name="unit_duration"]')?.value),
+    proposal_group: text(row.querySelector('[name="proposal_group"]')?.value)
   })).filter((item) => item.item_name);
 }
 
@@ -397,9 +408,12 @@ function itemsSummaryHtml(items = []) {
 // ─── Preview document ─────────────────────────────────────────────────────────
 
 const TEMPLATE_KEY_BY_GROUP = {
-  'פעילויות קיץ': 'summer',
-  'שנה הבאה': 'next_year',
-  'הצעה משולבת': 'combined'
+  'קיץ תשפ״ו':          'summer',
+  'תוכניות תשפ״ז':       'next_year',
+  'קיץ תשפ״ו + תשפ״ז':  'combined',
+  'פעילויות קיץ':       'summer',
+  'שנה הבאה':           'next_year',
+  'הצעה משולבת':        'combined'
 };
 
 function templateBodyText(section) {
@@ -409,9 +423,9 @@ function templateBodyText(section) {
 }
 
 function proposalTitle(row) {
-  const activityTypeGroup = text(row.activity_type_group);
-  if (activityTypeGroup === 'פעילויות קיץ') return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו';
-  if (activityTypeGroup === 'שנה הבאה') return 'הצעת מחיר לתוכניות תעשיידע | תשפ״ז';
+  const grp = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
+  if (grp === 'קיץ תשפ״ו')         return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו';
+  if (grp === 'תוכניות תשפ״ז')      return 'הצעת מחיר לתוכניות תעשיידע | תשפ״ז';
   return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו + תשפ״ז';
 }
 
@@ -534,7 +548,10 @@ const STRUCTURED_SECTION_DEFAULTS = {
 };
 
 function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
-  const activityTypeGroup = text(row.activity_type_group);
+  const activityTypeGroup = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
+  const templateKey = TEMPLATE_KEY_BY_GROUP[activityTypeGroup] || 'combined';
+  const isSummerOnly = templateKey === 'summer';
+  const isNextYearOrCombined = templateKey === 'next_year' || templateKey === 'combined';
   const dateDisplay = formatDateDisplay(row.proposal_date) || formatDateDisplay(new Date().toISOString().slice(0, 10));
   const sectionsSource = resolveDocumentSections(row, templateSections);
   const byKey = new Map((Array.isArray(sectionsSource) ? sectionsSource : []).map((s) => [text(s.section_key), s]));
@@ -543,9 +560,13 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
 
   const introText = sectionBody('intro', '');
   const orgResponsibility = sectionBody('taasiyeda_responsibility', STRUCTURED_SECTION_DEFAULTS.taasiyeda_responsibility);
-  const schoolResponsibility = sectionBody('school_responsibility', STRUCTURED_SECTION_DEFAULTS.school_responsibility);
+  const schoolResponsibility = isSummerOnly
+    ? sectionBody('school_responsibility', '')
+    : sectionBody('school_responsibility', STRUCTURED_SECTION_DEFAULTS.school_responsibility);
   const paymentTerms = sectionBody('payment_terms', STRUCTURED_SECTION_DEFAULTS.payment_terms);
-  const changesCancellation = sectionBody('cancellation_terms', STRUCTURED_SECTION_DEFAULTS.cancellation_terms);
+  const changesCancellation = isNextYearOrCombined
+    ? sectionBody('cancellation_terms', STRUCTURED_SECTION_DEFAULTS.cancellation_terms)
+    : sectionBody('cancellation_terms', '');
   const remarks = sectionBody('notes', '');
   const activityIntro = sectionBody('activity_intro', '');
   const summerActivityIntro = sectionBody('summer_activity_intro', '');
@@ -555,11 +576,11 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const itemsByGroup = Array.isArray(items) ? items.reduce((acc, item) => {
     const itemType = text(item.item_type);
     const unitDuration = text(item.unit_duration);
-    const explicitGroup = text(item.activity_type_group);
+    const explicitGroup = LEGACY_GROUP_MAP[text(item.proposal_group || item.activity_type_group)] || text(item.proposal_group || item.activity_type_group);
     let group = explicitGroup || activityTypeGroup;
-    if (activityTypeGroup === 'הצעה משולבת' && !explicitGroup) {
-      if (unitDuration === '45 דקות' || /סדנה|חדר בריחה/.test(itemType)) group = 'פעילויות קיץ';
-      else group = 'שנה הבאה';
+    if (activityTypeGroup === 'קיץ תשפ״ו + תשפ״ז' && !explicitGroup) {
+      if (unitDuration === '45 דקות' || /סדנה|חדר בריחה/.test(itemType)) group = 'קיץ תשפ״ו';
+      else group = 'תוכניות תשפ״ז';
     }
     if (!acc[group]) acc[group] = [];
     acc[group].push(item);
@@ -567,9 +588,9 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   }, {}) : {};
 
   const sections = [];
-  if (activityTypeGroup === 'הצעה משולבת') {
-    const summerBlock = `${summerActivityIntro ? sectionBodyHtml(summerActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['פעילויות קיץ'] || [])}`;
-    const nextYearBlock = `${nextYearActivityIntro ? sectionBodyHtml(nextYearActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['שנה הבאה'] || [])}`;
+  if (activityTypeGroup === 'קיץ תשפ״ו + תשפ״ז') {
+    const summerBlock = `${summerActivityIntro ? sectionBodyHtml(summerActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['קיץ תשפ״ו'] || [])}`;
+    const nextYearBlock = `${nextYearActivityIntro ? sectionBodyHtml(nextYearActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['תוכניות תשפ״ז'] || [])}`;
     if (summerBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText('הפעילות המוצעת – קיץ תשפ״ו'))}</h3>${summerBlock}</section>`);
     if (nextYearBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText('הפעילות המוצעת – שנת הלימודים תשפ״ז'))}</h3>${nextYearBlock}</section>`);
   } else {
@@ -624,8 +645,19 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 
+function filterPricingByProposalType(pricingOptions, activityTypeGroup) {
+  const groupFilters = PROPOSAL_GROUP_FOR_TYPE[activityTypeGroup];
+  if (!groupFilters) return pricingOptions;
+  return pricingOptions.filter((row) => {
+    if (!row.proposal_group) return true;
+    return groupFilters.some((g) => row.proposal_group === g || row.proposal_group.includes(g));
+  });
+}
+
 function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = []) {
-  const title = mode === 'edit' ? 'עריכת הצעה / הסכם' : 'יצירת הצעת מחיר / הסכם';
+  const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
+  const normalizedActivityGroup = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
+  const filteredPricing = filterPricingByProposalType(pricingOptions, normalizedActivityGroup);
   const rowActivity = Array.isArray(row.activity_names) ? row.activity_names : [];
   const currentStatus = STATUS_OPTIONS.includes(text(row.status)) ? text(row.status) : 'draft';
   const initAuth = text(row.client_authority);
@@ -647,11 +679,11 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <div data-pa-contact-picker-host>${initPickerHtml}</div>
     </div>
 
+    <input type="hidden" name="document_type" value="הצעת מחיר">
     <div class="ds-pa-form-grid">
       ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
       ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, true)}
-      ${selectField('document_type', FIELD_LABELS.document_type, DOCUMENT_TYPE_OPTIONS, text(row.document_type), true)}
-      ${selectField('activity_type_group', FIELD_LABELS.activity_type_group, ACTIVITY_TYPE_GROUP_OPTIONS, text(row.activity_type_group), true)}
+      ${selectField('activity_type_group', FIELD_LABELS.activity_type_group, ACTIVITY_TYPE_GROUP_OPTIONS, normalizedActivityGroup, true)}
       <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(text(row.proposal_date))}"></label>
       ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
       ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
@@ -663,7 +695,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
 
     <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm" name="notes" rows="2">${escapeHtml(text(row.notes))}</textarea></label>
 
-    ${itemsEditorHtml(items, pricingOptions)}
+    ${itemsEditorHtml(items, filteredPricing)}
 
     <input type="hidden" name="status" data-pa-status-input value="${escapeHtml(currentStatus)}">
     <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
@@ -700,7 +732,7 @@ function drawerActionButtons(row, state) {
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}">החזרה לתיקון</button>`);
     }
     if (status === 'approved') {
-      buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-print="${escapeHtml(row.id)}">הורדת PDF</button>`);
+      buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-print="${escapeHtml(row.id)}">הדפסה / שמירה כ-PDF</button>`);
     }
     if (!['cancelled', 'approved'].includes(status)) {
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}">ביטול</button>`);
@@ -761,7 +793,6 @@ function displayRows(data, filters = {}) {
 function currentFilters(root) {
   return {
     q:                   root.querySelector('[data-pa-search]')?.value || '',
-    document_type:       root.querySelector('[data-pa-filter="document_type"]')?.value || '',
     activity_type_group: root.querySelector('[data-pa-filter="activity_type_group"]')?.value || '',
     status:              root.querySelector('[data-pa-filter="status"]')?.value || ''
   };
@@ -795,16 +826,32 @@ function payloadFromForm(form) {
     payload[key] = text(formData.get(key));
   });
   payload.status = text(formData.get('status')) || 'draft';
+  payload.document_type = 'הצעת מחיר';
   const items = extractItemsFromForm(form);
   const itemNames = Array.from(new Set(items.map((i) => text(i.item_name)).filter(Boolean)));
   if (itemNames.length) payload.activity_names = itemNames;
   payload.total_amount = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 0) * (Number(i.unit_price) || 0))), 0) || null;
+  payload._items = items;
   return payload;
 }
 
-function validatePayload(payload) {
-  const missing = REQUIRED_FIELDS.filter((key) => !text(payload[key]));
-  return missing.length ? `חובה למלא: ${missing.map((key) => FIELD_LABELS[key]).join(', ')}` : '';
+function validatePayload(payload, statusOverride) {
+  const targetStatus = statusOverride || payload.status || 'draft';
+  const requiredFields = targetStatus === 'pending_approval'
+    ? REQUIRED_FIELDS_PENDING
+    : REQUIRED_FIELDS_DRAFT;
+  const missing = requiredFields.filter((key) => !text(payload[key]));
+  const errors = missing.map((key) => FIELD_LABELS[key] || key);
+
+  if (targetStatus === 'pending_approval') {
+    const items = Array.isArray(payload._items) ? payload._items : [];
+    if (!items.length) errors.push('לפחות שורת הצעה אחת');
+    const invalidItem = items.find((i) => !text(i.item_name));
+    if (invalidItem) errors.push('שם פעילות בכל שורה');
+    if (!payload.total_amount) errors.push('סה״כ כללי');
+  }
+
+  return errors.length ? `חובה למלא: ${errors.join(', ')}` : '';
 }
 
 function replaceLocalRow(data, savedRow) {
@@ -825,19 +872,18 @@ export const proposalsAgreementsScreen = {
   },
   render(data = {}, { state } = {}) {
     if (data?.unauthorized || !canAccessProposalsAgreements(state)) {
-      return dsScreenStack(`${dsPageHeader('הצעות', 'גישה מוגבלת למורשים בלבד')}${dsEmptyState('אין לך הרשאה לצפות במסך זה')}`);
+      return dsScreenStack(`${dsPageHeader('הצעות מחיר', 'גישה מוגבלת למורשים בלבד')}${dsEmptyState('אין לך הרשאה לצפות במסך זה')}`);
     }
     const rows = displayRows(data, {});
     const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
     return dsScreenStack(`
-      ${dsPageHeader('הצעות')}
+      ${dsPageHeader('הצעות מחיר')}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <div class="ds-pa-toolbar">
           <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
-          ${filterSelectHtml('document_type', 'סוג מסמך', uniqueValues(rawRows, 'document_type'))}
-          ${filterSelectHtml('activity_type_group', 'סוג פעילות', uniqueValues(rawRows, 'activity_type_group'))}
+          ${filterSelectHtml('activity_type_group', 'סוג הצעה', ACTIVITY_TYPE_GROUP_OPTIONS)}
           ${statusFilterHtml()}
-          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-add>הוספה</button>
+          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-add>+ הצעה חדשה</button>
         </div>
         <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> רשומות</div>
         <div data-pa-form-host hidden></div>
@@ -1068,7 +1114,7 @@ export const proposalsAgreementsScreen = {
       const payload = payloadFromForm(form);
       payload.is_new_client = form.dataset.paNewClient === 'yes';
       if (statusOverride) payload.status = statusOverride;
-      const validationError = validatePayload(payload);
+      const validationError = validatePayload(payload, statusOverride);
       if (validationError) {
         if (errorEl) errorEl.textContent = validationError;
         form.dataset.saving = '';
@@ -1140,6 +1186,8 @@ export const proposalsAgreementsScreen = {
       setValue('meetings_count', picked.meetings_count);
       setValue('unit_price', picked.unit_price);
       setValue('description', picked.description_for_proposal || '');
+      setValue('unit_duration', picked.unit_duration || '');
+      setValue('proposal_group', picked.proposal_group || '');
       if (picked.activity_no) setValue('pricing_activity_no', picked.activity_no);
       calcItemRow(itemRow);
       if (form) calcGrandTotal(form);
@@ -1403,7 +1451,7 @@ export const proposalsAgreementsScreen = {
         const id = text(deleteBtn.dataset.paDeleteRow);
         const row = data.rows.find((item) => text(item.id) === id);
         if (!row) return;
-        if (!window.confirm('למחוק את ההצעה/ההסכם?')) return;
+        if (!window.confirm('למחוק את הצעת המחיר?')) return;
         deleteBtn.disabled = true;
         try {
           await api.deleteProposalAgreement(id);
