@@ -1535,7 +1535,7 @@ function sanitizeProposalAgreementPayload(payload = {}) {
   const row = {
     client_authority:    cleanProposalAgreementText(payload.client_authority),
     school_framework:    cleanProposalAgreementText(payload.school_framework),
-    document_type:       cleanProposalAgreementText(payload.document_type),
+    document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
     activity_type_group: cleanProposalAgreementText(payload.activity_type_group),
     proposal_date:       cleanProposalAgreementText(payload.proposal_date) || null,
     activity_names:      activity_names,
@@ -1615,7 +1615,7 @@ async function readProposalActivityPricingFromSupabase() {
       gefen_number: cleanProposalAgreementText(row?.gefen_number),
       hours_count: row?.hours_count != null ? Number(row.hours_count) || null : null,
       meetings_count: row?.meetings_count != null ? Number(row.meetings_count) || null : null,
-      unit_duration: row?.unit_duration != null ? Number(row.unit_duration) || null : null,
+      unit_duration: cleanProposalAgreementText(row?.unit_duration),
       unit_price: row?.unit_price != null ? Number(row.unit_price) || null : null,
       hourly_price: row?.hourly_price != null ? Number(row.hourly_price) || null : null,
       description_for_proposal: cleanProposalAgreementText(row?.description_for_proposal),
