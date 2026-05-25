@@ -1980,7 +1980,23 @@ function sanitizeActivityPayload(act = {}) {
   delete row.source_table;
   delete row.RowID;
   if (!row.row_id) row.row_id = String(act.row_id || act.RowID || `ACT-${crypto.randomUUID?.() || Date.now()}`).trim();
-  row.activity_family = String(row.activity_family || (String(act.source || '').trim() === 'short' ? 'one_day' : 'program')).trim();
+  const normalizeActivityTypeKey = (value) => String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/^חדרי_בריחה$/, 'חדר_בריחה');
+  const oneDayTypeKeys = new Set([
+    'workshop', 'workshops', 'סדנה', 'סדנאות',
+    'tour', 'tours', 'סיור', 'סיורים',
+    'escape_room', 'escaperoom', 'חדר_בריחה'
+  ]);
+  const normalizedFamily = String(row.activity_family || '').trim();
+  if (normalizedFamily === 'one_day' || normalizedFamily === 'program') {
+    row.activity_family = normalizedFamily;
+  } else {
+    const normalizedType = normalizeActivityTypeKey(row.activity_type || act.activity_type || '');
+    if (oneDayTypeKeys.has(normalizedType)) {
+      row.activity_family = 'one_day';
+    } else {
+      row.activity_family = String(act.source || '').trim() === 'short' ? 'one_day' : 'program';
+    }
+  }
   row.status = String(row.status || 'פעיל');
   for (let i = 1; i <= 35; i++) {
     const lower = `date_${i}`;

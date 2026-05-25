@@ -194,10 +194,24 @@ test('activities screen wires add-activity form submit to api.addActivity flow',
   assert.match(source, /statusEl\) statusEl\.textContent = `שגיאה בשמירה:/);
   assert.match(source, /const allTypes = getActivityTypes\(settings\);/);
   assert.doesNotMatch(source, /data-add-family=/);
-  assert.match(source, /const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set\(\['workshop', 'tour', 'escape_room'\]\);/);
+  assert.match(source, /const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set\(\[/);
+  assert.match(source, /'workshop'/);
+  assert.match(source, /'workshops'/);
+  assert.match(source, /'סדנה'/);
+  assert.match(source, /'סדנאות'/);
+  assert.match(source, /'tour'/);
+  assert.match(source, /'tours'/);
+  assert.match(source, /'סיור'/);
+  assert.match(source, /'סיורים'/);
+  assert.match(source, /'escape_room'/);
+  assert.match(source, /'escaperoom'/);
+  assert.match(source, /'חדר_בריחה'/);
+  assert.match(source, /חדרי_בריחה/);
   assert.match(source, /sessionsInput\.disabled = isOneDay/);
   assert.match(source, /sessionsField\.style\.display = isOneDay \? 'none' : ''/);
   assert.match(source, /activity_family: isOneDay \? 'one_day' : 'program'/);
+  assert.match(source, /payload\.Date1 = selectedDate/);
+  assert.match(source, /payload\.date_1 = selectedDate/);
   assert.doesNotMatch(source, /for \(let i = 2; i <= 35; i\+\+\) payload\[`Date/);
 });
 
