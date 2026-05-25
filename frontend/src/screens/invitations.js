@@ -126,8 +126,8 @@ function ensureStyles() {
 .invitation-screen-root .c-part-line{font-size:2.9mm;color:#333;line-height:1.3}
 .invitation-screen-root .c-part-line strong{font-weight:700;color:#333}
 .invitation-screen-root .c-closing{font-size:5.2mm;font-weight:900;margin-top:1.4mm;padding-top:.6mm;text-align:center;line-height:1.05}
-.invitation-screen-root .c-footer{display:flex;align-items:center;justify-content:center;text-align:center;padding:.8mm 6mm;background:#fff;border-top:.25mm solid #fff;margin-top:0;margin-bottom:0;backdrop-filter:none;min-height:4.5mm;position:relative;z-index:4;width:100%}
-.invitation-screen-root .c-footer-sentence{font-size:2.65mm;font-weight:600;line-height:1.1;letter-spacing:.035em;text-shadow:-.3px -.3px 0 rgba(30,38,46,.25),.3px -.3px 0 rgba(30,38,46,.25),-.3px .3px 0 rgba(30,38,46,.25),.3px .3px 0 rgba(30,38,46,.25),0 1px 1.5px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.35mm}
+.invitation-screen-root .c-footer{position:absolute;bottom:1.2mm;left:0;right:0;z-index:5;background:transparent;border:none;padding:0 6mm;min-height:0;pointer-events:none}
+.invitation-screen-root .c-footer-sentence{font-size:2.1mm;line-height:1.15;font-weight:600;letter-spacing:0;text-shadow:none;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:1.2mm}
 .invitation-screen-root #card.fit-a5-compact .c-title{font-size:9.5mm}
 .invitation-screen-root #card.fit-a5-compact .c-sub-event{font-size:5mm}
 .invitation-screen-root #card.fit-a5-compact .c-course,.invitation-screen-root #card.fit-a5-compact .c-course .course-main{font-size:5.4mm}
@@ -151,7 +151,7 @@ function ensureStyles() {
 .invitation-screen-root #card.fit-a5-tight .c-closing{font-size:4.2mm;padding-top:.5mm}
 .invitation-screen-root #card.fit-a5-tight .c-logos{padding:5mm 8mm .5mm}
 .invitation-screen-root #card.fit-a5-tight .c-logo-item{width:28mm;height:11mm}
-.invitation-screen-root .c-footer-sentence span{text-shadow:inherit}
+
 @media (max-width:1200px){.invitation-screen-root .app{grid-template-columns:300px minmax(0,1fr)}}
 `;
   document.head.appendChild(style);
@@ -802,7 +802,8 @@ export const invitationsScreen = {
           ${b2 ? `<div class="c-section-title">מה מצפה לנו:</div><div class="c-para">${esc(b2)}</div>` : ''}
           <div class="c-box c-participants-box">${participantsHTML}</div>
           <div class="c-closing" style="color:${c3}">${esc(closing)}</div>
-        </div>`;
+        </div>
+        ${logosBarHTML(true)}`;
     }
 
     function up() {
