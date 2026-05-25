@@ -229,12 +229,24 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
-const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set(['workshop', 'tour', 'escape_room']);
+const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set([
+  'workshop',
+  'workshops',
+  'סדנה',
+  'סדנאות',
+  'tour',
+  'tours',
+  'סיור',
+  'סיורים',
+  'escape_room',
+  'escaperoom',
+  'חדר_בריחה'
+]);
 
 function normalizeActivityTypeKey(value) {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return '';
-  return raw.replace(/[\s-]+/g, '_');
+  return raw.replace(/[\s-]+/g, '_').replace(/^חדרי_בריחה$/, 'חדר_בריחה');
 }
 
 function isOneDayActivityTypeValue(value) {
@@ -1268,6 +1280,7 @@ export const activitiesScreen = {
       let meetingDateValues = [];
       const payload = {
         source: familySource,
+        activity_family: isOneDay ? 'one_day' : 'program',
         activity_manager: get('activity_manager'),
         authority: authorityValue,
         school: schoolValue,
