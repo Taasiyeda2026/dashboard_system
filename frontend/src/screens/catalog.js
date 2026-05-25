@@ -1,4 +1,4 @@
-import { supabase } from '../supabase-client.js';
+import { api } from '../api.js';
 import { escapeHtml } from './shared/html.js';
 const AUDIENCE_OPTIONS = ['הכול', 'יסודי', 'חטיבה'];
 const TYPE_OPTIONS = ['הכול', 'תוכנית', 'סדנה', 'סיור', 'חוג'];
@@ -196,35 +196,18 @@ function renderCatalogGroup(title, programs) {
 
 export const catalogScreen = {
   load: async () => {
-    if (!supabase) throw new Error('חיבור Supabase אינו זמין');
-    const [listsRes, detailsRes, pricingRes] = await Promise.all([
-      supabase
-        .from('lists')
-        .select('activity_no,activity_name,label_he,label,type,activity_type,audience_level,target_grades,gefen_number,sort_order')
-        .eq('category', 'activity_names')
-        .eq('active', true)
-        .order('sort_order', { ascending: true }),
-      supabase
-        .from('catalog_program_details')
-        .select('activity_no,catalog_title,catalog_subtitle,audience_level,target_grades,domain,scope,session_duration,gefen_number,opening_line,core_idea,program_flow,student_develops,school_value,final_outcome,syllabus,page_template')
-        .eq('is_active_for_catalog', true),
-      supabase
-        .from('proposal_activity_pricing')
-        .select('activity_no,activity_name,item_type,meetings_count,hours_count,unit_price,hourly_price')
-    ]);
-    if (listsRes.error) throw new Error('טעינת הקטלוג נכשלה');
-    const listRows = Array.isArray(listsRes.data) ? listsRes.data : [];
-    const detailRows = Array.isArray(detailsRes.data) ? detailsRes.data : [];
-    const pricingRows = Array.isArray(pricingRes.data) ? pricingRes.data : [];
-    const detailsByNo = new Map(detailRows.map((r) => [String(r.activity_no || '').trim(), r]));
-    const pricingByNo = new Map(pricingRows.map((r) => [String(r.activity_no || '').trim(), r]));
-    const programs = listRows.map((row) => {
-      const key = String(row.activity_no || '').trim();
-      const details = detailsByNo.get(key) || {};
-      const pricing = pricingByNo.get(key) || {};
-      return normalizeProgram({ ...row, ...pricing, ...details });
-    });
-    return { programs, selectedId: '', audience: 'הכול', type: 'הכול', groupMode: '' };
+    const payload = await api.getCatalogPrograms();
+    const programs = Array.isArray(payload?.programs)
+      ? payload.programs.map((row, idx) => normalizeProgram(row, idx))
+      : [];
+    return {
+      programs,
+      selectedId: '',
+      audience: 'הכול',
+      type: 'הכול',
+      groupMode: '',
+      loadError: payload?.error ? 'לא ניתן לטעון את נתוני הקטלוג. בדקו חיבור והרשאות.' : ''
+    };
   },
 
   render: (data) => {
@@ -245,6 +228,7 @@ export const catalogScreen = {
           <label class="catalog-filter">שכבת גיל <select data-catalog-filter="audience">${AUDIENCE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === audience ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
           <label class="catalog-filter">סוג פעילות <select data-catalog-filter="type">${TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === type ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
         </div>
+        ${data.loadError ? `<p class="catalog-empty">${escapeHtml(data.loadError)}</p>` : ''}
         <div class="catalog-detail-actions">
           <button class="catalog-btn" data-catalog-back>חזרה לקטלוג</button>
         </div>
@@ -263,6 +247,7 @@ export const catalogScreen = {
           <label class="catalog-filter">שכבת גיל <select data-catalog-filter="audience">${AUDIENCE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === audience ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
           <label class="catalog-filter">סוג פעילות <select data-catalog-filter="type">${TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === type ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
         </div>
+        ${data.loadError ? `<p class="catalog-empty">${escapeHtml(data.loadError)}</p>` : ''}
         <div class="catalog-groups">
           ${renderCatalogGroup('יסודי', elementaryPrograms)}
           ${renderCatalogGroup('חטיבה', middlePrograms)}
