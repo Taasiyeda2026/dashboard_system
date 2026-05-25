@@ -54,12 +54,12 @@ function ensureStyles() {
   style.id = 'invitation-generator-styles';
   style.textContent = `
 .invitation-screen-root *{box-sizing:border-box;margin:0;padding:0}
-.invitation-screen-root{font-family:'Heebo',sans-serif;direction:rtl;font-size:13px;background:#f0f2f4;color:#1a1a2e;height:100%;overflow:hidden}
+.invitation-screen-root{font-family:'Assistant',sans-serif;direction:rtl;font-size:13px;background:#f0f2f4;color:#1a1a2e;height:100%;overflow:hidden}
 .invitation-screen-root .app{display:grid;grid-template-columns:300px minmax(0,1fr);height:100dvh;overflow:hidden}
 .invitation-screen-root .panel{background:#f7f8fa;border-left:1px solid #e0e3e8;overflow-y:scroll;max-height:100dvh;min-height:0;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .invitation-screen-root .field-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .invitation-screen-root .field-row.trio{grid-template-columns:1fr 1fr 1fr}
-.invitation-screen-root select,.invitation-screen-root input[type=text],.invitation-screen-root input[type=date],.invitation-screen-root input[type=time],.invitation-screen-root textarea{width:100%;font-family:'Heebo',sans-serif;font-size:12px;direction:rtl;color:#1a1a2e;border:1px solid #d0d4dc;border-radius:5px;padding:4px 7px;background:#fff;outline:none}
+.invitation-screen-root select,.invitation-screen-root input[type=text],.invitation-screen-root input[type=date],.invitation-screen-root input[type=time],.invitation-screen-root textarea{width:100%;font-family:'Assistant',sans-serif;font-size:12px;direction:rtl;color:#1a1a2e;border:1px solid #d0d4dc;border-radius:5px;padding:4px 7px;background:#fff;outline:none}
 .invitation-screen-root select:focus,.invitation-screen-root input:focus,.invitation-screen-root textarea:focus{border-color:#1a8c6e}
 .invitation-screen-root textarea{resize:none;height:48px;font-size:11px}
 .invitation-screen-root .lbl{font-size:10px;color:#888;margin-bottom:2px;display:block}
@@ -80,53 +80,55 @@ function ensureStyles() {
 .invitation-screen-root .drag-handle{cursor:grab;color:#999;font-size:13px;line-height:1.7;text-align:center;user-select:none}
 .invitation-screen-root .del-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:13px;line-height:1;padding:2px 0}
 .invitation-screen-root .action-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.invitation-screen-root .btn-print{width:100%;padding:6px;border-radius:7px;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;background:#1a8c6e;color:#fff;border:none}
+.invitation-screen-root .btn-print{width:100%;padding:6px;border-radius:7px;font-family:'Assistant',sans-serif;font-size:12px;font-weight:700;cursor:pointer;background:#1a8c6e;color:#fff;border:none}
 .invitation-screen-root .btn-print:hover{background:#157a5e}
-.invitation-screen-root .btn-clr{width:100%;padding:6px;border-radius:7px;font-family:'Heebo',sans-serif;font-size:12px;cursor:pointer;background:none;border:1px solid #d0d4dc;color:#666;margin-top:4px}
+.invitation-screen-root .btn-clr{width:100%;padding:6px;border-radius:7px;font-family:'Assistant',sans-serif;font-size:12px;cursor:pointer;background:none;border:1px solid #d0d4dc;color:#666;margin-top:4px}
 .invitation-screen-root .btn-clr:hover{background:#eee}
 .invitation-screen-root .action-row .btn-clr{margin-top:0}
-.invitation-screen-root .suggest-btn{width:100%;margin-top:4px;padding:4px 6px;border-radius:6px;border:1px dashed #c4ccd6;background:#fff;color:#59616d;font-family:'Heebo',sans-serif;font-size:10.5px;cursor:pointer;text-align:center}
+.invitation-screen-root .suggest-btn{width:100%;margin-top:4px;padding:4px 6px;border-radius:6px;border:1px dashed #c4ccd6;background:#fff;color:#59616d;font-family:'Assistant',sans-serif;font-size:10.5px;cursor:pointer;text-align:center}
 .invitation-screen-root .suggest-btn:hover{background:#eef6f3;border-color:#1a8c6e;color:#1a8c6e}
 .invitation-screen-root .sep{height:1px;background:#e4e7ec}
 .invitation-screen-root .preview{background:#d8dfe6;display:flex;flex-direction:column;align-items:center;padding:10px 8px;height:100dvh;min-height:0;overflow:auto}
 .invitation-screen-root .preview-lbl{font-size:9px;color:#999;letter-spacing:.5px;margin-bottom:6px}
 .invitation-screen-root .preview #card{zoom:.50}
-.invitation-screen-root #card{width:148mm;min-height:210mm;position:relative;overflow:hidden;box-shadow:0 4px 28px rgba(0,0,0,.22);direction:rtl;font-family:'Heebo',sans-serif;display:flex;flex-direction:column}
+.invitation-screen-root #card{width:148mm;min-height:210mm;position:relative;overflow:hidden;box-shadow:0 4px 28px rgba(0,0,0,.22);direction:rtl;font-family:'Assistant',sans-serif;display:flex;flex-direction:column}
 .invitation-screen-root .cbg{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center}
 .invitation-screen-root .cframe{position:absolute;inset:5mm;border-radius:10px;border:1.5px solid rgba(255,255,255,.55);pointer-events:none;z-index:3}
 .invitation-screen-root .cwrap{position:relative;z-index:2;flex:1;display:flex;flex-direction:column}
-.invitation-screen-root .c-logos{display:flex;align-items:center;justify-content:center;gap:1mm;padding:7mm 10mm 1mm;background:rgba(255,255,255,.42);border-bottom:1px solid rgba(255,255,255,.45)}
+.invitation-screen-root .c-logos{display:flex;align-items:center;justify-content:center;gap:1mm;padding:7mm 10mm 1mm;background:transparent;border-bottom:none}
 .invitation-screen-root .c-logo-item{width:32mm;height:14mm;display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:800;color:#1a3a5c;line-height:1.2}
 .invitation-screen-root .c-logo-sep{width:1px;height:26px;background:rgba(26,58,92,.2);flex-shrink:0}
 .invitation-screen-root .c-logo-item img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 .invitation-screen-root .c-main{padding:1.5mm 6mm 2mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
 .invitation-screen-root .c-title{font-weight:900;line-height:1;margin-bottom:0;font-size:14mm}
 .invitation-screen-root .c-sub-event{font-weight:700;line-height:1.05;margin-bottom:1mm;font-size:9mm}
-.invitation-screen-root .c-course{font-weight:500;line-height:1.08;margin-bottom:1mm;font-size:6mm}
-.invitation-screen-root .c-course .course-main{display:block;font-size:6mm;line-height:1.05;font-weight:500}
-.invitation-screen-root .c-course .course-sub{display:block;font-size:5mm;line-height:1.05;font-weight:500}
+.invitation-screen-root .c-course{font-weight:500;line-height:1.08;margin-bottom:1mm;font-size:7mm}
+.invitation-screen-root .c-course .course-main{display:block;font-size:7mm;line-height:1.05;font-weight:500}
+.invitation-screen-root .c-course .course-sub{display:block;font-size:6mm;line-height:1.05;font-weight:500}
 .invitation-screen-root .c-course .course-company{display:block;font-size:3.8mm;line-height:1.1;font-weight:500;margin-top:.8mm}
 .invitation-screen-root .c-year{font-size:4.8mm;font-weight:700;margin-bottom:2mm}
 .invitation-screen-root .c-school{font-size:4mm;color:#333;margin:1.5mm 0}
 .invitation-screen-root .c-school strong{font-weight:700}
 .invitation-screen-root .c-divider{width:100%;height:1px;background:rgba(26,58,92,.1);margin:1.5mm 0}
-.invitation-screen-root .c-opening{font-size:3.95mm;color:#333;line-height:1.35;margin:1mm auto;max-width:none;width:84%;text-align:right;align-self:center;margin-inline:auto;padding-inline:5mm;box-sizing:border-box}
+.invitation-screen-root .c-opening{font-size:3.95mm;color:#333;line-height:1.35;margin:1mm auto;max-width:none;width:70%;text-align:right;align-self:center;margin-inline:auto;padding-inline:5mm;box-sizing:border-box}
 .invitation-screen-root .c-opening strong{font-weight:700;color:var(--accent-color,#1a8c6e)}
-.invitation-screen-root .c-para{font-size:3.95mm;color:#333;line-height:1.35;margin:.5mm auto;text-align:right;max-width:none;width:84%;align-self:center;margin-inline:auto;padding-inline:5mm;box-sizing:border-box}
-.invitation-screen-root .c-section-title{font-size:3.95mm;font-weight:800;color:var(--accent-color,#1a8c6e);line-height:1.35;margin:1mm auto .4mm;max-width:none;width:80%;text-align:right;align-self:center;margin-inline:auto;padding-inline:5mm;box-sizing:border-box}
+.invitation-screen-root .c-para{font-size:3.95mm;color:#333;line-height:1.35;margin:.5mm auto;text-align:right;max-width:none;width:70%;align-self:center;margin-inline:auto;padding-inline:5mm;box-sizing:border-box}
+.invitation-screen-root .c-section-title{font-size:3.95mm;font-weight:800;color:var(--accent-color,#1a8c6e);line-height:1.35;margin:1mm auto .4mm;max-width:none;width:70%;text-align:right;align-self:center;margin-inline:auto;padding-inline:5mm;box-sizing:border-box}
 .invitation-screen-root .c-box{background:rgba(255,255,255,.5);border:1px solid rgba(26,140,110,.22);border-radius:8px;padding:1.3mm 3.5mm;margin:1mm 0;width:100%;text-align:right}
 .invitation-screen-root .c-participants-box{width:70%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;background:rgba(255,255,255,.38);border-color:rgba(26,140,110,.12);padding:1.2mm 5.15mm}
-.invitation-screen-root .c-details-box{width:78%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;display:flex;flex-direction:column;align-items:center;gap:.7mm;background:transparent;border-color:rgba(26,140,110,.18);text-align:center;padding:1.2mm 3mm}
+.invitation-screen-root .c-details-box{width:60%;max-width:none;margin-left:auto;margin-right:auto;align-self:center;display:flex;flex-direction:column;align-items:center;gap:.7mm;background:transparent;border-color:rgba(26,140,110,.18);text-align:center;padding:1.2mm 3mm}
 .invitation-screen-root .c-details-top{display:flex;align-items:center;justify-content:center;gap:4mm;width:100%;flex-wrap:wrap}
 .invitation-screen-root .c-details-location{justify-content:center;text-align:center;width:100%;font-size:4.4mm;line-height:1.5}
 .invitation-screen-root .c-details-box .c-info-row{justify-content:center;text-align:center}
 .invitation-screen-root .c-info-row{display:flex;align-items:center;gap:4px;font-size:4mm;color:#333;line-height:1.35}
 .invitation-screen-root .c-info-row strong{font-weight:700}
-.invitation-screen-root .c-part-title{font-size:2.9mm;font-weight:700;margin-bottom:1px;line-height:1.3}
-.invitation-screen-root .c-part-line{font-size:2.9mm;color:#333;line-height:1.3}
-.invitation-screen-root .c-part-line strong{font-weight:700;color:#333}
+.invitation-screen-root .c-part-title{font-size:2.9mm;font-weight:700;margin-bottom:1px;line-height:1.35}
+.invitation-screen-root .c-part-line{font-size:2.9mm;color:#333;line-height:1.35;margin-bottom:.45mm}
+.invitation-screen-root .c-part-line:last-child{margin-bottom:0}
+.invitation-screen-root .c-part-line strong{font-size:2.9mm;font-weight:700;color:#333}
+.invitation-screen-root .c-part-line span{font-size:2.9mm;font-weight:400}
 .invitation-screen-root .c-closing{font-size:5.2mm;font-weight:900;margin-top:1.4mm;padding-top:.6mm;text-align:center;line-height:1.05}
-.invitation-screen-root .c-footer{position:absolute;bottom:1.2mm;left:50%;transform:translateX(-50%);z-index:5;width:auto;max-width:88%;background:#fff;border:.35mm solid rgba(26,58,92,.18);border-radius:6mm;padding:.9mm 4mm;min-height:0;pointer-events:none;box-shadow:0 .6mm 2mm rgba(0,0,0,.06)}
+.invitation-screen-root .c-footer{position:absolute;bottom:5.2mm;left:50%;transform:translateX(-50%);z-index:5;width:auto;max-width:88%;background:#fff;border:.35mm solid rgba(26,58,92,.18);border-radius:6mm;padding:.9mm 4mm;min-height:0;pointer-events:none;box-shadow:0 .6mm 2mm rgba(0,0,0,.06)}
 .invitation-screen-root .c-footer-sentence{font-size:2.1mm;line-height:1.15;font-weight:600;letter-spacing:0;text-shadow:none;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:1.2mm;white-space:normal}
 .invitation-screen-root #card.fit-a5-compact .c-title{font-size:9.5mm}
 .invitation-screen-root #card.fit-a5-compact .c-sub-event{font-size:5mm}
@@ -872,11 +874,11 @@ export const invitationsScreen = {
       const baseStyle = document.getElementById('invitation-generator-styles')?.textContent || '';
 
       return `${baseStyle.replace('.invitation-screen-root .preview #card{zoom:.50}', '')}
-body{font-family:'Heebo',sans-serif;background:#ccc;display:flex;flex-direction:column;align-items:center;padding:20px;direction:rtl}
+body{font-family:'Assistant',sans-serif;background:#ccc;display:flex;flex-direction:column;align-items:center;padding:20px;direction:rtl}
 @page{size:A5 portrait;margin:0}
 @media print{html,body{width:148mm;height:210mm;margin:0;padding:0;overflow:hidden}body{background:none;display:flex;align-items:flex-start;justify-content:center}.np{display:none}#card{width:148mm;height:210mm;min-height:210mm;max-height:210mm;overflow:hidden;box-shadow:none!important;position:relative;margin:0 auto;transform:none}}
 .np{margin-bottom:14px}
-.np button{background:#1a8c6e;color:#fff;border:none;padding:9px 22px;border-radius:7px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;cursor:pointer}
+.np button{background:#1a8c6e;color:#fff;border:none;padding:9px 22px;border-radius:7px;font-family:'Assistant',sans-serif;font-size:14px;font-weight:700;cursor:pointer}
 .cbg{${bgStyle}}`;
     }
 
@@ -894,7 +896,7 @@ body{font-family:'Heebo',sans-serif;background:#ccc;display:flex;flex-direction:
 <head>
 <meta charset="UTF-8">
 <title>${esc(pdfName)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>${getPrintCSS(BG_URLS[selBg])}</style>
 </head>
 <body>
