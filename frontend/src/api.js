@@ -2376,9 +2376,47 @@ async function readCatalogProgramsFromSupabase() {
   const detailsByNo = new Map(detailRows.map((row) => [String(row?.activity_no || '').trim(), row]));
   const pricingByNo = new Map(pricingRows.map((row) => [String(row?.activity_no || '').trim(), row]));
 
+  const toCatalogSyllabus = (value) => {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === 'object') return [value];
+    if (typeof value !== 'string') return [];
+    const raw = value.trim();
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === 'object') return [parsed];
+      return [];
+    } catch {
+      return raw
+        .split(/\r?\n|;/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  };
+
   const programs = listRows.map((row) => {
     const key = String(row?.activity_no || '').trim();
-    return { ...row, ...(pricingByNo.get(key) || {}), ...(detailsByNo.get(key) || {}) };
+    const pricing = pricingByNo.get(key) || {};
+    const details = detailsByNo.get(key) || {};
+    return {
+      ...row,
+      ...pricing,
+      ...details,
+      // Normalize detail fields to the naming contract expected by catalog screen.
+      catalog_title: details.catalog_title || row.activity_name || row.label_he || row.label || '',
+      audience_level: details.audience_level || row.audience_level || '',
+      target_grades: details.target_grades || row.target_grades || '',
+      meetings_count: pricing.meetings_count,
+      unit_duration: details.session_duration || '',
+      catalog_short_description: details.opening_line || '',
+      catalog_core_idea: details.core_idea || '',
+      catalog_goals: details.program_flow || '',
+      catalog_school_value: details.school_value || '',
+      catalog_syllabus: toCatalogSyllabus(details.syllabus),
+      catalog_closing_box: details.final_outcome || '',
+      catalog_page_template: details.page_template || ''
+    };
   });
 
   return {
