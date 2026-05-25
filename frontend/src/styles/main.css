@@ -10561,6 +10561,28 @@ select.ds-input {
   font-size: 0.72rem; color: var(--ds-color-text-muted, #64748b); font-weight: 600;
 }
 
+/* Combined items sections */
+.ds-pa-items-combined { display: flex; flex-direction: column; gap: 10px; }
+.ds-pa-items-section--group {
+  border: 1px solid var(--ds-color-border-subtle, #e2e8f0);
+  border-radius: 6px; padding: 8px 10px;
+}
+.ds-pa-items-section-label {
+  font-size: 0.78rem; color: var(--ds-color-text-muted, #64748b); font-weight: 700;
+}
+
+/* Document sections custom/template indicator */
+.ds-pa-doc-indicator {
+  font-size: 0.78rem; padding: 4px 8px; border-radius: 4px;
+  margin: 0 0 8px; display: flex; align-items: center; gap: 4px;
+}
+.ds-pa-doc-indicator--custom {
+  background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd;
+}
+.ds-pa-doc-indicator--template {
+  background: #f0fdf4; color: #166534; border: 1px solid #86efac;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    Proposals – Preview overlay
    ═══════════════════════════════════════════════════════════════════ */
@@ -10579,16 +10601,16 @@ select.ds-input {
   direction: rtl;
   width: 794px;
   max-width: 100%;
-  min-height: 297mm;
+  min-height: 1123px; /* ~297mm at 96dpi */
   margin: 24px auto 48px;
-  padding: 36px 58px 18mm;
-  font-family: Arial, "Noto Sans Hebrew", sans-serif;
+  padding: 54px 72px 68px;
+  font-family: Arial, "Noto Sans Hebrew", "David", sans-serif;
   font-size: 10pt;
-  line-height: 1.5;
-  letter-spacing: 0.15px;
-  box-shadow: none;
+  line-height: 1.6;
+  letter-spacing: 0.1px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
   border: none;
-  border-radius: 0;
+  border-radius: 2px;
   display: flex;
   flex-direction: column;
 }
@@ -10596,22 +10618,22 @@ select.ds-input {
   margin-bottom: 8px;
 }
 .pa-doc-topline {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: start;
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-top: 4pt;
-  margin-bottom: 8pt;
+  margin-bottom: 10pt;
 }
 .pa-doc-header-brand {
   text-align: right;
-  justify-self: end;
 }
 .pa-doc-logo {
   display: block; max-width: 100%; height: auto;
 }
 .pa-doc-logo--header {
-  width: 155px;
-  max-width: 32%;
+  width: 160px;
+  max-width: 38%;
   margin-inline: 0;
 }
 .pa-doc-logo--footer {
@@ -10623,43 +10645,43 @@ select.ds-input {
   transform: none;
 }
 .pa-doc-date {
-  justify-self: start;
-  color: #111827;
-  font-size: 9pt;
+  color: #374151;
+  font-size: 9.5pt;
   line-height: 1.5;
   text-align: left;
   direction: ltr;
   margin-bottom: 4pt;
+  align-self: flex-start;
 }
 .pa-doc-address {
-  margin: 0;
+  margin: 0 0 6pt;
   font-size: 10pt;
-  line-height: 1.5;
+  line-height: 1.7;
   text-align: right;
-  margin-bottom: 4pt;
 }
-.pa-doc-address p { margin: 0 0 2px; }
+.pa-doc-address p { margin: 0; }
 .pa-doc-divider {
   border: none;
-  border-top: 1px solid #444;
-  margin: 10px 0 14px;
+  border-top: 1.5px solid #1f4e79;
+  margin: 10pt 0 12pt;
 }
 .pa-doc-subject {
-  margin: 10pt 0 8pt;
+  margin: 12pt 0 10pt;
   color: #1f4e79;
-  font-size: 11pt;
+  font-size: 12pt;
   font-weight: 700;
   text-decoration: underline;
   line-height: 1.5;
   text-align: center;
+  letter-spacing: 0.2px;
 }
 .pa-section {
-  margin: 8pt 0;
+  margin: 10pt 0 6pt;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 .pa-section h3 {
-  font-size: 10pt;
+  font-size: 10.5pt;
   break-after: avoid;
   page-break-after: avoid;
   font-weight: 700;
@@ -10744,14 +10766,14 @@ select.ds-input {
     width: calc(100vw - 16px);
     min-height: auto;
     margin: 12px auto 28px;
-    padding: 34px 28px;
+    padding: 34px 22px 44px;
   }
 
   .pa-doc-header {
     margin-bottom: 6px;
   }
   .pa-doc-topline {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     gap: 8px;
   }
 }
@@ -10761,8 +10783,8 @@ select.ds-input {
    ═══════════════════════════════════════════════════════════════════ */
 @media print {
   @page {
-    size: A4;
-    margin: 18mm 16mm;
+    size: A4 portrait;
+    margin: 20mm 18mm 22mm;
   }
 
   html,
@@ -10770,21 +10792,33 @@ select.ds-input {
     background: #fff !important;
     margin: 0 !important;
     padding: 0 !important;
+    font-size: 10pt !important;
   }
 
+  /* Hide everything except the preview overlay */
+  body > *:not(#pa-preview-overlay) {
+    display: none !important;
+  }
   body * {
     visibility: hidden !important;
   }
-
   #pa-preview-overlay,
   #pa-preview-overlay * {
     visibility: visible !important;
   }
 
+  .no-print,
+  #pa-preview-overlay .ds-pa-preview-toolbar,
+  #pa-preview-overlay button,
+  #pa-preview-overlay .ds-btn {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
   #pa-preview-overlay {
     position: static !important;
     inset: auto !important;
-    width: auto !important;
+    width: 100% !important;
     height: auto !important;
     overflow: visible !important;
     background: #fff !important;
@@ -10794,43 +10828,90 @@ select.ds-input {
     box-shadow: none !important;
   }
 
-  #pa-preview-overlay .pa-preview-toolbar,
-  #pa-preview-overlay .ds-pa-preview-toolbar,
-  #pa-preview-overlay button,
-  #pa-preview-overlay .ds-btn,
-  #pa-preview-overlay [data-pa-print],
-  #pa-preview-overlay [data-pa-preview-close] {
-    display: none !important;
-  }
-
   .ds-pa-preview-doc {
     position: static !important;
-    width: auto !important;
+    width: 100% !important;
     max-width: none !important;
-    min-height: 297mm !important;
+    min-height: 0 !important;
     margin: 0 !important;
-    padding: 0 0 14mm !important;
-    display: flex !important;
-    flex-direction: column !important;
+    padding: 0 !important;
+    display: block !important;
     box-shadow: none !important;
     border: none !important;
-    background: #fff !important;
-    color: #111827 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #000 !important;
     direction: rtl !important;
-    font-family: Arial, "Noto Sans Hebrew", sans-serif !important;
+    font-family: Arial, "Noto Sans Hebrew", "David", sans-serif !important;
     font-size: 10pt !important;
+    line-height: 1.55 !important;
+    letter-spacing: 0.1px !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .pa-doc-header {
+    margin-bottom: 6pt !important;
+  }
+
+  .pa-doc-topline {
+    display: flex !important;
+    flex-direction: row-reverse !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    margin-top: 0 !important;
+    margin-bottom: 8pt !important;
+  }
+
+  .pa-doc-logo--header {
+    width: 140px !important;
+    max-width: 35% !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  .pa-doc-date {
+    font-size: 9pt !important;
+    text-align: left !important;
+    direction: ltr !important;
     line-height: 1.5 !important;
-    letter-spacing: 0.15px !important;
+    color: #374151 !important;
+    align-self: flex-start !important;
+  }
+
+  .pa-doc-address {
+    text-align: right !important;
+    direction: rtl !important;
+    font-size: 10pt !important;
+    line-height: 1.65 !important;
+    margin-bottom: 4pt !important;
+  }
+  .pa-doc-address p { margin: 0 !important; }
+
+  .pa-doc-divider {
+    border: none !important;
+    border-top: 1.5px solid #1f4e79 !important;
+    margin: 8pt 0 10pt !important;
+  }
+
+  .pa-doc-subject {
+    text-align: center !important;
+    font-size: 11.5pt !important;
+    font-weight: 700 !important;
+    color: #1f4e79 !important;
+    text-decoration: underline !important;
+    margin: 10pt 0 8pt !important;
+    line-height: 1.5 !important;
   }
 
   .pa-section {
-    margin: 8pt 0 !important;
+    margin: 8pt 0 4pt !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
 
   .pa-section h3 {
-    font-size: 10pt !important;
+    font-size: 10.5pt !important;
     break-after: avoid !important;
     page-break-after: avoid !important;
     font-weight: 700 !important;
@@ -10840,20 +10921,25 @@ select.ds-input {
     line-height: 1.5 !important;
   }
 
+  .pa-doc-intro,
   .pa-section-body,
   .pa-section-line,
-  .pa-doc-intro,
   .pa-proposal-lines {
     font-size: 10pt !important;
-    line-height: 1.5 !important;
+    line-height: 1.55 !important;
+    color: #000 !important;
   }
 
   .pa-section-line {
-    margin: 0 0 4pt !important;
+    display: block !important;
+    margin: 0 0 3pt !important;
+  }
+
+  .pa-section-line--empty {
+    margin: 0 0 2pt !important;
   }
 
   .pa-section-line--bullet {
-    margin: 0 0 3pt !important;
     padding-right: 14pt !important;
     text-indent: -10pt !important;
     word-break: break-word !important;
@@ -10861,57 +10947,31 @@ select.ds-input {
     page-break-inside: avoid !important;
   }
 
-  .pa-doc-date {
-    font-size: 9pt !important;
-    text-align: left !important;
-    direction: ltr !important;
-    line-height: 1.5 !important;
-  }
-
-  .pa-doc-address {
-    text-align: right !important;
-    direction: rtl !important;
-    font-size: 10pt !important;
-  }
-
-  .pa-doc-subject {
-    text-align: center !important;
-    font-size: 11pt !important;
-    font-weight: 700 !important;
-    color: #1f4e79 !important;
-    text-decoration: underline !important;
-    margin: 10pt 0 8pt !important;
-  }
-
-  .pa-doc-logo--header {
-    width: 155px !important;
-    max-width: 32% !important;
-    height: auto !important;
-    display: block !important;
-  }
-
-  .pa-doc-footer {
-    margin-top: auto !important;
-    width: 100% !important;
-    padding-top: 10mm !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-  }
-
-  .pa-doc-logo--footer {
-    width: auto !important;
-    max-width: 48mm !important;
-    height: auto !important;
-    opacity: 0.95 !important;
-    display: block !important;
-    transform: none !important;
-  }
-
   .pa-doc-signature-simple {
     text-align: left !important;
     font-size: 9pt !important;
     line-height: 1.5 !important;
-    margin-top: 8pt !important;
+    margin-top: 10pt !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .pa-doc-footer {
+    margin-top: 16pt !important;
+    width: 100% !important;
+    padding-top: 8pt !important;
+    border-top: 0.5px solid #e2e8f0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    break-inside: avoid !important;
+  }
+
+  .pa-doc-logo--footer {
+    width: auto !important;
+    max-width: 44mm !important;
+    height: auto !important;
+    display: block !important;
+    opacity: 0.9 !important;
   }
 }

@@ -345,7 +345,47 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = []) {
   </article>`;
 }
 
-function itemsEditorHtml(items = [], pricingOptions = []) {
+const SUMMER_GROUP_KEYS = new Set(['summer', 'קיץ', 'קיץ תשפ״ו', 'פעילויות קיץ']);
+const NEXT_YEAR_GROUP_KEYS = new Set(['next_year', 'תשפ״ז', 'שנה הבאה', 'תוכניות תשפ״ז']);
+
+function isSummerItem(item) {
+  const g = text(item.proposal_group);
+  return SUMMER_GROUP_KEYS.has(g) || SUMMER_GROUP_KEYS.has(LEGACY_GROUP_MAP[g]);
+}
+function isNextYearItem(item) {
+  const g = text(item.proposal_group);
+  return NEXT_YEAR_GROUP_KEYS.has(g) || NEXT_YEAR_GROUP_KEYS.has(LEGACY_GROUP_MAP[g]);
+}
+
+function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOffset) {
+  const startItems = items.length ? items : [{ proposal_group: groupKey }];
+  const rowsHtml = startItems.map((item, i) => itemRowHtml({ ...item, proposal_group: item.proposal_group || groupKey }, idxOffset + i, pricingOptions)).join('');
+  return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}">
+    <div class="ds-pa-items-header">
+      <span class="ds-pa-items-section-label">${escapeHtml(label)}</span>
+      <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="${escapeHtml(groupKey)}">+ הוסף שורה</button>
+    </div>
+    <div class="ds-pa-items-list" data-pa-items-body data-pa-items-group-body="${escapeHtml(groupKey)}">${rowsHtml}</div>
+  </div>`;
+}
+
+function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '') {
+  const isCombined = activityTypeGroup === 'קיץ תשפ״ו + תשפ״ז';
+  const footer = `<datalist id="pa-item-type-list">${ITEM_TYPE_OPTIONS.map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
+    <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>`;
+
+  if (isCombined) {
+    const summerItems = items.filter(isSummerItem);
+    const nextYearItems = items.filter(isNextYearItem);
+    const unassigned = items.filter((i) => !isSummerItem(i) && !isNextYearItem(i));
+    const allSummer = [...summerItems, ...unassigned];
+    return `<div class="ds-pa-items-section ds-pa-items-combined">
+      ${combinedItemsSectionHtml('שורות הצעה – קיץ תשפ״ו', 'קיץ תשפ״ו', allSummer, pricingOptions, 0)}
+      ${combinedItemsSectionHtml('שורות הצעה – תוכניות תשפ״ז', 'תוכניות תשפ״ז', nextYearItems, pricingOptions, allSummer.length || 1)}
+      ${footer}
+    </div>`;
+  }
+
   const startItems = items.length ? items : [{}];
   const rowsHtml = startItems.map((item, idx) => itemRowHtml(item, idx, pricingOptions)).join('');
   return `<div class="ds-pa-items-section">
@@ -354,8 +394,7 @@ function itemsEditorHtml(items = [], pricingOptions = []) {
       <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item>+ הוסף שורה</button>
     </div>
     <div class="ds-pa-items-list" data-pa-items-body>${rowsHtml}</div>
-    <datalist id="pa-item-type-list">${ITEM_TYPE_OPTIONS.map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
-    <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>
+    ${footer}
   </div>`;
 }
 
@@ -513,13 +552,16 @@ function resolveDocumentSections(row, templateSections = []) {
   return custom.length ? custom : fallback;
 }
 
-function documentSectionsEditorHtml(sections = []) {
+function documentSectionsEditorHtml(sections = [], isCustom = false) {
+  const indicator = isCustom
+    ? `<p class="ds-pa-doc-indicator ds-pa-doc-indicator--custom">✎ עריכה מותאמת אישית — שימוש באיפוס לתבנית המקור ימחק שינויים אלו</p>`
+    : `<p class="ds-pa-doc-indicator ds-pa-doc-indicator--template">⊞ תבנית מקור — כל שינוי ייצור גרסה מותאמת אישית</p>`;
   const rows = (Array.isArray(sections) ? sections : []).map((section, idx) => `
     <label class="ds-pa-form-field ds-pa-form-field--wide">
       <span>${escapeHtml(text(section.section_title) || text(section.section_key) || `סעיף ${idx + 1}`)}</span>
       <textarea class="ds-input ds-input--sm" rows="4" data-pa-doc-body="${escapeHtml(text(section.section_key))}">${escapeHtml(String(section.section_body || ''))}</textarea>
     </label>`).join('');
-  return `<div class="ds-pa-doc-editor" data-pa-doc-editor>${rows}</div>`;
+  return `<div class="ds-pa-doc-editor" data-pa-doc-editor>${indicator}${rows}</div>`;
 }
 
 const STRUCTURED_SECTION_DEFAULTS = {
@@ -645,6 +687,33 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 
+// ─── Client dedup helpers ─────────────────────────────────────────────────────
+
+function normalizeForDedup(str) {
+  return text(str).toLowerCase()
+    .replace(/['"׳״']/g, '')
+    .replace(/[-–—]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findSimilarClients(contactOptions, authority, school) {
+  const normAuth = normalizeForDedup(authority);
+  if (!normAuth) return [];
+  return (Array.isArray(contactOptions) ? contactOptions : []).reduce((acc, c) => {
+    const cAuth = normalizeForDedup(c.authority);
+    if (!cAuth) return acc;
+    const authMatch = cAuth === normAuth || cAuth.includes(normAuth) || normAuth.includes(cAuth);
+    if (!authMatch) return acc;
+    const normSchool = normalizeForDedup(school);
+    const cSchool = normalizeForDedup(c.school);
+    if (normSchool && cSchool && cSchool !== normSchool) return acc;
+    const key = `${text(c.authority)}||${text(c.school)}`;
+    if (!acc._seen.has(key)) { acc._seen.add(key); acc.push(c); }
+    return acc;
+  }, Object.assign([], { _seen: new Set() }));
+}
+
 function filterPricingByProposalType(pricingOptions, activityTypeGroup) {
   const groupFilters = PROPOSAL_GROUP_FOR_TYPE[activityTypeGroup];
   if (!groupFilters) return pricingOptions;
@@ -658,7 +727,6 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
   const normalizedActivityGroup = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
   const filteredPricing = filterPricingByProposalType(pricingOptions, normalizedActivityGroup);
-  const rowActivity = Array.isArray(row.activity_names) ? row.activity_names : [];
   const currentStatus = STATUS_OPTIONS.includes(text(row.status)) ? text(row.status) : 'draft';
   const initAuth = text(row.client_authority);
   const initSchool = text(row.school_framework);
@@ -691,11 +759,9 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       ${textField('email', FIELD_LABELS.email, row.email, false)}
     </div>
 
-    ${activityPickerHtml(rowActivity, activityNameOptions)}
-
     <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm" name="notes" rows="2">${escapeHtml(text(row.notes))}</textarea></label>
 
-    ${itemsEditorHtml(items, filteredPricing)}
+    <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
 
     <input type="hidden" name="status" data-pa-status-input value="${escapeHtml(currentStatus)}">
     <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
@@ -755,13 +821,18 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       <span class="ds-pa-detail-value"><strong>₪${formatCurrency(row.total_amount)}</strong></span>
     </div>` : '';
 
+  const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
+  const customBadge = hasCustomSections
+    ? `<span class="ds-pa-badge" title="המסמך הזה כולל עריכה מותאמת אישית" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#6366f1;color:#fff;margin-right:4px">מסמך מותאם</span>`
+    : '';
+
   return `<aside class="ds-pa-drawer" data-pa-drawer data-pa-drawer-id="${escapeHtml(row.id)}" aria-live="polite" dir="rtl">
     <div class="ds-pa-drawer-panel">
       <header class="ds-pa-drawer-head">
         <div><p class="ds-muted">פרטי רשומה</p><h3>${escapeHtml(row.client_authority || '—')}</h3></div>
         <button type="button" class="ds-btn ds-btn--sm" data-pa-close-drawer aria-label="סגירת פרטי רשומה">✕</button>
       </header>
-      <div class="ds-pa-drawer-status" style="margin-bottom:8px">${statusBadgeHtml(row.status)}</div>
+      <div class="ds-pa-drawer-status" style="margin-bottom:8px">${statusBadgeHtml(row.status)}${customBadge}</div>
       <div class="ds-pa-detail-grid">${detailRowsHtml(row)}</div>
       ${totalHtml}
       ${approvalNoteHtml}
@@ -849,6 +920,11 @@ function validatePayload(payload, statusOverride) {
     const invalidItem = items.find((i) => !text(i.item_name));
     if (invalidItem) errors.push('שם פעילות בכל שורה');
     if (!payload.total_amount) errors.push('סה״כ כללי');
+    const grp = LEGACY_GROUP_MAP[text(payload.activity_type_group)] || text(payload.activity_type_group);
+    if (grp === 'קיץ תשפ״ו + תשפ״ז') {
+      const missingGroup = items.find((i) => !text(i.proposal_group));
+      if (missingGroup) errors.push('שייוך לקיץ/תשפ״ז בכל שורה (הצעה משולבת)');
+    }
   }
 
   return errors.length ? `חובה למלא: ${errors.join(', ')}` : '';
@@ -919,42 +995,21 @@ export const proposalsAgreementsScreen = {
 
     const formHost = root.querySelector('[data-pa-form-host]');
 
-    // ── Activity picker setup ─────────────────────────────────────────────────
-    const closeAllActivityDropdowns = () => {
-      root.querySelectorAll('[data-pa-activity-picker]').forEach((picker) => {
-        const dropdown = picker.querySelector('[data-pa-activity-dropdown]');
-        const trigger = picker.querySelector('[data-pa-activity-toggle]');
-        if (dropdown) dropdown.hidden = true;
-        if (trigger) trigger.setAttribute('aria-expanded', 'false');
-      });
-    };
-
-    const setupActivityPickers = (container) => {
-      container?.querySelectorAll?.('[data-pa-activity-picker]')?.forEach((picker) => {
-        const trigger = picker.querySelector('[data-pa-activity-toggle]');
-        const chipsHost = picker.querySelector('[data-pa-activity-chips]');
-        const dropdown = picker.querySelector('[data-pa-activity-dropdown]');
-        const search = picker.querySelector('[data-pa-activity-search]');
-        const optionsHost = picker.querySelector('[data-pa-activity-options]');
-        const hiddenInputsHost = picker.querySelector('[data-pa-activity-hidden-inputs]');
-        const checkboxes = Array.from(picker.querySelectorAll('.ds-pa-activity-option input[type="checkbox"]'));
-        const sync = () => {
-          const selected = checkboxes.filter((cb) => cb.checked).map((cb) => text(cb.value)).filter(Boolean);
-          chipsHost.innerHTML = selected.length
-            ? selected.map((item) => `<button type="button" class="ds-pa-chip" data-pa-chip-remove="${escapeHtml(item)}">${escapeHtml(item)} <span aria-hidden="true">×</span></button>`).join('')
-            : '<span class="ds-muted">לא נבחרו פעילויות</span>';
-          trigger.textContent = selected.length ? `נבחרו ${selected.length} פעילויות` : 'בחרו פעילויות';
-          hiddenInputsHost.innerHTML = selected.map((item) => `<input type="hidden" name="activity_names" value="${escapeHtml(item)}">`).join('');
-        };
-        sync();
-        checkboxes.forEach((cb) => cb.addEventListener('change', sync, { signal }));
-        search?.addEventListener('input', () => {
-          const q = normalizeSearch(search.value);
-          optionsHost.querySelectorAll('.ds-pa-activity-option').forEach((option) => {
-            option.hidden = q ? !normalizeSearch(option.textContent).includes(q) : false;
-          });
-        }, { signal });
-      });
+    // ── Type change → re-render items section ────────────────────────────────
+    const setupTypeChangeHandler = (container) => {
+      const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]') || container;
+      if (!form) return;
+      const typeSelect = form.querySelector('[name="activity_type_group"]');
+      if (!typeSelect) return;
+      typeSelect.addEventListener('change', () => {
+        const newType = text(typeSelect.value);
+        const currentItems = extractItemsFromForm(form);
+        const itemsHost = form.querySelector('[data-pa-items-host]');
+        if (!itemsHost) return;
+        const filteredPricing = filterPricingByProposalType(proposalActivityPricing, newType);
+        itemsHost.innerHTML = itemsEditorHtml(currentItems, filteredPricing, newType);
+        setupItemCalc(form);
+      }, { signal });
     };
 
     // ── Contact / client setup ────────────────────────────────────────────────
@@ -1064,7 +1119,7 @@ export const proposalsAgreementsScreen = {
       }
       formHost.hidden = false;
       formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing);
-      setupActivityPickers(formHost);
+      setupTypeChangeHandler(formHost);
       setupClientSelector(formHost);
       setupItemCalc(formHost);
       const pickerHost = formHost.querySelector('[data-pa-contact-picker-host]');
@@ -1114,6 +1169,22 @@ export const proposalsAgreementsScreen = {
       const payload = payloadFromForm(form);
       payload.is_new_client = form.dataset.paNewClient === 'yes';
       if (statusOverride) payload.status = statusOverride;
+
+      // Client dedup — warn if a similar client already exists
+      if (payload.is_new_client && text(payload.client_authority)) {
+        const similar = findSimilarClients(contactOptions, payload.client_authority, payload.school_framework);
+        if (similar.length) {
+          const names = similar.slice(0, 3).map((c) => `${text(c.authority)}${text(c.school) ? ' — ' + text(c.school) : ''}`).join('\n');
+          const useExisting = window.confirm(`נמצאו לקוחות דומים:\n${names}\n\nהאם להשתמש בלקוח הקיים?`);
+          if (useExisting) {
+            const match = similar[0];
+            payload.client_authority = text(match.authority);
+            payload.school_framework = text(match.school);
+            payload.is_new_client = false;
+          }
+        }
+      }
+
       const validationError = validatePayload(payload, statusOverride);
       if (validationError) {
         if (errorEl) errorEl.textContent = validationError;
@@ -1197,7 +1268,6 @@ export const proposalsAgreementsScreen = {
     root.addEventListener('click', async (event) => {
       const rowEl = event.target.closest?.('[data-pa-row-id]');
       if (rowEl) {
-        closeAllActivityDropdowns();
         const row = data.rows.find((item) => text(item.id) === text(rowEl.dataset.paRowId));
         const drawer = root.querySelector('[data-pa-drawer]');
         if (drawer && row) {
@@ -1237,7 +1307,7 @@ export const proposalsAgreementsScreen = {
           } catch { items = []; }
           host.innerHTML = formHtml('edit', row, activityNameOptions, contactOptions, items, proposalActivityPricing);
           setDocumentEditMode(root, false);
-          setupActivityPickers(host);
+          setupTypeChangeHandler(host);
           setupClientSelector(host);
           setupItemCalc(host);
           const pickerHost = host.querySelector('[data-pa-contact-picker-host]');
@@ -1263,8 +1333,9 @@ export const proposalsAgreementsScreen = {
         }));
         const host = root.querySelector('[data-pa-inline-form]');
         if (!host) return;
+        const isCustom = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
         host.innerHTML = `<div class="ds-pa-form ds-pa-doc-edit-form" data-pa-doc-edit-wrap>
-          <h4>עריכת מסמך</h4>${documentSectionsEditorHtml(workingSections)}
+          <h4>עריכת מסמך</h4>${documentSectionsEditorHtml(workingSections, isCustom)}
           <div class="ds-pa-form-actions">
             <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-doc-save="${escapeHtml(id)}">שמירת עריכת מסמך</button>
             <button type="button" class="ds-btn ds-btn--sm" data-pa-doc-reset="${escapeHtml(id)}">איפוס לתבנית מקור</button>
@@ -1378,44 +1449,17 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
-      const toggleBtn = event.target.closest?.('[data-pa-activity-toggle]');
-      if (toggleBtn) {
-        const picker = toggleBtn.closest('[data-pa-activity-picker]');
-        const dropdown = picker?.querySelector('[data-pa-activity-dropdown]');
-        const isOpen = dropdown && !dropdown.hidden;
-        closeAllActivityDropdowns();
-        if (dropdown && !isOpen) {
-          dropdown.hidden = false;
-          toggleBtn.setAttribute('aria-expanded', 'true');
-          picker.querySelector('[data-pa-activity-search]')?.focus();
-        }
-        return;
-      }
-
-      const chipRemoveBtn = event.target.closest?.('[data-pa-chip-remove]');
-      if (chipRemoveBtn) {
-        const picker = chipRemoveBtn.closest('[data-pa-activity-picker]');
-        const targetValue = text(chipRemoveBtn.dataset.paChipRemove);
-        const checkbox = Array.from(picker?.querySelectorAll('.ds-pa-activity-option input[type="checkbox"]') || [])
-          .find((cb) => text(cb.value) === targetValue);
-        if (checkbox) {
-          checkbox.checked = false;
-          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        return;
-      }
-
-      if (!event.target.closest?.('[data-pa-activity-picker]')) closeAllActivityDropdowns();
-
       // Items: add row
       const addItemBtn = event.target.closest?.('[data-pa-add-item]');
       if (addItemBtn) {
         const form = addItemBtn.closest('[data-pa-form]');
-        const tbody = form?.querySelector('[data-pa-items-body]');
+        const groupKey = text(addItemBtn.dataset.paAddItemGroup);
+        const groupSection = groupKey ? form?.querySelector(`[data-pa-items-group="${groupKey}"]`) : null;
+        const tbody = groupSection?.querySelector('[data-pa-items-body]') || form?.querySelector('[data-pa-items-body]');
         if (!tbody) return;
-        const idx = tbody.querySelectorAll('[data-pa-item-row]').length;
-        const tmp = document.createElement('tbody');
-        tmp.innerHTML = itemRowHtml({}, idx, proposalActivityPricing);
+        const idx = form ? form.querySelectorAll('[data-pa-item-row]').length : 0;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = itemRowHtml({ proposal_group: groupKey }, idx, proposalActivityPricing);
         tbody.appendChild(tmp.firstElementChild);
         if (form) calcGrandTotal(form);
         tbody.querySelector(`[data-pa-item-idx="${idx}"] [name="item_name"]`)?.focus();
