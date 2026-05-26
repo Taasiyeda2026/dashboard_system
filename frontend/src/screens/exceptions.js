@@ -70,31 +70,30 @@ function exceptionsOperationalSummaryHtml(data, rows) {
   const missingStartDate = hasRows
     ? exceptionCountFromRows(rows, 'missing_start_date')
     : numericCount(counts.missing_start_date);
-  const lateEndDate = hasRows
-    ? exceptionCountFromRows(rows, 'late_end_date')
-    : numericCount(counts.late_end_date);
-  const endDatePassed = hasRows
-    ? exceptionCountFromRows(rows, 'end_date_passed')
-    : numericCount(counts.end_date_passed);
+  const lateEndDate = hasRows ? exceptionCountFromRows(rows, 'late_end_date') : numericCount(counts.late_end_date);
+  const endDatePassed = hasRows ? exceptionCountFromRows(rows, 'end_date_passed') : numericCount(counts.end_date_passed);
+  const endDateExceptions = lateEndDate + endDatePassed;
   const totalExceptionRows = optionalNumericCount(data?.totalExceptionRows);
   const allExceptionsTotal = totalExceptionRows ?? uniqueExceptionActivityCount(rows);
 
   return dsCard({
     title: `סה״כ פעילויות חריגות: ${escapeHtml(String(allExceptionsTotal))}`,
     body: `<div class="ds-summary-panel__structured" dir="rtl">
-      <p class="ds-summary-panel__text">חסר מדריך: <strong>${escapeHtml(String(missingInstructor))}</strong></p>
-      <p class="ds-summary-panel__text">חסר תאריך התחלה: <strong>${escapeHtml(String(missingStartDate))}</strong></p>
-      <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${escapeHtml(String(lateEndDate))}</strong></p>
-      <p class="ds-summary-panel__text">תאריך סיום חלף: <strong>${escapeHtml(String(endDatePassed))}</strong></p>
+      <p class="ds-summary-panel__text">ממתינות לתיאום תאריך: <strong>${escapeHtml(String(missingStartDate))}</strong></p>
+      <p class="ds-summary-panel__text">חריגות תאריך סיום: <strong>${escapeHtml(String(endDateExceptions))}</strong></p>
+      <p class="ds-summary-panel__text">ללא מדריך: <strong>${escapeHtml(String(missingInstructor))}</strong></p>
       <p class="ds-summary-panel__text"><small>פעילות עם כמה סוגי חריגה נספרת פעם אחת בסה״כ.</small></p>
     </div>`
   });
 }
 
-function exceptionGroupCard(title, rows, keyPrefix, { canDelete = false } = {}) {
+function exceptionGroupCard(title, rows, { canDelete = false } = {}) {
   const body = rows.length === 0
     ? dsEmptyState('אין פריטים בקבוצה זו')
-    : `<div class="ds-compact-list">${rows.map((row) => `<div data-list-item class="ds-exception-list-item"><button type="button" class="ds-interactive-card ds-interactive-card--session" data-card-action="${escapeHtml(`exception:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml([row.activity_type, row.authority, row.school].filter(Boolean).join(' · '))}</p></button>${canDelete ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-exception-delete="${escapeHtml(String(row.RowID || ''))}" title="מחיקה רכה">מחיקה</button>` : ''}</div>`).join('')}</div>`;
+    : `<div class="ds-compact-list">${rows.map((row) => {
+      const chips = normalizedExceptionTypes(row).map((type) => dsStatusChip(hebrewExceptionType(type), 'neutral')).join(' ');
+      return `<div data-list-item class="ds-exception-list-item"><button type="button" class="ds-interactive-card ds-interactive-card--session" data-card-action="${escapeHtml(`exception:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml([row.activity_type, row.authority, row.school].filter(Boolean).join(' · '))}</p><p class="ds-interactive-card__subtitle">${escapeHtml(`מנהל פעילות: ${activityManagerDisplayName(row.activity_manager) || '—'}`)}</p><p class="ds-interactive-card__subtitle">${escapeHtml(`מדריך: ${row.instructor_name || row.instructor_name_2 || '—'}`)}</p><p class="ds-interactive-card__subtitle">${escapeHtml(`התחלה: ${formatDateHe(row.start_date) || row.start_date || '—'} | סיום: ${formatDateHe(row.end_date) || row.end_date || '—'}`)}</p><p class="ds-interactive-card__subtitle">${escapeHtml(`סטטוס: ${row.status || '—'}`)}</p>${chips ? `<div class="ds-row" style="gap:6px;flex-wrap:wrap">${chips}</div>` : ''}</button>${canDelete ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-exception-delete="${escapeHtml(String(row.RowID || ''))}" title="מחיקה רכה">מחיקה</button>` : ''}</div>`;
+    }).join('')}</div>`;
   return dsCard({ title: `${title} · ${rows.length}`, body, padded: rows.length === 0 });
 }
 
@@ -177,10 +176,14 @@ export const exceptionsScreen = {
       ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${EXCEPTIONS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
       : '';
 
-    const undatedRows = Array.isArray(data?.undatedRows) ? data.undatedRows : [];
     const waitingDateRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('missing_start_date'));
-    const lateEndRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('end_date_passed'));
+    const endDateExceptionRows = allRows.filter((row) => {
+      const types = normalizedExceptionTypes(row);
+      return types.includes('late_end_date') || types.includes('end_date_passed');
+    });
     const noInstructorRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('missing_instructor'));
+    const mainTypes = new Set(['missing_start_date', 'late_end_date', 'end_date_passed', 'missing_instructor']);
+    const otherExceptionRows = allRows.filter((row) => normalizedExceptionTypes(row).some((type) => !mainTypes.has(type)));
     const compact = visibleRows.length === 0 ? dsEmptyState('לא נמצאו חריגות') : '';
     const canDeleteActivity = ['admin', 'operation_manager'].includes(String(state?.user?.display_role || state?.user?.role || '').trim());
 
@@ -188,13 +191,10 @@ export const exceptionsScreen = {
       ${toolbarHtml}
       <section>${exceptionsOperationalSummaryHtml(data, allRows)}</section>
       <section>${dsCard({ title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ פעילויות חריגות: ${escapeHtml(String(data?.totalExceptionRows ?? total))}`, body: compact || loadMoreHtml, padded: visibleRows.length === 0 })}</section>
-      <section>${exceptionGroupCard('פעילויות ממתינות לתיאום תאריך', waitingDateRows, 'exception', { canDelete: canDeleteActivity })}</section>
-      <section>${exceptionGroupCard('פעילויות פעילות שתאריך הסיום שלהן חלף', lateEndRows, 'exception', { canDelete: canDeleteActivity })}</section>
-      <section>${exceptionGroupCard('פעילויות ללא מדריך', noInstructorRows, 'exception', { canDelete: canDeleteActivity })}</section>
-      <section>${dsCard({
-        title: `פעילויות ללא תאריך · ${escapeHtml(String(data?.undatedCount ?? undatedRows.length))}`,
-        body: undatedRows.length === 0 ? dsEmptyState('אין פעילויות ללא תאריך') : `<div class="ds-compact-list">${undatedRows.map((row) => `<div data-list-item><button type="button" class="ds-interactive-card ds-interactive-card--session" data-card-action="${escapeHtml(`undated:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml([row.activity_type, row.authority, row.school].filter(Boolean).join(' · '))}</p></button></div>`).join('')}</div>`
-      })}</section>
+      <section>${exceptionGroupCard('פעילויות ממתינות לתיאום תאריך', waitingDateRows, { canDelete: canDeleteActivity })}</section>
+      <section>${exceptionGroupCard('פעילויות עם חריגת תאריך סיום', endDateExceptionRows, { canDelete: canDeleteActivity })}</section>
+      <section>${exceptionGroupCard('פעילויות ללא מדריך', noInstructorRows, { canDelete: canDeleteActivity })}</section>
+      ${otherExceptionRows.length ? `<section>${exceptionGroupCard('חריגות נוספות', otherExceptionRows, { canDelete: canDeleteActivity })}</section>` : ''}
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
@@ -207,7 +207,7 @@ export const exceptionsScreen = {
     const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
-    const canDeleteActivity = ['admin', 'operation_manager'].includes(String(state?.user?.display_role || '').trim());
+    const canDeleteActivity = ['admin', 'operation_manager'].includes(String(state?.user?.display_role || state?.user?.role || '').trim());
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
 
@@ -303,9 +303,8 @@ export const exceptionsScreen = {
       } catch {}
     }
 
-    const allUndatedRows = (Array.isArray(data?.undatedRows) ? data.undatedRows : []);
-    const openAt = (idx, group = 'exception') => {
-      const list = group === 'undated' ? allUndatedRows : allRows;
+    const openAt = (idx) => {
+      const list = allRows;
       const hit = list[idx];
       if (!hit || !ui) return;
       if (!api) {
@@ -324,11 +323,6 @@ export const exceptionsScreen = {
         const idx = allRows.findIndex((row) => String(row.RowID) === rowId);
         openAt(idx);
         return;
-      }
-      if (action.startsWith('undated:')) {
-        const undatedId = action.slice('undated:'.length);
-        const undatedIdx = allUndatedRows.findIndex((row) => String(row.RowID) === undatedId);
-        openAt(undatedIdx, 'undated');
       }
     });
 

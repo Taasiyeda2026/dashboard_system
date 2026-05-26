@@ -377,12 +377,12 @@ test('frontend exceptions screen renders unique-activity top summary', async () 
     'top summary must fall back to unique rows when totalExceptionRows is not supplied');
   assert.match(src, /סה״כ פעילויות חריגות: \$\{escapeHtml\(String\(allExceptionsTotal\)\)\}/,
     'summary title must display unique exceptional activities');
-  assert.match(src, /חסר מדריך: <strong>\$\{escapeHtml\(String\(missingInstructor\)\)\}<\/strong>/,
+  assert.match(src, /ממתינות לתיאום תאריך: <strong>\$\{escapeHtml\(String\(missingStartDate\)\)\}<\/strong>/,
+    'summary must display waiting-for-date as a separate unique activity count');
+  assert.match(src, /חריגות תאריך סיום: <strong>\$\{escapeHtml\(String\(endDateExceptions\)\)\}<\/strong>/,
+    'summary must display consolidated end-date exceptions count');
+  assert.match(src, /ללא מדריך: <strong>\$\{escapeHtml\(String\(missingInstructor\)\)\}<\/strong>/,
     'summary must display missing instructor as a separate unique activity count');
-  assert.match(src, /חסר תאריך התחלה: <strong>\$\{escapeHtml\(String\(missingStartDate\)\)\}<\/strong>/,
-    'summary must display missing start date as a separate unique activity count');
-  assert.match(src, /תאריך סיום מאוחר: <strong>\$\{escapeHtml\(String\(lateEndDate\)\)\}<\/strong>/,
-    'summary must display late end date as a separate unique activity count');
   assert.match(src, /פעילות עם כמה סוגי חריגה נספרת פעם אחת בסה״כ/,
     'summary should explain that multi-exception activities are counted once in the total');
 });
