@@ -104,17 +104,9 @@ function todayIso() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function reopenModalHtml(today) {
+function reopenModalHtml() {
   return `<div class="ds-perm-edit-form" dir="rtl" data-archive-reopen-form>
-    <p class="ds-muted">כדי להחזיר את הפעילות לפעילה, יש לבחור תאריך התחלה חדש.<br>ניתן לבחור רק תאריך מהיום והלאה.</p>
-    <label class="ds-perm-field">
-      <span class="ds-muted">תאריך התחלה חדש</span>
-      <input class="ds-input ds-input--sm" type="date" name="start_date" min="${escapeHtml(today)}" required data-reopen-start>
-    </label>
-    <label class="ds-perm-field">
-      <span class="ds-muted">תאריך סיום חדש</span>
-      <input class="ds-input ds-input--sm" type="date" name="end_date" min="${escapeHtml(today)}" data-reopen-end>
-    </label>
+    <p class="ds-muted">הפעילות תיפתח מחדש בסטטוס פעיל, ללא שינוי בתאריכים הקיימים. אם תאריך הסיום כבר חלף, היא תופיע בחריגות להמשך טיפול.</p>
     <p class="ds-muted" role="alert" data-reopen-error></p>
   </div>`;
 }
@@ -492,10 +484,9 @@ export const archiveScreen = {
       const btn = contentRoot.querySelector('[data-archive-reopen]');
       if (!btn) return;
       btn.addEventListener('click', () => {
-        const today = todayIso();
         ui.openModal({
           title: 'פתיחה מחדש של פעילות',
-          content: reopenModalHtml(today),
+          content: reopenModalHtml(),
           actions: `
             <button type="button" class="ds-btn ds-btn--ghost" data-ui-close-modal>ביטול</button>
             <button type="button" class="ds-btn ds-btn--primary" data-archive-reopen-confirm>אישור פתיחה מחדש</button>
@@ -503,66 +494,23 @@ export const archiveScreen = {
         });
 
         const modal = document.querySelector('.ds-modal');
-        const startInput = modal?.querySelector('[data-reopen-start]');
-        const endInput = modal?.querySelector('[data-reopen-end]');
         const errorEl = modal?.querySelector('[data-reopen-error]');
         const confirmBtn = modal?.querySelector('[data-archive-reopen-confirm]');
         const setError = (msg) => { if (errorEl) errorEl.textContent = msg || ''; };
 
-        startInput?.addEventListener('input', () => {
-          const start = String(startInput.value || '').trim();
-          if (endInput) endInput.min = start || today;
-          setError('');
-        });
-        endInput?.addEventListener('input', () => setError(''));
-
         confirmBtn?.addEventListener('click', async () => {
-          const selectedStartDate = String(startInput?.value || '').trim();
-          const selectedEndDate = String(endInput?.value || '').trim();
-          if (!selectedStartDate) {
-            setError('יש לבחור תאריך התחלה חדש.');
-            startInput?.focus();
-            return;
-          }
-          if (selectedStartDate < today) {
-            setError('תאריך ההתחלה חייב להיות מהיום והלאה.');
-            startInput?.focus();
-            return;
-          }
-          if (selectedEndDate && selectedEndDate < selectedStartDate) {
-            setError('תאריך הסיום לא יכול להיות לפני תאריך ההתחלה.');
-            endInput?.focus();
-            return;
-          }
-
-          const finalEndDate = selectedEndDate || selectedStartDate;
-          const dateKeys = Array.from({ length: 35 }, (_, idx) => `date_${idx + 1}`);
-          let lastExistingDateKey = '';
-          for (const key of dateKeys) {
-            const value = String(row?.[key] || '').trim();
-            if (value) lastExistingDateKey = key;
-          }
-          const changes = {
-            status: 'פעיל',
-            end_date: finalEndDate,
-            [lastExistingDateKey || 'date_1']: finalEndDate
-          };
-          if (!String(row?.start_date || '').trim()) {
-            changes.start_date = selectedStartDate;
-          }
-
+          setError('');
           confirmBtn.disabled = true;
           confirmBtn.textContent = 'שומר…';
           try {
             await api.saveActivity({
               source_sheet: row.source_sheet || 'activities',
               source_row_id: row.RowID || row.row_id,
-              changes
+              changes: { status: 'פעיל' }
             });
             ui.closeModal?.();
             ui.closeDrawer?.();
             clearArchiveReopenCaches(state);
-            state.activitiesMonthYm = selectedStartDate.slice(0, 7);
             state.route = 'activities';
             rerender();
           } catch (_e) {
