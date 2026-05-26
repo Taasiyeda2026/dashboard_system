@@ -182,6 +182,7 @@ export const exceptionsScreen = {
     const lateEndRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('end_date_passed'));
     const noInstructorRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('missing_instructor'));
     const compact = visibleRows.length === 0 ? dsEmptyState('לא נמצאו חריגות') : '';
+    const canDeleteActivity = ['admin', 'operation_manager'].includes(String(state?.user?.display_role || state?.user?.role || '').trim());
 
     return dsScreenStack(`
       ${toolbarHtml}
