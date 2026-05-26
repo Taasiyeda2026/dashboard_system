@@ -521,13 +521,14 @@ function applyActivitiesLocalFilters(rows, state, settings) {
   return applyLocalFilters(gapRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
     canEdit,
     canDirectEdit,
     canRequestEdit,
+    canDeleteActivity,
     hideEmpIds: !!hideEmpIds,
     hideRowId,
     hideActivityNo,
@@ -724,6 +725,7 @@ export const activitiesScreen = {
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+    const canDeleteActivity = ['admin', 'operation_manager'].includes(role);
     const canAddActivity = !!state?.user?.can_add_activity || role === 'operation_manager' || role === 'admin';
     const isAdmin = isAdminUser(state);
 
@@ -894,6 +896,9 @@ export const activitiesScreen = {
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
     const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+    const canDeleteActivity = ['admin', 'operation_manager'].includes(
+      String(state?.user?.display_role || state?.user?.role || '').trim()
+    );
     const canAddActivity = !!state?.user?.can_add_activity || role === 'operation_manager' || role === 'admin';
     const isAdmin = isAdminUser(state);
 
@@ -958,6 +963,7 @@ export const activitiesScreen = {
               putCachedActivityDetail({ RowID: sourceRowId, source_sheet: sourceSheet || 'activities' }, freshRow, state);
               contentRoot.innerHTML = activityDrawerContent(
                 freshRow, canSeePrivateNotes, canEditActivity, !!state?.user?.can_edit_direct, !!state?.user?.can_request_edit,
+                canDeleteActivity,
                 hideEmpIds, hideRowId, hideActivityNo,
                 mergeSettingsWithFallback(state?.clientSettings || {}, buildFallbackOptionsFromRows(activitiesRows)),
                 { datesLoading: false }
@@ -1019,6 +1025,7 @@ export const activitiesScreen = {
           title: '',
           content: activityDrawerContent(
             cachedDetail, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
+            canDeleteActivity,
             hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading: false }
           ),
           onOpen: makeOnOpen,
@@ -1035,6 +1042,7 @@ export const activitiesScreen = {
         title: '',
         content: activityDrawerContent(
           summaryRow, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
+          canDeleteActivity,
           hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading: needDates }
         ),
         onOpen: makeOnOpen,
