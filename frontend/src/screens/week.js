@@ -13,6 +13,7 @@ import {
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { bindActNavGrid } from './shared/act-nav-grid.js';
+import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 
 const inflightActivityDetailRequests = new Map();
 const inflightWeekRequests = new Map();
@@ -269,7 +270,9 @@ export const weekScreen = {
 
     const navLoading = !!state.weekNavLoading;
     const navDirection = state.weekNavDirection === 'prev' ? ' week-transition is-entering-prev' : state.weekNavDirection === 'next' ? ' week-transition is-entering-next' : '';
+    const viewSwitcher = renderActivitiesViewSwitcher(state, 'week');
     const html = dsScreenStack(`
+      ${viewSwitcher}
       <nav class="ds-cal-nav${navLoading ? ' is-nav-loading' : ''}" role="navigation" aria-label="ניווט שבועי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-week-prev aria-label="שבוע קודם" title="שבוע קודם" ${navLoading ? 'disabled' : ''}>▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(navLabel)} ${navLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
@@ -299,6 +302,7 @@ export const weekScreen = {
     if (typeof bindActNavGrid === 'function') {
       bindActNavGrid(root, { state, rerender });
     }
+    bindActivitiesViewSwitcher(root, state, rerender);
     root.classList.remove('is-week-loading');
     root.setAttribute('aria-busy', 'false');
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;

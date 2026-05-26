@@ -37,6 +37,7 @@ import {
 } from './shared/activity-options.js';
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
+import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 
 const inflightActivityDetailRequests = new Map();
 
@@ -818,11 +819,7 @@ export const activitiesScreen = {
 
     const isNavLoading = !!state.activitiesNavLoading;
     const navLoadingChip = isNavLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : '';
-    const availableRoutes = new Set(Array.isArray(state?.routes) ? state.routes : []);
-    const viewSwitcher = (availableRoutes.has('week') || availableRoutes.has('month')) ? `<div class="ds-activities-view-switcher" dir="rtl">
-      ${availableRoutes.has('week') ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--accent ds-activities-view-btn" data-activities-go-route="week" title="מעבר לתצוגת שבוע">שבוע</button>` : ''}
-      ${availableRoutes.has('month') ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--accent ds-activities-view-btn" data-activities-go-route="month" title="מעבר לתצוגת חודש">חודש</button>` : ''}
-    </div>` : '';
+    const viewSwitcher = renderActivitiesViewSwitcher(state, 'activities');
     const mainToolbar = `<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
       ${bareFilters}
@@ -905,12 +902,7 @@ export const activitiesScreen = {
       else rerender();
     };
 
-    root.querySelectorAll('[data-activities-go-route]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const route = btn.dataset.activitiesGoRoute;
-        if (route) { state.route = route; rerender?.(); }
-      });
-    });
+    bindActivitiesViewSwitcher(root, state, rerender);
 
     const upsertLocalRow = (rowId, patch) => {
       const hit = activitiesRows.find((row) => String(row?.RowID || '') === String(rowId || ''));

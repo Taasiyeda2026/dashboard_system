@@ -363,7 +363,7 @@ export function bindActivityEditForm(contentRoot, {
         ev.preventDefault();
         const rowId = String(form.getAttribute('data-row-id') || '').trim();
         if (!rowId) return;
-        const ok = window.confirm('מחיקת פעילות מיועדת רק לפעילות שנוצרה בטעות או בכפילות. הפעילות תוסר מהמסכים הפעילים. להמשיך?');
+        const ok = window.confirm('האם למחוק את הפעילות? הפעילות תוסתר מהמסכים ולא תימחק פיזית מהמערכת.\n\nניתן יהיה לשחזר אותה רק דרך ניהול נתונים/הרשאות מתאימות.');
         if (!ok) return;
         api.deleteActivity(rowId)
           .then(async () => {
@@ -377,7 +377,7 @@ export function bindActivityEditForm(contentRoot, {
             }
           })
           .catch((err) => {
-            showToast(translateApiErrorForUser(err?.message || 'delete_activity_failed'), 'error', 3000);
+            showToast('הפעילות לא נמחקה. ייתכן שאין הרשאה או שהפעילות לא נמצאה.', 'error', 3000);
           });
         return;
       }
