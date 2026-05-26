@@ -91,6 +91,13 @@ function exceptionsOperationalSummaryHtml(data, rows) {
   });
 }
 
+function exceptionGroupCard(title, rows, keyPrefix) {
+  const body = rows.length === 0
+    ? dsEmptyState('אין פריטים בקבוצה זו')
+    : `<div class="ds-compact-list">${rows.map((row) => `<div data-list-item><button type="button" class="ds-interactive-card ds-interactive-card--session" data-card-action="${escapeHtml(`${keyPrefix}:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml([row.activity_type, row.authority, row.school].filter(Boolean).join(' · '))}</p></button></div>`).join('')}</div>`;
+  return dsCard({ title: `${title} · ${rows.length}`, body, padded: rows.length === 0 });
+}
+
 function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
@@ -171,40 +178,18 @@ export const exceptionsScreen = {
       : '';
 
     const undatedRows = Array.isArray(data?.undatedRows) ? data.undatedRows : [];
-    const compact =
-      visibleRows.length === 0
-        ? dsEmptyState('לא נמצאו חריגות')
-        : `<div class="ds-compact-list">${visibleRows
-            .map((row, idx) => {
-              const subtitleParts = [row.authority, row.school].filter(Boolean);
-              const subtitleHtml  = subtitleParts.length
-                ? `<p class="ds-interactive-card__subtitle">${escapeHtml(subtitleParts.join(' · '))}</p>`
-                : '';
-              const exTypes = normalizedExceptionTypes(row);
-              const chips = exTypes.map((type) => dsStatusChip(hebrewExceptionType(type), 'neutral')).join(' ');
-              const multiBadge = exTypes.length > 1 ? `<span class="ds-badge" aria-label="${escapeHtml(String(exTypes.length))} חריגות">${escapeHtml(String(exTypes.length))}</span>` : '';
-              const chipHtml = `<p class="ds-interactive-card__meta">${chips} ${multiBadge}</p>`;
-
-              return `<div data-list-item>
-                <button type="button"
-                  class="ds-interactive-card ds-interactive-card--session"
-                  data-card-action="${escapeHtml(`exception:${row.RowID}`)}">
-                  <p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p>
-                  ${subtitleHtml}
-                  ${chipHtml}
-                </button>
-              </div>`;
-            })
-            .join('')}</div>${loadMoreHtml}`;
+    const waitingDateRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('missing_start_date'));
+    const lateEndRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('end_date_passed'));
+    const noInstructorRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('missing_instructor'));
+    const compact = visibleRows.length === 0 ? dsEmptyState('לא נמצאו חריגות') : '';
 
     return dsScreenStack(`
       ${toolbarHtml}
       <section>${exceptionsOperationalSummaryHtml(data, allRows)}</section>
-      <section>${dsCard({
-        title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ פעילויות חריגות: ${escapeHtml(String(data?.totalExceptionRows ?? total))}`,
-        body: compact,
-        padded: visibleRows.length === 0
-      })}</section>
+      <section>${dsCard({ title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ פעילויות חריגות: ${escapeHtml(String(data?.totalExceptionRows ?? total))}`, body: compact || loadMoreHtml, padded: visibleRows.length === 0 })}</section>
+      <section>${exceptionGroupCard('פעילויות ממתינות לתיאום תאריך', waitingDateRows, 'exception')}</section>
+      <section>${exceptionGroupCard('פעילויות פעילות שתאריך הסיום שלהן חלף', lateEndRows, 'exception')}</section>
+      <section>${exceptionGroupCard('פעילויות ללא מדריך', noInstructorRows, 'exception')}</section>
       <section>${dsCard({
         title: `פעילויות ללא תאריך · ${escapeHtml(String(data?.undatedCount ?? undatedRows.length))}`,
         body: undatedRows.length === 0 ? dsEmptyState('אין פעילויות ללא תאריך') : `<div class="ds-compact-list">${undatedRows.map((row) => `<div data-list-item><button type="button" class="ds-interactive-card ds-interactive-card--session" data-card-action="${escapeHtml(`undated:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml([row.activity_type, row.authority, row.school].filter(Boolean).join(' · '))}</p></button></div>`).join('')}</div>`

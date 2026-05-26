@@ -462,6 +462,18 @@ function activityOverlapsMonth(row, ym) {
   return candidates.some((date) => date >= bounds.start && date <= bounds.end);
 }
 
+function hasAnyActivityDate(row) {
+  const pushDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim().slice(0, 10));
+  if (pushDate(row?.start_date) || pushDate(row?.end_date)) return true;
+  const cols = Array.isArray(row?.meeting_dates) ? row.meeting_dates : [];
+  const dateCols = Array.isArray(row?.date_cols) ? row.date_cols : [];
+  if (cols.some(pushDate) || dateCols.some(pushDate)) return true;
+  for (let i = 1; i <= 35; i++) {
+    if (pushDate(row?.[`date_${i}`]) || pushDate(row?.[`Date${i}`])) return true;
+  }
+  return false;
+}
+
 function monthLabel(ym) {
   const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
   if (!m) return '';
@@ -502,7 +514,7 @@ function applyActivitiesLocalFilters(rows, state, settings) {
   const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
   if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
   const familyRows = applyClientFilters(rows, state, settings);
-  const monthRows = familyRows.filter((row) => activityOverlapsMonth(row, state.activitiesMonthYm));
+  const monthRows = familyRows.filter((row) => activityOverlapsMonth(row, state.activitiesMonthYm) || !hasAnyActivityDate(row));
   const gapRows = applyActivitiesGapFilter(monthRows, state.activitiesGapFilter);
   prepareRowsForSearch(gapRows, ACTIVITY_SEARCH_FIELDS);
   return applyLocalFilters(gapRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
@@ -710,7 +722,8 @@ export const activitiesScreen = {
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canAddActivity = !!state?.user?.can_add_activity;
+    const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+    const canAddActivity = !!state?.user?.can_add_activity || role === 'operation_manager' || role === 'admin';
     const isAdmin = isAdminUser(state);
 
     const rosterUsers = getRosterUsers(state?.clientSettings || {});
@@ -883,7 +896,8 @@ export const activitiesScreen = {
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canAddActivity = !!state?.user?.can_add_activity;
+    const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+    const canAddActivity = !!state?.user?.can_add_activity || role === 'operation_manager' || role === 'admin';
     const isAdmin = isAdminUser(state);
 
     const rerenderLocal = () => {
@@ -1329,11 +1343,6 @@ export const activitiesScreen = {
       };
       if (isOneDay) {
         const selectedDate = String(oneDayDate || payload.start_date || payload.end_date || '').trim();
-        if (!selectedDate) {
-          if (statusEl) statusEl.textContent = 'יש לבחור תאריך פעילות לפני השמירה.';
-          form.dataset.submitting = 'no';
-          return;
-        }
         if (selectedDate) {
           meetingDateValues = [selectedDate];
           payload.start_date = selectedDate;
@@ -1378,7 +1387,10 @@ export const activitiesScreen = {
         const rsp = await api.addActivity(payload);
         console.info('[addActivity] success', rsp);
         clearScreenDataCache?.();
-        if (statusEl) statusEl.textContent = 'הפעילות נשמרה';
+        const hasSavedDate = !!String(payload.start_date || payload.end_date || meetingDateValues.find(Boolean) || '').trim();
+        if (statusEl) statusEl.textContent = hasSavedDate
+          ? 'הפעילות נשמרה'
+          : 'הפעילות נשמרה ללא תאריך ותופיע ברשימת ממתינות לתיאום תאריך.';
         const activityMonth = String(payload.start_date || payload.end_date || meetingDateValues.find(Boolean) || '').slice(0, 7);
         if (/^\d{4}-\d{2}$/.test(activityMonth) && state.activitiesMonthYm !== activityMonth) {
           state.activitiesMonthYm = activityMonth;
@@ -1406,6 +1418,17 @@ export const activitiesScreen = {
         const submitBtn = document.querySelector('[data-add-activity-submit]');
         if (submitBtn?.disabled) return;
         await submitAddActivityForm(addActivityForm, submitBtn);
+      }, addActivitySig);
+    }
+    if (document.body?.dataset?.globalActivitySubmitBound !== 'yes') {
+      document.body.dataset.globalActivitySubmitBound = 'yes';
+      document.addEventListener('submit', async (event) => {
+        const form = event.target?.closest?.('[data-add-activity-form]');
+        if (!form) return;
+        event.preventDefault();
+        const submitBtn = document.querySelector('[data-add-activity-submit]');
+        if (submitBtn?.disabled) return;
+        await submitAddActivityForm(form, submitBtn);
       }, addActivitySig);
     }
 
