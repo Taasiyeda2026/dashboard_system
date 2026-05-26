@@ -52,8 +52,8 @@ function exceptionCardSubtitle(row) {
 }
 
 function exceptionGroupCard(title, rows) {
-  const body = `<div class="ds-compact-list">${rows.map((row) =>
-    `<div data-list-item class="ds-exception-list-item"><button type="button" class="ds-interactive-card ds-interactive-card--session" data-card-action="${escapeHtml(`exception:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml(exceptionCardSubtitle(row))}</p></button></div>`
+  const body = `<div class="ds-compact-list ds-exceptions-grid">${rows.map((row) =>
+    `<div data-list-item class="ds-exception-list-item"><button type="button" class="ds-interactive-card ds-interactive-card--session ds-exception-card" data-card-action="${escapeHtml(`exception:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml(exceptionCardSubtitle(row))}</p></button></div>`
   ).join('')}</div>`;
   return dsCard({ title: `${title} · ${rows.length}`, body, padded: false });
 }
@@ -154,10 +154,12 @@ export const exceptionsScreen = {
     ].filter((group) => group.rows.length > 0);
 
     return dsScreenStack(`
+      <div class="ds-exceptions-screen">
       ${toolbarHtml}
-      <section><h2 class="ds-section-title">חריגות${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}</h2></section>
+      <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}</h2></section>
+      ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState('אין חריגות פעילות להצגה.')}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group.title, group.rows)}</section>`).join('')}
       ${hasAnyRows ? loadMoreHtml : ''}
-      ${!hasAnyRows ? `<section>${dsEmptyState('אין חריגות פעילות להצגה.')}</section>` : groups.map((group) => `<section>${exceptionGroupCard(group.title, group.rows)}</section>`).join('')}
+      </div>
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {

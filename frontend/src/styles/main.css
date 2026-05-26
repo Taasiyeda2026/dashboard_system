@@ -1604,6 +1604,42 @@ span.ds-chip {
   font-size: 0.65rem;
 }
 
+/* Exceptions screen only: tighter vertical rhythm and compact clickable cards. */
+.ds-exceptions-screen {
+  display: grid;
+  gap: 8px;
+}
+
+.ds-exceptions-screen .ds-activities-main-toolbar {
+  margin-bottom: 2px;
+}
+
+.ds-exceptions-screen__section {
+  margin: 0;
+  padding: 0;
+}
+
+.ds-exceptions-screen__title {
+  margin: 0;
+}
+
+.ds-exceptions-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 960px) {
+  .ds-exceptions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .ds-exceptions-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.ds-exception-card {
+  cursor: pointer;
+}
+
 .ds-compact-row {
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);
