@@ -2122,7 +2122,9 @@ async function upsertActivityToSupabase(payload = {}) {
   const act = payload?.activity || payload || {};
   const row = sanitizeActivityPayloadForSupabase(sanitizeActivityPayload(act), { includeRowId: true });
   const derivedEnd = deriveEndDateFromDates(row);
-  row.end_date = derivedEnd || null;
+  const existingEndDate = normalizeDateFieldForSupabase(row.end_date);
+  const startDate = normalizeDateFieldForSupabase(row.start_date);
+  row.end_date = derivedEnd || existingEndDate || startDate || null;
   logActivityMutationDebug('request', 'addActivity', { source_sheet: 'activities', source_row_id: row.row_id, changes: row });
   const { data, error } = await supabase.from('activities').insert(row).select().single();
   if (error) {
@@ -2885,11 +2887,15 @@ export const api = {
     if (!rowId) throw new Error('missing_row_id');
     const role = String(state?.user?.display_role || state?.user?.role || '').trim();
     if (!['admin', 'operation_manager'].includes(role)) throw new Error('forbidden_delete_activity');
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('activities')
       .update({ status: DELETED_STATUS })
-      .eq('row_id', rowId);
+      .eq('row_id', rowId)
+      .select('row_id,status')
+      .maybeSingle();
     if (error) throw new Error(error.message || 'delete_activity_failed');
+    if (!data) throw new Error('activity_not_found_or_forbidden');
+    if (String(data?.status || '').trim() !== DELETED_STATUS) throw new Error('delete_activity_not_confirmed');
     return { ok: true, row_id: rowId, status: DELETED_STATUS };
   },
   submitEditRequest: async (source_row_id, changes, source_sheet = 'activities') => {

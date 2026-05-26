@@ -443,12 +443,23 @@ function monthBounds(ym) {
 function activityOverlapsMonth(row, ym) {
   const bounds = monthBounds(ym);
   if (!bounds) return true;
-  const start = String(row?.start_date || '').trim();
-  const end = String(row?.end_date || start).trim();
-  if (!start && !end) return false;
-  const rowStart = start || end;
-  const rowEnd = end || start;
-  return rowStart <= bounds.end && rowEnd >= bounds.start;
+  const candidates = [];
+  const pushDate = (value) => {
+    const date = String(value || '').trim().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) candidates.push(date);
+  };
+  const cols = Array.isArray(row?.meeting_dates) ? row.meeting_dates : [];
+  const dateCols = Array.isArray(row?.date_cols) ? row.date_cols : [];
+  cols.forEach(pushDate);
+  dateCols.forEach(pushDate);
+  for (let i = 1; i <= 35; i++) {
+    pushDate(row?.[`date_${i}`]);
+    pushDate(row?.[`Date${i}`]);
+  }
+  pushDate(row?.start_date);
+  pushDate(row?.end_date);
+  if (!candidates.length) return false;
+  return candidates.some((date) => date >= bounds.start && date <= bounds.end);
 }
 
 function monthLabel(ym) {
@@ -1265,6 +1276,8 @@ export const activitiesScreen = {
     }
 
     async function submitAddActivityForm(form, submitBtn) {
+      if (form.dataset.submitting === 'yes') return;
+      form.dataset.submitting = 'yes';
       const statusEl = form.querySelector('[data-add-activity-status]');
       const activityMap = decodeJsonAttr(form.dataset.addActivityNames, []);
       const roster = decodeJsonAttr(form.dataset.addRosterUsers, []);
@@ -1316,6 +1329,11 @@ export const activitiesScreen = {
       };
       if (isOneDay) {
         const selectedDate = String(oneDayDate || payload.start_date || payload.end_date || '').trim();
+        if (!selectedDate) {
+          if (statusEl) statusEl.textContent = 'יש לבחור תאריך פעילות לפני השמירה.';
+          form.dataset.submitting = 'no';
+          return;
+        }
         if (selectedDate) {
           meetingDateValues = [selectedDate];
           payload.start_date = selectedDate;
@@ -1344,6 +1362,7 @@ export const activitiesScreen = {
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
       if (missing.length) {
         if (statusEl) statusEl.textContent = `יש להשלים שדות חובה: ${missing.join(' ,')}`;
+        form.dataset.submitting = 'no';
         return;
       }
 
@@ -1360,33 +1379,17 @@ export const activitiesScreen = {
         console.info('[addActivity] success', rsp);
         clearScreenDataCache?.();
         if (statusEl) statusEl.textContent = 'הפעילות נשמרה';
-        const localRow = {
-          RowID: rsp?.RowID || '',
-          source_sheet: rsp?.source_sheet || 'activities',
-          activity_family: isOneDay ? 'one_day' : 'program',
-          activity_manager: payload.activity_manager,
-          authority: payload.authority,
-          school: payload.school,
-          activity_type: payload.activity_type,
-          activity_name: payload.activity_name,
-          instructor_name: payload.instructor_name,
-          instructor_name_2: payload.instructor_name_2,
-          emp_id: payload.emp_id,
-          emp_id_2: payload.emp_id_2,
-          start_date: payload.start_date,
-          end_date: payload.end_date,
-          status: 'פעיל',
-          private_note: '',
-          meeting_dates: meetingDateValues.filter(Boolean)
-        };
-        if (localRow.RowID) activitiesRows.unshift(localRow);
-        rerenderLocal();
+        const activityMonth = String(payload.start_date || payload.end_date || meetingDateValues.find(Boolean) || '').slice(0, 7);
+        if (/^\d{4}-\d{2}$/.test(activityMonth) && state.activitiesMonthYm !== activityMonth) {
+          state.activitiesMonthYm = activityMonth;
+        }
         ui?.closeModal?.();
-        void scheduleQuietRefresh();
+        await scheduleQuietRefresh();
       } catch (err) {
         console.error('[addActivity] failed', err);
         if (statusEl) statusEl.textContent = `שגיאה בשמירה: ${String(err?.message || '')}`;
       } finally {
+        form.dataset.submitting = 'no';
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.textContent = originalText;
@@ -1405,16 +1408,6 @@ export const activitiesScreen = {
         await submitAddActivityForm(addActivityForm, submitBtn);
       }, addActivitySig);
     }
-
-
-    document.addEventListener('submit', (ev) => {
-      const form = ev.target?.closest?.('[data-add-activity-form]');
-      if (!form) return;
-      ev.preventDefault();
-      const submitBtn = document.querySelector('[data-add-activity-submit]');
-      if (submitBtn?.disabled) return;
-      void submitAddActivityForm(form, submitBtn);
-    }, addActivitySig);
 
     document.addEventListener('click', (ev) => {
       const submit = ev.target.closest('[data-add-activity-submit]');
