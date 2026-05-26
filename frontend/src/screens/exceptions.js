@@ -87,14 +87,16 @@ function exceptionsOperationalSummaryHtml(data, rows) {
   });
 }
 
-function exceptionGroupCard(title, rows, { canDelete = false } = {}) {
-  const body = rows.length === 0
-    ? dsEmptyState('אין פריטים בקבוצה זו')
-    : `<div class="ds-compact-list">${rows.map((row) => {
-      const chips = normalizedExceptionTypes(row).map((type) => dsStatusChip(hebrewExceptionType(type), 'neutral')).join(' ');
-      return `<div data-list-item class="ds-exception-list-item"><button type="button" class="ds-interactive-card ds-interactive-card--session" data-card-action="${escapeHtml(`exception:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml([row.activity_type, row.authority, row.school].filter(Boolean).join(' · '))}</p><p class="ds-interactive-card__subtitle">${escapeHtml(`מנהל פעילות: ${activityManagerDisplayName(row.activity_manager) || '—'}`)}</p><p class="ds-interactive-card__subtitle">${escapeHtml(`מדריך: ${row.instructor_name || row.instructor_name_2 || '—'}`)}</p><p class="ds-interactive-card__subtitle">${escapeHtml(`התחלה: ${formatDateHe(row.start_date) || row.start_date || '—'} | סיום: ${formatDateHe(row.end_date) || row.end_date || '—'}`)}</p><p class="ds-interactive-card__subtitle">${escapeHtml(`סטטוס: ${row.status || '—'}`)}</p>${chips ? `<div class="ds-row" style="gap:6px;flex-wrap:wrap">${chips}</div>` : ''}</button>${canDelete ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-exception-delete="${escapeHtml(String(row.RowID || ''))}" title="מחיקה רכה">מחיקה</button>` : ''}</div>`;
-    }).join('')}</div>`;
-  return dsCard({ title: `${title} · ${rows.length}`, body, padded: rows.length === 0 });
+function exceptionCardSubtitle(row) {
+  const meta = [String(row?.authority || '').trim(), String(row?.school || '').trim()].filter(Boolean);
+  return meta.length ? meta.join(' · ') : 'ללא רשות / בית ספר';
+}
+
+function exceptionGroupCard(title, rows) {
+  const body = `<div class="ds-compact-list">${rows.map((row) =>
+    `<div data-list-item class="ds-exception-list-item"><button type="button" class="ds-interactive-card ds-interactive-card--session" data-card-action="${escapeHtml(`exception:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml(exceptionCardSubtitle(row))}</p></button></div>`
+  ).join('')}</div>`;
+  return dsCard({ title: `${title} · ${rows.length}`, body, padded: false });
 }
 
 function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings) {
@@ -184,17 +186,19 @@ export const exceptionsScreen = {
     const noInstructorRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('missing_instructor'));
     const mainTypes = new Set(['missing_start_date', 'late_end_date', 'end_date_passed', 'missing_instructor']);
     const otherExceptionRows = allRows.filter((row) => normalizedExceptionTypes(row).some((type) => !mainTypes.has(type)));
-    const compact = visibleRows.length === 0 ? dsEmptyState('לא נמצאו חריגות') : '';
-    const canDeleteActivity = ['admin', 'operation_manager'].includes(String(state?.user?.display_role || state?.user?.role || '').trim());
+    const hasAnyRows = allRows.length > 0;
+    const groups = [
+      { title: 'פעילויות ממתינות לתיאום תאריך', rows: waitingDateRows },
+      { title: 'פעילויות עם חריגת תאריך סיום', rows: endDateExceptionRows },
+      { title: 'פעילויות ללא מדריך', rows: noInstructorRows },
+      ...(otherExceptionRows.length ? [{ title: 'חריגות נוספות', rows: otherExceptionRows }] : [])
+    ].filter((group) => group.rows.length > 0);
 
     return dsScreenStack(`
       ${toolbarHtml}
       <section>${exceptionsOperationalSummaryHtml(data, allRows)}</section>
-      <section>${dsCard({ title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''} · סה״כ פעילויות חריגות: ${escapeHtml(String(data?.totalExceptionRows ?? total))}`, body: compact || loadMoreHtml, padded: visibleRows.length === 0 })}</section>
-      <section>${exceptionGroupCard('פעילויות ממתינות לתיאום תאריך', waitingDateRows, { canDelete: canDeleteActivity })}</section>
-      <section>${exceptionGroupCard('פעילויות עם חריגת תאריך סיום', endDateExceptionRows, { canDelete: canDeleteActivity })}</section>
-      <section>${exceptionGroupCard('פעילויות ללא מדריך', noInstructorRows, { canDelete: canDeleteActivity })}</section>
-      ${otherExceptionRows.length ? `<section>${exceptionGroupCard('חריגות נוספות', otherExceptionRows, { canDelete: canDeleteActivity })}</section>` : ''}
+      ${hasAnyRows ? `<section>${dsCard({ title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}`, body: loadMoreHtml, padded: false })}</section>` : ''}
+      ${!hasAnyRows ? `<section>${dsEmptyState('אין חריגות פעילות להצגה.')}</section>` : groups.map((group) => `<section>${exceptionGroupCard(group.title, group.rows)}</section>`).join('')}
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
@@ -326,25 +330,5 @@ export const exceptionsScreen = {
       }
     });
 
-    root.querySelectorAll('[data-exception-delete]').forEach((btn) => {
-      btn.addEventListener('click', async (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        const rowId = String(btn.getAttribute('data-exception-delete') || '').trim();
-        if (!rowId) return;
-        const ok = window.confirm('האם למחוק את הפעילות? הפעילות תוסתר מהמסכים ולא תימחק פיזית מהמערכת.');
-        if (!ok) return;
-        btn.disabled = true;
-        try {
-          await api.deleteActivity(rowId);
-          clearScreenDataCache?.();
-          rerender();
-        } catch (_err) {
-          window.alert('הפעילות לא נמחקה. ייתכן שאין הרשאה או שהפעילות לא נמצאה.');
-        } finally {
-          btn.disabled = false;
-        }
-      });
-    });
   }
 };

@@ -13,6 +13,7 @@ import {
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { calendarMonthStorageKey } from '../state.js';
+import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 
 const inflightActivityDetailRequests = new Map();
 const inflightMonthRequests = new Map();
@@ -294,7 +295,9 @@ export const monthScreen = {
         ? `<div class="ds-empty" role="status" dir="rtl"><p class="ds-empty__msg">לא נמצאו פעילויות התואמות לסינון</p></div>`
         : '';
 
+    const viewSwitcher = renderActivitiesViewSwitcher(state, 'month');
     const html = dsScreenStack(`
+      ${viewSwitcher}
       <nav class="ds-cal-nav${navLoading ? ' is-nav-loading' : ''}" role="navigation" aria-label="ניווט חודשי" dir="rtl">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-month-prev aria-label="חודש קודם" title="חודש קודם" ${navLoading ? 'disabled' : ''}>▶</button>
         <span class="ds-cal-nav__label">${escapeHtml(monthTitle)} ${navLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : ''}</span>
@@ -311,6 +314,7 @@ export const monthScreen = {
     return html;
   },
   bind({ root, ui, data, state, rerender, clearScreenDataCache, api }) {
+    bindActivitiesViewSwitcher(root, state, rerender);
     root.classList.remove('is-month-loading');
     root.setAttribute('aria-busy', 'false');
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
