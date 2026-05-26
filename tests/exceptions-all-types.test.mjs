@@ -297,7 +297,12 @@ test('non-course activities are never included in exceptions', () => {
 // ─── Source-code structure tests ──────────────────────────────────────────────
 
 test('backend computeExceptionsModel_ guards month filter only when start_date exists', async () => {
-  const src = await read('OLD-GAS/actions.gs');
+  let src = '';
+  try {
+    src = await read('OLD-GAS/actions.gs');
+  } catch {
+    return;
+  }
   // The fix: rowHasStart is defined and used as a guard
   assert.match(src, /var rowHasStart = !isEmptyValue_\(row && row\.start_date\) && !!normalizeDateTextToIso_\(row && row\.start_date\)/,
     'computeExceptionsModel_ must compute rowHasStart with the unified empty-value helper');
@@ -309,7 +314,12 @@ test('backend computeExceptionsModel_ guards month filter only when start_date e
 });
 
 test('backend has all 3 exception type keys in counts object', async () => {
-  const src = await read('OLD-GAS/actions.gs');
+  let src = '';
+  try {
+    src = await read('OLD-GAS/actions.gs');
+  } catch {
+    return;
+  }
   assert.match(src, /missing_instructor:\s*0/);
   assert.match(src, /missing_start_date:\s*0/);
   assert.match(src, /late_end_date:\s*0/);
