@@ -343,48 +343,22 @@ test('frontend exceptions screen filter fields include exception_type', async ()
     'exception_type filter must use hebrewExceptionType for option labels');
 });
 
-test('frontend exceptions title uses totalExceptionRows', async () => {
+test('frontend exceptions screen keeps compact page title only', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
-  assert.match(src, /data\?\.totalExceptionRows/,
-    'title count must use totalExceptionInstances from API response');
-  assert.doesNotMatch(
-    src,
-    /totalExceptionInstances.*סה.{0,5}כ חריגות/,
-    'title must not use totalExceptionRows for the count'
-  );
+  assert.match(src, /חריגות\$\{data\?\.month \? ` · \$\{escapeHtml\(hebrewMonthLabel\(data\.month\)\)\}` : ''\}/,
+    'screen should render only compact month title');
+  assert.doesNotMatch(src, /סה״כ פעילויות חריגות/,
+    'top summary title must be removed');
+  assert.doesNotMatch(src, /פעילות עם כמה סוגי חריגה נספרת פעם אחת בסה״כ/,
+    'duplicate summary explanation must be removed');
 });
 
-test('frontend exceptions screen renders unique-activity top summary', async () => {
+test('frontend exceptions screen renders only non-empty groups', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
-  const metricsSrc = await read('frontend/src/screens/shared/exceptions-metrics.js');
-  assert.match(src, /function exceptionsOperationalSummaryHtml\(data, rows\)/,
-    'exceptions screen must render an exceptions summary block');
-  assert.match(metricsSrc, /function exceptionActivityKey\(row\)/,
-    'summary must key exception activities for dedupe');
-  assert.match(metricsSrc, /row\?\.RowID, row\?\.row_id, row\?\.source_row_id/,
-    'summary must dedupe with the supported row id fields first');
-  assert.match(metricsSrc, /row\?\.activity_name,[\s\S]*row\?\.activity_type,[\s\S]*row\?\.school,[\s\S]*row\?\.authority,[\s\S]*row\?\.start_date,[\s\S]*row\?\.end_date/,
-    'summary must fall back to the business activity fields when no id exists');
-  assert.match(metricsSrc, /function uniqueExceptionActivityCount\(rows, predicate\)/,
-    'summary must count unique activities, not exception-type instances');
-  assert.match(metricsSrc, /uniqueExceptionActivityCount\(list, \(types\) => types\.includes\('late_end_date'\)\)/,
-    'operational count must include only late_end_date exception type');
-  assert.match(src, /exceptionCountFromRows\(rows, 'late_end_date'\)/,
-    'summary must count unique late_end_date activities from rows');
-  assert.match(src, /const totalExceptionRows = optionalNumericCount\(data\?\.totalExceptionRows\)/,
-    'top summary must prefer totalExceptionRows when supplied');
-  assert.match(src, /const allExceptionsTotal = totalExceptionRows \?\? uniqueExceptionActivityCount\(rows\)/,
-    'top summary must fall back to unique rows when totalExceptionRows is not supplied');
-  assert.match(src, /סה״כ פעילויות חריגות: \$\{escapeHtml\(String\(allExceptionsTotal\)\)\}/,
-    'summary title must display unique exceptional activities');
-  assert.match(src, /ממתינות לתיאום תאריך: <strong>\$\{escapeHtml\(String\(missingStartDate\)\)\}<\/strong>/,
-    'summary must display waiting-for-date as a separate unique activity count');
-  assert.match(src, /חריגות תאריך סיום: <strong>\$\{escapeHtml\(String\(endDateExceptions\)\)\}<\/strong>/,
-    'summary must display consolidated end-date exceptions count');
-  assert.match(src, /ללא מדריך: <strong>\$\{escapeHtml\(String\(missingInstructor\)\)\}<\/strong>/,
-    'summary must display missing instructor as a separate unique activity count');
-  assert.match(src, /פעילות עם כמה סוגי חריגה נספרת פעם אחת בסה״כ/,
-    'summary should explain that multi-exception activities are counted once in the total');
+  assert.match(src, /\.filter\(\(group\) => group\.rows\.length > 0\)/,
+    'empty exception groups should be filtered out');
+  assert.match(src, /return dsCard\(\{ title: `\$\{title\} · \$\{rows\.length\}`/,
+    'group titles should include item count');
 });
 
 test('frontend exception Hebrew labels describe the exception details clearly', async () => {

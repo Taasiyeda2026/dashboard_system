@@ -19,7 +19,7 @@ import {
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
-import { normalizedExceptionTypes, uniqueExceptionActivityCount } from './shared/exceptions-metrics.js';
+import { normalizedExceptionTypes } from './shared/exceptions-metrics.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
 
@@ -44,47 +44,6 @@ function fieldRow(label, value) {
     ? escapeHtml(String(value).trim())
     : '<em style="color:var(--ds-text-muted)">—</em>';
   return `<p><strong>${escapeHtml(label)}:</strong> ${display}</p>`;
-}
-
-function numericCount(value) {
-  const n = Number(value || 0);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function optionalNumericCount(value) {
-  if (value === undefined || value === null || value === '') return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function exceptionCountFromRows(rows, type) {
-  return uniqueExceptionActivityCount(rows, (types) => types.includes(type));
-}
-
-function exceptionsOperationalSummaryHtml(data, rows) {
-  const counts = data?.counts && typeof data.counts === 'object' ? data.counts : {};
-  const hasRows = Array.isArray(rows) && rows.length > 0;
-  const missingInstructor = hasRows
-    ? exceptionCountFromRows(rows, 'missing_instructor')
-    : numericCount(counts.missing_instructor);
-  const missingStartDate = hasRows
-    ? exceptionCountFromRows(rows, 'missing_start_date')
-    : numericCount(counts.missing_start_date);
-  const lateEndDate = hasRows ? exceptionCountFromRows(rows, 'late_end_date') : numericCount(counts.late_end_date);
-  const endDatePassed = hasRows ? exceptionCountFromRows(rows, 'end_date_passed') : numericCount(counts.end_date_passed);
-  const endDateExceptions = lateEndDate + endDatePassed;
-  const totalExceptionRows = optionalNumericCount(data?.totalExceptionRows);
-  const allExceptionsTotal = totalExceptionRows ?? uniqueExceptionActivityCount(rows);
-
-  return dsCard({
-    title: `סה״כ פעילויות חריגות: ${escapeHtml(String(allExceptionsTotal))}`,
-    body: `<div class="ds-summary-panel__structured" dir="rtl">
-      <p class="ds-summary-panel__text">ממתינות לתיאום תאריך: <strong>${escapeHtml(String(missingStartDate))}</strong></p>
-      <p class="ds-summary-panel__text">חריגות תאריך סיום: <strong>${escapeHtml(String(endDateExceptions))}</strong></p>
-      <p class="ds-summary-panel__text">ללא מדריך: <strong>${escapeHtml(String(missingInstructor))}</strong></p>
-      <p class="ds-summary-panel__text"><small>פעילות עם כמה סוגי חריגה נספרת פעם אחת בסה״כ.</small></p>
-    </div>`
-  });
 }
 
 function exceptionCardSubtitle(row) {
@@ -196,8 +155,8 @@ export const exceptionsScreen = {
 
     return dsScreenStack(`
       ${toolbarHtml}
-      <section>${exceptionsOperationalSummaryHtml(data, allRows)}</section>
-      ${hasAnyRows ? `<section>${dsCard({ title: `חריגות קורסים${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}`, body: loadMoreHtml, padded: false })}</section>` : ''}
+      <section><h2 class="ds-section-title">חריגות${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}</h2></section>
+      ${hasAnyRows ? loadMoreHtml : ''}
       ${!hasAnyRows ? `<section>${dsEmptyState('אין חריגות פעילות להצגה.')}</section>` : groups.map((group) => `<section>${exceptionGroupCard(group.title, group.rows)}</section>`).join('')}
     `);
   },
