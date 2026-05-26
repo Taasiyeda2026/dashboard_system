@@ -1624,7 +1624,8 @@ span.ds-chip {
 }
 
 .ds-exceptions-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 260px));
+  justify-content: start;
   gap: 8px;
 }
 
@@ -1638,6 +1639,10 @@ span.ds-chip {
 
 .ds-exception-card {
   cursor: pointer;
+  min-height: 40px;
+  padding: var(--ds-space-2);
+  width: min(100%, 260px);
+  overflow-wrap: anywhere;
 }
 
 .ds-compact-row {
