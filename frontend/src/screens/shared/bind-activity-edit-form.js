@@ -363,7 +363,7 @@ export function bindActivityEditForm(contentRoot, {
         ev.preventDefault();
         const rowId = String(form.getAttribute('data-row-id') || '').trim();
         if (!rowId) return;
-        const ok = window.confirm('האם למחוק את הפעילות? הפעילות תוסתר מהמסכים ולא תימחק פיזית מהמערכת.\n\nניתן יהיה לשחזר אותה רק דרך ניהול נתונים/הרשאות מתאימות.');
+        const ok = window.confirm('האם למחוק את הפעילות? הפעילות תוסתר מהמסכים ולא תימחק פיזית מהמערכת.');
         if (!ok) return;
         api.deleteActivity(rowId)
           .then(async () => {

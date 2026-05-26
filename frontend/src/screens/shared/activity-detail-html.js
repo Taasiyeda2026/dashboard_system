@@ -601,7 +601,7 @@ function blockEditActions({ canEdit = false, canDirectEdit = false, canDeleteAct
       <div class="activity-drawer__edit-actions">
         ${canEdit ? `<button type="button" class="activity-drawer__action activity-drawer__action--primary" data-action="save-edit">${requestOnlyEdit ? 'שליחת בקשת עריכה לאישור' : 'שמור'}</button>
         <button type="button" class="activity-drawer__action" data-action="cancel-edit">ביטול</button>` : ''}
-        ${canDeleteActivity ? '<button type="button" class="activity-drawer__action activity-drawer__action--danger" data-action="delete-activity">מחק פעילות</button>' : ''}
+        ${canDeleteActivity ? '<button type="button" class="activity-drawer__action activity-drawer__action--danger" data-action="delete-activity">מחיקת פעילות</button>' : ''}
         <p class="ds-activity-edit-status ds-muted" role="status"></p>
       </div>
     </section>
