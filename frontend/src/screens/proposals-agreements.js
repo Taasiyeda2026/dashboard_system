@@ -723,6 +723,43 @@ function filterPricingByProposalType(pricingOptions, activityTypeGroup) {
   });
 }
 
+const TEMPLATE_LABELS = {
+  'קיץ תשפ״ו':         'תבנית נטענת: הצעת קיץ תשפ״ו',
+  'תוכניות תשפ״ז':      'תבנית נטענת: הצעת תוכניות תשפ״ז',
+  'קיץ תשפ״ו + תשפ״ז': 'תבנית נטענת: הצעה משולבת קיץ תשפ״ו + תשפ״ז',
+};
+
+function templateIndicatorHtml(group) {
+  const label = TEMPLATE_LABELS[group] || '';
+  if (!label) return `<p class="ds-pa-template-indicator" data-pa-template-indicator></p>`;
+  return `<p class="ds-pa-template-indicator ds-pa-template-indicator--active" data-pa-template-indicator>${escapeHtml(label)}</p>`;
+}
+
+function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email) {
+  if (!auth) return '';
+  return `<div class="ds-pa-client-locked">
+    <div class="ds-pa-client-locked-body">
+      <strong class="ds-pa-client-locked-name">${escapeHtml(auth)}${school ? ` — ${escapeHtml(school)}` : ''}</strong>
+      ${contactName ? `<span class="ds-pa-client-locked-detail">${escapeHtml(contactName)}${contactRole ? ` | ${escapeHtml(contactRole)}` : ''}</span>` : ''}
+      ${phone ? `<span class="ds-pa-client-locked-detail">${escapeHtml(phone)}</span>` : ''}
+      ${email ? `<span class="ds-pa-client-locked-detail">${escapeHtml(email)}</span>` : ''}
+    </div>
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>עריכת פרטי לקוח</button>
+  </div>`;
+}
+
+function showValidationNotice(form, errors, isPending) {
+  const noticeEl = form.querySelector('[data-pa-validation-notice]');
+  const errorEl = form.querySelector('[data-pa-form-error]');
+  if (noticeEl && errors.length) {
+    const title = isPending ? 'לפני שליחה לאישור יש להשלים:' : 'חובה למלא:';
+    noticeEl.innerHTML = `<strong class="ds-pa-validation-title">${escapeHtml(title)}</strong><ul class="ds-pa-validation-list">${errors.map((e) => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`;
+    noticeEl.hidden = false;
+    noticeEl.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+  }
+  if (errorEl) errorEl.textContent = '';
+}
+
 function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = []) {
   const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
   const normalizedActivityGroup = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
@@ -731,44 +768,66 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initAuth = text(row.client_authority);
   const initSchool = text(row.school_framework);
   const initContact = text(row.contact_name);
+  const initRole = text(row.contact_role);
+  const initPhone = text(row.phone);
+  const initEmail = text(row.email);
+  const isLocked = !!initAuth;
   const initPickerHtml = initAuth ? contactPickerHtml(contactOptions, initAuth, initSchool, initContact) : '';
 
   return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" dir="rtl">
     <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
 
-    <div class="ds-pa-form-section" style="margin-bottom:8px">
-      <div class="ds-pa-client-row" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+    <div class="ds-pa-form-section">
+      <h4 class="ds-pa-section-heading"><span class="ds-pa-section-num">1</span> פרטי לקוח</h4>
+      <div class="ds-pa-client-row">
         ${clientSelectHtml(contactOptions, row)}
         <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>+ לקוח חדש</button>
       </div>
-      <div data-pa-new-client-hint hidden style="margin-bottom:4px">
-        <span class="ds-muted" style="font-size:0.8rem">מלאו את שדות הלקוח / הקשר ישירות למטה</span>
+      <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail) : ''}</div>
+      <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הוספת לקוח חדש</span></div>
+      <div class="ds-pa-form-grid" data-pa-client-fields${isLocked ? ' hidden' : ''}>
+        ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
+        ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, true)}
+        ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
+        ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
+        ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
+        ${textField('email', FIELD_LABELS.email, row.email, false)}
       </div>
       <div data-pa-contact-picker-host>${initPickerHtml}</div>
     </div>
 
-    <input type="hidden" name="document_type" value="הצעת מחיר">
-    <div class="ds-pa-form-grid">
-      ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
-      ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, true)}
-      ${selectField('activity_type_group', FIELD_LABELS.activity_type_group, ACTIVITY_TYPE_GROUP_OPTIONS, normalizedActivityGroup, true)}
-      <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(text(row.proposal_date))}"></label>
-      ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
-      ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
-      ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
-      ${textField('email', FIELD_LABELS.email, row.email, false)}
+    <div class="ds-pa-form-section">
+      <h4 class="ds-pa-section-heading"><span class="ds-pa-section-num">2</span> סוג הצעה ותבנית</h4>
+      <div class="ds-pa-type-row">
+        ${selectField('activity_type_group', FIELD_LABELS.activity_type_group, ACTIVITY_TYPE_GROUP_OPTIONS, normalizedActivityGroup, true)}
+        ${templateIndicatorHtml(normalizedActivityGroup)}
+      </div>
     </div>
 
-    <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm" name="notes" rows="2">${escapeHtml(text(row.notes))}</textarea></label>
+    <div class="ds-pa-form-section">
+      <h4 class="ds-pa-section-heading"><span class="ds-pa-section-num">3</span> פרטי הצעה</h4>
+      <div class="ds-pa-form-grid">
+        <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(text(row.proposal_date))}"></label>
+      </div>
+      <label class="ds-pa-form-field ds-pa-form-field--wide" style="margin-top:6px"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm" name="notes" rows="2">${escapeHtml(text(row.notes))}</textarea></label>
+    </div>
 
-    <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
+    <div class="ds-pa-form-section">
+      <h4 class="ds-pa-section-heading"><span class="ds-pa-section-num">4</span> שורות הצעה</h4>
+      <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
+    </div>
 
+    <input type="hidden" name="document_type" value="הצעת מחיר">
     <input type="hidden" name="status" data-pa-status-input value="${escapeHtml(currentStatus)}">
+    <div class="ds-pa-validation-notice" data-pa-validation-notice hidden></div>
     <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
-    <div class="ds-pa-form-actions">
-      <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
-      <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending>שליחה לאישור</button>
+    <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
+      <div class="ds-pa-form-actions-main">
+        <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
+        <button type="button" class="ds-btn ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
+        <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending>שליחה לאישור</button>
+      </div>
     </div>
   </form>`;
 }
@@ -927,7 +986,7 @@ function validatePayload(payload, statusOverride) {
     }
   }
 
-  return errors.length ? `חובה למלא: ${errors.join(', ')}` : '';
+  return errors;
 }
 
 function replaceLocalRow(data, savedRow) {
@@ -995,7 +1054,7 @@ export const proposalsAgreementsScreen = {
 
     const formHost = root.querySelector('[data-pa-form-host]');
 
-    // ── Type change → re-render items section ────────────────────────────────
+    // ── Type change → re-render items section + update template indicator ────
     const setupTypeChangeHandler = (container) => {
       const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]') || container;
       if (!form) return;
@@ -1003,6 +1062,14 @@ export const proposalsAgreementsScreen = {
       if (!typeSelect) return;
       typeSelect.addEventListener('change', () => {
         const newType = text(typeSelect.value);
+        // Update template indicator
+        const indicatorEl = form.querySelector('[data-pa-template-indicator]');
+        if (indicatorEl) {
+          const tmp = document.createElement('div');
+          tmp.innerHTML = templateIndicatorHtml(newType);
+          const newIndicator = tmp.firstElementChild;
+          if (newIndicator) indicatorEl.replaceWith(newIndicator);
+        }
         const currentItems = extractItemsFromForm(form);
         const itemsHost = form.querySelector('[data-pa-items-host]');
         if (!itemsHost) return;
@@ -1010,6 +1077,23 @@ export const proposalsAgreementsScreen = {
         itemsHost.innerHTML = itemsEditorHtml(currentItems, filteredPricing, newType);
         setupItemCalc(form);
       }, { signal });
+    };
+
+    // ── Client lock / unlock helpers ──────────────────────────────────────────
+    const lockClientFields = (form, auth, school, cName, cRole, phone, email) => {
+      const cardEl = form?.querySelector('[data-pa-client-card]');
+      const fieldsEl = form?.querySelector('[data-pa-client-fields]');
+      const hintEl = form?.querySelector('[data-pa-new-client-hint]');
+      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email); cardEl.hidden = false; }
+      if (fieldsEl) fieldsEl.hidden = true;
+      if (hintEl) hintEl.hidden = true;
+    };
+
+    const unlockClientFields = (form) => {
+      const cardEl = form?.querySelector('[data-pa-client-card]');
+      const fieldsEl = form?.querySelector('[data-pa-client-fields]');
+      if (cardEl) cardEl.hidden = true;
+      if (fieldsEl) fieldsEl.hidden = false;
     };
 
     // ── Contact / client setup ────────────────────────────────────────────────
@@ -1045,7 +1129,7 @@ export const proposalsAgreementsScreen = {
       if (!form) return;
       clientSelect.addEventListener('change', () => {
         const val = clientSelect.value;
-        if (!val) return;
+        if (!val) { unlockClientFields(form); return; }
         form.dataset.paNewClient = 'no';
         const [authority, school] = val.split('||');
         const matches = contactOptions.filter((c) => text(c.authority) === authority && text(c.school) === school);
@@ -1054,12 +1138,20 @@ export const proposalsAgreementsScreen = {
         if (authInput) authInput.value = authority;
         if (schoolInput) schoolInput.value = school;
         const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+        let cName = '', cRole = '', phone = '', email = '';
         if (matches.length > 1) {
           if (pickerHost) { pickerHost.innerHTML = contactPickerHtml(contactOptions, authority, school, ''); setupContactPicker(pickerHost, form); }
         } else {
           if (pickerHost) pickerHost.innerHTML = '';
-          if (matches.length === 1) fillContactFields(form, matches[0]);
+          if (matches.length === 1) {
+            fillContactFields(form, matches[0]);
+            cName = text(matches[0].contact_name);
+            cRole = text(matches[0].contact_role);
+            phone = text(matches[0].phone || matches[0].mobile || '');
+            email = text(matches[0].email || '');
+          }
         }
+        lockClientFields(form, authority, school, cName, cRole, phone, email);
       }, { signal });
     };
 
@@ -1185,13 +1277,15 @@ export const proposalsAgreementsScreen = {
         }
       }
 
-      const validationError = validatePayload(payload, statusOverride);
-      if (validationError) {
-        if (errorEl) errorEl.textContent = validationError;
+      const validationErrors = validatePayload(payload, statusOverride);
+      if (validationErrors.length) {
+        showValidationNotice(form, validationErrors, statusOverride === 'pending_approval');
         form.dataset.saving = '';
         allBtns.forEach((b) => { b.disabled = false; });
         return;
       }
+      const noticeEl = form.querySelector('[data-pa-validation-notice]');
+      if (noticeEl) noticeEl.hidden = true;
       const mode = form.dataset.paMode;
       const id = text(form.dataset.paId);
       try {
@@ -1389,7 +1483,7 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
-      // Preview button
+      // Preview button (drawer or inline form)
       const previewBtn = event.target.closest?.('[data-pa-preview]');
       if (previewBtn) {
         const id = text(previewBtn.dataset.paPreview);
@@ -1404,6 +1498,8 @@ export const proposalsAgreementsScreen = {
         } catch { items = []; }
         previewBtn.disabled = false;
         openPreview(row, items);
+        // Mark preview seen on any open form for this record
+        root.querySelectorAll(`[data-pa-form][data-pa-id="${id}"]`).forEach((f) => { f.dataset.paPreviewSeen = 'yes'; });
         return;
       }
 
@@ -1511,15 +1607,40 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
+      if (event.target.closest?.('[data-pa-unlock-client]')) {
+        const form = event.target.closest('[data-pa-form]');
+        unlockClientFields(form);
+        const hint = form?.querySelector('[data-pa-new-client-hint]');
+        if (hint) hint.hidden = true;
+        form?.querySelector('input[name="client_authority"]')?.focus();
+        return;
+      }
+
       if (event.target.closest?.('[data-pa-new-client-toggle]')) {
         const form = event.target.closest('[data-pa-form]');
-        const hint = form?.querySelector('[data-pa-new-client-hint]');
         const clientSelect = form?.querySelector('[data-pa-client-select]');
         if (clientSelect) clientSelect.value = '';
-        const isNewClient = form?.dataset.paNewClient === 'yes';
-        if (form) form.dataset.paNewClient = isNewClient ? 'no' : 'yes';
-        if (hint) hint.hidden = isNewClient;
+        if (form) form.dataset.paNewClient = 'yes';
+        unlockClientFields(form);
+        const hint = form?.querySelector('[data-pa-new-client-hint]');
+        if (hint) hint.hidden = false;
+        ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {
+          const inp = form?.querySelector(`input[name="${name}"]`);
+          if (inp) inp.value = '';
+        });
         form?.querySelector('input[name="client_authority"]')?.focus();
+        return;
+      }
+
+      const previewFormBtn = event.target.closest?.('[data-pa-preview-form]');
+      if (previewFormBtn) {
+        const form = previewFormBtn.closest('[data-pa-form]');
+        if (!form) return;
+        const payload = payloadFromForm(form);
+        const tempRow = { ...payload, id: text(form.dataset.paId) || '' };
+        const items = payload._items || [];
+        openPreview(tempRow, items);
+        form.dataset.paPreviewSeen = 'yes';
         return;
       }
 

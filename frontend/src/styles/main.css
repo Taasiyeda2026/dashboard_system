@@ -10507,6 +10507,144 @@ select.ds-input {
 .ds-pa-records-shell .ds-pa-empty-row td { text-align:center; padding:22px 8px; }
 
 /* ═══════════════════════════════════════════════════════════════════
+   Proposals – Form workflow UX (sections, client card, template indicator)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Numbered sections */
+.ds-pa-form-section {
+  border: 1px solid var(--ds-border, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 14px 10px;
+  margin-bottom: 10px;
+  background: var(--ds-surface, #fff);
+}
+.ds-pa-section-heading {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ds-color-text, #0f172a);
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ds-pa-section-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ds-accent, #2563eb);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.ds-pa-client-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+/* Readonly client card */
+.ds-pa-client-locked {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--ds-surface-2, #f8fafc);
+  border: 1px solid var(--ds-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+.ds-pa-client-locked-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ds-pa-client-locked-name {
+  font-size: 0.82rem;
+  color: var(--ds-color-text, #0f172a);
+}
+.ds-pa-client-locked-detail {
+  font-size: 0.76rem;
+  color: var(--ds-color-text-muted, #64748b);
+}
+.ds-pa-new-client-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ds-accent, #2563eb);
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* Template indicator */
+.ds-pa-type-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ds-pa-type-row .ds-pa-form-field { flex: 1; min-width: 180px; }
+.ds-pa-template-indicator {
+  font-size: 0.76rem;
+  padding: 5px 9px;
+  border-radius: 6px;
+  margin: 0;
+  align-self: flex-end;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+}
+.ds-pa-template-indicator--active {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+/* Workflow action buttons */
+.ds-pa-form-actions--workflow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--ds-border, #e2e8f0);
+  margin-top: 4px;
+}
+.ds-pa-form-actions-main {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Validation notice */
+.ds-pa-validation-notice {
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+  color: #9a3412;
+}
+.ds-pa-validation-title {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.ds-pa-validation-list {
+  margin: 0;
+  padding-right: 18px;
+  line-height: 1.7;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    Proposals – Items editor
    ═══════════════════════════════════════════════════════════════════ */
 .ds-pa-items-section { margin: 10px 0 8px; }
