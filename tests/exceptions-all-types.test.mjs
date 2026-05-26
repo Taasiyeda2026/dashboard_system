@@ -12,6 +12,27 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+if (!globalThis.sessionStorage) {
+  const sessionStore = new Map();
+  globalThis.sessionStorage = {
+    getItem: (key) => sessionStore.has(key) ? sessionStore.get(key) : null,
+    setItem: (key, value) => sessionStore.set(key, String(value)),
+    removeItem: (key) => sessionStore.delete(key),
+    clear: () => sessionStore.clear()
+  };
+}
+if (!globalThis.localStorage) {
+  const localStore = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => localStore.has(key) ? localStore.get(key) : null,
+    setItem: (key, value) => localStore.set(key, String(value)),
+    removeItem: (key) => localStore.delete(key),
+    clear: () => localStore.clear()
+  };
+}
+
+const { exceptionsScreen } = await import('../frontend/src/screens/exceptions.js');
+
 const read = (p) => readFile(new URL(`../${p}`, import.meta.url), 'utf8');
 
 // ─── Lightweight JS re-implementations of backend helpers ────────────────────
@@ -366,6 +387,31 @@ test('frontend exception Hebrew labels describe the exception details clearly', 
   assert.match(src, /missing_instructor:\s+'חסר מדריך'/);
   assert.match(src, /missing_start_date:\s+'חסר תאריך התחלה'/);
   assert.match(src, /late_end_date:\s+'תאריך סיום מאוחר'/);
+});
+
+test('exceptions screen separates end_date_passed and late_end_date into distinct group titles', async () => {
+  const src = await read('frontend/src/screens/exceptions.js');
+  assert.match(src, /פעילויות פעילות שתאריך הסיום שלהן חלף/);
+  assert.match(src, /פעילויות עם מפגש לאחר תאריך הסיום/);
+  assert.doesNotMatch(src, /פעילויות עם חריגת תאריך סיום/);
+});
+
+test('exceptions screen group count matches rendered clickable cards', () => {
+  const state = { exceptionsListFilters: {}, activityListFilters: {}, clientSettings: {} };
+  const data = {
+    month: '2026-05',
+    rows: [
+      { RowID: '1', activity_name: 'א', authority: 'ר1', school: 'ב1', exception_types: ['end_date_passed'] },
+      { RowID: '2', activity_name: 'ב', authority: 'ר1', school: 'ב1', exception_types: ['late_end_date'] },
+      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['late_end_date', 'missing_instructor'] }
+    ]
+  };
+  const html = exceptionsScreen.render(data, { state });
+  assert.match(html, /פעילויות פעילות שתאריך הסיום שלהן חלף · 1/);
+  assert.match(html, /פעילויות עם מפגש לאחר תאריך הסיום · 2/);
+  const clickableCards = (html.match(/data-card-action="exception:/g) || []).length;
+  assert.equal(clickableCards, 4, 'each grouped appearance must be rendered as a clickable card');
+  assert.doesNotMatch(html, /data-action="delete"/);
 });
 
 test('frontend drawer shows exception type chip when opening activity detail', async () => {

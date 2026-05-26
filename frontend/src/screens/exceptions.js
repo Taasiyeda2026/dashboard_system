@@ -14,8 +14,7 @@ import {
   prepareRowsForSearch,
   applyLocalFilters,
   filtersToolbarHtml,
-  bindLocalFilters,
-  splitVisibleRows
+  bindLocalFilters
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
@@ -126,29 +125,23 @@ export const exceptionsScreen = {
     const filterState = ensureActivityListFilters(state, EXCEPTIONS_SCOPE);
     prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type', 'exception_types']);
     const filteredRows = applyLocalFilters(allRows, filterState, { filterFields: EXCEPTION_FILTER_FIELDS });
-    const { visible: visibleRows, hasMore, nextCount, total } = splitVisibleRows(filteredRows, filterState);
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const toolbarHtml = filtersToolbarHtml(EXCEPTIONS_SCOPE, allRows, state, {
       filterFields: EXCEPTION_FILTER_FIELDS,
       searchPlaceholder: 'חיפוש חריגות קורסים…',
       optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
     });
-    const loadMoreHtml = hasMore
-      ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${EXCEPTIONS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
-      : '';
-
-    const waitingDateRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('missing_start_date'));
-    const endDateExceptionRows = allRows.filter((row) => {
-      const types = normalizedExceptionTypes(row);
-      return types.includes('late_end_date') || types.includes('end_date_passed');
-    });
-    const noInstructorRows = allRows.filter((row) => normalizedExceptionTypes(row).includes('missing_instructor'));
+    const waitingDateRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('missing_start_date'));
+    const endDatePassedRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('end_date_passed'));
+    const lateEndDateRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('late_end_date'));
+    const noInstructorRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('missing_instructor'));
     const mainTypes = new Set(['missing_start_date', 'late_end_date', 'end_date_passed', 'missing_instructor']);
-    const otherExceptionRows = allRows.filter((row) => normalizedExceptionTypes(row).some((type) => !mainTypes.has(type)));
-    const hasAnyRows = allRows.length > 0;
+    const otherExceptionRows = filteredRows.filter((row) => normalizedExceptionTypes(row).some((type) => !mainTypes.has(type)));
+    const hasAnyRows = filteredRows.length > 0;
     const groups = [
       { title: 'פעילויות ממתינות לתיאום תאריך', rows: waitingDateRows },
-      { title: 'פעילויות עם חריגת תאריך סיום', rows: endDateExceptionRows },
+      { title: 'פעילויות פעילות שתאריך הסיום שלהן חלף', rows: endDatePassedRows },
+      { title: 'פעילויות עם מפגש לאחר תאריך הסיום', rows: lateEndDateRows },
       { title: 'פעילויות ללא מדריך', rows: noInstructorRows },
       ...(otherExceptionRows.length ? [{ title: 'חריגות נוספות', rows: otherExceptionRows }] : [])
     ].filter((group) => group.rows.length > 0);
@@ -158,17 +151,12 @@ export const exceptionsScreen = {
       ${toolbarHtml}
       <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}</h2></section>
       ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState('אין חריגות פעילות להצגה.')}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group.title, group.rows)}</section>`).join('')}
-      ${hasAnyRows ? loadMoreHtml : ''}
       </div>
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
     const allRows   = (Array.isArray(data?.rows) ? data.rows : []);
     bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 150 });
-    root.querySelector(`[data-list-show-more="${EXCEPTIONS_SCOPE}"]`)?.addEventListener('click', (ev) => {
-      ensureActivityListFilters(state, EXCEPTIONS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);
-      rerender();
-    });
     const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
