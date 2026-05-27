@@ -469,8 +469,8 @@ function proposalTitle(row) {
   return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו + תשפ״ז';
 }
 
-function sectionBodyHtml(value) {
-  return renderSectionBodyHtml(value);
+function sectionBodyHtml(value, options = {}) {
+  return renderSectionBodyHtml(value, options);
 }
 
 function sectionHeadingText(rawTitle, fallback = '') {
@@ -505,8 +505,8 @@ function proposalItemsListHtml(items = []) {
   return lines ? sectionLinesHtml(lines, { alwaysBullet: true, className: 'pa-proposal-lines' }) : '';
 }
 
-function sectionHtml(title, body, className = '') {
-  return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(sectionHeadingText(title))}</h3>${sectionBodyHtml(body)}</section>`;
+function sectionHtml(title, body, className = '', options = {}) {
+  return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(sectionHeadingText(title))}</h3>${sectionBodyHtml(body, options)}</section>`;
 }
 
 function parseSectionBodyStructure(value, options = {}) {
@@ -517,14 +517,15 @@ function parseSectionBodyStructure(value, options = {}) {
   const splitInlineBullets = (line) => {
     const t = String(line || '').trim();
     if (!t) return [];
-    if (!/[•·]/.test(t) || /^[•·]/.test(t)) return [t];
-    return t.split(/[•·]/).map((part) => part.trim()).filter(Boolean);
+    if (/^[•·\-]\s+/.test(t)) return [t];
+    if (!/[•·]/.test(t) && !/\s-\s/.test(t)) return [t];
+    return t.split(/[•·]|(?<=\S)\s-\s(?=\S)/).map((part) => part.trim()).filter(Boolean);
   };
 
   const expandedLines = raw.split('\n').flatMap(splitInlineBullets).map((line) => line.trim()).filter(Boolean);
   if (!expandedLines.length) return [];
 
-  const bulletRegex = /^[·•-]\s*(.+)$/;
+  const bulletRegex = /^[·•\-]\s*(.+)$/;
   const orderedRegex = /^(\d+)[.)]\s*(.+)$/;
   if (alwaysBullet) {
     return [{ type: 'ul', items: expandedLines.map((line) => line.replace(bulletRegex, '$1').trim()).filter(Boolean) }];
@@ -720,10 +721,10 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
     ${introText ? sectionLinesHtml(introText, { className: 'pa-doc-intro' }) : ''}
     ${sections.join('')}
-    ${orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility) : ''}
-    ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility) : ''}
-    ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלויות ותנאי תשלום'), paymentTerms) : ''}
-    ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation) : ''}
+    ${orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility, '', { alwaysBullet: true }) : ''}
+    ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility, '', { alwaysBullet: true }) : ''}
+    ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלויות ותנאי תשלום'), paymentTerms, '', { alwaysBullet: true }) : ''}
+    ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation, '', { alwaysBullet: true }) : ''}
     ${remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : ''}
     ${signatureSectionHtml(signatureText)}
     <footer class="pa-doc-footer">
