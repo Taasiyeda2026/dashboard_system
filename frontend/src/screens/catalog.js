@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { escapeHtml } from './shared/html.js';
 const AUDIENCE_OPTIONS = ['הכול', 'יסודי', 'חטיבה'];
 const TYPE_OPTIONS = ['הכול', 'תוכנית', 'סדנה', 'סיור', 'חוג'];
+const SCHOOL_VALUE_COLUMNS = ['למה לבחור בזה?', 'איך זה נראה בכיתה?', 'מה התלמידים לוקחים איתם?'];
 
 function ensureCatalogStyles() {
   if (document.getElementById('catalog-screen-styles')) return;
@@ -37,7 +38,18 @@ function ensureCatalogStyles() {
 .catalog-btn{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font:inherit}
 .catalog-btn--primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
 .catalog-a4-wrap{display:flex;justify-content:center}
-.catalog-a4{width:210mm;min-height:297mm;background:#fff;color:#1f2937;border:1px solid #d7dee7;border-radius:10px;padding:11mm;box-shadow:0 8px 24px rgba(15,23,42,.08);display:flex;flex-direction:column;gap:9px}
+.catalog-a4{width:210mm;min-height:297mm;background:#fff;color:#1f2937;border:1px solid #d7dee7;border-radius:10px;padding:10mm;box-shadow:0 8px 24px rgba(15,23,42,.08);display:flex;flex-direction:column;gap:8px}
+.catalog-hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.catalog-logo-box{border:1px solid #c4b5fd;background:#f5f3ff;border-radius:10px;padding:6px 10px;font-weight:700;font-size:13px}
+.catalog-hero-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.catalog-tag{background:#ecfeff;border:1px solid #99f6e4;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:700}
+.catalog-content-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.catalog-strip{background:#f8fafc;border:1px solid #d8e1eb;border-radius:10px;padding:10px}
+.catalog-strip-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.catalog-mini-card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.catalog-mini-card{border:1px solid #d8e1eb;background:#fff;border-radius:10px;padding:8px;font-size:13px;line-height:1.4;font-weight:600}
+.catalog-close{background:#f5f3ff;border-color:#d8b4fe}
+.catalog-footer{margin-top:auto;display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#475569;border-top:1px solid #d8e1eb;padding-top:8px}
 .catalog-a4-header{border-radius:14px;padding:14px;border:1px solid transparent}
 .catalog-a4-header h1{margin:0;font-size:28px;line-height:1.2}
 .catalog-a4-header p{margin:6px 0 0;font-size:14px;line-height:1.5;max-width:95%}
@@ -61,15 +73,16 @@ function ensureCatalogStyles() {
 @media (max-width:900px){.catalog-a4{width:100%;min-height:auto;padding:14px}.catalog-frame-grid{grid-template-columns:1fr 1fr}.catalog-list-grid{grid-template-columns:1fr}}
 @media (max-width:1100px){.catalog-groups{grid-template-columns:1fr}.catalog-group-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:760px){.catalog-header h2{font-size:24px}.catalog-filter{font-size:12px}}
-@media (max-width:640px){.catalog-frame-grid,.catalog-list-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}.catalog-group-grid{grid-template-columns:1fr}}
+@media (max-width:640px){.catalog-frame-grid,.catalog-list-grid,.catalog-content-grid,.catalog-strip-grid,.catalog-mini-card-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}.catalog-group-grid{grid-template-columns:1fr}}
+@page{size:A4;margin:0}
 @media print {
+  body{background:#fff !important}
+  .toolbar,.catalog-print-hide{display:none !important}
   body *{visibility:hidden !important}
   .catalog-print-zone,.catalog-print-zone *{visibility:visible !important}
-  .catalog-print-hide{display:none !important}
   .catalog-print-zone{position:absolute;inset:0;background:#fff}
-  .catalog-a4{margin:0;border:none;box-shadow:none;border-radius:0;width:210mm;min-height:297mm;page-break-after:avoid;padding:10mm}
-  .catalog-box{break-inside:avoid-page}
-  @page{size:A4;margin:8mm}
+  .catalog-a4{margin:0;border:0;box-shadow:none;border-radius:0;width:210mm;min-height:297mm;page-break-after:always;padding:10mm}
+  .catalog-box,.catalog-strip,.catalog-mini-card{break-inside:avoid-page}
 }
 `;
   document.head.appendChild(style);
@@ -220,6 +233,28 @@ function renderCatalogGroup(title, programs) {
   </section>`;
 }
 
+
+function splitToList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+  const text = String(value || '').trim();
+  if (!text) return [];
+  return text
+    .split(/\n|\r|•|\u2022|;|,/g)
+    .map((part) => part.replace(/^[-*\s]+/, '').trim())
+    .filter(Boolean);
+}
+
+function fallbackText(value, fallback = '—') {
+  const text = String(value || '').trim();
+  return text || fallback;
+}
+
+function productTypeLabels(productType) {
+  const t = String(productType || '');
+  if (t.includes('סיור')) return { happening: 'מה קורה בסיור', outcome: 'שיא הסיור / תוצר מסכם', closing: 'סיור שמחבר בין למידה, חוויה ועולם אמיתי', syllabus: 'מבנה הסיור' };
+  if (t.includes('סדנה')) return { happening: 'מה עושים בסדנה', outcome: 'תוצר הסדנה', closing: 'סדנה קצרה שמחברת בין התנסות, ידע והנאה', syllabus: 'מבנה הסדנה' };
+  return { happening: 'מה קורה בתוכנית', outcome: 'תוצר מסכם / שיא תהליך', closing: 'תוכנית שמתחילה בהתבוננות — ומובילה לחשיבה חדשנית', syllabus: 'סילבוס התוכנית' };
+}
 export const catalogScreen = {
   load: async () => {
     const payload = await api.getCatalogPrograms();
@@ -306,23 +341,42 @@ export const catalogScreen = {
       </section>`;
     }
 
-    const labels = sectionLabelsByType(selected.productType);
+    const labels = productTypeLabels(selected.productType);
+    const programFlowList = splitToList(selected.goals);
+    const studentDevList = splitToList(selected.closingBox || selected.coreIdea);
+    const participants = splitToList(selected.participantsReceive).slice(0, 4);
+    const schoolValueParts = splitToList(selected.schoolValue).slice(0, 3);
+    while (schoolValueParts.length < 3) schoolValueParts.push('—');
     const syllabusSource = selected.productType === 'סיור' && selected.stations.length ? selected.stations : selected.syllabus;
+    const hasSyllabus = Array.isArray(syllabusSource) && syllabusSource.length > 0;
+    const syllabusRows = hasSyllabus ? syllabusSource.map((item, idx) => {
+      const meeting = item?.meeting || item?.station || item?.stop || idx + 1;
+      const topic = item?.topic || item?.title || '—';
+      const desc = item?.description || item?.details || '—';
+      return `<tr><td>${escapeHtml(String(meeting))}</td><td>${escapeHtml(String(topic))}</td><td>${escapeHtml(String(desc))}</td></tr>`;
+    }).join('') : '';
     const a4ToneClass = toneClassForProgram(selected, 'catalog-a4');
     return `<section class="catalog-screen catalog-print-zone">
       <div class="catalog-detail-actions catalog-print-hide">
         <button class="catalog-btn" data-catalog-back>חזרה לקטלוג</button>
         <button class="catalog-btn catalog-btn--primary" data-catalog-print>הדפסה / PDF</button>
       </div>
-      <div class="catalog-a4-wrap"><article class="catalog-a4 ${a4ToneClass}" data-audience-level="${escapeHtml(selected.audienceLevel)}" data-page-template="${escapeHtml(selected.pageTemplate)}">
-        <header class="catalog-a4-header"><span class="catalog-a4-badge">${escapeHtml(selected.audienceLevel)}</span><h1>${escapeHtml(selected.name)}</h1><p>${escapeHtml(selected.shortDescription || 'תוכנית לימודית מותאמת לבית הספר')}</p></header>
-        <section class="catalog-frame-grid"><div class="catalog-box"><strong>כיתות</strong><p>${escapeHtml(selected.grades)}</p></div><div class="catalog-box"><strong>היקף</strong><p>${escapeHtml(selected.scope)}</p></div><div class="catalog-box"><strong>משך מפגש</strong><p>${escapeHtml(selected.sessionDuration)}</p></div><div class="catalog-box"><strong>מספר גפ״ן</strong><p>${escapeHtml(selected.gefenNumber || '—')}</p></div></section>
-        <section class="catalog-list-grid"><div class="catalog-box"><h3>תיאור / רעיון מרכזי</h3><p>${escapeHtml(selected.coreIdea || 'לא סופק מידע')}</p></div><div class="catalog-box"><h3>מה לומדים ואיך לומדים</h3><p>${escapeHtml(selected.goals || 'לא סופק מידע')}</p></div></section>
-        <section class="catalog-box"><h3>הערך לבית הספר</h3><p>${escapeHtml(selected.schoolValue || 'לא סופק מידע')}</p></section>
-        <section class="catalog-box"><h3>${escapeHtml(labels.syllabus)}</h3><ul>${listFromTextOrArray(syllabusSource)}</ul></section>
-        <section class="catalog-list-grid"><div class="catalog-box"><h3>${escapeHtml(labels.happening)}</h3><p>${escapeHtml(selected.shortDescription || selected.coreIdea || 'לא סופק מידע')}</p></div><div class="catalog-box"><h3>מה מקבלים המשתתפים</h3><ul>${listFromTextOrArray(selected.participantsReceive)}</ul></div></section>
-        <section class="catalog-box"><h3>${escapeHtml(labels.outcome)}</h3><p>${escapeHtml(selected.closingBox || 'לא סופק מידע')}</p></section>
-        <footer class="catalog-box"><p>${escapeHtml(selected.footer || 'תעשיידע | קטלוג תוכניות תלמידים תשפ״ז')}</p></footer>
+      <div class="catalog-a4-wrap"><article class="catalog-a4 ${a4ToneClass}" data-catalog-page="1">
+        <header class="catalog-a4-header">
+          <div class="catalog-hero-top"><div><div class="catalog-hero-tags"><span class="catalog-tag">${escapeHtml(fallbackText(selected.productType))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.audienceLevel))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.pageTemplate === 'default' ? '' : selected.pageTemplate, fallbackText(selected.pageTemplate, selected.productType)))}</span></div><h1>${escapeHtml(selected.name)}</h1><p>${escapeHtml(selected.shortDescription || 'תוכנית לימודית מותאמת לבית הספר')}</p></div><div class="catalog-logo-box">תעשיידע</div></div>
+        </header>
+        <section class="catalog-frame-grid"><div class="catalog-box"><strong>כיתות</strong><p>${escapeHtml(fallbackText(selected.grades))}</p></div><div class="catalog-box"><strong>היקף</strong><p>${escapeHtml(fallbackText(selected.scope))}</p></div><div class="catalog-box"><strong>משך מפגש</strong><p>${escapeHtml(fallbackText(selected.sessionDuration))}</p></div><div class="catalog-box"><strong>מספר גפ״ן</strong><p>${escapeHtml(fallbackText(selected.gefenNumber))}</p></div></section>
+        <section class="catalog-content-grid">
+          <div class="catalog-box"><h3>${escapeHtml(labels.happening)}</h3><p>${escapeHtml(fallbackText(selected.shortDescription || selected.goals))}</p></div>
+          <div class="catalog-box"><h3>הרעיון המרכזי</h3><p>${escapeHtml(fallbackText(selected.coreIdea))}</p></div>
+          <div class="catalog-box"><h3>מה התלמידים מפתחים</h3><ul>${programFlowList.length ? programFlowList.map((i) => `<li>${escapeHtml(i)}</li>`).join('') : '<li>—</li>'}</ul></div>
+          <div class="catalog-box"><h3>${escapeHtml(labels.outcome)}</h3><ul>${studentDevList.length ? studentDevList.map((i) => `<li>${escapeHtml(i)}</li>`).join('') : '<li>—</li>'}</ul></div>
+        </section>
+        <section class="catalog-strip"><h3>הערך לבית הספר</h3><div class="catalog-strip-grid">${SCHOOL_VALUE_COLUMNS.map((label, i) => `<div class="catalog-box"><strong>${label}</strong><p>${escapeHtml(schoolValueParts[i] || '—')}</p></div>`).join('')}</div></section>
+        ${hasSyllabus ? `<section class="catalog-box"><h3>${escapeHtml(labels.syllabus)}</h3><table><thead><tr><th>מפגש / תחנה</th><th>נושא</th><th>מה עושים</th></tr></thead><tbody>${syllabusRows}</tbody></table></section>` : ''}
+        <section><h3>מה מקבלים המשתתפים</h3><div class="catalog-mini-card-grid">${(participants.length ? participants : ['—']).map((item) => `<div class="catalog-mini-card">${escapeHtml(item)}</div>`).join('')}</div></section>
+        <section class="catalog-box catalog-close"><h3>${escapeHtml(labels.closing)}</h3><p>✓ ${escapeHtml(fallbackText(selected.footer || selected.closingBox, 'למידה פעילה, משמעותית ומחוברת לעולם האמיתי.'))}</p></section>
+        <footer class="catalog-footer"><span>עמותת תעשיידע — חינוך טכנולוגי, חדשנות ויזמות</span><span>קטלוג תוכניות תשפ״ז</span></footer>
       </article></div>
     </section>`;
   },
