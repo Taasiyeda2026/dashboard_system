@@ -10918,12 +10918,12 @@ select.ds-input {
 .ds-pa-preview-doc .pa-section-body ol,
 .ds-pa-preview-doc .pa-doc-intro ul,
 .ds-pa-preview-doc .pa-doc-intro ol {
-  margin: 4px 0 8px;
+  margin: 4px 0 10px;
   padding-inline-start: 22px;
 }
 .ds-pa-preview-doc .pa-section-body li,
 .ds-pa-preview-doc .pa-doc-intro li {
-  margin: 2px 0;
+  margin: 3px 0;
   line-height: 1.45;
   white-space: normal;
   word-break: break-word;
@@ -11143,14 +11143,14 @@ select.ds-input {
   .ds-pa-preview-doc .pa-section-body ol,
   .ds-pa-preview-doc .pa-doc-intro ul,
   .ds-pa-preview-doc .pa-doc-intro ol {
-    margin: 3pt 0 6pt !important;
-    padding-inline-start: 18pt !important;
+    margin: 4px 0 10px !important;
+    padding-inline-start: 22px !important;
   }
 
   .ds-pa-preview-doc .pa-section-body li,
   .ds-pa-preview-doc .pa-doc-intro li {
-    margin: 1.5pt 0 !important;
-    line-height: 1.5 !important;
+    margin: 3px 0 !important;
+    line-height: 1.45 !important;
     word-break: break-word !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
