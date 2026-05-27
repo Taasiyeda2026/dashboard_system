@@ -665,7 +665,7 @@ async function readInstructorsFromSupabase() {
     }));
 
     rows.sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''), 'he'));
-    return { rows, activities_loaded: true, _source: 'supabase' };
+    return { rows, detail_rows: activeRows, activities_loaded: true, _source: 'supabase' };
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Unexpected instructors fetch error:', error);

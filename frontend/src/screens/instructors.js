@@ -145,7 +145,8 @@ export function buildInstructorActivityDetailsForMonth(allRows, { empId, instrNa
   const items = [];
   const seenRowIds = new Set();
   (Array.isArray(allRows) ? allRows : []).forEach((r) => {
-    if (String(r.status || '').trim() === 'סגור') return;
+    const status = String(r.status || '').trim();
+    if (status === 'סגור' || status === 'נמחק') return;
     if (!instructorMatchesActivity(r, empId, instrName)) return;
     if (!activityInDetailsMonth(r, targetYm)) return;
 
@@ -478,8 +479,9 @@ export const instructorsScreen = {
         openPopup(instrName, null, openActivityFromPopup);
 
         try {
+          const detailRows = Array.isArray(data?.detail_rows) ? data.detail_rows : null;
           const cachedActivities = state?.screenDataCache?.['activities:all']?.data;
-          const res = cachedActivities || await api.activities({ activity_type: 'all' });
+          const res = detailRows ? { rows: detailRows } : (cachedActivities || await api.activities({ activity_type: 'all' }));
           const allRows = Array.isArray(res?.rows) ? res.rows : [];
           const items = buildInstructorActivityDetailsForMonth(allRows, { empId, instrName, targetYm });
 
