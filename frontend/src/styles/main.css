@@ -10592,6 +10592,7 @@ select.ds-input {
 /* Readonly client card */
 .ds-pa-client-locked {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
@@ -10600,6 +10601,12 @@ select.ds-input {
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 6px;
+}
+.ds-pa-client-locked-state {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #1d4ed8;
 }
 .ds-pa-client-locked-body {
   display: flex;
@@ -10620,6 +10627,21 @@ select.ds-input {
   color: var(--ds-accent, #2563eb);
   display: block;
   margin-bottom: 6px;
+}
+.ds-pa-template-mode {
+  margin: 8px 0 0;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+.ds-pa-template-mode--custom {
+  border-color: #c4b5fd;
+  background: #ede9fe;
+  color: #5b21b6;
 }
 
 /* Template indicator */
@@ -10709,6 +10731,11 @@ select.ds-input {
 .ds-pa-item-grid--numbers { grid-template-columns: repeat(3, minmax(84px, 1fr)); }
 .ds-pa-item-field { display: grid; gap: 4px; min-width: 0; }
 .ds-pa-item-field span { font-size: 0.71rem; color: var(--ds-color-text-muted, #64748b); }
+.ds-pa-item-field:has([data-pa-item-total]) {
+  background: #eff6ff;
+  border-radius: 8px;
+  padding: 4px 6px;
+}
 .ds-pa-item-field--full { grid-column: 1 / -1; }
 .ds-pa-item-field--full .ds-input,
 .ds-pa-item-field--full select { width: 100%; }
