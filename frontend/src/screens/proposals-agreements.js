@@ -360,10 +360,11 @@ function isNextYearItem(item) {
 function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOffset) {
   const startItems = items.length ? items : [{ proposal_group: groupKey }];
   const rowsHtml = startItems.map((item, i) => itemRowHtml({ ...item, proposal_group: item.proposal_group || groupKey }, idxOffset + i, pricingOptions)).join('');
+  const addLabel = groupKey === 'קיץ תשפ״ו' ? '+ הוספת פעילות קיץ' : '+ הוספת תוכנית תשפ״ז';
   return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}">
     <div class="ds-pa-items-header">
       <span class="ds-pa-items-section-label">${escapeHtml(label)}</span>
-      <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="${escapeHtml(groupKey)}">+ הוסף שורה</button>
+      <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="${escapeHtml(groupKey)}">${escapeHtml(addLabel)}</button>
     </div>
     <div class="ds-pa-items-list" data-pa-items-body data-pa-items-group-body="${escapeHtml(groupKey)}">${rowsHtml}</div>
   </div>`;
@@ -380,8 +381,8 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
     const unassigned = items.filter((i) => !isSummerItem(i) && !isNextYearItem(i));
     const allSummer = [...summerItems, ...unassigned];
     return `<div class="ds-pa-items-section ds-pa-items-combined">
-      ${combinedItemsSectionHtml('שורות הצעה – קיץ תשפ״ו', 'קיץ תשפ״ו', allSummer, pricingOptions, 0)}
-      ${combinedItemsSectionHtml('שורות הצעה – תוכניות תשפ״ז', 'תוכניות תשפ״ז', nextYearItems, pricingOptions, allSummer.length || 1)}
+      ${combinedItemsSectionHtml('פעילויות קיץ תשפ״ו', 'קיץ תשפ״ו', allSummer, pricingOptions, 0)}
+      ${combinedItemsSectionHtml('תוכניות תשפ״ז', 'תוכניות תשפ״ז', nextYearItems, pricingOptions, allSummer.length || 1)}
       ${footer}
     </div>`;
   }
@@ -738,13 +739,16 @@ function templateIndicatorHtml(group) {
 function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email) {
   if (!auth) return '';
   return `<div class="ds-pa-client-locked">
+    <p class="ds-pa-client-locked-state">לקוח קיים שנבחר</p>
     <div class="ds-pa-client-locked-body">
-      <strong class="ds-pa-client-locked-name">${escapeHtml(auth)}${school ? ` — ${escapeHtml(school)}` : ''}</strong>
-      ${contactName ? `<span class="ds-pa-client-locked-detail">${escapeHtml(contactName)}${contactRole ? ` | ${escapeHtml(contactRole)}` : ''}</span>` : ''}
-      ${phone ? `<span class="ds-pa-client-locked-detail">${escapeHtml(phone)}</span>` : ''}
-      ${email ? `<span class="ds-pa-client-locked-detail">${escapeHtml(email)}</span>` : ''}
+      <strong class="ds-pa-client-locked-name">לקוח / רשות: ${escapeHtml(auth)}</strong>
+      ${school ? `<span class="ds-pa-client-locked-detail">בית ספר / מסגרת: ${escapeHtml(school)}</span>` : ''}
+      ${contactName ? `<span class="ds-pa-client-locked-detail">איש קשר: ${escapeHtml(contactName)}</span>` : ''}
+      ${contactRole ? `<span class="ds-pa-client-locked-detail">תפקיד: ${escapeHtml(contactRole)}</span>` : ''}
+      ${phone ? `<span class="ds-pa-client-locked-detail">טלפון: ${escapeHtml(phone)}</span>` : ''}
+      ${email ? `<span class="ds-pa-client-locked-detail">דוא״ל: ${escapeHtml(email)}</span>` : ''}
     </div>
-    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>עריכת פרטי לקוח</button>
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי לקוח</button>
   </div>`;
 }
 
@@ -773,6 +777,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initEmail = text(row.email);
   const isLocked = !!initAuth;
   const initPickerHtml = initAuth ? contactPickerHtml(contactOptions, initAuth, initSchool, initContact) : '';
+  const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
 
   return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" dir="rtl">
     <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
@@ -784,14 +789,10 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>+ לקוח חדש</button>
       </div>
       <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail) : ''}</div>
-      <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הוספת לקוח חדש</span></div>
+      <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הוספת לקוח חדש</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לבחירת לקוח קיים</button></div>
       <div class="ds-pa-form-grid" data-pa-client-fields${isLocked ? ' hidden' : ''}>
         ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
         ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, true)}
-        ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
-        ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
-        ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
-        ${textField('email', FIELD_LABELS.email, row.email, false)}
       </div>
       <div data-pa-contact-picker-host>${initPickerHtml}</div>
     </div>
@@ -802,10 +803,21 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         ${selectField('activity_type_group', FIELD_LABELS.activity_type_group, ACTIVITY_TYPE_GROUP_OPTIONS, normalizedActivityGroup, true)}
         ${templateIndicatorHtml(normalizedActivityGroup)}
       </div>
+      <p class="ds-pa-template-mode ${hasCustomSections ? 'ds-pa-template-mode--custom' : ''}" data-pa-template-mode>${hasCustomSections ? 'הצעה זו כוללת נוסח מותאם אישית' : 'הצעה זו משתמשת בתבנית המקור'}</p>
     </div>
 
     <div class="ds-pa-form-section">
-      <h4 class="ds-pa-section-heading"><span class="ds-pa-section-num">3</span> פרטי הצעה</h4>
+      <h4 class="ds-pa-section-heading"><span class="ds-pa-section-num">3</span> פרטי איש קשר</h4>
+      <div class="ds-pa-form-grid">
+        ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
+        ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
+        ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
+        ${textField('email', FIELD_LABELS.email, row.email, false)}
+      </div>
+    </div>
+
+    <div class="ds-pa-form-section">
+      <h4 class="ds-pa-section-heading"><span class="ds-pa-section-num">4</span> פרטי הצעה והערות</h4>
       <div class="ds-pa-form-grid">
         <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(text(row.proposal_date))}"></label>
       </div>
@@ -813,7 +825,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     </div>
 
     <div class="ds-pa-form-section">
-      <h4 class="ds-pa-section-heading"><span class="ds-pa-section-num">4</span> שורות הצעה</h4>
+      <h4 class="ds-pa-section-heading"><span class="ds-pa-section-num">5</span> שורות הצעה</h4>
       <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
     </div>
 
@@ -825,10 +837,11 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
       <div class="ds-pa-form-actions-main">
         <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
-        <button type="button" class="ds-btn ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
+        <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
         <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending>שליחה לאישור</button>
       </div>
     </div>
+    <div class="ds-pa-duplicate-dialog" data-pa-duplicate-dialog hidden></div>
   </form>`;
 }
 
@@ -1266,18 +1279,28 @@ export const proposalsAgreementsScreen = {
       if (payload.is_new_client && text(payload.client_authority)) {
         const similar = findSimilarClients(contactOptions, payload.client_authority, payload.school_framework);
         if (similar.length) {
-          const names = similar.slice(0, 3).map((c) => `${text(c.authority)}${text(c.school) ? ' — ' + text(c.school) : ''}`).join('\n');
-          const useExisting = window.confirm(`נמצאו לקוחות דומים:\n${names}\n\nהאם להשתמש בלקוח הקיים?`);
-          if (useExisting) {
+          const pick = similar[0];
+          const shouldUseExisting = window.confirm(`נמצא לקוח דומה במערכת:\nלקוח / רשות: ${text(pick.authority)}\nבית ספר / מסגרת: ${text(pick.school) || '—'}\nאיש קשר: ${text(pick.contact_name) || '—'}\n\nבחר את הלקוח הקיים?`);
+          if (shouldUseExisting) {
             const match = similar[0];
             payload.client_authority = text(match.authority);
             payload.school_framework = text(match.school);
             payload.is_new_client = false;
+          } else {
+            const shouldKeepNew = window.confirm('להמשיך ולשמור כלקוח חדש בכל זאת?');
+            if (!shouldKeepNew) {
+              form.dataset.saving = '';
+              allBtns.forEach((b) => { b.disabled = false; });
+              return;
+            }
           }
         }
       }
 
       const validationErrors = validatePayload(payload, statusOverride);
+      if ((statusOverride === 'pending_approval') && form.dataset.paPreviewSeen !== 'yes') {
+        validationErrors.push('מומלץ לבדוק תצוגה מקדימה לפני שליחה לאישור.');
+      }
       if (validationErrors.length) {
         showValidationNotice(form, validationErrors, statusOverride === 'pending_approval');
         form.dataset.saving = '';
@@ -1629,6 +1652,16 @@ export const proposalsAgreementsScreen = {
           if (inp) inp.value = '';
         });
         form?.querySelector('input[name="client_authority"]')?.focus();
+        return;
+      }
+      if (event.target.closest?.('[data-pa-back-existing-client]')) {
+        const form = event.target.closest('[data-pa-form]');
+        if (!form) return;
+        form.dataset.paNewClient = 'no';
+        const hint = form.querySelector('[data-pa-new-client-hint]');
+        if (hint) hint.hidden = true;
+        const clientSelect = form.querySelector('[data-pa-client-select]');
+        clientSelect?.focus();
         return;
       }
 
