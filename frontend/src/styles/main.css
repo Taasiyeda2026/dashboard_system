@@ -10910,26 +10910,25 @@ select.ds-input {
 .pa-section-body {
   margin: 0;
 }
-.pa-section-line {
-  display: block;
-  margin: 0 0 4pt;
+.ds-pa-preview-doc .pa-section-body p,
+.ds-pa-preview-doc .pa-doc-intro p {
+  margin: 0 0 6px;
 }
-.pa-section-line--bullet {
-  margin: 0 0 3pt;
-  padding-right: 14pt;
-  text-indent: -10pt;
+.ds-pa-preview-doc .pa-section-body ul,
+.ds-pa-preview-doc .pa-section-body ol,
+.ds-pa-preview-doc .pa-doc-intro ul,
+.ds-pa-preview-doc .pa-doc-intro ol {
+  margin: 4px 0 8px;
+  padding-inline-start: 22px;
+}
+.ds-pa-preview-doc .pa-section-body li,
+.ds-pa-preview-doc .pa-doc-intro li {
+  margin: 2px 0;
+  line-height: 1.45;
   white-space: normal;
   word-break: break-word;
   break-inside: avoid;
   page-break-inside: avoid;
-}
-.pa-section-line--empty {
-  margin: 0 0 3pt;
-}
-.pa-section-bullet-marker {
-  display: inline-block;
-  width: 10pt;
-  margin-left: 2pt;
 }
 .pa-proposal-lines {
   margin-top: 2pt;
@@ -11129,25 +11128,29 @@ select.ds-input {
 
   .pa-doc-intro,
   .pa-section-body,
-  .pa-section-line,
   .pa-proposal-lines {
     font-size: 10pt !important;
     line-height: 1.55 !important;
     color: #000 !important;
   }
 
-  .pa-section-line {
-    display: block !important;
-    margin: 0 0 3pt !important;
+  .ds-pa-preview-doc .pa-section-body p,
+  .ds-pa-preview-doc .pa-doc-intro p {
+    margin: 0 0 4pt !important;
   }
 
-  .pa-section-line--empty {
-    margin: 0 0 2pt !important;
+  .ds-pa-preview-doc .pa-section-body ul,
+  .ds-pa-preview-doc .pa-section-body ol,
+  .ds-pa-preview-doc .pa-doc-intro ul,
+  .ds-pa-preview-doc .pa-doc-intro ol {
+    margin: 3pt 0 6pt !important;
+    padding-inline-start: 18pt !important;
   }
 
-  .pa-section-line--bullet {
-    padding-right: 14pt !important;
-    text-indent: -10pt !important;
+  .ds-pa-preview-doc .pa-section-body li,
+  .ds-pa-preview-doc .pa-doc-intro li {
+    margin: 1.5pt 0 !important;
+    line-height: 1.5 !important;
     word-break: break-word !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;

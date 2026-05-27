@@ -470,7 +470,7 @@ function proposalTitle(row) {
 }
 
 function sectionBodyHtml(value) {
-  return sectionLinesHtml(value);
+  return renderSectionBodyHtml(value);
 }
 
 function sectionHeadingText(rawTitle, fallback = '') {
@@ -509,22 +509,74 @@ function sectionHtml(title, body, className = '') {
   return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(sectionHeadingText(title))}</h3>${sectionBodyHtml(body)}</section>`;
 }
 
-function sectionLinesHtml(value, options = {}) {
-  const { alwaysBullet = false, className = '' } = options;
-  const raw = String(value == null ? '' : value).replace(/\r\n?/g, '\n');
-  const lines = raw.split('\n');
-  const rendered = lines.map((line) => {
-    const original = String(line || '');
-    const trimmed = original.trim();
-    if (!trimmed) return '<span class="pa-section-line pa-section-line--empty">&nbsp;</span>';
-    const bulletMatch = trimmed.match(/^[·•-]\s*(.+)$/);
-    const isBullet = alwaysBullet || Boolean(bulletMatch);
-    const body = isBullet ? (bulletMatch ? bulletMatch[1].trim() : trimmed) : trimmed;
-    const marker = isBullet ? '<span class="pa-section-bullet-marker">·</span>' : '';
-    return `<span class="pa-section-line${isBullet ? ' pa-section-line--bullet' : ''}">${marker}${escapeHtml(body)}</span>`;
+function parseSectionBodyStructure(value, options = {}) {
+  const { alwaysBullet = false } = options;
+  const raw = String(value == null ? '' : value).replace(/\r\n?/g, '\n').trim();
+  if (!raw) return [];
+
+  const splitInlineBullets = (line) => {
+    const t = String(line || '').trim();
+    if (!t) return [];
+    if (!/[•·]/.test(t) || /^[•·]/.test(t)) return [t];
+    return t.split(/[•·]/).map((part) => part.trim()).filter(Boolean);
+  };
+
+  const expandedLines = raw.split('\n').flatMap(splitInlineBullets).map((line) => line.trim()).filter(Boolean);
+  if (!expandedLines.length) return [];
+
+  const bulletRegex = /^[·•-]\s*(.+)$/;
+  const orderedRegex = /^(\d+)[.)]\s*(.+)$/;
+  if (alwaysBullet) {
+    return [{ type: 'ul', items: expandedLines.map((line) => line.replace(bulletRegex, '$1').trim()).filter(Boolean) }];
+  }
+
+  const groups = [];
+  let currentType = null;
+  let currentItems = [];
+  const flush = () => {
+    if (!currentItems.length) return;
+    groups.push({ type: currentType, items: currentItems });
+    currentType = null;
+    currentItems = [];
+  };
+
+  expandedLines.forEach((line) => {
+    const bulletMatch = line.match(bulletRegex);
+    const orderedMatch = line.match(orderedRegex);
+    let type = 'p';
+    let body = line;
+    if (bulletMatch) {
+      type = 'ul';
+      body = bulletMatch[1];
+    } else if (orderedMatch) {
+      type = 'ol';
+      body = orderedMatch[2];
+    }
+    const cleaned = body.trim();
+    if (!cleaned) return;
+    if (currentType && currentType !== type) flush();
+    currentType = type;
+    currentItems.push(cleaned);
+  });
+  flush();
+  return groups;
+}
+
+function renderSectionBodyHtml(value, options = {}) {
+  const { className = '' } = options;
+  const groups = parseSectionBodyStructure(value, options);
+  if (!groups.length) return '';
+  const rendered = groups.map((group) => {
+    if (group.type === 'ul' || group.type === 'ol') {
+      return `<${group.type}>${group.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</${group.type}>`;
+    }
+    return group.items.map((item) => `<p>${escapeHtml(item)}</p>`).join('');
   }).join('');
-  if (!rendered.trim()) return '';
   return `<div class="pa-section-body${className ? ` ${className}` : ''}">${rendered}</div>`;
+}
+
+function sectionLinesHtml(value, options = {}) {
+  return renderSectionBodyHtml(value, options);
 }
 
 function signatureSectionHtml(signatureText) {
