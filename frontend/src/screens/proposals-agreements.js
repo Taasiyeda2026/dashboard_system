@@ -527,7 +527,8 @@ function parseSectionBodyStructure(value, options = {}) {
     return parts.map((p, i) => i === 0 ? p : `· ${p}`);
   };
 
-  const expandedLines = raw.split('\n').flatMap(splitInlineBullets).map((line) => line.trim()).filter(Boolean);
+  const isPlaceholderLine = (s) => /^שורה\s+חדשה\s*:?\s*$/i.test(s);
+  const expandedLines = raw.split('\n').flatMap(splitInlineBullets).map((line) => line.trim()).filter((line) => Boolean(line) && !isPlaceholderLine(line.replace(/^[·•▫▪◦‣–\-]\s*/, '')));
   if (!expandedLines.length) return [];
 
   const bulletRegex = new RegExp(`^[${BULLET_CHARS}]\\s*(.+)$`);
