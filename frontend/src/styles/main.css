@@ -10830,38 +10830,35 @@ select.ds-input {
   align-items: flex-start;
   margin-top: 4pt;
   margin-bottom: 10pt;
+  direction: ltr;
 }
 .pa-doc-header-brand {
-  order: 2;
-  text-align: right;
+  flex-shrink: 0;
 }
 .pa-doc-date {
-  order: 1;
-  color: #374151;
-  font-size: 9.5pt;
-  line-height: 1.5;
   text-align: left;
   direction: ltr;
-  margin-bottom: 4pt;
-  align-self: flex-start;
+  font-size: 9.5pt;
+  color: #374151;
+  align-self: flex-end;
 }
 .pa-doc-logo {
   display: block; max-width: 100%; height: auto;
 }
 .pa-doc-logo--header {
-  width: 240px;
-  max-width: 44%;
+  width: 200px;
+  max-width: 42%;
   margin-inline: 0;
+  display: block;
 }
 .pa-doc-logo--footer {
   width: auto;
-  height: 36px;
-  max-width: 120px;
-  margin-inline: auto;
+  height: 28px;
+  max-width: 100px;
   margin-bottom: 4pt;
-  opacity: 1;
-  transform: none;
   display: block;
+  margin-inline: auto;
+  opacity: 0.85;
 }
 .pa-doc-address {
   margin: 0 0 6pt;
@@ -10960,17 +10957,18 @@ select.ds-input {
 .pa-doc-footer {
   margin-top: auto;
   width: 100%;
-  padding-top: 6mm;
+  padding-top: 8mm;
   border-top: 1px solid #cbd5e1;
   break-inside: avoid;
   page-break-inside: avoid;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3pt;
-  font-size: 8.5pt;
-  color: #64748b;
+  gap: 4pt;
+  font-size: 9pt;
+  color: #475569;
   text-align: center;
+  line-height: 1.6;
 }
 
 /* שורות פעילות — נקודה מפורשת לפני כל שורה */

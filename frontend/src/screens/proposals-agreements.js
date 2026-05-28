@@ -517,9 +517,13 @@ function parseSectionBodyStructure(value, options = {}) {
   const splitInlineBullets = (line) => {
     const t = String(line || '').trim();
     if (!t) return [];
-    if (/^[•·\-]\s+/.test(t)) return [t];
-    if (!/[•·]/.test(t) && !/\s-\s/.test(t)) return [t];
-    return t.split(/[•·]|(?<=\S)\s-\s(?=\S)/).map((part) => part.trim()).filter(Boolean);
+    // שורה שמתחילה בנקודה — החזר כמות שהיא
+    if (/^[·•\-]\s/.test(t)) return [t];
+    // אין נקודות כלל — החזר כמות שהיא
+    if (!/[·•]/.test(t) && !/\s-\s/.test(t)) return [t];
+    // נקודות באמצע — פצל וסמן כל חלק
+    const parts = t.split(/\s*·\s*/).map((p) => p.trim()).filter(Boolean);
+    return parts.map((p, i) => i === 0 ? p : `· ${p}`);
   };
 
   const expandedLines = raw.split('\n').flatMap(splitInlineBullets).map((line) => line.trim()).filter(Boolean);
