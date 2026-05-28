@@ -902,6 +902,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   return `
     <header class="pa-doc-header">
       <div class="pa-doc-topline">
+        <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
         <div class="pa-doc-header-brand">
           <img
             src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
@@ -911,15 +912,14 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
             decoding="async"
             onerror="this.style.display='none';"
           >
-          <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
         </div>
-        <div class="pa-doc-address">
-          <p><strong>לכבוד:</strong></p>
-          ${row.contact_name ? `<p>${escapeHtml(row.contact_name)}</p>` : ''}
-          ${row.contact_role ? `<p>${escapeHtml(row.contact_role)}</p>` : ''}
-          ${row.school_framework ? `<p>${escapeHtml(row.school_framework)}</p>` : ''}
-          ${row.client_authority ? `<p>${escapeHtml(row.client_authority)}</p>` : ''}
-        </div>
+      </div>
+      <div class="pa-doc-address">
+        <p><strong>לכבוד:</strong></p>
+        ${row.contact_name ? `<p>${escapeHtml(row.contact_name)}</p>` : ''}
+        ${row.contact_role ? `<p>${escapeHtml(row.contact_role)}</p>` : ''}
+        ${row.school_framework ? `<p>${escapeHtml(row.school_framework)}</p>` : ''}
+        ${row.client_authority ? `<p>${escapeHtml(row.client_authority)}</p>` : ''}
       </div>
     </header>
     <hr class="pa-doc-divider">

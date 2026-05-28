@@ -50,9 +50,21 @@ function exceptionCardSubtitle(row) {
   return meta.length ? meta.join(' · ') : 'ללא רשות / בית ספר';
 }
 
+function exceptionCardMeta(row) {
+  const instructors = [row?.instructor_name, row?.instructor_name_2]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  const instructorText = instructors.length ? instructors.join(' / ') : 'ללא מדריך';
+  const exceptionText = normalizedExceptionTypes(row)
+    .map((type) => hebrewExceptionType(String(type || '').trim()))
+    .filter(Boolean)
+    .join(' · ');
+  return `מדריך: ${instructorText}${exceptionText ? ` · חריגה: ${exceptionText}` : ''}`;
+}
+
 function exceptionGroupCard(title, rows) {
   const body = `<div class="ds-compact-list ds-exceptions-grid">${rows.map((row) =>
-    `<div data-list-item class="ds-exception-list-item"><button type="button" class="ds-interactive-card ds-interactive-card--session ds-exception-card" data-card-action="${escapeHtml(`exception:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml(exceptionCardSubtitle(row))}</p></button></div>`
+    `<div data-list-item class="ds-exception-list-item"><button type="button" class="ds-interactive-card ds-interactive-card--session ds-exception-card" data-card-action="${escapeHtml(`exception:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml(exceptionCardSubtitle(row))}</p><p class="ds-interactive-card__meta">${escapeHtml(exceptionCardMeta(row))}</p></button></div>`
   ).join('')}</div>`;
   return dsCard({ title: `${title} · ${rows.length}`, body, padded: false });
 }
@@ -140,8 +152,8 @@ export const exceptionsScreen = {
     const hasAnyRows = filteredRows.length > 0;
     const groups = [
       { title: 'פעילויות ממתינות לתיאום תאריך', rows: waitingDateRows },
-      { title: 'פעילויות פעילות שתאריך הסיום שלהן חלף', rows: endDatePassedRows },
-      { title: 'פעילויות עם מפגש לאחר תאריך הסיום', rows: lateEndDateRows },
+      { title: 'פעילויות פתוחות שהסתיימו', rows: endDatePassedRows },
+      { title: 'פעילויות עם תאריך סיום מאוחר', rows: lateEndDateRows },
       { title: 'פעילויות ללא מדריך', rows: noInstructorRows },
       ...(otherExceptionRows.length ? [{ title: 'חריגות נוספות', rows: otherExceptionRows }] : [])
     ].filter((group) => group.rows.length > 0);

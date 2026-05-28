@@ -391,8 +391,8 @@ test('frontend exception Hebrew labels describe the exception details clearly', 
 
 test('exceptions screen separates end_date_passed and late_end_date into distinct group titles', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
-  assert.match(src, /פעילויות פעילות שתאריך הסיום שלהן חלף/);
-  assert.match(src, /פעילויות עם מפגש לאחר תאריך הסיום/);
+  assert.match(src, /פעילויות פתוחות שהסתיימו/);
+  assert.match(src, /פעילויות עם תאריך סיום מאוחר/);
   assert.doesNotMatch(src, /פעילויות עם חריגת תאריך סיום/);
 });
 
@@ -407,8 +407,8 @@ test('exceptions screen group count matches rendered clickable cards', () => {
     ]
   };
   const html = exceptionsScreen.render(data, { state });
-  assert.match(html, /פעילויות פעילות שתאריך הסיום שלהן חלף · 1/);
-  assert.match(html, /פעילויות עם מפגש לאחר תאריך הסיום · 2/);
+  assert.match(html, /פעילויות פתוחות שהסתיימו · 1/);
+  assert.match(html, /פעילויות עם תאריך סיום מאוחר · 2/);
   const clickableCards = (html.match(/data-card-action="exception:/g) || []).length;
   assert.equal(clickableCards, 4, 'each grouped appearance must be rendered as a clickable card');
   assert.doesNotMatch(html, /data-action="delete"/);

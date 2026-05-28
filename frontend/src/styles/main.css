@@ -1624,25 +1624,53 @@ span.ds-chip {
 }
 
 .ds-exceptions-grid {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 260px));
+  grid-template-columns: repeat(4, minmax(220px, 260px));
   justify-content: start;
-  gap: 8px;
+  align-items: stretch;
+  gap: 14px;
 }
 
-@media (max-width: 960px) {
-  .ds-exceptions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1180px) {
+  .ds-exceptions-grid { grid-template-columns: repeat(3, minmax(220px, 260px)); }
+}
+
+@media (max-width: 900px) {
+  .ds-exceptions-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
 }
 
 @media (max-width: 640px) {
   .ds-exceptions-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
+.ds-exception-list-item {
+  max-width: 260px;
+}
+
 .ds-exception-card {
   cursor: pointer;
-  min-height: 40px;
-  padding: var(--ds-space-2);
-  width: min(100%, 260px);
+  min-height: 86px;
+  padding: 10px 12px;
+  width: 100%;
+  gap: 4px;
   overflow-wrap: anywhere;
+}
+
+.ds-exception-card .ds-interactive-card__title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.ds-exception-card .ds-interactive-card__subtitle {
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: var(--ds-text);
+}
+
+.ds-exception-card .ds-interactive-card__meta {
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--ds-text-muted);
 }
 
 .ds-compact-row {
@@ -10828,33 +10856,26 @@ select.ds-input {
   flex-direction: row;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 28px;
-  margin-top: 0;
+  margin-top: 4pt;
   margin-bottom: 10pt;
   direction: ltr;
 }
 .pa-doc-header-brand {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  direction: ltr;
+  flex-shrink: 0;
 }
 .pa-doc-date {
-  margin-top: 3pt;
-  text-align: center;
+  text-align: left;
   direction: ltr;
-  font-size: 8.5pt;
-  line-height: 1.2;
+  font-size: 9.5pt;
   color: #374151;
+  align-self: flex-end;
 }
 .pa-doc-logo {
   display: block; max-width: 100%; height: auto;
 }
 .pa-doc-logo--header {
-  width: 140px;
-  max-width: 150px;
+  width: 200px;
+  max-width: 42%;
   margin-inline: 0;
   display: block;
 }
@@ -10868,12 +10889,10 @@ select.ds-input {
   opacity: 0.85;
 }
 .pa-doc-address {
-  flex: 1 1 auto;
-  margin: 20pt 0 6pt;
+  margin: 0 0 6pt;
   font-size: 10pt;
   line-height: 1.7;
   text-align: right;
-  direction: rtl;
 }
 .pa-doc-address p { margin: 0; }
 .pa-doc-divider {
@@ -11036,12 +11055,6 @@ select.ds-input {
   .pa-doc-topline {
     flex-direction: column;
     gap: 8px;
-    align-items: flex-start;
-  }
-
-  .pa-doc-address {
-    width: 100%;
-    margin-top: 6pt;
   }
 }
 
@@ -11051,7 +11064,7 @@ select.ds-input {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 14mm 18mm 22mm;
+    margin: 20mm 18mm 22mm;
   }
 
   html,
@@ -11123,47 +11136,35 @@ select.ds-input {
 
   .pa-doc-topline {
     display: flex !important;
-    flex-direction: row !important;
+    flex-direction: row-reverse !important;
     justify-content: space-between !important;
     align-items: flex-start !important;
-    gap: 10mm !important;
     margin-top: 0 !important;
     margin-bottom: 8pt !important;
-    direction: ltr !important;
-  }
-
-  .pa-doc-header-brand {
-    flex: 0 0 auto !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    text-align: center !important;
-    direction: ltr !important;
   }
 
   .pa-doc-logo--header {
     width: 140px !important;
-    max-width: 150px !important;
+    max-width: 35% !important;
     height: auto !important;
     display: block !important;
   }
 
   .pa-doc-date {
-    margin-top: 3pt !important;
-    font-size: 8.5pt !important;
-    text-align: center !important;
+    font-size: 9pt !important;
+    text-align: left !important;
     direction: ltr !important;
-    line-height: 1.2 !important;
+    line-height: 1.5 !important;
     color: #374151 !important;
+    align-self: flex-start !important;
   }
 
   .pa-doc-address {
-    flex: 1 1 auto !important;
     text-align: right !important;
     direction: rtl !important;
     font-size: 10pt !important;
     line-height: 1.65 !important;
-    margin: 18pt 0 4pt !important;
+    margin-bottom: 4pt !important;
   }
   .pa-doc-address p { margin: 0 !important; }
 
