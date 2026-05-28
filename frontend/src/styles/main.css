@@ -10828,26 +10828,33 @@ select.ds-input {
   flex-direction: row;
   justify-content: space-between;
   align-items: flex-start;
-  margin-top: 4pt;
+  gap: 28px;
+  margin-top: 0;
   margin-bottom: 10pt;
   direction: ltr;
 }
 .pa-doc-header-brand {
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  direction: ltr;
 }
 .pa-doc-date {
-  text-align: left;
+  margin-top: 3pt;
+  text-align: center;
   direction: ltr;
-  font-size: 9.5pt;
+  font-size: 8.5pt;
+  line-height: 1.2;
   color: #374151;
-  align-self: flex-end;
 }
 .pa-doc-logo {
   display: block; max-width: 100%; height: auto;
 }
 .pa-doc-logo--header {
-  width: 200px;
-  max-width: 42%;
+  width: 140px;
+  max-width: 150px;
   margin-inline: 0;
   display: block;
 }
@@ -10861,10 +10868,12 @@ select.ds-input {
   opacity: 0.85;
 }
 .pa-doc-address {
-  margin: 0 0 6pt;
+  flex: 1 1 auto;
+  margin: 20pt 0 6pt;
   font-size: 10pt;
   line-height: 1.7;
   text-align: right;
+  direction: rtl;
 }
 .pa-doc-address p { margin: 0; }
 .pa-doc-divider {
@@ -11027,6 +11036,12 @@ select.ds-input {
   .pa-doc-topline {
     flex-direction: column;
     gap: 8px;
+    align-items: flex-start;
+  }
+
+  .pa-doc-address {
+    width: 100%;
+    margin-top: 6pt;
   }
 }
 
@@ -11036,7 +11051,7 @@ select.ds-input {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 20mm 18mm 22mm;
+    margin: 14mm 18mm 22mm;
   }
 
   html,
@@ -11108,35 +11123,47 @@ select.ds-input {
 
   .pa-doc-topline {
     display: flex !important;
-    flex-direction: row-reverse !important;
+    flex-direction: row !important;
     justify-content: space-between !important;
     align-items: flex-start !important;
+    gap: 10mm !important;
     margin-top: 0 !important;
     margin-bottom: 8pt !important;
+    direction: ltr !important;
+  }
+
+  .pa-doc-header-brand {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    direction: ltr !important;
   }
 
   .pa-doc-logo--header {
     width: 140px !important;
-    max-width: 35% !important;
+    max-width: 150px !important;
     height: auto !important;
     display: block !important;
   }
 
   .pa-doc-date {
-    font-size: 9pt !important;
-    text-align: left !important;
+    margin-top: 3pt !important;
+    font-size: 8.5pt !important;
+    text-align: center !important;
     direction: ltr !important;
-    line-height: 1.5 !important;
+    line-height: 1.2 !important;
     color: #374151 !important;
-    align-self: flex-start !important;
   }
 
   .pa-doc-address {
+    flex: 1 1 auto !important;
     text-align: right !important;
     direction: rtl !important;
     font-size: 10pt !important;
     line-height: 1.65 !important;
-    margin-bottom: 4pt !important;
+    margin: 18pt 0 4pt !important;
   }
   .pa-doc-address p { margin: 0 !important; }
 
