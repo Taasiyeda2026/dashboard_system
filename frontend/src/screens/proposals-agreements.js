@@ -13,13 +13,17 @@ const LEGACY_GROUP_MAP = {
   'קיץ תשפ״ו + תשפ״ז':  'קיץ תשפ״ו ושנת הלימודים תשפ״ז'
 };
 const NEXT_YEAR_GROUP_LABEL = 'שנת הלימודים תשפ״ז';
+const SUMMER_PROPOSAL_GROUP = 'קיץ תשפ״ו';
 const COMBINED_GROUP_LABEL = 'קיץ תשפ״ו ושנת הלימודים תשפ״ז';
 const PROPOSAL_GROUP_FOR_TYPE = {
-  'קיץ תשפ״ו':                         ['summer', 'קיץ', 'קיץ תשפ״ו', 'פעילויות קיץ'],
+  [SUMMER_PROPOSAL_GROUP]:                  ['summer', 'קיץ', SUMMER_PROPOSAL_GROUP, 'פעילויות קיץ'],
   [NEXT_YEAR_GROUP_LABEL]:              ['next_year', 'תשפ״ז', 'שנה הבאה', 'תוכניות תשפ״ז', NEXT_YEAR_GROUP_LABEL],
   [COMBINED_GROUP_LABEL]:               null
 };
 const ITEM_TYPE_OPTIONS = ['סדנה', 'קורס', 'הדרכה', 'פעילות', 'ייעוץ', 'ליווי'];
+const TAMIR_REGEX = /תמיר/i;
+const SUMMER_ITEM_REGEX = /מייקרים|חדר\s*בריחה|escape[_\s-]*room/i;
+const NEXT_YEAR_ITEM_REGEX = /קורס|תוכנית|תכנית|program|course/i;
 const PUBLIC_BASE = import.meta.env?.BASE_URL || './';
 
 export const STATUS_OPTIONS = ['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled'];
@@ -107,6 +111,15 @@ export function normalizeProposalAgreementRow(row = {}) {
   };
   normalized._searchText = buildProposalsAgreementsSearchText(normalized);
   return normalized;
+}
+
+function localDateInputValue(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function formatDateDisplay(iso) {
@@ -316,7 +329,42 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
 
 // ─── Items editor ────────────────────────────────────────────────────────────
 
-function itemRowHtml(item = {}, idx = 0, pricingOptions = []) {
+function itemIdentityText(item = {}) {
+  return [item.item_name, item.item_type, item.pricing_activity_name, item.activity_name].map(text).join(' ');
+}
+
+function isTamirItem(item = {}) {
+  return TAMIR_REGEX.test(itemIdentityText(item));
+}
+
+function proposalGroupText(item = {}) {
+  const raw = text(item.proposal_group || item.activity_type_group);
+  return LEGACY_GROUP_MAP[raw] || raw;
+}
+
+function isSummerProposalItem(item = {}) {
+  if (isTamirItem(item)) return false;
+  const group = proposalGroupText(item);
+  const identity = itemIdentityText(item);
+  const isSummerGroup = group === SUMMER_PROPOSAL_GROUP || SUMMER_GROUP_KEYS.has(text(item.proposal_group));
+  return (isSummerGroup || text(item.unit_duration) === '45 דקות') && SUMMER_ITEM_REGEX.test(identity);
+}
+
+function isNextYearProposalItem(item = {}) {
+  if (isTamirItem(item)) return false;
+  const group = proposalGroupText(item);
+  if (group === NEXT_YEAR_GROUP_LABEL || NEXT_YEAR_GROUP_KEYS.has(text(item.proposal_group))) return true;
+  if (isSummerProposalItem(item)) return false;
+  return NEXT_YEAR_ITEM_REGEX.test(itemIdentityText(item)) || !proposalGroupText(item);
+}
+
+function shouldShowGefenForItem(item = {}, contextGroup = '') {
+  const group = LEGACY_GROUP_MAP[text(contextGroup)] || text(contextGroup) || proposalGroupText(item);
+  if (group === SUMMER_PROPOSAL_GROUP || isSummerProposalItem({ ...item, proposal_group: group || item.proposal_group })) return false;
+  return Boolean(text(item.gefen_number));
+}
+
+function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const n = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? escapeHtml(String(v)) : '';
   const calcTotal = (Number(item.quantity) || 0) && (Number(item.unit_price) || 0)
     ? String(((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)).toFixed(2))
@@ -326,45 +374,45 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = []) {
     const value = text(row.activity_no || row.activity_name);
     return optionHtml(value, selectedPricingKey, row.activity_name);
   })].join('');
-  return `<article class="ds-pa-item-card ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}">
-    <label class="ds-pa-item-field ds-pa-item-field--full"><span>בחירה מהירה</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select></label>
-    <div class="ds-pa-item-grid">
-      <label class="ds-pa-item-field"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
-      <label class="ds-pa-item-field"><span>סוג</span><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(item.item_type || '')}" list="pa-item-type-list" placeholder="סוג"></label>
-    </div>
-    <div class="ds-pa-item-grid ds-pa-item-grid--numbers">
-      <label class="ds-pa-item-field"><span>מספר גפ״ן</span><input class="ds-input ds-input--sm" name="gefen_number" value="${escapeHtml(item.gefen_number || '')}" placeholder="גפ״ן"></label>
-      <label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
-      <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>
+  const contextGroup = text(options.groupKey || item.proposal_group || '');
+  const showGefen = shouldShowGefenForItem(item, contextGroup);
+  const gefenValue = text(item.gefen_number);
+  return `<article class="ds-pa-item-card ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}">
+    <label class="ds-pa-item-field ds-pa-item-field--select"><span>בחירה מהירה</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select></label>
+    <div class="ds-pa-item-grid ds-pa-item-grid--main">
+      <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
+      <input type="hidden" name="item_type" value="${escapeHtml(item.item_type || '')}">
+      <label class="ds-pa-item-field ds-pa-item-field--gefen" data-pa-gefen-field${showGefen ? '' : ' hidden'}><span>מספר גפ״ן</span><input class="ds-input ds-input--sm" name="gefen_number_display" value="${escapeHtml(gefenValue)}" readonly></label>
+      <input type="hidden" name="gefen_number" value="${escapeHtml(gefenValue)}">
     </div>
     <div class="ds-pa-item-grid ds-pa-item-grid--numbers">
       <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
+      <label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
+      <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>
       <label class="ds-pa-item-field"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
-      <label class="ds-pa-item-field"><span>סה״כ שורה</span><input class="ds-input ds-input--sm" name="total_price" value="${calcTotal}" readonly data-pa-item-total></label>
+      <label class="ds-pa-item-field ds-pa-item-field--total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪${formatCurrency(calcTotal)}` : ''}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
     </div>
-    <label class="ds-pa-item-field ds-pa-item-field--full"><span>תיאור / הערות</span><input class="ds-input ds-input--sm" name="description" value="${escapeHtml(item.description || '')}" placeholder="תיאור"></label>
+    <label class="ds-pa-item-field ds-pa-item-field--full ds-pa-item-field--description"><span>תיאור קצר / הערות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>
     <input type="hidden" name="unit_duration" value="${escapeHtml(item.unit_duration || '')}">
-    <input type="hidden" name="proposal_group" value="${escapeHtml(item.proposal_group || '')}">
+    <input type="hidden" name="proposal_group" value="${escapeHtml(item.proposal_group || contextGroup || '')}">
     <div class="ds-pa-item-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-item aria-label="הסר שורה">הסר שורה</button></div>
   </article>`;
 }
 
-const SUMMER_GROUP_KEYS = new Set(['summer', 'קיץ', 'קיץ תשפ״ו', 'פעילויות קיץ']);
+const SUMMER_GROUP_KEYS = new Set(['summer', 'קיץ', SUMMER_PROPOSAL_GROUP, 'פעילויות קיץ']);
 const NEXT_YEAR_GROUP_KEYS = new Set(['next_year', 'תשפ״ז', 'שנה הבאה', 'תוכניות תשפ״ז', NEXT_YEAR_GROUP_LABEL]);
 
 function isSummerItem(item) {
-  const g = text(item.proposal_group);
-  return SUMMER_GROUP_KEYS.has(g) || SUMMER_GROUP_KEYS.has(LEGACY_GROUP_MAP[g]);
+  return isSummerProposalItem(item);
 }
 function isNextYearItem(item) {
-  const g = text(item.proposal_group);
-  return NEXT_YEAR_GROUP_KEYS.has(g) || NEXT_YEAR_GROUP_KEYS.has(LEGACY_GROUP_MAP[g]);
+  return isNextYearProposalItem(item);
 }
 
 function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOffset) {
   const startItems = items.length ? items : [{ proposal_group: groupKey }];
-  const rowsHtml = startItems.map((item, i) => itemRowHtml({ ...item, proposal_group: item.proposal_group || groupKey }, idxOffset + i, pricingOptions)).join('');
-  const addLabel = groupKey === 'קיץ תשפ״ו' ? '+ הוספת פעילות קיץ' : '+ הוספת תוכנית תשפ״ז';
+  const rowsHtml = startItems.map((item, i) => itemRowHtml({ ...item, proposal_group: item.proposal_group || groupKey }, idxOffset + i, pricingOptions, { groupKey })).join('');
+  const addLabel = groupKey === SUMMER_PROPOSAL_GROUP ? '+ הוספת פעילות קיץ' : '+ הוספת תוכנית תשפ״ז';
   return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}">
     <div class="ds-pa-items-header">
       <span class="ds-pa-items-section-label">${escapeHtml(label)}</span>
@@ -382,17 +430,19 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
   if (isCombined) {
     const summerItems = items.filter(isSummerItem);
     const nextYearItems = items.filter(isNextYearItem);
-    const unassigned = items.filter((i) => !isSummerItem(i) && !isNextYearItem(i));
+    const unassigned = items.filter((i) => !isTamirItem(i) && !isSummerItem(i) && !isNextYearItem(i));
     const allSummer = [...summerItems, ...unassigned];
+    const summerPricing = filterPricingByProposalType(pricingOptions, SUMMER_PROPOSAL_GROUP);
+    const nextYearPricing = filterPricingByProposalType(pricingOptions, NEXT_YEAR_GROUP_LABEL);
     return `<div class="ds-pa-items-section ds-pa-items-combined">
-      ${combinedItemsSectionHtml('פעילויות קיץ תשפ״ו', 'קיץ תשפ״ו', allSummer, pricingOptions, 0)}
-      ${combinedItemsSectionHtml(NEXT_YEAR_GROUP_LABEL, NEXT_YEAR_GROUP_LABEL, nextYearItems, pricingOptions, allSummer.length || 1)}
+      ${combinedItemsSectionHtml('פעילויות קיץ תשפ״ו', SUMMER_PROPOSAL_GROUP, allSummer, summerPricing, 0)}
+      ${combinedItemsSectionHtml(NEXT_YEAR_GROUP_LABEL, NEXT_YEAR_GROUP_LABEL, nextYearItems, nextYearPricing, allSummer.length || 1)}
       ${footer}
     </div>`;
   }
 
-  const startItems = items.length ? items : [{}];
-  const rowsHtml = startItems.map((item, idx) => itemRowHtml(item, idx, pricingOptions)).join('');
+  const startItems = items.length ? items : [{ proposal_group: activityTypeGroup }];
+  const rowsHtml = startItems.map((item, idx) => itemRowHtml({ ...item, proposal_group: item.proposal_group || activityTypeGroup }, idx, pricingOptions, { groupKey: activityTypeGroup })).join('');
   return `<div class="ds-pa-items-section">
     <div class="ds-pa-items-header">
       <span style="font-size:0.76rem;color:var(--ds-color-text-muted,#64748b);font-weight:600">שורות הצעה</span>
@@ -485,7 +535,7 @@ function sectionHeadingText(rawTitle, fallback = '') {
   return /[:：]\s*$/.test(title) ? title : `${title}:`;
 }
 
-function proposalLineHtml(item = {}) {
+function proposalLineHtml(item = {}, options = {}) {
   const parts = [];
   const duration = text(item.unit_duration);
   const meetings = item.meetings_count != null && item.meetings_count !== '' ? `${formatCurrency(item.meetings_count)} מפגשים` : '';
@@ -497,7 +547,7 @@ function proposalLineHtml(item = {}) {
   }
   const total = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
   if (total) parts.push(`${formatCurrency(total)} ₪`);
-  const gefenNumber = text(item.gefen_number);
+  const gefenNumber = options.showGefen === false ? '' : text(item.gefen_number);
   if (gefenNumber) parts.push(`גפ״ן ${gefenNumber}`);
   const itemName = text(item.item_name);
   if (!itemName) return '';
@@ -505,9 +555,10 @@ function proposalLineHtml(item = {}) {
   return ` ${itemName}${suffix}`;
 }
 
-function proposalItemsListHtml(items = []) {
+function proposalItemsListHtml(items = [], options = {}) {
   if (!Array.isArray(items) || !items.length) return '';
-  const lines = items.map(proposalLineHtml).filter(Boolean).join('\n');
+  const visibleItems = items.filter((item) => !isTamirItem(item));
+  const lines = visibleItems.map((item) => proposalLineHtml(item, options)).filter(Boolean).join('\n');
   return lines ? sectionLinesHtml(lines, { alwaysBullet: true, className: 'pa-proposal-lines' }) : '';
 }
 
@@ -868,7 +919,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const changesCancellation = isNextYearOrCombined
     ? sectionBody('cancellation_terms', STRUCTURED_SECTION_DEFAULTS.cancellation_terms)
     : sectionBody('cancellation_terms', '');
-  const remarks = sectionBody('notes', '');
+  const remarks = sectionBody('notes', '') || String(row.notes || '').replace(/\r\n?/g, '\n').trim();
   const activityIntro = sectionBody('activity_intro', '');
   const summerActivityIntro = sectionBody('summer_activity_intro', '');
   const nextYearActivityIntro = sectionBody('next_year_activity_intro', '');
@@ -880,7 +931,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     const explicitGroup = LEGACY_GROUP_MAP[text(item.proposal_group || item.activity_type_group)] || text(item.proposal_group || item.activity_type_group);
     let group = explicitGroup || activityTypeGroup;
     if (activityTypeGroup === COMBINED_GROUP_LABEL && !explicitGroup) {
-      if (unitDuration === '45 דקות' || /סדנה|חדר בריחה/.test(itemType)) group = 'קיץ תשפ״ו';
+      if (unitDuration === '45 דקות' || SUMMER_ITEM_REGEX.test(itemIdentityText(item))) group = SUMMER_PROPOSAL_GROUP;
       else group = NEXT_YEAR_GROUP_LABEL;
     }
     if (!acc[group]) acc[group] = [];
@@ -890,12 +941,12 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
 
   const sections = [];
   if (activityTypeGroup === COMBINED_GROUP_LABEL) {
-    const summerBlock = `${summerActivityIntro ? sectionBodyHtml(summerActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['קיץ תשפ״ו'] || [])}`;
-    const nextYearBlock = `${nextYearActivityIntro ? sectionBodyHtml(nextYearActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup[NEXT_YEAR_GROUP_LABEL] || itemsByGroup['תוכניות תשפ״ז'] || [])}`;
+    const summerBlock = `${summerActivityIntro ? sectionBodyHtml(summerActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup[SUMMER_PROPOSAL_GROUP] || [], { showGefen: false })}`;
+    const nextYearBlock = `${nextYearActivityIntro ? sectionBodyHtml(nextYearActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup[NEXT_YEAR_GROUP_LABEL] || itemsByGroup['תוכניות תשפ״ז'] || [], { showGefen: true })}`;
     if (summerBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText(sectionTitle('summer_activity_intro', 'הפעילות המוצעת לקיץ תשפ״ו')))}</h3>${summerBlock}</section>`);
     if (nextYearBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText(sectionTitle('next_year_activity_intro', 'הפעילות המוצעת לשנת הלימודים תשפ״ז')))}</h3>${nextYearBlock}</section>`);
   } else {
-    const activityBlock = `${activityIntro ? sectionBodyHtml(activityIntro) : ''}${proposalItemsListHtml(itemsByGroup[activityTypeGroup] || items)}`;
+    const activityBlock = `${activityIntro ? sectionBodyHtml(activityIntro) : ''}${proposalItemsListHtml(itemsByGroup[activityTypeGroup] || items, { showGefen: activityTypeGroup !== SUMMER_PROPOSAL_GROUP })}`;
     if (activityBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText(sectionTitle('activity_intro', 'הפעילות המוצעת')))}</h3>${activityBlock}</section>`);
   }
 
@@ -975,13 +1026,26 @@ function findSimilarClients(contactOptions, authority, school) {
   }, Object.assign([], { _seen: new Set() }));
 }
 
+function pricingMatchesGroup(row, activityTypeGroup) {
+  if (isTamirItem(row)) return false;
+  const normalizedGroup = LEGACY_GROUP_MAP[text(activityTypeGroup)] || text(activityTypeGroup);
+  if (normalizedGroup === SUMMER_PROPOSAL_GROUP) return isSummerProposalItem(row);
+  if (normalizedGroup === NEXT_YEAR_GROUP_LABEL) return isNextYearProposalItem(row);
+  if (normalizedGroup === COMBINED_GROUP_LABEL) return isSummerProposalItem(row) || isNextYearProposalItem(row);
+  return true;
+}
+
 function filterPricingByProposalType(pricingOptions, activityTypeGroup) {
-  const groupFilters = PROPOSAL_GROUP_FOR_TYPE[activityTypeGroup];
-  if (!groupFilters) return pricingOptions;
-  return pricingOptions.filter((row) => {
-    if (!row.proposal_group) return true;
-    return groupFilters.some((g) => row.proposal_group === g || row.proposal_group.includes(g));
-  });
+  return (Array.isArray(pricingOptions) ? pricingOptions : []).filter((row) => pricingMatchesGroup(row, activityTypeGroup));
+}
+
+function filterItemsByProposalType(items, activityTypeGroup) {
+  const normalizedGroup = LEGACY_GROUP_MAP[text(activityTypeGroup)] || text(activityTypeGroup);
+  const sourceItems = Array.isArray(items) ? items : [];
+  if (normalizedGroup === SUMMER_PROPOSAL_GROUP) return sourceItems.filter(isSummerProposalItem).map((item) => ({ ...item, proposal_group: SUMMER_PROPOSAL_GROUP, gefen_number: '' }));
+  if (normalizedGroup === NEXT_YEAR_GROUP_LABEL) return sourceItems.filter(isNextYearProposalItem).map((item) => ({ ...item, proposal_group: NEXT_YEAR_GROUP_LABEL }));
+  if (normalizedGroup === COMBINED_GROUP_LABEL) return sourceItems.filter((item) => !isTamirItem(item));
+  return sourceItems;
 }
 
 const TEMPLATE_LABELS = {
@@ -1037,6 +1101,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initEmail = text(row.email);
   const isLocked = !!initAuth;
   const initPickerHtml = initAuth ? contactPickerHtml(contactOptions, initAuth, initSchool, initContact) : '';
+  const proposalDate = mode === 'add' ? (text(row.proposal_date) || localDateInputValue()) : text(row.proposal_date);
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
 
   return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" dir="rtl">
@@ -1079,7 +1144,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     <div class="ds-pa-form-section">
       <h4 class="ds-pa-section-heading"><span class="ds-pa-section-num">4</span> פרטי הצעה והערות</h4>
       <div class="ds-pa-form-grid">
-        <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(text(row.proposal_date))}"></label>
+        <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
       </div>
       <label class="ds-pa-form-field ds-pa-form-field--wide" style="margin-top:6px"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm" name="notes" rows="2">${escapeHtml(text(row.notes))}</textarea></label>
     </div>
@@ -1230,7 +1295,7 @@ function payloadFromForm(form) {
   });
   payload.status = text(formData.get('status')) || 'draft';
   payload.document_type = 'הצעת מחיר';
-  const items = extractItemsFromForm(form);
+  const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
   const itemNames = Array.from(new Set(items.map((i) => text(i.item_name)).filter(Boolean)));
   if (itemNames.length) payload.activity_names = itemNames;
   payload.total_amount = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 0) * (Number(i.unit_price) || 0))), 0) || null;
@@ -1247,12 +1312,12 @@ function validatePayload(payload, statusOverride) {
   const errors = missing.map((key) => FIELD_LABELS[key] || key);
 
   if (targetStatus === 'pending_approval') {
-    const items = Array.isArray(payload._items) ? payload._items : [];
-    if (!items.length) errors.push('לפחות שורת הצעה אחת');
+    const grp = LEGACY_GROUP_MAP[text(payload.activity_type_group)] || text(payload.activity_type_group);
+    const items = filterItemsByProposalType(Array.isArray(payload._items) ? payload._items : [], grp);
+    if (!items.length) errors.push('לפחות שורת הצעה אחת רלוונטית לסוג ההצעה');
     const invalidItem = items.find((i) => !text(i.item_name));
     if (invalidItem) errors.push('שם פעילות בכל שורה');
     if (!payload.total_amount) errors.push('סה״כ כללי');
-    const grp = LEGACY_GROUP_MAP[text(payload.activity_type_group)] || text(payload.activity_type_group);
     if (grp === COMBINED_GROUP_LABEL) {
       const missingGroup = items.find((i) => !text(i.proposal_group));
       if (missingGroup) errors.push('שייוך לקיץ/תשפ״ז בכל שורה (הצעה משולבת)');
@@ -1343,7 +1408,7 @@ export const proposalsAgreementsScreen = {
           const newIndicator = tmp.firstElementChild;
           if (newIndicator) indicatorEl.replaceWith(newIndicator);
         }
-        const currentItems = extractItemsFromForm(form);
+        const currentItems = filterItemsByProposalType(extractItemsFromForm(form), newType);
         const itemsHost = form.querySelector('[data-pa-items-host]');
         if (!itemsHost) return;
         const filteredPricing = filterPricingByProposalType(proposalActivityPricing, newType);
@@ -1433,8 +1498,10 @@ export const proposalsAgreementsScreen = {
       const qty = parseFloat(rowEl.querySelector('[data-pa-item-qty]')?.value || '0') || 0;
       const price = parseFloat(rowEl.querySelector('[data-pa-item-price]')?.value || '0') || 0;
       const totalInput = rowEl.querySelector('[data-pa-item-total]');
+      const totalDisplay = rowEl.querySelector('[data-pa-item-total-display]');
       const total = qty && price ? qty * price : 0;
       if (totalInput) totalInput.value = total ? total.toFixed(2) : '';
+      if (totalDisplay) totalDisplay.textContent = total ? `₪${formatCurrency(total)}` : '';
       return total;
     };
 
@@ -1576,7 +1643,7 @@ export const proposalsAgreementsScreen = {
           ? await api.updateProposalAgreement(id, payload)
           : await api.addProposalAgreement(payload);
         const savedId = text(result?.row?.id || id);
-        const items = extractItemsFromForm(form);
+        const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
         if (savedId && typeof api.saveProposalAgreementItems === 'function') {
           try { await api.saveProposalAgreementItems(savedId, items); } catch { /* non-fatal */ }
         }
@@ -1630,12 +1697,16 @@ export const proposalsAgreementsScreen = {
       setValue('item_name', picked.activity_name || '');
       setValue('item_type', picked.item_type || '');
       setValue('gefen_number', picked.gefen_number || '');
+      setValue('gefen_number_display', picked.gefen_number || '');
       setValue('hours_count', picked.hours_count);
       setValue('meetings_count', picked.meetings_count);
       setValue('unit_price', picked.unit_price);
       setValue('description', picked.description_for_proposal || '');
       setValue('unit_duration', picked.unit_duration || '');
-      setValue('proposal_group', picked.proposal_group || '');
+      setValue('proposal_group', picked.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+      const rowGroup = text(itemRow.dataset.paRowGroup || picked.proposal_group);
+      const gefenField = itemRow.querySelector('[data-pa-gefen-field]');
+      if (gefenField) gefenField.hidden = !shouldShowGefenForItem({ ...picked, proposal_group: rowGroup }, rowGroup);
       if (picked.activity_no) setValue('pricing_activity_no', picked.activity_no);
       calcItemRow(itemRow);
       if (form) calcGrandTotal(form);
@@ -1840,7 +1911,10 @@ export const proposalsAgreementsScreen = {
         if (!tbody) return;
         const idx = form ? form.querySelectorAll('[data-pa-item-row]').length : 0;
         const tmp = document.createElement('div');
-        tmp.innerHTML = itemRowHtml({ proposal_group: groupKey }, idx, proposalActivityPricing);
+        const currentType = text(form?.querySelector('[name="activity_type_group"]')?.value);
+        const rowGroup = groupKey || currentType;
+        const rowPricing = filterPricingByProposalType(proposalActivityPricing, rowGroup || currentType);
+        tmp.innerHTML = itemRowHtml({ proposal_group: rowGroup }, idx, rowPricing, { groupKey: rowGroup });
         tbody.appendChild(tmp.firstElementChild);
         if (form) calcGrandTotal(form);
         tbody.querySelector(`[data-pa-item-idx="${idx}"] [name="item_name"]`)?.focus();

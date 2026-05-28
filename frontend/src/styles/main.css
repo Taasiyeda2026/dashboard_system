@@ -10750,34 +10750,60 @@ select.ds-input {
 .ds-pa-item-card {
   border: 1px solid #dbe5ef;
   border-radius: 12px;
-  padding: 10px;
+  padding: 9px;
   background: #fff;
   display: grid;
-  gap: 8px;
+  gap: 7px;
+  max-width: 760px;
 }
-.ds-pa-item-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.ds-pa-item-grid--numbers { grid-template-columns: repeat(3, minmax(84px, 1fr)); }
-.ds-pa-item-field { display: grid; gap: 4px; min-width: 0; }
+.ds-pa-item-grid { display: grid; gap: 7px; align-items: end; }
+.ds-pa-item-grid--main { grid-template-columns: minmax(220px, 1fr) minmax(90px, 120px); }
+.ds-pa-item-grid--numbers { grid-template-columns: repeat(5, minmax(72px, 96px)); }
+.ds-pa-item-field { display: grid; gap: 3px; min-width: 0; }
 .ds-pa-item-field span { font-size: 0.71rem; color: var(--ds-color-text-muted, #64748b); }
-.ds-pa-item-field:has([data-pa-item-total]) {
+.ds-pa-item-field--select { max-width: 320px; }
+.ds-pa-item-field--name { min-width: 220px; }
+.ds-pa-item-field--gefen { max-width: 120px; }
+.ds-pa-item-field--total {
   background: #eff6ff;
   border-radius: 8px;
   padding: 4px 6px;
+  min-height: 44px;
 }
-.ds-pa-item-field--full { grid-column: 1 / -1; }
+.ds-pa-item-field--total output {
+  color: var(--ds-color-text, #0f172a);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.8;
+  white-space: nowrap;
+}
+.ds-pa-item-field--full { grid-column: 1 / -1; max-width: 520px; }
 .ds-pa-item-field--full .ds-input,
-.ds-pa-item-field--full select { width: 100%; }
+.ds-pa-item-field--full select,
+.ds-pa-item-field--full textarea { width: 100%; }
 .ds-pa-item-card .ds-input {
-  min-height: 30px; padding: 3px 6px; font-size: 0.76rem;
+  min-height: 28px; padding: 3px 6px; font-size: 0.76rem;
   width: 100%; box-sizing: border-box;
+}
+.ds-pa-item-card textarea.ds-input {
+  min-height: 48px;
+  resize: vertical;
+  line-height: 1.45;
 }
 .ds-pa-item-actions { display: flex; justify-content: flex-start; }
 .ds-pa-items-total-row {
   font-size: 0.82rem; margin: 5px 0 0; color: var(--ds-color-text-muted, #64748b);
 }
 .ds-pa-items-total-row strong { color: var(--ds-color-text, #0f172a); }
+@media (max-width: 760px) {
+  .ds-pa-item-grid--main,
+  .ds-pa-item-grid--numbers { grid-template-columns: repeat(2, minmax(84px, 1fr)); }
+  .ds-pa-item-field--select,
+  .ds-pa-item-field--full { max-width: none; }
+}
 @media (max-width: 520px) {
   .ds-pa-item-grid,
+  .ds-pa-item-grid--main,
   .ds-pa-item-grid--numbers { grid-template-columns: 1fr; }
 }
 
