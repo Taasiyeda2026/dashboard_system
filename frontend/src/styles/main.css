@@ -10838,16 +10838,16 @@ select.ds-input {
   display: block; max-width: 100%; height: auto;
 }
 .pa-doc-logo--header {
-  width: 160px;
-  max-width: 38%;
+  width: 240px;
+  max-width: 44%;
   margin-inline: 0;
 }
 .pa-doc-logo--footer {
   width: auto;
   height: auto;
-  max-width: 48mm;
+  max-width: 100mm;
   margin-inline: auto;
-  opacity: 0.95;
+  opacity: 1;
   transform: none;
 }
 .pa-doc-date {
@@ -10956,14 +10956,40 @@ select.ds-input {
 .pa-doc-footer {
   margin-top: auto;
   width: 100%;
-  padding-top: 10mm;
-  border: 0;
+  padding-top: 8mm;
+  border-top: 0.5px solid #e2e8f0;
   break-inside: avoid;
   page-break-inside: avoid;
   text-align: center;
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+/* שורות פעילות — נקודה מפורשת לפני כל שורה */
+.pa-proposal-lines ul {
+  list-style: none;
+  padding-inline-start: 0;
+  margin: 2pt 0 6pt;
+}
+
+.pa-proposal-lines ul li {
+  position: relative;
+  padding-inline-start: 14pt;
+  margin: 3pt 0;
+  line-height: 1.55;
+  font-size: 10pt;
+  color: #111827;
+}
+
+.pa-proposal-lines ul li::before {
+  content: '·';
+  position: absolute;
+  inset-inline-start: 0;
+  font-weight: 900;
+  font-size: 12pt;
+  line-height: 1.3;
+  color: #1f4e79;
 }
 
 @media (max-width: 720px) {
@@ -11182,5 +11208,30 @@ select.ds-input {
     height: auto !important;
     display: block !important;
     opacity: 0.9 !important;
+  }
+
+  /* שורות פעילות בהדפסה */
+  .pa-proposal-lines ul {
+    list-style: none !important;
+    padding-inline-start: 0 !important;
+    margin: 2pt 0 6pt !important;
+  }
+
+  .pa-proposal-lines ul li {
+    position: relative !important;
+    padding-inline-start: 14pt !important;
+    margin: 3pt 0 !important;
+    line-height: 1.55 !important;
+    font-size: 10pt !important;
+    color: #000 !important;
+  }
+
+  .pa-proposal-lines ul li::before {
+    content: '·' !important;
+    position: absolute !important;
+    inset-inline-start: 0 !important;
+    font-weight: 900 !important;
+    font-size: 12pt !important;
+    color: #1f4e79 !important;
   }
 }
