@@ -697,6 +697,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   return `
     <header class="pa-doc-header">
       <div class="pa-doc-topline">
+        <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
         <div class="pa-doc-header-brand">
           <img
             src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
@@ -707,7 +708,6 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
             onerror="this.style.display='none';"
           >
         </div>
-        <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
       </div>
       <div class="pa-doc-address">
         <p><strong>לכבוד:</strong></p>
@@ -736,6 +736,8 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
         decoding="async"
         onerror="this.style.display='none';"
       >
+      <span>תעשיידע - תעשייה למען חינוך מתקדם (ע"ר)</span>
+      <span>www.think.org.il</span>
     </footer>`;
 }
 
