@@ -4,16 +4,20 @@ import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from '
 export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const SEARCH_DEBOUNCE_MS = 280;
 
-const ACTIVITY_TYPE_GROUP_OPTIONS = ['קיץ תשפ״ו', 'תוכניות תשפ״ז', 'קיץ תשפ״ו + תשפ״ז'];
+const ACTIVITY_TYPE_GROUP_OPTIONS = ['קיץ תשפ״ו', 'שנת הלימודים תשפ״ז', 'קיץ תשפ״ו ושנת הלימודים תשפ״ז'];
 const LEGACY_GROUP_MAP = {
-  'פעילויות קיץ': 'קיץ תשפ״ו',
-  'שנה הבאה':    'תוכניות תשפ״ז',
-  'הצעה משולבת': 'קיץ תשפ״ו + תשפ״ז'
+  'פעילויות קיץ':       'קיץ תשפ״ו',
+  'שנה הבאה':           'שנת הלימודים תשפ״ז',
+  'תוכניות תשפ״ז':       'שנת הלימודים תשפ״ז',
+  'הצעה משולבת':        'קיץ תשפ״ו ושנת הלימודים תשפ״ז',
+  'קיץ תשפ״ו + תשפ״ז':  'קיץ תשפ״ו ושנת הלימודים תשפ״ז'
 };
+const NEXT_YEAR_GROUP_LABEL = 'שנת הלימודים תשפ״ז';
+const COMBINED_GROUP_LABEL = 'קיץ תשפ״ו ושנת הלימודים תשפ״ז';
 const PROPOSAL_GROUP_FOR_TYPE = {
-  'קיץ תשפ״ו':          ['summer', 'קיץ', 'קיץ תשפ״ו', 'פעילויות קיץ'],
-  'תוכניות תשפ״ז':       ['next_year', 'תשפ״ז', 'שנה הבאה', 'תוכניות תשפ״ז'],
-  'קיץ תשפ״ו + תשפ״ז':  null
+  'קיץ תשפ״ו':                         ['summer', 'קיץ', 'קיץ תשפ״ו', 'פעילויות קיץ'],
+  [NEXT_YEAR_GROUP_LABEL]:              ['next_year', 'תשפ״ז', 'שנה הבאה', 'תוכניות תשפ״ז', NEXT_YEAR_GROUP_LABEL],
+  [COMBINED_GROUP_LABEL]:               null
 };
 const ITEM_TYPE_OPTIONS = ['סדנה', 'קורס', 'הדרכה', 'פעילות', 'ייעוץ', 'ליווי'];
 const PUBLIC_BASE = import.meta.env?.BASE_URL || './';
@@ -346,7 +350,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = []) {
 }
 
 const SUMMER_GROUP_KEYS = new Set(['summer', 'קיץ', 'קיץ תשפ״ו', 'פעילויות קיץ']);
-const NEXT_YEAR_GROUP_KEYS = new Set(['next_year', 'תשפ״ז', 'שנה הבאה', 'תוכניות תשפ״ז']);
+const NEXT_YEAR_GROUP_KEYS = new Set(['next_year', 'תשפ״ז', 'שנה הבאה', 'תוכניות תשפ״ז', NEXT_YEAR_GROUP_LABEL]);
 
 function isSummerItem(item) {
   const g = text(item.proposal_group);
@@ -371,7 +375,7 @@ function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOff
 }
 
 function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '') {
-  const isCombined = activityTypeGroup === 'קיץ תשפ״ו + תשפ״ז';
+  const isCombined = activityTypeGroup === COMBINED_GROUP_LABEL;
   const footer = `<datalist id="pa-item-type-list">${ITEM_TYPE_OPTIONS.map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>`;
 
@@ -382,7 +386,7 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
     const allSummer = [...summerItems, ...unassigned];
     return `<div class="ds-pa-items-section ds-pa-items-combined">
       ${combinedItemsSectionHtml('פעילויות קיץ תשפ״ו', 'קיץ תשפ״ו', allSummer, pricingOptions, 0)}
-      ${combinedItemsSectionHtml('תוכניות תשפ״ז', 'תוכניות תשפ״ז', nextYearItems, pricingOptions, allSummer.length || 1)}
+      ${combinedItemsSectionHtml(NEXT_YEAR_GROUP_LABEL, NEXT_YEAR_GROUP_LABEL, nextYearItems, pricingOptions, allSummer.length || 1)}
       ${footer}
     </div>`;
   }
@@ -449,8 +453,10 @@ function itemsSummaryHtml(items = []) {
 
 const TEMPLATE_KEY_BY_GROUP = {
   'קיץ תשפ״ו':          'summer',
-  'תוכניות תשפ״ז':       'next_year',
-  'קיץ תשפ״ו + תשפ״ז':  'combined',
+  'תוכניות תשפ״ז':                 'next_year',
+  [NEXT_YEAR_GROUP_LABEL]:         'next_year',
+  'קיץ תשפ״ו + תשפ״ז':            'combined',
+  [COMBINED_GROUP_LABEL]:          'combined',
   'פעילויות קיץ':       'summer',
   'שנה הבאה':           'next_year',
   'הצעה משולבת':        'combined'
@@ -465,8 +471,8 @@ function templateBodyText(section) {
 function proposalTitle(row) {
   const grp = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
   if (grp === 'קיץ תשפ״ו')         return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו';
-  if (grp === 'תוכניות תשפ״ז')      return 'הצעת מחיר לתוכניות תעשיידע | תשפ״ז';
-  return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו + תשפ״ז';
+  if (grp === NEXT_YEAR_GROUP_LABEL) return 'הצעת מחיר לקורסי תעשיידע | שנת הלימודים תשפ״ז';
+  return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו ושנת הלימודים תשפ״ז';
 }
 
 function sectionBodyHtml(value, options = {}) {
@@ -606,6 +612,196 @@ function signatureSectionHtml(signatureText) {
 }
 
 
+
+const TEMPLATE_INTRO_TEXT = 'תעשיידע היא עמותה חינוכית מיסודה של התאחדות התעשיינים, הפועלת לקידום החינוך הטכנולוגי בישראל. באמצעות קורסים וסדנאות בתחומי STEM, העמותה מחברת תלמידים לעולמות המדע, הטכנולוגיה, ההנדסה והתעשייה ומובילה למידה חווייתית, התנסות מעשית ופיתוח מיומנויות לעולם טכנולוגי משתנה.';
+
+const PROPOSAL_TEMPLATE_DEFAULTS = {
+  summer: [
+    {
+      section_key: 'intro',
+      section_title: 'פתיח',
+      section_body: TEMPLATE_INTRO_TEXT,
+      sort_order: 10
+    },
+    {
+      section_key: 'activity_intro',
+      section_title: 'הפעילות המוצעת',
+      section_body: [
+        'ההצעה כוללת סדנאות מייקרים וחדרי בריחה דיגיטליים, המיועדים להפעלה חווייתית, מעשית ומותאמת גיל במסגרת פעילות הקיץ.',
+        '',
+        '- ההצעה מיועדת לקבוצה של עד 20 משתתפים.',
+        '- בכל סדנת מייקרים יכין כל משתתף תוצר אישי.',
+        '- דף מידע המפרט את מגוון הפעילויות המוצעות מצורף להצעה זו.'
+      ].join('\n'),
+      sort_order: 20
+    },
+    {
+      section_key: 'taasiyeda_responsibility',
+      section_title: 'אחריות תעשיידע',
+      section_body: [
+        '- ביצוע הסדנאות בהתאם לתוכן חינוכי מאושר ומותאם לשכבת הגיל.',
+        '- העברת הסדנאות באמצעות מדריכים מקצועיים מטעם תעשיידע.',
+        '- אספקת הציוד, החומרים והאמצעים הנדרשים לקיום הסדנאות.',
+        '- תיאום, ארגון וליווי שוטף של ההפעלה מול בית הספר או הגוף המזמין.'
+      ].join('\n'),
+      sort_order: 30
+    },
+    {
+      section_key: 'school_responsibility',
+      section_title: 'אחריות בית הספר / הגוף המזמין',
+      section_body: [
+        '- מינוי איש קשר לתיאום שוטף מול תעשיידע.',
+        '- נוכחות איש צוות מטעם בית הספר או הגוף המזמין לאורך כל סדנה.',
+        '- עדכון תעשיידע מראש בכל שינוי הנוגע ללוחות הזמנים או לתנאי ההפעלה.',
+        '- העמדת מרחב מתאים לסדנה, הכולל מקרן, לוח וחיבור תקין לאינטרנט, ככל שנדרש לפי אופי הסדנה.'
+      ].join('\n'),
+      sort_order: 40
+    },
+    {
+      section_key: 'payment_terms',
+      section_title: 'עלות ותנאי תשלום',
+      section_body: [
+        '- חשבונית לתשלום תונפק עם תחילת הסדנה.',
+        '- תנאי התשלום: שוטף + 30 ממועד הנפקת החשבונית.'
+      ].join('\n'),
+      sort_order: 50
+    },
+    {
+      section_key: 'cancellation_terms',
+      section_title: 'שינויים, ביטולים והתאמות',
+      section_body: [
+        '- סדנה שתבוטל על ידי בית הספר או הגוף המזמין בהתראה של פחות משני ימי עבודה, תיחשב כסדנה שהתקיימה בפועל ותחויב בהתאם.',
+        '- במקרה שבו לא ניתן לקיים את הסדנה בשל הנחיות משרד החינוך, מצב חירום או נסיבות שאינן מאפשרות קיום פרונטלי, יתואם מועד חלופי לקיום הסדנה, בכפוף לזמינות הצדדים.'
+      ].join('\n'),
+      sort_order: 60
+    },
+    { section_key: 'notes', section_title: 'הערות', section_body: '', sort_order: 70 },
+    { section_key: 'signature', section_title: 'חתימה', section_body: '', sort_order: 80 }
+  ],
+  next_year: [
+    { section_key: 'intro', section_title: 'פתיח', section_body: TEMPLATE_INTRO_TEXT, sort_order: 10 },
+    {
+      section_key: 'activity_intro',
+      section_title: 'הפעילות המוצעת',
+      section_body: 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז. פירוט מלא של הקורסים מצורף כנספח להצעה זו.',
+      sort_order: 20
+    },
+    {
+      section_key: 'taasiyeda_responsibility',
+      section_title: 'אחריות תעשיידע',
+      section_body: [
+        '- ביצוע הקורס בהתאם לסילבוס המאושר, באמצעות מדריך מקצועי מטעם תעשיידע.',
+        '- אספקת חומרי ההדרכה, חומרי הפעילות והמשאבים הנדרשים לקיום הקורס.',
+        '- ליווי מקצועי ותיאום שוטף מול צוות בית הספר לאורך תקופת הקורס.',
+        '- קיום משוב והערכה לבחינת שביעות הרצון, איכות ההדרכה והתאמת המענה.'
+      ].join('\n'),
+      sort_order: 30
+    },
+    {
+      section_key: 'school_responsibility',
+      section_title: 'אחריות בית הספר',
+      section_body: [
+        '- מינוי איש קשר מטעם בית הספר לתיאום שוטף מול תעשיידע.',
+        '- נוכחות איש צוות מטעם בית הספר לאורך כל מפגשי הקורס.',
+        '- עדכון תעשיידע מראש בכל שינוי הנוגע למועדי הקורס או ללוחות הזמנים.',
+        '- העמדת מרחב מתאים לקורס, הכולל מקרן, לוח וחיבור תקין לאינטרנט.'
+      ].join('\n'),
+      sort_order: 40
+    },
+    {
+      section_key: 'payment_terms',
+      section_title: 'עלות ותנאי תשלום',
+      section_body: [
+        '- התשלום עבור הקורס יחולק לשני חלקים: חשבונית ראשונה תונפק עם תחילת הקורס. חשבונית שנייה תונפק לאחר השלמת מחצית מהיקף הקורס.',
+        '- כל חשבונית תשולם בתנאי שוטף + 30 ממועד הנפקתה.'
+      ].join('\n'),
+      sort_order: 50
+    },
+    {
+      section_key: 'cancellation_terms',
+      section_title: 'שינויים, ביטולים והתאמות',
+      section_body: [
+        '- במקרה של הפסקת הקורס ביוזמת בית הספר, ייגבה תשלום מלא עבור המפגשים שהתקיימו בפועל וכן 10% מעלות יתרת המפגשים שלא התקיימו.',
+        '- מפגש שיבוטל על ידי בית הספר בהתראה של פחות משני ימי עבודה, ייחשב כמפגש שהתקיים בפועל ויחויב בהתאם.',
+        '- במקרה של הפסקת לימודים פרונטליים בהתאם להנחיות משרד החינוך או בשל מצב חירום, הקורס יותאם ללמידה מקוונת ללא שינוי בעלות. עם חזרת הלימודים הפרונטליים, הקורס יימשך בבית הספר בהתאם לתיאום בין הצדדים.'
+      ].join('\n'),
+      sort_order: 60
+    },
+    { section_key: 'notes', section_title: 'הערות', section_body: '', sort_order: 70 },
+    { section_key: 'signature', section_title: 'חתימה', section_body: '', sort_order: 80 }
+  ],
+  combined: [
+    { section_key: 'intro', section_title: 'פתיח', section_body: TEMPLATE_INTRO_TEXT, sort_order: 10 },
+    {
+      section_key: 'summer_activity_intro',
+      section_title: 'הפעילות המוצעת לקיץ תשפ״ו',
+      section_body: [
+        'ההצעה כוללת סדנאות מייקרים וחדרי בריחה דיגיטליים, המיועדים להפעלה חווייתית, מעשית ומותאמת גיל במסגרת פעילות הקיץ.',
+        '',
+        '- ההצעה מיועדת לקבוצה של עד 20 משתתפים.',
+        '- בכל סדנת מייקרים יכין כל משתתף תוצר אישי.',
+        '- דף מידע המפרט את מגוון הפעילויות המוצעות מצורף להצעה זו.'
+      ].join('\n'),
+      sort_order: 20
+    },
+    {
+      section_key: 'next_year_activity_intro',
+      section_title: 'הפעילות המוצעת לשנת הלימודים תשפ״ז',
+      section_body: 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז. פירוט מלא של הקורסים מצורף כנספח להצעה זו.',
+      sort_order: 30
+    },
+    {
+      section_key: 'taasiyeda_responsibility',
+      section_title: 'אחריות תעשיידע',
+      section_body: [
+        '- ביצוע הסדנה או הקורס בהתאם לתוכן המאושר, באמצעות מדריך מקצועי מטעם תעשיידע.',
+        '- אספקת חומרי ההדרכה, חומרי הפעילות והמשאבים הנדרשים לקיום הסדנה או הקורס.',
+        '- ליווי מקצועי ותיאום שוטף מול צוות בית הספר או הגוף המזמין לאורך תקופת ההפעלה.',
+        '- קיום משוב והערכה לבחינת שביעות הרצון, איכות ההדרכה והתאמת המענה.'
+      ].join('\n'),
+      sort_order: 40
+    },
+    {
+      section_key: 'school_responsibility',
+      section_title: 'אחריות בית הספר / הגוף המזמין',
+      section_body: [
+        '- מינוי איש קשר לתיאום שוטף מול תעשיידע.',
+        '- נוכחות איש צוות מטעם בית הספר או הגוף המזמין לאורך כל סדנה או מפגש.',
+        '- עדכון תעשיידע מראש בכל שינוי הנוגע למועדי הפעילות או ללוחות הזמנים.',
+        '- העמדת מרחב מתאים לפעילות, הכולל מקרן, לוח וחיבור תקין לאינטרנט.'
+      ].join('\n'),
+      sort_order: 50
+    },
+    {
+      section_key: 'payment_terms',
+      section_title: 'עלות ותנאי תשלום',
+      section_body: [
+        '- עבור סדנה, חשבונית לתשלום תונפק עם תחילת הסדנה.',
+        '- עבור קורס, התשלום יחולק לשני חלקים: חשבונית ראשונה תונפק עם תחילת הקורס. חשבונית שנייה תונפק לאחר השלמת מחצית מהיקף הקורס.',
+        '- כל חשבונית תשולם בתנאי שוטף + 30 ממועד הנפקתה.'
+      ].join('\n'),
+      sort_order: 60
+    },
+    {
+      section_key: 'cancellation_terms',
+      section_title: 'שינויים, ביטולים והתאמות',
+      section_body: [
+        '- במקרה של הפסקת קורס ביוזמת בית הספר או הגוף המזמין, ייגבה תשלום מלא עבור המפגשים שהתקיימו בפועל וכן 10% מעלות יתרת המפגשים שלא התקיימו.',
+        '- סדנה או מפגש שיבוטלו על ידי בית הספר או הגוף המזמין בהתראה של פחות משני ימי עבודה, ייחשבו כפעילות שהתקיימה בפועל ויחויבו בהתאם.',
+        '- במקרה של הפסקת לימודים פרונטליים בהתאם להנחיות משרד החינוך או בשל מצב חירום, קורס יותאם ללמידה מקוונת ללא שינוי בעלות. עם חזרת הלימודים הפרונטליים, הקורס יימשך בבית הספר בהתאם לתיאום בין הצדדים.',
+        '- במקרה שבו לא ניתן לקיים סדנה בשל הנחיות משרד החינוך, מצב חירום או נסיבות שאינן מאפשרות קיום פרונטלי, יתואם מועד חלופי לקיום הסדנה, בכפוף לזמינות הצדדים.'
+      ].join('\n'),
+      sort_order: 70
+    },
+    { section_key: 'notes', section_title: 'הערות', section_body: '', sort_order: 80 },
+    { section_key: 'signature', section_title: 'חתימה', section_body: '', sort_order: 90 }
+  ]
+};
+
+function templateDefaultSections(templateKey) {
+  return (PROPOSAL_TEMPLATE_DEFAULTS[templateKey] || []).map((section) => ({ ...section, template_key: templateKey }));
+}
+
 function resolveDocumentSections(row, templateSections = []) {
   const fallback = Array.isArray(templateSections) ? templateSections : [];
   const custom = Array.isArray(row?.custom_document_sections) ? row.custom_document_sections : [];
@@ -655,7 +851,8 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const isSummerOnly = templateKey === 'summer';
   const isNextYearOrCombined = templateKey === 'next_year' || templateKey === 'combined';
   const dateDisplay = formatDateDisplay(row.proposal_date) || formatDateDisplay(new Date().toISOString().slice(0, 10));
-  const sectionsSource = resolveDocumentSections(row, templateSections);
+  const sourceTemplateSections = Array.isArray(templateSections) && templateSections.length ? templateSections : templateDefaultSections(templateKey);
+  const sectionsSource = resolveDocumentSections(row, sourceTemplateSections);
   const byKey = new Map((Array.isArray(sectionsSource) ? sectionsSource : []).map((s) => [text(s.section_key), s]));
   const sectionBody = (key, fallback = '') => templateBodyText(byKey.get(key)) || fallback;
   const sectionTitle = (key, fallback = '') => text(byKey.get(key)?.section_title) || fallback;
@@ -680,9 +877,9 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     const unitDuration = text(item.unit_duration);
     const explicitGroup = LEGACY_GROUP_MAP[text(item.proposal_group || item.activity_type_group)] || text(item.proposal_group || item.activity_type_group);
     let group = explicitGroup || activityTypeGroup;
-    if (activityTypeGroup === 'קיץ תשפ״ו + תשפ״ז' && !explicitGroup) {
+    if (activityTypeGroup === COMBINED_GROUP_LABEL && !explicitGroup) {
       if (unitDuration === '45 דקות' || /סדנה|חדר בריחה/.test(itemType)) group = 'קיץ תשפ״ו';
-      else group = 'תוכניות תשפ״ז';
+      else group = NEXT_YEAR_GROUP_LABEL;
     }
     if (!acc[group]) acc[group] = [];
     acc[group].push(item);
@@ -690,11 +887,11 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   }, {}) : {};
 
   const sections = [];
-  if (activityTypeGroup === 'קיץ תשפ״ו + תשפ״ז') {
+  if (activityTypeGroup === COMBINED_GROUP_LABEL) {
     const summerBlock = `${summerActivityIntro ? sectionBodyHtml(summerActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['קיץ תשפ״ו'] || [])}`;
-    const nextYearBlock = `${nextYearActivityIntro ? sectionBodyHtml(nextYearActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup['תוכניות תשפ״ז'] || [])}`;
-    if (summerBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText('הפעילות המוצעת – קיץ תשפ״ו'))}</h3>${summerBlock}</section>`);
-    if (nextYearBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText('הפעילות המוצעת – שנת הלימודים תשפ״ז'))}</h3>${nextYearBlock}</section>`);
+    const nextYearBlock = `${nextYearActivityIntro ? sectionBodyHtml(nextYearActivityIntro) : ''}${proposalItemsListHtml(itemsByGroup[NEXT_YEAR_GROUP_LABEL] || itemsByGroup['תוכניות תשפ״ז'] || [])}`;
+    if (summerBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText(sectionTitle('summer_activity_intro', 'הפעילות המוצעת לקיץ תשפ״ו')))}</h3>${summerBlock}</section>`);
+    if (nextYearBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText(sectionTitle('next_year_activity_intro', 'הפעילות המוצעת לשנת הלימודים תשפ״ז')))}</h3>${nextYearBlock}</section>`);
   } else {
     const activityBlock = `${activityIntro ? sectionBodyHtml(activityIntro) : ''}${proposalItemsListHtml(itemsByGroup[activityTypeGroup] || items)}`;
     if (activityBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText(sectionTitle('activity_intro', 'הפעילות המוצעת')))}</h3>${activityBlock}</section>`);
@@ -729,7 +926,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     ${sections.join('')}
     ${orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility, '', { alwaysBullet: true }) : ''}
     ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility, '', { alwaysBullet: true }) : ''}
-    ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלויות ותנאי תשלום'), paymentTerms, '', { alwaysBullet: true }) : ''}
+    ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלות ותנאי תשלום'), paymentTerms, '', { alwaysBullet: true }) : ''}
     ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation, '', { alwaysBullet: true }) : ''}
     ${remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : ''}
     ${signatureSectionHtml(signatureText)}
@@ -787,8 +984,8 @@ function filterPricingByProposalType(pricingOptions, activityTypeGroup) {
 
 const TEMPLATE_LABELS = {
   'קיץ תשפ״ו':         'תבנית נטענת: הצעת קיץ תשפ״ו',
-  'תוכניות תשפ״ז':      'תבנית נטענת: הצעת תוכניות תשפ״ז',
-  'קיץ תשפ״ו + תשפ״ז': 'תבנית נטענת: הצעה משולבת קיץ תשפ״ו + תשפ״ז',
+  [NEXT_YEAR_GROUP_LABEL]: 'תבנית נטענת: הצעת שנת הלימודים תשפ״ז',
+  [COMBINED_GROUP_LABEL]:  'תבנית נטענת: הצעה משולבת קיץ תשפ״ו ושנת הלימודים תשפ״ז',
 };
 
 function templateIndicatorHtml(group) {
@@ -1054,7 +1251,7 @@ function validatePayload(payload, statusOverride) {
     if (invalidItem) errors.push('שם פעילות בכל שורה');
     if (!payload.total_amount) errors.push('סה״כ כללי');
     const grp = LEGACY_GROUP_MAP[text(payload.activity_type_group)] || text(payload.activity_type_group);
-    if (grp === 'קיץ תשפ״ו + תשפ״ז') {
+    if (grp === COMBINED_GROUP_LABEL) {
       const missingGroup = items.find((i) => !text(i.proposal_group));
       if (missingGroup) errors.push('שייוך לקיץ/תשפ״ז בכל שורה (הצעה משולבת)');
     }
@@ -1503,7 +1700,8 @@ export const proposalsAgreementsScreen = {
         const row = data.rows.find((r) => text(r.id) === id);
         if (!row || text(row.status) === 'approved') return;
         const templateKey = TEMPLATE_KEY_BY_GROUP[text(row.activity_type_group)] || 'combined';
-        const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
+        const loadedTemplateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
+        const templateSections = loadedTemplateSections.length ? loadedTemplateSections : templateDefaultSections(templateKey);
         const workingSections = resolveDocumentSections(row, templateSections).map((section) => ({
           section_key: text(section.section_key),
           section_title: text(section.section_title),
@@ -1530,7 +1728,8 @@ export const proposalsAgreementsScreen = {
         const wrap = docSaveBtn.closest('[data-pa-doc-edit-wrap]');
         if (!row || !wrap) return;
         const templateKey = TEMPLATE_KEY_BY_GROUP[text(row.activity_type_group)] || 'combined';
-        const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
+        const loadedTemplateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
+        const templateSections = loadedTemplateSections.length ? loadedTemplateSections : templateDefaultSections(templateKey);
         const sections = templateSections.map((section) => ({
           section_key: text(section.section_key),
           section_title: text(section.section_title),
