@@ -514,22 +514,23 @@ function parseSectionBodyStructure(value, options = {}) {
   const raw = String(value == null ? '' : value).replace(/\r\n?/g, '\n').trim();
   if (!raw) return [];
 
+  const BULLET_CHARS = '·•▫▪◦‣–\\-';
   const splitInlineBullets = (line) => {
     const t = String(line || '').trim();
     if (!t) return [];
     // שורה שמתחילה בנקודה — החזר כמות שהיא
-    if (/^[·•\-]\s/.test(t)) return [t];
+    if (new RegExp(`^[${BULLET_CHARS}]\\s`).test(t)) return [t];
     // אין נקודות כלל — החזר כמות שהיא
-    if (!/[·•]/.test(t) && !/\s-\s/.test(t)) return [t];
+    if (!new RegExp(`[${BULLET_CHARS}]`).test(t) && !/\s-\s/.test(t)) return [t];
     // נקודות באמצע — פצל וסמן כל חלק
-    const parts = t.split(/\s*·\s*/).map((p) => p.trim()).filter(Boolean);
+    const parts = t.split(new RegExp(`\\s*[${BULLET_CHARS}]\\s*`)).map((p) => p.trim()).filter(Boolean);
     return parts.map((p, i) => i === 0 ? p : `· ${p}`);
   };
 
   const expandedLines = raw.split('\n').flatMap(splitInlineBullets).map((line) => line.trim()).filter(Boolean);
   if (!expandedLines.length) return [];
 
-  const bulletRegex = /^[·•\-]\s*(.+)$/;
+  const bulletRegex = new RegExp(`^[${BULLET_CHARS}]\\s*(.+)$`);
   const orderedRegex = /^(\d+)[.)]\s*(.+)$/;
   if (alwaysBullet) {
     return [{ type: 'ul', items: expandedLines.map((line) => line.replace(bulletRegex, '$1').trim()).filter(Boolean) }];
