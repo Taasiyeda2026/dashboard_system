@@ -10996,9 +10996,9 @@ select.ds-input {
 }
 .ds-pa-preview-doc .pa-section-body ul li::before,
 .ds-pa-preview-doc .pa-doc-intro ul li::before {
-  content: '';
+  content: '•';
   position: absolute;
-  inset-inline-start: 0;
+  inset-inline-start: 2px;
   font-weight: 700;
 }
 .pa-proposal-lines {
