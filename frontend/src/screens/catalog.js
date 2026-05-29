@@ -157,20 +157,25 @@ function normalizeProgram(item, idx) {
       p.type ||
       'תוכנית'
     ),
-    grades: String(pickFirstNonEmpty(p.grades, p.targetGrades) || 'לא צוין'),
-    scope: String(pickFirstNonEmpty(p.meetings_count, p.scope, p.meetings) || inferScope(p)),
-    sessionDuration: String(pickFirstNonEmpty(p.unit_duration, p.sessionDuration, p.duration) || 'לא צוין'),
+    grades: String(pickFirstNonEmpty(p.grades, p.target_grades, p.targetGrades) || 'לא צוין'),
+    targetGrades: String(pickFirstNonEmpty(p.targetGrades, p.target_grades, p.grades) || ''),
+    domain: String(pickFirstNonEmpty(p.domain, p.catalog_domain) || ''),
+    scope: String(pickFirstNonEmpty(p.scope, p.meetings_count, p.hours_count, p.meetings) || inferScope(p)),
+    sessionDuration: String(pickFirstNonEmpty(p.session_duration, p.unit_duration, p.sessionDuration, p.duration) || 'לא צוין'),
     gefenNumber: String(pickFirstNonEmpty(p.gefen_number, p.gefenNumber, p.gefen) || ''),
-    shortDescription: String(pickFirstNonEmpty(p.catalog_short_description, p.description_short, p.shortDescription, p.openingLine, p.subtitle, p.sections?.openingStatement, firstSyllabusDescription) || ''),
-    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.description_for_proposal, p.coreIdea, p.description, p.sections?.mainIdea, firstSyllabusDescription) || ''),
-    goals: String(pickFirstNonEmpty(p.catalog_goals, p.goals, p.sections?.programFlow) || ''),
-    schoolValue: String(pickFirstNonEmpty(p.catalog_school_value, p.schoolValue, p.sections?.schoolValue) || ''),
+    subtitle: String(pickFirstNonEmpty(p.catalog_subtitle, p.subtitle) || ''),
+    shortDescription: String(pickFirstNonEmpty(p.catalog_subtitle, p.catalog_short_description, p.opening_line, p.description_short, p.shortDescription, p.openingLine, p.subtitle, p.sections?.openingStatement, firstSyllabusDescription) || ''),
+    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.core_idea, p.description_for_proposal, p.coreIdea, p.description, p.sections?.mainIdea, firstSyllabusDescription) || ''),
+    goals: String(pickFirstNonEmpty(p.catalog_goals, p.program_flow, p.goals, p.sections?.programFlow) || ''),
+    studentDevelops: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.studentDevelops, p.participantsReceive) || '',
+    schoolValue: String(pickFirstNonEmpty(p.catalog_school_value, p.school_value, p.schoolValue, p.sections?.schoolValue) || ''),
     syllabus: Array.isArray(p.catalog_syllabus) && p.catalog_syllabus.length ? p.catalog_syllabus : syllabus,
     stations: Array.isArray(p.stations) ? p.stations : [],
-    participantsReceive: Array.isArray(p.catalog_participants_receive) ? p.catalog_participants_receive : (Array.isArray(p.participantsReceive) ? p.participantsReceive : []),
-    closingBox: String(pickFirstNonEmpty(p.catalog_closing_box, p.closingBox, p.sections?.finalOutcome) || ''),
-    footer: String(pickFirstNonEmpty(p.catalog_footer, p.footer) || ''),
-    pageTemplate: String(pickFirstNonEmpty(p.catalog_page_template, p.pageTemplate) || 'default')
+    participantsReceive: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.studentDevelops, p.participantsReceive) || [],
+    closingBox: String(pickFirstNonEmpty(p.catalog_closing_box, p.final_outcome, p.closingBox, p.sections?.finalOutcome) || ''),
+    footer: String(pickFirstNonEmpty(p.catalog_footer, p.footer, p.final_outcome) || ''),
+    pageTemplate: String(pickFirstNonEmpty(p.catalog_page_template, p.page_template, p.pageTemplate) || 'default'),
+    pricingOptions: Array.isArray(p.pricing_options) ? p.pricing_options : []
   };
 }
 
@@ -351,8 +356,8 @@ export const catalogScreen = {
 
     const labels = productTypeLabels(selected.productType);
     const programFlowList = splitToList(selected.goals);
-    const studentDevList = splitToList(selected.closingBox || selected.coreIdea);
-    const participants = splitToList(selected.participantsReceive).slice(0, 4);
+    const studentDevList = splitToList(selected.studentDevelops || selected.participantsReceive);
+    const participants = splitToList(selected.participantsReceive || selected.studentDevelops).slice(0, 4);
     const schoolValueParts = splitToList(selected.schoolValue).slice(0, 3);
     while (schoolValueParts.length < 3) schoolValueParts.push('—');
     const syllabusSource = selected.productType === 'סיור' && selected.stations.length ? selected.stations : selected.syllabus;
@@ -371,7 +376,7 @@ export const catalogScreen = {
       </div>
       <div class="catalog-a4-wrap"><article class="catalog-a4 ${a4ToneClass}" data-catalog-page="1">
         <header class="catalog-a4-header">
-          <div class="catalog-hero-top"><div><div class="catalog-hero-tags"><span class="catalog-tag">${escapeHtml(fallbackText(selected.productType))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.audienceLevel))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.pageTemplate === 'default' ? '' : selected.pageTemplate, fallbackText(selected.pageTemplate, selected.productType)))}</span></div><h1>${escapeHtml(selected.name)}</h1><p>${escapeHtml(selected.shortDescription || 'תוכנית לימודית מותאמת לבית הספר')}</p></div><div class="catalog-logo-box">תעשיידע</div></div>
+          <div class="catalog-hero-top"><div><div class="catalog-hero-tags"><span class="catalog-tag">${escapeHtml(fallbackText(selected.productType))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.audienceLevel))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.domain || (selected.pageTemplate === 'default' ? '' : selected.pageTemplate), fallbackText(selected.pageTemplate, selected.productType)))}</span></div><h1>${escapeHtml(selected.name)}</h1><p>${escapeHtml(selected.shortDescription || 'תוכנית לימודית מותאמת לבית הספר')}</p></div><div class="catalog-logo-box">תעשיידע</div></div>
         </header>
         <section class="catalog-frame-grid"><div class="catalog-box"><strong>כיתות</strong><p>${escapeHtml(fallbackText(selected.grades))}</p></div><div class="catalog-box"><strong>היקף</strong><p>${escapeHtml(fallbackText(selected.scope))}</p></div><div class="catalog-box"><strong>משך מפגש</strong><p>${escapeHtml(fallbackText(selected.sessionDuration))}</p></div><div class="catalog-box"><strong>מספר גפ״ן</strong><p>${escapeHtml(fallbackText(selected.gefenNumber))}</p></div></section>
         <section class="catalog-content-grid">
