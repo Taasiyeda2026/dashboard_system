@@ -11010,14 +11010,14 @@ select.ds-input {
 }
 .pa-doc-signature-simple {
   margin-top: 8pt;
-  text-align: left;
+  text-align: center;
   font-size: 9pt;
   line-height: 1.5;
   letter-spacing: 0.15px;
 }
 .pa-doc-signature-line-wrap {
   display: inline-block;
-  text-align: left;
+  text-align: center;
 }
 .pa-doc-signature-simple p {
   margin: 0 0 4pt;
