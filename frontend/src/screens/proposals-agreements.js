@@ -609,16 +609,23 @@ function parseSectionBodyStructure(value, options = {}) {
 
   const isPlaceholderLine = (s) => /^שורה\s+חדשה\s*:?\s*$/i.test(s);
   const bulletStartRe = new RegExp(`^[${BULLET_CHARS}]\s`);
+  const inlineNewlineMarkerRe = /\s*שורה\s+חדשה\s*:?\s*/i;
   const expandedLines = raw.split('\n').flatMap((rawLine) => {
     const hasLeadingSpace = /^[ \t]+\S/.test(rawLine);
-    return splitInlineBullets(rawLine).map((item, i) => {
-      if (hasLeadingSpace && i === 0) {
-        const t = item.trim();
-        if (!bulletStartRe.test(t)) return `• ${t}`;
-      }
-      return item;
+    const subParts = rawLine.split(inlineNewlineMarkerRe);
+    return subParts.flatMap((sub, subIdx) => {
+      if (!sub.trim()) return [];
+      const lineForBullet = subIdx === 0 ? sub : ` ${sub.trim()}`;
+      const effectiveLeadingSpace = subIdx === 0 ? hasLeadingSpace : true;
+      return splitInlineBullets(lineForBullet).map((item, i) => {
+        if (effectiveLeadingSpace && i === 0) {
+          const t = item.trim();
+          if (!bulletStartRe.test(t)) return `• ${t}`;
+        }
+        return item;
+      });
     });
-  }).map((line) => line.trim()).filter((line) => Boolean(line) && !isPlaceholderLine(line.replace(/^[·•▫▪◦‣–\-]\s*/, '')));
+  })).map((line) => line.trim()).filter((line) => Boolean(line) && !isPlaceholderLine(line.replace(/^[·•▫▪◦‣–\-]\s*/, '')));
   if (!expandedLines.length) return [];
 
   const bulletRegex = new RegExp(`^[${BULLET_CHARS}]\\s*(.+)$`);
