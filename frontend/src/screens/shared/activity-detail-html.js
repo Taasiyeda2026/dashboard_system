@@ -166,11 +166,21 @@ function resolveActivityNameOptions(settings, activityType) {
     'activity_names', 'activity_name',
     'program_names', 'workshop_names', 'tour_names', 'escape_room_names'
   ];
+  let all = [];
   for (let i = 0; i < keys.length; i++) {
     const arr = opts[keys[i]];
-    if (Array.isArray(arr) && arr.length > 0) return normalizeActivityNameOptions(arr);
+    if (Array.isArray(arr) && arr.length > 0) { all = normalizeActivityNameOptions(arr); break; }
   }
-  return [];
+  if (!all.length) return [];
+  const type = String(activityType || '').trim().toLowerCase();
+  if (!type) return all;
+  const filtered = all.filter((o) => {
+    const parent = String(o?.parent_value || o?.activity_type || '').trim().toLowerCase();
+    return !parent || parent === type;
+  });
+  // Fall back to full list only when nothing is tagged — avoids empty dropdown for legacy data.
+  const hasTagged = all.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
+  return (filtered.length || hasTagged) ? filtered : all;
 }
 
 function buildActivityNameOpts(options, safeValue, activityType) {
