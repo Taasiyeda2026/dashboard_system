@@ -10996,10 +10996,14 @@ select.ds-input {
 }
 .ds-pa-preview-doc .pa-section-body ul li::before,
 .ds-pa-preview-doc .pa-doc-intro ul li::before {
-  content: '•';
+  content: '';
   position: absolute;
   inset-inline-start: 2px;
-  font-weight: 700;
+  top: 0.45em;
+  width: 5px;
+  height: 5px;
+  background: #000;
+  display: block;
 }
 .pa-proposal-lines {
   margin-top: 2pt;
