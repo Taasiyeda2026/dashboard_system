@@ -402,7 +402,13 @@ async function readInstructorContactsFromSupabase() {
 async function readListsFromSupabase() {
   if (!supabase) return null;
   try {
-    const result = await supabase.from('lists').select('*').order('category').order('value');
+    const result = await supabase
+      .from('lists')
+      .select('*')
+      .order('category_order', { ascending: true, nullsFirst: false })
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('category', { ascending: true })
+      .order('value', { ascending: true });
     if (result.error) {
       // eslint-disable-next-line no-console
       console.error('[supabase] Failed to load lists:', result.error);

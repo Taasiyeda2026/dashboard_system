@@ -163,7 +163,7 @@ export function getActivityNamesForType(settings, activityType) {
   return getActivityCatalog(settings)
     .filter((row) => {
       const parent = text(row.activity_type || row.parent_value || row.type);
-      return !type || !parent || parent === type;
+      return !type || parent === type;
     });
 }
 

@@ -148,6 +148,7 @@ function normalizeProgram(item, idx) {
   return {
     id: String(pickFirstNonEmpty(p.activity_no, p.id, p.programId, p.slug) || `program-${idx + 1}`),
     name: String(pickFirstNonEmpty(p.catalog_title, p.activity_name, p.label_he, p.label, p.name, p.title, p.program_name, p.programName) || 'ללא שם'),
+    shortName: String(pickFirstNonEmpty(p.activity_name, p.label_he, p.label, p.catalog_title, p.name, p.title) || ''),
     audienceLevel: normalizeAudienceLevel(p.audience_level || p.audienceLevel || 'לא צוין'),
     productType: normalizeProductType(
       p.item_type ||
@@ -227,7 +228,7 @@ function isTamirWorkshop(program) {
 
 function renderCatalogCard(program) {
   return `<article class="catalog-card ${toneClassForProgram(program, 'catalog-card')}" data-audience-level="${escapeHtml(program.audienceLevel)}" data-page-template="${escapeHtml(program.pageTemplate)}" data-catalog-open="${escapeHtml(program.id)}">
-    <h3>${escapeHtml(program.name)}</h3>
+    <h3>${escapeHtml(program.shortName || program.name)}</h3>
   </article>`;
 }
 
