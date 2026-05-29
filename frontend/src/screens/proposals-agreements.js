@@ -1022,19 +1022,21 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלות ותנאי תשלום'), paymentTerms, '', { alwaysBullet: true }) : ''}
     ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation, '', { alwaysBullet: true }) : ''}
     ${remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : ''}
-    ${signatureSectionHtml(signatureText)}
-    <footer class="pa-doc-footer">
-      <img
-        src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
-        alt="לוגו תחתון תעשיידע"
-        class="pa-doc-logo pa-doc-logo--footer"
-        loading="lazy"
-        decoding="async"
-        onerror="this.style.display='none';"
-      >
-      <span>תעשיידע - תעשייה למען חינוך מתקדם (ע"ר)</span>
-      <span>www.think.org.il</span>
-    </footer>`;
+    <div class="pa-doc-bottom">
+      ${signatureSectionHtml(signatureText)}
+      <footer class="pa-doc-footer">
+        <img
+          src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
+          alt="לוגו תחתון תעשיידע"
+          class="pa-doc-logo pa-doc-logo--footer"
+          loading="lazy"
+          decoding="async"
+          onerror="this.style.display='none';"
+        >
+        <span>תעשיידע - תעשייה למען חינוך מתקדם (ע"ר)</span>
+        <span>www.think.org.il</span>
+      </footer>
+    </div>`;
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
