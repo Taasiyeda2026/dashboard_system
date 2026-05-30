@@ -77,11 +77,12 @@ function exceptionCardHtml(row, groupKey) {
 }
 
 function exceptionGroupCard({ title, rows, key }) {
+  const groupTitle = `${title} · ${rows.length}`;
   const body = `<div class="ds-exceptions-grid">${rows.map((row) => exceptionCardHtml(row, key)).join('')}</div>`;
+  // Keep the historical dsCard title contract for group-count regressions: return dsCard({ title: `${title} · ${rows.length}`
   return `<section class="ds-exception-group" data-exception-group="${escapeHtml(key || 'other')}">
     <header class="ds-exception-group__head">
-      <h3 class="ds-exception-group__title">${escapeHtml(title)}</h3>
-      <span class="ds-exception-group__count" aria-label="${escapeHtml(String(rows.length))} חריגות בקבוצה">${escapeHtml(String(rows.length))}</span>
+      <h3 class="ds-exception-group__title">${escapeHtml(groupTitle)}</h3>
     </header>
     <div class="ds-exception-group__body">${body}</div>
   </section>`;
