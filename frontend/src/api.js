@@ -2486,7 +2486,7 @@ async function readCatalogProgramsFromSupabase() {
       .order('sort_order', { ascending: true }),
     supabase
       .from('catalog_program_details')
-      .select('activity_no,catalog_title,catalog_subtitle,short_description,audience_level,target_grades,grades,domain,scope,session_duration,gefen_number,opening_line,item_type,core_idea,goals,program_flow,student_develops,participants_receive,school_value,final_outcome,closing_box,page_template,is_active_for_catalog')
+      .select('gefen_number,catalog_title,catalog_subtitle,opening_line,domain,target_grades,scope,session_duration,item_type,core_idea,short_description,goals,program_flow,participants_receive,student_develops,school_value,final_outcome,is_active_for_catalog')
       .eq('is_active_for_catalog', true),
     supabase
       .from('proposal_activity_pricing')
@@ -2528,7 +2528,7 @@ async function readCatalogProgramsFromSupabase() {
   const syllabusRows = Array.isArray(syllabusRes?.data) ? syllabusRes.data : [];
   const cleanCatalogText = (value) => String(value ?? '').trim();
   const listByNo = new Map(listRows.map((row) => [String(row?.activity_no || '').trim(), row]).filter(([key]) => key));
-  const detailsByNo = new Map(detailRows.map((row) => [String(row?.activity_no || '').trim(), row]).filter(([key]) => key));
+  const detailsByNo = new Map(detailRows.map((row) => [String(row?.gefen_number || '').trim(), row]).filter(([key]) => key));
   const syllabusByProgramNumber = syllabusRows.reduce((acc, row) => {
     const key = cleanCatalogText(row?.program_number);
     if (!key) return acc;
@@ -2604,13 +2604,12 @@ async function readCatalogProgramsFromSupabase() {
     const pricingRowsForProgram = pricingByNo.get(key) || [];
     const primaryPricing = pricingRowsForProgram[0] || {};
     const details = detailsByNo.get(key) || {};
-    const targetGrades = details.target_grades || details.grades || row.target_grades || '';
+    const targetGrades = details.target_grades || '';
     const sessionDuration = details.session_duration || primaryPricing.unit_duration || '';
-    const scope = details.scope || primaryPricing.meetings_count || primaryPricing.hours_count || '';
-    const gefenNumber = details.gefen_number || row.gefen_number || primaryPricing.gefen_number || '';
+    const scope = details.scope || '';
+    const gefenNumber = details.gefen_number || key;
     const shortDescription = details.short_description || '';
-    const participantsReceive = details.student_develops || details.participants_receive || '';
-    const closingBox = details.final_outcome || details.closing_box || '';
+    const participantsReceive = details.participants_receive || '';
     return {
       ...row,
       ...primaryPricing,
@@ -2621,17 +2620,13 @@ async function readCatalogProgramsFromSupabase() {
       catalog_source: 'catalog_program_details',
       catalog_group: 'programs',
       // Normalize detail fields to the naming contract expected by catalog screen.
-      catalog_title: details.catalog_title || row.activity_name || row.label_he || row.label || primaryPricing.activity_name || '',
+      catalog_title: details.catalog_title || '',
       catalog_subtitle: details.catalog_subtitle || '',
-      audience_level: details.audience_level || row.audience_level || '',
       target_grades: targetGrades,
-      grades: targetGrades,
       targetGrades,
       domain: details.domain || '',
       scope,
       session_duration: sessionDuration,
-      meetings_count: primaryPricing.meetings_count,
-      hours_count: primaryPricing.hours_count,
       unit_duration: sessionDuration,
       gefen_number: gefenNumber,
       gefenNumber,
@@ -2645,17 +2640,13 @@ async function readCatalogProgramsFromSupabase() {
       participants_receive: details.participants_receive || '',
       school_value: details.school_value || '',
       final_outcome: details.final_outcome || '',
-      closing_box: details.closing_box || '',
-      page_template: details.page_template || '',
       catalog_short_description: shortDescription,
       catalog_core_idea: details.core_idea || '',
       catalog_goals: details.goals || '',
       catalog_program_flow: details.program_flow || '',
       catalog_participants_receive: participantsReceive,
       catalog_school_value: details.school_value || '',
-      catalog_syllabus: syllabusForProgram(gefenNumber, details.gefen_number, row.gefen_number, key),
-      catalog_closing_box: closingBox,
-      catalog_page_template: details.page_template || ''
+      catalog_syllabus: syllabusForProgram(gefenNumber)
     };
   });
 
@@ -2686,7 +2677,6 @@ async function readCatalogProgramsFromSupabase() {
       catalog_subtitle: row.item_type || '',
       audience_level: listRow.audience_level || '',
       target_grades: targetGrades,
-      grades: targetGrades,
       targetGrades,
       domain: catalogGroup === 'after_school' ? 'חוגי אפטרסקול' : '',
       scope,
@@ -2704,7 +2694,6 @@ async function readCatalogProgramsFromSupabase() {
       participants_receive: '',
       school_value: '',
       final_outcome: '',
-      closing_box: '',
       page_template: catalogGroup,
       catalog_short_description: row.description_for_proposal || '',
       catalog_core_idea: row.description_for_proposal || '',
@@ -2713,7 +2702,6 @@ async function readCatalogProgramsFromSupabase() {
       catalog_participants_receive: '',
       catalog_school_value: '',
       catalog_syllabus: syllabusForProgram(row.gefen_number, listRow.gefen_number, key),
-      catalog_closing_box: '',
       catalog_page_template: catalogGroup
     };
   });
