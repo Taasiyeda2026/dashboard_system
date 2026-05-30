@@ -74,7 +74,7 @@ test('activity without start_date appears as missing_start_date', () => {
 test('all counted exceptions are returned as display instances from one source', () => {
   const rows = [
     activity({ RowID: 'MISS-1', school: '', authority: '', district: '', activity_manager: '', start_date: '', end_date: '', date_1: '' }),
-    activity({ RowID: 'SHORT-1', activity_type: 'workshop', start_date: '2026-05-01', end_date: '2026-05-01', date_1: '2026-05-01' })
+    activity({ RowID: 'SHORT-1', activity_type: 'workshop', instructor_name: '', emp_id: '', instructor_name_2: '', emp_id_2: '', start_date: '2026-05-01', end_date: '2026-05-01', date_1: '2026-05-01' })
   ];
   const model = buildExceptionsModelFromRows(rows, '2026-05', { include_rows: true });
   const districtSum = Object.values(model.byDistrict).reduce((sum, value) => sum + Number(value || 0), 0);
@@ -88,6 +88,39 @@ test('all counted exceptions are returned as display instances from one source',
   assert.equal(model.counts.missing_next_meeting, undefined);
   assert.ok(model.byDistrict['ללא מחוז / לא משויך'] > 0);
   assert.ok(model.rows.some((row) => row.RowID === 'SHORT-1'), 'short/workshop activity should not be filtered out');
+});
+
+test('exception relevance follows activity_type before counts and display', () => {
+  const shortTypes = ['workshop', 'tour', 'after_school', 'escape_room'];
+  const rows = [
+    activity({ RowID: 'COURSE-LATE', activity_type: 'course', status: 'פתוח', end_date: '2026-06-16', date_1: '2026-06-16' }),
+    activity({ RowID: 'SUMMER-LATE', activity_type: 'course', start_date: '2026-07-01', status: 'פתוח', end_date: '2026-09-01', date_1: '2026-09-01' }),
+    activity({ RowID: 'SUMMER-EXPLICIT-NO-START', activity_type: 'course', activity_group: 'קיץ', start_date: '', status: 'פתוח', end_date: '2026-09-01', date_1: '2026-09-01' }),
+    ...shortTypes.flatMap((activity_type) => [
+      activity({ RowID: `${activity_type}-late`, activity_type, status: 'פתוח', end_date: '2026-06-16', date_1: '2026-06-16' }),
+      activity({ RowID: `${activity_type}-missing-end`, activity_type, end_date: '', date_1: '' }),
+      activity({ RowID: `${activity_type}-missing-instructor`, activity_type, instructor_name: '', emp_id: '', instructor_name_2: '', emp_id_2: '' }),
+      activity({ RowID: `${activity_type}-missing-start`, activity_type, start_date: '', date_1: '' })
+    ])
+  ];
+
+  const model = buildExceptionsModelFromRows(rows, '2026-05', {
+    include_rows: true,
+    lateEndDateThreshold: '2026-06-15'
+  });
+
+  assert.equal(model.counts.end_date_after_cutoff, 1, 'only non-summer course should count late end date');
+  assert.equal(model.counts.missing_end_date, 0, 'short activity missing end date should not count');
+  assert.equal(model.counts.missing_district, 0, 'short activity district gaps should not count');
+  assert.equal(model.counts.end_date_passed, 0, 'short activity ended-open should not count');
+  assert.equal(model.counts.missing_instructor, shortTypes.length);
+  assert.equal(model.counts.missing_start_date, shortTypes.length + 1);
+  assert.ok(model.rows.some((row) => row.RowID === 'COURSE-LATE' && row.exception_types.includes('end_date_after_cutoff')));
+  assert.ok(!model.rows.some((row) => row.RowID === 'SUMMER-LATE'));
+  assert.ok(!model.rows.some((row) => row.RowID === 'SUMMER-EXPLICIT-NO-START' && row.exception_types.includes('end_date_after_cutoff')));
+  assert.ok(model.rows.some((row) => row.RowID === 'SUMMER-EXPLICIT-NO-START' && row.exception_types.includes('missing_start_date')));
+  assert.ok(!model.exceptionInstances.some((row) => String(row.RowID || '').includes('-late') && row.activity_type !== 'course'));
+  assert.ok(!model.exceptionInstances.some((row) => String(row.RowID || '').includes('-missing-end')));
 });
 
 test('unassigned manager with valid district is counted under the district and totals are exception instances', () => {

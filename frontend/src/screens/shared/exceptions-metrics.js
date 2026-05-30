@@ -1,3 +1,5 @@
+import { isSummerActivity } from './summer-activity.js';
+
 function asList(rows) {
   return Array.isArray(rows) ? rows : [];
 }
@@ -12,6 +14,15 @@ export const EXCEPTION_TYPE_ORDER = [
 ];
 
 export const APPROVED_EXCEPTION_TYPES = new Set(EXCEPTION_TYPE_ORDER);
+
+export const COURSE_EXCEPTION_TYPES = new Set(EXCEPTION_TYPE_ORDER);
+
+export const SHORT_ACTIVITY_EXCEPTION_TYPES = new Set([
+  'missing_instructor',
+  'missing_start_date'
+]);
+
+const SHORT_ACTIVITY_TYPES = new Set(['workshop', 'tour', 'after_school', 'escape_room']);
 
 const LEGACY_EXCEPTION_TYPE_ALIASES = {
   late_end_date: 'end_date_out_of_sync',
@@ -30,11 +41,33 @@ export function isApprovedExceptionType(type) {
   return APPROVED_EXCEPTION_TYPES.has(normalizeExceptionType(type));
 }
 
+export function isExceptionTypeRelevantForActivity(activity, exceptionType) {
+  const type = String(activity?.activity_type || activity?.item_type || '').trim();
+  const normalizedType = normalizeExceptionType(exceptionType);
+
+  if (normalizedType === 'end_date_after_cutoff' && isSummerActivity(activity)) {
+    return false;
+  }
+
+  if (type === 'course') {
+    return COURSE_EXCEPTION_TYPES.has(normalizedType);
+  }
+
+  if (SHORT_ACTIVITY_TYPES.has(type)) {
+    return SHORT_ACTIVITY_EXCEPTION_TYPES.has(normalizedType);
+  }
+
+  return COURSE_EXCEPTION_TYPES.has(normalizedType);
+}
+
 export function normalizedExceptionTypes(row) {
   const rawTypes = Array.isArray(row?.exception_types)
     ? row.exception_types
     : [row?.exception_type];
-  return [...new Set(rawTypes.map(normalizeExceptionType).filter(isApprovedExceptionType))];
+  return [...new Set(rawTypes
+    .map(normalizeExceptionType)
+    .filter(isApprovedExceptionType)
+    .filter((type) => isExceptionTypeRelevantForActivity(row, type)))];
 }
 
 export function exceptionDisplayGroupCount(rows) {

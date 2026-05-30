@@ -68,6 +68,10 @@ html,body{overflow-x:hidden}
 .catalog-detail-actions{display:flex;gap:10px;flex-wrap:wrap;width:100%;max-width:1180px;margin:0 auto;align-items:center;padding:0 16px}
 .catalog-btn{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font:inherit}
 .catalog-btn--primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.catalog-print-bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;width:100%;max-width:1180px;margin:0 auto;padding:8px 16px;background:var(--color-background-primary,#fff);border-bottom:.5px solid var(--color-border-tertiary,#d9dee8);font-size:13px;color:var(--color-text-secondary,#64748b);box-sizing:border-box}
+.catalog-print-bar-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catalog-print-btn{background:#1a3a2a;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.catalog-print-btn:hover{background:#0f2318}
 .catalog-a4-wrap{display:flex;justify-content:center;width:100%;max-width:1180px;margin:0 auto;padding:0 16px;box-sizing:border-box}
 .catalog-a4{--program-primary:#1a3a2a;--program-accent:#2d5a3d;--program-accent-soft:#e8f5e0;--program-accent-border:#c2e0a0;--program-bg:var(--color-background-secondary,#f4f5f7);--program-card-bg:var(--color-background-primary,#fff);--program-border:var(--color-border-tertiary,#d9dee8);--program-text:var(--color-text-primary,#1f2937);--program-muted:var(--color-text-secondary,#64748b);width:100%;max-width:1180px;min-height:auto;background:var(--program-bg);color:var(--program-text);border:0;border-radius:var(--border-radius-lg,18px);padding:16px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box;overflow:hidden;direction:rtl;text-align:right}
 .catalog-theme--nature{--program-primary:#1a3a2a;--program-accent:#2d5a3d;--program-accent-soft:#e8f5e0;--program-accent-border:#c2e0a0}
@@ -160,16 +164,18 @@ html,body{overflow-x:hidden}
 @media (max-width:760px){.catalog-header h2{font-size:24px}.catalog-toolbar{align-items:stretch}.catalog-filter-field{flex:1 1 100%;min-width:0;font-size:12px}}
 @media (max-width:640px){.catalog-frame-grid,.catalog-list-grid,.catalog-strip-grid,.catalog-mini-card-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}.catalog-group-grid{grid-template-columns:1fr}.catalog-content-card{padding:16px}.catalog-quick-grid{grid-template-columns:1fr}.catalog-hero-top{flex-direction:column}.catalog-syl-wrap{overflow-x:auto}.catalog-syl-wrap table{min-width:560px}}
 @media (max-width:430px){.catalog-a4{padding:14px}.catalog-hero-top{padding:16px}.catalog-content-card p{font-size:13px}}
-@page{size:A4;margin:0}
 @media print {
-  body{background:#fff !important}
-  .toolbar,.catalog-print-hide{display:none !important}
+  @page{size:A4 portrait;margin:11mm 13mm 13mm 13mm}
   body *{visibility:hidden !important}
   .catalog-print-zone,.catalog-print-zone *{visibility:visible !important}
   .catalog-print-zone{position:absolute;inset:0;background:#fff}
-  .catalog-a4{margin:0;border:0;box-shadow:none;border-radius:0;width:210mm;min-height:297mm;page-break-after:always;padding:10mm}
-  .catalog-a4-wrap{display:block;max-width:none;padding:0}
-  .catalog-box,.catalog-strip,.catalog-mini-card{break-inside:avoid-page}
+  .catalog-print-hide{display:none !important}
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
+  .catalog-a4{box-shadow:none !important;border:none !important;border-radius:0 !important;padding:0 !important;width:100% !important}
+  .pg{padding:0;gap:10px}
+  .card{padding:12px 14px}
+  .card,.catalog-content-card,.catalog-syl-wrap,.g2,.catalog-content-grid{page-break-inside:avoid}
+  .catalog-hero-top::after{display:none}
 }
 `;
   document.head.appendChild(style);
@@ -651,12 +657,16 @@ export const catalogScreen = {
     const a4ThemeClass = domainToneClass(selected);
     const openingText = meaningfulText(selected.openingLine);
     const bodyCardsHtml = renderProgramBodyCards(selected);
+    const printTitle = [selected.name, selected.subtitle].map(meaningfulText).filter(Boolean).join(' – ');
     return `<section class="catalog-screen catalog-print-zone">
       <div class="catalog-detail-actions catalog-print-hide">
         <button class="catalog-btn" data-catalog-back>חזרה לקטלוג</button>
-        <button class="catalog-btn catalog-btn--primary" data-catalog-print>הדפסה / PDF</button>
       </div>
-      <div class="catalog-a4-wrap"><article class="catalog-a4 ${a4ToneClass} ${a4ThemeClass}" data-catalog-page="1">
+      <div class="catalog-print-bar catalog-print-hide">
+        <span class="catalog-print-bar-name">${escapeHtml(printTitle)}</span>
+        <button class="catalog-print-btn" data-catalog-print>הדפסה / PDF</button>
+      </div>
+      <div class="catalog-a4-wrap catalog-print-zone"><article class="catalog-a4 ${a4ToneClass} ${a4ThemeClass}" data-catalog-page="1">
         <header class="catalog-a4-header">
           <div class="catalog-hero-top"><div class="catalog-domain-icon" aria-hidden="true">${escapeHtml((selected.domain || selected.name || 'ת').trim().slice(0, 1))}</div><div class="catalog-hero-main">${renderGefenBadge(selected)}<h1>${escapeHtml(selected.name)}</h1>${selected.subtitle ? `<p class="catalog-subtitle">${escapeHtml(selected.subtitle)}</p>` : ''}${renderQualityTags(selected)}</div></div>
         </header>

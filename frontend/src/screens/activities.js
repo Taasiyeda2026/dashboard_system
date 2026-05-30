@@ -38,6 +38,7 @@ import {
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
+import { isSummerActivity } from './shared/summer-activity.js';
 
 const inflightActivityDetailRequests = new Map();
 
@@ -413,18 +414,6 @@ function isShortFamily(row, oneDayTypes) {
   if (family === 'oneday' || source === 'short') return true;
   if (family === 'program' || source === 'long') return false;
   return oneDayTypes.includes(type);
-}
-
-function isSummerActivity(row = {}) {
-  const fields = [
-    row.activity_type_group,
-    row.activity_group,
-    row.activity_family,
-    row.source,
-    row.activity_type,
-    row.activity_name
-  ].map(normalizeQuickFilterText);
-  return fields.some((value) => value.includes('summer') || value.includes('קיץ'));
 }
 
 function matchesQuickDistrictOrManager(row = {}, quickValue = '') {

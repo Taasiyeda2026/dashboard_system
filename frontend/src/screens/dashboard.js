@@ -95,7 +95,8 @@ const ACTIVITY_TYPE_ORDER = [
   { key: 'after_school', label: 'אפטרסקול' },
   { key: 'tour',         label: 'סיורים' },
   { key: 'workshop',     label: 'סדנאות' },
-  { key: 'escape_room',  label: 'חדרי בריחה' }
+  { key: 'escape_room',  label: 'חדרי בריחה' },
+  { key: 'summer',       label: 'קיץ' }
 ];
 
 function renderStructuredSummary(summary, ym, byManager) {
@@ -194,6 +195,7 @@ const ALLOWED_KPI_ACTIONS = new Set([
   'kpi|active_tours',
   'kpi|active_after_school',
   'kpi|active_escape_room',
+  'kpi|summer',
   'kpi|exceptions',
   'kpi|instructors',
   'kpi|endings',
@@ -606,6 +608,12 @@ export const dashboardScreen = {
       }
       if (action === 'kpi|short') {
         goActivitiesDrill(state, { activityQuickFamily: 'short' });
+        ui.closeAll();
+        rerender();
+        return;
+      }
+      if (action === 'kpi|summer') {
+        goActivitiesDrill(state, { activityQuickFamily: 'summer' });
         ui.closeAll();
         rerender();
         return;

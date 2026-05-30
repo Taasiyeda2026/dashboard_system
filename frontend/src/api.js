@@ -2,7 +2,8 @@ import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { cleanActivityManagerName, NO_ACTIVITY_MANAGER_LABEL, resolveActivityInstructorName } from './screens/shared/activity-options.js';
-import { EXCEPTION_TYPE_ORDER, isApprovedExceptionType } from './screens/shared/exceptions-metrics.js';
+import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
+import { isSummerActivity } from './screens/shared/summer-activity.js';
 import { supabase, supabaseConfig } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
 
@@ -730,6 +731,7 @@ function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionC
   }));
   return [
     ...typeCards,
+    { id: 'summer',      action: 'kpi|summer',      title: String(activeTypeCounts.summer || 0), subtitle: 'קיץ',            value: activeTypeCounts.summer || 0 },
     { id: 'endings',     action: 'kpi|endings',     title: String(courseEndings),         subtitle: 'סיומי קורסים',   value: courseEndings },
     { id: 'instructors', action: 'kpi|instructors', title: String(uniqueInstructorCount), subtitle: 'מדריכים פעילים', value: uniqueInstructorCount },
     { id: 'exceptions',  action: 'kpi|exceptions',  title: String(exceptionCount),        subtitle: 'חריגות',          value: exceptionCount }
@@ -972,6 +974,7 @@ async function dashboardReadModelFromSupabase(month) {
     for (const row of monthRows) {
       const activityType = rowActivityType(row);
       if (activityType) activeTypeCounts[activityType] = (activeTypeCounts[activityType] || 0) + 1;
+      if (isSummerActivity(row)) activeTypeCounts.summer = (activeTypeCounts.summer || 0) + 1;
       const emp1        = nullStr(row?.emp_id);
       const emp2        = nullStr(row?.emp_id_2);
       const instructor1 = nullStr(row?.instructor_name);
@@ -1166,10 +1169,13 @@ function getActivityExceptions(activityRows = [], month = '', opts = {}) {
   for (const row of activityRows) {
     if (isActivityInactive(row)) continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
-    const types = rowExceptionTypesFromActivity(row, {
-      knownInstructorIds,
-      lateEndDateThreshold: opts.lateEndDateThreshold
-    }).filter(isApprovedExceptionType);
+    const types = normalizedExceptionTypes({
+      ...row,
+      exception_types: rowExceptionTypesFromActivity(row, {
+        knownInstructorIds,
+        lateEndDateThreshold: opts.lateEndDateThreshold
+      })
+    });
     if (!types.length) continue;
     const uniqueTypes = [...new Set(types)];
     rows.push({

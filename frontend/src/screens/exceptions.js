@@ -17,7 +17,7 @@ import {
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
-import { EXCEPTION_TYPE_ORDER, exceptionActivityKey, isApprovedExceptionType, normalizeExceptionType, normalizedExceptionTypes, uniqueExceptionActivityCount } from './shared/exceptions-metrics.js';
+import { EXCEPTION_TYPE_ORDER, exceptionActivityKey, normalizedExceptionTypes, uniqueExceptionActivityCount } from './shared/exceptions-metrics.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
 
@@ -85,12 +85,16 @@ function exceptionInstanceRows(rows = []) {
 
 function approvedExceptionRows(rows = []) {
   return (Array.isArray(rows) ? rows : [])
-    .filter((row) => isApprovedExceptionType(row?.exception_type))
-    .map((row) => ({
-      ...row,
-      exception_type: normalizeExceptionType(row?.exception_type),
-      exception_types: [normalizeExceptionType(row?.exception_type)]
-    }));
+    .map((row) => {
+      const types = normalizedExceptionTypes(row);
+      if (!types.length) return null;
+      return {
+        ...row,
+        exception_type: types[0],
+        exception_types: types
+      };
+    })
+    .filter(Boolean);
 }
 
 function exceptionCardHtml(row, groupKey) {
