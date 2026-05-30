@@ -235,6 +235,10 @@ function catalogCardTitleFromTitle(fullName) {
 
 function normalizeProgram(item, idx) {
   const p = item && typeof item === 'object' ? item : {};
+  const legacySyllabus = Array.isArray(p.syllabus) ? p.syllabus : [];
+  const firstSyllabusDescription = legacySyllabus.find((x) => x && typeof x === 'object' && x.description)?.description || '';
+  const catalogSyllabus = Array.isArray(p.catalog_syllabus) ? p.catalog_syllabus : [];
+  const canUseLegacySyllabus = String(p.catalog_source || p.catalogSource || '') !== 'catalog_program_details';
   const fullName = String(pickFirstNonEmpty(p.catalog_title) || 'ללא שם');
   return {
     id: String(pickFirstNonEmpty(p.activity_no, p.id, p.programId, p.slug) || `program-${idx + 1}`),
@@ -256,13 +260,13 @@ function normalizeProgram(item, idx) {
     gefenNumber: String(pickFirstNonEmpty(p.gefen_number, p.gefenNumber, p.gefen) || ''),
     subtitle: String(pickFirstNonEmpty(p.catalog_subtitle) || ''),
     openingLine: String(pickFirstNonEmpty(p.opening_line, p.openingLine, p.sections?.openingStatement) || ''),
-    shortDescription: String(pickFirstNonEmpty(p.catalog_short_description, p.short_description, p.description_short, p.shortDescription) || ''),
-    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.core_idea, p.coreIdea, p.sections?.mainIdea) || ''),
+    shortDescription: String(pickFirstNonEmpty(p.catalog_short_description, p.short_description, p.description_short, p.shortDescription, firstSyllabusDescription) || ''),
+    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.core_idea, p.coreIdea, p.sections?.mainIdea, firstSyllabusDescription) || ''),
     goals: String(pickFirstNonEmpty(p.catalog_goals, p.goals, p.catalog_program_flow, p.program_flow, p.sections?.programFlow) || ''),
     programFlow: String(pickFirstNonEmpty(p.catalog_program_flow, p.program_flow, p.catalog_goals, p.goals, p.sections?.programFlow) || ''),
     studentDevelops: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.participants_receive, p.studentDevelops, p.participantsReceive) || '',
     schoolValue: String(pickFirstNonEmpty(p.catalog_school_value, p.school_value, p.schoolValue, p.sections?.schoolValue) || ''),
-    syllabus: Array.isArray(p.catalog_syllabus) ? p.catalog_syllabus : [],
+    syllabus: catalogSyllabus.length ? catalogSyllabus : (canUseLegacySyllabus ? legacySyllabus : []),
     stations: Array.isArray(p.stations) ? p.stations : [],
     participantsReceive: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.participants_receive, p.studentDevelops, p.participantsReceive) || [],
     closingBox: String(pickFirstNonEmpty(p.catalog_closing_box, p.closing_box, p.closingBox, p.sections?.finalOutcome) || ''),
@@ -561,7 +565,7 @@ export const catalogScreen = {
       </div>
       <div class="catalog-a4-wrap"><article class="catalog-a4 ${a4ToneClass} ${a4ThemeClass}" data-catalog-page="1">
         <header class="catalog-a4-header">
-          <div class="catalog-hero-top"><div>${renderGefenBadge(selected)}<h1>${escapeHtml(selected.name)}</h1>${selected.subtitle ? `<p class="catalog-subtitle">${escapeHtml(selected.subtitle)}</p>` : ''}${openingText ? `<p class="catalog-opening-line">${escapeHtml(openingText)}</p>` : ''}</div><div class="catalog-logo-mark"><img src="./assets/logo_system.png" alt="לוגו תעשיידע" onerror="this.onerror=null;this.src='./frontend/assets/logo_system.png'"></div></div>
+          <div class="catalog-hero-top"><div>${renderGefenBadge(selected)}<h1>${escapeHtml(selected.name)}</h1>${selected.subtitle ? `<p class="catalog-subtitle">${escapeHtml(selected.subtitle)}</p>` : ''}${openingText ? `<p class="catalog-opening-line">${escapeHtml(openingText)}</p>` : ''}</div><div class="catalog-logo-mark"><img src="./catalog/logo-catalog.png" alt="לוגו תעשיידע" onerror="this.onerror=null;this.src='./frontend/public/catalog/logo-catalog.png'"></div></div>
         </header>
         ${renderQuickInfoCards(selected)}
         ${bodyCardsHtml}

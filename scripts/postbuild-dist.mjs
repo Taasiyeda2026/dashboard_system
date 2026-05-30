@@ -117,6 +117,9 @@ for (const u of collectAssetRefs(html, viteBaseRaw)) {
 for (const u of walkFiles(join(dist, 'assets'))) {
   precache.add('./assets' + u);
 }
+for (const u of walkFiles(join(dist, 'catalog'))) {
+  precache.add('./catalog' + u);
+}
 
 let sw = readFileSync(join(root, 'frontend', 'sw.js'), 'utf8');
 const sorted = [...precache].sort();
