@@ -131,6 +131,92 @@ test('activities render: authorized_user without can_add_activity does not see a
   assert.doesNotMatch(html, /data-activities-add-btn/);
 });
 
+test('activities quick filters include one-day summer rows by family and district', () => {
+  const state = baseState();
+  state.activityQuickFamily = 'short';
+  state.activityQuickManager = 'מחוז צפון';
+  const data = {
+    rows: [
+      {
+        RowID: 'SUMMER-NORTH',
+        activity_name: 'קייטנת קיץ',
+        activity_type: 'workshop',
+        activity_family: 'one_day',
+        district: 'מחוז צפון',
+        activity_manager: 'מנהל א',
+        authority: 'רשות א',
+        school: 'בית ספר א',
+        start_date: '2026-04-05',
+        end_date: '2026-04-05'
+      },
+      {
+        RowID: 'SUMMER-SOUTH',
+        activity_name: 'קייטנת קיץ דרום',
+        activity_type: 'workshop',
+        activity_family: 'one_day',
+        district: 'מחוז דרום',
+        activity_manager: 'מנהל ב',
+        authority: 'רשות ב',
+        school: 'בית ספר ב',
+        start_date: '2026-04-06',
+        end_date: '2026-04-06'
+      },
+      {
+        RowID: 'PROGRAM-NORTH',
+        activity_name: 'תוכנית שנתית',
+        activity_type: 'course',
+        activity_family: 'program',
+        district: 'מחוז צפון',
+        activity_manager: 'מנהל א',
+        authority: 'רשות ג',
+        school: 'בית ספר ג',
+        start_date: '2026-04-07',
+        end_date: '2026-04-30'
+      }
+    ]
+  };
+
+  const html = activitiesScreen.render(data, { state });
+
+  assert.match(html, /קייטנת קיץ/);
+  assert.doesNotMatch(html, /קייטנת קיץ דרום/);
+  assert.doesNotMatch(html, /תוכנית שנתית/);
+});
+
+test('activities summer quick filter matches summer activity metadata', () => {
+  const state = baseState();
+  state.activityQuickFamily = 'summer';
+  const data = {
+    rows: [
+      {
+        RowID: 'SUMMER-1',
+        activity_name: 'פעילות מדעים',
+        activity_type_group: 'פעילויות קיץ',
+        activity_type: 'workshop',
+        authority: 'רשות א',
+        school: 'בית ספר א',
+        start_date: '2026-04-05',
+        end_date: '2026-04-05'
+      },
+      {
+        RowID: 'REGULAR-1',
+        activity_name: 'פעילות רגילה',
+        activity_type_group: 'שנת הלימודים',
+        activity_type: 'course',
+        authority: 'רשות ב',
+        school: 'בית ספר ב',
+        start_date: '2026-04-06',
+        end_date: '2026-04-06'
+      }
+    ]
+  };
+
+  const html = activitiesScreen.render(data, { state });
+
+  assert.match(html, /פעילות מדעים/);
+  assert.doesNotMatch(html, /פעילות רגילה/);
+});
+
 test('activities source includes admin summary all-activities loading and no district buckets', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');

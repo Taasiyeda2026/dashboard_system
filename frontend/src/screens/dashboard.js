@@ -143,8 +143,8 @@ function renderStructuredSummary(summary, ym, byManager) {
   }, {});
   const northRow = districtByName['מחוז צפון'] || {};
   const southRow = districtByName['מחוז דרום'] || {};
-  const northActive = escapeHtml(String(northRow.total_long ?? 0));
-  const southActive = escapeHtml(String(southRow.total_long ?? 0));
+  const northActive = escapeHtml(String(northRow.total_activities ?? northRow.total_long ?? 0));
+  const southActive = escapeHtml(String(southRow.total_activities ?? southRow.total_long ?? 0));
 
   const allInstructors = normalizeNames(Array.isArray(summary?.active_instructors) ? summary.active_instructors : []);
 
@@ -153,7 +153,7 @@ function renderStructuredSummary(summary, ym, byManager) {
 
     <h4 class="ds-summary-panel__inner-title"><strong>פעילויות פעילות החודש:</strong></h4>
     ${typeRows || '<p class="ds-summary-panel__text ds-muted">אין פעילויות פעילות</p>'}
-    <p class="ds-summary-panel__text">מחוז צפון: <strong>${northActive}</strong> תוכניות · מחוז דרום: <strong>${southActive}</strong> תוכניות</p>
+    <p class="ds-summary-panel__text">מחוז צפון: <strong>${northActive}</strong> פעילויות · מחוז דרום: <strong>${southActive}</strong> פעילויות</p>
     <p class="ds-summary-panel__text">סיומי קורסים החודש: <strong>${endingCurrent}</strong></p>
 
     <h4 class="ds-summary-panel__inner-title"><strong>המדריכים הפעילים החודש:</strong></h4>
@@ -390,7 +390,7 @@ export const dashboardScreen = {
         const isDistrict = true;
         const exceptionsValue = Number(row.exceptions ?? 0);
         const allStats = [
-          { label: 'תוכניות פעילות', value: row.total_long      ?? 0, action: `mstat|${mgr}|long` },
+          { label: 'פעילויות פעילות', value: row.total_activities ?? row.total_long ?? 0, action: `mstat|${mgr}|activities` },
           { label: 'מדריכים פעילים',  value: row.num_instructors ?? 0, action: `mstat|${mgr}|instructors` },
           { label: 'סה"כ חריגות',       value: exceptionsValue, action: `mstat|${mgr}|exceptions` },
           { label: 'סיומי קורסים',    value: row.course_endings  ?? 0, action: `mstat|${mgr}|endings` },
@@ -667,6 +667,8 @@ export const dashboardScreen = {
         if (kind === 'instructors') {
           state.route = 'instructors';
           state.instructorsActiveOnly = true;
+        } else if (kind === 'activities') {
+          goActivitiesDrill(state, { activityQuickManager: name });
         } else if (kind === 'long') {
           goActivitiesDrill(state, { activityQuickManager: name, activityQuickFamily: 'long' });
         } else if (kind === 'endings') {
