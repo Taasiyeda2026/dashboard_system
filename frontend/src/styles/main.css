@@ -10996,14 +10996,13 @@ select.ds-input {
 }
 .ds-pa-preview-doc .pa-section-body ul li::before,
 .ds-pa-preview-doc .pa-doc-intro ul li::before {
-  content: '';
+  content: '•';
   position: absolute;
-  inset-inline-start: 2px;
-  top: 0.45em;
-  width: 5px;
-  height: 5px;
-  background: #000;
-  display: block;
+  inset-inline-start: 1px;
+  font-size: 0.55em;
+  line-height: 2.5;
+  font-weight: 400;
+  color: inherit;
 }
 .pa-proposal-lines {
   margin-top: 2pt;
@@ -11068,9 +11067,11 @@ select.ds-input {
 }
 
 .pa-proposal-lines ul li::before {
-  content: '';
+  content: '•';
   position: absolute;
-  inset-inline-start: 0;
+  inset-inline-start: 1px;
+  font-size: 0.55em;
+  line-height: 2.5;
   font-weight: 900;
   font-size: 12pt;
   line-height: 1.3;
@@ -11280,10 +11281,13 @@ select.ds-input {
 
   .ds-pa-preview-doc .pa-section-body ul li::before,
   .ds-pa-preview-doc .pa-doc-intro ul li::before {
-    content: '' !important;
+    content: '•' !important;
     position: absolute !important;
-    inset-inline-start: 0 !important;
-    font-weight: 700 !important;
+    inset-inline-start: 1px !important;
+    font-size: 0.55em !important;
+    line-height: 2.5 !important;
+    font-weight: 400 !important;
+    color: inherit !important;
   }
 
   .pa-doc-signature-simple {
@@ -11345,9 +11349,11 @@ select.ds-input {
   }
 
   .pa-proposal-lines ul li::before {
-    content: '' !important;
+    content: '•' !important;
     position: absolute !important;
-    inset-inline-start: 0 !important;
+    inset-inline-start: 1px !important;
+    font-size: 0.55em !important;
+    line-height: 2.5 !important;
     font-weight: 900 !important;
     font-size: 12pt !important;
     color: #1f4e79 !important;
