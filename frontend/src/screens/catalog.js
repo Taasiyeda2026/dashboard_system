@@ -66,15 +66,37 @@ function ensureCatalogStyles() {
 .catalog-btn{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font:inherit}
 .catalog-btn--primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
 .catalog-a4-wrap{display:flex;justify-content:center;width:100%;max-width:1120px;margin:0 auto;padding:0 24px;box-sizing:border-box}
-.catalog-a4{width:100%;max-width:1120px;min-height:auto;background:#ffffff;color:#1f2937;border:1px solid #ddd8f0;border-radius:18px;padding:24px;box-shadow:0 4px 20px rgba(100,90,170,0.08);display:flex;flex-direction:column;gap:16px;box-sizing:border-box}
+.catalog-a4{--catalog-accent:#1d4ed8;--catalog-accent-soft:#eff6ff;--catalog-accent-border:#bfdbfe;--catalog-hero-start:#f8fbff;--catalog-hero-end:#edf4ff;width:100%;max-width:1120px;min-height:auto;background:#ffffff;color:#1f2937;border:1px solid #ddd8f0;border-radius:22px;padding:24px;box-shadow:0 4px 20px rgba(100,90,170,0.08);display:flex;flex-direction:column;gap:18px;box-sizing:border-box;overflow:hidden}
+.catalog-theme--bio{--catalog-accent:#15803d;--catalog-accent-soft:#f0fdf4;--catalog-accent-border:#bbf7d0;--catalog-hero-start:#f7fee7;--catalog-hero-end:#ecfdf5}
+.catalog-theme--space{--catalog-accent:#4f46e5;--catalog-accent-soft:#eef2ff;--catalog-accent-border:#c7d2fe;--catalog-hero-start:#eef2ff;--catalog-hero-end:#f5f3ff}
+.catalog-theme--ai{--catalog-accent:#0891b2;--catalog-accent-soft:#ecfeff;--catalog-accent-border:#a5f3fc;--catalog-hero-start:#ecfeff;--catalog-hero-end:#eff6ff}
+.catalog-theme--entrepreneurship{--catalog-accent:#c2410c;--catalog-accent-soft:#fff7ed;--catalog-accent-border:#fed7aa;--catalog-hero-start:#fff7ed;--catalog-hero-end:#fefce8}
+.catalog-theme--empowerment{--catalog-accent:#be185d;--catalog-accent-soft:#fdf2f8;--catalog-accent-border:#fbcfe8;--catalog-hero-start:#fdf2f8;--catalog-hero-end:#faf5ff}
 .catalog-hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
 .catalog-logo-mark{flex:0 0 auto;display:flex;align-items:center;justify-content:center;max-width:190px}
 .catalog-logo-mark img{display:block;max-width:190px;max-height:74px;width:auto;height:auto;object-fit:contain}
 .catalog-hero-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
-.catalog-subtitle{margin:2px 0 8px;color:#4b5563;font-size:18px;font-weight:800;line-height:1.35}
-.catalog-opening-line{font-size:15px;color:#4b3fa0;margin:0;line-height:1.65;background:rgba(255,255,255,0.55);border:1px solid #cdc6ef;border-radius:10px;padding:8px 11px}
-.catalog-tag{background:white;border:1px solid #cdc6ef;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;color:#4b3fa0}
-.catalog-content-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.catalog-subtitle{margin:2px 0 10px;color:#334155;font-size:20px;font-weight:800;line-height:1.4}
+.catalog-opening-line{max-width:760px;font-size:16px;color:#334155;margin:0;line-height:1.75;background:rgba(255,255,255,0.62);border:1px solid rgba(255,255,255,0.82);border-radius:14px;padding:10px 13px}
+.catalog-gefen-badge{display:inline-flex;align-items:center;justify-content:center;background:#fff;color:var(--catalog-accent);border:1px solid var(--catalog-accent-border);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:900;margin:0 0 10px;box-shadow:0 6px 16px rgba(15,23,42,.06)}
+.catalog-tag{background:white;border:1px solid var(--catalog-accent-border);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;color:var(--catalog-accent)}
+.catalog-content-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:stretch}
+.catalog-content-card{background:#fff;border:1px solid #e2e8f0;border-radius:22px;padding:24px;box-shadow:0 8px 22px rgba(15,23,42,.045);min-width:0}
+.catalog-content-card h3{margin:0 0 10px;color:#0f172a;font-size:18px;line-height:1.35;font-weight:900}
+.catalog-content-card p{margin:0;color:#334155;font-size:15px;line-height:1.85;white-space:pre-line;overflow-wrap:anywhere}
+.catalog-syllabus-section{grid-column:1/-1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:24px;padding:24px;box-shadow:0 8px 22px rgba(15,23,42,.045);min-width:0;direction:rtl;text-align:right}
+.catalog-syllabus-section h3{margin:0 0 14px;color:#0f172a;font-size:18px;line-height:1.35;font-weight:900}
+.catalog-syllabus-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.catalog-syllabus-card{background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:18px;min-width:0;box-shadow:0 7px 18px rgba(15,23,42,.04);direction:rtl;text-align:right}
+.catalog-syllabus-card strong{display:inline-flex;align-items:center;justify-content:center;color:var(--catalog-accent);background:#fff;border:1px solid var(--catalog-accent-border);border-radius:999px;padding:3px 10px;font-size:12px;line-height:1.3;font-weight:900;margin-bottom:8px}
+.catalog-syllabus-card h4{margin:0 0 6px;color:#0f172a;font-size:15px;line-height:1.45;font-weight:900;overflow-wrap:anywhere;unicode-bidi:plaintext}
+.catalog-syllabus-card p{margin:0;color:#334155;font-size:14px;line-height:1.75;white-space:pre-line;overflow-wrap:anywhere;unicode-bidi:plaintext}
+.catalog-highlight{grid-column:1/-1;background:var(--catalog-accent-soft);border:1px solid var(--catalog-accent-border);border-radius:24px;padding:24px 28px;box-shadow:0 8px 22px rgba(15,23,42,.04)}
+.catalog-highlight p{margin:0;color:#1f2937;font-size:16px;line-height:1.85;font-weight:700;white-space:pre-line;overflow-wrap:anywhere}
+.catalog-quick-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.catalog-quick-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:13px 10px;text-align:center;box-shadow:0 6px 16px rgba(15,23,42,.035);min-width:0}
+.catalog-quick-card strong{display:block;color:#475569;font-size:12px;line-height:1.25;font-weight:800;margin-bottom:5px}
+.catalog-quick-card span{display:block;color:#0f172a;font-size:15px;line-height:1.35;font-weight:900;overflow-wrap:anywhere}
 .catalog-strip{background:#f7f6fb;border:1px solid #ddd8f0;border-radius:10px;padding:10px 12px}
 .catalog-strip h3{font-size:13.5px;font-weight:700;background:#e5f5ee;color:#1a6645;border-radius:6px;padding:4px 8px;display:inline-block;margin:0 0 10px}
 .catalog-strip-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -85,8 +107,8 @@ function ensureCatalogStyles() {
 .catalog-close{background:#f7f6fb;border:1px solid #ddd8f0;border-radius:10px;padding:12px 14px;display:flex;align-items:flex-start;gap:12px}
 .catalog-close h3{background:#e5f5ee;color:#1a6645}
 .catalog-footer{margin-top:auto;border-top:1px solid #ddd8f0;padding-top:8px;display:flex;justify-content:space-between;font-size:11.5px;color:#94a3b8}
-.catalog-a4-header{background:linear-gradient(135deg,#f0eefb 0%,#e8e4f8 100%);border:1px solid #cdc6ef;border-radius:14px;padding:18px 20px;color:#1f2937}
-.catalog-a4-header h1{font-size:26px;font-weight:800;color:#1f2937;margin:0 0 8px;line-height:1.25}
+.catalog-a4-header{background:linear-gradient(135deg,var(--catalog-hero-start) 0%,var(--catalog-hero-end) 100%);border:1px solid var(--catalog-accent-border);border-radius:26px;padding:28px;color:#1f2937;box-shadow:0 12px 30px rgba(15,23,42,.055)}
+.catalog-a4-header h1{font-size:34px;font-weight:900;color:#0f172a;margin:0 0 8px;line-height:1.2;letter-spacing:-.3px}
 .catalog-a4-badge{background:#e5f5ee;color:#1a6645;border:1px solid #a8dfc4;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;display:inline-flex;margin-bottom:8px}
 .catalog-a4--elementary .catalog-a4-header,.catalog-a4--middle .catalog-a4-header,.catalog-a4--neutral .catalog-a4-header{background:linear-gradient(135deg,#f0eefb 0%,#e8e4f8 100%);border-color:#cdc6ef;color:#1f2937}
 .catalog-a4--elementary .catalog-a4-badge,.catalog-a4--middle .catalog-a4-badge,.catalog-a4--neutral .catalog-a4-badge{background:#e5f5ee;color:#1a6645;border:1px solid #a8dfc4}
@@ -103,16 +125,11 @@ function ensureCatalogStyles() {
 .catalog-box table th{background:#ede9fb;color:#4b3fa0;font-weight:700;padding:6px 8px;border:1px solid #ddd8f0;text-align:right}
 .catalog-box table td{padding:6px 8px;border:1px solid #ddd8f0;color:#1f2937;vertical-align:top}
 .catalog-box table tr:nth-child(even) td{background:#f7f6fb}
-.catalog-table-scroll{width:100%;overflow-x:auto}
-.catalog-syllabus-table{min-width:640px}
-.catalog-syllabus-table th:first-child,.catalog-syllabus-table td:first-child{text-align:center;width:78px;white-space:nowrap}
-.catalog-syllabus-table th:nth-child(2),.catalog-syllabus-table td:nth-child(2){text-align:right;width:28%}
-.catalog-syllabus-table th:nth-child(3),.catalog-syllabus-table td:nth-child(3){text-align:right;width:auto}
 .catalog-list-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-@media (max-width:900px){.catalog-a4-wrap{padding:0}.catalog-a4{width:100%;min-height:auto;padding:16px}.catalog-hero-top{flex-direction:column}.catalog-logo-mark{align-self:flex-start}.catalog-frame-grid{grid-template-columns:1fr 1fr}.catalog-list-grid{grid-template-columns:1fr}}
+@media (max-width:900px){.catalog-a4-wrap{padding:0}.catalog-a4{width:100%;min-height:auto;padding:16px;border-radius:18px}.catalog-a4-header{padding:20px;border-radius:22px}.catalog-a4-header h1{font-size:28px}.catalog-hero-top{flex-direction:column}.catalog-logo-mark{align-self:flex-start}.catalog-frame-grid{grid-template-columns:1fr 1fr}.catalog-list-grid{grid-template-columns:1fr}.catalog-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:1100px){.catalog-groups{grid-template-columns:1fr}.catalog-group-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:760px){.catalog-header h2{font-size:24px}.catalog-toolbar{align-items:stretch}.catalog-filter-field{flex:1 1 100%;min-width:0;font-size:12px}}
-@media (max-width:640px){.catalog-frame-grid,.catalog-list-grid,.catalog-content-grid,.catalog-strip-grid,.catalog-mini-card-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}.catalog-group-grid{grid-template-columns:1fr}.catalog-syllabus-table{min-width:560px}}
+@media (max-width:640px){.catalog-frame-grid,.catalog-list-grid,.catalog-content-grid,.catalog-strip-grid,.catalog-mini-card-grid,.catalog-quick-grid,.catalog-syllabus-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}.catalog-group-grid{grid-template-columns:1fr}.catalog-content-card,.catalog-highlight,.catalog-syllabus-section{padding:20px}.catalog-opening-line{font-size:14px}.catalog-subtitle{font-size:17px}}
 @page{size:A4;margin:0}
 @media print {
   body{background:#fff !important}
@@ -218,8 +235,6 @@ function catalogCardTitleFromTitle(fullName) {
 
 function normalizeProgram(item, idx) {
   const p = item && typeof item === 'object' ? item : {};
-  const syllabus = Array.isArray(p.syllabus) ? p.syllabus : [];
-  const firstSyllabusDescription = syllabus.find((x) => x && typeof x === 'object' && x.description)?.description || '';
   const fullName = String(pickFirstNonEmpty(p.catalog_title) || 'ללא שם');
   return {
     id: String(pickFirstNonEmpty(p.activity_no, p.id, p.programId, p.slug) || `program-${idx + 1}`),
@@ -240,16 +255,17 @@ function normalizeProgram(item, idx) {
     sessionDuration: String(pickFirstNonEmpty(p.session_duration, p.unit_duration, p.sessionDuration, p.duration) || 'לא צוין'),
     gefenNumber: String(pickFirstNonEmpty(p.gefen_number, p.gefenNumber, p.gefen) || ''),
     subtitle: String(pickFirstNonEmpty(p.catalog_subtitle) || ''),
-    shortDescription: String(pickFirstNonEmpty(p.catalog_short_description, p.opening_line, p.short_description, p.description_short, p.shortDescription, p.openingLine, p.sections?.openingStatement, firstSyllabusDescription) || ''),
-    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.core_idea, p.coreIdea, p.sections?.mainIdea, firstSyllabusDescription) || ''),
-    goals: String(pickFirstNonEmpty(p.catalog_program_flow, p.catalog_goals, p.program_flow, p.goals, p.sections?.programFlow) || ''),
+    openingLine: String(pickFirstNonEmpty(p.opening_line, p.openingLine, p.sections?.openingStatement) || ''),
+    shortDescription: String(pickFirstNonEmpty(p.catalog_short_description, p.short_description, p.description_short, p.shortDescription) || ''),
+    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.core_idea, p.coreIdea, p.sections?.mainIdea) || ''),
+    goals: String(pickFirstNonEmpty(p.catalog_goals, p.goals, p.catalog_program_flow, p.program_flow, p.sections?.programFlow) || ''),
     programFlow: String(pickFirstNonEmpty(p.catalog_program_flow, p.program_flow, p.catalog_goals, p.goals, p.sections?.programFlow) || ''),
     studentDevelops: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.participants_receive, p.studentDevelops, p.participantsReceive) || '',
     schoolValue: String(pickFirstNonEmpty(p.catalog_school_value, p.school_value, p.schoolValue, p.sections?.schoolValue) || ''),
-    syllabus: Array.isArray(p.catalog_syllabus) && p.catalog_syllabus.length ? p.catalog_syllabus : syllabus,
+    syllabus: Array.isArray(p.catalog_syllabus) ? p.catalog_syllabus : [],
     stations: Array.isArray(p.stations) ? p.stations : [],
     participantsReceive: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.participants_receive, p.studentDevelops, p.participantsReceive) || [],
-    closingBox: String(pickFirstNonEmpty(p.catalog_closing_box, p.final_outcome, p.closing_box, p.closingBox, p.sections?.finalOutcome) || ''),
+    closingBox: String(pickFirstNonEmpty(p.catalog_closing_box, p.closing_box, p.closingBox, p.sections?.finalOutcome) || ''),
     finalOutcome: String(pickFirstNonEmpty(p.final_outcome, p.catalog_closing_box, p.closing_box, p.closingBox, p.sections?.finalOutcome) || ''),
     footer: String(pickFirstNonEmpty(p.catalog_footer, p.footer, p.final_outcome, p.closing_box) || ''),
     pageTemplate: String(pickFirstNonEmpty(p.catalog_page_template, p.page_template, p.pageTemplate) || 'default'),
@@ -259,32 +275,6 @@ function normalizeProgram(item, idx) {
   };
 }
 
-function sectionLabelsByType(type) {
-  if (type === 'סדנה') return { happening: 'מה עושים בסדנה', syllabus: 'עיקרון מדעי / ערך לימודי', outcome: 'תוצר הסדנה' };
-  if (type === 'סיור') return { happening: 'מה קורה בסיור', syllabus: 'תחנות / מוקדי ביקור', outcome: 'ערך חינוכי לבית הספר' };
-  if (type === 'חוג') return { happening: 'מה קורה בחוג', syllabus: 'מבנה החוג / רצף מפגשים', outcome: 'תוצרי למידה והתנסות' };
-  return { happening: 'מה קורה בתוכנית', syllabus: 'סילבוס התוכנית', outcome: 'תוצר מסכם / שיא תהליך' };
-}
-
-function listItemText(item) {
-  if (item && typeof item === 'object') {
-    const meeting = item.meeting ? `מפגש ${item.meeting}` : '';
-    const topic = item.topic ? String(item.topic) : '';
-    const description = item.description ? String(item.description) : '';
-    const parts = [];
-    if (meeting && topic) parts.push(`${meeting} – ${topic}`);
-    else if (meeting) parts.push(meeting);
-    else if (topic) parts.push(topic);
-    if (description) parts.push(description);
-    return parts.join(': ') || JSON.stringify(item);
-  }
-  return String(item);
-}
-
-function listFromTextOrArray(arr, fallback = 'לא סופק מידע') {
-  if (Array.isArray(arr) && arr.length) return arr.map((x) => `<li>${escapeHtml(listItemText(x))}</li>`).join('');
-  return `<li>${escapeHtml(fallback)}</li>`;
-}
 function isStandaloneActivity(program) {
   return program.productType === 'סדנה' || program.productType === 'סיור' || program.productType === 'חוג' || program.productType === 'חדר בריחה';
 }
@@ -361,16 +351,17 @@ function fallbackText(value, fallback = '—') {
   return text || fallback;
 }
 
+function meaningfulText(value) {
+  const text = String(value || '').trim();
+  return text && text !== 'לא צוין' && text !== '—' ? text : '';
+}
+
 function renderQualityTags(program) {
   const tags = [];
-  const meaningful = (value) => {
-    const text = String(value || '').trim();
-    return text && text !== 'לא צוין' && text !== '—' ? text : '';
-  };
-  const domain = meaningful(program.domain);
-  const grades = meaningful(program.grades);
-  const scope = meaningful(program.scope);
-  const gefen = meaningful(program.gefenNumber);
+  const domain = meaningfulText(program.domain);
+  const grades = meaningfulText(program.grades);
+  const scope = meaningfulText(program.scope);
+  const gefen = meaningfulText(program.gefenNumber);
 
   if (domain) tags.push(`תחום תוכן: ${domain}`);
   if (grades) tags.push(`כיתות: ${grades}`);
@@ -382,13 +373,98 @@ function renderQualityTags(program) {
     : '';
 }
 
-function productTypeLabels(productType) {
-  const t = String(productType || '');
-  if (t.includes('סיור')) return { happening: 'מה קורה בסיור', outcome: 'שיא הסיור / תוצר מסכם', closing: 'סיור שמחבר בין למידה, חוויה ועולם אמיתי', syllabus: 'מבנה הסיור' };
-  if (t.includes('סדנה')) return { happening: 'מה עושים בסדנה', outcome: 'תוצר הסדנה', closing: 'סדנה קצרה שמחברת בין התנסות, ידע והנאה', syllabus: 'מבנה הסדנה' };
-  if (t.includes('חדר בריחה')) return { happening: 'מה קורה בחדר הבריחה', outcome: 'תוצר הפעילות', closing: 'חדר בריחה שמחבר בין אתגר, ידע ועבודת צוות', syllabus: 'מבנה הפעילות' };
-  return { happening: 'מה קורה בתוכנית', outcome: 'תוצר מסכם / שיא תהליך', closing: 'תוכנית שמתחילה בהתבוננות — ומובילה לחשיבה חדשנית', syllabus: 'סילבוס התוכנית' };
+function renderGefenBadge(program) {
+  const gefen = meaningfulText(program.gefenNumber);
+  return gefen ? `<span class="catalog-gefen-badge">מס׳ גפ״ן ${escapeHtml(gefen)}</span>` : '';
 }
+
+function renderQuickInfoCards(program) {
+  const cards = [
+    ['כיתות', meaningfulText(program.targetGrades || program.grades)],
+    ['סוג פעילות', meaningfulText(program.productType)],
+    ['תחומים', meaningfulText(program.domain)],
+    ['היקף', meaningfulText(program.scope)],
+    ['משך מפגש', meaningfulText(program.sessionDuration)],
+    ['מספר גפ״ן', meaningfulText(program.gefenNumber)]
+  ].filter(([, value]) => value);
+
+  return cards.length
+    ? `<section class="catalog-quick-grid">${cards.map(([label, value]) => `<div class="catalog-quick-card"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join('')}</section>`
+    : '';
+}
+
+function renderProgramContentCard(title, value) {
+  const text = meaningfulText(value);
+  if (!text) return '';
+  return `<section class="catalog-content-card"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(text)}</p></section>`;
+}
+
+function meetingTagText(item, fallbackIndex) {
+  const rawLabel = meaningfulText(item?.meeting_label || item?.meetingLabel || item?.meeting);
+  if (rawLabel) {
+    if (/^מפגש\b/.test(rawLabel)) return rawLabel;
+    if (/^[\d\s\-–—]+$/.test(rawLabel)) return `מפגש ${rawLabel}`;
+    return rawLabel;
+  }
+  const order = meaningfulText(item?.meeting_order || item?.meetingOrder || fallbackIndex);
+  return order ? `מפגש ${order}` : '';
+}
+
+function renderSyllabusCard(item, idx) {
+  if (item && typeof item === 'object') {
+    const title = meaningfulText(item.title || item.topic);
+    const description = meaningfulText(item.description || item.details);
+    if (!title && !description) return '';
+    const tag = meetingTagText(item, idx + 1);
+    return `<article class="catalog-syllabus-card">${tag ? `<strong>${escapeHtml(tag)}</strong>` : ''}${title ? `<h4>${escapeHtml(title)}</h4>` : ''}${description ? `<p>${escapeHtml(description)}</p>` : ''}</article>`;
+  }
+
+  const text = meaningfulText(item);
+  if (!text) return '';
+  return `<article class="catalog-syllabus-card"><p>${escapeHtml(text)}</p></article>`;
+}
+
+function renderProgramSyllabus(program) {
+  const rows = Array.isArray(program.syllabus)
+    ? program.syllabus.map(renderSyllabusCard).filter(Boolean)
+    : [];
+  return rows.length
+    ? `<section class="catalog-syllabus-section"><h3>סילבוס התוכנית</h3><div class="catalog-syllabus-grid">${rows.join('')}</div></section>`
+    : '';
+}
+
+function renderProgramBodyCards(program) {
+  const finalOutcome = meaningfulText(program.finalOutcome) || meaningfulText(program.closingBox);
+  const programFlow = meaningfulText(program.programFlow) || meaningfulText(program.goals);
+  const cards = [
+    renderProgramContentCard('מטרת־העל', program.shortDescription),
+    renderProgramContentCard('על התוכנית', program.coreIdea),
+    renderProgramContentCard('תיאור התוכנית', program.goals),
+    renderProgramContentCard('מה לומדים ואיך לומדים', programFlow),
+    renderProgramContentCard('כלים ומיומנויות', program.studentDevelops),
+    renderProgramContentCard('התוצר המסכם', finalOutcome)
+  ].filter(Boolean);
+  const syllabus = renderProgramSyllabus(program);
+  if (syllabus) cards.push(syllabus);
+  const schoolValue = meaningfulText(program.schoolValue);
+  if (schoolValue) {
+    cards.push(`<section class="catalog-highlight"><p>${escapeHtml(schoolValue)}</p></section>`);
+  }
+  return cards.length ? `<section class="catalog-content-grid">${cards.join('')}</section>` : '';
+}
+
+function domainToneClass(program) {
+  const haystack = [program.domain, program.name, program.subtitle, program.coreIdea]
+    .map((value) => String(value || '').toLowerCase())
+    .join(' ');
+  if (haystack.includes('ביומימיקרי') || haystack.includes('קיימות') || haystack.includes('סביבה')) return 'catalog-theme--bio';
+  if (haystack.includes('חלל') || haystack.includes('space')) return 'catalog-theme--space';
+  if (haystack.includes('ai') || haystack.includes('בינה') || haystack.includes('טכנולוג')) return 'catalog-theme--ai';
+  if (haystack.includes('יזמות') || haystack.includes('עסק')) return 'catalog-theme--entrepreneurship';
+  if (haystack.includes('העצמה') || haystack.includes('פורצות') || haystack.includes('מנהיג')) return 'catalog-theme--empowerment';
+  return '';
+}
+
 export const catalogScreen = {
   load: async () => {
     const payload = await api.getCatalogPrograms();
@@ -474,43 +550,21 @@ export const catalogScreen = {
       </section>`;
     }
 
-    const labels = productTypeLabels(selected.productType);
-    const studentDevList = splitToList(selected.studentDevelops || selected.participantsReceive);
-    const participants = splitToList(selected.participantsReceive || selected.studentDevelops).slice(0, 4);
-    const outcomeText = fallbackText(selected.finalOutcome || selected.closingBox || selected.footer, 'למידה פעילה, משמעותית ומחוברת לעולם האמיתי.');
-    const schoolValueParts = splitToList(selected.schoolValue).slice(0, 3);
-    while (schoolValueParts.length < 3) schoolValueParts.push('—');
-    const syllabusSource = selected.productType === 'סיור' && selected.stations.length ? selected.stations : selected.syllabus;
-    const openingText = fallbackText(selected.shortDescription, 'תוכנית לימודית מותאמת לבית הספר');
-    const programFlowText = fallbackText(selected.programFlow);
-    const hasSyllabus = Array.isArray(syllabusSource) && syllabusSource.length > 0;
-    const syllabusRows = hasSyllabus ? syllabusSource.map((item, idx) => {
-      const meeting = item?.meeting || item?.station || item?.stop || idx + 1;
-      const topic = item?.topic || item?.title || '—';
-      const desc = item?.description || item?.details || '—';
-      return `<tr><td>${escapeHtml(String(meeting))}</td><td>${escapeHtml(String(topic))}</td><td>${escapeHtml(String(desc))}</td></tr>`;
-    }).join('') : '';
     const a4ToneClass = toneClassForProgram(selected, 'catalog-a4');
+    const a4ThemeClass = domainToneClass(selected);
+    const openingText = meaningfulText(selected.openingLine);
+    const bodyCardsHtml = renderProgramBodyCards(selected);
     return `<section class="catalog-screen catalog-print-zone">
       <div class="catalog-detail-actions catalog-print-hide">
         <button class="catalog-btn" data-catalog-back>חזרה לקטלוג</button>
         <button class="catalog-btn catalog-btn--primary" data-catalog-print>הדפסה / PDF</button>
       </div>
-      <div class="catalog-a4-wrap"><article class="catalog-a4 ${a4ToneClass}" data-catalog-page="1">
+      <div class="catalog-a4-wrap"><article class="catalog-a4 ${a4ToneClass} ${a4ThemeClass}" data-catalog-page="1">
         <header class="catalog-a4-header">
-          <div class="catalog-hero-top"><div>${renderQualityTags(selected)}<h1>${escapeHtml(selected.name)}</h1>${selected.subtitle ? `<p class="catalog-subtitle">${escapeHtml(selected.subtitle)}</p>` : ''}<p class="catalog-opening-line">${escapeHtml(openingText)}</p></div><div class="catalog-logo-mark"><img src="./assets/logo_system.png" alt="לוגו תעשיידע" onerror="this.onerror=null;this.src='./frontend/assets/logo_system.png'"></div></div>
+          <div class="catalog-hero-top"><div>${renderGefenBadge(selected)}<h1>${escapeHtml(selected.name)}</h1>${selected.subtitle ? `<p class="catalog-subtitle">${escapeHtml(selected.subtitle)}</p>` : ''}${openingText ? `<p class="catalog-opening-line">${escapeHtml(openingText)}</p>` : ''}</div><div class="catalog-logo-mark"><img src="./assets/logo_system.png" alt="לוגו תעשיידע" onerror="this.onerror=null;this.src='./frontend/assets/logo_system.png'"></div></div>
         </header>
-        <section class="catalog-frame-grid"><div class="catalog-box"><strong>כיתות</strong><p>${escapeHtml(fallbackText(selected.grades))}</p></div><div class="catalog-box"><strong>היקף</strong><p>${escapeHtml(fallbackText(selected.scope))}</p></div><div class="catalog-box"><strong>משך מפגש</strong><p>${escapeHtml(fallbackText(selected.sessionDuration))}</p></div><div class="catalog-box"><strong>מספר גפ״ן</strong><p>${escapeHtml(fallbackText(selected.gefenNumber))}</p></div></section>
-        <section class="catalog-content-grid">
-          <div class="catalog-box"><h3>הרעיון המרכזי</h3><p>${escapeHtml(fallbackText(selected.coreIdea))}</p></div>
-          <div class="catalog-box"><h3>${escapeHtml(labels.happening)}</h3><p>${escapeHtml(programFlowText)}</p></div>
-          <div class="catalog-box"><h3>מה מקבלים המשתתפים / מה התלמידים מפתחים</h3><ul>${studentDevList.length ? studentDevList.map((i) => `<li>${escapeHtml(i)}</li>`).join('') : '<li>—</li>'}</ul></div>
-          <div class="catalog-box"><h3>${escapeHtml(labels.outcome)}</h3><p>${escapeHtml(outcomeText)}</p></div>
-        </section>
-        <section class="catalog-strip"><h3>הערך לבית הספר</h3><div class="catalog-strip-grid">${SCHOOL_VALUE_COLUMNS.map((label, i) => `<div class="catalog-box"><strong>${label}</strong><p>${escapeHtml(schoolValueParts[i] || '—')}</p></div>`).join('')}</div></section>
-        ${hasSyllabus ? `<section class="catalog-box"><h3>${escapeHtml(labels.syllabus)}</h3><div class="catalog-table-scroll"><table class="catalog-syllabus-table"><thead><tr><th>מפגש</th><th>נושא המפגש</th><th>פרטי המפגש</th></tr></thead><tbody>${syllabusRows}</tbody></table></div></section>` : ''}
-        <section><h3>מה מקבלים המשתתפים</h3><div class="catalog-mini-card-grid">${(participants.length ? participants : ['—']).map((item) => `<div class="catalog-mini-card">${escapeHtml(item)}</div>`).join('')}</div></section>
-        <section class="catalog-box catalog-close"><h3>${escapeHtml(labels.closing)}</h3><p>✓ ${escapeHtml(outcomeText)}</p></section>
+        ${renderQuickInfoCards(selected)}
+        ${bodyCardsHtml}
         <footer class="catalog-footer"><span>עמותת תעשיידע — חינוך טכנולוגי, חדשנות ויזמות</span><span>קטלוג תוכניות תשפ״ז</span></footer>
       </article></div>
     </section>`;

@@ -2459,7 +2459,7 @@ async function readSettingsRowsFromSupabase() {
 
 async function readCatalogProgramsFromSupabase() {
   if (!supabase) throw new Error('no_supabase_client');
-  const [listsRes, detailsRes, pricingRes] = await Promise.all([
+  const [listsRes, detailsRes, pricingRes, syllabusRes] = await Promise.all([
     supabase
       .from('lists')
       .select('activity_no,activity_name,label_he,label,type,activity_type,audience_level,target_grades,gefen_number,sort_order,category,active')
@@ -2468,13 +2468,18 @@ async function readCatalogProgramsFromSupabase() {
       .order('sort_order', { ascending: true }),
     supabase
       .from('catalog_program_details')
-      .select('activity_no,catalog_title,catalog_subtitle,short_description,audience_level,target_grades,domain,scope,session_duration,gefen_number,opening_line,core_idea,program_flow,student_develops,participants_receive,school_value,final_outcome,closing_box,syllabus,page_template,is_active_for_catalog')
+      .select('activity_no,catalog_title,catalog_subtitle,short_description,audience_level,target_grades,grades,domain,scope,session_duration,gefen_number,opening_line,item_type,core_idea,goals,program_flow,student_develops,participants_receive,school_value,final_outcome,closing_box,page_template,is_active_for_catalog')
       .eq('is_active_for_catalog', true),
     supabase
       .from('proposal_activity_pricing')
       .select('activity_no,activity_name,proposal_group,item_type,catalog_group,gefen_number,meetings_count,hours_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order,is_active_for_proposals,is_active_for_catalog')
       .eq('is_active_for_proposals', true)
-      .order('sort_order', { ascending: true })
+      .order('sort_order', { ascending: true }),
+    supabase
+      .from('catalog_program_syllabus')
+      .select('program_number,meeting_label,meeting_order,title,description,is_active')
+      .eq('is_active', true)
+      .order('meeting_order', { ascending: true })
   ]);
 
   const logReadError = (source, table, error) => {
@@ -2490,6 +2495,7 @@ async function readCatalogProgramsFromSupabase() {
   logReadError('catalog', 'lists', listsRes?.error);
   logReadError('catalog', 'catalog_program_details', detailsRes?.error);
   logReadError('catalog', 'proposal_activity_pricing', pricingRes?.error);
+  logReadError('catalog', 'catalog_program_syllabus', syllabusRes?.error);
 
   if (listsRes?.error && detailsRes?.error && pricingRes?.error) {
     return {
@@ -2501,8 +2507,22 @@ async function readCatalogProgramsFromSupabase() {
   const listRows = Array.isArray(listsRes?.data) ? listsRes.data : [];
   const detailRows = Array.isArray(detailsRes?.data) ? detailsRes.data : [];
   const pricingRows = Array.isArray(pricingRes?.data) ? pricingRes.data : [];
+  const syllabusRows = Array.isArray(syllabusRes?.data) ? syllabusRes.data : [];
+  const cleanCatalogText = (value) => String(value ?? '').trim();
   const listByNo = new Map(listRows.map((row) => [String(row?.activity_no || '').trim(), row]).filter(([key]) => key));
   const detailsByNo = new Map(detailRows.map((row) => [String(row?.activity_no || '').trim(), row]).filter(([key]) => key));
+  const syllabusByProgramNumber = syllabusRows.reduce((acc, row) => {
+    const key = cleanCatalogText(row?.program_number);
+    if (!key) return acc;
+    if (!acc.has(key)) acc.set(key, []);
+    acc.get(key).push({
+      meeting_label: cleanCatalogText(row?.meeting_label),
+      meeting_order: row?.meeting_order,
+      title: cleanCatalogText(row?.title),
+      description: cleanCatalogText(row?.description)
+    });
+    return acc;
+  }, new Map());
   const pricingByNo = pricingRows.reduce((acc, row) => {
     const key = String(row?.activity_no || '').trim();
     if (!key) return acc;
@@ -2511,7 +2531,6 @@ async function readCatalogProgramsFromSupabase() {
     return acc;
   }, new Map());
 
-  const cleanCatalogText = (value) => String(value ?? '').trim();
   const normalizeCatalogGroup = (value) => {
     const raw = cleanCatalogText(value);
     const normalized = raw.toLowerCase().replace(/[\s-]+/g, '_');
@@ -2552,23 +2571,12 @@ async function readCatalogProgramsFromSupabase() {
     return itemType || 'תוכנית';
   };
 
-  const toCatalogSyllabus = (value) => {
-    if (Array.isArray(value)) return value;
-    if (value && typeof value === 'object') return [value];
-    if (typeof value !== 'string') return [];
-    const raw = value.trim();
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-      if (parsed && typeof parsed === 'object') return [parsed];
-      return [];
-    } catch {
-      return raw
-        .split(/\r?\n|;/)
-        .map((s) => s.trim())
-        .filter(Boolean);
+  const syllabusForProgram = (...candidates) => {
+    for (const candidate of candidates) {
+      const key = cleanCatalogText(candidate);
+      if (key && syllabusByProgramNumber.has(key)) return syllabusByProgramNumber.get(key);
     }
+    return [];
   };
 
   const detailKeys = Array.from(detailsByNo.keys()).filter(Boolean);
@@ -2578,11 +2586,11 @@ async function readCatalogProgramsFromSupabase() {
     const pricingRowsForProgram = pricingByNo.get(key) || [];
     const primaryPricing = pricingRowsForProgram[0] || {};
     const details = detailsByNo.get(key) || {};
-    const targetGrades = details.target_grades || row.target_grades || '';
+    const targetGrades = details.target_grades || details.grades || row.target_grades || '';
     const sessionDuration = details.session_duration || primaryPricing.unit_duration || '';
     const scope = details.scope || primaryPricing.meetings_count || primaryPricing.hours_count || '';
     const gefenNumber = details.gefen_number || row.gefen_number || primaryPricing.gefen_number || '';
-    const shortDescription = details.opening_line || details.catalog_subtitle || details.short_description || primaryPricing.description_for_proposal || '';
+    const shortDescription = details.short_description || '';
     const participantsReceive = details.student_develops || details.participants_receive || '';
     const closingBox = details.final_outcome || details.closing_box || '';
     return {
@@ -2611,7 +2619,9 @@ async function readCatalogProgramsFromSupabase() {
       gefenNumber,
       opening_line: details.opening_line || '',
       short_description: details.short_description || '',
+      item_type: details.item_type || primaryPricing.item_type || row.activity_type || '',
       core_idea: details.core_idea || '',
+      goals: details.goals || '',
       program_flow: details.program_flow || '',
       student_develops: details.student_develops || '',
       participants_receive: details.participants_receive || '',
@@ -2621,11 +2631,11 @@ async function readCatalogProgramsFromSupabase() {
       page_template: details.page_template || '',
       catalog_short_description: shortDescription,
       catalog_core_idea: details.core_idea || '',
-      catalog_goals: details.program_flow || '',
+      catalog_goals: details.goals || '',
       catalog_program_flow: details.program_flow || '',
       catalog_participants_receive: participantsReceive,
       catalog_school_value: details.school_value || '',
-      catalog_syllabus: toCatalogSyllabus(details.syllabus),
+      catalog_syllabus: syllabusForProgram(key, gefenNumber, details.gefen_number, row.gefen_number),
       catalog_closing_box: closingBox,
       catalog_page_template: details.page_template || ''
     };
@@ -2684,7 +2694,7 @@ async function readCatalogProgramsFromSupabase() {
       catalog_program_flow: '',
       catalog_participants_receive: '',
       catalog_school_value: '',
-      catalog_syllabus: [],
+      catalog_syllabus: syllabusForProgram(key, row.gefen_number, listRow.gefen_number),
       catalog_closing_box: '',
       catalog_page_template: catalogGroup
     };
@@ -2694,7 +2704,7 @@ async function readCatalogProgramsFromSupabase() {
 
   return {
     programs,
-    error: (detailsRes?.error || pricingRes?.error) ? 'לא ניתן לטעון את נתוני הקטלוג. בדקו חיבור והרשאות.' : ''
+    error: (detailsRes?.error || pricingRes?.error || syllabusRes?.error) ? 'לא ניתן לטעון את נתוני הקטלוג. בדקו חיבור והרשאות.' : ''
   };
 }
 export const api = {
