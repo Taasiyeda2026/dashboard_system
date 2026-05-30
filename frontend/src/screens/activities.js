@@ -402,18 +402,58 @@ function resolveOneDayTypes(settings) {
   return Array.isArray(legacy) ? legacy : [];
 }
 
+function normalizeQuickFilterText(value) {
+  return String(value || '').trim().toLowerCase().replace(/[\s_\-]+/g, '');
+}
+
 function isShortFamily(row, oneDayTypes) {
-  return oneDayTypes.includes(String(row?.activity_type || '').trim());
+  const type = String(row?.activity_type || '').trim();
+  const family = normalizeQuickFilterText(row?.activity_family);
+  const source = normalizeQuickFilterText(row?.source);
+  if (family === 'oneday' || source === 'short') return true;
+  if (family === 'program' || source === 'long') return false;
+  return oneDayTypes.includes(type);
+}
+
+function isSummerActivity(row = {}) {
+  const fields = [
+    row.activity_type_group,
+    row.activity_group,
+    row.activity_family,
+    row.source,
+    row.activity_type,
+    row.activity_name
+  ].map(normalizeQuickFilterText);
+  return fields.some((value) => value.includes('summer') || value.includes('קיץ'));
+}
+
+function matchesQuickDistrictOrManager(row = {}, quickValue = '') {
+  const wanted = String(quickValue || '').trim();
+  if (!wanted) return true;
+  return [row.district, row.manager_district, row.activity_manager_district, row.activity_manager]
+    .some((value) => String(value || '').trim() === wanted);
+}
+
+function isEndingInMonth(row = {}, ym = '') {
+  const month = String(ym || '').slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(month) && String(row?.end_date || row?.date_end || '').slice(0, 7) === month;
 }
 
 function applyClientFilters(rows, state, settings) {
   let out = Array.isArray(rows) ? rows.slice() : [];
   const oneDayTypes = resolveOneDayTypes(settings);
-  if (!oneDayTypes.length) return out;
   if (state.activityQuickFamily === 'short') {
     out = out.filter((row) => isShortFamily(row, oneDayTypes));
   } else if (state.activityQuickFamily === 'long') {
     out = out.filter((row) => !isShortFamily(row, oneDayTypes));
+  } else if (state.activityQuickFamily === 'summer') {
+    out = out.filter(isSummerActivity);
+  }
+  if (state.activityQuickManager) {
+    out = out.filter((row) => matchesQuickDistrictOrManager(row, state.activityQuickManager));
+  }
+  if (state.activityEndingCurrentMonth) {
+    out = out.filter((row) => isEndingInMonth(row, state.activitiesMonthYm));
   }
   return out;
 }
