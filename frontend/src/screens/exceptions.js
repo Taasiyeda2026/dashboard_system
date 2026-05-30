@@ -17,7 +17,7 @@ import {
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
-import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './shared/exceptions-metrics.js';
+import { EXCEPTION_TYPE_ORDER, exceptionActivityKey, isApprovedExceptionType, normalizeExceptionType, normalizedExceptionTypes, uniqueExceptionActivityCount } from './shared/exceptions-metrics.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
 
@@ -48,41 +48,49 @@ function fieldRow(label, value) {
 function exceptionCardTone(row, fallbackTone = 'other') {
   const type = normalizedExceptionTypes(row)[0] || fallbackTone;
   if (type === 'missing_start_date') return 'waiting-date';
-  if (type === 'missing_end_date' || type === 'invalid_date_range') return 'date-range';
+  if (type === 'missing_end_date') return 'date-range';
   if (type === 'end_date_passed') return 'ended-open';
-  if (type === 'missing_next_meeting' || type === 'next_meeting_passed') return 'next-meeting';
-  if (type === 'end_date_out_of_sync') return 'end-date-sync';
+  if (type === 'end_date_after_cutoff') return 'end-date-sync';
   if (type === 'missing_instructor') return 'missing-instructor';
-  if (type === 'missing_school' || type === 'missing_authority' || type === 'missing_district') return 'missing-assignment';
+  if (type === 'missing_district') return 'missing-assignment';
   return 'other';
 }
 
 function exceptionGroupKey(type) {
   if (type === 'missing_start_date') return 'waiting-date';
-  if (type === 'missing_end_date' || type === 'invalid_date_range') return 'date-range';
+  if (type === 'missing_end_date') return 'date-range';
   if (type === 'end_date_passed') return 'ended-open';
-  if (type === 'missing_next_meeting' || type === 'next_meeting_passed') return 'next-meeting';
-  if (type === 'end_date_out_of_sync') return 'end-date-sync';
+  if (type === 'end_date_after_cutoff') return 'end-date-sync';
   if (type === 'missing_instructor') return 'missing-instructor';
-  if (type === 'missing_school' || type === 'missing_authority' || type === 'missing_district') return 'missing-assignment';
+  if (type === 'missing_district') return 'missing-assignment';
   return 'other';
 }
 
 function exceptionDistrictKey(row = {}) {
-  return String(row?.district || row?.region || row?.area || row?.activity_manager || row?.area_manager || '').trim() || 'ללא מחוז / לא משויך';
+  return String(row?.district || '').trim() || 'ללא מחוז / לא משויך';
 }
 
 function exceptionInstanceRows(rows = []) {
   const list = Array.isArray(rows) ? rows : [];
   return list.flatMap((row) => {
     const types = normalizedExceptionTypes(row);
-    return (types.length ? types : [row?.exception_type || 'other']).map((type) => ({
+    return types.map((type) => ({
       ...row,
       exception_type: type,
       exception_types: types.length ? types : [type],
       exception_instance_key: `${String(row?.RowID || row?.row_id || '').trim() || row?.activity_name || 'row'}:${type}`
     }));
   });
+}
+
+function approvedExceptionRows(rows = []) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => isApprovedExceptionType(row?.exception_type))
+    .map((row) => ({
+      ...row,
+      exception_type: normalizeExceptionType(row?.exception_type),
+      exception_types: [normalizeExceptionType(row?.exception_type)]
+    }));
 }
 
 function exceptionCardHtml(row, groupKey) {
@@ -122,22 +130,20 @@ function exceptionGroupCard({ title, rows, key }) {
 }
 
 function exceptionsSummaryHtml(rows = []) {
-  const total = rows.length;
-  const uniqueActivities = new Set(rows.map((row) => String(row?.RowID || row?.row_id || row?.exception_instance_key || '').trim()).filter(Boolean)).size || total;
+  const uniqueActivities = uniqueExceptionActivityCount(rows);
   const byDistrict = new Map();
   rows.forEach((row) => {
     const key = exceptionDistrictKey(row);
-    byDistrict.set(key, (byDistrict.get(key) || 0) + 1);
+    if (!byDistrict.has(key)) byDistrict.set(key, new Set());
+    byDistrict.get(key).add(exceptionActivityKey(row));
   });
-  const districtTotal = [...byDistrict.values()].reduce((sum, value) => sum + Number(value || 0), 0);
   const districtsHtml = [...byDistrict.entries()]
+    .map(([district, activities]) => [district, activities.size])
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'he'))
     .map(([district, count]) => `<button type="button" class="ds-exception-district-chip" data-exception-district-filter="${escapeHtml(district)}"><span>${escapeHtml(district)}</span><strong>${escapeHtml(String(count))}</strong></button>`)
     .join('');
   return `<section class="ds-exceptions-summary" aria-label="סיכום חריגות">
-    <div class="ds-exceptions-summary__card"><span>סה״כ חריגות</span><strong data-exceptions-total>${escapeHtml(String(total))}</strong></div>
-    <div class="ds-exceptions-summary__card"><span>פעילויות חריגות</span><strong>${escapeHtml(String(uniqueActivities))}</strong></div>
-    <div class="ds-exceptions-summary__card"><span>סכום לפי מחוזות</span><strong data-exceptions-district-total>${escapeHtml(String(districtTotal))}</strong></div>
+    <div class="ds-exceptions-summary__card"><span>פעילויות עם חריגות</span><strong data-exceptions-unique-activities>${escapeHtml(String(uniqueActivities))}</strong></div>
     <div class="ds-exceptions-summary__districts">${districtsHtml}</div>
   </section>`;
 }
@@ -202,7 +208,7 @@ export const exceptionsScreen = {
     return api.exceptions({ month });
   },
   render(data, { state } = {}) {
-    const rawRows   = Array.isArray(data?.exceptionInstances) ? data.exceptionInstances : exceptionInstanceRows(data?.rows || []);
+    const rawRows   = Array.isArray(data?.exceptionInstances) ? approvedExceptionRows(data.exceptionInstances) : exceptionInstanceRows(data?.rows || []);
     const allRows   = rawRows;
     const filterState = ensureActivityListFilters(state, EXCEPTIONS_SCOPE);
     prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type', 'exception_types']);
@@ -240,7 +246,7 @@ export const exceptionsScreen = {
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
-    const allRows   = Array.isArray(data?.exceptionInstances) ? data.exceptionInstances : exceptionInstanceRows(data?.rows || []);
+    const allRows   = Array.isArray(data?.exceptionInstances) ? approvedExceptionRows(data.exceptionInstances) : exceptionInstanceRows(data?.rows || []);
     bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 150 });
     const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);

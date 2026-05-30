@@ -6,7 +6,7 @@ import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { headerNavGridHtml } from './screens/shared/act-nav-grid.js';
-import { exceptionDisplayGroupCount } from './screens/shared/exceptions-metrics.js';
+import { uniqueExceptionActivityCount } from './screens/shared/exceptions-metrics.js';
 import { loginScreen } from './screens/login.js';
 import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-storage.js';
 import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindAccentPickerListenerOnce } from './accent-picker.js';
@@ -718,16 +718,17 @@ function shellUserDisplayName() {
 
 function exceptionsNavCount() {
   const entry = state.screenDataCache?.exceptions;
-  const explicit = Number(entry?.data?.totalExceptionInstances ?? entry?.data?.summary?.totalExceptionInstances);
-  if (Number.isFinite(explicit) && explicit > 0) return explicit;
   const instances = Array.isArray(entry?.data?.exceptionInstances) ? entry.data.exceptionInstances : [];
-  if (instances.length > 0) return instances.length;
+  const uniqueInstanceActivities = uniqueExceptionActivityCount(instances);
+  if (uniqueInstanceActivities > 0) return uniqueInstanceActivities;
   const rows = Array.isArray(entry?.data?.rows) ? entry.data.rows : [];
-  const rowCount = exceptionDisplayGroupCount(rows);
-  if (rowCount > 0) return rowCount;
+  const uniqueRowActivities = uniqueExceptionActivityCount(rows);
+  if (uniqueRowActivities > 0) return uniqueRowActivities;
+  const explicit = Number(entry?.data?.totalExceptionRows ?? entry?.data?.summary?.totalExceptionRows ?? entry?.data?.summary?.total_exception_rows);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
   const dashboardKey = buildScreenDataCacheKey('dashboard', state);
   const dashboardEntry = state.screenDataCache?.[dashboardKey] || state.screenDataCache?.dashboard;
-  const dashboardCount = Number(dashboardEntry?.data?.summary?.totalExceptionInstances ?? dashboardEntry?.data?.summary?.exceptions_count ?? dashboardEntry?.data?.totals?.exceptions_count);
+  const dashboardCount = Number(dashboardEntry?.data?.summary?.totalExceptionRows ?? dashboardEntry?.data?.summary?.total_exception_rows);
   return Number.isFinite(dashboardCount) && dashboardCount > 0 ? dashboardCount : 0;
 }
 

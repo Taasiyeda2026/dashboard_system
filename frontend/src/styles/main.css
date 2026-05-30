@@ -11275,9 +11275,9 @@ select.ds-input {
   margin-inline-start: 4px;
   padding: 1px 5px;
   border-radius: var(--ds-radius-full);
-  background: color-mix(in srgb, var(--ds-danger-soft) 82%, #fff);
-  border: 1px solid color-mix(in srgb, var(--ds-danger) 22%, var(--ds-danger-border));
-  color: var(--ds-danger);
+  background: color-mix(in srgb, var(--ds-accent) 8%, #fff);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 20%, var(--ds-border));
+  color: var(--ds-accent);
   font-size: 0.72em;
   font-weight: 800;
   line-height: 1.25;
@@ -11312,18 +11312,19 @@ select.ds-input {
 
 .ds-exceptions-screen__title {
   margin: 0;
-  color: var(--ds-accent);
+  color: var(--ds-text);
   font-weight: 850;
 }
 
 .ds-exceptions-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  align-items: center;
   gap: 12px;
   padding: 12px;
   border: 1px solid var(--ds-border);
   border-radius: 16px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--ds-accent) 4%, var(--ds-surface)), var(--ds-surface));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ds-accent) 3%, var(--ds-surface)), var(--ds-surface));
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.045);
 }
 
@@ -11332,9 +11333,10 @@ select.ds-input {
   gap: 4px;
   min-height: 74px;
   padding: 12px;
-  border: 1px solid var(--ds-border);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 14%, var(--ds-border));
   border-radius: 13px;
   background: var(--ds-surface);
+  box-shadow: inset 4px 0 0 color-mix(in srgb, var(--ds-accent) 72%, transparent);
 }
 
 .ds-exceptions-summary__card span {
@@ -11344,18 +11346,18 @@ select.ds-input {
 }
 
 .ds-exceptions-summary__card strong {
-  color: var(--ds-danger);
+  color: var(--ds-accent);
   font-size: 1.45rem;
   font-weight: 900;
   line-height: 1;
 }
 
 .ds-exceptions-summary__districts {
-  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding-top: 2px;
+  align-items: center;
+  padding-top: 0;
 }
 
 .ds-exception-district-chip {
@@ -11364,14 +11366,25 @@ select.ds-input {
   gap: 8px;
   min-height: 34px;
   padding: 7px 10px;
-  border: 1px solid color-mix(in srgb, var(--ds-danger) 14%, var(--ds-border));
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 14%, var(--ds-border));
   border-radius: var(--ds-radius-full);
-  background: color-mix(in srgb, var(--ds-danger-soft) 55%, var(--ds-surface));
+  background: color-mix(in srgb, var(--ds-accent) 5%, var(--ds-surface));
   color: var(--ds-text);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 750;
   cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.ds-exception-district-chip:hover {
+  border-color: color-mix(in srgb, var(--ds-accent) 32%, var(--ds-border-strong));
+  background: color-mix(in srgb, var(--ds-accent) 9%, var(--ds-surface));
+}
+
+.ds-exception-district-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-accent) 16%, transparent);
 }
 
 .ds-exception-district-chip strong {
@@ -11382,8 +11395,8 @@ select.ds-input {
   min-height: 22px;
   padding: 0 6px;
   border-radius: var(--ds-radius-full);
-  background: var(--ds-danger);
-  color: #fff;
+  background: color-mix(in srgb, var(--ds-accent) 12%, var(--ds-surface));
+  color: var(--ds-accent);
   font-size: 0.75rem;
 }
 
@@ -11398,14 +11411,14 @@ select.ds-input {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
 }
 
-.ds-exception-group[data-exception-group="waiting-date"] { --exception-group-color: #a16207; }
-.ds-exception-group[data-exception-group="ended-open"] { --exception-group-color: #b91c1c; }
-.ds-exception-group[data-exception-group="end-date-sync"] { --exception-group-color: #6d28d9; }
-.ds-exception-group[data-exception-group="missing-instructor"] { --exception-group-color: #1d4ed8; }
-.ds-exception-group[data-exception-group="missing-assignment"] { --exception-group-color: #0f766e; }
-.ds-exception-group[data-exception-group="date-range"] { --exception-group-color: #be123c; }
-.ds-exception-group[data-exception-group="next-meeting"] { --exception-group-color: #ea580c; }
-.ds-exception-group[data-exception-group="other"] { --exception-group-color: #475569; }
+.ds-exception-group[data-exception-group="waiting-date"] { --exception-group-color: var(--ds-accent); }
+.ds-exception-group[data-exception-group="ended-open"] { --exception-group-color: var(--ds-accent); }
+.ds-exception-group[data-exception-group="end-date-sync"] { --exception-group-color: var(--ds-accent); }
+.ds-exception-group[data-exception-group="missing-instructor"] { --exception-group-color: var(--ds-accent); }
+.ds-exception-group[data-exception-group="missing-assignment"] { --exception-group-color: var(--ds-accent); }
+.ds-exception-group[data-exception-group="date-range"] { --exception-group-color: var(--ds-accent); }
+.ds-exception-group[data-exception-group="next-meeting"] { --exception-group-color: var(--ds-accent); }
+.ds-exception-group[data-exception-group="other"] { --exception-group-color: var(--ds-accent); }
 
 .ds-exception-group__head {
   display: flex;
@@ -11429,6 +11442,16 @@ select.ds-input {
   line-height: 1.25;
   text-align: right;
   cursor: pointer;
+}
+
+.ds-exception-group__title:hover {
+  color: var(--ds-accent);
+}
+
+.ds-exception-group__title:focus-visible {
+  outline: none;
+  color: var(--ds-accent);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--ds-accent) 42%, transparent);
 }
 
 .ds-exception-group__body {
@@ -11461,35 +11484,38 @@ select.ds-input {
   overflow: hidden;
   cursor: pointer;
   text-align: right;
-  border: 1px solid color-mix(in srgb, var(--exception-card-color) 7%, var(--ds-border));
+  border: 1px solid var(--ds-border);
   border-radius: 11px;
-  background: color-mix(in srgb, var(--exception-card-color) 2%, var(--ds-surface));
+  background: var(--ds-surface);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
   transition: box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
 }
 
-.ds-exception-card[data-exception-tone="waiting-date"] { --exception-card-color: #a16207; }
-.ds-exception-card[data-exception-tone="ended-open"] { --exception-card-color: #b91c1c; }
-.ds-exception-card[data-exception-tone="end-date-sync"] { --exception-card-color: #6d28d9; }
-.ds-exception-card[data-exception-tone="missing-instructor"] { --exception-card-color: #1d4ed8; }
-.ds-exception-card[data-exception-tone="missing-assignment"] { --exception-card-color: #0f766e; }
-.ds-exception-card[data-exception-tone="date-range"] { --exception-card-color: #be123c; }
-.ds-exception-card[data-exception-tone="next-meeting"] { --exception-card-color: #ea580c; }
-.ds-exception-card[data-exception-tone="other"] { --exception-card-color: #475569; }
+.ds-exception-card[data-exception-tone="waiting-date"] { --exception-card-color: var(--ds-accent); }
+.ds-exception-card[data-exception-tone="ended-open"] { --exception-card-color: var(--ds-accent); }
+.ds-exception-card[data-exception-tone="end-date-sync"] { --exception-card-color: var(--ds-accent); }
+.ds-exception-card[data-exception-tone="missing-instructor"] { --exception-card-color: var(--ds-accent); }
+.ds-exception-card[data-exception-tone="missing-assignment"] { --exception-card-color: var(--ds-accent); }
+.ds-exception-card[data-exception-tone="date-range"] { --exception-card-color: var(--ds-accent); }
+.ds-exception-card[data-exception-tone="next-meeting"] { --exception-card-color: var(--ds-accent); }
+.ds-exception-card[data-exception-tone="other"] { --exception-card-color: var(--ds-accent); }
 
 .ds-exception-card:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--exception-card-color) 18%, var(--ds-border-strong));
-  background: color-mix(in srgb, var(--exception-card-color) 4%, var(--ds-surface));
+  border-color: color-mix(in srgb, var(--ds-accent) 24%, var(--ds-border-strong));
+  background: color-mix(in srgb, var(--ds-accent) 3%, var(--ds-surface));
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.075), 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .ds-exception-card:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--exception-card-color) 14%, transparent), 0 4px 10px rgba(15, 23, 42, 0.075);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-accent) 16%, transparent), 0 4px 10px rgba(15, 23, 42, 0.075);
 }
 
 .ds-exception-card__accent {
-  display: none;
+  display: block;
+  width: 3px;
+  flex: 0 0 3px;
+  background: color-mix(in srgb, var(--ds-accent) 45%, transparent);
 }
 
 .ds-exception-card__content {
@@ -11518,7 +11544,7 @@ select.ds-input {
 
 .ds-exception-card__activity {
   -webkit-line-clamp: 2;
-  color: color-mix(in srgb, var(--exception-card-color) 55%, var(--ds-text));
+  color: var(--ds-text);
   font-size: 0.84rem;
   font-weight: 900;
   line-height: 1.22;

@@ -387,14 +387,14 @@ test('frontend exception Hebrew labels describe the exception details clearly', 
   const src = await read('frontend/src/screens/shared/ui-hebrew.js');
   assert.match(src, /missing_instructor:\s+'ללא מדריך'/);
   assert.match(src, /missing_start_date:\s+'ללא תאריך התחלה'/);
-  assert.match(src, /end_date_out_of_sync:\s+'סיום לא מעודכן'/);
+  assert.match(src, /end_date_after_cutoff:\s+'תאריך סיום מאוחר'/);
 });
 
-test('exceptions screen separates end_date_passed and end_date_out_of_sync into distinct group titles', async () => {
+test('exceptions screen separates end_date_passed and end_date_after_cutoff into distinct group titles', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
   assert.match(src, /hebrewExceptionType\(type\)/);
   assert.match(src, /if \(type === 'end_date_passed'\) return 'ended-open';/);
-  assert.match(src, /if \(type === 'end_date_out_of_sync'\) return 'end-date-sync';/);
+  assert.match(src, /if \(type === 'end_date_after_cutoff'\) return 'end-date-sync';/);
   assert.doesNotMatch(src, /פעילויות עם חריגת תאריך סיום/);
 });
 
@@ -404,13 +404,13 @@ test('exceptions screen group count matches rendered clickable cards', () => {
     month: '2026-05',
     rows: [
       { RowID: '1', activity_name: 'א', authority: 'ר1', school: 'ב1', exception_types: ['end_date_passed'] },
-      { RowID: '2', activity_name: 'ב', authority: 'ר1', school: 'ב1', exception_types: ['end_date_out_of_sync'] },
-      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['end_date_out_of_sync', 'missing_instructor'] }
+      { RowID: '2', activity_name: 'ב', authority: 'ר1', school: 'ב1', exception_types: ['end_date_after_cutoff'] },
+      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['end_date_after_cutoff', 'missing_instructor'] }
     ]
   };
   const html = exceptionsScreen.render(data, { state });
   assert.match(html, /הסתיימה ולא נסגרה · 1/);
-  assert.match(html, /סיום לא מעודכן · 2/);
+  assert.match(html, /תאריך סיום מאוחר · 2/);
   const clickableCards = (html.match(/data-card-action="exception:/g) || []).length;
   assert.equal(clickableCards, 4, 'each grouped appearance must be rendered as a clickable card');
   assert.doesNotMatch(html, /data-action="delete"/);
@@ -428,8 +428,10 @@ test('exceptions screen totals, district sum, and rendered cards use the same ex
   };
   const html = exceptionsScreen.render(data, { state });
 
-  assert.match(html, /data-exceptions-total>3</);
-  assert.match(html, /data-exceptions-district-total>3</);
+  assert.match(html, /פעילויות עם חריגות/);
+  assert.match(html, /data-exceptions-unique-activities>2</);
+  assert.doesNotMatch(html, /סה״כ חריגות/);
+  assert.doesNotMatch(html, /סכום לפי מחוזות/);
   assert.match(html, /ללא מחוז \/ לא משויך/);
   assert.equal((html.match(/data-card-action="exception:/g) || []).length, 3);
 });

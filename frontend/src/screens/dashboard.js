@@ -105,7 +105,7 @@ function renderStructuredSummary(summary, ym, byManager) {
   const counts = summary?.counts && typeof summary.counts === 'object' ? summary.counts : {};
   const missingInstructorCount = pickNumericFallback(counts, 'missing_instructor', summary?.missing_instructor_count);
   const missingStartDateCount = pickNumericFallback(counts, 'missing_start_date', summary?.missing_start_date_count ?? summary?.missing_date_count);
-  const endDateOutOfSyncCount = pickNumericFallback(counts, 'end_date_out_of_sync', summary?.end_date_out_of_sync_count);
+  const endDateAfterCutoffCount = pickNumericFallback(counts, 'end_date_after_cutoff', summary?.end_date_after_cutoff_count);
   const endDatePassedCount = pickNumericFallback(counts, 'end_date_passed', summary?.end_date_passed_count);
   const exceptionsTotalField = getStrictNumericField(summary, 'totalExceptionInstances');
   const exceptionsTotalFallback = getStrictNumericField(summary, 'exceptions_count');
@@ -118,7 +118,7 @@ function renderStructuredSummary(summary, ym, byManager) {
   const operationalUniqueCount = operationalUniqueField.ok ? operationalUniqueField.value : 0;
   const missingInstructor = missingInstructorCount;
   const missingStartDate  = missingStartDateCount;
-  const endDateOutOfSync = escapeHtml(String(endDateOutOfSyncCount));
+  const endDateAfterCutoff = escapeHtml(String(endDateAfterCutoffCount));
   const endDatePassed = escapeHtml(String(endDatePassedCount));
 
   const typeCounts = summary?.active_type_counts || {};
@@ -166,7 +166,7 @@ function renderStructuredSummary(summary, ym, byManager) {
         חריגות תפעוליות: <strong>${escapeHtml(String(operationalUniqueCount))}</strong>
         <span class="ds-muted"> (ללא מדריך: ${escapeHtml(String(missingInstructor))} · ללא תאריך התחלה: ${escapeHtml(String(missingStartDate))})</span>
       </p>
-      <p class="ds-summary-panel__text">סיום לא מעודכן: <strong>${endDateOutOfSync}</strong></p>
+      <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${endDateAfterCutoff}</strong></p>
       <p class="ds-summary-panel__text">הסתיימה ולא נסגרה: <strong>${endDatePassed}</strong></p>
     </div>
   </div>`;

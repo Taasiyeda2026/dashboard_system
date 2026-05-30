@@ -72,30 +72,18 @@ export function financeStatusVariant(value) {
 /** חריגות: עוצמת chip לפי סוג */
 export function exceptionTypeVariant(exceptionType) {
   const k = String(exceptionType || '').trim();
-  if (k === 'end_date_out_of_sync' || k === 'late_end_date' || k === 'dangerous_end_date' || k === 'end_date_passed') return 'danger';
+  if (k === 'end_date_after_cutoff' || k === 'end_date_passed') return 'danger';
   if (k === 'missing_instructor' || k === 'missing_start_date') return 'warning';
   return 'neutral';
 }
 
 export const HEBREW_EXCEPTION_TYPE = {
   missing_instructor:       'ללא מדריך',
-  missing_school:           'ללא בית ספר',
-  missing_authority:        'ללא רשות',
   missing_district:         'ללא מחוז / לא משויך',
   missing_start_date:       'ללא תאריך התחלה',
   missing_end_date:         'ללא תאריך סיום',
-  invalid_date_range:       'תאריך סיום לפני התחלה',
-  late_end_date:            'סיום לא מעודכן',
-  end_date_out_of_sync:     'סיום לא מעודכן',
-  end_date_passed:          'הסתיימה ולא נסגרה',
-  missing_next_meeting:     'ללא המפגש הבא',
-  next_meeting_passed:      'המפגש הבא עבר',
-  open_ended_not_closed:    'הסתיימה ולא נסגרה',
-  dangerous_end_date:       'סיום לא מעודכן',
-  missing_activity_manager: 'חסר מנהל פעילות',
-  missing_school:           'חסרה בית ספר',
-  missing_authority:        'חסרה רשות',
-  missing_activity_name:    'חסר שם פעילות'
+  end_date_after_cutoff:    'תאריך סיום מאוחר',
+  end_date_passed:          'הסתיימה ולא נסגרה'
 };
 
 export function hebrewExceptionType(value) {

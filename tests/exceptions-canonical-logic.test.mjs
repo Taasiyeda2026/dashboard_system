@@ -81,11 +81,11 @@ test('all counted exceptions are returned as display instances from one source',
 
   assert.equal(model.exceptionInstances.length, model.totalExceptionInstances);
   assert.equal(districtSum, model.totalExceptionInstances);
-  assert.ok(model.counts.missing_school > 0);
-  assert.ok(model.counts.missing_authority > 0);
   assert.ok(model.counts.missing_district > 0);
   assert.ok(model.counts.missing_end_date > 0);
-  assert.ok(model.counts.missing_next_meeting > 0);
+  assert.equal(model.counts.missing_school, undefined);
+  assert.equal(model.counts.missing_authority, undefined);
+  assert.equal(model.counts.missing_next_meeting, undefined);
   assert.ok(model.byDistrict['ללא מחוז / לא משויך'] > 0);
   assert.ok(model.rows.some((row) => row.RowID === 'SHORT-1'), 'short/workshop activity should not be filtered out');
 });
@@ -98,4 +98,31 @@ test('unassigned manager with valid district is counted under the district and t
   assert.equal(model.totalExceptionRows, 1);
   assert.equal(model.totalExceptionInstances, 2);
   assert.equal(model.byDistrict['מחוז דרום'], 2);
+});
+
+test('late end date threshold creates only approved open activity exception', () => {
+  const openLate = activity({ RowID: 'LATE-OPEN', status: 'פתוח', end_date: '2026-06-16', date_1: '2026-06-16' });
+  const closedLate = activity({ RowID: 'LATE-CLOSED', status: 'סגור', end_date: '2026-06-16', date_1: '2026-06-16' });
+
+  const model = buildExceptionsModelFromRows([openLate, closedLate], '2026-05', {
+    include_rows: true,
+    lateEndDateThreshold: '2026-06-15'
+  });
+
+  assert.equal(model.counts.end_date_after_cutoff, 1);
+  assert.equal(model.totalExceptionInstances, 1);
+  assert.equal(model.rows[0].exception_type, 'end_date_after_cutoff');
+});
+
+test('district summary uses district only and not activity_manager fallback', () => {
+  const row = activity({
+    RowID: 'NO-DISTRICT',
+    district: '',
+    activity_manager: 'מחוז דרום'
+  });
+  const model = buildExceptionsModelFromRows([row], '2026-05', { include_rows: true });
+
+  assert.equal(model.counts.missing_district, 1);
+  assert.equal(model.byDistrict['ללא מחוז / לא משויך'], 1);
+  assert.equal(model.byDistrict['מחוז דרום'], undefined);
 });

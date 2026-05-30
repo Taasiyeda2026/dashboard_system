@@ -146,7 +146,8 @@ test('Supabase exceptions read uses a single activities source and computes in c
   assert.ok(block, 'readExceptionsFromSupabase should exist');
   assert.match(block[0], /supabase\.from\('activities'\)\.select\('\*'\)/);
   assert.match(block[0], /buildExceptionsModelFromRows\(allRows/);
-  assert.doesNotMatch(block[0], /missingStartResult|lateEndDateResult|late_end_date_threshold/);
+  assert.match(block[0], /late_end_date_threshold/);
+  assert.doesNotMatch(block[0], /missingStartResult|lateEndDateResult/);
 });
 
 test('allActivities export path reads all activities without applying month/date filters', async () => {

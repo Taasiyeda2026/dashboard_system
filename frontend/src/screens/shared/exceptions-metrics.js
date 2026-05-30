@@ -4,17 +4,14 @@ function asList(rows) {
 
 export const EXCEPTION_TYPE_ORDER = [
   'end_date_passed',
-  'next_meeting_passed',
-  'end_date_out_of_sync',
-  'invalid_date_range',
   'missing_instructor',
-  'missing_school',
-  'missing_authority',
   'missing_district',
   'missing_start_date',
   'missing_end_date',
-  'missing_next_meeting'
+  'end_date_after_cutoff'
 ];
+
+export const APPROVED_EXCEPTION_TYPES = new Set(EXCEPTION_TYPE_ORDER);
 
 const LEGACY_EXCEPTION_TYPE_ALIASES = {
   late_end_date: 'end_date_out_of_sync',
@@ -29,23 +26,27 @@ export function normalizeExceptionType(type) {
   return LEGACY_EXCEPTION_TYPE_ALIASES[key] || key;
 }
 
+export function isApprovedExceptionType(type) {
+  return APPROVED_EXCEPTION_TYPES.has(normalizeExceptionType(type));
+}
+
 export function normalizedExceptionTypes(row) {
   const rawTypes = Array.isArray(row?.exception_types)
     ? row.exception_types
     : [row?.exception_type];
-  return [...new Set(rawTypes.map(normalizeExceptionType).filter(Boolean))];
+  return [...new Set(rawTypes.map(normalizeExceptionType).filter(isApprovedExceptionType))];
 }
 
 export function exceptionDisplayGroupCount(rows) {
   let total = 0;
   for (const row of asList(rows)) {
     const types = normalizedExceptionTypes(row);
-    total += types.length || 1;
+    total += types.length;
   }
   return total;
 }
 
-function exceptionActivityKey(row) {
+export function exceptionActivityKey(row) {
   const explicitId = [row?.RowID, row?.row_id, row?.source_row_id]
     .map((value) => String(value ?? '').trim())
     .find(Boolean);

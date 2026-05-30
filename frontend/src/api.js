@@ -2,6 +2,7 @@ import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { cleanActivityManagerName, NO_ACTIVITY_MANAGER_LABEL, resolveActivityInstructorName } from './screens/shared/activity-options.js';
+import { EXCEPTION_TYPE_ORDER, isApprovedExceptionType } from './screens/shared/exceptions-metrics.js';
 import { supabase, supabaseConfig } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
 
@@ -274,7 +275,7 @@ function isOpenStatus(row = {}) {
 }
 
 function districtDisplayKey(row = {}) {
-  return nullStr(row?.district || row?.region || row?.area || row?.activity_manager || row?.area_manager) || 'ללא מחוז / לא משויך';
+  return nullStr(row?.district) || 'ללא מחוז / לא משויך';
 }
 function hasAnyActivityDate(row = {}) {
   if (normalizeSupabaseDate(row?.start_date ?? row?.date_start)) return true;
@@ -1016,17 +1017,12 @@ async function dashboardReadModelFromSupabase(month) {
       active_instructors_count: instructorIds.size,
       ending_courses_current_month: endingRows.length,
       missing_instructor_count: Number(exceptionCounts.missing_instructor || 0),
-      missing_school_count: Number(exceptionCounts.missing_school || 0),
-      missing_authority_count: Number(exceptionCounts.missing_authority || 0),
       missing_district_count: Number(exceptionCounts.missing_district || 0),
       missing_start_date_count: Number(exceptionCounts.missing_start_date || 0),
       missing_end_date_count: Number(exceptionCounts.missing_end_date || 0),
       missing_date_count: Number(exceptionCounts.missing_start_date || 0),
-      invalid_date_range_count: Number(exceptionCounts.invalid_date_range || 0),
-      end_date_out_of_sync_count: Number(exceptionCounts.end_date_out_of_sync || 0),
+      end_date_after_cutoff_count: Number(exceptionCounts.end_date_after_cutoff || 0),
       end_date_passed_count: Number(exceptionCounts.end_date_passed || 0),
-      missing_next_meeting_count: Number(exceptionCounts.missing_next_meeting || 0),
-      next_meeting_passed_count: Number(exceptionCounts.next_meeting_passed || 0),
       operational_gaps_count: exceptionsCount,
       operational_gaps_unique_count: Number(exceptionSummary.uniqueExceptionActivities || exceptionSummary.totalExceptionRows || 0),
       operationalTotal: exceptionsCount,
@@ -1084,14 +1080,30 @@ function activityOverlapsMonthForExceptions(row, month) {
   return true;
 }
 
+let lateEndDateThresholdWarned = false;
+
+function warnLateEndDateThreshold(message, value = '') {
+  if (lateEndDateThresholdWarned) return;
+  lateEndDateThresholdWarned = true;
+  console.warn('[exceptions] late_end_date_threshold disabled:', message, value || '');
+}
+
+function settingValueFromRows(settingsRows = [], key) {
+  const row = (Array.isArray(settingsRows) ? settingsRows : []).find((item) => String(item?.key || '').trim() === key);
+  return String(row?.value || '').trim();
+}
+
 function rowExceptionTypesFromActivity(row, opts = {}) {
   const types = [];
   const knownIds    = opts.knownInstructorIds; // Set<string> | undefined
   const emp1        = nullStr(row?.emp_id);
   const emp2        = nullStr(row?.emp_id_2);
   const instructorName = resolveActivityInstructorName(row);
+  const secondaryInstructorName = resolveActivityInstructorName(row, { secondary: true });
   const start       = firstNormalizedDate(row?.start_date, row?.date_start);
   const end         = firstNormalizedDate(row?.end_date, row?.date_end);
+  const rawLateEndDateThreshold = String(opts.lateEndDateThreshold || '').trim();
+  const lateEndDateThreshold = rawLateEndDateThreshold ? firstNormalizedDate(rawLateEndDateThreshold) : '';
   const todayLocalIso = todayLocalIsoDate();
   const inactive = isActivityInactive(row);
   const active = isOperationallyActive(row);
@@ -1100,7 +1112,7 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   // A valid displayed instructor name is sufficient even when guideId/emp_id is
   // missing or not present in the contacts table. Technical ids are a fallback.
   const isValidId = (id) => !!id && (!knownIds || knownIds.has(id));
-  const hasValidInstructor = !!instructorName || isValidId(emp1) || isValidId(emp2);
+  const hasValidInstructor = !!instructorName || !!secondaryInstructorName || isValidId(emp1) || isValidId(emp2);
   if (!inactive && !hasValidInstructor) types.push('missing_instructor');
   if (!inactive && !nullStr(row?.school)) types.push('missing_school');
   if (!inactive && !nullStr(row?.authority)) types.push('missing_authority');
@@ -1116,6 +1128,12 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   // month-end or on meeting dates.
   if (isOpenStatus(row) && end && end < todayLocalIso) {
     types.push('end_date_passed');
+  }
+  if (active && end && lateEndDateThreshold && end > lateEndDateThreshold) {
+    types.push('end_date_after_cutoff');
+  }
+  if (rawLateEndDateThreshold && !lateEndDateThreshold) {
+    warnLateEndDateThreshold('invalid date value', rawLateEndDateThreshold);
   }
 
   const nextMeetingDate = nextMeetingDateFromActivity(row, todayLocalIso);
@@ -1136,7 +1154,7 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   if (end && calculatedEndDate && end !== calculatedEndDate) {
     types.push('end_date_out_of_sync');
   }
-  row._late_end_date_threshold = '';
+  row._late_end_date_threshold = lateEndDateThreshold || '';
   row._late_end_date_hits = [];
   return types;
 }
@@ -1148,7 +1166,10 @@ function getActivityExceptions(activityRows = [], month = '', opts = {}) {
   for (const row of activityRows) {
     if (isActivityInactive(row)) continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
-    const types = rowExceptionTypesFromActivity(row, { knownInstructorIds });
+    const types = rowExceptionTypesFromActivity(row, {
+      knownInstructorIds,
+      lateEndDateThreshold: opts.lateEndDateThreshold
+    }).filter(isApprovedExceptionType);
     if (!types.length) continue;
     const uniqueTypes = [...new Set(types)];
     rows.push({
@@ -1176,19 +1197,7 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
   const includeRows = opts.include_rows !== false;
   const { rows: allRows, instances } = getActivityExceptions(activityRows, month, opts);
   const rows = includeRows ? allRows : [];
-  const counts = {
-    missing_instructor: 0,
-    missing_school: 0,
-    missing_authority: 0,
-    missing_district: 0,
-    missing_start_date: 0,
-    missing_end_date: 0,
-    invalid_date_range: 0,
-    end_date_passed: 0,
-    missing_next_meeting: 0,
-    next_meeting_passed: 0,
-    end_date_out_of_sync: 0
-  };
+  const counts = Object.fromEntries(EXCEPTION_TYPE_ORDER.map((type) => [type, 0]));
   const byDistrict = {};
   const uniqueActivityIds = new Set();
   for (const row of allRows) {
@@ -1224,11 +1233,19 @@ async function readExceptionsFromSupabase(params = {}) {
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
   try {
-    const [activitiesResult, instrListResult] = await Promise.all([
+    const [activitiesResult, instrListResult, settingsRows] = await Promise.all([
       supabase.from('activities').select('*'),
-      supabase.from('contacts_instructors').select('emp_id')
+      supabase.from('contacts_instructors').select('emp_id'),
+      readSettingsRowsFromSupabase().catch((error) => {
+        warnLateEndDateThreshold('settings read failed', error?.message || error);
+        return [];
+      })
     ]);
     if (activitiesResult.error) throw new Error(activitiesResult.error.message || 'activities_read_failed');
+    const lateEndDateThreshold = firstNormalizedDate(settingValueFromRows(settingsRows, 'late_end_date_threshold'));
+    if (!lateEndDateThreshold) {
+      warnLateEndDateThreshold('missing or empty settings value');
+    }
 
     const knownInstructorIds = new Set(
       (Array.isArray(instrListResult.data) ? instrListResult.data : [])
@@ -1238,7 +1255,8 @@ async function readExceptionsFromSupabase(params = {}) {
     const allRows = (Array.isArray(activitiesResult.data) ? activitiesResult.data : []).map(normalizeActivityRow);
     const exceptionSummary = buildExceptionsModelFromRows(allRows, month, {
       include_rows: true,
-      knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined
+      knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined,
+      lateEndDateThreshold
     });
     const undatedRows = allRows
       .filter((row) => !isActivityInactive(row))
@@ -2635,7 +2653,7 @@ async function readCatalogProgramsFromSupabase() {
       catalog_program_flow: details.program_flow || '',
       catalog_participants_receive: participantsReceive,
       catalog_school_value: details.school_value || '',
-      catalog_syllabus: syllabusForProgram(key, gefenNumber, details.gefen_number, row.gefen_number),
+      catalog_syllabus: syllabusForProgram(gefenNumber, details.gefen_number, row.gefen_number, key),
       catalog_closing_box: closingBox,
       catalog_page_template: details.page_template || ''
     };
@@ -2694,7 +2712,7 @@ async function readCatalogProgramsFromSupabase() {
       catalog_program_flow: '',
       catalog_participants_receive: '',
       catalog_school_value: '',
-      catalog_syllabus: syllabusForProgram(key, row.gefen_number, listRow.gefen_number),
+      catalog_syllabus: syllabusForProgram(row.gefen_number, listRow.gefen_number, key),
       catalog_closing_box: '',
       catalog_page_template: catalogGroup
     };
