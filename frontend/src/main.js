@@ -6,6 +6,7 @@ import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { headerNavGridHtml } from './screens/shared/act-nav-grid.js';
+import { exceptionDisplayGroupCount } from './screens/shared/exceptions-metrics.js';
 import { loginScreen } from './screens/login.js';
 import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-storage.js';
 import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindAccentPickerListenerOnce } from './accent-picker.js';
@@ -714,6 +715,32 @@ function shellUserDisplayName() {
   return escapeHtml(fn || 'משתמש');
 }
 
+
+function exceptionsNavCount() {
+  const entry = state.screenDataCache?.exceptions;
+  const rows = Array.isArray(entry?.data?.rows) ? entry.data.rows : [];
+  return exceptionDisplayGroupCount(rows);
+}
+
+function navLabelHtmlForRoute(route) {
+  const label = escapeHtml(navLabelForRoute(route));
+  if (route !== 'exceptions') return label;
+  const count = exceptionsNavCount();
+  if (!Number.isFinite(count) || count <= 0) return label;
+  const safeCount = escapeHtml(String(count));
+  return `${label} <span class="ds-nav-count-badge" aria-label="${safeCount} חריגות">(${safeCount})</span>`;
+}
+
+function updateExceptionNavCount() {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll('[data-route="exceptions"] .ds-act-nav-item__label').forEach((node) => {
+    node.innerHTML = navLabelHtmlForRoute('exceptions');
+  });
+  document.querySelectorAll('.shell-nav__btn[data-route="exceptions"]').forEach((node) => {
+    node.innerHTML = navLabelHtmlForRoute('exceptions');
+  });
+}
+
 function shellUserRoleLine() {
   const r2 = repairHebrewMojibake(state.user?.display_role2).trim();
   if (r2) return escapeHtml(r2);
@@ -747,7 +774,7 @@ function shell(content) {
     )
     .map(
       (route) =>
-        `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${navLabelForRoute(route)}</button>`
+        `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${navLabelHtmlForRoute(route)}</button>`
     )
     .join('');
 
@@ -764,7 +791,7 @@ function shell(content) {
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
     routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r))
-  });
+  }, { exceptions: exceptionsNavCount() });
   const headerTechHtml = '';
 
   return `
@@ -1011,6 +1038,7 @@ async function loadScreenDataWithCache(screen) {
       const entry = { data, t: Date.now() };
       state.screenDataCache[key] = entry;
       maybePersistScreenCacheEntry(key, entry);
+      if (key === 'exceptions') updateExceptionNavCount();
       inflightRequests.delete(key);
       return data;
     })
@@ -1045,6 +1073,7 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     const entry = { data, t: Date.now() };
     state.screenDataCache[cacheKey] = entry;
     maybePersistScreenCacheEntry(cacheKey, entry);
+    if (cacheKey === 'exceptions') updateExceptionNavCount();
     if (
       activeNavigationToken === guardedToken &&
       state.route === guardedRoute &&
@@ -1174,6 +1203,7 @@ function updateNavActiveClasses() {
   document.querySelectorAll('[data-route]').forEach((btn) => {
     btn.classList.toggle('is-active', btn.dataset.route === state.route);
   });
+  updateExceptionNavCount();
   const mobileBrand = document.querySelector('.shell-top__mobile-brand');
   if (mobileBrand) {
     mobileBrand.textContent = screenLabels[state.route] || systemNameDisplay();

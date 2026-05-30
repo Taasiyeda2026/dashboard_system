@@ -1,5 +1,12 @@
 import { escapeHtml } from './html.js';
 
+function itemLabelHtml(item, counts = {}) {
+  const label = escapeHtml(item.label);
+  const count = item.route === 'exceptions' ? Number(counts.exceptions || 0) : 0;
+  if (!Number.isFinite(count) || count <= 0) return label;
+  return `${label} <span class="ds-nav-count-badge" aria-label="${escapeHtml(String(count))} חריגות">(${escapeHtml(String(count))})</span>`;
+}
+
 export const ACT_SUBNAV_ITEMS = [
   { route: 'dashboard',           label: 'לוח בקרה',             icon: '📊' },
   { route: 'activities',          label: 'פעילויות',             icon: '📋' },
@@ -20,7 +27,7 @@ export const ACT_SUBNAV_ITEMS = [
  * @param {object} state - state.routes, state.route
  * @returns {string}
  */
-export function actNavGridHtml(state) {
+export function actNavGridHtml(state, counts = {}) {
   const availableRoutes = new Set(Array.isArray(state?.routes) ? state.routes : []);
   const currentRoute = state?.route || '';
   const items = ACT_SUBNAV_ITEMS.filter((item) => availableRoutes.has(item.route));
@@ -35,7 +42,7 @@ export function actNavGridHtml(state) {
         dir="rtl"
       >
         <span class="ds-act-nav-item__icon" aria-hidden="true">${item.icon}</span>
-        <span class="ds-act-nav-item__label">${escapeHtml(item.label)}</span>
+        <span class="ds-act-nav-item__label">${itemLabelHtml(item, counts)}</span>
       </button>`
     )
     .join('');
@@ -47,7 +54,7 @@ export function actNavGridHtml(state) {
  * @param {object} state - state.routes, state.route
  * @returns {string}
  */
-export function headerNavGridHtml(state) {
+export function headerNavGridHtml(state, counts = {}) {
   const availableRoutes = new Set(Array.isArray(state?.routes) ? state.routes : []);
   const currentRoute = state?.route || '';
   const items = ACT_SUBNAV_ITEMS.filter((item) => availableRoutes.has(item.route));
@@ -61,7 +68,7 @@ export function headerNavGridHtml(state) {
         data-route="${escapeHtml(item.route)}"
         dir="rtl"
       >
-        <span class="ds-act-nav-item__label">${escapeHtml(item.label)}</span>
+        <span class="ds-act-nav-item__label">${itemLabelHtml(item, counts)}</span>
       </button>`
     )
     .join('');
