@@ -3,6 +3,22 @@ import { escapeHtml } from './shared/html.js';
 const AUDIENCE_OPTIONS = ['הכול', 'יסודי', 'חטיבה'];
 const TYPE_OPTIONS = ['הכול', 'תוכנית', 'סדנה', 'סיור', 'חוג'];
 const STANDALONE_GROUP_LABELS = { escape: 'חדרי בריחה', makers: 'מייקרים', space: 'חלל', tours: 'סיורים', classes: 'חוגים / אפטרסקול' };
+const STANDALONE_CATEGORIES = [
+  ['workshops', 'סדנאות'],
+  ['tours', 'סיורים'],
+  ['classes', 'חוגים'],
+  ['escape', 'חדרי בריחה']
+];
+const STANDALONE_LABELS = Object.fromEntries(STANDALONE_CATEGORIES);
+const CATALOG_SHORT_TITLE_OVERRIDES = new Map([
+  ['המצאות בהשראה מן הטבע', 'ביומימיקרי'],
+  ['טכנולוגיות חלל', 'טכנולוגיות החלל'],
+  ['טכנולוגיות החלל', 'טכנולוגיות החלל'],
+  ['פורצות דרך', 'פורצות דרך'],
+  ['סודות ויסודות הבינה המלאכותית', 'בינה מלאכותית'],
+  ['רוקחים עולם', 'רוקחים עולם'],
+  ['אופק לתעשייה', 'אופק לתעשייה']
+]);
 const SCHOOL_VALUE_COLUMNS = ['למה לבחור בזה?', 'איך זה נראה בכיתה?', 'מה התלמידים לוקחים איתם?'];
 
 function ensureCatalogStyles() {
@@ -154,14 +170,43 @@ function pickFirstNonEmpty(...values) {
   return '';
 }
 
+
+function textBeforeMarketingDash(value) {
+  return String(value || '')
+    .split(/\s+[–—-]\s+/)[0]
+    .trim();
+}
+
+function catalogCardTitleFromFields(p, fullName) {
+  const explicitShortName = pickFirstNonEmpty(
+    p.catalog_short_title,
+    p.catalog_short_name,
+    p.short_title,
+    p.short_name,
+    p.display_short_name,
+    p.display_name_short,
+    p.catalog_display_name
+  );
+  if (explicitShortName) return String(explicitShortName).trim();
+
+  const sourceName = String(fullName || '').trim();
+  for (const [needle, shortTitle] of CATALOG_SHORT_TITLE_OVERRIDES) {
+    if (sourceName.includes(needle)) return shortTitle;
+  }
+
+  const compactTitle = textBeforeMarketingDash(sourceName);
+  return compactTitle || sourceName || 'ללא שם';
+}
+
 function normalizeProgram(item, idx) {
   const p = item && typeof item === 'object' ? item : {};
   const syllabus = Array.isArray(p.syllabus) ? p.syllabus : [];
   const firstSyllabusDescription = syllabus.find((x) => x && typeof x === 'object' && x.description)?.description || '';
+  const fullName = String(pickFirstNonEmpty(p.catalog_title, p.activity_name, p.label_he, p.label, p.name, p.title, p.program_name, p.programName) || 'ללא שם');
   return {
     id: String(pickFirstNonEmpty(p.activity_no, p.id, p.programId, p.slug) || `program-${idx + 1}`),
-    name: String(pickFirstNonEmpty(p.catalog_title, p.activity_name, p.label_he, p.label, p.name, p.title, p.program_name, p.programName) || 'ללא שם'),
-    shortName: String(pickFirstNonEmpty(p.activity_name, p.label_he, p.label, p.catalog_title, p.name, p.title) || ''),
+    name: fullName,
+    catalogCardTitle: catalogCardTitleFromFields(p, fullName),
     audienceLevel: normalizeAudienceLevel(p.audience_level || p.audienceLevel || 'לא צוין'),
     productType: normalizeProductType(
       p.item_type ||
@@ -261,7 +306,7 @@ function isTamirWorkshop(program) {
 
 function renderCatalogCard(program) {
   return `<article class="catalog-card ${toneClassForProgram(program, 'catalog-card')}" data-audience-level="${escapeHtml(program.audienceLevel)}" data-page-template="${escapeHtml(program.pageTemplate)}" data-catalog-open="${escapeHtml(program.id)}">
-    <h3>${escapeHtml(program.shortName || program.name)}</h3>
+    <h3>${escapeHtml(program.catalogCardTitle || program.name)}</h3>
   </article>`;
 }
 
@@ -308,7 +353,7 @@ export const catalogScreen = {
       audience: 'הכול',
       type: 'הכול',
       groupMode: '',
-      standaloneCategory: 'escape',
+      standaloneCategory: 'workshops',
       loadError: payload?.error ? 'לא ניתן לטעון את נתוני הקטלוג. בדקו חיבור והרשאות.' : ''
     };
   },
@@ -333,11 +378,17 @@ export const catalogScreen = {
     };
     const standaloneLabels = STANDALONE_GROUP_LABELS;
     const selectedStandaloneCategory = standaloneByCategory[data.standaloneCategory] ? data.standaloneCategory : 'escape';
+      workshops: workshopAndTours.filter((p) => p.productType === 'סדנה' && !isEscapeRoomProgram(p)),
+      tours: workshopAndTours.filter((p) => p.productType === 'סיור'),
+      classes: workshopAndTours.filter((p) => p.productType === 'חוג' || isAfterSchoolProgram(p)),
+      escape: workshopAndTours.filter((p) => isEscapeRoomProgram(p))
+    };
+    const selectedStandaloneCategory = standaloneByCategory[data.standaloneCategory] ? data.standaloneCategory : 'workshops';
 
     if (!selected && data.groupMode === 'standalone') {
       const selectedStandalonePrograms = standaloneByCategory[selectedStandaloneCategory] || [];
       return `<section class="catalog-screen">
-        <header class="catalog-header"><h2>סיורים, סדנאות</h2><p class="ds-muted">בחירה ממוקדת לפי 4 קבוצות פעילות</p></header>
+        <header class="catalog-header"><h2>סדנאות, סיורים וחוגים</h2><p class="ds-muted">בחירה ממוקדת לפי 4 קבוצות פעילות</p></header>
         <div class="catalog-toolbar">
           <label class="catalog-filter">שכבת גיל <select data-catalog-filter="audience">${AUDIENCE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === audience ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
           <label class="catalog-filter">סוג פעילות <select data-catalog-filter="type">${TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === type ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
@@ -348,11 +399,11 @@ export const catalogScreen = {
         </div>
         <section class="catalog-group">
           <div class="catalog-subgroup-grid">
-            ${Object.entries(standaloneLabels).map(([key, label]) => `<button class="catalog-subgroup-card ${selectedStandaloneCategory === key ? 'is-active' : ''}" data-catalog-subgroup="${escapeHtml(key)}">${escapeHtml(label)}</button>`).join('')}
+            ${STANDALONE_CATEGORIES.map(([key, label]) => `<button class="catalog-subgroup-card ${selectedStandaloneCategory === key ? 'is-active' : ''}" data-catalog-subgroup="${escapeHtml(key)}">${escapeHtml(label)}</button>`).join('')}
           </div>
         </section>
         <section class="catalog-group">
-          <h3 class="catalog-group-title">${escapeHtml(standaloneLabels[selectedStandaloneCategory])}</h3>
+          <h3 class="catalog-group-title">${escapeHtml(STANDALONE_LABELS[selectedStandaloneCategory])}</h3>
           <div class="catalog-group-grid">
             ${selectedStandalonePrograms.length ? selectedStandalonePrograms.map(renderCatalogCard).join('') : '<p class="catalog-empty">אין פריטים להצגה</p>'}
           </div>
@@ -374,9 +425,7 @@ export const catalogScreen = {
           <section class="catalog-group">
             <h3 class="catalog-group-title">סדנאות, סיורים וחוגים</h3>
             <div class="catalog-group-grid">
-              <article class="catalog-card catalog-card--neutral" data-catalog-group-open="standalone">
-                <h3>סדנאות, סיורים וחוגים</h3>
-              </article>
+              ${STANDALONE_CATEGORIES.map(([key, label]) => `<article class="catalog-card catalog-card--neutral" data-catalog-subgroup="${escapeHtml(key)}"><h3>${escapeHtml(label)}</h3></article>`).join('')}
             </div>
           </section>
         </div>
@@ -444,7 +493,7 @@ export const catalogScreen = {
       }
       if (ev.target.closest('[data-catalog-group-open="standalone"]')) {
         data.groupMode = 'standalone';
-        data.standaloneCategory = 'escape';
+        data.standaloneCategory = 'workshops';
         data.selectedId = '';
         rerender();
         return;
@@ -452,7 +501,7 @@ export const catalogScreen = {
       const subgroupButton = ev.target.closest('[data-catalog-subgroup]');
       if (subgroupButton) {
         data.groupMode = 'standalone';
-        data.standaloneCategory = subgroupButton.dataset.catalogSubgroup || 'escape';
+        data.standaloneCategory = subgroupButton.dataset.catalogSubgroup || 'workshops';
         data.selectedId = '';
         rerender();
         return;
