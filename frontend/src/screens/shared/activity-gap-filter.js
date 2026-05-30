@@ -15,8 +15,7 @@ export function activityGapTypes(row = {}) {
   if (!instructorName && !emp1 && !emp2) types.push('missing_instructor');
 
   const start = normalizedDate(row?.start_date ?? row?.date_start);
-  const date1 = normalizedDate(row?.date_1 ?? row?.Date1);
-  if (!start && !date1) types.push('missing_start_date');
+  if (!start) types.push('missing_start_date');
   return types;
 }
 

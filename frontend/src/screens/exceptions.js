@@ -17,7 +17,7 @@ import {
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
-import { normalizedExceptionTypes } from './shared/exceptions-metrics.js';
+import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './shared/exceptions-metrics.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
 
@@ -48,7 +48,7 @@ function exceptionCardTone(row, fallbackTone = 'other') {
   const type = normalizedExceptionTypes(row)[0] || fallbackTone;
   if (type === 'missing_start_date') return 'waiting-date';
   if (type === 'end_date_passed') return 'ended-open';
-  if (type === 'late_end_date') return 'late-end';
+  if (type === 'end_date_out_of_sync') return 'end-date-sync';
   if (type === 'missing_instructor') return 'missing-instructor';
   return 'other';
 }
@@ -116,9 +116,7 @@ function exceptionDrawerHtml(row, hideRowId) {
   const grade = String(row.grade || '').trim();
   const classGroup = String(row.class_group || '').trim();
   const classDisplay = [grade, classGroup].filter(Boolean).join(' ');
-  const lateThreshold = String(row?._late_end_date_threshold || '').trim();
-  const lateHits = Array.isArray(row?._late_end_date_hits) ? row._late_end_date_hits : [];
-  const lateHitsHe = lateHits.map((date) => formatDateHe(date) || String(date || '').trim()).filter(Boolean).join(', ');
+  const calculatedEndDate = String(row?._calculated_end_date || '').trim();
 
   return `<div class="ds-details-grid" dir="rtl">
     ${hideRowId ? '' : `<p><strong>${escapeHtml(hebrewColumn('RowID'))}:</strong> ${escapeHtml(String(row.RowID || '—'))}</p>`}
@@ -137,8 +135,7 @@ function exceptionDrawerHtml(row, hideRowId) {
     ${fieldRow(hebrewColumn('end_date'),    endDate)}
     ${fieldRow(hebrewColumn('sessions'),    row.sessions)}
     ${fieldRow(hebrewColumn('status'),      row.status)}
-    ${lateThreshold ? fieldRow('סף חריגת תאריך סיום מאוחר', formatDateHe(lateThreshold) || lateThreshold) : ''}
-    ${lateHitsHe ? fieldRow('מפגשים אחרי הסף', lateHitsHe) : ''}
+    ${calculatedEndDate ? fieldRow('תאריך סיום מחושב', formatDateHe(calculatedEndDate) || calculatedEndDate) : ''}
     ${row.notes ? fieldRow('הערות', row.notes) : ''}
   </div>`;
 }
@@ -159,21 +156,21 @@ export const exceptionsScreen = {
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const toolbarHtml = filtersToolbarHtml(EXCEPTIONS_SCOPE, allRows, state, {
       filterFields: EXCEPTION_FILTER_FIELDS,
-      searchPlaceholder: 'חיפוש חריגות קורסים…',
+      searchPlaceholder: 'חיפוש חריגות…',
       optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
     });
     const waitingDateRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('missing_start_date'));
     const endDatePassedRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('end_date_passed'));
-    const lateEndDateRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('late_end_date'));
+    const endDateOutOfSyncRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('end_date_out_of_sync'));
     const noInstructorRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('missing_instructor'));
-    const mainTypes = new Set(['missing_start_date', 'late_end_date', 'end_date_passed', 'missing_instructor']);
+    const mainTypes = new Set(EXCEPTION_TYPE_ORDER);
     const otherExceptionRows = filteredRows.filter((row) => normalizedExceptionTypes(row).some((type) => !mainTypes.has(type)));
     const hasAnyRows = filteredRows.length > 0;
     const groups = [
-      { key: 'waiting-date', title: 'פעילויות ממתינות לתיאום תאריך', rows: waitingDateRows },
-      { key: 'ended-open', title: 'פעילויות פתוחות שהסתיימו', rows: endDatePassedRows },
-      { key: 'late-end', title: 'פעילויות עם תאריך סיום מאוחר', rows: lateEndDateRows },
-      { key: 'missing-instructor', title: 'פעילויות ללא מדריך', rows: noInstructorRows },
+      { key: 'ended-open', title: 'הסתיימה ולא נסגרה', rows: endDatePassedRows },
+      { key: 'end-date-sync', title: 'סיום לא מעודכן', rows: endDateOutOfSyncRows },
+      { key: 'missing-instructor', title: 'ללא מדריך', rows: noInstructorRows },
+      { key: 'waiting-date', title: 'ללא תאריך התחלה', rows: waitingDateRows },
       ...(otherExceptionRows.length ? [{ key: 'other', title: 'חריגות נוספות', rows: otherExceptionRows }] : [])
     ].filter((group) => group.rows.length > 0);
 

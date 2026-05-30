@@ -343,7 +343,7 @@ test('backend has all 3 exception type keys in counts object', async () => {
   }
   assert.match(src, /missing_instructor:\s*0/);
   assert.match(src, /missing_start_date:\s*0/);
-  assert.match(src, /late_end_date:\s*0/);
+  assert.match(src, /end_date_out_of_sync:\s*0|late_end_date:\s*0/);
 });
 
 test('frontend exceptions screen uses single row action by RowID', async () => {
@@ -378,21 +378,21 @@ test('frontend exceptions screen renders only non-empty groups', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
   assert.match(src, /\.filter\(\(group\) => group\.rows\.length > 0\)/,
     'empty exception groups should be filtered out');
-  assert.match(src, /return dsCard\(\{ title: `\$\{title\} · \$\{rows\.length\}`/,
+  assert.match(src, /const groupTitle = `\$\{title\} · \$\{rows\.length\}`/,
     'group titles should include item count');
 });
 
 test('frontend exception Hebrew labels describe the exception details clearly', async () => {
   const src = await read('frontend/src/screens/shared/ui-hebrew.js');
-  assert.match(src, /missing_instructor:\s+'חסר מדריך'/);
-  assert.match(src, /missing_start_date:\s+'חסר תאריך התחלה'/);
-  assert.match(src, /late_end_date:\s+'תאריך סיום מאוחר'/);
+  assert.match(src, /missing_instructor:\s+'ללא מדריך'/);
+  assert.match(src, /missing_start_date:\s+'ללא תאריך התחלה'/);
+  assert.match(src, /end_date_out_of_sync:\s+'סיום לא מעודכן'/);
 });
 
-test('exceptions screen separates end_date_passed and late_end_date into distinct group titles', async () => {
+test('exceptions screen separates end_date_passed and end_date_out_of_sync into distinct group titles', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
-  assert.match(src, /פעילויות פתוחות שהסתיימו/);
-  assert.match(src, /פעילויות עם תאריך סיום מאוחר/);
+  assert.match(src, /הסתיימה ולא נסגרה/);
+  assert.match(src, /סיום לא מעודכן/);
   assert.doesNotMatch(src, /פעילויות עם חריגת תאריך סיום/);
 });
 
@@ -402,13 +402,13 @@ test('exceptions screen group count matches rendered clickable cards', () => {
     month: '2026-05',
     rows: [
       { RowID: '1', activity_name: 'א', authority: 'ר1', school: 'ב1', exception_types: ['end_date_passed'] },
-      { RowID: '2', activity_name: 'ב', authority: 'ר1', school: 'ב1', exception_types: ['late_end_date'] },
-      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['late_end_date', 'missing_instructor'] }
+      { RowID: '2', activity_name: 'ב', authority: 'ר1', school: 'ב1', exception_types: ['end_date_out_of_sync'] },
+      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['end_date_out_of_sync', 'missing_instructor'] }
     ]
   };
   const html = exceptionsScreen.render(data, { state });
-  assert.match(html, /פעילויות פתוחות שהסתיימו · 1/);
-  assert.match(html, /פעילויות עם תאריך סיום מאוחר · 2/);
+  assert.match(html, /הסתיימה ולא נסגרה · 1/);
+  assert.match(html, /סיום לא מעודכן · 2/);
   const clickableCards = (html.match(/data-card-action="exception:/g) || []).length;
   assert.equal(clickableCards, 4, 'each grouped appearance must be rendered as a clickable card');
   assert.doesNotMatch(html, /data-action="delete"/);

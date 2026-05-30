@@ -244,6 +244,24 @@ function getActivityDateColumns(row = {}) {
   }
   return dates;
 }
+
+function calculatedEndDateFromActivityDates(row = {}) {
+  const dates = getActivityDateColumns(row);
+  return dates.length ? dates.reduce((max, dateKey) => (dateKey > max ? dateKey : max), '') : '';
+}
+
+function todayLocalIsoDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function isOpenStatus(row = {}) {
+  return String(row?.status || '').trim() === 'פתוח';
+}
+
+function districtDisplayKey(row = {}) {
+  return String(row?.district || '').trim() || 'ללא מחוז';
+}
 function hasAnyActivityDate(row = {}) {
   if (normalizeSupabaseDate(row?.start_date ?? row?.date_start)) return true;
   if (normalizeSupabaseDate(row?.end_date ?? row?.date_end)) return true;
@@ -911,7 +929,7 @@ async function dashboardReadModelFromSupabase(month) {
       throw new Error('dashboard_exceptions_model_failed');
     }
     const exceptionCounts = exceptionSummary.counts || {};
-    const exceptionsByManager = exceptionSummary.byManager || {};
+    const exceptionsByDistrict = exceptionSummary.byDistrict || exceptionSummary.byManager || {};
 
     // Active (open-only) summary data
     const instructorIds = new Set();
@@ -920,7 +938,7 @@ async function dashboardReadModelFromSupabase(month) {
     const byManagerMap = new Map();
 
     function managerStats(manager) {
-      const key = cleanActivityManagerName(manager) || NO_ACTIVITY_MANAGER_LABEL;
+      const key = String(manager || '').trim() || 'ללא מחוז';
       if (!byManagerMap.has(key)) {
         byManagerMap.set(key, {
           activity_manager: key,
@@ -948,7 +966,7 @@ async function dashboardReadModelFromSupabase(month) {
       if (instructor1 || emp1) instructorNames.add(instructor1 || emp1);
       if (instructor2 || emp2) instructorNames.add(instructor2 || emp2);
 
-      const stats = managerStats(row?.activity_manager);
+      const stats = managerStats(row?.district);
       stats.total_activities += 1;
       if (isProgramActivity(row)) stats.total_long += 1;
       if (isOneDayActivity(row)) stats.total_short += 1;
@@ -958,10 +976,10 @@ async function dashboardReadModelFromSupabase(month) {
     }
 
     for (const row of endingRows) {
-      managerStats(row?.activity_manager).course_endings += 1;
+      managerStats(row?.district).course_endings += 1;
     }
-    for (const [manager, count] of Object.entries(exceptionsByManager)) {
-      managerStats(manager).exceptions = Number(count || 0);
+    for (const [district, count] of Object.entries(exceptionsByDistrict)) {
+      managerStats(district).exceptions = Number(count || 0);
     }
 
     const by_activity_manager = [...byManagerMap.values()].map((stats) => {
@@ -969,7 +987,7 @@ async function dashboardReadModelFromSupabase(month) {
       delete stats._instructors;
       return stats;
     });
-    const exceptionsCount = Number(exceptionSummary.totalExceptionRows || 0);
+    const exceptionsCount = Number(exceptionSummary.totalExceptionInstances || 0);
     const totals = {
       total_short_activities: allMonthRows.filter(isOneDayActivity).length,
       total_long_activities: allMonthRows.filter(isProgramActivity).length,
@@ -986,15 +1004,15 @@ async function dashboardReadModelFromSupabase(month) {
       missing_instructor_count: Number(exceptionCounts.missing_instructor || 0),
       missing_start_date_count: Number(exceptionCounts.missing_start_date || 0),
       missing_date_count: Number(exceptionCounts.missing_start_date || 0),
-      late_end_date_count: Number(exceptionCounts.late_end_date || 0),
+      end_date_out_of_sync_count: Number(exceptionCounts.end_date_out_of_sync || 0),
       end_date_passed_count: Number(exceptionCounts.end_date_passed || 0),
-      operational_gaps_count: Number(exceptionSummary.operationalUniqueCount || 0),
-      operational_gaps_unique_count: Number(exceptionSummary.operationalUniqueCount || 0),
-      operationalTotal: Number(exceptionSummary.operationalUniqueCount || 0),
+      operational_gaps_count: exceptionsCount,
+      operational_gaps_unique_count: Number(exceptionSummary.uniqueExceptionActivities || exceptionSummary.totalExceptionRows || 0),
+      operationalTotal: exceptionsCount,
       exceptions_count: exceptionsCount,
-      totalExceptionRows: exceptionsCount,
-      total_exception_rows: exceptionsCount,
-      totalExceptionInstances: Number(exceptionSummary.totalExceptionInstances || 0),
+      totalExceptionRows: Number(exceptionSummary.totalExceptionRows || 0),
+      total_exception_rows: Number(exceptionSummary.totalExceptionRows || 0),
+      totalExceptionInstances: exceptionsCount,
       counts: exceptionCounts
     };
     // KPI cards use totalTypeCounts (all month rows including closed)
@@ -1037,62 +1055,51 @@ async function readEndDatesFromSupabase() {
 
 
 function activityOverlapsMonthForExceptions(row, month) {
-  if (!/^\d{4}-\d{2}$/.test(String(month || ''))) return true;
-
-  const range = monthDateRange(month);
-  const dates = getActivityDateColumns(row);
-  if (dates.length > 0) {
-    return dates.some((dateKey) => dateKey >= range.startDate && dateKey <= range.endDate);
-  }
-
-  const start = firstNormalizedDate(row?.start_date, row?.date_start);
-  // Missing start_date is itself an exception and must stay visible under a
-  // month filter because there is no reliable date from which to exclude it.
-  if (!start) return true;
-  const end = firstNormalizedDate(row?.end_date, row?.date_end) || start;
-  return start <= range.endDate && end >= range.startDate;
+  void row;
+  void month;
+  // Exceptions are intentionally computed from the current activity record, not
+  // from the selected dashboard month. This keeps end-date-passed and data-sync
+  // anomalies visible until they are fixed or the activity is closed/deleted.
+  return true;
 }
 
 function rowExceptionTypesFromActivity(row, opts = {}) {
   const types = [];
   const knownIds    = opts.knownInstructorIds; // Set<string> | undefined
-  const lateEndThreshold = normalizeSupabaseDate(opts.lateEndDateThreshold);
   const emp1        = nullStr(row?.emp_id);
   const emp2        = nullStr(row?.emp_id_2);
   const instructorName = resolveActivityInstructorName(row);
   const start       = firstNormalizedDate(row?.start_date, row?.date_start);
   const end         = firstNormalizedDate(row?.end_date, row?.date_end);
-  const now = new Date();
-  const todayLocalIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const todayLocalIso = todayLocalIsoDate();
+  const inactive = isActivityInactive(row);
 
   // Instructor check uses the same normalized name source used by the UI.
   // A valid displayed instructor name is sufficient even when guideId/emp_id is
   // missing or not present in the contacts table. Technical ids are a fallback.
   const isValidId = (id) => !!id && (!knownIds || knownIds.has(id));
   const hasValidInstructor = !!instructorName || isValidId(emp1) || isValidId(emp2);
-  if (!hasValidInstructor) types.push('missing_instructor');
+  if (!inactive && !hasValidInstructor) types.push('missing_instructor');
 
-  // Start-date check: date_1 is a real scheduling date too, so either a
-  // valid start_date or a valid first meeting date resolves this exception.
-  const date1 = normalizeSupabaseDate(row?.date_1 ?? row?.Date1);
-  if (!start && !date1) types.push('missing_start_date');
+  // Missing start date is based only on start_date; meeting dates do not replace
+  // the dedicated start date field for this exception.
+  if (!inactive && !start) types.push('missing_start_date');
 
-  const meetingDates = getActivityDateColumns(row);
-  const lateMeetingDates = lateEndThreshold
-    ? meetingDates.filter((dateKey) => dateKey > lateEndThreshold)
-    : [];
-  if (end && end < todayLocalIso) {
+  // Ended but not closed: only status "פתוח", real end_date, and the end date is
+  // before today. It is not based on month-end or on meeting dates.
+  if (isOpenStatus(row) && end && end < todayLocalIso) {
     types.push('end_date_passed');
   }
 
-  if (lateMeetingDates.length > 0) {
-    types.push('late_end_date');
-    row._late_end_date_threshold = lateEndThreshold;
-    row._late_end_date_hits = lateMeetingDates;
-  } else {
-    row._late_end_date_threshold = lateEndThreshold || '';
-    row._late_end_date_hits = [];
+  // Data synchronization gap: end_date must exactly match the latest meeting date.
+  // This replaces the old late_end_date / meeting-after-end labels.
+  const calculatedEndDate = calculatedEndDateFromActivityDates(row);
+  row._calculated_end_date = calculatedEndDate || '';
+  if (end && calculatedEndDate && end !== calculatedEndDate) {
+    types.push('end_date_out_of_sync');
   }
+  row._late_end_date_threshold = '';
+  row._late_end_date_hits = [];
   return types;
 }
 
@@ -1100,37 +1107,42 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
   const includeRows = opts.include_rows !== false;
   const knownInstructorIds = opts.knownInstructorIds; // Set<string> | undefined
   const rows = [];
-  const counts = { missing_instructor: 0, missing_start_date: 0, late_end_date: 0, end_date_passed: 0 };
-  const byManager = {};
-  let operationalUniqueCount = 0;
+  const counts = { missing_instructor: 0, missing_start_date: 0, end_date_out_of_sync: 0, end_date_passed: 0 };
+  const byDistrict = {};
+  const uniqueActivityIds = new Set();
   for (const row of activityRows) {
     if (isActivityInactive(row)) continue;
-    if (rowActivityType(row) !== 'course') continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
-    const types = rowExceptionTypesFromActivity(row, {
-      knownInstructorIds,
-      lateEndDateThreshold: opts.lateEndDateThreshold
-    });
+    const types = rowExceptionTypesFromActivity(row, { knownInstructorIds });
     if (!types.length) continue;
-    const manager = cleanActivityManagerName(row?.activity_manager) || NO_ACTIVITY_MANAGER_LABEL;
-    byManager[manager] = (byManager[manager] || 0) + 1;
-    for (const type of types) counts[type] = (counts[type] || 0) + 1;
-    if (types.includes('missing_instructor') || types.includes('missing_start_date')) {
-      operationalUniqueCount += 1;
-    }
+    const uniqueTypes = [...new Set(types)];
+    const district = districtDisplayKey(row);
+    byDistrict[district] = (byDistrict[district] || 0) + uniqueTypes.length;
+    for (const type of uniqueTypes) counts[type] = (counts[type] || 0) + 1;
+    const activityKey = String(row?.RowID || row?.row_id || '').trim() || [row?.activity_name, row?.school, row?.authority].map((v) => String(v || '').trim()).join('|');
+    if (activityKey) uniqueActivityIds.add(activityKey);
     if (includeRows) {
       rows.push({
         ...row,
-        exception_type: types[0],
-        exception_types: [...new Set(types)],
-        exception_count: types.length,
-        has_multiple_exceptions: types.length > 1 ? 'yes' : 'no'
+        exception_type: uniqueTypes[0],
+        exception_types: uniqueTypes,
+        exception_count: uniqueTypes.length,
+        has_multiple_exceptions: uniqueTypes.length > 1 ? 'yes' : 'no'
       });
     }
   }
-  const totalExceptionRows = Object.values(byManager).reduce((sum, value) => sum + Number(value || 0), 0);
+  const totalExceptionRows = uniqueActivityIds.size;
   const totalExceptionInstances = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
-  return { rows, totalExceptionRows, totalExceptionInstances, operationalUniqueCount, counts, byManager };
+  return {
+    rows,
+    totalExceptionRows,
+    totalExceptionInstances,
+    uniqueExceptionActivities: totalExceptionRows,
+    operationalUniqueCount: totalExceptionRows,
+    counts,
+    byManager: byDistrict,
+    byDistrict
+  };
 }
 
 function buildExceptionsFromRows(activityRows = [], month = '') {
@@ -1138,123 +1150,40 @@ function buildExceptionsFromRows(activityRows = [], month = '') {
 }
 
 async function readExceptionsFromSupabase(params = {}) {
-  if (!supabase) return buildSupabaseErrorPayload({ rows: [], totalExceptionRows: 0 }, 'no_supabase_client');
+  if (!supabase) return buildSupabaseErrorPayload({ rows: [], totalExceptionRows: 0, totalExceptionInstances: 0 }, 'no_supabase_client');
   const candidate = String(params?.month || params?.ym || '').trim();
   const now = new Date();
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
-  const COURSE_TYPE_VALUES = ['course', 'קורס', 'קורסים'];
   try {
-    const range = monthDateRange(month);
-    const settingsPromise = supabase
-      .from('settings')
-      .select('key,value')
-      .eq('key', 'late_end_date_threshold')
-      .maybeSingle();
+    const [activitiesResult, instrListResult] = await Promise.all([
+      supabase.from('activities').select('*'),
+      supabase.from('contacts_instructors').select('emp_id')
+    ]);
+    if (activitiesResult.error) throw new Error(activitiesResult.error.message || 'activities_read_failed');
 
-    // Query 1: courses active in the chosen month (date-range based)
-    const dateRangeRowsRaw = await selectActivitiesByDateRangeFromSupabase({
-      startDate: range.startDate,
-      endDate: range.endDate,
-      activityType: 'course',
-      includeEndDate: true
-    });
-    const dateRangeRows = dateRangeRowsRaw.filter((row) => {
-      if (rowActivityType(row) !== 'course') return false;
-      return activityHasDateInMonth(row, month)
-        || String(row?.end_date || '').startsWith(month);
-    });
-
-    // Fetch known instructor IDs from contacts list (for cross-reference validation)
-    const instrListResult = await supabase.from('contacts_instructors').select('emp_id');
     const knownInstructorIds = new Set(
       (Array.isArray(instrListResult.data) ? instrListResult.data : [])
         .map((r) => nullStr(r?.emp_id))
         .filter(Boolean)
     );
-
-    // Query 2 + 3 + 4 (parallel):
-    // 2 — broad open-course candidates for missing_start_date
-    // 3 — open courses where all instructor fields are empty
-    // 4 — open courses where emp_id is set but NOT in the known instructors list
-    const queryBase = () =>
-      supabase.from('activities').select('*').in('activity_type', COURSE_TYPE_VALUES).not('status', 'in', '("סגור","נמחק")');
-
-    const knownIdsList = [...knownInstructorIds];
-
-    const [missingStartResult, missingInstructorResult, invalidInstructorResult, lateEndDateResult, lateEndThresholdResult] = await Promise.all([
-      // 2: broad missing-start candidates. This query is intentionally
-      // not constrained by month: undated courses must stay visible as
-      // missing_start_date exceptions even while a month filter is active.
-      // Keep this broad instead of relying on Supabase .or() null/blank
-      // filters so textual markers like "NULL", "null", "undefined" and
-      // whitespace-only values are normalized and classified in code by
-      // rowExceptionTypesFromActivity/buildExceptionsModelFromRows.
-      queryBase(),
-      // 3: all instructor fields are empty
-      queryBase()
-        .or('emp_id.is.null,emp_id.eq.')
-        .or('emp_id_2.is.null,emp_id_2.eq.')
-        .or('instructor_name.is.null,instructor_name.eq.')
-        .or('instructor_name_2.is.null,instructor_name_2.eq.'),
-      // 4: emp_id is present but not in the official instructors list
-      knownIdsList.length > 0
-        ? queryBase()
-            .not('emp_id', 'is', null)
-            .neq('emp_id', '')
-            .not('emp_id', 'in', `(${knownIdsList.join(',')})`)
-        : Promise.resolve({ data: [] }),
-      // 5: broad open-course candidates for late_end_date. The exact exception
-      // is recomputed below from fresh normalized meeting dates and the
-      // configurable late_end_date_threshold.
-      queryBase(),
-      settingsPromise
-    ]);
-    const lateEndDateThresholdRaw = lateEndThresholdResult?.data?.value;
-    const lateEndDateThreshold = normalizeSupabaseDate(lateEndDateThresholdRaw);
-    if (!lateEndDateThreshold) {
-      console.warn('[exceptions] late_end_date_threshold missing/invalid in settings; late_end_date exceptions disabled until key is fixed.', {
-        key: 'late_end_date_threshold',
-        raw: lateEndDateThresholdRaw ?? null
-      });
-    }
-
-    const missingStartRows      = (Array.isArray(missingStartResult.data)      ? missingStartResult.data      : []).map(normalizeActivityRow);
-    const missingInstructorRows = (Array.isArray(missingInstructorResult.data) ? missingInstructorResult.data : []).map(normalizeActivityRow);
-    const invalidInstructorRows = (Array.isArray(invalidInstructorResult.data) ? invalidInstructorResult.data : []).map(normalizeActivityRow);
-    const lateEndDateRows       = (Array.isArray(lateEndDateResult.data)       ? lateEndDateResult.data       : []).map(normalizeActivityRow);
-
-    // Deduplicate by RowID across all result sets
-    const seenIds = new Set();
-    const allRows = [];
-    for (const row of [...dateRangeRows, ...missingStartRows, ...missingInstructorRows, ...invalidInstructorRows, ...lateEndDateRows]) {
-      const id = row?.RowID;
-      if (id != null && seenIds.has(id)) continue;
-      if (id != null) seenIds.add(id);
-      allRows.push(row);
-    }
-
+    const allRows = (Array.isArray(activitiesResult.data) ? activitiesResult.data : []).map(normalizeActivityRow);
     const exceptionSummary = buildExceptionsModelFromRows(allRows, month, {
       include_rows: true,
-      knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined,
-      lateEndDateThreshold
+      knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined
     });
-    const { data: allActivitiesRaw, error: allActivitiesError } = await supabase.from('activities').select('*');
-    if (allActivitiesError) throw new Error(allActivitiesError.message || 'activities_read_failed');
-    const undatedRows = (Array.isArray(allActivitiesRaw) ? allActivitiesRaw : [])
-      .map(normalizeActivityRow)
+    const undatedRows = allRows
       .filter((row) => !isActivityInactive(row))
       .filter((row) => !hasAnyActivityDate(row));
     return {
       month,
-      late_end_date_threshold: lateEndDateThreshold || '',
       ...exceptionSummary,
       undatedRows,
       undatedCount: undatedRows.length,
       _source: 'supabase'
     };
   } catch (error) {
-    return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0, undatedRows: [], undatedCount: 0 }, error);
+    return buildSupabaseErrorPayload({ rows: [], month, totalExceptionRows: 0, totalExceptionInstances: 0, undatedRows: [], undatedCount: 0 }, error);
   }
 }
 
@@ -2025,6 +1954,7 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'row_id',
   'activity_family',
   'activity_manager',
+  'district',
   'authority',
   'school',
   'grade',
@@ -2175,11 +2105,18 @@ async function updateActivityInSupabase(payload = {}) {
   );
   const hasMeetingDateChange = Object.keys(changes).some((k) => /^date_\d+$/.test(k));
   const hasExplicitEndDate = Object.prototype.hasOwnProperty.call(changes, 'end_date');
-  if (hasMeetingDateChange && !hasExplicitEndDate) {
-    const derivedEnd = deriveEndDateFromDates(changes);
-    changes.end_date = derivedEnd || null;
-  }
   if (!rowId) throw new Error('missing_row_id');
+  if (hasMeetingDateChange && !hasExplicitEndDate) {
+    const { data: existingRow, error: existingError } = await supabase
+      .from('activities')
+      .select(Array.from({ length: 35 }, (_, idx) => `date_${idx + 1}`).join(','))
+      .eq('row_id', rowId)
+      .maybeSingle();
+    if (existingError) throw buildSupabaseMutationError('saveActivity', existingError, 'save_failed');
+    const mergedDates = { ...(existingRow || {}), ...changes };
+    const derivedEnd = deriveEndDateFromDates(mergedDates);
+    if (derivedEnd) changes.end_date = derivedEnd;
+  }
   if (!Object.keys(changes).length) throw new Error('No changes to submit');
   const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes };
   logActivityMutationDebug('request', 'saveActivity', debugPayload, { table: 'activities' });

@@ -38,7 +38,7 @@ function activeCourse(overrides = {}) {
   });
 }
 
-test('active course without start_date and date_1 appears as missing_start_date exception', () => {
+test('active activity without start_date appears as missing_start_date exception', () => {
   const row = activeCourse({ start_date: '', end_date: '', date_1: '' });
 
   assert.deepEqual(rowExceptionTypesFromActivity(row), ['missing_start_date']);
@@ -50,7 +50,7 @@ test('active course without start_date and date_1 appears as missing_start_date 
   assert.ok(model.rows[0].exception_types.includes('missing_start_date'));
 });
 
-test('month filter does not hide a course that has no start_date and no date_1 from exceptions', () => {
+test('month filter does not hide an activity that has no start_date from exceptions', () => {
   const row = activeCourse({ RowID: 'A-2', start_date: null, end_date: '', date_1: null });
 
   const mayModel = buildExceptionsModelFromRows([row], '2026-05', { include_rows: true });
@@ -79,13 +79,13 @@ test('activity with date_1 is matched by meeting dates before start/end fallback
   assert.equal(rowMatchesActivitiesFilters(row, { month: '2026-05', activity_type: 'all' }), false);
 });
 
-test('entering a valid start_date or date_1 removes missing_start_date automatically', () => {
+test('only a valid start_date removes missing_start_date automatically', () => {
   assert.equal(rowExceptionTypesFromActivity(activeCourse({ start_date: '', date_1: '' })).includes('missing_start_date'), true);
   assert.equal(rowExceptionTypesFromActivity(activeCourse({ start_date: '2026-05-10', date_1: '' })).includes('missing_start_date'), false);
-  assert.equal(rowExceptionTypesFromActivity(activeCourse({ start_date: '', date_1: '2026-05-10' })).includes('missing_start_date'), false);
+  assert.equal(rowExceptionTypesFromActivity(activeCourse({ start_date: '', date_1: '2026-05-10' })).includes('missing_start_date'), true);
 });
 
-test('late_end_date is computed from threshold and date_1..date_35 (not end_date)', () => {
+test('end_date_out_of_sync is computed from latest date_1..date_35', () => {
   const row = activeCourse({
     RowID: 'A-10',
     start_date: '2026-05-01',
@@ -93,22 +93,19 @@ test('late_end_date is computed from threshold and date_1..date_35 (not end_date
     date_1: '2026-06-16',
     date_2: '2026-06-10'
   });
-  const types = rowExceptionTypesFromActivity(row, { lateEndDateThreshold: '2026-06-15' });
-  assert.equal(types.includes('late_end_date'), true);
-  assert.deepEqual(row._late_end_date_hits, ['2026-06-16']);
-  assert.equal(row._late_end_date_threshold, '2026-06-15');
+  const types = rowExceptionTypesFromActivity(row);
+  assert.equal(types.includes('end_date_out_of_sync'), true);
+  assert.equal(row._calculated_end_date, '2026-06-16');
 });
 
-test('without valid threshold, late_end_date is not inferred and keeps safe fallback metadata', () => {
+test('matching end_date and latest meeting date does not create end_date_out_of_sync', () => {
   const row = activeCourse({
     RowID: 'A-11',
-    end_date: '2026-05-01',
+    end_date: '2026-06-20',
     date_1: '2026-06-20'
   });
-  const types = rowExceptionTypesFromActivity(row, { lateEndDateThreshold: 'not-a-date' });
-  assert.equal(types.includes('late_end_date'), false);
-  assert.deepEqual(row._late_end_date_hits, []);
-  assert.equal(row._late_end_date_threshold, '');
+  const types = rowExceptionTypesFromActivity(row);
+  assert.equal(types.includes('end_date_out_of_sync'), false);
 });
 
 
@@ -122,24 +119,25 @@ test('textual null markers in start_date/date_1 are treated as missing_start_dat
   assert.equal(rowExceptionTypesFromActivity(undefinedWhitespace).includes('missing_start_date'), true);
 });
 
-test('closed and non-course rows are excluded from course exceptions', () => {
+test('closed rows are excluded while non-course activities can still have exceptions', () => {
   const workshop = activeCourse({ RowID: 'A-8', activity_type: 'workshop', start_date: '', date_1: '' });
   const closed = activeCourse({ RowID: 'A-9', status: 'סגור', start_date: '', date_1: '' });
 
   const model = buildExceptionsModelFromRows([workshop, closed], '2026-05', { include_rows: true });
 
-  assert.equal(model.totalExceptionRows, 0);
-  assert.equal(model.rows.length, 0);
-  assert.equal(model.counts.missing_start_date, 0);
+  assert.equal(model.totalExceptionRows, 1);
+  assert.equal(model.rows.length, 1);
+  assert.equal(model.counts.missing_start_date, 1);
 });
 
-test('Supabase missing-start candidates are loaded broadly and filtered in code', async () => {
+test('Supabase exceptions read uses a single activities source and computes in code', async () => {
   const source = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 
-  const block = source.match(/const \[missingStartResult[\s\S]*?\] = await Promise\.all\(\[([\s\S]*?)\n    \]\);/);
-  assert.ok(block, 'readExceptionsFromSupabase should fetch parallel exception candidate queries');
-  assert.match(block[1], /queryBase\(\),/);
-  assert.doesNotMatch(block[1], /start_date\.is\.null,start_date\.eq\.[\s\S]*date_1\.is\.null,date_1\.eq\./);
+  const block = source.match(/async function readExceptionsFromSupabase[\s\S]*?function syncContactToSupabase/);
+  assert.ok(block, 'readExceptionsFromSupabase should exist');
+  assert.match(block[0], /supabase\.from\('activities'\)\.select\('\*'\)/);
+  assert.match(block[0], /buildExceptionsModelFromRows\(allRows/);
+  assert.doesNotMatch(block[0], /missingStartResult|lateEndDateResult|late_end_date_threshold/);
 });
 
 test('allActivities export path reads all activities without applying month/date filters', async () => {

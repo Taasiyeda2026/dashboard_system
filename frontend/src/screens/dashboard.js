@@ -90,11 +90,6 @@ function renderKpiCard(k) {
   return cardBtn;
 }
 
-const MANAGER_DISPLAY_NAMES = {
-  'גיל נאמן':               'מחוז צפון',
-  'לינוי שמואל מזרחי':      'מחוז דרום',
-};
-
 const ACTIVITY_TYPE_ORDER = [
   { key: 'course',       label: 'קורסים' },
   { key: 'after_school', label: 'אפטרסקול' },
@@ -110,9 +105,9 @@ function renderStructuredSummary(summary, ym, byManager) {
   const counts = summary?.counts && typeof summary.counts === 'object' ? summary.counts : {};
   const missingInstructorCount = pickNumericFallback(counts, 'missing_instructor', summary?.missing_instructor_count);
   const missingStartDateCount = pickNumericFallback(counts, 'missing_start_date', summary?.missing_start_date_count ?? summary?.missing_date_count);
-  const lateEndCount = pickNumericFallback(counts, 'late_end_date', summary?.late_end_date_count);
+  const endDateOutOfSyncCount = pickNumericFallback(counts, 'end_date_out_of_sync', summary?.end_date_out_of_sync_count);
   const endDatePassedCount = pickNumericFallback(counts, 'end_date_passed', summary?.end_date_passed_count);
-  const exceptionsTotalField = getStrictNumericField(summary, 'totalExceptionRows');
+  const exceptionsTotalField = getStrictNumericField(summary, 'totalExceptionInstances');
   const exceptionsTotalFallback = getStrictNumericField(summary, 'exceptions_count');
   const exceptionsTotalResolved = exceptionsTotalField.ok
     ? exceptionsTotalField.value
@@ -123,7 +118,7 @@ function renderStructuredSummary(summary, ym, byManager) {
   const operationalUniqueCount = operationalUniqueField.ok ? operationalUniqueField.value : 0;
   const missingInstructor = missingInstructorCount;
   const missingStartDate  = missingStartDateCount;
-  const lateEnd = escapeHtml(String(lateEndCount));
+  const endDateOutOfSync = escapeHtml(String(endDateOutOfSyncCount));
   const endDatePassed = escapeHtml(String(endDatePassedCount));
 
   const typeCounts = summary?.active_type_counts || {};
@@ -142,7 +137,7 @@ function renderStructuredSummary(summary, ym, byManager) {
     (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned' && row.activity_manager !== 'ללא' && row.activity_manager !== 'ללא מנהל'
   );
   const districtByName = districtRows.reduce((acc, row) => {
-    const label = MANAGER_DISPLAY_NAMES[row.activity_manager] || row.activity_manager;
+    const label = row.activity_manager;
     acc[label] = row;
     return acc;
   }, {});
@@ -169,10 +164,10 @@ function renderStructuredSummary(summary, ym, byManager) {
       <p class="ds-summary-panel__text"><strong>סה״כ חריגות: ${escapeHtml(String(exceptionsTotalResolved))}</strong></p>
       <p class="ds-summary-panel__text">
         חריגות תפעוליות: <strong>${escapeHtml(String(operationalUniqueCount))}</strong>
-        <span class="ds-muted"> (חסר מדריך: ${escapeHtml(String(missingInstructor))} · חסר תאריך התחלה: ${escapeHtml(String(missingStartDate))})</span>
+        <span class="ds-muted"> (ללא מדריך: ${escapeHtml(String(missingInstructor))} · ללא תאריך התחלה: ${escapeHtml(String(missingStartDate))})</span>
       </p>
-      <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${lateEnd}</strong></p>
-      <p class="ds-summary-panel__text">תאריך סיום חלף: <strong>${endDatePassed}</strong></p>
+      <p class="ds-summary-panel__text">סיום לא מעודכן: <strong>${endDateOutOfSync}</strong></p>
+      <p class="ds-summary-panel__text">הסתיימה ולא נסגרה: <strong>${endDatePassed}</strong></p>
     </div>
   </div>`;
 }
@@ -378,8 +373,7 @@ export const dashboardScreen = {
     const kpiCards = filterKpiCards(_kpiSource, showOnly).map((card) => {
       if (card?.action !== 'kpi|exceptions') return card;
       const totalExceptions =
-        data?.summary?.totalExceptionRows ??
-        data?.summary?.total_exception_rows ??
+        data?.summary?.totalExceptionInstances ??
         data?.summary?.exceptions_count ??
         data?.totals?.exceptions_count ??
         0;
@@ -392,8 +386,8 @@ export const dashboardScreen = {
     const managerCards = managers
       .map((row) => {
         const mgr = encodeURIComponent(row.activity_manager);
-        const displayName = MANAGER_DISPLAY_NAMES[row.activity_manager] || row.activity_manager;
-        const isDistrict = !!MANAGER_DISPLAY_NAMES[row.activity_manager];
+        const displayName = row.activity_manager;
+        const isDistrict = true;
         const exceptionsValue = Number(row.exceptions ?? 0);
         const allStats = [
           { label: 'תוכניות פעילות', value: row.total_long      ?? 0, action: `mstat|${mgr}|long` },
@@ -680,7 +674,7 @@ export const dashboardScreen = {
         } else if (kind === 'exceptions') {
           state.route = 'exceptions';
           state.exceptionsMonthYm = state.dashboardMonthYm || currentMonthYm();
-          resetExceptionsFilters(name);
+          resetExceptionsFilters('');
         }
         ui.closeAll();
         rerender();
