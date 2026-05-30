@@ -69,6 +69,21 @@ function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
+function normalizeMultilineText(value) {
+  return String(value == null ? '' : value)
+    .replace(/\r\n?/g, '\n')
+    .trim();
+}
+
+function normalizeDocumentSection(section = {}) {
+  return {
+    ...section,
+    section_key: text(section.section_key),
+    section_title: text(section.section_title),
+    section_body: normalizeMultilineText(section.section_body)
+  };
+}
+
 function normalizeSearch(value) {
   return text(value).toLowerCase();
 }
@@ -105,7 +120,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     status:              STATUS_OPTIONS.includes(text(row.status)) ? text(row.status) : 'draft',
     approval_note:       text(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
-    custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [],
+    custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections.map(normalizeDocumentSection) : [],
     created_at:          text(row.created_at),
     updated_at:          text(row.updated_at)
   };
@@ -536,9 +551,7 @@ const TEMPLATE_KEY_BY_GROUP = {
 };
 
 function templateBodyText(section) {
-  return String(section?.section_body == null ? '' : section.section_body)
-    .replace(/\r\n?/g, '\n')
-    .trim();
+  return normalizeMultilineText(section?.section_body);
 }
 
 function proposalTitle(row) {
@@ -591,103 +604,89 @@ function sectionHtml(title, body, className = '', options = {}) {
 
 function parseSectionBodyStructure(value, options = {}) {
   const { alwaysBullet = false } = options;
-  const raw = String(value == null ? '' : value).replace(/\r\n?/g, '\n').trim();
+  const raw = normalizeMultilineText(value).replace(/[ \t]*שורה\s+חדשה\s*:?\s*/gi, '\n');
   if (!raw) return [];
 
-  const BULLET_CHARS = '·•▫▪◦‣–\\-';
-  const splitInlineBullets = (line) => {
-    const t = String(line || '').trim();
-    if (!t) return [];
-    // שורה שמתחילה בנקודה — החזר כמות שהיא
-    if (new RegExp(`^[${BULLET_CHARS}]\\s`).test(t)) return [t];
-    // אין נקודות כלל — החזר כמות שהיא
-    if (!new RegExp(`[${BULLET_CHARS}]`).test(t) && !/\s-\s/.test(t)) return [t];
-    // נקודות באמצע — פצל וסמן כל חלק
-    const parts = t.split(new RegExp(`\\s*[${BULLET_CHARS}]\\s*`)).map((p) => p.trim()).filter(Boolean);
-    return parts.map((p, i) => i === 0 ? p : ` ${p}`);
-  };
+  const stripBulletMarker = (line) => String(line || '')
+    .replace(/^\s*(?:|-|·|•|▫|▪|◦|‣|–)\s+/, '')
+    .replace(/^\s*\d+[.)]\s+/, '')
+    .trim();
 
-  const isPlaceholderLine = (s) => /^שורה\s+חדשה\s*:?\s*$/i.test(s);
-  const bulletStartRe = new RegExp(`^[${BULLET_CHARS}]\\s`);
-  const inlineNewlineMarkerRe = /\s*שורה\s+חדשה\s*:?\s*/i;
-  const expandedLines = raw.split('\n').flatMap((rawLine) => {
-    const hasLeadingSpace = /^[ \t]+\S/.test(rawLine);
-    const subParts = rawLine.split(inlineNewlineMarkerRe);
-    return subParts.flatMap((sub, subIdx) => {
-      if (!sub.trim()) return [];
-      const lineForBullet = subIdx === 0 ? sub : ` ${sub.trim()}`;
-      const effectiveLeadingSpace = subIdx === 0 ? hasLeadingSpace : true;
-      return splitInlineBullets(lineForBullet).map((item, i) => {
-        if (effectiveLeadingSpace && i === 0) {
-          const t = item.trim();
-          if (!bulletStartRe.test(t)) return `• ${t}`;
-        }
-        return item;
-      });
-    });
-  }).map((line) => line.trim()).filter((line) => Boolean(line) && !isPlaceholderLine(line.replace(/^[·•▫▪◦‣–\-]\s*/, '')));
-  if (!expandedLines.length) return [];
+  const normalizedLines = raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => !/^שורה\s+חדשה\s*:?$/i.test(line));
 
-  const bulletRegex = new RegExp(`^[${BULLET_CHARS}]\\s*(.+)$`);
-  const orderedRegex = /^(\d+)[.)]\s*(.+)$/;
   if (alwaysBullet) {
-    return [{ type: 'ul', items: expandedLines.map((line) => line.replace(bulletRegex, '$1').trim()).filter(Boolean) }];
+    const items = normalizedLines.map(stripBulletMarker).filter(Boolean);
+    return items.length ? [{ type: 'ul', items }] : [];
   }
 
   const groups = [];
-  let currentType = null;
-  let currentItems = [];
-  const flush = () => {
-    if (!currentItems.length) return;
-    groups.push({ type: currentType, items: currentItems });
-    currentType = null;
-    currentItems = [];
+  let paragraphLines = [];
+  let bulletItems = [];
+
+  const flushParagraph = () => {
+    if (!paragraphLines.length) return;
+    groups.push({ type: 'p', items: [paragraphLines] });
+    paragraphLines = [];
+  };
+  const flushBullets = () => {
+    if (!bulletItems.length) return;
+    groups.push({ type: 'ul', items: bulletItems });
+    bulletItems = [];
   };
 
-  expandedLines.forEach((line) => {
-    const bulletMatch = line.match(bulletRegex);
-    const orderedMatch = line.match(orderedRegex);
-    let type = 'p';
-    let body = line;
-    if (bulletMatch) {
-      type = 'ul';
-      body = bulletMatch[1];
-    } else if (orderedMatch) {
-      type = 'ol';
-      body = orderedMatch[2];
+  for (const line of normalizedLines) {
+    if (!line) {
+      flushParagraph();
+      flushBullets();
+      continue;
     }
-    const cleaned = body.trim();
-    if (!cleaned) return;
-    if (currentType && currentType !== type) flush();
-    currentType = type;
-    currentItems.push(cleaned);
-  });
-  flush();
+
+    const bulletMatch = line.match(/^\s*(?:-|)\s+(.+)$/);
+    if (bulletMatch) {
+      flushParagraph();
+      const item = bulletMatch[1].trim();
+      if (item) bulletItems.push(item);
+      continue;
+    }
+
+    flushBullets();
+    paragraphLines.push(line);
+  }
+
+  flushParagraph();
+  flushBullets();
   return groups;
 }
 
-function renderSectionBodyHtml(value, options = {}) {
+function renderProposalSectionBody(body, options = {}) {
   const { className = '' } = options;
-  const groups = parseSectionBodyStructure(value, options);
+  const groups = parseSectionBodyStructure(body, options);
   if (!groups.length) return '';
   const rendered = groups.map((group) => {
-    if (group.type === 'ul' || group.type === 'ol') {
-      return `<${group.type}>${group.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</${group.type}>`;
+    if (group.type === 'ul') {
+      return `<ul>${group.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
     }
-    return group.items.map((item) => `<p>${escapeHtml(item)}</p>`).join('');
+    return group.items.map((lines) => `<p>${lines.map((line) => escapeHtml(line)).join('<br>')}</p>`).join('');
   }).join('');
   return `<div class="pa-section-body${className ? ` ${className}` : ''}">${rendered}</div>`;
 }
 
+function renderSectionBodyHtml(value, options = {}) {
+  return renderProposalSectionBody(value, options);
+}
+
 function sectionLinesHtml(value, options = {}) {
-  return renderSectionBodyHtml(value, options);
+  return renderProposalSectionBody(value, options);
 }
 
 function signatureSectionHtml(signatureText) {
   const fallback = 'בברכה,\n\nעידן נחום, סמנכ״ל כספים ותפעול.';
-  const raw = text(signatureText) ? signatureText : fallback;
-  const lines = String(raw || '')
-    .split(/\r?\n/)
+  const raw = normalizeMultilineText(signatureText) ? normalizeMultilineText(signatureText) : fallback;
+  const lines = raw
+    .split('\n')
     .map((line) => String(line || '').trim())
     .filter(Boolean);
   if (!lines.length) return '';
@@ -1831,7 +1830,7 @@ export const proposalsAgreementsScreen = {
         const workingSections = resolveDocumentSections(row, templateSections).map((section) => ({
           section_key: text(section.section_key),
           section_title: text(section.section_title),
-          section_body: String(section.section_body || '')
+          section_body: normalizeMultilineText(section.section_body)
         }));
         const host = root.querySelector('[data-pa-inline-form]');
         if (!host) return;
@@ -1859,7 +1858,7 @@ export const proposalsAgreementsScreen = {
         const sections = templateSections.map((section) => ({
           section_key: text(section.section_key),
           section_title: text(section.section_title),
-          section_body: String((Array.from(wrap.querySelectorAll('[data-pa-doc-body]')).find((el) => text(el.dataset.paDocBody) === text(section.section_key))?.value) || '')
+          section_body: normalizeMultilineText(Array.from(wrap.querySelectorAll('[data-pa-doc-body]')).find((el) => text(el.dataset.paDocBody) === text(section.section_key))?.value)
         }));
         const result = typeof api.saveProposalAgreementCustomDocumentSections === 'function'
           ? await api.saveProposalAgreementCustomDocumentSections(id, sections)
