@@ -9,6 +9,27 @@ export function normalizedExceptionTypes(row) {
   return [row?.exception_type].map((type) => String(type || '').trim()).filter(Boolean);
 }
 
+
+const EXCEPTION_DISPLAY_GROUP_TYPES = ['missing_start_date', 'end_date_passed', 'late_end_date', 'missing_instructor'];
+
+export function exceptionDisplayGroupCount(rows) {
+  let total = 0;
+  const mainTypes = new Set(EXCEPTION_DISPLAY_GROUP_TYPES);
+  for (const row of asList(rows)) {
+    const types = normalizedExceptionTypes(row);
+    if (!types.length) {
+      total += 1;
+      continue;
+    }
+    const uniqueTypes = new Set(types);
+    for (const type of EXCEPTION_DISPLAY_GROUP_TYPES) {
+      if (uniqueTypes.has(type)) total += 1;
+    }
+    if ([...uniqueTypes].some((type) => !mainTypes.has(type))) total += 1;
+  }
+  return total;
+}
+
 function exceptionActivityKey(row) {
   const explicitId = [row?.RowID, row?.row_id, row?.source_row_id]
     .map((value) => String(value ?? '').trim())

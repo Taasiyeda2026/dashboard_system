@@ -11359,3 +11359,261 @@ select.ds-input {
     color: #1f4e79 !important;
   }
 }
+
+/* ===== Exceptions UX refresh: grouped cards, balanced grid, and header count badge ===== */
+.ds-nav-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-start: 4px;
+  padding: 1px 5px;
+  border-radius: var(--ds-radius-full);
+  background: color-mix(in srgb, var(--ds-danger-soft) 82%, #fff);
+  border: 1px solid color-mix(in srgb, var(--ds-danger) 22%, var(--ds-danger-border));
+  color: var(--ds-danger);
+  font-size: 0.72em;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.shell-header-nav.ds-act-nav-grid--header .ds-nav-count-badge {
+  margin-inline-start: 3px;
+  padding: 0 4px;
+  font-size: 0.9em;
+}
+
+.shell-nav__btn .ds-nav-count-badge {
+  font-size: 0.72rem;
+}
+
+.ds-exceptions-screen {
+  gap: 14px;
+}
+
+.ds-exceptions-screen__section {
+  overflow: visible;
+}
+
+.ds-exceptions-screen__title {
+  color: var(--ds-accent);
+  font-weight: 850;
+}
+
+.ds-exception-group {
+  --exception-group-color: var(--ds-accent);
+  --exception-group-bg: color-mix(in srgb, var(--ds-accent-soft) 36%, #fff);
+  position: relative;
+  overflow: visible;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--exception-group-color) 18%, var(--ds-border));
+  border-radius: 18px;
+  background: linear-gradient(180deg, var(--exception-group-bg), #fff 72%);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.ds-exception-group[data-exception-group="waiting-date"] {
+  --exception-group-color: #b45309;
+  --exception-group-bg: #fff7ed;
+}
+
+.ds-exception-group[data-exception-group="ended-open"] {
+  --exception-group-color: #dc2626;
+  --exception-group-bg: #fff1f2;
+}
+
+.ds-exception-group[data-exception-group="late-end"] {
+  --exception-group-color: #7c3aed;
+  --exception-group-bg: #f5f3ff;
+}
+
+.ds-exception-group[data-exception-group="missing-instructor"] {
+  --exception-group-color: #2563eb;
+  --exception-group-bg: #eff6ff;
+}
+
+.ds-exception-group__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--exception-group-color) 16%, transparent);
+}
+
+.ds-exception-group__title {
+  margin: 0;
+  color: var(--ds-text);
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.ds-exception-group__count {
+  min-width: 30px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: var(--ds-radius-full);
+  background: color-mix(in srgb, var(--exception-group-color) 12%, #fff);
+  border: 1px solid color-mix(in srgb, var(--exception-group-color) 24%, var(--ds-border));
+  color: var(--exception-group-color);
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.ds-exception-group__body {
+  overflow: visible;
+}
+
+.ds-exceptions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
+  justify-content: start;
+  align-items: stretch;
+  gap: 14px;
+  overflow: visible;
+}
+
+.ds-exception-list-item {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  max-width: 260px;
+}
+
+.ds-exception-card {
+  --exception-card-color: var(--ds-accent);
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: 124px;
+  min-height: 124px;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: right;
+  border: 1px solid color-mix(in srgb, var(--exception-card-color) 18%, var(--ds-border));
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--exception-card-color) 9%, #fff), #fff 58%),
+    var(--ds-surface);
+  box-shadow: 0 7px 18px rgba(15, 23, 42, 0.09), 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.ds-exception-card[data-exception-tone="waiting-date"] { --exception-card-color: #b45309; }
+.ds-exception-card[data-exception-tone="ended-open"] { --exception-card-color: #dc2626; }
+.ds-exception-card[data-exception-tone="late-end"] { --exception-card-color: #7c3aed; }
+.ds-exception-card[data-exception-tone="missing-instructor"] { --exception-card-color: #2563eb; }
+.ds-exception-card[data-exception-tone="other"] { --exception-card-color: #475569; }
+
+.ds-exception-card:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--exception-card-color) 36%, var(--ds-border-strong));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--exception-card-color) 13%, #fff), #fff 55%);
+  box-shadow: 0 11px 24px rgba(15, 23, 42, 0.12), 0 2px 5px rgba(15, 23, 42, 0.07);
+  transform: translateY(-2px);
+}
+
+.ds-exception-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--exception-card-color) 22%, transparent), 0 11px 24px rgba(15, 23, 42, 0.12);
+}
+
+.ds-exception-card__accent {
+  flex: 0 0 6px;
+  background: linear-gradient(180deg, var(--exception-card-color), color-mix(in srgb, var(--exception-card-color) 55%, #fff));
+}
+
+.ds-exception-card__content {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  align-content: stretch;
+  gap: 7px;
+  padding: 13px 14px 12px 12px;
+}
+
+.ds-exception-card__activity,
+.ds-exception-card__school {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+
+.ds-exception-card__activity {
+  -webkit-line-clamp: 2;
+  color: var(--ds-text);
+  font-size: 0.92rem;
+  font-weight: 850;
+  line-height: 1.28;
+}
+
+.ds-exception-card__school {
+  -webkit-line-clamp: 1;
+  color: var(--ds-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.ds-exception-card__authority {
+  justify-self: start;
+  max-width: 100%;
+  padding: 3px 9px;
+  overflow: hidden;
+  border-radius: var(--ds-radius-full);
+  background: color-mix(in srgb, var(--exception-card-color) 10%, #fff);
+  border: 1px solid color-mix(in srgb, var(--exception-card-color) 18%, var(--ds-border));
+  color: color-mix(in srgb, var(--exception-card-color) 78%, #111827);
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .ds-exceptions-grid {
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  }
+  .ds-exception-list-item {
+    max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .ds-exception-group {
+    padding: 12px;
+    border-radius: 16px;
+  }
+  .ds-exception-group__head {
+    align-items: flex-start;
+  }
+  .ds-exceptions-grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+  }
+  .ds-exception-card {
+    height: 118px;
+    min-height: 118px;
+  }
+}
+
+@media (max-width: 520px) {
+  .ds-exceptions-grid {
+    grid-template-columns: 1fr;
+  }
+  .ds-exception-card {
+    height: 116px;
+    min-height: 116px;
+  }
+}

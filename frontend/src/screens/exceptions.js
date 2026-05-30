@@ -4,7 +4,6 @@ import { hebrewExceptionType, hebrewColumn } from './shared/ui-hebrew.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import {
-  dsCard,
   dsScreenStack,
   dsEmptyState,
   dsStatusChip
@@ -45,28 +44,47 @@ function fieldRow(label, value) {
   return `<p><strong>${escapeHtml(label)}:</strong> ${display}</p>`;
 }
 
-function exceptionCardSubtitle(row) {
-  const meta = [String(row?.authority || '').trim(), String(row?.school || '').trim()].filter(Boolean);
-  return meta.length ? meta.join(' · ') : 'ללא רשות / בית ספר';
+function exceptionCardTone(row, fallbackTone = 'other') {
+  const type = normalizedExceptionTypes(row)[0] || fallbackTone;
+  if (type === 'missing_start_date') return 'waiting-date';
+  if (type === 'end_date_passed') return 'ended-open';
+  if (type === 'late_end_date') return 'late-end';
+  if (type === 'missing_instructor') return 'missing-instructor';
+  return 'other';
 }
 
-function exceptionCardMeta(row) {
-  const instructors = [row?.instructor_name, row?.instructor_name_2]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
-  const instructorText = instructors.length ? instructors.join(' / ') : 'ללא מדריך';
-  const exceptionText = normalizedExceptionTypes(row)
-    .map((type) => hebrewExceptionType(String(type || '').trim()))
-    .filter(Boolean)
-    .join(' · ');
-  return `מדריך: ${instructorText}${exceptionText ? ` · חריגה: ${exceptionText}` : ''}`;
+function exceptionCardHtml(row, groupKey) {
+  const activityName = String(row?.activity_name || '').trim() || '—';
+  const school = String(row?.school || '').trim() || 'ללא בית ספר';
+  const authority = String(row?.authority || '').trim() || 'ללא רשות';
+  const tone = groupKey || exceptionCardTone(row);
+  return `<div data-list-item class="ds-exception-list-item">
+    <button
+      type="button"
+      class="ds-interactive-card ds-interactive-card--session ds-exception-card"
+      data-exception-tone="${escapeHtml(tone)}"
+      data-card-action="${escapeHtml(`exception:${row.RowID}`)}"
+      aria-label="פתיחת פרטי חריגה עבור ${escapeHtml(activityName)}"
+    >
+      <span class="ds-exception-card__accent" aria-hidden="true"></span>
+      <span class="ds-exception-card__content">
+        <span class="ds-exception-card__activity">${escapeHtml(activityName)}</span>
+        <span class="ds-exception-card__school">${escapeHtml(school)}</span>
+        <span class="ds-exception-card__authority">${escapeHtml(authority)}</span>
+      </span>
+    </button>
+  </div>`;
 }
 
-function exceptionGroupCard(title, rows) {
-  const body = `<div class="ds-compact-list ds-exceptions-grid">${rows.map((row) =>
-    `<div data-list-item class="ds-exception-list-item"><button type="button" class="ds-interactive-card ds-interactive-card--session ds-exception-card" data-card-action="${escapeHtml(`exception:${row.RowID}`)}"><p class="ds-interactive-card__title">${escapeHtml(row.activity_name || '—')}</p><p class="ds-interactive-card__subtitle">${escapeHtml(exceptionCardSubtitle(row))}</p><p class="ds-interactive-card__meta">${escapeHtml(exceptionCardMeta(row))}</p></button></div>`
-  ).join('')}</div>`;
-  return dsCard({ title: `${title} · ${rows.length}`, body, padded: false });
+function exceptionGroupCard({ title, rows, key }) {
+  const body = `<div class="ds-exceptions-grid">${rows.map((row) => exceptionCardHtml(row, key)).join('')}</div>`;
+  return `<section class="ds-exception-group" data-exception-group="${escapeHtml(key || 'other')}">
+    <header class="ds-exception-group__head">
+      <h3 class="ds-exception-group__title">${escapeHtml(title)}</h3>
+      <span class="ds-exception-group__count" aria-label="${escapeHtml(String(rows.length))} חריגות בקבוצה">${escapeHtml(String(rows.length))}</span>
+    </header>
+    <div class="ds-exception-group__body">${body}</div>
+  </section>`;
 }
 
 function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings) {
@@ -151,18 +169,18 @@ export const exceptionsScreen = {
     const otherExceptionRows = filteredRows.filter((row) => normalizedExceptionTypes(row).some((type) => !mainTypes.has(type)));
     const hasAnyRows = filteredRows.length > 0;
     const groups = [
-      { title: 'פעילויות ממתינות לתיאום תאריך', rows: waitingDateRows },
-      { title: 'פעילויות פתוחות שהסתיימו', rows: endDatePassedRows },
-      { title: 'פעילויות עם תאריך סיום מאוחר', rows: lateEndDateRows },
-      { title: 'פעילויות ללא מדריך', rows: noInstructorRows },
-      ...(otherExceptionRows.length ? [{ title: 'חריגות נוספות', rows: otherExceptionRows }] : [])
+      { key: 'waiting-date', title: 'פעילויות ממתינות לתיאום תאריך', rows: waitingDateRows },
+      { key: 'ended-open', title: 'פעילויות פתוחות שהסתיימו', rows: endDatePassedRows },
+      { key: 'late-end', title: 'פעילויות עם תאריך סיום מאוחר', rows: lateEndDateRows },
+      { key: 'missing-instructor', title: 'פעילויות ללא מדריך', rows: noInstructorRows },
+      ...(otherExceptionRows.length ? [{ key: 'other', title: 'חריגות נוספות', rows: otherExceptionRows }] : [])
     ].filter((group) => group.rows.length > 0);
 
     return dsScreenStack(`
       <div class="ds-exceptions-screen">
       ${toolbarHtml}
       <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}</h2></section>
-      ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState('אין חריגות פעילות להצגה.')}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group.title, group.rows)}</section>`).join('')}
+      ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState('אין חריגות פעילות להצגה.')}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group)}</section>`).join('')}
       </div>
     `);
   },
