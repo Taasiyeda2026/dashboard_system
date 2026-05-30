@@ -718,8 +718,15 @@ function shellUserDisplayName() {
 
 function exceptionsNavCount() {
   const entry = state.screenDataCache?.exceptions;
+  const explicit = Number(entry?.data?.totalExceptionInstances ?? entry?.data?.summary?.totalExceptionInstances);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
   const rows = Array.isArray(entry?.data?.rows) ? entry.data.rows : [];
-  return exceptionDisplayGroupCount(rows);
+  const rowCount = exceptionDisplayGroupCount(rows);
+  if (rowCount > 0) return rowCount;
+  const dashboardKey = buildScreenDataCacheKey('dashboard', state);
+  const dashboardEntry = state.screenDataCache?.[dashboardKey] || state.screenDataCache?.dashboard;
+  const dashboardCount = Number(dashboardEntry?.data?.summary?.totalExceptionInstances ?? dashboardEntry?.data?.summary?.exceptions_count ?? dashboardEntry?.data?.totals?.exceptions_count);
+  return Number.isFinite(dashboardCount) && dashboardCount > 0 ? dashboardCount : 0;
 }
 
 function navLabelHtmlForRoute(route) {

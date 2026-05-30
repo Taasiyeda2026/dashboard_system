@@ -11353,7 +11353,7 @@ select.ds-input {
 
 .ds-exception-group[data-exception-group="waiting-date"] { --exception-group-color: #a16207; }
 .ds-exception-group[data-exception-group="ended-open"] { --exception-group-color: #b91c1c; }
-.ds-exception-group[data-exception-group="late-end"] { --exception-group-color: #6d28d9; }
+.ds-exception-group[data-exception-group="end-date-sync"] { --exception-group-color: #6d28d9; }
 .ds-exception-group[data-exception-group="missing-instructor"] { --exception-group-color: #1d4ed8; }
 .ds-exception-group[data-exception-group="other"] { --exception-group-color: #475569; }
 
@@ -11405,16 +11405,16 @@ select.ds-input {
   overflow: hidden;
   cursor: pointer;
   text-align: right;
-  border: 1px solid color-mix(in srgb, var(--exception-card-color) 10%, var(--ds-border));
+  border: 1px solid color-mix(in srgb, var(--exception-card-color) 7%, var(--ds-border));
   border-radius: 11px;
   background: color-mix(in srgb, var(--exception-card-color) 2%, var(--ds-surface));
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.045);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
   transition: box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
 }
 
 .ds-exception-card[data-exception-tone="waiting-date"] { --exception-card-color: #a16207; }
 .ds-exception-card[data-exception-tone="ended-open"] { --exception-card-color: #b91c1c; }
-.ds-exception-card[data-exception-tone="late-end"] { --exception-card-color: #6d28d9; }
+.ds-exception-card[data-exception-tone="end-date-sync"] { --exception-card-color: #6d28d9; }
 .ds-exception-card[data-exception-tone="missing-instructor"] { --exception-card-color: #1d4ed8; }
 .ds-exception-card[data-exception-tone="other"] { --exception-card-color: #475569; }
 
@@ -11430,8 +11430,7 @@ select.ds-input {
 }
 
 .ds-exception-card__accent {
-  flex: 0 0 3px;
-  background: color-mix(in srgb, var(--exception-card-color) 46%, #fff);
+  display: none;
 }
 
 .ds-exception-card__content {

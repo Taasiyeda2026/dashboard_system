@@ -2,30 +2,38 @@ function asList(rows) {
   return Array.isArray(rows) ? rows : [];
 }
 
-export function normalizedExceptionTypes(row) {
-  if (Array.isArray(row?.exception_types)) {
-    return row.exception_types.map((type) => String(type || '').trim()).filter(Boolean);
-  }
-  return [row?.exception_type].map((type) => String(type || '').trim()).filter(Boolean);
+export const EXCEPTION_TYPE_ORDER = [
+  'end_date_passed',
+  'end_date_out_of_sync',
+  'missing_instructor',
+  'missing_start_date'
+];
+
+const LEGACY_EXCEPTION_TYPE_ALIASES = {
+  late_end_date: 'end_date_out_of_sync',
+  dangerous_end_date: 'end_date_out_of_sync',
+  meeting_after_end_date: 'end_date_out_of_sync',
+  meeting_after_end: 'end_date_out_of_sync',
+  open_ended_not_closed: 'end_date_passed'
+};
+
+export function normalizeExceptionType(type) {
+  const key = String(type || '').trim();
+  return LEGACY_EXCEPTION_TYPE_ALIASES[key] || key;
 }
 
-
-const EXCEPTION_DISPLAY_GROUP_TYPES = ['missing_start_date', 'end_date_passed', 'late_end_date', 'missing_instructor'];
+export function normalizedExceptionTypes(row) {
+  const rawTypes = Array.isArray(row?.exception_types)
+    ? row.exception_types
+    : [row?.exception_type];
+  return [...new Set(rawTypes.map(normalizeExceptionType).filter(Boolean))];
+}
 
 export function exceptionDisplayGroupCount(rows) {
   let total = 0;
-  const mainTypes = new Set(EXCEPTION_DISPLAY_GROUP_TYPES);
   for (const row of asList(rows)) {
     const types = normalizedExceptionTypes(row);
-    if (!types.length) {
-      total += 1;
-      continue;
-    }
-    const uniqueTypes = new Set(types);
-    for (const type of EXCEPTION_DISPLAY_GROUP_TYPES) {
-      if (uniqueTypes.has(type)) total += 1;
-    }
-    if ([...uniqueTypes].some((type) => !mainTypes.has(type))) total += 1;
+    total += types.length || 1;
   }
   return total;
 }
@@ -50,12 +58,10 @@ export function uniqueExceptionActivityCount(rows, predicate) {
   return seen.size;
 }
 
-/** חריגות תפעוליות = רק סוגי חריגה מעמוד חריגות שאינם חסר מדריך / חסר תאריך התחלה */
+/** Total exception occurrences across the canonical exception groups. */
 export function computeOperationalExceptionsTotal({ rows, fallback = 0 } = {}) {
   const list = asList(rows);
-  if (list.length > 0) {
-    return uniqueExceptionActivityCount(list, (types) => types.includes('late_end_date'));
-  }
+  if (list.length > 0) return exceptionDisplayGroupCount(list);
   const n = Number(fallback);
   return Number.isFinite(n) ? n : 0;
 }
