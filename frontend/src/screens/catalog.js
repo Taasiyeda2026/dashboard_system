@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { escapeHtml } from './shared/html.js';
 const AUDIENCE_OPTIONS = ['הכול', 'יסודי', 'חטיבה'];
 const TYPE_OPTIONS = ['הכול', 'תוכנית', 'סדנה', 'סיור', 'חוג'];
+const STANDALONE_GROUP_LABELS = { escape: 'חדרי בריחה', makers: 'מייקרים', space: 'חלל', tours: 'סיורים', classes: 'חוגים / אפטרסקול' };
 const STANDALONE_CATEGORIES = [
   ['workshops', 'סדנאות'],
   ['tours', 'סיורים'],
@@ -130,7 +131,7 @@ function normalizeProductType(value) {
   const raw = String(value || '').trim();
   const normalized = raw.toLowerCase();
   if (normalized === 'course') return 'תוכנית';
-  if (normalized === 'after_school') return 'חוג';
+  if (normalized === 'after_school' || normalized === 'חוג אפטרסקול') return 'חוג';
   if (normalized === 'workshop') return 'סדנה';
   if (normalized === 'tour') return 'סיור';
   if (normalized === 'escape_room') return 'סדנה';
@@ -138,6 +139,18 @@ function normalizeProductType(value) {
   if (raw === 'סיורים') return 'סיור';
   if (raw === 'סדנאות') return 'סדנה';
   return raw || 'תוכנית';
+}
+
+function normalizeCatalogGroup(value) {
+  const raw = String(value || '').trim();
+  const normalized = raw.toLowerCase().replace(/[\s-]+/g, '_');
+  if (!raw) return '';
+  if (['after_school', 'afterschool', 'classes', 'club', 'clubs'].includes(normalized) || raw.includes('אפטרסקול') || raw.includes('חוג')) return 'classes';
+  if (['makers', 'maker', 'workshop_makers'].includes(normalized) || raw.includes('מייקרים')) return 'makers';
+  if (['space', 'workshop_space'].includes(normalized) || raw.includes('חלל')) return 'space';
+  if (['escape', 'escape_room', 'digital_escape_room'].includes(normalized) || raw.includes('חדר בריחה')) return 'escape';
+  if (['tour', 'tours'].includes(normalized) || raw.includes('סיור')) return 'tours';
+  return '';
 }
 
 function inferScope(p) {
@@ -209,17 +222,21 @@ function normalizeProgram(item, idx) {
     sessionDuration: String(pickFirstNonEmpty(p.session_duration, p.unit_duration, p.sessionDuration, p.duration) || 'לא צוין'),
     gefenNumber: String(pickFirstNonEmpty(p.gefen_number, p.gefenNumber, p.gefen) || ''),
     subtitle: String(pickFirstNonEmpty(p.catalog_subtitle, p.subtitle) || ''),
-    shortDescription: String(pickFirstNonEmpty(p.catalog_subtitle, p.catalog_short_description, p.opening_line, p.description_short, p.shortDescription, p.openingLine, p.subtitle, p.sections?.openingStatement, firstSyllabusDescription) || ''),
-    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.core_idea, p.description_for_proposal, p.coreIdea, p.description, p.sections?.mainIdea, firstSyllabusDescription) || ''),
-    goals: String(pickFirstNonEmpty(p.catalog_goals, p.program_flow, p.goals, p.sections?.programFlow) || ''),
-    studentDevelops: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.studentDevelops, p.participantsReceive) || '',
+    shortDescription: String(pickFirstNonEmpty(p.catalog_short_description, p.opening_line, p.catalog_subtitle, p.short_description, p.description_short, p.shortDescription, p.openingLine, p.subtitle, p.sections?.openingStatement, firstSyllabusDescription) || ''),
+    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.core_idea, p.coreIdea, p.sections?.mainIdea, firstSyllabusDescription) || ''),
+    goals: String(pickFirstNonEmpty(p.catalog_program_flow, p.catalog_goals, p.program_flow, p.goals, p.sections?.programFlow) || ''),
+    programFlow: String(pickFirstNonEmpty(p.catalog_program_flow, p.program_flow, p.catalog_goals, p.goals, p.sections?.programFlow) || ''),
+    studentDevelops: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.participants_receive, p.studentDevelops, p.participantsReceive) || '',
     schoolValue: String(pickFirstNonEmpty(p.catalog_school_value, p.school_value, p.schoolValue, p.sections?.schoolValue) || ''),
     syllabus: Array.isArray(p.catalog_syllabus) && p.catalog_syllabus.length ? p.catalog_syllabus : syllabus,
     stations: Array.isArray(p.stations) ? p.stations : [],
-    participantsReceive: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.studentDevelops, p.participantsReceive) || [],
-    closingBox: String(pickFirstNonEmpty(p.catalog_closing_box, p.final_outcome, p.closingBox, p.sections?.finalOutcome) || ''),
-    footer: String(pickFirstNonEmpty(p.catalog_footer, p.footer, p.final_outcome) || ''),
+    participantsReceive: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.participants_receive, p.studentDevelops, p.participantsReceive) || [],
+    closingBox: String(pickFirstNonEmpty(p.catalog_closing_box, p.final_outcome, p.closing_box, p.closingBox, p.sections?.finalOutcome) || ''),
+    finalOutcome: String(pickFirstNonEmpty(p.final_outcome, p.catalog_closing_box, p.closing_box, p.closingBox, p.sections?.finalOutcome) || ''),
+    footer: String(pickFirstNonEmpty(p.catalog_footer, p.footer, p.final_outcome, p.closing_box) || ''),
     pageTemplate: String(pickFirstNonEmpty(p.catalog_page_template, p.page_template, p.pageTemplate) || 'default'),
+    catalogGroup: normalizeCatalogGroup(p.catalog_group || p.catalogGroup),
+    catalogSource: String(pickFirstNonEmpty(p.catalog_source, p.catalogSource) || ''),
     pricingOptions: Array.isArray(p.pricing_options) ? p.pricing_options : []
   };
 }
@@ -255,6 +272,7 @@ function isStandaloneActivity(program) {
 }
 
 function isAfterSchoolProgram(program) {
+  if (program.catalogGroup === 'classes') return true;
   const haystack = [program.productType, program.name, program.coreIdea, program.shortDescription]
     .map((v) => String(v || '').toLowerCase())
     .join(' ');
@@ -262,14 +280,24 @@ function isAfterSchoolProgram(program) {
 }
 
 function isEscapeRoomProgram(program) {
+  if (program.catalogGroup === 'escape') return true;
   const haystack = [program.name, program.coreIdea, program.shortDescription]
     .map((v) => String(v || '').toLowerCase())
     .join(' ');
   return haystack.includes('חדר בריחה') || haystack.includes('escape room') || haystack.includes('escape_room');
 }
 
+function isSpaceWorkshop(program) {
+  if (program.catalogGroup === 'space') return true;
+  const haystack = [program.name, program.coreIdea, program.shortDescription]
+    .map((v) => String(v || '').toLowerCase())
+    .join(' ');
+  return haystack.includes('חלל');
+}
+
 function isTamirWorkshop(program) {
   if (program.productType !== 'סדנה') return false;
+  if (program.catalogSource === 'proposal_activity_pricing' && !program.catalogGroup) return true;
   const haystack = [program.name, program.coreIdea, program.shortDescription]
     .map((v) => String(v || '').toLowerCase())
     .join(' ');
@@ -342,6 +370,14 @@ export const catalogScreen = {
     const workshopAndTours = filtered.filter((p) => isStandaloneActivity(p));
 
     const standaloneByCategory = {
+      escape: workshopAndTours.filter((p) => p.catalogGroup === 'escape' || isEscapeRoomProgram(p)),
+      makers: workshopAndTours.filter((p) => p.catalogGroup === 'makers' || (p.productType === 'סדנה' && !isEscapeRoomProgram(p) && !isSpaceWorkshop(p) && !isTamirWorkshop(p))),
+      space: workshopAndTours.filter((p) => p.catalogGroup === 'space' || isSpaceWorkshop(p)),
+      tours: workshopAndTours.filter((p) => p.catalogGroup === 'tours' || p.productType === 'סיור'),
+      classes: workshopAndTours.filter((p) => p.catalogGroup === 'classes' || p.productType === 'חוג' || isAfterSchoolProgram(p))
+    };
+    const standaloneLabels = STANDALONE_GROUP_LABELS;
+    const selectedStandaloneCategory = standaloneByCategory[data.standaloneCategory] ? data.standaloneCategory : 'escape';
       workshops: workshopAndTours.filter((p) => p.productType === 'סדנה' && !isEscapeRoomProgram(p)),
       tours: workshopAndTours.filter((p) => p.productType === 'סיור'),
       classes: workshopAndTours.filter((p) => p.productType === 'חוג' || isAfterSchoolProgram(p)),
@@ -397,9 +433,10 @@ export const catalogScreen = {
     }
 
     const labels = productTypeLabels(selected.productType);
-    const programFlowList = splitToList(selected.goals);
+    const programFlowList = splitToList(selected.programFlow || selected.goals);
     const studentDevList = splitToList(selected.studentDevelops || selected.participantsReceive);
     const participants = splitToList(selected.participantsReceive || selected.studentDevelops).slice(0, 4);
+    const outcomeText = fallbackText(selected.finalOutcome || selected.closingBox || selected.footer, 'למידה פעילה, משמעותית ומחוברת לעולם האמיתי.');
     const schoolValueParts = splitToList(selected.schoolValue).slice(0, 3);
     while (schoolValueParts.length < 3) schoolValueParts.push('—');
     const syllabusSource = selected.productType === 'סיור' && selected.stations.length ? selected.stations : selected.syllabus;
@@ -422,15 +459,15 @@ export const catalogScreen = {
         </header>
         <section class="catalog-frame-grid"><div class="catalog-box"><strong>כיתות</strong><p>${escapeHtml(fallbackText(selected.grades))}</p></div><div class="catalog-box"><strong>היקף</strong><p>${escapeHtml(fallbackText(selected.scope))}</p></div><div class="catalog-box"><strong>משך מפגש</strong><p>${escapeHtml(fallbackText(selected.sessionDuration))}</p></div><div class="catalog-box"><strong>מספר גפ״ן</strong><p>${escapeHtml(fallbackText(selected.gefenNumber))}</p></div></section>
         <section class="catalog-content-grid">
-          <div class="catalog-box"><h3>${escapeHtml(labels.happening)}</h3><p>${escapeHtml(fallbackText(selected.shortDescription || selected.goals))}</p></div>
+          <div class="catalog-box"><h3>${escapeHtml(labels.happening)}</h3><p>${escapeHtml(fallbackText(selected.shortDescription || selected.programFlow || selected.goals))}</p>${programFlowList.length ? `<ul>${programFlowList.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul>` : ''}</div>
           <div class="catalog-box"><h3>הרעיון המרכזי</h3><p>${escapeHtml(fallbackText(selected.coreIdea))}</p></div>
-          <div class="catalog-box"><h3>מה התלמידים מפתחים</h3><ul>${programFlowList.length ? programFlowList.map((i) => `<li>${escapeHtml(i)}</li>`).join('') : '<li>—</li>'}</ul></div>
-          <div class="catalog-box"><h3>${escapeHtml(labels.outcome)}</h3><ul>${studentDevList.length ? studentDevList.map((i) => `<li>${escapeHtml(i)}</li>`).join('') : '<li>—</li>'}</ul></div>
+          <div class="catalog-box"><h3>מה מקבלים המשתתפים / מה התלמידים מפתחים</h3><ul>${studentDevList.length ? studentDevList.map((i) => `<li>${escapeHtml(i)}</li>`).join('') : '<li>—</li>'}</ul></div>
+          <div class="catalog-box"><h3>${escapeHtml(labels.outcome)}</h3><p>${escapeHtml(outcomeText)}</p></div>
         </section>
         <section class="catalog-strip"><h3>הערך לבית הספר</h3><div class="catalog-strip-grid">${SCHOOL_VALUE_COLUMNS.map((label, i) => `<div class="catalog-box"><strong>${label}</strong><p>${escapeHtml(schoolValueParts[i] || '—')}</p></div>`).join('')}</div></section>
         ${hasSyllabus ? `<section class="catalog-box"><h3>${escapeHtml(labels.syllabus)}</h3><table><thead><tr><th>מפגש / תחנה</th><th>נושא</th><th>מה עושים</th></tr></thead><tbody>${syllabusRows}</tbody></table></section>` : ''}
         <section><h3>מה מקבלים המשתתפים</h3><div class="catalog-mini-card-grid">${(participants.length ? participants : ['—']).map((item) => `<div class="catalog-mini-card">${escapeHtml(item)}</div>`).join('')}</div></section>
-        <section class="catalog-box catalog-close"><h3>${escapeHtml(labels.closing)}</h3><p>✓ ${escapeHtml(fallbackText(selected.footer || selected.closingBox, 'למידה פעילה, משמעותית ומחוברת לעולם האמיתי.'))}</p></section>
+        <section class="catalog-box catalog-close"><h3>${escapeHtml(labels.closing)}</h3><p>✓ ${escapeHtml(outcomeText)}</p></section>
         <footer class="catalog-footer"><span>עמותת תעשיידע — חינוך טכנולוגי, חדשנות ויזמות</span><span>קטלוג תוכניות תשפ״ז</span></footer>
       </article></div>
     </section>`;
