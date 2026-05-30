@@ -857,6 +857,40 @@ test('preview prefers custom_document_sections when present', async () => {
   });
 });
 
+
+test('proposal preview preserves multiline section paragraphs and dash bullets', async () => {
+  const row = {
+    ...sampleRows[0],
+    custom_document_sections: [{
+      section_key: 'intro',
+      section_title: 'פתיח',
+      section_body: 'פסקת פתיחה להצעה.\r\nשורת המשך נשמרת.\n\n- ההצעה מיועדת לקבוצה של עד 20 משתתפים.\n בכל סדנת מייקרים יכין כל משתתף תוצר אישי.\nשורה חדשה'
+    }]
+  };
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: { rows: [row], proposalTemplateSections: [{ template_key: 'summer', section_key: 'intro', section_title: 'פתיח', section_body: 'טקסט תבנית' }] },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => [] }
+    });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+
+    const intro = dom.window.document.querySelector('.pa-doc-intro');
+    assert.ok(intro, 'intro section body should render');
+    assert.equal(intro.querySelectorAll('p').length, 1, 'opening text should render as one paragraph');
+    assert.equal(intro.querySelectorAll('br').length, 1, 'opening paragraph line break should be preserved');
+    assert.equal(intro.querySelectorAll('li').length, 2, 'dash and square bullets should render as separate list items');
+    assert.equal(intro.querySelectorAll('li')[0]?.textContent, 'ההצעה מיועדת לקבוצה של עד 20 משתתפים.');
+    assert.equal(intro.querySelectorAll('li')[1]?.textContent, 'בכל סדנת מייקרים יכין כל משתתף תוצר אישי.');
+    assert.doesNotMatch(intro.textContent, /שורה חדשה/);
+  });
+});
+
 test('approved proposal has no edit document button', async () => {
   const row = { ...sampleRows[0], status: 'approved' };
   await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
