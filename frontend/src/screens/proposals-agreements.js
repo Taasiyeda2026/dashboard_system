@@ -608,7 +608,7 @@ function parseSectionBodyStructure(value, options = {}) {
   };
 
   const isPlaceholderLine = (s) => /^שורה\s+חדשה\s*:?\s*$/i.test(s);
-  const bulletStartRe = new RegExp(`^[${BULLET_CHARS}]\s`);
+  const bulletStartRe = new RegExp(`^[${BULLET_CHARS}]\\s`);
   const inlineNewlineMarkerRe = /\s*שורה\s+חדשה\s*:?\s*/i;
   const expandedLines = raw.split('\n').flatMap((rawLine) => {
     const hasLeadingSpace = /^[ \t]+\S/.test(rawLine);
@@ -625,7 +625,7 @@ function parseSectionBodyStructure(value, options = {}) {
         return item;
       });
     });
-  })).map((line) => line.trim()).filter((line) => Boolean(line) && !isPlaceholderLine(line.replace(/^[·•▫▪◦‣–\-]\s*/, '')));
+  }).map((line) => line.trim()).filter((line) => Boolean(line) && !isPlaceholderLine(line.replace(/^[·•▫▪◦‣–\-]\s*/, '')));
   if (!expandedLines.length) return [];
 
   const bulletRegex = new RegExp(`^[${BULLET_CHARS}]\\s*(.+)$`);

@@ -2375,11 +2375,11 @@ async function readCatalogProgramsFromSupabase() {
       .order('sort_order', { ascending: true }),
     supabase
       .from('catalog_program_details')
-      .select('activity_no,catalog_title,catalog_subtitle,audience_level,target_grades,domain,scope,session_duration,gefen_number,opening_line,core_idea,program_flow,student_develops,school_value,final_outcome,syllabus,page_template,is_active_for_catalog')
+      .select('activity_no,catalog_title,catalog_subtitle,short_description,audience_level,target_grades,domain,scope,session_duration,gefen_number,opening_line,core_idea,program_flow,student_develops,participants_receive,school_value,final_outcome,closing_box,syllabus,page_template,is_active_for_catalog')
       .eq('is_active_for_catalog', true),
     supabase
       .from('proposal_activity_pricing')
-      .select('activity_no,activity_name,proposal_group,item_type,gefen_number,meetings_count,hours_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order,is_active_for_proposals')
+      .select('activity_no,activity_name,proposal_group,item_type,catalog_group,gefen_number,meetings_count,hours_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order,is_active_for_proposals,is_active_for_catalog')
       .eq('is_active_for_proposals', true)
       .order('sort_order', { ascending: true })
   ]);
@@ -2418,6 +2418,47 @@ async function readCatalogProgramsFromSupabase() {
     return acc;
   }, new Map());
 
+  const cleanCatalogText = (value) => String(value ?? '').trim();
+  const normalizeCatalogGroup = (value) => {
+    const raw = cleanCatalogText(value);
+    const normalized = raw.toLowerCase().replace(/[\s-]+/g, '_');
+    if (!raw) return '';
+    if (['after_school', 'afterschool', 'classes', 'class', 'club', 'clubs'].includes(normalized) || raw.includes('אפטרסקול') || raw.includes('חוג')) return 'after_school';
+    if (['makers', 'maker', 'workshop_makers'].includes(normalized) || raw.includes('מייקרים')) return 'makers';
+    if (['space', 'workshop_space'].includes(normalized) || raw.includes('חלל')) return 'space';
+    if (['escape', 'escape_room', 'digital_escape_room'].includes(normalized) || raw.includes('חדר בריחה')) return 'escape';
+    if (['tour', 'tours'].includes(normalized) || raw.includes('סיור')) return 'tours';
+    if (['program', 'programs', 'course', 'courses'].includes(normalized) || raw.includes('תוכנית')) return 'programs';
+    return normalized;
+  };
+  const hasExplicitCatalogGroup = (row) => Boolean(cleanCatalogText(row?.catalog_group));
+  const isTamirCatalogPricingRow = (row) => [row?.activity_name, row?.item_type, row?.description_for_proposal]
+    .map((value) => cleanCatalogText(value).toLowerCase())
+    .join(' ')
+    .includes('תמיר');
+  const catalogPricingGroup = (row) => {
+    if (row?.is_active_for_catalog !== true) return '';
+    const explicitGroup = normalizeCatalogGroup(row?.catalog_group);
+    if (explicitGroup) return explicitGroup;
+    if (isTamirCatalogPricingRow(row)) return '';
+    const itemTypeGroup = normalizeCatalogGroup(row?.item_type);
+    if (itemTypeGroup && itemTypeGroup !== 'programs') return itemTypeGroup;
+    const name = cleanCatalogText(row?.activity_name);
+    if (name === 'תלמידים להייטק' || name === 'חוג מייקרים') return 'after_school';
+    if (name === 'סדנת מייקרים') return 'makers';
+    if (name === 'סדנת חלל') return 'space';
+    if (name === 'חדר בריחה דיגיטלי') return 'escape';
+    return '';
+  };
+  const catalogGroupToProductType = (group, row = {}) => {
+    const itemType = cleanCatalogText(row?.item_type);
+    if (itemType === 'חוג אפטרסקול') return 'חוג';
+    if (group === 'after_school') return 'חוג';
+    if (group === 'tours') return 'סיור';
+    if (group === 'makers' || group === 'space' || group === 'escape') return 'סדנה';
+    return itemType || 'תוכנית';
+  };
+
   const toCatalogSyllabus = (value) => {
     if (Array.isArray(value)) return value;
     if (value && typeof value === 'object') return [value];
@@ -2437,13 +2478,9 @@ async function readCatalogProgramsFromSupabase() {
     }
   };
 
-  const programKeys = Array.from(new Set([
-    ...listByNo.keys(),
-    ...detailsByNo.keys(),
-    ...pricingByNo.keys()
-  ])).filter(Boolean);
+  const detailKeys = Array.from(detailsByNo.keys()).filter(Boolean);
 
-  const programs = programKeys.map((key) => {
+  const detailPrograms = detailKeys.map((key) => {
     const row = listByNo.get(key) || {};
     const pricingRowsForProgram = pricingByNo.get(key) || [];
     const primaryPricing = pricingRowsForProgram[0] || {};
@@ -2452,6 +2489,9 @@ async function readCatalogProgramsFromSupabase() {
     const sessionDuration = details.session_duration || primaryPricing.unit_duration || '';
     const scope = details.scope || primaryPricing.meetings_count || primaryPricing.hours_count || '';
     const gefenNumber = details.gefen_number || row.gefen_number || primaryPricing.gefen_number || '';
+    const shortDescription = details.opening_line || details.catalog_subtitle || details.short_description || primaryPricing.description_for_proposal || '';
+    const participantsReceive = details.student_develops || details.participants_receive || '';
+    const closingBox = details.final_outcome || details.closing_box || '';
     return {
       ...row,
       ...primaryPricing,
@@ -2459,8 +2499,10 @@ async function readCatalogProgramsFromSupabase() {
       activity_no: key,
       pricing_options: pricingRowsForProgram,
       proposal_pricing_rows: pricingRowsForProgram,
+      catalog_source: 'catalog_program_details',
+      catalog_group: 'programs',
       // Normalize detail fields to the naming contract expected by catalog screen.
-      catalog_title: details.catalog_title || primaryPricing.activity_name || row.activity_name || row.label_he || row.label || '',
+      catalog_title: details.catalog_title || row.activity_name || row.label_he || row.label || primaryPricing.activity_name || '',
       catalog_subtitle: details.catalog_subtitle || '',
       audience_level: details.audience_level || row.audience_level || '',
       target_grades: targetGrades,
@@ -2475,22 +2517,87 @@ async function readCatalogProgramsFromSupabase() {
       gefen_number: gefenNumber,
       gefenNumber,
       opening_line: details.opening_line || '',
+      short_description: details.short_description || '',
       core_idea: details.core_idea || '',
       program_flow: details.program_flow || '',
       student_develops: details.student_develops || '',
+      participants_receive: details.participants_receive || '',
       school_value: details.school_value || '',
       final_outcome: details.final_outcome || '',
+      closing_box: details.closing_box || '',
       page_template: details.page_template || '',
-      catalog_short_description: details.opening_line || details.catalog_subtitle || primaryPricing.description_for_proposal || '',
-      catalog_core_idea: details.core_idea || primaryPricing.description_for_proposal || '',
+      catalog_short_description: shortDescription,
+      catalog_core_idea: details.core_idea || '',
       catalog_goals: details.program_flow || '',
-      catalog_participants_receive: details.student_develops || '',
+      catalog_program_flow: details.program_flow || '',
+      catalog_participants_receive: participantsReceive,
       catalog_school_value: details.school_value || '',
       catalog_syllabus: toCatalogSyllabus(details.syllabus),
-      catalog_closing_box: details.final_outcome || '',
+      catalog_closing_box: closingBox,
       catalog_page_template: details.page_template || ''
     };
   });
+
+  const explicitCatalogPricingRows = pricingRows
+    .map((row, idx) => ({ row, idx, catalogGroup: catalogPricingGroup(row) }))
+    .filter(({ row, catalogGroup }) => catalogGroup && (!cleanCatalogText(row?.activity_no) || !detailsByNo.has(cleanCatalogText(row?.activity_no))));
+
+  const pricingPrograms = explicitCatalogPricingRows.map(({ row, idx, catalogGroup }) => {
+    const key = cleanCatalogText(row.activity_no) || `pricing-${idx + 1}`;
+    const listRow = listByNo.get(key) || {};
+    const targetGrades = listRow.target_grades || '';
+    const scopeParts = [];
+    if (row.meetings_count != null) scopeParts.push(`${row.meetings_count} מפגשים`);
+    if (row.hours_count != null) scopeParts.push(`${row.hours_count} שעות`);
+    const scope = scopeParts.join(' / ');
+    const title = row.activity_name || listRow.activity_name || listRow.label_he || listRow.label || '';
+    return {
+      ...listRow,
+      ...row,
+      id: `pricing-${key}-${idx + 1}`,
+      activity_no: key,
+      pricing_options: [row],
+      proposal_pricing_rows: [row],
+      catalog_source: 'proposal_activity_pricing',
+      catalog_group: catalogGroup,
+      catalog_group_explicit: hasExplicitCatalogGroup(row),
+      catalog_title: title,
+      catalog_subtitle: row.item_type || '',
+      audience_level: listRow.audience_level || '',
+      target_grades: targetGrades,
+      grades: targetGrades,
+      targetGrades,
+      domain: catalogGroup === 'after_school' ? 'חוגי אפטרסקול' : '',
+      scope,
+      session_duration: row.unit_duration || '',
+      meetings_count: row.meetings_count,
+      hours_count: row.hours_count,
+      unit_duration: row.unit_duration || '',
+      gefen_number: row.gefen_number || listRow.gefen_number || '',
+      gefenNumber: row.gefen_number || listRow.gefen_number || '',
+      item_type: catalogGroupToProductType(catalogGroup, row),
+      opening_line: row.description_for_proposal || '',
+      core_idea: row.description_for_proposal || '',
+      program_flow: '',
+      student_develops: '',
+      participants_receive: '',
+      school_value: '',
+      final_outcome: '',
+      closing_box: '',
+      page_template: catalogGroup,
+      catalog_short_description: row.description_for_proposal || '',
+      catalog_core_idea: row.description_for_proposal || '',
+      catalog_goals: '',
+      catalog_program_flow: '',
+      catalog_participants_receive: '',
+      catalog_school_value: '',
+      catalog_syllabus: [],
+      catalog_closing_box: '',
+      catalog_page_template: catalogGroup
+    };
+  });
+
+  const programs = [...detailPrograms, ...pricingPrograms];
 
   return {
     programs,
