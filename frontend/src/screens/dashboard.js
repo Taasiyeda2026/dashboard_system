@@ -483,13 +483,15 @@ export const dashboardScreen = {
       }
     }
 
-    function resetExceptionsFilters(activityManager = '') {
+    function resetExceptionsFilters(district = '') {
       state.listFilters = state.listFilters || {};
       const prev = state.listFilters.exceptions || {};
       state.listFilters.exceptions = {
         ...prev,
         q: '',
-        activity_manager: activityManager,
+        district,
+        activity_manager: '',
+        exception_type: '',
         visibleCount: 200
       };
     }
@@ -676,7 +678,7 @@ export const dashboardScreen = {
         } else if (kind === 'exceptions') {
           state.route = 'exceptions';
           state.exceptionsMonthYm = state.dashboardMonthYm || currentMonthYm();
-          resetExceptionsFilters('');
+          resetExceptionsFilters(name);
         }
         ui.closeAll();
         rerender();

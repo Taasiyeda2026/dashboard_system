@@ -30,11 +30,12 @@ function hebrewMonthLabel(ym) {
 }
 
 const EXCEPTION_FILTER_FIELDS = [
+  { key: 'district', label: 'מחוז/אזור', getValues: (row) => [exceptionDistrictKey(row)] },
   { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
   { key: 'authority', label: 'רשות' },
   { key: 'funding', label: 'מימון' },
   { key: 'school', label: 'בית ספר' },
-  { key: 'exception_type', label: 'סוג חריגה', getOptionLabel: (value) => hebrewExceptionType(value) }
+  { key: 'exception_type', label: 'סוג חריגה', getValues: (row) => [row?.exception_type], getOptionLabel: (value) => hebrewExceptionType(value) }
 ];
 
 function fieldRow(label, value) {
@@ -47,10 +48,41 @@ function fieldRow(label, value) {
 function exceptionCardTone(row, fallbackTone = 'other') {
   const type = normalizedExceptionTypes(row)[0] || fallbackTone;
   if (type === 'missing_start_date') return 'waiting-date';
+  if (type === 'missing_end_date' || type === 'invalid_date_range') return 'date-range';
   if (type === 'end_date_passed') return 'ended-open';
+  if (type === 'missing_next_meeting' || type === 'next_meeting_passed') return 'next-meeting';
   if (type === 'end_date_out_of_sync') return 'end-date-sync';
   if (type === 'missing_instructor') return 'missing-instructor';
+  if (type === 'missing_school' || type === 'missing_authority' || type === 'missing_district') return 'missing-assignment';
   return 'other';
+}
+
+function exceptionGroupKey(type) {
+  if (type === 'missing_start_date') return 'waiting-date';
+  if (type === 'missing_end_date' || type === 'invalid_date_range') return 'date-range';
+  if (type === 'end_date_passed') return 'ended-open';
+  if (type === 'missing_next_meeting' || type === 'next_meeting_passed') return 'next-meeting';
+  if (type === 'end_date_out_of_sync') return 'end-date-sync';
+  if (type === 'missing_instructor') return 'missing-instructor';
+  if (type === 'missing_school' || type === 'missing_authority' || type === 'missing_district') return 'missing-assignment';
+  return 'other';
+}
+
+function exceptionDistrictKey(row = {}) {
+  return String(row?.district || row?.region || row?.area || row?.activity_manager || row?.area_manager || '').trim() || 'ללא מחוז / לא משויך';
+}
+
+function exceptionInstanceRows(rows = []) {
+  const list = Array.isArray(rows) ? rows : [];
+  return list.flatMap((row) => {
+    const types = normalizedExceptionTypes(row);
+    return (types.length ? types : [row?.exception_type || 'other']).map((type) => ({
+      ...row,
+      exception_type: type,
+      exception_types: types.length ? types : [type],
+      exception_instance_key: `${String(row?.RowID || row?.row_id || '').trim() || row?.activity_name || 'row'}:${type}`
+    }));
+  });
 }
 
 function exceptionCardHtml(row, groupKey) {
@@ -63,6 +95,7 @@ function exceptionCardHtml(row, groupKey) {
       type="button"
       class="ds-interactive-card ds-interactive-card--session ds-exception-card"
       data-exception-tone="${escapeHtml(tone)}"
+      data-exception-type="${escapeHtml(String(row?.exception_type || ''))}"
       data-card-action="${escapeHtml(`exception:${row.RowID}`)}"
       aria-label="פתיחת פרטי חריגה עבור ${escapeHtml(activityName)}"
     >
@@ -82,9 +115,30 @@ function exceptionGroupCard({ title, rows, key }) {
   // Keep the historical dsCard title contract for group-count regressions: return dsCard({ title: `${title} · ${rows.length}`
   return `<section class="ds-exception-group" data-exception-group="${escapeHtml(key || 'other')}">
     <header class="ds-exception-group__head">
-      <h3 class="ds-exception-group__title">${escapeHtml(groupTitle)}</h3>
+      <button type="button" class="ds-exception-group__title" data-exception-type-filter="${escapeHtml(String(rows[0]?.exception_type || ''))}">${escapeHtml(groupTitle)}</button>
     </header>
     <div class="ds-exception-group__body">${body}</div>
+  </section>`;
+}
+
+function exceptionsSummaryHtml(rows = []) {
+  const total = rows.length;
+  const uniqueActivities = new Set(rows.map((row) => String(row?.RowID || row?.row_id || row?.exception_instance_key || '').trim()).filter(Boolean)).size || total;
+  const byDistrict = new Map();
+  rows.forEach((row) => {
+    const key = exceptionDistrictKey(row);
+    byDistrict.set(key, (byDistrict.get(key) || 0) + 1);
+  });
+  const districtTotal = [...byDistrict.values()].reduce((sum, value) => sum + Number(value || 0), 0);
+  const districtsHtml = [...byDistrict.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'he'))
+    .map(([district, count]) => `<button type="button" class="ds-exception-district-chip" data-exception-district-filter="${escapeHtml(district)}"><span>${escapeHtml(district)}</span><strong>${escapeHtml(String(count))}</strong></button>`)
+    .join('');
+  return `<section class="ds-exceptions-summary" aria-label="סיכום חריגות">
+    <div class="ds-exceptions-summary__card"><span>סה״כ חריגות</span><strong data-exceptions-total>${escapeHtml(String(total))}</strong></div>
+    <div class="ds-exceptions-summary__card"><span>פעילויות חריגות</span><strong>${escapeHtml(String(uniqueActivities))}</strong></div>
+    <div class="ds-exceptions-summary__card"><span>סכום לפי מחוזות</span><strong data-exceptions-district-total>${escapeHtml(String(districtTotal))}</strong></div>
+    <div class="ds-exceptions-summary__districts">${districtsHtml}</div>
   </section>`;
 }
 
@@ -148,7 +202,7 @@ export const exceptionsScreen = {
     return api.exceptions({ month });
   },
   render(data, { state } = {}) {
-    const rawRows   = Array.isArray(data?.rows) ? data.rows : [];
+    const rawRows   = Array.isArray(data?.exceptionInstances) ? data.exceptionInstances : exceptionInstanceRows(data?.rows || []);
     const allRows   = rawRows;
     const filterState = ensureActivityListFilters(state, EXCEPTIONS_SCOPE);
     prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type', 'exception_types']);
@@ -159,31 +213,34 @@ export const exceptionsScreen = {
       searchPlaceholder: 'חיפוש חריגות…',
       optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
     });
-    const waitingDateRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('missing_start_date'));
-    const endDatePassedRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('end_date_passed'));
-    const endDateOutOfSyncRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('end_date_out_of_sync'));
-    const noInstructorRows = filteredRows.filter((row) => normalizedExceptionTypes(row).includes('missing_instructor'));
-    const mainTypes = new Set(EXCEPTION_TYPE_ORDER);
-    const otherExceptionRows = filteredRows.filter((row) => normalizedExceptionTypes(row).some((type) => !mainTypes.has(type)));
+    const byType = new Map();
+    filteredRows.forEach((row) => {
+      const type = String(row?.exception_type || '').trim() || 'other';
+      if (!byType.has(type)) byType.set(type, []);
+      byType.get(type).push(row);
+    });
+    const orderedTypes = [
+      ...EXCEPTION_TYPE_ORDER.filter((type) => byType.has(type)),
+      ...[...byType.keys()].filter((type) => !EXCEPTION_TYPE_ORDER.includes(type)).sort((a, b) => a.localeCompare(b, 'he'))
+    ];
     const hasAnyRows = filteredRows.length > 0;
-    const groups = [
-      { key: 'ended-open', title: 'הסתיימה ולא נסגרה', rows: endDatePassedRows },
-      { key: 'end-date-sync', title: 'סיום לא מעודכן', rows: endDateOutOfSyncRows },
-      { key: 'missing-instructor', title: 'ללא מדריך', rows: noInstructorRows },
-      { key: 'waiting-date', title: 'ללא תאריך התחלה', rows: waitingDateRows },
-      ...(otherExceptionRows.length ? [{ key: 'other', title: 'חריגות נוספות', rows: otherExceptionRows }] : [])
-    ].filter((group) => group.rows.length > 0);
+    const groups = orderedTypes.map((type) => ({
+      key: exceptionGroupKey(type),
+      title: hebrewExceptionType(type),
+      rows: byType.get(type) || []
+    })).filter((group) => group.rows.length > 0);
 
     return dsScreenStack(`
       <div class="ds-exceptions-screen">
       ${toolbarHtml}
       <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}</h2></section>
+      ${exceptionsSummaryHtml(filteredRows)}
       ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState('אין חריגות פעילות להצגה.')}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group)}</section>`).join('')}
       </div>
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
-    const allRows   = (Array.isArray(data?.rows) ? data.rows : []);
+    const allRows   = Array.isArray(data?.exceptionInstances) ? data.exceptionInstances : exceptionInstanceRows(data?.rows || []);
     bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 150 });
     const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
@@ -305,6 +362,33 @@ export const exceptionsScreen = {
         openAt(idx);
         return;
       }
+    });
+
+    root.querySelectorAll('[data-exception-district-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const district = btn.dataset.exceptionDistrictFilter || '';
+        state.listFilters = state.listFilters || {};
+        state.listFilters[EXCEPTIONS_SCOPE] = {
+          ...ensureActivityListFilters(state, EXCEPTIONS_SCOPE),
+          district,
+          visibleCount: 200
+        };
+        rerender();
+      });
+    });
+
+    root.querySelectorAll('[data-exception-type-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const exceptionType = btn.dataset.exceptionTypeFilter || '';
+        if (!exceptionType) return;
+        state.listFilters = state.listFilters || {};
+        state.listFilters[EXCEPTIONS_SCOPE] = {
+          ...ensureActivityListFilters(state, EXCEPTIONS_SCOPE),
+          exception_type: exceptionType,
+          visibleCount: 200
+        };
+        rerender();
+      });
     });
 
   }

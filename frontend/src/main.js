@@ -720,6 +720,8 @@ function exceptionsNavCount() {
   const entry = state.screenDataCache?.exceptions;
   const explicit = Number(entry?.data?.totalExceptionInstances ?? entry?.data?.summary?.totalExceptionInstances);
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const instances = Array.isArray(entry?.data?.exceptionInstances) ? entry.data.exceptionInstances : [];
+  if (instances.length > 0) return instances.length;
   const rows = Array.isArray(entry?.data?.rows) ? entry.data.rows : [];
   const rowCount = exceptionDisplayGroupCount(rows);
   if (rowCount > 0) return rowCount;

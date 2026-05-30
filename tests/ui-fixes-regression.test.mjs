@@ -40,11 +40,11 @@ test('edit request user-facing wording is neutral save wording', () => {
   assert.match(bindSrc, /העדכון התקבל/);
 });
 
-test('exceptions source is filtered to course activities before exception checks', () => {
+test('exceptions source includes short and one-day activities before exception checks', () => {
   const apiSrc = read('frontend/src/api.js');
-  assert.match(apiSrc, /function rowActivityType\(row = \{\}\)/);
-  assert.match(apiSrc, /if \(rowActivityType\(row\) !== 'course'\) continue;[\s\S]*const types = \[\];/);
-  assert.match(apiSrc, /selectActivitiesByDateRangeFromSupabase\(\{[\s\S]*activityType: 'course',[\s\S]*includeEndDate: true[\s\S]*\}\)\)\.filter\(\(row\) => \{\s*if \(rowActivityType\(row\) !== 'course'\) return false;/);
+  assert.match(apiSrc, /function getActivityExceptions\(activityRows = \[\], month = '', opts = \{\}\)/);
+  assert.doesNotMatch(apiSrc, /rowActivityType\(row\) !== 'course'[\s\S]{0,80}continue;/);
+  assert.match(apiSrc, /const \{ rows: allRows, instances \} = getActivityExceptions\(activityRows, month, opts\);/);
 });
 
 test('instructors screen counts normalized activity_type keys', () => {

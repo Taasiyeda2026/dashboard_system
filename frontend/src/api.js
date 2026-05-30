@@ -250,17 +250,31 @@ function calculatedEndDateFromActivityDates(row = {}) {
   return dates.length ? dates.reduce((max, dateKey) => (dateKey > max ? dateKey : max), '') : '';
 }
 
+function nextMeetingDateFromActivity(row = {}, today = todayLocalIsoDate()) {
+  const dates = getActivityDateColumns(row).sort();
+  return dates.find((dateKey) => dateKey >= today) || '';
+}
+
+function latestMeetingDateFromActivity(row = {}) {
+  return calculatedEndDateFromActivityDates(row);
+}
+
 function todayLocalIsoDate() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
+function isOperationallyActive(row = {}) {
+  const status = String(row?.status || '').trim();
+  return !isActivityInactive(row) && (!status || status === 'פעיל' || status === 'פתוח' || status === 'active' || status === 'open');
+}
+
 function isOpenStatus(row = {}) {
-  return String(row?.status || '').trim() === 'פתוח';
+  return isOperationallyActive(row);
 }
 
 function districtDisplayKey(row = {}) {
-  return String(row?.district || '').trim() || 'ללא מחוז';
+  return nullStr(row?.district || row?.region || row?.area || row?.activity_manager || row?.area_manager) || 'ללא מחוז / לא משויך';
 }
 function hasAnyActivityDate(row = {}) {
   if (normalizeSupabaseDate(row?.start_date ?? row?.date_start)) return true;
@@ -1002,10 +1016,17 @@ async function dashboardReadModelFromSupabase(month) {
       active_instructors_count: instructorIds.size,
       ending_courses_current_month: endingRows.length,
       missing_instructor_count: Number(exceptionCounts.missing_instructor || 0),
+      missing_school_count: Number(exceptionCounts.missing_school || 0),
+      missing_authority_count: Number(exceptionCounts.missing_authority || 0),
+      missing_district_count: Number(exceptionCounts.missing_district || 0),
       missing_start_date_count: Number(exceptionCounts.missing_start_date || 0),
+      missing_end_date_count: Number(exceptionCounts.missing_end_date || 0),
       missing_date_count: Number(exceptionCounts.missing_start_date || 0),
+      invalid_date_range_count: Number(exceptionCounts.invalid_date_range || 0),
       end_date_out_of_sync_count: Number(exceptionCounts.end_date_out_of_sync || 0),
       end_date_passed_count: Number(exceptionCounts.end_date_passed || 0),
+      missing_next_meeting_count: Number(exceptionCounts.missing_next_meeting || 0),
+      next_meeting_passed_count: Number(exceptionCounts.next_meeting_passed || 0),
       operational_gaps_count: exceptionsCount,
       operational_gaps_unique_count: Number(exceptionSummary.uniqueExceptionActivities || exceptionSummary.totalExceptionRows || 0),
       operationalTotal: exceptionsCount,
@@ -1073,6 +1094,7 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   const end         = firstNormalizedDate(row?.end_date, row?.date_end);
   const todayLocalIso = todayLocalIsoDate();
   const inactive = isActivityInactive(row);
+  const active = isOperationallyActive(row);
 
   // Instructor check uses the same normalized name source used by the UI.
   // A valid displayed instructor name is sufficient even when guideId/emp_id is
@@ -1080,20 +1102,36 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   const isValidId = (id) => !!id && (!knownIds || knownIds.has(id));
   const hasValidInstructor = !!instructorName || isValidId(emp1) || isValidId(emp2);
   if (!inactive && !hasValidInstructor) types.push('missing_instructor');
+  if (!inactive && !nullStr(row?.school)) types.push('missing_school');
+  if (!inactive && !nullStr(row?.authority)) types.push('missing_authority');
+  if (!inactive && districtDisplayKey(row) === 'ללא מחוז / לא משויך') types.push('missing_district');
 
   // Missing start date is based only on start_date; meeting dates do not replace
   // the dedicated start date field for this exception.
   if (!inactive && !start) types.push('missing_start_date');
+  if (!inactive && !end) types.push('missing_end_date');
+  if (!inactive && start && end && end < start) types.push('invalid_date_range');
 
-  // Ended but not closed: only status "פתוח", real end_date, and the end date is
-  // before today. It is not based on month-end or on meeting dates.
+  // Ended but still active: real end_date before today. It is not based on
+  // month-end or on meeting dates.
   if (isOpenStatus(row) && end && end < todayLocalIso) {
     types.push('end_date_passed');
   }
 
+  const nextMeetingDate = nextMeetingDateFromActivity(row, todayLocalIso);
+  const latestMeetingDate = latestMeetingDateFromActivity(row);
+  row._next_meeting_date = nextMeetingDate || '';
+  if (active && !nextMeetingDate) {
+    if (latestMeetingDate && latestMeetingDate < todayLocalIso) {
+      types.push('next_meeting_passed');
+    } else {
+      types.push('missing_next_meeting');
+    }
+  }
+
   // Data synchronization gap: end_date must exactly match the latest meeting date.
   // This replaces the old late_end_date / meeting-after-end labels.
-  const calculatedEndDate = calculatedEndDateFromActivityDates(row);
+  const calculatedEndDate = latestMeetingDate;
   row._calculated_end_date = calculatedEndDate || '';
   if (end && calculatedEndDate && end !== calculatedEndDate) {
     types.push('end_date_out_of_sync');
@@ -1103,38 +1141,68 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   return types;
 }
 
-function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) {
-  const includeRows = opts.include_rows !== false;
+function getActivityExceptions(activityRows = [], month = '', opts = {}) {
   const knownInstructorIds = opts.knownInstructorIds; // Set<string> | undefined
   const rows = [];
-  const counts = { missing_instructor: 0, missing_start_date: 0, end_date_out_of_sync: 0, end_date_passed: 0 };
-  const byDistrict = {};
-  const uniqueActivityIds = new Set();
+  const instances = [];
   for (const row of activityRows) {
     if (isActivityInactive(row)) continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
     const types = rowExceptionTypesFromActivity(row, { knownInstructorIds });
     if (!types.length) continue;
     const uniqueTypes = [...new Set(types)];
-    const district = districtDisplayKey(row);
-    byDistrict[district] = (byDistrict[district] || 0) + uniqueTypes.length;
-    for (const type of uniqueTypes) counts[type] = (counts[type] || 0) + 1;
-    const activityKey = String(row?.RowID || row?.row_id || '').trim() || [row?.activity_name, row?.school, row?.authority].map((v) => String(v || '').trim()).join('|');
-    if (activityKey) uniqueActivityIds.add(activityKey);
-    if (includeRows) {
-      rows.push({
+    rows.push({
+      ...row,
+      exception_type: uniqueTypes[0],
+      exception_types: uniqueTypes,
+      exception_count: uniqueTypes.length,
+      has_multiple_exceptions: uniqueTypes.length > 1 ? 'yes' : 'no'
+    });
+    for (const type of uniqueTypes) {
+      instances.push({
         ...row,
-        exception_type: uniqueTypes[0],
+        exception_type: type,
         exception_types: uniqueTypes,
         exception_count: uniqueTypes.length,
-        has_multiple_exceptions: uniqueTypes.length > 1 ? 'yes' : 'no'
+        has_multiple_exceptions: uniqueTypes.length > 1 ? 'yes' : 'no',
+        exception_instance_key: `${String(row?.RowID || row?.row_id || '').trim() || rows.length}:${type}`
       });
     }
+  }
+  return { rows, instances };
+}
+
+function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) {
+  const includeRows = opts.include_rows !== false;
+  const { rows: allRows, instances } = getActivityExceptions(activityRows, month, opts);
+  const rows = includeRows ? allRows : [];
+  const counts = {
+    missing_instructor: 0,
+    missing_school: 0,
+    missing_authority: 0,
+    missing_district: 0,
+    missing_start_date: 0,
+    missing_end_date: 0,
+    invalid_date_range: 0,
+    end_date_passed: 0,
+    missing_next_meeting: 0,
+    next_meeting_passed: 0,
+    end_date_out_of_sync: 0
+  };
+  const byDistrict = {};
+  const uniqueActivityIds = new Set();
+  for (const row of allRows) {
+    const district = districtDisplayKey(row);
+    byDistrict[district] = (byDistrict[district] || 0) + Number(row.exception_count || 0);
+    for (const type of row.exception_types || []) counts[type] = (counts[type] || 0) + 1;
+    const activityKey = String(row?.RowID || row?.row_id || '').trim() || [row?.activity_name, row?.school, row?.authority].map((v) => String(v || '').trim()).join('|');
+    if (activityKey) uniqueActivityIds.add(activityKey);
   }
   const totalExceptionRows = uniqueActivityIds.size;
   const totalExceptionInstances = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
   return {
     rows,
+    exceptionInstances: includeRows ? instances : [],
     totalExceptionRows,
     totalExceptionInstances,
     uniqueExceptionActivities: totalExceptionRows,
@@ -1399,6 +1467,30 @@ function cleanProposalAgreementText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
+function normalizeProposalAgreementMultilineText(value) {
+  return String(value == null ? '' : value)
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function normalizeProposalContactText(value) {
+  return cleanProposalAgreementText(value)
+    .toLowerCase()
+    .replace(/[ךםןףץ]/g, (ch) => ({ 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ' }[ch] || ch))
+    .replace(/[^\p{L}\p{N}@.]+/gu, ' ')
+    .trim();
+}
+
+function normalizeProposalContactPhone(value) {
+  let digits = cleanProposalAgreementText(value).replace(/\D+/g, '');
+  if (digits.startsWith('972') && digits.length >= 11) digits = `0${digits.slice(3)}`;
+  return digits;
+}
+
 const PA_STATUS_LABELS = {
   draft:                'טיוטה',
   pending_approval:     'ממתין לאישור',
@@ -1455,7 +1547,12 @@ function normalizeProposalAgreementRow(row = {}) {
     status:              PA_VALID_STATUSES.has(rawStatus) ? rawStatus : 'draft',
     approval_note:       cleanProposalAgreementText(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
-    custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [],
+    custom_document_sections: Array.isArray(row.custom_document_sections)
+      ? row.custom_document_sections.map((section) => ({
+        ...section,
+        section_body: normalizeProposalAgreementMultilineText(section?.section_body)
+      }))
+      : [],
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };
@@ -1491,21 +1588,79 @@ function sanitizeProposalAgreementPayload(payload = {}) {
 }
 
 
-async function upsertProposalClientContactIfNeeded(payload = {}, options = {}) {
-  const isNewClient = options?.isNewClient === true;
-  if (!isNewClient) return;
+function proposalContactMatches(existing = {}, next = {}, original = {}) {
+  const existingId = cleanProposalAgreementText(existing.id);
+  if (cleanProposalAgreementText(original.id) && existingId === cleanProposalAgreementText(original.id)) return true;
+
+  const originalAuthority = normalizeProposalContactText(original.authority);
+  const originalSchool = normalizeProposalContactText(original.school);
+  const originalName = normalizeProposalContactText(original.contact_name);
+  if (originalName && originalAuthority === normalizeProposalContactText(existing.authority) &&
+      originalSchool === normalizeProposalContactText(existing.school) &&
+      originalName === normalizeProposalContactText(existing.contact_name)) {
+    return true;
+  }
+
+  const existingEmail = normalizeProposalContactText(existing.email);
+  const nextEmail = normalizeProposalContactText(next.email);
+  if (existingEmail && nextEmail && existingEmail === nextEmail) return true;
+
+  const existingPhone = normalizeProposalContactPhone(existing.phone || existing.mobile);
+  const nextPhone = normalizeProposalContactPhone(next.phone);
+  if (existingPhone && nextPhone && existingPhone === nextPhone) return true;
+
+  const existingName = normalizeProposalContactText(existing.contact_name);
+  const nextName = normalizeProposalContactText(next.contact_name);
+  if (!existingName || !nextName || existingName !== nextName) return false;
+
+  const existingSchool = normalizeProposalContactText(existing.school);
+  const nextSchool = normalizeProposalContactText(next.school);
+  if (existingSchool && nextSchool && existingSchool === nextSchool) return true;
+
+  const existingAuthority = normalizeProposalContactText(existing.authority);
+  const nextAuthority = normalizeProposalContactText(next.authority);
+  return Boolean(existingAuthority && nextAuthority && existingAuthority === nextAuthority);
+}
+
+async function upsertProposalClientContactIfNeeded(payload = {}) {
   const authority = cleanProposalAgreementText(payload.client_authority);
   const school = cleanProposalAgreementText(payload.school_framework);
   const contact_name = cleanProposalAgreementText(payload.contact_name);
-  if (!authority || !school || !contact_name) return;
+  const phone = cleanProposalAgreementText(payload.phone);
+  const email = cleanProposalAgreementText(payload.email);
+  if (!authority || !school || (!contact_name && !phone && !email)) return;
   const contactRow = {
     authority,
     school,
     contact_name,
     contact_role: cleanProposalAgreementText(payload.contact_role),
-    phone: cleanProposalAgreementText(payload.phone),
-    email: cleanProposalAgreementText(payload.email)
+    phone,
+    email
   };
+
+  const original = payload?._contact_original && typeof payload._contact_original === 'object'
+    ? payload._contact_original
+    : {};
+
+  const { data: existingRows, error: readError } = await supabase
+    .from('contacts_schools')
+    .select('id,authority,school,contact_name,contact_role,phone,mobile,email');
+  if (readError) throw new Error(readError.message || 'proposal_contact_lookup_failed');
+
+  const existing = (Array.isArray(existingRows) ? existingRows : [])
+    .find((row) => proposalContactMatches(row, contactRow, original));
+
+  if (existing?.id != null) {
+    const { error } = await supabase
+      .from('contacts_schools')
+      .update(contactRow)
+      .eq('id', existing.id);
+    if (!error) return;
+    if (!/duplicate|unique/i.test(String(error.message || error.code || ''))) {
+      throw new Error(error.message || 'proposal_contact_update_failed');
+    }
+  }
+
   const { error } = await supabase
     .from('contacts_schools')
     .upsert(contactRow, { onConflict: 'authority,school,contact_name' });
@@ -1585,7 +1740,7 @@ async function readProposalTemplateSectionsFromSupabase() {
       activity_type_group: cleanProposalAgreementText(row?.activity_type_group),
       section_key: cleanProposalAgreementText(row?.section_key),
       section_title: cleanProposalAgreementText(row?.section_title),
-      section_body: cleanProposalAgreementText(row?.section_body),
+      section_body: normalizeProposalAgreementMultilineText(row?.section_body),
       sort_order: Number(row?.sort_order) || 0
     }));
   } catch {
@@ -1597,10 +1752,11 @@ async function readContactsSchoolsForProposals() {
   try {
     const { data, error } = await supabase
       .from('contacts_schools')
-      .select('authority,school,contact_name,contact_role,phone,email,mobile')
+      .select('id,authority,school,contact_name,contact_role,phone,email,mobile')
       .order('authority', { ascending: true });
     if (error) return [];
     return (Array.isArray(data) ? data : []).map((c) => ({
+      id:           cleanProposalAgreementText(c.id),
       authority:    cleanProposalAgreementText(c.authority),
       school:       cleanProposalAgreementText(c.school),
       contact_name: cleanProposalAgreementText(c.contact_name),
@@ -2771,7 +2927,7 @@ export const api = {
   addProposalAgreement: async (payload) => {
     assertCanUseProposalsAgreementsApi();
     const insert = sanitizeProposalAgreementPayload(payload);
-    await upsertProposalClientContactIfNeeded(insert, { isNewClient: payload?.is_new_client === true });
+    await upsertProposalClientContactIfNeeded({ ...insert, _contact_original: payload?._contact_original });
     const { data, error } = await supabase
       .from('proposals_agreements')
       .insert(insert)
@@ -2785,7 +2941,7 @@ export const api = {
     const rowId = cleanProposalAgreementText(id);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     const patch = sanitizeProposalAgreementPayload(payload);
-    await upsertProposalClientContactIfNeeded(patch, { isNewClient: payload?.is_new_client === true });
+    await upsertProposalClientContactIfNeeded({ ...patch, _contact_original: payload?._contact_original });
     const { data, error } = await supabase
       .from('proposals_agreements')
       .update(patch)
@@ -2867,7 +3023,7 @@ export const api = {
     const cleanSections = (Array.isArray(sections) ? sections : []).map((section) => ({
       section_key: cleanProposalAgreementText(section?.section_key),
       section_title: cleanProposalAgreementText(section?.section_title),
-      section_body: String(section?.section_body == null ? '' : section.section_body).trim()
+      section_body: normalizeProposalAgreementMultilineText(section?.section_body)
     })).filter((section) => section.section_key);
     const { data, error } = await supabase
       .from('proposals_agreements')
@@ -3275,6 +3431,7 @@ export {
   activityHasDateInRange,
   rowMatchesActivitiesFilters,
   rowExceptionTypesFromActivity,
+  getActivityExceptions,
   buildExceptionsModelFromRows,
   normalizeActivityRow
 };

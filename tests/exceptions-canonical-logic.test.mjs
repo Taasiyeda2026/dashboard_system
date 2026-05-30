@@ -34,6 +34,7 @@ function activity(overrides = {}) {
     school: 'בית ספר',
     start_date: '2026-05-01',
     end_date: '2026-06-10',
+    date_1: '2026-06-10',
     instructor_name: 'מדריכה',
     emp_id: 'E-1',
     ...overrides
@@ -68,6 +69,25 @@ test('activity without instructor appears as missing_instructor', () => {
 test('activity without start_date appears as missing_start_date', () => {
   const row = activity({ start_date: null, date_1: '2026-05-01' });
   assert.equal(rowExceptionTypesFromActivity(row).includes('missing_start_date'), true);
+});
+
+test('all counted exceptions are returned as display instances from one source', () => {
+  const rows = [
+    activity({ RowID: 'MISS-1', school: '', authority: '', district: '', activity_manager: '', start_date: '', end_date: '', date_1: '' }),
+    activity({ RowID: 'SHORT-1', activity_type: 'workshop', start_date: '2026-05-01', end_date: '2026-05-01', date_1: '2026-05-01' })
+  ];
+  const model = buildExceptionsModelFromRows(rows, '2026-05', { include_rows: true });
+  const districtSum = Object.values(model.byDistrict).reduce((sum, value) => sum + Number(value || 0), 0);
+
+  assert.equal(model.exceptionInstances.length, model.totalExceptionInstances);
+  assert.equal(districtSum, model.totalExceptionInstances);
+  assert.ok(model.counts.missing_school > 0);
+  assert.ok(model.counts.missing_authority > 0);
+  assert.ok(model.counts.missing_district > 0);
+  assert.ok(model.counts.missing_end_date > 0);
+  assert.ok(model.counts.missing_next_meeting > 0);
+  assert.ok(model.byDistrict['ללא מחוז / לא משויך'] > 0);
+  assert.ok(model.rows.some((row) => row.RowID === 'SHORT-1'), 'short/workshop activity should not be filtered out');
 });
 
 test('unassigned manager with valid district is counted under the district and totals are exception instances', () => {

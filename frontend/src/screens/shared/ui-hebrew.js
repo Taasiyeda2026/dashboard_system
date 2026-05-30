@@ -79,10 +79,17 @@ export function exceptionTypeVariant(exceptionType) {
 
 export const HEBREW_EXCEPTION_TYPE = {
   missing_instructor:       'ללא מדריך',
+  missing_school:           'ללא בית ספר',
+  missing_authority:        'ללא רשות',
+  missing_district:         'ללא מחוז / לא משויך',
   missing_start_date:       'ללא תאריך התחלה',
+  missing_end_date:         'ללא תאריך סיום',
+  invalid_date_range:       'תאריך סיום לפני התחלה',
   late_end_date:            'סיום לא מעודכן',
   end_date_out_of_sync:     'סיום לא מעודכן',
   end_date_passed:          'הסתיימה ולא נסגרה',
+  missing_next_meeting:     'ללא המפגש הבא',
+  next_meeting_passed:      'המפגש הבא עבר',
   open_ended_not_closed:    'הסתיימה ולא נסגרה',
   dangerous_end_date:       'סיום לא מעודכן',
   missing_activity_manager: 'חסר מנהל פעילות',

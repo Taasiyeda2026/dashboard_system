@@ -29,7 +29,13 @@ function activeCourse(overrides = {}) {
     RowID: 'A-1',
     activity_type: 'course',
     activity_manager: 'ops',
+    district: 'מחוז בדיקה',
+    authority: 'רשות בדיקה',
+    school: 'בית ספר בדיקה',
     status: 'פעיל',
+    start_date: '2026-05-01',
+    end_date: '2999-01-01',
+    date_1: '2999-01-01',
     emp_id: 'E-1',
     instructor_name: 'מדריכה',
     emp_id_2: '',
@@ -41,7 +47,10 @@ function activeCourse(overrides = {}) {
 test('active activity without start_date appears as missing_start_date exception', () => {
   const row = activeCourse({ start_date: '', end_date: '', date_1: '' });
 
-  assert.deepEqual(rowExceptionTypesFromActivity(row), ['missing_start_date']);
+  const types = rowExceptionTypesFromActivity(row);
+  assert.ok(types.includes('missing_start_date'));
+  assert.ok(types.includes('missing_end_date'));
+  assert.ok(types.includes('missing_next_meeting'));
 
   const model = buildExceptionsModelFromRows([row], '2026-05', { include_rows: true });
   assert.equal(model.totalExceptionRows, 1);
@@ -143,8 +152,8 @@ test('Supabase exceptions read uses a single activities source and computes in c
 test('allActivities export path reads all activities without applying month/date filters', async () => {
   const source = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 
-  const match = source.match(/allActivities:\s*async \(\) => \{[\s\S]*?\n  \},\n  activities:/);
-  assert.ok(match, 'allActivities block should be followed by the regular activities endpoint');
+  const match = source.match(/allActivities:\s*async \(\) => \{[\s\S]*?readAllActivitiesRowsSupabase\(\);[\s\S]*?return \{ rows, _source: 'supabase' \};[\s\S]*?\n\s*\},/);
+  assert.ok(match, 'allActivities block should be present before the following API endpoint');
   assert.match(match[0], /const rows = await readAllActivitiesRowsSupabase\(\);/);
   assert.doesNotMatch(match[0], /rowMatchesActivitiesFilters|activityHasDateInRange|filters/);
 });

@@ -83,10 +83,17 @@ npx serve dist -l 5000
 ## בדיקות
 
 ```bash
-node --test tests/*.test.mjs
+npm run check:changed
 ```
 
-Baseline: 92 עוברות / 5 נכשלות (כשלים קיימים מראש — jsdom-missing, לא קשורים ללוגיקת האפליקציה).
+ברירת המחדל היא בדיקות ממוקדות בלבד כדי לא לבזבז זמן על suite רחב/ישן:
+
+- `npm run check:changed` — `node --check` לקבצי JS/MJS ששונו, ובדיקת מסך רלוונטית אם קיימת.
+- `npm run check:frontend` — בדיקת syntax לכל קבצי ה-frontend.
+- `npm run check:build` — build מלא (`npm run build`).
+- `npm run test:all:legacy` — suite מלא של `tests/*.test.mjs`; להריץ רק כשמבקשים במפורש או כשמתקנים את בדיקות ה-legacy.
+
+מדיניות עבודה: במשימות רגילות של Cursor/Codex לא מריצים `npm run test:all:legacy` ולא מריצים suite מלא כברירת מחדל. מריצים בדיקות ממוקדות לפי הקבצים ששונו, ו-`npm run check:build` כאשר יש שינוי בפרונט/Service Worker/קבצי build.
 
 ---
 

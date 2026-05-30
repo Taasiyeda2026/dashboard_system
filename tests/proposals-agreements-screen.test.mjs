@@ -159,11 +159,11 @@ test('table structure includes all required columns including status', () => {
   const html = proposalsAgreementsScreen.render({ rows: sampleRows }, { state: stateFor('admin') });
   assert.match(html, /<th>לקוח \/ רשות<\/th>/);
   assert.match(html, /<th>בית ספר \/ מסגרת<\/th>/);
-  assert.match(html, /<th>סוג מסמך<\/th>/);
-  assert.match(html, /<th>סוג פעילות<\/th>/);
+  assert.match(html, /<th>סוג הצעה<\/th>/);
   assert.match(html, /<th>תאריך הצעה<\/th>/);
   assert.match(html, /<th>סטטוס<\/th>/);
-  assert.match(html, /<th>הערות<\/th>/);
+  assert.match(html, /<th>סה״כ<\/th>/);
+  assert.doesNotMatch(html, /<th>סוג מסמך<\/th>/);
   assert.match(html, /data-pa-table-region/);
   assert.match(html, /ds-pa-table/);
 });
@@ -337,6 +337,58 @@ test('multiple contacts for same client shows contact picker dropdown', async ()
   );
 });
 
+test('contact picker fills fields and passes existing contact source on save', async () => {
+  const savedPayloads = [];
+  const contacts = sampleContactOptions.map((contact, idx) => ({ ...contact, id: String(idx + 1) }));
+  const mockApi = {
+    addProposalAgreement: async (payload) => {
+      savedPayloads.push({ ...payload });
+      return { ok: true, row: { ...payload, id: 'contact-linked-id' } };
+    }
+  };
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: contacts }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: contacts },
+        state: stateFor('admin'),
+        api: mockApi
+      });
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form = root.querySelector('[data-pa-form]');
+      const clientSelect = form.querySelector('[data-pa-client-select]');
+      clientSelect.value = 'רשות א||בית ספר א';
+      clientSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+      const contactSelect = form.querySelector('[data-pa-contact-select]');
+      const contact = contacts.find((c) => c.contact_name === 'מיכל כהן');
+      contactSelect.value = [
+        contact.id,
+        contact.authority,
+        contact.school,
+        contact.contact_name,
+        contact.email,
+        contact.phone
+      ].join('||');
+      contactSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+      assert.equal(form.querySelector('input[name="contact_name"]').value, 'מיכל כהן');
+      assert.equal(form.querySelector('input[name="contact_source_id"]').value, contact.id);
+
+      form.querySelector('select[name="activity_type_group"]').value = 'קיץ תשפ״ו';
+      form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      assert.equal(savedPayloads.length, 1);
+      assert.equal(savedPayloads[0]._contact_original.id, contact.id);
+      assert.equal(savedPayloads[0].is_new_client, false);
+    }
+  );
+});
+
 test('new client toggle button shows hint and clears client selector', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
@@ -390,8 +442,8 @@ test('save draft sends status=draft and send-for-approval sends status=pending_a
 
       form.querySelector('input[name="client_authority"]').value = 'רשות בדיקה';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר בדיקה';
-      form.querySelector('select[name="document_type"]').value = 'הצעת מחיר';
-      form.querySelector('select[name="activity_type_group"]').value = 'פעילויות קיץ';
+      form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
+      form.querySelector('select[name="activity_type_group"]').value = 'קיץ תשפ״ו';
 
       form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(20);
@@ -405,8 +457,13 @@ test('save draft sends status=draft and send-for-approval sends status=pending_a
       const form2 = root.querySelector('[data-pa-form]');
       form2.querySelector('input[name="client_authority"]').value = 'רשות בדיקה 2';
       form2.querySelector('input[name="school_framework"]').value = 'בית ספר בדיקה 2';
-      form2.querySelector('select[name="document_type"]').value = 'הסכם';
-      form2.querySelector('select[name="activity_type_group"]').value = 'שנה הבאה';
+      form2.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
+      form2.querySelector('select[name="activity_type_group"]').value = 'שנת הלימודים תשפ״ז';
+      form2.dataset.paPreviewSeen = 'yes';
+      form2.querySelector('[data-pa-item-row] [name="item_name"]').value = 'קורס רובוטיקה';
+      form2.querySelector('[data-pa-item-qty]').value = '1';
+      form2.querySelector('[data-pa-item-price]').value = '100';
+      form2.querySelector('[data-pa-item-price]').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
 
       form2.querySelector('[data-pa-save-pending]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(20);
@@ -444,8 +501,8 @@ test('saving after new client toggle sends is_new_client=true', async () => {
 
       form.querySelector('input[name="client_authority"]').value = 'רשות חדשה';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר חדש';
-      form.querySelector('select[name="document_type"]').value = 'הצעת מחיר';
-      form.querySelector('select[name="activity_type_group"]').value = 'פעילויות קיץ';
+      form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
+      form.querySelector('select[name="activity_type_group"]').value = 'קיץ תשפ״ו';
       form.querySelector('input[name="contact_name"]').value = 'שרון חדש';
 
       form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -488,7 +545,7 @@ test('status badge is rendered in table rows with correct labels', () => {
   assert.match(html, /ds-pa-badge/);
 });
 
-test('multiple activity selections are preserved on save', async () => {
+test('multiple proposal item names are preserved on save', async () => {
   const savedPayloads = [];
   const mockApi = {
     addProposalAgreement: async (payload) => {
@@ -515,14 +572,13 @@ test('multiple activity selections are preserved on save', async () => {
 
       form.querySelector('input[name="client_authority"]').value = 'רשות ג';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר ג';
-      form.querySelector('select[name="document_type"]').value = 'הצעת מחיר';
-      form.querySelector('select[name="activity_type_group"]').value = 'הצעה משולבת';
+      form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
+      form.querySelector('select[name="activity_type_group"]').value = 'קיץ תשפ״ו ושנת הלימודים תשפ״ז';
 
-      const checkboxes = form.querySelectorAll('.ds-pa-activity-option input[type="checkbox"]');
-      const first = [...checkboxes].find((cb) => cb.value === 'רובוטיקה');
-      const second = [...checkboxes].find((cb) => cb.value === 'יזמות');
-      if (first) { first.checked = true; first.dispatchEvent(new dom.window.Event('change', { bubbles: true })); }
-      if (second) { second.checked = true; second.dispatchEvent(new dom.window.Event('change', { bubbles: true })); }
+      form.querySelector('select[name="activity_type_group"]').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      const itemRows = form.querySelectorAll('[data-pa-item-row]');
+      itemRows[0].querySelector('[name="item_name"]').value = 'סדנת מייקרים';
+      itemRows[1].querySelector('[name="item_name"]').value = 'קורס רובוטיקה';
 
       form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(20);
@@ -530,9 +586,9 @@ test('multiple activity selections are preserved on save', async () => {
       assert.equal(savedPayloads.length, 1, 'one save call');
       const saved = savedPayloads[0];
       assert.ok(Array.isArray(saved.activity_names), 'activity_names should be array');
-      assert.equal(saved.activity_names.length, 2, 'two activities should be saved');
-      assert.ok(saved.activity_names.includes('רובוטיקה'), 'רובוטיקה should be in saved activities');
-      assert.ok(saved.activity_names.includes('יזמות'), 'יזמות should be in saved activities');
+      assert.equal(saved.activity_names.length, 2, 'two item names should be saved');
+      assert.ok(saved.activity_names.includes('סדנת מייקרים'), 'summer item should be in saved activities');
+      assert.ok(saved.activity_names.includes('קורס רובוטיקה'), 'annual item should be in saved activities');
     }
   );
 });
@@ -720,8 +776,8 @@ test('save includes items via saveProposalAgreementItems', async () => {
 
       form.querySelector('input[name="client_authority"]').value = 'רשות הבדיקה';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר הבדיקה';
-      form.querySelector('select[name="document_type"]').value = 'הצעת מחיר';
-      form.querySelector('select[name="activity_type_group"]').value = 'פעילויות קיץ';
+      form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
+      form.querySelector('select[name="activity_type_group"]').value = 'קיץ תשפ״ו';
 
       // Fill in a line item
       const nameInput = form.querySelector('[data-pa-item-row] [name="item_name"]');
@@ -812,7 +868,9 @@ test('api source has readProposalAgreementItems and saveProposalAgreementItems',
   assert.match(apiSource, /is_active_for_proposals/);
   assert.match(apiSource, /saveProposalAgreementItems: true/);
   assert.match(apiSource, /upsertProposalClientContactIfNeeded/);
-  assert.match(apiSource, /payload\?\.is_new_client === true/);
+  assert.match(apiSource, /proposalContactMatches/);
+  assert.match(apiSource, /normalizeProposalContactPhone/);
+  assert.match(apiSource, /_contact_original/);
   assert.match(apiSource, /total_amount.*payload\.total_amount/);
 });
 
@@ -821,6 +879,57 @@ test('items editor includes pricing selector and uses pricing autofill fields', 
   assert.match(screenSource, /data-pa-pricing-select/);
   assert.match(screenSource, /description_for_proposal/);
   assert.match(screenSource, /payload\.activity_names = itemNames/);
+});
+
+test('changing proposal type reloads relevant item areas and preview template', async () => {
+  const pricing = [
+    { activity_no: 'S1', activity_name: 'סדנת מייקרים', item_type: 'סדנה', proposal_group: 'קיץ תשפ״ו', unit_duration: '45 דקות', unit_price: 100 },
+    { activity_no: 'Y1', activity_name: 'קורס רובוטיקה', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', meetings_count: 10, unit_price: 200 },
+    { activity_no: 'T1', activity_name: 'בדיקות פנימיות', item_type: 'בדיקות', proposal_group: 'שנת הלימודים תשפ״ז', unit_price: 1 }
+  ];
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: [], proposalActivityPricing: pricing },
+        state: stateFor('admin'),
+        api: { readProposalAgreementItems: async () => [] }
+      });
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form = root.querySelector('[data-pa-form]');
+      form.querySelector('input[name="client_authority"]').value = 'רשות הדוגמה';
+      form.querySelector('input[name="school_framework"]').value = 'בית ספר הדוגמה';
+      form.querySelector('input[name="contact_name"]').value = 'ישראל ישראלי';
+      form.querySelector('input[name="contact_role"]').value = 'מנהל בית הספר';
+
+      const typeSelect = form.querySelector('select[name="activity_type_group"]');
+      typeSelect.value = 'קיץ תשפ״ו';
+      typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      assert.match(form.querySelector('[data-pa-items-host]').textContent, /סדנת מייקרים/);
+      assert.doesNotMatch(form.querySelector('[data-pa-items-host]').textContent, /קורס רובוטיקה|בדיקות פנימיות/);
+
+      typeSelect.value = 'שנת הלימודים תשפ״ז';
+      typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      assert.match(form.querySelector('[data-pa-items-host]').textContent, /קורס רובוטיקה/);
+      assert.doesNotMatch(form.querySelector('[data-pa-items-host]').textContent, /סדנת מייקרים|בדיקות פנימיות/);
+
+      typeSelect.value = 'קיץ תשפ״ו ושנת הלימודים תשפ״ז';
+      typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      assert.match(form.querySelector('[data-pa-items-host]').textContent, /פעילויות קיץ תשפ״ו/);
+      assert.match(form.querySelector('[data-pa-items-host]').textContent, /שנת הלימודים תשפ״ז/);
+
+      form.querySelector('[data-pa-preview-form]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const overlay = dom.window.document.getElementById('pa-preview-overlay');
+      assert.ok(overlay, 'preview overlay should open');
+      assert.match(overlay.textContent, /הצעת מחיר לפעילויות תעשיידע \| קיץ תשפ״ו ושנת הלימודים תשפ״ז/);
+      assert.match(overlay.textContent, /ישראל ישראלי, מנהל בית הספר/);
+      assert.doesNotMatch(overlay.textContent, /undefined|null|NaN|שורה חדשה|בדיקות פנימיות/);
+    }
+  );
 });
 
 test('upgrade migration adds status column with constraint and new indexes', async () => {
@@ -888,6 +997,84 @@ test('proposal preview preserves multiline section paragraphs and dash bullets',
     assert.equal(intro.querySelectorAll('li')[0]?.textContent, 'ההצעה מיועדת לקבוצה של עד 20 משתתפים.');
     assert.equal(intro.querySelectorAll('li')[1]?.textContent, 'בכל סדנת מייקרים יכין כל משתתף תוצר אישי.');
     assert.doesNotMatch(intro.textContent, /שורה חדשה/);
+  });
+});
+
+test('proposal preview renders recipient block after title without empty commas', async () => {
+  const row = {
+    ...sampleRows[0],
+    contact_name: '',
+    contact_role: 'מנהלת בית הספר',
+    school_framework: '',
+    client_authority: 'רשות הדוגמה',
+    custom_document_sections: [{
+      section_key: 'intro',
+      section_title: 'פתיח',
+      section_body: 'פתיח תעשיידע לבדיקה'
+    }]
+  };
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: { rows: [row], proposalTemplateSections: [{ template_key: 'summer', section_key: 'intro', section_title: 'פתיח', section_body: 'טקסט תבנית' }] },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => [] }
+    });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+
+    const subject = dom.window.document.querySelector('.pa-doc-subject');
+    const address = dom.window.document.querySelector('.pa-doc-address');
+    const intro = dom.window.document.querySelector('.pa-doc-intro');
+    assert.ok(subject, 'proposal title should render');
+    assert.ok(address, 'recipient block should render');
+    assert.ok(intro, 'intro should render after recipient block');
+    assert.ok(subject.compareDocumentPosition(address) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+    assert.ok(address.compareDocumentPosition(intro) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+    assert.deepEqual(Array.from(address.querySelectorAll('p')).map((p) => p.textContent), [
+      'לכבוד:',
+      'מנהלת בית הספר',
+      'רשות הדוגמה'
+    ]);
+    assert.doesNotMatch(address.textContent, /undefined|null|NaN|,,|,\s*$/);
+  });
+});
+
+test('proposal preview uses updated central contact details when reopening', async () => {
+  const row = {
+    ...sampleRows[0],
+    contact_name: 'דנה קשר',
+    contact_role: 'תפקיד ישן',
+    phone: '050-1111111'
+  };
+  const contactOptions = [{
+    id: 'central-1',
+    authority: row.client_authority,
+    school: row.school_framework,
+    contact_name: row.contact_name,
+    contact_role: 'מנהלת מעודכנת',
+    phone: row.phone,
+    email: 'updated@example.com'
+  }];
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: { rows: [row], contactOptions, proposalTemplateSections: [{ template_key: 'summer', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח תעשיידע' }] },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => [] }
+    });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+
+    const address = dom.window.document.querySelector('.pa-doc-address');
+    assert.match(address.textContent, /דנה קשר, מנהלת מעודכנת/);
+    assert.doesNotMatch(address.textContent, /תפקיד ישן|undefined|null|NaN/);
   });
 });
 

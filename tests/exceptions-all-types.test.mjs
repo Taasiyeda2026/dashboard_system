@@ -90,7 +90,6 @@ function computeExceptionsModel(sourceRows, ym, opts) {
   let totalExceptionRows = 0;
 
   sourceRows.forEach((row) => {
-    if (String(row.activity_type || '') !== 'course') return;
     // KEY FIX: activities without start_date are always included
     const rowHasStart = !isEmptyValue(row.start_date);
     if (ym && rowHasStart && !activityOverlapsYm(row, ym)) return;
@@ -102,7 +101,7 @@ function computeExceptionsModel(sourceRows, ym, opts) {
     const manager = String(row.activity_manager || '') || 'unassigned';
     if (!byManager[manager]) byManager[manager] = 0;
     totalExceptionRows += 1;
-    byManager[manager] += 1;
+    byManager[manager] += types.length;
 
     types.forEach((type) => {
       if (!counts[type]) counts[type] = 0;
@@ -125,12 +124,13 @@ function dashboardSnapshotModel(sourceRows, ym) {
   const lateEndDate = exceptionSummary.counts.late_end_date || 0;
   return {
     month: ym,
-    totals: { exceptions_count: exceptionSummary.totalExceptionRows },
+    totals: { exceptions_count: exceptionSummary.totalExceptionInstances },
     summary: {
-      exceptions_count: exceptionSummary.totalExceptionRows,
+      exceptions_count: exceptionSummary.totalExceptionInstances,
       totalExceptionRows: exceptionSummary.totalExceptionRows,
+      totalExceptionInstances: exceptionSummary.totalExceptionInstances,
       late_end_date_count: lateEndDate,
-      operational_gaps_count: lateEndDate,
+      operational_gaps_count: exceptionSummary.totalExceptionInstances,
       operational_gaps_unique_count: lateEndDate,
       operationalTotal: lateEndDate,
       missing_instructor_count: missingInstructor,
@@ -138,7 +138,7 @@ function dashboardSnapshotModel(sourceRows, ym) {
       counts: { ...exceptionSummary.counts }
     },
     by_activity_manager: Object.entries(exceptionSummary.byManager).map(([activity_manager, exceptions]) => ({ activity_manager, exceptions })),
-    kpi_cards: [{ id: 'exceptions', action: 'kpi|exceptions', value: lateEndDate }]
+    kpi_cards: [{ id: 'exceptions', action: 'kpi|exceptions', value: exceptionSummary.totalExceptionInstances }]
   };
 }
 
@@ -182,7 +182,7 @@ const rowNoException = {
   status: 'פעיל'
 };
 
-// Non-course activity — should always be excluded
+// Short/non-course activity — should still be included when it has exceptions.
 const rowNonCourse = {
   RowID: 'SHORT-001',
   activity_type: 'workshop',
@@ -259,8 +259,8 @@ test('activity without start_date (missing_start_date) is included in month-filt
     'LONG-002 (has start_date, overlaps month) must appear');
   assert.ok(!rowIds.includes('LONG-003'),
     'LONG-003 (no exceptions) must NOT appear');
-  assert.ok(!rowIds.includes('SHORT-001'),
-    'SHORT-001 (non-course) must NOT appear');
+  assert.ok(rowIds.includes('SHORT-001'),
+    'SHORT-001 (short/non-course) must appear when it has exceptions');
 });
 
 test('activity outside month with start_date is excluded when month filter is active', () => {
@@ -270,13 +270,13 @@ test('activity outside month with start_date is excluded when month filter is ac
   assert.equal(result.totalExceptionInstances, 0);
 });
 
-test('count by manager is by course rows, not instances', () => {
+test('count by manager is by exception instances', () => {
   const allRows = [rowAllThree, rowMissingInstructor];
   const result = computeExceptionsModel(allRows, YM, { include_rows: false });
   // rowAllThree (no start_date): 3 exceptions → mgr_a gets 3
   // rowMissingInstructor: 1 exception → mgr_b gets 1
-  assert.equal(result.byManager['mgr_a'], 1, 'mgr_a should count one problematic course');
-  assert.equal(result.byManager['mgr_b'], 1, 'mgr_b should count one problematic course');
+  assert.equal(result.byManager['mgr_a'], 3, 'mgr_a should count three exception instances');
+  assert.equal(result.byManager['mgr_b'], 1, 'mgr_b should count one exception instance');
   assert.equal(result.totalExceptionRows, 2);
 });
 
@@ -296,23 +296,24 @@ test('dashboard snapshot uses the same total rows, detail counts, and manager co
   const exceptionsKpi = dashboard.kpi_cards.find((card) => card.id === 'exceptions');
   const byManager = Object.fromEntries(dashboard.by_activity_manager.map((row) => [row.activity_manager, row.exceptions]));
 
-  assert.equal(exceptions.totalExceptionRows, 4, 'four course activities are exceptional in the selected month');
-  assert.equal(exceptions.totalExceptionInstances, 6, 'multi-exception rows still contribute each detail type');
-  assert.equal(dashboard.totals.exceptions_count, exceptions.totalExceptionRows);
-  assert.equal(exceptionsKpi.value, exceptions.counts.late_end_date);
-  assert.equal(dashboard.summary.exceptions_count, exceptions.totalExceptionRows);
+  assert.equal(exceptions.totalExceptionRows, 5, 'five activities are exceptional in the selected month');
+  assert.equal(exceptions.totalExceptionInstances, 9, 'multi-exception rows still contribute each detail type');
+  assert.equal(dashboard.totals.exceptions_count, exceptions.totalExceptionInstances);
+  assert.equal(exceptionsKpi.value, exceptions.totalExceptionInstances);
+  assert.equal(dashboard.summary.exceptions_count, exceptions.totalExceptionInstances);
   assert.equal(dashboard.summary.totalExceptionRows, exceptions.totalExceptionRows);
+  assert.equal(dashboard.summary.totalExceptionInstances, exceptions.totalExceptionInstances);
   assert.equal(dashboard.summary.late_end_date_count, exceptions.counts.late_end_date);
-  assert.equal(dashboard.summary.operational_gaps_count, exceptions.counts.late_end_date);
+  assert.equal(dashboard.summary.operational_gaps_count, exceptions.totalExceptionInstances);
   assert.deepEqual(byManager, exceptions.byManager);
-  assert.equal(exceptions.byManager.mgr_a, 2);
+  assert.equal(exceptions.byManager.mgr_a, 7);
   assert.equal(exceptions.byManager.mgr_b, 2);
 });
 
-test('non-course activities are never included in exceptions', () => {
+test('short/non-course activities are included in exceptions', () => {
   const result = computeExceptionsModel([rowNonCourse], '', { include_rows: true });
-  assert.equal(result.rows.length, 0, 'workshops/tours must not appear in exceptions');
-  assert.equal(result.totalExceptionInstances, 0);
+  assert.equal(result.rows.length, 1, 'workshops/tours must appear in exceptions when they have issues');
+  assert.equal(result.totalExceptionInstances, 3);
 });
 
 // ─── Source-code structure tests ──────────────────────────────────────────────
@@ -391,8 +392,9 @@ test('frontend exception Hebrew labels describe the exception details clearly', 
 
 test('exceptions screen separates end_date_passed and end_date_out_of_sync into distinct group titles', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
-  assert.match(src, /הסתיימה ולא נסגרה/);
-  assert.match(src, /סיום לא מעודכן/);
+  assert.match(src, /hebrewExceptionType\(type\)/);
+  assert.match(src, /if \(type === 'end_date_passed'\) return 'ended-open';/);
+  assert.match(src, /if \(type === 'end_date_out_of_sync'\) return 'end-date-sync';/);
   assert.doesNotMatch(src, /פעילויות עם חריגת תאריך סיום/);
 });
 
@@ -412,6 +414,24 @@ test('exceptions screen group count matches rendered clickable cards', () => {
   const clickableCards = (html.match(/data-card-action="exception:/g) || []).length;
   assert.equal(clickableCards, 4, 'each grouped appearance must be rendered as a clickable card');
   assert.doesNotMatch(html, /data-action="delete"/);
+});
+
+test('exceptions screen totals, district sum, and rendered cards use the same exception instances', () => {
+  const state = { listFilters: {}, clientSettings: {} };
+  const data = {
+    month: '2026-05',
+    rows: [
+      { RowID: '1', activity_name: 'סדנת קיץ', authority: 'ר1', school: 'ב1', district: '', exception_types: ['missing_district', 'missing_instructor'] },
+      { RowID: '2', activity_name: 'יום שיא', authority: 'ר2', school: 'ב2', district: 'צפון', exception_types: ['end_date_passed'] }
+    ],
+    totalExceptionInstances: 3
+  };
+  const html = exceptionsScreen.render(data, { state });
+
+  assert.match(html, /data-exceptions-total>3</);
+  assert.match(html, /data-exceptions-district-total>3</);
+  assert.match(html, /ללא מחוז \/ לא משויך/);
+  assert.equal((html.match(/data-card-action="exception:/g) || []).length, 3);
 });
 
 test('frontend drawer shows exception type chip when opening activity detail', async () => {

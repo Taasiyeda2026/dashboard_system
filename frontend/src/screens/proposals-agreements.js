@@ -72,6 +72,10 @@ function text(value) {
 function normalizeMultilineText(value) {
   return String(value == null ? '' : value)
     .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -332,14 +336,26 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
   if (contacts.length <= 1) return '';
   const optionsHtml = ['<option value="">— בחרו איש קשר —</option>',
     ...contacts.map((c) => {
-      const val = text(c.contact_name);
-      const label = c.contact_role ? `${val} (${text(c.contact_role)})` : val;
-      return `<option value="${escapeHtml(val)}"${val === selectedContactName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+      const val = contactOptionKey(c);
+      const contactName = text(c.contact_name);
+      const label = c.contact_role ? `${contactName} (${text(c.contact_role)})` : contactName;
+      return `<option value="${escapeHtml(val)}"${text(c.contact_name) === selectedContactName || val === selectedContactName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     })
   ].join('');
   return `<label class="ds-pa-form-field"><span>בחרו איש קשר</span>
     <select class="ds-input ds-input--sm" data-pa-contact-select>${optionsHtml}</select>
   </label>`;
+}
+
+function contactOptionKey(contact = {}) {
+  return [
+    text(contact.id),
+    text(contact.authority),
+    text(contact.school),
+    text(contact.contact_name),
+    text(contact.email),
+    text(contact.phone || contact.mobile || '')
+  ].join('||');
 }
 
 // ─── Items editor ────────────────────────────────────────────────────────────
@@ -602,6 +618,19 @@ function sectionHtml(title, body, className = '', options = {}) {
   return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(sectionHeadingText(title))}</h3>${sectionBodyHtml(body, options)}</section>`;
 }
 
+function recipientLineHtml(...values) {
+  const line = values.map(text).filter(Boolean).join(', ');
+  return line ? `<p>${escapeHtml(line)}</p>` : '';
+}
+
+function recipientBlockHtml(row = {}) {
+  return `<div class="pa-doc-address">
+    <p><strong>לכבוד:</strong></p>
+    ${recipientLineHtml(row.contact_name, row.contact_role)}
+    ${recipientLineHtml(row.school_framework, row.client_authority)}
+  </div>`;
+}
+
 function parseSectionBodyStructure(value, options = {}) {
   const { alwaysBullet = false } = options;
   const raw = normalizeMultilineText(value).replace(/[ \t]*שורה\s+חדשה\s*:?\s*/gi, '\n');
@@ -682,22 +711,10 @@ function sectionLinesHtml(value, options = {}) {
   return renderProposalSectionBody(value, options);
 }
 
-function signatureSectionHtml(signatureText) {
-  const fallback = 'בברכה,\n\nעידן נחום, סמנכ״ל כספים ותפעול.';
-  const raw = normalizeMultilineText(signatureText) ? normalizeMultilineText(signatureText) : fallback;
-  const lines = raw
-    .split('\n')
-    .map((line) => String(line || '').trim())
-    .filter(Boolean);
-  if (!lines.length) return '';
-  const [closingLine, ...nameLines] = lines;
-  const signerName = nameLines.join(' ');
-  return `<section class="pa-doc-signature-simple">
-    <p>${escapeHtml(closingLine)}</p>
-    <div class="pa-doc-signature-line-wrap">
-      <span class="pa-doc-signature-line"></span>
-      ${signerName ? `<p>${escapeHtml(signerName)}</p>` : ''}
-    </div>
+function signatureSectionHtml() {
+  return `<section class="ds-pa-doc-signature">
+    <div class="ds-pa-doc-signature-line"></div>
+    <div class="ds-pa-doc-signature-name">עידן נחום, סמנכ"ל כספים</div>
   </section>`;
 }
 
@@ -962,8 +979,6 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const activityIntro = sectionBody('activity_intro', '');
   const summerActivityIntro = sectionBody('summer_activity_intro', '');
   const nextYearActivityIntro = sectionBody('next_year_activity_intro', '');
-  const signatureText = sectionBody('signature', '');
-
   const itemsByGroup = Array.isArray(items) ? items.reduce((acc, item) => {
     const itemType = text(item.item_type);
     const unitDuration = text(item.unit_duration);
@@ -990,51 +1005,41 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   }
 
   return `
-    <header class="pa-doc-header">
-      <div class="pa-doc-topline">
-        <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
-        <div class="pa-doc-header-brand">
-          <img
-            src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
-            alt="לוגו תעשיידע"
-            class="pa-doc-logo pa-doc-logo--header"
-            loading="eager"
-            decoding="async"
-            onerror="this.style.display='none';"
-          >
-        </div>
-      </div>
-      <div class="pa-doc-address">
-        <p><strong>לכבוד:</strong></p>
-        ${row.contact_name ? `<p>${escapeHtml(row.contact_name)}</p>` : ''}
-        ${row.contact_role ? `<p>${escapeHtml(row.contact_role)}</p>` : ''}
-        ${row.school_framework ? `<p>${escapeHtml(row.school_framework)}</p>` : ''}
-        ${row.client_authority ? `<p>${escapeHtml(row.client_authority)}</p>` : ''}
-      </div>
-    </header>
-    <hr class="pa-doc-divider">
-    <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
-    ${introText ? sectionLinesHtml(introText, { className: 'pa-doc-intro' }) : ''}
-    ${sections.join('')}
-    ${orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility, '', { alwaysBullet: true }) : ''}
-    ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility, '', { alwaysBullet: true }) : ''}
-    ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלות ותנאי תשלום'), paymentTerms, '', { alwaysBullet: true }) : ''}
-    ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation, '', { alwaysBullet: true }) : ''}
-    ${remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : ''}
-    <div class="pa-doc-bottom">
-      ${signatureSectionHtml(signatureText)}
-      <footer class="pa-doc-footer">
+    <div class="ds-pa-print-page-header">
+      <img
+        src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
+        alt="לוגו תעשיידע"
+        class="ds-pa-doc-header-logo"
+        loading="eager"
+        decoding="async"
+        onerror="this.style.display='none';"
+      >
+    </div>
+    <div class="ds-pa-print-page-footer">
         <img
           src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
           alt="לוגו תחתון תעשיידע"
-          class="pa-doc-logo pa-doc-logo--footer"
-          loading="lazy"
-          decoding="async"
-          onerror="this.style.display='none';"
-        >
-        <span>תעשיידע - תעשייה למען חינוך מתקדם (ע"ר)</span>
-        <span>www.think.org.il</span>
-      </footer>
+        class="ds-pa-doc-footer-logo"
+        loading="lazy"
+        decoding="async"
+        onerror="this.style.display='none';"
+      >
+    </div>
+    <div class="ds-pa-document-body">
+      <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
+      <hr class="pa-doc-divider">
+      <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
+      ${recipientBlockHtml(row)}
+      ${introText ? sectionLinesHtml(introText, { className: 'pa-doc-intro' }) : ''}
+      ${sections.join('')}
+      ${orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility, '', { alwaysBullet: true }) : ''}
+      ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility, '', { alwaysBullet: true }) : ''}
+      ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלות ותנאי תשלום'), paymentTerms, '', { alwaysBullet: true }) : ''}
+      ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation, '', { alwaysBullet: true }) : ''}
+      ${remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : ''}
+      <div class="pa-doc-bottom">
+        ${signatureSectionHtml()}
+      </div>
     </div>`;
 }
 
@@ -1117,6 +1122,31 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
   </div>`;
 }
 
+function contactMatchesProposalRow(contact = {}, row = {}) {
+  const authorityMatch = text(contact.authority) === text(row.client_authority);
+  const schoolMatch = text(contact.school) === text(row.school_framework);
+  const nameMatch = text(contact.contact_name) === text(row.contact_name);
+  const emailMatch = text(contact.email) && text(contact.email) === text(row.email);
+  const phoneMatch = text(contact.phone || contact.mobile || '') && text(contact.phone || contact.mobile || '') === text(row.phone);
+  return Boolean((emailMatch || phoneMatch || (authorityMatch && schoolMatch && nameMatch)) && (nameMatch || emailMatch || phoneMatch));
+}
+
+function findContactForProposalRow(contactOptions = [], row = {}) {
+  return (Array.isArray(contactOptions) ? contactOptions : []).find((contact) => contactMatchesProposalRow(contact, row)) || null;
+}
+
+function contactSourceInputsHtml(contact = {}) {
+  const source = contact || {};
+  return `
+    <input type="hidden" name="contact_source_id" value="${escapeHtml(text(source.id))}">
+    <input type="hidden" name="contact_source_authority" value="${escapeHtml(text(source.authority))}">
+    <input type="hidden" name="contact_source_school" value="${escapeHtml(text(source.school))}">
+    <input type="hidden" name="contact_source_name" value="${escapeHtml(text(source.contact_name))}">
+    <input type="hidden" name="contact_source_role" value="${escapeHtml(text(source.contact_role))}">
+    <input type="hidden" name="contact_source_phone" value="${escapeHtml(text(source.phone || source.mobile || ''))}">
+    <input type="hidden" name="contact_source_email" value="${escapeHtml(text(source.email))}">`;
+}
+
 function showValidationNotice(form, errors, isPending) {
   const noticeEl = form.querySelector('[data-pa-validation-notice]');
   const errorEl = form.querySelector('[data-pa-form-error]');
@@ -1141,11 +1171,12 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initPhone = text(row.phone);
   const initEmail = text(row.email);
   const isLocked = !!initAuth;
+  const initContactSource = findContactForProposalRow(contactOptions, row);
   const initPickerHtml = initAuth ? contactPickerHtml(contactOptions, initAuth, initSchool, initContact) : '';
   const proposalDate = mode === 'add' ? (text(row.proposal_date) || localDateInputValue()) : text(row.proposal_date);
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
 
-  return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" dir="rtl">
+  return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
     <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
 
     <div class="ds-pa-form-section">
@@ -1197,6 +1228,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
 
     <input type="hidden" name="document_type" value="הצעת מחיר">
     <input type="hidden" name="status" data-pa-status-input value="${escapeHtml(currentStatus)}">
+    <span data-pa-contact-source>${contactSourceInputsHtml(initContactSource || {})}</span>
     <div class="ds-pa-validation-notice" data-pa-validation-notice hidden></div>
     <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
     <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
@@ -1341,6 +1373,15 @@ function payloadFromForm(form) {
   if (itemNames.length) payload.activity_names = itemNames;
   payload.total_amount = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 0) * (Number(i.unit_price) || 0))), 0) || null;
   payload._items = items;
+  payload._contact_original = {
+    id:             text(formData.get('contact_source_id')),
+    authority:      text(formData.get('contact_source_authority')),
+    school:         text(formData.get('contact_source_school')),
+    contact_name:   text(formData.get('contact_source_name')),
+    contact_role:   text(formData.get('contact_source_role')),
+    phone:          text(formData.get('contact_source_phone')),
+    email:          text(formData.get('contact_source_email'))
+  };
   return payload;
 }
 
@@ -1420,6 +1461,20 @@ export const proposalsAgreementsScreen = {
     const proposalActivityPricing = Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : [];
     const proposalTemplateSections = Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : [];
     const contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
+    const rowWithCentralContact = (row) => {
+      if (!row) return row;
+      const contact = findContactForProposalRow(contactOptions, row);
+      if (!contact) return row;
+      return {
+        ...row,
+        client_authority: text(contact.authority) || row.client_authority,
+        school_framework: text(contact.school) || row.school_framework,
+        contact_name: text(contact.contact_name) || row.contact_name,
+        contact_role: text(contact.contact_role) || row.contact_role,
+        phone: text(contact.phone || contact.mobile || '') || row.phone,
+        email: text(contact.email) || row.email
+      };
+    };
     let debounceTimer = null;
 
     const refreshTable = () => updateProposalsAgreementsTableOnly(root, displayRows(data, currentFilters(root)));
@@ -1441,6 +1496,7 @@ export const proposalsAgreementsScreen = {
       if (!typeSelect) return;
       typeSelect.addEventListener('change', () => {
         const newType = text(typeSelect.value);
+        form.dataset.paPreviewSeen = '';
         // Update template indicator
         const indicatorEl = form.querySelector('[data-pa-template-indicator]');
         if (indicatorEl) {
@@ -1454,6 +1510,11 @@ export const proposalsAgreementsScreen = {
         if (!itemsHost) return;
         const filteredPricing = filterPricingByProposalType(proposalActivityPricing, newType);
         itemsHost.innerHTML = itemsEditorHtml(currentItems, filteredPricing, newType);
+        const modeEl = form.querySelector('[data-pa-template-mode]');
+        if (modeEl && text(form.dataset.paOriginalType) && text(form.dataset.paOriginalType) !== newType) {
+          modeEl.textContent = 'סוג ההצעה השתנה - תיטען תבנית המקור של הסוג החדש';
+          modeEl.classList.remove('ds-pa-template-mode--custom');
+        }
         setupItemCalc(form);
       }, { signal });
     };
@@ -1490,14 +1551,22 @@ export const proposalsAgreementsScreen = {
       }
     };
 
+    const setContactSource = (form, contact = {}) => {
+      const host = form?.querySelector('[data-pa-contact-source]');
+      if (host) host.innerHTML = contactSourceInputsHtml(contact || {});
+    };
+
     const setupContactPicker = (container, form) => {
       const contactSelect = container?.querySelector?.('[data-pa-contact-select]');
       if (!contactSelect) return;
       contactSelect.addEventListener('change', () => {
-        const name = contactSelect.value;
-        if (!name) return;
-        const contact = contactOptions.find((c) => text(c.contact_name) === name);
-        if (contact) fillContactFields(form, contact);
+        const key = contactSelect.value;
+        if (!key) return;
+        const contact = contactOptions.find((c) => contactOptionKey(c) === key);
+        if (contact) {
+          fillContactFields(form, contact);
+          setContactSource(form, contact);
+        }
       }, { signal });
     };
 
@@ -1520,14 +1589,18 @@ export const proposalsAgreementsScreen = {
         let cName = '', cRole = '', phone = '', email = '';
         if (matches.length > 1) {
           if (pickerHost) { pickerHost.innerHTML = contactPickerHtml(contactOptions, authority, school, ''); setupContactPicker(pickerHost, form); }
+          setContactSource(form, {});
         } else {
           if (pickerHost) pickerHost.innerHTML = '';
           if (matches.length === 1) {
             fillContactFields(form, matches[0]);
+            setContactSource(form, matches[0]);
             cName = text(matches[0].contact_name);
             cRole = text(matches[0].contact_role);
             phone = text(matches[0].phone || matches[0].mobile || '');
             email = text(matches[0].email || '');
+          } else {
+            setContactSource(form, {});
           }
         }
         lockClientFields(form, authority, school, cName, cRole, phone, email);
@@ -1619,7 +1692,7 @@ export const proposalsAgreementsScreen = {
     // ── Preview ───────────────────────────────────────────────────────────────
     const openPreview = (row, items) => {
       // Always rebuild preview from current state + current templates
-      const freshRow = data.rows.find((r) => text(r.id) === text(row.id)) || row;
+      const freshRow = rowWithCentralContact(data.rows.find((r) => text(r.id) === text(row.id)) || row);
       const templateKey = TEMPLATE_KEY_BY_GROUP[text(freshRow.activity_type_group)] || 'combined';
       const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
       document.getElementById('pa-preview-overlay')?.remove();
@@ -1687,6 +1760,14 @@ export const proposalsAgreementsScreen = {
       if (noticeEl) noticeEl.hidden = true;
       const mode = form.dataset.paMode;
       const id = text(form.dataset.paId);
+      if (mode === 'edit') {
+        const existingRow = data.rows.find((row) => text(row.id) === id);
+        if (existingRow && text(form.dataset.paOriginalType) === text(payload.activity_type_group) && Array.isArray(existingRow.custom_document_sections)) {
+          payload.custom_document_sections = existingRow.custom_document_sections;
+        } else {
+          payload.custom_document_sections = [];
+        }
+      }
       try {
         const result = mode === 'edit'
           ? await api.updateProposalAgreement(id, payload)
@@ -1768,7 +1849,7 @@ export const proposalsAgreementsScreen = {
     root.addEventListener('click', async (event) => {
       const rowEl = event.target.closest?.('[data-pa-row-id]');
       if (rowEl) {
-        const row = data.rows.find((item) => text(item.id) === text(rowEl.dataset.paRowId));
+        const row = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(rowEl.dataset.paRowId)));
         const drawer = root.querySelector('[data-pa-drawer]');
         if (drawer && row) {
           drawer.outerHTML = drawerHtml(row, activityNameOptions, state);
@@ -1796,7 +1877,7 @@ export const proposalsAgreementsScreen = {
 
       const editBtn = event.target.closest?.('[data-pa-edit-row]');
       if (editBtn) {
-        const row = data.rows.find((item) => text(item.id) === text(editBtn.dataset.paEditRow));
+        const row = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(editBtn.dataset.paEditRow)));
         const host = root.querySelector('[data-pa-inline-form]');
         if (host && row) {
           let items = [];
@@ -2033,6 +2114,8 @@ export const proposalsAgreementsScreen = {
         if (clientSelect) clientSelect.value = '';
         if (form) form.dataset.paNewClient = 'yes';
         unlockClientFields(form);
+        const sourceHost = form?.querySelector('[data-pa-contact-source]');
+        if (sourceHost) sourceHost.innerHTML = contactSourceInputsHtml({});
         const hint = form?.querySelector('[data-pa-new-client-hint]');
         if (hint) hint.hidden = false;
         ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {

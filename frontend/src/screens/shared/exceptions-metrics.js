@@ -4,9 +4,16 @@ function asList(rows) {
 
 export const EXCEPTION_TYPE_ORDER = [
   'end_date_passed',
+  'next_meeting_passed',
   'end_date_out_of_sync',
+  'invalid_date_range',
   'missing_instructor',
-  'missing_start_date'
+  'missing_school',
+  'missing_authority',
+  'missing_district',
+  'missing_start_date',
+  'missing_end_date',
+  'missing_next_meeting'
 ];
 
 const LEGACY_EXCEPTION_TYPE_ALIASES = {

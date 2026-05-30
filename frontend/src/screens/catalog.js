@@ -31,9 +31,11 @@ function ensureCatalogStyles() {
 .catalog-screen{direction:rtl;display:flex;flex-direction:column;gap:18px;color:#1f2937}
 .catalog-header h2{margin:0 0 6px;font-size:30px;line-height:1.2;font-weight:800;letter-spacing:-.2px}
 .catalog-header .ds-muted{margin:0;color:#64748b;font-size:14px}
-.catalog-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:linear-gradient(180deg,#f8fbff,#f1f6fd);border:1px solid #dbe8f4;border-radius:14px;padding:10px 12px}
-.catalog-filter{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #d5e4f3;border-radius:10px;padding:6px 10px;font-size:13px;color:#334155;font-weight:600}
-.catalog-filter select{border:none;background:transparent;font:inherit;color:#0f172a;min-width:94px;outline:none}
+.catalog-toolbar{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;background:linear-gradient(180deg,#f8fbff,#f1f6fd);border:1px solid #dbe8f4;border-radius:14px;padding:12px}
+.catalog-filter-field{display:flex;flex-direction:column;gap:6px;min-width:180px;flex:0 1 220px;color:#334155;font-size:13px;font-weight:700}
+.catalog-filter-field span{line-height:1.2}
+.catalog-filter-field select{width:100%;min-height:40px;border:1px solid #d5e4f3;border-radius:10px;background:#fff;padding:7px 10px;font:inherit;color:#0f172a;outline:none}
+.catalog-filter-field select:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.16)}
 .catalog-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:start}
 .catalog-group{background:linear-gradient(180deg,#ffffff,#f8fbff);border:1px solid #dbe6f1;border-radius:18px;padding:14px;min-width:0}
 .catalog-group-title{margin:0 0 12px;font-size:18px;line-height:1.2;font-weight:900;color:#0f172a;text-align:center}
@@ -97,7 +99,7 @@ function ensureCatalogStyles() {
 .catalog-list-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @media (max-width:900px){.catalog-a4{width:100%;min-height:auto;padding:14px}.catalog-frame-grid{grid-template-columns:1fr 1fr}.catalog-list-grid{grid-template-columns:1fr}}
 @media (max-width:1100px){.catalog-groups{grid-template-columns:1fr}.catalog-group-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:760px){.catalog-header h2{font-size:24px}.catalog-filter{font-size:12px}}
+@media (max-width:760px){.catalog-header h2{font-size:24px}.catalog-toolbar{align-items:stretch}.catalog-filter-field{flex:1 1 100%;min-width:0;font-size:12px}}
 @media (max-width:640px){.catalog-frame-grid,.catalog-list-grid,.catalog-content-grid,.catalog-strip-grid,.catalog-mini-card-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}.catalog-group-grid{grid-template-columns:1fr}}
 @page{size:A4;margin:0}
 @media print {
@@ -126,6 +128,19 @@ function normalizeAudienceLevel(value) {
   if (raw === 'חטיבות' || raw === 'חטיבה' || raw === 'חט״ב') return 'חטיבה';
   if (raw === 'יסודי') return 'יסודי';
   return raw || 'לא צוין';
+}
+
+function catalogFiltersHtml(audience, type) {
+  return `<div class="catalog-toolbar">
+    <label class="catalog-filter-field">
+      <span>שכבת גיל</span>
+      <select data-catalog-filter="audience">${AUDIENCE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === audience ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select>
+    </label>
+    <label class="catalog-filter-field">
+      <span>סוג פעילות</span>
+      <select data-catalog-filter="type">${TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === type ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select>
+    </label>
+  </div>`;
 }
 
 function normalizeProductType(value) {
@@ -373,10 +388,7 @@ export const catalogScreen = {
       const selectedStandalonePrograms = standaloneByCategory[selectedStandaloneCategory] || [];
       return `<section class="catalog-screen">
         <header class="catalog-header"><h2>סדנאות, סיורים וחוגים</h2><p class="ds-muted">בחירה ממוקדת לפי קבוצות פעילות</p></header>
-        <div class="catalog-toolbar">
-          <label class="catalog-filter">שכבת גיל <select data-catalog-filter="audience">${AUDIENCE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === audience ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
-          <label class="catalog-filter">סוג פעילות <select data-catalog-filter="type">${TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === type ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
-        </div>
+        ${catalogFiltersHtml(audience, type)}
         ${data.loadError ? `<p class="catalog-empty">${escapeHtml(data.loadError)}</p>` : ''}
         <div class="catalog-detail-actions">
           <button class="catalog-btn" data-catalog-back>חזרה לקטלוג</button>
@@ -397,11 +409,8 @@ export const catalogScreen = {
 
     if (!selected) {
       return `<section class="catalog-screen">
-        <header class="catalog-header"><h2>קטלוג תוכניות תלמידים תשפ״ז</h2><p class="ds-muted">בחירת תוכנית לפי שכבת גיל וסוג פעילות</p></header>
-        <div class="catalog-toolbar">
-          <label class="catalog-filter">שכבת גיל <select data-catalog-filter="audience">${AUDIENCE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === audience ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
-          <label class="catalog-filter">סוג פעילות <select data-catalog-filter="type">${TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === type ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
-        </div>
+        <header class="catalog-header"><h2>קטלוג תוכניות תשפ״ז</h2><p class="ds-muted">בחירת תוכנית לפי שכבת גיל וסוג פעילות</p></header>
+        ${catalogFiltersHtml(audience, type)}
         ${data.loadError ? `<p class="catalog-empty">${escapeHtml(data.loadError)}</p>` : ''}
         <div class="catalog-groups">
           ${renderCatalogGroup('יסודי', elementaryPrograms)}
