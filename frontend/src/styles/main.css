@@ -11007,28 +11007,34 @@ select.ds-input {
 .pa-proposal-lines {
   margin-top: 2pt;
 }
+.pa-doc-bottom {
+  margin-top: auto;
+  width: 100%;
+}
 .pa-doc-signature-simple {
-  margin-top: 8pt;
+  margin-bottom: 10pt;
   text-align: left;
   font-size: 9pt;
   line-height: 1.5;
   letter-spacing: 0.15px;
 }
 .pa-doc-signature-line-wrap {
-  display: inline-block;
+  display: block;
+  width: max-content;
   text-align: left;
 }
 .pa-doc-signature-simple p {
-  margin: 0 0 4pt;
+  margin: 0;
 }
 .pa-doc-signature-line {
-  display: inline-block;
-  min-width: 160px;
+  display: block;
   border-top: 1px solid #111827;
-  padding-top: 4pt;
+  margin-bottom: 2pt;
+  width: calc(100% + 16px);
+  margin-left: -8px;
 }
 .pa-doc-footer {
-  margin-top: auto;
+  margin-top: 0;
   width: 100%;
   padding-top: 8mm;
   border-top: 1px solid #cbd5e1;
@@ -11288,13 +11294,27 @@ select.ds-input {
     text-align: left !important;
     font-size: 9pt !important;
     line-height: 1.5 !important;
-    margin-top: 10pt !important;
+    margin-bottom: 10pt !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
 
+  .pa-doc-signature-line-wrap {
+    display: block !important;
+    width: max-content !important;
+    text-align: left !important;
+  }
+
+  .pa-doc-signature-line {
+    display: block !important;
+    border-top: 0.5px solid #111827 !important;
+    margin-bottom: 2pt !important;
+    width: calc(100% + 16px) !important;
+    margin-left: -8px !important;
+  }
+
   .pa-doc-footer {
-    margin-top: 16pt !important;
+    margin-top: 0 !important;
     width: 100% !important;
     padding-top: 8pt !important;
     border-top: 0.5px solid #e2e8f0 !important;

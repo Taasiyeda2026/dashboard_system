@@ -9,7 +9,9 @@ function ensureCatalogStyles() {
   const style = document.createElement('style');
   style.id = 'catalog-screen-styles';
   style.textContent = `
-.catalog-screen{direction:rtl;display:flex;flex-direction:column;gap:18px;color:#0f172a}
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800&display=swap');
+* { font-family: 'Heebo', sans-serif; }
+.catalog-screen{direction:rtl;display:flex;flex-direction:column;gap:18px;color:#1f2937}
 .catalog-header h2{margin:0 0 6px;font-size:30px;line-height:1.2;font-weight:800;letter-spacing:-.2px}
 .catalog-header .ds-muted{margin:0;color:#64748b;font-size:14px}
 .catalog-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:linear-gradient(180deg,#f8fbff,#f1f6fd);border:1px solid #dbe8f4;border-radius:14px;padding:10px 12px}
@@ -38,38 +40,43 @@ function ensureCatalogStyles() {
 .catalog-btn{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font:inherit}
 .catalog-btn--primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
 .catalog-a4-wrap{display:flex;justify-content:center}
-.catalog-a4{width:210mm;min-height:297mm;background:#fff;color:#1f2937;border:1px solid #d7dee7;border-radius:10px;padding:10mm;box-shadow:0 8px 24px rgba(15,23,42,.08);display:flex;flex-direction:column;gap:8px}
+.catalog-a4{width:210mm;min-height:297mm;background:#ffffff;color:#1f2937;border:1px solid #ddd8f0;border-radius:12px;padding:12mm;box-shadow:0 4px 20px rgba(100,90,170,0.08);display:flex;flex-direction:column;gap:8px}
 .catalog-hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.catalog-logo-box{border:1px solid #c4b5fd;background:#f5f3ff;border-radius:10px;padding:6px 10px;font-weight:700;font-size:13px}
+.catalog-logo-box{background:white;border:1px solid #cdc6ef;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;color:#4b3fa0;text-align:center;line-height:1.4;white-space:nowrap}
 .catalog-hero-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
-.catalog-tag{background:#ecfeff;border:1px solid #99f6e4;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:700}
+.catalog-tag{background:white;border:1px solid #cdc6ef;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;color:#4b3fa0}
 .catalog-content-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.catalog-strip{background:#f8fafc;border:1px solid #d8e1eb;border-radius:10px;padding:10px}
+.catalog-strip{background:#f7f6fb;border:1px solid #ddd8f0;border-radius:10px;padding:10px 12px}
+.catalog-strip h3{font-size:13.5px;font-weight:700;background:#e5f5ee;color:#1a6645;border-radius:6px;padding:4px 8px;display:inline-block;margin:0 0 10px}
 .catalog-strip-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.catalog-strip-grid .catalog-box{background:white}
+.catalog-strip-grid .catalog-box strong{display:block;font-size:12px;font-weight:700;color:#1a6645;margin-bottom:5px}
 .catalog-mini-card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.catalog-mini-card{border:1px solid #d8e1eb;background:#fff;border-radius:10px;padding:8px;font-size:13px;line-height:1.4;font-weight:600}
-.catalog-close{background:#f5f3ff;border-color:#d8b4fe}
-.catalog-footer{margin-top:auto;display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#475569;border-top:1px solid #d8e1eb;padding-top:8px}
-.catalog-a4-header{border-radius:14px;padding:14px;border:1px solid transparent}
-.catalog-a4-header h1{margin:0;font-size:28px;line-height:1.2}
-.catalog-a4-header p{margin:6px 0 0;font-size:14px;line-height:1.5;max-width:95%}
-.catalog-a4-badge{display:inline-flex;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;margin-bottom:8px}
-.catalog-a4--elementary .catalog-a4-header{background:linear-gradient(135deg,#effbff,#ddf5ff);border-color:#c5e7f8;color:#103d59}
-.catalog-a4--elementary .catalog-a4-badge{background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4}
-.catalog-a4--middle .catalog-a4-header{background:linear-gradient(135deg,#1e3a8a,#1f3f96 55%,#2457d8);border-color:#1d4ed8;color:#f8fbff}
-.catalog-a4--middle .catalog-a4-badge{background:#dbeafe;color:#1e3a8a;border:1px solid #bfdbfe}
-.catalog-a4--middle .catalog-a4-header p{color:#dbeafe}
-.catalog-a4--neutral .catalog-a4-header{background:linear-gradient(135deg,#f8fafc,#eef2f7);border-color:#dbe3ec;color:#0f172a}
-.catalog-a4--neutral .catalog-a4-badge{background:#e2e8f0;color:#334155;border:1px solid #cbd5e1}
-.catalog-frame-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.catalog-box{background:#f8fafc;border:1px solid #d8e1eb;border-radius:10px;padding:10px}
-.catalog-box h3{margin:0 0 6px;font-size:15px}
-.catalog-box p{margin:0;line-height:1.55;white-space:pre-line}
-.catalog-box ul{margin:0;padding-inline-start:18px;line-height:1.5}
+.catalog-mini-card{border:1px solid #ddd8f0;background:#f7f6fb;border-radius:10px;padding:9px 10px;font-size:13px;font-weight:600;color:#4b3fa0;text-align:center;line-height:1.4}
+.catalog-close{background:#f7f6fb;border:1px solid #ddd8f0;border-radius:10px;padding:12px 14px;display:flex;align-items:flex-start;gap:12px}
+.catalog-close h3{background:#e5f5ee;color:#1a6645}
+.catalog-footer{margin-top:auto;border-top:1px solid #ddd8f0;padding-top:8px;display:flex;justify-content:space-between;font-size:11.5px;color:#94a3b8}
+.catalog-a4-header{background:linear-gradient(135deg,#f0eefb 0%,#e8e4f8 100%);border:1px solid #cdc6ef;border-radius:10px;padding:14px 16px;color:#1f2937}
+.catalog-a4-header h1{font-size:26px;font-weight:800;color:#1f2937;margin:0 0 8px;line-height:1.25}
+.catalog-a4-header p{font-size:13.5px;color:#4b3fa0;margin:0;line-height:1.6;background:rgba(255,255,255,0.55);border:1px solid #cdc6ef;border-radius:8px;padding:7px 10px}
+.catalog-a4-badge{background:#e5f5ee;color:#1a6645;border:1px solid #a8dfc4;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;display:inline-flex;margin-bottom:8px}
+.catalog-a4--elementary .catalog-a4-header,.catalog-a4--middle .catalog-a4-header,.catalog-a4--neutral .catalog-a4-header{background:linear-gradient(135deg,#f0eefb 0%,#e8e4f8 100%);border-color:#cdc6ef;color:#1f2937}
+.catalog-a4--elementary .catalog-a4-badge,.catalog-a4--middle .catalog-a4-badge,.catalog-a4--neutral .catalog-a4-badge{background:#e5f5ee;color:#1a6645;border:1px solid #a8dfc4}
+.catalog-a4--elementary .catalog-a4-header p,.catalog-a4--middle .catalog-a4-header p,.catalog-a4--neutral .catalog-a4-header p{color:#4b3fa0}
+.catalog-frame-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid #ddd8f0;border-radius:10px;overflow:hidden}
+.catalog-frame-grid .catalog-box{border:none;border-right:1px solid #ddd8f0;border-radius:0;padding:10px 12px;text-align:center;background:#f7f6fb}
+.catalog-frame-grid .catalog-box:last-child{border-right:none}
+.catalog-frame-grid .catalog-box strong{display:block;font-size:11px;color:#64748b;font-weight:600;margin-bottom:4px}
+.catalog-frame-grid .catalog-box p{font-size:17px;font-weight:800;color:#1f2937;margin:0}
+.catalog-box{background:#ffffff;border:1px solid #ddd8f0;border-radius:10px;padding:11px 13px}
+.catalog-box h3{margin:0 0 7px;font-size:13.5px;font-weight:700;background:#ede9fb;color:#4b3fa0;border-radius:6px;padding:4px 8px;display:inline-block}
+.catalog-box p{font-size:13px;color:#1f2937;line-height:1.6;margin:0;white-space:pre-line}
+.catalog-box ul{margin:0;padding-inline-start:18px;font-size:13px;color:#1f2937;line-height:1.7}
+.catalog-box table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+.catalog-box table th{background:#ede9fb;color:#4b3fa0;font-weight:700;padding:6px 8px;border:1px solid #ddd8f0;text-align:right}
+.catalog-box table td{padding:6px 8px;border:1px solid #ddd8f0;color:#1f2937;vertical-align:top}
+.catalog-box table tr:nth-child(even) td{background:#f7f6fb}
 .catalog-list-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.catalog-a4--elementary .catalog-box{background:#fbfeff;border-color:#d8edf8}
-.catalog-a4--middle .catalog-box{background:#f6f9ff;border-color:#d8e3f9}
-.catalog-a4--neutral .catalog-box{background:#f8fafc}
 @media (max-width:900px){.catalog-a4{width:100%;min-height:auto;padding:14px}.catalog-frame-grid{grid-template-columns:1fr 1fr}.catalog-list-grid{grid-template-columns:1fr}}
 @media (max-width:1100px){.catalog-groups{grid-template-columns:1fr}.catalog-group-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:760px){.catalog-header h2{font-size:24px}.catalog-filter{font-size:12px}}
@@ -141,6 +148,7 @@ function normalizeProgram(item, idx) {
   return {
     id: String(pickFirstNonEmpty(p.activity_no, p.id, p.programId, p.slug) || `program-${idx + 1}`),
     name: String(pickFirstNonEmpty(p.catalog_title, p.activity_name, p.label_he, p.label, p.name, p.title, p.program_name, p.programName) || 'ללא שם'),
+    shortName: String(pickFirstNonEmpty(p.activity_name, p.label_he, p.label, p.catalog_title, p.name, p.title) || ''),
     audienceLevel: normalizeAudienceLevel(p.audience_level || p.audienceLevel || 'לא צוין'),
     productType: normalizeProductType(
       p.item_type ||
@@ -149,20 +157,25 @@ function normalizeProgram(item, idx) {
       p.type ||
       'תוכנית'
     ),
-    grades: String(pickFirstNonEmpty(p.grades, p.targetGrades) || 'לא צוין'),
-    scope: String(pickFirstNonEmpty(p.meetings_count, p.scope, p.meetings) || inferScope(p)),
-    sessionDuration: String(pickFirstNonEmpty(p.unit_duration, p.sessionDuration, p.duration) || 'לא צוין'),
+    grades: String(pickFirstNonEmpty(p.grades, p.target_grades, p.targetGrades) || 'לא צוין'),
+    targetGrades: String(pickFirstNonEmpty(p.targetGrades, p.target_grades, p.grades) || ''),
+    domain: String(pickFirstNonEmpty(p.domain, p.catalog_domain) || ''),
+    scope: String(pickFirstNonEmpty(p.scope, p.meetings_count, p.hours_count, p.meetings) || inferScope(p)),
+    sessionDuration: String(pickFirstNonEmpty(p.session_duration, p.unit_duration, p.sessionDuration, p.duration) || 'לא צוין'),
     gefenNumber: String(pickFirstNonEmpty(p.gefen_number, p.gefenNumber, p.gefen) || ''),
-    shortDescription: String(pickFirstNonEmpty(p.catalog_short_description, p.description_short, p.shortDescription, p.openingLine, p.subtitle, p.sections?.openingStatement, firstSyllabusDescription) || ''),
-    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.description_for_proposal, p.coreIdea, p.description, p.sections?.mainIdea, firstSyllabusDescription) || ''),
-    goals: String(pickFirstNonEmpty(p.catalog_goals, p.goals, p.sections?.programFlow) || ''),
-    schoolValue: String(pickFirstNonEmpty(p.catalog_school_value, p.schoolValue, p.sections?.schoolValue) || ''),
+    subtitle: String(pickFirstNonEmpty(p.catalog_subtitle, p.subtitle) || ''),
+    shortDescription: String(pickFirstNonEmpty(p.catalog_subtitle, p.catalog_short_description, p.opening_line, p.description_short, p.shortDescription, p.openingLine, p.subtitle, p.sections?.openingStatement, firstSyllabusDescription) || ''),
+    coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.core_idea, p.description_for_proposal, p.coreIdea, p.description, p.sections?.mainIdea, firstSyllabusDescription) || ''),
+    goals: String(pickFirstNonEmpty(p.catalog_goals, p.program_flow, p.goals, p.sections?.programFlow) || ''),
+    studentDevelops: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.studentDevelops, p.participantsReceive) || '',
+    schoolValue: String(pickFirstNonEmpty(p.catalog_school_value, p.school_value, p.schoolValue, p.sections?.schoolValue) || ''),
     syllabus: Array.isArray(p.catalog_syllabus) && p.catalog_syllabus.length ? p.catalog_syllabus : syllabus,
     stations: Array.isArray(p.stations) ? p.stations : [],
-    participantsReceive: Array.isArray(p.catalog_participants_receive) ? p.catalog_participants_receive : (Array.isArray(p.participantsReceive) ? p.participantsReceive : []),
-    closingBox: String(pickFirstNonEmpty(p.catalog_closing_box, p.closingBox, p.sections?.finalOutcome) || ''),
-    footer: String(pickFirstNonEmpty(p.catalog_footer, p.footer) || ''),
-    pageTemplate: String(pickFirstNonEmpty(p.catalog_page_template, p.pageTemplate) || 'default')
+    participantsReceive: pickFirstNonEmpty(p.catalog_participants_receive, p.student_develops, p.studentDevelops, p.participantsReceive) || [],
+    closingBox: String(pickFirstNonEmpty(p.catalog_closing_box, p.final_outcome, p.closingBox, p.sections?.finalOutcome) || ''),
+    footer: String(pickFirstNonEmpty(p.catalog_footer, p.footer, p.final_outcome) || ''),
+    pageTemplate: String(pickFirstNonEmpty(p.catalog_page_template, p.page_template, p.pageTemplate) || 'default'),
+    pricingOptions: Array.isArray(p.pricing_options) ? p.pricing_options : []
   };
 }
 
@@ -220,7 +233,7 @@ function isTamirWorkshop(program) {
 
 function renderCatalogCard(program) {
   return `<article class="catalog-card ${toneClassForProgram(program, 'catalog-card')}" data-audience-level="${escapeHtml(program.audienceLevel)}" data-page-template="${escapeHtml(program.pageTemplate)}" data-catalog-open="${escapeHtml(program.id)}">
-    <h3>${escapeHtml(program.name)}</h3>
+    <h3>${escapeHtml(program.shortName || program.name)}</h3>
   </article>`;
 }
 
@@ -343,8 +356,8 @@ export const catalogScreen = {
 
     const labels = productTypeLabels(selected.productType);
     const programFlowList = splitToList(selected.goals);
-    const studentDevList = splitToList(selected.closingBox || selected.coreIdea);
-    const participants = splitToList(selected.participantsReceive).slice(0, 4);
+    const studentDevList = splitToList(selected.studentDevelops || selected.participantsReceive);
+    const participants = splitToList(selected.participantsReceive || selected.studentDevelops).slice(0, 4);
     const schoolValueParts = splitToList(selected.schoolValue).slice(0, 3);
     while (schoolValueParts.length < 3) schoolValueParts.push('—');
     const syllabusSource = selected.productType === 'סיור' && selected.stations.length ? selected.stations : selected.syllabus;
@@ -363,7 +376,7 @@ export const catalogScreen = {
       </div>
       <div class="catalog-a4-wrap"><article class="catalog-a4 ${a4ToneClass}" data-catalog-page="1">
         <header class="catalog-a4-header">
-          <div class="catalog-hero-top"><div><div class="catalog-hero-tags"><span class="catalog-tag">${escapeHtml(fallbackText(selected.productType))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.audienceLevel))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.pageTemplate === 'default' ? '' : selected.pageTemplate, fallbackText(selected.pageTemplate, selected.productType)))}</span></div><h1>${escapeHtml(selected.name)}</h1><p>${escapeHtml(selected.shortDescription || 'תוכנית לימודית מותאמת לבית הספר')}</p></div><div class="catalog-logo-box">תעשיידע</div></div>
+          <div class="catalog-hero-top"><div><div class="catalog-hero-tags"><span class="catalog-tag">${escapeHtml(fallbackText(selected.productType))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.audienceLevel))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.domain || (selected.pageTemplate === 'default' ? '' : selected.pageTemplate), fallbackText(selected.pageTemplate, selected.productType)))}</span></div><h1>${escapeHtml(selected.name)}</h1><p>${escapeHtml(selected.shortDescription || 'תוכנית לימודית מותאמת לבית הספר')}</p></div><div class="catalog-logo-box">תעשיידע</div></div>
         </header>
         <section class="catalog-frame-grid"><div class="catalog-box"><strong>כיתות</strong><p>${escapeHtml(fallbackText(selected.grades))}</p></div><div class="catalog-box"><strong>היקף</strong><p>${escapeHtml(fallbackText(selected.scope))}</p></div><div class="catalog-box"><strong>משך מפגש</strong><p>${escapeHtml(fallbackText(selected.sessionDuration))}</p></div><div class="catalog-box"><strong>מספר גפ״ן</strong><p>${escapeHtml(fallbackText(selected.gefenNumber))}</p></div></section>
         <section class="catalog-content-grid">

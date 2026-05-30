@@ -402,7 +402,13 @@ async function readInstructorContactsFromSupabase() {
 async function readListsFromSupabase() {
   if (!supabase) return null;
   try {
-    const result = await supabase.from('lists').select('*').order('category').order('value');
+    const result = await supabase
+      .from('lists')
+      .select('*')
+      .order('category_order', { ascending: true, nullsFirst: false })
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('category', { ascending: true })
+      .order('value', { ascending: true });
     if (result.error) {
       // eslint-disable-next-line no-console
       console.error('[supabase] Failed to load lists:', result.error);
@@ -1577,6 +1583,14 @@ async function upsertProposalClientContactIfNeeded(payload = {}, options = {}) {
   if (error) throw new Error(error.message || 'proposal_contact_upsert_failed');
 }
 
+
+function isProposalTestHoursItem(item = {}) {
+  const identity = [item.item_name, item.item_type, item.activity_name, item.description]
+    .map((value) => cleanProposalAgreementText(value))
+    .join(' ');
+  return /(?:שעות\s*)?בדיק(?:ה|ות)?/i.test(identity);
+}
+
 async function readProposalActivityNamesFromSupabase() {
   try {
     const { data, error } = await supabase
@@ -2365,7 +2379,9 @@ async function readCatalogProgramsFromSupabase() {
       .eq('is_active_for_catalog', true),
     supabase
       .from('proposal_activity_pricing')
-      .select('activity_no,activity_name,item_type,meetings_count,hours_count,unit_price,hourly_price')
+      .select('activity_no,activity_name,proposal_group,item_type,gefen_number,meetings_count,hours_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order,is_active_for_proposals')
+      .eq('is_active_for_proposals', true)
+      .order('sort_order', { ascending: true })
   ]);
 
   const logReadError = (source, table, error) => {
@@ -2382,7 +2398,7 @@ async function readCatalogProgramsFromSupabase() {
   logReadError('catalog', 'catalog_program_details', detailsRes?.error);
   logReadError('catalog', 'proposal_activity_pricing', pricingRes?.error);
 
-  if (listsRes?.error) {
+  if (listsRes?.error && detailsRes?.error && pricingRes?.error) {
     return {
       programs: [],
       error: 'לא ניתן לטעון את נתוני הקטלוג. בדקו חיבור והרשאות.'
@@ -2392,8 +2408,15 @@ async function readCatalogProgramsFromSupabase() {
   const listRows = Array.isArray(listsRes?.data) ? listsRes.data : [];
   const detailRows = Array.isArray(detailsRes?.data) ? detailsRes.data : [];
   const pricingRows = Array.isArray(pricingRes?.data) ? pricingRes.data : [];
-  const detailsByNo = new Map(detailRows.map((row) => [String(row?.activity_no || '').trim(), row]));
-  const pricingByNo = new Map(pricingRows.map((row) => [String(row?.activity_no || '').trim(), row]));
+  const listByNo = new Map(listRows.map((row) => [String(row?.activity_no || '').trim(), row]).filter(([key]) => key));
+  const detailsByNo = new Map(detailRows.map((row) => [String(row?.activity_no || '').trim(), row]).filter(([key]) => key));
+  const pricingByNo = pricingRows.reduce((acc, row) => {
+    const key = String(row?.activity_no || '').trim();
+    if (!key) return acc;
+    if (!acc.has(key)) acc.set(key, []);
+    acc.get(key).push(row);
+    return acc;
+  }, new Map());
 
   const toCatalogSyllabus = (value) => {
     if (Array.isArray(value)) return value;
@@ -2414,23 +2437,54 @@ async function readCatalogProgramsFromSupabase() {
     }
   };
 
-  const programs = listRows.map((row) => {
-    const key = String(row?.activity_no || '').trim();
-    const pricing = pricingByNo.get(key) || {};
+  const programKeys = Array.from(new Set([
+    ...listByNo.keys(),
+    ...detailsByNo.keys(),
+    ...pricingByNo.keys()
+  ])).filter(Boolean);
+
+  const programs = programKeys.map((key) => {
+    const row = listByNo.get(key) || {};
+    const pricingRowsForProgram = pricingByNo.get(key) || [];
+    const primaryPricing = pricingRowsForProgram[0] || {};
     const details = detailsByNo.get(key) || {};
+    const targetGrades = details.target_grades || row.target_grades || '';
+    const sessionDuration = details.session_duration || primaryPricing.unit_duration || '';
+    const scope = details.scope || primaryPricing.meetings_count || primaryPricing.hours_count || '';
+    const gefenNumber = details.gefen_number || row.gefen_number || primaryPricing.gefen_number || '';
     return {
       ...row,
-      ...pricing,
+      ...primaryPricing,
       ...details,
+      activity_no: key,
+      pricing_options: pricingRowsForProgram,
+      proposal_pricing_rows: pricingRowsForProgram,
       // Normalize detail fields to the naming contract expected by catalog screen.
-      catalog_title: details.catalog_title || row.activity_name || row.label_he || row.label || '',
+      catalog_title: details.catalog_title || primaryPricing.activity_name || row.activity_name || row.label_he || row.label || '',
+      catalog_subtitle: details.catalog_subtitle || '',
       audience_level: details.audience_level || row.audience_level || '',
-      target_grades: details.target_grades || row.target_grades || '',
-      meetings_count: pricing.meetings_count,
-      unit_duration: details.session_duration || '',
-      catalog_short_description: details.opening_line || '',
-      catalog_core_idea: details.core_idea || '',
+      target_grades: targetGrades,
+      grades: targetGrades,
+      targetGrades,
+      domain: details.domain || '',
+      scope,
+      session_duration: sessionDuration,
+      meetings_count: primaryPricing.meetings_count,
+      hours_count: primaryPricing.hours_count,
+      unit_duration: sessionDuration,
+      gefen_number: gefenNumber,
+      gefenNumber,
+      opening_line: details.opening_line || '',
+      core_idea: details.core_idea || '',
+      program_flow: details.program_flow || '',
+      student_develops: details.student_develops || '',
+      school_value: details.school_value || '',
+      final_outcome: details.final_outcome || '',
+      page_template: details.page_template || '',
+      catalog_short_description: details.opening_line || details.catalog_subtitle || primaryPricing.description_for_proposal || '',
+      catalog_core_idea: details.core_idea || primaryPricing.description_for_proposal || '',
       catalog_goals: details.program_flow || '',
+      catalog_participants_receive: details.student_develops || '',
       catalog_school_value: details.school_value || '',
       catalog_syllabus: toCatalogSyllabus(details.syllabus),
       catalog_closing_box: details.final_outcome || '',
@@ -2731,12 +2785,14 @@ export const api = {
     if (!rowId) return [];
     const { data, error } = await supabase
       .from('proposal_agreement_items')
-      .select('id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,sort_order')
+      .select('id,activity_no,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_duration,unit_price,total_price,description,proposal_group,sort_order')
       .eq('proposal_agreement_id', rowId)
       .order('sort_order', { ascending: true });
     if (error) throw new Error(error.message || 'items_read_failed');
     return (Array.isArray(data) ? data : []).map((item) => ({
       id:             cleanProposalAgreementText(item.id),
+      activity_no:    cleanProposalAgreementText(item.activity_no),
+      pricing_activity_no: cleanProposalAgreementText(item.activity_no),
       item_name:      cleanProposalAgreementText(item.item_name),
       item_type:      cleanProposalAgreementText(item.item_type),
       gefen_number:   cleanProposalAgreementText(item.gefen_number),
@@ -2746,6 +2802,8 @@ export const api = {
       unit_price:     item.unit_price != null ? Number(item.unit_price) : null,
       total_price:    item.total_price != null ? Number(item.total_price) : null,
       description:    cleanProposalAgreementText(item.description),
+      unit_duration:  cleanProposalAgreementText(item.unit_duration),
+      proposal_group: cleanProposalAgreementText(item.proposal_group),
       sort_order:     Number(item.sort_order) || 0
     }));
   },
@@ -2786,9 +2844,10 @@ export const api = {
       .eq('proposal_agreement_id', rowId);
     if (delError) throw new Error(delError.message || 'items_delete_failed');
     const validItems = (Array.isArray(items) ? items : [])
-      .filter((i) => cleanProposalAgreementText(i.item_name))
+      .filter((i) => cleanProposalAgreementText(i.item_name) && !isProposalTestHoursItem(i))
       .map((item, idx) => ({
         proposal_agreement_id: rowId,
+        activity_no:    cleanProposalAgreementText(item.activity_no || item.pricing_activity_no),
         item_name:      cleanProposalAgreementText(item.item_name),
         item_type:      cleanProposalAgreementText(item.item_type),
         gefen_number:   cleanProposalAgreementText(item.gefen_number),
@@ -2798,6 +2857,8 @@ export const api = {
         unit_price:     item.unit_price != null ? Number(item.unit_price) || null : null,
         total_price:    item.total_price != null ? Number(item.total_price) || null : null,
         description:    cleanProposalAgreementText(item.description),
+        unit_duration:  cleanProposalAgreementText(item.unit_duration),
+        proposal_group: cleanProposalAgreementText(item.proposal_group),
         sort_order:     idx
       }));
     if (!validItems.length) return { ok: true, items: [] };

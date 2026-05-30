@@ -21,7 +21,7 @@ const PROPOSAL_GROUP_FOR_TYPE = {
   [COMBINED_GROUP_LABEL]:               null
 };
 const ITEM_TYPE_OPTIONS = ['סדנה', 'קורס', 'הדרכה', 'פעילות', 'ייעוץ', 'ליווי'];
-const TAMIR_REGEX = /תמיר/i;
+const TEST_HOURS_REGEX = /(?:שעות\s*)?בדיק(?:ה|ות)?/i;
 const SUMMER_ITEM_REGEX = /מייקרים|חדר\s*בריחה|escape[_\s-]*room/i;
 const NEXT_YEAR_ITEM_REGEX = /קורס|תוכנית|תכנית|program|course/i;
 const PUBLIC_BASE = import.meta.env?.BASE_URL || './';
@@ -330,11 +330,15 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
 // ─── Items editor ────────────────────────────────────────────────────────────
 
 function itemIdentityText(item = {}) {
-  return [item.item_name, item.item_type, item.pricing_activity_name, item.activity_name].map(text).join(' ');
+  return [item.item_name, item.item_type, item.pricing_activity_name, item.activity_name, item.description].map(text).join(' ');
 }
 
-function isTamirItem(item = {}) {
-  return TAMIR_REGEX.test(itemIdentityText(item));
+function isTestHoursItem(item = {}) {
+  return TEST_HOURS_REGEX.test(itemIdentityText(item));
+}
+
+function pricingOptionKey(row = {}) {
+  return [row.activity_no, row.activity_name, row.item_type, row.proposal_group, row.unit_duration, row.unit_price, row.sort_order].map(text).join('||');
 }
 
 function proposalGroupText(item = {}) {
@@ -343,17 +347,19 @@ function proposalGroupText(item = {}) {
 }
 
 function isSummerProposalItem(item = {}) {
-  if (isTamirItem(item)) return false;
+  if (isTestHoursItem(item)) return false;
   const group = proposalGroupText(item);
   const identity = itemIdentityText(item);
   const isSummerGroup = group === SUMMER_PROPOSAL_GROUP || SUMMER_GROUP_KEYS.has(text(item.proposal_group));
-  return (isSummerGroup || text(item.unit_duration) === '45 דקות') && SUMMER_ITEM_REGEX.test(identity);
+  if (isSummerGroup) return true;
+  return text(item.unit_duration) === '45 דקות' && SUMMER_ITEM_REGEX.test(identity);
 }
 
 function isNextYearProposalItem(item = {}) {
-  if (isTamirItem(item)) return false;
+  if (isTestHoursItem(item)) return false;
   const group = proposalGroupText(item);
   if (group === NEXT_YEAR_GROUP_LABEL || NEXT_YEAR_GROUP_KEYS.has(text(item.proposal_group))) return true;
+  if (group === SUMMER_PROPOSAL_GROUP || SUMMER_GROUP_KEYS.has(text(item.proposal_group))) return false;
   if (isSummerProposalItem(item)) return false;
   return NEXT_YEAR_ITEM_REGEX.test(itemIdentityText(item)) || !proposalGroupText(item);
 }
@@ -369,10 +375,12 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const calcTotal = (Number(item.quantity) || 0) && (Number(item.unit_price) || 0)
     ? String(((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)).toFixed(2))
     : n(item.total_price);
-  const selectedPricingKey = text(item.pricing_activity_no || item.pricing_activity_name || item.item_name);
-  const pricingSelectOptions = ['<option value="">— בחירה מהירה —</option>', ...pricingOptions.map((row) => {
-    const value = text(row.activity_no || row.activity_name);
-    return optionHtml(value, selectedPricingKey, row.activity_name);
+  const selectedPricingKey = text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
+  const pricingSelectOptions = ['<option value="">— בחירה מהירה —</option>', ...pricingOptions.filter((row) => !isTestHoursItem(row)).map((row, optionIdx) => {
+    const value = pricingOptionKey(row, optionIdx);
+    const legacySelected = selectedPricingKey && [value, text(row.activity_no), text(row.activity_name)].includes(selectedPricingKey);
+    const labelParts = [row.activity_name, row.item_type, row.proposal_group].map(text).filter(Boolean);
+    return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}>${escapeHtml(labelParts.join(' — ') || value)}</option>`;
   })].join('');
   const contextGroup = text(options.groupKey || item.proposal_group || '');
   const showGefen = shouldShowGefenForItem(item, contextGroup);
@@ -381,6 +389,8 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     <label class="ds-pa-item-field ds-pa-item-field--select"><span>בחירה מהירה</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select></label>
     <div class="ds-pa-item-grid ds-pa-item-grid--main">
       <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
+      <input type="hidden" name="activity_no" value="${escapeHtml(item.activity_no || item.pricing_activity_no || '')}">
+      <input type="hidden" name="pricing_option_key" value="${escapeHtml(item.pricing_option_key || '')}">
       <input type="hidden" name="item_type" value="${escapeHtml(item.item_type || '')}">
       <label class="ds-pa-item-field ds-pa-item-field--gefen" data-pa-gefen-field${showGefen ? '' : ' hidden'}><span>מספר גפ״ן</span><input class="ds-input ds-input--sm" name="gefen_number_display" value="${escapeHtml(gefenValue)}" readonly></label>
       <input type="hidden" name="gefen_number" value="${escapeHtml(gefenValue)}">
@@ -430,7 +440,7 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
   if (isCombined) {
     const summerItems = items.filter(isSummerItem);
     const nextYearItems = items.filter(isNextYearItem);
-    const unassigned = items.filter((i) => !isTamirItem(i) && !isSummerItem(i) && !isNextYearItem(i));
+    const unassigned = items.filter((i) => !isTestHoursItem(i) && !isSummerItem(i) && !isNextYearItem(i));
     const allSummer = [...summerItems, ...unassigned];
     const summerPricing = filterPricingByProposalType(pricingOptions, SUMMER_PROPOSAL_GROUP);
     const nextYearPricing = filterPricingByProposalType(pricingOptions, NEXT_YEAR_GROUP_LABEL);
@@ -455,6 +465,9 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
 
 function extractItemsFromForm(form) {
   return Array.from(form.querySelectorAll('[data-pa-item-row]')).map((row) => ({
+    activity_no:    text(row.querySelector('[name="activity_no"]')?.value),
+    pricing_activity_no: text(row.querySelector('[name="activity_no"]')?.value),
+    pricing_option_key: text(row.querySelector('[name="pricing_option_key"]')?.value),
     item_name:      text(row.querySelector('[name="item_name"]')?.value),
     item_type:      text(row.querySelector('[name="item_type"]')?.value),
     gefen_number:   text(row.querySelector('[name="gefen_number"]')?.value),
@@ -466,7 +479,7 @@ function extractItemsFromForm(form) {
     description:    text(row.querySelector('[name="description"]')?.value),
     unit_duration:  text(row.querySelector('[name="unit_duration"]')?.value),
     proposal_group: text(row.querySelector('[name="proposal_group"]')?.value)
-  })).filter((item) => item.item_name);
+  })).filter((item) => item.item_name && !isTestHoursItem(item));
 }
 
 // ─── Items summary (drawer read-only) ────────────────────────────────────────
@@ -475,14 +488,24 @@ function itemsSummaryHtml(items = []) {
   if (!Array.isArray(items) || !items.length) {
     return '<p class="ds-muted" style="font-size:0.8rem;margin:4px 0">אין שורות הצעה</p>';
   }
-  const total = items.reduce((s, i) => {
+  const visibleSummaryItems = items.filter((item) => !isTestHoursItem(item));
+  const total = visibleSummaryItems.reduce((s, i) => {
     const t = Number(i.total_price) || ((Number(i.quantity) || 1) * (Number(i.unit_price) || 0));
     return s + t;
   }, 0);
-  const rows = items.map((item) => {
+  const rows = visibleSummaryItems.map((item) => {
     const t = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
+    const details = [
+      text(item.activity_no) ? `מס׳ פעילות: ${text(item.activity_no)}` : '',
+      text(item.gefen_number) ? `גפ״ן: ${text(item.gefen_number)}` : '',
+      text(item.meetings_count) ? `מפגשים: ${text(item.meetings_count)}` : '',
+      text(item.hours_count) ? `שעות: ${text(item.hours_count)}` : '',
+      text(item.unit_duration) ? `משך: ${text(item.unit_duration)}` : '',
+      text(item.proposal_group) ? `קבוצה: ${text(item.proposal_group)}` : '',
+      text(item.description)
+    ].filter(Boolean).join(' | ');
     return `<tr>
-      <td>${escapeHtml(item.item_name || '')}</td>
+      <td>${escapeHtml(item.item_name || '')}${details ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(details)}</div>` : ''}</td>
       <td>${escapeHtml(item.item_type || '')}</td>
       <td>${item.quantity != null ? item.quantity : ''}</td>
       <td>${item.unit_price != null ? '₪' + formatCurrency(item.unit_price) : ''}</td>
@@ -492,7 +515,7 @@ function itemsSummaryHtml(items = []) {
   return `<div class="ds-pa-items-summary">
     <h4 style="font-size:0.82rem;margin:8px 0 4px;font-weight:600">שורות הצעה</h4>
     <table class="ds-pa-items-summary-table">
-      <thead><tr><th>פעילות</th><th>סוג</th><th>כמות</th><th>מחיר יח׳</th><th>סה״כ</th></tr></thead>
+      <thead><tr><th>פעילות ופרטים</th><th>סוג</th><th>כמות</th><th>מחיר יח׳</th><th>סה״כ</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <p style="font-size:0.83rem;margin:4px 0;text-align:start">סה״כ: <strong>₪${formatCurrency(total)}</strong></p>
@@ -557,7 +580,7 @@ function proposalLineHtml(item = {}, options = {}) {
 
 function proposalItemsListHtml(items = [], options = {}) {
   if (!Array.isArray(items) || !items.length) return '';
-  const visibleItems = items.filter((item) => !isTamirItem(item));
+  const visibleItems = items.filter((item) => !isTestHoursItem(item));
   const lines = visibleItems.map((item) => proposalLineHtml(item, options)).filter(Boolean).join('\n');
   return lines ? sectionLinesHtml(lines, { alwaysBullet: true, className: 'pa-proposal-lines' }) : '';
 }
@@ -586,16 +609,23 @@ function parseSectionBodyStructure(value, options = {}) {
 
   const isPlaceholderLine = (s) => /^שורה\s+חדשה\s*:?\s*$/i.test(s);
   const bulletStartRe = new RegExp(`^[${BULLET_CHARS}]\s`);
+  const inlineNewlineMarkerRe = /\s*שורה\s+חדשה\s*:?\s*/i;
   const expandedLines = raw.split('\n').flatMap((rawLine) => {
     const hasLeadingSpace = /^[ \t]+\S/.test(rawLine);
-    return splitInlineBullets(rawLine).map((item, i) => {
-      if (hasLeadingSpace && i === 0) {
-        const t = item.trim();
-        if (!bulletStartRe.test(t)) return `• ${t}`;
-      }
-      return item;
+    const subParts = rawLine.split(inlineNewlineMarkerRe);
+    return subParts.flatMap((sub, subIdx) => {
+      if (!sub.trim()) return [];
+      const lineForBullet = subIdx === 0 ? sub : ` ${sub.trim()}`;
+      const effectiveLeadingSpace = subIdx === 0 ? hasLeadingSpace : true;
+      return splitInlineBullets(lineForBullet).map((item, i) => {
+        if (effectiveLeadingSpace && i === 0) {
+          const t = item.trim();
+          if (!bulletStartRe.test(t)) return `• ${t}`;
+        }
+        return item;
+      });
     });
-  }).map((line) => line.trim()).filter((line) => Boolean(line) && !isPlaceholderLine(line.replace(/^[·•▫▪◦‣–\-]\s*/, '')));
+  })).map((line) => line.trim()).filter((line) => Boolean(line) && !isPlaceholderLine(line.replace(/^[·•▫▪◦‣–\-]\s*/, '')));
   if (!expandedLines.length) return [];
 
   const bulletRegex = new RegExp(`^[${BULLET_CHARS}]\\s*(.+)$`);
@@ -992,19 +1022,21 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלות ותנאי תשלום'), paymentTerms, '', { alwaysBullet: true }) : ''}
     ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation, '', { alwaysBullet: true }) : ''}
     ${remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : ''}
-    ${signatureSectionHtml(signatureText)}
-    <footer class="pa-doc-footer">
-      <img
-        src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
-        alt="לוגו תחתון תעשיידע"
-        class="pa-doc-logo pa-doc-logo--footer"
-        loading="lazy"
-        decoding="async"
-        onerror="this.style.display='none';"
-      >
-      <span>תעשיידע - תעשייה למען חינוך מתקדם (ע"ר)</span>
-      <span>www.think.org.il</span>
-    </footer>`;
+    <div class="pa-doc-bottom">
+      ${signatureSectionHtml(signatureText)}
+      <footer class="pa-doc-footer">
+        <img
+          src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
+          alt="לוגו תחתון תעשיידע"
+          class="pa-doc-logo pa-doc-logo--footer"
+          loading="lazy"
+          decoding="async"
+          onerror="this.style.display='none';"
+        >
+        <span>תעשיידע - תעשייה למען חינוך מתקדם (ע"ר)</span>
+        <span>www.think.org.il</span>
+      </footer>
+    </div>`;
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
@@ -1037,7 +1069,7 @@ function findSimilarClients(contactOptions, authority, school) {
 }
 
 function pricingMatchesGroup(row, activityTypeGroup) {
-  if (isTamirItem(row)) return false;
+  if (isTestHoursItem(row)) return false;
   const normalizedGroup = LEGACY_GROUP_MAP[text(activityTypeGroup)] || text(activityTypeGroup);
   if (normalizedGroup === SUMMER_PROPOSAL_GROUP) return isSummerProposalItem(row);
   if (normalizedGroup === NEXT_YEAR_GROUP_LABEL) return isNextYearProposalItem(row);
@@ -1054,7 +1086,7 @@ function filterItemsByProposalType(items, activityTypeGroup) {
   const sourceItems = Array.isArray(items) ? items : [];
   if (normalizedGroup === SUMMER_PROPOSAL_GROUP) return sourceItems.filter(isSummerProposalItem).map((item) => ({ ...item, proposal_group: SUMMER_PROPOSAL_GROUP, gefen_number: '' }));
   if (normalizedGroup === NEXT_YEAR_GROUP_LABEL) return sourceItems.filter(isNextYearProposalItem).map((item) => ({ ...item, proposal_group: NEXT_YEAR_GROUP_LABEL }));
-  if (normalizedGroup === COMBINED_GROUP_LABEL) return sourceItems.filter((item) => !isTamirItem(item));
+  if (normalizedGroup === COMBINED_GROUP_LABEL) return sourceItems.filter((item) => !isTestHoursItem(item));
   return sourceItems;
 }
 
@@ -1525,7 +1557,13 @@ export const proposalsAgreementsScreen = {
 
     const setupItemCalc = (container) => { calcGrandTotal(container); };
     const pricingByName = new Map(proposalActivityPricing.map((row) => [text(row.activity_name), row]));
-    const pricingByNo = new Map(proposalActivityPricing.map((row) => [text(row.activity_no), row]).filter(([k]) => k));
+    const pricingByNo = proposalActivityPricing.reduce((acc, row) => {
+      const key = text(row.activity_no);
+      if (!key || acc.has(key)) return acc;
+      acc.set(key, row);
+      return acc;
+    }, new Map());
+    const pricingByOptionKey = new Map(proposalActivityPricing.map((row, idx) => [pricingOptionKey(row, idx), row]));
     const pricingFallbackByName = {
       workshop_space: proposalActivityPricing.find((row) => text(row.activity_name) === 'סדנת חלל') || null,
       workshop_makers: proposalActivityPricing.find((row) => text(row.activity_name) === 'סדנת מייקרים') || null,
@@ -1533,10 +1571,12 @@ export const proposalsAgreementsScreen = {
     };
     const workshopSpaceCodes = new Set(['001', '002', '013']);
 
-    const resolvePricingRow = ({ activityNo, activityName, itemType }) => {
+    const resolvePricingRow = ({ activityNo, activityName, itemType, optionKey }) => {
+      const selectedOptionKey = text(optionKey);
       const no = text(activityNo);
       const name = text(activityName);
       const type = text(itemType).toLowerCase();
+      if (selectedOptionKey && pricingByOptionKey.has(selectedOptionKey)) return pricingByOptionKey.get(selectedOptionKey);
       if (no && pricingByNo.has(no)) return pricingByNo.get(no);
       if (name && pricingByName.has(name)) return pricingByName.get(name);
       if (type === 'tour') return no ? pricingByNo.get(no) || null : null;
@@ -1695,6 +1735,7 @@ export const proposalsAgreementsScreen = {
       const selectedKey = text(pricingSelect.value);
       const itemTypeInput = itemRow?.querySelector?.('[name="item_type"]');
       const picked = resolvePricingRow({
+        optionKey: selectedKey,
         activityNo: selectedKey,
         activityName: selectedKey,
         itemType: itemTypeInput?.value
@@ -1704,6 +1745,8 @@ export const proposalsAgreementsScreen = {
         const input = itemRow.querySelector(`[name="${name}"]`);
         if (input) input.value = value == null ? '' : String(value);
       };
+      setValue('pricing_option_key', selectedKey);
+      setValue('activity_no', picked.activity_no || '');
       setValue('item_name', picked.activity_name || '');
       setValue('item_type', picked.item_type || '');
       setValue('gefen_number', picked.gefen_number || '');
@@ -1717,7 +1760,7 @@ export const proposalsAgreementsScreen = {
       const rowGroup = text(itemRow.dataset.paRowGroup || picked.proposal_group);
       const gefenField = itemRow.querySelector('[data-pa-gefen-field]');
       if (gefenField) gefenField.hidden = !shouldShowGefenForItem({ ...picked, proposal_group: rowGroup }, rowGroup);
-      if (picked.activity_no) setValue('pricing_activity_no', picked.activity_no);
+
       calcItemRow(itemRow);
       if (form) calcGrandTotal(form);
     }, { signal });
