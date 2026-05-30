@@ -370,14 +370,6 @@ export const catalogScreen = {
     const workshopAndTours = filtered.filter((p) => isStandaloneActivity(p));
 
     const standaloneByCategory = {
-      escape: workshopAndTours.filter((p) => p.catalogGroup === 'escape' || isEscapeRoomProgram(p)),
-      makers: workshopAndTours.filter((p) => p.catalogGroup === 'makers' || (p.productType === 'סדנה' && !isEscapeRoomProgram(p) && !isSpaceWorkshop(p) && !isTamirWorkshop(p))),
-      space: workshopAndTours.filter((p) => p.catalogGroup === 'space' || isSpaceWorkshop(p)),
-      tours: workshopAndTours.filter((p) => p.catalogGroup === 'tours' || p.productType === 'סיור'),
-      classes: workshopAndTours.filter((p) => p.catalogGroup === 'classes' || p.productType === 'חוג' || isAfterSchoolProgram(p))
-    };
-    const standaloneLabels = STANDALONE_GROUP_LABELS;
-    const selectedStandaloneCategory = standaloneByCategory[data.standaloneCategory] ? data.standaloneCategory : 'escape';
       workshops: workshopAndTours.filter((p) => p.productType === 'סדנה' && !isEscapeRoomProgram(p)),
       tours: workshopAndTours.filter((p) => p.productType === 'סיור'),
       classes: workshopAndTours.filter((p) => p.productType === 'חוג' || isAfterSchoolProgram(p)),

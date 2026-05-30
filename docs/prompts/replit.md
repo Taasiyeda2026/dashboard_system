@@ -38,7 +38,7 @@
 ## תכונות אחרונות
 - **אבחון גיליונות**: מסך "לוח בקרה – מנהל מערכת" כולל כפתור "בדיקת גיליונות" שקורא ל-`actionListSheets_` ומציג את כל הגיליונות, עמודותיהם, ואם הם תואמים למה שהמערכת מצפה
 - **תמיכה ב-start_date**: `activityStartDateFromRow_` ו-`activityEndDateFromRow_` תומכים כעת בעמודות `start_date`/`end_date` ישירות בגיליון (fallback כשאין עמודות Date1-Date35)
-- **CACHE_VERSION**: 55
+- **CACHE_VERSION**: 484
 
 ## בדיקות אוטומטיות
 ```
