@@ -4,14 +4,14 @@ const AUDIENCE_OPTIONS = ['הכול', 'יסודי', 'חטיבה'];
 const TYPE_OPTIONS = ['הכול', 'תוכנית', 'סדנה', 'סיור', 'חוג'];
 const STANDALONE_GROUP_LABELS = { escape: 'חדרי בריחה', makers: 'מייקרים', space: 'חלל', tours: 'סיורים', classes: 'חוגים / אפטרסקול' };
 const STANDALONE_CATEGORIES = [
-  ['workshops', 'סדנאות'],
-  ['tours', 'סיורים'],
-  ['classes', 'חוגים'],
-  ['escape', 'חדרי בריחה']
+  ['makers', STANDALONE_GROUP_LABELS.makers],
+  ['space', STANDALONE_GROUP_LABELS.space],
+  ['tours', STANDALONE_GROUP_LABELS.tours],
+  ['classes', STANDALONE_GROUP_LABELS.classes],
+  ['escape', STANDALONE_GROUP_LABELS.escape]
 ];
 const STANDALONE_LABELS = Object.fromEntries(STANDALONE_CATEGORIES);
 const CATALOG_SHORT_TITLE_OVERRIDES = new Map([
-  ['המצאות בהשראה מן הטבע', 'ביומימיקרי'],
   ['טכנולוגיות חלל', 'טכנולוגיות החלל'],
   ['טכנולוגיות החלל', 'טכנולוגיות החלל'],
   ['פורצות דרך', 'פורצות דרך'],
@@ -61,6 +61,7 @@ function ensureCatalogStyles() {
 .catalog-hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .catalog-logo-box{background:white;border:1px solid #cdc6ef;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;color:#4b3fa0;text-align:center;line-height:1.4;white-space:nowrap}
 .catalog-hero-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.catalog-subtitle{margin:2px 0 0;color:#4b5563;font-size:16px;font-weight:700;line-height:1.35}
 .catalog-tag{background:white;border:1px solid #cdc6ef;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;color:#4b3fa0}
 .catalog-content-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .catalog-strip{background:#f7f6fb;border:1px solid #ddd8f0;border-radius:10px;padding:10px 12px}
@@ -177,18 +178,7 @@ function textBeforeMarketingDash(value) {
     .trim();
 }
 
-function catalogCardTitleFromFields(p, fullName) {
-  const explicitShortName = pickFirstNonEmpty(
-    p.catalog_short_title,
-    p.catalog_short_name,
-    p.short_title,
-    p.short_name,
-    p.display_short_name,
-    p.display_name_short,
-    p.catalog_display_name
-  );
-  if (explicitShortName) return String(explicitShortName).trim();
-
+function catalogCardTitleFromTitle(fullName) {
   const sourceName = String(fullName || '').trim();
   for (const [needle, shortTitle] of CATALOG_SHORT_TITLE_OVERRIDES) {
     if (sourceName.includes(needle)) return shortTitle;
@@ -202,11 +192,11 @@ function normalizeProgram(item, idx) {
   const p = item && typeof item === 'object' ? item : {};
   const syllabus = Array.isArray(p.syllabus) ? p.syllabus : [];
   const firstSyllabusDescription = syllabus.find((x) => x && typeof x === 'object' && x.description)?.description || '';
-  const fullName = String(pickFirstNonEmpty(p.catalog_title, p.activity_name, p.label_he, p.label, p.name, p.title, p.program_name, p.programName) || 'ללא שם');
+  const fullName = String(pickFirstNonEmpty(p.catalog_title) || 'ללא שם');
   return {
     id: String(pickFirstNonEmpty(p.activity_no, p.id, p.programId, p.slug) || `program-${idx + 1}`),
     name: fullName,
-    catalogCardTitle: catalogCardTitleFromFields(p, fullName),
+    catalogCardTitle: catalogCardTitleFromTitle(fullName),
     audienceLevel: normalizeAudienceLevel(p.audience_level || p.audienceLevel || 'לא צוין'),
     productType: normalizeProductType(
       p.item_type ||
@@ -221,8 +211,8 @@ function normalizeProgram(item, idx) {
     scope: String(pickFirstNonEmpty(p.scope, p.meetings_count, p.hours_count, p.meetings) || inferScope(p)),
     sessionDuration: String(pickFirstNonEmpty(p.session_duration, p.unit_duration, p.sessionDuration, p.duration) || 'לא צוין'),
     gefenNumber: String(pickFirstNonEmpty(p.gefen_number, p.gefenNumber, p.gefen) || ''),
-    subtitle: String(pickFirstNonEmpty(p.catalog_subtitle, p.subtitle) || ''),
-    shortDescription: String(pickFirstNonEmpty(p.catalog_short_description, p.opening_line, p.catalog_subtitle, p.short_description, p.description_short, p.shortDescription, p.openingLine, p.subtitle, p.sections?.openingStatement, firstSyllabusDescription) || ''),
+    subtitle: String(pickFirstNonEmpty(p.catalog_subtitle) || ''),
+    shortDescription: String(pickFirstNonEmpty(p.catalog_short_description, p.opening_line, p.short_description, p.description_short, p.shortDescription, p.openingLine, p.sections?.openingStatement, firstSyllabusDescription) || ''),
     coreIdea: String(pickFirstNonEmpty(p.catalog_core_idea, p.core_idea, p.coreIdea, p.sections?.mainIdea, firstSyllabusDescription) || ''),
     goals: String(pickFirstNonEmpty(p.catalog_program_flow, p.catalog_goals, p.program_flow, p.goals, p.sections?.programFlow) || ''),
     programFlow: String(pickFirstNonEmpty(p.catalog_program_flow, p.program_flow, p.catalog_goals, p.goals, p.sections?.programFlow) || ''),
@@ -273,7 +263,7 @@ function isStandaloneActivity(program) {
 
 function isAfterSchoolProgram(program) {
   if (program.catalogGroup === 'classes') return true;
-  const haystack = [program.productType, program.name, program.coreIdea, program.shortDescription]
+  const haystack = [program.productType, program.name, program.subtitle, program.coreIdea, program.shortDescription]
     .map((v) => String(v || '').toLowerCase())
     .join(' ');
   return haystack.includes('after_school') || haystack.includes('אפטרסקול') || haystack.includes('חוג');
@@ -281,7 +271,7 @@ function isAfterSchoolProgram(program) {
 
 function isEscapeRoomProgram(program) {
   if (program.catalogGroup === 'escape') return true;
-  const haystack = [program.name, program.coreIdea, program.shortDescription]
+  const haystack = [program.name, program.subtitle, program.coreIdea, program.shortDescription]
     .map((v) => String(v || '').toLowerCase())
     .join(' ');
   return haystack.includes('חדר בריחה') || haystack.includes('escape room') || haystack.includes('escape_room');
@@ -289,16 +279,17 @@ function isEscapeRoomProgram(program) {
 
 function isSpaceWorkshop(program) {
   if (program.catalogGroup === 'space') return true;
-  const haystack = [program.name, program.coreIdea, program.shortDescription]
+  const haystack = [program.name, program.subtitle, program.coreIdea, program.shortDescription]
     .map((v) => String(v || '').toLowerCase())
     .join(' ');
   return haystack.includes('חלל');
 }
 
 function isTamirWorkshop(program) {
+  if (program.catalogGroup === 'makers') return true;
   if (program.productType !== 'סדנה') return false;
   if (program.catalogSource === 'proposal_activity_pricing' && !program.catalogGroup) return true;
-  const haystack = [program.name, program.coreIdea, program.shortDescription]
+  const haystack = [program.name, program.subtitle, program.coreIdea, program.shortDescription]
     .map((v) => String(v || '').toLowerCase())
     .join(' ');
   return haystack.includes('תמיר');
@@ -353,7 +344,7 @@ export const catalogScreen = {
       audience: 'הכול',
       type: 'הכול',
       groupMode: '',
-      standaloneCategory: 'workshops',
+      standaloneCategory: 'makers',
       loadError: payload?.error ? 'לא ניתן לטעון את נתוני הקטלוג. בדקו חיבור והרשאות.' : ''
     };
   },
@@ -370,17 +361,18 @@ export const catalogScreen = {
     const workshopAndTours = filtered.filter((p) => isStandaloneActivity(p));
 
     const standaloneByCategory = {
-      workshops: workshopAndTours.filter((p) => p.productType === 'סדנה' && !isEscapeRoomProgram(p)),
+      makers: workshopAndTours.filter((p) => p.productType === 'סדנה' && isTamirWorkshop(p) && !isSpaceWorkshop(p) && !isEscapeRoomProgram(p)),
+      space: workshopAndTours.filter((p) => p.productType === 'סדנה' && isSpaceWorkshop(p) && !isEscapeRoomProgram(p)),
       tours: workshopAndTours.filter((p) => p.productType === 'סיור'),
       classes: workshopAndTours.filter((p) => p.productType === 'חוג' || isAfterSchoolProgram(p)),
       escape: workshopAndTours.filter((p) => isEscapeRoomProgram(p))
     };
-    const selectedStandaloneCategory = standaloneByCategory[data.standaloneCategory] ? data.standaloneCategory : 'workshops';
+    const selectedStandaloneCategory = standaloneByCategory[data.standaloneCategory] ? data.standaloneCategory : 'makers';
 
     if (!selected && data.groupMode === 'standalone') {
       const selectedStandalonePrograms = standaloneByCategory[selectedStandaloneCategory] || [];
       return `<section class="catalog-screen">
-        <header class="catalog-header"><h2>סדנאות, סיורים וחוגים</h2><p class="ds-muted">בחירה ממוקדת לפי 4 קבוצות פעילות</p></header>
+        <header class="catalog-header"><h2>סדנאות, סיורים וחוגים</h2><p class="ds-muted">בחירה ממוקדת לפי קבוצות פעילות</p></header>
         <div class="catalog-toolbar">
           <label class="catalog-filter">שכבת גיל <select data-catalog-filter="audience">${AUDIENCE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === audience ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
           <label class="catalog-filter">סוג פעילות <select data-catalog-filter="type">${TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o)}" ${o === type ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select></label>
@@ -447,7 +439,7 @@ export const catalogScreen = {
       </div>
       <div class="catalog-a4-wrap"><article class="catalog-a4 ${a4ToneClass}" data-catalog-page="1">
         <header class="catalog-a4-header">
-          <div class="catalog-hero-top"><div><div class="catalog-hero-tags"><span class="catalog-tag">${escapeHtml(fallbackText(selected.productType))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.audienceLevel))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.domain || (selected.pageTemplate === 'default' ? '' : selected.pageTemplate), fallbackText(selected.pageTemplate, selected.productType)))}</span></div><h1>${escapeHtml(selected.name)}</h1><p>${escapeHtml(selected.shortDescription || 'תוכנית לימודית מותאמת לבית הספר')}</p></div><div class="catalog-logo-box">תעשיידע</div></div>
+          <div class="catalog-hero-top"><div><div class="catalog-hero-tags"><span class="catalog-tag">${escapeHtml(fallbackText(selected.productType))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.audienceLevel))}</span><span class="catalog-tag">${escapeHtml(fallbackText(selected.domain || (selected.pageTemplate === 'default' ? '' : selected.pageTemplate), fallbackText(selected.pageTemplate, selected.productType)))}</span></div><h1>${escapeHtml(selected.name)}</h1>${selected.subtitle ? `<p class="catalog-subtitle">${escapeHtml(selected.subtitle)}</p>` : ''}<p>${escapeHtml(selected.shortDescription || 'תוכנית לימודית מותאמת לבית הספר')}</p></div><div class="catalog-logo-box">תעשיידע</div></div>
         </header>
         <section class="catalog-frame-grid"><div class="catalog-box"><strong>כיתות</strong><p>${escapeHtml(fallbackText(selected.grades))}</p></div><div class="catalog-box"><strong>היקף</strong><p>${escapeHtml(fallbackText(selected.scope))}</p></div><div class="catalog-box"><strong>משך מפגש</strong><p>${escapeHtml(fallbackText(selected.sessionDuration))}</p></div><div class="catalog-box"><strong>מספר גפ״ן</strong><p>${escapeHtml(fallbackText(selected.gefenNumber))}</p></div></section>
         <section class="catalog-content-grid">
@@ -485,7 +477,7 @@ export const catalogScreen = {
       }
       if (ev.target.closest('[data-catalog-group-open="standalone"]')) {
         data.groupMode = 'standalone';
-        data.standaloneCategory = 'workshops';
+        data.standaloneCategory = 'makers';
         data.selectedId = '';
         rerender();
         return;
@@ -493,7 +485,7 @@ export const catalogScreen = {
       const subgroupButton = ev.target.closest('[data-catalog-subgroup]');
       if (subgroupButton) {
         data.groupMode = 'standalone';
-        data.standaloneCategory = subgroupButton.dataset.catalogSubgroup || 'workshops';
+        data.standaloneCategory = subgroupButton.dataset.catalogSubgroup || 'makers';
         data.selectedId = '';
         rerender();
         return;
