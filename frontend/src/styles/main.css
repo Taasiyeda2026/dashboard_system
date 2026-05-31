@@ -7873,6 +7873,28 @@ select.ds-input {
   opacity: 1;
 }
 
+.ds-activities-view-btn--summer {
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  color: #5f4305;
+  box-shadow: 0 1px 2px rgba(120, 83, 0, 0.08);
+  opacity: 1;
+}
+
+.ds-activities-view-btn--summer:hover {
+  background: #fdeca6;
+  border-color: #facc15;
+  color: #4f3704;
+}
+
+.ds-activities-view-btn--summer.is-active {
+  background: #fde68a;
+  border-color: #d9a900;
+  color: #3f2f05;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.22), 0 3px 8px rgba(120, 83, 0, 0.14);
+  font-weight: 800;
+}
+
 .ds-activities-title-row {
   display: inline-flex;
   align-items: center;

@@ -6,6 +6,7 @@ export const ACTIVITY_SEASON_OPTIONS = [
   { value: ACTIVITY_SEASON_REGULAR, label: 'רגיל' },
   { value: ACTIVITY_SEASON_SUMMER_2026, label: 'קיץ תשפ״ו' }
 ];
+const SUMMER_SEASON_ALIASES = new Set([ACTIVITY_SEASON_SUMMER_2026, 'summer']);
 
 function normalizedDateText(value) {
   const raw = String(value || '').trim();
@@ -18,7 +19,7 @@ function normalizedDateText(value) {
 }
 
 export function normalizeActivitySeason(value) {
-  return String(value || '').trim() === ACTIVITY_SEASON_SUMMER_2026
+  return SUMMER_SEASON_ALIASES.has(String(value || '').trim())
     ? ACTIVITY_SEASON_SUMMER_2026
     : ACTIVITY_SEASON_REGULAR;
 }

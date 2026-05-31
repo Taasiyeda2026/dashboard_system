@@ -98,6 +98,7 @@ test('only a valid start_date removes missing_start_date automatically', () => {
 test('activity_season defaults to regular and isSummerActivity uses only season or start_date', () => {
   assert.equal(activeCourse({ activity_season: '' }).activity_season, 'regular');
   assert.equal(isSummerActivity(activeCourse({ activity_season: 'summer_2026', start_date: '' })), true);
+  assert.equal(isSummerActivity(activeCourse({ activity_season: 'summer', start_date: '' })), true);
   assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-07-01' })), true);
   assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-08-31' })), true);
   assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-06-30', notes: 'קיץ' })), false);

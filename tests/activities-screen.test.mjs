@@ -186,6 +186,7 @@ test('activities quick filters include one-day summer rows by family and distric
 test('activities summer quick filter matches activity_season and summer start dates only', () => {
   const state = baseState();
   state.activitiesMonthYm = '2026-07';
+  state.routes = ['activities', 'week', 'month'];
   state.activityQuickFamily = 'summer';
   const data = {
     rows: [
@@ -235,10 +236,21 @@ test('activities summer quick filter matches activity_season and summer start da
 
   const html = activitiesScreen.render(data, { state });
 
+  assert.match(html, /data-route-switch="week"[\s\S]*data-route-switch="month"[\s\S]*data-activities-summer-filter/);
+  assert.match(html, /ds-activities-view-btn--summer is-active/);
   assert.match(html, /פעילות מדעים/);
   assert.match(html, /פעילות יולי/);
   assert.doesNotMatch(html, /פעילות עם הערת קיץ/);
   assert.doesNotMatch(html, /פעילות רגילה/);
+});
+
+test('activities view switcher shows summer button next to week and month when inactive', () => {
+  const state = baseState();
+  state.routes = ['activities', 'week', 'month'];
+  const html = activitiesScreen.render({ rows: [] }, { state });
+
+  assert.match(html, /data-route-switch="week"[\s\S]*>שבוע<\/button>[\s\S]*data-route-switch="month"[\s\S]*>חודש<\/button>[\s\S]*data-activities-summer-filter[\s\S]*>קיץ<\/button>/);
+  assert.doesNotMatch(html, /ds-activities-view-btn--summer is-active/);
 });
 
 test('activities source includes admin summary all-activities loading and no district buckets', async () => {
