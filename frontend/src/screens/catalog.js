@@ -160,6 +160,7 @@ html,body{overflow-x:hidden}
 @media (max-width:430px){.catalog-a4{padding:14px}.catalog-hero-top{padding:16px}.catalog-content-card p{font-size:13px}}
 @media print {
   @page{size:A4 portrait;margin:11mm 13mm 13mm 13mm}
+  html,body,body > *{display:block !important}
   body *{visibility:hidden !important}
   .catalog-print-zone,.catalog-print-zone *{visibility:visible !important}
   .catalog-print-zone{position:absolute;inset:0;background:#fff}
