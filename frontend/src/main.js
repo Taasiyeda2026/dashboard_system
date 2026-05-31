@@ -492,6 +492,7 @@ function applyBootstrapFromLoginData(data) {
   state.effectiveRoutes = effectiveRoutes;
   state.route = resolveAllowedDefaultRoute(data.default_route, effectiveRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
+  consumePendingRouteFromUrlOrSession();
 }
 
 const screenLabels = {
@@ -644,6 +645,43 @@ function redirectIfDisabledRoute() {
 function isAllowedRoute(route) {
   if (PERMANENTLY_DISABLED_ROUTES.has(route)) return false;
   return !!route && effectiveRoutes().includes(route);
+}
+
+function readRequestedRouteFromUrl() {
+  try {
+    return String(new URL(window.location.href).searchParams.get('route') || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/** Deep links from catalog.html (?route=catalog) or sessionStorage after redirect. */
+function consumePendingRouteFromUrlOrSession() {
+  let pending = readRequestedRouteFromUrl();
+  if (!pending) {
+    try {
+      pending = String(sessionStorage.getItem('dashboard_pending_route') || '').trim();
+    } catch {
+      pending = '';
+    }
+  }
+  if (!pending) return;
+  if (!state.token || !effectiveRoutes().length) {
+    try { sessionStorage.setItem('dashboard_pending_route', pending); } catch { /* ignore */ }
+    return;
+  }
+  try { sessionStorage.removeItem('dashboard_pending_route'); } catch { /* ignore */ }
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('route')) {
+      url.searchParams.delete('route');
+      window.history.replaceState({}, '', url);
+    }
+  } catch { /* ignore */ }
+  if (isAllowedRoute(pending)) {
+    state.route = pending;
+    saveRoutesToStorage(state.routes, pending, state.clientSettings);
+  }
 }
 
 function resolveAllowedDefaultRoute(preferred, routes) {
@@ -1436,6 +1474,7 @@ async function restoreSession() {
   state.effectiveRoutes = normalizedRoutes;
   state.route = resolveAllowedDefaultRoute(bootstrap.default_route, normalizedRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
+  consumePendingRouteFromUrlOrSession();
   clearFinancePrefsIfUserChanged(state.user?.user_id);
   if (bootstrap.profile && state.user) {
     const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
@@ -1477,6 +1516,7 @@ async function mountScreen() {
       await restoreSession();
     }
   }
+  consumePendingRouteFromUrlOrSession();
   if (!isAllowedRoute(state.route)) state.route = resolveAuthenticatedRoute(state.route, state.routes);
 
   if (requestedRoute !== state.route) {
