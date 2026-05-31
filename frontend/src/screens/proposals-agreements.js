@@ -407,7 +407,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     ? String(((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)).toFixed(2))
     : n(item.total_price);
   const selectedPricingKey = text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
-  const pricingSelectOptions = ['<option value="">— בחירה מהירה —</option>', ...pricingOptions.filter((row) => !isTestHoursItem(row)).map((row, optionIdx) => {
+  const pricingSelectOptions = ['<option value="">— בחר פעילות מהרשימה —</option>', ...pricingOptions.filter((row) => !isTestHoursItem(row)).map((row, optionIdx) => {
     const value = pricingOptionKey(row, optionIdx);
     const legacySelected = selectedPricingKey && [value, text(row.activity_no), text(row.activity_name)].includes(selectedPricingKey);
     const labelParts = [row.activity_name, row.item_type, row.proposal_group].map(text).filter(Boolean);
@@ -416,24 +416,33 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const contextGroup = text(options.groupKey || item.proposal_group || '');
   const showGefen = shouldShowGefenForItem(item, contextGroup);
   const gefenValue = text(item.gefen_number);
+  const hasDetails = Boolean(text(item.item_name) || text(item.item_type) || n(item.unit_price) || n(item.meetings_count) || n(item.hours_count) || text(item.description));
   return `<article class="ds-pa-item-card ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}">
-    <label class="ds-pa-item-field ds-pa-item-field--select"><span>בחירה מהירה</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select></label>
-    <div class="ds-pa-item-grid ds-pa-item-grid--main">
-      <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
-      <input type="hidden" name="activity_no" value="${escapeHtml(item.activity_no || item.pricing_activity_no || '')}">
-      <input type="hidden" name="pricing_option_key" value="${escapeHtml(item.pricing_option_key || '')}">
-      <label class="ds-pa-item-field ds-pa-item-field--type"><span>סוג פריט</span><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(item.item_type || '')}" list="pa-item-type-list" placeholder="סוג"></label>
-      <label class="ds-pa-item-field ds-pa-item-field--gefen" data-pa-gefen-field${showGefen ? '' : ' hidden'}><span>מספר גפ״ן</span><input class="ds-input ds-input--sm" name="gefen_number_display" value="${escapeHtml(gefenValue)}" readonly></label>
-      <input type="hidden" name="gefen_number" value="${escapeHtml(gefenValue)}">
+    <label class="ds-pa-item-field ds-pa-item-field--select"><span>בחירת פעילות</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select></label>
+    <div class="ds-pa-item-details" data-pa-item-details${hasDetails ? '' : ' hidden'}>
+      <div class="ds-pa-item-subsection">
+        <span class="ds-pa-item-subtitle">פרטי הפעילות</span>
+        <div class="ds-pa-item-grid ds-pa-item-grid--main">
+          <label class="ds-pa-item-field ds-pa-item-field--type"><span>סוג פעילות</span><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(item.item_type || '')}" list="pa-item-type-list" placeholder="סוג"></label>
+          <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
+          <input type="hidden" name="activity_no" value="${escapeHtml(item.activity_no || item.pricing_activity_no || '')}">
+          <input type="hidden" name="pricing_option_key" value="${escapeHtml(item.pricing_option_key || '')}">
+          <label class="ds-pa-item-field ds-pa-item-field--gefen" data-pa-gefen-field${showGefen ? '' : ' hidden'}><span>מספר גפ״ן</span><input class="ds-input ds-input--sm" name="gefen_number_display" value="${escapeHtml(gefenValue)}" readonly></label>
+          <input type="hidden" name="gefen_number" value="${escapeHtml(gefenValue)}">
+        </div>
+      </div>
+      <div class="ds-pa-item-subsection">
+        <span class="ds-pa-item-subtitle">תמחור וסיכום</span>
+        <div class="ds-pa-item-grid ds-pa-item-grid--numbers">
+          <label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
+          <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>
+          <label class="ds-pa-item-field"><span>כמות קבוצות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
+          <label class="ds-pa-item-field"><span>מחיר</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
+          <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪${formatCurrency(calcTotal)}` : '₪0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
+        </div>
+      </div>
+      <label class="ds-pa-item-field ds-pa-item-field--full ds-pa-item-field--description"><span>הערות או התאמות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>
     </div>
-    <div class="ds-pa-item-grid ds-pa-item-grid--numbers">
-      <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
-      <label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
-      <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>
-      <label class="ds-pa-item-field"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
-      <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪${formatCurrency(calcTotal)}` : '₪0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
-    </div>
-    <label class="ds-pa-item-field ds-pa-item-field--full ds-pa-item-field--description"><span>תיאור קצר / הערות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>
     <input type="hidden" name="unit_duration" value="${escapeHtml(item.unit_duration || '')}">
     <input type="hidden" name="proposal_group" value="${escapeHtml(item.proposal_group || contextGroup || '')}">
     <div class="ds-pa-item-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-item aria-label="הסר שורה">הסר שורה</button></div>
@@ -1204,35 +1213,40 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       </div>
     </div>
 
-    <div class="ds-pa-form-section">
+    <div class="ds-pa-form-section ds-pa-form-section--contact">
       <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">2</span> פרטי איש קשר</h4>
-      <div data-pa-contact-picker-host>${initPickerHtml}</div>
-      <div class="ds-pa-form-grid">
-        ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
-        ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
-        ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
-        ${textField('email', FIELD_LABELS.email, row.email, false)}
+      <div class="ds-pa-section-body">
+        <div data-pa-contact-picker-host>${initPickerHtml}</div>
+        <div class="ds-pa-form-grid">
+          ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
+          ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
+          ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
+          ${textField('email', FIELD_LABELS.email, row.email, false)}
+        </div>
       </div>
     </div>
 
-    <div class="ds-pa-form-section">
+    <div class="ds-pa-form-section ds-pa-form-section--proposal">
       <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">3</span> פרטי ההצעה</h4>
-      <div class="ds-pa-form-grid ds-pa-form-grid--proposal">
-        <label class="ds-pa-form-field"><span>סוג מסמך</span><input class="ds-input ds-input--sm" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}" readonly></label>
-        ${selectField('activity_type_group', FIELD_LABELS.activity_type_group, ACTIVITY_TYPE_GROUP_OPTIONS, normalizedActivityGroup, true)}
-        <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
-        <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.status)}</span><output class="ds-pa-status-output">${escapeHtml(STATUS_LABELS[currentStatus] || currentStatus)}</output></label>
+      <div class="ds-pa-section-body">
+        <div class="ds-pa-form-grid ds-pa-form-grid--proposal">
+          <label class="ds-pa-form-field"><span>סוג מסמך</span><input class="ds-input ds-input--sm" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}" readonly></label>
+          ${selectField('activity_type_group', FIELD_LABELS.activity_type_group, ACTIVITY_TYPE_GROUP_OPTIONS, normalizedActivityGroup, true)}
+          <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
+          <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.status)}</span><output class="ds-pa-status-output">${escapeHtml(STATUS_LABELS[currentStatus] || currentStatus)}</output></label>
+        </div>
+        <div class="ds-pa-type-row">
+          ${templateIndicatorHtml(normalizedActivityGroup)}
+        </div>
+        <p class="ds-pa-template-mode ${hasCustomSections ? 'ds-pa-template-mode--custom' : ''}" data-pa-template-mode>${hasCustomSections ? 'הצעה זו כוללת נוסח מותאם אישית' : 'הצעה זו משתמשת בתבנית המקור'}</p>
       </div>
-      <div class="ds-pa-type-row">
-        ${templateIndicatorHtml(normalizedActivityGroup)}
-      </div>
-      <p class="ds-pa-template-mode ${hasCustomSections ? 'ds-pa-template-mode--custom' : ''}" data-pa-template-mode>${hasCustomSections ? 'הצעה זו כוללת נוסח מותאם אישית' : 'הצעה זו משתמשת בתבנית המקור'}</p>
     </div>
 
-    <div class="ds-pa-form-section">
+    <div class="ds-pa-form-section ds-pa-form-section--activities">
       <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">4</span> פעילויות ותמחור</h4>
-      ${activityPickerHtml(row.activity_names, activityNameOptions)}
-      <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
+      <div class="ds-pa-section-body ds-pa-section-body--activities">
+        <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
+      </div>
     </div>
 
     <div class="ds-pa-form-section ds-pa-form-section--notes">
@@ -1900,6 +1914,8 @@ export const proposalsAgreementsScreen = {
       const rowGroup = text(itemRow.dataset.paRowGroup || picked.proposal_group);
       const gefenField = itemRow.querySelector('[data-pa-gefen-field]');
       if (gefenField) gefenField.hidden = !shouldShowGefenForItem({ ...picked, proposal_group: rowGroup }, rowGroup);
+      const detailsEl = itemRow.querySelector('[data-pa-item-details]');
+      if (detailsEl) detailsEl.hidden = false;
 
       calcItemRow(itemRow);
       if (form) calcGrandTotal(form);
@@ -2111,7 +2127,7 @@ export const proposalsAgreementsScreen = {
         tmp.innerHTML = itemRowHtml({ proposal_group: rowGroup }, idx, rowPricing, { groupKey: rowGroup });
         tbody.appendChild(tmp.firstElementChild);
         if (form) calcGrandTotal(form);
-        tbody.querySelector(`[data-pa-item-idx="${idx}"] [name="item_name"]`)?.focus();
+        tbody.querySelector(`[data-pa-item-idx="${idx}"] [data-pa-pricing-select]`)?.focus();
         return;
       }
 

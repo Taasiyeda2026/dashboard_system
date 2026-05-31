@@ -881,6 +881,59 @@ test('items editor includes pricing selector and uses pricing autofill fields', 
   assert.match(screenSource, /payload\.activity_names = itemNames/);
 });
 
+test('activity selection is first and reveals populated item details', async () => {
+  const pricing = [
+    {
+      activity_no: 'S1',
+      activity_name: 'סדנת מייקרים',
+      item_type: 'סדנה',
+      proposal_group: 'קיץ תשפ״ו',
+      meetings_count: 3,
+      hours_count: 6,
+      unit_price: 450,
+      description_for_proposal: 'התאמה לפי בית הספר'
+    }
+  ];
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: [], proposalActivityPricing: pricing },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form = root.querySelector('[data-pa-form]');
+      const typeSelect = form.querySelector('select[name="activity_type_group"]');
+      typeSelect.value = 'קיץ תשפ״ו';
+      typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+      const itemRow = form.querySelector('[data-pa-item-row]');
+      const firstField = itemRow.querySelector('.ds-pa-item-field');
+      const pricingSelect = itemRow.querySelector('[data-pa-pricing-select]');
+      const details = itemRow.querySelector('[data-pa-item-details]');
+
+      assert.equal(firstField?.querySelector('[data-pa-pricing-select]'), pricingSelect, 'activity select should be first in item row');
+      assert.doesNotMatch(itemRow.textContent, /בחירה מהירה/);
+      assert.equal(details.hidden, true, 'details should be hidden before activity selection');
+
+      pricingSelect.selectedIndex = 1;
+      pricingSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+      assert.equal(details.hidden, false, 'details should be shown after activity selection');
+      assert.equal(itemRow.querySelector('[name="item_name"]').value, 'סדנת מייקרים');
+      assert.equal(itemRow.querySelector('[name="item_type"]').value, 'סדנה');
+      assert.equal(itemRow.querySelector('[name="meetings_count"]').value, '3');
+      assert.equal(itemRow.querySelector('[name="hours_count"]').value, '6');
+      assert.equal(itemRow.querySelector('[name="unit_price"]').value, '450');
+      assert.match(itemRow.querySelector('[name="description"]').value, /התאמה/);
+    }
+  );
+});
+
 test('changing proposal type reloads relevant item areas and preview template', async () => {
   const pricing = [
     { activity_no: 'S1', activity_name: 'סדנת מייקרים', item_type: 'סדנה', proposal_group: 'קיץ תשפ״ו', unit_duration: '45 דקות', unit_price: 100 },

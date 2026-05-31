@@ -9880,7 +9880,7 @@ select.ds-input {
 /* ——— Proposals & agreements screen ——— */
 .ds-pa-screen {
   direction: rtl;
-  max-width: 1080px;
+  max-width: 1180px;
   margin-inline: auto;
 }
 
@@ -10054,12 +10054,12 @@ select.ds-input {
 }
 
 .ds-pa-form {
-  margin: 6px 0 10px;
-  padding: 12px;
+  margin: 6px auto 14px;
+  padding: 16px;
   border: 1px solid var(--ds-color-border, #e2e8f0);
   border-radius: 14px;
   background: var(--ds-color-surface-soft, #f8fafc);
-  width: min(980px, 100%);
+  width: min(1160px, 100%);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -10072,8 +10072,8 @@ select.ds-input {
 
 .ds-pa-form-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px 10px;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 10px 14px;
   margin: 0 0 8px;
 }
 
@@ -10163,12 +10163,12 @@ select.ds-input {
 .ds-pa-form-field--wide .ds-input,
 .ds-pa-form-field--wide textarea.ds-input,
 .ds-pa-form-field--wide .ds-pa-activity-picker {
-  max-width: 100%;
+  max-width: min(100%, 680px);
 }
 
 .ds-pa-activity-picker {
   position: relative;
-  max-width: 100%;
+  max-width: min(100%, 680px);
 }
 
 .ds-pa-activity-trigger {
@@ -10536,16 +10536,25 @@ select.ds-input {
 .ds-pa-form-section {
   border: 1px solid var(--ds-border, #e2e8f0);
   border-radius: 14px;
-  padding: 14px;
-  margin-bottom: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
   background: var(--ds-surface, #fff);
   box-shadow: var(--ds-shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.04));
+}
+.ds-pa-section-body {
+  width: min(100%, 1040px);
+  margin-inline: auto;
+}
+.ds-pa-section-body--activities {
+  display: grid;
+  gap: 12px;
 }
 .ds-pa-section-heading {
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--ds-color-text, #0f172a);
-  margin: 0 0 12px;
+  margin: 0 auto 14px;
+  width: min(100%, 1040px);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -10754,15 +10763,29 @@ select.ds-input {
   padding: 12px;
   background: #fff;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   max-width: 100%;
 }
+.ds-pa-item-details {
+  display: grid;
+  gap: 12px;
+}
+.ds-pa-item-details[hidden] { display: none; }
+.ds-pa-item-subsection {
+  display: grid;
+  gap: 8px;
+}
+.ds-pa-item-subtitle {
+  font-size: 0.76rem;
+  color: var(--ds-color-text, #0f172a);
+  font-weight: 700;
+}
 .ds-pa-item-grid { display: grid; gap: 8px; align-items: end; }
-.ds-pa-item-grid--main { grid-template-columns: minmax(220px, 1fr) minmax(110px, 160px) minmax(90px, 130px); }
+.ds-pa-item-grid--main { grid-template-columns: minmax(110px, 160px) minmax(220px, 1fr) minmax(90px, 130px); }
 .ds-pa-item-grid--numbers { grid-template-columns: repeat(5, minmax(86px, 1fr)); }
 .ds-pa-item-field { display: grid; gap: 3px; min-width: 0; }
 .ds-pa-item-field span { font-size: 0.71rem; color: var(--ds-color-text-muted, #64748b); }
-.ds-pa-item-field--select { max-width: 420px; }
+.ds-pa-item-field--select { width: min(100%, 520px); }
 .ds-pa-item-field--name { min-width: 220px; }
 .ds-pa-item-field--type { min-width: 110px; }
 .ds-pa-item-field--gefen { max-width: 120px; }
