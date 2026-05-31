@@ -27,6 +27,29 @@ const CATALOG_SHORT_TITLE_OVERRIDES = new Map([
   ['אופק לתעשייה', 'אופק לתעשייה']
 ]);
 const SCHOOL_VALUE_COLUMNS = ['למה לבחור בזה?', 'איך זה נראה בכיתה?', 'מה התלמידים לוקחים איתם?'];
+const catalogBoundRoots = new WeakSet();
+const catalogRootState = new WeakMap();
+let isPrintingCatalog = false;
+let catalogPrintResetTimer = 0;
+
+function resetCatalogPrintState() {
+  isPrintingCatalog = false;
+  if (typeof document !== 'undefined') document.body?.classList.remove('catalog-printing');
+  if (catalogPrintResetTimer) {
+    clearTimeout(catalogPrintResetTimer);
+    catalogPrintResetTimer = 0;
+  }
+}
+
+function printCatalogOnce() {
+  if (isPrintingCatalog) return;
+  if (typeof window === 'undefined' || typeof window.print !== 'function') return;
+  isPrintingCatalog = true;
+  document.body?.classList.add('catalog-printing');
+  window.addEventListener('afterprint', resetCatalogPrintState, { once: true });
+  catalogPrintResetTimer = setTimeout(resetCatalogPrintState, 1500);
+  window.print();
+}
 
 function ensureCatalogStyles() {
   if (document.getElementById('catalog-screen-styles')) return;
@@ -160,22 +183,23 @@ html,body{overflow-x:hidden}
 @media (max-width:430px){.catalog-a4{padding:14px}.catalog-hero-top{padding:16px}.catalog-content-card p{font-size:13px}}
 @media print {
   @page{size:A4 portrait;margin:0}
-  html,body{background:#fff !important;margin:0 !important;padding:0 !important;width:auto !important;min-width:0 !important;overflow:visible !important}
-  body *{visibility:hidden !important}
-  body > *:has(.catalog-screen.catalog-print-zone){display:block !important}
-  .catalog-screen.catalog-print-zone,.catalog-screen.catalog-print-zone *{visibility:visible !important}
-  .catalog-screen.catalog-print-zone{position:static !important;display:block !important;inset:auto !important;width:100% !important;max-width:none !important;min-height:0 !important;margin:0 !important;padding:0 !important;background:#fff !important;color:#000 !important;box-shadow:none !important;border:0 !important;gap:0 !important}
-  .catalog-screen .catalog-print-hide,.catalog-screen .catalog-print-hide *{display:none !important;visibility:hidden !important}
-  .catalog-a4-wrap.catalog-print-zone{position:static !important;display:block !important;width:100% !important;max-width:none !important;margin:0 !important;padding:0 !important;background:#fff !important}
-  .catalog-print-page{width:210mm !important;min-height:297mm !important;height:auto !important;margin:0 auto !important;padding:12mm 14mm !important;box-sizing:border-box !important;background:#fff !important;page-break-after:always;break-after:page;-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
-  .catalog-print-page:last-child{page-break-after:auto;break-after:auto}
-  .catalog-a4.catalog-print-page{max-width:none !important;box-shadow:none !important;border:none !important;border-radius:0 !important;overflow:visible !important}
-  .catalog-print-page .catalog-hero-top{padding:14mm 12mm !important;border-radius:18px !important}
-  .catalog-print-page .catalog-content-grid{gap:6mm !important}
-  .catalog-print-page .catalog-content-card{padding:7mm !important;border-radius:16px !important}
-  .catalog-print-page .catalog-footer{page-break-inside:avoid;break-inside:avoid}
-  .card,.catalog-content-card,.catalog-syl-wrap,.g2,.catalog-content-grid,.catalog-hero-top,.catalog-syllabus-item{page-break-inside:avoid;break-inside:avoid}
-  .catalog-hero-top::after{display:none}
+  html,body{background:#fff !important;margin:0 !important;padding:0 !important;width:210mm !important;min-width:0 !important;overflow:visible !important}
+  body.catalog-printing > *{display:none !important}
+  body.catalog-printing > #app{display:block !important;visibility:visible !important;width:210mm !important;min-height:0 !important;margin:0 !important;padding:0 !important;background:#fff !important;overflow:visible !important}
+  body.catalog-printing #app,body.catalog-printing .app-shell,body.catalog-printing .shell-main,body.catalog-printing .shell-stage,body.catalog-printing #screenRoot{position:static !important;display:block !important;visibility:visible !important;width:210mm !important;max-width:210mm !important;min-width:0 !important;min-height:0 !important;height:auto !important;margin:0 !important;padding:0 !important;background:#fff !important;box-shadow:none !important;border:0 !important;overflow:visible !important;transform:none !important}
+  body.catalog-printing .shell-backdrop,body.catalog-printing .shell-sidebar,body.catalog-printing .shell-top,body.catalog-printing .catalog-print-hide{display:none !important;visibility:hidden !important}
+  body.catalog-printing #screenRoot > :not(.catalog-screen.catalog-print-zone){display:none !important}
+  body.catalog-printing .catalog-screen.catalog-print-zone,body.catalog-printing .catalog-screen.catalog-print-zone *{visibility:visible !important}
+  body.catalog-printing .catalog-screen.catalog-print-zone{position:static !important;display:block !important;inset:auto !important;width:210mm !important;max-width:210mm !important;min-height:0 !important;margin:0 !important;padding:0 !important;background:#fff !important;color:#000 !important;box-shadow:none !important;border:0 !important;gap:0 !important;overflow:visible !important}
+  body.catalog-printing .catalog-a4-wrap.catalog-print-zone{position:static !important;display:block !important;width:210mm !important;max-width:210mm !important;margin:0 !important;padding:0 !important;background:#fff !important;overflow:visible !important}
+  body.catalog-printing .catalog-print-page{width:210mm !important;min-height:297mm !important;height:auto !important;margin:0 !important;padding:12mm 14mm !important;box-sizing:border-box !important;background:#fff !important;page-break-after:auto !important;break-after:auto !important;-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
+  body.catalog-printing .catalog-a4.catalog-print-page{max-width:210mm !important;box-shadow:none !important;border:none !important;border-radius:0 !important;overflow:visible !important}
+  body.catalog-printing .catalog-print-page .catalog-hero-top{padding:14mm 12mm !important;border-radius:18px !important}
+  body.catalog-printing .catalog-print-page .catalog-content-grid{gap:6mm !important}
+  body.catalog-printing .catalog-print-page .catalog-content-card{padding:7mm !important;border-radius:16px !important}
+  body.catalog-printing .catalog-print-page .catalog-footer{page-break-inside:avoid;break-inside:avoid}
+  body.catalog-printing .card,body.catalog-printing .catalog-content-card,body.catalog-printing .catalog-syl-wrap,body.catalog-printing .g2,body.catalog-printing .catalog-content-grid,body.catalog-printing .catalog-hero-top,body.catalog-printing .catalog-syllabus-item{page-break-inside:avoid;break-inside:avoid}
+  body.catalog-printing .catalog-hero-top::after{display:none}
 }
 `;
   document.head.appendChild(style);
@@ -703,16 +727,25 @@ export const catalogScreen = {
   },
 
   bind: ({ root, data, rerender }) => {
+    catalogRootState.set(root, { data, rerender });
+    if (catalogBoundRoots.has(root)) return;
+    catalogBoundRoots.add(root);
+
     root.addEventListener('change', (ev) => {
       const sel = ev.target.closest('[data-catalog-filter]');
       if (!sel) return;
+      const binding = catalogRootState.get(root);
+      if (!binding) return;
       const key = sel.dataset.catalogFilter;
-      if (key === 'audience') data.audience = sel.value;
-      if (key === 'type') data.type = sel.value;
-      rerender();
+      if (key === 'audience') binding.data.audience = sel.value;
+      if (key === 'type') binding.data.type = sel.value;
+      binding.rerender();
     });
 
     root.addEventListener('click', (ev) => {
+      const binding = catalogRootState.get(root);
+      if (!binding) return;
+      const { data, rerender } = binding;
       const selected = data.programs.find((p) => p.id === data.selectedId) || null;
       const openCard = ev.target.closest('[data-catalog-open]');
       if (openCard) {
@@ -746,7 +779,7 @@ export const catalogScreen = {
         rerender();
         return;
       }
-      if (ev.target.closest('[data-catalog-print]')) window.print();
+      if (ev.target.closest('[data-catalog-print]')) printCatalogOnce();
     });
   }
 };
