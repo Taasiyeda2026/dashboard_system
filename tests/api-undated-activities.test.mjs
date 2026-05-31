@@ -23,6 +23,7 @@ const {
   buildExceptionsModelFromRows,
   normalizeActivityRow
 } = await import('../frontend/src/api.js');
+const { isSummerActivity } = await import('../frontend/src/screens/shared/summer-activity.js');
 
 function activeCourse(overrides = {}) {
   return normalizeActivityRow({
@@ -92,6 +93,15 @@ test('only a valid start_date removes missing_start_date automatically', () => {
   assert.equal(rowExceptionTypesFromActivity(activeCourse({ start_date: '', date_1: '' })).includes('missing_start_date'), true);
   assert.equal(rowExceptionTypesFromActivity(activeCourse({ start_date: '2026-05-10', date_1: '' })).includes('missing_start_date'), false);
   assert.equal(rowExceptionTypesFromActivity(activeCourse({ start_date: '', date_1: '2026-05-10' })).includes('missing_start_date'), true);
+});
+
+test('activity_season defaults to regular and isSummerActivity uses only season or start_date', () => {
+  assert.equal(activeCourse({ activity_season: '' }).activity_season, 'regular');
+  assert.equal(isSummerActivity(activeCourse({ activity_season: 'summer_2026', start_date: '' })), true);
+  assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-07-01' })), true);
+  assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-08-31' })), true);
+  assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-06-30', notes: 'קיץ' })), false);
+  assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-09-01' })), false);
 });
 
 test('end_date_out_of_sync is computed from latest date_1..date_35', () => {

@@ -38,7 +38,7 @@ import {
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
-import { isSummerActivity } from './shared/summer-activity.js';
+import { ACTIVITY_SEASON_OPTIONS, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
 
 const inflightActivityDetailRequests = new Map();
 
@@ -273,6 +273,38 @@ function optionsHtml(values, selected = '', placeholder = '—') {
     .join('');
 }
 
+function activitySeasonOptions(settings = {}) {
+  const fromSettings = Array.isArray(settings?.dropdown_options?.activity_season)
+    ? settings.dropdown_options.activity_season
+    : [];
+  const normalized = fromSettings
+    .map((item) => {
+      if (typeof item === 'string') {
+        const value = normalizeActivitySeason(item);
+        const fallback = ACTIVITY_SEASON_OPTIONS.find((option) => option.value === value);
+        return fallback || { value, label: value };
+      }
+      const value = normalizeActivitySeason(item?.value);
+      const fallback = ACTIVITY_SEASON_OPTIONS.find((option) => option.value === value);
+      return { value, label: String(item?.label || fallback?.label || value).trim() };
+    })
+    .filter((item) => item.value);
+  const list = normalized.length ? normalized : ACTIVITY_SEASON_OPTIONS;
+  const seen = new Set();
+  return list.filter((item) => {
+    if (seen.has(item.value)) return false;
+    seen.add(item.value);
+    return true;
+  });
+}
+
+function activitySeasonSelectHtml(settings = {}, selected = 'regular') {
+  const safeSelected = normalizeActivitySeason(selected);
+  return activitySeasonOptions(settings)
+    .map((option) => `<option value="${escapeHtml(option.value)}"${option.value === safeSelected ? ' selected' : ''}>${escapeHtml(option.label)}</option>`)
+    .join('');
+}
+
 function decodeJsonAttr(raw, fallback = []) {
   try {
     const decoded = decodeURIComponent(String(raw || ''));
@@ -364,6 +396,7 @@ function addActivityModalHtml(settings) {
         </label>
         <input type="hidden" name="activity_no" value="" data-add-activity-no>
         <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-sessions><span>מספר מפגשים</span><select class="ds-input" name="sessions" data-add-sessions>${optionsHtml(sessionsList, '1')}</select></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>עונת פעילות</span><select class="ds-input" name="activity_season">${activitySeasonSelectHtml(settings, 'regular')}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מימון</span><select class="ds-input" name="funding">${optionsHtml(fundingOptions)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
@@ -1354,6 +1387,7 @@ export const activitiesScreen = {
         grade: get('grade'),
         class_group: get('class_group'),
         activity_type: get('activity_type'),
+        activity_season: normalizeActivitySeason(get('activity_season')),
         activity_name: selectedName,
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
         sessions: isOneDay ? '1' : sessionsValue,

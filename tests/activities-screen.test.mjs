@@ -183,25 +183,47 @@ test('activities quick filters include one-day summer rows by family and distric
   assert.doesNotMatch(html, /תוכנית שנתית/);
 });
 
-test('activities summer quick filter matches summer activity metadata', () => {
+test('activities summer quick filter matches activity_season and summer start dates only', () => {
   const state = baseState();
+  state.activitiesMonthYm = '2026-07';
   state.activityQuickFamily = 'summer';
   const data = {
     rows: [
       {
         RowID: 'SUMMER-1',
         activity_name: 'פעילות מדעים',
-        activity_type_group: 'פעילויות קיץ',
+        activity_season: 'summer_2026',
         activity_type: 'workshop',
         authority: 'רשות א',
         school: 'בית ספר א',
+        start_date: '',
+        end_date: ''
+      },
+      {
+        RowID: 'SUMMER-2',
+        activity_name: 'פעילות יולי',
+        activity_season: 'regular',
+        activity_type: 'workshop',
+        authority: 'רשות א',
+        school: 'בית ספר א',
+        start_date: '2026-07-01',
+        end_date: '2026-07-01'
+      },
+      {
+        RowID: 'NOT-SUMMER-NOTES',
+        activity_name: 'פעילות עם הערת קיץ',
+        activity_season: 'regular',
+        activity_type: 'workshop',
+        authority: 'רשות ג',
+        school: 'בית ספר ג',
         start_date: '2026-04-05',
-        end_date: '2026-04-05'
+        end_date: '2026-04-05',
+        notes: 'פעילות קיץ'
       },
       {
         RowID: 'REGULAR-1',
         activity_name: 'פעילות רגילה',
-        activity_type_group: 'שנת הלימודים',
+        activity_season: 'regular',
         activity_type: 'course',
         authority: 'רשות ב',
         school: 'בית ספר ב',
@@ -214,6 +236,8 @@ test('activities summer quick filter matches summer activity metadata', () => {
   const html = activitiesScreen.render(data, { state });
 
   assert.match(html, /פעילות מדעים/);
+  assert.match(html, /פעילות יולי/);
+  assert.doesNotMatch(html, /פעילות עם הערת קיץ/);
   assert.doesNotMatch(html, /פעילות רגילה/);
 });
 

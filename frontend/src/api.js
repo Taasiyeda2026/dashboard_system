@@ -3,7 +3,7 @@ import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { cleanActivityManagerName, NO_ACTIVITY_MANAGER_LABEL, resolveActivityInstructorName } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
-import { isSummerActivity } from './screens/shared/summer-activity.js';
+import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
 import { supabase, supabaseConfig } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
 
@@ -122,7 +122,7 @@ function rowMatchesActivitiesFilters(row, filters = {}) {
     const monthStart = `${month}-01`;
     const lastDay = new Date(y, mo, 0).getDate();
     const monthEnd = `${month}-${String(lastDay).padStart(2, '0')}`;
-    if (!activityHasDateInRange(row, monthStart, monthEnd)) return false;
+    if (!activityHasDateInRange(row, monthStart, monthEnd) && hasAnyActivityDate(row)) return false;
   }
 
   return true;
@@ -181,12 +181,15 @@ const DELETED_STATUS = 'נמחק';
 
 function normalizeActivityRow(row = {}) {
   const rowId = String(row?.row_id ?? row?.RowID ?? '').trim();
+  const activitySeason = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
   const normalized = {
     ...row,
     row_id: rowId,
     RowID: rowId,
     source_sheet: 'activities',
     source_table: ACTIVITIES_TABLE,
+    activity_season: activitySeason,
+    activitySeason,
     date_start: row?.start_date ?? row?.date_start ?? '',
     date_end: row?.end_date ?? row?.date_end ?? ''
   };
@@ -503,6 +506,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
   const gradeValues     = getValues('grade', 'grades', 'class');
   const schoolValues    = getValues('school', 'schools');
   const authorityValues = getValues('authority', 'authorities');
+  const activitySeasonItems = getItems('activity_season');
 
   const shortTypes = getValues('one_day_activity_type', 'one_day_types', 'short_activity_type', 'short_activity_types');
   let   longTypes  = getValues('program_activity_type', 'program_types', 'long_activity_type', 'long_activity_types', 'program_activity_types');
@@ -579,6 +583,10 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
       instructor_names:         instructorUsers.map((u) => u.name),
       instructor_users:         instructorUsers,
       activity_names:           activityNames,
+      activity_season:          activitySeasonItems.map((item) => ({
+        value: normalizeActivitySeason(item.value),
+        label: item.label || item.value
+      })),
     },
     one_day_activity_types: shortTypes,
     program_activity_types: longTypes.length ? longTypes : activityTypes,
@@ -938,6 +946,10 @@ async function dashboardReadModelFromSupabase(month) {
       const activityType = rowActivityType(row);
       if (activityType) totalTypeCounts[activityType] = (totalTypeCounts[activityType] || 0) + 1;
     }
+    const summerKpiRows = (await selectActivitiesFromSupabase('*'))
+      .filter((row) => !isActivityInactive(row))
+      .filter(isSummerActivity);
+    totalTypeCounts.summer = new Set(summerKpiRows.map((row, index) => String(row?.RowID || row?.row_id || '').trim() || `summer:${index}`)).size;
 
     const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix });
     const exceptionError = exceptionSummary?.error || exceptionSummary?._debug?.error;
@@ -2122,6 +2134,7 @@ function sanitizeActivityPayload(act = {}) {
     }
   }
   row.status = String(row.status || 'פעיל');
+  row.activity_season = normalizeActivitySeason(row.activity_season ?? act.activitySeason);
   for (let i = 1; i <= 35; i++) {
     const lower = `date_${i}`;
     const oldDateKey = `Date${i}`;
@@ -2140,6 +2153,7 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'grade',
   'class_group',
   'activity_type',
+  'activity_season',
   'activity_no',
   'activity_name',
   'sessions',
@@ -2232,6 +2246,8 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
     let nextValue = rawValue;
     if (key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key)) {
       nextValue = normalizeDateFieldForSupabase(rawValue);
+    } else if (key === 'activity_season') {
+      nextValue = normalizeActivitySeason(rawValue);
     } else if (bigintFields.has(key)) {
       nextValue = normalizeBigintFieldForSupabase(rawValue);
     } else if (timeFields.has(key)) {

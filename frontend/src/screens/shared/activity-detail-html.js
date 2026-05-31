@@ -1,6 +1,7 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL, resolveActivityInstructorName } from './activity-options.js';
+import { ACTIVITY_SEASON_OPTIONS, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 
@@ -150,6 +151,39 @@ function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '�
     )
     .join('');
   return `<select class="${escapeHtml(klass)}" name="${escapeHtml(name)}" ${attrs}>${opts}</select>`;
+}
+
+function activitySeasonOptions(settings = {}) {
+  const fromSettings = Array.isArray(settings?.dropdown_options?.activity_season)
+    ? settings.dropdown_options.activity_season
+    : [];
+  const normalized = fromSettings
+    .map((item) => {
+      if (typeof item === 'string') {
+        const value = normalizeActivitySeason(item);
+        const fallback = ACTIVITY_SEASON_OPTIONS.find((option) => option.value === value);
+        return fallback || { value, label: value };
+      }
+      const value = normalizeActivitySeason(item?.value);
+      const fallback = ACTIVITY_SEASON_OPTIONS.find((option) => option.value === value);
+      return { value, label: String(item?.label || fallback?.label || value).trim() };
+    })
+    .filter((item) => item.value);
+  const list = normalized.length ? normalized : ACTIVITY_SEASON_OPTIONS;
+  const seen = new Set();
+  return list.filter((item) => {
+    if (seen.has(item.value)) return false;
+    seen.add(item.value);
+    return true;
+  });
+}
+
+function activitySeasonSelectHtml(settings = {}, selected = 'regular') {
+  const safeSelected = normalizeActivitySeason(selected);
+  const opts = activitySeasonOptions(settings)
+    .map((option) => `<option value="${escapeHtml(option.value)}"${option.value === safeSelected ? ' selected' : ''}>${escapeHtml(option.label)}</option>`)
+    .join('');
+  return `<select class="ds-input" name="activity_season">${opts}</select>`;
 }
 
 function inputHtml({ name, value, type = 'text', klass = 'ds-input', attrs = '' }) {
@@ -347,6 +381,10 @@ function blockActivityDetails(row, { settings = {} } = {}) {
           'סטטוס',
           selectHtml({ name: 'status', value: normalizedStatus, options: statusOptions, placeholder: 'פעיל' })
         )}
+        ${fieldEditOnly(
+          'עונת פעילות',
+          activitySeasonSelectHtml(settings, row.activity_season)
+        )}
       </div>
     </section>
   `;
@@ -458,6 +496,7 @@ function blockSupplementalView(row, { settings = {}, hideFunding = false } = {})
       ? formatTimeRangeShort(row.start_time, row.end_time)
       : '—';
   const fundingDisplay = String(row.funding || '').trim() || '—';
+  const seasonDisplay = activitySeasonLabel(row.activity_season);
 
   return `
     <section class="activity-drawer__section activity-drawer__section--supplemental" data-mode="view">
@@ -468,6 +507,7 @@ function blockSupplementalView(row, { settings = {}, hideFunding = false } = {})
         ${twoInstructors ? fieldViewOnly('מדריך/ה 2', escapeHtml(fallback(instructor2Display))) : ''}
         ${fieldViewOnly('כיתה / קבוצה', escapeHtml(classLabel))}
         ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
+        ${fieldViewOnly('עונת פעילות', escapeHtml(seasonDisplay))}
         ${hideFunding ? '' : fieldViewOnly('מימון', escapeHtml(fundingDisplay))}
       </div>
     </section>

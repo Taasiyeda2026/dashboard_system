@@ -1,5 +1,11 @@
 const SUMMER_START_DATE = '2026-07-01';
 const SUMMER_END_DATE = '2026-08-31';
+export const ACTIVITY_SEASON_REGULAR = 'regular';
+export const ACTIVITY_SEASON_SUMMER_2026 = 'summer_2026';
+export const ACTIVITY_SEASON_OPTIONS = [
+  { value: ACTIVITY_SEASON_REGULAR, label: 'רגיל' },
+  { value: ACTIVITY_SEASON_SUMMER_2026, label: 'קיץ תשפ״ו' }
+];
 
 function normalizedDateText(value) {
   const raw = String(value || '').trim();
@@ -11,29 +17,21 @@ function normalizedDateText(value) {
   return parsed.toISOString().slice(0, 10);
 }
 
-function normalizeSummerMarker(value) {
-  return String(value || '').trim().toLowerCase().replace(/[\s_\-]+/g, '');
+export function normalizeActivitySeason(value) {
+  return String(value || '').trim() === ACTIVITY_SEASON_SUMMER_2026
+    ? ACTIVITY_SEASON_SUMMER_2026
+    : ACTIVITY_SEASON_REGULAR;
 }
 
-function hasExplicitSummerClassification(activity = {}) {
-  return [
-    activity?.activity_type_group,
-    activity?.activity_group,
-    activity?.activity_family,
-    activity?.source,
-    activity?.season,
-    activity?.activity_season,
-    activity?.catalog_group
-  ].some((value) => {
-    const marker = normalizeSummerMarker(value);
-    return marker.includes('summer') || marker.includes('קיץ');
-  });
+export function activitySeasonLabel(value) {
+  const normalized = normalizeActivitySeason(value);
+  return ACTIVITY_SEASON_OPTIONS.find((option) => option.value === normalized)?.label || 'רגיל';
 }
 
 export function isSummerActivity(activity = {}) {
-  const startDate = normalizedDateText(activity?.start_date || activity?.date_start);
-  if (startDate) {
-    return startDate >= SUMMER_START_DATE && startDate <= SUMMER_END_DATE;
+  if (normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason) === ACTIVITY_SEASON_SUMMER_2026) {
+    return true;
   }
-  return hasExplicitSummerClassification(activity);
+  const startDate = normalizedDateText(activity?.start_date || activity?.date_start);
+  return startDate >= SUMMER_START_DATE && startDate <= SUMMER_END_DATE;
 }

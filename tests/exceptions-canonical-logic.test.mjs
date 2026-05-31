@@ -95,7 +95,8 @@ test('exception relevance follows activity_type before counts and display', () =
   const rows = [
     activity({ RowID: 'COURSE-LATE', activity_type: 'course', status: 'פתוח', end_date: '2026-06-16', date_1: '2026-06-16' }),
     activity({ RowID: 'SUMMER-LATE', activity_type: 'course', start_date: '2026-07-01', status: 'פתוח', end_date: '2026-09-01', date_1: '2026-09-01' }),
-    activity({ RowID: 'SUMMER-EXPLICIT-NO-START', activity_type: 'course', activity_group: 'קיץ', start_date: '', status: 'פתוח', end_date: '2026-09-01', date_1: '2026-09-01' }),
+    activity({ RowID: 'SUMMER-EXPLICIT-NO-START', activity_type: 'course', activity_season: 'summer_2026', start_date: '', status: 'פתוח', end_date: '2026-09-01', date_1: '2026-09-01' }),
+    activity({ RowID: 'SUMMER-NOTES-ONLY', activity_type: 'course', notes: 'פעילות קיץ', start_date: '2026-06-01', status: 'פתוח', end_date: '2026-09-01', date_1: '2026-09-01' }),
     ...shortTypes.flatMap((activity_type) => [
       activity({ RowID: `${activity_type}-late`, activity_type, status: 'פתוח', end_date: '2026-06-16', date_1: '2026-06-16' }),
       activity({ RowID: `${activity_type}-missing-end`, activity_type, end_date: '', date_1: '' }),
@@ -109,13 +110,14 @@ test('exception relevance follows activity_type before counts and display', () =
     lateEndDateThreshold: '2026-06-15'
   });
 
-  assert.equal(model.counts.end_date_after_cutoff, 1, 'only non-summer course should count late end date');
+  assert.equal(model.counts.end_date_after_cutoff, 2, 'only actual summer activities should be exempt from late end date');
   assert.equal(model.counts.missing_end_date, 0, 'short activity missing end date should not count');
   assert.equal(model.counts.missing_district, 0, 'short activity district gaps should not count');
   assert.equal(model.counts.end_date_passed, 0, 'short activity ended-open should not count');
   assert.equal(model.counts.missing_instructor, shortTypes.length);
   assert.equal(model.counts.missing_start_date, shortTypes.length + 1);
   assert.ok(model.rows.some((row) => row.RowID === 'COURSE-LATE' && row.exception_types.includes('end_date_after_cutoff')));
+  assert.ok(model.rows.some((row) => row.RowID === 'SUMMER-NOTES-ONLY' && row.exception_types.includes('end_date_after_cutoff')));
   assert.ok(!model.rows.some((row) => row.RowID === 'SUMMER-LATE'));
   assert.ok(!model.rows.some((row) => row.RowID === 'SUMMER-EXPLICIT-NO-START' && row.exception_types.includes('end_date_after_cutoff')));
   assert.ok(model.rows.some((row) => row.RowID === 'SUMMER-EXPLICIT-NO-START' && row.exception_types.includes('missing_start_date')));
