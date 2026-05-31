@@ -11197,10 +11197,10 @@ select.ds-input {
   }
 
   /* Hide everything except the preview overlay */
-  body > *:not(#pa-preview-overlay) {
+  body:has(#pa-preview-overlay) > *:not(#pa-preview-overlay) {
     display: none !important;
   }
-  body * {
+  body:has(#pa-preview-overlay) * {
     visibility: hidden !important;
   }
   #pa-preview-overlay,
