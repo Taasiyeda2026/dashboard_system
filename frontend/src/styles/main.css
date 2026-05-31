@@ -11486,6 +11486,76 @@ select.ds-input {
   font-weight: 850;
 }
 
+.ds-exceptions-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-full);
+  background: color-mix(in srgb, var(--ds-accent) 4%, var(--ds-surface));
+}
+
+.ds-exceptions-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-full);
+  background: transparent;
+  color: var(--ds-text-secondary);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.ds-exceptions-tab span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: var(--ds-radius-full);
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.ds-exceptions-tab:hover,
+.ds-exceptions-tab:focus-visible {
+  outline: none;
+  color: var(--ds-accent);
+  background: color-mix(in srgb, var(--ds-accent) 7%, var(--ds-surface));
+}
+
+.ds-exceptions-tab.is-active {
+  color: var(--ds-accent);
+  border-color: color-mix(in srgb, var(--ds-accent) 18%, var(--ds-border));
+  background: var(--ds-surface);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.07);
+}
+
+.ds-exceptions-tab-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 12%, var(--ds-border));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--ds-accent) 5%, var(--ds-surface));
+  color: var(--ds-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
 .ds-exceptions-summary {
   display: grid;
   grid-template-columns: minmax(180px, 260px) 1fr;
@@ -11771,6 +11841,18 @@ select.ds-input {
 }
 
 @media (max-width: 520px) {
+  .ds-exceptions-tabs {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  .ds-exceptions-tab {
+    width: 100%;
+    border-radius: 12px;
+  }
+
   .ds-exceptions-grid {
     grid-template-columns: 1fr;
   }

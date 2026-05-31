@@ -18,8 +18,12 @@ import {
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
 import { EXCEPTION_TYPE_ORDER, exceptionActivityKey, normalizedExceptionTypes, uniqueExceptionActivityCount } from './shared/exceptions-metrics.js';
+import { isSummerActivity } from './shared/summer-activity.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
+const EXCEPTIONS_TAB_GENERAL = 'general';
+const EXCEPTIONS_TAB_SUMMER_DATES = 'summer_dates';
+const DATE_MISSING_EXCEPTION_TYPES = new Set(['missing_start_date', 'missing_end_date']);
 
 const HEBREW_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 function hebrewMonthLabel(ym) {
@@ -81,6 +85,42 @@ function exceptionInstanceRows(rows = []) {
       exception_instance_key: `${String(row?.RowID || row?.row_id || '').trim() || row?.activity_name || 'row'}:${type}`
     }));
   });
+}
+
+function hasMissingDateException(row) {
+  return normalizedExceptionTypes(row).some((type) => DATE_MISSING_EXCEPTION_TYPES.has(type));
+}
+
+function isSummerMissingDateException(row) {
+  return isSummerActivity(row) && hasMissingDateException(row);
+}
+
+function splitRowsByExceptionTab(rows = []) {
+  const general = [];
+  const summerDates = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (isSummerMissingDateException(row)) {
+      summerDates.push(row);
+    } else {
+      general.push(row);
+    }
+  }
+  return { general, summerDates };
+}
+
+function exceptionTabsHtml(activeTab, counts) {
+  const tabs = [
+    [EXCEPTIONS_TAB_GENERAL, 'חריגות כלליות', counts.general || 0],
+    [EXCEPTIONS_TAB_SUMMER_DATES, 'חריגות קיץ', counts.summerDates || 0]
+  ];
+  return `<nav class="ds-exceptions-tabs" aria-label="חלוקת חריגות">
+    ${tabs.map(([key, label, count]) => `<button
+      type="button"
+      class="ds-exceptions-tab ${activeTab === key ? 'is-active' : ''}"
+      data-exceptions-tab="${escapeHtml(key)}"
+      aria-pressed="${activeTab === key ? 'true' : 'false'}"
+    >${escapeHtml(label)} <span>${escapeHtml(String(count))}</span></button>`).join('')}
+  </nav>`;
 }
 
 function approvedExceptionRows(rows = []) {
@@ -217,6 +257,9 @@ export const exceptionsScreen = {
     const filterState = ensureActivityListFilters(state, EXCEPTIONS_SCOPE);
     prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type', 'exception_types']);
     const filteredRows = applyLocalFilters(allRows, filterState, { filterFields: EXCEPTION_FILTER_FIELDS });
+    const tabRows = splitRowsByExceptionTab(filteredRows);
+    const activeTab = state?.exceptionsTab === EXCEPTIONS_TAB_SUMMER_DATES ? EXCEPTIONS_TAB_SUMMER_DATES : EXCEPTIONS_TAB_GENERAL;
+    const visibleRows = activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? tabRows.summerDates : tabRows.general;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const toolbarHtml = filtersToolbarHtml(EXCEPTIONS_SCOPE, allRows, state, {
       filterFields: EXCEPTION_FILTER_FIELDS,
@@ -224,7 +267,7 @@ export const exceptionsScreen = {
       optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
     });
     const byType = new Map();
-    filteredRows.forEach((row) => {
+    visibleRows.forEach((row) => {
       const type = String(row?.exception_type || '').trim() || 'other';
       if (!byType.has(type)) byType.set(type, []);
       byType.get(type).push(row);
@@ -233,19 +276,24 @@ export const exceptionsScreen = {
       ...EXCEPTION_TYPE_ORDER.filter((type) => byType.has(type)),
       ...[...byType.keys()].filter((type) => !EXCEPTION_TYPE_ORDER.includes(type)).sort((a, b) => a.localeCompare(b, 'he'))
     ];
-    const hasAnyRows = filteredRows.length > 0;
+    const hasAnyRows = visibleRows.length > 0;
     const groups = orderedTypes.map((type) => ({
       key: exceptionGroupKey(type),
       title: hebrewExceptionType(type),
       rows: byType.get(type) || []
     })).filter((group) => group.rows.length > 0);
+    const emptyText = activeTab === EXCEPTIONS_TAB_SUMMER_DATES
+      ? 'אין פעילויות קיץ ללא תאריך להצגה.'
+      : 'אין חריגות כלליות פעילות להצגה.';
 
     return dsScreenStack(`
       <div class="ds-exceptions-screen">
       ${toolbarHtml}
       <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}</h2></section>
-      ${exceptionsSummaryHtml(filteredRows)}
-      ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState('אין חריגות פעילות להצגה.')}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group)}</section>`).join('')}
+      ${exceptionTabsHtml(activeTab, { general: tabRows.general.length, summerDates: tabRows.summerDates.length })}
+      ${activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? '<p class="ds-exceptions-tab-note">פעילויות קיץ ללא תאריך מוצגות כאן בנפרד, מאחר שבדרך כלל מדובר בהזמנות שנכנסו למערכת ונמצאות עדיין בשלב תיאום.</p>' : ''}
+      ${exceptionsSummaryHtml(visibleRows)}
+      ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState(emptyText)}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group)}</section>`).join('')}
       </div>
     `);
   },
@@ -397,6 +445,14 @@ export const exceptionsScreen = {
           exception_type: exceptionType,
           visibleCount: 200
         };
+        rerender();
+      });
+    });
+
+    root.querySelectorAll('[data-exceptions-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.exceptionsTab || EXCEPTIONS_TAB_GENERAL;
+        state.exceptionsTab = tab === EXCEPTIONS_TAB_SUMMER_DATES ? EXCEPTIONS_TAB_SUMMER_DATES : EXCEPTIONS_TAB_GENERAL;
         rerender();
       });
     });

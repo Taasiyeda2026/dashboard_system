@@ -436,6 +436,53 @@ test('exceptions screen totals, district sum, and rendered cards use the same ex
   assert.equal((html.match(/data-card-action="exception:/g) || []).length, 3);
 });
 
+test('exceptions screen separates summer missing-date rows from general exceptions', () => {
+  const data = {
+    month: '2026-05',
+    rows: [
+      {
+        RowID: 'REG-MISSING-DATE',
+        activity_name: 'פעילות רגילה ללא תאריך',
+        activity_season: 'regular',
+        start_date: '',
+        end_date: '',
+        exception_types: ['missing_start_date']
+      },
+      {
+        RowID: 'SUMMER-MISSING-DATE',
+        activity_name: 'הזמנת קיץ ללא תאריך',
+        activity_season: 'summer_2026',
+        start_date: '',
+        end_date: '',
+        exception_types: ['missing_start_date']
+      },
+      {
+        RowID: 'SUMMER-DATED',
+        activity_name: 'פעילות קיץ עם תאריך',
+        activity_season: 'summer_2026',
+        start_date: '2026-07-15',
+        end_date: '2026-07-15',
+        exception_types: ['missing_instructor']
+      }
+    ]
+  };
+
+  const generalHtml = exceptionsScreen.render(data, { state: { listFilters: {}, clientSettings: {} } });
+  assert.match(generalHtml, /חריגות כלליות[\s\S]*<span>2<\/span>/);
+  assert.match(generalHtml, /חריגות קיץ[\s\S]*<span>1<\/span>/);
+  assert.match(generalHtml, /פעילות רגילה ללא תאריך/);
+  assert.match(generalHtml, /פעילות קיץ עם תאריך/);
+  assert.doesNotMatch(generalHtml, /הזמנת קיץ ללא תאריך/);
+  assert.equal((generalHtml.match(/data-card-action="exception:/g) || []).length, 2);
+
+  const summerHtml = exceptionsScreen.render(data, { state: { exceptionsTab: 'summer_dates', listFilters: {}, clientSettings: {} } });
+  assert.match(summerHtml, /פעילויות קיץ ללא תאריך מוצגות כאן בנפרד/);
+  assert.match(summerHtml, /הזמנת קיץ ללא תאריך/);
+  assert.doesNotMatch(summerHtml, /פעילות רגילה ללא תאריך/);
+  assert.doesNotMatch(summerHtml, /פעילות קיץ עם תאריך/);
+  assert.equal((summerHtml.match(/data-card-action="exception:/g) || []).length, 1);
+});
+
 test('frontend drawer shows exception type chip when opening activity detail', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
   assert.match(src, /exceptionTypeHeader/,

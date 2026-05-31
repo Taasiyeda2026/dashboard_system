@@ -118,7 +118,7 @@ test('catalog filters default to showing all programs', async () => {
   assert.match(html, /מנהיגות ירוקה/);
 });
 
-test('program detail uses updated catalog fields and syllabus table', async () => {
+test('program detail uses updated catalog fields and syllabus meeting cards', async () => {
   const src = await readCatalogSource();
 
   assert.match(src, /const targetGrades = String\(pickFirstNonEmpty\(p\.target_grades, p\.targetGrades\)/);
@@ -126,6 +126,8 @@ test('program detail uses updated catalog fields and syllabus table', async () =
   assert.doesNotMatch(src, /full_description/);
   assert.doesNotMatch(src, /programFlow:[^\n]*goals/);
   assert.match(src, /parseSkills\(program\.participantsReceive, program\.studentDevelops\)/);
-  assert.match(src, /<th>מפגש<\/th><th>נושא המפגש<\/th><th>פרטי המפגש<\/th>/);
+  assert.match(src, /catalog-syllabus-item/);
+  assert.match(src, /catalog-syllabus-badge/);
+  assert.doesNotMatch(src, /<thead><tr><th>מפגש<\/th>/);
   assert.match(src, /syllabusMeetingText\(item\)/);
 });

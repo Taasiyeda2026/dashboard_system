@@ -72,8 +72,8 @@ html,body{overflow-x:hidden}
 .catalog-print-bar-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .catalog-print-btn{background:#1a3a2a;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
 .catalog-print-btn:hover{background:#0f2318}
-.catalog-a4-wrap{display:flex;justify-content:center;width:100%;max-width:1180px;margin:0 auto;padding:0 16px;box-sizing:border-box}
-.catalog-a4{--program-primary:#1a3a2a;--program-accent:#2d5a3d;--program-accent-soft:#e8f5e0;--program-accent-border:#c2e0a0;--program-bg:var(--color-background-secondary,#f4f5f7);--program-card-bg:var(--color-background-primary,#fff);--program-border:var(--color-border-tertiary,#d9dee8);--program-text:var(--color-text-primary,#1f2937);--program-muted:var(--color-text-secondary,#64748b);width:100%;max-width:1180px;min-height:auto;background:var(--program-bg);color:var(--program-text);border:0;border-radius:var(--border-radius-lg,18px);padding:16px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box;overflow:hidden;direction:rtl;text-align:right}
+.catalog-a4-wrap{display:flex;justify-content:center;width:100%;max-width:1200px;margin:0 auto;padding:0 16px;box-sizing:border-box}
+.catalog-a4{--program-primary:#1a3a2a;--program-accent:#2d5a3d;--program-accent-soft:#eef8ef;--program-accent-border:#cfe7d4;--program-bg:#f7f5ef;--program-card-bg:#fffefb;--program-border:#e5ded0;--program-text:#17231c;--program-muted:#5f6f66;width:100%;max-width:1160px;min-height:auto;background:linear-gradient(180deg,#fbfaf5 0,#f3f7ef 100%);color:var(--program-text);border:1px solid rgba(207,221,207,.7);border-radius:28px;padding:22px;display:flex;flex-direction:column;gap:22px;box-sizing:border-box;overflow:hidden;direction:rtl;text-align:right;box-shadow:0 18px 55px rgba(15,45,31,.08)}
 .catalog-theme--nature{--program-primary:#1a3a2a;--program-accent:#2d5a3d;--program-accent-soft:#e8f5e0;--program-accent-border:#c2e0a0}
 .catalog-theme--space{--program-primary:#172554;--program-accent:#4F46E5;--program-accent-soft:#EEF2FF;--program-accent-border:#C7D2FE}
 .catalog-theme--ai{--program-primary:#12355B;--program-accent:#0EA5A4;--program-accent-soft:#E6FFFB;--program-accent-border:#B6E8E4}
@@ -82,53 +82,47 @@ html,body{overflow-x:hidden}
 .catalog-theme--games{--program-primary:#3B0764;--program-accent:#A855F7;--program-accent-soft:#F6EDFF;--program-accent-border:#DEC5FF}
 .catalog-theme--pharma{--program-primary:#064E3B;--program-accent:#10B981;--program-accent-soft:#ECFDF5;--program-accent-border:#A7F3D0}
 .catalog-theme--leadership{--program-primary:#351C75;--program-accent:#A855F7;--program-accent-soft:#F6EDFF;--program-accent-border:#DEC5FF}
-.catalog-hero-top{background:var(--color-background-primary,#fff);border:.5px solid var(--color-border-tertiary,#d9dee8);border-radius:var(--border-radius-lg,18px);padding:18px 20px;display:flex;align-items:flex-start;gap:14px}
-.catalog-domain-icon{width:52px;height:52px;border-radius:12px;background:var(--program-primary,#1a3a2a);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 52px;font-size:20px;font-weight:900}
-.catalog-hero-main{min-width:0;display:grid;gap:6px}
-.catalog-subtitle{margin:0;color:var(--color-text-secondary,#64748b);font-size:13px;line-height:1.5;font-weight:600}
-.catalog-gefen-badge{display:block;margin:0;color:var(--color-text-tertiary,#94a3b8);font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase}
-.catalog-a4-header h1{font-size:20px;font-weight:900;color:var(--color-text-primary,#0f172a);margin:0;line-height:1.25;letter-spacing:0;overflow-wrap:anywhere}
-.catalog-domain-chips,.catalog-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px}
-.catalog-domain-chip,.catalog-chip{background:#e8f5e0;border:.5px solid #c2e0a0;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:#1a5a2a}
-.catalog-opening-line{margin:0;border-right:3px solid #2d5a3d;padding-right:12px;border-radius:0;color:var(--color-text-secondary,#64748b);font-size:13px;font-style:italic;line-height:1.8;white-space:pre-line;overflow-wrap:anywhere;unicode-bidi:plaintext}
-.catalog-quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0}
-.catalog-quick-card{background:var(--color-background-primary,#fff);border:.5px solid var(--color-border-tertiary,#d9dee8);border-radius:var(--border-radius-md,12px);padding:10px 12px;text-align:center;min-width:0}
-.catalog-quick-card strong{display:block;color:var(--color-text-tertiary,#94a3b8);font-size:10px;line-height:1.25;font-weight:700;margin-bottom:5px;letter-spacing:.5px;text-transform:uppercase}
-.catalog-quick-card span{display:block;color:var(--color-text-primary,#0f172a);font-size:13px;line-height:1.35;font-weight:700;overflow-wrap:anywhere;max-width:100%;unicode-bidi:plaintext}
-.catalog-area-divider{grid-column:1/-1;font-size:11px;font-weight:800;color:var(--color-text-tertiary,#94a3b8);letter-spacing:.8px;text-transform:uppercase;padding-bottom:4px;border-bottom:.5px solid var(--color-border-tertiary,#d9dee8)}
-.catalog-content-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
-.catalog-content-card{background:var(--color-background-primary,#fff);border:.5px solid var(--color-border-tertiary,#d9dee8);border-radius:var(--border-radius-lg,18px);padding:16px 18px;min-width:0}
+.catalog-hero-top{position:relative;background:radial-gradient(circle at 12% 18%,rgba(125,211,184,.34),transparent 31%),linear-gradient(135deg,#fffdf6 0,#edf8f1 52%,#e9f7f7 100%);border:1px solid rgba(184,213,190,.8);border-radius:26px;padding:34px 38px;display:grid;grid-template-columns:minmax(0,1fr);gap:22px;overflow:hidden}
+.catalog-hero-top::before{content:'';position:absolute;inset:auto -80px -110px auto;width:260px;height:260px;border-radius:50%;background:rgba(45,90,61,.09)}
+.catalog-domain-icon{display:none}
+.catalog-hero-main{position:relative;z-index:1;min-width:0;display:grid;gap:12px;max-width:880px}
+.catalog-subtitle{margin:0;color:#42564b;font-size:18px;line-height:1.75;font-weight:600;max-width:820px}
+.catalog-gefen-badge{display:inline-flex;width:max-content;margin:0;background:rgba(255,255,255,.68);border:1px solid rgba(194,224,160,.75);border-radius:999px;padding:5px 12px;color:#315742;font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
+.catalog-a4-header h1{font-size:clamp(30px,4.2vw,52px);font-weight:900;color:#102519;margin:0;line-height:1.13;letter-spacing:-.8px;overflow-wrap:anywhere}
+.catalog-domain-chips,.catalog-chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:4px}
+.catalog-domain-chip,.catalog-chip{background:#eef8ef;border:1px solid #cfe7d4;border-radius:999px;padding:7px 13px;font-size:13px;font-weight:700;color:#245238;line-height:1.35}
+.catalog-opening-line{margin:0;background:rgba(255,254,251,.82);border:1px solid rgba(224,216,202,.85);border-radius:20px;padding:18px 22px;color:#42564b;font-size:15px;font-weight:600;line-height:1.9;white-space:pre-line;overflow-wrap:anywhere;unicode-bidi:plaintext;box-shadow:0 10px 26px rgba(15,45,31,.05)}
+.catalog-quick-grid{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:10px;margin:0}
+.catalog-quick-card{background:rgba(255,255,255,.78);border:1px solid rgba(194,224,160,.75);border-radius:999px;padding:8px 14px;min-width:0;display:flex;align-items:center;gap:8px;box-shadow:0 8px 20px rgba(15,45,31,.05)}
+.catalog-quick-card strong{display:block;color:#5f6f66;font-size:12px;line-height:1.25;font-weight:800;white-space:nowrap}
+.catalog-quick-card span{display:block;color:#102519;font-size:13px;line-height:1.35;font-weight:800;overflow-wrap:anywhere;max-width:100%;unicode-bidi:plaintext}
+.catalog-area-divider{grid-column:1/-1;font-size:15px;font-weight:900;color:#244934;letter-spacing:0;padding:2px 2px 0;border:0}
+.catalog-content-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:stretch}
+.catalog-content-card{background:rgba(255,254,251,.94);border:1px solid rgba(224,216,202,.88);border-radius:24px;padding:24px 26px;min-width:0;box-shadow:0 12px 34px rgba(15,45,31,.06)}
 .catalog-content-card--wide{grid-column:1/-1}
-.catalog-content-card--green,.catalog-content-card--value{background:#f0f7e8;border-color:#c2e0a0}
-.catalog-content-card p{margin:0;color:var(--color-text-secondary,#475569);font-size:13px;line-height:1.85;white-space:pre-line;overflow-wrap:anywhere;unicode-bidi:plaintext}
+.catalog-content-card--green,.catalog-content-card--value,.catalog-content-card--skills{background:#f4fbf1;border-color:#d7ead0}
+.catalog-content-card p{margin:0;color:#36483d;font-size:15px;line-height:1.95;white-space:pre-line;overflow-wrap:anywhere;unicode-bidi:plaintext}
 .catalog-sec-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.catalog-sec-head i{font-size:16px;color:#2d5a3d}
-.catalog-sec-head span{font-size:13px;font-weight:800;color:var(--color-text-primary,#0f172a)}
-.catalog-sec-head::after{content:'';display:block;width:32px;height:2px;background:#c2e0a0;border-radius:2px;margin-right:4px}
-.catalog-content-card--outcome{background:#1e4a30;border-color:transparent;padding:18px 20px}
-.catalog-content-card--outcome .catalog-sec-head i{color:#a8d98a}
-.catalog-content-card--outcome .catalog-sec-head span{color:#e8f5e0}
-.catalog-content-card--outcome .catalog-sec-head::after{background:rgba(168,217,138,.3)}
-.catalog-content-card--outcome p{color:rgba(255,255,255,.9);font-size:14px;line-height:1.8}
+.catalog-sec-head i{font-size:18px;color:#2d5a3d}
+.catalog-sec-head span{font-size:17px;font-weight:900;color:#102519}
+.catalog-sec-head::after{content:'';display:block;width:36px;height:3px;background:#b8d9bd;border-radius:999px;margin-right:4px}
+.catalog-content-card--outcome{background:linear-gradient(135deg,#f9f4e8 0,#eef8ef 100%);border-color:#e2d8bf;padding:24px 26px}
+.catalog-content-card--outcome .catalog-sec-head i{color:#2d5a3d}
+.catalog-content-card--outcome .catalog-sec-head span{color:#102519}
+.catalog-content-card--outcome .catalog-sec-head::after{background:#cfe7d4}
+.catalog-content-card--outcome p{color:#36483d;font-size:15px;line-height:1.95}
 .catalog-steps{display:flex;align-items:center;flex-wrap:wrap;gap:0;margin-top:10px}
 .catalog-step{display:flex;flex-direction:column;align-items:center;gap:4px}
-.catalog-step-dot{width:36px;height:36px;border-radius:50%;background:#e8f5e0;border:1.5px solid #c2e0a0;display:flex;align-items:center;justify-content:center;font-size:15px}
+.catalog-step-dot{width:36px;height:36px;border-radius:50%;background:#e8f5e0;border:1.5px solid #c2e0a0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#2d5a3d}
 .catalog-step-label{font-size:10px;font-weight:700;color:#2d5a3d}
 .catalog-step-arrow{color:var(--color-border-secondary,#cbd5e1);font-size:16px;margin:0 4px 16px;flex-shrink:0}
-.catalog-syllabus-section{grid-column:1/-1;display:grid;gap:10px;min-width:0;direction:rtl;text-align:right}
-.catalog-syl-wrap{border-radius:var(--border-radius-lg,18px);border:.5px solid var(--color-border-tertiary,#d9dee8);overflow:hidden}
-.catalog-syl-wrap table{width:100%;border-collapse:collapse;font-size:12px;background:var(--color-background-primary,#fff);table-layout:fixed}
-.catalog-syl-wrap thead tr{background:#1a3a2a}
-.catalog-syl-wrap thead th{padding:9px 12px;font-weight:700;text-align:right;color:#fff;font-size:11px}
-.catalog-syl-wrap thead th:first-child{width:44px}
-.catalog-syl-wrap thead th:nth-child(2){width:38%}
-.catalog-syl-wrap tbody tr{border-bottom:.5px solid var(--color-border-tertiary,#d9dee8)}
-.catalog-syl-wrap tbody tr:last-child{border-bottom:none}
-.catalog-syl-wrap tbody tr:nth-child(even){background:var(--color-background-secondary,#f4f5f7)}
-.catalog-syl-wrap td{padding:9px 12px;vertical-align:top;line-height:1.55;overflow-wrap:anywhere;unicode-bidi:plaintext}
-.catalog-syl-wrap td:first-child{font-weight:800;color:#2d5a3d;text-align:center;font-size:13px}
-.catalog-syl-wrap td:nth-child(2){font-weight:700;color:var(--color-text-primary,#0f172a)}
-.catalog-syl-wrap td:nth-child(3){color:var(--color-text-secondary,#64748b);font-size:12px}
+.catalog-syllabus-section{grid-column:1/-1;display:grid;gap:14px;min-width:0;direction:rtl;text-align:right}
+.catalog-syl-wrap{display:grid;gap:12px}
+.catalog-syllabus-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:flex-start;background:rgba(255,254,251,.95);border:1px solid rgba(224,216,202,.9);border-radius:22px;padding:18px 20px;box-shadow:0 10px 28px rgba(15,45,31,.05)}
+.catalog-syllabus-badge{width:42px;height:42px;border-radius:50%;background:#e5f4e7;border:1px solid #b8d9bd;color:#1f4a30;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;line-height:1;flex:0 0 42px}
+.catalog-syllabus-content{min-width:0;display:grid;gap:7px}
+.catalog-syllabus-title{margin:0;color:#102519;font-size:16px;line-height:1.45;font-weight:900;overflow-wrap:anywhere;unicode-bidi:plaintext}
+.catalog-syllabus-desc{margin:0;color:#4f6358;font-size:14px;line-height:1.8;overflow-wrap:anywhere;unicode-bidi:plaintext;white-space:pre-line}
 .catalog-strip{background:#f7f6fb;border:1px solid #ddd8f0;border-radius:10px;padding:10px 12px}
 .catalog-strip h3{font-size:13.5px;font-weight:700;background:#e5f5ee;color:#1a6645;border-radius:6px;padding:4px 8px;display:inline-block;margin:0 0 10px}
 .catalog-strip-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -140,7 +134,7 @@ html,body{overflow-x:hidden}
 .catalog-close h3{background:#e5f5ee;color:#1a6645}
 .catalog-footer{margin-top:auto;border-top:1px solid var(--program-border);padding-top:10px;display:flex;justify-content:space-between;gap:12px;font-size:11.5px;color:var(--program-muted)}
 .catalog-a4-header{background:transparent;border:0;border-radius:0;padding:0;color:var(--program-text);box-shadow:none}
-.catalog-a4-header h1{font-size:20px;font-weight:900;color:var(--color-text-primary,#0f172a);margin:0;line-height:1.25;letter-spacing:0;overflow-wrap:anywhere}
+.catalog-a4-header h1{font-size:clamp(30px,4.2vw,52px);font-weight:900;color:#102519;margin:0;line-height:1.13;letter-spacing:-.8px;overflow-wrap:anywhere}
 .catalog-a4-badge{background:#e5f5ee;color:#1a6645;border:1px solid #a8dfc4;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;display:inline-flex;margin-bottom:8px}
 .catalog-a4--elementary .catalog-a4-header,.catalog-a4--middle .catalog-a4-header,.catalog-a4--neutral .catalog-a4-header{background:transparent;border-color:transparent;color:var(--program-text)}
 .catalog-a4--elementary .catalog-a4-badge,.catalog-a4--middle .catalog-a4-badge,.catalog-a4--neutral .catalog-a4-badge{background:#e5f5ee;color:#1a6645;border:1px solid #a8dfc4}
@@ -158,11 +152,11 @@ html,body{overflow-x:hidden}
 .catalog-box table td{padding:6px 8px;border:1px solid #ddd8f0;color:#1f2937;vertical-align:top}
 .catalog-box table tr:nth-child(even) td{background:#f7f6fb}
 .catalog-list-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-@media (max-width:1024px){.catalog-quick-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:1024px){.catalog-quick-grid{display:flex}}
 @media (max-width:900px){.catalog-detail-actions{padding:0}.catalog-a4-wrap{padding:0}.catalog-a4{width:100%;min-height:auto;padding:16px;border-radius:18px}.catalog-hero-top{padding:18px;border-radius:var(--border-radius-lg,18px)}.catalog-frame-grid{grid-template-columns:1fr 1fr}.catalog-list-grid{grid-template-columns:1fr}.catalog-content-grid{grid-template-columns:1fr}.catalog-footer{flex-direction:column}}
 @media (max-width:1100px){.catalog-groups{grid-template-columns:1fr}.catalog-group-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:760px){.catalog-header h2{font-size:24px}.catalog-toolbar{align-items:stretch}.catalog-filter-field{flex:1 1 100%;min-width:0;font-size:12px}}
-@media (max-width:640px){.catalog-frame-grid,.catalog-list-grid,.catalog-strip-grid,.catalog-mini-card-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}.catalog-group-grid{grid-template-columns:1fr}.catalog-content-card{padding:16px}.catalog-quick-grid{grid-template-columns:1fr}.catalog-hero-top{flex-direction:column}.catalog-syl-wrap{overflow-x:auto}.catalog-syl-wrap table{min-width:560px}}
+@media (max-width:640px){.catalog-frame-grid,.catalog-list-grid,.catalog-strip-grid,.catalog-mini-card-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}.catalog-group-grid{grid-template-columns:1fr}.catalog-content-card{padding:18px}.catalog-quick-grid{display:grid;grid-template-columns:1fr}.catalog-quick-card{border-radius:16px;align-items:flex-start;justify-content:space-between}.catalog-hero-top{padding:24px 20px}.catalog-syllabus-item{grid-template-columns:1fr;gap:10px}.catalog-syllabus-badge{width:max-content;min-width:42px;padding:0 12px;border-radius:999px}}
 @media (max-width:430px){.catalog-a4{padding:14px}.catalog-hero-top{padding:16px}.catalog-content-card p{font-size:13px}}
 @media print {
   @page{size:A4 portrait;margin:11mm 13mm 13mm 13mm}
@@ -468,9 +462,11 @@ function renderGefenBadge(program) {
 
 function renderQuickInfoCards(program) {
   const cards = [
-    ['כיתות', meaningfulText(program.targetGrades)],
+    ['גיל יעד', meaningfulText(program.targetGrades) || meaningfulText(program.audienceLevel)],
     ['היקף', meaningfulText(program.scope)],
-    ['משך מפגש', meaningfulText(program.sessionDuration)]
+    ['משך מפגש', meaningfulText(program.sessionDuration)],
+    ['תחום', meaningfulText(program.domain)],
+    ['סוג פעילות', meaningfulText(program.productType)]
   ].filter(([, value]) => value);
 
   return cards.length
@@ -492,12 +488,12 @@ function renderProgramContentCardWithClass(title, value, className) {
 
 function renderSectionHead(title) {
   const icons = {
-    'מטרת־העל': 'ti-target',
+    'מטרת התוכנית': 'ti-target',
     'תקציר התוכנית': 'ti-book',
     'תיאור התוכנית': 'ti-align-left',
     'מה לומדים ואיך לומדים': 'ti-route',
-    'כלים ומיומנויות': 'ti-tools',
-    'התוצר המסכם': 'ti-trophy',
+    'מה מקבלים המשתתפים': 'ti-gift',
+    'תוצר מסכם / שיא תהליך': 'ti-trophy',
     'ערך לבית הספר': 'ti-school'
   };
   return `<div class="catalog-sec-head"><i class="ti ${escapeHtml(icons[title] || 'ti-circle')}" aria-hidden="true"></i><span>${escapeHtml(title)}</span></div>`;
@@ -505,10 +501,10 @@ function renderSectionHead(title) {
 
 function renderProgramSteps() {
   const steps = [
-    ['🔍', 'חוקרים'],
-    ['💡', 'מתכננים'],
-    ['🔧', 'בונים'],
-    ['🎤', 'מציגים']
+    ['1', 'חוקרים'],
+    ['2', 'מתכננים'],
+    ['3', 'בונים'],
+    ['4', 'מציגים']
   ];
   return `<div class="catalog-steps">${steps.map(([icon, label], idx) => `<div class="catalog-step"><div class="catalog-step-dot">${icon}</div><span class="catalog-step-label">${escapeHtml(label)}</span></div>${idx < steps.length - 1 ? '<span class="catalog-step-arrow">←</span>' : ''}`).join('')}</div>`;
 }
@@ -522,48 +518,50 @@ function renderProgramFlowCard(program) {
 function renderSkillsCard(program) {
   const skills = parseSkills(program.participantsReceive, program.studentDevelops);
   if (!skills.length) return '';
-  return `<section class="catalog-content-card catalog-content-card--skills">${renderSectionHead('כלים ומיומנויות')}<div class="catalog-chips">${skills.map((skill) => `<span class="catalog-chip">${escapeHtml(skill)}</span>`).join('')}</div></section>`;
+  return `<section class="catalog-content-card catalog-content-card--skills">${renderSectionHead('מה מקבלים המשתתפים')}<div class="catalog-chips">${skills.map((skill) => `<span class="catalog-chip">${escapeHtml(skill)}</span>`).join('')}</div></section>`;
 }
 
 function syllabusMeetingText(item) {
   return meaningfulText(item?.meeting_label || item?.meetingLabel) || meaningfulText(item?.meeting_order || item?.meetingOrder);
 }
 
-function renderSyllabusRow(item) {
+function renderSyllabusItem(item, idx) {
   if (!item || typeof item !== 'object') return '';
-  const meeting = syllabusMeetingText(item);
+  const meeting = syllabusMeetingText(item) || String(idx + 1);
   const title = meaningfulText(item.title || item.topic);
   const description = meaningfulText(item.description || item.details);
   if (!meeting && !title && !description) return '';
-  return `<tr>
-    <td>${escapeHtml(meeting)}</td>
-    <td>${escapeHtml(title)}</td>
-    <td>${escapeHtml(description)}</td>
-  </tr>`;
+  return `<article class="catalog-syllabus-item">
+    <div class="catalog-syllabus-badge">${escapeHtml(meeting)}</div>
+    <div class="catalog-syllabus-content">
+      ${title ? `<h3 class="catalog-syllabus-title">${escapeHtml(title)}</h3>` : ''}
+      ${description ? `<p class="catalog-syllabus-desc">${escapeHtml(description)}</p>` : ''}
+    </div>
+  </article>`;
 }
 
 function renderProgramSyllabus(program) {
   const rows = Array.isArray(program.syllabus)
     ? [...program.syllabus]
       .sort((a, b) => (Number(a?.meeting_order ?? a?.meetingOrder ?? 0) || 0) - (Number(b?.meeting_order ?? b?.meetingOrder ?? 0) || 0))
-      .map(renderSyllabusRow)
+      .map(renderSyllabusItem)
       .filter(Boolean)
     : [];
   const count = rows.length;
   return rows.length
-    ? `<section class="catalog-syllabus-section"><div class="catalog-area-divider">סילבוס — ${count} מפגשים</div><div class="catalog-syl-wrap"><table><thead><tr><th>מפגש</th><th>נושא המפגש</th><th>פרטי המפגש</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>`
+    ? `<section class="catalog-syllabus-section"><div class="catalog-area-divider">סילבוס התוכנית - ${count} מפגשים</div><div class="catalog-syl-wrap">${rows.join('')}</div></section>`
     : '';
 }
 
 function renderProgramBodyCards(program) {
   const cards = [
     '<div class="catalog-area-divider catalog-area-divider--content">מה כוללת התוכנית</div>',
-    renderProgramContentCard('מטרת־העל', program.coreIdea),
-    renderProgramContentCardWithClass('תקציר התוכנית', program.shortDescription, 'catalog-content-card--green'),
+    renderProgramContentCard('מטרת התוכנית', program.coreIdea),
     renderProgramContentCardWithClass('תיאור התוכנית', program.goals, 'catalog-content-card--wide'),
+    renderProgramContentCardWithClass('תקציר התוכנית', program.shortDescription, 'catalog-content-card--green'),
     renderProgramFlowCard(program),
     renderSkillsCard(program),
-    renderProgramContentCardWithClass('התוצר המסכם', program.finalOutcome, 'catalog-content-card--outcome'),
+    renderProgramContentCardWithClass('תוצר מסכם / שיא תהליך', program.finalOutcome, 'catalog-content-card--outcome'),
     renderProgramContentCardWithClass('ערך לבית הספר', program.schoolValue, 'catalog-content-card--value')
   ].filter(Boolean);
   const syllabus = renderProgramSyllabus(program);
@@ -675,6 +673,8 @@ export const catalogScreen = {
     const a4ToneClass = toneClassForProgram(selected, 'catalog-a4');
     const a4ThemeClass = domainToneClass(selected);
     const openingText = meaningfulText(selected.openingLine);
+    const heroLead = meaningfulText(selected.subtitle) || openingText;
+    const showOpeningCard = openingText && openingText !== heroLead;
     const bodyCardsHtml = renderProgramBodyCards(selected);
     const printTitle = [selected.name, selected.subtitle].map(meaningfulText).filter(Boolean).join(' – ');
     return `<section class="catalog-screen catalog-print-zone">
@@ -687,10 +687,9 @@ export const catalogScreen = {
       </div>
       <div class="catalog-a4-wrap catalog-print-zone"><article class="catalog-a4 ${a4ToneClass} ${a4ThemeClass}" data-catalog-page="1">
         <header class="catalog-a4-header">
-          <div class="catalog-hero-top"><div class="catalog-domain-icon" aria-hidden="true">${escapeHtml((selected.domain || selected.name || 'ת').trim().slice(0, 1))}</div><div class="catalog-hero-main">${renderGefenBadge(selected)}<h1>${escapeHtml(selected.name)}</h1>${selected.subtitle ? `<p class="catalog-subtitle">${escapeHtml(selected.subtitle)}</p>` : ''}${renderQualityTags(selected)}</div></div>
+          <div class="catalog-hero-top"><div class="catalog-domain-icon" aria-hidden="true">${escapeHtml((selected.domain || selected.name || 'ת').trim().slice(0, 1))}</div><div class="catalog-hero-main">${renderGefenBadge(selected)}<h1>${escapeHtml(selected.name)}</h1>${heroLead ? `<p class="catalog-subtitle">${escapeHtml(heroLead)}</p>` : ''}${renderQualityTags(selected)}</div>${renderQuickInfoCards(selected)}</div>
         </header>
-        ${renderQuickInfoCards(selected)}
-        ${openingText ? `<p class="catalog-opening-line">${escapeHtml(openingText)}</p>` : ''}
+        ${showOpeningCard ? `<p class="catalog-opening-line">${escapeHtml(openingText)}</p>` : ''}
         ${bodyCardsHtml}
         <footer class="catalog-footer"><span>עמותת תעשיידע — חינוך טכנולוגי, חדשנות ויזמות</span><span>קטלוג תוכניות תשפ״ז</span></footer>
       </article></div>
