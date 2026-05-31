@@ -159,17 +159,22 @@ html,body{overflow-x:hidden}
 @media (max-width:640px){.catalog-frame-grid,.catalog-list-grid,.catalog-strip-grid,.catalog-mini-card-grid{grid-template-columns:1fr}.catalog-card{min-height:62px}.catalog-group-grid{grid-template-columns:1fr}.catalog-content-card{padding:18px}.catalog-quick-grid{display:grid;grid-template-columns:1fr}.catalog-quick-card{border-radius:16px;align-items:flex-start;justify-content:space-between}.catalog-hero-top{padding:24px 20px}.catalog-syllabus-item{grid-template-columns:1fr;gap:10px}.catalog-syllabus-badge{width:max-content;min-width:42px;padding:0 12px;border-radius:999px}}
 @media (max-width:430px){.catalog-a4{padding:14px}.catalog-hero-top{padding:16px}.catalog-content-card p{font-size:13px}}
 @media print {
-  @page{size:A4 portrait;margin:11mm 13mm 13mm 13mm}
-  html,body,body > *{display:block !important}
+  @page{size:A4 portrait;margin:0}
+  html,body{background:#fff !important;margin:0 !important;padding:0 !important;width:auto !important;min-width:0 !important;overflow:visible !important}
   body *{visibility:hidden !important}
-  .catalog-print-zone,.catalog-print-zone *{visibility:visible !important}
-  .catalog-print-zone{position:absolute;inset:0;background:#fff}
-  .catalog-print-hide{display:none !important}
-  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
-  .catalog-a4{box-shadow:none !important;border:none !important;border-radius:0 !important;padding:0 !important;width:100% !important}
-  .pg{padding:0;gap:10px}
-  .card{padding:12px 14px}
-  .card,.catalog-content-card,.catalog-syl-wrap,.g2,.catalog-content-grid{page-break-inside:avoid}
+  body > *:has(.catalog-screen.catalog-print-zone){display:block !important}
+  .catalog-screen.catalog-print-zone,.catalog-screen.catalog-print-zone *{visibility:visible !important}
+  .catalog-screen.catalog-print-zone{position:static !important;display:block !important;inset:auto !important;width:100% !important;max-width:none !important;min-height:0 !important;margin:0 !important;padding:0 !important;background:#fff !important;color:#000 !important;box-shadow:none !important;border:0 !important;gap:0 !important}
+  .catalog-screen .catalog-print-hide,.catalog-screen .catalog-print-hide *{display:none !important;visibility:hidden !important}
+  .catalog-a4-wrap.catalog-print-zone{position:static !important;display:block !important;width:100% !important;max-width:none !important;margin:0 !important;padding:0 !important;background:#fff !important}
+  .catalog-print-page{width:210mm !important;min-height:297mm !important;height:auto !important;margin:0 auto !important;padding:12mm 14mm !important;box-sizing:border-box !important;background:#fff !important;page-break-after:always;break-after:page;-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
+  .catalog-print-page:last-child{page-break-after:auto;break-after:auto}
+  .catalog-a4.catalog-print-page{max-width:none !important;box-shadow:none !important;border:none !important;border-radius:0 !important;overflow:visible !important}
+  .catalog-print-page .catalog-hero-top{padding:14mm 12mm !important;border-radius:18px !important}
+  .catalog-print-page .catalog-content-grid{gap:6mm !important}
+  .catalog-print-page .catalog-content-card{padding:7mm !important;border-radius:16px !important}
+  .catalog-print-page .catalog-footer{page-break-inside:avoid;break-inside:avoid}
+  .card,.catalog-content-card,.catalog-syl-wrap,.g2,.catalog-content-grid,.catalog-hero-top,.catalog-syllabus-item{page-break-inside:avoid;break-inside:avoid}
   .catalog-hero-top::after{display:none}
 }
 `;
@@ -686,7 +691,7 @@ export const catalogScreen = {
         <span class="catalog-print-bar-name">${escapeHtml(printTitle)}</span>
         <button class="catalog-print-btn" data-catalog-print>הדפסה / PDF</button>
       </div>
-      <div class="catalog-a4-wrap catalog-print-zone"><article class="catalog-a4 ${a4ToneClass} ${a4ThemeClass}" data-catalog-page="1">
+      <div class="catalog-a4-wrap catalog-print-zone"><article class="catalog-a4 catalog-print-page ${a4ToneClass} ${a4ThemeClass}" data-catalog-page="1">
         <header class="catalog-a4-header">
           <div class="catalog-hero-top"><div class="catalog-domain-icon" aria-hidden="true">${escapeHtml((selected.domain || selected.name || 'ת').trim().slice(0, 1))}</div><div class="catalog-hero-main">${renderGefenBadge(selected)}<h1>${escapeHtml(selected.name)}</h1>${heroLead ? `<p class="catalog-subtitle">${escapeHtml(heroLead)}</p>` : ''}${renderQualityTags(selected)}</div>${renderQuickInfoCards(selected)}</div>
         </header>
