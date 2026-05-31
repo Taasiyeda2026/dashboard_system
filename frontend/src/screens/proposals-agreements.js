@@ -1179,6 +1179,22 @@ function showValidationNotice(form, errors, isPending) {
   if (errorEl) errorEl.textContent = '';
 }
 
+function proposalStepperHtml() {
+  const steps = [
+    ['client', 'פרטי לקוח ואיש קשר'],
+    ['proposal', 'סוג ההצעה'],
+    ['activity', 'בחירת פעילות'],
+    ['summary', 'סיכום והפקת הצעה']
+  ];
+  return `<ol class="ds-pa-stepper" data-pa-stepper aria-label="שלבי יצירת הצעת מחיר">
+    ${steps.map(([key, label], idx) => `<li class="ds-pa-stepper-item" data-pa-step-indicator="${key}" aria-current="${idx === 0 ? 'step' : 'false'}">
+      <span class="ds-pa-stepper-num">${idx + 1}</span>
+      <span class="ds-pa-stepper-label">${escapeHtml(label)}</span>
+      <span class="ds-pa-stepper-status" data-pa-step-status="${key}">${idx === 0 ? 'פעיל' : 'ממתין'}</span>
+    </li>`).join('')}
+  </ol>`;
+}
+
 function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = []) {
   const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
   const normalizedActivityGroup = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
@@ -1198,8 +1214,9 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
 
   return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
     <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
+    ${proposalStepperHtml()}
 
-    <div class="ds-pa-form-section">
+    <div class="ds-pa-form-section" data-pa-step-panel="client">
       <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">1</span> פרטי לקוח</h4>
       <div class="ds-pa-client-row">
         ${clientSelectHtml(contactOptions, row)}
@@ -1213,8 +1230,8 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       </div>
     </div>
 
-    <div class="ds-pa-form-section ds-pa-form-section--contact">
-      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">2</span> פרטי איש קשר</h4>
+    <div class="ds-pa-form-section ds-pa-form-section--contact" data-pa-step-panel="contact">
+      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">1ב</span> פרטי איש קשר</h4>
       <div class="ds-pa-section-body">
         <div data-pa-contact-picker-host>${initPickerHtml}</div>
         <div class="ds-pa-form-grid">
@@ -1226,8 +1243,8 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       </div>
     </div>
 
-    <div class="ds-pa-form-section ds-pa-form-section--proposal">
-      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">3</span> פרטי ההצעה</h4>
+    <div class="ds-pa-form-section ds-pa-form-section--proposal" data-pa-step-panel="proposal">
+      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">2</span> סוג ההצעה</h4>
       <div class="ds-pa-section-body">
         <div class="ds-pa-form-grid ds-pa-form-grid--proposal">
           <label class="ds-pa-form-field"><span>סוג מסמך</span><input class="ds-input ds-input--sm" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}" readonly></label>
@@ -1242,32 +1259,31 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       </div>
     </div>
 
-    <div class="ds-pa-form-section ds-pa-form-section--activities">
-      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">4</span> פעילויות ותמחור</h4>
+    <div class="ds-pa-form-section ds-pa-form-section--activities" data-pa-step-panel="activity">
+      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">3</span> בחירת פעילות</h4>
       <div class="ds-pa-section-body ds-pa-section-body--activities">
         <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
       </div>
     </div>
 
-    <div class="ds-pa-form-section ds-pa-form-section--notes">
-      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">5</span> הערות</h4>
+    <div class="ds-pa-form-section ds-pa-form-section--notes" data-pa-step-panel="summary">
+      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">4</span> סיכום והפקת הצעה</h4>
       <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm ds-pa-notes-input" name="notes" rows="3">${escapeHtml(text(row.notes))}</textarea></label>
+      ${proposalSummaryHtml(row.total_amount)}
+      <div class="ds-pa-validation-notice" data-pa-validation-notice hidden></div>
+      <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
+      <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
+        <div class="ds-pa-form-actions-main">
+          <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
+          <button type="button" class="ds-btn ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
+          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending>שליחה לאישור</button>
+        </div>
+      </div>
     </div>
-
-    ${proposalSummaryHtml(row.total_amount)}
 
     <input type="hidden" name="status" data-pa-status-input value="${escapeHtml(currentStatus)}">
     <span data-pa-contact-source>${contactSourceInputsHtml(initContactSource || {})}</span>
-    <div class="ds-pa-validation-notice" data-pa-validation-notice hidden></div>
-    <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
-    <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
-      <div class="ds-pa-form-actions-main">
-        <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
-        <button type="button" class="ds-btn ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
-        <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending>שליחה לאישור</button>
-      </div>
-    </div>
     <div class="ds-pa-duplicate-dialog" data-pa-duplicate-dialog hidden></div>
   </form>`;
 }
@@ -1517,6 +1533,52 @@ export const proposalsAgreementsScreen = {
 
     const formHost = root.querySelector('[data-pa-form-host]');
 
+    const stepPanel = (form, key) => form?.querySelector(`[data-pa-step-panel="${key}"]`);
+    const stepComplete = (form) => {
+      const clientDone = Boolean(text(form?.querySelector('[name="client_authority"]')?.value) && text(form?.querySelector('[name="school_framework"]')?.value));
+      const proposalDone = clientDone && Boolean(text(form?.querySelector('[name="activity_type_group"]')?.value));
+      const items = proposalDone ? extractItemsFromForm(form) : [];
+      const activityDone = proposalDone && items.some((item) => text(item.item_name) && (Number(item.total_price) > 0 || ((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)) > 0));
+      return { client: clientDone, proposal: proposalDone, activity: activityDone, summary: activityDone };
+    };
+    const setPanelOpen = (form, key, open) => {
+      const panel = stepPanel(form, key);
+      if (!panel) return;
+      panel.hidden = !open;
+      panel.setAttribute('aria-disabled', open ? 'false' : 'true');
+    };
+    const updateProposalStepper = (container) => {
+      const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]') || container;
+      if (!form) return;
+      const done = stepComplete(form);
+      setPanelOpen(form, 'client', true);
+      setPanelOpen(form, 'contact', true);
+      setPanelOpen(form, 'proposal', done.client);
+      setPanelOpen(form, 'activity', done.proposal);
+      setPanelOpen(form, 'summary', done.activity);
+      const activeKey = !done.client ? 'client' : !done.proposal ? 'proposal' : !done.activity ? 'activity' : 'summary';
+      const completed = { client: done.client, proposal: done.proposal, activity: done.activity, summary: done.summary };
+      form.querySelectorAll('[data-pa-step-indicator]').forEach((item) => {
+        const key = text(item.dataset.paStepIndicator);
+        const isActive = key === activeKey;
+        const isDone = Boolean(completed[key]) && key !== activeKey;
+        item.classList.toggle('is-active', isActive);
+        item.classList.toggle('is-complete', isDone);
+        item.classList.toggle('is-disabled', !isActive && !isDone);
+        item.setAttribute('aria-current', isActive ? 'step' : 'false');
+        const status = item.querySelector('[data-pa-step-status]');
+        if (status) status.textContent = isDone ? 'הושלם' : (isActive ? 'פעיל' : 'ממתין');
+      });
+    };
+    const setupFormStepper = (container) => {
+      const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]');
+      if (!form || form.dataset.paStepperBound === 'yes') return;
+      form.dataset.paStepperBound = 'yes';
+      form.addEventListener('input', () => updateProposalStepper(form), { signal });
+      form.addEventListener('change', () => setTimeout(() => updateProposalStepper(form), 0), { signal });
+      updateProposalStepper(form);
+    };
+
     // ── Type change → re-render items section + update template indicator ────
     const setupTypeChangeHandler = (container) => {
       const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]') || container;
@@ -1545,6 +1607,7 @@ export const proposalsAgreementsScreen = {
           modeEl.classList.remove('ds-pa-template-mode--custom');
         }
         setupItemCalc(form);
+        updateProposalStepper(form);
       }, { signal });
     };
 
@@ -1750,6 +1813,7 @@ export const proposalsAgreementsScreen = {
       setupClientSelector(formHost);
       setupActivityPickers(formHost);
       setupItemCalc(formHost);
+      setupFormStepper(formHost);
       const pickerHost = formHost.querySelector('[data-pa-contact-picker-host]');
       if (pickerHost && pickerHost.children.length) {
         setupContactPicker(pickerHost, formHost.querySelector('[data-pa-form]'));
@@ -1919,6 +1983,7 @@ export const proposalsAgreementsScreen = {
 
       calcItemRow(itemRow);
       if (form) calcGrandTotal(form);
+      if (form) updateProposalStepper(form);
     }, { signal });
 
     // ── Click handler ─────────────────────────────────────────────────────────
@@ -1968,6 +2033,7 @@ export const proposalsAgreementsScreen = {
           setupClientSelector(host);
           setupActivityPickers(host);
           setupItemCalc(host);
+          setupFormStepper(host);
           const pickerHost = host.querySelector('[data-pa-contact-picker-host]');
           if (pickerHost && pickerHost.children.length) {
             setupContactPicker(pickerHost, host.querySelector('[data-pa-form]'));
@@ -2127,6 +2193,7 @@ export const proposalsAgreementsScreen = {
         tmp.innerHTML = itemRowHtml({ proposal_group: rowGroup }, idx, rowPricing, { groupKey: rowGroup });
         tbody.appendChild(tmp.firstElementChild);
         if (form) calcGrandTotal(form);
+        if (form) updateProposalStepper(form);
         tbody.querySelector(`[data-pa-item-idx="${idx}"] [data-pa-pricing-select]`)?.focus();
         return;
       }
@@ -2138,6 +2205,7 @@ export const proposalsAgreementsScreen = {
         const form = removeItemBtn.closest('[data-pa-form]');
         if (itemRow) itemRow.remove();
         if (form) calcGrandTotal(form);
+        if (form) updateProposalStepper(form);
         return;
       }
 
@@ -2181,6 +2249,7 @@ export const proposalsAgreementsScreen = {
         unlockClientFields(form);
         const hint = form?.querySelector('[data-pa-new-client-hint]');
         if (hint) hint.hidden = true;
+        updateProposalStepper(form);
         form?.querySelector('input[name="client_authority"]')?.focus();
         return;
       }
@@ -2199,6 +2268,7 @@ export const proposalsAgreementsScreen = {
           const inp = form?.querySelector(`input[name="${name}"]`);
           if (inp) inp.value = '';
         });
+        updateProposalStepper(form);
         form?.querySelector('input[name="client_authority"]')?.focus();
         return;
       }
@@ -2209,6 +2279,7 @@ export const proposalsAgreementsScreen = {
         const hint = form.querySelector('[data-pa-new-client-hint]');
         if (hint) hint.hidden = true;
         const clientSelect = form.querySelector('[data-pa-client-select]');
+        updateProposalStepper(form);
         clientSelect?.focus();
         return;
       }

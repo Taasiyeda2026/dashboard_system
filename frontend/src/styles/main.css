@@ -10070,6 +10070,77 @@ select.ds-input {
   font-weight: 600;
 }
 
+.ds-pa-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.ds-pa-stepper-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "num label"
+    "num status";
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--ds-color-border, #e2e8f0);
+  border-radius: 12px;
+  background: var(--ds-color-surface, #fff);
+  color: var(--ds-color-text-muted, #64748b);
+}
+
+.ds-pa-stepper-item.is-active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.ds-pa-stepper-item.is-complete {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.ds-pa-stepper-item.is-disabled {
+  opacity: 0.72;
+}
+
+.ds-pa-stepper-num {
+  grid-area: num;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: currentColor;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.ds-pa-stepper-label {
+  grid-area: label;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ds-color-text, #0f172a);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.ds-pa-stepper-status {
+  grid-area: status;
+  font-size: 0.7rem;
+}
+
 .ds-pa-form-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(160px, 1fr));
@@ -10271,6 +10342,10 @@ select.ds-input {
   .ds-pa-form-grid {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .ds-pa-stepper {
+    grid-template-columns: 1fr;
   }
 
   .ds-pa-form-field,

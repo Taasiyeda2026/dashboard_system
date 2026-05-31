@@ -881,6 +881,70 @@ test('items editor includes pricing selector and uses pricing autofill fields', 
   assert.match(screenSource, /payload\.activity_names = itemNames/);
 });
 
+test('proposal form opens as a gated stepper flow', async () => {
+  const pricing = [
+    {
+      activity_no: 'S1',
+      activity_name: 'סדנת מייקרים',
+      item_type: 'סדנה',
+      proposal_group: 'קיץ תשפ״ו',
+      meetings_count: 2,
+      hours_count: 4,
+      unit_price: 350,
+      description_for_proposal: 'פעילות מדורגת'
+    }
+  ];
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: [], proposalActivityPricing: pricing },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const form = root.querySelector('[data-pa-form]');
+      const proposalStep = form.querySelector('[data-pa-step-panel="proposal"]');
+      const activityStep = form.querySelector('[data-pa-step-panel="activity"]');
+      const summaryStep = form.querySelector('[data-pa-step-panel="summary"]');
+
+      assert.equal(proposalStep.hidden, true, 'proposal step starts closed');
+      assert.equal(activityStep.hidden, true, 'activity step starts closed');
+      assert.equal(summaryStep.hidden, true, 'summary step starts closed');
+
+      const authInput = form.querySelector('input[name="client_authority"]');
+      const schoolInput = form.querySelector('input[name="school_framework"]');
+      authInput.value = 'רשות בדיקה';
+      authInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      schoolInput.value = 'בית ספר בדיקה';
+      schoolInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+
+      assert.equal(proposalStep.hidden, false, 'proposal step opens after required client fields');
+      assert.equal(activityStep.hidden, true, 'activity step waits for proposal type');
+
+      const typeSelect = form.querySelector('select[name="activity_type_group"]');
+      typeSelect.value = 'קיץ תשפ״ו';
+      typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+      assert.equal(activityStep.hidden, false, 'activity step opens after proposal type');
+      assert.equal(summaryStep.hidden, true, 'summary waits for priced activity');
+
+      const pricingSelect = form.querySelector('[data-pa-pricing-select]');
+      pricingSelect.selectedIndex = 1;
+      pricingSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+      assert.equal(form.querySelector('[data-pa-item-details]').hidden, false, 'activity details open after list selection');
+      assert.equal(form.querySelector('[name="item_name"]').value, 'סדנת מייקרים');
+      assert.equal(form.querySelector('[name="unit_price"]').value, '350');
+      assert.equal(summaryStep.hidden, false, 'summary opens after valid activity pricing');
+      assert.match(form.querySelector('[data-pa-step-indicator="summary"]').textContent, /פעיל|הושלם/);
+    }
+  );
+});
+
 test('activity selection is first and reveals populated item details', async () => {
   const pricing = [
     {

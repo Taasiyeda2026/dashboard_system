@@ -56,6 +56,7 @@ if (!existsSync(join(dist, 'index.html'))) {
 
 mkdirSync(join(dist, 'assets'), { recursive: true });
 cpSync(join(root, 'frontend', 'assets'), join(dist, 'assets'), { recursive: true });
+cpSync(join(root, 'frontend', 'public'), dist, { recursive: true });
 
 const viteBaseRaw = process.env.VITE_BASE || './';
 const isAbsoluteBase = viteBaseRaw.startsWith('/') && viteBaseRaw !== '/';

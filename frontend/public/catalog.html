@@ -99,24 +99,40 @@
       return res.json();
     }
 
+    async function fetchLocalCatalog() {
+      const candidates = ['./catalog/catalog_programs_tashpaz.json', './catalog_programs_tashpaz.json'];
+      let lastError = null;
+      for (const path of candidates) {
+        try {
+          const res = await fetch(path, { cache: 'no-store' });
+          if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+          const payload = await res.json();
+          if (Array.isArray(payload?.programs) && payload.programs.length) return payload.programs;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError || new Error('local_catalog_unavailable');
+    }
+
     function normalizeProgram(row, idx, syllabusByProgram) {
-      const number = text(row.gefen_number || row.activity_no);
+      const number = text(row.gefen_number || row.gefenNumber || row.activity_no || row.programNumber);
       return {
-        id: number || `program-${idx + 1}`,
-        title: text(row.catalog_title || row.activity_name || `תוכנית ${idx + 1}`),
-        subtitle: text(row.catalog_subtitle || row.opening_line || row.short_description),
-        audienceLevel: audienceLevel(row),
-        productType: text(row.item_type || 'תוכנית'),
+        id: text(row.id) || number || `program-${idx + 1}`,
+        title: text(row.catalog_title || row.title || row.activity_name || `תוכנית ${idx + 1}`),
+        subtitle: text(row.catalog_subtitle || row.subtitle || row.opening_line || row.short_description),
+        audienceLevel: text(row.audienceLevel) || audienceLevel(row),
+        productType: text(row.productType || row.item_type || 'תוכנית'),
         gefenNumber: number,
-        scope: text(row.scope || row.session_duration),
+        scope: text(row.scope || row.duration || row.session_duration),
         targetGrades: text(row.target_grades || row.grades),
-        coreIdea: text(row.core_idea || row.short_description),
+        coreIdea: text(row.core_idea || row.coreIdea || row.short_description),
         goals: text(row.goals),
-        programFlow: text(row.program_flow),
-        schoolValue: text(row.school_value),
-        finalOutcome: text(row.final_outcome),
-        participantsReceive: row.participants_receive,
-        syllabus: syllabusByProgram.get(number) || []
+        programFlow: text(row.program_flow || row.programFlow),
+        schoolValue: text(row.school_value || row.schoolValue),
+        finalOutcome: text(row.final_outcome || row.finalOutcome),
+        participantsReceive: row.participants_receive || row.participantsReceive,
+        syllabus: Array.isArray(row.syllabus) ? row.syllabus : (syllabusByProgram.get(number) || [])
       };
     }
 
@@ -151,7 +167,7 @@
       backBtn.style.display = 'inline-block';
       catalogView.style.display = 'none';
       programView.style.display = 'block';
-      const syllabusRows = p.syllabus.map((s) => `<tr><td>${escapeHtml(s.meeting_label || s.meeting_order || '')}</td><td>${escapeHtml(s.title || '')}</td><td>${escapeHtml(s.description || '')}</td></tr>`).join('');
+      const syllabusRows = p.syllabus.map((s) => `<tr><td>${escapeHtml(s.meeting_label || s.meeting || s.meeting_order || '')}</td><td>${escapeHtml(s.title || s.topic || '')}</td><td>${escapeHtml(s.description || '')}</td></tr>`).join('');
       programView.innerHTML = `<div class="head">
         <h2>${escapeHtml(p.title)}</h2>
         <div class="muted">${escapeHtml(p.subtitle)}</div>
@@ -195,18 +211,24 @@
 
     (async function init() {
       try {
-        const [details, syllabus] = await Promise.all([
-          fetchTable('catalog_program_details?select=activity_no,gefen_number,catalog_title,catalog_subtitle,opening_line,domain,target_grades,grades,scope,session_duration,item_type,core_idea,short_description,goals,program_flow,participants_receive,student_develops,school_value,final_outcome,is_active_for_catalog&is_active_for_catalog=eq.true&order=catalog_title.asc'),
-          fetchTable('catalog_program_syllabus?select=program_number,meeting_label,meeting_order,title,description,is_active&is_active=eq.true&order=meeting_order.asc')
-        ]);
-        const syllabusByProgram = syllabus.reduce((acc, row) => {
-          const key = text(row.program_number);
-          if (!key) return acc;
-          if (!acc.has(key)) acc.set(key, []);
-          acc.get(key).push(row);
-          return acc;
-        }, new Map());
-        programs = details.map((row, idx) => normalizeProgram(row, idx, syllabusByProgram));
+        try {
+          const [details, syllabus] = await Promise.all([
+            fetchTable('catalog_program_details?select=activity_no,gefen_number,catalog_title,catalog_subtitle,opening_line,domain,target_grades,grades,scope,session_duration,item_type,core_idea,short_description,goals,program_flow,participants_receive,student_develops,school_value,final_outcome,is_active_for_catalog&is_active_for_catalog=eq.true&order=catalog_title.asc'),
+            fetchTable('catalog_program_syllabus?select=program_number,meeting_label,meeting_order,title,description,is_active&is_active=eq.true&order=meeting_order.asc')
+          ]);
+          const syllabusByProgram = syllabus.reduce((acc, row) => {
+            const key = text(row.program_number);
+            if (!key) return acc;
+            if (!acc.has(key)) acc.set(key, []);
+            acc.get(key).push(row);
+            return acc;
+          }, new Map());
+          programs = details.map((row, idx) => normalizeProgram(row, idx, syllabusByProgram));
+        } catch (remoteError) {
+          console.warn('Supabase catalog failed, falling back to local JSON', remoteError);
+          const localPrograms = await fetchLocalCatalog();
+          programs = localPrograms.map((row, idx) => normalizeProgram(row, idx, new Map()));
+        }
         renderCatalog();
         statusEl.textContent = `נטענו ${programs.length} תוכניות`;
         const requestedProgram = text(new URLSearchParams(location.search).get('program'));
