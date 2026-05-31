@@ -3,241 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>קטלוג תוכניות תשפ״ז</title>
+  <meta http-equiv="refresh" content="0;url=./?route=catalog" />
+  <title>קטלוג תוכניות — מעבר למערכת</title>
   <style>
-    :root { --primary:#5e3f80; --line:#ddd4e7; --bg:#f6f5f8; --paper:#fff; --text:#2e2a33; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
-    .wrap { max-width: 1120px; margin: 0 auto; padding: 18px; }
-    .toolbar { display: flex; gap: 8px; justify-content: center; align-items: center; position: sticky; top: 0; z-index: 2; background: #ffffffeb; border-bottom: 1px solid var(--line); padding: 10px; backdrop-filter: blur(3px); }
-    button, .btn { border: 1px solid var(--line); background: #fff; color: var(--text); padding: 8px 12px; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; text-decoration: none; }
-    .primary { background: #f1ebf8; color: var(--primary); border-color: #cdb9e3; }
-    h1 { margin: 6px 0 2px; text-align: center; font-size: 28px; }
-    .subtitle { text-align: center; margin: 0 0 18px; color: #62576f; }
-    .group { background: var(--paper); border: 1px solid var(--line); padding: 14px; border-radius: 12px; margin-bottom: 14px; }
-    .group h2 { margin: 0 0 10px; color: var(--primary); font-size: 20px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
-    .program-btn { min-height: 58px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px 10px; line-height: 1.25; font-size: 15px; font-weight: 700; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
-    .program-btn:hover { border-color: #b79ad4; background: #faf7fe; }
-    #programView { display: none; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
-    .head { border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 12px; }
-    .head h2 { margin: 0 0 6px; color: var(--primary); }
-    .muted { color: #736982; font-size: 13px; line-height: 1.6; }
-    .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 14px; margin-bottom: 14px; }
-    .meta div, .box { background: #f8f6fc; padding: 10px; border-radius: 8px; border: 1px solid #eee7f5; }
-    .sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .sections h3 { margin: 0 0 6px; color: var(--primary); font-size: 15px; }
-    .sections p { margin: 0; white-space: pre-line; line-height: 1.65; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
-    th, td { border: 1px solid #d9d0e5; padding: 7px; vertical-align: top; text-align: right; }
-    th { background: #f2ecf9; }
-    .wide { grid-column: 1 / -1; }
-    .error { background: #fff7ed; color: #9a3412; border-color: #fdba74; }
-    @media (max-width: 760px) {
-      .wrap { padding: 12px; }
-      .meta, .sections { grid-template-columns: 1fr; }
-      h1 { font-size: 24px; }
-      table { font-size: 12px; }
-    }
-    @media print {
-      body { background: #fff; }
-      .toolbar, #catalogView { display: none !important; }
-      #programView { display: block !important; border: none; padding: 0; }
-      .wrap { max-width: 100%; padding: 0; }
-    }
+    body { margin: 0; font-family: Arial, sans-serif; background: #f6f5f8; color: #2e2a33; direction: rtl; }
+    .wrap { max-width: 520px; margin: 12vh auto; padding: 24px; text-align: center; background: #fff; border: 1px solid #ddd4e7; border-radius: 12px; }
+    a { color: #5e3f80; font-weight: 700; }
   </style>
 </head>
 <body>
-  <div class="toolbar">
-    <button id="backBtn" class="primary" style="display:none">חזרה לכל התוכניות</button>
-    <button id="printBtn">הדפסה / PDF</button>
-    <a class="btn" href="./?route=catalog">פתיחה במערכת</a>
-    <span id="status" class="muted">טוען נתונים...</span>
-  </div>
   <div class="wrap">
-    <section id="catalogView">
-      <h1>קטלוג תוכניות תשפ״ז</h1>
-      <p class="subtitle">בחרו תוכנית להצגת עמוד מלא</p>
-      <div id="groups"></div>
-    </section>
-    <section id="programView"></section>
+    <h1>קטלוג התוכניות במערכת</h1>
+    <p>הקטלוג נטען דרך המערכת הראשית. מעבירים אותך לעמוד הקטלוג…</p>
+    <p><a id="catalog-link" href="./?route=catalog">לחצו כאן אם לא הועברתם אוטומטית</a></p>
   </div>
   <script>
-    const SUPABASE_URL = 'https://szinlhjuwyiyszdpsdop.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_k0IbDJlgPA9KTVuDWrCyFw_Zsa5kZIM';
-    let programs = [];
-    let activeProgram = null;
-    const statusEl = document.getElementById('status');
-    const catalogView = document.getElementById('catalogView');
-    const programView = document.getElementById('programView');
-    const backBtn = document.getElementById('backBtn');
-
-    function escapeHtml(value) {
-      return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-    }
-
-    function text(value) {
-      return String(value ?? '').trim();
-    }
-
-    function audienceLevel(row) {
-      const raw = text(row.audience_level || row.target_grades || row.grades);
-      if (/י|יא|יב/.test(raw)) return 'תיכון';
-      if (raw.includes('חטיבה') || /[ז-ט]/.test(raw)) return 'חטיבה';
-      if (raw.includes('יסודי') || /[א-ו]/.test(raw)) return 'יסודי';
-      return 'לא משויך';
-    }
-
-    async function fetchTable(path) {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`
-        }
-      });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      return res.json();
-    }
-
-    async function fetchLocalCatalog() {
-      const candidates = ['./catalog/catalog_programs_tashpaz.json', './catalog_programs_tashpaz.json'];
-      let lastError = null;
-      for (const path of candidates) {
-        try {
-          const res = await fetch(path, { cache: 'no-store' });
-          if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-          const payload = await res.json();
-          if (Array.isArray(payload?.programs) && payload.programs.length) return payload.programs;
-        } catch (err) {
-          lastError = err;
-        }
-      }
-      throw lastError || new Error('local_catalog_unavailable');
-    }
-
-    function normalizeProgram(row, idx, syllabusByProgram) {
-      const number = text(row.gefen_number || row.gefenNumber || row.activity_no || row.programNumber);
-      return {
-        id: text(row.id) || number || `program-${idx + 1}`,
-        title: text(row.catalog_title || row.title || row.activity_name || `תוכנית ${idx + 1}`),
-        subtitle: text(row.catalog_subtitle || row.subtitle || row.opening_line || row.short_description),
-        audienceLevel: text(row.audienceLevel) || audienceLevel(row),
-        productType: text(row.productType || row.item_type || 'תוכנית'),
-        gefenNumber: number,
-        scope: text(row.scope || row.duration || row.session_duration),
-        targetGrades: text(row.target_grades || row.grades),
-        coreIdea: text(row.core_idea || row.coreIdea || row.short_description),
-        goals: text(row.goals),
-        programFlow: text(row.program_flow || row.programFlow),
-        schoolValue: text(row.school_value || row.schoolValue),
-        finalOutcome: text(row.final_outcome || row.finalOutcome),
-        participantsReceive: row.participants_receive || row.participantsReceive,
-        syllabus: Array.isArray(row.syllabus) ? row.syllabus : (syllabusByProgram.get(number) || [])
-      };
-    }
-
-    function renderCatalog() {
-      const groupsHost = document.getElementById('groups');
-      const levels = ['יסודי', 'חטיבה', 'תיכון', 'לא משויך'];
-      groupsHost.innerHTML = levels.map((level) => {
-        const items = programs.filter((p) => p.audienceLevel === level);
-        if (!items.length) return '';
-        return `<div class="group">
-          <h2>${escapeHtml(level)}</h2>
-          <div class="grid">${items.map((p) => `<button class="program-btn" data-program-id="${escapeHtml(p.id)}">${escapeHtml(p.title)}</button>`).join('')}</div>
-        </div>`;
-      }).join('') || '<div class="group error">לא נמצאו תוכניות פעילות להצגה.</div>';
-    }
-
-    function renderJsonList(value) {
-      const list = Array.isArray(value) ? value : [];
-      if (!list.length) return '';
-      return `<ul>${list.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : JSON.stringify(item))}</li>`).join('')}</ul>`;
-    }
-
-    function sectionHtml(title, body, extra = '') {
-      if (!text(body) && !extra) return '';
-      return `<div class="box"><h3>${escapeHtml(title)}</h3>${body ? `<p>${escapeHtml(body)}</p>` : ''}${extra}</div>`;
-    }
-
-    function openProgram(id) {
-      const p = programs.find((item) => item.id === id);
-      if (!p) return;
-      activeProgram = p;
-      backBtn.style.display = 'inline-block';
-      catalogView.style.display = 'none';
-      programView.style.display = 'block';
-      const syllabusRows = p.syllabus.map((s) => `<tr><td>${escapeHtml(s.meeting_label || s.meeting || s.meeting_order || '')}</td><td>${escapeHtml(s.title || s.topic || '')}</td><td>${escapeHtml(s.description || '')}</td></tr>`).join('');
-      programView.innerHTML = `<div class="head">
-        <h2>${escapeHtml(p.title)}</h2>
-        <div class="muted">${escapeHtml(p.subtitle)}</div>
-      </div>
-      <div class="meta">
-        <div><strong>שכבה:</strong> ${escapeHtml(p.audienceLevel)}</div>
-        <div><strong>סוג מוצר:</strong> ${escapeHtml(p.productType)}</div>
-        <div><strong>מס׳ תוכנית:</strong> ${escapeHtml(p.gefenNumber)}</div>
-        <div><strong>היקף:</strong> ${escapeHtml(p.scope)}</div>
-      </div>
-      <div class="sections">
-        ${sectionHtml('למי זה מתאים?', p.targetGrades)}
-        ${sectionHtml('הרעיון המרכזי', p.coreIdea)}
-        ${sectionHtml('מטרות', p.goals)}
-        ${sectionHtml('מהלך התוכנית', p.programFlow)}
-        ${sectionHtml('מה בית הספר מקבל?', p.schoolValue)}
-        ${sectionHtml('מה המשתתפים מקבלים?', '', renderJsonList(p.participantsReceive))}
-        ${sectionHtml('תוצר מסכם', p.finalOutcome)}
-        ${syllabusRows ? `<div class="box wide"><h3>סילבוס</h3><table><thead><tr><th>מפגש</th><th>נושא</th><th>פרטי המפגש</th></tr></thead><tbody>${syllabusRows}</tbody></table></div>` : ''}
-      </div>`;
-      history.replaceState({}, '', `?program=${encodeURIComponent(p.id)}`);
-    }
-
-    function backToCatalog() {
-      activeProgram = null;
-      programView.style.display = 'none';
-      catalogView.style.display = 'block';
-      backBtn.style.display = 'none';
-      history.replaceState({}, '', location.pathname);
-    }
-
-    backBtn.onclick = backToCatalog;
-    document.getElementById('printBtn').onclick = () => {
-      if (!activeProgram) { alert('יש לבחור תוכנית לפני הדפסה.'); return; }
-      window.print();
-    };
-    document.getElementById('groups').addEventListener('click', (event) => {
-      const button = event.target.closest('[data-program-id]');
-      if (button) openProgram(button.dataset.programId);
-    });
-
-    (async function init() {
-      try {
-        try {
-          const [details, syllabus] = await Promise.all([
-            fetchTable('catalog_program_details?select=activity_no,gefen_number,catalog_title,catalog_subtitle,opening_line,domain,target_grades,grades,scope,session_duration,item_type,core_idea,short_description,goals,program_flow,participants_receive,student_develops,school_value,final_outcome,is_active_for_catalog&is_active_for_catalog=eq.true&order=catalog_title.asc'),
-            fetchTable('catalog_program_syllabus?select=program_number,meeting_label,meeting_order,title,description,is_active&is_active=eq.true&order=meeting_order.asc')
-          ]);
-          const syllabusByProgram = syllabus.reduce((acc, row) => {
-            const key = text(row.program_number);
-            if (!key) return acc;
-            if (!acc.has(key)) acc.set(key, []);
-            acc.get(key).push(row);
-            return acc;
-          }, new Map());
-          programs = details.map((row, idx) => normalizeProgram(row, idx, syllabusByProgram));
-        } catch (remoteError) {
-          console.warn('Supabase catalog failed, falling back to local JSON', remoteError);
-          const localPrograms = await fetchLocalCatalog();
-          programs = localPrograms.map((row, idx) => normalizeProgram(row, idx, new Map()));
-        }
-        renderCatalog();
-        statusEl.textContent = `נטענו ${programs.length} תוכניות`;
-        const requestedProgram = text(new URLSearchParams(location.search).get('program'));
-        if (requestedProgram) openProgram(requestedProgram);
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = 'שגיאה בטעינת הקטלוג';
-        document.getElementById('groups').innerHTML = '<div class="group error">לא ניתן לטעון את נתוני הקטלוג. נסו לרענן את הדף.</div>';
-      }
+    (function redirectToCatalogRoute() {
+      const target = new URL('./?route=catalog', window.location.href);
+      try { sessionStorage.setItem('dashboard_pending_route', 'catalog'); } catch (_) { /* ignore */ }
+      const link = document.getElementById('catalog-link');
+      if (link) link.href = target.href;
+      window.location.replace(target.href);
     })();
   </script>
 </body>

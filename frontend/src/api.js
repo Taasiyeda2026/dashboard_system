@@ -2508,7 +2508,7 @@ async function readCatalogProgramsFromSupabase() {
       .order('sort_order', { ascending: true }),
     supabase
       .from('catalog_program_details')
-      .select('gefen_number,catalog_title,catalog_subtitle,opening_line,domain,target_grades,scope,session_duration,item_type,core_idea,short_description,goals,program_flow,participants_receive,student_develops,school_value,final_outcome,is_active_for_catalog')
+      .select('activity_no,gefen_number,catalog_title,catalog_subtitle,opening_line,domain,target_grades,grades,audience_level,catalog_section,scope,session_duration,item_type,core_idea,short_description,goals,program_flow,participants_receive,student_develops,school_value,final_outcome,is_active_for_catalog')
       .eq('is_active_for_catalog', true),
     supabase
       .from('proposal_activity_pricing')
@@ -2550,7 +2550,24 @@ async function readCatalogProgramsFromSupabase() {
   const syllabusRows = Array.isArray(syllabusRes?.data) ? syllabusRes.data : [];
   const cleanCatalogText = (value) => String(value ?? '').trim();
   const listByNo = new Map(listRows.map((row) => [String(row?.activity_no || '').trim(), row]).filter(([key]) => key));
-  const detailsByNo = new Map(detailRows.map((row) => [String(row?.gefen_number || '').trim(), row]).filter(([key]) => key));
+  const listByGefen = new Map(listRows.map((row) => [String(row?.gefen_number || '').trim(), row]).filter(([key]) => key));
+  const detailsByNo = new Map();
+  const registerDetailRow = (row) => {
+    const activityNo = cleanCatalogText(row?.activity_no);
+    const gefenNumber = cleanCatalogText(row?.gefen_number);
+    if (activityNo) detailsByNo.set(activityNo, row);
+    if (gefenNumber) detailsByNo.set(gefenNumber, row);
+  };
+  detailRows.forEach(registerDetailRow);
+  const lookupListRow = (activityNo, gefenNumber) => {
+    const no = cleanCatalogText(activityNo);
+    const gefen = cleanCatalogText(gefenNumber);
+    return (no && listByNo.get(no)) || (gefen && listByGefen.get(gefen)) || (no && listByGefen.get(no)) || {};
+  };
+  const hasDetailForKey = (key) => {
+    const normalized = cleanCatalogText(key);
+    return Boolean(normalized && detailsByNo.has(normalized));
+  };
   const syllabusByProgramNumber = syllabusRows.reduce((acc, row) => {
     const key = cleanCatalogText(row?.program_number);
     if (!key) return acc;
@@ -2604,10 +2621,12 @@ async function readCatalogProgramsFromSupabase() {
   };
   const catalogGroupToProductType = (group, row = {}) => {
     const itemType = cleanCatalogText(row?.item_type);
+    const normalized = itemType.toLowerCase();
     if (itemType === 'חוג אפטרסקול') return 'חוג';
     if (group === 'after_school') return 'חוג';
     if (group === 'tours') return 'סיור';
     if (group === 'makers' || group === 'space' || group === 'escape') return 'סדנה';
+    if (group === 'programs' || normalized === 'course' || normalized === 'program' || itemType === 'קורס' || itemType === 'תוכנית') return 'תוכנית';
     return itemType || 'תוכנית';
   };
 
@@ -2619,33 +2638,38 @@ async function readCatalogProgramsFromSupabase() {
     return [];
   };
 
-  const detailKeys = Array.from(detailsByNo.keys()).filter(Boolean);
+  const detailKeys = Array.from(new Set(detailRows.map((row) => cleanCatalogText(row?.activity_no) || cleanCatalogText(row?.gefen_number)).filter(Boolean)));
 
   const detailPrograms = detailKeys.map((key) => {
-    const row = listByNo.get(key) || {};
-    const pricingRowsForProgram = pricingByNo.get(key) || [];
-    const primaryPricing = pricingRowsForProgram[0] || {};
     const details = detailsByNo.get(key) || {};
-    const targetGrades = details.target_grades || '';
+    const activityNo = cleanCatalogText(details.activity_no) || key;
+    const gefenNumber = cleanCatalogText(details.gefen_number) || activityNo;
+    const row = lookupListRow(activityNo, gefenNumber);
+    const pricingRowsForProgram = pricingByNo.get(activityNo) || pricingByNo.get(gefenNumber) || [];
+    const primaryPricing = pricingRowsForProgram[0] || {};
+    const targetGrades = details.target_grades || details.grades || row.target_grades || '';
     const sessionDuration = details.session_duration || primaryPricing.unit_duration || '';
     const scope = details.scope || '';
-    const gefenNumber = details.gefen_number || key;
     const shortDescription = details.short_description || '';
     const participantsReceive = details.participants_receive || '';
+    const audienceLevel = details.audience_level || details.catalog_section || row.audience_level || '';
     return {
       ...row,
       ...primaryPricing,
       ...details,
-      activity_no: key,
+      activity_no: activityNo,
       pricing_options: pricingRowsForProgram,
       proposal_pricing_rows: pricingRowsForProgram,
       catalog_source: 'catalog_program_details',
       catalog_group: 'programs',
+      catalog_section: details.catalog_section || '',
       // Normalize detail fields to the naming contract expected by catalog screen.
       catalog_title: details.catalog_title || '',
       catalog_subtitle: details.catalog_subtitle || '',
       target_grades: targetGrades,
       targetGrades,
+      audience_level: audienceLevel,
+      audienceLevel,
       domain: details.domain || '',
       scope,
       session_duration: sessionDuration,
@@ -2654,7 +2678,7 @@ async function readCatalogProgramsFromSupabase() {
       gefenNumber,
       opening_line: details.opening_line || '',
       short_description: details.short_description || '',
-      item_type: details.item_type || primaryPricing.item_type || row.activity_type || '',
+      item_type: catalogGroupToProductType('programs', { item_type: details.item_type || primaryPricing.item_type || row.activity_type || '' }),
       core_idea: details.core_idea || '',
       goals: details.goals || '',
       program_flow: details.program_flow || '',
@@ -2674,7 +2698,13 @@ async function readCatalogProgramsFromSupabase() {
 
   const explicitCatalogPricingRows = pricingRows
     .map((row, idx) => ({ row, idx, catalogGroup: catalogPricingGroup(row) }))
-    .filter(({ row, catalogGroup }) => catalogGroup && (!cleanCatalogText(row?.activity_no) || !detailsByNo.has(cleanCatalogText(row?.activity_no))));
+    .filter(({ row, catalogGroup }) => {
+      if (!catalogGroup) return false;
+      const activityNo = cleanCatalogText(row?.activity_no);
+      const gefenNo = cleanCatalogText(row?.gefen_number);
+      if (!activityNo && !gefenNo) return true;
+      return !hasDetailForKey(activityNo) && !hasDetailForKey(gefenNo);
+    });
 
   const pricingPrograms = explicitCatalogPricingRows.map(({ row, idx, catalogGroup }) => {
     const key = cleanCatalogText(row.activity_no) || `pricing-${idx + 1}`;

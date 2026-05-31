@@ -191,9 +191,13 @@ function toneClassForProgram(program, prefix) {
 
 function normalizeAudienceLevel(value) {
   const raw = String(value || '').trim();
-  if (raw === 'חטיבות' || raw === 'חטיבה' || raw === 'חט״ב') return 'חטיבה';
+  if (!raw) return 'לא צוין';
+  if (raw.includes('יסודי')) return 'יסודי';
+  if (raw.includes('תיכון') && raw.includes('חטיבה')) return 'חטיבה';
+  if (raw === 'חטיבות' || raw === 'חטיבה' || raw === 'חט״ב' || raw.includes('חטיבה')) return 'חטיבה';
+  if (raw.includes('תיכון')) return 'תיכון';
   if (raw === 'יסודי') return 'יסודי';
-  return raw || 'לא צוין';
+  return raw;
 }
 
 function audienceLevelFromGrades(value) {
@@ -221,7 +225,7 @@ function catalogFiltersHtml(audience, type) {
 function normalizeProductType(value) {
   const raw = String(value || '').trim();
   const normalized = raw.toLowerCase();
-  if (normalized === 'course') return 'תוכנית';
+  if (normalized === 'course' || normalized === 'program' || raw === 'קורס' || raw === 'תוכנית') return 'תוכנית';
   if (normalized === 'after_school' || normalized === 'חוג אפטרסקול') return 'חוג';
   if (normalized === 'workshop') return 'סדנה';
   if (normalized === 'tour') return 'סיור';
@@ -230,6 +234,19 @@ function normalizeProductType(value) {
   if (raw === 'סיורים') return 'סיור';
   if (raw === 'סדנאות') return 'סדנה';
   return raw || 'תוכנית';
+}
+
+function isCatalogCourseProgram(program) {
+  const productType = normalizeProductType(program?.productType);
+  return productType === 'תוכנית';
+}
+
+function programMatchesAudience(program, audience) {
+  if (audience === 'הכול') return true;
+  const level = normalizeAudienceLevel(program?.audienceLevel);
+  if (level === audience) return true;
+  const raw = String(program?.audienceLevel || '').trim();
+  return raw.includes(audience);
 }
 
 function normalizeCatalogGroup(value) {
@@ -291,7 +308,9 @@ function normalizeProgram(item, idx) {
     title: fullName,
     catalogCardTitle: catalogCardTitleFromFields(p, fullName),
     catalogSubtitle: String(pickFirstNonEmpty(p.catalog_subtitle, p.catalogSubtitle, p.subtitle) || ''),
-    audienceLevel: normalizeAudienceLevel(p.audience_level || p.audienceLevel || audienceLevelFromGrades(targetGrades)),
+    audienceLevel: normalizeAudienceLevel(
+      p.audience_level || p.audienceLevel || p.catalog_section || audienceLevelFromGrades(targetGrades)
+    ),
     productType: normalizeProductType(
       p.item_type ||
       p.productType ||
@@ -591,10 +610,10 @@ export const catalogScreen = {
     const type = data.type || 'הכול';
     const selected = data.programs.find((p) => p.id === data.selectedId) || null;
 
-    const filtered = data.programs.filter((p) => (audience === 'הכול' || p.audienceLevel === audience) && matchesCatalogType(p, type));
-    const elementaryPrograms = filtered.filter((p) => p.audienceLevel === 'יסודי' && p.productType === 'תוכנית');
-    const middlePrograms = filtered.filter((p) => p.audienceLevel === 'חטיבה' && p.productType === 'תוכנית');
-    const highSchoolPrograms = filtered.filter((p) => p.audienceLevel === 'תיכון' && p.productType === 'תוכנית');
+    const filtered = data.programs.filter((p) => programMatchesAudience(p, audience) && matchesCatalogType(p, type));
+    const elementaryPrograms = filtered.filter((p) => p.audienceLevel === 'יסודי' && isCatalogCourseProgram(p));
+    const middlePrograms = filtered.filter((p) => p.audienceLevel === 'חטיבה' && isCatalogCourseProgram(p));
+    const highSchoolPrograms = filtered.filter((p) => p.audienceLevel === 'תיכון' && isCatalogCourseProgram(p));
     const workshopAndTours = filtered.filter((p) => isStandaloneActivity(p));
 
     const standaloneByCategory = {
