@@ -12,7 +12,7 @@ import {
   bindLocalFilters
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
-import { calendarMonthStorageKey } from '../state.js';
+import { calendarMonthSessionKey, cleanupLegacyCalendarMonthLocalStorage } from '../state.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 
 const inflightActivityDetailRequests = new Map();
@@ -425,8 +425,9 @@ export const monthScreen = {
       state.monthYm = targetYm;
       state.monthNavLoading = true;
       try {
-        const calKey = calendarMonthStorageKey(state.user?.user_id);
-        if (calKey) localStorage.setItem(calKey, state.monthYm);
+        cleanupLegacyCalendarMonthLocalStorage(state.user?.user_id);
+        const calKey = calendarMonthSessionKey(state.user?.user_id);
+        if (calKey) sessionStorage.setItem(calKey, state.monthYm);
       } catch { /* ignore */ }
 
       try {
@@ -486,6 +487,11 @@ export const monthScreen = {
     todayBtn?.addEventListener('click', () => {
       if (state.monthNavLoading) return;
       state.monthYm = localYmd().slice(0, 7);
+      try {
+        cleanupLegacyCalendarMonthLocalStorage(state.user?.user_id);
+        const calKey = calendarMonthSessionKey(state.user?.user_id);
+        if (calKey) sessionStorage.setItem(calKey, state.monthYm);
+      } catch { /* ignore */ }
       rerender?.();
     });
 
