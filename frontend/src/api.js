@@ -2122,13 +2122,13 @@ function sanitizeActivityPayload(act = {}) {
     'tour', 'tours', 'סיור', 'סיורים',
     'escape_room', 'escaperoom', 'חדר_בריחה'
   ]);
-  const normalizedFamily = String(row.activity_family || '').trim();
-  if (normalizedFamily === 'one_day' || normalizedFamily === 'program') {
-    row.activity_family = normalizedFamily;
+  const normalizedType = normalizeActivityTypeKey(row.activity_type || act.activity_type || '');
+  if (oneDayTypeKeys.has(normalizedType)) {
+    row.activity_family = 'one_day';
   } else {
-    const normalizedType = normalizeActivityTypeKey(row.activity_type || act.activity_type || '');
-    if (oneDayTypeKeys.has(normalizedType)) {
-      row.activity_family = 'one_day';
+    const normalizedFamily = String(row.activity_family || '').trim();
+    if (normalizedFamily === 'one_day' || normalizedFamily === 'program') {
+      row.activity_family = normalizedFamily;
     } else {
       row.activity_family = String(act.source || '').trim() === 'short' ? 'one_day' : 'program';
     }
@@ -3501,5 +3501,7 @@ export {
   rowExceptionTypesFromActivity,
   getActivityExceptions,
   buildExceptionsModelFromRows,
-  normalizeActivityRow
+  normalizeActivityRow,
+  sanitizeActivityPayload,
+  sanitizeActivityPayloadForSupabase
 };
