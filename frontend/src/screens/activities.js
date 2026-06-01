@@ -1359,7 +1359,7 @@ export const activitiesScreen = {
       const roster = decodeJsonAttr(form.dataset.addRosterUsers, []);
       const fd = new (window?.FormData || FormData)(form);
       const get = (k) => String(fd.get(k) || '').trim();
-      const familySource = get('source') || 'catalog';
+      const formSource = get('source') || 'catalog';
       const authorityCustom = get('authority_custom');
       const schoolCustom = get('school_custom');
       const authorityValue = authorityCustom || get('authority');
@@ -1379,7 +1379,7 @@ export const activitiesScreen = {
       const oneDayDate = String(get('one_day_date') || get('start_date') || get('end_date') || '').trim();
       let meetingDateValues = [];
       const payload = {
-        source: familySource,
+        source: isOneDay ? 'short' : (formSource === 'short' ? 'long' : formSource),
         activity_family: isOneDay ? 'one_day' : 'program',
         activity_manager: get('activity_manager'),
         authority: authorityValue,
