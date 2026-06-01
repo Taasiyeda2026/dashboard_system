@@ -72,6 +72,30 @@ export function resolveActivityInstructorName(row = {}, { secondary = false } = 
 
 export const NO_ACTIVITY_MANAGER_LABEL = 'ללא';
 
+const ACTIVITY_TYPE_ALIASES = new Map([
+  ['סדנה', 'workshop'],
+  ['סדנאות', 'workshop'],
+  ['workshop', 'workshop'],
+  ['workshops', 'workshop'],
+  ['חדר בריחה', 'escape_room'],
+  ['חדר_בריחה', 'escape_room'],
+  ['חדרי בריחה', 'escape_room'],
+  ['חדרי_בריחה', 'escape_room'],
+  ['escape_room', 'escape_room'],
+  ['escaperoom', 'escape_room'],
+  ['סיור', 'tour'],
+  ['סיורים', 'tour'],
+  ['tour', 'tour'],
+  ['tours', 'tour'],
+  ['קורס', 'course'],
+  ['קורסים', 'course'],
+  ['course', 'course'],
+  ['courses', 'course'],
+  ['אפטרסקול', 'after_school'],
+  ['after_school', 'after_school'],
+  ['afterschool', 'after_school']
+]);
+
 function text(value) {
   return String(value == null ? '' : value).trim();
 }
@@ -85,6 +109,19 @@ export function cleanActivityManagerName(value) {
 
 export function activityManagerDisplayName(value) {
   return cleanActivityManagerName(value) || NO_ACTIVITY_MANAGER_LABEL;
+}
+
+export function normalizeActivityTypeKey(value) {
+  const clean = text(value).replace(/[\u2010-\u2015]/g, '_').replace(/[-\s]+/g, '_').toLowerCase();
+  if (!clean) return '';
+  return ACTIVITY_TYPE_ALIASES.get(clean) || clean;
+}
+
+export function activityTypeMatches(value, expected) {
+  const left = normalizeActivityTypeKey(value);
+  const right = normalizeActivityTypeKey(expected);
+  if (!right) return true;
+  return !left || left === right;
 }
 
 function isExplicitlyInactive(value) {
@@ -159,11 +196,11 @@ export function getActivityTypesByFamily(settings, family) {
 }
 
 export function getActivityNamesForType(settings, activityType) {
-  const type = text(activityType);
+  const type = normalizeActivityTypeKey(activityType);
   return getActivityCatalog(settings)
     .filter((row) => {
-      const parent = text(row.activity_type || row.parent_value || row.type);
-      return !type || parent === type;
+      const parent = row.activity_type || row.parent_value || row.type;
+      return !type || activityTypeMatches(parent, type);
     });
 }
 

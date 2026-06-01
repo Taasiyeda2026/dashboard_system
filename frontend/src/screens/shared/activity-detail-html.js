@@ -1,6 +1,6 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
-import { activityManagerDisplayName, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL, resolveActivityInstructorName } from './activity-options.js';
+import { activityManagerDisplayName, activityTypeMatches, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, resolveActivityInstructorName } from './activity-options.js';
 import { ACTIVITY_SEASON_OPTIONS, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
@@ -206,25 +206,19 @@ function resolveActivityNameOptions(settings, activityType) {
     if (Array.isArray(arr) && arr.length > 0) { all = normalizeActivityNameOptions(arr); break; }
   }
   if (!all.length) return [];
-  const type = String(activityType || '').trim().toLowerCase();
+  const type = normalizeActivityTypeKey(activityType);
   if (!type) return all;
-  const filtered = all.filter((o) => {
-    const parent = String(o?.parent_value || o?.activity_type || '').trim().toLowerCase();
-    return !parent || parent === type;
-  });
+  const filtered = all.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, type));
   // Fall back to full list only when nothing is tagged — avoids empty dropdown for legacy data.
   const hasTagged = all.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
   return (filtered.length || hasTagged) ? filtered : all;
 }
 
 function buildActivityNameOpts(options, safeValue, activityType) {
-  const normalizedType = String(activityType || '').trim().toLowerCase();
-  let filtered = (Array.isArray(options) ? options : []).filter((o) => {
-    const parent = String(o?.parent_value || o?.activity_type || '').trim();
-    if (!parent) return true;
-    return parent.toLowerCase() === normalizedType;
-  });
-  if (!filtered.length) filtered = Array.isArray(options) ? options : [];
+  const normalizedType = normalizeActivityTypeKey(activityType);
+  let filtered = (Array.isArray(options) ? options : []).filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, normalizedType));
+  const hasTagged = (Array.isArray(options) ? options : []).some((o) => String(o?.parent_value || o?.activity_type || '').trim());
+  if (!filtered.length && !hasTagged) filtered = Array.isArray(options) ? options : [];
   const all = filtered.slice();
   if (safeValue && !all.some((o) => String(o?.label || '').trim() === safeValue)) {
     all.unshift({ label: safeValue, activity_no: '', parent_value: activityType });
@@ -356,7 +350,7 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
 
 function blockActivityDetails(row, { settings = {} } = {}) {
   const activityType = String(row.activity_type || '').trim();
-  const allActivityNames = resolveActivityNameOptions(settings, activityType);
+  const allActivityNames = resolveActivityNameOptions(settings, '');
   if (!allActivityNames.length) {
     // eslint-disable-next-line no-console
     console.warn('[activity-edit] activity name options missing from client settings');

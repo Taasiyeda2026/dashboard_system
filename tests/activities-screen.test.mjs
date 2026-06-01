@@ -406,3 +406,131 @@ test('all-activities Excel filename keeps Hebrew base and date stamp', async () 
     globalThis.Blob = originalBlob;
   }
 });
+
+const { JSDOM } = await import('jsdom');
+const { getActivityNamesForType } = await import('../frontend/src/screens/shared/activity-options.js');
+const { activityWorkDrawerHtml } = await import('../frontend/src/screens/shared/activity-detail-html.js');
+const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
+
+function activityNameSettings() {
+  return {
+    dropdown_options: {
+      activity_names: [
+        { label: 'חדר בריחה חלל', activity_no: 'ER-1', activity_type: 'חדר בריחה' },
+        { label: 'סדנת רובוטיקה', activity_no: 'WS-1', activity_type: 'workshop' },
+        { label: 'סיור מדעים', activity_no: 'TR-1', activity_type: 'סיור' }
+      ]
+    },
+    one_day_activity_types: ['חדר בריחה', 'סדנה', 'סיור'],
+    program_activity_types: ['קורס']
+  };
+}
+
+test('activity name filtering normalizes Hebrew and English activity type aliases', () => {
+  const settings = activityNameSettings();
+
+  const escapeNames = getActivityNamesForType(settings, 'escape_room').map((item) => item.label);
+  assert.deepEqual(escapeNames, ['חדר בריחה חלל']);
+
+  const workshopNames = getActivityNamesForType(settings, 'סדנאות').map((item) => item.label);
+  assert.deepEqual(workshopNames, ['סדנת רובוטיקה']);
+});
+
+test('activity edit form refreshes activity_name options and clears stale name when activity_type changes', () => {
+  const settings = activityNameSettings();
+  const dom = new JSDOM(`<main id="root">${activityWorkDrawerHtml({
+    RowID: 'A-1',
+    activity_name: 'חדר בריחה חלל',
+    activity_no: 'ER-1',
+    activity_type: 'חדר בריחה',
+    status: 'פעיל'
+  }, { settings, canEdit: true, canDirectEdit: true })}</main>`);
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const root = dom.window.document.querySelector('#root');
+    bindActivityEditForm(root, { api: { saveActivity: async () => ({ ok: true }) } });
+
+    const form = root.querySelector('[data-drawer-form]');
+    const typeSelect = form.querySelector('select[name="activity_type"]');
+    const nameSelect = form.querySelector('[data-role="activity-name-select"]');
+    const noInput = form.querySelector('[data-activity-no]');
+
+    assert.deepEqual(Array.from(nameSelect.options).map((option) => option.value).filter(Boolean), ['חדר בריחה חלל']);
+    typeSelect.value = 'סדנה';
+    typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    assert.deepEqual(Array.from(nameSelect.options).map((option) => option.value).filter(Boolean), ['סדנת רובוטיקה']);
+    assert.equal(nameSelect.value, '');
+    assert.equal(noInput.value, '');
+    assert.doesNotMatch(nameSelect.textContent, /חדר בריחה חלל/);
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+    globalThis.AbortController = previousAbortController;
+  }
+});
+
+test('activity add form refreshes activity_name options and clears stale name when activity_type changes', () => {
+  const settings = activityNameSettings();
+  const state = baseState();
+  state.clientSettings = settings;
+  state.user = { display_role: 'admin', role: 'admin', can_add_activity: true };
+  const dom = new JSDOM('<body><main id="root"></main></body>', { url: 'https://example.test/dashboard_system/' });
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const root = dom.window.document.querySelector('#root');
+    root.innerHTML = activitiesScreen.render({ rows: [] }, { state });
+    activitiesScreen.bind({
+      root,
+      data: { rows: [] },
+      state,
+      rerender: () => {},
+      rerenderActivitiesView: () => {},
+      clearScreenDataCache: () => {},
+      api: { activities: async () => ({ rows: [] }), allActivities: async () => ({ rows: [] }) },
+      ui: {
+        bindInteractiveCards: () => {},
+        openModal: ({ content }) => {
+          const modal = dom.window.document.createElement('div');
+          modal.className = 'ds-modal__content';
+          modal.innerHTML = content;
+          dom.window.document.body.appendChild(modal);
+        }
+      }
+    });
+
+    root.querySelector('[data-activities-add-btn]').click();
+    const form = dom.window.document.querySelector('[data-add-activity-form]');
+    const typeSelect = form.querySelector('[data-add-activity-type]');
+    const nameSelect = form.querySelector('[data-add-activity-name]');
+    const noInput = form.querySelector('[data-add-activity-no]');
+
+    typeSelect.value = 'חדר בריחה';
+    typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    assert.deepEqual(Array.from(nameSelect.options).map((option) => option.value).filter(Boolean), ['חדר בריחה חלל']);
+    nameSelect.value = 'חדר בריחה חלל';
+    nameSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    assert.equal(noInput.value, 'ER-1');
+
+    typeSelect.value = 'workshop';
+    typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    assert.deepEqual(Array.from(nameSelect.options).map((option) => option.value).filter(Boolean), ['סדנת רובוטיקה']);
+    assert.equal(nameSelect.value, '');
+    assert.equal(noInput.value, '');
+    assert.doesNotMatch(nameSelect.textContent, /חדר בריחה חלל/);
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+    globalThis.AbortController = previousAbortController;
+  }
+});

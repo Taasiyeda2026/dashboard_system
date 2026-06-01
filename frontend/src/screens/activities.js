@@ -30,6 +30,8 @@ import {
   getActivityTypesByFamily,
   getActivityNamesForType,
   getRosterUsers,
+  activityTypeMatches,
+  normalizeActivityTypeKey,
   getManagerUsers,
   getFilterOptionOverrides,
   cleanUnique,
@@ -231,25 +233,7 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
-const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set([
-  'workshop',
-  'workshops',
-  'סדנה',
-  'סדנאות',
-  'tour',
-  'tours',
-  'סיור',
-  'סיורים',
-  'escape_room',
-  'escaperoom',
-  'חדר_בריחה'
-]);
-
-function normalizeActivityTypeKey(value) {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  return raw.replace(/[\s-]+/g, '_').replace(/^חדרי_בריחה$/, 'חדר_בריחה');
-}
+const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set(['workshop', 'tour', 'escape_room', 'escaperoom', 'חדר_בריחה', 'חדרי_בריחה']);
 
 function isOneDayActivityTypeValue(value) {
   return ONE_DAY_ACTIVITY_TYPE_KEYS.has(normalizeActivityTypeKey(value));
@@ -636,7 +620,7 @@ function buildFallbackOptionsFromRows(rows) {
     rows.forEach((row) => {
       const label = String(row?.activity_name || '').trim();
       const type  = String(row?.activity_type  || '').trim();
-      const sig   = `${label}|${type}`;
+      const sig   = `${label}|${normalizeActivityTypeKey(type) || type}`;
       if (!label || seen.has(sig)) return;
       seen.add(sig);
       out.push({
@@ -1226,13 +1210,15 @@ export const activitiesScreen = {
       const noInput = form.querySelector('[data-add-activity-no]');
       if (!typeSel || !nameSel || !noInput) return;
       const all = decodeJsonAttr(form.dataset.addActivityNames, []);
-      const type = String(typeSel.value || '').trim();
-      const list = all.filter((o) => {
-        const parent = String(o?.parent_value || o?.activity_type || '').trim();
-        return !parent || parent === type;
-      });
+      const type = normalizeActivityTypeKey(typeSel.value);
+      const hasTagged = all.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
+      let list = all.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, type));
+      if (!list.length && !hasTagged) list = all;
       const current = String(nameSel.value || '').trim();
-      nameSel.innerHTML = optionsHtml(list.map((o) => o.label), current, 'בחרו שם פעילות');
+      const currentStillValid = list.some((o) => String(o?.label || '').trim() === current);
+      const nextValue = currentStillValid ? current : '';
+      nameSel.innerHTML = optionsHtml(list.map((o) => o.label), nextValue, 'בחרו שם פעילות');
+      nameSel.value = nextValue;
       const hit = list.find((o) => String(o?.label || '').trim() === String(nameSel.value || '').trim());
       noInput.value = String(hit?.activity_no || '');
     }
@@ -1365,10 +1351,11 @@ export const activitiesScreen = {
       const authorityValue = authorityCustom || get('authority');
       const schoolValue = schoolCustom || get('school');
       const selectedName = get('activity_name');
+      const selectedType = normalizeActivityTypeKey(get('activity_type'));
       const hit = activityMap.find((x) => {
         const label = String(x?.label || '').trim();
-        const parent = String(x?.parent_value || x?.activity_type || '').trim();
-        return label === selectedName && (!parent || parent === get('activity_type'));
+        const parent = x?.parent_value || x?.activity_type;
+        return label === selectedName && activityTypeMatches(parent, selectedType);
       });
       const pickEmp = (name) => {
         const u = roster.find((r) => String(r?.name || '').trim() === name);
