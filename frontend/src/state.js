@@ -29,8 +29,28 @@ if (!sessionStorage.getItem('ds_session_alive')) {
   localStorage.removeItem('dashboard_user');
 }
 
-function calendarMonthStorageKey(userId) {
+function legacyCalendarMonthStorageKey(userId) {
   return userId ? `dashboard_calendar_month_ym:${userId}` : null;
+}
+
+function calendarMonthSessionKey(userId) {
+  return userId ? `dashboard_calendar_month_ym_session:${userId}` : null;
+}
+
+function cleanupLegacyCalendarMonthLocalStorage(userId) {
+  try {
+    localStorage.removeItem('dashboard_calendar_month_ym');
+    const specificKey = legacyCalendarMonthStorageKey(userId);
+    if (specificKey) localStorage.removeItem(specificKey);
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('dashboard_calendar_month_ym:')) keys.push(key);
+    }
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    /* ignore */
+  }
 }
 
 function normalizeBoolPermission(value) {
@@ -51,9 +71,9 @@ function normalizeStoredUserFlags(user) {
 }
 
 const _initStoredUser = normalizeStoredUserFlags(JSON.parse(localStorage.getItem('dashboard_user') || 'null'));
-const _initCalKey = calendarMonthStorageKey(_initStoredUser?.user_id);
-const _initMonthYm = (_initCalKey && localStorage.getItem(_initCalKey)) || '';
-if (_initCalKey) { try { localStorage.removeItem('dashboard_calendar_month_ym'); } catch { /* ignore */ } }
+const _initCalKey = calendarMonthSessionKey(_initStoredUser?.user_id);
+const _initMonthYm = (_initCalKey && sessionStorage.getItem(_initCalKey)) || '';
+cleanupLegacyCalendarMonthLocalStorage(_initStoredUser?.user_id);
 
 export const state = {
   token: localStorage.getItem('dashboard_token') || '',
@@ -145,7 +165,12 @@ export function setSession(session) {
     state.openEditRequestsCount = null;
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
-    try { localStorage.removeItem('dashboard_calendar_month_ym'); } catch { /* ignore */ }
+    cleanupLegacyCalendarMonthLocalStorage(state.user?.user_id);
+    try {
+      Object.keys(sessionStorage)
+        .filter((key) => key === 'dashboard_calendar_month_ym_session' || key.startsWith('dashboard_calendar_month_ym_session:'))
+        .forEach((key) => sessionStorage.removeItem(key));
+    } catch { /* ignore */ }
     sessionStorage.removeItem('ds_session_alive');
     return;
   }
@@ -165,9 +190,9 @@ export function setSession(session) {
   state.user.can_edit_direct = normalizeBoolPermission(state.user.can_edit_direct);
   state.user.can_request_edit = normalizeBoolPermission(state.user.can_request_edit);
   state.user.finance_access = normalizeBoolPermission(state.user.finance_access);
-  const newCalKey = calendarMonthStorageKey(state.user.user_id);
-  state.monthYm = (newCalKey && localStorage.getItem(newCalKey)) || '';
-  try { localStorage.removeItem('dashboard_calendar_month_ym'); } catch { /* ignore */ }
+  const newCalKey = calendarMonthSessionKey(state.user.user_id);
+  state.monthYm = (newCalKey && sessionStorage.getItem(newCalKey)) || '';
+  cleanupLegacyCalendarMonthLocalStorage(state.user.user_id);
   state.screenDataCache = {};
   state.openEditRequestsCount = null;
   localStorage.setItem('dashboard_token', session.token);
@@ -175,4 +200,4 @@ export function setSession(session) {
   sessionStorage.setItem('ds_session_alive', '1');
 }
 
-export { defaultClientSettings, calendarMonthStorageKey };
+export { defaultClientSettings, calendarMonthSessionKey, cleanupLegacyCalendarMonthLocalStorage };
