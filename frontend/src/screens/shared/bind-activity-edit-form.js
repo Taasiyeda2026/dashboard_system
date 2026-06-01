@@ -2,6 +2,7 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
+import { activityTypeMatches, normalizeActivityTypeKey } from './activity-options.js';
 import { state } from '../../state.js';
 
 function setEditMode(form, editing) {
@@ -458,23 +459,24 @@ export function bindActivityEditForm(contentRoot, {
           if (nameSel && nameSel.dataset.allActivityNames) {
             let allOptions = [];
             try { allOptions = JSON.parse(decodeURIComponent(nameSel.dataset.allActivityNames)); } catch { allOptions = []; }
-            const newType = String(typeEl.value || '').trim().toLowerCase();
-            let filtered = allOptions.filter((o) => {
-              const parent = String(o?.parent_value || o?.activity_type || '').trim();
-              if (!parent) return true;
-              return parent.toLowerCase() === newType;
-            });
-            if (!filtered.length) filtered = allOptions;
+            const newType = normalizeActivityTypeKey(typeEl.value);
+            const hasTagged = allOptions.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
+            let filtered = allOptions.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, newType));
+            if (!filtered.length && !hasTagged) filtered = allOptions;
+            const current = String(nameSel.value || '').trim();
+            const currentStillValid = filtered.some((o) => String(o?.label || '').trim() === current);
             const optsHtml = ['<option value="">—</option>']
               .concat(filtered.map((o) => {
                 const label = String(o?.label || '').trim();
                 const actNo = String(o?.activity_no || '').trim();
                 const actType = String(o?.parent_value || o?.activity_type || '').trim();
-                return `<option value="${label}" data-activity-no="${actNo}" data-activity-type="${actType}">${label}</option>`;
+                return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-activity-type="${escapeHtml(actType)}">${escapeHtml(label)}</option>`;
               }))
               .join('');
             nameSel.innerHTML = optsHtml;
-            nameSel.value = '';
+            nameSel.value = currentStillValid ? current : '';
+            const hidden = form.querySelector('[data-activity-no]');
+            if (hidden) hidden.value = currentStillValid ? detectActivityNoByName(form, current) : '';
           }
         }
 
