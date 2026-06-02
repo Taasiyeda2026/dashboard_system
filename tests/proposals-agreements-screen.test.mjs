@@ -57,8 +57,9 @@ const API_FILE = new URL('../frontend/src/api.js', import.meta.url);
 const ACT_NAV_FILE = new URL('../frontend/src/screens/shared/act-nav-grid.js', import.meta.url);
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
+const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -128,9 +129,10 @@ const sampleContactOptions = [
   }
 ];
 
-test('screen authorization allows only domain_manager, operation_manager and admin', () => {
-  for (const role of ['domain_manager', 'operation_manager', 'admin']) {
+test('screen authorization includes business development manager', () => {
+  for (const role of ['domain_manager', 'operation_manager', 'admin', 'business_development_manager']) {
     assert.equal(canAccessProposalsAgreements(stateFor(role)), true, `${role} should be allowed`);
+    assert.equal(canManageProposalsAgreements(stateFor(role)), role !== 'business_development_manager', `${role} management access mismatch`);
     const html = proposalsAgreementsScreen.render({ rows: [] }, { state: stateFor(role) });
     assert.match(html, /הצעות/);
     assert.doesNotMatch(html, /אין לך הרשאה/);
@@ -151,8 +153,21 @@ test('proposals-agreements route is registered and role-gated in route definitio
   assert.match(apiSource, /admin: \[[^\]]*'proposals-agreements'/);
   assert.match(apiSource, /operation_manager: \[[^\]]*'proposals-agreements'/);
   assert.match(apiSource, /domain_manager: \[[^\]]*'proposals-agreements'/);
+  assert.match(apiSource, /business_development_manager: \[[^\]]*'proposals-agreements'/);
   assert.doesNotMatch(apiSource, /authorized_user: \[[^\]]*'proposals-agreements'/);
   assert.doesNotMatch(apiSource, /instructor: \[[^\]]*'proposals-agreements'/);
+});
+
+
+
+test('role update migration allows business development manager for login and proposals', async () => {
+  const migration = await readFile(ROLE_UPDATE_MIGRATION_FILE, 'utf8');
+  assert.match(migration, /users_role_check check[\s\S]*'business_development_manager'/);
+  assert.match(migration, /login_user_by_entry_code[\s\S]*'business_development_manager'[\s\S]*then 'invalid_role'/);
+  assert.match(migration, /app_current_role\(\) in \('domain_manager', 'operation_manager', 'admin', 'business_development_manager'\)/);
+  assert.match(migration, /app_can_manage_proposals_agreements[\s\S]*app_current_role\(\) in \('domain_manager', 'operation_manager', 'admin'\)/);
+  assert.match(migration, /for insert[\s\S]*with check \(public\.app_can_manage_proposals_agreements\(\)\)/);
+  assert.match(migration, /for update[\s\S]*using \(public\.app_can_manage_proposals_agreements\(\)\)/);
 });
 
 test('table structure includes all required columns including status', () => {

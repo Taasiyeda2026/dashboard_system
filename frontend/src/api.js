@@ -1480,7 +1480,8 @@ function normalizeData(data) {
 }
 
 
-const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
+const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
+const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,created_at,updated_at';
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
@@ -1517,8 +1518,17 @@ function canUseProposalsAgreementsApi() {
   return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(role);
 }
 
+function canManageProposalsAgreementsApi() {
+  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+  return PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(role);
+}
+
 function assertCanUseProposalsAgreementsApi() {
   if (!canUseProposalsAgreementsApi()) throw new Error('proposals_agreements_forbidden');
+}
+
+function assertCanManageProposalsAgreementsApi() {
+  if (!canManageProposalsAgreementsApi()) throw new Error('proposals_agreements_forbidden');
 }
 
 function cleanProposalAgreementText(value) {
@@ -1854,7 +1864,7 @@ async function readProposalsAgreementsFromSupabase() {
 }
 
 const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id';
-const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager']);
+const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
 
 const SUPABASE_ROLE_ROUTES = {
@@ -1864,6 +1874,7 @@ const SUPABASE_ROLE_ROUTES = {
   finance: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   activities_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
+  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   instructor_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
   instructor: ['my-data', 'week', 'month']
 };
@@ -1939,16 +1950,17 @@ function buildBootstrapFromUser(userRow) {
   const flat = flattenUserRow(userRow);
   const role = normalizeSupabaseRole(flat.role);
   const allowedRoutes = [...(SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user)];
-  const hasFinanceAccess = permissionFlagYes(parsePermissions(userRow?.permissions).finance_access);
+  const isBusinessDevelopmentManager = role === 'business_development_manager';
+  const hasFinanceAccess = isBusinessDevelopmentManager ? false : permissionFlagYes(parsePermissions(userRow?.permissions).finance_access);
   const financeIdx = allowedRoutes.indexOf('finance');
   if (hasFinanceAccess && financeIdx === -1) allowedRoutes.push('finance');
   if (!hasFinanceAccess && financeIdx >= 0) allowedRoutes.splice(financeIdx, 1);
   if (permissionFlagYes(flat.view_catalog) && !allowedRoutes.includes('catalog')) allowedRoutes.push('catalog');
   if ((permissionFlagYes(flat.view_orders) || permissionFlagYes(flat.view_invitations)) && !allowedRoutes.includes('orders')) allowedRoutes.push('orders');
-  const canEditDirect = permissionFlagYes(flat.can_edit_direct);
-  const canRequestEdit = canEditDirect || permissionFlagYes(flat.can_request_edit);
-  const canReviewRequests = ['admin', 'operation_manager'].includes(role) || permissionFlagYes(flat.can_review_requests);
-  if ((canRequestEdit || canReviewRequests || permissionFlagYes(flat.view_edit_requests)) && !allowedRoutes.includes('edit-requests')) {
+  const canEditDirect = isBusinessDevelopmentManager ? false : permissionFlagYes(flat.can_edit_direct);
+  const canRequestEdit = isBusinessDevelopmentManager ? false : (canEditDirect || permissionFlagYes(flat.can_request_edit));
+  const canReviewRequests = isBusinessDevelopmentManager ? false : (['admin', 'operation_manager'].includes(role) || permissionFlagYes(flat.can_review_requests));
+  if (!isBusinessDevelopmentManager && (canRequestEdit || canReviewRequests || permissionFlagYes(flat.view_edit_requests)) && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
   return {
@@ -3083,6 +3095,7 @@ export const api = {
         finance: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
         activities_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
         domain_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes' },
+        business_development_manager: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', finance_access: 'no' },
         instructor_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
         instructor: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' }
       }
@@ -3121,7 +3134,7 @@ export const api = {
     return buildSupabaseErrorPayload({ categories: [] }, 'admin_lists_supabase_failed');
   },
   addProposalAgreement: async (payload) => {
-    assertCanUseProposalsAgreementsApi();
+    assertCanManageProposalsAgreementsApi();
     const insert = sanitizeProposalAgreementPayload(payload);
     await upsertProposalClientContactIfNeeded({ ...insert, _contact_original: payload?._contact_original });
     const { data, error } = await supabase
@@ -3133,7 +3146,7 @@ export const api = {
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
   updateProposalAgreement: async (id, payload) => {
-    assertCanUseProposalsAgreementsApi();
+    assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     const patch = sanitizeProposalAgreementPayload(payload);
@@ -3149,7 +3162,7 @@ export const api = {
   },
 
   deleteProposalAgreement: async (id) => {
-    assertCanUseProposalsAgreementsApi();
+    assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     const { error } = await supabase
@@ -3160,7 +3173,7 @@ export const api = {
     return { ok: true, id: rowId };
   },
   updateProposalAgreementStatus: async (id, status, approvalNote = '') => {
-    assertCanUseProposalsAgreementsApi();
+    assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
     const cleanStatus = cleanProposalAgreementText(status);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
@@ -3213,7 +3226,7 @@ export const api = {
   },
 
   saveProposalAgreementCustomDocumentSections: async (proposalId, sections) => {
-    assertCanUseProposalsAgreementsApi();
+    assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(proposalId);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     const cleanSections = (Array.isArray(sections) ? sections : []).map((section) => ({
@@ -3231,7 +3244,7 @@ export const api = {
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
   saveProposalAgreementItems: async (proposalId, items) => {
-    assertCanUseProposalsAgreementsApi();
+    assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(proposalId);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     const { error: delError } = await supabase
@@ -3516,8 +3529,22 @@ export const api = {
       if (['user_id', 'role', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2'].includes(k)) return;
       permissions[k] = v;
     });
+    const nextRole = row.role || existing.data.role;
+    if (nextRole === 'business_development_manager') {
+      Object.assign(permissions, {
+        can_add_activity: 'no',
+        can_edit_direct: 'no',
+        can_request_edit: 'no',
+        can_review_requests: 'no',
+        view_admin: 'no',
+        view_permissions: 'no',
+        finance_access: 'no',
+        view_catalog: 'yes',
+        view_orders: 'yes'
+      });
+    }
     const patch = {
-      role: row.role || existing.data.role,
+      role: nextRole,
       is_active: String(row.active || '').toLowerCase() !== 'no',
       name: row.full_name ?? existing.data.name,
       emp_id: row.emp_id ?? existing.data.emp_id,
@@ -3531,12 +3558,15 @@ export const api = {
     return { ok: true };
   },
   addUser: async (row) => {
-    const permissions = { can_request_edit: 'yes' };
+    const role = String(row?.role || 'instructor').trim();
+    const permissions = role === 'business_development_manager'
+      ? { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', finance_access: 'no' }
+      : { can_request_edit: 'yes' };
     const insert = {
       user_id: String(row?.user_id || '').trim(),
       email: null,
       name: String(row?.full_name || '').trim(),
-      role: String(row?.role || 'instructor').trim(),
+      role,
       emp_id: String(row?.user_id || '').trim(),
       is_active: true,
       entry_code: String(row?.entry_code || '').trim(),

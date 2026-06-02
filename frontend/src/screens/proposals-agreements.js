@@ -1,7 +1,8 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from './shared/layout.js';
 
-export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
+export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
+export const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const SEARCH_DEBOUNCE_MS = 280;
 
 const ACTIVITY_TYPE_GROUP_OPTIONS = ['קיץ תשפ״ו', 'שנת הלימודים תשפ״ז', 'קיץ תשפ״ו ושנת הלימודים תשפ״ז'];
@@ -63,6 +64,10 @@ function userRole(state) {
 
 export function canAccessProposalsAgreements(state) {
   return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(userRole(state));
+}
+
+export function canManageProposalsAgreements(state) {
+  return PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(userRole(state));
 }
 
 function text(value) {
@@ -1294,17 +1299,18 @@ function drawerActionButtons(row, state) {
   const status = text(row?.status) || 'draft';
   const role = state ? String(state?.user?.display_role || state?.user?.role || '').trim() : '';
   const isAdminRole = role === 'admin';
+  const canManage = PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(role);
   const buttons = [];
 
   buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-preview="${escapeHtml(row.id)}">תצוגה מקדימה</button>`);
 
-  if (['draft', 'returned_for_changes'].includes(status) || isAdminRole) {
+  if (canManage && (['draft', 'returned_for_changes'].includes(status) || isAdminRole)) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-edit-row="${escapeHtml(row.id)}">עריכה</button>`);
   }
-  if (['draft', 'returned_for_changes'].includes(status)) {
+  if (canManage && ['draft', 'returned_for_changes'].includes(status)) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-edit-document="${escapeHtml(row.id)}">עריכת מסמך</button>`);
   }
-  if (['draft', 'returned_for_changes'].includes(status) && !isAdminRole) {
+  if (canManage && ['draft', 'returned_for_changes'].includes(status) && !isAdminRole) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="pending_approval" data-pa-action-id="${escapeHtml(row.id)}">שליחה לאישור</button>`);
   }
   if (isAdminRole) {
@@ -1475,6 +1481,7 @@ export const proposalsAgreementsScreen = {
       return dsScreenStack(`${dsPageHeader('הצעות מחיר', 'גישה מוגבלת למורשים בלבד')}${dsEmptyState('אין לך הרשאה לצפות במסך זה')}`);
     }
     const rows = displayRows(data, {});
+    const canManage = canManageProposalsAgreements(state);
     const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
     return dsScreenStack(`
       ${dsPageHeader('הצעות מחיר')}
@@ -1483,7 +1490,7 @@ export const proposalsAgreementsScreen = {
           <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
           ${filterSelectHtml('activity_type_group', 'סוג הצעה', ACTIVITY_TYPE_GROUP_OPTIONS)}
           ${statusFilterHtml()}
-          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-add>+ הצעה חדשה</button>
+          ${canManage ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-add>+ הצעה חדשה</button>' : ''}
         </div>
         <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> רשומות</div>
         <div data-pa-form-host hidden></div>
@@ -1494,6 +1501,7 @@ export const proposalsAgreementsScreen = {
   },
   bind({ root, data, state, api }) {
     if (!root || data?.unauthorized || !canAccessProposalsAgreements(state)) return;
+    const canManage = canManageProposalsAgreements(state);
     if (root._paAbort) root._paAbort.abort();
     const abortController = new AbortController();
     root._paAbort = abortController;
@@ -1931,7 +1939,7 @@ export const proposalsAgreementsScreen = {
     };
 
     // ── Add button ────────────────────────────────────────────────────────────
-    root.querySelector('[data-pa-add]')?.addEventListener('click', () => openForm('add'), { signal });
+    if (canManage) root.querySelector('[data-pa-add]')?.addEventListener('click', () => openForm('add'), { signal });
 
     // ── Input handler (items calc) ────────────────────────────────────────────
     root.addEventListener('input', (event) => {
@@ -2018,6 +2026,7 @@ export const proposalsAgreementsScreen = {
 
       const editBtn = event.target.closest?.('[data-pa-edit-row]');
       if (editBtn) {
+        if (!canManage) return;
         const row = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(editBtn.dataset.paEditRow)));
         const host = root.querySelector('[data-pa-inline-form]');
         if (host && row) {
@@ -2045,6 +2054,7 @@ export const proposalsAgreementsScreen = {
 
       const editDocumentBtn = event.target.closest?.('[data-pa-edit-document]');
       if (editDocumentBtn) {
+        if (!canManage) return;
         const id = text(editDocumentBtn.dataset.paEditDocument);
         const row = data.rows.find((r) => text(r.id) === id);
         if (!row || text(row.status) === 'approved') return;
@@ -2072,6 +2082,7 @@ export const proposalsAgreementsScreen = {
 
       const docSaveBtn = event.target.closest?.('[data-pa-doc-save]');
       if (docSaveBtn) {
+        if (!canManage) return;
         const id = text(docSaveBtn.dataset.paDocSave);
         const row = data.rows.find((r) => text(r.id) === id);
         const wrap = docSaveBtn.closest('[data-pa-doc-edit-wrap]');
@@ -2096,6 +2107,7 @@ export const proposalsAgreementsScreen = {
 
       const docResetBtn = event.target.closest?.('[data-pa-doc-reset]');
       if (docResetBtn) {
+        if (!canManage) return;
         const id = text(docResetBtn.dataset.paDocReset);
         const row = data.rows.find((r) => text(r.id) === id);
         if (!row) return;
@@ -2155,6 +2167,7 @@ export const proposalsAgreementsScreen = {
 
       const statusActionBtn = event.target.closest?.('[data-pa-status-action]');
       if (statusActionBtn) {
+        if (!canManage) return;
         const newStatus = text(statusActionBtn.dataset.paStatusAction);
         const id = text(statusActionBtn.dataset.paActionId);
         if (!newStatus || !id) return;

@@ -184,7 +184,7 @@ test('activities quick filters include one-day summer rows by family and distric
   assert.doesNotMatch(html, /תוכנית שנתית/);
 });
 
-test('activities period tabs split rows by start_date and default to summer 2026', () => {
+test('activities period tabs split rows by start_date and default to school 2026', () => {
   const state = baseState();
   delete state.activityPeriodTab;
   const data = {
@@ -199,11 +199,11 @@ test('activities period tabs split rows by start_date and default to summer 2026
   const html = activitiesScreen.render(data, { state });
 
   assert.match(html, /data-activity-period-tab="school_2026"[\s\S]*תשפ״ו \/ 2026[\s\S]*<strong>1<\/strong>/);
-  assert.match(html, /aria-selected="true" data-activity-period-tab="summer_2026"/);
+  assert.match(html, /aria-selected="true" data-activity-period-tab="school_2026"/);
   assert.match(html, /data-activity-period-tab="school_2027"[\s\S]*<strong>1<\/strong>/);
   assert.match(html, /data-activity-period-tab="archive"[\s\S]*<strong>1<\/strong>/);
-  assert.match(html, /פעילות יולי/);
-  assert.doesNotMatch(html, /פעילות יוני/);
+  assert.match(html, /פעילות יוני/);
+  assert.doesNotMatch(html, /פעילות יולי/);
   assert.doesNotMatch(html, /פעילות ספטמבר/);
   assert.doesNotMatch(html, /פעילות סגורה/);
   assert.doesNotMatch(html, /כל הפעילויות/);

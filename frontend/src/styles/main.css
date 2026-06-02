@@ -7853,8 +7853,8 @@ select.ds-input {
 .ds-activities-view-switcher {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
   padding: 0 4px 4px;
   direction: rtl;
 }
@@ -8487,14 +8487,14 @@ select.ds-input {
   table-layout: fixed;
 }
 
-.ds-table--activities-list col.ds-activities-col--program   { width: 11%; }
-.ds-table--activities-list col.ds-activities-col--authority  { width: 10%; }
-.ds-table--activities-list col.ds-activities-col--school     { width: 10%; }
-.ds-table--activities-list col.ds-activities-col--instructor { width: 11%; }
+.ds-table--activities-list col.ds-activities-col--program   { width: 13%; }
+.ds-table--activities-list col.ds-activities-col--authority  { width: 11%; }
+.ds-table--activities-list col.ds-activities-col--school     { width: 11%; }
+.ds-table--activities-list col.ds-activities-col--instructor { width: 12%; }
 .ds-table--activities-list col.ds-activities-col--manager    { width: 10%; }
 .ds-table--activities-list col.ds-activities-col--date       { width: 9%; }
 .ds-table--activities-list col.ds-activities-col--meetings   { width: 9%; }
-.ds-table--activities-list col.ds-activities-col--notes      { width: 31%; }
+.ds-table--activities-list col.ds-activities-col--notes      { width: 25%; }
 
 .ds-table--activities-list th,
 .ds-table--activities-list td {
@@ -11893,7 +11893,9 @@ select.ds-input {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  margin: 4px 0 10px;
+  justify-content: center;
+  margin: 4px auto 10px;
+  text-align: center;
 }
 .ds-activities-period-tab {
   display: inline-flex;
