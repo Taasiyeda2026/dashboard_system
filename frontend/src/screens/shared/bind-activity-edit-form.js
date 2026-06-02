@@ -37,13 +37,16 @@ function detectActivityNoByName(form, activityName) {
 function activityNameOptionsForType(allOptions, activityType) {
   const sourceOptions = Array.isArray(allOptions) ? allOptions : [];
   const normalizedType = normalizeActivityTypeKey(activityType);
+  if (!normalizedType) return { filtered: [], hasTagged: sourceOptions.some((o) => String(o?.parent_value || o?.activity_type || '').trim()) };
   const hasTagged = sourceOptions.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
   let filtered = sourceOptions.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, normalizedType));
   if (!filtered.length && !hasTagged) filtered = sourceOptions;
   return { filtered, hasTagged };
 }
 
-function renderActivityNameOptions(options) {
+function renderActivityNameOptions(options, activityType = '') {
+  const normalizedType = normalizeActivityTypeKey(activityType);
+  if (!normalizedType) return '<option value="">בחרו קודם סוג פעילות</option>';
   return ['<option value="">—</option>']
     .concat((Array.isArray(options) ? options : []).map((o) => {
       const label = String(o?.label || '').trim();
@@ -67,7 +70,11 @@ function validateActivityTypeAndName(form, statusEl) {
   const nameSel = form.querySelector('[data-role="activity-name-select"]');
   if (!typeEl || !nameSel) return true;
   const selectedType = normalizeActivityTypeKey(typeEl.value);
-  if (!selectedType) return true;
+  if (!selectedType) {
+    setStatus(statusEl, 'is-error', 'יש לבחור סוג פעילות לפני שם פעילות');
+    showToast('יש לבחור סוג פעילות לפני שם פעילות', 'error', 2600);
+    return false;
+  }
   const optionList = Array.from(nameSel.options).filter((opt) => String(opt.value || '').trim());
   if (!optionList.length) return true;
   const selectedName = String(nameSel.value || '').trim();
@@ -499,6 +506,9 @@ export function bindActivityEditForm(contentRoot, {
     updateMeetingWeekdays(form);
     updateMoreDatesToggle(form);
     updateEndDateDisplay(form);
+    const typeEl = form.querySelector('[name="activity_type"]');
+    const nameSel = form.querySelector('[data-role="activity-name-select"]');
+    if (nameSel) nameSel.disabled = !normalizeActivityTypeKey(typeEl?.value);
     syncActivityNoFromName(form);
     const initialValues = {};
     form.querySelectorAll('[name]').forEach((el) => {
@@ -526,7 +536,8 @@ export function bindActivityEditForm(contentRoot, {
             try { allOptions = JSON.parse(decodeURIComponent(nameSel.dataset.allActivityNames)); } catch { allOptions = []; }
             const newType = normalizeActivityTypeKey(typeEl.value);
             const { filtered } = activityNameOptionsForType(allOptions, newType);
-            nameSel.innerHTML = renderActivityNameOptions(filtered);
+            nameSel.innerHTML = renderActivityNameOptions(filtered, newType);
+            nameSel.disabled = !newType;
             nameSel.value = '';
             syncActivityNoFromName(form);
           }

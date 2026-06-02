@@ -26,9 +26,7 @@ import {
 import {
   activityManagerDisplayName,
   getActivityCatalog,
-  getActivityTypes,
   getActivityTypesByFamily,
-  getActivityNamesForType,
   getRosterUsers,
   activityTypeDisplayLabel,
   activityTypeMatches,
@@ -45,6 +43,7 @@ import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shar
 import { ACTIVITY_SEASON_OPTIONS, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
 
 const inflightActivityDetailRequests = new Map();
+const ADD_ACTIVITY_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
 
 function isAdminUser(state) {
   return state?.user?.display_role === 'admin' || state?.user?.role === 'admin';
@@ -322,7 +321,7 @@ function datalistHtml(id, values) {
 
 function addActivityModalHtml(settings) {
   const allActivityNames = getActivityCatalog(settings);
-  const allTypes = getActivityTypes(settings);
+  const allTypes = ADD_ACTIVITY_TYPE_ORDER.slice();
   const rosterUsers = getRosterUsers(settings);
   const rosterNames = rosterUsers.map((u) => u.name);
   const managerRoleNames = getManagerUsers(settings);
@@ -334,8 +333,8 @@ function addActivityModalHtml(settings) {
     ? managerRoleNames
     : mergeOptions(settings, ['activity_manager', 'activity_managers']);
   const instructorOptions = rosterNames.length ? rosterNames : mergeOptions(settings, ['instructor_name', 'instructor_names']);
-  const initialType = allTypes[0] || '';
-  const initialActivityNames = getActivityNamesForType(settings, initialType);
+  const initialType = '';
+  const initialActivityNames = [];
   const sessionsList = Array.from({ length: 35 }, (_, i) => String(i + 1));
 
   const authorityField = `
@@ -370,12 +369,12 @@ function addActivityModalHtml(settings) {
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>סוג פעילות</span>
           <select class="ds-input" name="activity_type" data-add-activity-type
             data-all-types="${escapeHtml(JSON.stringify(allTypes))}">
-            ${optionsHtml(allTypes.map((type) => normalizeActivityTypeKey(type) || type), normalizeActivityTypeKey(initialType) || initialType, '—', activityTypeDisplayLabel)}
+            ${optionsHtml(allTypes.map((type) => normalizeActivityTypeKey(type) || type), '', 'בחרו סוג פעילות', activityTypeDisplayLabel)}
           </select>
         </label>
         <label class="ds-activity-add-field ds-activity-add-field--wide"><span>שם פעילות</span>
-          <select class="ds-input" name="activity_name" data-add-activity-name>
-            ${optionsHtml(initialActivityNames.map((o) => o.label), '', 'בחרו שם פעילות')}
+          <select class="ds-input" name="activity_name" data-add-activity-name disabled>
+            ${optionsHtml(initialActivityNames.map((o) => o.label), '', 'בחרו קודם סוג פעילות')}
           </select>
         </label>
         <input type="hidden" name="activity_no" value="" data-add-activity-no>
@@ -1213,12 +1212,13 @@ export const activitiesScreen = {
       const all = decodeJsonAttr(form.dataset.addActivityNames, []);
       const type = normalizeActivityTypeKey(typeSel.value);
       const hasTagged = all.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
-      let list = all.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, type));
-      if (!list.length && !hasTagged) list = all;
+      let list = type ? all.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, type)) : [];
+      if (type && !list.length && !hasTagged) list = all;
       const current = String(nameSel.value || '').trim();
       const currentStillValid = list.some((o) => String(o?.label || '').trim() === current);
       const nextValue = currentStillValid ? current : '';
-      nameSel.innerHTML = optionsHtml(list.map((o) => o.label), nextValue, 'בחרו שם פעילות');
+      nameSel.innerHTML = optionsHtml(list.map((o) => o.label), nextValue, type ? 'בחרו שם פעילות' : 'בחרו קודם סוג פעילות');
+      nameSel.disabled = !type;
       nameSel.value = nextValue;
       const hit = list.find((o) => String(o?.label || '').trim() === String(nameSel.value || '').trim());
       noInput.value = String(hit?.activity_no || '');
@@ -1236,7 +1236,7 @@ export const activitiesScreen = {
         let allTypes = [];
         try { allTypes = JSON.parse(typeSel.dataset.allTypes || '[]'); } catch {}
         const normalizedTypes = allTypes.map((type) => normalizeActivityTypeKey(type) || type);
-        typeSel.innerHTML = optionsHtml(normalizedTypes, normalizedTypes[0] || '', '—', activityTypeDisplayLabel);
+        typeSel.innerHTML = optionsHtml(normalizedTypes, '', 'בחרו סוג פעילות', activityTypeDisplayLabel);
       }
       refreshActivityNameSelect(form);
       syncSessionDateRows(form);
@@ -1359,6 +1359,11 @@ export const activitiesScreen = {
         const parent = x?.parent_value || x?.activity_type;
         return label === selectedName && activityTypeMatches(parent, selectedType);
       });
+      if (!selectedType || !selectedName || !hit) {
+        if (statusEl) statusEl.textContent = 'יש לבחור סוג פעילות ושם פעילות מתוך הרשימה המסוננת';
+        form.dataset.submitting = 'no';
+        return;
+      }
       const pickEmp = (name) => {
         const u = roster.find((r) => String(r?.name || '').trim() === name);
         return String(u?.emp_id || '').trim();
