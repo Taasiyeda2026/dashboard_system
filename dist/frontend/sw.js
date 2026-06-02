@@ -3,7 +3,7 @@
  * App shell, JS and CSS: network-first so a normal reload can pick up a new deploy.
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 536;
+const CACHE_VERSION = 537;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -15,7 +15,7 @@ const PRECACHE_URLS = [
   "./assets/favicon-32.png",
   "./assets/favicon-D0Y9bj5H.ico",
   "./assets/favicon.ico",
-  "./assets/index-Buztl8O9.js",
+  "./assets/index-Bwc8Q7ia.js",
   "./assets/invitations/backgrounds/.gitkeep",
   "./assets/invitations/backgrounds/background-1.png",
   "./assets/invitations/backgrounds/background-2.png",
@@ -43,6 +43,49 @@ const PRECACHE_URLS = [
   "./assets/style-Doa6WaB1.css",
   "./catalog/catalog_programs_tashpaz.json",
   "./catalog/logo-catalog.png",
+  "./catalog/summercatalog/activities.json",
+  "./catalog/summercatalog/image/001.png",
+  "./catalog/summercatalog/image/002.png",
+  "./catalog/summercatalog/image/003.png",
+  "./catalog/summercatalog/image/004.png",
+  "./catalog/summercatalog/image/005.png",
+  "./catalog/summercatalog/image/006.png",
+  "./catalog/summercatalog/image/007.png",
+  "./catalog/summercatalog/image/008.png",
+  "./catalog/summercatalog/image/009.png",
+  "./catalog/summercatalog/image/010.png",
+  "./catalog/summercatalog/image/011.png",
+  "./catalog/summercatalog/image/012.png",
+  "./catalog/summercatalog/image/013.png",
+  "./catalog/summercatalog/image/014.png",
+  "./catalog/summercatalog/image/015.png",
+  "./catalog/summercatalog/image/016.png",
+  "./catalog/summercatalog/image/017.png",
+  "./catalog/summercatalog/image/018.png",
+  "./catalog/summercatalog/image/019.png",
+  "./catalog/summercatalog/image/020.png",
+  "./catalog/summercatalog/image/021.png",
+  "./catalog/summercatalog/image/022.png",
+  "./catalog/summercatalog/image/023.png",
+  "./catalog/summercatalog/image/024.png",
+  "./catalog/summercatalog/image/025.png",
+  "./catalog/summercatalog/image/026.png",
+  "./catalog/summercatalog/image/027.png",
+  "./catalog/summercatalog/image/028.png",
+  "./catalog/summercatalog/image/029.png",
+  "./catalog/summercatalog/image/030.png",
+  "./catalog/summercatalog/image/031.png",
+  "./catalog/summercatalog/image/032.png",
+  "./catalog/summercatalog/image/033.png",
+  "./catalog/summercatalog/image/034.png",
+  "./catalog/summercatalog/image/035.png",
+  "./catalog/summercatalog/image/036.png",
+  "./catalog/summercatalog/image/037.png",
+  "./catalog/summercatalog/image/038.png",
+  "./catalog/summercatalog/image/039.png",
+  "./catalog/summercatalog/image/ai.png",
+  "./catalog/summercatalog/index.html",
+  "./catalog/summercatalog/logo.png",
   "./index.html",
   "./manifest.json"
 ];
