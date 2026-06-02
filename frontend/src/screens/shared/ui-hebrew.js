@@ -12,6 +12,7 @@ export const HEBREW_ROLE = {
   finance: 'כספים',
   activities_manager: 'מנהל/ת פעילויות',
   domain_manager: 'מנהל/ת תחום',
+  business_development_manager: 'מנהלת פיתוח עסקי',
   instructor_manager: 'מנהל/ת הדרכה / מדריך/ת מנהל/ת'
 };
 

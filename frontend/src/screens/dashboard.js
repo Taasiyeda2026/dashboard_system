@@ -302,10 +302,10 @@ function saveDashboardMonthToStorage(ym) {
 export const dashboardScreen = {
   async load({ api, state }) {
     let ym = state.dashboardMonthYm;
-    if (!ym || !/^\d{4}-\d{2}$/.test(ym)) {
-      ym = loadDashboardMonthFromStorage() || currentMonthYm();
-    }
     const now = currentMonthYm();
+    if (!ym || !/^\d{4}-\d{2}$/.test(ym)) {
+      ym = now;
+    }
     if (ym > now) {
       ym = now;
       saveDashboardMonthToStorage(ym);

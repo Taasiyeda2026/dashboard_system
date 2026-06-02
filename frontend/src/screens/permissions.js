@@ -24,6 +24,7 @@ const PERMISSION_ROLE_OPTIONS = [
   'finance',
   'activities_manager',
   'domain_manager',
+  'business_development_manager',
   'instructor_manager'
 ];
 

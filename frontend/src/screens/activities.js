@@ -50,7 +50,7 @@ const ACTIVITY_PERIOD_TABS = [
   { key: 'school_2027', label: 'תשפ״ז / 2027', start: '2026-09-01', end: '2027-06-30' },
   { key: 'archive', label: 'ארכיון / הסתיימו', archive: true }
 ];
-const DEFAULT_ACTIVITY_PERIOD_TAB = 'summer_2026';
+const DEFAULT_ACTIVITY_PERIOD_TAB = 'school_2026';
 const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'closed', 'deleted', 'inactive']);
 
 function normalizeActivityPeriodTab(value) {
@@ -1337,7 +1337,6 @@ export const activitiesScreen = {
       const roster = decodeJsonAttr(form.dataset.addRosterUsers, []);
       const fd = new (window?.FormData || FormData)(form);
       const get = (k) => String(fd.get(k) || '').trim();
-      const formSource = get('source') || 'catalog';
       const authorityCustom = get('authority_custom');
       const schoolCustom = get('school_custom');
       const authorityValue = authorityCustom || get('authority');
@@ -1363,7 +1362,7 @@ export const activitiesScreen = {
       const oneDayDate = String(get('one_day_date') || get('start_date') || get('end_date') || '').trim();
       let meetingDateValues = [];
       const payload = {
-        source: isOneDay ? 'short' : (formSource === 'short' ? 'long' : formSource),
+        source: isOneDay ? 'short' : 'long',
         activity_family: isOneDay ? 'one_day' : 'program',
         activity_manager: get('activity_manager'),
         authority: authorityValue,
@@ -1371,7 +1370,7 @@ export const activitiesScreen = {
         grade: get('grade'),
         class_group: get('class_group'),
         activity_type: selectedType || get('activity_type'),
-        item_type: isOneDay ? selectedType : '',
+        item_type: selectedType || get('activity_type'),
         activity_season: normalizeActivitySeason(get('activity_season')),
         activity_name: selectedName,
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
