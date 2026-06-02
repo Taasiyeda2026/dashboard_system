@@ -11886,3 +11886,24 @@ select.ds-input {
   font-size: 0.78em;
   font-weight: 800;
 }
+
+/* Activities period tabs */
+.ds-activities-period-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 4px 0 10px;
+}
+.ds-activities-period-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ds-activities-period-tab strong {
+  min-width: 1.75em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  font-variant-numeric: tabular-nums;
+}

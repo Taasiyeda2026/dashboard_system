@@ -217,7 +217,8 @@ function buildMeetingDatesSnapshot(form) {
   normalized.forEach((value) => {
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) endDate = value;
   });
-  return { dates: normalized, endDate };
+  const startDate = /^\d{4}-\d{2}-\d{2}$/.test(normalized[0] || '') ? normalized[0] : '';
+  return { dates: normalized, startDate, endDate };
 }
 
 function hasMeetingDatesChanged(form, initialValues = {}) {
@@ -276,6 +277,7 @@ export function bindActivityEditForm(contentRoot, {
       for (let i = 0; i < 35; i++) {
         changes[`meeting_date_${i}`] = snapshot.dates[i];
       }
+      changes.start_date = snapshot.startDate;
       changes.end_date = snapshot.endDate;
     }
 

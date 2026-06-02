@@ -957,8 +957,7 @@ function closeMobileNav() {
 
 function buildScreenDataCacheKey(route, cacheState = state) {
   if (route === 'activities') {
-    const ym = cacheState.activitiesMonthYm && /^\d{4}-\d{2}$/.test(cacheState.activitiesMonthYm) ? cacheState.activitiesMonthYm : 'current';
-    return `activities:${ym}`;
+    return 'activities:periods';
   }
   if (route === 'dashboard') {
     const ym = cacheState.dashboardMonthYm && /^\d{4}-\d{2}$/.test(cacheState.dashboardMonthYm) ? cacheState.dashboardMonthYm : 'default';

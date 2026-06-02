@@ -82,6 +82,7 @@ export const state = {
   routes: [],
   effectiveRoutes: [],
   activityTab: 'all',
+  activityPeriodTab: 'summer_2026',
   activityFinanceStatus: '',
   activityQuickFamily: '',
   activityQuickManager: '',
@@ -152,6 +153,7 @@ export function setSession(session) {
     state.effectiveRoutes = [];
     state.route = 'login';
     state.activityTab = 'all';
+    state.activityPeriodTab = 'summer_2026';
     state.activityFinanceStatus = '';
     state.activityQuickFamily = '';
     state.activityQuickManager = '';

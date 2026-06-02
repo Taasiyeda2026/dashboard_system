@@ -154,7 +154,7 @@ async function readActivitiesFromSupabase(filters = {}) {
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rows = (Array.isArray(data) ? data : [])
       .map(normalizeActivityRow)
-      .filter((row) => !isActivityInactive(row))
+      .filter((row) => filters?.include_inactive ? true : !isActivityInactive(row))
       .filter((row) => rowMatchesActivitiesFilters(row, filters));
     return { rows, _source: 'supabase' };
   } catch (error) {
@@ -1380,7 +1380,7 @@ function invalidateScreenDataByAction(action) {
     saveActivity: ['activities:', 'activityDetail:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     addActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     deleteActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'archive', 'end-dates', 'exceptions:'],
-    submitEditRequest: ['edit-requests'],
+    submitEditRequest: ['activities:', 'edit-requests'],
     reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:'],
     addUser: ['permissions', 'dashboard:'],
     deactivateUser: ['permissions', 'dashboard:'],
@@ -2302,6 +2302,34 @@ function deriveEndDateFromDates(sanitized = {}) {
   return last || null;
 }
 
+
+function synchronizeStartDateAndFirstMeeting(payload = {}, existing = {}) {
+  const out = { ...(payload || {}) };
+  const hasStart = Object.prototype.hasOwnProperty.call(out, 'start_date');
+  const hasDate1 = Object.prototype.hasOwnProperty.call(out, 'date_1');
+  const nextStart = normalizeDateFieldForSupabase(out.start_date);
+  const nextDate1 = normalizeDateFieldForSupabase(out.date_1);
+  const existingStart = normalizeDateFieldForSupabase(existing?.start_date);
+  const existingDate1 = normalizeDateFieldForSupabase(existing?.date_1);
+
+  if (hasStart && !hasDate1) {
+    out.date_1 = nextStart;
+  } else if (hasDate1 && !hasStart) {
+    out.start_date = nextDate1;
+  } else if (hasStart && hasDate1) {
+    if (nextStart && nextStart !== nextDate1 && nextDate1 === existingDate1 && nextStart !== existingStart) {
+      out.date_1 = nextStart;
+    } else if (nextDate1 && nextStart !== nextDate1 && nextStart === existingStart && nextDate1 !== existingDate1) {
+      out.start_date = nextDate1;
+    } else if (nextStart || nextDate1) {
+      const canonical = nextStart || nextDate1;
+      out.start_date = canonical;
+      out.date_1 = canonical;
+    }
+  }
+  return out;
+}
+
 function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true } = {}) {
   const sanitized = {};
   const source = payload && typeof payload === 'object' ? payload : {};
@@ -2327,7 +2355,7 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
 
 async function upsertActivityToSupabase(payload = {}) {
   const act = payload?.activity || payload || {};
-  const row = sanitizeActivityPayloadForSupabase(sanitizeActivityPayload(act), { includeRowId: true });
+  const row = sanitizeActivityPayloadForSupabase(synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(act)), { includeRowId: true });
   const derivedEnd = deriveEndDateFromDates(row);
   const existingEndDate = normalizeDateFieldForSupabase(row.end_date);
   const startDate = normalizeDateFieldForSupabase(row.start_date);
@@ -2375,10 +2403,10 @@ async function updateActivityInSupabase(payload = {}) {
     if (existingError) throw buildSupabaseMutationError('saveActivity', existingError, 'save_failed');
     existingForNormalization = existingRow || {};
   }
-  let normalizedChangesSource = rawChanges;
+  let normalizedChangesSource = synchronizeStartDateAndFirstMeeting(rawChanges, existingForNormalization || {});
   if (existingForNormalization && oneDayTypeFromActivityFields(rawChanges.activity_type || existingForNormalization.activity_type, rawChanges.item_type || existingForNormalization.item_type)) {
     const normalizedFullRow = assertValidOneDayActivityRow(normalizeOneDayActivityForSave({ ...existingForNormalization, ...rawChanges }));
-    normalizedChangesSource = { ...rawChanges };
+    normalizedChangesSource = { ...normalizedChangesSource };
     ['activity_family', 'activity_type', 'item_type', 'status', 'start_date', 'end_date', 'date_1'].forEach((key) => {
       normalizedChangesSource[key] = normalizedFullRow[key];
     });
@@ -3337,7 +3365,7 @@ export const api = {
       return acc;
     }, {});
     const normalizedChanges = sanitizeActivityPayloadForSupabase(
-      mapMeetingDateFieldNamesToSupabase(reducedChanges),
+      synchronizeStartDateAndFirstMeeting(mapMeetingDateFieldNamesToSupabase(reducedChanges)),
       { includeRowId: false }
     );
     const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes: normalizedChanges };
