@@ -33,6 +33,53 @@ function detectActivityNoByName(form, activityName) {
   return opt ? String(opt.dataset.activityNo || '') : '';
 }
 
+
+function activityNameOptionsForType(allOptions, activityType) {
+  const sourceOptions = Array.isArray(allOptions) ? allOptions : [];
+  const normalizedType = normalizeActivityTypeKey(activityType);
+  const hasTagged = sourceOptions.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
+  let filtered = sourceOptions.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, normalizedType));
+  if (!filtered.length && !hasTagged) filtered = sourceOptions;
+  return { filtered, hasTagged };
+}
+
+function renderActivityNameOptions(options) {
+  return ['<option value="">—</option>']
+    .concat((Array.isArray(options) ? options : []).map((o) => {
+      const label = String(o?.label || '').trim();
+      const actNo = String(o?.activity_no || '').trim();
+      const actType = String(o?.parent_value || o?.activity_type || '').trim();
+      return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-activity-type="${escapeHtml(actType)}">${escapeHtml(label)}</option>`;
+    }))
+    .join('');
+}
+
+function syncActivityNoFromName(form) {
+  const nameSel = form.querySelector('[data-role="activity-name-select"]');
+  const hidden = form.querySelector('[data-activity-no]');
+  if (!nameSel || !hidden) return;
+  const currentName = String(nameSel.value || '').trim();
+  hidden.value = currentName ? detectActivityNoByName(form, currentName) : '';
+}
+
+function validateActivityTypeAndName(form, statusEl) {
+  const typeEl = form.querySelector('[name="activity_type"]');
+  const nameSel = form.querySelector('[data-role="activity-name-select"]');
+  if (!typeEl || !nameSel) return true;
+  const selectedType = normalizeActivityTypeKey(typeEl.value);
+  if (!selectedType) return true;
+  const optionList = Array.from(nameSel.options).filter((opt) => String(opt.value || '').trim());
+  if (!optionList.length) return true;
+  const selectedName = String(nameSel.value || '').trim();
+  const selectedOption = selectedName ? optionList.find((opt) => opt.value === selectedName) : null;
+  const hasTagged = optionList.some((opt) => String(opt.dataset.activityType || '').trim());
+  const isMatchingType = selectedOption && (!hasTagged || activityTypeMatches(selectedOption.dataset.activityType, selectedType));
+  if (selectedName && isMatchingType) return true;
+  setStatus(statusEl, 'is-error', 'יש לבחור שם פעילות מתוך הרשימה המתאימה לסוג הפעילות');
+  showToast('יש לבחור שם פעילות מתוך הרשימה המתאימה לסוג הפעילות', 'error', 2600);
+  return false;
+}
+
 function addDays(dateStr, days) {
   if (!dateStr) return '';
   const d = new Date(`${dateStr}T12:00:00`);
@@ -224,6 +271,8 @@ export function bindActivityEditForm(contentRoot, {
       }
       changes.end_date = snapshot.endDate;
     }
+
+    if (!validateActivityTypeAndName(form, statusEl)) return;
 
     const effectiveType = normalizeOneDayActivityType(changes.activity_type || initialValues.activity_type || '');
     if (effectiveType) {
@@ -450,6 +499,7 @@ export function bindActivityEditForm(contentRoot, {
     updateMeetingWeekdays(form);
     updateMoreDatesToggle(form);
     updateEndDateDisplay(form);
+    syncActivityNoFromName(form);
     const initialValues = {};
     form.querySelectorAll('[name]').forEach((el) => {
       const name = el.getAttribute('name');
@@ -475,23 +525,10 @@ export function bindActivityEditForm(contentRoot, {
             let allOptions = [];
             try { allOptions = JSON.parse(decodeURIComponent(nameSel.dataset.allActivityNames)); } catch { allOptions = []; }
             const newType = normalizeActivityTypeKey(typeEl.value);
-            const hasTagged = allOptions.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
-            let filtered = allOptions.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, newType));
-            if (!filtered.length && !hasTagged) filtered = allOptions;
-            const current = String(nameSel.value || '').trim();
-            const currentStillValid = filtered.some((o) => String(o?.label || '').trim() === current);
-            const optsHtml = ['<option value="">—</option>']
-              .concat(filtered.map((o) => {
-                const label = String(o?.label || '').trim();
-                const actNo = String(o?.activity_no || '').trim();
-                const actType = String(o?.parent_value || o?.activity_type || '').trim();
-                return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-activity-type="${escapeHtml(actType)}">${escapeHtml(label)}</option>`;
-              }))
-              .join('');
-            nameSel.innerHTML = optsHtml;
-            nameSel.value = currentStillValid ? current : '';
-            const hidden = form.querySelector('[data-activity-no]');
-            if (hidden) hidden.value = currentStillValid ? detectActivityNoByName(form, current) : '';
+            const { filtered } = activityNameOptionsForType(allOptions, newType);
+            nameSel.innerHTML = renderActivityNameOptions(filtered);
+            nameSel.value = '';
+            syncActivityNoFromName(form);
           }
         }
 

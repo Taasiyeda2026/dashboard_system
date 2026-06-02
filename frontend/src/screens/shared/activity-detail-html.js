@@ -223,13 +223,11 @@ function resolveActivityNameOptions(settings, activityType) {
 
 function buildActivityNameOpts(options, safeValue, activityType) {
   const normalizedType = normalizeActivityTypeKey(activityType);
-  let filtered = (Array.isArray(options) ? options : []).filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, normalizedType));
-  const hasTagged = (Array.isArray(options) ? options : []).some((o) => String(o?.parent_value || o?.activity_type || '').trim());
-  if (!filtered.length && !hasTagged) filtered = Array.isArray(options) ? options : [];
+  const sourceOptions = Array.isArray(options) ? options : [];
+  let filtered = sourceOptions.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, normalizedType));
+  const hasTagged = sourceOptions.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
+  if (!filtered.length && !hasTagged) filtered = sourceOptions;
   const all = filtered.slice();
-  if (safeValue && !all.some((o) => String(o?.label || '').trim() === safeValue)) {
-    all.unshift({ label: safeValue, activity_no: '', parent_value: activityType });
-  }
   return [`<option value="">—</option>`]
     .concat(
       all.map((o) => {
@@ -371,13 +369,13 @@ function blockActivityDetails(row, { settings = {} } = {}) {
       <h3 class="activity-drawer__section-title">פרטי פעילות</h3>
       <div class="activity-drawer__details-edit-grid">
         ${fieldEditOnly(
+          'סוג פעילות',
+          selectHtml({ name: 'activity_type', value: activityType, options: resolveAllActivityTypes(settings), placeholder: 'בחרו סוג פעילות' })
+        )}
+        ${fieldEditOnly(
           activityNameLabel(activityType),
           activityNameSelectHtml('activity_name', row.activity_name, allActivityNames, activityType),
           'activity-drawer__field--full'
-        )}
-        ${fieldEditOnly(
-          'סוג פעילות',
-          selectHtml({ name: 'activity_type', value: activityType, options: resolveAllActivityTypes(settings), placeholder: 'בחרו סוג פעילות' })
         )}
         ${fieldEditOnly(
           'סטטוס',
