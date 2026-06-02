@@ -903,6 +903,13 @@ function activityLayoutDocumentTitle(group) {
   return cleanDocumentTitlePart(`פריסת פעילות - ${group?.school || ''} - ${group?.authority || ''}`);
 }
 
+function stripKitaPrefix(value) {
+  // Remove leading "כיתה " for display only; replace "לכיתה " with "ל־"
+  return String(value || '')
+    .replace(/לכיתה\s+/g, 'ל־')
+    .replace(/^כיתה\s+/g, '');
+}
+
 function activityLayoutDocumentHtml(group) {
   const rows = activityLayoutRowsForDocument(group);
   const title = activityLayoutDocumentTitle(group);
@@ -910,7 +917,7 @@ function activityLayoutDocumentHtml(group) {
     <td>${escapeHtml(formatActivityLayoutDate(row.date))}</td>
     <td>${escapeHtml(row.startTime)}</td>
     <td>${escapeHtml(row.endTime)}</td>
-    <td>${escapeHtml(row.classGroup)}</td>
+    <td>${escapeHtml(stripKitaPrefix(row.classGroup))}</td>
     <td>${escapeHtml(row.activityName)}</td>
     <td>${escapeHtml(row.instructors)}</td>
   </tr>`).join('');
@@ -918,19 +925,24 @@ function activityLayoutDocumentHtml(group) {
     @page { size: A4; margin: 16mm; }
     * { box-sizing: border-box; }
     body { margin: 0; background: #eef2f7; color: #0f172a; font-family: Arial, "Noto Sans Hebrew", sans-serif; line-height: 1.65; }
-    .screen-actions { display: flex; justify-content: center; gap: 10px; padding: 18px; }
+    .screen-actions { display: flex; justify-content: center; gap: 10px; padding: 12px; }
     .print-btn { border: 0; border-radius: 999px; background: #2563eb; color: #fff; padding: 10px 18px; font-weight: 700; cursor: pointer; }
-    .doc { width: 210mm; min-height: 297mm; margin: 0 auto 24px; background: #fff; padding: 18mm; box-shadow: 0 16px 40px rgba(15,23,42,.16); }
-    .doc-logo { display: block; width: 145px; max-height: 70px; object-fit: contain; margin: 0 auto 16px 0; }
-    h1 { margin: 0 0 18px; text-align: center; font-size: 24px; }
-    .meta { margin: 0 0 20px; font-size: 16px; }
+    .doc { width: 210mm; min-height: 297mm; margin: 0 auto 24px; background: #fff; padding: 14mm 18mm 18mm; box-shadow: 0 16px 40px rgba(15,23,42,.16); }
+    .doc-logo { display: block; width: 130px; max-height: 60px; object-fit: contain; margin: 0 auto 10px 0; }
+    h1 { margin: 0 0 10px; text-align: center; font-size: 22px; }
+    .meta { margin: 0 0 12px; font-size: 15px; }
     .meta div { margin: 2px 0; }
-    p { margin: 0 0 14px; }
-    h2 { margin: 24px 0 10px; font-size: 18px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
-    th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right; vertical-align: top; }
+    p { margin: 0 0 10px; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; margin-bottom: 12px; font-size: 13px; table-layout: fixed; }
+    col.col-date { width: 72px; }
+    col.col-start { width: 62px; }
+    col.col-end { width: 62px; }
+    col.col-grade { width: 70px; }
+    col.col-activity { width: auto; }
+    col.col-instructor { width: 110px; }
+    th, td { border: 1px solid #cbd5e1; padding: 5px 7px; text-align: right; vertical-align: top; word-break: break-word; }
     th { background: #f1f5f9; font-weight: 700; }
-    .signature { margin-top: 24px; text-align: left; direction: rtl; }
+    .signature { margin-top: 20px; text-align: left; direction: rtl; }
     @media print { body { background: #fff; } .screen-actions { display: none !important; } .doc { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; } }
   </style></head><body><div class="screen-actions"><button class="print-btn" type="button" onclick="window.print()">הדפסה / שמירה כ־PDF</button></div><main class="doc">
     <img class="doc-logo" src="${escapeHtml(taasiyedaLogoSrc)}" alt="תעשיידע">
@@ -940,11 +952,9 @@ function activityLayoutDocumentHtml(group) {
       <div><strong>בית ספר:</strong> ${escapeHtml(group?.school || '')}</div>
       <div><strong>רשות:</strong> ${escapeHtml(group?.authority || '')}</div>
     </section>
-    <p>שלום רב,</p>
-    <p>בהמשך לתיאום ולשיבוץ הפעילויות מול בית הספר, מצורפת פריסת הפעילויות המתוכננת במסגרת קיץ תשפ"ו | 2026.</p>
-    <p>נבקש לעבור על הפריסה ולעדכן את צוות תעשיידע מראש במקרה של שינוי בלוחות הזמנים, בהרכב הקבוצות, במיקום הפעילות או בכל צורך תפעולי אחר, כדי שנוכל להיערך בהתאם.</p>
-    <h2>טבלת פריסת הפעילות</h2>
-    <table><thead><tr><th>תאריך</th><th>שעת התחלה</th><th>שעת סיום</th><th>כיתה</th><th>פעילות / סדנה</th><th>מדריך</th></tr></thead><tbody>${tableRows || '<tr><td colspan="6">לא נמצאו שיבוצים להצגה.</td></tr>'}</tbody></table>
+    <p>להלן פריסת הפעילויות המתוכננת לבית הספר - פעילויות קיץ 2026:</p>
+    <table><colgroup><col class="col-date"><col class="col-start"><col class="col-end"><col class="col-grade"><col class="col-activity"><col class="col-instructor"></colgroup><thead><tr><th>תאריך</th><th>שעת התחלה</th><th>שעת סיום</th><th>כיתה</th><th>פעילות / סדנה</th><th>מדריך</th></tr></thead><tbody>${tableRows || '<tr><td colspan="6">לא נמצאו שיבוצים להצגה.</td></tr>'}</tbody></table>
+    <p>נבקש לעבור על הפריסה ולעדכן אותנו מראש בכל שינוי בלוחות הזמנים, בהרכב הקבוצות, במיקום הפעילות או בכל צורך תפעולי אחר, כדי שנוכל להיערך בהתאם.</p>
     <div class="signature">בברכה,<br>תעשיידע</div>
   </main></body></html>`;
 }
