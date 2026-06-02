@@ -854,11 +854,13 @@ function activityLayoutStatusesMap(rows = []) {
 
 function readyActivityLayoutSchools(rows = [], statuses = []) {
   const groups = new Map();
-  const schoolsWithIncompleteRows = new Set();
+  const authoritySchoolsWithIncompleteRows = new Set();
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     const authority = cleanText(row.authority);
     const school = cleanText(row.school);
-    if (school && !isActivityLayoutRowComplete(row)) schoolsWithIncompleteRows.add(school);
+    if (authority && school && !isActivityLayoutRowComplete(row)) {
+      authoritySchoolsWithIncompleteRows.add(activityLayoutStatusKey({ authority, school }));
+    }
     if (!authority || !school) return;
     const key = activityLayoutStatusKey({ authority, school });
     if (!groups.has(key)) groups.set(key, { season: ACTIVITY_LAYOUT_SEASON, authority, school, rows: [], dates: [] });
@@ -869,7 +871,7 @@ function readyActivityLayoutSchools(rows = [], statuses = []) {
   });
   const statusMap = activityLayoutStatusesMap(statuses);
   return [...groups.values()]
-    .filter((group) => group.rows.length && !schoolsWithIncompleteRows.has(group.school) && group.rows.every(isActivityLayoutRowComplete))
+    .filter((group) => group.rows.length && !authoritySchoolsWithIncompleteRows.has(activityLayoutStatusKey(group)) && group.rows.every(isActivityLayoutRowComplete))
     .map((group) => ({
       ...group,
       count: group.rows.length,
@@ -1060,6 +1062,9 @@ export const activitiesScreen = {
           const activityDateRaw = String(row.date_1 || row.start_date || '').trim();
           const activityDateHe = activityDateRaw ? (formatDateHe(activityDateRaw) || activityDateRaw) : '—';
           const gradeDisplay = escapeHtml(String(row.grade || '—'));
+          const startTime = activityLayoutStartTime(row);
+          const endTime = activityLayoutEndTime(row);
+          const hoursDisplay = (startTime && endTime) ? `${escapeHtml(startTime)}–${escapeHtml(endTime)}` : (startTime || endTime ? escapeHtml(startTime || endTime) : '—');
           return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
         <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
@@ -1068,6 +1073,7 @@ export const activitiesScreen = {
         <td class="ds-activities-col ds-activities-col--grade" style="text-align:center">${gradeDisplay}</td>
         <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}<span class="ds-activities-manager-line" title="${escapeHtml(managerLabel || '—')}">מנהל: ${escapeHtml(managerLabel || '—')}</span></div></td>
         <td class="ds-activities-col ds-activities-col--date" style="text-align:center"><time class="ds-activities-date">${escapeHtml(activityDateHe)}</time></td>
+        <td class="ds-activities-col ds-activities-col--hours" style="text-align:center"><span class="ds-activities-hours">${hoursDisplay}</span></td>
         <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(String(row.notes || '—'))}">${escapeHtml(String(row.notes || '—'))}</span></td>
       </tr>
     `;
@@ -1113,9 +1119,10 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--grade">
                   <col class="ds-activities-col--instructor">
                   <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--hours">
                   <col class="ds-activities-col--notes">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th style="text-align:center">כיתה</th><th>מדריך</th><th style="text-align:center">תאריך פעילות</th><th>הערות</th></tr></thead>`
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th style="text-align:center">כיתה</th><th>מדריך</th><th style="text-align:center">תאריך פעילות</th><th style="text-align:center">שעות</th><th>הערות</th></tr></thead>`
       : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
