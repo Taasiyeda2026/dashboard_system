@@ -2,9 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { exportActivitiesToExcel } from './shared/excel-export.js';
 import { formatDateHe, formatActivityDateColumnsHe } from './shared/format-date.js';
 import {
-  hebrewColumn,
-  visibleActivityCategoryLabel,
-  ACTIVITY_TAB_ORDER
+  visibleActivityCategoryLabel
 } from './shared/ui-hebrew.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import {
@@ -40,11 +38,68 @@ import {
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
-import { ACTIVITY_SEASON_OPTIONS, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
+import { ACTIVITY_SEASON_OPTIONS, normalizeActivitySeason } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 
 const inflightActivityDetailRequests = new Map();
 const ADD_ACTIVITY_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
+
+const ACTIVITY_PERIOD_TABS = [
+  { key: 'school_2026', label: 'תשפ״ו / 2026', start: '', end: '2026-06-30' },
+  { key: 'summer_2026', label: 'קיץ 2026', start: '2026-07-01', end: '2026-08-31' },
+  { key: 'school_2027', label: 'תשפ״ז / 2027', start: '2026-09-01', end: '2027-06-30' },
+  { key: 'archive', label: 'ארכיון / הסתיימו', archive: true }
+];
+const DEFAULT_ACTIVITY_PERIOD_TAB = 'summer_2026';
+const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'closed', 'deleted', 'inactive']);
+
+function normalizeActivityPeriodTab(value) {
+  const key = String(value || '').trim();
+  return ACTIVITY_PERIOD_TABS.some((tab) => tab.key === key) ? key : DEFAULT_ACTIVITY_PERIOD_TAB;
+}
+
+function normalizedActivityStartDate(row = {}) {
+  const value = String(row?.start_date ?? row?.date_start ?? '').trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+}
+
+function isInactiveActivityStatus(row = {}) {
+  return INACTIVE_ACTIVITY_STATUSES.has(String(row?.status || '').trim().toLowerCase()) || INACTIVE_ACTIVITY_STATUSES.has(String(row?.status || '').trim());
+}
+
+function activityPeriodKey(row = {}) {
+  if (isInactiveActivityStatus(row)) return 'archive';
+  const start = normalizedActivityStartDate(row);
+  if (!start) return 'archive';
+  if (start <= '2026-06-30') return 'school_2026';
+  if (start >= '2026-07-01' && start <= '2026-08-31') return 'summer_2026';
+  if (start >= '2026-09-01' && start <= '2027-06-30') return 'school_2027';
+  return 'archive';
+}
+
+function activityPeriodLabelForKey(key) {
+  return ACTIVITY_PERIOD_TABS.find((tab) => tab.key === key)?.label || '';
+}
+
+function activityPeriodRows(rows, periodKey) {
+  const activeKey = normalizeActivityPeriodTab(periodKey);
+  return (Array.isArray(rows) ? rows : []).filter((row) => activityPeriodKey(row) === activeKey);
+}
+
+function activityPeriodTabsHtml(rows, activeKey) {
+  const safeActiveKey = normalizeActivityPeriodTab(activeKey);
+  const counts = ACTIVITY_PERIOD_TABS.reduce((acc, tab) => ({ ...acc, [tab.key]: 0 }), {});
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const key = activityPeriodKey(row);
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return `<div class="ds-activities-period-tabs" role="tablist" aria-label="תקופות פעילות" dir="rtl">
+    ${ACTIVITY_PERIOD_TABS.map((tab) => `<button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab${tab.key === safeActiveKey ? ' is-active' : ''}" role="tab" aria-selected="${tab.key === safeActiveKey ? 'true' : 'false'}" data-activity-period-tab="${escapeHtml(tab.key)}">
+      <span>${escapeHtml(tab.label)}</span><strong>${escapeHtml(String(counts[tab.key] || 0))}</strong>
+    </button>`).join('')}
+  </div>`;
+}
+
 
 function isAdminUser(state) {
   return state?.user?.display_role === 'admin' || state?.user?.role === 'admin';
@@ -452,8 +507,6 @@ function applyClientFilters(rows, state, settings) {
     out = out.filter((row) => isShortFamily(row, oneDayTypes));
   } else if (state.activityQuickFamily === 'long') {
     out = out.filter((row) => !isShortFamily(row, oneDayTypes));
-  } else if (state.activityQuickFamily === 'summer') {
-    out = out.filter(isSummerActivity);
   }
   if (state.activityQuickManager) {
     out = out.filter((row) => matchesQuickDistrictOrManager(row, state.activityQuickManager));
@@ -462,76 +515,6 @@ function applyClientFilters(rows, state, settings) {
     out = out.filter((row) => isEndingInMonth(row, state.activitiesMonthYm));
   }
   return out;
-}
-
-function currentYm() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function shiftYm(ym, delta) {
-  const base = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
-  const d = base ? new Date(Number(base[1]), Number(base[2]) - 1, 1) : new Date();
-  d.setMonth(d.getMonth() + delta);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function monthBounds(ym) {
-  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
-  if (!m) return null;
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  return {
-    start: `${y}-${String(mo).padStart(2, '0')}-01`,
-    end: `${y}-${String(mo).padStart(2, '0')}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`
-  };
-}
-
-function activityOverlapsMonth(row, ym) {
-  const bounds = monthBounds(ym);
-  if (!bounds) return true;
-  const candidates = [];
-  const pushDate = (value) => {
-    const date = String(value || '').trim().slice(0, 10);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) candidates.push(date);
-  };
-  const cols = Array.isArray(row?.meeting_dates) ? row.meeting_dates : [];
-  const dateCols = Array.isArray(row?.date_cols) ? row.date_cols : [];
-  cols.forEach(pushDate);
-  dateCols.forEach(pushDate);
-  for (let i = 1; i <= 35; i++) {
-    pushDate(row?.[`date_${i}`]);
-    pushDate(row?.[`Date${i}`]);
-  }
-  pushDate(row?.start_date);
-  pushDate(row?.end_date);
-  if (!candidates.length) return false;
-  return candidates.some((date) => date >= bounds.start && date <= bounds.end);
-}
-
-function hasAnyActivityDate(row) {
-  const pushDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim().slice(0, 10));
-  if (pushDate(row?.start_date) || pushDate(row?.end_date)) return true;
-  const cols = Array.isArray(row?.meeting_dates) ? row.meeting_dates : [];
-  const dateCols = Array.isArray(row?.date_cols) ? row.date_cols : [];
-  if (cols.some(pushDate) || dateCols.some(pushDate)) return true;
-  for (let i = 1; i <= 35; i++) {
-    if (pushDate(row?.[`date_${i}`]) || pushDate(row?.[`Date${i}`])) return true;
-  }
-  return false;
-}
-
-function monthLabel(ym) {
-  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
-  if (!m) return '';
-  return `${m[1]}-${m[2]}`;
-}
-
-const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-function heMonthLabel(ym) {
-  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
-  if (!m) return monthLabel(ym);
-  return HE_MONTHS[Number(m[2]) - 1] || monthLabel(ym);
 }
 
 
@@ -559,10 +542,8 @@ function applyActivitiesGapFilter(rows, gapFilter) {
 
 function applyActivitiesLocalFilters(rows, state, settings) {
   const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
-  if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
   const familyRows = applyClientFilters(rows, state, settings);
-  const monthRows = familyRows.filter((row) => activityOverlapsMonth(row, state.activitiesMonthYm) || !hasAnyActivityDate(row));
-  const gapRows = applyActivitiesGapFilter(monthRows, state.activitiesGapFilter);
+  const gapRows = applyActivitiesGapFilter(familyRows, state.activitiesGapFilter);
   prepareRowsForSearch(gapRows, ACTIVITY_SEARCH_FIELDS);
   return applyLocalFilters(gapRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
 }
@@ -752,17 +733,18 @@ function nextMeetingDate(row) {
 
 export const activitiesScreen = {
   async load({ api, state }) {
-    if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
+    state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     return api.activities({
       activity_type: 'all',
-      month: state.activitiesMonthYm
+      include_inactive: true
     });
   },
 
   render(data, { state }) {
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
-    if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
-    const filteredRows  = applyActivitiesLocalFilters(allRows, state, state?.clientSettings);
+    state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
+    const periodRows    = activityPeriodRows(allRows, state.activityPeriodTab);
+    const filteredRows  = applyActivitiesLocalFilters(periodRows, state, state?.clientSettings);
 
     const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
     const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
@@ -847,8 +829,8 @@ export const activitiesScreen = {
 
     const tableSection =
       safeRows.length === 0
-        ? dsEmptyState(allRows.length === 0
-            ? 'אין פעילויות רשומות בחודש זה'
+        ? dsEmptyState(periodRows.length === 0
+            ? 'אין פעילויות להצגה בתקופה זו'
             : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
                 <colgroup>
@@ -873,20 +855,20 @@ export const activitiesScreen = {
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">↻</button>
-        ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-export-all title="ייצוא כל הפעילויות לאקסל">ייצוא לאקסל</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-admin-summary title="סיכום אדמין לכלל הפעילויות">סיכום אדמין</button>` : ''}
+        ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-export-all title="ייצוא הפעילויות בלשונית הפעילה לאקסל">ייצוא לאקסל</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-admin-summary title="סיכום אדמין ללשונית הפעילה">סיכום אדמין</button>` : ''}
         ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">+</button>` : ''}
       </div>
     </div>`;
 
-    const titleNavRow = `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם" title="חודש קודם" ${isNavLoading ? 'disabled' : ''}>▶</button>
-      <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${total} פעילויות ${navLoadingChip}</h2>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא" title="חודש הבא" ${isNavLoading ? 'disabled' : ''}>◀</button>
-    </nav>`;
+    const titleNavRow = `<div class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" dir="rtl">
+      <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(activityPeriodLabelForKey(state.activityPeriodTab))} · ${total} פעילויות ${navLoadingChip}</h2>
+    </div>`;
+    const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab);
 
     const html = dsScreenStack(`<section class="ds-activities-screen">
       ${viewSwitcher}
       ${titleNavRow}
+      ${periodTabs}
       ${mainToolbar}
       ${dsCard({ body: tableSection, padded: false })}
     </section>`);
@@ -936,7 +918,9 @@ export const activitiesScreen = {
     })();
 
     const activitiesRows = Array.isArray(data?.rows) ? data.rows : [];
-    const filteredRows      = applyActivitiesLocalFilters(activitiesRows, state, state?.clientSettings);
+    state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
+    const periodRows = activityPeriodRows(activitiesRows, state.activityPeriodTab);
+    const filteredRows      = applyActivitiesLocalFilters(periodRows, state, state?.clientSettings);
     const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
     const canEditActivity   = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -971,6 +955,7 @@ export const activitiesScreen = {
           if (idx >= 0) arr.splice(idx, 1);
         };
         removeByRowId(activitiesRows);
+        removeByRowId(periodRows);
         removeByRowId(filteredRows);
         return;
       }
@@ -980,11 +965,10 @@ export const activitiesScreen = {
     };
     const scheduleQuietRefresh = async () => {
       try {
-        const refreshMonth = state.activitiesMonthYm || currentYm();
-        const fresh = await api.activities({ activity_type: 'all', month: refreshMonth });
+        const fresh = await api.activities({ activity_type: 'all', include_inactive: true });
         const freshRows = Array.isArray(fresh?.rows) ? fresh.rows : [];
         activitiesRows.splice(0, activitiesRows.length, ...freshRows);
-        state.screenDataCache[`activities:${refreshMonth}`] = { data: { ...fresh, rows: activitiesRows }, t: Date.now() };
+        state.screenDataCache['activities:periods'] = { data: { ...fresh, rows: activitiesRows }, t: Date.now() };
       } catch {
         // keep local optimistic view on failure
       }
@@ -1020,6 +1004,11 @@ export const activitiesScreen = {
             }
           } catch (err) {
             console.warn('[activity-refresh-after-save:failed]', { sourceRowId, error: err?.message || String(err) });
+          }
+          const savedPeriod = activityPeriodKey({ ...(activitiesRows.find((row) => String(row?.RowID || '') === String(sourceRowId || '')) || {}), ...(changes || {}) });
+          if (savedPeriod !== state.activityPeriodTab) {
+            state.activityPeriodTab = savedPeriod;
+            showToast('הפעילות נשמרה בתקופה אחרת והועברה ללשונית המתאימה.', 'info', 3600);
           }
           rerenderLocal();
           void scheduleQuietRefresh();
@@ -1138,22 +1127,8 @@ export const activitiesScreen = {
       state.activityEndingCurrentMonth = false;
       state.activitiesGapFilter = '';
       syncActivitiesGapQuery('');
-      state.activityTab = 'all';
       state.activityFinanceStatus = '';
     } });
-    const runMonthShift = (delta) => {
-      if (state.activitiesNavLoading) return;
-      const startedAt = Date.now();
-      state.activitiesNavLoading = true;
-      state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), delta);
-      rerenderLocal();
-      const minMs = 420;
-      setTimeout(() => {
-        state.activitiesNavLoading = false;
-        rerenderLocal();
-      }, Math.max(0, minMs - (Date.now() - startedAt)));
-    };
-
     async function loadAllActivitiesForAdmin() {
       return typeof api.allActivities === 'function' ? api.allActivities() : api.activities({ activity_type: 'all' });
     }
@@ -1166,7 +1141,8 @@ export const activitiesScreen = {
       btn.textContent = 'מייצא…';
       try {
         const res = await loadAllActivitiesForAdmin();
-        exportActivitiesToExcel(Array.isArray(res?.rows) ? res.rows : [], 'כל_הפעילויות');
+        const rows = activityPeriodRows(Array.isArray(res?.rows) ? res.rows : [], state.activityPeriodTab);
+        exportActivitiesToExcel(rows, `פעילויות_${activityPeriodLabelForKey(state.activityPeriodTab) || 'תקופה'}`);
       } catch (err) {
         console.error('Failed to export all activities to Excel', err);
       } finally {
@@ -1183,7 +1159,8 @@ export const activitiesScreen = {
       try {
         const res = await loadAllActivitiesForAdmin();
         const drawerContent = document.querySelector('.ds-drawer__content');
-        if (drawerContent) drawerContent.innerHTML = renderAdminActivitiesSummary(Array.isArray(res?.rows) ? res.rows : [], state?.clientSettings || {});
+        const rows = activityPeriodRows(Array.isArray(res?.rows) ? res.rows : [], state.activityPeriodTab);
+        if (drawerContent) drawerContent.innerHTML = renderAdminActivitiesSummary(rows, state?.clientSettings || {});
       } catch (err) {
         console.error('[admin-summary:failed]', err);
         const drawerContent = document.querySelector('.ds-drawer__content');
@@ -1193,8 +1170,13 @@ export const activitiesScreen = {
       }
     });
 
-    root.querySelector('[data-activities-month-prev]')?.addEventListener('click', () => runMonthShift(-1));
-    root.querySelector('[data-activities-month-next]')?.addEventListener('click', () => runMonthShift(1));
+    root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.activityPeriodTab = normalizeActivityPeriodTab(btn.getAttribute('data-activity-period-tab'));
+        ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
+        rerenderLocal();
+      });
+    });
     root.querySelector(`[data-list-show-more="${ACTIVITIES_SCOPE}"]`)?.addEventListener('click', (ev) => {
       const next = Number(ev.currentTarget?.dataset?.nextCount || 200);
       ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = next;
@@ -1283,7 +1265,7 @@ export const activitiesScreen = {
       const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
       const prev = Array.from(container.querySelectorAll('input[data-add-session-date]')).map((input) => String(input.value || '').trim());
       container.innerHTML = Array.from({ length: sessions }, (_, idx) => {
-        const value = prev[idx] || computeNextSessionDate(startDate, idx);
+        const value = idx === 0 ? (startDate || prev[idx] || '') : (prev[idx] || computeNextSessionDate(startDate, idx));
         return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
       }).join('');
     }
@@ -1307,6 +1289,13 @@ export const activitiesScreen = {
       form.querySelector('[data-add-sessions]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[name="start_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[name="one_day_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
+      form.querySelector('[data-add-date-rows]')?.addEventListener('change', (ev) => {
+        const firstDate = ev.target.closest('input[data-add-session-date="1"]');
+        if (!firstDate) return;
+        const startDateInput = form.querySelector('[name="start_date"]');
+        if (startDateInput) startDateInput.value = String(firstDate.value || '').trim();
+        syncSessionDateRows(form);
+      }, addActivitySig);
       bindEntityFieldToggle(form, 'authority');
       bindEntityFieldToggle(form, 'school');
     }
@@ -1414,7 +1403,14 @@ export const activitiesScreen = {
         meetingDateValues = dateInputs.map((input) => String(input.value || '').trim());
         dateInputs.forEach((input, index) => {
           payload[`Date${index + 1}`] = String(input.value || '').trim();
+          payload[`date_${index + 1}`] = String(input.value || '').trim();
         });
+        const firstMeetingDate = String(meetingDateValues[0] || payload.start_date || '').trim();
+        if (firstMeetingDate) {
+          payload.start_date = firstMeetingDate;
+          payload.Date1 = firstMeetingDate;
+          payload.date_1 = firstMeetingDate;
+        }
       }
       if (!payload.end_date) {
         const lastDate = meetingDateValues.filter(Boolean).pop();
@@ -1453,15 +1449,14 @@ export const activitiesScreen = {
         const rsp = await api.addActivity(payload);
         console.info('[addActivity] success', rsp);
         clearScreenDataCache?.();
-        const hasSavedDate = !!String(payload.start_date || payload.end_date || meetingDateValues.find(Boolean) || '').trim();
-        const activityMonth = String(payload.start_date || payload.end_date || meetingDateValues.find(Boolean) || '').slice(0, 7);
-        const savedToOtherMonth = /^\d{4}-\d{2}$/.test(activityMonth) && state.activitiesMonthYm !== activityMonth;
-        if (statusEl) statusEl.textContent = hasSavedDate
-          ? (savedToOtherMonth ? 'הפעילות נשמרה לחודש אחר. עוברים לחודש הפעילות.' : 'הפעילות נשמרה')
-          : 'הפעילות נשמרה ללא תאריך ותופיע ברשימת ממתינות לתיאום תאריך.';
-        showToast(savedToOtherMonth ? 'הפעילות נשמרה לחודש אחר. עוברים לחודש הפעילות.' : 'הפעילות נשמרה', 'success', 3000);
-        if (savedToOtherMonth) {
-          state.activitiesMonthYm = activityMonth;
+        const savedPeriod = activityPeriodKey(payload);
+        const savedToOtherPeriod = savedPeriod !== state.activityPeriodTab;
+        if (statusEl) statusEl.textContent = savedToOtherPeriod
+          ? 'הפעילות נשמרה בתקופה אחרת והועברה ללשונית המתאימה.'
+          : 'הפעילות נשמרה';
+        showToast(savedToOtherPeriod ? 'הפעילות נשמרה בתקופה אחרת והועברה ללשונית המתאימה.' : 'הפעילות נשמרה', 'success', 3000);
+        if (savedToOtherPeriod) {
+          state.activityPeriodTab = savedPeriod;
         }
         ui?.closeModal?.();
         await scheduleQuietRefresh();
