@@ -1,6 +1,6 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
-import { activityManagerDisplayName, activityTypeMatches, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, resolveActivityInstructorName } from './activity-options.js';
+import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName } from './activity-options.js';
 import { ACTIVITY_SEASON_OPTIONS, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
@@ -22,11 +22,12 @@ const ACTIVITY_NAME_LABEL = {
 };
 
 function activityTypeLabel(type) {
-  return ACTIVITY_TYPE_PILL_LABEL[String(type || '').trim()] || 'פעילות';
+  const normalized = normalizeActivityTypeKey(type);
+  return ACTIVITY_TYPE_PILL_LABEL[normalized] || activityTypeDisplayLabel(type) || 'פעילות';
 }
 
 function activityNameLabel(type) {
-  return ACTIVITY_NAME_LABEL[String(type || '').trim()] || 'שם פעילות';
+  return ACTIVITY_NAME_LABEL[normalizeActivityTypeKey(type)] || 'שם פעילות';
 }
 
 function fallback(v) {
@@ -130,8 +131,8 @@ function normalizeActivityNameOptions(raw) {
       out.push({
         label,
         activity_no: String(o.activity_no || '').trim(),
-        parent_value: String(o.parent_value || o.activity_type || '').trim(),
-        activity_type: String(o.activity_type || o.parent_value || '').trim()
+        parent_value: normalizeActivityTypeKey(o.parent_value || o.activity_type || ''),
+        activity_type: normalizeActivityTypeKey(o.activity_type || o.parent_value || '')
       });
     }
   });
@@ -139,14 +140,20 @@ function normalizeActivityNameOptions(raw) {
 }
 
 function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '—', attrs = '' }) {
-  const safeValue = String(value || '').trim();
-  const normalized = toOptions(options);
-  const all = normalized.includes(safeValue) || !safeValue ? normalized : [safeValue, ...normalized];
+  const safeValue = normalizeActivityTypeKey(value) || String(value || '').trim();
+  const normalized = toOptions(options).map((option) => normalizeActivityTypeKey(option) || option);
+  const seen = new Set();
+  const unique = normalized.filter((option) => {
+    if (!option || seen.has(option)) return false;
+    seen.add(option);
+    return true;
+  });
+  const all = unique.includes(safeValue) || !safeValue ? unique : [safeValue, ...unique];
   const opts = [`<option value="">${escapeHtml(placeholder)}</option>`]
     .concat(
       all.map((o) => {
         const selected = o === safeValue ? ' selected' : '';
-        return `<option value="${escapeHtml(o)}"${selected}>${escapeHtml(o)}</option>`;
+        return `<option value="${escapeHtml(o)}"${selected}>${escapeHtml(activityTypeDisplayLabel(o) || o)}</option>`;
       })
     )
     .join('');
@@ -349,14 +356,15 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
 }
 
 function blockActivityDetails(row, { settings = {} } = {}) {
-  const activityType = String(row.activity_type || '').trim();
+  const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const allActivityNames = resolveActivityNameOptions(settings, '');
   if (!allActivityNames.length) {
     // eslint-disable-next-line no-console
     console.warn('[activity-edit] activity name options missing from client settings');
   }
-  const statusOptions = ['פעיל', 'סגור'];
-  const normalizedStatus = normStatus(row.status) === 'closed' ? 'סגור' : 'פעיל';
+  const isOneDay = Boolean(normalizeOneDayActivityType(activityType));
+  const statusOptions = isOneDay ? ['פתוח', 'סגור', 'נמחק'] : ['פעיל', 'סגור'];
+  const normalizedStatus = normStatus(row.status) === 'closed' ? 'סגור' : (isOneDay ? 'פתוח' : 'פעיל');
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>

@@ -33,3 +33,19 @@ test('activity names filter supports activity_type/parent_value/type', () => {
   assert.equal(byWorkshop.length, 1);
   assert.equal(byWorkshop[0].label, 'פעילות ב');
 });
+
+test('one-day activity names are filtered by canonical type aliases', () => {
+  const mixedSettings = {
+    dropdown_options: {
+      activity_names: [
+        { label: 'צמידי שמש', parent_value: 'סדנה', activity_no: '201' },
+        { label: 'התנסות בתעשייה', activity_type: 'tour', activity_no: '202' },
+        { label: 'תמיר - איפה דדי', type: 'חדר בריחה', activity_no: '203' }
+      ]
+    }
+  };
+
+  assert.deepEqual(getActivityNamesForType(mixedSettings, 'workshop').map((row) => row.label), ['צמידי שמש']);
+  assert.deepEqual(getActivityNamesForType(mixedSettings, 'סיור').map((row) => row.label), ['התנסות בתעשייה']);
+  assert.deepEqual(getActivityNamesForType(mixedSettings, 'escape_room').map((row) => row.label), ['תמיר - איפה דדי']);
+});

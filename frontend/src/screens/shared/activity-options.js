@@ -72,6 +72,14 @@ export function resolveActivityInstructorName(row = {}, { secondary = false } = 
 
 export const NO_ACTIVITY_MANAGER_LABEL = 'ללא';
 
+export const ONE_DAY_ACTIVITY_TYPE_LABELS = {
+  workshop: 'סדנה',
+  tour: 'סיור',
+  escape_room: 'חדר בריחה'
+};
+
+const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set(Object.keys(ONE_DAY_ACTIVITY_TYPE_LABELS));
+
 const ACTIVITY_TYPE_ALIASES = new Map([
   ['סדנה', 'workshop'],
   ['סדנאות', 'workshop'],
@@ -117,11 +125,29 @@ export function normalizeActivityTypeKey(value) {
   return ACTIVITY_TYPE_ALIASES.get(clean) || clean;
 }
 
+export function normalizeOneDayActivityType(value) {
+  const normalized = normalizeActivityTypeKey(value);
+  return ONE_DAY_ACTIVITY_TYPE_KEYS.has(normalized) ? normalized : '';
+}
+
+export function isOneDayActivityType(value) {
+  return Boolean(normalizeOneDayActivityType(value));
+}
+
+export function activityTypeDisplayLabel(value) {
+  const oneDay = normalizeOneDayActivityType(value);
+  if (oneDay) return ONE_DAY_ACTIVITY_TYPE_LABELS[oneDay];
+  const normalized = normalizeActivityTypeKey(value);
+  if (normalized === 'course') return 'קורס';
+  if (normalized === 'after_school') return 'חוג אפטרסקול';
+  return text(value);
+}
+
 export function activityTypeMatches(value, expected) {
   const left = normalizeActivityTypeKey(value);
   const right = normalizeActivityTypeKey(expected);
   if (!right) return true;
-  return !left || left === right;
+  return Boolean(left) && left === right;
 }
 
 function isExplicitlyInactive(value) {
@@ -161,9 +187,9 @@ export function getActivityCatalog(settings) {
       value: text(row?.value || row?.activity_name || row?.label),
       activity_name: text(row?.activity_name || row?.value || row?.label),
       activity_no: text(row?.activity_no),
-      activity_type: text(row?.activity_type || row?.parent_value || row?.type),
-      parent_value: text(row?.parent_value || row?.activity_type || row?.type),
-      type: text(row?.type || row?.activity_type || row?.parent_value),
+      activity_type: normalizeActivityTypeKey(row?.activity_type || row?.parent_value || row?.type),
+      parent_value: normalizeActivityTypeKey(row?.parent_value || row?.activity_type || row?.type),
+      type: normalizeActivityTypeKey(row?.type || row?.activity_type || row?.parent_value),
       active: row?.active,
       sort_order: row?.sort_order
     }))
@@ -180,7 +206,7 @@ export function getActivityTypes(settings) {
   const catalog = getActivityCatalog(settings);
   const fromCatalog = cleanUnique(
     catalog
-      .map((item) => item.activity_type || item.parent_value || item.type)
+      .map((item) => normalizeActivityTypeKey(item.activity_type || item.parent_value || item.type))
       .filter(Boolean)
   );
   if (fromCatalog.length) return fromCatalog;
@@ -188,8 +214,8 @@ export function getActivityTypes(settings) {
 }
 
 export function getActivityTypesByFamily(settings, family) {
-  const oneDayTypes = uniqueSorted(settings?.one_day_activity_types || []);
-  const programTypes = uniqueSorted(settings?.program_activity_types || []);
+  const oneDayTypes = uniqueSorted((settings?.one_day_activity_types || []).map(normalizeActivityTypeKey));
+  const programTypes = uniqueSorted((settings?.program_activity_types || []).map(normalizeActivityTypeKey));
   if (family === 'short') return oneDayTypes;
   if (family === 'long') return programTypes;
   return uniqueSorted([...oneDayTypes, ...programTypes]);

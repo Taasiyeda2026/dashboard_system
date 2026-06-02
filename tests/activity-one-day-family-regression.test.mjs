@@ -121,3 +121,32 @@ test('conflicting one-day item_type is corrected to canonical activity_type on s
   assert.equal(row.start_date, '2026-06-21');
   assert.equal(row.end_date, '2026-06-21');
 });
+
+test('one-day activity save rejects generic type labels as activity_name', () => {
+  assert.throws(() => normalizeForSave({
+    activity_type: 'סדנה',
+    activity_family: 'one_day',
+    activity_name: 'סדנה',
+    start_date: '2026-06-18'
+  }), /יש לבחור שם פעילות מתוך הרשימה/);
+});
+
+test('Hebrew one-day type label saves canonical activity_type and selected specific name', () => {
+  const row = normalizeForSave({
+    activity_type: 'סדנה',
+    item_type: 'חדר בריחה',
+    activity_family: 'program',
+    activity_name: 'צמידי שמש',
+    start_date: '2026-06-19',
+    status: 'פעיל'
+  });
+
+  assert.equal(row.activity_type, 'workshop');
+  assert.equal(row.item_type, 'workshop');
+  assert.equal(row.activity_family, 'one_day');
+  assert.equal(row.activity_name, 'צמידי שמש');
+  assert.equal(row.start_date, '2026-06-19');
+  assert.equal(row.end_date, '2026-06-19');
+  assert.equal(row.date_1, '2026-06-19');
+  assert.equal(row.status, 'פתוח');
+});

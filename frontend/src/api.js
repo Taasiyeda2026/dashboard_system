@@ -1,7 +1,7 @@
 import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
-import { cleanActivityManagerName, NO_ACTIVITY_MANAGER_LABEL, resolveActivityInstructorName } from './screens/shared/activity-options.js';
+import { cleanActivityManagerName, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
 import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
 import { supabase, supabaseConfig } from './supabase-client.js';
@@ -180,6 +180,7 @@ const CLOSED_STATUS = 'סגור';
 const OPEN_STATUS = 'פתוח';
 const LEGACY_ACTIVE_STATUS = 'פעיל';
 const DELETED_STATUS = 'נמחק';
+const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 
 function oneDayTypeFromActivityFields(activityType, itemType) {
   return canonicalOneDayActivityType(activityType) || canonicalOneDayActivityType(itemType);
@@ -226,12 +227,7 @@ function canonicalActivityTypeToken(value) {
 }
 
 function canonicalOneDayActivityType(value) {
-  const raw = String(value || '').trim();
-  const compact = canonicalActivityTypeToken(raw);
-  if (compact === 'workshop' || compact === 'workshops' || raw === 'סדנה' || raw === 'סדנאות') return 'workshop';
-  if (compact === 'tour' || compact === 'tours' || raw === 'סיור' || raw === 'סיורים') return 'tour';
-  if (compact === 'escape_room' || compact === 'escaperoom' || raw === 'חדר בריחה' || raw === 'חדר_בריחה' || raw === 'חדרי בריחה' || raw === 'חדרי_בריחה') return 'escape_room';
-  return '';
+  return normalizeOneDayActivityType(value);
 }
 
 function normalizeActivityTypeValue(value) {
@@ -2136,14 +2132,20 @@ function logActivityMutationDebug(stage, operation, payload, extra = {}) {
 }
 
 function assertValidOneDayActivityRow(row = {}) {
-  if (!canonicalOneDayActivityType(row.activity_type || row.item_type)) return row;
+  const canonicalType = canonicalOneDayActivityType(row.activity_type || row.item_type);
+  if (!canonicalType) return row;
+  row.activity_type = canonicalType;
+  row.item_type = canonicalType;
+  row.activity_family = 'one_day';
   const name = String(row.activity_name || '').trim();
-  if (!name) throw new Error('יש להזין שם פעילות חד־יומית לפני השמירה');
+  if (!name || GENERIC_ONE_DAY_ACTIVITY_NAMES.has(name)) throw new Error('יש לבחור שם פעילות מתוך הרשימה');
   const selectedDate = normalizeDateFieldForSupabase(row.date_1 || row.start_date || row.end_date);
   if (!selectedDate) throw new Error('יש לבחור תאריך תקין לפעילות חד־יומית לפני השמירה');
   row.start_date = selectedDate;
   row.end_date = selectedDate;
   row.date_1 = selectedDate;
+  if (String(row.status || '').trim() === LEGACY_ACTIVE_STATUS) row.status = OPEN_STATUS;
+  if (![OPEN_STATUS, CLOSED_STATUS, DELETED_STATUS].includes(String(row.status || '').trim())) row.status = OPEN_STATUS;
   return row;
 }
 
