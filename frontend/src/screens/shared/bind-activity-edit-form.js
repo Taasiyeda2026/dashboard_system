@@ -2,7 +2,7 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
-import { activityTypeMatches, normalizeActivityTypeKey } from './activity-options.js';
+import { activityTypeMatches, normalizeActivityTypeKey, normalizeOneDayActivityType } from './activity-options.js';
 import { state } from '../../state.js';
 
 function setEditMode(form, editing) {
@@ -23,6 +23,8 @@ function setStatus(statusEl, kind, text) {
   statusEl.classList.remove('is-pending', 'is-error', 'is-success', 'is-warning');
   if (kind) statusEl.classList.add(kind);
 }
+
+const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 
 function detectActivityNoByName(form, activityName) {
   const sel = form.querySelector('[data-role="activity-name-select"]');
@@ -221,6 +223,19 @@ export function bindActivityEditForm(contentRoot, {
         changes[`meeting_date_${i}`] = snapshot.dates[i];
       }
       changes.end_date = snapshot.endDate;
+    }
+
+    const effectiveType = normalizeOneDayActivityType(changes.activity_type || initialValues.activity_type || '');
+    if (effectiveType) {
+      const effectiveName = String(changes.activity_name ?? form.querySelector('[name="activity_name"]')?.value ?? initialValues.activity_name ?? '').trim();
+      if (!effectiveName || GENERIC_ONE_DAY_ACTIVITY_NAMES.has(effectiveName)) {
+        setStatus(statusEl, 'is-error', 'יש לבחור שם פעילות מתוך הרשימה');
+        showToast('יש לבחור שם פעילות מתוך הרשימה', 'error', 2600);
+        return;
+      }
+      changes.activity_type = effectiveType;
+      changes.item_type = effectiveType;
+      if (String(changes.status || '').trim() === 'פעיל') changes.status = 'פתוח';
     }
 
     try {

@@ -30,8 +30,10 @@ import {
   getActivityTypesByFamily,
   getActivityNamesForType,
   getRosterUsers,
+  activityTypeDisplayLabel,
   activityTypeMatches,
   normalizeActivityTypeKey,
+  normalizeOneDayActivityType,
   getManagerUsers,
   getFilterOptionOverrides,
   cleanUnique,
@@ -233,17 +235,11 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
-const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set([
-  'workshop', 'workshops', 'סדנה', 'סדנאות',
-  'tour', 'tours', 'סיור', 'סיורים',
-  'escape_room', 'escaperoom', 'חדר_בריחה', 'חדר בריחה', 'חדרי_בריחה', 'חדרי בריחה'
-]);
-
 function isOneDayActivityTypeValue(value) {
-  return ONE_DAY_ACTIVITY_TYPE_KEYS.has(normalizeActivityTypeKey(value));
+  return Boolean(normalizeOneDayActivityType(value));
 }
 
-function optionsHtml(values, selected = '', placeholder = '—') {
+function optionsHtml(values, selected = '', placeholder = '—', labelFn = null) {
   const safeSelected = String(selected || '');
   const uniq = [];
   const seen = new Set();
@@ -256,7 +252,7 @@ function optionsHtml(values, selected = '', placeholder = '—') {
   if (safeSelected && !seen.has(safeSelected)) uniq.unshift(safeSelected);
   return [`<option value="">${escapeHtml(placeholder)}</option>`]
     .concat(
-      uniq.map((v) => `<option value="${escapeHtml(v)}"${v === safeSelected ? ' selected' : ''}>${escapeHtml(v)}</option>`)
+      uniq.map((v) => `<option value="${escapeHtml(v)}"${v === safeSelected ? ' selected' : ''}>${escapeHtml(typeof labelFn === 'function' ? (labelFn(v) || v) : v)}</option>`)
     )
     .join('');
 }
@@ -374,7 +370,7 @@ function addActivityModalHtml(settings) {
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>סוג פעילות</span>
           <select class="ds-input" name="activity_type" data-add-activity-type
             data-all-types="${escapeHtml(JSON.stringify(allTypes))}">
-            ${optionsHtml(allTypes, initialType)}
+            ${optionsHtml(allTypes.map((type) => normalizeActivityTypeKey(type) || type), normalizeActivityTypeKey(initialType) || initialType, '—', activityTypeDisplayLabel)}
           </select>
         </label>
         <label class="ds-activity-add-field ds-activity-add-field--wide"><span>שם פעילות</span>
@@ -1239,7 +1235,8 @@ export const activitiesScreen = {
       if (typeSel) {
         let allTypes = [];
         try { allTypes = JSON.parse(typeSel.dataset.allTypes || '[]'); } catch {}
-        typeSel.innerHTML = optionsHtml(allTypes, allTypes[0] || '');
+        const normalizedTypes = allTypes.map((type) => normalizeActivityTypeKey(type) || type);
+        typeSel.innerHTML = optionsHtml(normalizedTypes, normalizedTypes[0] || '', '—', activityTypeDisplayLabel);
       }
       refreshActivityNameSelect(form);
       syncSessionDateRows(form);
@@ -1356,7 +1353,7 @@ export const activitiesScreen = {
       const authorityValue = authorityCustom || get('authority');
       const schoolValue = schoolCustom || get('school');
       const selectedName = get('activity_name');
-      const selectedType = normalizeActivityTypeKey(get('activity_type'));
+      const selectedType = normalizeOneDayActivityType(get('activity_type')) || normalizeActivityTypeKey(get('activity_type'));
       const hit = activityMap.find((x) => {
         const label = String(x?.label || '').trim();
         const parent = x?.parent_value || x?.activity_type;
@@ -1418,12 +1415,18 @@ export const activitiesScreen = {
         payload.end_date = lastDate || payload.start_date || null;
       }
 
+      if (isOneDay && (!String(payload.activity_name || '').trim() || GENERIC_ONE_DAY_ACTIVITY_NAMES.has(String(payload.activity_name || '').trim()))) {
+        if (statusEl) statusEl.textContent = 'יש לבחור שם פעילות מתוך הרשימה';
+        form.dataset.submitting = 'no';
+        return;
+      }
+
       const required = [
         ['activity_type', 'סוג פעילות'],
         ['activity_name', 'שם פעילות'],
         ['authority', 'רשות'],
         ['school', 'בית ספר'],
-        ...(isOneDay ? [['start_date', 'תאריך פעילות חד־יומית']] : [])
+        ...(isOneDay ? [['start_date', 'תאריך פעילות חד־יומית'], ['end_date', 'תאריך סיום'], ['date_1', 'תאריך פעילות']] : [])
       ];
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
       if (missing.length) {
