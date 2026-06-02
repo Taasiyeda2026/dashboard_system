@@ -233,7 +233,7 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
-const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set(['workshop', 'tour', 'escape_room', 'escaperoom', 'חדר_בריחה', 'חדרי_בריחה']);
+const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set(['workshop', 'tour', 'escape_room']);
 
 function isOneDayActivityTypeValue(value) {
   return ONE_DAY_ACTIVITY_TYPE_KEYS.has(normalizeActivityTypeKey(value));
@@ -902,8 +902,9 @@ export const activitiesScreen = {
       const allRows = Array.isArray(data?.rows) ? data.rows : [];
       const overdue = allRows.filter((row) => {
         const status = String(row?.status || '').trim();
+        const isLegacyActiveOneDay = isOneDayActivityTypeValue(row?.activity_type || row?.item_type) && status === 'פעיל';
         if (status === 'סגור' || status === 'closed' || status === 'inactive') return false;
-        if (status !== 'פתוח') return false;
+        if (status !== 'פתוח' && !isLegacyActiveOneDay) return false;
         const endRaw = String(row?.end_date || '').trim();
         if (!endRaw) return false;
         const endDate = new Date(endRaw);
@@ -1373,7 +1374,8 @@ export const activitiesScreen = {
         school: schoolValue,
         grade: get('grade'),
         class_group: get('class_group'),
-        activity_type: get('activity_type'),
+        activity_type: selectedType || get('activity_type'),
+        item_type: isOneDay ? selectedType : '',
         activity_season: normalizeActivitySeason(get('activity_season')),
         activity_name: selectedName,
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
@@ -1388,7 +1390,7 @@ export const activitiesScreen = {
         emp_id_2: pickEmp(get('instructor_name_2')),
         start_date: isOneDay ? oneDayDate : get('start_date'),
         end_date: isOneDay ? oneDayDate || null : get('end_date') || null,
-        status: 'פעיל',
+        status: isOneDay ? 'פתוח' : 'פעיל',
         notes: get('notes')
       };
       if (isOneDay) {
@@ -1416,7 +1418,8 @@ export const activitiesScreen = {
         ['activity_type', 'סוג פעילות'],
         ['activity_name', 'שם פעילות'],
         ['authority', 'רשות'],
-        ['school', 'בית ספר']
+        ['school', 'בית ספר'],
+        ...(isOneDay ? [['start_date', 'תאריך פעילות חד־יומית']] : [])
       ];
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
       if (missing.length) {

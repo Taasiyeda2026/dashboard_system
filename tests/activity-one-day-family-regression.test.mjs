@@ -38,6 +38,9 @@ test('new tour activity is normalized as one_day before Supabase insert', () => 
 
   assert.equal(row.activity_type, 'tour');
   assert.equal(row.activity_family, 'one_day');
+  assert.equal(row.item_type, 'tour');
+  assert.equal(row.status, 'פתוח');
+  assert.equal(row.date_1, '2026-06-15');
 });
 
 test('new workshop activity is normalized as one_day before Supabase insert', () => {
@@ -52,6 +55,8 @@ test('new workshop activity is normalized as one_day before Supabase insert', ()
 
   assert.equal(row.activity_type, 'workshop');
   assert.equal(row.activity_family, 'one_day');
+  assert.equal(row.item_type, 'workshop');
+  assert.equal(row.status, 'פתוח');
 });
 
 test('one-day Hebrew and escape-room activity types override wrong family/source values', () => {
@@ -60,9 +65,12 @@ test('one-day Hebrew and escape-room activity types override wrong family/source
       activity_type: activityType,
       activity_family: 'program',
       source: 'long',
+      activity_name: `בדיקה ${activityType}`,
       start_date: '2026-06-17'
     });
     assert.equal(row.activity_family, 'one_day', `${activityType} should be one_day`);
+    assert.equal(row.activity_type, row.item_type, `${activityType} activity_type and item_type should match`);
+    assert.equal(row.status, 'פתוח', `${activityType} should save as open`);
   }
 });
 
@@ -79,6 +87,37 @@ test('saved one-day activity appears in activities month filter when displayed m
   }));
 
   assert.equal(savedRow.activity_family, 'one_day');
+  assert.equal(savedRow.status, 'פתוח');
   assert.equal(rowMatchesActivitiesFilters(savedRow, { month: '2026-06', activity_type: 'all' }), true);
   assert.equal(rowMatchesActivitiesFilters(savedRow, { month: '2026-07', activity_type: 'all' }), false);
+});
+
+
+test('one-day save rejects missing activity name and date', () => {
+  assert.throws(() => normalizeForSave({
+    activity_type: 'tour',
+    activity_name: '',
+    start_date: '2026-06-20'
+  }), /שם פעילות/);
+
+  assert.throws(() => normalizeForSave({
+    activity_type: 'workshop',
+    activity_name: 'סדנה ללא תאריך'
+  }), /תאריך תקין/);
+});
+
+test('conflicting one-day item_type is corrected to canonical activity_type on save', () => {
+  const row = normalizeForSave({
+    activity_type: 'workshop',
+    item_type: 'escape_room',
+    activity_name: 'סדנת תיקון',
+    date_1: '2026-06-21',
+    status: 'פעיל'
+  });
+
+  assert.equal(row.activity_type, 'workshop');
+  assert.equal(row.item_type, 'workshop');
+  assert.equal(row.status, 'פתוח');
+  assert.equal(row.start_date, '2026-06-21');
+  assert.equal(row.end_date, '2026-06-21');
 });

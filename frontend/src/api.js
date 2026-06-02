@@ -177,9 +177,17 @@ function buildSupabaseErrorPayload(base, error, extra = {}) {
 
 const ACTIVITIES_TABLE = 'activities';
 const CLOSED_STATUS = 'סגור';
+const OPEN_STATUS = 'פתוח';
+const LEGACY_ACTIVE_STATUS = 'פעיל';
 const DELETED_STATUS = 'נמחק';
 
+function oneDayTypeFromActivityFields(activityType, itemType) {
+  return canonicalOneDayActivityType(activityType) || canonicalOneDayActivityType(itemType);
+}
+
 function normalizeActivityRow(row = {}) {
+  const canonicalOneDayType = oneDayTypeFromActivityFields(row?.activity_type, row?.item_type);
+  const isLegacyOneDay = canonicalOneDayType && (String(row?.activity_family || '').trim() === 'one_day' || !String(row?.item_type || '').trim());
   const rowId = String(row?.row_id ?? row?.RowID ?? '').trim();
   const activitySeason = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
   const normalized = {
@@ -190,6 +198,10 @@ function normalizeActivityRow(row = {}) {
     source_table: ACTIVITIES_TABLE,
     activity_season: activitySeason,
     activitySeason,
+    activity_family: isLegacyOneDay ? 'one_day' : row?.activity_family,
+    activity_type: canonicalOneDayType || row?.activity_type,
+    item_type: canonicalOneDayType || row?.item_type || row?.activity_type || '',
+    status: isLegacyOneDay && String(row?.status || '').trim() === LEGACY_ACTIVE_STATUS ? OPEN_STATUS : row?.status,
     date_start: row?.start_date ?? row?.date_start ?? '',
     date_end: row?.end_date ?? row?.date_end ?? ''
   };
@@ -207,15 +219,29 @@ function normalizeActivityRow(row = {}) {
 }
 
 
+function canonicalActivityTypeToken(value) {
+  const raw = String(value || '').trim();
+  const lower = raw.toLowerCase();
+  return lower.replace(/[\u2010-\u2015]/g, '_').replace(/[\s_-]+/g, '_');
+}
+
+function canonicalOneDayActivityType(value) {
+  const raw = String(value || '').trim();
+  const compact = canonicalActivityTypeToken(raw);
+  if (compact === 'workshop' || compact === 'workshops' || raw === 'סדנה' || raw === 'סדנאות') return 'workshop';
+  if (compact === 'tour' || compact === 'tours' || raw === 'סיור' || raw === 'סיורים') return 'tour';
+  if (compact === 'escape_room' || compact === 'escaperoom' || raw === 'חדר בריחה' || raw === 'חדר_בריחה' || raw === 'חדרי בריחה' || raw === 'חדרי_בריחה') return 'escape_room';
+  return '';
+}
+
 function normalizeActivityTypeValue(value) {
   const raw = String(value || '').trim();
   const lower = raw.toLowerCase();
-  const compact = lower.replace(/[\s_-]+/g, '');
+  const compact = canonicalActivityTypeToken(raw).replace(/_/g, '');
+  const oneDayType = canonicalOneDayActivityType(raw);
+  if (oneDayType) return oneDayType;
   if (compact === 'course' || raw === 'קורס' || raw === 'קורסים') return 'course';
-  if (compact === 'workshop' || raw === 'סדנה' || raw === 'סדנאות') return 'workshop';
-  if (compact === 'tour' || raw === 'סיור' || raw === 'סיורים') return 'tour';
   if (compact === 'afterschool' || raw === 'חוג אפטרסקול' || raw === 'אפטרסקול') return 'after_school';
-  if (compact === 'escaperoom' || raw === 'חדר בריחה') return 'escape_room';
   return lower || raw;
 }
 
@@ -238,7 +264,7 @@ function isProgramActivity(row) {
 }
 
 function isOneDayActivity(row) {
-  return String(row?.activity_family || '').trim() === 'one_day';
+  return String(row?.activity_family || '').trim() === 'one_day' || Boolean(oneDayTypeFromActivityFields(row?.activity_type, row?.item_type));
 }
 
 function getActivityDateColumns(row = {}) {
@@ -2109,22 +2135,49 @@ function logActivityMutationDebug(stage, operation, payload, extra = {}) {
   });
 }
 
-function sanitizeActivityPayload(act = {}) {
+function assertValidOneDayActivityRow(row = {}) {
+  if (!canonicalOneDayActivityType(row.activity_type || row.item_type)) return row;
+  const name = String(row.activity_name || '').trim();
+  if (!name) throw new Error('יש להזין שם פעילות חד־יומית לפני השמירה');
+  const selectedDate = normalizeDateFieldForSupabase(row.date_1 || row.start_date || row.end_date);
+  if (!selectedDate) throw new Error('יש לבחור תאריך תקין לפעילות חד־יומית לפני השמירה');
+  row.start_date = selectedDate;
+  row.end_date = selectedDate;
+  row.date_1 = selectedDate;
+  return row;
+}
+
+function normalizeOneDayActivityForSave(act = {}) {
   const row = { ...act };
+  const canonicalType = oneDayTypeFromActivityFields(row.activity_type, row.item_type);
+  if (!canonicalType) return row;
+  row.activity_family = 'one_day';
+  row.activity_type = canonicalType;
+  row.item_type = canonicalType;
+  if (String(row.status || '').trim() === LEGACY_ACTIVE_STATUS) row.status = OPEN_STATUS;
+  if (!String(row.status || '').trim()) row.status = OPEN_STATUS;
+  const selectedDate = normalizeDateFieldForSupabase(row.date_1 || row.Date1 || row.one_day_date || row.start_date || row.end_date);
+  if (selectedDate) {
+    row.start_date = selectedDate;
+    row.end_date = selectedDate;
+    row.date_1 = selectedDate;
+    row.Date1 = selectedDate;
+  }
+  return row;
+}
+
+function sanitizeActivityPayload(act = {}) {
+  const row = normalizeOneDayActivityForSave({ ...act });
   delete row.source;
   delete row.source_sheet;
   delete row.source_table;
   delete row.RowID;
   if (!row.row_id) row.row_id = String(act.row_id || act.RowID || `ACT-${crypto.randomUUID?.() || Date.now()}`).trim();
-  const normalizeActivityTypeKey = (value) => String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/^חדרי_בריחה$/, 'חדר_בריחה');
-  const oneDayTypeKeys = new Set([
-    'workshop', 'workshops', 'סדנה', 'סדנאות',
-    'tour', 'tours', 'סיור', 'סיורים',
-    'escape_room', 'escaperoom', 'חדר_בריחה'
-  ]);
-  const normalizedType = normalizeActivityTypeKey(row.activity_type || act.activity_type || '');
-  if (oneDayTypeKeys.has(normalizedType)) {
+  const normalizedType = oneDayTypeFromActivityFields(row.activity_type || act.activity_type, row.item_type || act.item_type);
+  if (normalizedType) {
     row.activity_family = 'one_day';
+    row.activity_type = normalizedType;
+    row.item_type = normalizedType;
   } else {
     const normalizedFamily = String(row.activity_family || '').trim();
     if (normalizedFamily === 'one_day' || normalizedFamily === 'program') {
@@ -2133,14 +2186,15 @@ function sanitizeActivityPayload(act = {}) {
       row.activity_family = String(act.source || '').trim() === 'short' ? 'one_day' : 'program';
     }
   }
-  row.status = String(row.status || 'פעיל');
+  row.status = String(row.status || (normalizedType ? OPEN_STATUS : LEGACY_ACTIVE_STATUS));
+  if (normalizedType && row.status === LEGACY_ACTIVE_STATUS) row.status = OPEN_STATUS;
   row.activity_season = normalizeActivitySeason(row.activity_season ?? act.activitySeason);
   for (let i = 1; i <= 35; i++) {
     const lower = `date_${i}`;
     const oldDateKey = `Date${i}`;
     if (row[lower] === undefined && act[oldDateKey] !== undefined) row[lower] = act[oldDateKey];
   }
-  return row;
+  return assertValidOneDayActivityRow(row);
 }
 
 const ALLOWED_ACTIVITY_COLUMNS = new Set([
@@ -2153,6 +2207,7 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'grade',
   'class_group',
   'activity_type',
+  'item_type',
   'activity_season',
   'activity_no',
   'activity_name',
@@ -2295,13 +2350,33 @@ async function upsertActivityToSupabase(payload = {}) {
 async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
-  const changes = sanitizeActivityPayloadForSupabase(
-    mapMeetingDateFieldNamesToSupabase({ ...(payload?.changes || {}) }),
-    { includeRowId: false }
-  );
+  if (!rowId) throw new Error('missing_row_id');
+  const rawChanges = mapMeetingDateFieldNamesToSupabase({ ...(payload?.changes || {}) });
+  let existingForNormalization = null;
+  const needsExisting = Object.keys(rawChanges).some((key) => ['activity_type', 'item_type', 'activity_family', 'activity_name', 'start_date', 'end_date', 'date_1', 'status'].includes(key) || /^date_\d+$/.test(key));
+  if (needsExisting) {
+    const { data: existingRow, error: existingError } = await supabase
+      .from('activities')
+      .select('*')
+      .eq('row_id', rowId)
+      .maybeSingle();
+    if (existingError) throw buildSupabaseMutationError('saveActivity', existingError, 'save_failed');
+    existingForNormalization = existingRow || {};
+  }
+  let normalizedChangesSource = rawChanges;
+  if (existingForNormalization && oneDayTypeFromActivityFields(rawChanges.activity_type || existingForNormalization.activity_type, rawChanges.item_type || existingForNormalization.item_type)) {
+    const normalizedFullRow = assertValidOneDayActivityRow(normalizeOneDayActivityForSave({ ...existingForNormalization, ...rawChanges }));
+    normalizedChangesSource = { ...rawChanges };
+    ['activity_family', 'activity_type', 'item_type', 'status', 'start_date', 'end_date', 'date_1'].forEach((key) => {
+      normalizedChangesSource[key] = normalizedFullRow[key];
+    });
+    if (Object.prototype.hasOwnProperty.call(rawChanges, 'activity_name')) {
+      normalizedChangesSource.activity_name = normalizedFullRow.activity_name;
+    }
+  }
+  const changes = sanitizeActivityPayloadForSupabase(normalizedChangesSource, { includeRowId: false });
   const hasMeetingDateChange = Object.keys(changes).some((k) => /^date_\d+$/.test(k));
   const hasExplicitEndDate = Object.prototype.hasOwnProperty.call(changes, 'end_date');
-  if (!rowId) throw new Error('missing_row_id');
   if (hasMeetingDateChange && !hasExplicitEndDate) {
     const { data: existingRow, error: existingError } = await supabase
       .from('activities')
@@ -3503,5 +3578,7 @@ export {
   buildExceptionsModelFromRows,
   normalizeActivityRow,
   sanitizeActivityPayload,
-  sanitizeActivityPayloadForSupabase
+  sanitizeActivityPayloadForSupabase,
+  normalizeOneDayActivityForSave,
+  canonicalOneDayActivityType
 };
