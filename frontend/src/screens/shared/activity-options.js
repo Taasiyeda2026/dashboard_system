@@ -100,6 +100,10 @@ const ACTIVITY_TYPE_ALIASES = new Map([
   ['course', 'course'],
   ['courses', 'course'],
   ['אפטרסקול', 'after_school'],
+  ['חוג אפטרסקול', 'after_school'],
+  ['חוג_אפטרסקול', 'after_school'],
+  ['חוגי אפטרסקול', 'after_school'],
+  ['חוגי_אפטרסקול', 'after_school'],
   ['after_school', 'after_school'],
   ['afterschool', 'after_school']
 ]);

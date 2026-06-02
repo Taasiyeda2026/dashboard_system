@@ -4,6 +4,7 @@ import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatch
 import { ACTIVITY_SEASON_OPTIONS, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
+const ACTIVITY_EDIT_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
 
 const ACTIVITY_TYPE_PILL_LABEL = {
   course: 'קורס',
@@ -223,6 +224,7 @@ function resolveActivityNameOptions(settings, activityType) {
 
 function buildActivityNameOpts(options, safeValue, activityType) {
   const normalizedType = normalizeActivityTypeKey(activityType);
+  if (!normalizedType) return '<option value="">בחרו קודם סוג פעילות</option>';
   const sourceOptions = Array.isArray(options) ? options : [];
   let filtered = sourceOptions.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, normalizedType));
   const hasTagged = sourceOptions.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
@@ -243,9 +245,11 @@ function buildActivityNameOpts(options, safeValue, activityType) {
 
 function activityNameSelectHtml(name, value, options, activityType) {
   const safeValue = String(value || '').trim();
+  const normalizedType = normalizeActivityTypeKey(activityType);
   const allJson = escapeHtml(encodeURIComponent(JSON.stringify(Array.isArray(options) ? options : [])));
-  const opts = buildActivityNameOpts(options, safeValue, activityType);
-  return `<select class="ds-input" name="${escapeHtml(name)}" data-role="activity-name-select" data-all-activity-names="${allJson}">${opts}</select>`;
+  const opts = buildActivityNameOpts(options, safeValue, normalizedType);
+  const disabled = normalizedType ? '' : ' disabled';
+  return `<select class="ds-input" name="${escapeHtml(name)}" data-role="activity-name-select" data-all-activity-names="${allJson}"${disabled}>${opts}</select>`;
 }
 
 function autoEndDate(row) {
@@ -280,14 +284,8 @@ function fieldEditOnly(label, editHtml, extraClass = '') {
   `;
 }
 
-function resolveAllActivityTypes(settings) {
-  const seen = new Set();
-  const out = [];
-  [...(settings?.one_day_activity_types || []), ...(settings?.program_activity_types || [])].forEach((v) => {
-    const s = String(v || '').trim();
-    if (s && !seen.has(s)) { seen.add(s); out.push(s); }
-  });
-  return out;
+function resolveAllActivityTypes() {
+  return ACTIVITY_EDIT_TYPE_ORDER.slice();
 }
 
 function fieldViewOnly(label, viewHtml) {

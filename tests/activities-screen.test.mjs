@@ -314,21 +314,11 @@ test('activities screen wires add-activity form submit to api.addActivity flow',
   assert.match(source, /document\.addEventListener\('submit'[\s\S]*submitAddActivityForm/);
   assert.match(source, /await api\.addActivity\(payload\)/);
   assert.match(source, /statusEl\) statusEl\.textContent = `שגיאה בשמירה:/);
-  assert.match(source, /const allTypes = getActivityTypes\(settings\);/);
+  assert.match(source, /const ADD_ACTIVITY_TYPE_ORDER = \['workshop', 'escape_room', 'tour', 'after_school'\]/);
   assert.doesNotMatch(source, /data-add-family=/);
-  assert.match(source, /const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set\(\[/);
   assert.match(source, /'workshop'/);
-  assert.match(source, /'workshops'/);
-  assert.match(source, /'סדנה'/);
-  assert.match(source, /'סדנאות'/);
   assert.match(source, /'tour'/);
-  assert.match(source, /'tours'/);
-  assert.match(source, /'סיור'/);
-  assert.match(source, /'סיורים'/);
   assert.match(source, /'escape_room'/);
-  assert.match(source, /'escaperoom'/);
-  assert.match(source, /'חדר_בריחה'/);
-  assert.match(source, /חדרי_בריחה/);
   assert.match(source, /sessionsInput\.disabled = isOneDay/);
   assert.match(source, /sessionsField\.style\.display = isOneDay \? 'none' : ''/);
   assert.match(source, /activity_family: isOneDay \? 'one_day' : 'program'/);
@@ -461,7 +451,7 @@ test('activity edit form refreshes activity_name options and clears stale name w
     const noInput = form.querySelector('[data-activity-no]');
 
     assert.deepEqual(Array.from(nameSelect.options).map((option) => option.value).filter(Boolean), ['חדר בריחה חלל']);
-    typeSelect.value = 'סדנה';
+    typeSelect.value = 'workshop';
     typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
 
     assert.deepEqual(Array.from(nameSelect.options).map((option) => option.value).filter(Boolean), ['סדנת רובוטיקה']);
@@ -515,7 +505,7 @@ test('activity add form refreshes activity_name options and clears stale name wh
     const nameSelect = form.querySelector('[data-add-activity-name]');
     const noInput = form.querySelector('[data-add-activity-no]');
 
-    typeSelect.value = 'חדר בריחה';
+    typeSelect.value = 'escape_room';
     typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
     assert.deepEqual(Array.from(nameSelect.options).map((option) => option.value).filter(Boolean), ['חדר בריחה חלל']);
     nameSelect.value = 'חדר בריחה חלל';
