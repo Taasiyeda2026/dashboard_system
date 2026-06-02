@@ -8487,14 +8487,14 @@ select.ds-input {
   table-layout: fixed;
 }
 
-.ds-table--activities-list col.ds-activities-col--program   { width: 14%; }
-.ds-table--activities-list col.ds-activities-col--authority  { width: 9%; }
-.ds-table--activities-list col.ds-activities-col--school     { width: 11%; }
-.ds-table--activities-list col.ds-activities-col--instructor { width: 10%; }
+.ds-table--activities-list col.ds-activities-col--program   { width: 11%; }
+.ds-table--activities-list col.ds-activities-col--authority  { width: 10%; }
+.ds-table--activities-list col.ds-activities-col--school     { width: 10%; }
+.ds-table--activities-list col.ds-activities-col--instructor { width: 11%; }
 .ds-table--activities-list col.ds-activities-col--manager    { width: 10%; }
-.ds-table--activities-list col.ds-activities-col--date       { width: 8%; }
-.ds-table--activities-list col.ds-activities-col--meetings   { width: 8%; }
-.ds-table--activities-list col.ds-activities-col--notes      { width: 11%; }
+.ds-table--activities-list col.ds-activities-col--date       { width: 9%; }
+.ds-table--activities-list col.ds-activities-col--meetings   { width: 9%; }
+.ds-table--activities-list col.ds-activities-col--notes      { width: 31%; }
 
 .ds-table--activities-list th,
 .ds-table--activities-list td {
