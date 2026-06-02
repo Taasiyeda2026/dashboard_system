@@ -233,7 +233,11 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
-const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set(['workshop', 'tour', 'escape_room']);
+const ONE_DAY_ACTIVITY_TYPE_KEYS = new Set([
+  'workshop', 'workshops', 'סדנה', 'סדנאות',
+  'tour', 'tours', 'סיור', 'סיורים',
+  'escape_room', 'escaperoom', 'חדר_בריחה', 'חדר בריחה', 'חדרי_בריחה', 'חדרי בריחה'
+]);
 
 function isOneDayActivityTypeValue(value) {
   return ONE_DAY_ACTIVITY_TYPE_KEYS.has(normalizeActivityTypeKey(value));
