@@ -320,14 +320,19 @@ export function bindActivityEditForm(contentRoot, {
           row_id: sourceRowId,
           role: userRole
         });
-        await api.submitEditRequest(debugPayload);
-        setStatus(statusEl, 'is-success', '✅ בקשת העריכה נשלחה לאישור מנהל תפעול.');
-        showToast('בקשת העריכה נשלחה לאישור מנהל תפעול.', 'success', 3000);
+        const requestResult = await api.submitEditRequest(debugPayload);
+        const requestId = String(requestResult?.request_id || '').trim();
+        const statusText = requestId
+          ? `✅ הבקשה נשלחה לאישור. סטטוס: ממתין לאישור · מזהה בקשה: ${requestId}`
+          : '✅ הבקשה נשלחה לאישור. סטטוס: ממתין לאישור';
+        setStatus(statusEl, 'is-success', statusText);
+        form.dataset.lastEditRequestId = requestId;
+        showToast('הבקשה נשלחה לאישור · סטטוס: ממתין לאישור', 'success', 3000);
+        try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
         form.reset();
         updateMeetingWeekdays(form);
         updateMoreDatesToggle(form);
         updateEndDateDisplay(form);
-        clearScreenDataCache?.();
         setEditMode(form, false);
         if (typeof quietRefresh === 'function') {
           quietRefresh({ sourceSheet, sourceRowId, changes: {}, form });
@@ -351,30 +356,38 @@ export function bindActivityEditForm(contentRoot, {
         submitBtn.classList.add('is-loading');
       }
 
+      let requestResult = null;
       if (canDirectEdit) {
         await api.saveActivity(debugPayload);
       } else if (canRequestEdit) {
-        await api.submitEditRequest(debugPayload);
+        requestResult = await api.submitEditRequest(debugPayload);
       } else {
         throw new Error('insufficient_permissions_for_edit');
       }
+      const requestId = String(requestResult?.request_id || '').trim();
+      const requestStatusText = requestId
+        ? `✅ הבקשה נשלחה לאישור. סטטוס: ממתין לאישור · מזהה בקשה: ${requestId}`
+        : '✅ הבקשה נשלחה לאישור. סטטוס: ממתין לאישור';
       setStatus(
         statusEl,
         'is-success',
-        canDirectEdit ? '✅ הפעילות נשמרה בהצלחה' : '✅ בקשת העריכה נשלחה לאישור מנהל תפעול.'
+        canDirectEdit ? '✅ הפעילות נשמרה בהצלחה' : requestStatusText
       );
+      if (!canDirectEdit) form.dataset.lastEditRequestId = requestId;
       showToast(
-        canDirectEdit ? 'הפעילות נשמרה בהצלחה' : 'בקשת העריכה נשלחה לאישור מנהל תפעול.',
+        canDirectEdit ? 'הפעילות נשמרה בהצלחה' : 'הבקשה נשלחה לאישור · סטטוס: ממתין לאישור',
         'success',
         3000
       );
+      if (!canDirectEdit) {
+        try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
+      }
       if (canDirectEdit && typeof onRowSaved === 'function') onRowSaved({ sourceSheet, sourceRowId, changes, form });
       if (!canDirectEdit) {
         form.reset();
         updateMeetingWeekdays(form);
         updateMoreDatesToggle(form);
         updateEndDateDisplay(form);
-        clearScreenDataCache?.();
       }
       setEditMode(form, false);
       if (canDirectEdit && typeof onSaveSuccess === 'function') {

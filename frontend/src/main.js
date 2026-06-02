@@ -533,6 +533,7 @@ async function refreshOpenEditRequestsCount() {
     const normalized = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
     if (state.openEditRequestsCount !== normalized) {
       state.openEditRequestsCount = normalized;
+      updateNavCountBadges();
       if (state.token) scheduleRender();
     }
   } catch {
@@ -771,6 +772,14 @@ function exceptionsNavCount() {
 }
 
 function navLabelHtmlForRoute(route) {
+  const baseLabel = screenLabels[route] || 'מסך';
+  if (route === 'edit-requests') {
+    const count = Number(state.openEditRequestsCount);
+    const label = escapeHtml(baseLabel);
+    if (!Number.isFinite(count) || count <= 0) return label;
+    const safeCount = escapeHtml(String(count));
+    return `${label} <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" aria-label="${safeCount} בקשות עריכה פתוחות">${safeCount}</span>`;
+  }
   const label = escapeHtml(navLabelForRoute(route));
   if (route !== 'exceptions') return label;
   const count = exceptionsNavCount();
@@ -779,14 +788,20 @@ function navLabelHtmlForRoute(route) {
   return `${label} <span class="ds-nav-count-badge" aria-label="${safeCount} חריגות">(${safeCount})</span>`;
 }
 
-function updateExceptionNavCount() {
+function updateNavCountBadges() {
   if (typeof document === 'undefined') return;
-  document.querySelectorAll('[data-route="exceptions"] .ds-act-nav-item__label').forEach((node) => {
-    node.innerHTML = navLabelHtmlForRoute('exceptions');
+  ['exceptions', 'edit-requests'].forEach((route) => {
+    document.querySelectorAll(`[data-route="${route}"] .ds-act-nav-item__label`).forEach((node) => {
+      node.innerHTML = navLabelHtmlForRoute(route);
+    });
+    document.querySelectorAll(`.shell-nav__btn[data-route="${route}"]`).forEach((node) => {
+      node.innerHTML = navLabelHtmlForRoute(route);
+    });
   });
-  document.querySelectorAll('.shell-nav__btn[data-route="exceptions"]').forEach((node) => {
-    node.innerHTML = navLabelHtmlForRoute('exceptions');
-  });
+}
+
+function updateExceptionNavCount() {
+  updateNavCountBadges();
 }
 
 function shellUserRoleLine() {
@@ -1443,6 +1458,7 @@ function backgroundSyncBootstrap() {
       state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
       state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);
       state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
+      state.user.can_review_requests = permissionEnabled(bootstrap.can_review_requests);
       state.user.finance_access = !!bootstrap.has_finance_access;
       localStorage.setItem('dashboard_user', JSON.stringify(state.user));
     }
@@ -1487,6 +1503,7 @@ async function restoreSession() {
     state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
     state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);
     state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
+    state.user.can_review_requests = permissionEnabled(bootstrap.can_review_requests);
     state.user.finance_access = !!bootstrap.has_finance_access;
     localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   }
@@ -1755,6 +1772,10 @@ function bindShell() {
   /* Allow any screen to navigate programmatically via custom event */
   document.addEventListener('app:navigate', (e) => {
     navigateToRoute(e?.detail?.route);
+  });
+
+  document.addEventListener('app:edit-requests-updated', () => {
+    refreshOpenEditRequestsCount().catch(() => {});
   });
 
   document.querySelectorAll('[data-route]').forEach((button) => {

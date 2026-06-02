@@ -11857,3 +11857,32 @@ select.ds-input {
     grid-template-columns: 1fr;
   }
 }
+
+.ds-exceptions-save-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  border-radius: 14px;
+  background: rgba(220, 252, 231, 0.72);
+  color: #166534;
+  box-shadow: 0 8px 22px rgba(22, 163, 74, 0.08);
+}
+
+.ds-nav-count-badge--edit-requests {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35em;
+  height: 1.35em;
+  margin-inline-start: 0.35em;
+  padding: 0 0.42em;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.78em;
+  font-weight: 800;
+}

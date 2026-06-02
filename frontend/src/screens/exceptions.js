@@ -19,6 +19,7 @@ import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/a
 import { isEmptyValue } from '../utils/empty-value.js';
 import { EXCEPTION_TYPE_ORDER, exceptionActivityKey, normalizedExceptionTypes, uniqueExceptionActivityCount } from './shared/exceptions-metrics.js';
 import { isSummerActivity } from './shared/summer-activity.js';
+import { showToast } from './shared/toast.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
 const EXCEPTIONS_TAB_GENERAL = 'general';
@@ -290,6 +291,7 @@ export const exceptionsScreen = {
       <div class="ds-exceptions-screen">
       ${toolbarHtml}
       <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}</h2></section>
+      ${(() => { try { return sessionStorage.getItem('ds_exceptions_save_notice') === '1'; } catch { return false; } })() ? `<div class="ds-exceptions-save-notice" role="status" dir="rtl"><strong>הפעילות נשמרה בהצלחה.</strong> החריגה תוקנה ולכן הפעילות הוסרה ממסך החריגות. <button type="button" class="ds-btn ds-btn--sm" data-exception-go-activities>מעבר למסך פעילויות</button></div>` : ''}
       ${exceptionTabsHtml(activeTab, { general: tabRows.general.length, summerDates: tabRows.summerDates.length })}
       ${activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? '<p class="ds-exceptions-tab-note">פעילויות קיץ ללא תאריך מוצגות כאן בנפרד, מאחר שבדרך כלל מדובר בהזמנות שנכנסו למערכת ונמצאות עדיין בשלב תיאום.</p>' : ''}
       ${exceptionsSummaryHtml(visibleRows)}
@@ -298,6 +300,7 @@ export const exceptionsScreen = {
     `);
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
+    try { sessionStorage.removeItem('ds_exceptions_save_notice'); } catch { /* ignore */ }
     const allRows   = Array.isArray(data?.exceptionInstances) ? approvedExceptionRows(data.exceptionInstances) : exceptionInstanceRows(data?.rows || []);
     bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 150 });
     const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
@@ -308,6 +311,12 @@ export const exceptionsScreen = {
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
 
     const detailCache = new Map();
+    root.querySelectorAll('[data-exception-go-activities]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'activities' } }));
+      });
+    });
+
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, {
@@ -315,9 +324,17 @@ export const exceptionsScreen = {
         ui,
         clearScreenDataCache,
         rerender,
-        onSaveSuccess: async ({ sourceSheet, sourceRowId }) => {
+        onSaveSuccess: async ({ sourceSheet, sourceRowId, form }) => {
           detailCache.delete(`${sourceSheet || ''}|${sourceRowId || ''}`);
           clearScreenDataCache?.();
+          const statusEl = form?.querySelector?.('.ds-activity-edit-status');
+          if (statusEl) {
+            statusEl.textContent = 'הפעילות נשמרה בהצלחה. החריגה תוקנה ולכן הפעילות הוסרה ממסך החריגות.';
+            statusEl.classList.remove('is-pending', 'is-error', 'is-warning');
+            statusEl.classList.add('is-success');
+          }
+          showToast('הפעילות נשמרה בהצלחה. החריגה תוקנה ולכן הפעילות הוסרה ממסך החריגות.', 'success', 4200);
+          try { sessionStorage.setItem('ds_exceptions_save_notice', '1'); } catch { /* ignore */ }
           rerender();
         }
       });
