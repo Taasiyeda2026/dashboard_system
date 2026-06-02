@@ -3,11 +3,14 @@ const SUMMER_END_DATE = '2026-08-31';
 export const SUMMER_DEFAULT_MONTH_YM = SUMMER_START_DATE.slice(0, 7);
 export const ACTIVITY_SEASON_REGULAR = 'regular';
 export const ACTIVITY_SEASON_SUMMER_2026 = 'summer_2026';
+export const ACTIVITY_SEASON_SCHOOL_2027 = 'school_2027';
 export const ACTIVITY_SEASON_OPTIONS = [
-  { value: ACTIVITY_SEASON_REGULAR, label: 'רגיל' },
-  { value: ACTIVITY_SEASON_SUMMER_2026, label: 'קיץ תשפ״ו' }
+  { value: ACTIVITY_SEASON_REGULAR, label: 'תשפ"ו | 2026' },
+  { value: ACTIVITY_SEASON_SUMMER_2026, label: 'קיץ 2026' },
+  { value: ACTIVITY_SEASON_SCHOOL_2027, label: 'תשפ"ז | 2027' }
 ];
 const SUMMER_SEASON_ALIASES = new Set([ACTIVITY_SEASON_SUMMER_2026, 'summer']);
+const SCHOOL_2027_ALIASES = new Set([ACTIVITY_SEASON_SCHOOL_2027]);
 
 function normalizedDateText(value) {
   const raw = String(value || '').trim();
@@ -20,9 +23,10 @@ function normalizedDateText(value) {
 }
 
 export function normalizeActivitySeason(value) {
-  return SUMMER_SEASON_ALIASES.has(String(value || '').trim())
-    ? ACTIVITY_SEASON_SUMMER_2026
-    : ACTIVITY_SEASON_REGULAR;
+  const v = String(value || '').trim();
+  if (SUMMER_SEASON_ALIASES.has(v)) return ACTIVITY_SEASON_SUMMER_2026;
+  if (SCHOOL_2027_ALIASES.has(v)) return ACTIVITY_SEASON_SCHOOL_2027;
+  return ACTIVITY_SEASON_REGULAR;
 }
 
 export function activitySeasonLabel(value) {

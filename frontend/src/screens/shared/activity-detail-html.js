@@ -541,28 +541,89 @@ function buildDateChipsHtml(schedule, isOnce) {
     .join('') || '<div class="activity-drawer__date-chip">—</div>';
 }
 
+function buildOneDayViewHtml(schedule, row, datesLoading) {
+  if (datesLoading) {
+    return `<div class="activity-drawer__oneday-info" data-mode="view" data-dates-view-chips>
+      <div class="activity-drawer__date-chip ds-muted" aria-busy="true">טוען...</div>
+    </div>`;
+  }
+  const firstMeeting = schedule[0] || {};
+  const dateVal = String(firstMeeting?.date || '').trim();
+  const dateDisplay = dateVal ? formatDateHe(dateVal) : '—';
+  const weekdayDisplay = dateVal ? fmtWeekdayShort(dateVal) : '—';
+  const timeRange = (String(row.start_time || '').trim() && String(row.end_time || '').trim())
+    ? formatTimeRangeShort(row.start_time, row.end_time)
+    : '—';
+  return `<div class="activity-drawer__oneday-info" data-mode="view" data-dates-view-chips>
+    <div class="activity-drawer__field">
+      <div class="activity-drawer__label">תאריך הפעילות</div>
+      <div class="activity-drawer__value" data-oneday-date-display>${escapeHtml(dateDisplay)}</div>
+    </div>
+    <div class="activity-drawer__field">
+      <div class="activity-drawer__label">יום בשבוע</div>
+      <div class="activity-drawer__value" data-oneday-weekday-display>${escapeHtml(weekdayDisplay)}</div>
+    </div>
+    <div class="activity-drawer__field">
+      <div class="activity-drawer__label">שעות הפעילות</div>
+      <div class="activity-drawer__value">${escapeHtml(timeRange)}</div>
+    </div>
+  </div>`;
+}
+
 function blockDates(row, { canEdit = false, datesLoading = false } = {}) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = String(row.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
+  const loadingAttr = datesLoading ? ' data-dates-loading="true"' : '';
+
+  if (isOnce) {
+    const firstMeeting = schedule[0] || {};
+    const dateVal = String(firstMeeting?.date || '').trim();
+    const oneDayEditCard = `
+      <div class="activity-drawer__date-card" data-meeting-index="0">
+        <div class="activity-drawer__date-card-top">
+          <span class="activity-drawer__meeting-index">תאריך הפעילות</span>
+          <span class="activity-drawer__date-card-top-aside">
+            <span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(dateVal))}</span>
+          </span>
+        </div>
+        ${inputHtml({
+          name: 'meeting_date_0',
+          value: dateVal,
+          type: 'date',
+          attrs: 'data-role="meeting-date" data-meeting-index="0" data-meeting-idx="0" data-oneday-date',
+        })}
+        <input type="hidden" name="meeting_performed_0" value="${escapeHtml(String(firstMeeting?.performed || 'no'))}">
+      </div>
+    `;
+    return `
+      <section class="activity-drawer__section" data-dates-section${loadingAttr}>
+        <div class="activity-drawer__section-head">
+          <h3 class="activity-drawer__section-title">תאריך ושעות פעילות</h3>
+          ${canEdit ? '<button type="button" class="activity-drawer__action" data-action="start-edit" data-mode="view">✏️ עריכה</button>' : ''}
+        </div>
+        ${buildOneDayViewHtml(schedule, row, datesLoading)}
+        <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
+          ${oneDayEditCard}
+        </div>
+      </section>
+    `;
+  }
+
   const computedEnd = autoEndDate(row);
   const doneFromSchedule = countDoneMeetings(schedule);
   const doneFallback = numericOrNull(row?.meetings_done);
   const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
   const total = numericOrNull(row?.meetings_total) ?? schedule.length ?? 0;
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-  const viewChips = buildDateChipsHtml(schedule, isOnce);
-  const editDates = isOnce ? schedule.slice(0, 1) : schedule;
-  const removeMeetingBtn = isOnce
-    ? ''
-    : `<button type="button" class="activity-drawer__date-remove" data-action="remove-meeting" aria-label="הסר מפגש">🗑</button>`;
-  const datePickers = editDates
+  const viewChips = buildDateChipsHtml(schedule, false);
+  const datePickers = schedule
     .map((item, i) => `
       <div class="activity-drawer__date-card" data-meeting-index="${i}">
         <div class="activity-drawer__date-card-top">
           <span class="activity-drawer__meeting-index">מפגש ${i + 1}</span>
           <span class="activity-drawer__date-card-top-aside">
-            ${removeMeetingBtn}
+            <button type="button" class="activity-drawer__date-remove" data-action="remove-meeting" aria-label="הסר מפגש">🗑</button>
             <span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>
           </span>
         </div>
@@ -576,19 +637,7 @@ function blockDates(row, { canEdit = false, datesLoading = false } = {}) {
       </div>
     `)
     .join('');
-  const chainToggle = isOnce
-    ? ''
-    : `
-      <div class="activity-drawer__date-mode" data-mode="edit" data-chain-toggle hidden>
-        <button type="button" class="activity-drawer__toggle" data-date-mode="single">בודד</button>
-        <button type="button" class="activity-drawer__toggle is-active" data-date-mode="chain">שרשרת</button>
-      </div>
-    `;
-  const addMeetingBtn = isOnce
-    ? ''
-    : `<button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-mode="edit" hidden>➕ הוסף מפגש</button>`;
 
-  const loadingAttr = datesLoading ? ' data-dates-loading="true"' : '';
   const progressHtml = datesLoading
     ? `<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
@@ -634,8 +683,11 @@ function blockDates(row, { canEdit = false, datesLoading = false } = {}) {
       <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
         ${datePickers}
       </div>
-      ${chainToggle}
-      ${addMeetingBtn}
+      <div class="activity-drawer__date-mode" data-mode="edit" data-chain-toggle hidden>
+        <button type="button" class="activity-drawer__toggle" data-date-mode="single">בודד</button>
+        <button type="button" class="activity-drawer__toggle is-active" data-date-mode="chain">שרשרת</button>
+      </div>
+      <button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-mode="edit" hidden>➕ הוסף מפגש</button>
     </section>
   `;
 }
@@ -669,6 +721,18 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   const schedule = Array.isArray(datesData?.meeting_schedule) ? datesData.meeting_schedule : [];
   const activityType = String(datesData?.activity_type || '').trim();
   const isOnce = ONCE_TYPES.includes(activityType);
+
+  if (isOnce) {
+    const firstMeeting = schedule[0] || {};
+    const dateVal = String(firstMeeting?.date || '').trim();
+    const dateEl = sectionEl.querySelector('[data-oneday-date-display]');
+    if (dateEl) dateEl.textContent = dateVal ? formatDateHe(dateVal) : '—';
+    const weekdayEl = sectionEl.querySelector('[data-oneday-weekday-display]');
+    if (weekdayEl) weekdayEl.textContent = dateVal ? fmtWeekdayShort(dateVal) : '—';
+    sectionEl.removeAttribute('data-dates-loading');
+    return;
+  }
+
   const doneFromSchedule = countDoneMeetings(schedule);
   const doneFallback = numericOrNull(datesData?.meetings_done);
   const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
@@ -688,7 +752,7 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   if (endDisplay) endDisplay.textContent = formatDateHeWithWeekday(computedEnd) || '—';
 
   const chipsDiv = sectionEl.querySelector('[data-dates-view-chips]');
-  if (chipsDiv) chipsDiv.innerHTML = buildDateChipsHtml(schedule, isOnce);
+  if (chipsDiv) chipsDiv.innerHTML = buildDateChipsHtml(schedule, false);
 
   sectionEl.removeAttribute('data-dates-loading');
 }
