@@ -42,6 +42,7 @@ const MUTATING_ACTIONS = {
   updateProposalAgreementStatus: true,
   deleteProposalAgreement: true,
   saveProposalAgreementItems: true
+  ,saveActivityLayoutStatus: true
   ,deleteActivity: true
 };
 
@@ -66,6 +67,7 @@ const READ_ACTIONS = {
   editRequests: true,
   permissions: true,
   proposalsAgreements: true,
+  activityLayoutStatuses: true,
   adminSettings: true,
   adminLists: true,
   listSheets: true,
@@ -2974,6 +2976,39 @@ export const api = {
     const supabaseData = await readActivitiesFromSupabase(resolvedFilters);
     if (supabaseData) return normalizeData(supabaseData);
     return normalizeData(buildSupabaseErrorPayload({ rows: [] }, 'activities_supabase_failed', { filters: resolvedFilters }));
+  },
+  activityLayoutStatuses: async (payload = {}) => {
+    const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+    if (!['admin', 'operation_manager'].includes(role)) throw new Error('activity_layout_forbidden');
+    const season = String(payload?.season || 'summer_2026').trim() || 'summer_2026';
+    const { data, error } = await supabase
+      .from('activity_layout_statuses')
+      .select('season,authority,school,sent,sent_at,sent_by')
+      .eq('season', season);
+    if (error) throw new Error(error.message || 'activity_layout_statuses_read_failed');
+    return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
+  },
+  saveActivityLayoutStatus: async (payload = {}) => {
+    const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+    if (!['admin', 'operation_manager'].includes(role)) throw new Error('activity_layout_forbidden');
+    const row = {
+      season: String(payload?.season || 'summer_2026').trim() || 'summer_2026',
+      authority: String(payload?.authority || '').trim(),
+      school: String(payload?.school || '').trim(),
+      sent: payload?.sent === true || String(payload?.sent || '').trim().toLowerCase() === 'yes',
+      sent_at: payload?.sent_at || new Date().toISOString(),
+      sent_by: String(payload?.sent_by || state?.user?.full_name || state?.user?.user_id || '').trim()
+    };
+    if (!row.authority || !row.school) throw new Error('missing_activity_layout_status_fields');
+    const { data, error } = await supabase
+      .from('activity_layout_statuses')
+      .upsert(row, { onConflict: 'season,authority,school' })
+      .select('season,authority,school,sent,sent_at,sent_by')
+      .single();
+    if (error) throw new Error(error.message || 'activity_layout_status_save_failed');
+    clearScreenDataCache();
+    deletePersistedCacheByPrefixes(['activities:']);
+    return { ok: true, row: data || row };
   },
   activityDetail: (source_row_id, source_sheet) => readActivityDetailFromSupabase(source_row_id, source_sheet),
   activityDates: (source_row_id, source_sheet) => readActivityDatesFromSupabase(source_row_id, source_sheet),
