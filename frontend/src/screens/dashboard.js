@@ -2,6 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack } from './shared/layout.js';
 import { computeOperationalExceptionsTotal } from './shared/exceptions-metrics.js';
 import { syncActivitiesGapQuery } from './shared/route-query.js';
+import { SUMMER_DEFAULT_MONTH_YM } from './shared/summer-activity.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -174,6 +175,16 @@ function renderStructuredSummary(summary, ym, byManager) {
   </div>`;
 }
 
+function resetActivitiesListFilters(state) {
+  state.listFilters = state.listFilters || {};
+  const prevVisibleCount = state.listFilters.activities?.visibleCount;
+  state.listFilters.activities = {
+    q: '',
+    appliedQ: '',
+    visibleCount: typeof prevVisibleCount === 'number' ? prevVisibleCount : 200
+  };
+}
+
 function goActivitiesDrill(state, patch) {
   state.route = 'activities';
   state.activityTab = patch.activityTab ?? 'all';
@@ -181,7 +192,8 @@ function goActivitiesDrill(state, patch) {
   state.activityQuickFamily = patch.activityQuickFamily ?? '';
   state.activityQuickManager = patch.activityQuickManager ?? '';
   state.activityEndingCurrentMonth = !!patch.activityEndingCurrentMonth;
-  state.activitiesMonthYm = state.dashboardMonthYm || currentMonthYm();
+  state.activitiesMonthYm = patch.activitiesMonthYm || state.dashboardMonthYm || currentMonthYm();
+  if (patch.resetActivityListFilters) resetActivitiesListFilters(state);
   if (Object.prototype.hasOwnProperty.call(patch, 'activitiesGapFilter')) {
     state.activitiesGapFilter = patch.activitiesGapFilter || '';
     syncActivitiesGapQuery(state.activitiesGapFilter);
@@ -614,7 +626,11 @@ export const dashboardScreen = {
         return;
       }
       if (action === 'kpi|summer') {
-        goActivitiesDrill(state, { activityQuickFamily: 'summer' });
+        goActivitiesDrill(state, {
+          activityQuickFamily: 'summer',
+          activitiesMonthYm: SUMMER_DEFAULT_MONTH_YM,
+          resetActivityListFilters: true
+        });
         ui.closeAll();
         rerender();
         return;

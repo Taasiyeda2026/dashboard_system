@@ -1,5 +1,6 @@
 const SUMMER_START_DATE = '2026-07-01';
 const SUMMER_END_DATE = '2026-08-31';
+export const SUMMER_DEFAULT_MONTH_YM = SUMMER_START_DATE.slice(0, 7);
 export const ACTIVITY_SEASON_REGULAR = 'regular';
 export const ACTIVITY_SEASON_SUMMER_2026 = 'summer_2026';
 export const ACTIVITY_SEASON_OPTIONS = [
