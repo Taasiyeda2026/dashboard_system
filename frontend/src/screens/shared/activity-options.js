@@ -269,3 +269,26 @@ export function getFilterOptionOverrides(settings) {
 export function cleanUnique(values) {
   return uniqueSorted(values);
 }
+
+export const GRADE_OPTIONS = [
+  'הכנה לכיתה א׳',
+  'א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳',
+  'ז׳', 'ח׳', 'ט׳', 'י׳', 'י״א', 'י״ב'
+];
+
+export function resolveGradeOptions(settings) {
+  const map = settings?.dropdown_options || {};
+  const fromSettings = [];
+  const seen = new Set();
+  ['grade', 'grades', 'class'].forEach((k) => {
+    const arr = Array.isArray(map[k]) ? map[k] : [];
+    arr.forEach((v) => {
+      const s = String(v || '').trim();
+      if (s && !seen.has(s)) { seen.add(s); fromSettings.push(s); }
+    });
+  });
+  const ordered = [...GRADE_OPTIONS];
+  const seenOrdered = new Set(GRADE_OPTIONS);
+  fromSettings.forEach((s) => { if (!seenOrdered.has(s)) { ordered.push(s); seenOrdered.add(s); } });
+  return ordered;
+}

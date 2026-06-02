@@ -1,6 +1,6 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
-import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName } from './activity-options.js';
+import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
 import { ACTIVITY_SEASON_OPTIONS, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
@@ -159,6 +159,21 @@ function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '�
     )
     .join('');
   return `<select class="${escapeHtml(klass)}" name="${escapeHtml(name)}" ${attrs}>${opts}</select>`;
+}
+
+function gradeSelectHtml({ name, value, options, klass = 'ds-input', placeholder = '— בחרו כיתה —' }) {
+  const safeValue = String(value || '').trim();
+  const seen = new Set();
+  const unique = [];
+  (Array.isArray(options) ? options : []).forEach((o) => {
+    const s = String(o || '').trim();
+    if (s && !seen.has(s)) { seen.add(s); unique.push(s); }
+  });
+  if (safeValue && !seen.has(safeValue)) unique.unshift(safeValue);
+  const opts = [`<option value="">${escapeHtml(placeholder)}</option>`]
+    .concat(unique.map((o) => `<option value="${escapeHtml(o)}"${o === safeValue ? ' selected' : ''}>${escapeHtml(o)}</option>`))
+    .join('');
+  return `<select class="${escapeHtml(klass)}" name="${escapeHtml(name)}">${opts}</select>`;
 }
 
 function activitySeasonOptions(settings = {}) {
@@ -392,7 +407,7 @@ function blockAssignment(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
   const schools = mergeListStrings(options, ['school', 'schools']);
   const authorities = mergeListStrings(options, ['authority', 'authorities']);
-  const grades = mergeListStrings(options, ['grade', 'grades']);
+  const grades = resolveGradeOptions(settings);
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
@@ -413,7 +428,7 @@ function blockAssignment(row, { settings = {} } = {}) {
         ${fieldEditOnly(
           'כיתה / קבוצה',
           `<div class="activity-drawer__field-controls activity-drawer__field-controls--inline">
-            ${selectHtml({ name: 'grade', value: row.grade, options: grades })}
+            ${gradeSelectHtml({ name: 'grade', value: row.grade, options: grades })}
             ${inputHtml({ name: 'class_group', value: row.class_group, attrs: 'placeholder="קבוצה"' })}
           </div>`
         )}

@@ -33,7 +33,8 @@ import {
   getManagerUsers,
   getFilterOptionOverrides,
   cleanUnique,
-  NO_ACTIVITY_MANAGER_LABEL
+  NO_ACTIVITY_MANAGER_LABEL,
+  resolveGradeOptions
 } from './shared/activity-options.js';
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
@@ -385,7 +386,7 @@ function addActivityModalHtml(settings) {
   const rosterNames = rosterUsers.map((u) => u.name);
   const managerRoleNames = getManagerUsers(settings);
   const fundingOptions = mergeOptions(settings, ['funding', 'fundings']);
-  const gradeOptions = mergeOptions(settings, ['grade', 'grades']);
+  const gradeOptions = resolveGradeOptions(settings);
   const schoolOptions = mergeOptions(settings, ['school', 'schools']);
   const authorityOptions = mergeOptions(settings, ['authority', 'authorities']);
   const managerOptions = managerRoleNames.length
@@ -442,7 +443,7 @@ function addActivityModalHtml(settings) {
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מימון</span><select class="ds-input" name="funding">${optionsHtml(fundingOptions)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
-        <label class="ds-activity-add-field"><span>שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions)}</select></label>
+        <label class="ds-activity-add-field"><span>כיתה / שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions, '', '— בחרו כיתה —')}</select></label>
         ${authorityField}
         ${schoolField}
 
@@ -1011,6 +1012,7 @@ export const activitiesScreen = {
       if (empId && fullName && !acc[empId]) acc[empId] = fullName;
       return acc;
     }, {});
+    const isSummerTab = state.activityPeriodTab === 'summer_2026';
     const tableRows = safeRows
       .map((row) => {
         const instructorMeta = activityInstructorMeta(row, { hideEmpIds, instructorByEmpId });
@@ -1023,9 +1025,6 @@ export const activitiesScreen = {
         const editStatusBadge = editStatus
           ? `<span class="ds-chip ds-chip--status ds-chip--warn" title="${escapeHtml(editStatus)}">${escapeHtml(editStatus)}</span>`
           : '';
-        const startHe = formatDateHe(row.start_date) || '—';
-        const endRaw = String(row?.end_date || row?.date_end || '').trim() || String(row?.start_date || '').trim();
-        const endHe = endRaw ? formatDateHe(endRaw) || '—' : '—';
         const managerLabel = activityManagerDisplayName(row.activity_manager);
         const rowSearch = [
           hideRowId ? '' : row.RowID,
@@ -1035,6 +1034,7 @@ export const activitiesScreen = {
           row.end_date,
           row.school,
           row.authority,
+          row.grade,
           row.instructor_name,
           row.instructor_name_2,
           row.activity_manager,
@@ -1045,6 +1045,27 @@ export const activitiesScreen = {
         ]
           .filter(Boolean)
           .join(' ');
+
+        if (isSummerTab) {
+          const activityDateRaw = String(row.date_1 || row.start_date || '').trim();
+          const activityDateHe = activityDateRaw ? (formatDateHe(activityDateRaw) || activityDateRaw) : '—';
+          const gradeDisplay = escapeHtml(String(row.grade || '—'));
+          return `
+      <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
+        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
+        <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
+        <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.school || '—')}">${escapeHtml(row.school || '—')}</span></td>
+        <td class="ds-activities-col ds-activities-col--grade" style="text-align:center">${gradeDisplay}</td>
+        <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}<span class="ds-activities-manager-line" title="${escapeHtml(managerLabel || '—')}">מנהל: ${escapeHtml(managerLabel || '—')}</span></div></td>
+        <td class="ds-activities-col ds-activities-col--date" style="text-align:center"><time class="ds-activities-date">${escapeHtml(activityDateHe)}</time></td>
+        <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(String(row.notes || '—'))}">${escapeHtml(String(row.notes || '—'))}</span></td>
+      </tr>
+    `;
+        }
+
+        const startHe = formatDateHe(row.start_date) || '—';
+        const endRaw = String(row?.end_date || row?.date_end || '').trim() || String(row?.start_date || '').trim();
+        const endHe = endRaw ? formatDateHe(endRaw) || '—' : '—';
         return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
         <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
@@ -1074,13 +1095,18 @@ export const activitiesScreen = {
       ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ACTIVITIES_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
       : '';
 
-    const tableSection =
-      safeRows.length === 0
-        ? dsEmptyState(periodRows.length === 0
-            ? 'אין פעילויות להצגה בתקופה זו'
-            : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
-                <colgroup>
+    const tableColsHtml = isSummerTab
+      ? `<colgroup>
+                  <col class="ds-activities-col--program">
+                  <col class="ds-activities-col--authority">
+                  <col class="ds-activities-col--school">
+                  <col class="ds-activities-col--grade">
+                  <col class="ds-activities-col--instructor">
+                  <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--notes">
+                </colgroup>
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th style="text-align:center">כיתה</th><th>מדריך</th><th style="text-align:center">תאריך פעילות</th><th>הערות</th></tr></thead>`
+      : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
                   <col class="ds-activities-col--school">
@@ -1090,7 +1116,14 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--meetings">
                   <col class="ds-activities-col--notes">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>הערות</th></tr></thead>
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>הערות</th></tr></thead>`;
+    const tableSection =
+      safeRows.length === 0
+        ? dsEmptyState(periodRows.length === 0
+            ? 'אין פעילויות להצגה בתקופה זו'
+            : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
+        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
+                ${tableColsHtml}
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
 
