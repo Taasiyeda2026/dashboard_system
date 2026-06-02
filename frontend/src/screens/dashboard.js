@@ -190,7 +190,7 @@ function goActivitiesDrill(state, patch) {
   state.activityTab = patch.activityTab ?? 'all';
   state.activityFinanceStatus = patch.activityFinanceStatus ?? '';
   state.activityQuickFamily = patch.activityQuickFamily ?? '';
-  state.activityPeriodTab = patch.activityPeriodTab || (patch.activityQuickFamily === 'summer' ? 'summer_2026' : (state.activityPeriodTab || 'summer_2026'));
+  state.activityPeriodTab = patch.activityPeriodTab || (patch.activityQuickFamily === 'summer' ? 'summer_2026' : (state.activityPeriodTab || 'school_2026'));
   state.activityQuickManager = patch.activityQuickManager ?? '';
   state.activityEndingCurrentMonth = !!patch.activityEndingCurrentMonth;
   state.activitiesMonthYm = patch.activitiesMonthYm || state.dashboardMonthYm || currentMonthYm();
