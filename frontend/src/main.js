@@ -515,6 +515,7 @@ const screenLabels = {
   'proposals-agreements': 'הצעות מחיר',
   finance: 'כספים / גבייה',
   invitations: 'הזמנות',
+  orders: 'הזמנות',
   catalog: 'קטלוג'
 };
 
@@ -561,6 +562,7 @@ const screenLoaders = {
   'proposals-agreements': () => import('./screens/proposals-agreements.js').then((m) => m.proposalsAgreementsScreen),
   finance: () => import('./screens/finance.js').then((m) => m.financeScreen),
   invitations: () => import('./screens/invitations.js').then((m) => m.invitationsScreen),
+  orders: () => import('./screens/orders.js').then((m) => m.ordersScreen),
   catalog: () => import('./screens/catalog.js').then((m) => m.catalogScreen)
 };
 const loadedScreens = new Map();
@@ -615,15 +617,15 @@ function applySettingsToRoutes(routes, settings = state.clientSettings) {
   }
   const blocked = navDisabledRoutesSet(settings);
   const seen = new Set();
-  const baseRoutes = Array.isArray(routes) ? routes : [];
-  if (!baseRoutes.includes('invitations')) baseRoutes.push('invitations');
-  if (!baseRoutes.includes('catalog')) baseRoutes.push('catalog');
-  return baseRoutes.filter((route) => {
-    if (!route || blocked.has(route) || seen.has(route)) return false;
-    if (!screenLoaders[route]) return false;
-    seen.add(route);
-    return true;
-  });
+  const baseRoutes = Array.isArray(routes) ? [...routes] : [];
+  return baseRoutes
+    .map((route) => (route === 'invitations' ? 'orders' : route))
+    .filter((route) => {
+      if (!route || blocked.has(route) || (route === 'orders' && blocked.has('invitations')) || seen.has(route)) return false;
+      if (!screenLoaders[route]) return false;
+      seen.add(route);
+      return true;
+    });
 }
 
 function effectiveRoutes() {
@@ -679,6 +681,7 @@ function consumePendingRouteFromUrlOrSession() {
       window.history.replaceState({}, '', url);
     }
   } catch { /* ignore */ }
+  if (pending === 'invitations') pending = 'orders';
   if (isAllowedRoute(pending)) {
     state.route = pending;
     saveRoutesToStorage(state.routes, pending, state.clientSettings);
