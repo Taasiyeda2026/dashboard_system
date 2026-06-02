@@ -774,6 +774,22 @@ function activityLayoutInstructors(row = {}) {
     .join(', ');
 }
 
+function activityLayoutClassGroup(row = {}) {
+  const grade = cleanText(row.grade || row.Grade || row.school_grade || row.class_grade || row.layer || row.class_layer);
+  const classGroup = cleanText(row.class_group || row.classGroup || row.group || row.group_name || row.class_name || row.class);
+  const formatGrade = (value) => {
+    if (!value) return '';
+    if (/^כיתה(?:\s|$)/.test(value)) return value;
+    return `כיתה ${value}`;
+  };
+  const formatGroup = (value) => {
+    if (!value) return '';
+    if (/^(?:קבוצה|כיתה)(?:\s|$)/.test(value)) return value;
+    return `קבוצה ${value}`;
+  };
+  return [formatGrade(grade), formatGroup(classGroup)].filter(Boolean).join(' / ');
+}
+
 function isActivityLayoutRowComplete(row = {}) {
   return Boolean(
     cleanText(row.school) &&
@@ -868,6 +884,7 @@ function activityLayoutRowsForDocument(group) {
       date: activityLayoutDate(row),
       startTime: activityLayoutStartTime(row),
       endTime: activityLayoutEndTime(row),
+      classGroup: activityLayoutClassGroup(row),
       activityName: cleanText(row.activity_name),
       instructors: activityLayoutInstructors(row)
     }))
@@ -892,6 +909,7 @@ function activityLayoutDocumentHtml(group) {
     <td>${escapeHtml(formatActivityLayoutDate(row.date))}</td>
     <td>${escapeHtml(row.startTime)}</td>
     <td>${escapeHtml(row.endTime)}</td>
+    <td>${escapeHtml(row.classGroup)}</td>
     <td>${escapeHtml(row.activityName)}</td>
     <td>${escapeHtml(row.instructors)}</td>
   </tr>`).join('');
@@ -902,7 +920,7 @@ function activityLayoutDocumentHtml(group) {
     .screen-actions { display: flex; justify-content: center; gap: 10px; padding: 18px; }
     .print-btn { border: 0; border-radius: 999px; background: #2563eb; color: #fff; padding: 10px 18px; font-weight: 700; cursor: pointer; }
     .doc { width: 210mm; min-height: 297mm; margin: 0 auto 24px; background: #fff; padding: 18mm; box-shadow: 0 16px 40px rgba(15,23,42,.16); }
-    .doc-logo { display: block; width: 145px; max-height: 70px; object-fit: contain; margin: 0 0 16px auto; }
+    .doc-logo { display: block; width: 145px; max-height: 70px; object-fit: contain; margin: 0 auto 16px 0; }
     h1 { margin: 0 0 18px; text-align: center; font-size: 24px; }
     .meta { margin: 0 0 20px; font-size: 16px; }
     .meta div { margin: 2px 0; }
@@ -911,7 +929,7 @@ function activityLayoutDocumentHtml(group) {
     table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
     th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right; vertical-align: top; }
     th { background: #f1f5f9; font-weight: 700; }
-    .signature { margin-top: 24px; }
+    .signature { margin-top: 24px; text-align: left; direction: rtl; }
     @media print { body { background: #fff; } .screen-actions { display: none !important; } .doc { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; } }
   </style></head><body><div class="screen-actions"><button class="print-btn" type="button" onclick="window.print()">הדפסה / שמירה כ־PDF</button></div><main class="doc">
     <img class="doc-logo" src="${escapeHtml(taasiyedaLogoSrc)}" alt="תעשיידע">
@@ -925,7 +943,7 @@ function activityLayoutDocumentHtml(group) {
     <p>בהמשך לתיאום ולשיבוץ הפעילויות מול בית הספר, מצורפת פריסת הפעילויות המתוכננת במסגרת קיץ תשפ"ו | 2026.</p>
     <p>נבקש לעבור על הפריסה ולעדכן את צוות תעשיידע מראש במקרה של שינוי בלוחות הזמנים, בהרכב הקבוצות, במיקום הפעילות או בכל צורך תפעולי אחר, כדי שנוכל להיערך בהתאם.</p>
     <h2>טבלת פריסת הפעילות</h2>
-    <table><thead><tr><th>תאריך</th><th>שעת התחלה</th><th>שעת סיום</th><th>פעילות / סדנה</th><th>מדריך</th></tr></thead><tbody>${tableRows}</tbody></table>
+    <table><thead><tr><th>תאריך</th><th>שעת התחלה</th><th>שעת סיום</th><th>כיתה</th><th>פעילות / סדנה</th><th>מדריך</th></tr></thead><tbody>${tableRows || '<tr><td colspan="6">לא נמצאו שיבוצים להצגה.</td></tr>'}</tbody></table>
     <div class="signature">בברכה,<br>תעשיידע</div>
   </main></body></html>`;
 }
@@ -946,19 +964,17 @@ function openActivityLayoutDocument(group) {
 
 function activityLayoutListHtml(groups = []) {
   const rows = (Array.isArray(groups) ? groups : []).map((group) => {
-    const status = group.status?.sent ? `✓ נשלח${group.status?.sent_at ? ` — ${escapeHtml(formatActivityLayoutDate(cleanText(group.status.sent_at).slice(0, 10)))}` : ''}` : 'לא נשלח';
+    const isSent = !!group.status?.sent;
     const key = encodeURIComponent(activityLayoutStatusKey(group));
     return `<tr>
       <td><button type="button" class="ds-link-btn" data-activity-layout-open="${key}">${escapeHtml(group.school)}</button></td>
       <td>${escapeHtml(group.authority)}</td>
       <td>${escapeHtml(String(group.count || 0))}</td>
-      <td>${escapeHtml(group.dateRange || '—')}</td>
-      <td><span class="ds-chip ds-chip--status${group.status?.sent ? ' ds-chip--ok' : ''}">${status}</span></td>
-      <td class="ds-actions-cell"><button type="button" class="ds-btn ds-btn--sm" data-activity-layout-open="${key}">הפק מסמך</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activity-layout-sent="${key}">סמן כנשלח</button></td>
+      <td class="ds-actions-cell"><button type="button" class="ds-btn ds-btn--sm" data-activity-layout-open="${key}">הפק מסמך</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activity-layout-sent="${key}"${isSent ? ' disabled aria-disabled="true"' : ''}>${isSent ? 'נשלח' : 'סמן כנשלח'}</button></td>
     </tr>`;
   }).join('');
   if (!rows) return '<div class="ds-empty" dir="rtl"><p class="ds-empty__msg">אין בתי ספר מוכנים להפקת פריסת פעילות בשלב זה.</p></div>';
-  return dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>בית ספר</th><th>רשות</th><th>מספר פעילויות</th><th>טווח תאריכים</th><th>סטטוס שליחה</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>`);
+  return dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>בית ספר</th><th>רשות</th><th>מספר פעילויות</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>`);
 }
 
 export const activitiesScreen = {
@@ -1086,7 +1102,7 @@ export const activitiesScreen = {
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">↻</button>
-        ${canUseLayout ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activity-layout-list title="פריסת פעילות לבתי ספר עם שיבוץ מלא">פריסת פעילות</button>` : ''}
+        ${canUseLayout ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn ds-activities-toolbar-btn--layout" data-activity-layout-list title="פריסת פעילות לבתי ספר עם שיבוץ מלא">פריסת פעילות</button>` : ''}
         ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-export-all title="ייצוא הפעילויות בלשונית הפעילה לאקסל">ייצוא לאקסל</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-admin-summary title="סיכום אדמין ללשונית הפעילה">סיכום אדמין</button>` : ''}
         ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">+</button>` : ''}
       </div>

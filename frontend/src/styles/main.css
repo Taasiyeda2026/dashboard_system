@@ -9727,6 +9727,20 @@ select.ds-input {
   white-space: nowrap;
 }
 
+.ds-activities-main-toolbar__actions .ds-activities-toolbar-btn--layout {
+  border-color: rgba(37, 99, 235, 0.56);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(219, 234, 254, 0.78));
+  color: #1d4ed8;
+  font-weight: 800;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14), 0 10px 26px rgba(37, 99, 235, 0.2);
+}
+
+.ds-activities-main-toolbar__actions .ds-activities-toolbar-btn--layout:hover,
+.ds-activities-main-toolbar__actions .ds-activities-toolbar-btn--layout:focus-visible {
+  border-color: rgba(37, 99, 235, 0.78);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), 0 12px 30px rgba(37, 99, 235, 0.25);
+}
+
 .ds-admin-summary {
   display: grid;
   gap: 1rem;
