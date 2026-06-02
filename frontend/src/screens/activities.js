@@ -41,6 +41,7 @@ import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQuer
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 import { ACTIVITY_SEASON_OPTIONS, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
+import { showToast } from './shared/toast.js';
 
 const inflightActivityDetailRequests = new Map();
 const ADD_ACTIVITY_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
@@ -1453,11 +1454,13 @@ export const activitiesScreen = {
         console.info('[addActivity] success', rsp);
         clearScreenDataCache?.();
         const hasSavedDate = !!String(payload.start_date || payload.end_date || meetingDateValues.find(Boolean) || '').trim();
-        if (statusEl) statusEl.textContent = hasSavedDate
-          ? 'הפעילות נשמרה'
-          : 'הפעילות נשמרה ללא תאריך ותופיע ברשימת ממתינות לתיאום תאריך.';
         const activityMonth = String(payload.start_date || payload.end_date || meetingDateValues.find(Boolean) || '').slice(0, 7);
-        if (/^\d{4}-\d{2}$/.test(activityMonth) && state.activitiesMonthYm !== activityMonth) {
+        const savedToOtherMonth = /^\d{4}-\d{2}$/.test(activityMonth) && state.activitiesMonthYm !== activityMonth;
+        if (statusEl) statusEl.textContent = hasSavedDate
+          ? (savedToOtherMonth ? 'הפעילות נשמרה לחודש אחר. עוברים לחודש הפעילות.' : 'הפעילות נשמרה')
+          : 'הפעילות נשמרה ללא תאריך ותופיע ברשימת ממתינות לתיאום תאריך.';
+        showToast(savedToOtherMonth ? 'הפעילות נשמרה לחודש אחר. עוברים לחודש הפעילות.' : 'הפעילות נשמרה', 'success', 3000);
+        if (savedToOtherMonth) {
           state.activitiesMonthYm = activityMonth;
         }
         ui?.closeModal?.();

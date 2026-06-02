@@ -225,7 +225,8 @@ export const editRequestsScreen = {
           const groupEl = btn.closest('.ds-er-group');
           groupEl?.remove();
           clearScreenDataCache?.();
-          showToast(status === 'approved' ? 'הבקשה אושרה' : 'הבקשה נדחתה', 'success');
+          try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
+          showToast(status === 'approved' ? 'הבקשה אושרה והשינוי נשמר בפעילויות' : 'הבקשה נדחתה', 'success');
           rerender?.();
         } catch (err) {
           btn.disabled = false;

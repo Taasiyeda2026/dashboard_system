@@ -150,3 +150,24 @@ test('Hebrew one-day type label saves canonical activity_type and selected speci
   assert.equal(row.date_1, '2026-06-19');
   assert.equal(row.status, 'פתוח');
 });
+
+test('new workshop save generates a row_id and stores selected workshop name/date fields', () => {
+  const row = normalizeForSave({
+    activity_type: 'workshop',
+    item_type: 'workshop',
+    activity_family: 'program',
+    activity_name: 'סדנת רובוטיקה מתקדמת',
+    one_day_date: '2026-07-05',
+    status: 'פעיל'
+  });
+
+  assert.match(row.row_id, /^ACT-/);
+  assert.equal(row.activity_family, 'one_day');
+  assert.equal(row.activity_type, 'workshop');
+  assert.equal(row.item_type, 'workshop');
+  assert.equal(row.activity_name, 'סדנת רובוטיקה מתקדמת');
+  assert.equal(row.status, 'פתוח');
+  assert.equal(row.date_1, '2026-07-05');
+  assert.equal(row.start_date, '2026-07-05');
+  assert.equal(row.end_date, '2026-07-05');
+});

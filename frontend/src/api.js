@@ -1380,7 +1380,7 @@ function invalidateScreenDataByAction(action) {
     saveActivity: ['activities:', 'activityDetail:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     addActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     deleteActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'archive', 'end-dates', 'exceptions:'],
-    submitEditRequest: ['activities:', 'edit-requests', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'end-dates'],
+    submitEditRequest: ['edit-requests'],
     reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:'],
     addUser: ['permissions', 'dashboard:'],
     deactivateUser: ['permissions', 'dashboard:'],
@@ -1877,6 +1877,11 @@ function permissionFlagYes(value) {
   return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
 }
 
+function canReviewEditRequestsUser(user = state?.user || {}) {
+  const role = String(user?.display_role || user?.role || '').trim();
+  return ['admin', 'operation_manager'].includes(role) || permissionFlagYes(user?.can_review_requests);
+}
+
 function getLoginStatus(row) {
   return String(row?.status || '').trim();
 }
@@ -1940,6 +1945,10 @@ function buildBootstrapFromUser(userRow) {
   if (!hasFinanceAccess && financeIdx >= 0) allowedRoutes.splice(financeIdx, 1);
   const canEditDirect = permissionFlagYes(flat.can_edit_direct);
   const canRequestEdit = canEditDirect || permissionFlagYes(flat.can_request_edit);
+  const canReviewRequests = ['admin', 'operation_manager'].includes(role) || permissionFlagYes(flat.can_review_requests);
+  if ((canRequestEdit || canReviewRequests || permissionFlagYes(flat.view_edit_requests)) && !allowedRoutes.includes('edit-requests')) {
+    allowedRoutes.push('edit-requests');
+  }
   return {
     routes: [...allowedRoutes],
     default_route: allowedRoutes[0] || 'my-data',
@@ -1952,6 +1961,7 @@ function buildBootstrapFromUser(userRow) {
     can_add_activity: permissionFlagYes(flat.can_add_activity),
     can_edit_direct: canEditDirect,
     can_request_edit: canRequestEdit,
+    can_review_requests: canReviewRequests,
     client_settings: {}
   };
 }
@@ -2863,6 +2873,7 @@ export const api = {
         can_add_activity: permissionFlagYes(flat.can_add_activity),
         can_edit_direct: permissionFlagYes(flat.can_edit_direct),
         can_request_edit: (permissionFlagYes(flat.can_edit_direct) || permissionFlagYes(flat.can_request_edit)),
+        can_review_requests: (['admin', 'operation_manager'].includes(flat.role) || permissionFlagYes(flat.can_review_requests)),
         finance_access: permissionFlagYes(flat.finance_access)
       },
       ...buildBootstrapFromUser(user),
@@ -2986,8 +2997,12 @@ export const api = {
       .select('*')
       .order('requested_at', { ascending: false });
     if (error) throw new Error(error.message || 'edit_requests_read_failed');
-    const rows = Array.isArray(data) ? data : [];
-    const canReview = ['admin', 'operation_manager'].includes(String(state?.user?.display_role || ''));
+    const currentUserId = String(state?.user?.user_id || '').trim();
+    const canReview = canReviewEditRequestsUser();
+    const rows = (Array.isArray(data) ? data : []).filter((row) => {
+      if (canReview) return true;
+      return currentUserId && String(row?.requested_by_user_id || '').trim() === currentUserId;
+    });
     const uniqueIds = [...new Set(
       rows
         .map((r) => String(r?.source_row_id || '').trim())
@@ -3006,10 +3021,16 @@ export const api = {
   },
   editRequestsOpenCount: async () => {
     const openStatuses = ['pending', 'open', 'awaiting approval', 'awaiting_approval'];
-    const { count, error } = await supabase
+    let query = supabase
       .from('edit_requests')
       .select('request_id', { count: 'exact', head: true })
       .in('status', openStatuses);
+    if (!canReviewEditRequestsUser()) {
+      const currentUserId = String(state?.user?.user_id || '').trim();
+      if (!currentUserId) return 0;
+      query = query.eq('requested_by_user_id', currentUserId);
+    }
+    const { count, error } = await query;
     if (error) throw new Error(error.message || 'edit_requests_open_count_failed');
     return Number.isFinite(count) ? Number(count) : 0;
   },
@@ -3388,6 +3409,7 @@ export const api = {
     const nextStatus = String(status || '').trim();
     if (!requestId) throw new Error('missing_request_id');
     if (!['approved', 'rejected'].includes(nextStatus)) throw new Error('invalid_review_status');
+    if (!canReviewEditRequestsUser()) throw new Error('forbidden_review_edit_request');
     const reqRes = await supabase
       .from('edit_requests')
       .select('*')
@@ -3395,6 +3417,7 @@ export const api = {
       .single();
     if (reqRes.error || !reqRes.data) throw new Error(reqRes.error?.message || 'review_edit_request_failed');
     const reqRow = reqRes.data;
+    if (String(reqRow?.status || '').trim() !== 'pending') throw new Error('edit_request_already_reviewed');
     if (nextStatus === 'approved') {
       const sourceRowId = String(reqRow?.source_row_id || '').trim();
       const requestedValues =
@@ -3408,11 +3431,13 @@ export const api = {
           mapMeetingDateFieldNamesToSupabase(requestedValues),
           { includeRowId: false }
         );
-        const { error: applyErr } = await supabase
+        const { data: appliedRow, error: applyErr } = await supabase
           .from('activities')
           .update(sanitizedRequestedValues)
-          .eq('row_id', sourceRowId);
-        if (applyErr) {
+          .eq('row_id', sourceRowId)
+          .select('row_id')
+          .maybeSingle();
+        if (applyErr || !appliedRow) {
           const authContext = await buildActivityMutationAuthContext();
           // eslint-disable-next-line no-console
           console.error('[activity-save-error]', {
@@ -3425,7 +3450,7 @@ export const api = {
             can_edit_direct: authContext.can_edit_direct,
             can_add_activity: authContext.can_add_activity,
             supabase_error_code: applyErr?.code || applyErr?.status || '',
-            supabase_error_message: String(applyErr?.message || 'review_edit_request_apply_failed'),
+            supabase_error_message: String(applyErr?.message || (!appliedRow ? 'activity_not_found_or_forbidden' : 'review_edit_request_apply_failed')),
             supabase_error_details: String(applyErr?.details || ''),
             payload: {
               request_id: requestId,
@@ -3434,7 +3459,7 @@ export const api = {
             },
             error: applyErr
           });
-          throw buildSupabaseMutationError('reviewEditRequest', applyErr, 'review_edit_request_apply_failed');
+          throw buildSupabaseMutationError('reviewEditRequest', applyErr || new Error('activity_not_found_or_forbidden'), 'review_edit_request_apply_failed');
         }
       }
     }
