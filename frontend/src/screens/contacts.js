@@ -6,8 +6,7 @@ import {
   ensureActivityListFilters,
   prepareRowsForSearch,
   applyLocalFilters,
-  filtersToolbarHtml,
-  bindLocalFilters
+  filtersToolbarHtml
 } from './shared/activity-list-filters.js';
 import { getManagerUsers } from './shared/activity-options.js';
 
@@ -264,6 +263,16 @@ function renderLetterSection(letter, authoritiesMap) {
   </div>`;
 }
 
+function activeContactRows(tab, instrRows, schoolRows) {
+  return tab === 'instr' ? instrRows : schoolRows;
+}
+
+function contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr = true, canViewSchool = true) {
+  if (tab === 'instr' && canViewInstr) return instrTabHtml(instrRows, filters).body;
+  if (tab === 'school' && canViewSchool) return schoolTabHtml(schoolRows, filters).body;
+  return dsEmptyState('לא נמצאו אנשי קשר');
+}
+
 function schoolTabHtml(rows, filters) {
   const filtered = applyLocalFilters(rows, filters, { filterFields: [] });
   if (filtered.length === 0) return { filtered, body: dsEmptyState('לא נמצאו אנשי קשר') };
@@ -313,16 +322,9 @@ export const contactsScreen = {
     ).join('');
 
     let searchInput = '';
-    let listHtml    = '';
+    const listHtml = contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr, canViewSchool);
 
-    if (tab === 'instr' && canViewInstr) {
-      const { body } = instrTabHtml(instrRows, filters);
-      listHtml = body;
-    } else if (tab === 'school' && canViewSchool) {
-      const { body } = schoolTabHtml(schoolRows, filters);
-      listHtml = body;
-    }
-    searchInput = filtersToolbarHtml(CONTACTS_SCOPE, tab === 'instr' ? instrRows : schoolRows, state, {
+    searchInput = filtersToolbarHtml(CONTACTS_SCOPE, activeContactRows(tab, instrRows, schoolRows), state, {
       searchPlaceholder: 'חיפוש לפי שם / תפקיד / טלפון / מייל / רשות / בית ספר…',
       filterFields: [],
       search: true
@@ -350,8 +352,6 @@ export const contactsScreen = {
         rerender();
       });
     });
-    bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, { debounceMs: 150 });
-
     const bindCopyBtns = (container) => {
       container.querySelectorAll('[data-copy-email]').forEach((btn) => {
         if (btn._copyBound) return;
@@ -367,22 +367,86 @@ export const contactsScreen = {
         });
       });
     };
-    bindCopyBtns(root);
-
-    root.querySelectorAll('[data-alpha-btn]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const letter = btn.dataset.alphaBtn;
-        const isOpen = btn.getAttribute('aria-expanded') === 'true';
-        root.querySelectorAll('[data-alpha-btn]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
-        root.querySelectorAll('[data-alpha-btn]').forEach((b) => b.classList.remove('is-active'));
-        root.querySelectorAll('[data-letter-section]').forEach((s) => { s.hidden = true; });
-        if (!isOpen) {
-          btn.setAttribute('aria-expanded', 'true');
-          btn.classList.add('is-active');
-          const section = root.querySelector(`[data-letter-section="${letter}"]`);
-          if (section) section.hidden = false;
-        }
+    const openInstructorDrawer = (action) => {
+      if (!action.startsWith('icontact:')) return;
+      const empId = decodeURIComponent(action.slice('icontact:'.length));
+      const hit = instrRows.find((r) => String(r.emp_id || '') === String(empId));
+      if (!hit) return;
+      ui.openDrawer({
+        title: hit.full_name || hit.emp_id || 'איש קשר',
+        content: instrDrawerHtml(hit, hideEmpIds)
       });
+      requestAnimationFrame(() => {
+        const drawer = document.querySelector('.ds-drawer__body, .ds-drawer, [data-drawer]');
+        if (drawer) bindCopyBtns(drawer);
+        else bindCopyBtns(document.body);
+      });
+    };
+
+    const bindAlphaBtns = (container = root) => {
+      container.querySelectorAll('[data-alpha-btn]').forEach((btn) => {
+        if (btn.dataset.alphaBound === 'yes') return;
+        btn.dataset.alphaBound = 'yes';
+        btn.addEventListener('click', () => {
+          const letter = btn.dataset.alphaBtn;
+          const isOpen = btn.getAttribute('aria-expanded') === 'true';
+          root.querySelectorAll('[data-alpha-btn]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+          root.querySelectorAll('[data-alpha-btn]').forEach((b) => b.classList.remove('is-active'));
+          root.querySelectorAll('[data-letter-section]').forEach((section) => { section.hidden = true; });
+          if (!isOpen) {
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-active');
+            const section = root.querySelector(`[data-letter-section="${letter}"]`);
+            if (section) section.hidden = false;
+          }
+        });
+      });
+    };
+
+    const bindContactsListInteractions = (container = root) => {
+      bindCopyBtns(container);
+      bindAlphaBtns(container);
+      ui?.bindInteractiveCards(container, openInstructorDrawer);
+    };
+
+    bindContactsListInteractions(root);
+
+    const renderContactsListOnly = () => {
+      const listWrap = root.querySelector('.contacts-list-wrap');
+      if (!listWrap) return;
+      const currentTab = state?.contactsTab || (data?.can_view_instructors !== false ? 'instr' : 'school');
+      const filters = ensureActivityListFilters(state, CONTACTS_SCOPE);
+      listWrap.innerHTML = contactListHtml(currentTab, instrRows, schoolRows, filters, data?.can_view_instructors !== false, data?.can_view_schools !== false);
+      bindContactsListInteractions(listWrap);
+    };
+
+    const filters = ensureActivityListFilters(state, CONTACTS_SCOPE);
+    const searchInput = root.querySelector(`[data-filter-search="${CONTACTS_SCOPE}"]`);
+    const clearBtn = root.querySelector(`[data-filter-clear="${CONTACTS_SCOPE}"]`);
+    let searchTimer;
+    searchInput?.addEventListener('input', (ev) => {
+      const nextValue = ev.target?.value || '';
+      filters.q = nextValue;
+      clearTimeout(searchTimer);
+      const applySearch = () => {
+        filters.appliedQ = nextValue;
+        filters.visibleCount = 200;
+        renderContactsListOnly();
+      };
+      if (!nextValue.trim()) {
+        applySearch();
+        return;
+      }
+      searchTimer = setTimeout(applySearch, 200);
+    });
+    clearBtn?.addEventListener('click', () => {
+      clearTimeout(searchTimer);
+      filters.q = '';
+      filters.appliedQ = '';
+      filters.visibleCount = 200;
+      if (searchInput) searchInput.value = '';
+      renderContactsListOnly();
+      searchInput?.focus();
     });
 
     const decodePayload = (node) => {
@@ -499,51 +563,47 @@ export const contactsScreen = {
       };
     };
 
-    root.querySelectorAll('[data-contact-action]').forEach((btn) => {
-      btn.addEventListener('click', (ev) => {
+    root._contactsActionContext = {
+      instrRows,
+      schoolRows,
+      decodePayload,
+      openInstructorEditor,
+      openSchoolEditor
+    };
+    if (!root._contactsActionBound) {
+      root._contactsActionBound = true;
+      root.addEventListener('click', (ev) => {
+        const btn = ev.target?.closest?.('[data-contact-action]');
+        if (!btn || !root.contains(btn)) return;
         ev.preventDefault();
         ev.stopPropagation();
+        const ctx = root._contactsActionContext || {};
         const action = btn.dataset.contactAction;
         if (action === 'add-instr') {
-          openInstructorEditor({}, true);
+          ctx.openInstructorEditor?.({}, true);
           return;
         }
         if (action === 'add-school') {
-          openSchoolEditor({}, true);
+          ctx.openSchoolEditor?.({}, true);
           return;
         }
         if (action === 'edit-instr') {
-          const payload = decodePayload(btn);
-          const hit = instrRows.find((r) => String(r.emp_id || '') === String(payload.emp_id || ''));
-          if (hit) openInstructorEditor(hit, false);
+          const payload = ctx.decodePayload?.(btn) || {};
+          const hit = (ctx.instrRows || []).find((r) => String(r.emp_id || '') === String(payload.emp_id || ''));
+          if (hit) ctx.openInstructorEditor?.(hit, false);
           return;
         }
         if (action === 'edit-school') {
-          const payload = decodePayload(btn);
+          const payload = ctx.decodePayload?.(btn) || {};
           const idx = Number(payload._row_index);
           const hit = Number.isFinite(idx)
-            ? schoolRows.find((r) => Number(r._row_index) === idx)
+            ? (ctx.schoolRows || []).find((r) => Number(r._row_index) === idx)
             : null;
-          if (hit) openSchoolEditor(hit, false);
+          if (hit) ctx.openSchoolEditor?.(hit, false);
         }
       });
-    });
+    }
 
-    ui?.bindInteractiveCards(root, (action) => {
-      if (!action.startsWith('icontact:')) return;
-      const empId = decodeURIComponent(action.slice('icontact:'.length));
-      const hit = instrRows.find((r) => String(r.emp_id || '') === String(empId));
-      if (!hit) return;
-      ui.openDrawer({
-        title: hit.full_name || hit.emp_id || 'איש קשר',
-        content: instrDrawerHtml(hit, hideEmpIds)
-      });
-      requestAnimationFrame(() => {
-        const drawer = document.querySelector('.ds-drawer__body, .ds-drawer, [data-drawer]');
-        if (drawer) bindCopyBtns(drawer);
-        else bindCopyBtns(document.body);
-      });
-    });
   }
 };
 
