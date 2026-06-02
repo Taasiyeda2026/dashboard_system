@@ -11,6 +11,8 @@ const KEY_PERM_FLAGS = [
   'can_review_requests',
   'view_admin',
   'view_permissions',
+  'view_catalog',
+  'view_orders',
   'finance_access'
 ];
 
@@ -283,6 +285,8 @@ function buildPermissionsDetailsHtml(row) {
   const groups = [
     { label: 'לוח בקרה', keys: ['view_admin'] },
     { label: 'פעילויות', keys: ['view_activities', 'can_add_activity', 'can_edit_direct', 'can_request_edit', 'can_review_requests'] },
+    { label: 'קטלוג', keys: ['view_catalog'] },
+    { label: 'הזמנות', keys: ['view_orders'] },
     { label: 'ארכיון', keys: ['view_archive'] },
     { label: 'הצעות', keys: ['view_offers'] },
     { label: 'אנשי קשר', keys: ['view_contacts'] },
