@@ -56,6 +56,24 @@ const DEFAULT_ACTIVITY_PERIOD_TAB = 'school_2026';
 const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'closed', 'deleted', 'inactive']);
 const ACTIVITY_LAYOUT_SEASON = 'summer_2026';
 const ACTIVITY_LAYOUT_ALLOWED_ROLES = new Set(['admin', 'operation_manager']);
+const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
+const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
+
+function activityRole(state) {
+  return String(state?.user?.display_role || state?.user?.role || '').trim();
+}
+
+function canDirectManageActivities(state) {
+  return ACTIVITY_DIRECT_MANAGE_ROLES.has(activityRole(state));
+}
+
+function canRequestActivityChanges(state) {
+  return canDirectManageActivities(state) || ACTIVITY_REQUEST_ROLES.has(activityRole(state));
+}
+
+function canOpenCreateActivity(state) {
+  return canDirectManageActivities(state) || ACTIVITY_REQUEST_ROLES.has(activityRole(state));
+}
 
 function normalizeActivityPeriodTab(value) {
   const key = String(value || '').trim();
@@ -1013,8 +1031,9 @@ export const activitiesScreen = {
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const role = String(state?.user?.display_role || state?.user?.role || '').trim();
-    const canDeleteActivity = ['admin', 'operation_manager'].includes(role);
-    const canAddActivity = !!state?.user?.can_add_activity || role === 'operation_manager' || role === 'admin';
+    const canDeleteActivity = canDirectManageActivities(state);
+    const canAddActivity = canOpenCreateActivity(state);
+    const isCreateRequestOnly = canAddActivity && !canDirectManageActivities(state);
     const isAdmin = isAdminUser(state);
     const canUseLayout = canUseActivityLayout(state) && state.activityPeriodTab === ACTIVITY_LAYOUT_SEASON;
 
@@ -1155,7 +1174,7 @@ export const activitiesScreen = {
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">↻</button>
         ${canUseLayout ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn ds-activities-toolbar-btn--layout" data-activity-layout-list title="פריסת פעילות לבתי ספר עם שיבוץ מלא">פריסת פעילות</button>` : ''}
         ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-export-all title="ייצוא הפעילויות בלשונית הפעילה לאקסל">ייצוא לאקסל</button>` : ''}
-        ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">+</button>` : ''}
+        ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ${isCreateRequestOnly ? 'ds-activities-toolbar-btn' : 'ds-btn--icon-only'}" data-activities-add-btn aria-label="${isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות'}" title="${isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות'}">${isCreateRequestOnly ? 'בקשה להוספת פעילות' : '+'}</button>` : ''}
       </div>
     </div>`;
 
@@ -1274,15 +1293,14 @@ export const activitiesScreen = {
     }
     const filteredRows      = applyActivitiesLocalFilters(periodRows, state, state?.clientSettings);
     const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
-    const canEditActivity   = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
+    const canEditActivity   = canRequestActivityChanges(state);
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
     const role = String(state?.user?.display_role || state?.user?.role || '').trim();
-    const canDeleteActivity = ['admin', 'operation_manager'].includes(
-      String(state?.user?.display_role || state?.user?.role || '').trim()
-    );
-    const canAddActivity = !!state?.user?.can_add_activity || role === 'operation_manager' || role === 'admin';
+    const canDeleteActivity = canDirectManageActivities(state);
+    const canAddActivity = canOpenCreateActivity(state);
+    const isCreateRequestOnly = canAddActivity && !canDirectManageActivities(state);
     const isAdmin = isAdminUser(state);
 
     const rerenderLocal = () => {
@@ -1345,7 +1363,7 @@ export const activitiesScreen = {
             if (freshRow && contentRoot) {
               putCachedActivityDetail({ RowID: sourceRowId, source_sheet: sourceSheet || 'activities' }, freshRow, state);
               contentRoot.innerHTML = activityDrawerContent(
-                freshRow, canSeePrivateNotes, canEditActivity, !!state?.user?.can_edit_direct, !!state?.user?.can_request_edit,
+                freshRow, canSeePrivateNotes, canEditActivity, canDirectManageActivities(state), canRequestActivityChanges(state),
                 canDeleteActivity,
                 hideEmpIds, hideRowId, hideActivityNo,
                 mergeSettingsWithFallback(state?.clientSettings || {}, buildFallbackOptionsFromRows(activitiesRows)),
@@ -1401,8 +1419,8 @@ export const activitiesScreen = {
       if (!summaryRow || !ui) return;
       const cachedDetail = getCachedActivityDetail(summaryRow, state);
       const cachedDates  = getCachedActivityDates(summaryRow, state);
-      const canDirectEdit = !!state?.user?.can_edit_direct;
-      const canRequestEdit = !!state?.user?.can_request_edit;
+      const canDirectEdit = canDirectManageActivities(state);
+      const canRequestEdit = canRequestActivityChanges(state);
       const settings = mergeSettingsWithFallback(
         state?.clientSettings || {},
         buildFallbackOptionsFromRows(activitiesRows)
@@ -1800,15 +1818,26 @@ export const activitiesScreen = {
         return;
       }
 
-      const originalText = submitBtn?.textContent || 'שמור';
+      const originalText = submitBtn?.textContent || (isCreateRequestOnly ? 'שליחת בקשה' : 'שמור');
       try {
         if (submitBtn) {
           submitBtn.disabled = true;
-          submitBtn.textContent = 'שומר...';
+          submitBtn.textContent = isCreateRequestOnly ? 'שולח בקשה...' : 'שומר...';
         }
-        if (statusEl) statusEl.textContent = 'שומר...';
-        console.info('[addActivity] submit fired');
+        if (statusEl) statusEl.textContent = isCreateRequestOnly ? 'שולח בקשה לאישור...' : 'שומר...';
+        console.info('[addActivity] submit fired', { requestOnly: isCreateRequestOnly });
         console.info('[addActivity] payload', payload);
+        if (isCreateRequestOnly) {
+          const rsp = await api.submitCreateActivityRequest(payload);
+          console.info('[addActivity] request success', rsp);
+          clearScreenDataCache?.();
+          try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
+          const requestId = String(rsp?.request_id || '').trim();
+          if (statusEl) statusEl.textContent = requestId ? `הבקשה נשלחה לאישור · מזהה בקשה: ${requestId}` : 'הבקשה נשלחה לאישור';
+          showToast('הבקשה להוספת פעילות נשלחה לאישור', 'success', 3200);
+          ui?.closeModal?.();
+          return;
+        }
         const rsp = await api.addActivity(payload);
         console.info('[addActivity] success', rsp);
         clearScreenDataCache?.();
@@ -1872,12 +1901,12 @@ export const activitiesScreen = {
     if (canAddActivity && ui && addBtn) {
       addBtn.addEventListener('click', () => {
         ui.openModal({
-          title: 'הוספת פעילות',
+          title: isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות',
           // חשוב: חלון הוספת פעילות חייב להשתמש ב-client settings האחידים
           // (כמו admin), ללא בניית רשימות fallback מתוך rows חלקיים של המסך.
           content: addActivityModalHtml(state?.clientSettings || {}),
           actions: `
-            <button type="button" class="ds-btn ds-btn--primary" data-add-activity-submit>שמור</button>
+            <button type="button" class="ds-btn ds-btn--primary" data-add-activity-submit>${isCreateRequestOnly ? 'שליחת בקשה לאישור' : 'שמור'}</button>
             <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>
           `
         });
