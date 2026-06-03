@@ -11923,3 +11923,202 @@ select.ds-input {
   background: color-mix(in srgb, currentColor 12%, transparent);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Finance page ─────────────────────────────────────────────────────────── */
+.ds-fin-top-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  dir: rtl;
+}
+.ds-fin-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+.ds-fin-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+}
+.ds-fin-kpi__val {
+  font-size: 1.3em;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+.ds-fin-kpi__label {
+  font-size: 0.72em;
+  color: #64748b;
+  margin-top: 2px;
+}
+.ds-fin-kpi__sub {
+  font-size: 0.7em;
+  color: #475569;
+  font-weight: 600;
+}
+
+/* Finance accordions */
+.ds-fin-accordions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ds-fin-acc {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ds-fin-acc--type > summary {
+  background: #1e293b;
+  color: #f8fafc;
+}
+.ds-fin-acc--funding > summary {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.ds-fin-acc--cluster > summary {
+  background: #fff;
+  color: #1e293b;
+}
+.ds-fin-acc--programs > summary {
+  background: #f8fafc;
+  color: #334155;
+}
+.ds-fin-acc__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.ds-fin-acc__summary::-webkit-details-marker { display: none; }
+.ds-fin-acc__summary::before {
+  content: '▶';
+  font-size: 0.7em;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+  order: 999;
+}
+details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
+.ds-fin-acc__title {
+  font-weight: 700;
+  font-size: 0.95em;
+}
+.ds-fin-acc__title--type {
+  font-size: 1em;
+}
+.ds-fin-acc__meta {
+  font-size: 0.78em;
+  opacity: 0.8;
+  text-align: left;
+}
+.ds-fin-acc__body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Finance table */
+.ds-fin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8em;
+  table-layout: fixed;
+}
+.ds-fin-table th, .ds-fin-table td {
+  padding: 4px 6px;
+  border: 1px solid #e2e8f0;
+  text-align: right;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-fin-table th {
+  background: #f8fafc;
+  font-weight: 700;
+  font-size: 0.85em;
+  color: #374151;
+}
+.ds-fin-col--name { width: 28%; }
+.ds-fin-col--type { width: 8%; }
+.ds-fin-col--date { width: 9%; }
+.ds-fin-col--school { width: 14%; }
+.ds-fin-col--price { width: 9%; }
+.ds-fin-col--collect { width: 11%; }
+.ds-fin-col--status { width: 8%; }
+.ds-fin-col--exc { width: 13%; color: #64748b; font-size: 0.85em; }
+
+/* Finance badges */
+.ds-fin-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.8em;
+  font-weight: 600;
+}
+.ds-fin-badge--collected { background: #dcfce7; color: #166534; }
+.ds-fin-badge--not-collected { background: #fef9c3; color: #854d0e; }
+.ds-fin-badge--open { background: #dbeafe; color: #1e40af; }
+.ds-fin-badge--closed { background: #f1f5f9; color: #475569; }
+
+.ds-fin-toggle-btn {
+  font-size: 0.75em !important;
+  padding: 1px 6px !important;
+  margin-right: 4px;
+}
+
+/* Activity layout panel */
+.ds-activity-layout-status-cell {
+  white-space: nowrap;
+}
+.ds-activity-layout-sent-meta {
+  display: block;
+  font-size: 0.75em;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Confirm overlay */
+.ds-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+}
+.ds-confirm-dialog {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px 28px;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  direction: rtl;
+}
+.ds-confirm-msg {
+  font-size: 1em;
+  margin: 0 0 18px;
+  line-height: 1.6;
+}
+.ds-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
