@@ -737,9 +737,9 @@ function sectionLinesHtml(value, options = {}) {
 }
 
 function signatureSectionHtml(title = 'חתימה') {
-  return `<section class="ds-pa-doc-signature" aria-label="${escapeHtml(title)}">
-    <div class="ds-pa-doc-signature-line"></div>
-    <div class="ds-pa-doc-signature-name">עידן נחום, סמנכ"ל כספים</div>
+  return `<section class="proposal-signature" aria-label="${escapeHtml(title)}">
+    <div class="proposal-signature-line"></div>
+    <div class="proposal-signature-name">עידן נחום, סמנכ"ל כספים</div>
   </section>`;
 }
 
@@ -977,6 +977,48 @@ const STRUCTURED_SECTION_DEFAULTS = {
   ].join('\n')
 };
 
+function buildProposalDocumentHtml({ dateDisplay, row, introText, sections, orgResponsibility, schoolResponsibility, paymentTerms, changesCancellation, remarks, signatureHtml, sectionLinesHtml: sectionLines }) {
+  return `
+    <div class="proposal-document" dir="rtl">
+      <div class="proposal-document-header">
+        <img
+          src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
+          alt="לוגו תעשיידע"
+          class="proposal-logo"
+          loading="eager"
+          decoding="async"
+          onerror="this.style.display='none';"
+        >
+      </div>
+      <div class="proposal-document-body">
+        <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
+        <hr class="pa-doc-divider">
+        <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
+        ${recipientBlockHtml(row)}
+        ${introText ? sectionLines(introText, { className: 'pa-doc-intro' }) : ''}
+        ${sections.join('')}
+        ${orgResponsibility}
+        ${schoolResponsibility}
+        ${paymentTerms}
+        ${changesCancellation}
+        ${remarks}
+        <div class="pa-doc-bottom">
+          ${signatureHtml}
+        </div>
+      </div>
+      <div class="proposal-document-footer">
+        <img
+          src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
+          alt="לוגו תחתון תעשיידע"
+          class="proposal-footer-logo"
+          loading="lazy"
+          decoding="async"
+          onerror="this.style.display='none';"
+        >
+      </div>
+    </div>`;
+}
+
 function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const activityTypeGroup = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
   const templateKey = TEMPLATE_KEY_BY_GROUP[activityTypeGroup] || 'combined';
@@ -1029,43 +1071,19 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
     if (activityBlock) sections.push(`<section class="pa-section"><h3>${escapeHtml(sectionHeadingText(sectionTitle('activity_intro', 'הפעילות המוצעת')))}</h3>${activityBlock}</section>`);
   }
 
-  return `
-    <div class="ds-pa-print-page-header">
-      <img
-        src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
-        alt="לוגו תעשיידע"
-        class="ds-pa-doc-header-logo"
-        loading="eager"
-        decoding="async"
-        onerror="this.style.display='none';"
-      >
-    </div>
-    <div class="ds-pa-print-page-footer">
-        <img
-          src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
-          alt="לוגו תחתון תעשיידע"
-        class="ds-pa-doc-footer-logo"
-        loading="lazy"
-        decoding="async"
-        onerror="this.style.display='none';"
-      >
-    </div>
-    <div class="ds-pa-document-body">
-      <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
-      <hr class="pa-doc-divider">
-      <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
-      ${recipientBlockHtml(row)}
-      ${introText ? sectionLinesHtml(introText, { className: 'pa-doc-intro' }) : ''}
-      ${sections.join('')}
-      ${orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility, '', { alwaysBullet: true }) : ''}
-      ${schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility, '', { alwaysBullet: true }) : ''}
-      ${paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלות ותנאי תשלום'), paymentTerms, '', { alwaysBullet: true }) : ''}
-      ${changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation, '', { alwaysBullet: true }) : ''}
-      ${remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : ''}
-      <div class="pa-doc-bottom">
-        ${signatureSectionHtml(sectionTitle('signature', 'חתימה'))}
-      </div>
-    </div>`;
+  return buildProposalDocumentHtml({
+    dateDisplay,
+    row,
+    introText,
+    sections,
+    orgResponsibility: orgResponsibility ? sectionHtml(sectionTitle('taasiyeda_responsibility', 'אחריות תעשיידע'), orgResponsibility, '', { alwaysBullet: true }) : '',
+    schoolResponsibility: schoolResponsibility ? sectionHtml(sectionTitle('school_responsibility', 'אחריות בית הספר'), schoolResponsibility, '', { alwaysBullet: true }) : '',
+    paymentTerms: paymentTerms ? sectionHtml(sectionTitle('payment_terms', 'עלות ותנאי תשלום'), paymentTerms, '', { alwaysBullet: true }) : '',
+    changesCancellation: changesCancellation ? sectionHtml(sectionTitle('cancellation_terms', 'שינויים, ביטולים והתאמות'), changesCancellation, '', { alwaysBullet: true }) : '',
+    remarks: remarks ? sectionHtml(sectionTitle('notes', 'הערות'), remarks) : '',
+    signatureHtml: signatureSectionHtml(sectionTitle('signature', 'חתימה')),
+    sectionLinesHtml,
+  });
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
@@ -1844,19 +1862,23 @@ export const proposalsAgreementsScreen = {
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
       overlay.id = 'pa-preview-overlay';
-      overlay.className = 'ds-pa-preview-overlay';
+      overlay.className = 'proposal-preview-overlay';
       overlay.setAttribute('dir', 'rtl');
       overlay.innerHTML = `
-        <div class="ds-pa-preview-toolbar no-print">
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
-          <button type="button" class="ds-btn ds-btn--sm" id="pa-preview-close">✕ סגירה</button>
-          <span class="ds-muted" style="font-size:0.8rem">${escapeHtml(freshRow.client_authority || '')}${freshRow.school_framework ? ' — ' + escapeHtml(freshRow.school_framework) : ''}</span>
+        <div class="proposal-preview-toolbar no-print">
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--primary no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
+          <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-close">✕ סגירה</button>
+          <span class="ds-muted no-print" style="font-size:0.8rem">${escapeHtml(freshRow.client_authority || '')}${freshRow.school_framework ? ' — ' + escapeHtml(freshRow.school_framework) : ''}</span>
         </div>
-        <div class="ds-pa-preview-doc">${proposalPreviewBodyHtml(freshRow, items, templateSections)}</div>`;
+        <div class="proposal-preview-area">
+          ${proposalPreviewBodyHtml(freshRow, items, templateSections)}
+        </div>`;
       document.body.appendChild(overlay);
+      document.body.classList.add('is-print-preview');
       overlay.querySelector('#pa-print-btn')?.addEventListener('click', () => window.print());
-      overlay.querySelector('#pa-preview-close')?.addEventListener('click', () => overlay.remove());
-      overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.remove(); });
+      const closeOverlay = () => { overlay.remove(); document.body.classList.remove('is-print-preview'); };
+      overlay.querySelector('#pa-preview-close')?.addEventListener('click', closeOverlay);
+      overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
     };
 
     // ── Save ──────────────────────────────────────────────────────────────────

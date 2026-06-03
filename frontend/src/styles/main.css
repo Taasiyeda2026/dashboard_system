@@ -10959,73 +10959,100 @@ select.ds-input {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   Proposals – Preview overlay
+   Proposals – Preview overlay & document
    ═══════════════════════════════════════════════════════════════════ */
-.ds-pa-preview-overlay {
+.proposal-preview-overlay {
   position: fixed; inset: 0; z-index: 200;
-  background: #eef1f4; overflow: auto; direction: rtl;
+  background: #dde2e8; overflow: auto; direction: rtl;
 }
-.ds-pa-preview-toolbar {
+.proposal-preview-toolbar {
   position: sticky; top: 0; z-index: 10;
   background: #fff; border-bottom: 1px solid #e2e8f0;
   padding: 8px 16px; display: flex; gap: 8px; align-items: center;
 }
-.ds-pa-preview-doc {
+.proposal-preview-area {
+  padding: 32px 16px 48px;
+  display: flex;
+  justify-content: center;
+}
+
+/* ── The official A4 document ─────────────────────────────────────── */
+.proposal-document {
   background: #fff;
   color: #111827;
   direction: rtl;
   width: 794px;
   max-width: 100%;
-  min-height: 1123px; /* ~297mm at 96dpi */
-  margin: 24px auto 48px;
-  padding: 54px 72px 68px;
+  min-height: 1123px;
   font-family: Arial, "Noto Sans Hebrew", "David", sans-serif;
   font-size: 10pt;
   line-height: 1.6;
   letter-spacing: 0.1px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
-  border: none;
   border-radius: 2px;
   display: flex;
   flex-direction: column;
-  position: relative;
+  padding: 32px 52px 28px;
+  box-sizing: border-box;
 }
-.ds-pa-print-page-header {
+.proposal-document-header {
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
   direction: ltr;
   width: 100%;
-  box-sizing: border-box;
+  margin-bottom: 16px;
 }
-.ds-pa-print-page-footer {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  width: 100%;
-  box-sizing: border-box;
-  margin-top: auto;
-}
-.ds-pa-doc-header-logo {
-  width: 200px;
-  max-width: 42%;
+.proposal-logo {
+  width: 190px;
+  max-width: 40%;
   height: auto;
   object-fit: contain;
   display: block;
 }
-.ds-pa-doc-footer-logo {
-  width: auto;
-  height: 28px;
-  max-width: 120px;
-  object-fit: contain;
-  display: block;
-  opacity: 0.85;
-}
-.ds-pa-document-body {
+.proposal-document-body {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
   min-height: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.proposal-document-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+.proposal-footer-logo {
+  width: auto;
+  height: 26px;
+  max-width: 130px;
+  object-fit: contain;
+  display: block;
+  opacity: 0.82;
+}
+
+/* ── Signature ────────────────────────────────────────────────────── */
+.proposal-signature {
+  margin-top: 36px;
+  margin-inline-start: auto;
+  width: 220px;
+  text-align: left;
+  direction: rtl;
+}
+.proposal-signature-line {
+  width: 220px;
+  border-top: 1px solid #9ca3af;
+  margin-bottom: 6px;
+}
+.proposal-signature-name {
+  font-size: 13px;
+  color: #111827;
+  white-space: nowrap;
 }
 .pa-doc-date {
   text-align: left;
@@ -11085,23 +11112,23 @@ select.ds-input {
 .pa-section-body {
   margin: 0;
 }
-.ds-pa-preview-doc .pa-section-body p,
-.ds-pa-preview-doc .pa-doc-intro p {
+.proposal-document .pa-section-body p,
+.proposal-document .pa-doc-intro p {
   margin: 0 0 6px;
 }
-.ds-pa-preview-doc .pa-section-body ul,
-.ds-pa-preview-doc .pa-doc-intro ul {
+.proposal-document .pa-section-body ul,
+.proposal-document .pa-doc-intro ul {
   margin: 6px 0 10px;
   padding-inline-start: 0;
   list-style: none;
 }
-.ds-pa-preview-doc .pa-section-body ol,
-.ds-pa-preview-doc .pa-doc-intro ol {
+.proposal-document .pa-section-body ol,
+.proposal-document .pa-doc-intro ol {
   margin: 6px 0 10px;
   padding-inline-start: 22px;
 }
-.ds-pa-preview-doc .pa-section-body li,
-.ds-pa-preview-doc .pa-doc-intro li {
+.proposal-document .pa-section-body li,
+.proposal-document .pa-doc-intro li {
   margin: 0 0 7px;
   line-height: 1.45;
   white-space: normal;
@@ -11109,13 +11136,13 @@ select.ds-input {
   break-inside: avoid;
   page-break-inside: avoid;
 }
-.ds-pa-preview-doc .pa-section-body ul li,
-.ds-pa-preview-doc .pa-doc-intro ul li {
+.proposal-document .pa-section-body ul li,
+.proposal-document .pa-doc-intro ul li {
   position: relative;
   padding-inline-start: 22px;
 }
-.ds-pa-preview-doc .pa-section-body ul li::before,
-.ds-pa-preview-doc .pa-doc-intro ul li::before {
+.proposal-document .pa-section-body ul li::before,
+.proposal-document .pa-doc-intro ul li::before {
   content: '•';
   position: absolute;
   inset-inline-start: 1px;
@@ -11131,23 +11158,10 @@ select.ds-input {
   margin-top: auto;
   width: 100%;
 }
-.ds-pa-doc-signature {
-  margin-top: 36px;
-  margin-inline-start: auto;
-  width: 220px;
-  text-align: left;
-  direction: rtl;
-}
-.ds-pa-doc-signature-line {
-  width: 220px;
-  border-top: 1px solid #9ca3af;
-  margin-bottom: 6px;
-}
-.ds-pa-doc-signature-name {
-  font-size: 13px;
-  color: #111827;
-  white-space: nowrap;
-}
+/* Legacy aliases kept for any residual references */
+.ds-pa-doc-signature { margin-top: 36px; margin-inline-start: auto; width: 220px; text-align: left; direction: rtl; }
+.ds-pa-doc-signature-line { width: 220px; border-top: 1px solid #9ca3af; margin-bottom: 6px; }
+.ds-pa-doc-signature-name { font-size: 13px; color: #111827; white-space: nowrap; }
 /* שורות פעילות — נקודה מפורשת לפני כל שורה */
 .pa-proposal-lines ul {
   list-style: none;
@@ -11177,24 +11191,22 @@ select.ds-input {
 }
 
 @media (max-width: 720px) {
-  .ds-pa-preview-doc {
-    width: calc(100vw - 16px);
+  .proposal-preview-area {
+    padding: 12px 4px 32px;
+  }
+  .proposal-document {
+    width: calc(100vw - 8px);
     min-height: auto;
-    margin: 12px auto 28px;
-    padding: 34px 22px 44px;
+    padding: 24px 18px 24px;
   }
-
-  .ds-pa-print-page-header {
-    justify-content: flex-start;
-  }
-  .ds-pa-doc-header-logo {
-    width: 160px;
+  .proposal-logo {
+    width: 150px;
     max-width: 48%;
   }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   Print styles — render proposal preview as-is
+   Print styles — A4 proposal document
    ═══════════════════════════════════════════════════════════════════ */
 @media print {
   @page {
@@ -11210,11 +11222,21 @@ select.ds-input {
     font-size: 10pt !important;
   }
 
-  /* Hide everything except the preview overlay */
-  body:has(#pa-preview-overlay) > *:not(#pa-preview-overlay) {
+  /* When print preview is open, hide all dashboard chrome */
+  body.is-print-preview .app-shell,
+  body.is-print-preview .shell-sidebar,
+  body.is-print-preview .shell-top,
+  body.is-print-preview .no-print {
     display: none !important;
   }
-  body:has(#pa-preview-overlay) * {
+
+  /* Also hide siblings of the overlay robustly */
+  body.is-print-preview > *:not(#pa-preview-overlay) {
+    display: none !important;
+  }
+
+  /* Fallback for browsers that don't support class-based targeting */
+  body > *:not(#pa-preview-overlay):not(script):not(style) {
     visibility: hidden !important;
   }
   #pa-preview-overlay,
@@ -11223,13 +11245,14 @@ select.ds-input {
   }
 
   .no-print,
-  #pa-preview-overlay .ds-pa-preview-toolbar,
+  .proposal-preview-toolbar,
   #pa-preview-overlay button,
   #pa-preview-overlay .ds-btn {
     display: none !important;
     visibility: hidden !important;
   }
 
+  /* Flatten the overlay wrapper */
   #pa-preview-overlay {
     position: static !important;
     inset: auto !important;
@@ -11242,102 +11265,112 @@ select.ds-input {
     border: none !important;
     box-shadow: none !important;
   }
+  .proposal-preview-area {
+    padding: 0 !important;
+    display: block !important;
+  }
 
-  .ds-pa-preview-doc {
-    position: static !important;
+  /* ── The document itself ──────────────────────────────────────── */
+  .proposal-document {
     width: 100% !important;
     max-width: none !important;
     min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
-    display: block !important;
     box-shadow: none !important;
     border: none !important;
     border-radius: 0 !important;
-    background: transparent !important;
+    background: #fff !important;
     color: #000 !important;
     direction: rtl !important;
     font-family: Arial, "Noto Sans Hebrew", "David", sans-serif !important;
     font-size: 10pt !important;
     line-height: 1.55 !important;
     letter-spacing: 0.1px !important;
+    display: block !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  .ds-pa-print-page-header {
+  /* Fixed header / footer on every printed page */
+  .proposal-document-header {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     right: 0 !important;
-    height: 70px !important;
+    height: 72px !important;
     display: flex !important;
     justify-content: flex-start !important;
     align-items: flex-start !important;
-    padding: 12px 18px 0 18px !important;
+    padding: 12px 18mm 0 18mm !important;
     box-sizing: border-box !important;
+    background: #fff !important;
     z-index: 10 !important;
     direction: ltr !important;
+    margin-bottom: 0 !important;
   }
-
-  .ds-pa-doc-header-logo {
+  .proposal-logo {
     width: 170px !important;
     height: auto !important;
     object-fit: contain !important;
     display: block !important;
   }
 
-  .ds-pa-print-page-footer {
+  .proposal-document-footer {
     position: fixed !important;
     bottom: 0 !important;
     left: 0 !important;
     right: 0 !important;
-    height: 55px !important;
+    height: 52px !important;
     display: flex !important;
     justify-content: center !important;
     align-items: flex-end !important;
-    padding: 0 18px 10px 18px !important;
+    padding: 0 18mm 10px 18mm !important;
     box-sizing: border-box !important;
+    background: #fff !important;
+    border-top: none !important;
+    margin-top: 0 !important;
     z-index: 10 !important;
   }
-
-  .ds-pa-doc-footer-logo {
+  .proposal-footer-logo {
     width: 120px !important;
     height: auto !important;
     object-fit: contain !important;
     display: block !important;
+    opacity: 1 !important;
   }
 
-  .ds-pa-document-body {
-    padding: 86px 18mm 72px !important;
-    box-sizing: border-box !important;
+  /* Body content between fixed header/footer */
+  .proposal-document-body {
     display: block !important;
+    padding: 82px 18mm 62px !important;
+    box-sizing: border-box !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
   }
 
+  /* ── Inner document content ───────────────────────────────────── */
   .pa-doc-date {
     font-size: 9pt !important;
     text-align: left !important;
     direction: ltr !important;
     line-height: 1.5 !important;
     color: #374151 !important;
-    align-self: flex-start !important;
   }
-
   .pa-doc-address {
     text-align: right !important;
     direction: rtl !important;
     font-size: 10pt !important;
     line-height: 1.65 !important;
     margin-bottom: 4pt !important;
+    overflow-wrap: anywhere !important;
   }
   .pa-doc-address p { margin: 0 !important; }
-
   .pa-doc-divider {
     border: none !important;
     border-top: 1.5px solid #1f4e79 !important;
     margin: 8pt 0 10pt !important;
   }
-
   .pa-doc-subject {
     text-align: center !important;
     font-size: 11.5pt !important;
@@ -11346,14 +11379,13 @@ select.ds-input {
     text-decoration: underline !important;
     margin: 10pt 0 8pt !important;
     line-height: 1.5 !important;
+    overflow-wrap: anywhere !important;
   }
-
   .pa-section {
     margin: 8pt 0 4pt !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
-
   .pa-section h3 {
     font-size: 10.5pt !important;
     break-after: avoid !important;
@@ -11364,50 +11396,47 @@ select.ds-input {
     margin: 0 0 3pt !important;
     line-height: 1.5 !important;
   }
-
   .pa-doc-intro,
   .pa-section-body,
   .pa-proposal-lines {
     font-size: 10pt !important;
     line-height: 1.55 !important;
     color: #000 !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
   }
-
-  .ds-pa-preview-doc .pa-section-body p,
-  .ds-pa-preview-doc .pa-doc-intro p {
+  .proposal-document .pa-section-body p,
+  .proposal-document .pa-doc-intro p {
     margin: 0 0 4pt !important;
+    overflow-wrap: anywhere !important;
   }
-
-  .ds-pa-preview-doc .pa-section-body ul,
-  .ds-pa-preview-doc .pa-doc-intro ul {
+  .proposal-document .pa-section-body ul,
+  .proposal-document .pa-doc-intro ul {
     margin: 4pt 0 8pt !important;
     padding-inline-start: 0 !important;
     list-style: none !important;
   }
-
-  .ds-pa-preview-doc .pa-section-body ol,
-  .ds-pa-preview-doc .pa-doc-intro ol {
+  .proposal-document .pa-section-body ol,
+  .proposal-document .pa-doc-intro ol {
     margin: 4pt 0 8pt !important;
     padding-inline-start: 22px !important;
   }
-
-  .ds-pa-preview-doc .pa-section-body li,
-  .ds-pa-preview-doc .pa-doc-intro li {
+  .proposal-document .pa-section-body li,
+  .proposal-document .pa-doc-intro li {
     margin: 0 0 6pt !important;
     line-height: 1.45 !important;
-    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
-
-  .ds-pa-preview-doc .pa-section-body ul li,
-  .ds-pa-preview-doc .pa-doc-intro ul li {
+  .proposal-document .pa-section-body ul li,
+  .proposal-document .pa-doc-intro ul li {
     position: relative !important;
     padding-inline-start: 22px !important;
   }
-
-  .ds-pa-preview-doc .pa-section-body ul li::before,
-  .ds-pa-preview-doc .pa-doc-intro ul li::before {
+  .proposal-document .pa-section-body ul li::before,
+  .proposal-document .pa-doc-intro ul li::before {
     content: '•' !important;
     position: absolute !important;
     inset-inline-start: 1px !important;
@@ -11416,20 +11445,17 @@ select.ds-input {
     font-weight: 400 !important;
     color: inherit !important;
   }
-
+  .proposal-signature,
   .ds-pa-doc-signature {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
     margin-bottom: 72px !important;
   }
-
-  /* שורות פעילות בהדפסה */
   .pa-proposal-lines ul {
     list-style: none !important;
     padding-inline-start: 0 !important;
     margin: 2pt 0 6pt !important;
   }
-
   .pa-proposal-lines ul li {
     position: relative !important;
     padding-inline-start: 14pt !important;
@@ -11437,16 +11463,16 @@ select.ds-input {
     line-height: 1.55 !important;
     font-size: 10pt !important;
     color: #000 !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
   }
-
   .pa-proposal-lines ul li::before {
     content: '•' !important;
     position: absolute !important;
     inset-inline-start: 1px !important;
-    font-size: 0.55em !important;
-    line-height: 2.5 !important;
-    font-weight: 900 !important;
     font-size: 12pt !important;
+    line-height: 1.3 !important;
+    font-weight: 900 !important;
     color: #1f4e79 !important;
   }
 }
