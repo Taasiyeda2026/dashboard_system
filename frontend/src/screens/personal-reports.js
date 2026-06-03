@@ -1089,7 +1089,7 @@ async function rerender(root) {
 
 export const personalReportsScreen = {
   /** Called by main.js routing — no data fetch needed, screen manages its own auth */
-  load: () => ({}),
+  load: () => Promise.resolve({}),
 
   render(_data, _ctx) {
     return `<div id="pr-root" class="pr-module-root" dir="rtl"><div class="pr-loading-placeholder">טוען…</div></div>`;

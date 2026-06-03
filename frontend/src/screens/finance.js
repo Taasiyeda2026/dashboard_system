@@ -173,7 +173,7 @@ function kpiRow(stats) {
     ${kpiBox('סה״כ', stats.total)}
     ${kpiBox('ללא מחיר', stats.noPrice)}
     ${kpiBox('נגבו', stats.collected, stats.collectedPrice ? money(stats.collectedPrice) : '')}
-    ${kpiBox('לא נגבו', stats.notCollected)}
+    ${kpiBox('יתרה לגבייה', stats.notCollected)}
     ${kpiBox('פתוחות', stats.open)}
     ${kpiBox('סגורות', stats.closed)}
     ${kpiBox('סך מחיר', '', money(stats.totalPrice))}
@@ -322,14 +322,25 @@ function activityTypeAccordionHtml(typeKey, typeLabel, fundingTree, allTypeRows)
 function financeSummaryKpis(rows = []) {
   const stats = treeStats(rows);
   const exceptionCount = rows.reduce((sum, row) => sum + financeExceptions(row).length, 0);
-  return `<div class="ds-fin-top-kpis">
-    ${kpiBox('סה״כ פעילויות', stats.total)}
-    ${kpiBox('נגבו', stats.collected, money(stats.collectedPrice))}
-    ${kpiBox('לא נגבו', stats.notCollected)}
-    ${kpiBox('ללא מחיר', stats.noPrice)}
-    ${kpiBox('פתוחות', stats.open)}
-    ${kpiBox('סגורות', stats.closed)}
-    ${kpiBox('חריגות', exceptionCount)}
+  return `<div class="ds-fin-top-kpis" dir="rtl">
+    <div class="ds-fin-kpi-group">
+      <div class="ds-fin-kpi-group__label">גבייה וכספים</div>
+      <div class="ds-fin-kpi-group__items">
+        ${kpiBox('סה״כ פעילויות', stats.total)}
+        ${kpiBox('נגבו', stats.collected, money(stats.collectedPrice))}
+        ${kpiBox('יתרה לגבייה', stats.notCollected)}
+        ${kpiBox('סך מחיר', '', money(stats.totalPrice))}
+        ${kpiBox('חריגות', exceptionCount)}
+      </div>
+    </div>
+    <div class="ds-fin-kpi-group">
+      <div class="ds-fin-kpi-group__label">פעילות</div>
+      <div class="ds-fin-kpi-group__items">
+        ${kpiBox('פתוחות', stats.open)}
+        ${kpiBox('סגורות', stats.closed)}
+        ${kpiBox('טרם תומחרו', stats.noPrice)}
+      </div>
+    </div>
   </div>`;
 }
 
@@ -370,7 +381,7 @@ export const financeScreen = {
       </div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('כספים', `בקרה עסקית · ${allRows.length} פעילויות`)}
+      ${dsPageHeader('כספים / גבייה', 'בקרה כספית לפי פעילויות, סוגי תוכניות וסטטוס גבייה')}
       ${dsCard({ body, padded: true })}
     `);
   },
