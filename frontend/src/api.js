@@ -2052,7 +2052,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   const code = String(entry_code || '').trim();
   if (!uid || !code) throwLoginError('missing_user_id_or_entry_code');
 
-  const authEmail = `${uid}@taasiyeda.local`;
+  const authEmail = uid.includes('@') ? uid : `${uid}@think.org.il`;
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
     email: authEmail,
