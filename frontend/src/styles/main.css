@@ -12547,3 +12547,50 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pr-table th, .pr-table td { padding: 6px 6px; font-size: 0.8rem; }
   .pr-topbar { padding: 10px 12px; }
 }
+
+/* ── Admin "View as Employee" simulation ── */
+.pr-simulation-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #fef3c7;
+  border-bottom: 2px solid #f59e0b;
+  color: #92400e;
+  font-size: 0.92rem;
+  direction: rtl;
+  flex-wrap: wrap;
+}
+.pr-simulation-banner__label { font-weight: 500; }
+.pr-simulation-banner__name { font-weight: 700; font-size: 1rem; }
+.pr-simulation-banner__exit { margin-right: auto; }
+
+.pr-admin-actions-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.pr-employee-select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.pr-employee-select-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: background 0.15s;
+  direction: rtl;
+}
+.pr-employee-select-row:last-child { border-bottom: none; }
+.pr-employee-select-row:hover { background: #f0f9ff; }
+.pr-employee-select-row:focus { outline: 2px solid #3b82f6; outline-offset: -2px; background: #f0f9ff; }
+.pr-employee-select-name { font-weight: 600; font-size: 0.95rem; min-width: 140px; }
+.pr-employee-select-email { color: #64748b; font-size: 0.85rem; }

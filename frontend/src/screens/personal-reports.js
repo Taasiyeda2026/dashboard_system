@@ -37,10 +37,11 @@ const DOC_TYPE_LABELS = { receipt: 'קבלה', invoice: 'חשבונית', other:
 
 // ─── module state ─────────────────────────────────────────────────────────────
 
-let prSession = null;   // { user, profile }
-let prView = 'login';   // login | employee | admin | report-detail | employee-report
+let prSession = null;          // { user, profile }
+let prView = 'login';          // login | employee | admin | report-detail | employee-report
 let prSelectedReport = null;
-let prSelectedMonth = null;  // { month, year }
+let prSelectedMonth = null;    // { month, year }
+let prViewAsEmployee = null;   // { id, full_name, email } — admin simulation mode only
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -118,6 +119,15 @@ async function fetchReport(reportId) {
     .single();
   if (error) throw error;
   return data;
+}
+
+async function fetchActiveEmployees() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, role, is_active')
+    .order('full_name');
+  if (error) throw error;
+  return (data || []).filter(p => p.role !== 'admin' && p.is_active !== false);
 }
 
 async function fetchAllReports() {
@@ -275,6 +285,46 @@ function setLoading(id, on) {
 
 // ─── HTML builders ────────────────────────────────────────────────────────────
 
+function simulationBannerHtml(employeeName) {
+  return `
+    <div class="pr-simulation-banner" role="alert" dir="rtl">
+      <span class="pr-simulation-banner__label">תצוגת אדמין כעובד:</span>
+      <strong class="pr-simulation-banner__name">${escapeHtml(employeeName)}</strong>
+      <button class="pr-btn pr-btn--ghost pr-btn--sm pr-simulation-banner__exit" data-pr-action="exit-simulation">← חזרה למסך ניהול</button>
+    </div>
+  `;
+}
+
+function adminEmployeeSelectorHtml(employees) {
+  const rows = employees.length === 0
+    ? dsEmptyState('אין עובדים פעילים')
+    : employees.map(e => `
+        <div class="pr-employee-select-row" role="button" tabindex="0"
+          data-pr-action="select-view-as-employee"
+          data-employee-id="${escapeHtml(e.id)}"
+          data-employee-name="${escapeHtml(e.full_name || '')}"
+          data-employee-email="${escapeHtml(e.email || '')}">
+          <span class="pr-employee-select-name">${escapeHtml(e.full_name || '—')}</span>
+          <span class="pr-employee-select-email">${escapeHtml(e.email || '')}</span>
+        </div>
+      `).join('');
+
+  return `
+    <div class="pr-screen" dir="rtl">
+      <div class="pr-topbar">
+        <button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-admin">← חזרה לרשימה</button>
+        <span class="pr-topbar__title">תצוגה כעובד — בחירת עובד</span>
+      </div>
+      <div class="pr-body">
+        ${dsPageHeader('תצוגה כעובד', 'בחר עובד פעיל לסימולציית תצוגה (מצב בדיקה בלבד)')}
+        <div class="pr-card pr-employee-select-list">
+          ${rows}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function loginHtml(errorMsg = '') {
   return `
     <div class="pr-auth-wrap" dir="rtl">
@@ -299,7 +349,7 @@ function loginHtml(errorMsg = '') {
   `;
 }
 
-function employeeDashboardHtml(profile) {
+function employeeDashboardHtml(profile, { isSimulation = false } = {}) {
   const { month, year } = currentMonthYear();
   let monthOptions = '';
   for (let i = 0; i < 12; i++) {
@@ -310,14 +360,18 @@ function employeeDashboardHtml(profile) {
 
   return `
     <div class="pr-screen" dir="rtl">
+      ${isSimulation ? simulationBannerHtml(profile.full_name) : ''}
       <div class="pr-topbar">
-        <button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-dashboard">← חזרה לדשבורד</button>
+        ${isSimulation
+          ? `<button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="exit-simulation">← חזרה למסך ניהול</button>`
+          : `<button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-dashboard">← חזרה לדשבורד</button>`
+        }
         <span class="pr-topbar__title">דוחות אישיים</span>
-        <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="sign-out">יציאה</button>
+        ${isSimulation ? '' : `<button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="sign-out">יציאה</button>`}
       </div>
 
       <div class="pr-body">
-        ${dsPageHeader('הדוחות האישיים שלי', `שלום ${escapeHtml(profile.full_name)}`)}
+        ${dsPageHeader('הדוחות האישיים שלי', `${isSimulation ? 'סימולציה עבור: ' : 'שלום '}${escapeHtml(profile.full_name)}`)}
 
         <div class="pr-card pr-card--highlight">
           <label class="pr-label" for="pr-month-select">בחר חודש דיווח</label>
@@ -337,7 +391,7 @@ function employeeDashboardHtml(profile) {
   `;
 }
 
-function reportDetailHtml(report, travel, transport, expenses, attachments, profile) {
+function reportDetailHtml(report, travel, transport, expenses, attachments, profile, { isSimulation = false } = {}) {
   const editable = canEditReport(report);
   const monthYearLabel = monthLabel(report.report_month, report.report_year);
   const statusChip = dsStatusChip(STATUS_LABELS[report.status] || report.status, STATUS_KIND[report.status] || 'neutral');
@@ -469,6 +523,7 @@ function reportDetailHtml(report, travel, transport, expenses, attachments, prof
 
   return `
     <div class="pr-screen" dir="rtl">
+      ${isSimulation ? simulationBannerHtml(profile.full_name) : ''}
       <div class="pr-topbar">
         <button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-my-reports">← חזרה לדוחות שלי</button>
         <span class="pr-topbar__title">דוח ${escapeHtml(monthYearLabel)}</span>
@@ -566,6 +621,9 @@ function adminDashboardHtml(reports) {
       </div>
       <div class="pr-body">
         ${dsPageHeader('ניהול דוחות אישיים', 'כל הדוחות של כל העובדים')}
+        <div class="pr-admin-actions-bar">
+          <button class="pr-btn pr-btn--secondary" data-pr-action="view-as-employee">👁 תצוגה כעובד</button>
+        </div>
         ${reports.length === 0 ? dsEmptyState('אין דוחות להצגה') : `
           <div class="pr-table-scroll">
             <table class="pr-table">
@@ -728,10 +786,9 @@ async function loadMyReportsList(root, employeeId) {
   if (listEl) listEl.innerHTML = myReportsListHtml(reports || []);
 }
 
-async function openReportDetail(root, reportId, isAdmin = false) {
+async function openReportDetail(root, reportId, isAdmin = false, { isSimulation = false } = {}) {
   const report = await fetchReport(reportId);
-  // For admin view, get profile info too
-  if (isAdmin) {
+  if (isAdmin || isSimulation) {
     const { data: profileData } = await supabase
       .from('profiles')
       .select('full_name, email')
@@ -747,7 +804,11 @@ async function openReportDetail(root, reportId, isAdmin = false) {
   ]);
   prSelectedReport = report;
 
-  if (isAdmin) {
+  if (isSimulation) {
+    const simProfile = prViewAsEmployee || (report.profiles ? { full_name: report.profiles.full_name, email: report.profiles.email } : prSession.profile);
+    renderInto(root, reportDetailHtml(report, travel, transport, expenses, attachments, simProfile, { isSimulation: true }));
+    bindReportDetail(root, { isSimulation: true });
+  } else if (isAdmin) {
     renderInto(root, adminReportViewHtml(report, travel, transport, expenses, attachments));
     bindAdminReportView(root);
   } else {
@@ -796,15 +857,34 @@ function bindLoginForm(root) {
   }
 }
 
-function bindEmployeeDashboard(root) {
+function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
+  const simEmployeeId = isSimulation ? prViewAsEmployee?.id : null;
+
   root.querySelector('[data-pr-action="open-report"]')?.addEventListener('click', async () => {
     const sel = root.querySelector('#pr-month-select');
     const [month, year] = (sel?.value || '').split('-').map(Number);
     if (!month || !year) return;
     try {
-      const report = await getOrCreateReport(prSession.user.id, month, year);
-      prSelectedReport = report;
-      await openReportDetail(root, report.id, false);
+      if (isSimulation) {
+        // In simulation: fetch existing report only, never create
+        const { data: existing } = await supabase
+          .from('personal_reports')
+          .select('*')
+          .eq('employee_id', simEmployeeId)
+          .eq('report_month', month)
+          .eq('report_year', year)
+          .single();
+        if (!existing) {
+          showToast('לא קיים דוח לחודש זה עבור עובד זה (מצב סימולציה)', 'info');
+          return;
+        }
+        prSelectedReport = existing;
+        await openReportDetail(root, existing.id, false, { isSimulation: true });
+      } else {
+        const report = await getOrCreateReport(prSession.user.id, month, year);
+        prSelectedReport = report;
+        await openReportDetail(root, report.id, false);
+      }
     } catch (err) {
       showToast(err.message || 'שגיאה בפתיחת הדוח', 'danger');
     }
@@ -814,30 +894,49 @@ function bindEmployeeDashboard(root) {
     const btn = e.target.closest('[data-pr-action]');
     if (!btn) return;
     const action = btn.dataset.prAction;
-    if (action === 'back-to-dashboard') {
+    if (action === 'exit-simulation') {
+      prViewAsEmployee = null;
+      prView = 'admin';
+      rerender(root);
+    } else if (action === 'back-to-dashboard') {
       dispatchBackToDashboard();
     } else if (action === 'sign-out') {
       handleSignOut(root);
     } else if (action === 'open-existing-report') {
       const rid = btn.dataset.reportId;
-      if (rid) openReportDetail(root, rid, false);
+      if (rid) openReportDetail(root, rid, false, { isSimulation });
     }
   });
 
-  if (prSession?.user?.id) {
-    loadMyReportsList(root, prSession.user.id);
+  const employeeId = isSimulation ? simEmployeeId : prSession?.user?.id;
+  if (employeeId) {
+    loadMyReportsList(root, employeeId);
   }
 }
 
-function bindReportDetail(root) {
+function bindReportDetail(root, { isSimulation = false } = {}) {
+  const simMsg = 'מצב סימולציה: פעולה זו חסומה. זוהי תצוגה בלבד — יש להתחבר כעובד לביצוע פעולות עריכה.';
+
   root.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-pr-action]');
     if (!btn) return;
     const action = btn.dataset.prAction;
 
-    if (action === 'back-to-my-reports') {
-      prView = 'employee';
+    if (action === 'exit-simulation') {
+      prViewAsEmployee = null;
+      prView = 'admin';
       await rerender(root);
+      return;
+    }
+    if (action === 'back-to-my-reports') {
+      if (isSimulation) {
+        renderInto(root, employeeDashboardHtml(prViewAsEmployee, { isSimulation: true }));
+        bindEmployeeDashboard(root, { isSimulation: true });
+        loadMyReportsList(root, prViewAsEmployee.id);
+      } else {
+        prView = 'employee';
+        await rerender(root);
+      }
       return;
     }
     if (action === 'back-to-dashboard') {
@@ -848,6 +947,7 @@ function bindReportDetail(root) {
     }
 
     if (action === 'delete-entry') {
+      if (isSimulation) { showToast(simMsg, 'warning'); return; }
       if (!confirm('למחוק רשומה זו?')) return;
       try {
         await deleteEntry(btn.dataset.entryTable, btn.dataset.entryId);
@@ -858,6 +958,7 @@ function bindReportDetail(root) {
     }
 
     if (action === 'submit-report') {
+      if (isSimulation) { showToast(simMsg, 'warning'); return; }
       if (!confirm('לשלוח את הדוח לכספים? לאחר שליחה לא ניתן לערוך.')) return;
       try {
         await submitReport(prSelectedReport.id);
@@ -876,6 +977,7 @@ function bindReportDetail(root) {
     }
 
     if (action === 'delete-attachment') {
+      if (isSimulation) { showToast(simMsg, 'warning'); return; }
       if (!confirm('למחוק קובץ זה?')) return;
       try {
         await deleteAttachment({ id: btn.dataset.attachmentId, storage_path: btn.dataset.storagePath });
@@ -890,6 +992,7 @@ function bindReportDetail(root) {
   root.addEventListener('change', async (e) => {
     const fileInput = e.target.closest('input[type="file"].pr-file-input');
     if (!fileInput || !fileInput.files?.[0]) return;
+    if (isSimulation) { showToast(simMsg, 'warning'); fileInput.value = ''; return; }
     const file = fileInput.files[0];
     const expenseEntryId = fileInput.dataset.expenseId || null;
     try {
@@ -904,6 +1007,7 @@ function bindReportDetail(root) {
     const form = e.target.closest('.pr-add-form');
     if (!form) return;
     e.preventDefault();
+    if (isSimulation) { showToast(simMsg, 'warning'); return; }
     const formType = form.dataset.formType;
     const fd = new FormData(form);
     const reportId = prSelectedReport.id;
@@ -957,6 +1061,15 @@ function bindAdminDashboard(root) {
 
     if (action === 'back-to-dashboard') { dispatchBackToDashboard(); return; }
     if (action === 'sign-out') { await handleSignOut(root); return; }
+
+    if (action === 'view-as-employee') {
+      try {
+        const employees = await fetchActiveEmployees();
+        renderInto(root, adminEmployeeSelectorHtml(employees));
+        bindEmployeeSelector(root);
+      } catch (err) { showToast(err.message || 'שגיאה בטעינת עובדים', 'danger'); }
+      return;
+    }
 
     if (action === 'admin-view-report' && reportId) {
       await openReportDetail(root, reportId, true);
@@ -1051,6 +1164,40 @@ function bindAdminReportView(root) {
   });
 }
 
+function bindEmployeeSelector(root) {
+  root.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-pr-action]');
+    if (!btn) return;
+    const action = btn.dataset.prAction;
+
+    if (action === 'back-to-admin') {
+      prView = 'admin';
+      await rerender(root);
+      return;
+    }
+
+    if (action === 'select-view-as-employee') {
+      prViewAsEmployee = {
+        id: btn.dataset.employeeId,
+        full_name: btn.dataset.employeeName,
+        email: btn.dataset.employeeEmail
+      };
+      renderInto(root, employeeDashboardHtml(prViewAsEmployee, { isSimulation: true }));
+      bindEmployeeDashboard(root, { isSimulation: true });
+      loadMyReportsList(root, prViewAsEmployee.id);
+      return;
+    }
+  });
+
+  // keyboard accessibility for employee rows
+  root.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const row = e.target.closest('[data-pr-action="select-view-as-employee"]');
+      if (row) row.click();
+    }
+  });
+}
+
 function dispatchBackToDashboard() {
   document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
 }
@@ -1060,6 +1207,7 @@ async function handleSignOut(root) {
   prSession = null;
   prView = 'login';
   prSelectedReport = null;
+  prViewAsEmployee = null;
   renderInto(root, loginHtml());
   bindLoginForm(root);
 }
@@ -1070,7 +1218,12 @@ async function rerender(root) {
     bindLoginForm(root);
     return;
   }
-  if (prSession.profile.role === 'admin') {
+  if (prSession.profile.role === 'admin' && prViewAsEmployee) {
+    // Simulation mode: show employee view for the selected employee
+    renderInto(root, employeeDashboardHtml(prViewAsEmployee, { isSimulation: true }));
+    bindEmployeeDashboard(root, { isSimulation: true });
+    loadMyReportsList(root, prViewAsEmployee.id);
+  } else if (prSession.profile.role === 'admin') {
     try {
       const reports = await fetchAllReports();
       renderInto(root, adminDashboardHtml(reports));
@@ -1102,6 +1255,7 @@ export const personalReportsScreen = {
     prSession = null;
     prView = 'login';
     prSelectedReport = null;
+    prViewAsEmployee = null;
 
     renderInto(prRoot, loginHtml());
     bindLoginForm(prRoot);
@@ -1111,6 +1265,7 @@ export const personalReportsScreen = {
       prSession = null;
       prView = 'login';
       prSelectedReport = null;
+      prViewAsEmployee = null;
       document.removeEventListener('app:navigate', onNavigateAway);
     };
     document.addEventListener('app:navigate', onNavigateAway);
