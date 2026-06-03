@@ -12230,9 +12230,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pr-auth-card {
   background: #fff;
   border-radius: 14px;
-  padding: 36px 32px;
+  padding: 28px 20px;
   width: 100%;
-  max-width: 380px;
+  max-width: 228px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.09);
 }
 .pr-auth-title {
