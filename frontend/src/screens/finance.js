@@ -4,50 +4,21 @@ import {
   dsPageHeader,
   dsCard,
   dsScreenStack,
-  dsTableWrap,
-  dsEmptyState,
-  dsFilterBar,
-  dsKpiGrid,
-  dsStatusChip
+  dsEmptyState
 } from './shared/layout.js';
-import {
-  financeStatusVariant,
-  hebrewActivityType,
-  hebrewFinanceStatus,
-  hebrewExceptionType
-} from './shared/ui-hebrew.js';
-import { normalizedExceptionTypes } from './shared/exceptions-metrics.js';
 
-const FINANCE_TAB_ACTIVE = 'active';
-const FINANCE_TAB_ARCHIVE = 'archive';
-const FINANCE_TABS = new Set([FINANCE_TAB_ACTIVE, FINANCE_TAB_ARCHIVE]);
-const FINANCE_STATUS_OPEN = 'open';
-const FINANCE_STATUS_CLOSED = 'closed';
-const FINANCE_GROUP_UNASSIGNED = 'ללא מימון';
-const FINANCE_UNASSIGNED = '—';
-const FINANCE_EDIT_FIELDS = new Set(['price', 'Payment', 'finance_status', 'finance_notes']);
+// ─── Permission ─────────────────────────────────────────────────────────────
 
 function permissionYes(value) {
   return value === true || ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
 }
 
 function canAccessFinance(user = {}) {
-  const role = String(user?.display_role || user?.role || '').trim();
-  if (role === 'business_development_manager') return false;
-  return permissionYes(user?.finance_access) || role === 'finance';
+  // finance_access is set from has_finance_access which includes view_finance = "yes"
+  return permissionYes(user?.finance_access) || String(user?.role || user?.display_role || '').trim() === 'finance';
 }
 
-function normalizeFinanceStatus(value) {
-  const raw = String(value || '').trim();
-  const lower = raw.toLowerCase();
-  if (lower === 'open' || raw === 'פתוח') return FINANCE_STATUS_OPEN;
-  if (lower === 'closed' || raw === 'סגור') return FINANCE_STATUS_CLOSED;
-  return lower || FINANCE_STATUS_OPEN;
-}
-
-function isFinanceClosed(value) {
-  return normalizeFinanceStatus(value) === FINANCE_STATUS_CLOSED;
-}
+// ─── Normalize helpers ───────────────────────────────────────────────────────
 
 function num(v) {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
@@ -57,328 +28,381 @@ function num(v) {
 }
 
 function money(v) {
-  return `₪${num(v).toLocaleString('he-IL', { maximumFractionDigits: 2 })}`;
+  const n = num(v);
+  if (!n) return '—';
+  return `₪${n.toLocaleString('he-IL', { maximumFractionDigits: 0 })}`;
 }
 
-function roundedSessionCount(row = {}) {
-  const raw = num(row.sessions || row.session_count || row.meetings_count);
-  return raw > 0 ? Math.ceil(raw) : 0;
+function hasValidPrice(row = {}) {
+  const raw = row.price ?? row.amount ?? row.activity_price;
+  if (raw === null || raw === undefined || raw === '') return false;
+  const n = num(raw);
+  return n > 0;
 }
 
-function recordedPayment(row = {}) {
-  return num(row.Payment ?? row.payment ?? row.paid_amount ?? row.amount_paid);
+function rowPrice(row = {}) {
+  return num(row.price ?? row.amount ?? row.activity_price);
 }
 
-function rowAmount(row = {}) {
-  const price = num(row.price ?? row.amount ?? row.activity_price);
-  const roundedSessions = roundedSessionCount(row);
-  const recorded = recordedPayment(row);
-  const pendingRaw = roundedSessions - recorded;
-  const pending = pendingRaw > 0 ? pendingRaw : 0;
-  if (price > 0 && roundedSessions > 0 && recorded > 0 && recorded <= roundedSessions) return price * pending;
-  if (recorded > 0 && price > recorded) return price - recorded;
-  return price;
+function isCollected(row = {}) {
+  const v = String(row.payment_collected ?? row.collected ?? '').trim().toLowerCase();
+  return v === 'yes' || v === 'true' || v === '1' || v === 'נגבה';
 }
 
 function activityRowId(row = {}) {
   return String(row.RowID || row.row_id || row.source_row_id || '').trim();
 }
 
-function rowDate(row = {}, key, fallbackKey) {
-  return row[key] || row[fallbackKey] || '';
+function rowEndDate(row = {}) {
+  return String(row.end_date || row.date_end || row.start_date || '').trim();
 }
 
-function groupMeta(row = {}) {
-  const funding = String(row.funding || '').trim() || FINANCE_GROUP_UNASSIGNED;
-  const authority = String(row.authority || '').trim() || FINANCE_UNASSIGNED;
-  const school = String(row.school || '').trim() || FINANCE_UNASSIGNED;
-  const cluster = funding === 'גפ״ן' ? school : (funding === 'רשות' ? authority : funding);
-  return { funding, authority, school, cluster };
+function isActivityClosed(row = {}) {
+  const status = String(row.status || '').trim().toLowerCase();
+  if (['סגור', 'closed', 'inactive', 'נמחק', 'deleted'].includes(status)) return true;
+  const endRaw = rowEndDate(row);
+  if (!endRaw) return false;
+  const endDate = new Date(endRaw);
+  if (isNaN(endDate.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return endDate < today;
 }
 
-function groupActivities(rows = []) {
-  const map = new Map();
-  for (const row of rows) {
-    const meta = groupMeta(row);
-    const key = `${meta.funding}__${meta.cluster}`;
-    if (!map.has(key)) {
-      map.set(key, {
-        key,
-        ...meta,
-        authorities: new Set(),
-        schools: new Set(),
-        activities: [],
-        total: 0,
-        exceptions: 0,
-        open: 0,
-        closed: 0
-      });
-    }
-    const g = map.get(key);
-    g.authorities.add(meta.authority);
-    g.schools.add(meta.school);
-    g.activities.push(row);
-    g.total += rowAmount(row);
-    g.exceptions += financeExceptions(row).length;
-    if (isFinanceClosed(row.finance_status)) g.closed += 1;
-    else g.open += 1;
-  }
-  return [...map.values()]
-    .map((g) => ({
-      ...g,
-      authorityDisplay: g.authorities.size === 1 ? [...g.authorities][0] : 'מרובה',
-      schoolDisplay: g.schools.size === 1 ? [...g.schools][0] : 'מרובה'
-    }))
-    .sort((a, b) => b.total - a.total || b.activities.length - a.activities.length || a.key.localeCompare(b.key, 'he'));
+// ─── Activity type normalization ─────────────────────────────────────────────
+
+const FINANCE_ACTIVITY_TYPES = [
+  { key: 'course', label: 'קורסים' },
+  { key: 'workshop', label: 'סדנאות' },
+  { key: 'escape_room', label: 'חדרי בריחה' },
+  { key: 'after_school', label: 'After School' }
+];
+const FINANCE_TYPE_LABEL = Object.fromEntries(FINANCE_ACTIVITY_TYPES.map((t) => [t.key, t.label]));
+
+function normalizeFinanceActivityType(value) {
+  const raw = String(value || '').trim();
+  const compact = raw.toLowerCase().replace(/[\s_\-]+/g, '');
+  if (['course', 'courses', 'קורס', 'קורסים'].includes(compact)) return 'course';
+  if (['workshop', 'workshops', 'סדנה', 'סדנאות'].includes(compact)) return 'workshop';
+  if (['escaproom', 'escaperoom', 'escape_room', 'חדרבריחה', 'חדריבריחה'].includes(compact)) return 'escape_room';
+  if (['afterschool', 'after_school', 'אפטרסקול', 'חוגאפטרסקול'].includes(compact)) return 'after_school';
+  return 'other';
 }
 
-function uniqueOptions(rows, key) {
-  return [...new Set((Array.isArray(rows) ? rows : [])
-    .map((row) => String(row?.[key] || '').trim())
-    .filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
-}
-
-function selectHtml(name, label, value, options, allLabel = 'הכול') {
-  const opts = [`<option value="">${escapeHtml(allLabel)}</option>`]
-    .concat(options.map((opt) => `<option value="${escapeHtml(opt)}" ${String(value || '') === opt ? 'selected' : ''}>${escapeHtml(opt)}</option>`));
-  return `<label class="ds-field"><span>${escapeHtml(label)}</span><select class="ds-input ds-input--sm" data-finance-filter="${escapeHtml(name)}">${opts.join('')}</select></label>`;
-}
+// ─── Finance exceptions ───────────────────────────────────────────────────────
 
 function financeExceptions(row = {}) {
   const out = [];
-  if (!String(row.funding || '').trim()) out.push('missing_funding');
-  if (!String(row.finance_status || '').trim()) out.push('missing_finance_status');
-  if (rowAmount(row) > 0 && isFinanceClosed(row.finance_status) && recordedPayment(row) <= 0) out.push('closed_without_payment');
-  if (!isFinanceClosed(row.finance_status) && rowDate(row, 'end_date', 'date_end')) {
-    const end = new Date(rowDate(row, 'end_date', 'date_end'));
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (!Number.isNaN(end.getTime()) && end < today) out.push('ended_open_finance');
-  }
-  for (const type of normalizedExceptionTypes(row)) out.push(type);
+  if (!hasValidPrice(row)) out.push('no_price');
+  if (!String(row.funding || '').trim()) out.push('no_funding');
+  if (!String(row.activity_type || '').trim()) out.push('no_activity_type');
+  if (!String(row.activity_season || row.season || '').trim()) out.push('no_season');
+  if (isActivityClosed(row) && !hasValidPrice(row)) out.push('closed_no_price');
+  const price = rowPrice(row);
+  if (price > 0 && isNaN(price)) out.push('invalid_price');
   return [...new Set(out)];
 }
 
-function financeExceptionLabel(type) {
-  const map = {
-    missing_funding: 'חסר מקור מימון',
-    missing_finance_status: 'חסר סטטוס כספים',
-    closed_without_payment: 'נסגר ללא תשלום מתועד',
-    ended_open_finance: 'פעילות הסתיימה וגבייה פתוחה'
-  };
-  return map[type] || hebrewExceptionType(type);
+const EXCEPTION_LABELS = {
+  no_price: 'ללא מחיר',
+  no_funding: 'ללא גורם מימון',
+  no_activity_type: 'ללא סוג פעילות',
+  no_season: 'ללא עונה',
+  closed_no_price: 'סגורה ללא מחיר',
+  invalid_price: 'מחיר לא תקין'
+};
+
+function exceptionLabel(type) {
+  return EXCEPTION_LABELS[type] || type;
 }
 
-function applyFinanceFilters(rows = [], state = {}) {
-  const query = String(state.financeSearch || '').trim().toLowerCase();
-  const status = String(state.financeStatusFilter || '').trim();
-  const funding = String(state.financeFundingFilter || '').trim();
-  const authority = String(state.financeAuthorityFilter || '').trim();
-  const school = String(state.financeSchoolFilter || '').trim();
-  const exceptionsOnly = !!state.financeExceptionsOnly;
-  return (Array.isArray(rows) ? rows : []).filter((row) => {
-    if (status && normalizeFinanceStatus(row.finance_status) !== status) return false;
-    if (funding && String(row.funding || '').trim() !== funding) return false;
-    if (authority && String(row.authority || '').trim() !== authority) return false;
-    if (school && String(row.school || '').trim() !== school) return false;
-    const exceptions = financeExceptions(row);
-    if (exceptionsOnly && !exceptions.length) return false;
-    if (query) {
-      const haystack = [
-        row.activity_name, row.activity_type, row.authority, row.school, row.instructor_name,
-        row.activity_manager, row.finance_status, row.finance_notes, row.funding, activityRowId(row)
-      ].join(' ').toLowerCase();
-      if (!haystack.includes(query)) return false;
+// ─── Data grouping ────────────────────────────────────────────────────────────
+
+function buildFinanceTree(rows = []) {
+  // tree: activityTypeKey → fundingKey → clusterKey → rows[]
+  const tree = {};
+  for (const row of rows) {
+    const typeKey = normalizeFinanceActivityType(row.activity_type);
+    const funding = String(row.funding || '').trim() || 'ללא מימון';
+    const authority = String(row.authority || '').trim() || '—';
+    const school = String(row.school || '').trim() || '—';
+    // cluster logic per spec
+    let clusterKey;
+    if (funding === 'גפ״ן' || funding === "גפ'ן" || funding === 'גפן') {
+      clusterKey = school;
+    } else if (funding === 'רשות') {
+      clusterKey = authority;
+    } else {
+      clusterKey = funding;
     }
-    return true;
-  });
+    if (!tree[typeKey]) tree[typeKey] = {};
+    if (!tree[typeKey][funding]) tree[typeKey][funding] = {};
+    if (!tree[typeKey][funding][clusterKey]) tree[typeKey][funding][clusterKey] = [];
+    tree[typeKey][funding][clusterKey].push(row);
+  }
+  return tree;
 }
 
-function kpiHtml(rows = [], filteredRows = rows) {
-  const kpiOpen = rows.filter((r) => normalizeFinanceStatus(r.finance_status) === FINANCE_STATUS_OPEN || String(r.finance_status || '').toLowerCase() === 'open');
-  const kpiClosed = rows.filter((r) => normalizeFinanceStatus(r.finance_status) === FINANCE_STATUS_CLOSED || String(r.finance_status || '').toLowerCase() === 'closed');
-  const amountOpen = kpiOpen.reduce((s, r) => s + rowAmount(r), 0);
-  const amountClosed = kpiClosed.reduce((s, r) => s + rowAmount(r), 0);
+function treeStats(rows = []) {
+  let total = 0, collected = 0, notCollected = 0, noPrice = 0, open = 0, closed = 0, totalPrice = 0, collectedPrice = 0;
+  for (const row of rows) {
+    total++;
+    const price = rowPrice(row);
+    totalPrice += price;
+    if (isActivityClosed(row)) closed++;
+    else open++;
+    if (!hasValidPrice(row)) { noPrice++; }
+    if (isCollected(row)) { collected++; collectedPrice += price; }
+    else notCollected++;
+  }
+  return { total, collected, notCollected, noPrice, open, closed, totalPrice, collectedPrice };
+}
+
+// ─── HTML helpers ─────────────────────────────────────────────────────────────
+
+function kpiBox(label, value, sub = '') {
+  return `<div class="ds-fin-kpi">
+    <div class="ds-fin-kpi__val">${escapeHtml(String(value))}</div>
+    <div class="ds-fin-kpi__label">${escapeHtml(label)}</div>
+    ${sub ? `<div class="ds-fin-kpi__sub">${escapeHtml(sub)}</div>` : ''}
+  </div>`;
+}
+
+function kpiRow(stats) {
+  return `<div class="ds-fin-kpis">
+    ${kpiBox('סה״כ', stats.total)}
+    ${kpiBox('ללא מחיר', stats.noPrice)}
+    ${kpiBox('נגבו', stats.collected, stats.collectedPrice ? money(stats.collectedPrice) : '')}
+    ${kpiBox('לא נגבו', stats.notCollected)}
+    ${kpiBox('פתוחות', stats.open)}
+    ${kpiBox('סגורות', stats.closed)}
+    ${kpiBox('סך מחיר', '', money(stats.totalPrice))}
+  </div>`;
+}
+
+function activityRowHtml(row, showSaveBtn = false) {
+  const rowId = escapeHtml(activityRowId(row));
+  const price = rowPrice(row);
+  const collected = isCollected(row);
+  const closed = isActivityClosed(row);
+  const exceptions = financeExceptions(row);
+  const excText = exceptions.map(exceptionLabel).join(', ');
+  const dateStr = escapeHtml(formatDateHe(rowEndDate(row)) || rowEndDate(row) || '—');
+  const collectLabel = collected ? 'נגבה' : 'לא נגבה';
+  const collectClass = collected ? 'ds-fin-badge--collected' : 'ds-fin-badge--not-collected';
+  const statusLabel = closed ? 'סגורה' : 'פתוחה';
+  const statusClass = closed ? 'ds-fin-badge--closed' : 'ds-fin-badge--open';
+  return `<tr class="ds-fin-row" data-fin-row-id="${rowId}">
+    <td class="ds-fin-col--name">${escapeHtml(row.activity_name || '—')}</td>
+    <td class="ds-fin-col--type">${escapeHtml(FINANCE_TYPE_LABEL[normalizeFinanceActivityType(row.activity_type)] || row.activity_type || '—')}</td>
+    <td class="ds-fin-col--date" style="text-align:center">${dateStr}</td>
+    <td class="ds-fin-col--school">${escapeHtml(String(row.school || '—'))}</td>
+    <td class="ds-fin-col--price" style="text-align:left">${price ? escapeHtml(money(price)) : '—'}</td>
+    <td class="ds-fin-col--collect">
+      <span class="ds-fin-badge ${collectClass}">${collectLabel}</span>
+      ${showSaveBtn ? `<button type="button" class="ds-fin-toggle-btn ds-btn ds-btn--xs ds-btn--ghost" data-fin-toggle-collect="${rowId}">${collected ? 'בטל גבייה' : 'סמן כנגבה'}</button>` : ''}
+    </td>
+    <td class="ds-fin-col--status"><span class="ds-fin-badge ${statusClass}">${statusLabel}</span></td>
+    <td class="ds-fin-col--exc">${excText ? escapeHtml(excText) : ''}</td>
+  </tr>`;
+}
+
+function clusterAccordionHtml(clusterKey, clusterRows, fundingKey, typeKey, expandAll = false) {
+  const stats = treeStats(clusterRows);
+  const clusterLabel = clusterKey;
+  const rowsHtml = clusterRows
+    .slice()
+    .sort((a, b) => String(rowEndDate(a)).localeCompare(String(rowEndDate(b))))
+    .map((row) => activityRowHtml(row, true))
+    .join('');
+  const tableHtml = `<table class="ds-fin-table" dir="rtl">
+    <thead><tr>
+      <th class="ds-fin-col--name">שם פעילות</th>
+      <th class="ds-fin-col--type">סוג</th>
+      <th class="ds-fin-col--date" style="text-align:center">תאריך</th>
+      <th class="ds-fin-col--school">בית ספר</th>
+      <th class="ds-fin-col--price">מחיר</th>
+      <th class="ds-fin-col--collect">גבייה</th>
+      <th class="ds-fin-col--status">סטטוס</th>
+      <th class="ds-fin-col--exc">חריגה</th>
+    </tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>`;
+  const summaryLine = `${stats.total} פעילויות · ${stats.collected} נגבו · ${stats.notCollected} לא נגבו · ${stats.noPrice} ללא מחיר · ${money(stats.totalPrice)}`;
+  return `<details class="ds-fin-acc ds-fin-acc--cluster"${expandAll ? ' open' : ''} data-fin-cluster="${escapeHtml(fundingKey)}|${escapeHtml(clusterKey)}|${escapeHtml(typeKey)}">
+    <summary class="ds-fin-acc__summary">
+      <span class="ds-fin-acc__title">${escapeHtml(clusterLabel)}</span>
+      <span class="ds-fin-acc__meta">${escapeHtml(summaryLine)}</span>
+    </summary>
+    <div class="ds-fin-acc__body">${tableHtml}</div>
+  </details>`;
+}
+
+function fundingAccordionHtml(fundingKey, clusterMap, typeKey) {
+  const allRows = Object.values(clusterMap).flat();
+  const stats = treeStats(allRows);
+  const isGafan = (fundingKey === 'גפ״ן' || fundingKey === "גפ'ן" || fundingKey === 'גפן');
+  const isReshut = fundingKey === 'רשות';
+  const clusterLabel = isGafan ? 'בתי ספר' : isReshut ? 'רשויות' : 'גורם ריכוז';
+  const clusterCount = Object.keys(clusterMap).length;
+  const summaryLine = `${stats.total} פעילויות · ${clusterCount} ${clusterLabel} · ${money(stats.totalPrice)}`;
+  const clustersHtml = Object.entries(clusterMap)
+    .sort(([a], [b]) => a.localeCompare(b, 'he'))
+    .map(([clusterKey, rows]) => clusterAccordionHtml(clusterKey, rows, fundingKey, typeKey))
+    .join('');
+  return `<details class="ds-fin-acc ds-fin-acc--funding" data-fin-funding="${escapeHtml(fundingKey)}|${escapeHtml(typeKey)}">
+    <summary class="ds-fin-acc__summary">
+      <span class="ds-fin-acc__title">${escapeHtml(fundingKey)}</span>
+      <span class="ds-fin-acc__meta">${escapeHtml(summaryLine)}</span>
+    </summary>
+    <div class="ds-fin-acc__body">${clustersHtml}</div>
+  </details>`;
+}
+
+function programSummaryHtml(rows = []) {
+  const byName = new Map();
+  for (const row of rows) {
+    const name = String(row.activity_name || '').trim() || 'ללא שם';
+    if (!byName.has(name)) byName.set(name, []);
+    byName.get(name).push(row);
+  }
+  if (!byName.size) return '';
+  const sortedNames = [...byName.entries()].sort(([, a], [, b]) => b.length - a.length);
+  const tableRows = sortedNames.map(([name, nameRows]) => {
+    const stats = treeStats(nameRows);
+    return `<tr>
+      <td>${escapeHtml(name)}</td>
+      <td style="text-align:center">${stats.total}</td>
+      <td style="text-align:left">${stats.totalPrice ? escapeHtml(money(stats.totalPrice)) : '—'}</td>
+      <td style="text-align:center">${stats.noPrice}</td>
+      <td style="text-align:center">${stats.collected}</td>
+      <td style="text-align:center">${stats.notCollected}</td>
+      <td style="text-align:center">${stats.open} פתוחות / ${stats.closed} סגורות</td>
+    </tr>`;
+  }).join('');
+  return `<details class="ds-fin-acc ds-fin-acc--programs">
+    <summary class="ds-fin-acc__summary"><span class="ds-fin-acc__title">סיכום לפי שמות תוכניות</span></summary>
+    <div class="ds-fin-acc__body">
+      <table class="ds-fin-table" dir="rtl">
+        <thead><tr>
+          <th>שם פעילות / תוכנית</th>
+          <th style="text-align:center">כמות</th>
+          <th>סך מחיר</th>
+          <th style="text-align:center">ללא מחיר</th>
+          <th style="text-align:center">נגבו</th>
+          <th style="text-align:center">לא נגבו</th>
+          <th style="text-align:center">סטטוס</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  </details>`;
+}
+
+function activityTypeAccordionHtml(typeKey, typeLabel, fundingTree, allTypeRows) {
+  const stats = treeStats(allTypeRows);
+  const fundingsHtml = Object.entries(fundingTree)
+    .sort(([a], [b]) => a.localeCompare(b, 'he'))
+    .map(([fundingKey, clusterMap]) => fundingAccordionHtml(fundingKey, clusterMap, typeKey))
+    .join('');
+  const programsSummary = programSummaryHtml(allTypeRows);
+  return `<details class="ds-fin-acc ds-fin-acc--type" data-fin-type="${escapeHtml(typeKey)}">
+    <summary class="ds-fin-acc__summary ds-fin-acc__summary--type">
+      <span class="ds-fin-acc__title ds-fin-acc__title--type">${escapeHtml(typeLabel)}</span>
+      <span class="ds-fin-acc__meta">${stats.total} פעילויות · ${money(stats.totalPrice)}</span>
+    </summary>
+    <div class="ds-fin-acc__body">
+      ${kpiRow(stats)}
+      ${programsSummary}
+      ${fundingsHtml}
+    </div>
+  </details>`;
+}
+
+function financeSummaryKpis(rows = []) {
+  const stats = treeStats(rows);
   const exceptionCount = rows.reduce((sum, row) => sum + financeExceptions(row).length, 0);
-  return dsKpiGrid([
-    { label: 'פתוחות', value: kpiOpen.length, hint: money(amountOpen) },
-    { label: 'סגורות', value: kpiClosed.length, hint: money(amountClosed) },
-    { label: 'חריגות כספיות', value: exceptionCount, hint: 'לפי activities בלבד' },
-    { label: 'מוצגות לאחר סינון', value: filteredRows.length, hint: money(filteredRows.reduce((s, r) => s + rowAmount(r), 0)) }
-  ]);
-}
-
-function filtersHtml(allRows, state) {
-  const statusOptions = [
-    [FINANCE_STATUS_OPEN, 'פתוח'],
-    [FINANCE_STATUS_CLOSED, 'סגור']
-  ];
-  return dsFilterBar(`
-    <input type="search" class="ds-input ds-input--sm" data-finance-filter="search" value="${escapeHtml(state.financeSearch || '')}" placeholder="חיפוש פעילות / רשות / מדריך" aria-label="חיפוש כספים" />
-    <label class="ds-field"><span>סטטוס</span><select class="ds-input ds-input--sm" data-finance-filter="status"><option value="">הכול</option>${statusOptions.map(([value, label]) => `<option value="${value}" ${String(state.financeStatusFilter || '') === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
-    ${selectHtml('funding', 'מימון', state.financeFundingFilter, uniqueOptions(allRows, 'funding'))}
-    ${selectHtml('authority', 'רשות', state.financeAuthorityFilter, uniqueOptions(allRows, 'authority'))}
-    ${selectHtml('school', 'בית ספר', state.financeSchoolFilter, uniqueOptions(allRows, 'school'))}
-    <label class="ds-field ds-field--checkbox"><input type="checkbox" data-finance-filter="exceptions" ${state.financeExceptionsOnly ? 'checked' : ''} /> חריגות בלבד</label>
-    <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-finance-clear>ניקוי</button>
-  `);
-}
-
-function tabsHtml(tab) {
-  return `<div class="ds-tabs" style="display:flex;gap:6px" role="tablist" aria-label="מצב גבייה">
-    <button type="button" class="ds-btn ds-btn--sm ${tab === FINANCE_TAB_ACTIVE ? 'ds-btn--primary' : ''}" data-finance-tab="${FINANCE_TAB_ACTIVE}">גבייה פעילה</button>
-    <button type="button" class="ds-btn ds-btn--sm ${tab === FINANCE_TAB_ARCHIVE ? 'ds-btn--primary' : ''}" data-finance-tab="${FINANCE_TAB_ARCHIVE}">ארכיון כספים</button>
+  return `<div class="ds-fin-top-kpis">
+    ${kpiBox('סה״כ פעילויות', stats.total)}
+    ${kpiBox('נגבו', stats.collected, money(stats.collectedPrice))}
+    ${kpiBox('לא נגבו', stats.notCollected)}
+    ${kpiBox('ללא מחיר', stats.noPrice)}
+    ${kpiBox('פתוחות', stats.open)}
+    ${kpiBox('סגורות', stats.closed)}
+    ${kpiBox('חריגות', exceptionCount)}
   </div>`;
 }
 
-function activityViewDetails(row) {
-  const exceptionChips = financeExceptions(row)
-    .map((type) => dsStatusChip(financeExceptionLabel(type), 'warning'))
-    .join(' ') || dsStatusChip('ללא חריגה', 'success');
-  return `<div style="margin-top:8px;font-size:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
-    <div><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '')}</div>
-    <div><strong>סוג פעילות:</strong> ${escapeHtml(hebrewActivityType(row.activity_type))}</div>
-    <div><strong>בית ספר:</strong> ${escapeHtml(row.school || '—')}</div>
-    <div><strong>רשות:</strong> ${escapeHtml(row.authority || '—')}</div>
-    <div><strong>מימון:</strong> ${escapeHtml(row.funding || '—')}</div>
-    <div><strong>מדריך:</strong> ${escapeHtml(row.instructor_name || '—')}</div>
-    <div><strong>מנהל / אחראי:</strong> ${escapeHtml(row.activity_manager || '—')}</div>
-    <div><strong>תאריך התחלה:</strong> ${escapeHtml(formatDateHe(rowDate(row, 'start_date', 'date_start')) || '—')}</div>
-    <div><strong>תאריך סיום:</strong> ${escapeHtml(formatDateHe(rowDate(row, 'end_date', 'date_end')) || '—')}</div>
-    <div><strong>מספר מפגשים:</strong> ${escapeHtml(String(row.sessions || '—'))}</div>
-    <div><strong>סכום לגבייה:</strong> ${escapeHtml(money(rowAmount(row)))}</div>
-    <div><strong>סטטוס פעילות:</strong> ${escapeHtml(row.status || '—')}</div>
-    <div><strong>סטטוס כספים:</strong> ${dsStatusChip(hebrewFinanceStatus(row.finance_status), financeStatusVariant(row.finance_status))}</div>
-    <div style="grid-column:1/-1"><strong>חריגות:</strong> ${exceptionChips}</div>
-    <div style="grid-column:1/-1"><strong>הערות כספים:</strong> ${escapeHtml(String(row.finance_notes || '—'))}</div>
-  </div>`;
-}
-
-function activityEditDetails(row) {
-  const rowId = activityRowId(row);
-  return `<div style="margin-top:8px;font-size:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
-    <div><strong>שם פעילות:</strong> ${escapeHtml(row.activity_name || '')}</div>
-    <div><strong>סוג פעילות:</strong> ${escapeHtml(hebrewActivityType(row.activity_type))}</div>
-    <div><strong>בית ספר:</strong> ${escapeHtml(row.school || '—')}</div>
-    <div><strong>רשות:</strong> ${escapeHtml(row.authority || '—')}</div>
-    <div><strong>מימון:</strong> ${escapeHtml(row.funding || '—')}</div>
-    <div><strong>מדריך:</strong> ${escapeHtml(row.instructor_name || '—')}</div>
-    <div><strong>מספר מפגשים:</strong> ${escapeHtml(String(row.sessions || '—'))}</div>
-    <div><strong>סכום פעילות:</strong> <input class="ds-input ds-input--sm" data-finance-field="price" data-row-id="${escapeHtml(rowId)}" value="${escapeHtml(String(row.price ?? ''))}" /></div>
-    <div><strong>תשלום מתועד:</strong> <input class="ds-input ds-input--sm" data-finance-field="Payment" data-row-id="${escapeHtml(rowId)}" value="${escapeHtml(String(row.Payment ?? ''))}" /></div>
-    <div><strong>סטטוס כספים:</strong> <select class="ds-input ds-input--sm" data-finance-field="finance_status" data-row-id="${escapeHtml(rowId)}"><option value="open" ${normalizeFinanceStatus(row.finance_status) === 'open' ? 'selected' : ''}>פתוח</option><option value="closed" ${normalizeFinanceStatus(row.finance_status) === 'closed' ? 'selected' : ''}>סגור</option></select></div>
-    <div style="grid-column:1/-1"><strong>הערות כספים:</strong> <textarea class="ds-input" rows="2" data-finance-field="finance_notes" data-row-id="${escapeHtml(rowId)}">${escapeHtml(String(row.finance_notes || ''))}</textarea></div>
-    <div style="grid-column:1/-1"><button class="ds-btn ds-btn--sm ds-btn--primary" data-finance-save="${escapeHtml(rowId)}">שמירה</button></div>
-  </div>`;
-}
-
-function exportFinanceCsv(rows = []) {
-  const columns = ['RowID', 'activity_name', 'activity_type', 'authority', 'school', 'funding', 'finance_status', 'price', 'Payment', 'finance_notes'];
-  const csv = [columns.join(',')].concat(rows.map((row) => columns.map((c) => {
-    let v = row[c] ?? '';
-    if (c === 'Payment') v = String(rowAmount(row));
-    return `"${String(v).replace(/"/g, '""')}"`;
-  }).join(','))).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'finance-activities.csv';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+// ─── Screen ──────────────────────────────────────────────────────────────────
 
 export const financeScreen = {
   load: ({ api }) => api.allActivities(),
+
   render(data, { state } = {}) {
     if (!canAccessFinance(state?.user)) {
-      return dsScreenStack(`${dsPageHeader('כספים / גבייה', 'גישה מוגבלת')} ${dsEmptyState('אין הרשאה לעמוד כספים (finance_access).')}`);
+      return dsScreenStack(`${dsPageHeader('כספים', 'גישה מוגבלת')} ${dsEmptyState('אין הרשאה לצפייה בעמוד כספים.')}`);
     }
 
-    const tab = FINANCE_TABS.has(String(state?.financeTab || '')) ? String(state.financeTab) : FINANCE_TAB_ACTIVE;
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const tabRows = allRows.filter((r) => tab === FINANCE_TAB_ARCHIVE ? isFinanceClosed(r.finance_status) : !isFinanceClosed(r.finance_status));
-    const rows = applyFinanceFilters(tabRows, state || {});
-    const groups = groupActivities(rows);
+    const tree = buildFinanceTree(allRows);
+    const stats = treeStats(allRows);
+    void stats;
 
-    const body = groups.map((g) => `<tr class="ds-data-row" data-finance-group="${escapeHtml(g.key)}" role="button" tabindex="0"><td>${escapeHtml(g.funding)}</td><td>${escapeHtml(g.authorityDisplay)}</td><td>${escapeHtml(g.cluster)}</td><td>${g.activities.length}</td><td>${escapeHtml(money(g.total))}</td><td>${g.exceptions ? dsStatusChip(String(g.exceptions), 'warning') : dsStatusChip('0', 'success')}</td></tr>`).join('');
-    const table = groups.length
-      ? dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--compact"><thead><tr><th>גורם מימון</th><th>רשות</th><th>גורם ריכוז</th><th>כמות פעילויות</th><th>סה״כ לגבייה</th><th>חריגות</th></tr></thead><tbody>${body}</tbody></table>`)
-      : dsEmptyState('אין רשומות בלשונית זו');
-    return dsScreenStack(`${dsPageHeader('כספים / גבייה', `עמוד פנימי מבוסס activities בלבד · ריכוזי גבייה (${groups.length})`)} ${tabsHtml(tab)} ${kpiHtml(tabRows, rows)} ${filtersHtml(tabRows, state || {})} <div style="display:flex;justify-content:flex-end"><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-finance-export>ייצוא CSV</button></div> ${dsCard({ title: 'ריכוז גבייה לפי מימון ורשות', body: table, padded: groups.length === 0 })}`);
+    const typeAccordions = FINANCE_ACTIVITY_TYPES.map(({ key, label }) => {
+      const fundingTree = tree[key];
+      if (!fundingTree) return '';
+      const allTypeRows = Object.values(fundingTree).flatMap((cm) => Object.values(cm)).flat();
+      return activityTypeAccordionHtml(key, label, fundingTree, allTypeRows);
+    }).join('');
+
+    // Other types not in the main list
+    const knownTypes = new Set(FINANCE_ACTIVITY_TYPES.map((t) => t.key));
+    const otherTypeRows = allRows.filter((r) => !knownTypes.has(normalizeFinanceActivityType(r.activity_type)));
+    const otherSection = otherTypeRows.length > 0
+      ? activityTypeAccordionHtml('other', 'אחר', buildFinanceTree(otherTypeRows)['other'] || {}, otherTypeRows)
+      : '';
+
+    const body = `
+      ${financeSummaryKpis(allRows)}
+      <div class="ds-fin-accordions" dir="rtl">
+        ${typeAccordions}
+        ${otherSection}
+      </div>`;
+
+    return dsScreenStack(`
+      ${dsPageHeader('כספים', `בקרה עסקית · ${allRows.length} פעילויות`)}
+      ${dsCard({ body, padded: true })}
+    `);
   },
-  bind({ root, data, state, ui, api, rerender, clearScreenDataCache }) {
+
+  bind({ root, data, state, api, rerender }) {
     if (!canAccessFinance(state?.user)) return;
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const tab = FINANCE_TABS.has(String(state?.financeTab || '')) ? String(state.financeTab) : FINANCE_TAB_ACTIVE;
-    const tabRows = allRows.filter((r) => tab === FINANCE_TAB_ARCHIVE ? isFinanceClosed(r.finance_status) : !isFinanceClosed(r.finance_status));
-    const filtered = applyFinanceFilters(tabRows, state || {});
-    const groups = groupActivities(filtered);
-    const byKey = new Map(groups.map((g) => [g.key, g]));
+    const rowById = new Map(allRows.map((r) => [activityRowId(r), r]));
 
-    root.querySelectorAll('[data-finance-tab]').forEach((b) => b.addEventListener('click', () => { state.financeTab = b.dataset.financeTab; rerender?.(); }));
-    root.querySelectorAll('[data-finance-filter]').forEach((el) => el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => {
-      const key = el.dataset.financeFilter;
-      if (key === 'search') state.financeSearch = el.value;
-      if (key === 'status') state.financeStatusFilter = el.value;
-      if (key === 'funding') state.financeFundingFilter = el.value;
-      if (key === 'authority') state.financeAuthorityFilter = el.value;
-      if (key === 'school') state.financeSchoolFilter = el.value;
-      if (key === 'exceptions') state.financeExceptionsOnly = !!el.checked;
-      rerender?.();
-    }));
-    root.querySelector('[data-finance-clear]')?.addEventListener('click', () => {
-      state.financeSearch = '';
-      state.financeStatusFilter = '';
-      state.financeFundingFilter = '';
-      state.financeAuthorityFilter = '';
-      state.financeSchoolFilter = '';
-      state.financeExceptionsOnly = false;
-      rerender?.();
-    });
-    root.querySelector('[data-finance-export]')?.addEventListener('click', () => exportFinanceCsv(filtered));
-
-    const openGroup = (g) => {
-      const summary = `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;font-size:12px"><div><strong>גורם מימון:</strong> ${escapeHtml(g.funding)}</div><div><strong>רשות:</strong> ${escapeHtml(g.authorityDisplay)}</div><div><strong>גורם ריכוז:</strong> ${escapeHtml(g.cluster)}</div><div><strong>כמות פעילויות:</strong> ${g.activities.length}</div><div><strong>סה״כ לגבייה:</strong> ${escapeHtml(money(g.total))}</div><div><strong>חריגות:</strong> ${escapeHtml(String(g.exceptions))}</div></div>`;
-      const activities = g.activities.map((row) => {
-        const rowId = activityRowId(row);
-        const exceptions = financeExceptions(row).length;
-        return `<details class="ds-acc" style="border:1px solid #e5e7eb;border-radius:8px;padding:6px">
-          <summary style="cursor:pointer;display:flex;justify-content:space-between;gap:8px;font-size:12px"><span>${escapeHtml(row.activity_name || 'ללא שם')}</span><span>${escapeHtml(hebrewActivityType(row.activity_type))}</span><span>${escapeHtml(formatDateHe(rowDate(row, 'end_date', 'date_end')) || '—')}</span><span>${escapeHtml(money(rowAmount(row)))}</span><span>${exceptions ? `חריגות: ${escapeHtml(String(exceptions))}` : 'תקין'}</span></summary>
-          <div style="margin-top:8px;display:flex;gap:6px"><button class="ds-btn ds-btn--sm" data-finance-mode="view" data-row-id="${escapeHtml(rowId)}">צפייה</button><button class="ds-btn ds-btn--sm" data-finance-mode="edit" data-row-id="${escapeHtml(rowId)}">עריכה</button></div>
-          <div data-finance-panel="${escapeHtml(rowId)}">${activityViewDetails(row)}</div>
-        </details>`;
-      }).join('');
-      ui.openDrawer({ title: 'פירוט גבייה', content: `<div style="display:grid;gap:10px">${summary}<div style="display:grid;gap:6px">${activities}</div></div>` });
-
-      const rowLookup = new Map(g.activities.map((r) => [activityRowId(r), r]));
-      document.querySelectorAll('[data-finance-mode]').forEach((btn) => btn.addEventListener('click', () => {
-        const rowId = String(btn.dataset.rowId || '');
-        const mode = String(btn.dataset.financeMode || 'view');
-        const row = rowLookup.get(rowId);
-        const panel = document.querySelector(`[data-finance-panel="${CSS.escape(rowId)}"]`);
-        if (!row || !panel) return;
-        panel.innerHTML = mode === 'edit' ? activityEditDetails(row) : activityViewDetails(row);
-      }));
-
-      document.querySelectorAll('[data-finance-save]').forEach((btn) => btn.addEventListener('click', async () => {
-        const rowId = String(btn.dataset.financeSave || '');
-        const changes = {};
-        document.querySelectorAll(`[data-row-id="${CSS.escape(rowId)}"]`).forEach((el) => {
-          const field = el.dataset.financeField;
-          if (FINANCE_EDIT_FIELDS.has(field)) changes[field] = el.value;
+    // Toggle collection status
+    root.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('[data-fin-toggle-collect]');
+      if (!btn) return;
+      const rowId = String(btn.dataset.finToggleCollect || '');
+      const row = rowById.get(rowId);
+      if (!row) return;
+      btn.disabled = true;
+      const newCollected = !isCollected(row);
+      const newValue = newCollected ? 'yes' : 'no';
+      try {
+        await api.saveActivity({
+          source_row_id: rowId,
+          source_sheet: 'activities',
+          changes: { payment_collected: newValue }
         });
-        await api.saveActivity({ source_row_id: rowId, source_sheet: 'activities', changes });
-        clearScreenDataCache?.();
+        row.payment_collected = newValue;
         rerender?.();
-      }));
-    };
-
-    root.querySelectorAll('[data-finance-group]').forEach((rowEl) => rowEl.addEventListener('click', () => {
-      const g = byKey.get(rowEl.dataset.financeGroup);
-      if (g) openGroup(g);
-    }));
+      } catch (err) {
+        console.error('[finance] toggle collect failed', err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
   }
 };

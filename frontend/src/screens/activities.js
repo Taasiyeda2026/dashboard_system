@@ -813,12 +813,13 @@ function isActivityLayoutRowComplete(row = {}) {
   return Boolean(
     cleanText(row.school) &&
     cleanText(row.authority) &&
+    cleanText(row.activity_season || row.season || row.activity_period || ACTIVITY_LAYOUT_SEASON) &&
     activityLayoutDate(row) &&
     activityLayoutStartTime(row) &&
     activityLayoutEndTime(row) &&
+    (cleanText(row.grade || row.Grade || '') || cleanText(row.class_group || row.group || '')) &&
     cleanText(row.activity_name) &&
-    activityLayoutInstructors(row) &&
-    activityLayoutClassGroup(row)
+    activityLayoutInstructors(row)
   );
 }
 
@@ -969,13 +970,14 @@ function activityLayoutDocumentHtml(group) {
     <img class="doc-logo" src="${escapeHtml(taasiyedaLogoSrc)}" alt="תעשיידע">
     <h1>פריסת פעילות</h1>
     <section class="meta" aria-label="פרטי לקוח">
-      <div><strong>לכבוד:</strong> </div>
+      <div><strong>לכבוד:</strong> ________</div>
       <div><strong>בית ספר:</strong> ${escapeHtml(group?.school || '')}</div>
       <div><strong>רשות:</strong> ${escapeHtml(group?.authority || '')}</div>
     </section>
-    <p>להלן פריסת הפעילויות המתוכננת לבית הספר - פעילויות קיץ 2026:</p>
+    <p>שלום רב,</p>
+    <p>בהמשך לתיאום, מצורפת פריסת הפעילויות המתוכננת במסגרת קיץ תשפ"ו | 2026.</p>
+    <p>נבקש לעדכן את צוות תעשיידע מראש במקרה של שינוי בלוחות הזמנים, בהרכב הקבוצות, במיקום הפעילות או בכל צורך תפעולי אחר, כדי שנוכל להיערך בהתאם.</p>
     <table><colgroup><col class="col-date"><col class="col-start"><col class="col-end"><col class="col-grade"><col class="col-activity"><col class="col-instructor"></colgroup><thead><tr><th>תאריך</th><th>שעת התחלה</th><th>שעת סיום</th><th>כיתה</th><th>פעילות / סדנה</th><th>מדריך</th></tr></thead><tbody>${tableRows || '<tr><td colspan="6">לא נמצאו שיבוצים להצגה.</td></tr>'}</tbody></table>
-    <p>נבקש לעבור על הפריסה ולעדכן אותנו מראש בכל שינוי בלוחות הזמנים, בהרכב הקבוצות, במיקום הפעילות או בכל צורך תפעולי אחר, כדי שנוכל להיערך בהתאם.</p>
     <div class="signature">בברכה,<br>תעשיידע</div>
   </main></body></html>`;
 }
@@ -994,19 +996,43 @@ function openActivityLayoutDocument(group) {
   try { win.document.title = title; } catch { /* ignore */ }
 }
 
+function formatActivityLayoutSentAt(isoString) {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  } catch { return isoString; }
+}
+
 function activityLayoutListHtml(groups = []) {
   const rows = (Array.isArray(groups) ? groups : []).map((group) => {
     const isSent = !!group.status?.sent;
     const key = encodeURIComponent(activityLayoutStatusKey(group));
+    const sentAt = isSent ? formatActivityLayoutSentAt(group.status?.sent_at) : '';
+    const sentBy = isSent ? cleanText(group.status?.sent_by) : '';
+    const sentMeta = isSent && (sentAt || sentBy)
+      ? `<span class="ds-activity-layout-sent-meta">${[sentAt, sentBy ? `על ידי: ${sentBy}` : ''].filter(Boolean).join(' · ')}</span>`
+      : '';
+    const sentStatusHtml = isSent
+      ? `<span class="ds-chip ds-chip--status ds-chip--success">נשלח</span>${sentMeta}`
+      : `<span class="ds-chip ds-chip--status ds-chip--neutral">לא נשלח</span>`;
+    const sentBtnHtml = isSent
+      ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activity-layout-sent="${key}">עדכן אישור שליחה</button>`
+      : `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activity-layout-sent="${key}">סמן כנשלח</button>`;
     return `<tr>
       <td><button type="button" class="ds-link-btn" data-activity-layout-open="${key}">${escapeHtml(group.school)}</button></td>
       <td>${escapeHtml(group.authority)}</td>
       <td>${escapeHtml(String(group.count || 0))}</td>
-      <td class="ds-actions-cell"><button type="button" class="ds-btn ds-btn--sm" data-activity-layout-open="${key}">הפק מסמך</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activity-layout-sent="${key}"${isSent ? ' disabled aria-disabled="true"' : ''}>${isSent ? 'נשלח' : 'סמן כנשלח'}</button></td>
+      <td class="ds-activity-layout-status-cell">${sentStatusHtml}</td>
+      <td class="ds-actions-cell">
+        <button type="button" class="ds-btn ds-btn--sm" data-activity-layout-open="${key}">הפק מסמך</button>
+        ${sentBtnHtml}
+      </td>
     </tr>`;
   }).join('');
   if (!rows) return '<div class="ds-empty" dir="rtl"><p class="ds-empty__msg">אין בתי ספר מוכנים להפקת פריסת פעילות בשלב זה.</p></div>';
-  return dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>בית ספר</th><th>רשות</th><th>מספר פעילויות</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>`);
+  return dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>בית ספר</th><th>רשות</th><th>מספר פעילויות</th><th>סטטוס שליחה</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>`);
 }
 
 export const activitiesScreen = {
@@ -1264,7 +1290,7 @@ export const activitiesScreen = {
       if (content) content.innerHTML = activityLayoutListHtml(activityLayoutGroups);
     }
 
-    async function markActivityLayoutSent(group, button) {
+    async function doMarkActivityLayoutSent(group, button) {
       if (!group || !canUseActivityLayout(state)) return;
       if (button) button.disabled = true;
       const sentAt = new Date().toISOString();
@@ -1290,6 +1316,35 @@ export const activitiesScreen = {
       } finally {
         if (button) button.disabled = false;
       }
+    }
+
+    async function markActivityLayoutSent(group, button) {
+      if (!group || !canUseActivityLayout(state)) return;
+      const alreadySent = !!group.status?.sent;
+      if (alreadySent) {
+        const confirmed = await new Promise((resolve) => {
+          const overlay = document.createElement('div');
+          overlay.className = 'ds-confirm-overlay';
+          overlay.setAttribute('dir', 'rtl');
+          overlay.innerHTML = `
+            <div class="ds-confirm-dialog">
+              <p class="ds-confirm-msg">המסמך כבר סומן כנשלח. האם לעדכן את אישור השליחה מחדש?</p>
+              <div class="ds-confirm-actions">
+                <button type="button" class="ds-btn ds-btn--sm" data-confirm="no">ביטול</button>
+                <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-confirm="yes">כן, עדכן אישור שליחה</button>
+              </div>
+            </div>`;
+          overlay.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-confirm]');
+            if (!btn) return;
+            overlay.remove();
+            resolve(btn.dataset.confirm === 'yes');
+          });
+          document.body.appendChild(overlay);
+        });
+        if (!confirmed) return;
+      }
+      await doMarkActivityLayoutSent(group, button);
     }
     const filteredRows      = applyActivitiesLocalFilters(periodRows, state, state?.clientSettings);
     const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
