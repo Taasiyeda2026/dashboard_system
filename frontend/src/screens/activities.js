@@ -799,7 +799,8 @@ function isActivityLayoutRowComplete(row = {}) {
     activityLayoutStartTime(row) &&
     activityLayoutEndTime(row) &&
     cleanText(row.activity_name) &&
-    activityLayoutInstructors(row)
+    activityLayoutInstructors(row) &&
+    activityLayoutClassGroup(row)
   );
 }
 
