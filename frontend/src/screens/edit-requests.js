@@ -90,26 +90,31 @@ function instructorLine(activity) {
   return parts.length ? parts.join(' · ') : '—';
 }
 
+function requestTypeLabel(type) {
+  return String(type || '') === 'create_activity' ? 'בקשה להוספת פעילות' : 'בקשת עריכה';
+}
+
 function renderGroup(group, canReview) {
   const activity = group.activity || null;
+  const isCreateRequest = String(group.request_type || '') === 'create_activity';
   const hasActivity = Boolean(activity);
   const titleName = String(group.activity_name || activity?.activity_name || '').trim() || 'פעילות ללא שם';
   const rowId = String(group.source_row_id || '').trim();
-  const activityType = activity
+  const activityTypeRaw = String((isCreateRequest ? group?.requested_payload?.activity_type : activity?.activity_type) || '').trim();
+  const activityType = activityTypeRaw
     ? (() => {
-        const t = String(activity.activity_type || '').trim();
-        const he = hebrewActivityType(t);
-        return he && he !== 'לא מסווג' ? he : (t || '—');
+        const he = hebrewActivityType(activityTypeRaw);
+        return he && he !== 'לא מסווג' ? he : activityTypeRaw;
       })()
     : '—';
   const authority = String(group.authority || activity?.authority || '').trim() || '—';
   const school = String(group.school || activity?.school || '').trim() || '—';
-  const manager = String(activity?.activity_manager || '').trim() || '—';
-  const startD = activity ? formatDateDisplay(String(activity.start_date || '').trim()) : '';
-  const endD = activity ? formatDateDisplay(String(activity.end_date || '').trim()) : '';
+  const manager = String((isCreateRequest ? group?.requested_payload?.activity_manager : activity?.activity_manager) || '').trim() || '—';
+  const startD = formatDateDisplay(String((isCreateRequest ? group?.requested_payload?.start_date : activity?.start_date) || '').trim());
+  const endD = formatDateDisplay(String((isCreateRequest ? group?.requested_payload?.end_date : activity?.end_date) || '').trim());
   const startEnd = [startD, endD].filter(Boolean).join(' — ') || '—';
 
-  const warnIncomplete = !hasActivity
+  const warnIncomplete = (!hasActivity && !isCreateRequest)
     ? `<div class="ds-er-warn" role="alert">לא נמצאו פרטי פעילות מלאים לבדיקה — לא ניתן לאשר עד שנטענת הפעילות מהמערכת.</div>`
     : '';
 
@@ -139,16 +144,17 @@ function renderGroup(group, canReview) {
   return `
     <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}">
       <header class="ds-er-card-head">
-        <h3 class="ds-er-card-title">בקשת עריכה לפעילות: ${escapeHtml(titleName)}</h3>
+        <h3 class="ds-er-card-title">${escapeHtml(requestTypeLabel(group.request_type))}: ${escapeHtml(titleName)}</h3>
         <div>${dsStatusChip(statusLabel(group.status), statusVariant(group.status))}</div>
       </header>
       <div class="ds-er-meta-grid" dir="rtl">
-        <p><span class="ds-muted">מזהה:</span> <strong>${escapeHtml(rowId || '—')}</strong></p>
-        <p><span class="ds-muted">סוג:</span> ${escapeHtml(activityType)}</p>
+        <p><span class="ds-muted">מזהה:</span> <strong>${escapeHtml(rowId || (isCreateRequest ? 'ייווצר באישור' : '—'))}</strong></p>
+        <p><span class="ds-muted">סוג בקשה:</span> ${escapeHtml(requestTypeLabel(group.request_type))}</p>
+        <p><span class="ds-muted">סוג פעילות:</span> ${escapeHtml(activityType)}</p>
         <p><span class="ds-muted">רשות:</span> ${escapeHtml(authority)}</p>
         <p><span class="ds-muted">בית ספר:</span> ${escapeHtml(school)}</p>
         <p><span class="ds-muted">מנהל פעילות:</span> ${escapeHtml(manager)}</p>
-        <p><span class="ds-muted">מדריך:</span> ${escapeHtml(instructorLine(activity))}</p>
+        <p><span class="ds-muted">מדריך:</span> ${escapeHtml(isCreateRequest ? instructorLine(group.requested_payload || {}) : instructorLine(activity))}</p>
         <p><span class="ds-muted">תאריכי התחלה–סיום:</span> ${escapeHtml(startEnd)}</p>
       </div>
       <p class="ds-er-requester-line" dir="rtl">
@@ -158,15 +164,15 @@ function renderGroup(group, canReview) {
         ${escapeHtml(formatDateDisplay(group.requested_at) || String(group.requested_at || '—'))}
       </p>
       ${warnIncomplete}
-      <h4 class="ds-er-section-title">מה השתנה?</h4>
+      <h4 class="ds-er-section-title">${isCreateRequest ? 'פרטי הפעילות המבוקשת' : 'מה השתנה?'}</h4>
       <div class="ds-table-wrap ds-er-fields-wrap">
         <table class="ds-table ds-er-fields-table">
           <thead>
             <tr>
               <th>שדה</th>
-              <th>ערך נוכחי</th>
+              <th>${isCreateRequest ? 'פרט' : 'ערך נוכחי'}</th>
               <th></th>
-              <th>ערך מבוקש</th>
+              <th>${isCreateRequest ? 'ערך' : 'ערך מבוקש'}</th>
             </tr>
           </thead>
           <tbody>${fieldsRows}</tbody>
@@ -188,7 +194,7 @@ export const editRequestsScreen = {
   load: ({ api }) => api.editRequests(),
   render(data) {
     const groups = Array.isArray(data?.groups) ? data.groups : [];
-    const validGroups = groups.filter((group) => Array.isArray(group?.fields) && group.fields.length > 0);
+    const validGroups = groups.filter((group) => String(group?.request_type || '') === 'create_activity' || (Array.isArray(group?.fields) && group.fields.length > 0));
     const canReview = !!data?.canReview;
 
     const openGroups = validGroups.filter(isOpen);
@@ -197,10 +203,10 @@ export const editRequestsScreen = {
       ? dsEmptyState('אין בקשות פתוחות כרגע')
       : openGroups.map((g) => renderGroup(g, canReview)).join('');
 
-    const subtitle = canReview ? 'בקשות עריכה הממתינות לאישורך' : 'בקשות עריכה שהגשת';
+    const subtitle = canReview ? 'בקשות פעילות הממתינות לאישורך' : 'בקשות פעילות שהגשת';
 
     return dsScreenStack(`
-      ${dsPageHeader('בקשות עריכה', subtitle)}
+      ${dsPageHeader('בקשות פעילות', subtitle)}
       ${dsCard({
         title: `בקשות פתוחות (${openGroups.length})`,
         padded: false,

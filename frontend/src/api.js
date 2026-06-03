@@ -28,6 +28,7 @@ const MUTATING_ACTIONS = {
   addContact: true,
   saveContact: true,
   submitEditRequest: true,
+  submitCreateActivityRequest: true,
   reviewEditRequest: true,
   savePermission: true,
   addUser: true,
@@ -1383,6 +1384,7 @@ function invalidateScreenDataByAction(action) {
     addActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     deleteActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'archive', 'end-dates', 'exceptions:'],
     submitEditRequest: ['activities:', 'edit-requests'],
+    submitCreateActivityRequest: ['activities:', 'edit-requests'],
     reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:'],
     addUser: ['permissions', 'dashboard:'],
     deactivateUser: ['permissions', 'dashboard:'],
@@ -1890,9 +1892,24 @@ function permissionFlagYes(value) {
   return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
 }
 
+const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
+const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
+
+function currentActivityRole(user = state?.user || {}) {
+  return String(user?.display_role || user?.role || '').trim();
+}
+
+function canDirectManageActivitiesUser(user = state?.user || {}) {
+  return ACTIVITY_DIRECT_MANAGE_ROLES.has(currentActivityRole(user));
+}
+
+function canSubmitActivityRequestsUser(user = state?.user || {}) {
+  return canDirectManageActivitiesUser(user) || ACTIVITY_REQUEST_ROLES.has(currentActivityRole(user));
+}
+
 function canReviewEditRequestsUser(user = state?.user || {}) {
-  const role = String(user?.display_role || user?.role || '').trim();
-  return ['admin', 'operation_manager'].includes(role) || permissionFlagYes(user?.can_review_requests);
+  // Legacy permissionFlagYes(user?.can_review_requests) is intentionally not enough for activity request review.
+  return canDirectManageActivitiesUser(user);
 }
 
 function getLoginStatus(row) {
@@ -1953,16 +1970,18 @@ function buildBootstrapFromUser(userRow) {
   const role = normalizeSupabaseRole(flat.role);
   const allowedRoutes = [...(SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user)];
   const isBusinessDevelopmentManager = role === 'business_development_manager';
+  const canDirectManageActivities = ACTIVITY_DIRECT_MANAGE_ROLES.has(role);
+  const canRequestActivities = ACTIVITY_REQUEST_ROLES.has(role);
   const hasFinanceAccess = isBusinessDevelopmentManager ? false : (role === 'finance' || permissionFlagYes(parsePermissions(userRow?.permissions).finance_access) || permissionFlagYes(parsePermissions(userRow?.permissions).view_finance));
   const financeIdx = allowedRoutes.indexOf('finance');
   if (hasFinanceAccess && financeIdx === -1) allowedRoutes.push('finance');
   if (!hasFinanceAccess && financeIdx >= 0) allowedRoutes.splice(financeIdx, 1);
   if (permissionFlagYes(flat.view_catalog) && !allowedRoutes.includes('catalog')) allowedRoutes.push('catalog');
   if ((permissionFlagYes(flat.view_orders) || permissionFlagYes(flat.view_invitations)) && !allowedRoutes.includes('orders')) allowedRoutes.push('orders');
-  const canEditDirect = isBusinessDevelopmentManager ? false : permissionFlagYes(flat.can_edit_direct);
-  const canRequestEdit = isBusinessDevelopmentManager ? false : (canEditDirect || permissionFlagYes(flat.can_request_edit));
-  const canReviewRequests = isBusinessDevelopmentManager ? false : (['admin', 'operation_manager'].includes(role) || permissionFlagYes(flat.can_review_requests));
-  if (!isBusinessDevelopmentManager && (canRequestEdit || canReviewRequests || permissionFlagYes(flat.view_edit_requests)) && !allowedRoutes.includes('edit-requests')) {
+  const canEditDirect = canDirectManageActivities;
+  const canRequestEdit = canDirectManageActivities || canRequestActivities;
+  const canReviewRequests = canDirectManageActivities;
+  if (canReviewRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
   return {
@@ -1974,7 +1993,7 @@ function buildBootstrapFromUser(userRow) {
       display_role2: flat.display_role2 || '',
       display_role_label: flat.display_role_label || hebrewRole(role)
     },
-    can_add_activity: permissionFlagYes(flat.can_add_activity),
+    can_add_activity: canDirectManageActivities || canRequestActivities,
     can_edit_direct: canEditDirect,
     can_request_edit: canRequestEdit,
     can_review_requests: canReviewRequests,
@@ -2543,52 +2562,77 @@ function filterOperationsRows(rows, params = {}) {
   });
 }
 
+function parseJsonishObject(value, fallback = {}) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(String(value || ''));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function parseJsonishArray(value, fallback = []) {
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(String(value || ''));
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeEditRequestType(value) {
+  const type = String(value || '').trim();
+  return type === 'create_activity' ? 'create_activity' : 'edit_activity';
+}
+
 function buildEditRequestGroups(rows = [], canReview = false, activityByRowId = {}) {
   const groups = rows.map((row) => {
+    const requestType = normalizeEditRequestType(row?.request_type);
     const sourceRowId = String(row?.source_row_id || '').trim();
     const activityRow = sourceRowId && activityByRowId[sourceRowId] ? activityByRowId[sourceRowId] : null;
 
-    const changedFields =
-      Array.isArray(row?.changed_fields) ? row.changed_fields
-        : (() => {
-            try { return JSON.parse(String(row?.changed_fields || '[]')); } catch { return []; }
-          })();
-    const requestedValues =
-      row?.requested_values && typeof row.requested_values === 'object'
-        ? row.requested_values
-        : (() => {
-            try { return JSON.parse(String(row?.requested_values || '{}')); } catch { return {}; }
-          })();
-    const originalValues =
-      row?.original_values && typeof row.original_values === 'object'
-        ? row.original_values
-        : (() => {
-            try { return JSON.parse(String(row?.original_values || '{}')); } catch { return {}; }
-          })();
+    const changedFields = parseJsonishArray(row?.changed_fields);
+    const requestedValues = parseJsonishObject(row?.requested_values);
+    const originalValues = parseJsonishObject(row?.original_values);
+    const requestedPayload = sanitizeActivityPayloadForSupabase(
+      synchronizeStartDateAndFirstMeeting(parseJsonishObject(row?.requested_payload)),
+      { includeRowId: true }
+    );
 
-    const fields = (Array.isArray(changedFields) ? changedFields : []).map((fieldName) => {
-      const fn = String(fieldName || '');
-      if (!fn) return null;
-      const hasOriginalKey = Object.prototype.hasOwnProperty.call(originalValues, fn);
-      const oldFromSnapshot = hasOriginalKey
-        ? String(originalValues[fn] ?? '').trim()
-        : (activityRow ? String(activityRow[fn] ?? '').trim() : '');
-      const newVal = String(requestedValues?.[fn] ?? '').trim();
-      return {
-        field_name: fn,
-        old_value: oldFromSnapshot,
-        new_value: newVal
-      };
-    }).filter(Boolean);
+    const fields = requestType === 'create_activity'
+      ? Object.keys(requestedPayload).map((fieldName) => ({
+          field_name: fieldName,
+          old_value: '',
+          new_value: requestedPayload[fieldName]
+        }))
+      : (Array.isArray(changedFields) ? changedFields : []).map((fieldName) => {
+          const fn = String(fieldName || '');
+          if (!fn) return null;
+          const hasOriginalKey = Object.prototype.hasOwnProperty.call(originalValues, fn);
+          const oldFromSnapshot = hasOriginalKey
+            ? String(originalValues[fn] ?? '').trim()
+            : (activityRow ? String(activityRow[fn] ?? '').trim() : '');
+          const newVal = String(requestedValues?.[fn] ?? '').trim();
+          return {
+            field_name: fn,
+            old_value: oldFromSnapshot,
+            new_value: newVal
+          };
+        }).filter(Boolean);
 
     const activityName =
       String(row?.activity_name || '').trim() ||
+      String(requestedPayload?.activity_name || '').trim() ||
       String(activityRow?.activity_name || '').trim();
     const authority =
       String(row?.authority || '').trim() ||
+      String(requestedPayload?.authority || '').trim() ||
       String(activityRow?.authority || '').trim();
     const school =
       String(row?.school || '').trim() ||
+      String(requestedPayload?.school || '').trim() ||
       String(activityRow?.school || '').trim();
 
     return {
@@ -2600,12 +2644,13 @@ function buildEditRequestGroups(rows = [], canReview = false, activityByRowId = 
       review_note: String(row?.review_note || ''),
       source_row_id: sourceRowId,
       source_sheet: String(row?.source_sheet || 'activities'),
+      request_type: requestType,
+      requested_payload: requestedPayload,
       activity_name: activityName,
       authority,
       school,
       activity: activityRow,
-      /** אישור מותר רק כשיש שורת פעילות נטענת מה־DB — אחרת חסר הקשר לפני/אחרי */
-      can_approve: Boolean(activityRow),
+      can_approve: requestType === 'create_activity' ? Object.keys(requestedPayload).length > 0 : Boolean(activityRow),
       fields
     };
   });
@@ -2914,10 +2959,10 @@ export const api = {
         display_role2: flat.display_role2,
         full_name: flat.full_name,
         emp_id: flat.emp_id,
-        can_add_activity: permissionFlagYes(flat.can_add_activity),
-        can_edit_direct: permissionFlagYes(flat.can_edit_direct),
-        can_request_edit: (permissionFlagYes(flat.can_edit_direct) || permissionFlagYes(flat.can_request_edit)),
-        can_review_requests: (['admin', 'operation_manager'].includes(flat.role) || permissionFlagYes(flat.can_review_requests)),
+        can_add_activity: canDirectManageActivitiesUser(flat) || ACTIVITY_REQUEST_ROLES.has(String(flat.role || '').trim()),
+        can_edit_direct: canDirectManageActivitiesUser(flat),
+        can_request_edit: canSubmitActivityRequestsUser(flat),
+        can_review_requests: canDirectManageActivitiesUser(flat),
         finance_access: (flat.role === 'finance' || permissionFlagYes(flat.finance_access) || permissionFlagYes(flat.view_finance))
       },
       ...buildBootstrapFromUser(user),
@@ -3125,14 +3170,14 @@ export const api = {
       rows,
       roleDefaults: {
         admin: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'yes', view_catalog: 'yes', view_orders: 'yes' },
-        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes' },
+        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes' },
         authorized_user: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
-        finance: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', finance_access: 'yes', view_finance: 'yes' },
+        finance: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', finance_access: 'yes', view_finance: 'yes' },
         activities_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
-        domain_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes' },
-        business_development_manager: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', finance_access: 'no' },
+        domain_manager: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes' },
+        business_development_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', finance_access: 'no' },
         instructor_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
-        instructor: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' }
+        instructor: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' }
       }
     };
   },
@@ -3364,10 +3409,42 @@ export const api = {
     throw new Error('invalid_contact_kind');
   },
   addActivity: async (target, data) => {
+    if (!canDirectManageActivitiesUser()) throw new Error('forbidden_add_activity');
     const payload = (typeof target === 'object' && target !== null && data === undefined)
       ? { activity: target }
       : { activity: { ...(data || {}), source: target } };
     return upsertActivityToSupabase(payload);
+  },
+  submitCreateActivityRequest: async (activity) => {
+    if (!canSubmitActivityRequestsUser()) throw new Error('forbidden_create_activity_request');
+    const currentUser = state?.user || {};
+    const requestedPayload = sanitizeActivityPayloadForSupabase(
+      synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(activity || {})),
+      { includeRowId: true }
+    );
+    if (!Object.keys(requestedPayload).length) throw new Error('missing_activity_request_payload');
+    const row = {
+      request_id: `REQ-${Date.now()}`,
+      source_row_id: '',
+      source_sheet: 'activities',
+      request_type: 'create_activity',
+      requested_payload: requestedPayload,
+      activity_name: String(requestedPayload.activity_name || '').trim(),
+      school: String(requestedPayload.school || '').trim(),
+      authority: String(requestedPayload.authority || '').trim(),
+      changed_fields: JSON.stringify([]),
+      original_values: JSON.stringify({}),
+      requested_values: JSON.stringify({}),
+      status: 'pending',
+      active: 'yes',
+      requested_by_user_id: String(currentUser?.user_id || '').trim(),
+      requested_by_name: String(currentUser?.full_name || currentUser?.profile?.full_name || '').trim(),
+      requested_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('edit_requests').insert(row);
+    if (error) throw buildSupabaseMutationError('submitCreateActivityRequest', error, 'submit_create_activity_request_failed');
+    logActivityMutationDebug('success', 'submitCreateActivityRequest', { source_sheet: 'activities', source_row_id: '', changes: requestedPayload }, { table: 'edit_requests', request_id: row.request_id });
+    return { request_id: row.request_id, status: 'pending', request_type: 'create_activity' };
   },
   /** מקבל אובייקט מלא (כולל source_sheet, changes) או חתימה ישנה (id, changes). */
   saveActivity: async (a, b) => {
@@ -3375,8 +3452,8 @@ export const api = {
       ? { source_row_id: a, changes: b }
       : a;
     const userRole = String(state?.user?.display_role || state?.user?.role || '').trim();
-    const canEditDirect = permissionFlagYes(state?.user?.can_edit_direct);
-    if (userRole === 'activities_manager' && !canEditDirect) {
+    const canEditDirect = canDirectManageActivitiesUser();
+    if (!canEditDirect && canSubmitActivityRequestsUser()) {
       // eslint-disable-next-line no-console
       console.warn('wrong_flow: activities_manager attempted saveActivity; using submitEditRequest instead', {
         action: 'saveActivity',
@@ -3385,6 +3462,7 @@ export const api = {
       });
       return api.submitEditRequest(payload);
     }
+    if (!canEditDirect) throw new Error('forbidden_save_activity');
     return updateActivityInSupabase(payload);
   },
   deleteActivity: async (source_row_id) => {
@@ -3405,6 +3483,7 @@ export const api = {
   },
   submitEditRequest: async (source_row_id, changes, source_sheet = 'activities') => {
     const requestPayload = (source_row_id && typeof source_row_id === 'object') ? source_row_id : null;
+    if (!canSubmitActivityRequestsUser()) throw new Error('forbidden_submit_edit_request');
     const rowId = String(requestPayload?.source_row_id || source_row_id || '').trim();
     const sourceSheet = String(requestPayload?.source_sheet || source_sheet || 'activities').trim() || 'activities';
     const rawChanges = requestPayload?.changes || changes || {};
@@ -3452,6 +3531,7 @@ export const api = {
       changed_fields: JSON.stringify(changedKeys),
       original_values: JSON.stringify(originalValuesMap),
       requested_values: JSON.stringify(normalizedChanges),
+      request_type: 'edit_activity',
       status: 'pending',
       active: 'yes',
       requested_by_user_id: String(currentUser?.user_id || '').trim(),
@@ -3497,25 +3577,29 @@ export const api = {
     const reqRow = reqRes.data;
     if (String(reqRow?.status || '').trim() !== 'pending') throw new Error('edit_request_already_reviewed');
     if (nextStatus === 'approved') {
+      const requestType = normalizeEditRequestType(reqRow?.request_type);
       const sourceRowId = String(reqRow?.source_row_id || '').trim();
-      const requestedValues =
-        reqRow?.requested_values && typeof reqRow.requested_values === 'object'
-          ? reqRow.requested_values
-          : (() => {
-              try { return JSON.parse(String(reqRow?.requested_values || '{}')); } catch { return {}; }
-            })();
-      if (sourceRowId && requestedValues && Object.keys(requestedValues).length) {
-        const sanitizedRequestedValues = sanitizeActivityPayloadForSupabase(
-          mapMeetingDateFieldNamesToSupabase(requestedValues),
-          { includeRowId: false }
+      if (requestType === 'create_activity') {
+        const requestedPayload = sanitizeActivityPayloadForSupabase(
+          synchronizeStartDateAndFirstMeeting(parseJsonishObject(reqRow?.requested_payload)),
+          { includeRowId: true }
         );
-        const { data: appliedRow, error: applyErr } = await supabase
-          .from('activities')
-          .update(sanitizedRequestedValues)
-          .eq('row_id', sourceRowId)
-          .select('row_id')
-          .maybeSingle();
-        if (applyErr || !appliedRow) {
+        if (!Object.keys(requestedPayload).length) throw new Error('missing_create_activity_payload');
+        await upsertActivityToSupabase({ activity: requestedPayload });
+      } else {
+        const requestedValues = parseJsonishObject(reqRow?.requested_values);
+        if (sourceRowId && requestedValues && Object.keys(requestedValues).length) {
+          const sanitizedRequestedValues = sanitizeActivityPayloadForSupabase(
+            mapMeetingDateFieldNamesToSupabase(requestedValues),
+            { includeRowId: false }
+          );
+          const { data: appliedRow, error: applyErr } = await supabase
+            .from('activities')
+            .update(sanitizedRequestedValues)
+            .eq('row_id', sourceRowId)
+            .select('row_id')
+            .maybeSingle();
+          if (applyErr || !appliedRow) {
           const authContext = await buildActivityMutationAuthContext();
           // eslint-disable-next-line no-console
           console.error('[activity-save-error]', {
@@ -3538,6 +3622,7 @@ export const api = {
             error: applyErr
           });
           throw buildSupabaseMutationError('reviewEditRequest', applyErr || new Error('activity_not_found_or_forbidden'), 'review_edit_request_apply_failed');
+          }
         }
       }
     }
@@ -3567,9 +3652,9 @@ export const api = {
     const nextRole = row.role || existing.data.role;
     if (nextRole === 'business_development_manager') {
       Object.assign(permissions, {
-        can_add_activity: 'no',
+        can_add_activity: 'yes',
         can_edit_direct: 'no',
-        can_request_edit: 'no',
+        can_request_edit: 'yes',
         can_review_requests: 'no',
         view_admin: 'no',
         view_permissions: 'no',
@@ -3595,7 +3680,7 @@ export const api = {
   addUser: async (row) => {
     const role = String(row?.role || 'instructor').trim();
     const permissions = role === 'business_development_manager'
-      ? { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', finance_access: 'no' }
+      ? { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', finance_access: 'no' }
       : { can_request_edit: 'yes' };
     const insert = {
       user_id: String(row?.user_id || '').trim(),
