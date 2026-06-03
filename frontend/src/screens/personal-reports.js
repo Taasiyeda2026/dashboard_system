@@ -1098,27 +1098,21 @@ export const personalReportsScreen = {
   bind({ root } = {}) {
     const prRoot = (root && root.querySelector('#pr-root')) || root;
 
-    // Try restoring existing Supabase session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        try {
-          const profile = await getProfile(session.user.id);
-          prSession = { user: session.user, profile };
-          prView = profile.role === 'admin' ? 'admin' : 'employee';
-          await rerender(prRoot);
-        } catch {
-          prSession = null;
-          renderInto(prRoot, loginHtml());
-          bindLoginForm(prRoot);
-        }
-      } else {
-        renderInto(prRoot, loginHtml());
-        bindLoginForm(prRoot);
-      }
-    }).catch(() => {
-      renderInto(prRoot, loginHtml());
-      bindLoginForm(prRoot);
-    });
+    // Always reset internal auth on every entry — module requires re-authentication each visit.
+    prSession = null;
+    prView = 'login';
+    prSelectedReport = null;
 
+    renderInto(prRoot, loginHtml());
+    bindLoginForm(prRoot);
+
+    // Clear internal auth when the user navigates away to another route.
+    const onNavigateAway = () => {
+      prSession = null;
+      prView = 'login';
+      prSelectedReport = null;
+      document.removeEventListener('app:navigate', onNavigateAway);
+    };
+    document.addEventListener('app:navigate', onNavigateAway);
   }
 };
