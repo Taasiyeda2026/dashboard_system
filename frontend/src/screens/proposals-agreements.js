@@ -992,9 +992,9 @@ function buildProposalDocumentHtml({ dateDisplay, row, introText, sections, orgR
       </div>
       <div class="proposal-document-body">
         <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
+        ${recipientBlockHtml(row)}
         <hr class="pa-doc-divider">
         <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
-        ${recipientBlockHtml(row)}
         ${introText ? sectionLines(introText, { className: 'pa-doc-intro' }) : ''}
         ${sections.join('')}
         ${orgResponsibility}
