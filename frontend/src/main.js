@@ -516,7 +516,8 @@ const screenLabels = {
   finance: 'כספים / גבייה',
   invitations: 'הזמנות',
   orders: 'הזמנות',
-  catalog: 'קטלוג'
+  catalog: 'קטלוג',
+  'personal-reports': 'דוחות אישיים'
 };
 
 function navLabelForRoute(route) {
@@ -563,7 +564,8 @@ const screenLoaders = {
   finance: () => import('./screens/finance.js').then((m) => m.financeScreen),
   invitations: () => import('./screens/invitations.js').then((m) => m.invitationsScreen),
   orders: () => import('./screens/orders.js').then((m) => m.ordersScreen),
-  catalog: () => import('./screens/catalog.js').then((m) => m.catalogScreen)
+  catalog: () => import('./screens/catalog.js').then((m) => m.catalogScreen),
+  'personal-reports': () => import('./screens/personal-reports.js').then((m) => m.personalReportsScreen)
 };
 const loadedScreens = new Map();
 const loadingScreens = new Map();

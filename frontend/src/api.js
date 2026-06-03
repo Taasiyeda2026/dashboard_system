@@ -1872,15 +1872,15 @@ const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_
 const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
 
 const SUPABASE_ROLE_ROUTES = {
-  admin: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists'],
-  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
-  authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  finance: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  activities_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  instructor_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  instructor: ['my-data', 'week', 'month']
+  admin: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists', 'personal-reports'],
+  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'personal-reports'],
+  authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'personal-reports'],
+  finance: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'personal-reports'],
+  activities_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'personal-reports'],
+  domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'personal-reports'],
+  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'personal-reports'],
+  instructor_manager: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'personal-reports'],
+  instructor: ['my-data', 'week', 'month', 'personal-reports']
 };
 
 function normalizeSupabaseRole(role) {
