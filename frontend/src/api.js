@@ -1953,7 +1953,7 @@ function buildBootstrapFromUser(userRow) {
   const role = normalizeSupabaseRole(flat.role);
   const allowedRoutes = [...(SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user)];
   const isBusinessDevelopmentManager = role === 'business_development_manager';
-  const hasFinanceAccess = isBusinessDevelopmentManager ? false : permissionFlagYes(parsePermissions(userRow?.permissions).finance_access);
+  const hasFinanceAccess = isBusinessDevelopmentManager ? false : (role === 'finance' || permissionFlagYes(parsePermissions(userRow?.permissions).finance_access) || permissionFlagYes(parsePermissions(userRow?.permissions).view_finance));
   const financeIdx = allowedRoutes.indexOf('finance');
   if (hasFinanceAccess && financeIdx === -1) allowedRoutes.push('finance');
   if (!hasFinanceAccess && financeIdx >= 0) allowedRoutes.splice(financeIdx, 1);
@@ -2918,7 +2918,7 @@ export const api = {
         can_edit_direct: permissionFlagYes(flat.can_edit_direct),
         can_request_edit: (permissionFlagYes(flat.can_edit_direct) || permissionFlagYes(flat.can_request_edit)),
         can_review_requests: (['admin', 'operation_manager'].includes(flat.role) || permissionFlagYes(flat.can_review_requests)),
-        finance_access: permissionFlagYes(flat.finance_access)
+        finance_access: (flat.role === 'finance' || permissionFlagYes(flat.finance_access) || permissionFlagYes(flat.view_finance))
       },
       ...buildBootstrapFromUser(user),
       client_settings: buildClientSettingsFromLists(listsData, settingsRows)
@@ -3127,7 +3127,7 @@ export const api = {
         admin: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'yes', view_catalog: 'yes', view_orders: 'yes' },
         operation_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes' },
         authorized_user: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
-        finance: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
+        finance: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', finance_access: 'yes', view_finance: 'yes' },
         activities_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no' },
         domain_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes' },
         business_development_manager: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', finance_access: 'no' },

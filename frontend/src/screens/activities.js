@@ -41,7 +41,7 @@ import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 import { ACTIVITY_SEASON_OPTIONS, normalizeActivitySeason } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
-import taasiyedaLogoSrc from '../../assets/logo1.png';
+const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
 const ADD_ACTIVITY_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
@@ -1154,7 +1154,7 @@ export const activitiesScreen = {
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">↻</button>
         ${canUseLayout ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn ds-activities-toolbar-btn--layout" data-activity-layout-list title="פריסת פעילות לבתי ספר עם שיבוץ מלא">פריסת פעילות</button>` : ''}
-        ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-export-all title="ייצוא הפעילויות בלשונית הפעילה לאקסל">ייצוא לאקסל</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-admin-summary title="סיכום אדמין ללשונית הפעילה">סיכום אדמין</button>` : ''}
+        ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-export-all title="ייצוא הפעילויות בלשונית הפעילה לאקסל">ייצוא לאקסל</button>` : ''}
         ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-activities-add-btn aria-label="הוספת פעילות" title="הוספת פעילות">+</button>` : ''}
       </div>
     </div>`;
@@ -1503,24 +1503,6 @@ export const activitiesScreen = {
       }
     });
 
-    root.querySelector('[data-activities-admin-summary]')?.addEventListener('click', async (ev) => {
-      if (!isAdmin || !ui) return;
-      const btn = ev.currentTarget;
-      btn.disabled = true;
-      ui.openDrawer({ title: 'סיכום אדמין – כלל הפעילויות', content: adminSummaryLoadingHtml() });
-      try {
-        const res = await loadAllActivitiesForAdmin();
-        const drawerContent = document.querySelector('.ds-drawer__content');
-        const rows = activityPeriodRows(Array.isArray(res?.rows) ? res.rows : [], state.activityPeriodTab);
-        if (drawerContent) drawerContent.innerHTML = renderAdminActivitiesSummary(rows, state?.clientSettings || {});
-      } catch (err) {
-        console.error('[admin-summary:failed]', err);
-        const drawerContent = document.querySelector('.ds-drawer__content');
-        if (drawerContent) drawerContent.innerHTML = adminSummaryErrorHtml();
-      } finally {
-        btn.disabled = false;
-      }
-    });
 
     root.querySelector('[data-activity-layout-list]')?.addEventListener('click', async (ev) => {
       if (!canUseActivityLayout(state) || state.activityPeriodTab !== ACTIVITY_LAYOUT_SEASON || !ui) return;

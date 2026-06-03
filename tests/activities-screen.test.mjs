@@ -99,12 +99,12 @@ test('activities table keeps expected columns structure', () => {
 });
 
 
-test('activities render: admin sees compact Excel export and admin summary buttons', () => {
+test('activities render: admin sees compact Excel export but no admin summary button', () => {
   const html = activitiesScreen.render({ rows: [] }, { state: baseState() });
   assert.match(html, /data-activities-export-all/);
   assert.match(html, />ייצוא לאקסל<\/button>/);
-  assert.match(html, /data-activities-admin-summary/);
-  assert.match(html, />סיכום אדמין<\/button>/);
+  assert.doesNotMatch(html, /data-activities-admin-summary/);
+  assert.doesNotMatch(html, />סיכום אדמין<\/button>/);
   assert.doesNotMatch(html, /ייצוא כל הפעילויות לאקסל<\/button>/);
 });
 
@@ -219,21 +219,12 @@ test('activities view switcher keeps week and month routes without an all/summer
   assert.doesNotMatch(html, /ds-activities-view-btn--summer/);
 });
 
-test('activities source includes admin summary all-activities loading and no district buckets', async () => {
+test('activities source no longer wires the admin summary drawer into the activities page', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
-  assert.match(source, /function buildAdminActivitiesSummary\(rows, settings = \{\}\)/);
-  assert.match(source, /api\.allActivities/);
-  assert.match(source, /טוען סיכום…/);
-  assert.match(source, /\[admin-summary:failed\]/);
-  assert.match(source, /course[\s\S]*workshop[\s\S]*tour[\s\S]*after_school/);
-
-  assert.match(source, /uniqueAdminSummaryRows\(rows\)/);
-  assert.match(source, /ADMIN_SUMMARY_DEDUPE_ID_FIELDS = \['RowID', 'row_id', 'source_row_id'\]/);
-  assert.match(source, /activity_name', 'activity_type', 'school', 'authority', 'start_date', 'end_date'/);
-  assert.doesNotMatch(source, /summary\.districts/);
-  assert.doesNotMatch(source, /ADMIN_SUMMARY_DISTRICTS/);
-  assert.doesNotMatch(source, /buildAdminSummaryManagerDistrictLookup/);
+  assert.doesNotMatch(source, /data-activities-admin-summary/);
+  assert.doesNotMatch(source, /\[admin-summary:failed\]/);
+  assert.doesNotMatch(source, /querySelector\('\[data-activities-admin-summary\]'\)/);
 });
 
 test('admin activities summary renders one total summary without district sections', async () => {
