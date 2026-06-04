@@ -12914,3 +12914,75 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pr-attachments-list { padding: 4px 12px 8px; }
   .pr-upload-label { margin: 4px 12px 10px; }
 }
+
+/* Personal reports — compact tabbed employee/admin workflow */
+.pr-quick-tabs,
+.pr-report-tabs,
+.pr-admin-mode-switch {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pr-quick-tabs { margin-top: 10px; }
+.pr-report-tabs,
+.pr-admin-mode-switch {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.pr-report-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #475569;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pr-report-tab:hover { background: #f8fafc; }
+.pr-report-tab.is-active {
+  background: var(--ds-accent, #1a3358);
+  color: #fff;
+  border-color: var(--ds-accent, #1a3358);
+}
+.pr-helper-text {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+.pr-tab-panel[hidden] { display: none !important; }
+.pr-col-date { width: 112px; }
+.pr-col-compact { width: 112px; }
+.pr-col-mid { min-width: 132px; }
+.pr-col-detail { min-width: 220px; width: 36%; }
+.pr-signature-text {
+  margin: 0;
+  color: #166534;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.pr-signature-input { max-width: 320px; }
+.pr-admin-body { max-width: 1180px; }
+.pr-admin-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, 0.8fr) minmax(160px, 0.8fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.pr-admin-table .pr-admin-status-select {
+  min-width: 128px;
+  padding-block: 5px;
+  font-size: 0.82rem;
+}
+.pr-admin-table th,
+.pr-admin-table td { white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .pr-admin-filters { grid-template-columns: 1fr; }
+  .pr-report-tab { flex: 1 1 auto; }
+  .pr-col-detail { min-width: 180px; }
+}
