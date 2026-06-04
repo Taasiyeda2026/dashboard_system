@@ -901,6 +901,15 @@ function readyActivityLayoutSchools(rows = [], statuses = []) {
     .sort((a, b) => cleanText(a.authority).localeCompare(cleanText(b.authority), 'he') || cleanText(a.school).localeCompare(cleanText(b.school), 'he'));
 }
 
+function activityLayoutActivityTypeLabel(row = {}) {
+  const raw = String(row.activity_type || row.activity_family || row.type || '').trim();
+  if (['escape_room', 'חדר בריחה', 'חדרי בריחה'].includes(raw)) return 'חדר בריחה';
+  if (['workshop', 'workshops', 'סדנה', 'סדנאות'].includes(raw)) return 'סדנה';
+  if (['tour', 'סיור', 'סיורים'].includes(raw)) return 'סיור';
+  if (['after_school', 'חוג', 'חוגים'].includes(raw)) return 'חוג';
+  return '';
+}
+
 function activityLayoutRowsForDocument(group) {
   return (Array.isArray(group?.rows) ? group.rows : [])
     .map((row) => ({
@@ -909,6 +918,7 @@ function activityLayoutRowsForDocument(group) {
       endTime: activityLayoutEndTime(row),
       classGroup: activityLayoutClassGroup(row),
       activityName: cleanText(row.activity_name),
+      activityTypeLabel: activityLayoutActivityTypeLabel(row),
       instructors: activityLayoutInstructors(row)
     }))
     .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.startTime).localeCompare(String(b.startTime)));
@@ -935,14 +945,19 @@ function stripKitaPrefix(value) {
 function activityLayoutDocumentHtml(group) {
   const rows = activityLayoutRowsForDocument(group);
   const title = activityLayoutDocumentTitle(group);
-  const tableRows = rows.map((row) => `<tr>
-    <td>${escapeHtml(formatActivityLayoutDate(row.date))}</td>
-    <td>${escapeHtml(row.startTime)}</td>
-    <td>${escapeHtml(row.endTime)}</td>
-    <td>${escapeHtml(stripKitaPrefix(row.classGroup))}</td>
-    <td>${escapeHtml(row.activityName)}</td>
+  const tableRows = rows.map((row) => {
+    const activityCell = row.activityTypeLabel
+      ? `${escapeHtml(row.activityName)}<span class="act-type-tag">${escapeHtml(row.activityTypeLabel)}</span>`
+      : escapeHtml(row.activityName);
+    return `<tr>
+    <td class="col-date">${escapeHtml(formatActivityLayoutDate(row.date))}</td>
+    <td class="col-center">${escapeHtml(row.startTime)}</td>
+    <td class="col-center">${escapeHtml(row.endTime)}</td>
+    <td class="col-center">${escapeHtml(stripKitaPrefix(row.classGroup))}</td>
+    <td class="col-activity">${activityCell}</td>
     <td>${escapeHtml(row.instructors)}</td>
-  </tr>`).join('');
+  </tr>`;
+  }).join('');
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
     @page { size: A4; margin: 16mm; }
     * { box-sizing: border-box; }
@@ -956,23 +971,27 @@ function activityLayoutDocumentHtml(group) {
     .meta div { margin: 2px 0; }
     p { margin: 0 0 10px; font-size: 14px; }
     table { width: 100%; border-collapse: collapse; margin-top: 6px; margin-bottom: 12px; font-size: 13px; table-layout: fixed; }
-    col.col-date { width: 72px; }
-    col.col-start { width: 62px; }
-    col.col-end { width: 62px; }
-    col.col-grade { width: 70px; }
-    col.col-activity { width: auto; }
-    col.col-instructor { width: 110px; }
+    col.col-date { width: 88px; }
+    col.col-start { width: 58px; }
+    col.col-end { width: 58px; }
+    col.col-grade { width: 64px; }
+    col.col-activity { width: 130px; }
+    col.col-instructor { width: auto; }
     th, td { border: 1px solid #cbd5e1; padding: 5px 7px; text-align: right; vertical-align: top; word-break: break-word; }
-    th { background: #f1f5f9; font-weight: 700; }
+    th { background: #f1f5f9; font-weight: 700; text-align: center; }
+    td.col-date { white-space: nowrap; text-align: center; }
+    td.col-center { text-align: center; white-space: nowrap; }
+    td.col-activity { overflow-wrap: break-word; }
+    .act-type-tag { display: block; font-size: 11px; color: #64748b; margin-top: 2px; font-weight: 400; }
+    tr { page-break-inside: avoid; }
     .signature { margin-top: 20px; text-align: left; direction: rtl; }
     @media print { body { background: #fff; } .screen-actions { display: none !important; } .doc { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; } }
   </style></head><body><div class="screen-actions"><button class="print-btn" type="button" onclick="window.print()">הדפסה / שמירה כ־PDF</button></div><main class="doc">
     <img class="doc-logo" src="${escapeHtml(taasiyedaLogoSrc)}" alt="תעשיידע">
     <h1>פריסת פעילות</h1>
     <section class="meta" aria-label="פרטי לקוח">
-      <div><strong>לכבוד:</strong> ________</div>
-      <div><strong>בית ספר:</strong> ${escapeHtml(group?.school || '')}</div>
-      <div><strong>רשות:</strong> ${escapeHtml(group?.authority || '')}</div>
+      <div><strong>לכבוד:</strong></div>
+      <div>בית ספר ${escapeHtml(group?.school || '')} | ${escapeHtml(group?.authority || '')}</div>
     </section>
     <p>שלום רב,</p>
     <p>בהמשך לתיאום, מצורפת פריסת הפעילויות המתוכננת במסגרת קיץ תשפ"ו | 2026.</p>

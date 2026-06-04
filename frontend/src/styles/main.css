@@ -1337,7 +1337,9 @@ span.ds-chip {
 
 /* ——— Tables ——— */
 .ds-table-wrap {
-  overflow-x: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
 
 .ds-table {
