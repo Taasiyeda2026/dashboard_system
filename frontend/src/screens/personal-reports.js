@@ -42,6 +42,7 @@ let prSession        = null;
 let prSelectedReport = null;
 let prViewAsEmployee = null;
 let prAdminMode      = 'my';
+let isPersonalReportsUnlocked = false;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -136,6 +137,29 @@ function sessionFromDashboardState(appState) {
   return { user: { id: profile.id }, profile, needsInternalAuth: !profile.id };
 }
 
+function personalReportsLoginIdentifier(user) {
+  return String(user?.user_id || user?.email || user?.work_email || user?.emp_id || user?.employee_id || '').trim();
+}
+
+function sameDashboardUser(userRow, dashboardUser) {
+  const expected = [dashboardUser?.user_id, dashboardUser?.email, dashboardUser?.work_email, dashboardUser?.emp_id, dashboardUser?.employee_id]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  const actual = [userRow?.user_id, userRow?.email, userRow?.emp_id]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  if (!expected.length || !actual.length) return false;
+  return expected.some((value) => actual.includes(value));
+}
+
+function resetPersonalReportsAuth() {
+  prSession        = null;
+  prSelectedReport = null;
+  prViewAsEmployee = null;
+  prAdminMode      = 'my';
+  isPersonalReportsUnlocked = false;
+}
+
 function internalEmployeeLoginHtml(message = '') {
   return `
     <div class="pr-screen pr-internal-auth-screen" dir="rtl">
@@ -143,20 +167,16 @@ function internalEmployeeLoginHtml(message = '') {
         ${dsPageHeader('דוחות אישיים', 'הוצאות, נסיעות ודיווח שכר חודשי')}
         <section class="pr-card pr-internal-login-card" aria-labelledby="pr-internal-login-title">
           <div class="pr-internal-login-head">
-            <h2 class="pr-internal-login-title" id="pr-internal-login-title">התחברות פנימית לעובדים</h2>
-            <p class="pr-internal-login-subtitle">כניסה מאובטחת לצפייה בדוחות האישיים שלך.</p>
+            <h2 class="pr-internal-login-title" id="pr-internal-login-title">אימות נוסף לדוחות אישיים</h2>
+            <p class="pr-internal-login-subtitle">אזור זה כולל מידע רגיש. יש להזין את קוד ההתחברות האישי כדי להציג את הדוחות.</p>
           </div>
           ${message ? `<div class="pr-alert pr-alert--danger" role="alert">${escapeHtml(message)}</div>` : ''}
           <form id="pr-internal-login-form" class="pr-form pr-internal-login-form" autocomplete="off">
             <div class="pr-field">
-              <label class="pr-label" for="pr-employee-code">קוד עובד</label>
-              <input class="pr-input" id="pr-employee-code" name="employee_code" type="text" inputmode="numeric" autocomplete="username" required />
+              <label class="pr-label" for="pr-internal-access-code">קוד התחברות</label>
+              <input class="pr-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="off" required />
             </div>
-            <div class="pr-field">
-              <label class="pr-label" for="pr-internal-access-code">קוד גישה / סיסמה פנימית</label>
-              <input class="pr-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="current-password" required />
-            </div>
-            <button class="pr-btn pr-btn--primary pr-btn--full pr-internal-login-submit" type="submit">כניסה לדוחות האישיים</button>
+            <button class="pr-btn pr-btn--primary pr-btn--full pr-internal-login-submit" type="submit">הצגת הדוחות שלי</button>
           </form>
           <button class="pr-btn--link pr-internal-login-back" data-pr-action="back-to-dashboard" type="button">חזרה לדשבורד</button>
         </section>
@@ -182,15 +202,15 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
 
 // ─── supabase API ─────────────────────────────────────────────────────────────
 
-async function authenticateInternalEmployee(employeeCode, accessCode) {
-  const code = String(employeeCode || '').trim();
+async function authenticateInternalEmployee(dashboardUser, accessCode) {
+  const login = personalReportsLoginIdentifier(dashboardUser);
   const password = String(accessCode || '').trim();
-  if (!code || !password) {
+  if (!login || !password) {
     throw new Error('invalid_credentials');
   }
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: buildInternalAuthEmail(code),
+    email: buildInternalAuthEmail(login),
     password
   });
   if (authError || !authData?.user?.id) {
@@ -205,20 +225,20 @@ async function authenticateInternalEmployee(employeeCode, accessCode) {
     .eq('is_active', true)
     .maybeSingle();
 
-  if (userError || !userRow) {
+  if (userError || !userRow || !sameDashboardUser(userRow, dashboardUser)) {
     throw new Error('invalid_credentials');
   }
 
   const profile = {
     id: authUserId,
     email: String(userRow.email || authData.user.email || '').trim(),
-    full_name: String(userRow.name || userRow.email || code).trim(),
+    full_name: String(userRow.name || userRow.email || login).trim(),
     role: isAdminRole(userRow.role) ? 'admin' : 'employee',
     display_role: String(userRow.display_role || userRow.role || '').trim(),
-    emp_id: String(userRow.emp_id || userRow.user_id || code).trim()
+    emp_id: String(userRow.emp_id || userRow.user_id || login).trim()
   };
 
-  return { user: { id: authUserId }, profile, internalEmployeeCode: code, needsInternalAuth: false };
+  return { user: { id: authUserId }, profile, needsInternalAuth: false };
 }
 
 function assertEmployeeUuid(employeeId) {
@@ -1815,44 +1835,47 @@ function bindEmployeeSelector(root) {
 }
 
 function dispatchBackToDashboard() {
+  resetPersonalReportsAuth();
   document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
 }
 
-function bindInternalEmployeeLogin(root) {
+function bindInternalEmployeeLogin(root, dashboardUser) {
   root.querySelector('[data-pr-action="back-to-dashboard"]')?.addEventListener('click', dispatchBackToDashboard);
   root.querySelector('#pr-internal-login-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     const submit = form.querySelector('button[type="submit"]');
     const fd = new FormData(form);
-    const employeeCode = fd.get('employee_code');
     const accessCode = fd.get('access_code');
     if (submit) {
       submit.disabled = true;
-      submit.textContent = 'בודק פרטי התחברות…';
+      submit.textContent = 'בודק אימות…';
     }
     try {
-      prSession = await authenticateInternalEmployee(employeeCode, accessCode);
+      prSession = await authenticateInternalEmployee(dashboardUser, accessCode);
       prSelectedReport = null;
       prViewAsEmployee = null;
       prAdminMode = 'my';
-      await rerender(root);
+      isPersonalReportsUnlocked = true;
+      await rerender(root, dashboardUser);
     } catch (err) {
-      renderInto(root, internalEmployeeLoginHtml(friendlyPersonalReportsError(err, 'פרטי ההתחברות אינם תקינים. יש לבדוק את קוד העובד ולנסות שוב.')));
-      bindInternalEmployeeLogin(root);
+      isPersonalReportsUnlocked = false;
+      renderInto(root, internalEmployeeLoginHtml('הקוד שהוזן אינו תקין. יש לבדוק ולנסות שוב.'));
+      bindInternalEmployeeLogin(root, dashboardUser);
     }
   });
 }
 
-async function rerender(root) {
-  if (!prSession) {
+async function rerender(root, dashboardUser) {
+  if (!isPersonalReportsUnlocked) {
     renderInto(root, internalEmployeeLoginHtml());
-    bindInternalEmployeeLogin(root);
+    bindInternalEmployeeLogin(root, dashboardUser);
     return;
   }
-  if (!prSession.user?.id) {
-    renderInto(root, internalEmployeeLoginHtml('נדרשת התחברות פנימית כדי לפתוח את הדוחות האישיים.'));
-    bindInternalEmployeeLogin(root);
+  if (!prSession || !prSession.user?.id) {
+    isPersonalReportsUnlocked = false;
+    renderInto(root, internalEmployeeLoginHtml('הקוד שהוזן אינו תקין. יש לבדוק ולנסות שוב.'));
+    bindInternalEmployeeLogin(root, dashboardUser);
     return;
   }
   if (isAdminRole(prSession.profile.role) && prAdminMode === 'my' && !prViewAsEmployee) {
@@ -1889,21 +1912,31 @@ export const personalReportsScreen = {
 
   bind({ root, state } = {}) {
     const prRoot = (root && root.querySelector('#pr-root')) || root;
+    const dashboardUser = state?.user || null;
+    const view = prRoot?.ownerDocument?.defaultView || globalThis.window;
 
-    prSession        = sessionFromDashboardState(state);
-    prSelectedReport = null;
-    prViewAsEmployee = null;
-    prAdminMode      = 'my';
+    resetPersonalReportsAuth();
+    prSession = sessionFromDashboardState(state);
 
-    rerender(prRoot);
+    rerender(prRoot, dashboardUser);
 
     const onNavigateAway = () => {
-      prSession        = null;
-      prSelectedReport = null;
-      prViewAsEmployee = null;
-      prAdminMode      = 'my';
+      resetPersonalReportsAuth();
       document.removeEventListener('app:navigate', onNavigateAway);
+      view?.removeEventListener('pagehide', onPageHide);
+      view?.removeEventListener('pageshow', onPageShow);
+    };
+    const onPageHide = () => {
+      resetPersonalReportsAuth();
+    };
+    const onPageShow = (event) => {
+      if (!event.persisted) return;
+      resetPersonalReportsAuth();
+      prSession = sessionFromDashboardState(state);
+      rerender(prRoot, dashboardUser);
     };
     document.addEventListener('app:navigate', onNavigateAway);
+    view?.addEventListener('pagehide', onPageHide);
+    view?.addEventListener('pageshow', onPageShow);
   }
 };
