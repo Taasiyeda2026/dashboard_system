@@ -955,7 +955,7 @@ function activityLayoutDocumentHtml(group) {
     <td class="col-center">${escapeHtml(row.endTime)}</td>
     <td class="col-center">${escapeHtml(stripKitaPrefix(row.classGroup))}</td>
     <td class="col-activity">${activityCell}</td>
-    <td>${escapeHtml(row.instructors)}</td>
+    <td class="col-instructor">${escapeHtml(row.instructors)}</td>
   </tr>`;
   }).join('');
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
@@ -970,19 +970,77 @@ function activityLayoutDocumentHtml(group) {
     .meta { margin: 0 0 12px; font-size: 15px; }
     .meta div { margin: 2px 0; }
     p { margin: 0 0 10px; font-size: 14px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 6px; margin-bottom: 12px; font-size: 13px; table-layout: fixed; }
-    col.col-date { width: 88px; }
-    col.col-start { width: 58px; }
-    col.col-end { width: 58px; }
-    col.col-grade { width: 64px; }
-    col.col-activity { width: 130px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      margin-bottom: 12px;
+      font-size: 12.5px;
+      line-height: 1.25;
+      table-layout: fixed;
+    }
+
+    col.col-date { width: 96px; }
+    col.col-start { width: 70px; }
+    col.col-end { width: 70px; }
+    col.col-grade { width: 50px; }
+    col.col-activity { width: 190px; }
     col.col-instructor { width: auto; }
-    th, td { border: 1px solid #cbd5e1; padding: 5px 7px; text-align: right; vertical-align: top; word-break: break-word; }
-    th { background: #f1f5f9; font-weight: 700; text-align: center; }
-    td.col-date { white-space: nowrap; text-align: center; }
-    td.col-center { text-align: center; white-space: nowrap; }
-    td.col-activity { overflow-wrap: break-word; }
-    .act-type-tag { display: block; font-size: 11px; color: #64748b; margin-top: 2px; font-weight: 400; }
+
+    th,
+    td {
+      border: 1px solid #cbd5e1;
+      padding: 4px 6px;
+      text-align: right;
+      vertical-align: middle;
+      word-break: normal;
+      overflow-wrap: anywhere;
+    }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 700;
+      text-align: center;
+      white-space: nowrap;
+      line-height: 1.15;
+    }
+
+    td.col-date {
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    td.col-center {
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    td.col-activity {
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    td.col-instructor {
+      text-align: center;
+      white-space: normal;
+    }
+
+    .act-type-tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-inline-start: 5px;
+      padding: 0 6px;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 10.5px;
+      line-height: 1.45;
+      font-weight: 600;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
     tr { page-break-inside: avoid; }
     .signature { margin-top: 20px; text-align: left; direction: rtl; }
     @media print { body { background: #fff; } .screen-actions { display: none !important; } .doc { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; } }
