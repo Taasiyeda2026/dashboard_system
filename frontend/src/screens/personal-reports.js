@@ -133,13 +133,6 @@ function sessionFromDashboardState(appState) {
   return { user: { id: profile.id }, profile, needsInternalAuth: !profile.id };
 }
 
-function dashboardUserEmail(user) {
-  // Returns the email of the currently logged-in dashboard user.
-  // We accept only a real email (contains @) — internal IDs (user_id, emp_id)
-  // must NOT be used as a lookup key for the second-factor verification.
-  const raw = String(user?.email || user?.work_email || '').trim();
-  return raw.includes('@') ? raw.toLowerCase() : '';
-}
 
 function resetPersonalReportsAuth() {
   prSession        = null;
@@ -325,41 +318,32 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
 // ─── supabase API ─────────────────────────────────────────────────────────────
 
 async function authenticateInternalEmployee(dashboardUser, accessCode) {
-  // Step 1: resolve the email of the already-authenticated user.
-  // We refuse to fall back to internal IDs — only a real email is accepted.
-  const userEmail = dashboardUserEmail(dashboardUser);
   const enteredCode = String(accessCode || '').trim();
-  if (!userEmail || !enteredCode) {
+  if (!enteredCode) {
     throw new Error('invalid_credentials');
   }
 
-  // Step 2: verify the entered code against that specific user's record.
-  // The RPC looks up by email only and compares entry_code — it never
-  // treats the code as a user_id, emp_id, or UUID.
-  const { data, error } = await supabase.rpc('verify_personal_reports_entry_code', {
-    p_email: userEmail,
-    p_entry_code: enteredCode
+  // Step 1: get the email of the currently authenticated Supabase session.
+  // This is the authoritative source — no fallback to internal IDs or tables.
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData?.session?.user?.email) {
+    console.error('[personal-reports] could not read Supabase Auth session', sessionError?.message);
+    throw new Error('invalid_credentials');
+  }
+  const sessionEmail = sessionData.session.user.email;
+
+  // Step 2: re-authenticate against Supabase Auth using the session email
+  // and the code the user typed. No DB tables, no entry_code column, no UUIDs.
+  const { error: authError } = await supabase.auth.signInWithPassword({
+    email: sessionEmail,
+    password: enteredCode
   });
-  if (error) {
-    console.error('[personal-reports] RPC verify_personal_reports_entry_code error:', error.message);
+  if (authError) {
     throw new Error('invalid_credentials');
   }
 
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row || row.verify_status !== 'ok') {
-    throw new Error(row?.verify_status || 'invalid_credentials');
-  }
-
-  // Step 3: confirm the email returned by the DB matches the logged-in user.
-  // This guards against any unexpected row mismatch.
-  const returnedEmail = String(row.email || '').trim().toLowerCase();
-  if (!returnedEmail || returnedEmail !== userEmail) {
-    console.error('[personal-reports] email mismatch after verify RPC');
-    throw new Error('invalid_credentials');
-  }
-
-  // Step 4: the UUID for report queries comes exclusively from the
-  // already-authenticated dashboard session — never from the code.
+  // Step 3: the UUID for report queries comes exclusively from the
+  // already-authenticated dashboard session — never from the entered code.
   const authUserId = String(
     dashboardUser?.auth_user_id ||
     dashboardUser?.personal_reports_user_id ||
@@ -371,10 +355,10 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
 
   const profile = {
     id: authUserId,
-    email: returnedEmail,
-    full_name: String(row.name || returnedEmail).trim(),
-    role: isAdminRole(row.role) ? 'admin' : 'employee',
-    display_role: String(row.role || '').trim(),
+    email: sessionEmail,
+    full_name: String(dashboardUser?.full_name || sessionEmail).trim(),
+    role: isAdminRole(dashboardUser?.display_role || dashboardUser?.role) ? 'admin' : 'employee',
+    display_role: String(dashboardUser?.display_role || dashboardUser?.role || '').trim(),
     emp_id: String(dashboardUser?.emp_id || dashboardUser?.employee_id || '').trim()
   };
 
