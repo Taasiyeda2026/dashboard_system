@@ -1959,8 +1959,7 @@ function flattenUserRow(userRow = {}) {
     display_role: role,
     display_role_label: customDisplayRole || hebrewRole(role),
     display_role2: String(permissions.display_role2 || ''),
-    emp_id: String(userRow.emp_id || userRow.user_id || ''),
-    auth_user_id: String(userRow.auth_user_id || ''),
+    emp_id: String(userRow.user_id || ''),
     active: userRow.is_active ? 'yes' : 'no',
     ...permissions
   };
@@ -2960,7 +2959,6 @@ export const api = {
         display_role2: flat.display_role2,
         full_name: flat.full_name,
         emp_id: flat.emp_id,
-        auth_user_id: flat.auth_user_id,
         can_add_activity: canDirectManageActivitiesUser(flat) || ACTIVITY_REQUEST_ROLES.has(String(flat.role || '').trim()),
         can_edit_direct: canDirectManageActivitiesUser(flat),
         can_request_edit: canSubmitActivityRequestsUser(flat),
