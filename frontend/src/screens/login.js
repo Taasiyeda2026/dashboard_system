@@ -4,7 +4,7 @@ export const loginScreen = {
   render(initialError = '', systemTitle = 'דשבורד תעשיידע') {
     return `
       <div class="login-shell" dir="rtl">
-        <section class="login-card">
+        <section class="login-card" role="main" aria-labelledby="loginHeading">
           <div class="login-brand">
             <img
               class="login-logo"
@@ -15,31 +15,45 @@ export const loginScreen = {
               decoding="async"
             />
           </div>
-          <header class="ds-page-header ds-page-header--login opacity-[0.99] border-t-[0.385723px] border-r-[0.385723px] border-b-[0.385723px] border-l-[0.385723px]" aria-labelledby="loginHeading">
-            <h1 id="loginHeading" class="ds-page-header__title">כניסה למערכת</h1>
-            <p class="ds-page-header__subtitle">${systemTitle}</p>
-          </header>
 
-          <form id="loginForm" class="login-form">
-            <input
-              id="userId"
-              required
-              placeholder="שם משתמש / מייל (לדוגמה: idann)"
-              autocomplete="username"
-            />
+          <div class="login-header">
+            <h1 id="loginHeading" class="login-header__title">התחברות פנימית לעובדים</h1>
+            <p class="login-header__subtitle">כניסה מאובטחת לצפייה בדוחות האישיים שלך</p>
+          </div>
 
-            <input
-              id="entryCode"
-              type="password"
-              required
-              placeholder="קוד כניסה"
-              autocomplete="current-password"
-            />
+          <form id="loginForm" class="login-form" novalidate>
+            <div class="login-field">
+              <label class="login-label" for="userId">קוד עובד</label>
+              <input
+                id="userId"
+                class="login-input"
+                required
+                placeholder="הזן קוד עובד"
+                autocomplete="username"
+                inputmode="text"
+                dir="ltr"
+              />
+            </div>
 
-            <button type="submit" class="login-submit">התחברות</button>
+            <div class="login-field">
+              <label class="login-label" for="entryCode">קוד גישה</label>
+              <input
+                id="entryCode"
+                class="login-input"
+                type="password"
+                required
+                placeholder="הזן קוד גישה"
+                autocomplete="current-password"
+                dir="ltr"
+              />
+            </div>
+
+            <button type="submit" class="login-submit">כניסה לדוחות האישיים</button>
           </form>
 
-          <p id="loginError" class="error">${initialError}</p>
+          <p id="loginError" class="login-error" role="alert" aria-live="polite">${initialError}</p>
+
+          <p class="login-footer-note">${systemTitle}</p>
         </section>
       </div>
     `;
@@ -71,7 +85,7 @@ export const loginScreen = {
       const code = codeInput?.value.trim() ?? '';
 
       if (!userId || !code) {
-        if (errorNode) errorNode.textContent = 'נא למלא שם משתמש / מייל וקוד כניסה';
+        if (errorNode) errorNode.textContent = 'נא למלא קוד עובד וקוד גישה';
         return;
       }
 
@@ -80,7 +94,7 @@ export const loginScreen = {
         await onLogin(userId, code, errorNode);
       } catch (error) {
         if (errorNode && !errorNode.textContent) errorNode.textContent = error.message;
-        if (root.isConnected) setBusy(false, 'התחברות');
+        if (root.isConnected) setBusy(false, 'כניסה לדוחות האישיים');
       }
     });
 

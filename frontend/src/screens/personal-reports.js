@@ -83,16 +83,20 @@ function isAdminRole(role) {
   return String(role || '').trim().toLowerCase() === 'admin';
 }
 
+function isValidUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
+
 function profileFromDashboardUser(user) {
   if (!user || typeof user !== 'object') return null;
-  const id = String(
+  const candidateId = (
     user.personal_reports_user_id
     || user.supabase_user_id
     || user.auth_user_id
     || user.id
-    || user.user_id
     || ''
-  ).trim();
+  );
+  const id = isValidUuid(candidateId) ? String(candidateId).trim() : '';
   const displayRole = String(user.display_role || user.role || '').trim();
   const role = isAdminRole(displayRole) ? 'admin' : 'employee';
   return {
@@ -124,6 +128,22 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
       </div>
     </div>
   `;
+}
+
+function friendlyErrorMessage(err) {
+  const raw = String(err?.message || err || '');
+  if (raw.includes('invalid input syntax for type uuid')) {
+    console.warn('[personal-reports] UUID error (suppressed from UI):', raw);
+    return 'אירעה תקלה בטעינת הדוחות. יש לנסות שוב או לפנות למנהל המערכת.';
+  }
+  if (raw.includes('not found') || raw.includes('PGRST116')) {
+    return 'לא נמצאו נתונים עבור הבקשה.';
+  }
+  if (raw.includes('JWT') || raw.includes('unauthorized') || raw.includes('permission denied')) {
+    return 'פרטי ההתחברות אינם תקינים. יש לבדוק את קוד העובד ולנסות שוב.';
+  }
+  console.warn('[personal-reports] Supabase error (suppressed from UI):', raw);
+  return 'אירעה תקלה בטעינת הדוחות. יש לנסות שוב.';
 }
 
 // ─── supabase API ─────────────────────────────────────────────────────────────
@@ -993,6 +1013,13 @@ function renderInto(root, html) {
 
 async function loadMyReportsList(root, employeeId) {
   const listEl = root.querySelector('#pr-my-reports-list');
+  if (!isValidUuid(employeeId)) {
+    if (listEl) {
+      listEl.innerHTML = `<div class="pr-alert pr-alert--warning" role="alert">לא ניתן לטעון דוחות — פרטי זיהוי העובד אינם תקינים. יש לנסות להתחבר מחדש.</div>`;
+    }
+    console.warn('[personal-reports] loadMyReportsList: invalid UUID, got:', employeeId);
+    return;
+  }
   try {
     const { data: reports, error } = await supabase
       .from('personal_reports')
@@ -1004,7 +1031,7 @@ async function loadMyReportsList(root, employeeId) {
     if (listEl) listEl.innerHTML = myReportsListHtml(reports || []);
   } catch (err) {
     if (listEl) {
-      listEl.innerHTML = `<div class="pr-alert pr-alert--danger" role="alert">לא ניתן לטעון דוחות קודמים כרגע. ${escapeHtml(err.message || '')}</div>`;
+      listEl.innerHTML = `<div class="pr-alert pr-alert--danger" role="alert">${escapeHtml(friendlyErrorMessage(err))}</div>`;
     }
   }
 }
@@ -1210,6 +1237,10 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
     if (!statusEl) return;
 
     statusEl.innerHTML = '<span class="pr-checking">בודק…</span>';
+    if (!isValidUuid(employeeId)) {
+      statusEl.innerHTML = `<span class="pr-alert pr-alert--warning">לא ניתן לטעון דוח — נדרשת התחברות מחדש.</span>`;
+      return;
+    }
     try {
       const report = await getReport(employeeId, month, year);
       if (report) {
@@ -1225,7 +1256,7 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
         statusEl.innerHTML = noReportStateHtml(month, year, isSimulation);
       }
     } catch (err) {
-      statusEl.innerHTML = `<span class="pr-checking" style="color:#991b1b">${escapeHtml(err.message)}</span>`;
+      statusEl.innerHTML = `<span class="pr-alert pr-alert--danger">${escapeHtml(friendlyErrorMessage(err))}</span>`;
     }
   }
 
@@ -1233,6 +1264,10 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
     const sel = root.querySelector('#pr-month-select');
     const [month, year] = (sel?.value || '').split('-').map(Number);
     if (!month || !year) return;
+    if (!isValidUuid(employeeId)) {
+      showToast('לא ניתן לפתוח דוח — נדרשת התחברות מחדש.', 'danger');
+      return;
+    }
     try {
       let report = await getReport(employeeId, month, year);
       if (!report) {
@@ -1242,7 +1277,7 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
       }
       await openReportDetail(root, report.id, false, { isSimulation, initialTab: tab });
     } catch (err) {
-      showToast(err.message || 'שגיאה בפתיחת הדוח', 'danger');
+      showToast(friendlyErrorMessage(err), 'danger');
     }
   }
 
@@ -1284,13 +1319,19 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
       if (!month || !year) return;
       btn.disabled = true;
       btn.textContent = 'יוצר דוח…';
+      if (!isValidUuid(employeeId)) {
+        showToast('לא ניתן ליצור דוח — נדרשת התחברות מחדש.', 'danger');
+        btn.disabled = false;
+        btn.textContent = 'פתיחת דוח לחודש זה';
+        return;
+      }
       try {
         const report = await createReport(employeeId, month, year);
         prSelectedReport = report;
         await openReportDetail(root, report.id, false, { isSimulation: false });
         showToast('טיוטה נוצרה', 'success');
       } catch (err) {
-        showToast(err.message || 'שגיאה ביצירת הדוח', 'danger');
+        showToast(friendlyErrorMessage(err), 'danger');
         btn.disabled = false;
         btn.textContent = 'פתיחת דוח לחודש זה';
       }
