@@ -375,7 +375,7 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
     full_name: String(row.name || returnedEmail).trim(),
     role: isAdminRole(row.role) ? 'admin' : 'employee',
     display_role: String(row.role || '').trim(),
-    emp_id: String(row.emp_id || '').trim()
+    emp_id: String(dashboardUser?.emp_id || dashboardUser?.employee_id || '').trim()
   };
 
   return { user: { id: authUserId }, profile, needsInternalAuth: false };

@@ -14,8 +14,7 @@ returns table (
   verify_status text,   -- 'ok' | 'user_not_found' | 'inactive_user' | 'entry_code_mismatch' | 'invalid_input'
   email         text,
   name          text,
-  role          text,
-  emp_id        text
+  role          text
 )
 language sql
 security definer
@@ -23,21 +22,27 @@ set search_path = public
 as $$
   with input as (
     select
-      lower(trim(coalesce(p_email, '')))      as email,
-      trim(coalesce(p_entry_code, ''))        as code
+      lower(trim(coalesce(p_email, '')))  as email,
+      trim(coalesce(p_entry_code, ''))    as code
   ),
   -- Require a real email (must contain @) so internal IDs cannot be passed.
   guard as (
     select
       case
-        when (select i.email from input i) = ''           then 'invalid_input'
-        when (select i.code  from input i) = ''           then 'invalid_input'
-        when position('@' in (select i.email from input i)) = 0 then 'invalid_input'
+        when (select i.email from input i) = ''                          then 'invalid_input'
+        when (select i.code  from input i) = ''                          then 'invalid_input'
+        when position('@' in (select i.email from input i)) = 0          then 'invalid_input'
         else 'pass'
       end as result
   ),
+  -- Select only the columns we need explicitly so column resolution is unambiguous.
   candidate as (
-    select u.*
+    select
+      u.email      as c_email,
+      u.name       as c_name,
+      u.role       as c_role,
+      u.is_active  as c_is_active,
+      u.entry_code as c_entry_code
     from public.users u
     cross join input i
     where lower(trim(u.email)) = i.email   -- email-only lookup, no user_id/emp_id fallback
@@ -46,20 +51,19 @@ as $$
   diagnostic as (
     select
       case
-        when (select g.result from guard g) <> 'pass'           then (select g.result from guard g)
-        when not exists (select 1 from candidate)               then 'user_not_found'
-        when not (select c.is_active from candidate c)          then 'inactive_user'
-        when trim(coalesce((select c.entry_code from candidate c), ''))
-             <> (select i.code from input i)                    then 'entry_code_mismatch'
+        when (select g.result from guard g) <> 'pass'                    then (select g.result from guard g)
+        when not exists (select 1 from candidate)                        then 'user_not_found'
+        when not (select c.c_is_active from candidate c)                 then 'inactive_user'
+        when trim(coalesce((select c.c_entry_code from candidate c), ''))
+             <> (select i.code from input i)                             then 'entry_code_mismatch'
         else 'ok'
       end as status
   )
   select
-    d.status                                            as verify_status,
-    case when d.status = 'ok' then c.email  end         as email,
-    case when d.status = 'ok' then c.name   end         as name,
-    case when d.status = 'ok' then c.role   end         as role,
-    case when d.status = 'ok' then c.emp_id end         as emp_id
+    d.status                                                as verify_status,
+    case when d.status = 'ok' then c.c_email end            as email,
+    case when d.status = 'ok' then c.c_name  end            as name,
+    case when d.status = 'ok' then c.c_role  end            as role
   from diagnostic d
   left join candidate c on true;
 $$;
