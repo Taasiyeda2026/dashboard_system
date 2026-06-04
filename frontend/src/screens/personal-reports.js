@@ -220,24 +220,31 @@ function internalEmployeeLoginHtml(message = '') {
         font-size: 0.875rem;
         text-align: right;
       }
+      .pr-lock-form-inner {
+        width: 60%;
+        min-width: 160px;
+        max-width: 220px;
+        margin: 0 auto;
+      }
       .pr-lock-field {
         display: flex;
         flex-direction: column;
         gap: 6px;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
       }
       .pr-lock-label {
-        font-size: 0.875rem;
+        font-size: 0.82rem;
         font-weight: 600;
         color: #374151;
+        text-align: center;
       }
       .pr-lock-input {
         all: unset;
         box-sizing: border-box;
         display: block;
         width: 100%;
-        padding: 11px 14px;
-        font-size: 0.97rem;
+        padding: 10px 12px;
+        font-size: 1rem;
         font-family: inherit;
         color: #0f172a;
         background: #f8fafc;
@@ -246,12 +253,13 @@ function internalEmployeeLoginHtml(message = '') {
         transition: border-color 0.15s, box-shadow 0.15s;
         direction: ltr;
         text-align: center;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.12em;
       }
       .pr-lock-input::placeholder {
         color: #94a3b8;
         letter-spacing: 0;
         direction: rtl;
+        font-size: 0.82rem;
       }
       .pr-lock-input:focus {
         border-color: #1a3358;
@@ -264,8 +272,8 @@ function internalEmployeeLoginHtml(message = '') {
         box-sizing: border-box;
         display: block;
         width: 100%;
-        padding: 12px 20px;
-        font-size: 0.97rem;
+        padding: 10px 16px;
+        font-size: 0.92rem;
         font-family: inherit;
         font-weight: 600;
         color: #ffffff;
@@ -274,7 +282,6 @@ function internalEmployeeLoginHtml(message = '') {
         cursor: pointer;
         text-align: center;
         transition: opacity 0.15s, transform 0.1s;
-        margin-top: 4px;
         -webkit-user-select: none;
         user-select: none;
       }
@@ -283,6 +290,7 @@ function internalEmployeeLoginHtml(message = '') {
       @media (max-width: 480px) {
         .pr-lock-card { padding: 28px 20px 24px; border-radius: 14px; }
         .pr-lock-wrap { padding: 20px 12px; align-items: flex-start; padding-top: 40px; }
+        .pr-lock-form-inner { width: 80%; max-width: 240px; }
       }
     </style>
     <div class="pr-lock-wrap" dir="rtl">
@@ -297,11 +305,13 @@ function internalEmployeeLoginHtml(message = '') {
         <p class="pr-lock-subtitle">נדרש אימות נוסף כדי להיכנס לאזור זה</p>
         ${message ? `<div class="pr-lock-error" role="alert">${escapeHtml(message)}</div>` : ''}
         <form id="pr-internal-login-form" autocomplete="off">
-          <div class="pr-lock-field">
-            <label class="pr-lock-label" for="pr-internal-access-code">קוד התחברות</label>
-            <input class="pr-lock-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="off" placeholder="הזן קוד אישי" required />
+          <div class="pr-lock-form-inner">
+            <div class="pr-lock-field">
+              <label class="pr-lock-label" for="pr-internal-access-code">קוד התחברות</label>
+              <input class="pr-lock-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="off" placeholder="••••" required />
+            </div>
+            <button class="pr-lock-btn" type="submit">כניסה לדוחות</button>
           </div>
-          <button class="pr-lock-btn" type="submit">כניסה לדוחות</button>
         </form>
       </div>
     </div>
@@ -332,33 +342,44 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
     throw new Error('invalid_credentials');
   }
 
-  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: buildInternalAuthEmail(login),
-    password
+  // Use the DB-level RPC that compares entry_code directly — avoids Supabase Auth
+  // email-format mismatches (user_id vs actual auth email).
+  const { data, error } = await supabase.rpc('login_user_by_entry_code', {
+    p_login: login,
+    p_entry_code: password
   });
-  if (authError || !authData?.user?.id) {
+  if (error) {
+    console.error('[personal-reports] RPC login_user_by_entry_code error:', error.message);
     throw new Error('invalid_credentials');
   }
 
-  const authUserId = authData.user.id;
-  const { data: userRow, error: userError } = await supabase
-    .from('users')
-    .select('user_id,email,name,role,display_role,emp_id,is_active,auth_user_id')
-    .eq('auth_user_id', authUserId)
-    .eq('is_active', true)
-    .maybeSingle();
-
-  if (userError || !userRow || !sameDashboardUser(userRow, dashboardUser)) {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || row.status !== 'ok') {
     throw new Error('invalid_credentials');
+  }
+
+  if (!sameDashboardUser(row, dashboardUser)) {
+    throw new Error('invalid_credentials');
+  }
+
+  // The UUID for report queries comes from the already-authenticated session —
+  // never from the numeric entry code.
+  const authUserId = String(
+    dashboardUser?.auth_user_id ||
+    dashboardUser?.personal_reports_user_id ||
+    ''
+  ).trim();
+  if (!isUuid(authUserId)) {
+    throw new Error('missing_employee_uuid');
   }
 
   const profile = {
     id: authUserId,
-    email: String(userRow.email || authData.user.email || '').trim(),
-    full_name: String(userRow.name || userRow.email || login).trim(),
-    role: isAdminRole(userRow.role) ? 'admin' : 'employee',
-    display_role: String(userRow.display_role || userRow.role || '').trim(),
-    emp_id: String(userRow.emp_id || userRow.user_id || login).trim()
+    email: String(row.email || '').trim(),
+    full_name: String(row.name || row.email || login).trim(),
+    role: isAdminRole(row.role) ? 'admin' : 'employee',
+    display_role: String(row.role || '').trim(),
+    emp_id: String(row.emp_id || row.user_id || login).trim()
   };
 
   return { user: { id: authUserId }, profile, needsInternalAuth: false };
