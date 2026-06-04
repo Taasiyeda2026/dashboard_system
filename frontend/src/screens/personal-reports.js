@@ -162,26 +162,147 @@ function resetPersonalReportsAuth() {
 
 function internalEmployeeLoginHtml(message = '') {
   return `
-    <div class="pr-screen pr-internal-auth-screen" dir="rtl">
-      <div class="pr-body pr-internal-auth-body">
-        <section class="pr-internal-lock-card" aria-labelledby="pr-internal-login-title">
-          <div class="pr-internal-lock-icon" aria-hidden="true">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
+    <style>
+      .pr-lock-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100%;
+        padding: 40px 16px;
+        background: #f1f5f9;
+        direction: rtl;
+        box-sizing: border-box;
+      }
+      .pr-lock-card {
+        width: 100%;
+        max-width: 420px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        box-shadow: 0 2px 8px rgba(15,23,42,0.06), 0 12px 32px rgba(15,23,42,0.10);
+        padding: 40px 36px 36px;
+        box-sizing: border-box;
+        text-align: right;
+      }
+      .pr-lock-icon-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 52px;
+        height: 52px;
+        background: #eff6ff;
+        border-radius: 14px;
+        margin: 0 auto 22px;
+        color: #1a3358;
+      }
+      .pr-lock-title {
+        margin: 0 0 8px;
+        font-size: 1.18rem;
+        font-weight: 700;
+        color: #0f172a;
+        text-align: center;
+        line-height: 1.4;
+      }
+      .pr-lock-subtitle {
+        margin: 0 0 24px;
+        font-size: 0.875rem;
+        color: #64748b;
+        text-align: center;
+        line-height: 1.6;
+      }
+      .pr-lock-error {
+        margin: 0 0 18px;
+        padding: 10px 14px;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        color: #991b1b;
+        font-size: 0.875rem;
+        text-align: right;
+      }
+      .pr-lock-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 16px;
+      }
+      .pr-lock-label {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #374151;
+      }
+      .pr-lock-input {
+        all: unset;
+        box-sizing: border-box;
+        display: block;
+        width: 100%;
+        padding: 11px 14px;
+        font-size: 0.97rem;
+        font-family: inherit;
+        color: #0f172a;
+        background: #f8fafc;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 10px;
+        transition: border-color 0.15s, box-shadow 0.15s;
+        direction: ltr;
+        text-align: center;
+        letter-spacing: 0.1em;
+      }
+      .pr-lock-input::placeholder {
+        color: #94a3b8;
+        letter-spacing: 0;
+        direction: rtl;
+      }
+      .pr-lock-input:focus {
+        border-color: #1a3358;
+        box-shadow: 0 0 0 3px rgba(26,51,88,0.12);
+        background: #ffffff;
+        outline: none;
+      }
+      .pr-lock-btn {
+        all: unset;
+        box-sizing: border-box;
+        display: block;
+        width: 100%;
+        padding: 12px 20px;
+        font-size: 0.97rem;
+        font-family: inherit;
+        font-weight: 600;
+        color: #ffffff;
+        background: #1a3358;
+        border-radius: 10px;
+        cursor: pointer;
+        text-align: center;
+        transition: opacity 0.15s, transform 0.1s;
+        margin-top: 4px;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      .pr-lock-btn:hover { opacity: 0.87; }
+      .pr-lock-btn:active { transform: scale(0.98); opacity: 0.9; }
+      @media (max-width: 480px) {
+        .pr-lock-card { padding: 28px 20px 24px; border-radius: 14px; }
+        .pr-lock-wrap { padding: 20px 12px; align-items: flex-start; padding-top: 40px; }
+      }
+    </style>
+    <div class="pr-lock-wrap" dir="rtl">
+      <div class="pr-lock-card" role="main" aria-labelledby="pr-lock-title">
+        <div class="pr-lock-icon-wrap" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <h2 class="pr-lock-title" id="pr-lock-title">דוחות אישיים</h2>
+        <p class="pr-lock-subtitle">נדרש אימות נוסף כדי להיכנס לאזור זה</p>
+        ${message ? `<div class="pr-lock-error" role="alert">${escapeHtml(message)}</div>` : ''}
+        <form id="pr-internal-login-form" autocomplete="off">
+          <div class="pr-lock-field">
+            <label class="pr-lock-label" for="pr-internal-access-code">קוד התחברות</label>
+            <input class="pr-lock-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="off" placeholder="הזן קוד אישי" required />
           </div>
-          <h2 class="pr-internal-lock-title" id="pr-internal-login-title">אימות נוסף לדוחות אישיים</h2>
-          <p class="pr-internal-lock-subtitle">אזור זה כולל מידע רגיש. יש להזין את קוד ההתחברות האישי כדי להמשיך.</p>
-          ${message ? `<div class="pr-internal-lock-error" role="alert">${escapeHtml(message)}</div>` : ''}
-          <form id="pr-internal-login-form" autocomplete="off" class="pr-internal-lock-form">
-            <div class="pr-internal-lock-field">
-              <label class="pr-internal-lock-label" for="pr-internal-access-code">קוד התחברות</label>
-              <input class="pr-internal-lock-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="off" placeholder="הזן קוד אישי" required />
-            </div>
-            <button class="pr-internal-lock-btn" type="submit">כניסה</button>
-          </form>
-        </section>
+          <button class="pr-lock-btn" type="submit">כניסה לדוחות</button>
+        </form>
       </div>
     </div>
   `;
