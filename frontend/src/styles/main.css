@@ -12156,10 +12156,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin-top: 2px;
 }
 
-/* טבלת פריסת פעילות בחלון הצד — עמודות קומפקטיות ללא גלילה */
+/* טבלת פריסת פעילות בחלון הצד — עמודות קומפקטיות עם px קבועים */
+.ds-table-wrap:has(.ds-table--activity-layout) {
+  overflow-x: auto;
+}
 .ds-table--activity-layout {
   table-layout: fixed;
   width: 100%;
+  min-width: 490px;
 }
 .ds-table--activity-layout th,
 .ds-table--activity-layout td {
@@ -12167,20 +12171,41 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
+  padding: 3px 6px;
 }
-.ds-table--activity-layout .col-al-school { width: 30%; }
-.ds-table--activity-layout .col-al-authority { width: 22%; }
-.ds-table--activity-layout .col-al-count { width: 28px; text-align: center; }
-.ds-table--activity-layout .col-al-status { width: 20%; }
-.ds-table--activity-layout .col-al-actions { width: 26%; }
+.ds-table--activity-layout .col-al-school {
+  width: 155px;
+}
+.ds-table--activity-layout .col-al-authority {
+  width: 90px;
+}
+.ds-table--activity-layout .col-al-count {
+  width: 48px;
+  text-align: center;
+  overflow: visible;
+  text-overflow: clip;
+}
+.ds-table--activity-layout .col-al-status {
+  width: 90px;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+.ds-table--activity-layout .col-al-actions {
+  /* takes remaining width */
+}
 .ds-table--activity-layout .col-al-actions-cell {
   white-space: normal;
 }
 .ds-table--activity-layout .ds-al-actions-stack {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   align-items: flex-start;
+}
+/* hide sent metadata — keep status cell to chip only */
+.ds-activity-layout-sent-meta {
+  display: none;
 }
 
 /* Confirm overlay */
