@@ -106,10 +106,6 @@ function friendlyPersonalReportsError(error, fallback = 'אירעה תקלה ב�
   return fallback;
 }
 
-function buildInternalAuthEmail(employeeCode) {
-  const code = String(employeeCode || '').trim();
-  return code.includes('@') ? code : `${code}@think.org.il`;
-}
 
 function profileFromDashboardUser(user) {
   if (!user || typeof user !== 'object') return null;
@@ -137,21 +133,12 @@ function sessionFromDashboardState(appState) {
   return { user: { id: profile.id }, profile, needsInternalAuth: !profile.id };
 }
 
-function personalReportsLoginIdentifier(user) {
-  // Prefer email (the primary login identifier) so the RPC looks up by the
-  // same credential the user authenticated with, not by an internal ID.
-  return String(user?.email || user?.work_email || user?.user_id || user?.emp_id || user?.employee_id || '').trim();
-}
-
-function sameDashboardUser(userRow, dashboardUser) {
-  const expected = [dashboardUser?.user_id, dashboardUser?.email, dashboardUser?.work_email, dashboardUser?.emp_id, dashboardUser?.employee_id]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
-  const actual = [userRow?.user_id, userRow?.email, userRow?.emp_id]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
-  if (!expected.length || !actual.length) return false;
-  return expected.some((value) => actual.includes(value));
+function dashboardUserEmail(user) {
+  // Returns the email of the currently logged-in dashboard user.
+  // We accept only a real email (contains @) — internal IDs (user_id, emp_id)
+  // must NOT be used as a lookup key for the second-factor verification.
+  const raw = String(user?.email || user?.work_email || '').trim();
+  return raw.includes('@') ? raw.toLowerCase() : '';
 }
 
 function resetPersonalReportsAuth() {
@@ -338,34 +325,41 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
 // ─── supabase API ─────────────────────────────────────────────────────────────
 
 async function authenticateInternalEmployee(dashboardUser, accessCode) {
-  const login = personalReportsLoginIdentifier(dashboardUser);
-  const password = String(accessCode || '').trim();
-  if (!login || !password) {
+  // Step 1: resolve the email of the already-authenticated user.
+  // We refuse to fall back to internal IDs — only a real email is accepted.
+  const userEmail = dashboardUserEmail(dashboardUser);
+  const enteredCode = String(accessCode || '').trim();
+  if (!userEmail || !enteredCode) {
     throw new Error('invalid_credentials');
   }
 
-  // Use the DB-level RPC that compares entry_code directly — avoids Supabase Auth
-  // email-format mismatches (user_id vs actual auth email).
-  const { data, error } = await supabase.rpc('login_user_by_entry_code', {
-    p_login: login,
-    p_entry_code: password
+  // Step 2: verify the entered code against that specific user's record.
+  // The RPC looks up by email only and compares entry_code — it never
+  // treats the code as a user_id, emp_id, or UUID.
+  const { data, error } = await supabase.rpc('verify_personal_reports_entry_code', {
+    p_email: userEmail,
+    p_entry_code: enteredCode
   });
   if (error) {
-    console.error('[personal-reports] RPC login_user_by_entry_code error:', error.message);
+    console.error('[personal-reports] RPC verify_personal_reports_entry_code error:', error.message);
     throw new Error('invalid_credentials');
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row || row.login_status !== 'ok') {
+  if (!row || row.verify_status !== 'ok') {
+    throw new Error(row?.verify_status || 'invalid_credentials');
+  }
+
+  // Step 3: confirm the email returned by the DB matches the logged-in user.
+  // This guards against any unexpected row mismatch.
+  const returnedEmail = String(row.email || '').trim().toLowerCase();
+  if (!returnedEmail || returnedEmail !== userEmail) {
+    console.error('[personal-reports] email mismatch after verify RPC');
     throw new Error('invalid_credentials');
   }
 
-  if (!sameDashboardUser(row, dashboardUser)) {
-    throw new Error('invalid_credentials');
-  }
-
-  // The UUID for report queries comes from the already-authenticated session —
-  // never from the numeric entry code.
+  // Step 4: the UUID for report queries comes exclusively from the
+  // already-authenticated dashboard session — never from the code.
   const authUserId = String(
     dashboardUser?.auth_user_id ||
     dashboardUser?.personal_reports_user_id ||
@@ -377,11 +371,11 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
 
   const profile = {
     id: authUserId,
-    email: String(row.email || '').trim(),
-    full_name: String(row.name || row.email || login).trim(),
+    email: returnedEmail,
+    full_name: String(row.name || returnedEmail).trim(),
     role: isAdminRole(row.role) ? 'admin' : 'employee',
     display_role: String(row.role || '').trim(),
-    emp_id: String(row.emp_id || row.user_id || login).trim()
+    emp_id: String(row.emp_id || '').trim()
   };
 
   return { user: { id: authUserId }, profile, needsInternalAuth: false };
