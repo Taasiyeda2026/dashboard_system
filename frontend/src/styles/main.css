@@ -12163,6 +12163,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .ds-table--activity-layout {
   table-layout: fixed;
+  width: 390px;
+  min-width: 390px;
+  max-width: 390px;
   width: 475px;
   min-width: 475px;
   max-width: 475px;
@@ -12173,6 +12176,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
+  padding: 3px 4px;
+}
+.ds-table--activity-layout .col-al-school {
+  width: 100px;
+  min-width: 100px;
+  max-width: 100px;
   padding: 3px 5px;
 }
 .ds-table--activity-layout .col-al-school {
@@ -12194,6 +12203,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-overflow: clip;
 }
 .ds-table--activity-layout .col-al-status {
+  width: 60px;
+  min-width: 60px;
+  max-width: 60px;
+  white-space: nowrap;
+}
+.ds-table--activity-layout .col-al-actions {
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
   width: 85px;
   min-width: 85px;
   max-width: 85px;
@@ -12213,6 +12231,24 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   gap: 2px;
   align-items: flex-start;
 }
+.ds-table--activity-layout .ds-al-actions-stack .ds-btn {
+  width: 100%;
+  padding: 2px 4px;
+  font-size: 0.68rem;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-table--activity-layout .ds-chip--status {
+  max-width: 100%;
+  font-size: 0.62rem;
+  line-height: 1;
+  padding: 1px 4px;
+  min-height: 16px;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
 .ds-table--activity-layout .ds-chip--status {
   font-size: 0.68rem;
   line-height: 1;
