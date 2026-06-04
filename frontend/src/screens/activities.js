@@ -1040,18 +1040,20 @@ function activityLayoutListHtml(groups = []) {
       ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activity-layout-sent="${key}">עדכן אישור שליחה</button>`
       : `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activity-layout-sent="${key}">סמן כנשלח</button>`;
     return `<tr>
-      <td><button type="button" class="ds-link-btn" data-activity-layout-open="${key}">${escapeHtml(group.school)}</button></td>
-      <td>${escapeHtml(group.authority)}</td>
-      <td>${escapeHtml(String(group.count || 0))}</td>
-      <td class="ds-activity-layout-status-cell">${sentStatusHtml}</td>
-      <td class="ds-actions-cell">
-        <button type="button" class="ds-btn ds-btn--sm" data-activity-layout-open="${key}">הפק מסמך</button>
-        ${sentBtnHtml}
+      <td class="col-al-school"><button type="button" class="ds-link-btn" data-activity-layout-open="${key}">${escapeHtml(group.school)}</button></td>
+      <td class="col-al-authority">${escapeHtml(group.authority)}</td>
+      <td class="col-al-count">${escapeHtml(String(group.count || 0))}</td>
+      <td class="col-al-status ds-activity-layout-status-cell">${sentStatusHtml}</td>
+      <td class="col-al-actions col-al-actions-cell">
+        <div class="ds-al-actions-stack">
+          <button type="button" class="ds-btn ds-btn--sm" data-activity-layout-open="${key}">הפק מסמך</button>
+          ${sentBtnHtml}
+        </div>
       </td>
     </tr>`;
   }).join('');
   if (!rows) return '<div class="ds-empty" dir="rtl"><p class="ds-empty__msg">אין בתי ספר מוכנים להפקת פריסת פעילות בשלב זה.</p></div>';
-  return dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>בית ספר</th><th>רשות</th><th>מספר פעילויות</th><th>סטטוס שליחה</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>`);
+  return dsTableWrap(`<table class="ds-table ds-table--activity-layout" dir="rtl"><thead><tr><th class="col-al-school">בית ספר</th><th class="col-al-authority">רשות</th><th class="col-al-count">#</th><th class="col-al-status">סטטוס</th><th class="col-al-actions">פעולות</th></tr></thead><tbody>${rows}</tbody></table>`);
 }
 
 export const activitiesScreen = {
