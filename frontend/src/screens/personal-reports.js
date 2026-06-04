@@ -138,7 +138,9 @@ function sessionFromDashboardState(appState) {
 }
 
 function personalReportsLoginIdentifier(user) {
-  return String(user?.user_id || user?.email || user?.work_email || user?.emp_id || user?.employee_id || '').trim();
+  // Prefer email (the primary login identifier) so the RPC looks up by the
+  // same credential the user authenticated with, not by an internal ID.
+  return String(user?.email || user?.work_email || user?.user_id || user?.emp_id || user?.employee_id || '').trim();
 }
 
 function sameDashboardUser(userRow, dashboardUser) {
@@ -354,7 +356,7 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row || row.status !== 'ok') {
+  if (!row || row.login_status !== 'ok') {
     throw new Error('invalid_credentials');
   }
 
