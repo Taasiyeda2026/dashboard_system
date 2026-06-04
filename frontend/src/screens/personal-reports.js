@@ -164,21 +164,21 @@ function internalEmployeeLoginHtml(message = '') {
   return `
     <div class="pr-screen pr-internal-auth-screen" dir="rtl">
       <div class="pr-body pr-internal-auth-body">
-        ${dsPageHeader('דוחות אישיים', 'הוצאות, נסיעות ודיווח שכר חודשי')}
+        ${dsPageHeader('דוחות אישיים')}
         <section class="pr-card pr-internal-login-card" aria-labelledby="pr-internal-login-title">
           <div class="pr-internal-login-head">
-            <h2 class="pr-internal-login-title" id="pr-internal-login-title">אימות נוסף לדוחות אישיים</h2>
-            <p class="pr-internal-login-subtitle">אזור זה כולל מידע רגיש. יש להזין את קוד ההתחברות האישי כדי להציג את הדוחות.</p>
+            <h2 class="pr-internal-login-title" id="pr-internal-login-title">דוחות אישיים</h2>
+            <p class="pr-internal-login-subtitle">נדרש אימות נוסף כדי להיכנס לאזור זה</p>
           </div>
           ${message ? `<div class="pr-alert pr-alert--danger" role="alert">${escapeHtml(message)}</div>` : ''}
           <form id="pr-internal-login-form" class="pr-form pr-internal-login-form" autocomplete="off">
             <div class="pr-field">
-              <label class="pr-label" for="pr-internal-access-code">קוד התחברות</label>
+              <label class="pr-label" for="pr-internal-access-code">קוד אישי</label>
               <input class="pr-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="off" required />
             </div>
-            <button class="pr-btn pr-btn--primary pr-btn--full pr-internal-login-submit" type="submit">הצגת הדוחות שלי</button>
+            <button class="pr-btn pr-btn--primary pr-btn--full pr-internal-login-submit" type="submit">כניסה לדוחות</button>
           </form>
-          <button class="pr-btn--link pr-internal-login-back" data-pr-action="back-to-dashboard" type="button">חזרה לדשבורד</button>
+          <button class="pr-btn pr-btn--link pr-internal-login-back" data-pr-action="back-to-dashboard" type="button">חזרה</button>
         </section>
       </div>
     </div>
