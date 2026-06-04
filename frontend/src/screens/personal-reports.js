@@ -164,21 +164,23 @@ function internalEmployeeLoginHtml(message = '') {
   return `
     <div class="pr-screen pr-internal-auth-screen" dir="rtl">
       <div class="pr-body pr-internal-auth-body">
-        ${dsPageHeader('דוחות אישיים')}
-        <section class="pr-card pr-internal-login-card" aria-labelledby="pr-internal-login-title">
-          <div class="pr-internal-login-head">
-            <h2 class="pr-internal-login-title" id="pr-internal-login-title">דוחות אישיים</h2>
-            <p class="pr-internal-login-subtitle">נדרש אימות נוסף כדי להיכנס לאזור זה</p>
+        <section class="pr-internal-lock-card" aria-labelledby="pr-internal-login-title">
+          <div class="pr-internal-lock-icon" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
           </div>
-          ${message ? `<div class="pr-alert pr-alert--danger" role="alert">${escapeHtml(message)}</div>` : ''}
-          <form id="pr-internal-login-form" class="pr-form pr-internal-login-form" autocomplete="off">
-            <div class="pr-field">
-              <label class="pr-label" for="pr-internal-access-code">קוד אישי</label>
-              <input class="pr-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="off" required />
+          <h2 class="pr-internal-lock-title" id="pr-internal-login-title">אימות נוסף לדוחות אישיים</h2>
+          <p class="pr-internal-lock-subtitle">אזור זה כולל מידע רגיש. יש להזין את קוד ההתחברות האישי כדי להמשיך.</p>
+          ${message ? `<div class="pr-internal-lock-error" role="alert">${escapeHtml(message)}</div>` : ''}
+          <form id="pr-internal-login-form" autocomplete="off" class="pr-internal-lock-form">
+            <div class="pr-internal-lock-field">
+              <label class="pr-internal-lock-label" for="pr-internal-access-code">קוד התחברות</label>
+              <input class="pr-internal-lock-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="off" placeholder="הזן קוד אישי" required />
             </div>
-            <button class="pr-btn pr-btn--primary pr-btn--full pr-internal-login-submit" type="submit">כניסה לדוחות</button>
+            <button class="pr-internal-lock-btn" type="submit">כניסה</button>
           </form>
-          <button class="pr-btn pr-btn--link pr-internal-login-back" data-pr-action="back-to-dashboard" type="button">חזרה</button>
         </section>
       </div>
     </div>
