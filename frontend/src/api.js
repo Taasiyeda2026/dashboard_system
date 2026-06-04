@@ -2955,6 +2955,7 @@ export const api = {
       token,
       user: {
         user_id: flat.user_id,
+        email: String(user.email || '').trim(),
         display_role: flat.role,
         display_role_label: flat.display_role_label,
         display_role2: flat.display_role2,
