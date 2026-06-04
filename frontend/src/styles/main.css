@@ -12166,6 +12166,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   width: 390px;
   min-width: 390px;
   max-width: 390px;
+  width: 475px;
+  min-width: 475px;
+  max-width: 475px;
 }
 .ds-table--activity-layout th,
 .ds-table--activity-layout td {
@@ -12179,6 +12182,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   width: 100px;
   min-width: 100px;
   max-width: 100px;
+  padding: 3px 5px;
+}
+.ds-table--activity-layout .col-al-school {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
 }
 .ds-table--activity-layout .col-al-authority {
   width: 90px;
@@ -12203,6 +12212,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   width: 80px;
   min-width: 80px;
   max-width: 80px;
+  width: 85px;
+  min-width: 85px;
+  max-width: 85px;
+  white-space: nowrap;
+}
+.ds-table--activity-layout .col-al-actions {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
 }
 .ds-table--activity-layout .col-al-actions-cell {
   white-space: normal;
@@ -12231,6 +12249,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   overflow: hidden;
   text-overflow: clip;
   white-space: nowrap;
+.ds-table--activity-layout .ds-chip--status {
+  font-size: 0.68rem;
+  line-height: 1;
+  padding: 2px 6px;
+  min-height: 18px;
 }
 /* hide sent metadata — keep status cell to compact chip only */
 .ds-activity-layout-sent-meta {
