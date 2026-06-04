@@ -227,6 +227,16 @@ test('activities source no longer wires the admin summary drawer into the activi
   assert.doesNotMatch(source, /querySelector\('\[data-activities-admin-summary\]'\)/);
 });
 
+test('activities overdue popup shows general exceptions message without count', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
+  assert.match(source, /יש תוכניות שהסתיימו ועדיין לא נסגרו/);
+  assert.match(source, /מומלץ לעבור לעמוד החריגות, לבדוק את הרשומות הרלוונטיות ולעדכן סטטוס לפי הצורך/);
+  assert.match(source, /מעבר לעמוד החריגות/);
+  assert.doesNotMatch(source, /<strong>\$\{overdue\.length\}<\/strong>/);
+  assert.doesNotMatch(source, /קיימות\s*<strong>\$\{overdue\.length\}<\/strong>/);
+});
+
 test('admin activities summary renders one total summary without district sections', async () => {
   const { renderAdminActivitiesSummary } = await import('../frontend/src/screens/activities.js');
   const rows = [

@@ -1327,12 +1327,17 @@ export const activitiesScreen = {
       el.innerHTML = `
         <div class="ds-overdue-dialog">
           <div class="ds-overdue-icon" aria-hidden="true">⚠️</div>
-          <h3 class="ds-overdue-title">פעילויות פתוחות שתאריך הסיום שלהן חלף</h3>
-          <p class="ds-overdue-body">קיימות <strong>${overdue.length}</strong> פעילויות בסטטוס <strong>פתוח</strong> שתאריך הסיום שלהן כבר עבר.<br>מומלץ לבדוק ולעדכן את הסטטוס שלהן.</p>
-          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-overdue-close>הבנתי</button>
+          <h3 class="ds-overdue-title">יש תוכניות שהסתיימו ועדיין לא נסגרו</h3>
+          <p class="ds-overdue-body">מומלץ לעבור לעמוד החריגות, לבדוק את הרשומות הרלוונטיות ולעדכן סטטוס לפי הצורך.</p>
+          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-overdue-exceptions>מעבר לעמוד החריגות</button>
         </div>`;
       el.addEventListener('click', (e) => {
-        if (e.target.closest('[data-overdue-close]') || e.target === el) el.remove();
+        if (e.target.closest('[data-overdue-exceptions]')) {
+          el.remove();
+          document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'exceptions' } }));
+          return;
+        }
+        if (e.target === el) el.remove();
       });
       document.addEventListener('keydown', function onKey(e) {
         if (e.key === 'Escape') { el.remove(); document.removeEventListener('keydown', onKey); }
