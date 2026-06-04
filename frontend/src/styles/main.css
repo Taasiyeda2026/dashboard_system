@@ -12986,3 +12986,59 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pr-report-tab { flex: 1 1 auto; }
   .pr-col-detail { min-width: 180px; }
 }
+
+/* Internal employee authentication (personal reports only) */
+.pr-internal-auth-screen {
+  background: #f8fafc;
+}
+.pr-internal-auth-body {
+  align-items: flex-end;
+  max-width: 860px;
+}
+.pr-internal-login-card {
+  width: min(100%, 420px);
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+  padding: 24px;
+  text-align: right;
+}
+.pr-internal-login-head {
+  margin-bottom: 18px;
+}
+.pr-internal-login-title {
+  margin: 0 0 6px;
+  color: #0f172a;
+  font-size: 1.18rem;
+  font-weight: 700;
+}
+.pr-internal-login-subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.pr-internal-login-form {
+  gap: 14px;
+}
+.pr-internal-login-card .pr-input {
+  min-height: 42px;
+}
+.pr-internal-login-submit {
+  min-height: 42px;
+  margin-top: 2px;
+}
+.pr-internal-login-back {
+  display: inline-flex;
+  margin-top: 14px;
+  padding: 0;
+}
+
+@media (max-width: 640px) {
+  .pr-internal-auth-body {
+    align-items: stretch;
+  }
+  .pr-internal-login-card {
+    width: 100%;
+  }
+}
