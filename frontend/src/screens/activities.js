@@ -1318,6 +1318,15 @@ export const activitiesScreen = {
       if (!overdue.length) return;
       const existing = root.querySelector('[data-overdue-warning]');
       if (existing) return;
+
+      const userRoutes = Array.isArray(state?.effectiveRoutes) ? state.effectiveRoutes
+        : (Array.isArray(state?.routes) ? state.routes : []);
+      const canViewExceptions = userRoutes.includes('exceptions');
+
+      const exceptionsBtn = canViewExceptions
+        ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-overdue-exceptions>מעבר לתיקון החריגה</button>`
+        : '';
+
       const el = document.createElement('div');
       el.setAttribute('data-overdue-warning', '');
       el.setAttribute('role', 'alertdialog');
@@ -1329,15 +1338,30 @@ export const activitiesScreen = {
           <div class="ds-overdue-icon" aria-hidden="true">⚠️</div>
           <h3 class="ds-overdue-title">יש תוכניות שהסתיימו ועדיין לא נסגרו</h3>
           <p class="ds-overdue-body">מומלץ לעבור לעמוד החריגות, לבדוק את הרשומות הרלוונטיות ולעדכן סטטוס לפי הצורך.</p>
-          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-overdue-exceptions>מעבר לעמוד החריגות</button>
+          <div class="ds-overdue-actions">
+            ${exceptionsBtn}
+            <button type="button" class="ds-btn ds-btn--secondary ds-btn--sm" data-overdue-dismiss>אישור והמשך עבודה בדשבורד</button>
+          </div>
         </div>`;
       el.addEventListener('click', (e) => {
         if (e.target.closest('[data-overdue-exceptions]')) {
           el.remove();
+          state.listFilters = state.listFilters || {};
+          state.listFilters.exceptions = {
+            ...(state.listFilters.exceptions || {}),
+            q: '',
+            district: '',
+            activity_manager: '',
+            exception_type: 'end_date_passed',
+            visibleCount: 200
+          };
           document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'exceptions' } }));
           return;
         }
-        if (e.target === el) el.remove();
+        if (e.target.closest('[data-overdue-dismiss]') || e.target === el) {
+          el.remove();
+          return;
+        }
       });
       document.addEventListener('keydown', function onKey(e) {
         if (e.key === 'Escape') { el.remove(); document.removeEventListener('keydown', onKey); }
