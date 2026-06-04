@@ -2,7 +2,7 @@
  * Personal Reports Screen — דוחות אישיים
  *
  * Digital monthly salary report form, based on the Excel format "דיווח שכר אישי".
- * Handles its own Supabase Auth session (separate from the main dashboard session).
+ * Uses the authenticated dashboard user supplied by the app shell.
  * Uses the shared supabase client (anon key only — no service_role exposure).
  *
  * Roles:
@@ -41,7 +41,7 @@ const STATUS_KIND = {
 let prSession        = null;
 let prSelectedReport = null;
 let prViewAsEmployee = null;
-let prAdminMode      = 'manage';
+let prAdminMode      = 'my';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -79,28 +79,54 @@ function canEdit(report) {
   return !report || report.status === 'draft' || report.status === 'needs_correction';
 }
 
+function isAdminRole(role) {
+  return String(role || '').trim().toLowerCase() === 'admin';
+}
+
+function profileFromDashboardUser(user) {
+  if (!user || typeof user !== 'object') return null;
+  const id = String(
+    user.personal_reports_user_id
+    || user.supabase_user_id
+    || user.auth_user_id
+    || user.id
+    || user.user_id
+    || ''
+  ).trim();
+  const displayRole = String(user.display_role || user.role || '').trim();
+  const role = isAdminRole(displayRole) ? 'admin' : 'employee';
+  return {
+    id,
+    email: String(user.email || user.work_email || '').trim(),
+    full_name: String(user.full_name || user.name || user.user_id || 'משתמש מחובר').trim(),
+    role,
+    display_role: displayRole,
+    emp_id: String(user.emp_id || user.employee_id || '').trim()
+  };
+}
+
+function sessionFromDashboardState(appState) {
+  const profile = profileFromDashboardUser(appState?.user);
+  if (!profile) return null;
+  return { user: { id: profile.id }, profile };
+}
+
+function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במערכת. חזרו למסך הכניסה הראשי ונסו שוב.') {
+  return `
+    <div class="pr-screen" dir="rtl">
+      <div class="pr-body">
+        ${dsPageHeader('דוחות אישיים', 'הוצאות, נסיעות ודיווח שכר חודשי')}
+        <div class="pr-card pr-card--highlight" role="alert">
+          <h2 class="pr-card__title">נדרש משתמש מערכת מחובר</h2>
+          <p class="pr-helper-text">${escapeHtml(message)}</p>
+          <button class="pr-btn pr-btn--primary pr-btn--sm" data-pr-action="back-to-dashboard" type="button">חזרה לדשבורד</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // ─── supabase API ─────────────────────────────────────────────────────────────
-
-async function signIn(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
-  return data;
-}
-
-async function signOut() {
-  await supabase.auth.signOut();
-}
-
-async function resetPassword(email) {
-  const { error } = await supabase.auth.resetPasswordForEmail(email);
-  if (error) throw error;
-}
-
-async function getProfile(userId) {
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-  if (error) throw error;
-  return data;
-}
 
 async function getReport(employeeId, month, year) {
   const { data } = await supabase
@@ -315,30 +341,6 @@ function simulationBannerHtml(employeeName) {
   `;
 }
 
-function loginHtml(errorMsg = '') {
-  return `
-    <div class="pr-auth-wrap" dir="rtl">
-      <div class="pr-auth-card">
-        <h1 class="pr-auth-title">דוחות אישיים</h1>
-        <p class="pr-auth-sub">הוצאות, נסיעות וקבלות</p>
-        ${errorMsg ? `<div class="pr-alert pr-alert--danger" role="alert">${escapeHtml(errorMsg)}</div>` : ''}
-        <form id="pr-login-form" class="pr-form" novalidate>
-          <div class="pr-field">
-            <label class="pr-label" for="pr-email">מייל עבודה</label>
-            <input class="pr-input" id="pr-email" type="email" autocomplete="email" required placeholder="your@email.com" />
-          </div>
-          <div class="pr-field">
-            <label class="pr-label" for="pr-pass">סיסמה</label>
-            <input class="pr-input" id="pr-pass" type="password" autocomplete="current-password" required placeholder="••••••••" />
-          </div>
-          <button class="pr-btn pr-btn--primary pr-btn--full" type="submit" id="pr-login-btn">התחברות</button>
-          <button class="pr-btn pr-btn--link" type="button" id="pr-forgot-btn">שכחתי סיסמה</button>
-        </form>
-      </div>
-    </div>
-  `;
-}
-
 function employeeDashboardHtml(profile, { isSimulation = false } = {}) {
   const { month, year } = currentMonthYear();
   let monthOptions = '';
@@ -356,11 +358,11 @@ function employeeDashboardHtml(profile, { isSimulation = false } = {}) {
           ? `<button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="exit-simulation">← חזרה למסך ניהול</button>`
           : `<button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-dashboard">← חזרה לדשבורד</button>`}
         <span class="pr-topbar__title">דוחות אישיים</span>
-        ${isSimulation ? '' : `<button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="sign-out">יציאה</button>`}
+
       </div>
       <div class="pr-body">
-        ${dsPageHeader('הדוחות האישיים שלי', `${isSimulation ? 'סימולציה עבור: ' : 'שלום, '}${escapeHtml(profile.full_name)}`)}
-        ${profile.role === 'admin' && !isSimulation ? `
+        ${dsPageHeader('דוחות אישיים', 'הוצאות, נסיעות ודיווח שכר חודשי')}
+        ${isAdminRole(profile.role) && !isSimulation ? `
           <div class="pr-admin-mode-switch" role="tablist" aria-label="מצבי אדמין">
             <button class="pr-report-tab is-active" data-pr-action="admin-mode-my" type="button">הדוחות שלי</button>
             <button class="pr-report-tab" data-pr-action="admin-mode-manage" type="button">ניהול דוחות עובדים</button>
@@ -373,10 +375,10 @@ function employeeDashboardHtml(profile, { isSimulation = false } = {}) {
             <select class="pr-input pr-input--select" id="pr-month-select">${monthOptions}</select>
             <button class="pr-btn pr-btn--primary" id="pr-check-report-btn" data-pr-action="check-report">בדוק חודש</button>
           </div>
-          <div class="pr-quick-tabs" aria-label="מעבר מהיר בדוח החודשי">
-            <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="open-month-tab" data-tab="expenses">הוצאות</button>
-            <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="open-month-tab" data-tab="travel">נסיעות</button>
-            <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="open-month-tab" data-tab="salary">דיווח שכר</button>
+          <div class="pr-quick-tabs" role="tablist" aria-label="סוגי דוחות אישיים">
+            <button class="pr-report-tab is-active" data-pr-action="open-month-tab" data-tab="expenses" type="button">הוצאות</button>
+            <button class="pr-report-tab" data-pr-action="open-month-tab" data-tab="travel" type="button">נסיעות</button>
+            <button class="pr-report-tab" data-pr-action="open-month-tab" data-tab="salary" type="button">דיווח שכר</button>
           </div>
           <p class="pr-helper-text">הכפתורים פותחים את אזורי הדוח בתוך אותו ממשק עבור החודש שנבחר.</p>
           <div id="pr-month-status" class="pr-month-status"></div>
@@ -836,6 +838,32 @@ function statusOptionsHtml(selectedStatus) {
   ).join('');
 }
 
+function adminManagePlaceholderHtml(errorMsg = '') {
+  const errorHtml = errorMsg
+    ? `<div class="pr-alert pr-alert--danger" role="alert">${escapeHtml(errorMsg)}</div>`
+    : '';
+  return `
+    <div class="pr-screen" dir="rtl">
+      <div class="pr-topbar">
+        <button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-dashboard">← חזרה לדשבורד</button>
+        <span class="pr-topbar__title">דוחות אישיים</span>
+      </div>
+      <div class="pr-body pr-admin-body">
+        ${dsPageHeader('דוחות אישיים', 'הוצאות, נסיעות ודיווח שכר חודשי')}
+        <div class="pr-admin-mode-switch" role="tablist" aria-label="מצבי אדמין">
+          <button class="pr-report-tab" data-pr-action="admin-mode-my" type="button">הדוחות שלי</button>
+          <button class="pr-report-tab is-active" data-pr-action="admin-mode-manage" type="button">ניהול דוחות עובדים</button>
+        </div>
+        <section class="pr-card pr-admin-placeholder" aria-label="ניהול דוחות עובדים">
+          <h2 class="pr-card__title">ניהול דוחות עובדים</h2>
+          <p class="pr-helper-text">כאן יוצג אזור ניהול דוחות העובדים: סינון, צפייה, אישור והחזרה לתיקון.</p>
+          ${errorHtml}
+        </section>
+      </div>
+    </div>
+  `;
+}
+
 function adminDashboardHtml(reports) {
   const employeeOptions = [...new Map(reports.map((r) => {
     const p = r.profiles || {};
@@ -874,7 +902,6 @@ function adminDashboardHtml(reports) {
       <div class="pr-topbar">
         <button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-dashboard">← חזרה לדשבורד</button>
         <span class="pr-topbar__title">דוחות אישיים</span>
-        <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="sign-out">יציאה</button>
       </div>
       <div class="pr-body pr-admin-body">
         ${dsPageHeader('דוחות אישיים', 'בחר מצב עבודה: דוח אישי שלך או ניהול דוחות עובדים')}
@@ -965,14 +992,21 @@ function renderInto(root, html) {
 }
 
 async function loadMyReportsList(root, employeeId) {
-  const { data: reports } = await supabase
-    .from('personal_reports')
-    .select('*')
-    .eq('employee_id', employeeId)
-    .order('report_year', { ascending: false })
-    .order('report_month', { ascending: false });
   const listEl = root.querySelector('#pr-my-reports-list');
-  if (listEl) listEl.innerHTML = myReportsListHtml(reports || []);
+  try {
+    const { data: reports, error } = await supabase
+      .from('personal_reports')
+      .select('*')
+      .eq('employee_id', employeeId)
+      .order('report_year', { ascending: false })
+      .order('report_month', { ascending: false });
+    if (error) throw error;
+    if (listEl) listEl.innerHTML = myReportsListHtml(reports || []);
+  } catch (err) {
+    if (listEl) {
+      listEl.innerHTML = `<div class="pr-alert pr-alert--danger" role="alert">לא ניתן לטעון דוחות קודמים כרגע. ${escapeHtml(err.message || '')}</div>`;
+    }
+  }
 }
 
 async function openReportDetail(root, reportId, isAdmin = false, { isSimulation = false, initialTab = 'expenses' } = {}) {
@@ -1163,41 +1197,6 @@ function adminReportViewHtml(report, travel, transport, expenses, attachments) {
 
 // ─── binding ──────────────────────────────────────────────────────────────────
 
-function bindLoginForm(root) {
-  const form = root.querySelector('#pr-login-form');
-  const forgotBtn = root.querySelector('#pr-forgot-btn');
-
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = root.querySelector('#pr-email')?.value?.trim();
-    const pass  = root.querySelector('#pr-pass')?.value;
-    if (!email || !pass) return;
-    const btn = root.querySelector('#pr-login-btn');
-    btn.disabled = true;
-    btn.textContent = 'מתחבר…';
-    try {
-      const { user } = await signIn(email, pass);
-      const profile = await getProfile(user.id);
-      prSession = { user, profile };
-      await rerender(root);
-    } catch (err) {
-      renderInto(root, loginHtml(err.message || 'שגיאה בהתחברות. בדוק פרטים ונסה שוב.'));
-      bindLoginForm(root);
-    }
-  });
-
-  forgotBtn?.addEventListener('click', async () => {
-    const email = root.querySelector('#pr-email')?.value?.trim();
-    if (!email) { showToast('הכנס מייל עבודה תחילה', 'warning'); return; }
-    try {
-      await resetPassword(email);
-      showToast('קישור לאיפוס סיסמה נשלח למייל', 'success');
-    } catch (err) {
-      showToast(err.message || 'שגיאה בשליחת האיפוס', 'danger');
-    }
-  });
-}
-
 function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
   const employeeId = isSimulation ? prViewAsEmployee?.id : prSession?.user?.id;
 
@@ -1266,10 +1265,6 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
     if (action === 'back-to-dashboard') {
       dispatchBackToDashboard(); return;
     }
-    if (action === 'sign-out') {
-      await handleSignOut(root); return;
-    }
-
     if (action === 'admin-mode-manage') { prAdminMode = 'manage'; await rerender(root); return; }
 
     if (action === 'open-month-tab') {
@@ -1397,7 +1392,6 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       return;
     }
     if (action === 'back-to-dashboard') { dispatchBackToDashboard(); return; }
-    if (action === 'sign-out') { await handleSignOut(root); return; }
 
     if (action === 'switch-report-tab') { setReportTab(root, btn.dataset.tab); return; }
 
@@ -1543,7 +1537,6 @@ function bindAdminDashboard(root) {
     const reportId = btn.dataset.reportId;
 
     if (action === 'back-to-dashboard') { dispatchBackToDashboard(); return; }
-    if (action === 'sign-out') { await handleSignOut(root); return; }
     if (action === 'admin-mode-my') {
       prAdminMode = 'my';
       renderInto(root, employeeDashboardHtml(prSession.profile));
@@ -1710,38 +1703,27 @@ function dispatchBackToDashboard() {
   document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
 }
 
-async function handleSignOut(root) {
-  await signOut();
-  prSession        = null;
-  prSelectedReport = null;
-  prViewAsEmployee = null;
-  prAdminMode      = 'manage';
-  renderInto(root, loginHtml());
-  bindLoginForm(root);
-}
-
 async function rerender(root) {
   if (!prSession) {
-    renderInto(root, loginHtml());
-    bindLoginForm(root);
+    renderInto(root, authUnavailableHtml());
     return;
   }
-  if (prSession.profile.role === 'admin' && prAdminMode === 'my' && !prViewAsEmployee) {
+  if (isAdminRole(prSession.profile.role) && prAdminMode === 'my' && !prViewAsEmployee) {
     renderInto(root, employeeDashboardHtml(prSession.profile));
     bindEmployeeDashboard(root);
     loadMyReportsList(root, prSession.user.id);
-  } else if (prSession.profile.role === 'admin' && prViewAsEmployee) {
+  } else if (isAdminRole(prSession.profile.role) && prViewAsEmployee) {
     renderInto(root, employeeDashboardHtml(prViewAsEmployee, { isSimulation: true }));
     bindEmployeeDashboard(root, { isSimulation: true });
     loadMyReportsList(root, prViewAsEmployee.id);
-  } else if (prSession.profile.role === 'admin') {
+  } else if (isAdminRole(prSession.profile.role)) {
     try {
       const reports = await fetchAllReports();
       renderInto(root, adminDashboardHtml(reports));
       bindAdminDashboard(root);
     } catch (err) {
-      renderInto(root, loginHtml(err.message));
-      bindLoginForm(root);
+      renderInto(root, adminManagePlaceholderHtml(err.message || 'אזור ניהול דוחות עובדים לא נטען כרגע.'));
+      bindAdminDashboard(root);
     }
   } else {
     renderInto(root, employeeDashboardHtml(prSession.profile));
@@ -1758,22 +1740,21 @@ export const personalReportsScreen = {
     return `<div id="pr-root" class="pr-module-root" dir="rtl"><div class="pr-loading-placeholder">טוען…</div></div>`;
   },
 
-  bind({ root } = {}) {
+  bind({ root, state } = {}) {
     const prRoot = (root && root.querySelector('#pr-root')) || root;
 
-    prSession        = null;
+    prSession        = sessionFromDashboardState(state);
     prSelectedReport = null;
     prViewAsEmployee = null;
-    prAdminMode      = 'manage';
+    prAdminMode      = 'my';
 
-    renderInto(prRoot, loginHtml());
-    bindLoginForm(prRoot);
+    rerender(prRoot);
 
     const onNavigateAway = () => {
       prSession        = null;
       prSelectedReport = null;
       prViewAsEmployee = null;
-      prAdminMode      = 'manage';
+      prAdminMode      = 'my';
       document.removeEventListener('app:navigate', onNavigateAway);
     };
     document.addEventListener('app:navigate', onNavigateAway);
