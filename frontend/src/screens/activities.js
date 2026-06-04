@@ -1053,7 +1053,7 @@ function activityLayoutListHtml(groups = []) {
     </tr>`;
   }).join('');
   if (!rows) return '<div class="ds-empty" dir="rtl"><p class="ds-empty__msg">אין בתי ספר מוכנים להפקת פריסת פעילות בשלב זה.</p></div>';
-  return dsTableWrap(`<table class="ds-table ds-table--activity-layout" dir="rtl"><thead><tr><th class="col-al-school">בית ספר</th><th class="col-al-authority">רשות</th><th class="col-al-count">#</th><th class="col-al-status">סטטוס</th><th class="col-al-actions">פעולות</th></tr></thead><tbody>${rows}</tbody></table>`);
+  return dsTableWrap(`<table class="ds-table ds-table--activity-layout" dir="rtl"><colgroup><col class="col-al-school"><col class="col-al-authority"><col class="col-al-count"><col class="col-al-status"><col class="col-al-actions"></colgroup><thead><tr><th class="col-al-school">בית ספר</th><th class="col-al-authority">רשות</th><th class="col-al-count">פעילויות</th><th class="col-al-status">סטטוס שליחה</th><th class="col-al-actions">פעולות</th></tr></thead><tbody>${rows}</tbody></table>`);
 }
 
 export const activitiesScreen = {
