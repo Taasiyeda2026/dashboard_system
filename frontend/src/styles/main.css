@@ -12157,26 +12157,20 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-activity-layout-status-cell {
   white-space: nowrap;
 }
+/* meta (sent-by/date) hidden — chip-only display */
 .ds-activity-layout-sent-meta {
-  display: block;
-  font-size: 0.75em;
-  color: #64748b;
-  margin-top: 2px;
+  display: none;
 }
 
-/* טבלת פריסת פעילות בחלון הצד — עמודות קומפקטיות עם px קבועים */
+/* פריסת פעילות — table fills drawer width, school col gets remainder */
 .ds-table-wrap:has(.ds-table--activity-layout) {
   overflow-x: auto;
   max-width: 100%;
 }
 .ds-table--activity-layout {
   table-layout: fixed;
-  width: 390px;
-  min-width: 390px;
-  max-width: 390px;
-  width: 475px;
-  min-width: 475px;
-  max-width: 475px;
+  width: 100%;
+  min-width: 0;
 }
 .ds-table--activity-layout th,
 .ds-table--activity-layout td {
@@ -12184,88 +12178,57 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
-  padding: 3px 4px;
-}
-.ds-table--activity-layout .col-al-school {
-  width: 100px;
-  min-width: 100px;
-  max-width: 100px;
   padding: 3px 5px;
 }
-.ds-table--activity-layout .col-al-school {
-  width: 120px;
-  min-width: 120px;
-  max-width: 120px;
-}
+/* fixed-width columns; school col gets whatever remains */
 .ds-table--activity-layout .col-al-authority {
-  width: 90px;
-  min-width: 90px;
-  max-width: 90px;
+  width: 75px;
 }
 .ds-table--activity-layout .col-al-count {
-  width: 60px;
-  min-width: 60px;
-  max-width: 60px;
+  width: 42px;
   text-align: center;
-  overflow: visible;
-  text-overflow: clip;
 }
 .ds-table--activity-layout .col-al-status {
-  width: 60px;
-  min-width: 60px;
-  max-width: 60px;
-  white-space: nowrap;
-}
-.ds-table--activity-layout .col-al-actions {
-  width: 80px;
-  min-width: 80px;
-  max-width: 80px;
-  width: 85px;
-  min-width: 85px;
-  max-width: 85px;
-  white-space: nowrap;
+  width: 62px;
 }
 .ds-table--activity-layout .col-al-actions {
   width: 120px;
-  min-width: 120px;
-  max-width: 120px;
 }
+/* actions cell: allow stacked buttons to wrap naturally */
 .ds-table--activity-layout .col-al-actions-cell {
   white-space: normal;
+  vertical-align: top;
+  padding-top: 5px;
+  padding-bottom: 5px;
 }
 .ds-table--activity-layout .ds-al-actions-stack {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  align-items: flex-start;
+  gap: 3px;
+  align-items: stretch;
 }
+/* compact action buttons — override ds-btn--sm min-height/padding */
 .ds-table--activity-layout .ds-al-actions-stack .ds-btn {
   width: 100%;
-  padding: 2px 4px;
-  font-size: 0.68rem;
-  line-height: 1.1;
+  min-height: 24px;
+  padding: 2px 5px;
+  font-size: 0.67rem;
+  line-height: 1.25;
+  white-space: normal;
+  word-break: break-word;
+  text-align: center;
+  overflow: hidden;
+}
+.ds-table--activity-layout .ds-chip--status {
+  font-size: 0.67rem;
+  line-height: 1;
+  padding: 2px 5px;
+  min-height: 18px;
+  display: inline-block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.ds-table--activity-layout .ds-chip--status {
-  max-width: 100%;
-  font-size: 0.62rem;
-  line-height: 1;
-  padding: 1px 4px;
-  min-height: 16px;
-  overflow: hidden;
-  text-overflow: clip;
-  white-space: nowrap;
-.ds-table--activity-layout .ds-chip--status {
-  font-size: 0.68rem;
-  line-height: 1;
-  padding: 2px 6px;
-  min-height: 18px;
-}
-/* hide sent metadata — keep status cell to compact chip only */
-.ds-activity-layout-sent-meta {
-  display: none;
 }
 
 /* Confirm overlay */
