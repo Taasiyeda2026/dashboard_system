@@ -43,6 +43,7 @@ let prSelectedReport = null;
 let prViewAsEmployee = null;
 let prAdminMode      = 'my';
 let isPersonalReportsUnlocked = false;
+let _dashboardUser   = null;   // stored on bind() so all rerender() calls have it
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -133,13 +134,6 @@ function sessionFromDashboardState(appState) {
   return { user: { id: profile.id }, profile, needsInternalAuth: !profile.id };
 }
 
-function dashboardUserEmail(user) {
-  // Returns the email of the currently logged-in dashboard user.
-  // We accept only a real email (contains @) — internal IDs (user_id, emp_id)
-  // must NOT be used as a lookup key for the second-factor verification.
-  const raw = String(user?.email || user?.work_email || '').trim();
-  return raw.includes('@') ? raw.toLowerCase() : '';
-}
 
 function resetPersonalReportsAuth() {
   prSession        = null;
@@ -147,6 +141,8 @@ function resetPersonalReportsAuth() {
   prViewAsEmployee = null;
   prAdminMode      = 'my';
   isPersonalReportsUnlocked = false;
+  // _dashboardUser is intentionally kept — it's set once on bind() and is needed
+  // to re-bind the lock screen if the session is invalidated mid-navigation.
 }
 
 function internalEmployeeLoginHtml(message = '') {
@@ -325,41 +321,32 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
 // ─── supabase API ─────────────────────────────────────────────────────────────
 
 async function authenticateInternalEmployee(dashboardUser, accessCode) {
-  // Step 1: resolve the email of the already-authenticated user.
-  // We refuse to fall back to internal IDs — only a real email is accepted.
-  const userEmail = dashboardUserEmail(dashboardUser);
   const enteredCode = String(accessCode || '').trim();
-  if (!userEmail || !enteredCode) {
+  if (!enteredCode) {
     throw new Error('invalid_credentials');
   }
 
-  // Step 2: verify the entered code against that specific user's record.
-  // The RPC looks up by email only and compares entry_code — it never
-  // treats the code as a user_id, emp_id, or UUID.
-  const { data, error } = await supabase.rpc('verify_personal_reports_entry_code', {
-    p_email: userEmail,
-    p_entry_code: enteredCode
+  // Step 1: get the email of the currently authenticated Supabase session.
+  // This is the authoritative source — no fallback to internal IDs or tables.
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData?.session?.user?.email) {
+    console.error('[personal-reports] could not read Supabase Auth session', sessionError?.message);
+    throw new Error('invalid_credentials');
+  }
+  const sessionEmail = sessionData.session.user.email;
+
+  // Step 2: re-authenticate against Supabase Auth using the session email
+  // and the code the user typed. No DB tables, no entry_code column, no UUIDs.
+  const { error: authError } = await supabase.auth.signInWithPassword({
+    email: sessionEmail,
+    password: enteredCode
   });
-  if (error) {
-    console.error('[personal-reports] RPC verify_personal_reports_entry_code error:', error.message);
+  if (authError) {
     throw new Error('invalid_credentials');
   }
 
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row || row.verify_status !== 'ok') {
-    throw new Error(row?.verify_status || 'invalid_credentials');
-  }
-
-  // Step 3: confirm the email returned by the DB matches the logged-in user.
-  // This guards against any unexpected row mismatch.
-  const returnedEmail = String(row.email || '').trim().toLowerCase();
-  if (!returnedEmail || returnedEmail !== userEmail) {
-    console.error('[personal-reports] email mismatch after verify RPC');
-    throw new Error('invalid_credentials');
-  }
-
-  // Step 4: the UUID for report queries comes exclusively from the
-  // already-authenticated dashboard session — never from the code.
+  // Step 3: the UUID for report queries comes exclusively from the
+  // already-authenticated dashboard session — never from the entered code.
   const authUserId = String(
     dashboardUser?.auth_user_id ||
     dashboardUser?.personal_reports_user_id ||
@@ -371,10 +358,10 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
 
   const profile = {
     id: authUserId,
-    email: returnedEmail,
-    full_name: String(row.name || returnedEmail).trim(),
-    role: isAdminRole(row.role) ? 'admin' : 'employee',
-    display_role: String(row.role || '').trim(),
+    email: sessionEmail,
+    full_name: String(dashboardUser?.full_name || sessionEmail).trim(),
+    role: isAdminRole(dashboardUser?.display_role || dashboardUser?.role) ? 'admin' : 'employee',
+    display_role: String(dashboardUser?.display_role || dashboardUser?.role || '').trim(),
     emp_id: String(dashboardUser?.emp_id || dashboardUser?.employee_id || '').trim()
   };
 
@@ -402,18 +389,27 @@ async function getReport(employeeId, month, year) {
 
 async function createReport(employeeId, month, year) {
   assertEmployeeUuid(employeeId);
+  // work_days_in_month is NOT included in the initial insert because it depends on
+  // migration 20260603b being applied. Omitting it (NULL default) avoids a
+  // "column does not exist" failure when that migration hasn't run yet. The user
+  // can set the value later via the meta form inside the report.
   const { data, error } = await supabase
     .from('personal_reports')
     .insert({
       employee_id: employeeId,
       report_month: month,
       report_year: year,
-      status: 'draft',
-      work_days_in_month: daysInMonth(month, year)
+      status: 'draft'
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    console.error('[personal-reports] createReport failed', {
+      employeeId, month, year,
+      code: error.code, message: error.message, details: error.details
+    });
+    throw error;
+  }
   return data;
 }
 
@@ -612,6 +608,16 @@ function employeeDashboardHtml(profile, { isSimulation = false } = {}) {
     monthOptions += `<option value="${m}-${y}" ${i === 0 ? 'selected' : ''}>${monthLabel(m, y)}</option>`;
   }
 
+  const adminCard = (isAdminRole(profile.role) && !isSimulation) ? `
+    <div class="pr-card pr-card--highlight" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h2 class="pr-card__title" style="margin:0 0 4px">ניהול דוחות עובדים</h2>
+        <p class="pr-helper-text" style="margin:0">צפייה, אישור והחזרת דוחות לכלל העובדים</p>
+      </div>
+      <button class="pr-btn pr-btn--primary" data-pr-action="admin-mode-manage" type="button">כניסה לניהול</button>
+    </div>
+  ` : '';
+
   return `
     <div class="pr-screen" dir="rtl">
       ${isSimulation ? simulationBannerHtml(profile.full_name) : ''}
@@ -620,30 +626,20 @@ function employeeDashboardHtml(profile, { isSimulation = false } = {}) {
           ? `<button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="exit-simulation">← חזרה למסך ניהול</button>`
           : `<button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-dashboard">← חזרה לדשבורד</button>`}
         <span class="pr-topbar__title">דוחות אישיים</span>
-
+        <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="lock-screen" type="button" style="margin-right:auto" title="נעל מסך">🔒 נעל</button>
       </div>
       <div class="pr-body">
         ${dsPageHeader('דוחות אישיים', 'הוצאות, נסיעות ודיווח שכר חודשי')}
-        ${isAdminRole(profile.role) && !isSimulation ? `
-          <div class="pr-admin-mode-switch" role="tablist" aria-label="מצבי אדמין">
-            <button class="pr-report-tab is-active" data-pr-action="admin-mode-my" type="button">הדוחות שלי</button>
-            <button class="pr-report-tab" data-pr-action="admin-mode-manage" type="button">ניהול דוחות עובדים</button>
-          </div>
-        ` : ''}
+
+        ${adminCard}
 
         <div class="pr-card pr-month-selector-card">
-          <label class="pr-label" for="pr-month-select">בחר חודש דיווח</label>
+          <h2 class="pr-card__title" style="margin:0 0 12px">בחירת חודש דיווח</h2>
           <div class="pr-month-row">
-            <select class="pr-input pr-input--select" id="pr-month-select">${monthOptions}</select>
-            <button class="pr-btn pr-btn--primary" id="pr-check-report-btn" data-pr-action="check-report">בדוק חודש</button>
+            <select class="pr-input pr-input--select" id="pr-month-select" style="flex:1;max-width:200px">${monthOptions}</select>
+            <button class="pr-btn pr-btn--primary" id="pr-check-report-btn" data-pr-action="check-report" type="button">בדוק חודש</button>
           </div>
-          <div class="pr-quick-tabs" role="tablist" aria-label="סוגי דוחות אישיים">
-            <button class="pr-report-tab is-active" data-pr-action="open-month-tab" data-tab="expenses" type="button">הוצאות</button>
-            <button class="pr-report-tab" data-pr-action="open-month-tab" data-tab="travel" type="button">נסיעות</button>
-            <button class="pr-report-tab" data-pr-action="open-month-tab" data-tab="salary" type="button">דיווח שכר</button>
-          </div>
-          <p class="pr-helper-text">הכפתורים פותחים את אזורי הדוח בתוך אותו ממשק עבור החודש שנבחר.</p>
-          <div id="pr-month-status" class="pr-month-status"></div>
+          <div id="pr-month-status" class="pr-month-status" style="margin-top:12px"></div>
         </div>
 
         <div id="pr-my-reports-list" class="pr-reports-list">
@@ -1534,13 +1530,19 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
 
     if (action === 'exit-simulation') {
       prViewAsEmployee = null;
-      await rerender(root);
+      await rerender(root, _dashboardUser);
+      return;
+    }
+    if (action === 'lock-screen') {
+      resetPersonalReportsAuth();
+      renderInto(root, internalEmployeeLoginHtml());
+      bindInternalEmployeeLogin(root, _dashboardUser);
       return;
     }
     if (action === 'back-to-dashboard') {
       dispatchBackToDashboard(); return;
     }
-    if (action === 'admin-mode-manage') { prAdminMode = 'manage'; await rerender(root); return; }
+    if (action === 'admin-mode-manage') { prAdminMode = 'manage'; await rerender(root, _dashboardUser); return; }
 
     if (action === 'open-month-tab') {
       await openSelectedMonthTab(btn.dataset.tab || 'expenses');
@@ -1654,7 +1656,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
 
     if (action === 'exit-simulation') {
       prViewAsEmployee = null;
-      await rerender(root); return;
+      await rerender(root, _dashboardUser); return;
     }
     if (action === 'back-to-my-reports') {
       if (isSimulation) {
@@ -1662,7 +1664,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         bindEmployeeDashboard(root, { isSimulation: true });
         loadMyReportsList(root, prViewAsEmployee.id);
       } else {
-        await rerender(root);
+        await rerender(root, _dashboardUser);
       }
       return;
     }
@@ -1819,7 +1821,7 @@ function bindAdminDashboard(root) {
       loadMyReportsList(root, prSession.user.id);
       return;
     }
-    if (action === 'admin-mode-manage') { prAdminMode = 'manage'; await rerender(root); return; }
+    if (action === 'admin-mode-manage') { prAdminMode = 'manage'; await rerender(root, _dashboardUser); return; }
     if (action === 'clear-admin-filters') {
       root.querySelector('#pr-filter-employee').value = '';
       root.querySelector('#pr-filter-month').value = '';
@@ -1845,7 +1847,7 @@ function bindAdminDashboard(root) {
       try {
         await adminUpdateReport(reportId, { status: 'approved', approved_at: new Date().toISOString() });
         showToast('הדוח אושר', 'success');
-        await rerender(root);
+        await rerender(root, _dashboardUser);
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
@@ -1855,7 +1857,7 @@ function bindAdminDashboard(root) {
       try {
         await adminUpdateReport(reportId, { status: 'needs_correction', finance_notes: notes });
         showToast('הדוח הוחזר לתיקון', 'success');
-        await rerender(root);
+        await rerender(root, _dashboardUser);
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
@@ -1864,7 +1866,7 @@ function bindAdminDashboard(root) {
       try {
         await adminUpdateReport(reportId, { status: 'paid', paid_at: new Date().toISOString() });
         showToast('סומן כשולם', 'success');
-        await rerender(root);
+        await rerender(root, _dashboardUser);
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
@@ -1885,7 +1887,7 @@ function bindAdminDashboard(root) {
       showToast('סטטוס עודכן', 'success');
     } catch (err) {
       showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בעדכון הסטטוס. יש לנסות שוב.'), 'danger');
-      await rerender(root);
+      await rerender(root, _dashboardUser);
     }
   });
 }
@@ -1897,7 +1899,7 @@ function bindAdminReportView(root) {
     const action = btn.dataset.prAction;
     const reportId = btn.dataset.reportId;
 
-    if (action === 'back-to-admin') { await rerender(root); return; }
+    if (action === 'back-to-admin') { await rerender(root, _dashboardUser); return; }
 
     if (action === 'admin-approve' && reportId) {
       if (!confirm('לאשר דוח זה?')) return;
@@ -1951,7 +1953,7 @@ function bindEmployeeSelector(root) {
     if (!btn) return;
     const action = btn.dataset.prAction;
 
-    if (action === 'back-to-admin') { await rerender(root); return; }
+    if (action === 'back-to-admin') { await rerender(root, _dashboardUser); return; }
 
     if (action === 'select-view-as-employee') {
       prViewAsEmployee = {
@@ -2052,13 +2054,13 @@ export const personalReportsScreen = {
 
   bind({ root, state } = {}) {
     const prRoot = (root && root.querySelector('#pr-root')) || root;
-    const dashboardUser = state?.user || null;
+    _dashboardUser = state?.user || null;
     const view = prRoot?.ownerDocument?.defaultView || globalThis.window;
 
     resetPersonalReportsAuth();
     prSession = sessionFromDashboardState(state);
 
-    rerender(prRoot, dashboardUser);
+    rerender(prRoot, _dashboardUser);
 
     const onNavigateAway = () => {
       resetPersonalReportsAuth();
@@ -2073,7 +2075,7 @@ export const personalReportsScreen = {
       if (!event.persisted) return;
       resetPersonalReportsAuth();
       prSession = sessionFromDashboardState(state);
-      rerender(prRoot, dashboardUser);
+      rerender(prRoot, _dashboardUser);
     };
     document.addEventListener('app:navigate', onNavigateAway);
     view?.addEventListener('pagehide', onPageHide);
