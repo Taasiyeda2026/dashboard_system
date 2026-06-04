@@ -24,7 +24,7 @@ export const loginScreen = {
             <input
               id="userId"
               required
-              placeholder="שם משתמש / מייל (לדוגמה: idann)"
+              placeholder="שם משתמש"
               autocomplete="username"
             />
 
