@@ -83,16 +83,41 @@ function isAdminRole(role) {
   return String(role || '').trim().toLowerCase() === 'admin';
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
+
+function firstUuid(...values) {
+  return values.map((value) => String(value || '').trim()).find(isUuid) || '';
+}
+
+function friendlyPersonalReportsError(error, fallback = 'אירעה תקלה בטעינת הדוחות. יש לנסות שוב או לפנות למנהל המערכת.') {
+  const raw = String(error?.message || error?.code || error || '').trim();
+  if (/invalid input syntax for type uuid|uuid/i.test(raw)) {
+    return 'פרטי ההתחברות אינם תקינים. יש לבדוק את קוד העובד ולנסות שוב.';
+  }
+  if (/invalid_credentials|entry_code_mismatch|user_not_found|not_found|missing/i.test(raw)) {
+    return 'פרטי ההתחברות אינם תקינים. יש לבדוק את קוד העובד ולנסות שוב.';
+  }
+  if (/permission denied|row-level security|rls|unauthorized|forbidden/i.test(raw)) {
+    return 'אין הרשאה לצפייה בדוחות אלה.';
+  }
+  return fallback;
+}
+
+function buildInternalAuthEmail(employeeCode) {
+  const code = String(employeeCode || '').trim();
+  return code.includes('@') ? code : `${code}@think.org.il`;
+}
+
 function profileFromDashboardUser(user) {
   if (!user || typeof user !== 'object') return null;
-  const id = String(
-    user.personal_reports_user_id
-    || user.supabase_user_id
-    || user.auth_user_id
-    || user.id
-    || user.user_id
-    || ''
-  ).trim();
+  const id = firstUuid(
+    user.personal_reports_user_id,
+    user.supabase_user_id,
+    user.auth_user_id,
+    user.id
+  );
   const displayRole = String(user.display_role || user.role || '').trim();
   const role = isAdminRole(displayRole) ? 'admin' : 'employee';
   return {
@@ -108,7 +133,36 @@ function profileFromDashboardUser(user) {
 function sessionFromDashboardState(appState) {
   const profile = profileFromDashboardUser(appState?.user);
   if (!profile) return null;
-  return { user: { id: profile.id }, profile };
+  return { user: { id: profile.id }, profile, needsInternalAuth: !profile.id };
+}
+
+function internalEmployeeLoginHtml(message = '') {
+  return `
+    <div class="pr-screen pr-internal-auth-screen" dir="rtl">
+      <div class="pr-body pr-internal-auth-body">
+        ${dsPageHeader('דוחות אישיים', 'הוצאות, נסיעות ודיווח שכר חודשי')}
+        <section class="pr-card pr-internal-login-card" aria-labelledby="pr-internal-login-title">
+          <div class="pr-internal-login-head">
+            <h2 class="pr-internal-login-title" id="pr-internal-login-title">התחברות פנימית לעובדים</h2>
+            <p class="pr-internal-login-subtitle">כניסה מאובטחת לצפייה בדוחות האישיים שלך.</p>
+          </div>
+          ${message ? `<div class="pr-alert pr-alert--danger" role="alert">${escapeHtml(message)}</div>` : ''}
+          <form id="pr-internal-login-form" class="pr-form pr-internal-login-form" autocomplete="off">
+            <div class="pr-field">
+              <label class="pr-label" for="pr-employee-code">קוד עובד</label>
+              <input class="pr-input" id="pr-employee-code" name="employee_code" type="text" inputmode="numeric" autocomplete="username" required />
+            </div>
+            <div class="pr-field">
+              <label class="pr-label" for="pr-internal-access-code">קוד גישה / סיסמה פנימית</label>
+              <input class="pr-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="current-password" required />
+            </div>
+            <button class="pr-btn pr-btn--primary pr-btn--full pr-internal-login-submit" type="submit">כניסה לדוחות האישיים</button>
+          </form>
+          <button class="pr-btn--link pr-internal-login-back" data-pr-action="back-to-dashboard" type="button">חזרה לדשבורד</button>
+        </section>
+      </div>
+    </div>
+  `;
 }
 
 function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במערכת. חזרו למסך הכניסה הראשי ונסו שוב.') {
@@ -128,18 +182,66 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
 
 // ─── supabase API ─────────────────────────────────────────────────────────────
 
+async function authenticateInternalEmployee(employeeCode, accessCode) {
+  const code = String(employeeCode || '').trim();
+  const password = String(accessCode || '').trim();
+  if (!code || !password) {
+    throw new Error('invalid_credentials');
+  }
+
+  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    email: buildInternalAuthEmail(code),
+    password
+  });
+  if (authError || !authData?.user?.id) {
+    throw new Error('invalid_credentials');
+  }
+
+  const authUserId = authData.user.id;
+  const { data: userRow, error: userError } = await supabase
+    .from('users')
+    .select('user_id,email,name,role,display_role,emp_id,is_active,auth_user_id')
+    .eq('auth_user_id', authUserId)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (userError || !userRow) {
+    throw new Error('invalid_credentials');
+  }
+
+  const profile = {
+    id: authUserId,
+    email: String(userRow.email || authData.user.email || '').trim(),
+    full_name: String(userRow.name || userRow.email || code).trim(),
+    role: isAdminRole(userRow.role) ? 'admin' : 'employee',
+    display_role: String(userRow.display_role || userRow.role || '').trim(),
+    emp_id: String(userRow.emp_id || userRow.user_id || code).trim()
+  };
+
+  return { user: { id: authUserId }, profile, internalEmployeeCode: code, needsInternalAuth: false };
+}
+
+function assertEmployeeUuid(employeeId) {
+  if (!isUuid(employeeId)) {
+    throw new Error('missing_employee_uuid');
+  }
+}
+
 async function getReport(employeeId, month, year) {
-  const { data } = await supabase
+  assertEmployeeUuid(employeeId);
+  const { data, error } = await supabase
     .from('personal_reports')
     .select('*')
     .eq('employee_id', employeeId)
     .eq('report_month', month)
     .eq('report_year', year)
-    .single();
+    .maybeSingle();
+  if (error) throw error;
   return data || null;
 }
 
 async function createReport(employeeId, month, year) {
+  assertEmployeeUuid(employeeId);
   const { data, error } = await supabase
     .from('personal_reports')
     .insert({
@@ -994,6 +1096,7 @@ function renderInto(root, html) {
 async function loadMyReportsList(root, employeeId) {
   const listEl = root.querySelector('#pr-my-reports-list');
   try {
+    assertEmployeeUuid(employeeId);
     const { data: reports, error } = await supabase
       .from('personal_reports')
       .select('*')
@@ -1004,13 +1107,17 @@ async function loadMyReportsList(root, employeeId) {
     if (listEl) listEl.innerHTML = myReportsListHtml(reports || []);
   } catch (err) {
     if (listEl) {
-      listEl.innerHTML = `<div class="pr-alert pr-alert--danger" role="alert">לא ניתן לטעון דוחות קודמים כרגע. ${escapeHtml(err.message || '')}</div>`;
+      listEl.innerHTML = `<div class="pr-alert pr-alert--danger" role="alert">${escapeHtml(friendlyPersonalReportsError(err))}</div>`;
     }
   }
 }
 
 async function openReportDetail(root, reportId, isAdmin = false, { isSimulation = false, initialTab = 'expenses' } = {}) {
   const report = await fetchReport(reportId);
+  const expectedEmployeeId = isSimulation ? prViewAsEmployee?.id : prSession?.user?.id;
+  if (!isAdmin && String(report?.employee_id || '') !== String(expectedEmployeeId || '')) {
+    throw new Error('unauthorized_report_access');
+  }
 
   let reportProfile = prSession?.profile;
   if (isSimulation && prViewAsEmployee) {
@@ -1036,6 +1143,14 @@ async function openReportDetail(root, reportId, isAdmin = false, { isSimulation 
     renderInto(root, reportDetailHtml(report, travel, transport, expenses, attachments, reportProfile, { isSimulation }));
     bindReportDetail(root, { isSimulation });
     setReportTab(root, initialTab);
+  }
+}
+
+async function safeOpenReportDetail(root, reportId, isAdmin = false, options = {}) {
+  try {
+    await openReportDetail(root, reportId, isAdmin, options);
+  } catch (err) {
+    showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בטעינת הדוחות. יש לנסות שוב או לפנות למנהל המערכת.'), 'danger');
   }
 }
 
@@ -1225,7 +1340,7 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
         statusEl.innerHTML = noReportStateHtml(month, year, isSimulation);
       }
     } catch (err) {
-      statusEl.innerHTML = `<span class="pr-checking" style="color:#991b1b">${escapeHtml(err.message)}</span>`;
+      statusEl.innerHTML = `<span class="pr-checking" style="color:#991b1b">${escapeHtml(friendlyPersonalReportsError(err))}</span>`;
     }
   }
 
@@ -1240,9 +1355,9 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
         report = await createReport(employeeId, month, year);
         showToast('טיוטה נוצרה', 'success');
       }
-      await openReportDetail(root, report.id, false, { isSimulation, initialTab: tab });
+      await safeOpenReportDetail(root, report.id, false, { isSimulation, initialTab: tab });
     } catch (err) {
-      showToast(err.message || 'שגיאה בפתיחת הדוח', 'danger');
+      showToast(friendlyPersonalReportsError(err), 'danger');
     }
   }
 
@@ -1274,7 +1389,7 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
 
     if (action === 'open-report') {
       const rid = btn.dataset.reportId;
-      if (rid) await openReportDetail(root, rid, false, { isSimulation });
+      if (rid) await safeOpenReportDetail(root, rid, false, { isSimulation });
       return;
     }
 
@@ -1287,10 +1402,10 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
       try {
         const report = await createReport(employeeId, month, year);
         prSelectedReport = report;
-        await openReportDetail(root, report.id, false, { isSimulation: false });
+        await safeOpenReportDetail(root, report.id, false, { isSimulation: false });
         showToast('טיוטה נוצרה', 'success');
       } catch (err) {
-        showToast(err.message || 'שגיאה ביצירת הדוח', 'danger');
+        showToast(friendlyPersonalReportsError(err, 'אירעה תקלה ביצירת הדוח. יש לנסות שוב.'), 'danger');
         btn.disabled = false;
         btn.textContent = 'פתיחת דוח לחודש זה';
       }
@@ -1299,7 +1414,7 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
 
     if (action === 'open-existing-report') {
       const rid = btn.dataset.reportId;
-      if (rid) await openReportDetail(root, rid, false, { isSimulation });
+      if (rid) await safeOpenReportDetail(root, rid, false, { isSimulation });
       return;
     }
   });
@@ -1368,7 +1483,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       await updateReportMeta(prSelectedReport.id, { [field]: value });
       prSelectedReport[field] = value;
     } catch (err) {
-      showToast(`שגיאה בשמירת ${field}: ${err.message}`, 'danger');
+      showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בשמירת הדוח. יש לנסות שוב.'), 'danger');
     }
   }, true);
 
@@ -1404,9 +1519,9 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (!confirm('למחוק שורה זו?')) return;
       try {
         await deleteEntry(btn.dataset.entryTable, btn.dataset.entryId);
-        await openReportDetail(root, prSelectedReport.id, false);
+        await safeOpenReportDetail(root, prSelectedReport.id, false);
         showToast('נמחק', 'success');
-      } catch (err) { showToast(err.message, 'danger'); }
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
 
@@ -1419,9 +1534,9 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (!confirm('לשלוח את הדוח לשכר? לאחר שליחה לא ניתן לערוך.')) return;
       try {
         await submitReport(prSelectedReport.id, signatureFullName);
-        await openReportDetail(root, prSelectedReport.id, false);
+        await safeOpenReportDetail(root, prSelectedReport.id, false);
         showToast('הדוח נשלח לשכר', 'success');
-      } catch (err) { showToast(err.message, 'danger'); }
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
 
@@ -1429,7 +1544,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       try {
         const url = await getSignedUrl(btn.dataset.storagePath);
         window.open(url, '_blank', 'noopener');
-      } catch (err) { showToast(err.message, 'danger'); }
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
 
@@ -1438,9 +1553,9 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (!confirm('למחוק קובץ זה?')) return;
       try {
         await deleteAttachment({ id: btn.dataset.attachmentId, storage_path: btn.dataset.storagePath });
-        await openReportDetail(root, prSelectedReport.id, false);
+        await safeOpenReportDetail(root, prSelectedReport.id, false);
         showToast('קובץ נמחק', 'success');
-      } catch (err) { showToast(err.message, 'danger'); }
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
   });
@@ -1462,9 +1577,9 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     const expenseEntryId = fileInput.dataset.entryType === 'expense' ? (fileInput.dataset.entryId || null) : null;
     try {
       await uploadAttachment(prSelectedReport.id, prSession.user.id, expenseEntryId, file);
-      await openReportDetail(root, prSelectedReport.id, false);
+      await safeOpenReportDetail(root, prSelectedReport.id, false);
       showToast('הקובץ הועלה', 'success');
-    } catch (err) { showToast(err.message || 'שגיאה בהעלאה', 'danger'); }
+    } catch (err) { showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בהעלאת הקובץ. יש לנסות שוב.'), 'danger'); }
   });
 
   // Add entry forms submit
@@ -1509,10 +1624,10 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
           notes: fd.get('notes') || ''
         });
       }
-      await openReportDetail(root, reportId, false);
+      await safeOpenReportDetail(root, reportId, false);
       showToast('נשמר', 'success');
     } catch (err) {
-      showToast(err.message || 'שגיאה בשמירה', 'danger');
+      showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בשמירת הדוח. יש לנסות שוב.'), 'danger');
     }
   });
 }
@@ -1558,12 +1673,12 @@ function bindAdminDashboard(root) {
         const employees = await fetchActiveEmployees();
         renderInto(root, adminEmployeeSelectorHtml(employees));
         bindEmployeeSelector(root);
-      } catch (err) { showToast(err.message || 'שגיאה', 'danger'); }
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
 
     if (action === 'admin-view-report' && reportId) {
-      await openReportDetail(root, reportId, true); return;
+      await safeOpenReportDetail(root, reportId, true); return;
     }
     if (action === 'admin-approve' && reportId) {
       if (!confirm('לאשר דוח זה?')) return;
@@ -1571,7 +1686,7 @@ function bindAdminDashboard(root) {
         await adminUpdateReport(reportId, { status: 'approved', approved_at: new Date().toISOString() });
         showToast('הדוח אושר', 'success');
         await rerender(root);
-      } catch (err) { showToast(err.message, 'danger'); }
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
     if (action === 'admin-return' && reportId) {
@@ -1581,7 +1696,7 @@ function bindAdminDashboard(root) {
         await adminUpdateReport(reportId, { status: 'needs_correction', finance_notes: notes });
         showToast('הדוח הוחזר לתיקון', 'success');
         await rerender(root);
-      } catch (err) { showToast(err.message, 'danger'); }
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
     if (action === 'admin-mark-paid' && reportId) {
@@ -1590,7 +1705,7 @@ function bindAdminDashboard(root) {
         await adminUpdateReport(reportId, { status: 'paid', paid_at: new Date().toISOString() });
         showToast('סומן כשולם', 'success');
         await rerender(root);
-      } catch (err) { showToast(err.message, 'danger'); }
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
   });
@@ -1609,7 +1724,7 @@ function bindAdminDashboard(root) {
       statusSelect.closest('.pr-admin-report-row')?.setAttribute('data-status', status);
       showToast('סטטוס עודכן', 'success');
     } catch (err) {
-      showToast(err.message || 'שגיאה בעדכון סטטוס', 'danger');
+      showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בעדכון הסטטוס. יש לנסות שוב.'), 'danger');
       await rerender(root);
     }
   });
@@ -1629,8 +1744,8 @@ function bindAdminReportView(root) {
       try {
         await adminUpdateReport(reportId, { status: 'approved', approved_at: new Date().toISOString() });
         showToast('הדוח אושר', 'success');
-        await openReportDetail(root, reportId, true);
-      } catch (err) { showToast(err.message, 'danger'); }
+        await safeOpenReportDetail(root, reportId, true);
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
     if (action === 'admin-return' && reportId) {
@@ -1639,8 +1754,8 @@ function bindAdminReportView(root) {
       try {
         await adminUpdateReport(reportId, { status: 'needs_correction', finance_notes: notes });
         showToast('הדוח הוחזר לתיקון', 'success');
-        await openReportDetail(root, reportId, true);
-      } catch (err) { showToast(err.message, 'danger'); }
+        await safeOpenReportDetail(root, reportId, true);
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
     if (action === 'admin-mark-paid' && reportId) {
@@ -1648,8 +1763,8 @@ function bindAdminReportView(root) {
       try {
         await adminUpdateReport(reportId, { status: 'paid', paid_at: new Date().toISOString() });
         showToast('סומן כשולם', 'success');
-        await openReportDetail(root, reportId, true);
-      } catch (err) { showToast(err.message, 'danger'); }
+        await safeOpenReportDetail(root, reportId, true);
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
     if (action === 'admin-save-notes' && reportId) {
@@ -1657,14 +1772,14 @@ function bindAdminReportView(root) {
       try {
         await adminUpdateReport(reportId, { finance_notes: notes });
         showToast('הערות נשמרו', 'success');
-      } catch (err) { showToast(err.message, 'danger'); }
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
     if (action === 'view-attachment') {
       try {
         const url = await getSignedUrl(btn.dataset.storagePath);
         window.open(url, '_blank', 'noopener');
-      } catch (err) { showToast(err.message, 'danger'); }
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
   });
@@ -1703,9 +1818,41 @@ function dispatchBackToDashboard() {
   document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
 }
 
+function bindInternalEmployeeLogin(root) {
+  root.querySelector('[data-pr-action="back-to-dashboard"]')?.addEventListener('click', dispatchBackToDashboard);
+  root.querySelector('#pr-internal-login-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submit = form.querySelector('button[type="submit"]');
+    const fd = new FormData(form);
+    const employeeCode = fd.get('employee_code');
+    const accessCode = fd.get('access_code');
+    if (submit) {
+      submit.disabled = true;
+      submit.textContent = 'בודק פרטי התחברות…';
+    }
+    try {
+      prSession = await authenticateInternalEmployee(employeeCode, accessCode);
+      prSelectedReport = null;
+      prViewAsEmployee = null;
+      prAdminMode = 'my';
+      await rerender(root);
+    } catch (err) {
+      renderInto(root, internalEmployeeLoginHtml(friendlyPersonalReportsError(err, 'פרטי ההתחברות אינם תקינים. יש לבדוק את קוד העובד ולנסות שוב.')));
+      bindInternalEmployeeLogin(root);
+    }
+  });
+}
+
 async function rerender(root) {
   if (!prSession) {
-    renderInto(root, authUnavailableHtml());
+    renderInto(root, internalEmployeeLoginHtml());
+    bindInternalEmployeeLogin(root);
+    return;
+  }
+  if (!prSession.user?.id) {
+    renderInto(root, internalEmployeeLoginHtml('נדרשת התחברות פנימית כדי לפתוח את הדוחות האישיים.'));
+    bindInternalEmployeeLogin(root);
     return;
   }
   if (isAdminRole(prSession.profile.role) && prAdminMode === 'my' && !prViewAsEmployee) {
@@ -1722,7 +1869,7 @@ async function rerender(root) {
       renderInto(root, adminDashboardHtml(reports));
       bindAdminDashboard(root);
     } catch (err) {
-      renderInto(root, adminManagePlaceholderHtml(err.message || 'אזור ניהול דוחות עובדים לא נטען כרגע.'));
+      renderInto(root, adminManagePlaceholderHtml(friendlyPersonalReportsError(err, 'אזור ניהול דוחות עובדים לא נטען כרגע.')));
       bindAdminDashboard(root);
     }
   } else {
