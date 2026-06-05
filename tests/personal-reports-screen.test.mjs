@@ -91,4 +91,7 @@ test('source uses only existing personal report tables for monthly report data',
   assert.match(source, /from\('declared_travel_entries'\)/);
   assert.match(source, /from\('expense_entries'\)/);
   assert.match(source, /from\('report_attachments'\)/);
+  assert.match(source, /from\('absence_entries'\)/);
+  assert.match(source, /countWorkdaysInclusive/);
+  assert.match(source, /absence_entry_id/);
 });
