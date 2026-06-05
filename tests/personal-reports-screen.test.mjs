@@ -93,5 +93,18 @@ test('source uses only existing personal report tables for monthly report data',
   assert.match(source, /from\('report_attachments'\)/);
   assert.match(source, /from\('absence_entries'\)/);
   assert.match(source, /countWorkdaysInclusive/);
+  assert.match(source, /calculatedAbsenceDays/);
   assert.match(source, /absence_entry_id/);
+  assert.match(source, /expense_entry_id/);
+});
+
+test('source keeps absence days automatic and weekday-only', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /function isWorkday/);
+  assert.match(source, /day >= 0 && day <= 4/);
+  assert.match(source, /countWorkdaysInclusive\(entry\.start_date, entry\.end_date\)/);
+  assert.match(source, /name="calculated_days" readonly/);
+  assert.doesNotMatch(source, /name="total_days"/);
+  assert.doesNotMatch(source, /סה[״"]?כ ימים ידני/);
 });
