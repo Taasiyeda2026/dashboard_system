@@ -13558,3 +13558,154 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     align-items: stretch;
   }
 }
+
+/* Personal reports focused compact internal UI refinements */
+.pr-card,
+.pr-report-card,
+.pr-empty-state,
+.pr-summary-bar,
+.pr-id-item,
+.pr-meta-item,
+.pr-section-metric,
+.pr-month-row,
+.pr-admin-filters,
+.pr-admin-placeholder,
+.pr-submit-success-card {
+  border: 1px solid #d7dce8;
+}
+.pr-card,
+.pr-report-card,
+.pr-summary-bar,
+.pr-month-row,
+.pr-submit-success-card {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+.pr-landing-body,
+.pr-report-detail-body {
+  max-width: min(960px, calc(100vw - 32px));
+  width: 100%;
+  gap: 14px;
+}
+.pr-lock-card { border: 1px solid #d7dce8; }
+.pr-btn {
+  min-height: 34px;
+  max-height: 40px;
+  min-width: 110px;
+  max-width: 170px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 6px 12px;
+  line-height: 1.1;
+}
+.pr-icon-btn {
+  min-width: 34px;
+  max-width: 34px;
+}
+.pr-btn--sm {
+  min-height: 32px;
+  min-width: 76px;
+  max-width: 160px;
+}
+.pr-report-detail-body .pr-card,
+.pr-report-detail-body .pr-section-card,
+.pr-report-detail-body .pr-submit-card,
+.pr-report-hero-card {
+  border: 1px solid #d7dce8;
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: #fff;
+}
+.pr-report-detail-body .pr-section-card { padding: 0; }
+.pr-report-detail-body .pr-tab-panel[hidden] { display: none !important; }
+.pr-report-detail-body .pr-table-scroll { overflow-x: auto; }
+.pr-report-detail-body .pr-data-table { min-width: 0; table-layout: auto; }
+.pr-compact-empty {
+  margin: 10px 12px 12px;
+  padding: 9px 12px;
+  border: 1px solid #d7dce8;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.84rem;
+}
+.pr-absence-choice {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.pr-absence-choice .pr-btn.is-active,
+.pr-report-tab.is-active {
+  border-color: #94a3b8;
+  background: #eef2ff;
+  color: #1e3a8a;
+}
+.pr-submit-finish-actions,
+.pr-td-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pr-submit-success-card {
+  max-width: 520px;
+  margin: 56px auto;
+  text-align: center;
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: #ffffff;
+}
+.pr-submit-success-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+.pr-report-identity {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.2fr) minmax(110px, .8fr) minmax(220px, 1.6fr) minmax(92px, .7fr) minmax(105px, .8fr) minmax(105px, .8fr);
+  gap: 10px;
+}
+.pr-id-item {
+  min-width: 0;
+  min-height: 58px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: #fbfdff;
+  overflow: visible;
+}
+.pr-id-item strong,
+.pr-id-item span { white-space: normal; }
+.pr-admin-table {
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.pr-admin-table .pr-admin-col-employee { width: 20%; }
+.pr-admin-table .pr-admin-col-month { width: 14%; }
+.pr-admin-table .pr-admin-col-money { width: 13%; }
+.pr-admin-table .pr-admin-col-status { width: 18%; }
+.pr-admin-table .pr-admin-col-actions { width: 22%; }
+.pr-admin-table th,
+.pr-admin-table td {
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+.pr-admin-table .pr-actions-cell {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  white-space: normal;
+}
+@media (max-width: 760px) {
+  .pr-landing-body,
+  .pr-report-detail-body { max-width: 96vw; padding-inline: 8px; }
+  .pr-report-identity { grid-template-columns: 1fr; }
+  .pr-btn { min-width: 96px; }
+  .pr-admin-table { min-width: 680px; }
+}
