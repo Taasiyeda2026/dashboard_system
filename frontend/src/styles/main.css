@@ -13220,3 +13220,85 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     flex-direction: column;
   }
 }
+
+
+/* Personal reports — compact internal tool layout */
+.pr-landing-body,
+.pr-report-detail-body {
+  max-width: min(680px, calc(100vw - 24px));
+  gap: 10px;
+}
+.pr-admin-entry-card,
+.pr-current-report-loader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.pr-current-report-loader span { color: #64748b; font-size: 0.84rem; }
+.pr-report-hero-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.06);
+  background: #fff;
+}
+.pr-report-hero-card__title { font-size: 1.18rem; }
+.pr-report-detail-body .pr-report-tabs {
+  position: static;
+  padding: 4px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+.pr-report-detail-body .pr-report-tab {
+  min-height: 32px;
+  padding: 5px 10px;
+  flex: 0 1 auto;
+  font-size: 0.8rem;
+}
+.pr-tab-count { min-width: 18px; height: 18px; padding: 0 5px; font-size: 0.68rem; }
+.pr-summary-bar { border-radius: 10px; }
+.pr-sum-item { padding: 8px 10px; flex-basis: 130px; }
+.pr-sum-label { font-size: 0.7rem; }
+.pr-sum-value { font-size: 0.92rem; }
+.pr-report-detail-body .pr-card,
+.pr-report-detail-body .pr-section-card,
+.pr-report-detail-body .pr-submit-card { border-radius: 10px; }
+.pr-section-head { padding: 9px 12px 7px; }
+.pr-section-title { font-size: 0.92rem; }
+.pr-section-kicker { font-size: 0.68rem; }
+.pr-section-metric { padding: 5px 8px; border-radius: 8px; }
+.pr-section-metric__label { font-size: 0.66rem; }
+.pr-section-metric__value { font-size: 0.82rem; }
+.pr-report-detail-body .pr-data-table { font-size: 0.78rem; }
+.pr-report-detail-body .pr-data-table th,
+.pr-report-detail-body .pr-data-table td { padding: 5px 6px; }
+.pr-report-detail-body .pr-add-panel { margin: 0 10px 10px; border-radius: 10px; padding: 10px; }
+.pr-report-detail-body .pr-input,
+.pr-report-detail-body .pr-meta-input { min-height: 32px; padding: 6px 8px; border-radius: 7px; font-size: 0.82rem; }
+.pr-report-detail-body .pr-label,
+.pr-report-detail-body .pr-meta-label { font-size: 0.72rem; }
+.pr-form-row { gap: 8px; }
+.pr-field { flex: 0 1 150px; }
+.pr-field--wide { flex: 1 1 210px; }
+.pr-btn { padding: 6px 11px; font-size: 0.8rem; }
+.pr-btn--large { padding: 7px 14px; font-size: 0.86rem; }
+.pr-btn--add-row { margin: 8px 10px 10px; padding: 5px 10px; font-size: 0.78rem; }
+.pr-empty-state { min-height: 86px; margin: 8px 10px 10px; padding: 12px; border-radius: 10px; gap: 6px; }
+.pr-empty-state__icon { width: 34px; height: 34px; border-radius: 10px; font-size: 1.15rem; }
+.pr-empty-state__title { font-size: 0.86rem; }
+.pr-empty-state__text { font-size: 0.76rem; margin-top: 0; }
+.pr-report-identity { gap: 10px; margin-bottom: 10px; padding-bottom: 8px; }
+.pr-id-item { min-width: 96px; }
+.pr-meta-grid { gap: 8px; }
+.pr-meta-item { min-width: 86px; }
+.pr-submit-card { gap: 8px; padding: 12px 14px; }
+.pr-signature-input { max-width: 240px; }
+@media (max-width: 760px) {
+  .pr-landing-body,
+  .pr-report-detail-body { max-width: 100%; padding: 10px; }
+  .pr-report-hero-card { align-items: stretch; flex-direction: column; }
+  .pr-report-detail-body .pr-report-tab { flex: 1 1 30%; }
+  .pr-section-metric { width: auto; }
+  .pr-field, .pr-field--wide { flex: 1 1 100%; }
+}
