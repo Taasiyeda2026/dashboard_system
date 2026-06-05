@@ -13302,3 +13302,30 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pr-section-metric { width: auto; }
   .pr-field, .pr-field--wide { flex: 1 1 100%; }
 }
+.pr-attachment-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.pr-attachment-status.is-attached {
+  background: #dcfce7;
+  color: #166534;
+}
+.pr-attachment-status.is-missing {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.pr-absence-panel {
+  margin-top: 10px !important;
+}
+.pr-absence-fields[hidden] {
+  display: none !important;
+}
+.pr-absence-summary {
+  margin-bottom: 8px;
+}
