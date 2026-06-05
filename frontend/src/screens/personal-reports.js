@@ -457,23 +457,9 @@ async function adminUpdateReport(reportId, fields) {
   if (error) throw error;
 }
 
-async function fetchWorkHours(reportId) {
-  const { data, error } = await supabase
-    .from('work_hour_entries').select('*').eq('report_id', reportId).order('work_date');
-  if (error) throw error;
-  return data || [];
-}
-
 async function fetchDeclaredTravel(reportId) {
   const { data, error } = await supabase
     .from('declared_travel_entries').select('*').eq('report_id', reportId).order('travel_date');
-  if (error) throw error;
-  return data || [];
-}
-
-async function fetchPublicTransport(reportId) {
-  const { data, error } = await supabase
-    .from('public_transport_entries').select('*').eq('report_id', reportId).order('travel_date');
   if (error) throw error;
   return data || [];
 }
@@ -492,32 +478,12 @@ async function fetchAttachments(reportId) {
   return data || [];
 }
 
-async function upsertWorkHours(entry) {
-  if (entry.id) {
-    const { error } = await supabase.from('work_hour_entries').update(entry).eq('id', entry.id);
-    if (error) throw error;
-  } else {
-    const { error } = await supabase.from('work_hour_entries').insert(entry);
-    if (error) throw error;
-  }
-}
-
 async function upsertDeclaredTravel(entry) {
   if (entry.id) {
     const { error } = await supabase.from('declared_travel_entries').update(entry).eq('id', entry.id);
     if (error) throw error;
   } else {
     const { error } = await supabase.from('declared_travel_entries').insert(entry);
-    if (error) throw error;
-  }
-}
-
-async function upsertPublicTransport(entry) {
-  if (entry.id) {
-    const { error } = await supabase.from('public_transport_entries').update(entry).eq('id', entry.id);
-    if (error) throw error;
-  } else {
-    const { error } = await supabase.from('public_transport_entries').insert(entry);
     if (error) throw error;
   }
 }
@@ -589,18 +555,15 @@ async function fetchAllReports() {
 async function enrichReportsWithTotals(reports) {
   const ids = reports.map((r) => r.id).filter(Boolean);
   if (!ids.length) return reports;
-  const [travelRes, transportRes, expensesRes] = await Promise.all([
+  const [travelRes, expensesRes] = await Promise.all([
     supabase.from('declared_travel_entries').select('report_id, amount').in('report_id', ids),
-    supabase.from('public_transport_entries').select('report_id, amount').in('report_id', ids),
     supabase.from('expense_entries').select('report_id, amount').in('report_id', ids)
   ]);
   if (travelRes.error) throw travelRes.error;
-  if (transportRes.error) throw transportRes.error;
   if (expensesRes.error) throw expensesRes.error;
 
   const totals = new Map(ids.map((id) => [id, { travel: 0, expenses: 0 }]));
   for (const row of travelRes.data || []) totals.get(row.report_id).travel += Number(row.amount || 0);
-  for (const row of transportRes.data || []) totals.get(row.report_id).travel += Number(row.amount || 0);
   for (const row of expensesRes.data || []) totals.get(row.report_id).expenses += Number(row.amount || 0);
   return reports.map((report) => {
     const t = totals.get(report.id) || { travel: 0, expenses: 0 };
@@ -630,27 +593,22 @@ function rowsToPrintTable(headers, rows, emptyColspan) {
 
 async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר') {
   const report = await fetchReport(reportId);
-  const [{ data: profile }, hours, travel, transport, expenses] = await Promise.all([
+  const [{ data: profile }, travel, expenses, attachments] = await Promise.all([
     supabase.from('profiles').select('full_name, email').eq('id', report.employee_id).maybeSingle(),
-    fetchWorkHours(reportId),
     fetchDeclaredTravel(reportId),
-    fetchPublicTransport(reportId),
-    fetchExpenses(reportId)
+    fetchExpenses(reportId),
+    fetchAttachments(reportId)
   ]);
 
   const employeeName = profile?.full_name || prSession?.profile?.full_name || '—';
-  const totalHours = hours.reduce((s, r) => s + Number(r.hours_count || 0), 0);
-  const totalTravel = travel.reduce((s, r) => s + Number(r.amount || 0), 0) + transport.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const totalTravel = travel.reduce((s, r) => s + Number(r.amount || 0), 0);
   const totalExpenses = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
   const generatedAt = new Date().toLocaleString('he-IL');
   const title = `דוח אישי חודשי לשכר - ${employeeName} - ${monthLabel(report.report_month, report.report_year)}`;
 
-  const hourRows = hours.map((r) => `<tr><td>${fmtDate(r.work_date)}</td><td>${escapeHtml(r.description || '')}</td><td>${fmtNum(r.hours_count)}</td><td>${escapeHtml(r.notes || '')}</td></tr>`);
-  const travelRows = [
-    ...travel.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>${fmtNum(r.roundtrip_km)}</td><td>₪${fmt(r.amount)}</td></tr>`),
-    ...transport.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>—</td><td>₪${fmt(r.amount)}</td></tr>`)
-  ];
+  const travelRows = travel.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>${fmtNum(r.roundtrip_km)}</td><td>₪${fmt(r.amount)}</td></tr>`);
   const expenseRows = expenses.map((r) => `<tr><td>${fmtDate(r.expense_date)}</td><td>${escapeHtml(r.description || '')}</td><td>₪${fmt(r.amount)}</td><td>${escapeHtml(r.notes || '')}</td></tr>`);
+  const attachmentRows = attachments.map((a) => `<tr><td>${escapeHtml(a.file_name || '')}</td><td>${escapeHtml(a.file_type || '')}</td></tr>`);
 
   const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
     <style>
@@ -666,13 +624,12 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
     </section>
     <h2>סיכום חודשי</h2>
     <section class="summary">
-      <div class="box"><span class="label">סה״כ שעות</span><span class="value">${fmtNum(totalHours)}</span></div>
       <div class="box"><span class="label">סה״כ נסיעות</span><span class="value">₪${fmt(totalTravel)}</span></div>
       <div class="box"><span class="label">סה״כ הוצאות</span><span class="value">₪${fmt(totalExpenses)}</span></div>
     </section>
-    <h2>פירוט דיווחי שעות</h2>${rowsToPrintTable(['תאריך','פירוט','שעות','הערות'], hourRows, 4)}
     <h2>פירוט נסיעות</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','ק״מ','סכום'], travelRows, 6)}
     <h2>פירוט הוצאות</h2>${rowsToPrintTable(['תאריך','פירוט','סכום','הערות'], expenseRows, 4)}
+    <h2>קבצים / אסמכתאות</h2>${rowsToPrintTable(['שם קובץ','סוג'], attachmentRows, 2)}
     <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),250));</script>
     </body></html>`;
   const printWindow = window.open('', '_blank', 'width=900,height=1100');
@@ -758,18 +715,16 @@ function sectionMetricHtml(label, value) {
   `;
 }
 
-function reportDetailHtml(report, hours, travel, transport, expenses, attachments, profile, { isSimulation = false } = {}) {
+function reportDetailHtml(report, travel, expenses, attachments, profile, { isSimulation = false } = {}) {
   const editable = canEdit(report);
   const monthYearLabel = monthLabel(report.report_month, report.report_year);
   const statusChip = dsStatusChip(STATUS_LABELS[report.status] || report.status, STATUS_KIND[report.status] || 'neutral');
   const statusText = STATUS_LABELS[report.status] || report.status;
 
-  const totalHours     = hours.reduce((s, r) => s + Number(r.hours_count || 0), 0);
   const totalTravelKm  = travel.reduce((s, r) => s + Number(r.roundtrip_km || 0), 0);
   const totalTravel    = travel.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const totalTransport = transport.reduce((s, r) => s + Number(r.amount || 0), 0);
   const totalExpenses  = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const totalAll       = totalTravel + totalTransport + totalExpenses;
+  const totalAll       = totalTravel + totalExpenses;
 
   const hasLeaveColumns = 'vacation_days' in report;
 
@@ -818,50 +773,6 @@ function reportDetailHtml(report, hours, travel, transport, expenses, attachment
   const financeNotice = report.finance_notes
     ? `<div class="pr-finance-notes pr-alert-card" role="note"><strong>💬 הערות כספים:</strong> ${escapeHtml(report.finance_notes)}</div>`
     : '';
-
-  const hourRows = hours.map(r => `
-    <tr class="pr-data-row" data-id="${escapeHtml(r.id)}">
-      <td class="pr-td-date">${fmtDate(r.work_date)}</td>
-      <td>${escapeHtml(r.description || '')}</td>
-      <td class="pr-td-num pr-td-amount">${fmtNum(r.hours_count)}</td>
-      <td class="pr-td-notes">${escapeHtml(r.notes || '')}</td>
-      <td class="pr-td-actions">
-        ${editable ? `<button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
-          data-entry-id="${escapeHtml(r.id)}" data-entry-table="work_hour_entries"
-          aria-label="מחק שורה" title="מחק">✕</button>` : ''}
-      </td>
-    </tr>
-  `).join('');
-
-  const hoursTotalRow = `
-    <tr class="pr-total-row">
-      <td colspan="2" class="pr-total-label">סה"כ שעות</td>
-      <td class="pr-td-num pr-total-num pr-total-amount">${fmtNum(totalHours)}</td>
-      <td colspan="2"></td>
-    </tr>`;
-
-  const addHoursPanel = editable ? `
-    <div class="pr-add-panel" id="pr-add-hours-panel" hidden>
-      <form class="pr-add-form" id="pr-add-hours-form" data-form-type="work_hours">
-        <div class="pr-form-row">
-          <div class="pr-field"><label class="pr-label">תאריך *</label>
-            <input class="pr-input" type="date" name="work_date" required /></div>
-          <div class="pr-field pr-field--wide"><label class="pr-label">פירוט</label>
-            <input class="pr-input" type="text" name="description" placeholder="מה בוצע" /></div>
-          <div class="pr-field"><label class="pr-label">שעות *</label>
-            <input class="pr-input" type="number" name="hours_count" min="0" step="0.25" required placeholder="0" /></div>
-        </div>
-        <div class="pr-form-row">
-          <div class="pr-field pr-field--wide"><label class="pr-label">הערות</label>
-            <input class="pr-input" type="text" name="notes" placeholder="הערות" /></div>
-        </div>
-        <div class="pr-add-form-actions">
-          <button class="pr-btn pr-btn--primary" type="submit">הוסף</button>
-          <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="toggle-add-hours">ביטול</button>
-        </div>
-      </form>
-    </div>
-  ` : '';
 
   const travelRows = travel.map(r => `
     <tr class="pr-data-row" data-id="${escapeHtml(r.id)}">
@@ -916,61 +827,6 @@ function reportDetailHtml(report, hours, travel, transport, expenses, attachment
         <div class="pr-add-form-actions">
           <button class="pr-btn pr-btn--primary" type="submit">הוסף נסיעה</button>
           <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="toggle-add-travel">ביטול</button>
-        </div>
-      </form>
-    </div>
-  ` : '';
-
-  const transportRows = transport.map(r => `
-    <tr class="pr-data-row" data-id="${escapeHtml(r.id)}">
-      <td class="pr-td-date">${fmtDate(r.travel_date)}</td>
-      <td>${escapeHtml(r.origin)}</td>
-      <td>${escapeHtml(r.destination)}</td>
-      <td>${escapeHtml(r.description)}</td>
-      <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
-      <td class="pr-td-notes">
-        ${editable ? `<label class="pr-attach-inline-btn" title="צרף קבלה">
-          📎<input type="file" class="pr-file-input" accept="image/*,.pdf"
-            data-entry-id="${escapeHtml(r.id)}" data-entry-type="transport" /></label>` : ''}
-      </td>
-      <td class="pr-td-notes">${escapeHtml(r.notes || '')}</td>
-      <td class="pr-td-actions">
-        ${editable ? `<button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
-          data-entry-id="${escapeHtml(r.id)}" data-entry-table="public_transport_entries"
-          aria-label="מחק שורה" title="מחק">✕</button>` : ''}
-      </td>
-    </tr>
-  `).join('');
-
-  const transportTotalRow = `
-    <tr class="pr-total-row">
-      <td colspan="4" class="pr-total-label">סה"כ תחבורה ציבורית</td>
-      <td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalTransport)}</td>
-      <td colspan="3"></td>
-    </tr>`;
-
-  const addTransportPanel = editable ? `
-    <div class="pr-add-panel" id="pr-add-transport-panel" hidden>
-      <form class="pr-add-form" id="pr-add-transport-form" data-form-type="public_transport">
-        <div class="pr-form-row">
-          <div class="pr-field"><label class="pr-label">תאריך *</label>
-            <input class="pr-input" type="date" name="travel_date" required /></div>
-          <div class="pr-field"><label class="pr-label">ממקום *</label>
-            <input class="pr-input" type="text" name="origin" required placeholder="מ..." /></div>
-          <div class="pr-field"><label class="pr-label">למקום *</label>
-            <input class="pr-input" type="text" name="destination" required placeholder="ל..." /></div>
-          <div class="pr-field pr-field--wide"><label class="pr-label">פירוט</label>
-            <input class="pr-input" type="text" name="description" placeholder="תיאור" /></div>
-        </div>
-        <div class="pr-form-row">
-          <div class="pr-field"><label class="pr-label">סכום ₪ *</label>
-            <input class="pr-input" type="number" name="amount" min="0" step="0.01" required placeholder="0.00" /></div>
-          <div class="pr-field pr-field--wide"><label class="pr-label">הערות</label>
-            <input class="pr-input" type="text" name="notes" placeholder="הערות" /></div>
-        </div>
-        <div class="pr-add-form-actions">
-          <button class="pr-btn pr-btn--primary" type="submit">הוסף נסיעה</button>
-          <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="toggle-add-transport">ביטול</button>
         </div>
       </form>
     </div>
@@ -1032,29 +888,6 @@ function reportDetailHtml(report, hours, travel, transport, expenses, attachment
     </div>
   ` : '';
 
-  const hoursTable = hours.length > 0
-    ? `
-      <div class="pr-table-scroll">
-        <table class="pr-data-table">
-          <thead>
-            <tr>
-              <th class="pr-col-date">תאריך</th><th class="pr-col-detail">פירוט</th>
-              <th class="pr-th-num pr-col-compact">שעות</th><th>הערות</th><th class="pr-th-del">פעולות</th>
-            </tr>
-          </thead>
-          <tbody>${hourRows}${hoursTotalRow}</tbody>
-        </table>
-      </div>
-    `
-    : reportEmptyStateHtml({
-        icon: '⏱️',
-        title: 'אין שעות בדוח',
-        text: 'דוח ריק תקין ומוצג עם 0 שעות. ניתן להוסיף דיווח שעות לחודש הנוכחי.',
-        action: 'toggle-add-hours',
-        actionLabel: 'הוסף',
-        editable
-      });
-
   const travelTable = travel.length > 0
     ? `
       <div class="pr-table-scroll">
@@ -1075,29 +908,6 @@ function reportDetailHtml(report, hours, travel, transport, expenses, attachment
         title: 'אין נסיעות מדווחות עדיין',
         text: 'הוסיפו נסיעה ראשונה כדי לחשב החזר קילומטרים לדוח החודשי.',
         action: 'toggle-add-travel',
-        actionLabel: '+ הוסף נסיעה',
-        editable
-      });
-
-  const transportTable = transport.length > 0
-    ? `
-      <div class="pr-table-scroll">
-        <table class="pr-data-table">
-          <thead>
-            <tr>
-              <th>תאריך</th><th>ממקום</th><th>למקום</th><th>פירוט</th>
-              <th class="pr-th-num">₪</th><th>קבלה</th><th>הערות</th><th class="pr-th-del">פעולות</th>
-            </tr>
-          </thead>
-          <tbody>${transportRows}${transportTotalRow}</tbody>
-        </table>
-      </div>
-    `
-    : reportEmptyStateHtml({
-        icon: '🚌',
-        title: 'אין נסיעות בתחבורה ציבורית',
-        text: 'אם השתמשת בתחבורה ציבורית, ניתן להוסיף נסיעה וקבלה מכאן.',
-        action: 'toggle-add-transport',
         actionLabel: '+ הוסף נסיעה',
         editable
       });
@@ -1125,14 +935,8 @@ function reportDetailHtml(report, hours, travel, transport, expenses, attachment
         editable
       });
 
-  const addHoursButton = editable && hours.length > 0
-    ? `<button class="pr-btn pr-btn--add-row" type="button" data-pr-action="toggle-add-hours">הוסף</button>`
-    : '';
   const addTravelButton = editable && travel.length > 0
     ? `<button class="pr-btn pr-btn--add-row" type="button" data-pr-action="toggle-add-travel">+ הוסף נסיעה</button>`
-    : '';
-  const addTransportButton = editable && transport.length > 0
-    ? `<button class="pr-btn pr-btn--add-row" type="button" data-pr-action="toggle-add-transport">+ הוסף נסיעה</button>`
     : '';
   const addExpenseButton = editable && expenses.length > 0
     ? `<button class="pr-btn pr-btn--add-row" type="button" data-pr-action="toggle-add-expense">+ הוסף שורה</button>`
@@ -1165,10 +969,6 @@ function reportDetailHtml(report, hours, travel, transport, expenses, attachment
       <input type="file" class="pr-file-input pr-report-file" accept="image/*,.pdf" />
     </label>
   ` : '';
-
-  const salaryActionButton = editable
-    ? `<button class="pr-btn pr-btn--primary pr-section-action" type="button" data-pr-action="toggle-add-hours">הוסף</button>`
-    : '';
 
   const submitSection = editable && !isSimulation ? `
     <div class="pr-card pr-submit-card">
@@ -1217,10 +1017,10 @@ function reportDetailHtml(report, hours, travel, transport, expenses, attachment
 
         <nav class="pr-report-tabs" role="tablist" aria-label="אזורי הדוח">
           <button class="pr-report-tab is-active" type="button" role="tab" aria-selected="true" data-pr-action="switch-report-tab" data-tab="salary">
-            <span>דיווח שעות</span>${tabCountBadge(hours.length)}
+            <span>סיכום לשכר</span>
           </button>
           <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="travel">
-            <span>נסיעות</span>${tabCountBadge(travel.length + transport.length)}
+            <span>נסיעות</span>${tabCountBadge(travel.length)}
           </button>
           <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="expenses">
             <span>הוצאות</span>${tabCountBadge(expenses.length)}
@@ -1229,12 +1029,8 @@ function reportDetailHtml(report, hours, travel, transport, expenses, attachment
 
         <section class="pr-summary-bar" aria-label="סיכום הדוח">
           <div class="pr-sum-item">
-            <span class="pr-sum-label">סה"כ שעות</span>
-            <span class="pr-sum-value">${fmtNum(totalHours)}</span>
-          </div>
-          <div class="pr-sum-item">
             <span class="pr-sum-label">סה"כ נסיעות</span>
-            <span class="pr-sum-value">₪${fmt(totalTravel + totalTransport)}</span>
+            <span class="pr-sum-value">₪${fmt(totalTravel)}</span>
           </div>
           <div class="pr-sum-item">
             <span class="pr-sum-label">סה"כ הוצאות</span>
@@ -1272,41 +1068,23 @@ function reportDetailHtml(report, hours, travel, transport, expenses, attachment
           ${addTravelButton}
         </section>
 
-        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="travel">
-          <div class="pr-section-head">
-            <div>
-              <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">תחבורה ציבורית</h2>
-            </div>
-            ${sectionMetricHtml('סה"כ תחבורה', `₪${fmt(totalTransport)}`)}
-          </div>
-          ${transportTable}
-          ${addTransportPanel}
-          ${addTransportButton}
-        </section>
-
         <section class="pr-card pr-report-header-card pr-tab-panel" data-tab-panel="salary" id="pr-report-header">
           <div class="pr-section-head pr-section-head--plain">
             <div>
               <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">דיווח שעות</h2>
+              <h2 class="pr-section-title">סיכום לאישור שכר</h2>
             </div>
-            <div class="pr-section-head__actions">
-              ${sectionMetricHtml('סה"כ שעות', fmtNum(totalHours))}
-              ${salaryActionButton}
-            </div>
+            ${sectionMetricHtml('סה"כ להחזר', `₪${fmt(totalAll)}`)}
           </div>
           <div class="pr-report-identity">
             <div class="pr-id-item"><span class="pr-id-label">עובד</span><strong>${escapeHtml(profile.full_name || '')}</strong></div>
             <div class="pr-id-item"><span class="pr-id-label">חודש דיווח</span><strong>${escapeHtml(monthYearLabel)}</strong></div>
             <div class="pr-id-item"><span class="pr-id-label">סטטוס</span>${statusChip}</div>
+            <div class="pr-id-item"><span class="pr-id-label">סה"כ נסיעות</span><strong>₪${fmt(totalTravel)}</strong></div>
+            <div class="pr-id-item"><span class="pr-id-label">סה"כ הוצאות</span><strong>₪${fmt(totalExpenses)}</strong></div>
           </div>
-          ${hoursTable}
-          ${addHoursPanel}
-          ${addHoursButton}
           ${leaveSection}
         </section>
-
         <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="salary">
           <div class="pr-section-head">
             <div>
@@ -1517,10 +1295,8 @@ async function openReportDetail(root, reportId, isAdmin = false, { isSimulation 
     reportProfile = data || prSession?.profile;
   }
 
-  const [hours, travel, transport, expenses, attachments] = await Promise.all([
-    fetchWorkHours(reportId),
+  const [travel, expenses, attachments] = await Promise.all([
     fetchDeclaredTravel(reportId),
-    fetchPublicTransport(reportId),
     fetchExpenses(reportId),
     fetchAttachments(reportId)
   ]);
@@ -1528,10 +1304,10 @@ async function openReportDetail(root, reportId, isAdmin = false, { isSimulation 
 
   if (isAdmin && !isSimulation) {
     report.profiles = reportProfile;
-    renderInto(root, adminReportViewHtml(report, hours, travel, transport, expenses, attachments));
+    renderInto(root, adminReportViewHtml(report, travel, expenses, attachments));
     bindAdminReportView(root);
   } else {
-    renderInto(root, reportDetailHtml(report, hours, travel, transport, expenses, attachments, reportProfile, { isSimulation }));
+    renderInto(root, reportDetailHtml(report, travel, expenses, attachments, reportProfile, { isSimulation }));
     bindReportDetail(root, { isSimulation });
     setReportTab(root, initialTab);
   }
@@ -1547,22 +1323,12 @@ async function safeOpenReportDetail(root, reportId, isAdmin = false, options = {
 
 // ─── admin report view (read-only with admin actions) ─────────────────────────
 
-function adminReportViewHtml(report, hours, travel, transport, expenses, attachments) {
+function adminReportViewHtml(report, travel, expenses, attachments) {
   const profile = report.profiles || {};
-  const totalHours     = hours.reduce((s, r) => s + Number(r.hours_count || 0), 0);
   const totalTravelKm  = travel.reduce((s, r) => s + Number(r.roundtrip_km || 0), 0);
   const totalTravel    = travel.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const totalTransport = transport.reduce((s, r) => s + Number(r.amount || 0), 0);
   const totalExpenses  = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const totalAll       = totalTravel + totalTransport + totalExpenses;
-
-  const hourRows = hours.length === 0
-    ? `<tr><td colspan="4" class="pr-table-empty">אין רשומות</td></tr>`
-    : hours.map(r => `
-        <tr><td>${fmtDate(r.work_date)}</td><td>${escapeHtml(r.description || '')}</td>
-        <td class="pr-td-num pr-td-amount">${fmtNum(r.hours_count)}</td>
-        <td>${escapeHtml(r.notes || '')}</td></tr>
-      `).join('');
+  const totalAll       = totalTravel + totalExpenses;
 
   const travelRows = travel.length === 0
     ? `<tr><td colspan="8" class="pr-table-empty">אין רשומות</td></tr>`
@@ -1572,15 +1338,6 @@ function adminReportViewHtml(report, hours, travel, transport, expenses, attachm
         <td class="pr-td-num">${fmtNum(r.roundtrip_km)}</td>
         <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
         <td>${escapeHtml(r.notes || '')}</td><td></td></tr>
-      `).join('');
-
-  const transportRows = transport.length === 0
-    ? `<tr><td colspan="8" class="pr-table-empty">אין רשומות</td></tr>`
-    : transport.map(r => `
-        <tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin)}</td>
-        <td>${escapeHtml(r.destination)}</td><td>${escapeHtml(r.description)}</td>
-        <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
-        <td></td><td>${escapeHtml(r.notes || '')}</td><td></td></tr>
       `).join('');
 
   const expenseRows = expenses.length === 0
@@ -1635,24 +1392,9 @@ function adminReportViewHtml(report, hours, travel, transport, expenses, attachm
 
         <!-- Summary bar -->
         <div class="pr-summary-bar">
-          <div class="pr-sum-item"><span class="pr-sum-label">סה"כ שעות</span><span class="pr-sum-value">${fmtNum(totalHours)}</span></div>
-          <div class="pr-sum-item"><span class="pr-sum-label">תחבורה ציבורית</span><span class="pr-sum-value">₪${fmt(totalTransport)}</span></div>
           <div class="pr-sum-item"><span class="pr-sum-label">נסיעות בהצהרה</span><span class="pr-sum-value">₪${fmt(totalTravel)}</span></div>
           <div class="pr-sum-item"><span class="pr-sum-label">החזר הוצאות</span><span class="pr-sum-value">₪${fmt(totalExpenses)}</span></div>
           <div class="pr-sum-item pr-sum-item--total"><span class="pr-sum-label">סה"כ החזרים</span><span class="pr-sum-value">₪${fmt(totalAll)}</span></div>
-        </div>
-
-        <!-- Hours -->
-        <div class="pr-card pr-section-card">
-          <div class="pr-section-head"><h2 class="pr-section-title">דיווח שעות</h2></div>
-          <div class="pr-table-scroll"><table class="pr-data-table">
-            <thead><tr><th>תאריך</th><th>פירוט</th><th class="pr-th-num">שעות</th><th>הערות</th></tr></thead>
-            <tbody>${hourRows}
-              <tr class="pr-total-row"><td colspan="2" class="pr-total-label">סה"כ</td>
-                <td class="pr-td-num pr-total-num pr-total-amount">${fmtNum(totalHours)}</td>
-                <td></td></tr>
-            </tbody>
-          </table></div>
         </div>
 
         <!-- Travel -->
@@ -1670,18 +1412,6 @@ function adminReportViewHtml(report, hours, travel, transport, expenses, attachm
         </div>
 
         <!-- Transport -->
-        <div class="pr-card pr-section-card">
-          <div class="pr-section-head"><h2 class="pr-section-title">תחבורה ציבורית</h2></div>
-          <div class="pr-table-scroll"><table class="pr-data-table">
-            <thead><tr><th>תאריך</th><th>ממקום</th><th>למקום</th><th>פירוט</th><th class="pr-th-num">₪</th><th>קבלה</th><th>הערות</th><th></th></tr></thead>
-            <tbody>${transportRows}
-              <tr class="pr-total-row"><td colspan="4" class="pr-total-label">סה"כ</td>
-                <td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalTransport)}</td>
-                <td colspan="3"></td></tr>
-            </tbody>
-          </table></div>
-        </div>
-
         <!-- Expenses -->
         <div class="pr-card pr-section-card">
           <div class="pr-section-head"><h2 class="pr-section-title">הוצאות</h2></div>
@@ -1865,9 +1595,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
 
     if (action === 'switch-report-tab') { setReportTab(root, btn.dataset.tab); return; }
 
-    if (action === 'toggle-add-hours')      { togglePanel('pr-add-hours-panel'); return; }
     if (action === 'toggle-add-travel')     { togglePanel('pr-add-travel-panel'); return; }
-    if (action === 'toggle-add-transport')  { togglePanel('pr-add-transport-panel'); return; }
     if (action === 'toggle-add-expense')    { togglePanel('pr-add-expense-panel'); return; }
     if (action === 'focus-salary-report') {
       const firstMetaInput = root.querySelector('#pr-report-header .pr-meta-input:not([readonly])');
@@ -1955,15 +1683,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     const reportId  = prSelectedReport.id;
     const employeeId = prSession.user.id;
     try {
-      if (formType === 'work_hours') {
-        await upsertWorkHours({
-          report_id: reportId, employee_id: employeeId,
-          work_date: fd.get('work_date'),
-          description: fd.get('description') || '',
-          hours_count: Number(fd.get('hours_count') || 0),
-          notes: fd.get('notes') || ''
-        });
-      } else if (formType === 'declared_travel') {
+      if (formType === 'declared_travel') {
         await upsertDeclaredTravel({
           report_id: reportId, employee_id: employeeId,
           travel_date: fd.get('travel_date'),
@@ -1972,16 +1692,6 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
           description: fd.get('description') || '',
           roundtrip_km: Number(fd.get('roundtrip_km') || 0),
           amount: Number((Number(fd.get('roundtrip_km') || 0) * 1.6).toFixed(2)),
-          notes: fd.get('notes') || ''
-        });
-      } else if (formType === 'public_transport') {
-        await upsertPublicTransport({
-          report_id: reportId, employee_id: employeeId,
-          travel_date: fd.get('travel_date'),
-          origin: fd.get('origin') || '',
-          destination: fd.get('destination') || '',
-          description: fd.get('description') || '',
-          amount: Number(fd.get('amount') || 0),
           notes: fd.get('notes') || ''
         });
       } else if (formType === 'expense') {
