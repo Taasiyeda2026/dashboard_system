@@ -81,3 +81,14 @@ test('source keeps personal reports auth temporary and maps verified login to au
   assert.match(source, /הקוד שהוזן אינו תקין\. יש לבדוק ולנסות שוב\./);
   assert.doesNotMatch(source, /id="pr-email"|id="pr-pass"|מייל עבודה|שכחתי סיסמה/);
 });
+
+
+test('source uses only existing personal report tables for monthly report data', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(source, new RegExp(['work', 'hour', 'entries'].join('_')));
+  assert.doesNotMatch(source, new RegExp(['public', 'transport', 'entries'].join('_')));
+  assert.match(source, /from\('declared_travel_entries'\)/);
+  assert.match(source, /from\('expense_entries'\)/);
+  assert.match(source, /from\('report_attachments'\)/);
+});
