@@ -99,10 +99,14 @@ function attachmentStatusHtml(attachment) {
   return attachment ? 'צורפה' : 'לא צורפה';
 }
 
+function calculatedAbsenceDays(row) {
+  return countWorkdaysInclusive(row?.start_date, row?.end_date);
+}
+
 function sumAbsenceDays(absences, type) {
   return (absences || [])
     .filter((row) => row.absence_type === type)
-    .reduce((sum, row) => sum + Number(row.calculated_days || 0), 0);
+    .reduce((sum, row) => sum + calculatedAbsenceDays(row), 0);
 }
 
 function missingExpenseAttachments(expenses, attachments) {
@@ -698,7 +702,7 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
   });
   const absenceRows = absences.map((r) => {
     const attachment = attachmentForEntry(attachments, 'absence_entry_id', r.id);
-    return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td>${fmtNum(r.calculated_days)}</td><td>${escapeHtml(attachmentStatusHtml(attachment))}</td></tr>`;
+    return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td>${fmtNum(calculatedAbsenceDays(r))}</td><td>${escapeHtml(attachmentStatusHtml(attachment))}</td></tr>`;
   });
 
   const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
@@ -830,7 +834,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <td>${escapeHtml(absenceLabel(r.absence_type))}</td>
         <td class="pr-td-date">${fmtDate(r.start_date)}</td>
         <td class="pr-td-date">${fmtDate(r.end_date)}</td>
-        <td class="pr-td-num">${fmtNum(r.calculated_days)}</td>
+        <td class="pr-td-num">${fmtNum(calculatedAbsenceDays(r))}</td>
         <td>${escapeHtml(attachmentStatusHtml(attachment))}</td>
         <td class="pr-td-notes">
           ${editable ? `<label class="pr-attach-inline-btn" title="צרף אסמכתא להיעדרות">
@@ -847,7 +851,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
 
   const absenceTable = absences.length > 0
     ? `<div class="pr-table-scroll"><table class="pr-data-table">
-        <thead><tr><th>סוג</th><th>מתאריך</th><th>עד תאריך</th><th class="pr-th-num">ימים</th><th>אסמכתא</th><th>צרופה</th><th class="pr-th-del">פעולות</th></tr></thead>
+        <thead><tr><th>סוג היעדרות</th><th>מתאריך</th><th>עד תאריך</th><th class="pr-th-num">מספר ימים מחושב</th><th>אסמכתא</th><th>צירוף</th><th class="pr-th-del">פעולות</th></tr></thead>
         <tbody>${absenceRows}</tbody>
       </table></div>`
     : reportEmptyStateHtml({
@@ -892,6 +896,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             </div>
             <div class="pr-add-form-actions">
               <button class="pr-btn pr-btn--primary" type="submit">שמור היעדרות</button>
+              <button class="pr-btn pr-btn--ghost" type="reset">ביטול</button>
             </div>
           </div>
         </form>
@@ -1509,7 +1514,7 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
     ? `<tr><td colspan="6" class="pr-table-empty">אין רשומות</td></tr>`
     : absences.map((r) => {
         const attachment = attachmentForEntry(attachments, 'absence_entry_id', r.id);
-        return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td class="pr-td-num">${fmtNum(r.calculated_days)}</td><td>${escapeHtml(attachmentStatusHtml(attachment))}</td><td>${escapeHtml(r.notes || '')}</td></tr>`;
+        return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td class="pr-td-num">${fmtNum(calculatedAbsenceDays(r))}</td><td>${escapeHtml(attachmentStatusHtml(attachment))}</td><td>${escapeHtml(r.notes || '')}</td></tr>`;
       }).join('');
 
   const attachRows = attachments.map(a => `
@@ -1866,6 +1871,17 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     } catch (err) { showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בהעלאת הקובץ. יש לנסות שוב.'), 'danger'); }
   });
 
+  root.addEventListener('reset', (e) => {
+    const form = e.target.closest('form[data-form-type="absence"]');
+    if (!form) return;
+    setTimeout(() => {
+      const fields = form.querySelector('.pr-absence-fields');
+      if (fields) fields.hidden = true;
+      fields?.querySelectorAll('input[name="start_date"], input[name="end_date"]').forEach((input) => { input.required = false; });
+      updateAbsenceCalculatedDays(form);
+    }, 0);
+  });
+
   // Add entry forms submit
   root.addEventListener('submit', async (e) => {
     const form = e.target.closest('.pr-add-form');
@@ -1906,6 +1922,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         const calculatedDays = countWorkdaysInclusive(startDate, endDate);
         if (!absenceType) { showToast('יש לבחור סוג היעדרות', 'warning'); return; }
         if (!startDate || !endDate) { showToast('יש למלא טווח תאריכים', 'warning'); return; }
+        if (new Date(`${startDate}T00:00:00`) > new Date(`${endDate}T00:00:00`)) { showToast('תאריך הסיום חייב להיות אחרי תאריך ההתחלה', 'warning'); return; }
         if (calculatedDays <= 0) { showToast('טווח התאריכים לא כולל ימי עבודה (א׳-ה׳)', 'warning'); return; }
         const absence = await upsertAbsence({
           report_id: reportId,
