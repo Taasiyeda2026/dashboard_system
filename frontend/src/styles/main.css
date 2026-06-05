@@ -13329,3 +13329,232 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pr-absence-summary {
   margin-bottom: 8px;
 }
+
+/* Personal reports UX polish — compact internal workspace */
+.pr-card,
+.pr-report-card,
+.pr-report-hero-card,
+.pr-section-card,
+.pr-submit-card,
+.pr-my-reports-card,
+.pr-month-row,
+.pr-summary-bar,
+.pr-id-item,
+.pr-meta-item,
+.pr-empty-state,
+.pr-add-panel,
+.pr-attachment-row {
+  border: 1px solid #e2deea;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.045);
+}
+.pr-card {
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.pr-body.pr-landing-body {
+  max-width: min(860px, 96vw);
+  gap: 14px;
+}
+.pr-body.pr-report-detail-body {
+  max-width: min(960px, 96vw);
+  gap: 14px;
+}
+.pr-my-reports-card {
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+}
+.pr-my-reports-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.pr-my-reports-title {
+  margin: 2px 0 0;
+  font-size: 1.18rem;
+  line-height: 1.25;
+  color: #0f172a;
+}
+.pr-my-reports-user {
+  color: #475569;
+  font-size: 0.82rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #f8fafc;
+}
+.pr-month-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pr-month-row {
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: minmax(130px, 1.1fr) minmax(190px, 1.4fr) minmax(130px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fff;
+}
+.pr-month-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #334155;
+  font-size: 0.86rem;
+}
+.pr-month-cell--main strong {
+  font-size: 0.98rem;
+  color: #0f172a;
+}
+.pr-month-label,
+.pr-eyebrow {
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.pr-month-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.pr-report-hero-card {
+  border-radius: 16px;
+  padding: 14px 16px;
+  align-items: center;
+  gap: 12px;
+}
+.pr-report-hero-card__title {
+  font-size: 1.18rem;
+  margin-bottom: 5px;
+}
+.pr-report-hero-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: #475569;
+  font-size: 0.84rem;
+}
+.pr-report-tabs {
+  border: 1px solid #e2deea;
+  background: #fff;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pr-report-detail-body .pr-report-tab {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+.pr-report-detail-body .pr-report-tab.is-active {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+.pr-summary-bar {
+  background: #fff;
+  padding: 8px;
+  gap: 8px;
+}
+.pr-sum-item {
+  border: 1px solid #edf0f5;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+.pr-section-card,
+.pr-report-header-card,
+.pr-submit-card {
+  overflow: hidden;
+}
+.pr-section-head {
+  border-bottom: 1px solid #edf0f5;
+  margin: -14px -16px 12px;
+  padding: 12px 16px;
+  background: #fbfdff;
+}
+.pr-data-table {
+  table-layout: auto;
+}
+.pr-report-detail-body .pr-data-table th,
+.pr-report-detail-body .pr-data-table td {
+  border-bottom: 1px solid #edf0f5;
+}
+.pr-report-detail-body .pr-table-scroll {
+  border: 1px solid #edf0f5;
+  border-radius: 12px;
+  overflow-x: auto;
+}
+.pr-report-detail-body .pr-add-panel {
+  margin: 10px 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+.pr-attachments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pr-attachment-row {
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fff;
+}
+.pr-btn {
+  min-height: 34px;
+  min-width: 0;
+  border-radius: 10px;
+  padding: 0 13px;
+}
+.pr-btn--sm {
+  min-height: 34px;
+  padding: 0 11px;
+}
+.pr-submit-btn,
+.pr-btn--large {
+  min-height: 38px;
+  width: auto;
+  max-width: 160px;
+}
+.pr-submit-card {
+  align-items: flex-start;
+}
+.pr-submit-card .pr-btn {
+  align-self: flex-start;
+}
+.pr-back-btn {
+  white-space: nowrap;
+}
+.pr-lock-btn {
+  max-width: 150px;
+  margin: 0 auto;
+}
+@media (max-width: 760px) {
+  .pr-body.pr-landing-body,
+  .pr-body.pr-report-detail-body {
+    max-width: 96vw;
+    padding: 10px;
+  }
+  .pr-month-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    min-height: auto;
+    gap: 8px;
+  }
+  .pr-month-actions {
+    justify-content: flex-start;
+  }
+  .pr-my-reports-head {
+    flex-direction: column;
+  }
+  .pr-report-detail-body .pr-report-tab {
+    flex: 1 1 44%;
+  }
+  .pr-report-hero-card {
+    align-items: stretch;
+  }
+}
