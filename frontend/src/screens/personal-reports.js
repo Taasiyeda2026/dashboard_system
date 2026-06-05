@@ -22,9 +22,9 @@ const STATUS_LABELS = {
   draft:            'פתוח לדיווח',
   submitted:        'נשלח',
   reviewed:         'נבדק',
-  approved:         'אושר לשכר',
+  approved:         'טופל ואושר לשכר',
   needs_correction: 'הוחזר לתיקון',
-  paid:             'שולם'
+  paid:             'החודש נסגר'
 };
 
 const STATUS_KIND = {
@@ -770,10 +770,13 @@ function simulationBannerHtml(employeeName) {
   `;
 }
 
-function employeeDashboardHtml(profile, { isSimulation = false } = {}) {
+function employeeDashboardHtml(profile, { isSimulation = false, currentReport = null } = {}) {
   const { month, year } = currentMonthYear();
   const currentLabel = monthLabel(month, year);
   const period = reportPeriodRange(month, year);
+
+  const rowStatus = currentReport?.status || 'draft';
+  const rowStatusChip = dsStatusChip(STATUS_LABELS[rowStatus] || rowStatus, STATUS_KIND[rowStatus] || 'neutral');
 
   const adminCard = (isAdminRole(profile.role) && !isSimulation) ? `
     <div class="pr-card pr-card--highlight pr-admin-entry-card">
@@ -817,7 +820,7 @@ function employeeDashboardHtml(profile, { isSimulation = false } = {}) {
               </div>
               <div class="pr-month-cell">
                 <span class="pr-month-label">סטטוס</span>
-                ${dsStatusChip('פתוח לדיווח', 'neutral')}
+                ${rowStatusChip}
               </div>
               <div class="pr-month-actions">
                 <button class="pr-btn pr-btn--primary pr-btn--sm" type="button"
@@ -891,7 +894,11 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
               data-entry-id="${escapeHtml(r.id)}" data-entry-type="absence" /></label>` : ''}
         </td>
         <td class="pr-td-actions">
-          ${editable ? `<button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
+          ${editable ? `<button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-absence"
+            data-entry-id="${escapeHtml(r.id)}" data-absence-type="${escapeHtml(r.absence_type)}"
+            data-start-date="${escapeHtml(r.start_date)}" data-end-date="${escapeHtml(r.end_date)}"
+            data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
+          <button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
             data-entry-id="${escapeHtml(r.id)}" data-entry-table="absence_entries"
             aria-label="מחק היעדרות" title="מחק">✕</button>` : ''}
         </td>
@@ -900,51 +907,34 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
 
   const absenceTable = absences.length > 0
     ? `<div class="pr-table-scroll"><table class="pr-data-table">
-        <thead><tr><th>סוג היעדרות</th><th>מתאריך</th><th>עד תאריך</th><th class="pr-th-num">מספר ימים מחושב</th><th>אסמכתא</th><th>צירוף</th><th class="pr-th-del">פעולות</th></tr></thead>
+        <thead><tr><th>סוג</th><th>מתאריך</th><th>עד תאריך</th><th class="pr-th-num">ימים מחושבים</th><th>אסמכתא</th><th>צירוף</th><th class="pr-th-del">פעולות</th></tr></thead>
         <tbody>${absenceRows}</tbody>
       </table></div>`
-    : reportEmptyStateHtml({
-        icon: '📅',
-        title: 'אין דיווחי היעדרות',
-        text: 'בחרו סוג היעדרות רק כשצריך לדווח חופש, מחלה או הצהרה לשכר.',
-        action: '',
-        actionLabel: '',
-        editable: false
-      });
+    : `<p class="pr-compact-empty">לא נוספו ימי חופש / מחלה / הצהרה לחודש זה.</p>`;
 
   const leaveSection = `
-    <div class="pr-meta-grid pr-absence-summary" aria-label="סיכום ימי היעדרות מחושבים">
-      <div class="pr-meta-item"><span class="pr-meta-label">ימי חופש מחושבים</span><strong>${fmtNum(totalVacationDays)}</strong></div>
-      <div class="pr-meta-item"><span class="pr-meta-label">ימי מחלה מחושבים</span><strong>${fmtNum(totalSickDays)}</strong></div>
-      <div class="pr-meta-item"><span class="pr-meta-label">ימי הצהרה מחושבים</span><strong>${fmtNum(totalDeclarationDays)}</strong></div>
-      ${report.report_notes ? `<div class="pr-meta-item pr-meta-item--wide"><span class="pr-meta-label">הערות</span><span>${escapeHtml(report.report_notes)}</span></div>` : ''}
-    </div>
     ${editable ? `
       <div class="pr-add-panel pr-absence-panel">
         <form class="pr-add-form" data-form-type="absence">
-          <div class="pr-form-row">
-            <div class="pr-field">
-              <label class="pr-label">הוספת היעדרות</label>
-              <select class="pr-input pr-input--select" name="absence_type" data-pr-action="select-absence-type">
-                <option value="">בחרו סוג יום…</option>
-                <option value="vacation">ימי חופש</option>
-                <option value="sick">ימי מחלה</option>
-                <option value="declaration">ימי הצהרה</option>
-              </select>
-            </div>
+          <input type="hidden" name="id" />
+          <input type="hidden" name="absence_type" />
+          <div class="pr-absence-choice" aria-label="בחירת סוג היעדרות">
+            <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="choose-absence-type" data-absence-type="vacation">חופש</button>
+            <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="choose-absence-type" data-absence-type="sick">מחלה</button>
+            <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="choose-absence-type" data-absence-type="declaration">הצהרה</button>
           </div>
           <div class="pr-absence-fields" hidden>
             <div class="pr-form-row">
               <div class="pr-field"><label class="pr-label">מתאריך *</label><input class="pr-input pr-absence-date" type="date" name="start_date" /></div>
               <div class="pr-field"><label class="pr-label">עד תאריך *</label><input class="pr-input pr-absence-date" type="date" name="end_date" /></div>
-              <div class="pr-field"><label class="pr-label">מספר ימים מחושב</label><input class="pr-input" type="number" name="calculated_days" readonly value="0" /></div>
+              <div class="pr-field"><label class="pr-label">ימים מחושבים</label><input class="pr-input" type="number" name="calculated_days" readonly value="0" /></div>
             </div>
             <div class="pr-form-row">
               <div class="pr-field pr-field--wide"><label class="pr-label">מסמך אסמכתא</label><input class="pr-input" type="file" name="attachment" accept="image/*,.pdf" /></div>
               <div class="pr-field pr-field--wide"><label class="pr-label">הערות</label><input class="pr-input" type="text" name="notes" placeholder="אישור מחלה / הצהרה / אישור חופש" /></div>
             </div>
             <div class="pr-add-form-actions">
-              <button class="pr-btn pr-btn--primary" type="submit">שמור היעדרות</button>
+              <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
               <button class="pr-btn pr-btn--ghost" type="reset">ביטול</button>
             </div>
           </div>
@@ -971,7 +961,12 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             data-entry-id="${escapeHtml(r.id)}" data-entry-type="travel" /></label>` : ''}
       </td>
       <td class="pr-td-actions">
-        ${editable ? `<button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
+        ${editable ? `<button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-travel"
+          data-entry-id="${escapeHtml(r.id)}" data-travel-date="${escapeHtml(r.travel_date)}"
+          data-origin="${escapeHtml(r.origin || '')}" data-destination="${escapeHtml(r.destination || '')}"
+          data-description="${escapeHtml(r.description || '')}" data-roundtrip-km="${escapeHtml(r.roundtrip_km || '')}"
+          data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
+        <button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
           data-entry-id="${escapeHtml(r.id)}" data-entry-table="declared_travel_entries"
           aria-label="מחק שורה" title="מחק">✕</button>` : ''}
       </td>
@@ -989,6 +984,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   const addTravelPanel = editable ? `
     <div class="pr-add-panel" id="pr-add-travel-panel" hidden>
       <form class="pr-add-form" id="pr-add-travel-form" data-form-type="declared_travel">
+        <input type="hidden" name="id" />
         <div class="pr-form-row">
           <div class="pr-field"><label class="pr-label">תאריך *</label>
             <input class="pr-input" type="date" name="travel_date" required /></div>
@@ -1008,7 +1004,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             <input class="pr-input" type="text" name="notes" placeholder="הערות / קובץ נדרש" /></div>
         </div>
         <div class="pr-add-form-actions">
-          <button class="pr-btn pr-btn--primary" type="submit">הוסף נסיעה</button>
+          <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
           <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="toggle-add-travel">ביטול</button>
         </div>
       </form>
@@ -1029,7 +1025,11 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             data-entry-id="${escapeHtml(r.id)}" data-entry-type="expense" /></label>` : ''}
       </td>
       <td class="pr-td-actions">
-        ${editable ? `<button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
+        ${editable ? `<button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-expense"
+          data-entry-id="${escapeHtml(r.id)}" data-expense-date="${escapeHtml(r.expense_date)}"
+          data-document-type="${escapeHtml(r.document_type || 'receipt')}" data-description="${escapeHtml(r.description || '')}"
+          data-amount="${escapeHtml(r.amount || '')}" data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
+        <button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
           data-entry-id="${escapeHtml(r.id)}" data-entry-table="expense_entries"
           aria-label="מחק שורה" title="מחק">✕</button>` : ''}
       </td>
@@ -1047,6 +1047,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   const addExpensePanel = editable ? `
     <div class="pr-add-panel" id="pr-add-expense-panel" hidden>
       <form class="pr-add-form" id="pr-add-expense-form" data-form-type="expense">
+        <input type="hidden" name="id" />
         <div class="pr-form-row">
           <div class="pr-field"><label class="pr-label">תאריך *</label>
             <input class="pr-input" type="date" name="expense_date" required /></div>
@@ -1072,7 +1073,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             <input class="pr-input" type="file" name="attachment" accept="image/*,.pdf" /></div>
         </div>
         <div class="pr-add-form-actions">
-          <button class="pr-btn pr-btn--primary" type="submit">הוסף שורה</button>
+          <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
           <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="toggle-add-expense">ביטול</button>
         </div>
       </form>
@@ -1169,12 +1170,12 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         value="${escapeHtml(profile.full_name || '')}" autocomplete="name" />
       <label class="pr-confirm-label">
         <input type="checkbox" id="pr-confirm-checkbox" class="pr-confirm-checkbox" />
-        <span>אני מאשר/ת כי החתימה הדיגיטלית והשעה הנוכחית יישמרו בדוח.</span>
+        <span>אני מאשר/ת כי החתימה הדיגיטלית ומועד האישור יישמרו בדוח.</span>
       </label>
       <button class="pr-btn pr-btn--primary pr-btn--large pr-submit-btn"
         id="pr-submit-btn" data-pr-action="submit-report"
         data-report-id="${escapeHtml(report.id)}" disabled>
-        אישור ושליחה
+        ${report.status === 'needs_correction' ? 'שליחה מחדש לאישור' : 'אישור ושליחה'}
       </button>
     </div>
   ` : editable && isSimulation ? `
@@ -1184,7 +1185,10 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   ` : `
     <div class="pr-card pr-submit-card pr-submit-card--locked">
       <span class="pr-locked-msg">🔒 הדוח נעול לעריכה — סטטוס: ${escapeHtml(statusText)}</span>
-      <button class="pr-btn pr-btn--secondary pr-btn--sm" type="button" data-pr-action="download-report-pdf" data-report-id="${escapeHtml(report.id)}">הורדת PDF</button>
+      <div class="pr-submit-finish-actions">
+        <button class="pr-btn pr-btn--secondary pr-btn--sm" type="button" data-pr-action="download-report-pdf" data-report-id="${escapeHtml(report.id)}">הורדת PDF</button>
+        <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="back-to-my-reports">חזרה לדוחות שלי</button>
+      </div>
     </div>
   `;
 
@@ -1327,6 +1331,25 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   `;
 }
 
+
+function reportSubmittedSuccessHtml(reportId, message = 'הדוח אושר ונשלח לשכר בהצלחה') {
+  return `
+    <div class="pr-screen pr-report-form" dir="rtl">
+      <div class="pr-body pr-report-detail-body">
+        <section class="pr-card pr-submit-success-card" role="status">
+          <span class="pr-submit-success-card__icon" aria-hidden="true">✓</span>
+          <h1 class="pr-report-hero-card__title">${escapeHtml(message)}</h1>
+          <p class="pr-helper-text">עותק PDF הופק מנתוני הדוח. ניתן להוריד אותו שוב או לחזור לרשימת החודשים.</p>
+          <div class="pr-submit-finish-actions">
+            <button class="pr-btn pr-btn--primary" type="button" data-pr-action="download-report-pdf" data-report-id="${escapeHtml(reportId)}">הורדת PDF</button>
+            <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="back-to-my-reports">חזרה לדוחות שלי</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  `;
+}
+
 function statusOptionsHtml(selectedStatus) {
   return Object.entries(STATUS_LABELS).map(([value, label]) =>
     `<option value="${escapeHtml(value)}" ${value === selectedStatus ? 'selected' : ''}>${escapeHtml(label)}</option>`
@@ -1375,7 +1398,6 @@ function adminDashboardHtml(reports) {
         <td>${escapeHtml(monthLabel(r.report_month, r.report_year))}</td>
         <td class="pr-td-num pr-td-amount">₪${fmt(totals.expenses)}</td>
         <td class="pr-td-num pr-td-amount">₪${fmt(totals.travel)}</td>
-        <td class="pr-td-num pr-td-amount">₪${fmt(totals.all)}</td>
         <td>
           <select class="pr-input pr-input--select pr-admin-status-select" data-report-id="${escapeHtml(r.id)}">
             ${statusOptionsHtml(r.status)}
@@ -1419,8 +1441,16 @@ function adminDashboardHtml(reports) {
         ${reports.length === 0 ? dsEmptyState('אין דוחות להצגה') : `
           <div class="pr-table-scroll">
             <table class="pr-table pr-admin-table">
+              <colgroup>
+                <col class="pr-admin-col-employee" />
+                <col class="pr-admin-col-month" />
+                <col class="pr-admin-col-money" />
+                <col class="pr-admin-col-money" />
+                <col class="pr-admin-col-status" />
+                <col class="pr-admin-col-actions" />
+              </colgroup>
               <thead><tr>
-                <th>עובד</th><th>חודש דיווח</th><th>סה"כ הוצאות</th><th>סה"כ נסיעות</th><th>סה"כ להחזר</th><th>סטטוס</th><th>פעולות</th>
+                <th>עובד</th><th>חודש דיווח</th><th>סה"כ הוצאות</th><th>סה"כ נסיעות</th><th>סטטוס</th><th>פעולות</th>
               </tr></thead>
               <tbody>${rows.join('')}</tbody>
             </table>
@@ -1788,6 +1818,35 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     }
   }
 
+  function showPanel(panelId) {
+    const panel = root.querySelector(`#${panelId}`);
+    if (!panel) return null;
+    panel.hidden = false;
+    panel.querySelector('input,select,textarea')?.focus();
+    return panel;
+  }
+
+  function setFormValues(form, values) {
+    if (!form) return;
+    Object.entries(values).forEach(([name, value]) => {
+      const field = form.querySelector(`[name="${name}"]`);
+      if (field) field.value = value ?? '';
+    });
+  }
+
+  function revealAbsenceFields(form, type) {
+    if (!form) return;
+    const typeInput = form.querySelector('input[name="absence_type"]');
+    if (typeInput) typeInput.value = type || '';
+    form.querySelectorAll('[data-pr-action="choose-absence-type"]').forEach((choice) => {
+      choice.classList.toggle('is-active', choice.dataset.absenceType === type);
+    });
+    const fields = form.querySelector('.pr-absence-fields');
+    if (fields) fields.hidden = !type;
+    fields?.querySelectorAll('input[name="start_date"], input[name="end_date"]').forEach((input) => { input.required = Boolean(type); });
+    updateAbsenceCalculatedDays(form);
+  }
+
   // Save meta fields on blur (header inputs)
   root.addEventListener('blur', async (e) => {
     const input = e.target.closest('.pr-meta-input');
@@ -1836,6 +1895,57 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       return;
     }
 
+    if (action === 'choose-absence-type') {
+      const form = btn.closest('form[data-form-type="absence"]');
+      revealAbsenceFields(form, btn.dataset.absenceType || '');
+      form?.querySelector('input[name="start_date"]')?.focus();
+      return;
+    }
+
+    if (action === 'edit-travel') {
+      const panel = showPanel('pr-add-travel-panel');
+      const form = panel?.querySelector('form[data-form-type="declared_travel"]');
+      setFormValues(form, {
+        id: btn.dataset.entryId,
+        travel_date: btn.dataset.travelDate,
+        origin: btn.dataset.origin,
+        destination: btn.dataset.destination,
+        description: btn.dataset.description,
+        roundtrip_km: btn.dataset.roundtripKm,
+        amount: (Number(btn.dataset.roundtripKm || 0) * 1.6).toFixed(2),
+        notes: btn.dataset.notes
+      });
+      return;
+    }
+
+    if (action === 'edit-expense') {
+      const panel = showPanel('pr-add-expense-panel');
+      const form = panel?.querySelector('form[data-form-type="expense"]');
+      setFormValues(form, {
+        id: btn.dataset.entryId,
+        expense_date: btn.dataset.expenseDate,
+        document_type: btn.dataset.documentType,
+        description: btn.dataset.description,
+        amount: btn.dataset.amount,
+        notes: btn.dataset.notes
+      });
+      return;
+    }
+
+    if (action === 'edit-absence') {
+      const form = root.querySelector('form[data-form-type="absence"]');
+      setFormValues(form, {
+        id: btn.dataset.entryId,
+        start_date: btn.dataset.startDate,
+        end_date: btn.dataset.endDate,
+        notes: btn.dataset.notes
+      });
+      revealAbsenceFields(form, btn.dataset.absenceType || '');
+      form?.querySelector('input[name="start_date"]')?.focus();
+      setReportTab(root, 'absences');
+      return;
+    }
+
     if (action === 'delete-entry') {
       if (isSimulation) { showToast(SIM_MSG, 'warning'); return; }
       if (!confirm('למחוק שורה זו?')) return;
@@ -1856,10 +1966,14 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (!confirm('לשלוח את הדוח לשכר? לאחר שליחה לא ניתן לערוך.')) return;
       try {
         await assertSalaryReady(prSelectedReport.id);
+        const wasCorrection = prSelectedReport.status === 'needs_correction';
         await submitReport(prSelectedReport.id, signatureFullName);
-        await openMonthlyReportPdf(prSelectedReport.id, 'אושר לשכר');
-        await safeOpenReportDetail(root, prSelectedReport.id, false);
-        showToast('הדוח נשלח לשכר וה-PDF הופק', 'success');
+        await openMonthlyReportPdf(prSelectedReport.id, 'נשלח לשכר');
+        renderInto(root, reportSubmittedSuccessHtml(
+          prSelectedReport.id,
+          wasCorrection ? 'הדוח נשלח מחדש בהצלחה' : 'הדוח אושר ונשלח לשכר בהצלחה'
+        ));
+        showToast(wasCorrection ? 'הדוח נשלח מחדש בהצלחה' : 'הדוח אושר ונשלח לשכר בהצלחה', 'success');
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
@@ -1946,6 +2060,9 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     setTimeout(() => {
       const fields = form.querySelector('.pr-absence-fields');
       if (fields) fields.hidden = true;
+      form.querySelector('input[name="id"]') && (form.querySelector('input[name="id"]').value = '');
+      form.querySelector('input[name="absence_type"]') && (form.querySelector('input[name="absence_type"]').value = '');
+      form.querySelectorAll('[data-pr-action="choose-absence-type"]').forEach((choice) => choice.classList.remove('is-active'));
       fields?.querySelectorAll('input[name="start_date"], input[name="end_date"]').forEach((input) => { input.required = false; });
       updateAbsenceCalculatedDays(form);
     }, 0);
@@ -1964,6 +2081,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     try {
       if (formType === 'declared_travel') {
         await upsertDeclaredTravel({
+          id: fd.get('id') || undefined,
           report_id: reportId, employee_id: employeeId,
           travel_date: fd.get('travel_date'),
           origin: fd.get('origin') || '',
@@ -1975,6 +2093,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         });
       } else if (formType === 'expense') {
         const expense = await upsertExpense({
+          id: fd.get('id') || undefined,
           report_id: reportId, employee_id: employeeId,
           expense_date: fd.get('expense_date'),
           document_type: fd.get('document_type') || 'receipt',
@@ -1994,6 +2113,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         if (new Date(`${startDate}T00:00:00`) > new Date(`${endDate}T00:00:00`)) { showToast('תאריך הסיום חייב להיות אחרי תאריך ההתחלה', 'warning'); return; }
         if (calculatedDays <= 0) { showToast('טווח התאריכים לא כולל ימי עבודה (א׳-ה׳)', 'warning'); return; }
         const absence = await upsertAbsence({
+          id: fd.get('id') || undefined,
           report_id: reportId,
           employee_id: employeeId,
           absence_type: absenceType,
@@ -2250,10 +2370,14 @@ async function rerender(root, dashboardUser) {
     return;
   }
   if (isAdminRole(prSession.profile.role) && prAdminMode === 'my' && !prViewAsEmployee) {
-    renderInto(root, employeeDashboardHtml(prSession.profile));
+    const { month, year } = currentMonthYear();
+    const currentReport = await getReport(prSession.user.id, month, year).catch(() => null);
+    renderInto(root, employeeDashboardHtml(prSession.profile, { currentReport }));
     bindEmployeeDashboard(root);
   } else if (isAdminRole(prSession.profile.role) && prViewAsEmployee) {
-    renderInto(root, employeeDashboardHtml(prViewAsEmployee, { isSimulation: true }));
+    const { month, year } = currentMonthYear();
+    const currentReport = await getReport(prViewAsEmployee.id, month, year).catch(() => null);
+    renderInto(root, employeeDashboardHtml(prViewAsEmployee, { isSimulation: true, currentReport }));
     bindEmployeeDashboard(root, { isSimulation: true });
   } else if (isAdminRole(prSession.profile.role)) {
     try {
@@ -2265,7 +2389,9 @@ async function rerender(root, dashboardUser) {
       bindAdminDashboard(root);
     }
   } else {
-    renderInto(root, employeeDashboardHtml(prSession.profile));
+    const { month, year } = currentMonthYear();
+    const currentReport = await getReport(prSession.user.id, month, year).catch(() => null);
+    renderInto(root, employeeDashboardHtml(prSession.profile, { currentReport }));
     bindEmployeeDashboard(root);
   }
 }
