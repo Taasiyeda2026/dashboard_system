@@ -64,6 +64,26 @@ function fmtDate(d) {
   } catch { return d; }
 }
 
+function fmtDateFull(d) {
+  if (!d) return '';
+  try {
+    const [y, m, day] = d.split('-');
+    return `${day}.${m}.${y}`;
+  } catch { return d; }
+}
+
+function isoDate(year, month, day) {
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function reportPeriodRange(month, year) {
+  const prev = new Date(year, month - 2, 25);
+  const current = new Date(year, month - 1, 25);
+  const start = isoDate(prev.getFullYear(), prev.getMonth() + 1, prev.getDate());
+  const end = isoDate(current.getFullYear(), current.getMonth() + 1, current.getDate());
+  return { start, end, label: `${fmtDateFull(start)}–${fmtDateFull(end)}` };
+}
+
 function isWorkday(date) {
   const day = date.getDay();
   return day >= 0 && day <= 4;
@@ -226,10 +246,10 @@ function internalEmployeeLoginHtml(message = '') {
         width: 100%;
         max-width: 420px;
         background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 18px;
-        box-shadow: 0 2px 8px rgba(15,23,42,0.06), 0 12px 32px rgba(15,23,42,0.10);
-        padding: 40px 36px 36px;
+        border: 1px solid #ddd6e7;
+        border-radius: 16px;
+        box-shadow: 0 8px 22px rgba(15,23,42,0.06);
+        padding: 22px 24px;
         box-sizing: border-box;
         text-align: right;
       }
@@ -237,11 +257,11 @@ function internalEmployeeLoginHtml(message = '') {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 52px;
-        height: 52px;
+        width: 42px;
+        height: 42px;
         background: #eff6ff;
         border-radius: 14px;
-        margin: 0 auto 22px;
+        margin: 0 auto 14px;
         color: #1a3358;
       }
       .pr-lock-title {
@@ -253,7 +273,7 @@ function internalEmployeeLoginHtml(message = '') {
         line-height: 1.4;
       }
       .pr-lock-subtitle {
-        margin: 0 0 24px;
+        margin: 0 0 16px;
         font-size: 0.875rem;
         color: #64748b;
         text-align: center;
@@ -270,9 +290,8 @@ function internalEmployeeLoginHtml(message = '') {
         text-align: right;
       }
       .pr-lock-form-inner {
-        width: 60%;
-        min-width: 160px;
-        max-width: 220px;
+        width: 100%;
+        max-width: 260px;
         margin: 0 auto;
       }
       .pr-lock-field {
@@ -320,8 +339,9 @@ function internalEmployeeLoginHtml(message = '') {
         all: unset;
         box-sizing: border-box;
         display: block;
-        width: 100%;
-        padding: 10px 16px;
+        width: 150px;
+        min-height: 38px;
+        padding: 0 16px;
         font-size: 0.92rem;
         font-family: inherit;
         font-weight: 600;
@@ -337,9 +357,9 @@ function internalEmployeeLoginHtml(message = '') {
       .pr-lock-btn:hover { opacity: 0.87; }
       .pr-lock-btn:active { transform: scale(0.98); opacity: 0.9; }
       @media (max-width: 480px) {
-        .pr-lock-card { padding: 28px 20px 24px; border-radius: 14px; }
+        .pr-lock-card { width: min(92vw, 420px); padding: 20px; border-radius: 14px; }
         .pr-lock-wrap { padding: 20px 12px; align-items: flex-start; padding-top: 40px; }
-        .pr-lock-form-inner { width: 80%; max-width: 240px; }
+        .pr-lock-form-inner { max-width: 260px; }
       }
     </style>
     <div class="pr-lock-wrap" dir="rtl">
@@ -351,7 +371,7 @@ function internalEmployeeLoginHtml(message = '') {
           </svg>
         </div>
         <h2 class="pr-lock-title" id="pr-lock-title">דוחות אישיים</h2>
-        <p class="pr-lock-subtitle">אימות נוסף לדוחות אישיים<br>אזור זה כולל מידע רגיש — הזינו קוד התחברות להצגת הדוחות שלי</p>
+        <p class="pr-lock-subtitle">אימות נוסף לדוחות אישיים — אזור זה כולל מידע רגיש. הזינו קוד התחברות להצגת הדוחות שלי</p>
         ${message ? `<div class="pr-lock-error" role="alert">${escapeHtml(message)}</div>` : ''}
         <form id="pr-internal-login-form" autocomplete="off">
           <div class="pr-lock-form-inner">
@@ -359,7 +379,7 @@ function internalEmployeeLoginHtml(message = '') {
               <label class="pr-lock-label" for="pr-internal-access-code">קוד התחברות</label>
               <input class="pr-lock-input" id="pr-internal-access-code" name="access_code" type="password" autocomplete="off" placeholder="••••" required />
             </div>
-            <button class="pr-lock-btn" type="submit">כניסה לדוחות</button>
+            <button class="pr-lock-btn" type="submit">כניסה</button>
           </div>
         </form>
       </div>
@@ -693,6 +713,7 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
   const totalSickDays = sumAbsenceDays(absences, 'sick');
   const totalDeclarationDays = sumAbsenceDays(absences, 'declaration');
   const generatedAt = new Date().toLocaleString('he-IL');
+  const reportPeriod = reportPeriodRange(report.report_month, report.report_year);
   const title = `דוח אישי חודשי לשכר - ${employeeName} - ${monthLabel(report.report_month, report.report_year)}`;
 
   const travelRows = travel.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>${fmtNum(r.roundtrip_km)}</td><td>₪${fmt(r.amount)}</td></tr>`);
@@ -710,10 +731,11 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
       body{font-family:Arial,'Assistant',sans-serif;margin:24px;color:#0f172a;direction:rtl} h1{font-size:22px;margin:0 0 12px} h2{font-size:15px;margin:22px 0 8px}.meta,.summary{display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:8px;max-width:680px}.box{border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;background:#f8fafc}.label{display:block;font-size:11px;color:#64748b}.value{font-weight:700}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:right}th{background:#e2e8f0}.empty{text-align:center;color:#64748b}.print-actions{margin-bottom:14px}@media print{.print-actions{display:none}body{margin:12mm}}
     </style></head><body>
     <div class="print-actions"><button onclick="window.print()">הדפסה / שמירה כ-PDF</button></div>
-    <h1>דוח אישי חודשי לשכר</h1>
+    <h1>דוח אישי לשכר</h1>
     <section class="meta">
       <div class="box"><span class="label">שם העובד</span><span class="value">${escapeHtml(employeeName)}</span></div>
       <div class="box"><span class="label">חודש הדיווח</span><span class="value">${escapeHtml(monthLabel(report.report_month, report.report_year))}</span></div>
+      <div class="box"><span class="label">תקופת הדיווח עד ה־25</span><span class="value">${escapeHtml(reportPeriod.label)}</span></div>
       <div class="box"><span class="label">תאריך הפקה</span><span class="value">${escapeHtml(generatedAt)}</span></div>
       <div class="box"><span class="label">סטטוס</span><span class="value">${escapeHtml(forcedStatus)}</span></div>
     </section>
@@ -751,6 +773,7 @@ function simulationBannerHtml(employeeName) {
 function employeeDashboardHtml(profile, { isSimulation = false } = {}) {
   const { month, year } = currentMonthYear();
   const currentLabel = monthLabel(month, year);
+  const period = reportPeriodRange(month, year);
 
   const adminCard = (isAdminRole(profile.role) && !isSimulation) ? `
     <div class="pr-card pr-card--highlight pr-admin-entry-card">
@@ -770,14 +793,39 @@ function employeeDashboardHtml(profile, { isSimulation = false } = {}) {
           ? `<button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="exit-simulation">← חזרה למסך ניהול</button>`
           : `<button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-dashboard">← חזרה לדשבורד</button>`}
         <span class="pr-topbar__title">דוחות אישיים</span>
-        <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="lock-screen" type="button" style="margin-right:auto" title="נעל מסך">🔒 נעל</button>
+        <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="lock-screen" type="button" style="margin-right:auto" title="יציאה מהאזור הפנימי">יציאה</button>
       </div>
       <div class="pr-body pr-landing-body">
         ${adminCard}
-        <div class="pr-card pr-current-report-loader" role="status" aria-live="polite">
-          <strong>דוח אישי — ${escapeHtml(currentLabel)}</strong>
-          <span>טוען את דוח החודש הנוכחי…</span>
-        </div>
+        <section class="pr-card pr-my-reports-card" aria-label="הדוחות שלי">
+          <div class="pr-my-reports-head">
+            <div>
+              <span class="pr-eyebrow">אזור אישי נעול</span>
+              <h1 class="pr-my-reports-title">הדוחות שלי</h1>
+            </div>
+            <span class="pr-my-reports-user">${escapeHtml(profile.full_name || '')}</span>
+          </div>
+          <div class="pr-month-list" role="list" aria-label="רשימת חודשים לדיווח">
+            <div class="pr-month-row" role="listitem">
+              <div class="pr-month-cell pr-month-cell--main">
+                <span class="pr-month-label">חודש דיווח</span>
+                <strong>${escapeHtml(currentLabel)}</strong>
+              </div>
+              <div class="pr-month-cell">
+                <span class="pr-month-label">תקופת דיווח</span>
+                <span>${escapeHtml(period.label)}</span>
+              </div>
+              <div class="pr-month-cell">
+                <span class="pr-month-label">סטטוס</span>
+                ${dsStatusChip('פתוח לדיווח', 'neutral')}
+              </div>
+              <div class="pr-month-actions">
+                <button class="pr-btn pr-btn--primary pr-btn--sm" type="button"
+                  data-pr-action="open-month-report" data-report-month="${month}" data-report-year="${year}">פתיחה</button>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   `;
@@ -816,6 +864,7 @@ function sectionMetricHtml(label, value) {
 function reportDetailHtml(report, travel, expenses, absences, attachments, profile, { isSimulation = false } = {}) {
   const editable = canEdit(report);
   const monthYearLabel = monthLabel(report.report_month, report.report_year);
+  const reportPeriod = reportPeriodRange(report.report_month, report.report_year);
   const statusChip = dsStatusChip(STATUS_LABELS[report.status] || report.status, STATUS_KIND[report.status] || 'neutral');
   const statusText = STATUS_LABELS[report.status] || report.status;
 
@@ -1125,7 +1174,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
       <button class="pr-btn pr-btn--primary pr-btn--large pr-submit-btn"
         id="pr-submit-btn" data-pr-action="submit-report"
         data-report-id="${escapeHtml(report.id)}" disabled>
-        שלח דוח חודשי
+        אישור ושליחה
       </button>
     </div>
   ` : editable && isSimulation ? `
@@ -1135,6 +1184,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   ` : `
     <div class="pr-card pr-submit-card pr-submit-card--locked">
       <span class="pr-locked-msg">🔒 הדוח נעול לעריכה — סטטוס: ${escapeHtml(statusText)}</span>
+      <button class="pr-btn pr-btn--secondary pr-btn--sm" type="button" data-pr-action="download-report-pdf" data-report-id="${escapeHtml(report.id)}">הורדת PDF</button>
     </div>
   `;
 
@@ -1145,9 +1195,11 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <section class="pr-card pr-report-hero-card" aria-label="כותרת דוח חודשי">
           <div class="pr-report-hero-card__main">
             <span class="pr-eyebrow">דוחות אישיים</span>
-            <h1 class="pr-report-hero-card__title">דוח אישי — ${escapeHtml(monthYearLabel)}</h1>
+            <h1 class="pr-report-hero-card__title">דוח אישי לשכר — ${escapeHtml(monthYearLabel)}</h1>
             <div class="pr-report-hero-card__meta">
               <span>${escapeHtml(profile.full_name || '')}</span>
+              <span aria-hidden="true">•</span>
+              <span>תקופת דיווח: ${escapeHtml(reportPeriod.label)}</span>
               <span aria-hidden="true">•</span>
               <span>סטטוס: ${statusChip}</span>
             </div>
@@ -1159,13 +1211,22 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
 
         <nav class="pr-report-tabs" role="tablist" aria-label="אזורי הדוח">
           <button class="pr-report-tab is-active" type="button" role="tab" aria-selected="true" data-pr-action="switch-report-tab" data-tab="salary">
-            <span>סיכום לשכר</span>
+            <span>פרטי הדוח</span>
           </button>
           <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="travel">
             <span>נסיעות</span>${tabCountBadge(travel.length)}
           </button>
           <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="expenses">
             <span>הוצאות</span>${tabCountBadge(expenses.length)}
+          </button>
+          <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="absences">
+            <span>ימי חופש / מחלה / הצהרה</span>${tabCountBadge(absences.length)}
+          </button>
+          <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="attachments">
+            <span>אסמכתאות</span>${tabCountBadge(attachments.length)}
+          </button>
+          <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="approval">
+            <span>סיכום ואישור</span>
           </button>
         </nav>
 
@@ -1233,24 +1294,34 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
           <div class="pr-report-identity">
             <div class="pr-id-item"><span class="pr-id-label">עובד</span><strong>${escapeHtml(profile.full_name || '')}</strong></div>
             <div class="pr-id-item"><span class="pr-id-label">חודש דיווח</span><strong>${escapeHtml(monthYearLabel)}</strong></div>
+            <div class="pr-id-item"><span class="pr-id-label">תקופת דיווח</span><strong>${escapeHtml(reportPeriod.label)}</strong></div>
             <div class="pr-id-item"><span class="pr-id-label">סטטוס</span>${statusChip}</div>
             <div class="pr-id-item"><span class="pr-id-label">סה"כ נסיעות</span><strong>₪${fmt(totalTravel)}</strong></div>
             <div class="pr-id-item"><span class="pr-id-label">סה"כ הוצאות</span><strong>₪${fmt(totalExpenses)}</strong></div>
           </div>
-          ${leaveSection}
         </section>
-        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="salary">
+        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="absences">
           <div class="pr-section-head">
             <div>
               <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">קבצים מצורפים</h2>
+              <h2 class="pr-section-title">ימי חופש / מחלה / הצהרה</h2>
+            </div>
+            ${sectionMetricHtml('ימים מחושבים', `${fmtNum(totalVacationDays + totalSickDays + totalDeclarationDays)}`)}
+          </div>
+          ${leaveSection}
+        </section>
+        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="attachments">
+          <div class="pr-section-head">
+            <div>
+              <span class="pr-section-kicker">כרטיס נתונים</span>
+              <h2 class="pr-section-title">אסמכתאות</h2>
             </div>
           </div>
           <div class="pr-attachments-list">${attachRows}</div>
           ${uploadBtn}
         </section>
 
-        <div class="pr-tab-panel" data-tab-panel="salary">${submitSection}</div>
+        <div class="pr-tab-panel" data-tab-panel="approval">${submitSection}</div>
       </div>
     </div>
   `;
@@ -1542,6 +1613,7 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
           <div class="pr-report-identity">
             <div class="pr-id-item"><span class="pr-id-label">עובד</span><strong>${escapeHtml(profile.full_name || '')}</strong></div>
             <div class="pr-id-item"><span class="pr-id-label">חודש דיווח</span><strong>${escapeHtml(monthYearLabel)}</strong></div>
+            <div class="pr-id-item"><span class="pr-id-label">תקופת דיווח</span><strong>${escapeHtml(reportPeriod.label)}</strong></div>
             <div class="pr-id-item"><span class="pr-id-label">סטטוס</span>${statusChip}</div>
           </div>
           <div class="pr-meta-grid">
@@ -1630,26 +1702,6 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
 
 function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
   const employeeId = isSimulation ? prViewAsEmployee?.id : prSession?.user?.id;
-  let didOpenCurrentReport = false;
-
-  async function openCurrentMonthReport(initialTab = 'salary') {
-    if (didOpenCurrentReport || !employeeId) return;
-    didOpenCurrentReport = true;
-    const { month, year } = currentMonthYear();
-    try {
-      const report = await getOrCreateReport(employeeId, month, year);
-      await safeOpenReportDetail(root, report.id, false, { isSimulation, initialTab });
-    } catch (err) {
-      didOpenCurrentReport = false;
-      const loader = root.querySelector('.pr-current-report-loader');
-      if (loader) {
-        loader.innerHTML = `<strong>דוח אישי — ${escapeHtml(monthLabel(month, year))}</strong><span class="pr-alert pr-alert--danger" role="alert">${escapeHtml(friendlyPersonalReportsError(err))}</span>`;
-      } else {
-        showToast(friendlyPersonalReportsError(err), 'danger');
-      }
-    }
-  }
-
   root.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-pr-action]');
     if (!btn) return;
@@ -1671,25 +1723,34 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
     }
     if (action === 'admin-mode-manage') { prAdminMode = 'manage'; await rerender(root, _dashboardUser); return; }
 
-    if (action === 'open-existing-report') {
-      const rid = btn.dataset.reportId;
-      if (rid) await safeOpenReportDetail(root, rid, false, { isSimulation, initialTab: 'salary' });
+    if (action === 'open-month-report') {
+      if (!employeeId) return;
+      const month = Number(btn.dataset.reportMonth || 0);
+      const year = Number(btn.dataset.reportYear || 0);
+      try {
+        btn.disabled = true;
+        btn.textContent = 'פותח…';
+        const report = await getOrCreateReport(employeeId, month, year);
+        await safeOpenReportDetail(root, report.id, false, { isSimulation, initialTab: 'salary' });
+      } catch (err) {
+        showToast(friendlyPersonalReportsError(err), 'danger');
+        btn.disabled = false;
+        btn.textContent = 'פתיחה';
+      }
       return;
     }
   });
 
   root.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
-      const card = e.target.closest('[data-pr-action="open-existing-report"]');
+      const card = e.target.closest('[data-pr-action="open-month-report"]');
       if (card) card.click();
     }
   });
-
-  openCurrentMonthReport('salary');
 }
 
 function setReportTab(root, tab = 'salary') {
-  const allowed = new Set(['expenses', 'travel', 'salary']);
+  const allowed = new Set(['expenses', 'travel', 'salary', 'absences', 'attachments', 'approval']);
   const activeTab = allowed.has(tab) ? tab : 'salary';
   root.querySelectorAll('.pr-report-tab').forEach((btn) => {
     const isActive = btn.dataset.tab === activeTab;
@@ -1799,6 +1860,14 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         await openMonthlyReportPdf(prSelectedReport.id, 'אושר לשכר');
         await safeOpenReportDetail(root, prSelectedReport.id, false);
         showToast('הדוח נשלח לשכר וה-PDF הופק', 'success');
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
+      return;
+    }
+
+    if (action === 'download-report-pdf') {
+      try {
+        await openMonthlyReportPdf(btn.dataset.reportId || prSelectedReport?.id, 'אושר / נשלח לשכר');
+        showToast('PDF מוכן להורדה / שמירה', 'success');
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
@@ -2090,6 +2159,14 @@ function bindAdminReportView(root) {
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
+    if (action === 'download-report-pdf') {
+      try {
+        await openMonthlyReportPdf(btn.dataset.reportId || prSelectedReport?.id, 'אושר / נשלח לשכר');
+        showToast('PDF מוכן להורדה / שמירה', 'success');
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
+      return;
+    }
+
     if (action === 'view-attachment') {
       try {
         const url = await getSignedUrl(btn.dataset.storagePath);
