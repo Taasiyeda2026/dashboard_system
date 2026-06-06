@@ -1464,6 +1464,7 @@ function backgroundSyncBootstrap() {
       state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
       state.user.can_review_requests = permissionEnabled(bootstrap.can_review_requests);
       state.user.finance_access = !!bootstrap.has_finance_access;
+      state.user.can_access_personal_reports = !!bootstrap.has_personal_reports_access;
       localStorage.setItem('dashboard_user', JSON.stringify(state.user));
     }
     const routesChanged = normalizedRoutes.length !== prevRouteSet.size ||
@@ -1509,6 +1510,7 @@ async function restoreSession() {
     state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
     state.user.can_review_requests = permissionEnabled(bootstrap.can_review_requests);
     state.user.finance_access = !!bootstrap.has_finance_access;
+    state.user.can_access_personal_reports = !!bootstrap.has_personal_reports_access;
     localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   }
   refreshOpenEditRequestsCount().catch(() => {});

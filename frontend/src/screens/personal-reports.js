@@ -12,7 +12,21 @@
 
 import { supabase } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
-import { dsPageHeader, dsEmptyState, dsStatusChip } from './shared/layout.js';
+import { dsPageHeader, dsEmptyState, dsStatusChip, dsScreenStack } from './shared/layout.js';
+
+// ─── permission ────────────────────────────────────────────────────────────────
+
+function permissionYes(value) {
+  return value === true || ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
+}
+
+function canAccessPersonalReports(user = {}) {
+  return permissionYes(user?.can_access_personal_reports);
+}
+
+function personalReportsAccessDeniedHtml() {
+  return dsScreenStack(`${dsPageHeader('דוחות אישיים', 'גישה מוגבלת')} ${dsEmptyState('אין הרשאה לצפייה בדוחות אישיים.')}`);
+}
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -2506,12 +2520,16 @@ async function rerender(root, dashboardUser) {
 export const personalReportsScreen = {
   load: () => Promise.resolve({}),
 
-  render(_data, _ctx) {
+  render(_data, ctx) {
+    if (!canAccessPersonalReports(ctx?.state?.user)) {
+      return personalReportsAccessDeniedHtml();
+    }
     return `<div id="pr-root" class="pr-module-root" dir="rtl"><div class="pr-loading-placeholder">טוען…</div></div>`;
   },
 
   bind({ root, state } = {}) {
     const prRoot = (root && root.querySelector('#pr-root')) || root;
+    if (!canAccessPersonalReports(state?.user)) return;
     _dashboardUser = state?.user || null;
     const view = prRoot?.ownerDocument?.defaultView || globalThis.window;
 

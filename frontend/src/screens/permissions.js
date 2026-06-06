@@ -13,7 +13,8 @@ const KEY_PERM_FLAGS = [
   'view_permissions',
   'view_catalog',
   'view_orders',
-  'finance_access'
+  'finance_access',
+  'can_access_personal_reports'
 ];
 
 const PERMISSION_ROLE_OPTIONS = [
