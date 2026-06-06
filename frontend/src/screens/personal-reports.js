@@ -288,13 +288,37 @@ function firstUuid(...values) {
   return values.map((value) => String(value || '').trim()).find(isUuid) || '';
 }
 
+function dashboardUserForAuth() {
+  return _dashboardUser || null;
+}
+
+function normalizeAccessCode(value) {
+  if (value == null) return '';
+  return String(value).trim();
+}
+
+function internalLoginErrorMessage(error) {
+  const raw = String(error?.message || error?.code || error || '').trim();
+  if (/missing_employee_uuid/i.test(raw)) {
+    return 'לא נמצא מזהה עובד תקין במערכת. יש לצאת ולהיכנס מחדש לדשבורד, ואז לנסות שוב.';
+  }
+  return friendlyPersonalReportsError(error, 'הקוד שהוזן אינו תקין. יש לבדוק ולנסות שוב.');
+}
+
+function personalReportsNeedsShellRerender(root) {
+  return !!root?.querySelector?.('.pr-loading-placeholder');
+}
+
 function friendlyPersonalReportsError(error, fallback = 'אירעה תקלה בטעינת הדוחות. יש לנסות שוב או לפנות למנהל המערכת.') {
   const raw = String(error?.message || error?.code || error || '').trim();
   if (/invalid input syntax for type uuid|uuid/i.test(raw)) {
     return 'פרטי ההתחברות אינם תקינים. יש לבדוק את קוד העובד ולנסות שוב.';
   }
-  if (/invalid_credentials|entry_code_mismatch|user_not_found|not_found|missing/i.test(raw)) {
+  if (/invalid_credentials|entry_code_mismatch|user_not_found|not_found/i.test(raw)) {
     return 'פרטי ההתחברות אינם תקינים. יש לבדוק את קוד העובד ולנסות שוב.';
+  }
+  if (/missing_employee_uuid/i.test(raw)) {
+    return 'לא נמצא מזהה עובד תקין במערכת. יש לצאת ולהיכנס מחדש לדשבורד, ואז לנסות שוב.';
   }
   if (/missing_expense_receipts/i.test(raw)) {
     return 'לא ניתן לשלוח או לאשר לשכר: קיימת הוצאה כספית ללא קובץ אסמכתא / קבלה.';
@@ -531,7 +555,8 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
 // ─── supabase API ─────────────────────────────────────────────────────────────
 
 async function authenticateInternalEmployee(dashboardUser, accessCode) {
-  const enteredCode = String(accessCode || '').trim();
+  const user = dashboardUser || dashboardUserForAuth();
+  const enteredCode = normalizeAccessCode(accessCode);
   if (!enteredCode) {
     throw new Error('invalid_credentials');
   }
@@ -558,11 +583,12 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
 
   // Step 3: the UUID for report queries comes exclusively from the
   // already-authenticated dashboard session — never from the entered code.
-  const authUserId = String(
-    dashboardUser?.auth_user_id ||
-    dashboardUser?.personal_reports_user_id ||
-    ''
-  ).trim();
+  const authUserId = firstUuid(
+    user?.auth_user_id,
+    user?.personal_reports_user_id,
+    user?.supabase_user_id,
+    user?.id
+  );
   if (!isUuid(authUserId)) {
     throw new Error('missing_employee_uuid');
   }
@@ -570,10 +596,10 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
   const profile = {
     id: authUserId,
     email: sessionEmail,
-    full_name: String(dashboardUser?.full_name || sessionEmail).trim(),
-    role: isAdminRole(dashboardUser?.display_role || dashboardUser?.role) ? 'admin' : 'employee',
-    display_role: String(dashboardUser?.display_role || dashboardUser?.role || '').trim(),
-    emp_id: String(dashboardUser?.emp_id || dashboardUser?.employee_id || '').trim()
+    full_name: String(user?.full_name || sessionEmail).trim(),
+    role: isAdminRole(user?.display_role || user?.role) ? 'admin' : 'employee',
+    display_role: String(user?.display_role || user?.role || '').trim(),
+    emp_id: String(user?.emp_id || user?.employee_id || '').trim()
   };
 
   return { user: { id: authUserId }, profile, needsInternalAuth: false };
@@ -1920,7 +1946,7 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
     if (action === 'lock-screen') {
       resetPersonalReportsAuth();
       renderInto(root, internalEmployeeLoginHtml());
-      bindInternalEmployeeLogin(root, _dashboardUser);
+      bindInternalEmployeeLogin(root);
       return;
     }
     if (action === 'back-to-dashboard') {
@@ -2606,7 +2632,7 @@ function dispatchBackToDashboard() {
   document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
 }
 
-function bindInternalEmployeeLogin(root, dashboardUser) {
+function bindInternalEmployeeLogin(root) {
   root.__prLoginAbort?.abort();
   const loginAbort = new AbortController();
   root.__prLoginAbort = loginAbort;
@@ -2614,39 +2640,50 @@ function bindInternalEmployeeLogin(root, dashboardUser) {
   root.querySelector('[data-pr-action="back-to-dashboard"]')?.addEventListener('click', dispatchBackToDashboard, { signal });
   root.querySelector('#pr-internal-login-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (signal.aborted) return;
     const form = event.currentTarget;
     const submit = form.querySelector('button[type="submit"]');
     const fd = new FormData(form);
-    const accessCode = fd.get('access_code');
+    const accessCode = normalizeAccessCode(fd.get('access_code'));
+    const dashboardUser = dashboardUserForAuth();
     if (submit) {
       submit.disabled = true;
       submit.textContent = 'בודק אימות…';
     }
     try {
       prSession = await authenticateInternalEmployee(dashboardUser, accessCode);
+      if (signal.aborted) return;
       prSelectedReport = null;
       prViewAsEmployee = null;
       prAdminMode = 'my';
       isPersonalReportsUnlocked = true;
       await rerender(root, dashboardUser);
     } catch (err) {
+      if (signal.aborted) return;
       isPersonalReportsUnlocked = false;
-      renderInto(root, internalEmployeeLoginHtml('הקוד שהוזן אינו תקין. יש לבדוק ולנסות שוב.'));
-      bindInternalEmployeeLogin(root, dashboardUser);
+      renderInto(root, internalEmployeeLoginHtml(internalLoginErrorMessage(err)));
+      bindInternalEmployeeLogin(root);
+    } finally {
+      if (signal.aborted) return;
+      if (submit) {
+        submit.disabled = false;
+        submit.textContent = 'כניסה';
+      }
     }
   }, { signal });
 }
 
-async function rerender(root, dashboardUser, { forceReload = false } = {}) {
+async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceReload = false } = {}) {
+  const activeDashboardUser = dashboardUser || dashboardUserForAuth();
   if (!isPersonalReportsUnlocked) {
     renderInto(root, internalEmployeeLoginHtml());
-    bindInternalEmployeeLogin(root, dashboardUser);
+    bindInternalEmployeeLogin(root);
     return;
   }
   if (!prSession || !prSession.user?.id) {
     isPersonalReportsUnlocked = false;
-    renderInto(root, internalEmployeeLoginHtml('הקוד שהוזן אינו תקין. יש לבדוק ולנסות שוב.'));
-    bindInternalEmployeeLogin(root, dashboardUser);
+    renderInto(root, internalEmployeeLoginHtml(internalLoginErrorMessage('missing_employee_uuid')));
+    bindInternalEmployeeLogin(root);
     return;
   }
   if (isAdminRole(prSession.profile.role) && prAdminMode === 'my' && !prViewAsEmployee) {
@@ -2693,21 +2730,32 @@ export const personalReportsScreen = {
   bind({ root, state } = {}) {
     const prRoot = (root && root.querySelector('#pr-root')) || root;
     if (!canAccessPersonalReports(state?.user)) return;
-    _dashboardUser = state?.user || null;
+    _dashboardUser = state?.user || _dashboardUser || null;
     const view = prRoot?.ownerDocument?.defaultView || globalThis.window;
     const preserveSession = _prScreenBound && isPersonalReportsUnlocked && prSession;
+    const preserveLoginScreen = _prScreenBound && !isPersonalReportsUnlocked;
+    const needsShellRerender = personalReportsNeedsShellRerender(prRoot);
 
     _prShellAbort?.abort();
     _prShellAbort = new AbortController();
     const shellSignal = _prShellAbort.signal;
 
-    if (!preserveSession) {
+    if (preserveSession) {
+      _prScreenBound = true;
+      if (needsShellRerender) {
+        void rerender(prRoot, _dashboardUser);
+      }
+    } else if (preserveLoginScreen) {
+      _prScreenBound = true;
+      if (needsShellRerender) {
+        prSession = sessionFromDashboardState(state);
+        void rerender(prRoot, _dashboardUser);
+      }
+    } else {
       resetPersonalReportsAuth();
       prSession = sessionFromDashboardState(state);
       _prScreenBound = true;
-      rerender(prRoot, _dashboardUser);
-    } else {
-      _prScreenBound = true;
+      void rerender(prRoot, _dashboardUser);
     }
 
     const onNavigateAway = () => {
