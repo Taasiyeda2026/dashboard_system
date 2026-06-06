@@ -302,13 +302,16 @@ function internalEmployeeLoginHtml(message = '') {
         text-align: right;
       }
       .pr-lock-form-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         width: 100%;
-        max-width: 260px;
         margin: 0 auto;
       }
       .pr-lock-field {
         display: flex;
         flex-direction: column;
+        align-items: center;
         gap: 6px;
         margin-bottom: 14px;
       }
@@ -322,7 +325,8 @@ function internalEmployeeLoginHtml(message = '') {
         all: unset;
         box-sizing: border-box;
         display: block;
-        width: 100%;
+        width: 260px;
+        max-width: 100%;
         padding: 10px 12px;
         font-size: 1rem;
         font-family: inherit;
@@ -352,6 +356,7 @@ function internalEmployeeLoginHtml(message = '') {
         box-sizing: border-box;
         display: block;
         width: 150px;
+        flex-shrink: 0;
         min-height: 38px;
         padding: 0 16px;
         font-size: 0.92rem;
@@ -371,7 +376,7 @@ function internalEmployeeLoginHtml(message = '') {
       @media (max-width: 480px) {
         .pr-lock-card { width: min(92vw, 420px); padding: 20px; border-radius: 14px; }
         .pr-lock-wrap { padding: 20px 12px; align-items: flex-start; padding-top: 40px; }
-        .pr-lock-form-inner { max-width: 260px; }
+        .pr-lock-input { width: min(260px, 100%); }
       }
     </style>
     <div class="pr-lock-wrap" dir="rtl">
