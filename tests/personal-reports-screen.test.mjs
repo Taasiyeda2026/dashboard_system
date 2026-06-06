@@ -119,7 +119,7 @@ test('monthly report detail keeps the compact five-tab employee workflow', async
   assert.doesNotMatch(source, /<span>אסמכתאות<\/span>|<span>סיכום ואישור<\/span>/);
   assert.equal(source.match(/הוספת נסיעה/g)?.length, 1);
   assert.equal(source.match(/הוספת הוצאה/g)?.length, 1);
-  assert.equal(source.match(/summaryPillHtml\('סה"כ להחזר'/g)?.length, 1);
+  assert.doesNotMatch(source, /summaryPillHtml\('סה"כ להחזר'/);
   assert.match(source, /compactEmptyRowHtml\('אין נסיעות מדווחות לחודש זה\.'\)/);
   assert.match(source, /compactEmptyRowHtml\('לא נוספו הוצאות לחודש זה\.'\)/);
   assert.match(source, /compactEmptyRowHtml\('לא דווחו ימי חופש, מחלה או הצהרה לחודש זה\.'\)/);
@@ -169,6 +169,6 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 581;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 581;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 582;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 582;/);
 });

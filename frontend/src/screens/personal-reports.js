@@ -961,7 +961,6 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   const totalTravelKm  = travel.reduce((s, r) => s + Number(r.roundtrip_km || 0), 0);
   const totalTravel    = travel.reduce((s, r) => s + Number(r.amount || 0), 0);
   const totalExpenses  = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const totalAll       = totalTravel + totalExpenses;
   const totalVacationDays = sumAbsenceDays(absences, 'vacation');
   const totalSickDays = sumAbsenceDays(absences, 'sick');
   const totalDeclarationDays = sumAbsenceDays(absences, 'declaration');
@@ -1233,7 +1232,6 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   const detailsSummary = [
     totalExpenses > 0 ? summaryPillHtml('סה"כ הוצאות', `₪${fmt(totalExpenses)}`) : '',
     totalTravel > 0 ? summaryPillHtml('סה"כ נסיעות', `₪${fmt(totalTravel)}`) : '',
-    totalAll > 0 ? summaryPillHtml('סה"כ להחזר', `₪${fmt(totalAll)}`, { highlight: true }) : '',
     totalVacationDays > 0 ? summaryPillHtml('ימי חופש', fmtNum(totalVacationDays)) : '',
     totalSickDays > 0 ? summaryPillHtml('ימי מחלה', fmtNum(totalSickDays)) : '',
     totalDeclarationDays > 0 ? summaryPillHtml('ימי הצהרה', fmtNum(totalDeclarationDays)) : ''
