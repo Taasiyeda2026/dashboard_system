@@ -13709,3 +13709,75 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pr-btn { min-width: 96px; }
   .pr-admin-table { min-width: 680px; }
 }
+
+/* Monthly personal report detail UX refresh */
+.pr-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 0 12px 10px;
+}
+.pr-status-reminder {
+  margin: 0 12px 8px;
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+.pr-period-line {
+  margin: 0 12px 10px;
+  color: #475569;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+.pr-status-events {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+.pr-status-event {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.84rem;
+}
+.pr-status-event span { color: #64748b; }
+.pr-status-event strong { color: #0f172a; text-align: left; }
+.pr-section-head__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pr-btn--add-row {
+  width: 140px;
+  min-width: 120px;
+  max-width: 160px;
+  height: 36px;
+  min-height: 34px;
+  max-height: 40px;
+  justify-content: center;
+}
+.pr-absence-choice .pr-btn {
+  min-width: 86px;
+  max-width: 110px;
+  background: #ffffff;
+}
+.pr-absence-choice .pr-btn:not(.is-active) {
+  border-color: #cbd5e1;
+  color: #1f2937;
+}
+.pr-report-detail-body .pr-submit-card {
+  margin: 14px 0 0;
+  box-shadow: none;
+}
