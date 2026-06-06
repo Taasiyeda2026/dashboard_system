@@ -959,7 +959,7 @@ function activityLayoutDocumentHtml(group) {
   </tr>`;
   }).join('');
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
-    @page { size: A4; margin: 16mm; }
+    @page { size: A4; margin: 15mm; }
     * { box-sizing: border-box; }
     body { margin: 0; background: #eef2f7; color: #0f172a; font-family: Arial, "Noto Sans Hebrew", sans-serif; line-height: 1.65; }
     .screen-actions { display: flex; justify-content: center; gap: 10px; padding: 12px; }
@@ -980,12 +980,12 @@ function activityLayoutDocumentHtml(group) {
       table-layout: fixed;
     }
 
-    col.col-date { width: 96px; }
-    col.col-start { width: 70px; }
-    col.col-end { width: 70px; }
-    col.col-grade { width: 50px; }
-    col.col-activity { width: 190px; }
-    col.col-instructor { width: auto; }
+    col.col-date { width: 25mm; }
+    col.col-start { width: 25mm; }
+    col.col-end { width: 25mm; }
+    col.col-grade { width: 20mm; }
+    col.col-activity { width: 55mm; }
+    col.col-instructor { width: 30mm; }
 
     th,
     td {
@@ -1005,23 +1005,24 @@ function activityLayoutDocumentHtml(group) {
       line-height: 1.15;
     }
 
-    td.col-date {
-      white-space: nowrap;
-      text-align: center;
-    }
-
+    th.col-date,
+    td.col-date,
+    th.col-center,
     td.col-center {
       text-align: center;
       white-space: nowrap;
     }
 
-    td.col-activity {
+    th.col-activity,
+    td.col-activity,
+    th.col-instructor,
+    td.col-instructor {
       text-align: right;
-      overflow-wrap: anywhere;
     }
 
+    td.col-activity,
     td.col-instructor {
-      text-align: center;
+      overflow-wrap: anywhere;
       white-space: normal;
     }
 
@@ -1054,7 +1055,7 @@ function activityLayoutDocumentHtml(group) {
     <p>שלום רב,</p>
     <p>בהמשך לתיאום, מצורפת פריסת הפעילויות המתוכננת במסגרת קיץ תשפ"ו | 2026.</p>
     <p>נבקש לעדכן את צוות תעשיידע מראש במקרה של שינוי בלוחות הזמנים, בהרכב הקבוצות, במיקום הפעילות או בכל צורך תפעולי אחר, כדי שנוכל להיערך בהתאם.</p>
-    <table><colgroup><col class="col-date"><col class="col-start"><col class="col-end"><col class="col-grade"><col class="col-activity"><col class="col-instructor"></colgroup><thead><tr><th>תאריך</th><th>שעת התחלה</th><th>שעת סיום</th><th>כיתה</th><th>פעילות / סדנה</th><th>מדריך</th></tr></thead><tbody>${tableRows || '<tr><td colspan="6">לא נמצאו שיבוצים להצגה.</td></tr>'}</tbody></table>
+    <table><colgroup><col class="col-date"><col class="col-start"><col class="col-end"><col class="col-grade"><col class="col-activity"><col class="col-instructor"></colgroup><thead><tr><th class="col-date">תאריך</th><th class="col-center">שעת התחלה</th><th class="col-center">שעת סיום</th><th class="col-center">כיתה</th><th class="col-activity">פעילות / סדנה</th><th class="col-instructor">מדריך</th></tr></thead><tbody>${tableRows || '<tr><td colspan="6">לא נמצאו שיבוצים להצגה.</td></tr>'}</tbody></table>
     <div class="signature">בברכה,<br>תעשיידע</div>
   </main></body></html>`;
 }
