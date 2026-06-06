@@ -164,7 +164,8 @@ test('monthly report detail UX: status accordion, travel fields, tables, icons, 
   assert.doesNotMatch(source, /summaryPillHtml\('חודש דיווח'/);
   assert.match(source, /שם מלא לחתימה/);
   assert.match(source, /signatureDisplayName/);
-  assert.match(source, /from\('profiles'\)\.select\('full_name, email'\)/);
+  assert.match(source, /function loadEmployeeProfile/);
+  assert.match(source, /\.from\('profiles'\)[\s\S]*\.select\('full_name, email'\)/);
   assert.doesNotMatch(source, new RegExp(['work', 'hour', 'entries'].join('_')));
 });
 
@@ -185,17 +186,26 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 590;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 590;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 592;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 592;/);
 });
 
 test('source guards personal reports loads with requestKey and abortable listeners', async () => {
   const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 
   assert.match(source, /function buildPersonalReportsRequestKey/);
+  assert.match(source, /function buildAdminReportsRequestKey/);
+  assert.match(source, /function buildReportRowRequestKey/);
+  assert.match(source, /function buildProfileRequestKey/);
   assert.match(source, /function runGuardedPersonalReportsLoad/);
+  assert.match(source, /const _prCompletedKeys = new Set\(\)/);
+  assert.match(source, /function loadReportRow/);
+  assert.match(source, /function loadEmployeeProfile/);
   assert.match(source, /function loadReportBundle/);
   assert.match(source, /function loadAdminReportsList/);
+  assert.match(source, /function restorePersonalReportsShellView/);
+  assert.match(source, /personalReportsReportAlreadyRendered/);
+  assert.match(source, /let _prActiveView = null/);
   assert.match(source, /load skipped duplicate/);
   assert.match(source, /personalReports load start/);
   assert.match(source, /tables loaded/);
@@ -204,7 +214,20 @@ test('source guards personal reports loads with requestKey and abortable listene
   assert.match(source, /root\.__prAdminAbort\?\.abort\(\)/);
   assert.match(source, /root\.__prEmployeeAbort\?\.abort\(\)/);
   assert.match(source, /preserveSession/);
+  assert.match(source, /preserveLoginScreen/);
+  assert.match(source, /dashboardUserForAuth/);
+  assert.match(source, /normalizeAccessCode/);
   assert.match(source, /forceReload: true/);
+});
+
+test('internal login keeps access code as trimmed string and uses current dashboard user', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /normalizeAccessCode\(fd\.get\('access_code'\)\)/);
+  assert.match(source, /const dashboardUser = dashboardUserForAuth\(\)/);
+  assert.match(source, /authenticateInternalEmployee\(dashboardUser, accessCode\)/);
+  assert.match(source, /firstUuid\([\s\S]*user\?\.auth_user_id[\s\S]*user\?\.personal_reports_user_id[\s\S]*user\?\.supabase_user_id[\s\S]*user\?\.id/);
+  assert.doesNotMatch(source, /Number\(fd\.get\('access_code'\)/);
 });
 
 test('bindReportDetail uses bindScreenListeners, AbortController, and savingForms', async () => {

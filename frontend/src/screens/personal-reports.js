@@ -62,11 +62,16 @@ let _dashboardUser   = null;   // stored on bind() so all rerender() calls have 
 let _prShellAbort    = null;
 let _prScreenBound   = false;
 let _prLoadGeneration = 0;
-let _prLastCompletedKey = '';
+const _prCompletedKeys = new Set();
 const _prInflightLoads = new Map();
 const _prReportBundleCache = new Map();
+const _prReportRowCache = new Map();
+const _prProfileCache = new Map();
+const _prOpenReportInflight = new Map();
+const _prCurrentReportCache = new Map();
 let _prCachedAdminReports = null;
 let _prLastAdminFilters = { employee: '', month: '', status: '' };
+let _prActiveView = null;
 const savingForms = new WeakSet();
 
 function personalReportsDebugEnabled() {
@@ -87,6 +92,30 @@ function buildPersonalReportsRequestKey({ employeeId = '', month = '', status = 
   return `${String(employeeId || '').trim()}|${String(month || '').trim()}|${String(status || '').trim()}|${String(reportId || '').trim()}`;
 }
 
+function buildAdminReportsRequestKey(filters = _prLastAdminFilters) {
+  return `admin-reports|${buildPersonalReportsRequestKey({
+    employeeId: filters.employee,
+    month: filters.month,
+    status: filters.status
+  })}`;
+}
+
+function buildReportRowRequestKey(reportId) {
+  return `report-row|${String(reportId || '').trim()}`;
+}
+
+function buildProfileRequestKey(employeeId) {
+  return `profile|${String(employeeId || '').trim()}`;
+}
+
+function buildOpenReportRequestKey(reportId, isAdmin = false) {
+  return `open-report|${String(reportId || '').trim()}|${isAdmin ? 'admin' : 'employee'}`;
+}
+
+function buildCurrentReportRequestKey(employeeId, month, year) {
+  return `current-report|${String(employeeId || '').trim()}|${year}-${String(month).padStart(2, '0')}`;
+}
+
 function bumpPersonalReportsLoadGeneration() {
   _prLoadGeneration += 1;
 }
@@ -94,17 +123,41 @@ function bumpPersonalReportsLoadGeneration() {
 function invalidatePersonalReportsLoadCache({ reportId = '', allReports = false } = {}) {
   if (allReports) {
     _prCachedAdminReports = null;
-    _prLastCompletedKey = '';
+    _prCurrentReportCache.clear();
+    for (const key of [..._prCompletedKeys]) {
+      if (key.startsWith('admin-reports|') || key.startsWith('current-report|')) {
+        _prCompletedKeys.delete(key);
+      }
+    }
   }
   if (reportId) {
-    for (const key of [..._prInflightLoads.keys(), ..._prReportBundleCache.keys()]) {
-      if (key.endsWith(`|${reportId}`) || key === buildPersonalReportsRequestKey({ reportId })) {
+    const reportKey = String(reportId || '').trim();
+    const relatedKeys = new Set([
+      buildPersonalReportsRequestKey({ reportId: reportKey }),
+      buildReportRowRequestKey(reportKey),
+      buildOpenReportRequestKey(reportKey, true),
+      buildOpenReportRequestKey(reportKey, false)
+    ]);
+    for (const key of [..._prInflightLoads.keys(), ..._prCompletedKeys, ..._prReportBundleCache.keys()]) {
+      if (relatedKeys.has(key) || key.endsWith(`|${reportKey}`)) {
         _prInflightLoads.delete(key);
+        _prCompletedKeys.delete(key);
         _prReportBundleCache.delete(key);
       }
     }
-    if (_prLastCompletedKey.endsWith(`|${reportId}`)) _prLastCompletedKey = '';
+    _prReportRowCache.delete(reportKey);
+    _prOpenReportInflight.delete(buildOpenReportRequestKey(reportKey, true));
+    _prOpenReportInflight.delete(buildOpenReportRequestKey(reportKey, false));
   }
+}
+
+function abortPersonalReportsScreenListeners(root) {
+  root.__prAdminAbort?.abort();
+  root.__prAdminViewAbort?.abort();
+  root.__prEmployeeAbort?.abort();
+  root.__prDetailAbort?.abort();
+  root.__prSelectorAbort?.abort();
+  root.__prLoginAbort?.abort();
 }
 
 async function runGuardedPersonalReportsLoad(requestKey, loadFn, { force = false } = {}) {
@@ -114,7 +167,7 @@ async function runGuardedPersonalReportsLoad(requestKey, loadFn, { force = false
     prDebugLog('load skipped duplicate', requestKey);
     return existing.promise;
   }
-  if (!force && _prLastCompletedKey === requestKey) {
+  if (!force && _prCompletedKeys.has(requestKey)) {
     prDebugLog('load skipped duplicate', requestKey);
     return null;
   }
@@ -127,7 +180,7 @@ async function runGuardedPersonalReportsLoad(requestKey, loadFn, { force = false
         prDebugLog('load finished (stale ignored)', requestKey);
         return result;
       }
-      _prLastCompletedKey = requestKey;
+      _prCompletedKeys.add(requestKey);
       prDebugLog('tables loaded', requestKey);
       prDebugLog('load finished', requestKey);
       return result;
@@ -288,13 +341,64 @@ function firstUuid(...values) {
   return values.map((value) => String(value || '').trim()).find(isUuid) || '';
 }
 
+function dashboardUserForAuth() {
+  return _dashboardUser || null;
+}
+
+function normalizeAccessCode(value) {
+  if (value == null) return '';
+  return String(value).trim();
+}
+
+function internalLoginErrorMessage(error) {
+  const raw = String(error?.message || error?.code || error || '').trim();
+  if (/missing_employee_uuid/i.test(raw)) {
+    return 'לא נמצא מזהה עובד תקין במערכת. יש לצאת ולהיכנס מחדש לדשבורד, ואז לנסות שוב.';
+  }
+  return friendlyPersonalReportsError(error, 'הקוד שהוזן אינו תקין. יש לבדוק ולנסות שוב.');
+}
+
+function personalReportsNeedsShellRerender(root) {
+  return !!root?.querySelector?.('.pr-loading-placeholder');
+}
+
+async function restorePersonalReportsShellView(root, { forceReload = false } = {}) {
+  if (!isPersonalReportsUnlocked || !prSession?.user?.id) {
+    _prActiveView = { kind: 'login' };
+    renderInto(root, internalEmployeeLoginHtml());
+    bindInternalEmployeeLogin(root);
+    return;
+  }
+  const view = _prActiveView;
+  if (view?.kind === 'admin-report' && view.reportId) {
+    await safeOpenReportDetail(root, view.reportId, true, {
+      isSimulation: view.isSimulation,
+      initialTab: view.initialTab || 'status',
+      forceReload
+    });
+    return;
+  }
+  if (view?.kind === 'employee-report' && view.reportId) {
+    await safeOpenReportDetail(root, view.reportId, false, {
+      isSimulation: view.isSimulation,
+      initialTab: view.initialTab || 'status',
+      forceReload
+    });
+    return;
+  }
+  await rerender(root, _dashboardUser, { forceReload });
+}
+
 function friendlyPersonalReportsError(error, fallback = 'אירעה תקלה בטעינת הדוחות. יש לנסות שוב או לפנות למנהל המערכת.') {
   const raw = String(error?.message || error?.code || error || '').trim();
   if (/invalid input syntax for type uuid|uuid/i.test(raw)) {
     return 'פרטי ההתחברות אינם תקינים. יש לבדוק את קוד העובד ולנסות שוב.';
   }
-  if (/invalid_credentials|entry_code_mismatch|user_not_found|not_found|missing/i.test(raw)) {
+  if (/invalid_credentials|entry_code_mismatch|user_not_found|not_found/i.test(raw)) {
     return 'פרטי ההתחברות אינם תקינים. יש לבדוק את קוד העובד ולנסות שוב.';
+  }
+  if (/missing_employee_uuid/i.test(raw)) {
+    return 'לא נמצא מזהה עובד תקין במערכת. יש לצאת ולהיכנס מחדש לדשבורד, ואז לנסות שוב.';
   }
   if (/missing_expense_receipts/i.test(raw)) {
     return 'לא ניתן לשלוח או לאשר לשכר: קיימת הוצאה כספית ללא קובץ אסמכתא / קבלה.';
@@ -345,7 +449,11 @@ function resetPersonalReportsAuth() {
   _prScreenBound   = false;
   bumpPersonalReportsLoadGeneration();
   invalidatePersonalReportsLoadCache({ allReports: true });
+  _prReportRowCache.clear();
+  _prProfileCache.clear();
+  _prOpenReportInflight.clear();
   _prLastAdminFilters = { employee: '', month: '', status: '' };
+  _prActiveView = null;
   // _dashboardUser is intentionally kept — it's set once on bind() and is needed
   // to re-bind the lock screen if the session is invalidated mid-navigation.
 }
@@ -531,7 +639,8 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
 // ─── supabase API ─────────────────────────────────────────────────────────────
 
 async function authenticateInternalEmployee(dashboardUser, accessCode) {
-  const enteredCode = String(accessCode || '').trim();
+  const user = dashboardUser || dashboardUserForAuth();
+  const enteredCode = normalizeAccessCode(accessCode);
   if (!enteredCode) {
     throw new Error('invalid_credentials');
   }
@@ -558,11 +667,12 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
 
   // Step 3: the UUID for report queries comes exclusively from the
   // already-authenticated dashboard session — never from the entered code.
-  const authUserId = String(
-    dashboardUser?.auth_user_id ||
-    dashboardUser?.personal_reports_user_id ||
-    ''
-  ).trim();
+  const authUserId = firstUuid(
+    user?.auth_user_id,
+    user?.personal_reports_user_id,
+    user?.supabase_user_id,
+    user?.id
+  );
   if (!isUuid(authUserId)) {
     throw new Error('missing_employee_uuid');
   }
@@ -570,10 +680,10 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
   const profile = {
     id: authUserId,
     email: sessionEmail,
-    full_name: String(dashboardUser?.full_name || sessionEmail).trim(),
-    role: isAdminRole(dashboardUser?.display_role || dashboardUser?.role) ? 'admin' : 'employee',
-    display_role: String(dashboardUser?.display_role || dashboardUser?.role || '').trim(),
-    emp_id: String(dashboardUser?.emp_id || dashboardUser?.employee_id || '').trim()
+    full_name: String(user?.full_name || sessionEmail).trim(),
+    role: isAdminRole(user?.display_role || user?.role) ? 'admin' : 'employee',
+    display_role: String(user?.display_role || user?.role || '').trim(),
+    emp_id: String(user?.emp_id || user?.employee_id || '').trim()
   };
 
   return { user: { id: authUserId }, profile, needsInternalAuth: false };
@@ -638,6 +748,66 @@ async function fetchReport(reportId) {
   const { data, error } = await supabase.from('personal_reports').select('*').eq('id', reportId).single();
   if (error) throw error;
   return data;
+}
+
+async function loadReportRow(reportId, { force = false } = {}) {
+  const normalizedId = String(reportId || '').trim();
+  if (!normalizedId) throw new Error('missing_report_id');
+  if (!force && _prReportRowCache.has(normalizedId)) {
+    prDebugLog('load skipped duplicate', buildReportRowRequestKey(normalizedId));
+    return _prReportRowCache.get(normalizedId);
+  }
+  const row = await runGuardedPersonalReportsLoad(
+    buildReportRowRequestKey(normalizedId),
+    () => fetchReport(normalizedId),
+    { force }
+  );
+  const resolved = row || _prReportRowCache.get(normalizedId);
+  if (!resolved) throw new Error('personal_report_row_unavailable');
+  _prReportRowCache.set(normalizedId, resolved);
+  return resolved;
+}
+
+async function loadEmployeeProfile(employeeId, { force = false } = {}) {
+  const normalizedId = String(employeeId || '').trim();
+  if (!normalizedId) return null;
+  if (!force && _prProfileCache.has(normalizedId)) {
+    prDebugLog('load skipped duplicate', buildProfileRequestKey(normalizedId));
+    return _prProfileCache.get(normalizedId);
+  }
+  const profile = await runGuardedPersonalReportsLoad(
+    buildProfileRequestKey(normalizedId),
+    async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', normalizedId)
+        .maybeSingle();
+      if (error) throw error;
+      return data || null;
+    },
+    { force }
+  );
+  const resolved = profile ?? _prProfileCache.get(normalizedId) ?? null;
+  if (resolved) _prProfileCache.set(normalizedId, resolved);
+  return resolved;
+}
+
+async function loadCurrentMonthReport(employeeId, month, year, { force = false } = {}) {
+  const cacheKey = `${String(employeeId || '').trim()}|${year}-${String(month).padStart(2, '0')}`;
+  const requestKey = buildCurrentReportRequestKey(employeeId, month, year);
+  if (!force && _prCurrentReportCache.has(cacheKey)) {
+    prDebugLog('load skipped duplicate', requestKey);
+    return _prCurrentReportCache.get(cacheKey);
+  }
+  const report = await runGuardedPersonalReportsLoad(
+    requestKey,
+    () => getReport(employeeId, month, year),
+    { force }
+  ).catch(() => null);
+  const resolved = report ?? _prCurrentReportCache.get(cacheKey) ?? null;
+  _prCurrentReportCache.set(cacheKey, resolved);
+  return resolved;
 }
 
 async function updateReportMeta(reportId, fields) {
@@ -836,12 +1006,8 @@ async function fetchAllReports() {
 }
 
 async function loadAdminReportsList(filters = _prLastAdminFilters, { force = false } = {}) {
-  const requestKey = buildPersonalReportsRequestKey({
-    employeeId: filters.employee,
-    month: filters.month,
-    status: filters.status
-  });
-  if (!force && _prCachedAdminReports && _prLastCompletedKey === requestKey) {
+  const requestKey = buildAdminReportsRequestKey(filters);
+  if (!force && _prCachedAdminReports && _prCompletedKeys.has(requestKey)) {
     prDebugLog('load skipped duplicate', requestKey);
     return _prCachedAdminReports;
   }
@@ -897,9 +1063,9 @@ function rowsToPrintTable(headers, rows, emptyColspan) {
 }
 
 async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר') {
-  const report = await fetchReport(reportId);
-  const [{ data: profile }, bundle] = await Promise.all([
-    supabase.from('profiles').select('full_name, email').eq('id', report.employee_id).maybeSingle(),
+  const report = await loadReportRow(reportId, { force: true });
+  const [profile, bundle] = await Promise.all([
+    loadEmployeeProfile(report.employee_id, { force: true }),
     loadReportBundle(reportId, { force: true })
   ]);
   const { travel, expenses, absences, attachments } = bundle;
@@ -1703,39 +1869,105 @@ async function loadMyReportsList(root, employeeId) {
   }
 }
 
-async function openReportDetail(root, reportId, isAdmin = false, { isSimulation = false, initialTab = 'status' } = {}) {
-  const report = await fetchReport(reportId);
-  const expectedEmployeeId = isSimulation ? prViewAsEmployee?.id : prSession?.user?.id;
-  if (!isAdmin && String(report?.employee_id || '') !== String(expectedEmployeeId || '')) {
-    throw new Error('unauthorized_report_access');
-  }
-
-  let reportProfile = prSession?.profile;
-  if (isSimulation && prViewAsEmployee) {
-    reportProfile = prViewAsEmployee;
-  } else {
-    const { data } = await supabase.from('profiles').select('full_name, email').eq('id', report.employee_id).maybeSingle();
-    if (data) {
-      reportProfile = {
-        ...(reportProfile || {}),
-        full_name: String(data.full_name || reportProfile?.full_name || '').trim(),
-        email: String(data.email || reportProfile?.email || '').trim()
-      };
-    }
-  }
-
-  const bundle = await loadReportBundle(reportId);
-  const { travel, expenses, absences, attachments } = bundle;
+function renderLoadedReportDetail(root, {
+  report,
+  reportProfile,
+  travel,
+  expenses,
+  absences,
+  attachments,
+  isAdmin = false,
+  isSimulation = false,
+  initialTab = 'status'
+} = {}) {
   prSelectedReport = report;
-
+  _prActiveView = {
+    kind: isAdmin && !isSimulation ? 'admin-report' : 'employee-report',
+    reportId: report.id,
+    isSimulation,
+    initialTab
+  };
   if (isAdmin && !isSimulation) {
     report.profiles = reportProfile;
     renderInto(root, adminReportViewHtml(report, travel, expenses, absences, attachments));
     bindAdminReportView(root);
-  } else {
-    renderInto(root, reportDetailHtml(report, travel, expenses, absences, attachments, reportProfile, { isSimulation }));
-    bindReportDetail(root, { isSimulation });
-    setReportTab(root, initialTab);
+    return;
+  }
+  renderInto(root, reportDetailHtml(report, travel, expenses, absences, attachments, reportProfile, { isSimulation }));
+  bindReportDetail(root, { isSimulation });
+  setReportTab(root, initialTab);
+}
+
+function personalReportsReportAlreadyRendered(root, reportId, isAdmin = false, { isSimulation = false } = {}) {
+  const normalizedId = String(reportId || '').trim();
+  const viewKind = isAdmin && !isSimulation ? 'admin-report' : 'employee-report';
+  return Boolean(
+    normalizedId
+    && _prActiveView?.kind === viewKind
+    && String(_prActiveView.reportId || '') === normalizedId
+    && Boolean(_prActiveView.isSimulation) === Boolean(isSimulation)
+    && prSelectedReport?.id === normalizedId
+    && root?.querySelector?.('.pr-report-form')
+  );
+}
+
+async function openReportDetail(root, reportId, isAdmin = false, { isSimulation = false, initialTab = 'status', forceReload = false } = {}) {
+  const normalizedId = String(reportId || '').trim();
+  const openKey = buildOpenReportRequestKey(normalizedId, isAdmin && !isSimulation);
+  const viewKind = isAdmin && !isSimulation ? 'admin-report' : 'employee-report';
+  if (!forceReload && personalReportsReportAlreadyRendered(root, normalizedId, isAdmin, { isSimulation })) {
+    prDebugLog('open skipped already rendered', openKey);
+    return;
+  }
+  if (!forceReload && _prOpenReportInflight.has(openKey)) {
+    prDebugLog('load skipped duplicate', openKey);
+    return _prOpenReportInflight.get(openKey);
+  }
+
+  _prActiveView = { kind: viewKind, reportId: normalizedId, isSimulation, initialTab };
+
+  const task = (async () => {
+    abortPersonalReportsScreenListeners(root);
+    const report = await loadReportRow(normalizedId, { force: forceReload });
+    const expectedEmployeeId = isSimulation ? prViewAsEmployee?.id : prSession?.user?.id;
+    if (!isAdmin && String(report?.employee_id || '') !== String(expectedEmployeeId || '')) {
+      throw new Error('unauthorized_report_access');
+    }
+
+    let reportProfile = prSession?.profile;
+    if (isSimulation && prViewAsEmployee) {
+      reportProfile = prViewAsEmployee;
+    } else {
+      const profileRow = await loadEmployeeProfile(report.employee_id, { force: forceReload });
+      if (profileRow) {
+        reportProfile = {
+          ...(reportProfile || {}),
+          full_name: String(profileRow.full_name || reportProfile?.full_name || '').trim(),
+          email: String(profileRow.email || reportProfile?.email || '').trim()
+        };
+      }
+    }
+
+    const bundle = await loadReportBundle(normalizedId, { force: forceReload });
+    const { travel, expenses, absences, attachments } = bundle;
+    renderLoadedReportDetail(root, {
+      report,
+      reportProfile,
+      travel,
+      expenses,
+      absences,
+      attachments,
+      isAdmin,
+      isSimulation,
+      initialTab
+    });
+  })();
+
+  _prOpenReportInflight.set(openKey, task);
+  try {
+    await task;
+  } finally {
+    _prOpenReportInflight.delete(openKey);
   }
 }
 
@@ -1920,7 +2152,7 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
     if (action === 'lock-screen') {
       resetPersonalReportsAuth();
       renderInto(root, internalEmployeeLoginHtml());
-      bindInternalEmployeeLogin(root, _dashboardUser);
+      bindInternalEmployeeLogin(root);
       return;
     }
     if (action === 'back-to-dashboard') {
@@ -2511,7 +2743,12 @@ function bindAdminReportView(root) {
     const action = btn.dataset.prAction;
     const reportId = btn.dataset.reportId;
 
-    if (action === 'back-to-admin') { await rerender(root, _dashboardUser); return; }
+    if (action === 'back-to-admin') {
+      _prActiveView = { kind: 'admin-list' };
+      prSelectedReport = null;
+      await rerender(root, _dashboardUser);
+      return;
+    }
 
     if (action === 'admin-approve' && reportId) {
       if (!confirm('לאשר דוח זה?')) return;
@@ -2579,7 +2816,12 @@ function bindEmployeeSelector(root) {
     if (!btn) return;
     const action = btn.dataset.prAction;
 
-    if (action === 'back-to-admin') { await rerender(root, _dashboardUser); return; }
+    if (action === 'back-to-admin') {
+      _prActiveView = { kind: 'admin-list' };
+      prSelectedReport = null;
+      await rerender(root, _dashboardUser);
+      return;
+    }
 
     if (action === 'select-view-as-employee') {
       prViewAsEmployee = {
@@ -2606,7 +2848,7 @@ function dispatchBackToDashboard() {
   document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
 }
 
-function bindInternalEmployeeLogin(root, dashboardUser) {
+function bindInternalEmployeeLogin(root) {
   root.__prLoginAbort?.abort();
   const loginAbort = new AbortController();
   root.__prLoginAbort = loginAbort;
@@ -2614,65 +2856,98 @@ function bindInternalEmployeeLogin(root, dashboardUser) {
   root.querySelector('[data-pr-action="back-to-dashboard"]')?.addEventListener('click', dispatchBackToDashboard, { signal });
   root.querySelector('#pr-internal-login-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (signal.aborted) return;
     const form = event.currentTarget;
     const submit = form.querySelector('button[type="submit"]');
     const fd = new FormData(form);
-    const accessCode = fd.get('access_code');
+    const accessCode = normalizeAccessCode(fd.get('access_code'));
+    const dashboardUser = dashboardUserForAuth();
     if (submit) {
       submit.disabled = true;
       submit.textContent = 'בודק אימות…';
     }
     try {
       prSession = await authenticateInternalEmployee(dashboardUser, accessCode);
+      if (signal.aborted) return;
       prSelectedReport = null;
       prViewAsEmployee = null;
       prAdminMode = 'my';
       isPersonalReportsUnlocked = true;
       await rerender(root, dashboardUser);
     } catch (err) {
+      if (signal.aborted) return;
       isPersonalReportsUnlocked = false;
-      renderInto(root, internalEmployeeLoginHtml('הקוד שהוזן אינו תקין. יש לבדוק ולנסות שוב.'));
-      bindInternalEmployeeLogin(root, dashboardUser);
+      renderInto(root, internalEmployeeLoginHtml(internalLoginErrorMessage(err)));
+      bindInternalEmployeeLogin(root);
+    } finally {
+      if (signal.aborted) return;
+      if (submit) {
+        submit.disabled = false;
+        submit.textContent = 'כניסה';
+      }
     }
   }, { signal });
 }
 
-async function rerender(root, dashboardUser, { forceReload = false } = {}) {
+async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceReload = false } = {}) {
+  if (!forceReload && _prActiveView?.kind === 'admin-report' && _prActiveView.reportId) {
+    await safeOpenReportDetail(root, _prActiveView.reportId, true, {
+      isSimulation: _prActiveView.isSimulation,
+      initialTab: _prActiveView.initialTab || 'status'
+    });
+    return;
+  }
+  if (!forceReload && _prActiveView?.kind === 'employee-report' && _prActiveView.reportId) {
+    await safeOpenReportDetail(root, _prActiveView.reportId, false, {
+      isSimulation: _prActiveView.isSimulation,
+      initialTab: _prActiveView.initialTab || 'status'
+    });
+    return;
+  }
+
   if (!isPersonalReportsUnlocked) {
+    _prActiveView = { kind: 'login' };
     renderInto(root, internalEmployeeLoginHtml());
-    bindInternalEmployeeLogin(root, dashboardUser);
+    bindInternalEmployeeLogin(root);
     return;
   }
   if (!prSession || !prSession.user?.id) {
     isPersonalReportsUnlocked = false;
-    renderInto(root, internalEmployeeLoginHtml('הקוד שהוזן אינו תקין. יש לבדוק ולנסות שוב.'));
-    bindInternalEmployeeLogin(root, dashboardUser);
+    _prActiveView = { kind: 'login' };
+    renderInto(root, internalEmployeeLoginHtml(internalLoginErrorMessage('missing_employee_uuid')));
+    bindInternalEmployeeLogin(root);
     return;
   }
   if (isAdminRole(prSession.profile.role) && prAdminMode === 'my' && !prViewAsEmployee) {
     const { month, year } = currentMonthYear();
-    const currentReport = await getReport(prSession.user.id, month, year).catch(() => null);
+    const currentReport = await loadCurrentMonthReport(prSession.user.id, month, year, { force: forceReload });
+    _prActiveView = { kind: 'employee-dashboard', isSimulation: false };
     renderInto(root, employeeDashboardHtml(prSession.profile, { currentReport }));
     bindEmployeeDashboard(root);
   } else if (isAdminRole(prSession.profile.role) && prViewAsEmployee) {
     const { month, year } = currentMonthYear();
-    const currentReport = await getReport(prViewAsEmployee.id, month, year).catch(() => null);
+    const currentReport = await loadCurrentMonthReport(prViewAsEmployee.id, month, year, { force: forceReload });
+    _prActiveView = { kind: 'employee-dashboard', isSimulation: true };
     renderInto(root, employeeDashboardHtml(prViewAsEmployee, { isSimulation: true, currentReport }));
     bindEmployeeDashboard(root, { isSimulation: true });
   } else if (isAdminRole(prSession.profile.role)) {
     try {
       const reports = await loadAdminReportsList(_prLastAdminFilters, { force: forceReload });
+      _prActiveView = { kind: 'admin-list' };
+      prSelectedReport = null;
       renderInto(root, adminDashboardHtml(reports || []));
       bindAdminDashboard(root);
       const filters = readAdminFilters(root);
       if (filters.employee || filters.month || filters.status) applyAdminFilters(root);
     } catch (err) {
+      _prActiveView = { kind: 'admin-list' };
       renderInto(root, adminManagePlaceholderHtml(friendlyPersonalReportsError(err, 'אזור ניהול דוחות עובדים לא נטען כרגע.')));
       bindAdminDashboard(root);
     }
   } else {
     const { month, year } = currentMonthYear();
-    const currentReport = await getReport(prSession.user.id, month, year).catch(() => null);
+    const currentReport = await loadCurrentMonthReport(prSession.user.id, month, year, { force: forceReload });
+    _prActiveView = { kind: 'employee-dashboard', isSimulation: false };
     renderInto(root, employeeDashboardHtml(prSession.profile, { currentReport }));
     bindEmployeeDashboard(root);
   }
@@ -2693,21 +2968,32 @@ export const personalReportsScreen = {
   bind({ root, state } = {}) {
     const prRoot = (root && root.querySelector('#pr-root')) || root;
     if (!canAccessPersonalReports(state?.user)) return;
-    _dashboardUser = state?.user || null;
+    _dashboardUser = state?.user || _dashboardUser || null;
     const view = prRoot?.ownerDocument?.defaultView || globalThis.window;
     const preserveSession = _prScreenBound && isPersonalReportsUnlocked && prSession;
+    const preserveLoginScreen = _prScreenBound && !isPersonalReportsUnlocked;
+    const needsShellRerender = personalReportsNeedsShellRerender(prRoot);
 
     _prShellAbort?.abort();
     _prShellAbort = new AbortController();
     const shellSignal = _prShellAbort.signal;
 
-    if (!preserveSession) {
+    if (preserveSession) {
+      _prScreenBound = true;
+      if (needsShellRerender) {
+        void restorePersonalReportsShellView(prRoot);
+      }
+    } else if (preserveLoginScreen) {
+      _prScreenBound = true;
+      if (needsShellRerender) {
+        prSession = sessionFromDashboardState(state);
+        void restorePersonalReportsShellView(prRoot);
+      }
+    } else {
       resetPersonalReportsAuth();
       prSession = sessionFromDashboardState(state);
       _prScreenBound = true;
-      rerender(prRoot, _dashboardUser);
-    } else {
-      _prScreenBound = true;
+      void rerender(prRoot, _dashboardUser);
     }
 
     const onNavigateAway = () => {
