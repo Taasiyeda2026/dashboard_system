@@ -59,7 +59,97 @@ let prViewAsEmployee = null;
 let prAdminMode      = 'my';
 let isPersonalReportsUnlocked = false;
 let _dashboardUser   = null;   // stored on bind() so all rerender() calls have it
+let _prShellAbort    = null;
+let _prScreenBound   = false;
+let _prLoadGeneration = 0;
+let _prLastCompletedKey = '';
+const _prInflightLoads = new Map();
+const _prReportBundleCache = new Map();
+let _prCachedAdminReports = null;
+let _prLastAdminFilters = { employee: '', month: '', status: '' };
 const savingForms = new WeakSet();
+
+function personalReportsDebugEnabled() {
+  try {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('pr_debug') === '1') return true;
+  } catch { /* ignore */ }
+  return false;
+}
+
+function prDebugLog(message, detail = '') {
+  if (!personalReportsDebugEnabled()) return;
+  try {
+    console.info('[personal-reports]', message, detail || '');
+  } catch { /* ignore */ }
+}
+
+function buildPersonalReportsRequestKey({ employeeId = '', month = '', status = '', reportId = '' } = {}) {
+  return `${String(employeeId || '').trim()}|${String(month || '').trim()}|${String(status || '').trim()}|${String(reportId || '').trim()}`;
+}
+
+function bumpPersonalReportsLoadGeneration() {
+  _prLoadGeneration += 1;
+}
+
+function invalidatePersonalReportsLoadCache({ reportId = '', allReports = false } = {}) {
+  if (allReports) {
+    _prCachedAdminReports = null;
+    _prLastCompletedKey = '';
+  }
+  if (reportId) {
+    for (const key of [..._prInflightLoads.keys(), ..._prReportBundleCache.keys()]) {
+      if (key.endsWith(`|${reportId}`) || key === buildPersonalReportsRequestKey({ reportId })) {
+        _prInflightLoads.delete(key);
+        _prReportBundleCache.delete(key);
+      }
+    }
+    if (_prLastCompletedKey.endsWith(`|${reportId}`)) _prLastCompletedKey = '';
+  }
+}
+
+async function runGuardedPersonalReportsLoad(requestKey, loadFn, { force = false } = {}) {
+  if (!requestKey) throw new Error('missing_personal_reports_request_key');
+  const existing = _prInflightLoads.get(requestKey);
+  if (!force && existing) {
+    prDebugLog('load skipped duplicate', requestKey);
+    return existing.promise;
+  }
+  if (!force && _prLastCompletedKey === requestKey) {
+    prDebugLog('load skipped duplicate', requestKey);
+    return null;
+  }
+  const generation = _prLoadGeneration;
+  prDebugLog('personalReports load start', requestKey);
+  const promise = (async () => {
+    try {
+      const result = await loadFn();
+      if (generation !== _prLoadGeneration) {
+        prDebugLog('load finished (stale ignored)', requestKey);
+        return result;
+      }
+      _prLastCompletedKey = requestKey;
+      prDebugLog('tables loaded', requestKey);
+      prDebugLog('load finished', requestKey);
+      return result;
+    } finally {
+      _prInflightLoads.delete(requestKey);
+    }
+  })();
+  _prInflightLoads.set(requestKey, { promise, generation });
+  return promise;
+}
+
+function readAdminFilters(root) {
+  return {
+    employee: root.querySelector('#pr-filter-employee')?.value || '',
+    month: root.querySelector('#pr-filter-month')?.value || '',
+    status: root.querySelector('#pr-filter-status')?.value || ''
+  };
+}
+
+function adminFiltersChanged(next, prev = _prLastAdminFilters) {
+  return next.employee !== prev.employee || next.month !== prev.month || next.status !== prev.status;
+}
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -252,6 +342,10 @@ function resetPersonalReportsAuth() {
   prViewAsEmployee = null;
   prAdminMode      = 'my';
   isPersonalReportsUnlocked = false;
+  _prScreenBound   = false;
+  bumpPersonalReportsLoadGeneration();
+  invalidatePersonalReportsLoadCache({ allReports: true });
+  _prLastAdminFilters = { employee: '', month: '', status: '' };
   // _dashboardUser is intentionally kept — it's set once on bind() and is needed
   // to re-bind the lock screen if the session is invalidated mid-navigation.
 }
@@ -603,6 +697,32 @@ async function fetchAbsences(reportId) {
   return data || [];
 }
 
+async function loadReportBundle(reportId, { force = false } = {}) {
+  const requestKey = buildPersonalReportsRequestKey({ reportId });
+  if (!force) {
+    const cached = _prReportBundleCache.get(requestKey);
+    if (cached) {
+      prDebugLog('load skipped duplicate', requestKey);
+      return cached;
+    }
+  } else {
+    invalidatePersonalReportsLoadCache({ reportId });
+  }
+  const bundle = await runGuardedPersonalReportsLoad(requestKey, async () => {
+    const [travel, expenses, absences, attachments] = await Promise.all([
+      fetchDeclaredTravel(reportId),
+      fetchExpenses(reportId),
+      fetchAbsences(reportId),
+      fetchAttachments(reportId)
+    ]);
+    return { travel, expenses, absences, attachments };
+  }, { force });
+  const resolved = bundle || _prReportBundleCache.get(requestKey);
+  if (!resolved) throw new Error('personal_reports_bundle_unavailable');
+  _prReportBundleCache.set(requestKey, resolved);
+  return resolved;
+}
+
 async function upsertAbsence(entry) {
   const payload = {
     ...entry,
@@ -715,6 +835,25 @@ async function fetchAllReports() {
   return enrichReportsWithTotals(data || []);
 }
 
+async function loadAdminReportsList(filters = _prLastAdminFilters, { force = false } = {}) {
+  const requestKey = buildPersonalReportsRequestKey({
+    employeeId: filters.employee,
+    month: filters.month,
+    status: filters.status
+  });
+  if (!force && _prCachedAdminReports && _prLastCompletedKey === requestKey) {
+    prDebugLog('load skipped duplicate', requestKey);
+    return _prCachedAdminReports;
+  }
+  if (force) invalidatePersonalReportsLoadCache({ allReports: true });
+  const reports = await runGuardedPersonalReportsLoad(requestKey, fetchAllReports, { force });
+  const resolved = reports || _prCachedAdminReports;
+  if (!resolved) throw new Error('personal_reports_admin_list_unavailable');
+  _prCachedAdminReports = resolved;
+  _prLastAdminFilters = { ...filters };
+  return resolved;
+}
+
 async function enrichReportsWithTotals(reports) {
   const ids = reports.map((r) => r.id).filter(Boolean);
   if (!ids.length) return reports;
@@ -759,13 +898,11 @@ function rowsToPrintTable(headers, rows, emptyColspan) {
 
 async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר') {
   const report = await fetchReport(reportId);
-  const [{ data: profile }, travel, expenses, absences, attachments] = await Promise.all([
+  const [{ data: profile }, bundle] = await Promise.all([
     supabase.from('profiles').select('full_name, email').eq('id', report.employee_id).maybeSingle(),
-    fetchDeclaredTravel(reportId),
-    fetchExpenses(reportId),
-    fetchAbsences(reportId),
-    fetchAttachments(reportId)
+    loadReportBundle(reportId, { force: true })
   ]);
+  const { travel, expenses, absences, attachments } = bundle;
 
   const employeeName = profile?.full_name || prSession?.profile?.full_name || '—';
   const totalTravel = travel.reduce((s, r) => s + Number(r.amount || 0), 0);
@@ -1587,12 +1724,8 @@ async function openReportDetail(root, reportId, isAdmin = false, { isSimulation 
     }
   }
 
-  const [travel, expenses, absences, attachments] = await Promise.all([
-    fetchDeclaredTravel(reportId),
-    fetchExpenses(reportId),
-    fetchAbsences(reportId),
-    fetchAttachments(reportId)
-  ]);
+  const bundle = await loadReportBundle(reportId);
+  const { travel, expenses, absences, attachments } = bundle;
   prSelectedReport = report;
 
   if (isAdmin && !isSimulation) {
@@ -1608,6 +1741,7 @@ async function openReportDetail(root, reportId, isAdmin = false, { isSimulation 
 
 async function safeOpenReportDetail(root, reportId, isAdmin = false, options = {}) {
   try {
+    if (options.forceReload) invalidatePersonalReportsLoadCache({ reportId });
     await openReportDetail(root, reportId, isAdmin, options);
   } catch (err) {
     showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בטעינת הדוחות. יש לנסות שוב או לפנות למנהל המערכת.'), 'danger');
@@ -1768,8 +1902,12 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
 // ─── binding ──────────────────────────────────────────────────────────────────
 
 function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
+  root.__prEmployeeAbort?.abort();
+  const employeeAbort = new AbortController();
+  root.__prEmployeeAbort = employeeAbort;
+  const listeners = bindScreenListeners(root, employeeAbort.signal);
   const employeeId = isSimulation ? prViewAsEmployee?.id : prSession?.user?.id;
-  root.addEventListener('click', async (e) => {
+  listeners.on('click', async (e) => {
     const btn = e.target.closest('[data-pr-action]');
     if (!btn) return;
     const action = btn.dataset.prAction;
@@ -1808,7 +1946,7 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
     }
   });
 
-  root.addEventListener('keydown', (e) => {
+  listeners.on('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       const card = e.target.closest('[data-pr-action="open-month-report"]');
       if (card) card.click();
@@ -2059,7 +2197,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (!confirm('למחוק שורה זו?')) return;
       try {
         await deleteEntry(btn.dataset.entryTable, btn.dataset.entryId);
-        await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root) });
+        await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root), forceReload: true });
         showToast('נמחק', 'success');
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
@@ -2107,7 +2245,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (!confirm('למחוק קובץ זה?')) return;
       try {
         await deleteAttachment({ id: btn.dataset.attachmentId, storage_path: btn.dataset.storagePath });
-        await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root) });
+        await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root), forceReload: true });
         showToast('קובץ נמחק', 'success');
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
@@ -2155,7 +2293,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     };
     try {
       await uploadAttachment(prSelectedReport.id, prSession.user.id, entryLink, file);
-      await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root) });
+      await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root), forceReload: true });
       showToast('הקובץ הועלה', 'success');
     } catch (err) { showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בהעלאת הקובץ. יש לנסות שוב.'), 'danger'); }
   });
@@ -2241,7 +2379,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (formType === 'declared_travel') updateTravelTypeFields(form);
       const panel = form.closest('.pr-add-panel');
       if (panel) panel.hidden = true;
-      await safeOpenReportDetail(root, reportId, false, { isSimulation, initialTab: currentReportTab(root) });
+      await safeOpenReportDetail(root, reportId, false, { isSimulation, initialTab: currentReportTab(root), forceReload: true });
       showToast('נשמר', 'success');
     } catch (err) {
       showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בשמירת הדוח. יש לנסות שוב.'), 'danger');
@@ -2253,19 +2391,24 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
 }
 
 function applyAdminFilters(root) {
-  const employee = root.querySelector('#pr-filter-employee')?.value || '';
-  const month = root.querySelector('#pr-filter-month')?.value || '';
-  const status = root.querySelector('#pr-filter-status')?.value || '';
+  const filters = readAdminFilters(root);
+  if (!adminFiltersChanged(filters)) return;
+  bumpPersonalReportsLoadGeneration();
+  _prLastAdminFilters = { ...filters };
   root.querySelectorAll('.pr-admin-report-row').forEach((row) => {
-    const visible = (!employee || row.dataset.employeeId === employee)
-      && (!month || row.dataset.reportMonth === month)
-      && (!status || row.dataset.status === status);
+    const visible = (!filters.employee || row.dataset.employeeId === filters.employee)
+      && (!filters.month || row.dataset.reportMonth === filters.month)
+      && (!filters.status || row.dataset.status === filters.status);
     row.hidden = !visible;
   });
 }
 
 function bindAdminDashboard(root) {
-  root.addEventListener('click', async (e) => {
+  root.__prAdminAbort?.abort();
+  const adminAbort = new AbortController();
+  root.__prAdminAbort = adminAbort;
+  const listeners = bindScreenListeners(root, adminAbort.signal);
+  listeners.on('click', async (e) => {
     const btn = e.target.closest('[data-pr-action]');
     if (!btn) return;
     const action = btn.dataset.prAction;
@@ -2280,10 +2423,15 @@ function bindAdminDashboard(root) {
     }
     if (action === 'admin-mode-manage') { prAdminMode = 'manage'; await rerender(root, _dashboardUser); return; }
     if (action === 'clear-admin-filters') {
+      const hadFilters = Boolean(
+        root.querySelector('#pr-filter-employee')?.value
+        || root.querySelector('#pr-filter-month')?.value
+        || root.querySelector('#pr-filter-status')?.value
+      );
       root.querySelector('#pr-filter-employee').value = '';
       root.querySelector('#pr-filter-month').value = '';
       root.querySelector('#pr-filter-status').value = '';
-      applyAdminFilters(root);
+      if (hadFilters) applyAdminFilters(root);
       return;
     }
 
@@ -2306,7 +2454,7 @@ function bindAdminDashboard(root) {
         await adminUpdateReport(reportId, { status: 'approved', approved_at: new Date().toISOString() });
         await openMonthlyReportPdf(reportId, 'אושר לשכר');
         showToast('הדוח אושר וה-PDF הופק', 'success');
-        await rerender(root, _dashboardUser);
+        await rerender(root, _dashboardUser, { forceReload: true });
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
@@ -2316,7 +2464,7 @@ function bindAdminDashboard(root) {
       try {
         await adminUpdateReport(reportId, { status: 'needs_correction', finance_notes: notes });
         showToast('הדוח הוחזר לתיקון', 'success');
-        await rerender(root, _dashboardUser);
+        await rerender(root, _dashboardUser, { forceReload: true });
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
@@ -2325,13 +2473,13 @@ function bindAdminDashboard(root) {
       try {
         await adminUpdateReport(reportId, { status: 'paid', paid_at: new Date().toISOString() });
         showToast('סומן כשולם', 'success');
-        await rerender(root, _dashboardUser);
+        await rerender(root, _dashboardUser, { forceReload: true });
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
   });
 
-  root.addEventListener('change', async (e) => {
+  listeners.on('change', async (e) => {
     if (e.target.matches('#pr-filter-employee, #pr-filter-month, #pr-filter-status')) {
       applyAdminFilters(root);
       return;
@@ -2347,13 +2495,17 @@ function bindAdminDashboard(root) {
       showToast('סטטוס עודכן', 'success');
     } catch (err) {
       showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בעדכון הסטטוס. יש לנסות שוב.'), 'danger');
-      await rerender(root, _dashboardUser);
+      await rerender(root, _dashboardUser, { forceReload: true });
     }
   });
 }
 
 function bindAdminReportView(root) {
-  root.addEventListener('click', async (e) => {
+  root.__prAdminViewAbort?.abort();
+  const adminViewAbort = new AbortController();
+  root.__prAdminViewAbort = adminViewAbort;
+  const listeners = bindScreenListeners(root, adminViewAbort.signal);
+  listeners.on('click', async (e) => {
     const btn = e.target.closest('[data-pr-action]');
     if (!btn) return;
     const action = btn.dataset.prAction;
@@ -2368,7 +2520,7 @@ function bindAdminReportView(root) {
         await adminUpdateReport(reportId, { status: 'approved', approved_at: new Date().toISOString() });
         await openMonthlyReportPdf(reportId, 'אושר לשכר');
         showToast('הדוח אושר וה-PDF הופק', 'success');
-        await safeOpenReportDetail(root, reportId, true);
+        await safeOpenReportDetail(root, reportId, true, { forceReload: true });
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
@@ -2378,7 +2530,7 @@ function bindAdminReportView(root) {
       try {
         await adminUpdateReport(reportId, { status: 'needs_correction', finance_notes: notes });
         showToast('הדוח הוחזר לתיקון', 'success');
-        await safeOpenReportDetail(root, reportId, true);
+        await safeOpenReportDetail(root, reportId, true, { forceReload: true });
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
@@ -2387,7 +2539,7 @@ function bindAdminReportView(root) {
       try {
         await adminUpdateReport(reportId, { status: 'paid', paid_at: new Date().toISOString() });
         showToast('סומן כשולם', 'success');
-        await safeOpenReportDetail(root, reportId, true);
+        await safeOpenReportDetail(root, reportId, true, { forceReload: true });
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
@@ -2418,7 +2570,11 @@ function bindAdminReportView(root) {
 }
 
 function bindEmployeeSelector(root) {
-  root.addEventListener('click', async (e) => {
+  root.__prSelectorAbort?.abort();
+  const selectorAbort = new AbortController();
+  root.__prSelectorAbort = selectorAbort;
+  const listeners = bindScreenListeners(root, selectorAbort.signal);
+  listeners.on('click', async (e) => {
     const btn = e.target.closest('[data-pr-action]');
     if (!btn) return;
     const action = btn.dataset.prAction;
@@ -2437,7 +2593,7 @@ function bindEmployeeSelector(root) {
     }
   });
 
-  root.addEventListener('keydown', (e) => {
+  listeners.on('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       const row = e.target.closest('[data-pr-action="select-view-as-employee"]');
       if (row) row.click();
@@ -2451,7 +2607,11 @@ function dispatchBackToDashboard() {
 }
 
 function bindInternalEmployeeLogin(root, dashboardUser) {
-  root.querySelector('[data-pr-action="back-to-dashboard"]')?.addEventListener('click', dispatchBackToDashboard);
+  root.__prLoginAbort?.abort();
+  const loginAbort = new AbortController();
+  root.__prLoginAbort = loginAbort;
+  const signal = loginAbort.signal;
+  root.querySelector('[data-pr-action="back-to-dashboard"]')?.addEventListener('click', dispatchBackToDashboard, { signal });
   root.querySelector('#pr-internal-login-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -2474,10 +2634,10 @@ function bindInternalEmployeeLogin(root, dashboardUser) {
       renderInto(root, internalEmployeeLoginHtml('הקוד שהוזן אינו תקין. יש לבדוק ולנסות שוב.'));
       bindInternalEmployeeLogin(root, dashboardUser);
     }
-  });
+  }, { signal });
 }
 
-async function rerender(root, dashboardUser) {
+async function rerender(root, dashboardUser, { forceReload = false } = {}) {
   if (!isPersonalReportsUnlocked) {
     renderInto(root, internalEmployeeLoginHtml());
     bindInternalEmployeeLogin(root, dashboardUser);
@@ -2501,9 +2661,11 @@ async function rerender(root, dashboardUser) {
     bindEmployeeDashboard(root, { isSimulation: true });
   } else if (isAdminRole(prSession.profile.role)) {
     try {
-      const reports = await fetchAllReports();
-      renderInto(root, adminDashboardHtml(reports));
+      const reports = await loadAdminReportsList(_prLastAdminFilters, { force: forceReload });
+      renderInto(root, adminDashboardHtml(reports || []));
       bindAdminDashboard(root);
+      const filters = readAdminFilters(root);
+      if (filters.employee || filters.month || filters.status) applyAdminFilters(root);
     } catch (err) {
       renderInto(root, adminManagePlaceholderHtml(friendlyPersonalReportsError(err, 'אזור ניהול דוחות עובדים לא נטען כרגע.')));
       bindAdminDashboard(root);
@@ -2533,19 +2695,29 @@ export const personalReportsScreen = {
     if (!canAccessPersonalReports(state?.user)) return;
     _dashboardUser = state?.user || null;
     const view = prRoot?.ownerDocument?.defaultView || globalThis.window;
+    const preserveSession = _prScreenBound && isPersonalReportsUnlocked && prSession;
 
-    resetPersonalReportsAuth();
-    prSession = sessionFromDashboardState(state);
+    _prShellAbort?.abort();
+    _prShellAbort = new AbortController();
+    const shellSignal = _prShellAbort.signal;
 
-    rerender(prRoot, _dashboardUser);
+    if (!preserveSession) {
+      resetPersonalReportsAuth();
+      prSession = sessionFromDashboardState(state);
+      _prScreenBound = true;
+      rerender(prRoot, _dashboardUser);
+    } else {
+      _prScreenBound = true;
+    }
 
     const onNavigateAway = () => {
+      _prShellAbort?.abort();
+      _prShellAbort = null;
       resetPersonalReportsAuth();
-      document.removeEventListener('app:navigate', onNavigateAway);
-      view?.removeEventListener('pagehide', onPageHide);
-      view?.removeEventListener('pageshow', onPageShow);
     };
     const onPageHide = () => {
+      _prShellAbort?.abort();
+      _prShellAbort = null;
       resetPersonalReportsAuth();
     };
     const onPageShow = (event) => {
@@ -2554,8 +2726,8 @@ export const personalReportsScreen = {
       prSession = sessionFromDashboardState(state);
       rerender(prRoot, _dashboardUser);
     };
-    document.addEventListener('app:navigate', onNavigateAway);
-    view?.addEventListener('pagehide', onPageHide);
-    view?.addEventListener('pageshow', onPageShow);
+    document.addEventListener('app:navigate', onNavigateAway, { signal: shellSignal });
+    view?.addEventListener('pagehide', onPageHide, { signal: shellSignal });
+    view?.addEventListener('pageshow', onPageShow, { signal: shellSignal });
   }
 };

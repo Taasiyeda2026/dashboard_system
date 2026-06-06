@@ -14,10 +14,17 @@ const { personalReportsScreen } = await import('../frontend/src/screens/personal
 const EMPLOYEE_UUID = '123e4567-e89b-42d3-a456-426614174000';
 const ADMIN_UUID = '123e4567-e89b-42d3-a456-426614174001';
 
+function userWithPersonalReportsAccess(overrides = {}) {
+  return { can_access_personal_reports: true, ...overrides };
+}
+
 function mountWithUser(user) {
   const dom = new JSDOM('<main id="screenRoot"></main>', { url: 'https://example.test/' });
   global.document = dom.window.document;
+  global.window = dom.window;
   global.CustomEvent = dom.window.CustomEvent;
+  global.AbortController = dom.window.AbortController;
+  global.AbortSignal = dom.window.AbortSignal;
   const root = dom.window.document.getElementById('screenRoot');
   root.innerHTML = personalReportsScreen.render({}, { state: { user } });
   personalReportsScreen.bind({ root, state: { user } });
@@ -29,7 +36,7 @@ test.after(() => {
 });
 
 test('personal reports always opens locked with only the internal verification card', () => {
-  const { root } = mountWithUser({ full_name: 'עובד רגיל', display_role: 'instructor', user_id: '8000', auth_user_id: EMPLOYEE_UUID });
+  const { root } = mountWithUser(userWithPersonalReportsAccess({ full_name: 'עובד רגיל', display_role: 'instructor', user_id: '8000', auth_user_id: EMPLOYEE_UUID }));
 
   assert.ok(root.querySelector('#pr-internal-login-form'));
   assert.ok(root.querySelector('#pr-internal-access-code'));
@@ -45,7 +52,7 @@ test('personal reports always opens locked with only the internal verification c
 });
 
 test('admin also starts locked and does not render personal or management report content before verification', () => {
-  const { root } = mountWithUser({ full_name: 'מנהלת מערכת', display_role: 'admin', user_id: 'admin', auth_user_id: ADMIN_UUID });
+  const { root } = mountWithUser(userWithPersonalReportsAccess({ full_name: 'מנהלת מערכת', display_role: 'admin', user_id: 'admin', auth_user_id: ADMIN_UUID }));
 
   assert.ok(root.querySelector('#pr-internal-login-form'));
   assert.equal(root.querySelector('.pr-admin-mode-switch'), null);
@@ -54,7 +61,7 @@ test('admin also starts locked and does not render personal or management report
 });
 
 test('leaving personal reports resets the unlocked module state so the next bind is locked again', () => {
-  const user = { full_name: 'עובד רגיל', display_role: 'instructor', user_id: '8000', auth_user_id: EMPLOYEE_UUID };
+  const user = userWithPersonalReportsAccess({ full_name: 'עובד רגיל', display_role: 'instructor', user_id: '8000', auth_user_id: EMPLOYEE_UUID });
   const { root } = mountWithUser(user);
 
   document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
@@ -178,8 +185,26 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 589;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 589;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 590;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 590;/);
+});
+
+test('source guards personal reports loads with requestKey and abortable listeners', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /function buildPersonalReportsRequestKey/);
+  assert.match(source, /function runGuardedPersonalReportsLoad/);
+  assert.match(source, /function loadReportBundle/);
+  assert.match(source, /function loadAdminReportsList/);
+  assert.match(source, /load skipped duplicate/);
+  assert.match(source, /personalReports load start/);
+  assert.match(source, /tables loaded/);
+  assert.match(source, /load finished/);
+  assert.match(source, /pr_debug/);
+  assert.match(source, /root\.__prAdminAbort\?\.abort\(\)/);
+  assert.match(source, /root\.__prEmployeeAbort\?\.abort\(\)/);
+  assert.match(source, /preserveSession/);
+  assert.match(source, /forceReload: true/);
 });
 
 test('bindReportDetail uses bindScreenListeners, AbortController, and savingForms', async () => {
