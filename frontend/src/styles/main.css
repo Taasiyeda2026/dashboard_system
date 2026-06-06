@@ -14140,6 +14140,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pr-report-detail-body .pr-absence-panel .pr-field {
   flex: 1 1 120px;
 }
+.pr-report-detail-body .pr-field[hidden] {
+  display: none !important;
+}
 .pr-submit-card--compact {
   gap: 8px;
   padding: 8px 10px;

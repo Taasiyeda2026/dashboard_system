@@ -1876,8 +1876,14 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     form.querySelectorAll('.pr-travel-amount-field').forEach((field) => { field.hidden = isPublicTransport; });
     const kmInput = form.querySelector('input[name="roundtrip_km"]');
     const publicAmountInput = form.querySelector('input[name="public_transport_amount"]');
-    if (kmInput) kmInput.required = !isPublicTransport;
-    if (publicAmountInput) publicAmountInput.required = isPublicTransport;
+    if (kmInput) {
+      kmInput.required = !isPublicTransport;
+      if (isPublicTransport) kmInput.value = '';
+    }
+    if (publicAmountInput) {
+      publicAmountInput.required = isPublicTransport;
+      if (!isPublicTransport) publicAmountInput.value = '';
+    }
     if (isPublicTransport) {
       const amountInput = form.querySelector('input[name="amount"]');
       if (amountInput) amountInput.value = publicAmountInput?.value || '';

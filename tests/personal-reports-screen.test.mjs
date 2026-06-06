@@ -139,6 +139,8 @@ test('monthly report detail UX: status accordion, travel fields, tables, icons, 
   assert.match(source, /updateTravelTypeFields/);
   assert.match(source, /kmInput\.required = !isPublicTransport/);
   assert.match(source, /publicAmountInput\.required = isPublicTransport/);
+  assert.match(source, /pr-travel-km-field'\)\.forEach\(\(field\) => \{ field\.hidden = isPublicTransport/);
+  assert.match(source, /pr-travel-public-field'\)\.forEach\(\(field\) => \{ field\.hidden = !isPublicTransport/);
   assert.match(source, /pr-entries-table-wrap/);
   assert.match(source, /pr-entries-table/);
   assert.match(source, /pr-col-date/);
@@ -163,12 +165,13 @@ test('personal reports entry tables use compact fit-content layout', async () =>
   assert.match(css, /\.pr-entries-table-wrap \.pr-entries-table\s*\{[^}]*width:\s*fit-content/);
   assert.match(css, /\.pr-entries-table \.pr-col-date[^}]*max-width:\s*110px/);
   assert.match(css, /\.pr-entries-table-wrap\.pr-table-scroll\s*\{[^}]*overflow-x:\s*hidden/);
+  assert.match(css, /\.pr-report-detail-body \.pr-field\[hidden\]\s*\{[^}]*display:\s*none !important/);
 });
 
 test('service worker cache version bumped for personal reports deploy', async () => {
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 582;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 582;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 583;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 583;/);
 });
