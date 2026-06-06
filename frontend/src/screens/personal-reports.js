@@ -1061,7 +1061,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
           <div class="pr-field"><label class="pr-label">סוג דיווח *</label>
             <select class="pr-input pr-input--select" name="travel_type" required>
               <option value="km">נסיעה לפי ק״מ</option>
-              <option value="public_transport">תחבורה ציבורית לפי עלות</option>
+              <option value="public_transport">תחבורה ציבורית</option>
             </select></div>
           <div class="pr-field"><label class="pr-label">תאריך *</label>
             <input class="pr-input" type="date" name="travel_date" required /></div>
