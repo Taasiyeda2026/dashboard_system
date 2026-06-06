@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Personal Reports Screen — דוחות אישיים
  *
  * Digital monthly salary report form, based on the Excel format "דיווח שכר אישי".
@@ -538,10 +538,16 @@ async function adminUpdateReport(reportId, fields) {
 }
 
 async function fetchDeclaredTravel(reportId) {
-  const { data, error } = await supabase
-    .from('declared_travel_entries').select('*').eq('report_id', reportId).order('travel_date');
-  if (error) throw error;
-  return data || [];
+  const [{ data: kmRows, error: kmError }, { data: publicRows, error: publicError }] = await Promise.all([
+    supabase.from('declared_travel_entries').select('*').eq('report_id', reportId).order('travel_date'),
+    supabase.from('public_transport_entries').select('*').eq('report_id', reportId).order('travel_date')
+  ]);
+  if (kmError) throw kmError;
+  if (publicError) throw publicError;
+  return [
+    ...(kmRows || []).map((row) => ({ ...row, travel_type: 'km', entry_table: 'declared_travel_entries' })),
+    ...(publicRows || []).map((row) => ({ ...row, travel_type: 'public_transport', roundtrip_km: 0, entry_table: 'public_transport_entries' }))
+  ].sort((a, b) => String(a.travel_date || '').localeCompare(String(b.travel_date || '')));
 }
 
 async function fetchExpenses(reportId) {
@@ -581,13 +587,20 @@ async function upsertAbsence(entry) {
 }
 
 async function upsertDeclaredTravel(entry) {
-  if (entry.id) {
-    const { error } = await supabase.from('declared_travel_entries').update(entry).eq('id', entry.id);
+  const { travel_type: travelType = 'km', id, ...baseEntry } = entry;
+  const isPublicTransport = travelType === 'public_transport';
+  const table = isPublicTransport ? 'public_transport_entries' : 'declared_travel_entries';
+  const payload = isPublicTransport
+    ? Object.fromEntries(Object.entries(baseEntry).filter(([key]) => key !== 'roundtrip_km'))
+    : baseEntry;
+  if (id) {
+    const { error } = await supabase.from(table).update(payload).eq('id', id);
     if (error) throw error;
-  } else {
-    const { error } = await supabase.from('declared_travel_entries').insert(entry);
-    if (error) throw error;
+    return { id, ...payload, travel_type: travelType, entry_table: table };
   }
+  const { data, error } = await supabase.from(table).insert(payload).select().single();
+  if (error) throw error;
+  return { ...data, travel_type: travelType, entry_table: table };
 }
 
 async function upsertExpense(entry) {
@@ -660,15 +673,18 @@ async function fetchAllReports() {
 async function enrichReportsWithTotals(reports) {
   const ids = reports.map((r) => r.id).filter(Boolean);
   if (!ids.length) return reports;
-  const [travelRes, expensesRes] = await Promise.all([
+  const [travelRes, publicTravelRes, expensesRes] = await Promise.all([
     supabase.from('declared_travel_entries').select('report_id, amount').in('report_id', ids),
+    supabase.from('public_transport_entries').select('report_id, amount').in('report_id', ids),
     supabase.from('expense_entries').select('report_id, amount').in('report_id', ids)
   ]);
   if (travelRes.error) throw travelRes.error;
+  if (publicTravelRes.error) throw publicTravelRes.error;
   if (expensesRes.error) throw expensesRes.error;
 
   const totals = new Map(ids.map((id) => [id, { travel: 0, expenses: 0 }]));
   for (const row of travelRes.data || []) totals.get(row.report_id).travel += Number(row.amount || 0);
+  for (const row of publicTravelRes.data || []) totals.get(row.report_id).travel += Number(row.amount || 0);
   for (const row of expensesRes.data || []) totals.get(row.report_id).expenses += Number(row.amount || 0);
   return reports.map((report) => {
     const t = totals.get(report.id) || { travel: 0, expenses: 0 };
@@ -716,7 +732,10 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
   const reportPeriod = reportPeriodRange(report.report_month, report.report_year);
   const title = `דוח אישי חודשי לשכר - ${employeeName} - ${monthLabel(report.report_month, report.report_year)}`;
 
-  const travelRows = travel.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>${fmtNum(r.roundtrip_km)}</td><td>₪${fmt(r.amount)}</td></tr>`);
+  const travelRows = travel.map((r) => {
+    const typeLabel = r.travel_type === 'public_transport' ? 'תחבורה ציבורית' : 'ק״מ';
+    return `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(typeLabel)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>${r.travel_type === 'public_transport' ? '—' : fmtNum(r.roundtrip_km)}</td><td>₪${fmt(r.amount)}</td></tr>`;
+  });
   const expenseRows = expenses.map((r) => {
     const attachment = attachmentForEntry(attachments, 'expense_entry_id', r.id);
     return `<tr><td>${fmtDate(r.expense_date)}</td><td>${escapeHtml(r.description || '')}</td><td>₪${fmt(r.amount)}</td><td>${escapeHtml(attachmentStatusHtml(attachment))}</td></tr>`;
@@ -968,50 +987,61 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     ? `<div class="pr-finance-notes pr-alert-card" role="note"><strong>💬 הערות כספים:</strong> ${escapeHtml(report.finance_notes)}</div>`
     : '';
 
-  const travelRows = travel.map(r => `
+  const travelRows = travel.map((r) => {
+    const isPublicTransport = r.travel_type === 'public_transport';
+    const typeLabel = isPublicTransport ? 'תחבורה ציבורית' : 'ק״מ';
+    return `
     <div class="pr-entry-row" data-id="${escapeHtml(r.id)}">
       <div class="pr-entry-main">
-        <strong>${fmtDate(r.travel_date)} · ${escapeHtml(r.origin)} ← ${escapeHtml(r.destination)}</strong>
+        <strong>${fmtDate(r.travel_date)} · ${escapeHtml(typeLabel)} · ${escapeHtml(r.origin)} ← ${escapeHtml(r.destination)}</strong>
         ${r.description ? `<span>${escapeHtml(r.description)}</span>` : ''}
       </div>
       <div class="pr-entry-meta">
-        <span>${fmtNum(r.roundtrip_km)} ק"מ</span>
+        <span>${isPublicTransport ? 'לפי עלות' : `${fmtNum(r.roundtrip_km)} ק"מ`}</span>
         <strong>₪${fmt(r.amount)}</strong>
       </div>
       <div class="pr-entry-actions">
         ${editable ? `<button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-travel"
-          data-entry-id="${escapeHtml(r.id)}" data-travel-date="${escapeHtml(r.travel_date)}"
+          data-entry-id="${escapeHtml(r.id)}" data-entry-table="${escapeHtml(r.entry_table || 'declared_travel_entries')}"
+          data-travel-type="${escapeHtml(r.travel_type || 'km')}" data-travel-date="${escapeHtml(r.travel_date)}"
           data-origin="${escapeHtml(r.origin || '')}" data-destination="${escapeHtml(r.destination || '')}"
           data-description="${escapeHtml(r.description || '')}" data-roundtrip-km="${escapeHtml(r.roundtrip_km || '')}"
-          data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
+          data-amount="${escapeHtml(r.amount || '')}" data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
         <button class="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" type="button" data-pr-action="delete-entry"
-          data-entry-id="${escapeHtml(r.id)}" data-entry-table="declared_travel_entries"
+          data-entry-id="${escapeHtml(r.id)}" data-entry-table="${escapeHtml(r.entry_table || 'declared_travel_entries')}"
           aria-label="מחק נסיעה">מחיקה</button>` : ''}
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   const addTravelPanel = editable ? `
     <div class="pr-add-panel" id="pr-add-travel-panel" hidden>
       <form class="pr-add-form" id="pr-add-travel-form" data-form-type="declared_travel">
         <input type="hidden" name="id" />
+        <input type="hidden" name="original_table" />
         <div class="pr-form-row">
+          <div class="pr-field"><label class="pr-label">סוג דיווח *</label>
+            <select class="pr-input pr-input--select" name="travel_type" required>
+              <option value="km">נסיעה לפי ק״מ</option>
+              <option value="public_transport">תחבורה ציבורית לפי עלות</option>
+            </select></div>
           <div class="pr-field"><label class="pr-label">תאריך *</label>
             <input class="pr-input" type="date" name="travel_date" required /></div>
           <div class="pr-field"><label class="pr-label">ממקום *</label>
             <input class="pr-input" type="text" name="origin" required placeholder="מ..." /></div>
           <div class="pr-field"><label class="pr-label">למקום *</label>
             <input class="pr-input" type="text" name="destination" required placeholder="ל..." /></div>
-          <div class="pr-field pr-field--wide"><label class="pr-label">פירוט</label>
-            <input class="pr-input" type="text" name="description" placeholder="תיאור הנסיעה" /></div>
         </div>
         <div class="pr-form-row">
-          <div class="pr-field"><label class="pr-label">ק"מ *</label>
+          <div class="pr-field pr-field--wide"><label class="pr-label">פירוט / הערות</label>
+            <input class="pr-input" type="text" name="description" placeholder="תיאור הנסיעה" /></div>
+          <div class="pr-field pr-travel-km-field"><label class="pr-label">ק״מ *</label>
             <input class="pr-input" type="number" name="roundtrip_km" min="0" step="0.1" required placeholder="0" /></div>
-          <div class="pr-field"><label class="pr-label">סה"כ החזר</label>
+          <div class="pr-field pr-travel-public-field" hidden><label class="pr-label">עלות תחבורה ציבורית ₪ *</label>
+            <input class="pr-input" type="number" name="public_transport_amount" min="0" step="0.01" placeholder="0.00" /></div>
+          <div class="pr-field pr-travel-km-field"><label class="pr-label">סה"כ החזר</label>
             <input class="pr-input" type="number" name="amount" min="0" step="0.01" readonly placeholder="מחושב אוטומטית" /></div>
-          <div class="pr-field pr-field--wide"><label class="pr-label">הערות</label>
-            <input class="pr-input" type="text" name="notes" placeholder="הערות / קובץ נדרש" /></div>
         </div>
         <div class="pr-add-form-actions">
           <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
@@ -1776,6 +1806,30 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     updateAbsenceCalculatedDays(form);
   }
 
+  function updateTravelAmount(form) {
+    const kmInput = form?.querySelector('input[name="roundtrip_km"]');
+    const amountInput = form?.querySelector('input[name="amount"]');
+    if (amountInput) amountInput.value = (Number(kmInput?.value || 0) * 1.6).toFixed(2);
+  }
+
+  function updateTravelTypeFields(form) {
+    if (!form) return;
+    const type = form.querySelector('select[name="travel_type"]')?.value || 'km';
+    const isPublicTransport = type === 'public_transport';
+    form.querySelectorAll('.pr-travel-km-field').forEach((field) => { field.hidden = isPublicTransport; });
+    form.querySelectorAll('.pr-travel-public-field').forEach((field) => { field.hidden = !isPublicTransport; });
+    const kmInput = form.querySelector('input[name="roundtrip_km"]');
+    const publicAmountInput = form.querySelector('input[name="public_transport_amount"]');
+    if (kmInput) kmInput.required = !isPublicTransport;
+    if (publicAmountInput) publicAmountInput.required = isPublicTransport;
+    if (isPublicTransport) {
+      const amountInput = form.querySelector('input[name="amount"]');
+      if (amountInput) amountInput.value = publicAmountInput?.value || '';
+    } else {
+      updateTravelAmount(form);
+    }
+  }
+
   // Save meta fields on blur (header inputs)
   root.addEventListener('blur', async (e) => {
     const input = e.target.closest('.pr-meta-input');
@@ -1836,14 +1890,17 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       const form = panel?.querySelector('form[data-form-type="declared_travel"]');
       setFormValues(form, {
         id: btn.dataset.entryId,
+        original_table: btn.dataset.entryTable,
+        travel_type: btn.dataset.travelType || 'km',
         travel_date: btn.dataset.travelDate,
         origin: btn.dataset.origin,
         destination: btn.dataset.destination,
         description: btn.dataset.description,
         roundtrip_km: btn.dataset.roundtripKm,
-        amount: (Number(btn.dataset.roundtripKm || 0) * 1.6).toFixed(2),
-        notes: btn.dataset.notes
+        public_transport_amount: btn.dataset.amount,
+        amount: (btn.dataset.travelType === 'public_transport') ? btn.dataset.amount : (Number(btn.dataset.roundtripKm || 0) * 1.6).toFixed(2)
       });
+      updateTravelTypeFields(form);
       return;
     }
 
@@ -1937,10 +1994,15 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
 
   root.addEventListener('input', (e) => {
     const kmInput = e.target.closest('input[name="roundtrip_km"]');
-    if (!kmInput) return;
-    const form = kmInput.closest('form[data-form-type="declared_travel"]');
-    const amountInput = form?.querySelector('input[name="amount"]');
-    if (amountInput) amountInput.value = (Number(kmInput.value || 0) * 1.6).toFixed(2);
+    if (kmInput) {
+      updateTravelAmount(kmInput.closest('form[data-form-type="declared_travel"]'));
+      return;
+    }
+    const publicAmountInput = e.target.closest('input[name="public_transport_amount"]');
+    if (publicAmountInput) {
+      const amountInput = publicAmountInput.closest('form[data-form-type="declared_travel"]')?.querySelector('input[name="amount"]');
+      if (amountInput) amountInput.value = publicAmountInput.value || '';
+    }
   });
 
   function updateAbsenceCalculatedDays(form) {
@@ -1952,6 +2014,12 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
 
   // File uploads + compact absence form reveal/calculation
   root.addEventListener('change', async (e) => {
+    const travelTypeSelect = e.target.closest('select[name="travel_type"]');
+    if (travelTypeSelect) {
+      updateTravelTypeFields(travelTypeSelect.closest('form[data-form-type="declared_travel"]'));
+      return;
+    }
+
     const absenceTypeSelect = e.target.closest('select[name="absence_type"]');
     if (absenceTypeSelect) {
       const form = absenceTypeSelect.closest('form[data-form-type="absence"]');
@@ -2009,16 +2077,26 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     const employeeId = prSession.user.id;
     try {
       if (formType === 'declared_travel') {
+        const travelType = String(fd.get('travel_type') || 'km');
+        const originalTable = String(fd.get('original_table') || '');
+        const targetTable = travelType === 'public_transport' ? 'public_transport_entries' : 'declared_travel_entries';
+        let entryId = fd.get('id') || undefined;
+        if (entryId && originalTable && originalTable !== targetTable) {
+          await deleteEntry(originalTable, entryId);
+          entryId = undefined;
+        }
         await upsertDeclaredTravel({
-          id: fd.get('id') || undefined,
+          id: entryId,
+          travel_type: travelType,
           report_id: reportId, employee_id: employeeId,
           travel_date: fd.get('travel_date'),
           origin: fd.get('origin') || '',
           destination: fd.get('destination') || '',
           description: fd.get('description') || '',
           roundtrip_km: Number(fd.get('roundtrip_km') || 0),
-          amount: Number((Number(fd.get('roundtrip_km') || 0) * 1.6).toFixed(2)),
-          notes: fd.get('notes') || ''
+          amount: travelType === 'public_transport'
+            ? Number(fd.get('public_transport_amount') || 0)
+            : Number((Number(fd.get('roundtrip_km') || 0) * 1.6).toFixed(2))
         });
       } else if (formType === 'expense') {
         const expense = await upsertExpense({

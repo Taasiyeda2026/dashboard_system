@@ -87,8 +87,8 @@ test('source uses only existing personal report tables for monthly report data',
   const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 
   assert.doesNotMatch(source, new RegExp(['work', 'hour', 'entries'].join('_')));
-  assert.doesNotMatch(source, new RegExp(['public', 'transport', 'entries'].join('_')));
   assert.match(source, /from\('declared_travel_entries'\)/);
+  assert.match(source, /from\('public_transport_entries'\)/);
   assert.match(source, /from\('expense_entries'\)/);
   assert.match(source, /from\('report_attachments'\)/);
   assert.match(source, /from\('absence_entries'\)/);
