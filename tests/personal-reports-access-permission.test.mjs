@@ -59,11 +59,17 @@ test('main syncs can_access_personal_reports from bootstrap', async () => {
   assert.match(source, /state\.user\.profile_is_active = bootstrap\.profile_is_active !== false/);
 });
 
-test('migration seeds Yael Aviv without personal reports access on profiles', async () => {
+test('migration grants personal reports access only to explicit profile whitelist', async () => {
   const sql = await readFile(MIGRATION_FILE, 'utf8');
-  assert.match(sql, /yael_aviv@think\.org\.il/);
+  assert.match(sql, /DEFAULT false/);
+  assert.match(sql, /SET can_access_personal_reports = false/);
+  assert.match(sql, /idann@think\.org\.il/);
+  assert.match(sql, /esraas@think\.org\.il/);
+  assert.match(sql, /gilneeman@think\.org\.il/);
+  assert.match(sql, /hilar@think\.org\.il/);
+  assert.match(sql, /toni@think\.org\.il/);
+  assert.match(sql, /edenc@think\.org\.il/);
+  assert.doesNotMatch(sql, /WHERE is_active = true[\s\S]*SET can_access_personal_reports = true/);
   assert.match(sql, /public\.profiles/);
-  assert.match(sql, /can_access_personal_reports/);
   assert.match(sql, /dashboard_user_can_access_personal_reports/);
-  assert.match(sql, /p\.can_access_personal_reports = true/);
 });
