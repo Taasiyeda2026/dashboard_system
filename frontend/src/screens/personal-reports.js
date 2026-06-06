@@ -953,39 +953,34 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     ? `<div class="pr-entry-list">${absenceRows}</div>`
     : compactEmptyRowHtml('לא דווחו ימי חופש, מחלה או הצהרה לחודש זה.');
 
-  const leaveSection = `
-    ${editable ? `
-      <div class="pr-add-panel pr-absence-panel">
-        <form class="pr-add-form" data-form-type="absence">
-          <input type="hidden" name="id" />
-          <input type="hidden" name="absence_type" />
-          <div class="pr-absence-choice" aria-label="בחירת סוג היעדרות">
-            <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="choose-absence-type" data-absence-type="vacation">חופש</button>
-            <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="choose-absence-type" data-absence-type="sick">מחלה</button>
-            <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="choose-absence-type" data-absence-type="declaration">הצהרה</button>
-          </div>
-          <div class="pr-absence-fields" hidden>
-            <div class="pr-form-row">
-              <div class="pr-field"><label class="pr-label">מתאריך *</label><input class="pr-input pr-absence-date" type="date" name="start_date" /></div>
-              <div class="pr-field"><label class="pr-label">עד תאריך *</label><input class="pr-input pr-absence-date" type="date" name="end_date" /></div>
-              <div class="pr-field"><label class="pr-label">ימים מחושבים</label><input class="pr-input" type="number" name="calculated_days" readonly value="0" /></div>
-            </div>
-            <div class="pr-form-row">
-              <div class="pr-field pr-field--wide"><label class="pr-label">קובץ אסמכתא</label><input class="pr-input" type="file" name="attachment" accept="image/*,.pdf" /></div>
-            </div>
-            <div class="pr-add-form-actions">
-              <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
-              <button class="pr-btn pr-btn--ghost" type="reset">ביטול</button>
-            </div>
-          </div>
-        </form>
-      </div>` : ''}
-    ${absenceTable}
-  `;
+  const absenceChoiceButtons = editable ? `
+    <button class="pr-btn pr-btn--outline pr-btn--sm pr-absence-type-btn" type="button" data-pr-action="choose-absence-type" data-absence-type="vacation">חופש</button>
+    <button class="pr-btn pr-btn--outline pr-btn--sm pr-absence-type-btn" type="button" data-pr-action="choose-absence-type" data-absence-type="sick">מחלה</button>
+    <button class="pr-btn pr-btn--outline pr-btn--sm pr-absence-type-btn" type="button" data-pr-action="choose-absence-type" data-absence-type="declaration">הצהרה</button>
+  ` : '';
 
-  const financeNotice = report.finance_notes
-    ? `<div class="pr-finance-notes pr-alert-card" role="note"><strong>💬 הערות כספים:</strong> ${escapeHtml(report.finance_notes)}</div>`
-    : '';
+  const addAbsencePanel = editable ? `
+    <div class="pr-add-panel pr-absence-panel" id="pr-add-absence-panel" hidden>
+      <form class="pr-add-form" data-form-type="absence">
+        <input type="hidden" name="id" />
+        <input type="hidden" name="absence_type" />
+        <div class="pr-absence-fields">
+          <div class="pr-form-row">
+            <div class="pr-field"><label class="pr-label">מתאריך *</label><input class="pr-input pr-absence-date" type="date" name="start_date" /></div>
+            <div class="pr-field"><label class="pr-label">עד תאריך *</label><input class="pr-input pr-absence-date" type="date" name="end_date" /></div>
+            <div class="pr-field"><label class="pr-label">ימים מחושבים</label><input class="pr-input" type="number" name="calculated_days" readonly value="0" /></div>
+          </div>
+          <div class="pr-form-row">
+            <div class="pr-field pr-field--wide"><label class="pr-label">קובץ אסמכתא</label><input class="pr-input" type="file" name="attachment" accept="image/*,.pdf" /></div>
+          </div>
+          <div class="pr-add-form-actions">
+            <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
+            <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="cancel-absence-form">ביטול</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  ` : '';
 
   const travelRows = travel.map((r) => {
     const isPublicTransport = r.travel_type === 'public_transport';
@@ -1136,21 +1131,20 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     : '';
 
   const submitSection = editable && !isSimulation ? `
-    <div class="pr-submit-card">
-      <p class="pr-signature-text">אני מאשר/ת כי הפרטים בדוח זה נכונים ומלאים עבור חודש השכר הנוכחי.</p>
+    <div class="pr-submit-card pr-submit-card--compact">
       <label class="pr-label pr-signature-field" for="pr-signature-name">
-        <span>שם מלא לחתימה דיגיטלית</span>
+        <span>שם לחתימה</span>
         <input class="pr-input pr-signature-input" id="pr-signature-name" type="text"
           value="${escapeHtml(profile.full_name || '')}" autocomplete="name" />
       </label>
       <label class="pr-confirm-label">
         <input type="checkbox" id="pr-confirm-checkbox" class="pr-confirm-checkbox" />
-        <span>אני מאשר/ת כי החתימה הדיגיטלית ומועד האישור יישמרו בדוח.</span>
+        <span>אני מאשר/ת שהפרטים נכונים ומלאים</span>
       </label>
       <button class="pr-btn pr-btn--primary pr-submit-btn"
         id="pr-submit-btn" data-pr-action="submit-report"
         data-report-id="${escapeHtml(report.id)}" disabled>
-        ${report.status === 'needs_correction' ? 'שליחה מחדש לאישור' : 'אישור ושליחה'}
+        ${report.status === 'needs_correction' ? 'שליחה מחדש' : 'אישור ושליחה'}
       </button>
     </div>
   ` : editable && isSimulation ? `
@@ -1192,18 +1186,10 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
           <div class="pr-report-hero-card__main">
             <span class="pr-eyebrow">דוחות אישיים</span>
             <h1 class="pr-report-hero-card__title">דוח אישי לשכר — ${escapeHtml(monthYearLabel)}</h1>
-            <div class="pr-report-hero-card__meta">
-              <span>${escapeHtml(profile.full_name || '')}</span>
-              <span aria-hidden="true">•</span>
-              <span>תקופת דיווח: ${escapeHtml(reportPeriod.label)}</span>
-              <span aria-hidden="true">•</span>
-              <span>סטטוס: ${statusChip}</span>
-            </div>
+            <p class="pr-report-hero-card__meta">${escapeHtml(profile.full_name || '')}</p>
           </div>
           <button class="pr-btn pr-btn--ghost pr-back-btn" type="button" data-pr-action="back-to-my-reports">← חזרה לדוחות שלי</button>
         </section>
-
-        ${financeNotice}
 
         <nav class="pr-report-tabs" role="tablist" aria-label="אזורי הדוח">
           <button class="pr-report-tab is-active" type="button" role="tab" aria-selected="true" data-pr-action="switch-report-tab" data-tab="status">
@@ -1246,12 +1232,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         </section>
 
         <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="status" id="pr-report-header">
-          <div class="pr-section-head">
-            <div>
-              <h2 class="pr-section-title">סטטוס הדוח</h2>
-            </div>
-          </div>
-          <div class="pr-info-list">
+          <div class="pr-status-log" aria-label="יומן מצב">
             ${reportInfoRowHtml('סטטוס נוכחי', statusChip, { html: true })}
             ${reportInfoRowHtml('תקופת דיווח', reportPeriod.label)}
             ${reportInfoRowHtml('הערת כספים / סיבת החזרה', report.finance_notes || '')}
@@ -1266,16 +1247,13 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
               <h2 class="pr-section-title">ימי עבודה</h2>
               <p class="pr-section-subtext">מדווחים כאן רק אם היו ימי חופש, מחלה או הצהרה.</p>
             </div>
+            <div class="pr-section-head__actions pr-absence-choice">${absenceChoiceButtons}</div>
           </div>
-          ${leaveSection}
+          ${addAbsencePanel}
+          ${absenceTable}
         </section>
 
         <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="details">
-          <div class="pr-section-head">
-            <div>
-              <h2 class="pr-section-title">פרטים</h2>
-            </div>
-          </div>
           <section class="pr-summary-bar pr-summary-bar--details" aria-label="סיכום הדוח">
             ${detailsSummary || summaryPillHtml('סטטוס', statusText)}
           </section>
@@ -1797,12 +1775,26 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     if (!form) return;
     const typeInput = form.querySelector('input[name="absence_type"]');
     if (typeInput) typeInput.value = type || '';
-    form.querySelectorAll('[data-pr-action="choose-absence-type"]').forEach((choice) => {
+    const panel = form.closest('.pr-absence-panel');
+    root.querySelectorAll('[data-pr-action="choose-absence-type"]').forEach((choice) => {
       choice.classList.toggle('is-active', choice.dataset.absenceType === type);
     });
+    if (panel) panel.hidden = !type;
     const fields = form.querySelector('.pr-absence-fields');
     if (fields) fields.hidden = !type;
     fields?.querySelectorAll('input[name="start_date"], input[name="end_date"]').forEach((input) => { input.required = Boolean(type); });
+    updateAbsenceCalculatedDays(form);
+  }
+
+  function resetAbsenceForm(form) {
+    if (!form) return;
+    form.reset();
+    const panel = form.closest('.pr-absence-panel');
+    if (panel) panel.hidden = true;
+    form.querySelector('input[name="id"]') && (form.querySelector('input[name="id"]').value = '');
+    form.querySelector('input[name="absence_type"]') && (form.querySelector('input[name="absence_type"]').value = '');
+    root.querySelectorAll('[data-pr-action="choose-absence-type"]').forEach((choice) => choice.classList.remove('is-active'));
+    form.querySelector('.pr-absence-fields')?.querySelectorAll('input[name="start_date"], input[name="end_date"]').forEach((input) => { input.required = false; });
     updateAbsenceCalculatedDays(form);
   }
 
@@ -1879,9 +1871,15 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     }
 
     if (action === 'choose-absence-type') {
-      const form = btn.closest('form[data-form-type="absence"]');
+      const panel = showPanel('pr-add-absence-panel');
+      const form = panel?.querySelector('form[data-form-type="absence"]');
       revealAbsenceFields(form, btn.dataset.absenceType || '');
       form?.querySelector('input[name="start_date"]')?.focus();
+      return;
+    }
+
+    if (action === 'cancel-absence-form') {
+      resetAbsenceForm(root.querySelector('form[data-form-type="absence"]'));
       return;
     }
 
@@ -1919,7 +1917,8 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     }
 
     if (action === 'edit-absence') {
-      const form = root.querySelector('form[data-form-type="absence"]');
+      const panel = showPanel('pr-add-absence-panel');
+      const form = panel?.querySelector('form[data-form-type="absence"]');
       setFormValues(form, {
         id: btn.dataset.entryId,
         start_date: btn.dataset.startDate,
@@ -2054,15 +2053,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
   root.addEventListener('reset', (e) => {
     const form = e.target.closest('form[data-form-type="absence"]');
     if (!form) return;
-    setTimeout(() => {
-      const fields = form.querySelector('.pr-absence-fields');
-      if (fields) fields.hidden = true;
-      form.querySelector('input[name="id"]') && (form.querySelector('input[name="id"]').value = '');
-      form.querySelector('input[name="absence_type"]') && (form.querySelector('input[name="absence_type"]').value = '');
-      form.querySelectorAll('[data-pr-action="choose-absence-type"]').forEach((choice) => choice.classList.remove('is-active'));
-      fields?.querySelectorAll('input[name="start_date"], input[name="end_date"]').forEach((input) => { input.required = false; });
-      updateAbsenceCalculatedDays(form);
-    }, 0);
+    setTimeout(() => resetAbsenceForm(form), 0);
   });
 
   // Add entry forms submit
