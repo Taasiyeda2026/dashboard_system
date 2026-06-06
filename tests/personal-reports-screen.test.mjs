@@ -172,6 +172,6 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 585;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 585;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 586;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 586;/);
 });
