@@ -167,7 +167,8 @@ test('personal reports entry tables use compact fit-content layout', async () =>
   assert.match(css, /\.pr-entries-table-wrap\s*\{[^}]*width:\s*fit-content/);
   assert.match(css, /\.pr-entries-table-wrap \.pr-entries-table\s*\{[^}]*width:\s*fit-content/);
   assert.match(css, /\.pr-entries-table \.pr-col-date[^}]*max-width:\s*110px/);
-  assert.match(css, /\.pr-entries-table-wrap\.pr-table-scroll\s*\{[^}]*overflow-x:\s*hidden/);
+  assert.match(css, /\.pr-report-detail-body \.pr-entries-table-wrap\.pr-table-scroll\s*\{[^}]*overflow:\s*visible/);
+  assert.match(css, /\.pr-entries-table-wrap \.pr-data-table th[^}]*border:\s*1px solid/);
   assert.match(css, /\.pr-report-detail-body \.pr-field\[hidden\]\s*\{[^}]*display:\s*none !important/);
   assert.match(css, /\.pr-th-num, \.pr-td-num\s*\{[^}]*text-align:\s*center/);
   assert.match(css, /\.pr-entries-table-wrap\s*\{[^}]*border:\s*1px solid/);
