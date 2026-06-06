@@ -108,3 +108,20 @@ test('source keeps absence days automatic and weekday-only', async () => {
   assert.doesNotMatch(source, /name="total_days"/);
   assert.doesNotMatch(source, /סה[״"]?כ ימים ידני/);
 });
+
+test('monthly report detail keeps the compact five-tab employee workflow', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  for (const tab of ['status', 'travel', 'expenses', 'absences', 'details']) {
+    assert.match(source, new RegExp(`data-tab="${tab}"`));
+  }
+  assert.doesNotMatch(source, /data-tab="attachments"|data-tab="approval"|data-tab="salary"/);
+  assert.doesNotMatch(source, /<span>אסמכתאות<\/span>|<span>סיכום ואישור<\/span>/);
+  assert.equal(source.match(/הוספת נסיעה/g)?.length, 1);
+  assert.equal(source.match(/הוספת הוצאה/g)?.length, 1);
+  assert.equal(source.match(/summaryPillHtml\('סה"כ להחזר'/g)?.length, 1);
+  assert.match(source, /compactEmptyRowHtml\('אין נסיעות מדווחות לחודש זה\.'\)/);
+  assert.match(source, /compactEmptyRowHtml\('לא נוספו הוצאות לחודש זה\.'\)/);
+  assert.match(source, /compactEmptyRowHtml\('לא דווחו ימי חופש, מחלה או הצהרה לחודש זה\.'\)/);
+  assert.match(source, /initialTab: currentReportTab\(root\)/);
+});

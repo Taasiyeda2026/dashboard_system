@@ -13709,3 +13709,215 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pr-btn { min-width: 96px; }
   .pr-admin-table { min-width: 680px; }
 }
+
+/* Personal reports monthly detail — focused compact UX pass */
+.pr-report-detail-body {
+  max-width: min(920px, calc(100vw - 32px));
+  gap: 10px;
+}
+.pr-report-detail-body .pr-report-hero-card {
+  padding: 12px 14px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+.pr-report-detail-body .pr-report-hero-card__meta {
+  font-size: 0.8rem;
+}
+.pr-report-detail-body .pr-report-tabs {
+  padding: 4px;
+  gap: 4px;
+}
+.pr-report-detail-body .pr-report-tab {
+  min-height: 32px;
+  padding: 5px 10px;
+  flex: 1 1 110px;
+  font-size: 0.8rem;
+}
+.pr-report-detail-body .pr-section-card {
+  overflow: visible;
+}
+.pr-report-detail-body .pr-section-head {
+  min-height: 44px;
+  margin: 0;
+  padding: 9px 12px;
+}
+.pr-section-subtext {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 0.74rem;
+}
+.pr-report-detail-body .pr-section-action {
+  width: 140px;
+  min-width: 120px;
+  max-width: 160px;
+  min-height: 36px;
+  max-height: 40px;
+}
+.pr-info-list {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+.pr-info-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.35fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid #edf0f5;
+  border-radius: 9px;
+  background: #fff;
+}
+.pr-info-label {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.pr-info-value {
+  color: #0f172a;
+  font-size: 0.84rem;
+}
+.pr-info-note {
+  margin: 10px 12px 12px;
+  padding: 8px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.pr-entry-list {
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px 12px;
+}
+.pr-entry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #edf0f5;
+  border-radius: 10px;
+  background: #fff;
+}
+.pr-entry-main,
+.pr-entry-meta,
+.pr-entry-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pr-entry-main {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.pr-entry-main strong {
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+.pr-entry-main span,
+.pr-entry-meta {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+.pr-entry-meta strong {
+  color: #0f172a;
+}
+.pr-entry-actions {
+  justify-content: flex-start;
+}
+.pr-entry-actions .pr-btn {
+  min-width: 70px;
+}
+.pr-upload-label-inline {
+  cursor: pointer;
+}
+.pr-upload-label-inline input[type="file"] {
+  display: none;
+}
+.pr-inline-total {
+  margin: 0 12px 12px;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.pr-compact-empty {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  margin: 10px 12px 12px;
+  padding: 8px 10px;
+  box-shadow: none;
+}
+.pr-report-detail-body .pr-add-panel {
+  margin: 0 12px 12px;
+  padding: 10px;
+}
+.pr-report-detail-body .pr-add-form .pr-form-row {
+  gap: 8px;
+}
+.pr-summary-bar--details {
+  margin: 10px 12px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.pr-summary-bar--details .pr-sum-item {
+  min-height: 48px;
+  padding: 8px 10px;
+  align-items: flex-start;
+}
+.pr-report-detail-body .pr-submit-card {
+  margin: 10px 12px 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-radius: 10px;
+}
+.pr-signature-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.pr-signature-input {
+  width: 220px;
+}
+.pr-confirm-label {
+  margin: 0;
+}
+@media (max-width: 760px) {
+  .pr-report-detail-body {
+    max-width: 100%;
+  }
+  .pr-info-row,
+  .pr-entry-row {
+    grid-template-columns: 1fr;
+  }
+  .pr-entry-actions {
+    justify-content: flex-start;
+  }
+  .pr-report-detail-body .pr-submit-card,
+  .pr-signature-field {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .pr-signature-input {
+    width: 100%;
+    max-width: none;
+  }
+}

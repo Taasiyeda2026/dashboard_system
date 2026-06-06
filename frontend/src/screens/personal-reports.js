@@ -864,6 +864,30 @@ function sectionMetricHtml(label, value) {
   `;
 }
 
+function compactEmptyRowHtml(text, icon = '') {
+  return `<p class="pr-compact-empty">${icon ? `<span aria-hidden="true">${escapeHtml(icon)}</span>` : ''}<span>${escapeHtml(text)}</span></p>`;
+}
+
+function reportInfoRowHtml(label, value, { html = false } = {}) {
+  if (value === null || value === undefined || value === '') return '';
+  return `
+    <div class="pr-info-row">
+      <span class="pr-info-label">${escapeHtml(label)}</span>
+      <span class="pr-info-value">${html ? value : escapeHtml(String(value))}</span>
+    </div>
+  `;
+}
+
+function summaryPillHtml(label, value, { highlight = false } = {}) {
+  if (value === null || value === undefined || value === '') return '';
+  return `
+    <div class="pr-sum-item${highlight ? ' pr-sum-item--total' : ''}">
+      <span class="pr-sum-label">${escapeHtml(label)}</span>
+      <span class="pr-sum-value">${escapeHtml(value)}</span>
+    </div>
+  `;
+}
+
 function reportDetailHtml(report, travel, expenses, absences, attachments, profile, { isSimulation = false } = {}) {
   const editable = canEdit(report);
   const monthYearLabel = monthLabel(report.report_month, report.report_year);
@@ -882,35 +906,33 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   const absenceRows = absences.map((r) => {
     const attachment = attachmentForEntry(attachments, 'absence_entry_id', r.id);
     return `
-      <tr class="pr-data-row" data-id="${escapeHtml(r.id)}">
-        <td>${escapeHtml(absenceLabel(r.absence_type))}</td>
-        <td class="pr-td-date">${fmtDate(r.start_date)}</td>
-        <td class="pr-td-date">${fmtDate(r.end_date)}</td>
-        <td class="pr-td-num">${fmtNum(calculatedAbsenceDays(r))}</td>
-        <td>${escapeHtml(attachmentStatusHtml(attachment))}</td>
-        <td class="pr-td-notes">
-          ${editable ? `<label class="pr-attach-inline-btn" title="צרף אסמכתא להיעדרות">
-            📎<input type="file" class="pr-file-input" accept="image/*,.pdf"
-              data-entry-id="${escapeHtml(r.id)}" data-entry-type="absence" /></label>` : ''}
-        </td>
-        <td class="pr-td-actions">
-          ${editable ? `<button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-absence"
+      <div class="pr-entry-row" data-id="${escapeHtml(r.id)}">
+        <div class="pr-entry-main">
+          <strong>${escapeHtml(absenceLabel(r.absence_type))}</strong>
+          <span>${fmtDate(r.start_date)}–${fmtDate(r.end_date)}</span>
+        </div>
+        <div class="pr-entry-meta">
+          <span>${fmtNum(calculatedAbsenceDays(r))} ימים</span>
+          <span class="pr-attachment-status ${attachment ? 'is-attached' : 'is-missing'}">${attachment ? 'אסמכתא צורפה' : 'אין אסמכתא'}</span>
+        </div>
+        <div class="pr-entry-actions">
+          ${editable ? `<label class="pr-btn pr-btn--ghost pr-btn--sm pr-upload-label-inline" title="צרף אסמכתא להיעדרות">
+            צירוף אסמכתא<input type="file" class="pr-file-input" accept="image/*,.pdf"
+              data-entry-id="${escapeHtml(r.id)}" data-entry-type="absence" /></label>
+          <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-absence"
             data-entry-id="${escapeHtml(r.id)}" data-absence-type="${escapeHtml(r.absence_type)}"
             data-start-date="${escapeHtml(r.start_date)}" data-end-date="${escapeHtml(r.end_date)}"
             data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
-          <button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
+          <button class="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" type="button" data-pr-action="delete-entry"
             data-entry-id="${escapeHtml(r.id)}" data-entry-table="absence_entries"
-            aria-label="מחק היעדרות" title="מחק">✕</button>` : ''}
-        </td>
-      </tr>`;
+            aria-label="מחק היעדרות">מחיקה</button>` : ''}
+        </div>
+      </div>`;
   }).join('');
 
   const absenceTable = absences.length > 0
-    ? `<div class="pr-table-scroll"><table class="pr-data-table">
-        <thead><tr><th>סוג</th><th>מתאריך</th><th>עד תאריך</th><th class="pr-th-num">ימים מחושבים</th><th>אסמכתא</th><th>צירוף</th><th class="pr-th-del">פעולות</th></tr></thead>
-        <tbody>${absenceRows}</tbody>
-      </table></div>`
-    : `<p class="pr-compact-empty">לא נוספו ימי חופש / מחלה / הצהרה לחודש זה.</p>`;
+    ? `<div class="pr-entry-list">${absenceRows}</div>`
+    : compactEmptyRowHtml('לא דווחו ימי חופש, מחלה או הצהרה לחודש זה.');
 
   const leaveSection = `
     ${editable ? `
@@ -930,8 +952,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
               <div class="pr-field"><label class="pr-label">ימים מחושבים</label><input class="pr-input" type="number" name="calculated_days" readonly value="0" /></div>
             </div>
             <div class="pr-form-row">
-              <div class="pr-field pr-field--wide"><label class="pr-label">מסמך אסמכתא</label><input class="pr-input" type="file" name="attachment" accept="image/*,.pdf" /></div>
-              <div class="pr-field pr-field--wide"><label class="pr-label">הערות</label><input class="pr-input" type="text" name="notes" placeholder="אישור מחלה / הצהרה / אישור חופש" /></div>
+              <div class="pr-field pr-field--wide"><label class="pr-label">קובץ אסמכתא</label><input class="pr-input" type="file" name="attachment" accept="image/*,.pdf" /></div>
             </div>
             <div class="pr-add-form-actions">
               <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
@@ -948,38 +969,27 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     : '';
 
   const travelRows = travel.map(r => `
-    <tr class="pr-data-row" data-id="${escapeHtml(r.id)}">
-      <td class="pr-td-date">${fmtDate(r.travel_date)}</td>
-      <td>${escapeHtml(r.origin)}</td>
-      <td>${escapeHtml(r.destination)}</td>
-      <td>${escapeHtml(r.description)}</td>
-      <td class="pr-td-num">${fmtNum(r.roundtrip_km)}</td>
-      <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
-      <td class="pr-td-notes">
-        ${editable ? `<label class="pr-attach-inline-btn" title="צרף אסמכתא">
-          📎<input type="file" class="pr-file-input" accept="image/*,.pdf"
-            data-entry-id="${escapeHtml(r.id)}" data-entry-type="travel" /></label>` : ''}
-      </td>
-      <td class="pr-td-actions">
+    <div class="pr-entry-row" data-id="${escapeHtml(r.id)}">
+      <div class="pr-entry-main">
+        <strong>${fmtDate(r.travel_date)} · ${escapeHtml(r.origin)} ← ${escapeHtml(r.destination)}</strong>
+        ${r.description ? `<span>${escapeHtml(r.description)}</span>` : ''}
+      </div>
+      <div class="pr-entry-meta">
+        <span>${fmtNum(r.roundtrip_km)} ק"מ</span>
+        <strong>₪${fmt(r.amount)}</strong>
+      </div>
+      <div class="pr-entry-actions">
         ${editable ? `<button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-travel"
           data-entry-id="${escapeHtml(r.id)}" data-travel-date="${escapeHtml(r.travel_date)}"
           data-origin="${escapeHtml(r.origin || '')}" data-destination="${escapeHtml(r.destination || '')}"
           data-description="${escapeHtml(r.description || '')}" data-roundtrip-km="${escapeHtml(r.roundtrip_km || '')}"
           data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
-        <button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
+        <button class="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" type="button" data-pr-action="delete-entry"
           data-entry-id="${escapeHtml(r.id)}" data-entry-table="declared_travel_entries"
-          aria-label="מחק שורה" title="מחק">✕</button>` : ''}
-      </td>
-    </tr>
+          aria-label="מחק נסיעה">מחיקה</button>` : ''}
+      </div>
+    </div>
   `).join('');
-
-  const travelTotalRow = `
-    <tr class="pr-total-row">
-      <td colspan="4" class="pr-total-label">סה"כ החזר נסיעות</td>
-      <td class="pr-td-num pr-total-num">${fmtNum(totalTravelKm)}</td>
-      <td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalTravel)}</td>
-      <td colspan="2"></td>
-    </tr>`;
 
   const addTravelPanel = editable ? `
     <div class="pr-add-panel" id="pr-add-travel-panel" hidden>
@@ -1014,35 +1024,29 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   const expenseRows = expenses.map(r => {
     const attachment = attachmentForEntry(attachments, 'expense_entry_id', r.id);
     return `
-    <tr class="pr-data-row" data-id="${escapeHtml(r.id)}">
-      <td class="pr-td-date">${fmtDate(r.expense_date)}</td>
-      <td>${escapeHtml(r.description)}</td>
-      <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
-      <td class="pr-td-notes">
-        <span class="pr-attachment-status ${attachment ? 'is-attached' : 'is-missing'}">${escapeHtml(attachmentStatusHtml(attachment))}</span>
-        ${editable ? `<label class="pr-attach-inline-btn" title="צרף קבלה/חשבונית">
-          📎<input type="file" class="pr-file-input" accept="image/*,.pdf"
-            data-entry-id="${escapeHtml(r.id)}" data-entry-type="expense" /></label>` : ''}
-      </td>
-      <td class="pr-td-actions">
-        ${editable ? `<button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-expense"
+    <div class="pr-entry-row" data-id="${escapeHtml(r.id)}">
+      <div class="pr-entry-main">
+        <strong>${fmtDate(r.expense_date)} · ${escapeHtml(r.description)}</strong>
+      </div>
+      <div class="pr-entry-meta">
+        <strong>₪${fmt(r.amount)}</strong>
+        <span class="pr-attachment-status ${attachment ? 'is-attached' : 'is-missing'}">${attachment ? 'קבלה צורפה' : 'אין קבלה'}</span>
+      </div>
+      <div class="pr-entry-actions">
+        ${editable ? `<label class="pr-btn pr-btn--ghost pr-btn--sm pr-upload-label-inline" title="צרף קבלה או אסמכתא">
+          צירוף קבלה<input type="file" class="pr-file-input" accept="image/*,.pdf"
+            data-entry-id="${escapeHtml(r.id)}" data-entry-type="expense" /></label>
+        <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-expense"
           data-entry-id="${escapeHtml(r.id)}" data-expense-date="${escapeHtml(r.expense_date)}"
           data-document-type="${escapeHtml(r.document_type || 'receipt')}" data-description="${escapeHtml(r.description || '')}"
           data-amount="${escapeHtml(r.amount || '')}" data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
-        <button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
+        <button class="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" type="button" data-pr-action="delete-entry"
           data-entry-id="${escapeHtml(r.id)}" data-entry-table="expense_entries"
-          aria-label="מחק שורה" title="מחק">✕</button>` : ''}
-      </td>
-    </tr>
+          aria-label="מחק הוצאה">מחיקה</button>` : ''}
+      </div>
+    </div>
   `;
   }).join('');
-
-  const expensesTotalRow = `
-    <tr class="pr-total-row">
-      <td colspan="2" class="pr-total-label">סה"כ כולל הוצאות</td>
-      <td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalExpenses)}</td>
-      <td colspan="2"></td>
-    </tr>`;
 
   const addExpensePanel = editable ? `
     <div class="pr-add-panel" id="pr-add-expense-panel" hidden>
@@ -1082,108 +1086,49 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
 
   const travelTable = travel.length > 0
     ? `
-      <div class="pr-table-scroll">
-        <table class="pr-data-table">
-          <thead>
-            <tr>
-              <th class="pr-col-date">תאריך</th><th class="pr-col-mid">נק׳ התחלה</th><th class="pr-col-mid">נק׳ יעד</th><th class="pr-col-detail">פרטים</th>
-              <th class="pr-th-num pr-col-compact">ק"מ הלוך וחזור</th><th class="pr-th-num pr-col-compact">סה"כ החזר</th>
-              <th class="pr-col-compact">אסמכתא</th><th class="pr-th-del">פעולות</th>
-            </tr>
-          </thead>
-          <tbody>${travelRows}${travelTotalRow}</tbody>
-        </table>
-      </div>
+      <div class="pr-entry-list">${travelRows}</div>
+      ${totalTravel > 0 ? `<div class="pr-inline-total">סה"כ נסיעות: ${fmtNum(totalTravelKm)} ק"מ · ₪${fmt(totalTravel)}</div>` : ''}
     `
-    : reportEmptyStateHtml({
-        icon: '🚗',
-        title: 'אין נסיעות מדווחות עדיין',
-        text: 'הוסיפו נסיעה ראשונה כדי לחשב החזר קילומטרים לדוח החודשי.',
-        action: 'toggle-add-travel',
-        actionLabel: '+ הוסף נסיעה',
-        editable
-      });
+    : compactEmptyRowHtml('אין נסיעות מדווחות לחודש זה.');
 
   const expensesTable = expenses.length > 0
     ? `
-      <div class="pr-table-scroll">
-        <table class="pr-data-table">
-          <thead>
-            <tr>
-              <th class="pr-col-date">תאריך</th><th class="pr-col-detail">פירוט</th>
-              <th class="pr-th-num pr-col-compact">סה"כ בש"ח</th><th class="pr-col-compact">קבלה</th><th class="pr-th-del">פעולות</th>
-            </tr>
-          </thead>
-          <tbody>${expenseRows}${expensesTotalRow}</tbody>
-        </table>
-      </div>
+      <div class="pr-entry-list">${expenseRows}</div>
+      ${totalExpenses > 0 ? `<div class="pr-inline-total">סה"כ הוצאות: ₪${fmt(totalExpenses)}</div>` : ''}
     `
-    : reportEmptyStateHtml({
-        icon: '🧾',
-        title: 'אין הוצאות בדוח',
-        text: 'אפשר להוסיף קבלה, חשבונית או הוצאה אחרת שנדרשת להחזר.',
-        action: 'toggle-add-expense',
-        actionLabel: '+ הוסף שורה',
-        editable
-      });
+    : compactEmptyRowHtml('לא נוספו הוצאות לחודש זה.');
 
-  const addTravelButton = editable && travel.length > 0
-    ? `<button class="pr-btn pr-btn--add-row" type="button" data-pr-action="toggle-add-travel">+ הוסף נסיעה</button>`
+  const addTravelButton = editable
+    ? `<button class="pr-btn pr-btn--primary pr-btn--sm pr-section-action" type="button" data-pr-action="toggle-add-travel">הוספת נסיעה</button>`
     : '';
-  const addExpenseButton = editable && expenses.length > 0
-    ? `<button class="pr-btn pr-btn--add-row" type="button" data-pr-action="toggle-add-expense">+ הוסף שורה</button>`
+  const addExpenseButton = editable
+    ? `<button class="pr-btn pr-btn--primary pr-btn--sm pr-section-action" type="button" data-pr-action="toggle-add-expense">הוספת הוצאה</button>`
     : '';
-
-  const attachRows = attachments.length === 0
-    ? reportEmptyStateHtml({
-        icon: '📎',
-        title: 'אין קבצים מצורפים',
-        text: 'ניתן לצרף קבלות, חשבוניות או מסמכים משלימים לדוח.',
-        action: '',
-        actionLabel: '',
-        editable: false
-      })
-    : attachments.map(a => `
-        <div class="pr-attachment-row">
-          <span class="pr-attachment-name">${escapeHtml(a.file_name)}</span>
-          <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="view-attachment"
-            data-storage-path="${escapeHtml(a.storage_path)}">צפה / הורד</button>
-          ${editable ? `<button class="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" type="button"
-            data-pr-action="delete-attachment"
-            data-attachment-id="${escapeHtml(a.id)}"
-            data-storage-path="${escapeHtml(a.storage_path)}">מחק</button>` : ''}
-        </div>
-      `).join('');
-
-  const uploadBtn = editable ? `
-    <label class="pr-btn pr-btn--secondary pr-btn--sm pr-upload-label">
-      📎 צרף קובץ לדוח
-      <input type="file" class="pr-file-input pr-report-file" accept="image/*,.pdf" />
-    </label>
-  ` : '';
 
   const submitSection = editable && !isSimulation ? `
-    <div class="pr-card pr-submit-card">
+    <div class="pr-submit-card">
       <p class="pr-signature-text">אני מאשר/ת כי הפרטים בדוח זה נכונים ומלאים עבור חודש השכר הנוכחי.</p>
-      <label class="pr-label" for="pr-signature-name">שם מלא לחתימה דיגיטלית</label>
-      <input class="pr-input pr-signature-input" id="pr-signature-name" type="text"
-        value="${escapeHtml(profile.full_name || '')}" autocomplete="name" />
+      <label class="pr-label pr-signature-field" for="pr-signature-name">
+        <span>שם מלא לחתימה דיגיטלית</span>
+        <input class="pr-input pr-signature-input" id="pr-signature-name" type="text"
+          value="${escapeHtml(profile.full_name || '')}" autocomplete="name" />
+      </label>
       <label class="pr-confirm-label">
         <input type="checkbox" id="pr-confirm-checkbox" class="pr-confirm-checkbox" />
         <span>אני מאשר/ת כי החתימה הדיגיטלית ומועד האישור יישמרו בדוח.</span>
       </label>
-      <button class="pr-btn pr-btn--primary pr-btn--large pr-submit-btn"
+      <button class="pr-btn pr-btn--primary pr-submit-btn"
         id="pr-submit-btn" data-pr-action="submit-report"
         data-report-id="${escapeHtml(report.id)}" disabled>
         ${report.status === 'needs_correction' ? 'שליחה מחדש לאישור' : 'אישור ושליחה'}
       </button>
     </div>
   ` : editable && isSimulation ? `
-    <div class="pr-card pr-submit-card">
+    <div class="pr-submit-card">
       <p class="pr-sim-note">מצב סימולציה — שליחה חסומה</p>
     </div>
   ` : `
-    <div class="pr-card pr-submit-card pr-submit-card--locked">
+    <div class="pr-submit-card pr-submit-card--locked">
       <span class="pr-locked-msg">🔒 הדוח נעול לעריכה — סטטוס: ${escapeHtml(statusText)}</span>
       <div class="pr-submit-finish-actions">
         <button class="pr-btn pr-btn--secondary pr-btn--sm" type="button" data-pr-action="download-report-pdf" data-report-id="${escapeHtml(report.id)}">הורדת PDF</button>
@@ -1191,6 +1136,23 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
       </div>
     </div>
   `;
+
+  const correctionDate = report.status === 'needs_correction' && report.updated_at ? fmtDate(String(report.updated_at).slice(0, 10)) : '';
+  const resentText = report.status !== 'needs_correction' && report.finance_notes && report.submitted_at
+    ? `כן, ${fmtDate(String(report.submitted_at).slice(0, 10))}`
+    : '';
+  const detailsSummary = [
+    summaryPillHtml('עובד', profile.full_name || ''),
+    summaryPillHtml('חודש דיווח', monthYearLabel),
+    summaryPillHtml('תקופת דיווח', reportPeriod.label),
+    summaryPillHtml('סטטוס', statusText),
+    totalExpenses > 0 ? summaryPillHtml('סה"כ הוצאות', `₪${fmt(totalExpenses)}`) : '',
+    totalTravel > 0 ? summaryPillHtml('סה"כ נסיעות', `₪${fmt(totalTravel)}`) : '',
+    totalAll > 0 ? summaryPillHtml('סה"כ להחזר', `₪${fmt(totalAll)}`, { highlight: true }) : '',
+    totalVacationDays > 0 ? summaryPillHtml('ימי חופש', fmtNum(totalVacationDays)) : '',
+    totalSickDays > 0 ? summaryPillHtml('ימי מחלה', fmtNum(totalSickDays)) : '',
+    totalDeclarationDays > 0 ? summaryPillHtml('ימי הצהרה', fmtNum(totalDeclarationDays)) : ''
+  ].join('');
 
   return `
     <div class="pr-screen pr-report-form" dir="rtl">
@@ -1214,8 +1176,8 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         ${financeNotice}
 
         <nav class="pr-report-tabs" role="tablist" aria-label="אזורי הדוח">
-          <button class="pr-report-tab is-active" type="button" role="tab" aria-selected="true" data-pr-action="switch-report-tab" data-tab="salary">
-            <span>פרטי הדוח</span>
+          <button class="pr-report-tab is-active" type="button" role="tab" aria-selected="true" data-pr-action="switch-report-tab" data-tab="status">
+            <span>סטטוס</span>
           </button>
           <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="travel">
             <span>נסיעות</span>${tabCountBadge(travel.length)}
@@ -1224,108 +1186,71 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             <span>הוצאות</span>${tabCountBadge(expenses.length)}
           </button>
           <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="absences">
-            <span>ימי חופש / מחלה / הצהרה</span>${tabCountBadge(absences.length)}
+            <span>ימי עבודה</span>${tabCountBadge(absences.length)}
           </button>
-          <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="attachments">
-            <span>אסמכתאות</span>${tabCountBadge(attachments.length)}
-          </button>
-          <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="approval">
-            <span>סיכום ואישור</span>
+          <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="details">
+            <span>פרטים</span>
           </button>
         </nav>
-
-        <section class="pr-summary-bar" aria-label="סיכום הדוח">
-          <div class="pr-sum-item">
-            <span class="pr-sum-label">סה"כ נסיעות</span>
-            <span class="pr-sum-value">₪${fmt(totalTravel)}</span>
-          </div>
-          <div class="pr-sum-item">
-            <span class="pr-sum-label">סה"כ הוצאות</span>
-            <span class="pr-sum-value">₪${fmt(totalExpenses)}</span>
-          </div>
-          <div class="pr-sum-item pr-sum-item--total">
-            <span class="pr-sum-label">סה"כ להחזר</span>
-            <span class="pr-sum-value">₪${fmt(totalAll)}</span>
-          </div>
-          <div class="pr-sum-item">
-            <span class="pr-sum-label">חופש</span>
-            <span class="pr-sum-value">${fmtNum(totalVacationDays)}</span>
-          </div>
-          <div class="pr-sum-item">
-            <span class="pr-sum-label">מחלה</span>
-            <span class="pr-sum-value">${fmtNum(totalSickDays)}</span>
-          </div>
-          <div class="pr-sum-item">
-            <span class="pr-sum-label">הצהרה</span>
-            <span class="pr-sum-value">${fmtNum(totalDeclarationDays)}</span>
-          </div>
-        </section>
 
         <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="expenses">
           <div class="pr-section-head">
             <div>
-              <span class="pr-section-kicker">כרטיס נתונים</span>
               <h2 class="pr-section-title">הוצאות</h2>
             </div>
-            ${sectionMetricHtml('סה"כ הוצאות', `₪${fmt(totalExpenses)}`)}
+            <div class="pr-section-head__actions">${addExpenseButton}</div>
           </div>
           ${expensesTable}
           ${addExpensePanel}
-          ${addExpenseButton}
         </section>
 
         <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="travel">
           <div class="pr-section-head">
             <div>
-              <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">נסיעות ברכב</h2>
+              <h2 class="pr-section-title">נסיעות</h2>
             </div>
-            ${sectionMetricHtml('ק"מ / החזר', `${fmtNum(totalTravelKm)} ק"מ · ₪${fmt(totalTravel)}`)}
+            <div class="pr-section-head__actions">${addTravelButton}</div>
           </div>
           ${travelTable}
           ${addTravelPanel}
-          ${addTravelButton}
         </section>
 
-        <section class="pr-card pr-report-header-card pr-tab-panel" data-tab-panel="salary" id="pr-report-header">
-          <div class="pr-section-head pr-section-head--plain">
+        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="status" id="pr-report-header">
+          <div class="pr-section-head">
             <div>
-              <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">סיכום לאישור שכר</h2>
+              <h2 class="pr-section-title">סטטוס הדוח</h2>
             </div>
-            ${sectionMetricHtml('סה"כ להחזר', `₪${fmt(totalAll)}`)}
           </div>
-          <div class="pr-report-identity">
-            <div class="pr-id-item"><span class="pr-id-label">עובד</span><strong>${escapeHtml(profile.full_name || '')}</strong></div>
-            <div class="pr-id-item"><span class="pr-id-label">חודש דיווח</span><strong>${escapeHtml(monthYearLabel)}</strong></div>
-            <div class="pr-id-item"><span class="pr-id-label">תקופת דיווח</span><strong>${escapeHtml(reportPeriod.label)}</strong></div>
-            <div class="pr-id-item"><span class="pr-id-label">סטטוס</span>${statusChip}</div>
-            <div class="pr-id-item"><span class="pr-id-label">סה"כ נסיעות</span><strong>₪${fmt(totalTravel)}</strong></div>
-            <div class="pr-id-item"><span class="pr-id-label">סה"כ הוצאות</span><strong>₪${fmt(totalExpenses)}</strong></div>
+          <div class="pr-info-list">
+            ${reportInfoRowHtml('סטטוס נוכחי', statusChip, { html: true })}
+            ${reportInfoRowHtml('תקופת דיווח', reportPeriod.label)}
+            ${reportInfoRowHtml('הערת כספים / סיבת החזרה', report.finance_notes || '')}
+            ${reportInfoRowHtml('תאריך החזרה לתיקון', correctionDate)}
+            ${reportInfoRowHtml('נשלח מחדש', resentText)}
           </div>
+          <p class="pr-info-note">יש להשלים ולשלוח את הדיווח עד ה־26 בכל חודש. הדיווח מתייחס לתקופת הדיווח עד ה־25 בכל חודש.</p>
         </section>
         <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="absences">
           <div class="pr-section-head">
             <div>
-              <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">ימי חופש / מחלה / הצהרה</h2>
+              <h2 class="pr-section-title">ימי עבודה</h2>
+              <p class="pr-section-subtext">מדווחים כאן רק אם היו ימי חופש, מחלה או הצהרה.</p>
             </div>
-            ${sectionMetricHtml('ימים מחושבים', `${fmtNum(totalVacationDays + totalSickDays + totalDeclarationDays)}`)}
           </div>
           ${leaveSection}
         </section>
-        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="attachments">
+
+        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="details">
           <div class="pr-section-head">
             <div>
-              <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">אסמכתאות</h2>
+              <h2 class="pr-section-title">פרטים</h2>
             </div>
           </div>
-          <div class="pr-attachments-list">${attachRows}</div>
-          ${uploadBtn}
+          <section class="pr-summary-bar pr-summary-bar--details" aria-label="סיכום הדוח">
+            ${detailsSummary || summaryPillHtml('סטטוס', statusText)}
+          </section>
+          ${submitSection}
         </section>
-
-        <div class="pr-tab-panel" data-tab-panel="approval">${submitSection}</div>
       </div>
     </div>
   `;
@@ -1535,7 +1460,7 @@ async function loadMyReportsList(root, employeeId) {
   }
 }
 
-async function openReportDetail(root, reportId, isAdmin = false, { isSimulation = false, initialTab = 'salary' } = {}) {
+async function openReportDetail(root, reportId, isAdmin = false, { isSimulation = false, initialTab = 'status' } = {}) {
   const report = await fetchReport(reportId);
   const expectedEmployeeId = isSimulation ? prViewAsEmployee?.id : prSession?.user?.id;
   if (!isAdmin && String(report?.employee_id || '') !== String(expectedEmployeeId || '')) {
@@ -1761,7 +1686,7 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
         btn.disabled = true;
         btn.textContent = 'פותח…';
         const report = await getOrCreateReport(employeeId, month, year);
-        await safeOpenReportDetail(root, report.id, false, { isSimulation, initialTab: 'salary' });
+        await safeOpenReportDetail(root, report.id, false, { isSimulation, initialTab: 'status' });
       } catch (err) {
         showToast(friendlyPersonalReportsError(err), 'danger');
         btn.disabled = false;
@@ -1779,9 +1704,13 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
   });
 }
 
-function setReportTab(root, tab = 'salary') {
-  const allowed = new Set(['expenses', 'travel', 'salary', 'absences', 'attachments', 'approval']);
-  const activeTab = allowed.has(tab) ? tab : 'salary';
+function currentReportTab(root) {
+  return root.querySelector('.pr-report-tab.is-active')?.dataset?.tab || 'status';
+}
+
+function setReportTab(root, tab = 'status') {
+  const allowed = new Set(['status', 'travel', 'expenses', 'absences', 'details']);
+  const activeTab = allowed.has(tab) ? tab : 'status';
   root.querySelectorAll('.pr-report-tab').forEach((btn) => {
     const isActive = btn.dataset.tab === activeTab;
     btn.classList.toggle('is-active', isActive);
@@ -1951,7 +1880,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (!confirm('למחוק שורה זו?')) return;
       try {
         await deleteEntry(btn.dataset.entryTable, btn.dataset.entryId);
-        await safeOpenReportDetail(root, prSelectedReport.id, false);
+        await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root) });
         showToast('נמחק', 'success');
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
@@ -1999,7 +1928,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (!confirm('למחוק קובץ זה?')) return;
       try {
         await deleteAttachment({ id: btn.dataset.attachmentId, storage_path: btn.dataset.storagePath });
-        await safeOpenReportDetail(root, prSelectedReport.id, false);
+        await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root) });
         showToast('קובץ נמחק', 'success');
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
@@ -2049,7 +1978,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     };
     try {
       await uploadAttachment(prSelectedReport.id, prSession.user.id, entryLink, file);
-      await safeOpenReportDetail(root, prSelectedReport.id, false);
+      await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root) });
       showToast('הקובץ הועלה', 'success');
     } catch (err) { showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בהעלאת הקובץ. יש לנסות שוב.'), 'danger'); }
   });
@@ -2124,7 +2053,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         const file = form.querySelector('input[name="attachment"]')?.files?.[0];
         if (file) await uploadAttachment(reportId, employeeId, { absenceEntryId: absence.id }, file);
       }
-      await safeOpenReportDetail(root, reportId, false);
+      await safeOpenReportDetail(root, reportId, false, { isSimulation, initialTab: currentReportTab(root) });
       showToast('נשמר', 'success');
     } catch (err) {
       showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בשמירת הדוח. יש לנסות שוב.'), 'danger');
