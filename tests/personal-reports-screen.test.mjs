@@ -124,6 +124,8 @@ test('monthly report detail keeps the compact five-tab employee workflow', async
   assert.match(source, /compactEmptyRowHtml\('לא נוספו הוצאות לחודש זה\.'\)/);
   assert.match(source, /compactEmptyRowHtml\('לא דווחו ימי חופש, מחלה או הצהרה לחודש זה\.'\)/);
   assert.match(source, /initialTab: currentReportTab\(root\)/);
+  assert.match(source, /<span>אישור דיווח<\/span>/);
+  assert.match(source, /יש להשלים ולשלוח את הדיווח עד ה־26 בכל חודש\. הדיווח מתייחס לתקופת הדיווח עד ה־25 בכל חודש\./);
 });
 
 test('monthly report detail UX: status accordion, travel fields, tables, icons, details period, signature name', async () => {
@@ -134,8 +136,9 @@ test('monthly report detail UX: status accordion, travel fields, tables, icons, 
   assert.doesNotMatch(source, /reportInfoRowHtml\('סטטוס נוכחי'/);
   assert.match(source, /pr-travel-km-field/);
   assert.match(source, /pr-travel-public-field/);
-  assert.match(source, /pr-travel-amount-field/);
-  assert.match(source, /pr-travel-amount-field'\)\.forEach\(\(field\) => \{ field\.hidden = isPublicTransport/);
+  assert.doesNotMatch(source, /pr-travel-amount-field/);
+  assert.doesNotMatch(source, /name="amount_preview"/);
+  assert.match(source, /סכום ההחזר יחושב לאחר השמירה\./);
   assert.match(source, /updateTravelTypeFields/);
   assert.match(source, /kmInput\.required = !isPublicTransport/);
   assert.match(source, /publicAmountInput\.required = isPublicTransport/);
@@ -166,24 +169,67 @@ test('personal reports entry tables use compact fit-content layout', async () =>
   assert.match(css, /\.pr-entries-table \.pr-col-date[^}]*max-width:\s*110px/);
   assert.match(css, /\.pr-entries-table-wrap\.pr-table-scroll\s*\{[^}]*overflow-x:\s*hidden/);
   assert.match(css, /\.pr-report-detail-body \.pr-field\[hidden\]\s*\{[^}]*display:\s*none !important/);
+  assert.match(css, /\.pr-th-num, \.pr-td-num\s*\{[^}]*text-align:\s*center/);
+  assert.match(css, /\.pr-entries-table-wrap\s*\{[^}]*border:\s*1px solid/);
 });
 
 test('service worker cache version bumped for personal reports deploy', async () => {
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 587;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 587;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 588;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 588;/);
+});
+
+test('bindReportDetail uses bindScreenListeners, AbortController, and savingForms', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /function bindScreenListeners/);
+  assert.match(source, /const savingForms = new WeakSet\(\)/);
+  assert.match(source, /root\.__prDetailAbort\?\.abort\(\)/);
+  assert.match(source, /new AbortController\(\)/);
+  assert.match(source, /bindScreenListeners\(root, detailAbort\.signal\)/);
+  assert.match(source, /savingForms\.has\(form\)/);
+  assert.match(source, /savingForms\.add\(form\)/);
+  assert.match(source, /savingForms\.delete\(form\)/);
+});
+
+test('add-entry actions use explicit show/hide panels and absence type only reveals form', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /data-pr-action="show-add-expense"/);
+  assert.match(source, /data-pr-action="hide-add-expense"/);
+  assert.match(source, /data-pr-action="show-add-travel"/);
+  assert.match(source, /data-pr-action="hide-add-travel"/);
+  assert.doesNotMatch(source, /toggle-add-expense/);
+  assert.doesNotMatch(source, /toggle-add-travel/);
+  assert.match(source, /if \(action === 'choose-absence-type'\)/);
+  assert.match(source, /revealAbsenceFields\(form, btn\.dataset\.absenceType/);
+  assert.doesNotMatch(source, /choose-absence-type[\s\S]{0,200}upsertAbsence/);
 });
 
 test('source computes km reimbursement server-side without exposing travel rates', async () => {
   const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 
   assert.doesNotMatch(source, /\* 1\.6/);
+  assert.doesNotMatch(source, /updateTravelAmount/);
   assert.doesNotMatch(source, /rate_per_km/);
   assert.doesNotMatch(source, /employee_travel_rates/);
-  assert.match(source, /filter\(\(\[key\]\) => key !== 'amount'\)/);
-  assert.match(source, /מחושב בשרת לאחר שמירה/);
-  assert.match(source, /entrySaveInFlight/);
+  assert.match(source, /\.rpc\('upsert_declared_travel_entry'/);
+  assert.match(source, /missing_travel_rate/);
   assert.match(source, /setReportTab\(root, 'expenses'\)/);
+});
+
+test('migration keeps travel rates private and exposes only RPC entry points', async () => {
+  const sql = await readFile(new URL('../supabase/migrations/20260607_personal_reports_employee_travel_rates.sql', import.meta.url), 'utf8');
+
+  assert.match(sql, /CREATE SCHEMA IF NOT EXISTS private/);
+  assert.match(sql, /private\.employee_travel_rates/);
+  assert.match(sql, /private\.declared_travel_rate_audit/);
+  assert.match(sql, /private\.get_employee_km_rate/);
+  assert.match(sql, /private\.personal_report_is_editable/);
+  assert.match(sql, /private\.personal_reports_can_manage_travel_rates/);
+  assert.match(sql, /public\.upsert_declared_travel_entry/);
+  assert.match(sql, /public\.manage_employee_travel_rate/);
+  assert.match(sql, /REVOKE ALL ON SCHEMA private/);
 });

@@ -44,8 +44,17 @@ let prViewAsEmployee = null;
 let prAdminMode      = 'my';
 let isPersonalReportsUnlocked = false;
 let _dashboardUser   = null;   // stored on bind() so all rerender() calls have it
+const savingForms = new WeakSet();
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+
+function bindScreenListeners(root, signal) {
+  return {
+    on(type, listener, options = {}) {
+      root.addEventListener(type, listener, { signal, ...options });
+    }
+  };
+}
 
 function fmt(n) {
   return Number(n || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -184,6 +193,9 @@ function friendlyPersonalReportsError(error, fallback = 'אירעה תקלה ב�
   }
   if (/missing_expense_receipts/i.test(raw)) {
     return 'לא ניתן לשלוח או לאשר לשכר: קיימת הוצאה כספית ללא קובץ אסמכתא / קבלה.';
+  }
+  if (/missing_travel_rate|missing travel rate/i.test(raw)) {
+    return 'לא הוגדר תעריף החזר נסיעות לעובד. יש לפנות למנהל המערכת.';
   }
   if (/permission denied|row-level security|rls|unauthorized|forbidden/i.test(raw)) {
     return 'אין הרשאה לצפייה בדוחות אלה.';
@@ -589,10 +601,23 @@ async function upsertAbsence(entry) {
 async function upsertDeclaredTravel(entry) {
   const { travel_type: travelType = 'km', id, ...baseEntry } = entry;
   const isPublicTransport = travelType === 'public_transport';
-  const table = isPublicTransport ? 'public_transport_entries' : 'declared_travel_entries';
-  const payload = isPublicTransport
-    ? Object.fromEntries(Object.entries(baseEntry).filter(([key]) => key !== 'roundtrip_km'))
-    : Object.fromEntries(Object.entries(baseEntry).filter(([key]) => key !== 'amount'));
+  if (!isPublicTransport) {
+    const { data, error } = await supabase.rpc('upsert_declared_travel_entry', {
+      p_id: id || null,
+      p_report_id: baseEntry.report_id,
+      p_employee_id: baseEntry.employee_id,
+      p_travel_date: baseEntry.travel_date,
+      p_origin: baseEntry.origin || '',
+      p_destination: baseEntry.destination || '',
+      p_description: baseEntry.description || '',
+      p_roundtrip_km: Number(baseEntry.roundtrip_km || 0)
+    });
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    return { ...row, travel_type: 'km', entry_table: 'declared_travel_entries' };
+  }
+  const table = 'public_transport_entries';
+  const payload = Object.fromEntries(Object.entries(baseEntry).filter(([key]) => key !== 'roundtrip_km'));
   if (id) {
     const { data, error } = await supabase.from(table).update(payload).eq('id', id).select().single();
     if (error) throw error;
@@ -1077,12 +1102,11 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             <input class="pr-input" type="number" name="roundtrip_km" min="0" step="0.1" required placeholder="0" /></div>
           <div class="pr-field pr-travel-public-field" hidden><label class="pr-label">עלות תחבורה ציבורית ₪ *</label>
             <input class="pr-input" type="number" name="public_transport_amount" min="0" step="0.01" placeholder="0.00" /></div>
-          <div class="pr-field pr-travel-amount-field"><label class="pr-label">סה"כ החזר</label>
-            <input class="pr-input" type="text" name="amount_preview" readonly placeholder="מחושב בשרת לאחר שמירה" tabindex="-1" aria-hidden="true" /></div>
         </div>
+        <p class="pr-travel-km-note pr-travel-km-field">סכום ההחזר יחושב לאחר השמירה.</p>
         <div class="pr-add-form-actions">
           <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
-          <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="toggle-add-travel">ביטול</button>
+          <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="hide-add-travel">ביטול</button>
         </div>
       </form>
     </div>
@@ -1136,7 +1160,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         </div>
         <div class="pr-add-form-actions">
           <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
-          <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="toggle-add-expense">ביטול</button>
+          <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="hide-add-expense">ביטול</button>
         </div>
       </form>
     </div>
@@ -1186,10 +1210,10 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     : compactEmptyRowHtml('לא נוספו הוצאות לחודש זה.');
 
   const addTravelButton = editable
-    ? `<button class="pr-btn pr-btn--primary pr-btn--sm pr-section-action" type="button" data-pr-action="toggle-add-travel">הוספת נסיעה</button>`
+    ? `<button class="pr-btn pr-btn--primary pr-btn--sm pr-section-action" type="button" data-pr-action="show-add-travel">הוספת נסיעה</button>`
     : '';
   const addExpenseButton = editable
-    ? `<button class="pr-btn pr-btn--primary pr-btn--sm pr-section-action" type="button" data-pr-action="toggle-add-expense">הוספת הוצאה</button>`
+    ? `<button class="pr-btn pr-btn--primary pr-btn--sm pr-section-action" type="button" data-pr-action="show-add-expense">הוספת הוצאה</button>`
     : '';
 
   const signatureName = signatureDisplayName(profile, report);
@@ -1264,7 +1288,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             <span>ימי עבודה</span>${tabCountBadge(absences.length)}
           </button>
           <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="details">
-            <span>פרטים</span>
+            <span>אישור דיווח</span>
           </button>
         </nav>
 
@@ -1794,8 +1818,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
   root.__prDetailAbort?.abort();
   const detailAbort = new AbortController();
   root.__prDetailAbort = detailAbort;
-  const detailSignal = { signal: detailAbort.signal };
-  let entrySaveInFlight = false;
+  const listeners = bindScreenListeners(root, detailAbort.signal);
 
   // Enable submit button only when checkbox is checked
   const checkbox = root.querySelector('#pr-confirm-checkbox');
@@ -1806,21 +1829,21 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     submitBtn.disabled = !(checkbox?.checked && String(signatureNameInput?.value || '').trim());
   }
   if (checkbox && submitBtn) {
-    checkbox.addEventListener('change', updateSubmitEnabled);
-    signatureNameInput?.addEventListener('input', updateSubmitEnabled);
+    listeners.on('change', (e) => {
+      if (e.target === checkbox) updateSubmitEnabled();
+    });
+    listeners.on('input', (e) => {
+      if (e.target === signatureNameInput) updateSubmitEnabled();
+    });
     updateSubmitEnabled();
   }
 
   const travelForm = root.querySelector('#pr-add-travel-form');
   if (travelForm) updateTravelTypeFields(travelForm);
 
-  // Toggle add-entry panels
-  function togglePanel(panelId) {
+  function hidePanel(panelId) {
     const panel = root.querySelector(`#${panelId}`);
-    if (panel) {
-      panel.hidden = !panel.hidden;
-      if (!panel.hidden) panel.querySelector('input,select,textarea')?.focus();
-    }
+    if (panel) panel.hidden = true;
   }
 
   function showPanel(panelId) {
@@ -1872,7 +1895,6 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     const isPublicTransport = type === 'public_transport';
     form.querySelectorAll('.pr-travel-km-field').forEach((field) => { field.hidden = isPublicTransport; });
     form.querySelectorAll('.pr-travel-public-field').forEach((field) => { field.hidden = !isPublicTransport; });
-    form.querySelectorAll('.pr-travel-amount-field').forEach((field) => { field.hidden = isPublicTransport; });
     const kmInput = form.querySelector('input[name="roundtrip_km"]');
     const publicAmountInput = form.querySelector('input[name="public_transport_amount"]');
     if (kmInput) {
@@ -1883,17 +1905,10 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       publicAmountInput.required = isPublicTransport;
       if (!isPublicTransport) publicAmountInput.value = '';
     }
-    if (isPublicTransport) {
-      const amountInput = form.querySelector('input[name="amount_preview"]');
-      if (amountInput) amountInput.value = publicAmountInput?.value || '';
-    } else {
-      const amountPreview = form.querySelector('input[name="amount_preview"]');
-      if (amountPreview) amountPreview.value = '';
-    }
   }
 
   // Save meta fields on blur (header inputs)
-  root.addEventListener('blur', async (e) => {
+  listeners.on('blur', async (e) => {
     const input = e.target.closest('.pr-meta-input');
     if (!input || !prSelectedReport || isSimulation) return;
     if (!canEdit(prSelectedReport)) return;
@@ -1908,9 +1923,9 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     } catch (err) {
       showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בשמירת הדוח. יש לנסות שוב.'), 'danger');
     }
-  }, { ...detailSignal, capture: true });
+  }, { capture: true });
 
-  root.addEventListener('click', async (e) => {
+  listeners.on('click', async (e) => {
     const btn = e.target.closest('[data-pr-action]');
     if (!btn) return;
     const action = btn.dataset.prAction;
@@ -1932,20 +1947,25 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
 
     if (action === 'switch-report-tab') { setReportTab(root, btn.dataset.tab); return; }
 
-    if (action === 'toggle-add-travel') {
-      togglePanel('pr-add-travel-panel');
-      const travelForm = root.querySelector('#pr-add-travel-form');
-      if (travelForm && !root.querySelector('#pr-add-travel-panel')?.hidden) {
-        updateTravelTypeFields(travelForm);
-      }
+    if (action === 'show-add-travel') {
+      setReportTab(root, 'travel');
+      const panel = showPanel('pr-add-travel-panel');
+      const travelForm = panel?.querySelector('form[data-form-type="declared_travel"]');
+      if (travelForm) updateTravelTypeFields(travelForm);
       return;
     }
-    if (action === 'toggle-add-expense') {
+    if (action === 'hide-add-travel') {
+      hidePanel('pr-add-travel-panel');
+      return;
+    }
+    if (action === 'show-add-expense') {
       setReportTab(root, 'expenses');
-      togglePanel('pr-add-expense-panel');
-      if (!root.querySelector('#pr-add-expense-panel')?.hidden) {
-        root.querySelector('#pr-add-expense-form input,select,textarea')?.focus();
-      }
+      const panel = showPanel('pr-add-expense-panel');
+      panel?.querySelector('form[data-form-type="expense"] input,select,textarea')?.focus();
+      return;
+    }
+    if (action === 'hide-add-expense') {
+      hidePanel('pr-add-expense-panel');
       return;
     }
     if (action === 'focus-salary-report') {
@@ -1979,8 +1999,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         destination: btn.dataset.destination,
         description: btn.dataset.description,
         roundtrip_km: btn.dataset.roundtripKm,
-        public_transport_amount: btn.dataset.amount,
-        amount_preview: btn.dataset.travelType === 'public_transport' ? btn.dataset.amount : (btn.dataset.amount ? `₪${btn.dataset.amount}` : '')
+        public_transport_amount: btn.dataset.amount
       });
       updateTravelTypeFields(form);
       return;
@@ -2073,15 +2092,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
-  }, detailSignal);
-
-  root.addEventListener('input', (e) => {
-    const publicAmountInput = e.target.closest('input[name="public_transport_amount"]');
-    if (publicAmountInput) {
-      const amountPreview = publicAmountInput.closest('form[data-form-type="declared_travel"]')?.querySelector('input[name="amount_preview"]');
-      if (amountPreview) amountPreview.value = publicAmountInput.value || '';
-    }
-  }, detailSignal);
+  });
 
   function updateAbsenceCalculatedDays(form) {
     const start = form?.querySelector('input[name="start_date"]')?.value || '';
@@ -2091,7 +2102,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
   }
 
   // File uploads + compact absence form reveal/calculation
-  root.addEventListener('change', async (e) => {
+  listeners.on('change', async (e) => {
     const travelTypeSelect = e.target.closest('select[name="travel_type"]');
     if (travelTypeSelect) {
       updateTravelTypeFields(travelTypeSelect.closest('form[data-form-type="declared_travel"]'));
@@ -2127,27 +2138,27 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root) });
       showToast('הקובץ הועלה', 'success');
     } catch (err) { showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בהעלאת הקובץ. יש לנסות שוב.'), 'danger'); }
-  }, detailSignal);
+  });
 
-  root.addEventListener('reset', (e) => {
+  listeners.on('reset', (e) => {
     const form = e.target.closest('form[data-form-type="absence"]');
     if (!form) return;
     setTimeout(() => resetAbsenceForm(form), 0);
-  }, detailSignal);
+  });
 
   // Add entry forms submit
-  root.addEventListener('submit', async (e) => {
+  listeners.on('submit', async (e) => {
     const form = e.target.closest('.pr-add-form');
     if (!form) return;
     e.preventDefault();
-    if (entrySaveInFlight) return;
+    if (savingForms.has(form)) return;
     if (isSimulation) { showToast(SIM_MSG, 'warning'); return; }
     const formType = form.dataset.formType;
     const fd = new FormData(form);
     const reportId  = prSelectedReport.id;
     const employeeId = prSession.user.id;
     const submitBtn = form.querySelector('button[type="submit"]');
-    entrySaveInFlight = true;
+    savingForms.add(form);
     if (submitBtn) submitBtn.disabled = true;
     try {
       if (formType === 'declared_travel') {
@@ -2215,10 +2226,10 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     } catch (err) {
       showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בשמירת הדוח. יש לנסות שוב.'), 'danger');
     } finally {
-      entrySaveInFlight = false;
+      savingForms.delete(form);
       if (submitBtn) submitBtn.disabled = false;
     }
-  }, detailSignal);
+  });
 }
 
 function applyAdminFilters(root) {

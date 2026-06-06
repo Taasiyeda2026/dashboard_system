@@ -12790,7 +12790,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pr-data-row:last-of-type td { border-bottom: none; }
 .pr-data-row:hover td { background: #f8fafc; }
-.pr-th-num, .pr-td-num { text-align: left !important; font-variant-numeric: tabular-nums; }
+.pr-th-num, .pr-td-num { text-align: center !important; font-variant-numeric: tabular-nums; }
 .pr-th-del, .pr-td-actions { width: 36px; text-align: center !important; }
 .pr-td-date { white-space: nowrap; color: #64748b; }
 .pr-td-amount { font-weight: 600; color: #1e293b; }
@@ -14057,6 +14057,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   max-width: 120px;
   padding-left: 6px;
   padding-right: 6px;
+}
+.pr-travel-km-note {
+  margin: 0 0 10px;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 .pr-td-actions-group {
   display: inline-flex;
