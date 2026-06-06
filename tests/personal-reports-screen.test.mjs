@@ -269,6 +269,20 @@ test('source computes km reimbursement server-side without exposing travel rates
   assert.match(source, /setReportTab\(root, 'expenses'\)/);
 });
 
+test('submit success back button returns to employee dashboard with a single refreshed load', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /function showReportSubmittedSuccess/);
+  assert.match(source, /kind: 'submit-success'/);
+  assert.match(source, /function returnToEmployeeDashboard/);
+  assert.match(source, /await returnToEmployeeDashboard\(root, \{ isSimulation \}\)/);
+  assert.match(source, /showReportSubmittedSuccess\(root, prSelectedReport\.id/);
+  assert.match(source, /pr-submit-success-screen/);
+  assert.doesNotMatch(source, /pr-submit-success-screen[\s\S]{0,120}pr-report-form/);
+  assert.match(source, /loadCurrentMonthReport\(employeeId, month, year, \{ force: true \}\)/);
+  assert.doesNotMatch(source, /if \(action === 'back-to-my-reports'\)[\s\S]{0,220}await rerender\(root, _dashboardUser\)/);
+});
+
 test('migration keeps travel rates private and exposes only RPC entry points', async () => {
   const sql = await readFile(new URL('../supabase/migrations/20260607_personal_reports_employee_travel_rates.sql', import.meta.url), 'utf8');
 
