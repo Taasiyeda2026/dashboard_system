@@ -141,6 +141,8 @@ test('monthly report detail UX: status accordion, travel fields, tables, icons, 
   assert.match(source, /publicAmountInput\.required = isPublicTransport/);
   assert.match(source, /pr-entries-table-wrap/);
   assert.match(source, /pr-entries-table/);
+  assert.match(source, /pr-col-date/);
+  assert.match(source, /pr-col-detail/);
   assert.match(source, /prIconBtnHtml/);
   assert.match(source, /prIconUploadHtml/);
   assert.doesNotMatch(source, /data-pr-action="edit-expense"[^>]*>עריכה</);
@@ -154,10 +156,19 @@ test('monthly report detail UX: status accordion, travel fields, tables, icons, 
   assert.doesNotMatch(source, new RegExp(['work', 'hour', 'entries'].join('_')));
 });
 
+test('personal reports entry tables use compact fit-content layout', async () => {
+  const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
+
+  assert.match(css, /\.pr-entries-table-wrap\s*\{[^}]*width:\s*fit-content/);
+  assert.match(css, /\.pr-entries-table-wrap \.pr-entries-table\s*\{[^}]*width:\s*fit-content/);
+  assert.match(css, /\.pr-entries-table \.pr-col-date[^}]*max-width:\s*110px/);
+  assert.match(css, /\.pr-entries-table-wrap\.pr-table-scroll\s*\{[^}]*overflow-x:\s*hidden/);
+});
+
 test('service worker cache version bumped for personal reports deploy', async () => {
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 580;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 580;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 581;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 581;/);
 });

@@ -976,11 +976,11 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
       </div>` : '';
     return `
       <tr class="pr-data-row" data-id="${escapeHtml(r.id)}">
-        <td>${escapeHtml(absenceLabel(r.absence_type))}</td>
+        <td class="pr-col-type">${escapeHtml(absenceLabel(r.absence_type))}</td>
         <td class="pr-td-date">${fmtDate(r.start_date)}</td>
         <td class="pr-td-date">${fmtDate(r.end_date)}</td>
         <td class="pr-td-num">${fmtNum(calculatedAbsenceDays(r))}</td>
-        <td><span class="pr-attachment-status ${attachment ? 'is-attached' : 'is-missing'}">${attachment ? 'צורפה' : 'חסרה'}</span></td>
+        <td class="pr-col-status"><span class="pr-attachment-status ${attachment ? 'is-attached' : 'is-missing'}">${attachment ? 'צורפה' : 'חסרה'}</span></td>
         <td class="pr-td-actions">${actions}</td>
       </tr>`;
   }).join('');
@@ -991,12 +991,12 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <table class="pr-data-table pr-entries-table">
           <thead>
             <tr>
-              <th>סוג</th>
-              <th>מתאריך</th>
-              <th>עד תאריך</th>
-              <th class="pr-th-num">ימים</th>
-              <th>אסמכתא</th>
-              <th class="pr-th-actions"></th>
+              <th class="pr-col-type">סוג</th>
+              <th class="pr-col-date">מתאריך</th>
+              <th class="pr-col-date">עד תאריך</th>
+              <th class="pr-col-num pr-th-num">ימים</th>
+              <th class="pr-col-status">אסמכתא</th>
+              <th class="pr-col-actions pr-th-actions"></th>
             </tr>
           </thead>
           <tbody>${absenceRows}</tbody>
@@ -1045,8 +1045,8 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     return `
       <tr class="pr-data-row" data-id="${escapeHtml(r.id)}">
         <td class="pr-td-date">${fmtDate(r.travel_date)}</td>
-        <td>${escapeHtml(typeLabel)}</td>
-        <td>${routeLabel}${r.description ? `<span class="pr-td-notes"> · ${escapeHtml(r.description)}</span>` : ''}</td>
+        <td class="pr-col-type">${escapeHtml(typeLabel)}</td>
+        <td class="pr-col-detail">${routeLabel}${r.description ? `<span class="pr-td-notes"> · ${escapeHtml(r.description)}</span>` : ''}</td>
         <td class="pr-td-num">${isPublicTransport ? '—' : fmtNum(r.roundtrip_km)}</td>
         <td class="pr-td-num pr-td-amount">₪${fmt(r.amount)}</td>
         <td class="pr-td-actions">${actions}</td>
@@ -1100,9 +1100,9 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     return `
       <tr class="pr-data-row" data-id="${escapeHtml(r.id)}">
         <td class="pr-td-date">${fmtDate(r.expense_date)}</td>
-        <td>${escapeHtml(r.description)}</td>
+        <td class="pr-col-detail">${escapeHtml(r.description)}</td>
         <td class="pr-td-num pr-td-amount">₪${fmt(r.amount)}</td>
-        <td><span class="pr-attachment-status ${attachment ? 'is-attached' : 'is-missing'}">${attachment ? 'צורפה' : 'חסרה'}</span></td>
+        <td class="pr-col-status"><span class="pr-attachment-status ${attachment ? 'is-attached' : 'is-missing'}">${attachment ? 'צורפה' : 'חסרה'}</span></td>
         <td class="pr-td-actions">${actions}</td>
       </tr>`;
   }).join('');
@@ -1149,12 +1149,12 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <table class="pr-data-table pr-entries-table">
           <thead>
             <tr>
-              <th>תאריך</th>
-              <th>סוג</th>
-              <th>מסלול</th>
-              <th class="pr-th-num">ק״מ</th>
-              <th class="pr-th-num">₪</th>
-              <th class="pr-th-actions"></th>
+              <th class="pr-col-date">תאריך</th>
+              <th class="pr-col-type">סוג</th>
+              <th class="pr-col-detail">מסלול</th>
+              <th class="pr-col-num pr-th-num">ק״מ</th>
+              <th class="pr-col-num pr-th-num">₪</th>
+              <th class="pr-col-actions pr-th-actions"></th>
             </tr>
           </thead>
           <tbody>
@@ -1171,11 +1171,11 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <table class="pr-data-table pr-entries-table">
           <thead>
             <tr>
-              <th>תאריך</th>
-              <th>פירוט</th>
-              <th class="pr-th-num">₪</th>
-              <th>אסמכתא</th>
-              <th class="pr-th-actions"></th>
+              <th class="pr-col-date">תאריך</th>
+              <th class="pr-col-detail">פירוט</th>
+              <th class="pr-col-num pr-th-num">₪</th>
+              <th class="pr-col-status">אסמכתא</th>
+              <th class="pr-col-actions pr-th-actions"></th>
             </tr>
           </thead>
           <tbody>
