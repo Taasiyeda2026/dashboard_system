@@ -1868,6 +1868,7 @@ async function readProposalsAgreementsFromSupabase() {
 }
 
 const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id';
+const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
 
@@ -1892,9 +1893,57 @@ function permissionFlagYes(value) {
   return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
 }
 
-function userCanAccessPersonalReports(userRow = {}) {
-  if (!userRow?.is_active) return false;
-  return permissionFlagYes(parsePermissions(userRow?.permissions).can_access_personal_reports);
+function personalReportsProfileFlagYes(value) {
+  if (value === true) return true;
+  if (value === false) return false;
+  return permissionFlagYes(value);
+}
+
+function profileCanAccessPersonalReports(profileRow) {
+  if (!profileRow || profileRow.can_access_personal_reports === undefined) return false;
+  if (profileRow.is_active === false) return false;
+  return personalReportsProfileFlagYes(profileRow.can_access_personal_reports);
+}
+
+async function readPersonalReportsProfile(authUserId) {
+  const id = String(authUserId || '').trim();
+  if (!supabase || !id) return null;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(PROFILE_PERSONAL_REPORTS_COLUMNS)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) {
+    try { console.warn('[personal-reports-profile]', error.message); } catch { /* ignore */ }
+    return null;
+  }
+  return data;
+}
+
+async function readPersonalReportsProfilesByAuthIds(authUserIds = []) {
+  const ids = [...new Set(authUserIds.map((id) => String(id || '').trim()).filter(Boolean))];
+  if (!supabase || !ids.length) return new Map();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(`${PROFILE_PERSONAL_REPORTS_COLUMNS},email`)
+    .in('id', ids);
+  if (error) {
+    try { console.warn('[personal-reports-profiles]', error.message); } catch { /* ignore */ }
+    return new Map();
+  }
+  const map = new Map();
+  (Array.isArray(data) ? data : []).forEach((row) => {
+    if (row?.id) map.set(String(row.id), row);
+  });
+  return map;
+}
+
+function mergePersonalReportsProfileIntoFlatUser(flat, profileRow) {
+  if (!flat || !profileRow) return flat;
+  return {
+    ...flat,
+    can_access_personal_reports: profileCanAccessPersonalReports(profileRow) ? 'yes' : 'no'
+  };
 }
 
 const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
@@ -1971,7 +2020,7 @@ function flattenUserRow(userRow = {}) {
   };
 }
 
-function buildBootstrapFromUser(userRow) {
+function buildBootstrapFromUser(userRow, profileRow = null) {
   const flat = flattenUserRow(userRow);
   const role = normalizeSupabaseRole(flat.role);
   const allowedRoutes = [...(SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user)];
@@ -1990,7 +2039,7 @@ function buildBootstrapFromUser(userRow) {
   if (canReviewRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
-  const hasPersonalReportsAccess = userCanAccessPersonalReports(userRow);
+  const hasPersonalReportsAccess = profileCanAccessPersonalReports(profileRow);
   const personalReportsIdx = allowedRoutes.indexOf('personal-reports');
   if (hasPersonalReportsAccess && personalReportsIdx === -1) allowedRoutes.push('personal-reports');
   if (!hasPersonalReportsAccess && personalReportsIdx >= 0) allowedRoutes.splice(personalReportsIdx, 1);
@@ -1999,6 +2048,7 @@ function buildBootstrapFromUser(userRow) {
     default_route: allowedRoutes[0] || 'my-data',
     has_finance_access: hasFinanceAccess,
     has_personal_reports_access: hasPersonalReportsAccess,
+    profile_is_active: profileRow?.is_active !== false,
     profile: {
       full_name: flat.full_name,
       display_role2: flat.display_role2 || '',
@@ -2088,7 +2138,8 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   }
 
   assertValidLoginUserRow(userRow);
-  return userRow;
+  const profileRow = await readPersonalReportsProfile(authUserId);
+  return { userRow, profileRow };
 }
 
 function makeSessionToken(userRow) {
@@ -2112,7 +2163,8 @@ async function readCurrentUserBySession() {
     .single();
   if (error || !data) throw new Error('unauthorized');
   if (!data.is_active) throw new Error('unauthorized');
-  return data;
+  const profileRow = await readPersonalReportsProfile(data.auth_user_id);
+  return { userRow: data, profileRow };
 }
 
 function buildSupabaseMutationError(operation, error, fallback = 'server_error') {
@@ -2954,13 +3006,14 @@ async function readCatalogProgramsFromSupabase() {
 }
 export const api = {
   login: async (user_id, entry_code) => {
-    const [user, listsData, settingsRows] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
       loginWithSupabaseAuth(user_id, entry_code),
       readListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => [])
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
+    const hasPersonalReportsAccess = profileCanAccessPersonalReports(profileRow);
     return {
       token,
       user: {
@@ -2978,20 +3031,21 @@ export const api = {
         can_request_edit: canSubmitActivityRequestsUser(flat),
         can_review_requests: canDirectManageActivitiesUser(flat),
         finance_access: (flat.role === 'finance' || permissionFlagYes(flat.finance_access) || permissionFlagYes(flat.view_finance)),
-        can_access_personal_reports: userCanAccessPersonalReports(user)
+        profile_is_active: profileRow?.is_active !== false,
+        can_access_personal_reports: hasPersonalReportsAccess
       },
-      ...buildBootstrapFromUser(user),
+      ...buildBootstrapFromUser(user, profileRow),
       client_settings: buildClientSettingsFromLists(listsData, settingsRows)
     };
   },
   bootstrap: async () => {
-    const [user, listsData, settingsRows] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
       readCurrentUserBySession(),
       readListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => [])
     ]);
     return {
-      ...buildBootstrapFromUser(user),
+      ...buildBootstrapFromUser(user, profileRow),
       client_settings: buildClientSettingsFromLists(listsData, settingsRows)
     };
   },
@@ -3180,7 +3234,14 @@ export const api = {
       console.error('[permissions] Supabase error:', error.code, error.message, error.details, error.hint);
       throw new Error(error.message || 'permissions_read_failed');
     }
-    const rows = (Array.isArray(data) ? data : []).map(flattenUserRow);
+    const profileMap = await readPersonalReportsProfilesByAuthIds(
+      (Array.isArray(data) ? data : []).map((row) => row?.auth_user_id)
+    );
+    const rows = (Array.isArray(data) ? data : []).map((row) => {
+      const flat = flattenUserRow(row);
+      const profileRow = profileMap.get(String(row?.auth_user_id || '').trim()) || null;
+      return mergePersonalReportsProfileIntoFlatUser(flat, profileRow);
+    });
     return {
       rows,
       roleDefaults: {
@@ -3661,7 +3722,7 @@ export const api = {
     if (existing.error || !existing.data) throw new Error('user_not_found');
     const permissions = { ...(existing.data.permissions || {}) };
     Object.entries(row || {}).forEach(([k, v]) => {
-      if (['user_id', 'role', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2'].includes(k)) return;
+      if (['user_id', 'role', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'].includes(k)) return;
       permissions[k] = v;
     });
     const nextRole = row.role || existing.data.role;
@@ -3690,6 +3751,17 @@ export const api = {
     };
     const { error } = await supabase.from('users').update(patch).eq('user_id', userId);
     if (error) throw new Error(error.message || 'save_permission_failed');
+    const authUserId = String(existing.data.auth_user_id || '').trim();
+    if (authUserId && Object.prototype.hasOwnProperty.call(row || {}, 'can_access_personal_reports')) {
+      const profilePatch = {
+        can_access_personal_reports: personalReportsProfileFlagYes(row.can_access_personal_reports)
+      };
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update(profilePatch)
+        .eq('id', authUserId);
+      if (profileError) throw new Error(profileError.message || 'save_personal_reports_profile_failed');
+    }
     return { ok: true };
   },
   addUser: async (row) => {

@@ -21,6 +21,7 @@ function permissionYes(value) {
 }
 
 function canAccessPersonalReports(user = {}) {
+  if (user?.profile_is_active === false) return false;
   return permissionYes(user?.can_access_personal_reports);
 }
 
@@ -699,7 +700,7 @@ async function deleteAttachment(attachment) {
 
 async function fetchActiveEmployees() {
   const { data, error } = await supabase
-    .from('profiles').select('id, full_name, email, role, is_active').order('full_name');
+    .from('profiles').select('id, full_name, email, role, is_active, can_access_personal_reports').order('full_name');
   if (error) throw error;
   return (data || []).filter(p => p.role !== 'admin' && p.is_active !== false);
 }
