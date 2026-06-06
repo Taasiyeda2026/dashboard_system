@@ -119,7 +119,7 @@ test('monthly report detail keeps the compact five-tab employee workflow', async
   assert.doesNotMatch(source, /<span>אסמכתאות<\/span>|<span>סיכום ואישור<\/span>/);
   assert.equal(source.match(/הוספת נסיעה/g)?.length, 1);
   assert.equal(source.match(/הוספת הוצאה/g)?.length, 1);
-  assert.equal(source.match(/summaryPillHtml\('סה"כ להחזר'/g)?.length, 1);
+  assert.doesNotMatch(source, /summaryPillHtml\('סה"כ להחזר'/);
   assert.match(source, /compactEmptyRowHtml\('אין נסיעות מדווחות לחודש זה\.'\)/);
   assert.match(source, /compactEmptyRowHtml\('לא נוספו הוצאות לחודש זה\.'\)/);
   assert.match(source, /compactEmptyRowHtml\('לא דווחו ימי חופש, מחלה או הצהרה לחודש זה\.'\)/);
@@ -135,27 +135,43 @@ test('monthly report detail UX: status accordion, travel fields, tables, icons, 
   assert.match(source, /pr-travel-km-field/);
   assert.match(source, /pr-travel-public-field/);
   assert.match(source, /pr-travel-amount-field/);
+  assert.match(source, /pr-travel-amount-field'\)\.forEach\(\(field\) => \{ field\.hidden = isPublicTransport/);
   assert.match(source, /updateTravelTypeFields/);
   assert.match(source, /kmInput\.required = !isPublicTransport/);
   assert.match(source, /publicAmountInput\.required = isPublicTransport/);
+  assert.match(source, /pr-travel-km-field'\)\.forEach\(\(field\) => \{ field\.hidden = isPublicTransport/);
+  assert.match(source, /pr-travel-public-field'\)\.forEach\(\(field\) => \{ field\.hidden = !isPublicTransport/);
   assert.match(source, /pr-entries-table-wrap/);
   assert.match(source, /pr-entries-table/);
+  assert.match(source, /pr-col-date/);
+  assert.match(source, /pr-col-detail/);
   assert.match(source, /prIconBtnHtml/);
   assert.match(source, /prIconUploadHtml/);
   assert.doesNotMatch(source, /data-pr-action="edit-expense"[^>]*>עריכה</);
   assert.doesNotMatch(source, /data-pr-action="delete-entry"[^>]*>מחיקה</);
   assert.match(source, /pr-details-period/);
   assert.doesNotMatch(source, /summaryPillHtml\('תקופת דיווח'/);
+  assert.doesNotMatch(source, /summaryPillHtml\('חודש דיווח'/);
   assert.match(source, /שם מלא לחתימה/);
   assert.match(source, /signatureDisplayName/);
   assert.match(source, /from\('profiles'\)\.select\('full_name, email'\)/);
   assert.doesNotMatch(source, new RegExp(['work', 'hour', 'entries'].join('_')));
 });
 
+test('personal reports entry tables use compact fit-content layout', async () => {
+  const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
+
+  assert.match(css, /\.pr-entries-table-wrap\s*\{[^}]*width:\s*fit-content/);
+  assert.match(css, /\.pr-entries-table-wrap \.pr-entries-table\s*\{[^}]*width:\s*fit-content/);
+  assert.match(css, /\.pr-entries-table \.pr-col-date[^}]*max-width:\s*110px/);
+  assert.match(css, /\.pr-entries-table-wrap\.pr-table-scroll\s*\{[^}]*overflow-x:\s*hidden/);
+  assert.match(css, /\.pr-report-detail-body \.pr-field\[hidden\]\s*\{[^}]*display:\s*none !important/);
+});
+
 test('service worker cache version bumped for personal reports deploy', async () => {
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 579;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 579;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 586;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 586;/);
 });
