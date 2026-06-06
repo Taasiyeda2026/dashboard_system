@@ -135,6 +135,7 @@ test('monthly report detail UX: status accordion, travel fields, tables, icons, 
   assert.match(source, /pr-travel-km-field/);
   assert.match(source, /pr-travel-public-field/);
   assert.match(source, /pr-travel-amount-field/);
+  assert.match(source, /pr-travel-amount-field'\)\.forEach\(\(field\) => \{ field\.hidden = isPublicTransport/);
   assert.match(source, /updateTravelTypeFields/);
   assert.match(source, /kmInput\.required = !isPublicTransport/);
   assert.match(source, /publicAmountInput\.required = isPublicTransport/);
@@ -146,6 +147,7 @@ test('monthly report detail UX: status accordion, travel fields, tables, icons, 
   assert.doesNotMatch(source, /data-pr-action="delete-entry"[^>]*>מחיקה</);
   assert.match(source, /pr-details-period/);
   assert.doesNotMatch(source, /summaryPillHtml\('תקופת דיווח'/);
+  assert.doesNotMatch(source, /summaryPillHtml\('חודש דיווח'/);
   assert.match(source, /שם מלא לחתימה/);
   assert.match(source, /signatureDisplayName/);
   assert.match(source, /from\('profiles'\)\.select\('full_name, email'\)/);
@@ -156,6 +158,6 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 579;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 579;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 580;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 580;/);
 });

@@ -1231,7 +1231,6 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     ? `כן, ${fmtDate(String(report.submitted_at).slice(0, 10))}`
     : '';
   const detailsSummary = [
-    summaryPillHtml('חודש דיווח', monthYearLabel),
     totalExpenses > 0 ? summaryPillHtml('סה"כ הוצאות', `₪${fmt(totalExpenses)}`) : '',
     totalTravel > 0 ? summaryPillHtml('סה"כ נסיעות', `₪${fmt(totalTravel)}`) : '',
     totalAll > 0 ? summaryPillHtml('סה"כ להחזר', `₪${fmt(totalAll)}`, { highlight: true }) : '',
@@ -1537,10 +1536,10 @@ async function openReportDetail(root, reportId, isAdmin = false, { isSimulation 
     reportProfile = prViewAsEmployee;
   } else {
     const { data } = await supabase.from('profiles').select('full_name, email').eq('id', report.employee_id).maybeSingle();
-    if (data?.full_name) {
+    if (data) {
       reportProfile = {
         ...(reportProfile || {}),
-        full_name: String(data.full_name || '').trim(),
+        full_name: String(data.full_name || reportProfile?.full_name || '').trim(),
         email: String(data.email || reportProfile?.email || '').trim()
       };
     }
@@ -1876,6 +1875,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     const isPublicTransport = type === 'public_transport';
     form.querySelectorAll('.pr-travel-km-field').forEach((field) => { field.hidden = isPublicTransport; });
     form.querySelectorAll('.pr-travel-public-field').forEach((field) => { field.hidden = !isPublicTransport; });
+    form.querySelectorAll('.pr-travel-amount-field').forEach((field) => { field.hidden = isPublicTransport; });
     const kmInput = form.querySelector('input[name="roundtrip_km"]');
     const publicAmountInput = form.querySelector('input[name="public_transport_amount"]');
     if (kmInput) kmInput.required = !isPublicTransport;
