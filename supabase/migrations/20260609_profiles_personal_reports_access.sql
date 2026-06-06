@@ -37,6 +37,8 @@ AS $$
   );
 $$;
 
+DROP FUNCTION IF EXISTS public.verify_personal_reports_entry_code(text, text);
+
 CREATE OR REPLACE FUNCTION public.verify_personal_reports_entry_code(
   p_email      text,
   p_entry_code text
