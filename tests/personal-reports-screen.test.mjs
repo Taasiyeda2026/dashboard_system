@@ -172,6 +172,18 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 586;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 586;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 587;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 587;/);
+});
+
+test('source computes km reimbursement server-side without exposing travel rates', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(source, /\* 1\.6/);
+  assert.doesNotMatch(source, /rate_per_km/);
+  assert.doesNotMatch(source, /employee_travel_rates/);
+  assert.match(source, /filter\(\(\[key\]\) => key !== 'amount'\)/);
+  assert.match(source, /מחושב בשרת לאחר שמירה/);
+  assert.match(source, /entrySaveInFlight/);
+  assert.match(source, /setReportTab\(root, 'expenses'\)/);
 });

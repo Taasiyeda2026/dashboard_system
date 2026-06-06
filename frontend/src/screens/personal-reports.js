@@ -592,11 +592,11 @@ async function upsertDeclaredTravel(entry) {
   const table = isPublicTransport ? 'public_transport_entries' : 'declared_travel_entries';
   const payload = isPublicTransport
     ? Object.fromEntries(Object.entries(baseEntry).filter(([key]) => key !== 'roundtrip_km'))
-    : baseEntry;
+    : Object.fromEntries(Object.entries(baseEntry).filter(([key]) => key !== 'amount'));
   if (id) {
-    const { error } = await supabase.from(table).update(payload).eq('id', id);
+    const { data, error } = await supabase.from(table).update(payload).eq('id', id).select().single();
     if (error) throw error;
-    return { id, ...payload, travel_type: travelType, entry_table: table };
+    return { ...data, travel_type: travelType, entry_table: table };
   }
   const { data, error } = await supabase.from(table).insert(payload).select().single();
   if (error) throw error;
@@ -1078,7 +1078,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
           <div class="pr-field pr-travel-public-field" hidden><label class="pr-label">עלות תחבורה ציבורית ₪ *</label>
             <input class="pr-input" type="number" name="public_transport_amount" min="0" step="0.01" placeholder="0.00" /></div>
           <div class="pr-field pr-travel-amount-field"><label class="pr-label">סה"כ החזר</label>
-            <input class="pr-input" type="number" name="amount" min="0" step="0.01" readonly placeholder="מחושב אוטומטית" /></div>
+            <input class="pr-input" type="text" name="amount_preview" readonly placeholder="מחושב בשרת לאחר שמירה" tabindex="-1" aria-hidden="true" /></div>
         </div>
         <div class="pr-add-form-actions">
           <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
@@ -1791,6 +1791,11 @@ function setReportTab(root, tab = 'status') {
 
 function bindReportDetail(root, { isSimulation = false } = {}) {
   const SIM_MSG = 'מצב סימולציה — פעולה זו חסומה. זוהי תצוגה בלבד.';
+  root.__prDetailAbort?.abort();
+  const detailAbort = new AbortController();
+  root.__prDetailAbort = detailAbort;
+  const detailSignal = { signal: detailAbort.signal };
+  let entrySaveInFlight = false;
 
   // Enable submit button only when checkbox is checked
   const checkbox = root.querySelector('#pr-confirm-checkbox');
@@ -1861,12 +1866,6 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     updateAbsenceCalculatedDays(form);
   }
 
-  function updateTravelAmount(form) {
-    const kmInput = form?.querySelector('input[name="roundtrip_km"]');
-    const amountInput = form?.querySelector('input[name="amount"]');
-    if (amountInput) amountInput.value = (Number(kmInput?.value || 0) * 1.6).toFixed(2);
-  }
-
   function updateTravelTypeFields(form) {
     if (!form) return;
     const type = form.querySelector('select[name="travel_type"]')?.value || 'km';
@@ -1885,10 +1884,11 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (!isPublicTransport) publicAmountInput.value = '';
     }
     if (isPublicTransport) {
-      const amountInput = form.querySelector('input[name="amount"]');
+      const amountInput = form.querySelector('input[name="amount_preview"]');
       if (amountInput) amountInput.value = publicAmountInput?.value || '';
     } else {
-      updateTravelAmount(form);
+      const amountPreview = form.querySelector('input[name="amount_preview"]');
+      if (amountPreview) amountPreview.value = '';
     }
   }
 
@@ -1908,7 +1908,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     } catch (err) {
       showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בשמירת הדוח. יש לנסות שוב.'), 'danger');
     }
-  }, true);
+  }, { ...detailSignal, capture: true });
 
   root.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-pr-action]');
@@ -1940,7 +1940,14 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       }
       return;
     }
-    if (action === 'toggle-add-expense')    { togglePanel('pr-add-expense-panel'); return; }
+    if (action === 'toggle-add-expense') {
+      setReportTab(root, 'expenses');
+      togglePanel('pr-add-expense-panel');
+      if (!root.querySelector('#pr-add-expense-panel')?.hidden) {
+        root.querySelector('#pr-add-expense-form input,select,textarea')?.focus();
+      }
+      return;
+    }
     if (action === 'focus-salary-report') {
       const firstMetaInput = root.querySelector('#pr-report-header .pr-meta-input:not([readonly])');
       firstMetaInput?.focus();
@@ -1973,7 +1980,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         description: btn.dataset.description,
         roundtrip_km: btn.dataset.roundtripKm,
         public_transport_amount: btn.dataset.amount,
-        amount: (btn.dataset.travelType === 'public_transport') ? btn.dataset.amount : (Number(btn.dataset.roundtripKm || 0) * 1.6).toFixed(2)
+        amount_preview: btn.dataset.travelType === 'public_transport' ? btn.dataset.amount : (btn.dataset.amount ? `₪${btn.dataset.amount}` : '')
       });
       updateTravelTypeFields(form);
       return;
@@ -2066,20 +2073,15 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
-  });
+  }, detailSignal);
 
   root.addEventListener('input', (e) => {
-    const kmInput = e.target.closest('input[name="roundtrip_km"]');
-    if (kmInput) {
-      updateTravelAmount(kmInput.closest('form[data-form-type="declared_travel"]'));
-      return;
-    }
     const publicAmountInput = e.target.closest('input[name="public_transport_amount"]');
     if (publicAmountInput) {
-      const amountInput = publicAmountInput.closest('form[data-form-type="declared_travel"]')?.querySelector('input[name="amount"]');
-      if (amountInput) amountInput.value = publicAmountInput.value || '';
+      const amountPreview = publicAmountInput.closest('form[data-form-type="declared_travel"]')?.querySelector('input[name="amount_preview"]');
+      if (amountPreview) amountPreview.value = publicAmountInput.value || '';
     }
-  });
+  }, detailSignal);
 
   function updateAbsenceCalculatedDays(form) {
     const start = form?.querySelector('input[name="start_date"]')?.value || '';
@@ -2125,24 +2127,28 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       await safeOpenReportDetail(root, prSelectedReport.id, false, { isSimulation, initialTab: currentReportTab(root) });
       showToast('הקובץ הועלה', 'success');
     } catch (err) { showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בהעלאת הקובץ. יש לנסות שוב.'), 'danger'); }
-  });
+  }, detailSignal);
 
   root.addEventListener('reset', (e) => {
     const form = e.target.closest('form[data-form-type="absence"]');
     if (!form) return;
     setTimeout(() => resetAbsenceForm(form), 0);
-  });
+  }, detailSignal);
 
   // Add entry forms submit
   root.addEventListener('submit', async (e) => {
     const form = e.target.closest('.pr-add-form');
     if (!form) return;
     e.preventDefault();
+    if (entrySaveInFlight) return;
     if (isSimulation) { showToast(SIM_MSG, 'warning'); return; }
     const formType = form.dataset.formType;
     const fd = new FormData(form);
     const reportId  = prSelectedReport.id;
     const employeeId = prSession.user.id;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    entrySaveInFlight = true;
+    if (submitBtn) submitBtn.disabled = true;
     try {
       if (formType === 'declared_travel') {
         const travelType = String(fd.get('travel_type') || 'km');
@@ -2162,9 +2168,9 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
           destination: fd.get('destination') || '',
           description: fd.get('description') || '',
           roundtrip_km: Number(fd.get('roundtrip_km') || 0),
-          amount: travelType === 'public_transport'
-            ? Number(fd.get('public_transport_amount') || 0)
-            : Number((Number(fd.get('roundtrip_km') || 0) * 1.6).toFixed(2))
+          ...(travelType === 'public_transport'
+            ? { amount: Number(fd.get('public_transport_amount') || 0) }
+            : {})
         });
       } else if (formType === 'expense') {
         const expense = await upsertExpense({
@@ -2199,12 +2205,20 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         const file = form.querySelector('input[name="attachment"]')?.files?.[0];
         if (file) await uploadAttachment(reportId, employeeId, { absenceEntryId: absence.id }, file);
       }
+      form.reset();
+      if (formType === 'absence') resetAbsenceForm(form);
+      if (formType === 'declared_travel') updateTravelTypeFields(form);
+      const panel = form.closest('.pr-add-panel');
+      if (panel) panel.hidden = true;
       await safeOpenReportDetail(root, reportId, false, { isSimulation, initialTab: currentReportTab(root) });
       showToast('נשמר', 'success');
     } catch (err) {
       showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בשמירת הדוח. יש לנסות שוב.'), 'danger');
+    } finally {
+      entrySaveInFlight = false;
+      if (submitBtn) submitBtn.disabled = false;
     }
-  });
+  }, detailSignal);
 }
 
 function applyAdminFilters(root) {
