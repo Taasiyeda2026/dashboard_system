@@ -72,4 +72,5 @@ test('migration grants personal reports access only to explicit profile whitelis
   assert.doesNotMatch(sql, /WHERE is_active = true[\s\S]*SET can_access_personal_reports = true/);
   assert.match(sql, /public\.profiles/);
   assert.match(sql, /dashboard_user_can_access_personal_reports/);
+  assert.match(sql, /DROP FUNCTION IF EXISTS public\.verify_personal_reports_entry_code\(text, text\)/);
 });
