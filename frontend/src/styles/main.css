@@ -13921,3 +13921,136 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     max-width: none;
   }
 }
+
+/* Personal reports monthly detail — status log & compact approval pass */
+.pr-report-detail-body {
+  overflow-x: hidden;
+}
+.pr-report-detail-body .pr-report-hero-card__meta {
+  margin: 0;
+  color: #475569;
+  font-size: 0.84rem;
+}
+.pr-report-detail-body .pr-section-head {
+  border-bottom: none;
+  background: transparent;
+  min-height: auto;
+  padding: 10px 12px 6px;
+}
+.pr-status-log {
+  display: grid;
+  gap: 0;
+  padding: 8px 12px 0;
+}
+.pr-status-log .pr-info-row {
+  grid-template-columns: minmax(120px, 0.38fr) minmax(0, 1fr);
+  gap: 8px;
+  min-height: 30px;
+  padding: 7px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  border-bottom: 1px solid #edf0f5;
+}
+.pr-status-log .pr-info-row:last-child {
+  border-bottom: none;
+}
+.pr-info-note {
+  margin: 8px 12px 10px;
+  padding: 6px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #334155;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+.pr-btn--outline {
+  background: #fff;
+  color: var(--ds-accent, #1a3358);
+  border: 1px solid #cbd5e1;
+}
+.pr-btn--outline:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+.pr-absence-type-btn.is-active,
+.pr-absence-choice .pr-btn.is-active {
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #1e3a8a;
+}
+.pr-section-head__actions.pr-absence-choice {
+  gap: 6px;
+}
+.pr-section-head__actions.pr-absence-choice .pr-btn {
+  min-width: 68px;
+  max-width: 88px;
+}
+.pr-report-detail-body .pr-absence-panel {
+  margin: 0 12px 10px;
+  padding: 10px;
+}
+.pr-report-detail-body .pr-absence-panel .pr-form-row {
+  margin-bottom: 0;
+}
+.pr-report-detail-body .pr-absence-panel .pr-field {
+  flex: 1 1 120px;
+}
+.pr-submit-card--compact {
+  gap: 8px;
+  padding: 8px 10px;
+  align-items: center;
+}
+.pr-submit-card--compact .pr-signature-field {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.pr-submit-card--compact .pr-signature-field span {
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+.pr-submit-card--compact .pr-signature-input {
+  width: 100%;
+  max-width: 180px;
+  min-height: 34px;
+}
+.pr-submit-card--compact .pr-confirm-label {
+  flex: 1 1 200px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.pr-submit-card--compact .pr-submit-btn {
+  flex: 0 0 auto;
+  min-width: 120px;
+  max-width: 150px;
+}
+.pr-summary-bar--details {
+  overflow: hidden;
+}
+.pr-summary-bar--details .pr-sum-item {
+  min-width: 0;
+}
+.pr-report-detail-body .pr-entry-row,
+.pr-report-detail-body .pr-entry-list,
+.pr-report-detail-body .pr-compact-empty {
+  max-width: 100%;
+}
+@media (max-width: 760px) {
+  .pr-submit-card--compact {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pr-submit-card--compact .pr-signature-input,
+  .pr-submit-card--compact .pr-submit-btn {
+    max-width: none;
+    width: 100%;
+  }
+  .pr-section-head__actions.pr-absence-choice {
+    width: 100%;
+  }
+  .pr-section-head__actions.pr-absence-choice .pr-btn {
+    flex: 1 1 30%;
+    max-width: none;
+  }
+}
