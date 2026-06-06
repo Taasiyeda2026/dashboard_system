@@ -178,8 +178,8 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 588;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 588;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 589;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 589;/);
 });
 
 test('bindReportDetail uses bindScreenListeners, AbortController, and savingForms', async () => {
