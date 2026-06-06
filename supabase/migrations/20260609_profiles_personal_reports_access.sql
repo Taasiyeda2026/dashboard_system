@@ -1,17 +1,25 @@
 -- Personal reports access: source of truth is public.profiles, not users.permissions.
+-- Grant is explicit-only; new/active employees do not receive access by default.
 
 ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS can_access_personal_reports boolean NOT NULL DEFAULT true;
+  ADD COLUMN IF NOT EXISTS can_access_personal_reports boolean NOT NULL DEFAULT false;
 
--- Seed profile flags: all active profiles except Yael Aviv.
+ALTER TABLE public.profiles
+  ALTER COLUMN can_access_personal_reports SET DEFAULT false;
+
+UPDATE public.profiles
+SET can_access_personal_reports = false;
+
 UPDATE public.profiles
 SET can_access_personal_reports = true
-WHERE is_active = true
-  AND lower(trim(coalesce(email, ''))) <> 'yael_aviv@think.org.il';
-
-UPDATE public.profiles
-SET can_access_personal_reports = false
-WHERE lower(trim(coalesce(email, ''))) = 'yael_aviv@think.org.il';
+WHERE lower(trim(coalesce(email, ''))) IN (
+  'esraas@think.org.il',
+  'gilneeman@think.org.il',
+  'hilar@think.org.il',
+  'toni@think.org.il',
+  'edenc@think.org.il',
+  'idann@think.org.il'
+);
 
 CREATE OR REPLACE FUNCTION private.dashboard_user_can_access_personal_reports()
 RETURNS boolean
