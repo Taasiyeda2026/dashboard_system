@@ -538,10 +538,16 @@ async function adminUpdateReport(reportId, fields) {
 }
 
 async function fetchDeclaredTravel(reportId) {
-  const { data, error } = await supabase
-    .from('declared_travel_entries').select('*').eq('report_id', reportId).order('travel_date');
-  if (error) throw error;
-  return data || [];
+  const [{ data: kmRows, error: kmError }, { data: publicRows, error: publicError }] = await Promise.all([
+    supabase.from('declared_travel_entries').select('*').eq('report_id', reportId).order('travel_date'),
+    supabase.from('public_transport_entries').select('*').eq('report_id', reportId).order('travel_date')
+  ]);
+  if (kmError) throw kmError;
+  if (publicError) throw publicError;
+  return [
+    ...(kmRows || []).map((row) => ({ ...row, travel_type: 'km', entry_table: 'declared_travel_entries' })),
+    ...(publicRows || []).map((row) => ({ ...row, travel_type: 'public_transport', roundtrip_km: 0, entry_table: 'public_transport_entries' }))
+  ].sort((a, b) => String(a.travel_date || '').localeCompare(String(b.travel_date || '')));
 }
 
 async function fetchExpenses(reportId) {
@@ -581,13 +587,20 @@ async function upsertAbsence(entry) {
 }
 
 async function upsertDeclaredTravel(entry) {
-  if (entry.id) {
-    const { error } = await supabase.from('declared_travel_entries').update(entry).eq('id', entry.id);
+  const { travel_type: travelType = 'km', id, ...baseEntry } = entry;
+  const isPublicTransport = travelType === 'public_transport';
+  const table = isPublicTransport ? 'public_transport_entries' : 'declared_travel_entries';
+  const payload = isPublicTransport
+    ? Object.fromEntries(Object.entries(baseEntry).filter(([key]) => key !== 'roundtrip_km'))
+    : baseEntry;
+  if (id) {
+    const { error } = await supabase.from(table).update(payload).eq('id', id);
     if (error) throw error;
-  } else {
-    const { error } = await supabase.from('declared_travel_entries').insert(entry);
-    if (error) throw error;
+    return { id, ...payload, travel_type: travelType, entry_table: table };
   }
+  const { data, error } = await supabase.from(table).insert(payload).select().single();
+  if (error) throw error;
+  return { ...data, travel_type: travelType, entry_table: table };
 }
 
 async function upsertExpense(entry) {
@@ -660,15 +673,18 @@ async function fetchAllReports() {
 async function enrichReportsWithTotals(reports) {
   const ids = reports.map((r) => r.id).filter(Boolean);
   if (!ids.length) return reports;
-  const [travelRes, expensesRes] = await Promise.all([
+  const [travelRes, publicTravelRes, expensesRes] = await Promise.all([
     supabase.from('declared_travel_entries').select('report_id, amount').in('report_id', ids),
+    supabase.from('public_transport_entries').select('report_id, amount').in('report_id', ids),
     supabase.from('expense_entries').select('report_id, amount').in('report_id', ids)
   ]);
   if (travelRes.error) throw travelRes.error;
+  if (publicTravelRes.error) throw publicTravelRes.error;
   if (expensesRes.error) throw expensesRes.error;
 
   const totals = new Map(ids.map((id) => [id, { travel: 0, expenses: 0 }]));
   for (const row of travelRes.data || []) totals.get(row.report_id).travel += Number(row.amount || 0);
+  for (const row of publicTravelRes.data || []) totals.get(row.report_id).travel += Number(row.amount || 0);
   for (const row of expensesRes.data || []) totals.get(row.report_id).expenses += Number(row.amount || 0);
   return reports.map((report) => {
     const t = totals.get(report.id) || { travel: 0, expenses: 0 };
@@ -716,7 +732,10 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
   const reportPeriod = reportPeriodRange(report.report_month, report.report_year);
   const title = `דוח אישי חודשי לשכר - ${employeeName} - ${monthLabel(report.report_month, report.report_year)}`;
 
-  const travelRows = travel.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>${fmtNum(r.roundtrip_km)}</td><td>₪${fmt(r.amount)}</td></tr>`);
+  const travelRows = travel.map((r) => {
+    const typeLabel = r.travel_type === 'public_transport' ? 'תחבורה ציבורית' : 'ק״מ';
+    return `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(typeLabel)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>${r.travel_type === 'public_transport' ? '—' : fmtNum(r.roundtrip_km)}</td><td>₪${fmt(r.amount)}</td></tr>`;
+  });
   const expenseRows = expenses.map((r) => {
     const attachment = attachmentForEntry(attachments, 'expense_entry_id', r.id);
     return `<tr><td>${fmtDate(r.expense_date)}</td><td>${escapeHtml(r.description || '')}</td><td>₪${fmt(r.amount)}</td><td>${escapeHtml(attachmentStatusHtml(attachment))}</td></tr>`;
@@ -743,12 +762,12 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
     <section class="summary">
       <div class="box"><span class="label">סה״כ הוצאות</span><span class="value">₪${fmt(totalExpenses)}</span></div>
       <div class="box"><span class="label">סה״כ נסיעות</span><span class="value">₪${fmt(totalTravel)}</span></div>
-      <div class="box"><span class="label">סה״כ ימי חופש מחושבים</span><span class="value">${fmtNum(totalVacationDays)}</span></div>
-      <div class="box"><span class="label">סה״כ ימי מחלה מחושבים</span><span class="value">${fmtNum(totalSickDays)}</span></div>
-      <div class="box"><span class="label">סה״כ ימי הצהרה מחושבים</span><span class="value">${fmtNum(totalDeclarationDays)}</span></div>
+      ${totalVacationDays > 0 ? `<div class="box"><span class="label">סה״כ ימי חופש מחושבים</span><span class="value">${fmtNum(totalVacationDays)}</span></div>` : ''}
+      ${totalSickDays > 0 ? `<div class="box"><span class="label">סה״כ ימי מחלה מחושבים</span><span class="value">${fmtNum(totalSickDays)}</span></div>` : ''}
+      ${totalDeclarationDays > 0 ? `<div class="box"><span class="label">סה״כ ימי הצהרה מחושבים</span><span class="value">${fmtNum(totalDeclarationDays)}</span></div>` : ''}
     </section>
     <h2>פירוט הוצאות</h2>${rowsToPrintTable(['תאריך','פירוט','סכום','האם צורפה אסמכתא'], expenseRows, 4)}
-    <h2>פירוט נסיעות</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','ק״מ','סכום'], travelRows, 6)}
+    <h2>פירוט נסיעות</h2>${rowsToPrintTable(['תאריך','סוג','ממקום','למקום','פירוט','ק״מ','סכום'], travelRows, 7)}
     <h2>היעדרויות / ימים</h2>${rowsToPrintTable(['סוג','מתאריך','עד תאריך','מספר ימים מחושב','אסמכתא'], absenceRows, 5)}
     <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),250));</script>
     </body></html>`;
@@ -878,6 +897,31 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   const totalVacationDays = sumAbsenceDays(absences, 'vacation');
   const totalSickDays = sumAbsenceDays(absences, 'sick');
   const totalDeclarationDays = sumAbsenceDays(absences, 'declaration');
+  const totalAbsenceDays = totalVacationDays + totalSickDays + totalDeclarationDays;
+  const correctionDate = report.updated_at ? fmtDateFull(String(report.updated_at).slice(0, 10)) : '';
+
+  const nonZeroSummaryItems = [
+    ['סה״כ נסיעות', `₪${fmt(totalTravel)}`, true],
+    ['סה״כ הוצאות', `₪${fmt(totalExpenses)}`, true],
+    ['סה״כ להחזר', `₪${fmt(totalAll)}`, true],
+    ['סה״כ ימי חופש', fmtNum(totalVacationDays), totalVacationDays > 0],
+    ['סה״כ ימי מחלה', fmtNum(totalSickDays), totalSickDays > 0],
+    ['סה״כ ימי הצהרה', fmtNum(totalDeclarationDays), totalDeclarationDays > 0]
+  ].filter(([, , visible]) => visible).map(([label, value]) => `
+    <div class="pr-id-item"><span class="pr-id-label">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+  `).join('');
+
+  const statusEvents = [
+    report.status === 'needs_correction' ? ['הדוח חזר לתיקון', report.finance_notes || 'לא צוינה סיבה'] : null,
+    report.status === 'needs_correction' && correctionDate ? ['תאריך החזרה לתיקון', correctionDate] : null,
+    report.submitted_at ? ['נשלח', fmtDateFull(String(report.submitted_at).slice(0, 10))] : null,
+    report.status === 'needs_correction' ? ['האם נשלח מחדש', 'טרם נשלח מחדש'] : null,
+    report.approved_at ? ['אושר', fmtDateFull(String(report.approved_at).slice(0, 10))] : null,
+    report.paid_at ? ['נסגר', fmtDateFull(String(report.paid_at).slice(0, 10))] : null,
+    report.finance_notes && report.status !== 'needs_correction' ? ['הערת כספים', report.finance_notes] : null
+  ].filter(Boolean).map(([label, value]) => `
+    <div class="pr-status-event"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+  `).join('') || '<p class="pr-compact-empty">לא נרשמו תיקונים, החזרות או שינויי סטטוס מיוחדים בדוח זה.</p>';
 
   const absenceRows = absences.map((r) => {
     const attachment = attachmentForEntry(attachments, 'absence_entry_id', r.id);
@@ -910,7 +954,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <thead><tr><th>סוג</th><th>מתאריך</th><th>עד תאריך</th><th class="pr-th-num">ימים מחושבים</th><th>אסמכתא</th><th>צירוף</th><th class="pr-th-del">פעולות</th></tr></thead>
         <tbody>${absenceRows}</tbody>
       </table></div>`
-    : `<p class="pr-compact-empty">לא נוספו ימי חופש / מחלה / הצהרה לחודש זה.</p>`;
+    : `<p class="pr-compact-empty">לא דווחו ימי חופש, מחלה או הצהרה לחודש זה.</p>`;
 
   const leaveSection = `
     ${editable ? `
@@ -947,35 +991,37 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     ? `<div class="pr-finance-notes pr-alert-card" role="note"><strong>💬 הערות כספים:</strong> ${escapeHtml(report.finance_notes)}</div>`
     : '';
 
-  const travelRows = travel.map(r => `
+  const travelRows = travel.map((r) => {
+    const isPublicTransport = r.travel_type === 'public_transport';
+    const typeLabel = isPublicTransport ? 'תחבורה ציבורית' : 'ק״מ';
+    return `
     <tr class="pr-data-row" data-id="${escapeHtml(r.id)}">
       <td class="pr-td-date">${fmtDate(r.travel_date)}</td>
+      <td>${escapeHtml(typeLabel)}</td>
       <td>${escapeHtml(r.origin)}</td>
       <td>${escapeHtml(r.destination)}</td>
       <td>${escapeHtml(r.description)}</td>
-      <td class="pr-td-num">${fmtNum(r.roundtrip_km)}</td>
+      <td class="pr-td-num">${isPublicTransport ? '—' : fmtNum(r.roundtrip_km)}</td>
       <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
-      <td class="pr-td-notes">
-        ${editable ? `<label class="pr-attach-inline-btn" title="צרף אסמכתא">
-          📎<input type="file" class="pr-file-input" accept="image/*,.pdf"
-            data-entry-id="${escapeHtml(r.id)}" data-entry-type="travel" /></label>` : ''}
-      </td>
+      <td class="pr-td-notes">${escapeHtml(r.notes || '')}</td>
       <td class="pr-td-actions">
         ${editable ? `<button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-travel"
-          data-entry-id="${escapeHtml(r.id)}" data-travel-date="${escapeHtml(r.travel_date)}"
+          data-entry-id="${escapeHtml(r.id)}" data-entry-table="${escapeHtml(r.entry_table || 'declared_travel_entries')}"
+          data-travel-type="${escapeHtml(r.travel_type || 'km')}" data-travel-date="${escapeHtml(r.travel_date)}"
           data-origin="${escapeHtml(r.origin || '')}" data-destination="${escapeHtml(r.destination || '')}"
           data-description="${escapeHtml(r.description || '')}" data-roundtrip-km="${escapeHtml(r.roundtrip_km || '')}"
-          data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
+          data-amount="${escapeHtml(r.amount || '')}" data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
         <button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
-          data-entry-id="${escapeHtml(r.id)}" data-entry-table="declared_travel_entries"
+          data-entry-id="${escapeHtml(r.id)}" data-entry-table="${escapeHtml(r.entry_table || 'declared_travel_entries')}"
           aria-label="מחק שורה" title="מחק">✕</button>` : ''}
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   const travelTotalRow = `
     <tr class="pr-total-row">
-      <td colspan="4" class="pr-total-label">סה"כ החזר נסיעות</td>
+      <td colspan="5" class="pr-total-label">סה"כ החזר נסיעות</td>
       <td class="pr-td-num pr-total-num">${fmtNum(totalTravelKm)}</td>
       <td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalTravel)}</td>
       <td colspan="2"></td>
@@ -985,23 +1031,29 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     <div class="pr-add-panel" id="pr-add-travel-panel" hidden>
       <form class="pr-add-form" id="pr-add-travel-form" data-form-type="declared_travel">
         <input type="hidden" name="id" />
+        <input type="hidden" name="original_table" />
         <div class="pr-form-row">
+          <div class="pr-field"><label class="pr-label">סוג דיווח *</label>
+            <select class="pr-input pr-input--select" name="travel_type" required>
+              <option value="km">נסיעה לפי ק״מ</option>
+              <option value="public_transport">תחבורה ציבורית לפי עלות</option>
+            </select></div>
           <div class="pr-field"><label class="pr-label">תאריך *</label>
             <input class="pr-input" type="date" name="travel_date" required /></div>
           <div class="pr-field"><label class="pr-label">ממקום *</label>
             <input class="pr-input" type="text" name="origin" required placeholder="מ..." /></div>
           <div class="pr-field"><label class="pr-label">למקום *</label>
             <input class="pr-input" type="text" name="destination" required placeholder="ל..." /></div>
-          <div class="pr-field pr-field--wide"><label class="pr-label">פירוט</label>
-            <input class="pr-input" type="text" name="description" placeholder="תיאור הנסיעה" /></div>
         </div>
         <div class="pr-form-row">
-          <div class="pr-field"><label class="pr-label">ק"מ *</label>
+          <div class="pr-field pr-field--wide"><label class="pr-label">פירוט / הערות</label>
+            <input class="pr-input" type="text" name="description" placeholder="תיאור הנסיעה" /></div>
+          <div class="pr-field pr-travel-km-field"><label class="pr-label">ק״מ *</label>
             <input class="pr-input" type="number" name="roundtrip_km" min="0" step="0.1" required placeholder="0" /></div>
-          <div class="pr-field"><label class="pr-label">סה"כ החזר</label>
+          <div class="pr-field pr-travel-public-field" hidden><label class="pr-label">עלות תחבורה ציבורית ₪ *</label>
+            <input class="pr-input" type="number" name="public_transport_amount" min="0" step="0.01" placeholder="0.00" /></div>
+          <div class="pr-field pr-travel-km-field"><label class="pr-label">סה"כ החזר</label>
             <input class="pr-input" type="number" name="amount" min="0" step="0.01" readonly placeholder="מחושב אוטומטית" /></div>
-          <div class="pr-field pr-field--wide"><label class="pr-label">הערות</label>
-            <input class="pr-input" type="text" name="notes" placeholder="הערות / קובץ נדרש" /></div>
         </div>
         <div class="pr-add-form-actions">
           <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
@@ -1027,8 +1079,8 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
       <td class="pr-td-actions">
         ${editable ? `<button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-pr-action="edit-expense"
           data-entry-id="${escapeHtml(r.id)}" data-expense-date="${escapeHtml(r.expense_date)}"
-          data-document-type="${escapeHtml(r.document_type || 'receipt')}" data-description="${escapeHtml(r.description || '')}"
-          data-amount="${escapeHtml(r.amount || '')}" data-notes="${escapeHtml(r.notes || '')}">עריכה</button>
+          data-description="${escapeHtml(r.description || '')}"
+          data-amount="${escapeHtml(r.amount || '')}">עריכה</button>
         <button class="pr-btn pr-icon-btn pr-icon-btn--danger" type="button" data-pr-action="delete-entry"
           data-entry-id="${escapeHtml(r.id)}" data-entry-table="expense_entries"
           aria-label="מחק שורה" title="מחק">✕</button>` : ''}
@@ -1051,22 +1103,10 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <div class="pr-form-row">
           <div class="pr-field"><label class="pr-label">תאריך *</label>
             <input class="pr-input" type="date" name="expense_date" required /></div>
-          <div class="pr-field">
-            <label class="pr-label">סוג</label>
-            <select class="pr-input pr-input--select" name="document_type">
-              <option value="receipt">קבלה</option>
-              <option value="invoice">חשבונית</option>
-              <option value="other">אחר</option>
-            </select>
-          </div>
           <div class="pr-field pr-field--wide"><label class="pr-label">פירוט *</label>
             <input class="pr-input" type="text" name="description" required placeholder="תיאור ההוצאה" /></div>
-        </div>
-        <div class="pr-form-row">
           <div class="pr-field"><label class="pr-label">סכום ₪ *</label>
             <input class="pr-input" type="number" name="amount" min="0" step="0.01" required placeholder="0.00" /></div>
-          <div class="pr-field pr-field--wide"><label class="pr-label">הערות</label>
-            <input class="pr-input" type="text" name="notes" placeholder="הערות" /></div>
         </div>
         <div class="pr-form-row">
           <div class="pr-field pr-field--wide"><label class="pr-label">קובץ אסמכתא / קבלה</label>
@@ -1086,9 +1126,9 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <table class="pr-data-table">
           <thead>
             <tr>
-              <th class="pr-col-date">תאריך</th><th class="pr-col-mid">נק׳ התחלה</th><th class="pr-col-mid">נק׳ יעד</th><th class="pr-col-detail">פרטים</th>
-              <th class="pr-th-num pr-col-compact">ק"מ הלוך וחזור</th><th class="pr-th-num pr-col-compact">סה"כ החזר</th>
-              <th class="pr-col-compact">אסמכתא</th><th class="pr-th-del">פעולות</th>
+              <th class="pr-col-date">תאריך</th><th class="pr-col-compact">סוג</th><th class="pr-col-mid">ממקום</th><th class="pr-col-mid">למקום</th><th class="pr-col-detail">פירוט / הערות</th>
+              <th class="pr-th-num pr-col-compact">ק״מ</th><th class="pr-th-num pr-col-compact">סה"כ החזר</th>
+              <th class="pr-col-compact">הערות</th><th class="pr-th-del">פעולות</th>
             </tr>
           </thead>
           <tbody>${travelRows}${travelTotalRow}</tbody>
@@ -1098,9 +1138,9 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     : reportEmptyStateHtml({
         icon: '🚗',
         title: 'אין נסיעות מדווחות עדיין',
-        text: 'הוסיפו נסיעה ראשונה כדי לחשב החזר קילומטרים לדוח החודשי.',
+        text: 'הוסיפו נסיעה לפי ק״מ או תחבורה ציבורית לפי עלות.',
         action: 'toggle-add-travel',
-        actionLabel: '+ הוסף נסיעה',
+        actionLabel: 'הוספת נסיעה',
         editable
       });
 
@@ -1123,15 +1163,15 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         title: 'אין הוצאות בדוח',
         text: 'אפשר להוסיף קבלה, חשבונית או הוצאה אחרת שנדרשת להחזר.',
         action: 'toggle-add-expense',
-        actionLabel: '+ הוסף שורה',
+        actionLabel: 'הוספת הוצאה',
         editable
       });
 
-  const addTravelButton = editable && travel.length > 0
-    ? `<button class="pr-btn pr-btn--add-row" type="button" data-pr-action="toggle-add-travel">+ הוסף נסיעה</button>`
+  const addTravelButton = editable
+    ? `<button class="pr-btn pr-btn--primary pr-btn--add-row" type="button" data-pr-action="toggle-add-travel">הוספת נסיעה</button>`
     : '';
-  const addExpenseButton = editable && expenses.length > 0
-    ? `<button class="pr-btn pr-btn--add-row" type="button" data-pr-action="toggle-add-expense">+ הוסף שורה</button>`
+  const addExpenseButton = editable
+    ? `<button class="pr-btn pr-btn--primary pr-btn--add-row" type="button" data-pr-action="toggle-add-expense">הוספת הוצאה</button>`
     : '';
 
   const attachRows = attachments.length === 0
@@ -1214,8 +1254,8 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         ${financeNotice}
 
         <nav class="pr-report-tabs" role="tablist" aria-label="אזורי הדוח">
-          <button class="pr-report-tab is-active" type="button" role="tab" aria-selected="true" data-pr-action="switch-report-tab" data-tab="salary">
-            <span>פרטי הדוח</span>
+          <button class="pr-report-tab is-active" type="button" role="tab" aria-selected="true" data-pr-action="switch-report-tab" data-tab="status">
+            <span>סטטוס</span>
           </button>
           <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="travel">
             <span>נסיעות</span>${tabCountBadge(travel.length)}
@@ -1224,41 +1264,43 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             <span>הוצאות</span>${tabCountBadge(expenses.length)}
           </button>
           <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="absences">
-            <span>ימי חופש / מחלה / הצהרה</span>${tabCountBadge(absences.length)}
+            <span>ימי עבודה</span>${tabCountBadge(absences.length)}
           </button>
-          <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="attachments">
-            <span>אסמכתאות</span>${tabCountBadge(attachments.length)}
-          </button>
-          <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="approval">
-            <span>סיכום ואישור</span>
+          <button class="pr-report-tab" type="button" role="tab" aria-selected="false" data-pr-action="switch-report-tab" data-tab="salary">
+            <span>פרטים</span>
           </button>
         </nav>
 
-        <section class="pr-summary-bar" aria-label="סיכום הדוח">
-          <div class="pr-sum-item">
-            <span class="pr-sum-label">סה"כ נסיעות</span>
-            <span class="pr-sum-value">₪${fmt(totalTravel)}</span>
+        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="status">
+          <div class="pr-section-head">
+            <div>
+              <span class="pr-section-kicker">מצב הדוח</span>
+              <h2 class="pr-section-title">סטטוס הדוח הנוכחי</h2>
+            </div>
+            ${sectionMetricHtml('סטטוס', statusText)}
           </div>
-          <div class="pr-sum-item">
-            <span class="pr-sum-label">סה"כ הוצאות</span>
-            <span class="pr-sum-value">₪${fmt(totalExpenses)}</span>
+          <div class="pr-status-grid">
+            <div class="pr-id-item"><span class="pr-id-label">סטטוס הדוח הנוכחי</span>${statusChip}</div>
+            <div class="pr-id-item"><span class="pr-id-label">תקופת דיווח</span><strong>${escapeHtml(reportPeriod.label)}</strong></div>
           </div>
-          <div class="pr-sum-item pr-sum-item--total">
-            <span class="pr-sum-label">סה"כ להחזר</span>
-            <span class="pr-sum-value">₪${fmt(totalAll)}</span>
+          <div class="pr-status-reminder" role="note">
+            יש להשלים ולשלוח את הדיווח עד ה־26 בכל חודש.<br />
+            הדיווח מתייחס לתקופת הדיווח עד ה־25 בכל חודש.
           </div>
-          <div class="pr-sum-item">
-            <span class="pr-sum-label">חופש</span>
-            <span class="pr-sum-value">${fmtNum(totalVacationDays)}</span>
+          <p class="pr-period-line">תקופת דיווח: ${escapeHtml(reportPeriod.label)}</p>
+          <div class="pr-status-events">${statusEvents}</div>
+        </section>
+
+        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="travel">
+          <div class="pr-section-head">
+            <div>
+              <span class="pr-section-kicker">כרטיס נתונים</span>
+              <h2 class="pr-section-title">נסיעות</h2>
+            </div>
+            <div class="pr-section-head__actions">${sectionMetricHtml('ק״מ / החזר', `${fmtNum(totalTravelKm)} ק״מ · ₪${fmt(totalTravel)}`)}${addTravelButton}</div>
           </div>
-          <div class="pr-sum-item">
-            <span class="pr-sum-label">מחלה</span>
-            <span class="pr-sum-value">${fmtNum(totalSickDays)}</span>
-          </div>
-          <div class="pr-sum-item">
-            <span class="pr-sum-label">הצהרה</span>
-            <span class="pr-sum-value">${fmtNum(totalDeclarationDays)}</span>
-          </div>
+          ${addTravelPanel}
+          ${travelTable}
         </section>
 
         <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="expenses">
@@ -1267,31 +1309,28 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
               <span class="pr-section-kicker">כרטיס נתונים</span>
               <h2 class="pr-section-title">הוצאות</h2>
             </div>
-            ${sectionMetricHtml('סה"כ הוצאות', `₪${fmt(totalExpenses)}`)}
+            <div class="pr-section-head__actions">${sectionMetricHtml('סה"כ הוצאות', `₪${fmt(totalExpenses)}`)}${addExpenseButton}</div>
           </div>
-          ${expensesTable}
           ${addExpensePanel}
-          ${addExpenseButton}
+          ${expensesTable}
         </section>
 
-        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="travel">
+        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="absences">
           <div class="pr-section-head">
             <div>
-              <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">נסיעות ברכב</h2>
+              <span class="pr-section-kicker">חריגות / היעדרויות בלבד</span>
+              <h2 class="pr-section-title">ימי עבודה</h2>
             </div>
-            ${sectionMetricHtml('ק"מ / החזר', `${fmtNum(totalTravelKm)} ק"מ · ₪${fmt(totalTravel)}`)}
+            ${totalAbsenceDays > 0 ? sectionMetricHtml('ימים מחושבים', `${fmtNum(totalAbsenceDays)}`) : ''}
           </div>
-          ${travelTable}
-          ${addTravelPanel}
-          ${addTravelButton}
+          ${leaveSection}
         </section>
 
         <section class="pr-card pr-report-header-card pr-tab-panel" data-tab-panel="salary" id="pr-report-header">
           <div class="pr-section-head pr-section-head--plain">
             <div>
-              <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">סיכום לאישור שכר</h2>
+              <span class="pr-section-kicker">פרטים וסיכום כללי</span>
+              <h2 class="pr-section-title">פרטים</h2>
             </div>
             ${sectionMetricHtml('סה"כ להחזר', `₪${fmt(totalAll)}`)}
           </div>
@@ -1300,32 +1339,10 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             <div class="pr-id-item"><span class="pr-id-label">חודש דיווח</span><strong>${escapeHtml(monthYearLabel)}</strong></div>
             <div class="pr-id-item"><span class="pr-id-label">תקופת דיווח</span><strong>${escapeHtml(reportPeriod.label)}</strong></div>
             <div class="pr-id-item"><span class="pr-id-label">סטטוס</span>${statusChip}</div>
-            <div class="pr-id-item"><span class="pr-id-label">סה"כ נסיעות</span><strong>₪${fmt(totalTravel)}</strong></div>
-            <div class="pr-id-item"><span class="pr-id-label">סה"כ הוצאות</span><strong>₪${fmt(totalExpenses)}</strong></div>
+            ${nonZeroSummaryItems}
           </div>
+          ${submitSection}
         </section>
-        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="absences">
-          <div class="pr-section-head">
-            <div>
-              <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">ימי חופש / מחלה / הצהרה</h2>
-            </div>
-            ${sectionMetricHtml('ימים מחושבים', `${fmtNum(totalVacationDays + totalSickDays + totalDeclarationDays)}`)}
-          </div>
-          ${leaveSection}
-        </section>
-        <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="attachments">
-          <div class="pr-section-head">
-            <div>
-              <span class="pr-section-kicker">כרטיס נתונים</span>
-              <h2 class="pr-section-title">אסמכתאות</h2>
-            </div>
-          </div>
-          <div class="pr-attachments-list">${attachRows}</div>
-          ${uploadBtn}
-        </section>
-
-        <div class="pr-tab-panel" data-tab-panel="approval">${submitSection}</div>
       </div>
     </div>
   `;
@@ -1535,7 +1552,7 @@ async function loadMyReportsList(root, employeeId) {
   }
 }
 
-async function openReportDetail(root, reportId, isAdmin = false, { isSimulation = false, initialTab = 'salary' } = {}) {
+async function openReportDetail(root, reportId, isAdmin = false, { isSimulation = false, initialTab = 'status' } = {}) {
   const report = await fetchReport(reportId);
   const expectedEmployeeId = isSimulation ? prViewAsEmployee?.id : prSession?.user?.id;
   if (!isAdmin && String(report?.employee_id || '') !== String(expectedEmployeeId || '')) {
@@ -1761,7 +1778,7 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
         btn.disabled = true;
         btn.textContent = 'פותח…';
         const report = await getOrCreateReport(employeeId, month, year);
-        await safeOpenReportDetail(root, report.id, false, { isSimulation, initialTab: 'salary' });
+        await safeOpenReportDetail(root, report.id, false, { isSimulation, initialTab: 'status' });
       } catch (err) {
         showToast(friendlyPersonalReportsError(err), 'danger');
         btn.disabled = false;
@@ -1780,8 +1797,8 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
 }
 
 function setReportTab(root, tab = 'salary') {
-  const allowed = new Set(['expenses', 'travel', 'salary', 'absences', 'attachments', 'approval']);
-  const activeTab = allowed.has(tab) ? tab : 'salary';
+  const allowed = new Set(['status', 'travel', 'expenses', 'absences', 'salary']);
+  const activeTab = allowed.has(tab) ? tab : 'status';
   root.querySelectorAll('.pr-report-tab').forEach((btn) => {
     const isActive = btn.dataset.tab === activeTab;
     btn.classList.toggle('is-active', isActive);
@@ -1794,6 +1811,7 @@ function setReportTab(root, tab = 'salary') {
 
 function bindReportDetail(root, { isSimulation = false } = {}) {
   const SIM_MSG = 'מצב סימולציה — פעולה זו חסומה. זוהי תצוגה בלבד.';
+  const currentTab = () => root.querySelector('.pr-report-tab.is-active')?.dataset.tab || 'status';
 
   // Enable submit button only when checkbox is checked
   const checkbox = root.querySelector('#pr-confirm-checkbox');
@@ -1846,6 +1864,30 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     fields?.querySelectorAll('input[name="start_date"], input[name="end_date"]').forEach((input) => { input.required = Boolean(type); });
     updateAbsenceCalculatedDays(form);
   }
+  function updateTravelAmount(form) {
+    const kmInput = form?.querySelector('input[name="roundtrip_km"]');
+    const amountInput = form?.querySelector('input[name="amount"]');
+    if (amountInput) amountInput.value = (Number(kmInput?.value || 0) * 1.6).toFixed(2);
+  }
+
+  function updateTravelTypeFields(form) {
+    if (!form) return;
+    const type = form.querySelector('select[name="travel_type"]')?.value || 'km';
+    const isPublicTransport = type === 'public_transport';
+    form.querySelectorAll('.pr-travel-km-field').forEach((field) => { field.hidden = isPublicTransport; });
+    form.querySelectorAll('.pr-travel-public-field').forEach((field) => { field.hidden = !isPublicTransport; });
+    const kmInput = form.querySelector('input[name="roundtrip_km"]');
+    const publicAmountInput = form.querySelector('input[name="public_transport_amount"]');
+    if (kmInput) kmInput.required = !isPublicTransport;
+    if (publicAmountInput) publicAmountInput.required = isPublicTransport;
+    if (isPublicTransport) {
+      const amountInput = form.querySelector('input[name="amount"]');
+      if (amountInput) amountInput.value = publicAmountInput?.value || '';
+    } else {
+      updateTravelAmount(form);
+    }
+  }
+
 
   // Save meta fields on blur (header inputs)
   root.addEventListener('blur', async (e) => {
@@ -1907,14 +1949,17 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       const form = panel?.querySelector('form[data-form-type="declared_travel"]');
       setFormValues(form, {
         id: btn.dataset.entryId,
+        original_table: btn.dataset.entryTable,
+        travel_type: btn.dataset.travelType || 'km',
         travel_date: btn.dataset.travelDate,
         origin: btn.dataset.origin,
         destination: btn.dataset.destination,
         description: btn.dataset.description,
         roundtrip_km: btn.dataset.roundtripKm,
-        amount: (Number(btn.dataset.roundtripKm || 0) * 1.6).toFixed(2),
-        notes: btn.dataset.notes
+        public_transport_amount: btn.dataset.amount,
+        amount: (btn.dataset.travelType === 'public_transport') ? btn.dataset.amount : (Number(btn.dataset.roundtripKm || 0) * 1.6).toFixed(2)
       });
+      updateTravelTypeFields(form);
       return;
     }
 
@@ -1924,10 +1969,8 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       setFormValues(form, {
         id: btn.dataset.entryId,
         expense_date: btn.dataset.expenseDate,
-        document_type: btn.dataset.documentType,
         description: btn.dataset.description,
-        amount: btn.dataset.amount,
-        notes: btn.dataset.notes
+        amount: btn.dataset.amount
       });
       return;
     }
@@ -1951,7 +1994,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       if (!confirm('למחוק שורה זו?')) return;
       try {
         await deleteEntry(btn.dataset.entryTable, btn.dataset.entryId);
-        await safeOpenReportDetail(root, prSelectedReport.id, false);
+        await safeOpenReportDetail(root, prSelectedReport.id, false, { initialTab: currentTab() });
         showToast('נמחק', 'success');
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
@@ -2008,10 +2051,15 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
 
   root.addEventListener('input', (e) => {
     const kmInput = e.target.closest('input[name="roundtrip_km"]');
-    if (!kmInput) return;
-    const form = kmInput.closest('form[data-form-type="declared_travel"]');
-    const amountInput = form?.querySelector('input[name="amount"]');
-    if (amountInput) amountInput.value = (Number(kmInput.value || 0) * 1.6).toFixed(2);
+    if (kmInput) {
+      updateTravelAmount(kmInput.closest('form[data-form-type="declared_travel"]'));
+      return;
+    }
+    const publicAmountInput = e.target.closest('input[name="public_transport_amount"]');
+    if (publicAmountInput) {
+      const amountInput = publicAmountInput.closest('form[data-form-type="declared_travel"]')?.querySelector('input[name="amount"]');
+      if (amountInput) amountInput.value = publicAmountInput.value || '';
+    }
   });
 
   function updateAbsenceCalculatedDays(form) {
@@ -2023,6 +2071,12 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
 
   // File uploads + compact absence form reveal/calculation
   root.addEventListener('change', async (e) => {
+    const travelTypeSelect = e.target.closest('select[name="travel_type"]');
+    if (travelTypeSelect) {
+      updateTravelTypeFields(travelTypeSelect.closest('form[data-form-type="declared_travel"]'));
+      return;
+    }
+
     const absenceTypeSelect = e.target.closest('select[name="absence_type"]');
     if (absenceTypeSelect) {
       const form = absenceTypeSelect.closest('form[data-form-type="absence"]');
@@ -2049,7 +2103,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     };
     try {
       await uploadAttachment(prSelectedReport.id, prSession.user.id, entryLink, file);
-      await safeOpenReportDetail(root, prSelectedReport.id, false);
+      await safeOpenReportDetail(root, prSelectedReport.id, false, { initialTab: currentTab() });
       showToast('הקובץ הועלה', 'success');
     } catch (err) { showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בהעלאת הקובץ. יש לנסות שוב.'), 'danger'); }
   });
@@ -2080,26 +2134,35 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     const employeeId = prSession.user.id;
     try {
       if (formType === 'declared_travel') {
+        const travelType = String(fd.get('travel_type') || 'km');
+        const originalTable = String(fd.get('original_table') || '');
+        const targetTable = travelType === 'public_transport' ? 'public_transport_entries' : 'declared_travel_entries';
+        let entryId = fd.get('id') || undefined;
+        if (entryId && originalTable && originalTable !== targetTable) {
+          await deleteEntry(originalTable, entryId);
+          entryId = undefined;
+        }
         await upsertDeclaredTravel({
-          id: fd.get('id') || undefined,
+          id: entryId,
+          travel_type: travelType,
           report_id: reportId, employee_id: employeeId,
           travel_date: fd.get('travel_date'),
           origin: fd.get('origin') || '',
           destination: fd.get('destination') || '',
           description: fd.get('description') || '',
           roundtrip_km: Number(fd.get('roundtrip_km') || 0),
-          amount: Number((Number(fd.get('roundtrip_km') || 0) * 1.6).toFixed(2)),
-          notes: fd.get('notes') || ''
+          amount: travelType === 'public_transport'
+            ? Number(fd.get('public_transport_amount') || 0)
+            : Number((Number(fd.get('roundtrip_km') || 0) * 1.6).toFixed(2))
         });
       } else if (formType === 'expense') {
         const expense = await upsertExpense({
           id: fd.get('id') || undefined,
           report_id: reportId, employee_id: employeeId,
           expense_date: fd.get('expense_date'),
-          document_type: fd.get('document_type') || 'receipt',
+          document_type: 'receipt',
           description: fd.get('description') || '',
-          amount: Number(fd.get('amount') || 0),
-          notes: fd.get('notes') || ''
+          amount: Number(fd.get('amount') || 0)
         });
         const file = form.querySelector('input[name="attachment"]')?.files?.[0];
         if (file) await uploadAttachment(reportId, employeeId, { expenseEntryId: expense.id }, file);
@@ -2124,8 +2187,9 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         const file = form.querySelector('input[name="attachment"]')?.files?.[0];
         if (file) await uploadAttachment(reportId, employeeId, { absenceEntryId: absence.id }, file);
       }
-      await safeOpenReportDetail(root, reportId, false);
-      showToast('נשמר', 'success');
+      const successMessage = formType === 'declared_travel' ? 'הנסיעה נשמרה' : (formType === 'expense' ? 'ההוצאה נשמרה' : 'ימי העבודה נשמרו');
+      await safeOpenReportDetail(root, reportId, false, { initialTab: formType === 'declared_travel' ? 'travel' : (formType === 'expense' ? 'expenses' : 'absences') });
+      showToast(successMessage, 'success');
     } catch (err) {
       showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בשמירת הדוח. יש לנסות שוב.'), 'danger');
     }
