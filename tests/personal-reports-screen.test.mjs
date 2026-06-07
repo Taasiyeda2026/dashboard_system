@@ -186,8 +186,8 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 594;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 594;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 595;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 595;/);
 });
 
 test('source guards personal reports loads with requestKey and abortable listeners', async () => {
@@ -279,7 +279,9 @@ test('submit success back button returns to employee dashboard with a single ref
   assert.match(source, /showReportSubmittedSuccess\(root, prSelectedReport\.id/);
   assert.match(source, /pr-submit-success-screen/);
   assert.doesNotMatch(source, /pr-submit-success-screen[\s\S]{0,120}pr-report-form/);
-  assert.match(source, /loadMyReportCardData\(employeeId, month, year, \{ force: true \}\)/);
+  assert.match(source, /function renderMyReportsDashboard/);
+  assert.match(source, /await renderMyReportsDashboard\(root, \{[\s\S]{0,320}force: true/);
+  assert.match(source, /prSelectedReport\.report_month/);
   assert.doesNotMatch(source, /if \(action === 'back-to-my-reports'\)[\s\S]{0,220}await rerender\(root, _dashboardUser\)/);
 });
 
@@ -300,7 +302,7 @@ test('source separates my-reports from employee-reports-management modes', async
   assert.doesNotMatch(source, /function employeeDashboardHtml/);
   assert.doesNotMatch(source, /function adminDashboardHtml/);
   assert.doesNotMatch(source, /id="pr-filter-employee"/);
-  assert.doesNotMatch(source, /כל העובדים/);
+  assert.doesNotMatch(source, /<option[^>]*>כל העובדים<\/option>/);
 });
 
 test('my-reports screen uses a single personal card without management controls', async () => {
@@ -318,6 +320,22 @@ test('my-reports screen uses a single personal card without management controls'
   assert.doesNotMatch(source, /data-pr-action="admin-approve"[\s\S]{0,80}pr-admin-report-row/);
 });
 
+test('my-reports dashboard includes month selector from January 2026 through current month', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /id="pr-my-report-month"/);
+  assert.match(source, /pr-month-selector-card/);
+  assert.match(source, /MY_REPORTS_EARLIEST/);
+  assert.match(source, /month: 1, year: 2026/);
+  assert.match(source, /function buildMyReportsMonthOptions/);
+  assert.match(source, /function clampMyReportsMonthValue/);
+  assert.match(source, /defaultMyReportsMonthValue/);
+  assert.match(source, /לא נמצא דוח לחודש זה/);
+  assert.match(source, /function myReportNoReportHtml/);
+  assert.match(source, /selectedMonth: monthValue/);
+  assert.match(source, /#pr-my-report-month/);
+});
+
 test('management screen lists all report-eligible employees with one row action', async () => {
   const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 
@@ -333,6 +351,23 @@ test('management screen lists all report-eligible employees with one row action'
   assert.doesNotMatch(source, /pr-admin-status-select/);
   assert.doesNotMatch(source, /data-pr-action="admin-view-report"/);
   assert.doesNotMatch(source, /data-pr-action="admin-approve"[^>]*>אשר</);
+});
+
+test('admin management screen exports the visible table to CSV for the selected month', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /data-pr-action="export-admin-table"/);
+  assert.match(source, /function downloadAdminReportsCsv/);
+  assert.match(source, /function getAdminExportRows/);
+  assert.match(source, /personal-reports-\$\{monthValue\}\.csv/);
+  assert.match(source, /שם עובד/);
+  assert.match(source, /תאריך שליחה/);
+  assert.match(source, /תאריך אישור/);
+  assert.match(source, /הערות \/ החזרה לתיקון/);
+  assert.match(source, /adminManageStatusLabel/);
+  assert.match(source, /הורדת כל העובדים לחודש זה/);
+  assert.doesNotMatch(source, /export-admin-table[\s\S]{0,500}myReportsDashboardHtml/);
+  assert.doesNotMatch(source, /data-pr-action="export-admin-table"[\s\S]{0,400}pr-my-report-card/);
 });
 
 test('admin defaults to my-reports and can switch to management via tabs', async () => {

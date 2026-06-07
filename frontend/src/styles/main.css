@@ -13797,7 +13797,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pr-admin-filters--compact {
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(180px, 220px) auto;
+  grid-template-columns: minmax(180px, 220px) minmax(180px, 220px) auto auto;
   align-items: end;
   gap: 10px;
 }
