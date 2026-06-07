@@ -10,7 +10,7 @@
  *   manager  — admin or personal_reports_manager=yes: sees all reports, can approve / return / mark paid
  */
 
-import { supabase, waitForSupabaseAuthSession } from '../supabase-client.js';
+import { supabase, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsEmptyState, dsStatusChip, dsScreenStack } from './shared/layout.js';
 
@@ -793,17 +793,18 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
     throw new Error('invalid_credentials');
   }
 
-  // Compatibility note for the focused source guard: authUserId = authData.user.id; sameDashboardUser(userRow, dashboardUser).
-  // Step 1: get the email of the currently authenticated Supabase session.
-  // This is the authoritative source — no fallback to internal IDs or tables.
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError || !sessionData?.session?.user?.email) {
-    console.error('[personal-reports] could not read Supabase Auth session', sessionError?.message);
+  // Step 1: resolve the Supabase auth email.
+  // Primary: wait for (or read) the existing Supabase session (persisted from previous login).
+  // Fallback: use the dashboard user's authenticated email — they already passed main-app auth.
+  const currentSession = await waitForSupabaseAuthSession({ timeoutMs: 3000 });
+  const sessionEmail = currentSession?.user?.email
+    || String(user?.email || user?.work_email || '').trim();
+  if (!sessionEmail) {
+    console.error('[personal-reports] could not resolve auth email — no Supabase session and no dashboard email');
     throw new Error('invalid_credentials');
   }
-  const sessionEmail = sessionData.session.user.email;
 
-  // Step 2: re-authenticate against Supabase Auth using the session email
+  // Step 2: re-authenticate against Supabase Auth using the resolved email
   // and the code the user typed. No DB tables, no entry_code column, no UUIDs.
   const { error: authError } = await supabase.auth.signInWithPassword({
     email: sessionEmail,
@@ -812,6 +813,11 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
   if (authError) {
     throw new Error('invalid_credentials');
   }
+
+  // Reset the cached auth-session promise so that the next waitForSupabaseAuthSession()
+  // call (e.g. in fetchReportEligibleEmployees) gets a fresh promise that resolves with
+  // the newly-established session instead of a stale null from an earlier timeout.
+  resetSupabaseAuthSessionWait();
 
   // Step 3: the UUID for report queries comes exclusively from the
   // already-authenticated dashboard session — never from the entered code.
@@ -1929,6 +1935,10 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   return `
     <div class="pr-screen pr-report-form" dir="rtl">
       ${isSimulation ? simulationBannerHtml(profile.full_name) : ''}
+      <div class="pr-topbar">
+        <button class="pr-btn pr-btn--ghost pr-back-btn" type="button" data-pr-action="back-to-my-reports">← חזרה לדוחות שלי</button>
+        <span class="pr-topbar__title">דוח אישי — ${escapeHtml(monthYearLabel)}</span>
+      </div>
       <div class="pr-body pr-report-detail-body">
         <section class="pr-card pr-report-hero-card" aria-label="כותרת דוח חודשי">
           <div class="pr-report-hero-card__main">
@@ -1936,7 +1946,6 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             <h1 class="pr-report-hero-card__title">דוח אישי לשכר — ${escapeHtml(monthYearLabel)}</h1>
             <p class="pr-report-hero-card__meta">${escapeHtml(profile.full_name || '')}</p>
           </div>
-          <button class="pr-btn pr-btn--ghost pr-back-btn" type="button" data-pr-action="back-to-my-reports">← חזרה לדוחות שלי</button>
         </section>
 
         <nav class="pr-report-tabs" role="tablist" aria-label="אזורי הדוח">
@@ -2240,7 +2249,13 @@ async function renderMyReportsDashboard(root, {
   const monthValue = resolveMyReportsSelectedMonth(selectedMonth);
   _prMyReportsSelectedMonth = monthValue;
   const { month, year } = parseMyReportsMonthValue(monthValue);
-  const cardData = await loadMyReportCardData(employeeId, month, year, { force });
+  let cardData = null;
+  try {
+    cardData = await loadMyReportCardData(employeeId, month, year, { force });
+  } catch (err) {
+    // Navigation still completes — show empty state with a toast so the user isn't stuck.
+    showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בטעינת נתוני הדוח.'), 'danger');
+  }
   _prActiveView = { kind: 'my-reports', isSimulation, selectedMonth: monthValue };
   renderInto(root, myReportsDashboardHtml(profile, { isSimulation, cardData, showModeTabs, selectedMonthValue: monthValue }));
   bindMyReportsDashboard(root, { isSimulation });
@@ -2810,7 +2825,11 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       await rerender(root, _dashboardUser); return;
     }
     if (action === 'back-to-my-reports') {
-      await returnToEmployeeDashboard(root, { isSimulation });
+      try {
+        await returnToEmployeeDashboard(root, { isSimulation });
+      } catch (err) {
+        showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בחזרה לדוחות. יש לנסות שוב.'), 'danger');
+      }
       return;
     }
     if (action === 'back-to-dashboard') { dispatchBackToDashboard(); return; }
