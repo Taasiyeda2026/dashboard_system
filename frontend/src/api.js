@@ -4,7 +4,7 @@ import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { cleanActivityManagerName, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
 import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
-import { supabase, supabaseConfig } from './supabase-client.js';
+import { supabase, supabaseConfig, waitForSupabaseAuthSession } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
 
 /**
@@ -1914,6 +1914,11 @@ function profileCanAccessPersonalReports(profileRow) {
 async function readPersonalReportsProfile(authUserId) {
   const id = String(authUserId || '').trim();
   if (!supabase || !id) return null;
+  const session = await waitForSupabaseAuthSession();
+  if (!session?.user?.id) {
+    try { console.warn('[personal-reports-profile] skipped: no supabase auth session'); } catch { /* ignore */ }
+    return null;
+  }
   const { data, error } = await supabase
     .from('profiles')
     .select(PROFILE_PERSONAL_REPORTS_COLUMNS)
@@ -1929,6 +1934,11 @@ async function readPersonalReportsProfile(authUserId) {
 async function readPersonalReportsProfilesByAuthIds(authUserIds = []) {
   const ids = [...new Set(authUserIds.map((id) => String(id || '').trim()).filter(Boolean))];
   if (!supabase || !ids.length) return new Map();
+  const session = await waitForSupabaseAuthSession();
+  if (!session?.user?.id) {
+    try { console.warn('[personal-reports-profiles] skipped: no supabase auth session'); } catch { /* ignore */ }
+    return new Map();
+  }
   const { data, error } = await supabase
     .from('profiles')
     .select(`${PROFILE_PERSONAL_REPORTS_COLUMNS},email`)
@@ -2164,6 +2174,8 @@ async function readCurrentUserBySession() {
   if (!supabase) throw new Error('no_supabase_client');
   const userId = String(state?.user?.user_id || '').trim();
   if (!userId) throw new Error('unauthorized');
+  const session = await waitForSupabaseAuthSession();
+  if (!session?.user?.id) throw new Error('unauthorized');
   const { data, error } = await supabase
     .from('users')
     .select(USER_PUBLIC_COLUMNS)
@@ -3048,6 +3060,7 @@ export const api = {
     };
   },
   bootstrap: async () => {
+    await waitForSupabaseAuthSession();
     const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
       readCurrentUserBySession(),
       readListsFromSupabase().catch(() => null),

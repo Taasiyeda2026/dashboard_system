@@ -10,7 +10,7 @@
  *   manager  — admin or personal_reports_manager=yes: sees all reports, can approve / return / mark paid
  */
 
-import { supabase } from '../supabase-client.js';
+import { supabase, waitForSupabaseAuthSession } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsEmptyState, dsStatusChip, dsScreenStack } from './shared/layout.js';
 
@@ -42,6 +42,14 @@ function profileCanManagePersonalReports(profile = {}) {
 
 function personalReportsAccessDeniedHtml() {
   return dsScreenStack(`${dsPageHeader('דוחות אישיים', 'גישה מוגבלת')} ${dsEmptyState('אין הרשאה לצפייה בדוחות אישיים.')}`);
+}
+
+function personalReportsPermissionsPending(appState) {
+  return !!(appState?.token && appState?.permissionsReady === false);
+}
+
+function personalReportsPermissionsLoadingHtml() {
+  return dsScreenStack(`${dsPageHeader('דוחות אישיים', 'טוען הרשאות…')} <div class="pr-loading-placeholder">טוען…</div>`);
 }
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -1133,6 +1141,8 @@ async function deleteAttachment(attachment) {
 }
 
 async function fetchReportEligibleEmployees() {
+  const session = await waitForSupabaseAuthSession();
+  if (!session?.user?.id) throw new Error('unauthorized');
   const { data, error } = await supabase
     .from('profiles')
     .select('id, full_name, email, role, is_active, can_access_personal_reports')
@@ -3414,6 +3424,9 @@ export const personalReportsScreen = {
   load: () => Promise.resolve({}),
 
   render(_data, ctx) {
+    if (personalReportsPermissionsPending(ctx?.state)) {
+      return personalReportsPermissionsLoadingHtml();
+    }
     if (!canAccessPersonalReports(ctx?.state?.user)) {
       return personalReportsAccessDeniedHtml();
     }
@@ -3422,6 +3435,7 @@ export const personalReportsScreen = {
 
   bind({ root, state } = {}) {
     const prRoot = (root && root.querySelector('#pr-root')) || root;
+    if (personalReportsPermissionsPending(state)) return;
     if (!canAccessPersonalReports(state?.user)) return;
     _dashboardUser = state?.user || _dashboardUser || null;
     const view = prRoot?.ownerDocument?.defaultView || globalThis.window;

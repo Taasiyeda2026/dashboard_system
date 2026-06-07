@@ -1,3 +1,5 @@
+import { resetSupabaseAuthSessionWait } from './supabase-client.js';
+
 function defaultClientSettings() {
   return {
     system_name: 'Dashboard Taasiyeda',
@@ -105,7 +107,11 @@ export const state = {
   /** @type {Record<string, { data: unknown, t: number }>} */
   screenDataCache: {},
   /** Sidebar badge for open approval requests (null = not loaded yet). */
-  openEditRequestsCount: null
+  openEditRequestsCount: null,
+  /** True once Supabase Auth session is available on the shared client. */
+  authSessionReady: false,
+  /** False while bootstrap/profile permission sync is in flight after reload. */
+  permissionsReady: false
 };
 
 function parseTokenPayloadClaims(token) {
@@ -167,6 +173,9 @@ export function setSession(session) {
     state.clientSettings = defaultClientSettings();
     state.screenDataCache = {};
     state.openEditRequestsCount = null;
+    state.authSessionReady = false;
+    state.permissionsReady = false;
+    resetSupabaseAuthSessionWait();
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
     cleanupLegacyCalendarMonthLocalStorage(state.user?.user_id);

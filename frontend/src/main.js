@@ -10,6 +10,7 @@ import { uniqueExceptionActivityCount } from './screens/shared/exceptions-metric
 import { loginScreen } from './screens/login.js';
 import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-storage.js';
 import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindAccentPickerListenerOnce } from './accent-picker.js';
+import { waitForSupabaseAuthSession } from './supabase-client.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc  = new URL('../assets/logo1.png',      import.meta.url).href;
@@ -1434,6 +1435,55 @@ function tryRestoreRoutesInstant() {
   } catch { return false; }
 }
 
+function applyBootstrapUserFlags(bootstrap) {
+  if (!bootstrap?.profile || !state.user) return;
+  const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
+  if (fn) state.user.full_name = fn;
+  state.user.display_role2 =
+    bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
+  if (bootstrap.profile.display_role_label != null) {
+    state.user.display_role_label = String(bootstrap.profile.display_role_label);
+  }
+  state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
+  state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);
+  state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
+  state.user.can_review_requests = permissionEnabled(bootstrap.can_review_requests);
+  state.user.finance_access = !!bootstrap.has_finance_access;
+  state.user.profile_is_active = bootstrap.profile_is_active !== false;
+  state.user.can_access_personal_reports = !!bootstrap.has_personal_reports_access;
+  state.user.personal_reports_manager = !!bootstrap.has_personal_reports_manager;
+  localStorage.setItem('dashboard_user', JSON.stringify(state.user));
+}
+
+async function prepareAuthenticatedSupabaseSession() {
+  if (!state.token) {
+    state.authSessionReady = false;
+    state.permissionsReady = true;
+    return null;
+  }
+  state.permissionsReady = false;
+  const session = await waitForSupabaseAuthSession();
+  state.authSessionReady = !!session?.user?.id;
+  return session;
+}
+
+function applyBootstrapRoutes(bootstrap) {
+  const prevRouteSet = new Set(state.effectiveRoutes || []);
+  if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
+    state.clientSettings = { ...defaultClientSettings(), ...bootstrap.client_settings };
+  }
+  const normalizedRoutes = applySettingsToRoutes(bootstrap.routes || [], state.clientSettings);
+  state.routes = normalizedRoutes;
+  state.effectiveRoutes = normalizedRoutes;
+  const newDefault = resolveAllowedDefaultRoute(bootstrap.default_route, normalizedRoutes);
+  saveRoutesToStorage(state.routes, newDefault, state.clientSettings);
+  applyBootstrapUserFlags(bootstrap);
+  state.permissionsReady = true;
+  const routesChanged = normalizedRoutes.length !== prevRouteSet.size ||
+    normalizedRoutes.some((r) => !prevRouteSet.has(r));
+  return { routesChanged, newDefault };
+}
+
 /**
  * Fetches a fresh bootstrap in the background and silently updates state.
  * Called after instant-restore so permissions/profile stay up to date.
@@ -1441,46 +1491,24 @@ function tryRestoreRoutesInstant() {
  */
 function backgroundSyncBootstrap() {
   if (!state.token) return;
-  api.bootstrap().then((bootstrap) => {
-    const prevRouteSet = new Set(state.effectiveRoutes || []);
-    if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
-      state.clientSettings = { ...defaultClientSettings(), ...bootstrap.client_settings };
-    }
-    const normalizedRoutes = applySettingsToRoutes(bootstrap.routes || [], state.clientSettings);
-    state.routes = normalizedRoutes;
-    state.effectiveRoutes = normalizedRoutes;
-    const newDefault = resolveAllowedDefaultRoute(bootstrap.default_route, normalizedRoutes);
-    saveRoutesToStorage(state.routes, newDefault, state.clientSettings);
-    if (bootstrap.profile && state.user) {
-      const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
-      if (fn) state.user.full_name = fn;
-      state.user.display_role2 =
-        bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
-      if (bootstrap.profile.display_role_label != null) {
-        state.user.display_role_label = String(bootstrap.profile.display_role_label);
+  prepareAuthenticatedSupabaseSession()
+    .then(() => api.bootstrap())
+    .then((bootstrap) => {
+      const { routesChanged, newDefault } = applyBootstrapRoutes(bootstrap);
+      if (!isAllowedRoute(state.route)) {
+        state.route = newDefault;
+        render().catch(() => {});
+      } else if (routesChanged) {
+        render().catch(() => {});
+      } else {
+        updateNavActiveClasses();
+        if (state.route === 'personal-reports') render().catch(() => {});
       }
-      state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
-      state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);
-      state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
-      state.user.can_review_requests = permissionEnabled(bootstrap.can_review_requests);
-      state.user.finance_access = !!bootstrap.has_finance_access;
-      state.user.profile_is_active = bootstrap.profile_is_active !== false;
-      state.user.can_access_personal_reports = !!bootstrap.has_personal_reports_access;
-      state.user.personal_reports_manager = !!bootstrap.has_personal_reports_manager;
-      localStorage.setItem('dashboard_user', JSON.stringify(state.user));
-    }
-    const routesChanged = normalizedRoutes.length !== prevRouteSet.size ||
-      normalizedRoutes.some((r) => !prevRouteSet.has(r));
-    if (!isAllowedRoute(state.route)) {
-      state.route = newDefault;
-      render().catch(() => {});
-    } else if (routesChanged) {
-      render().catch(() => {});
-    } else {
-      updateNavActiveClasses();
-    }
-    refreshOpenEditRequestsCount().catch(() => {});
-  }).catch(() => {});
+      refreshOpenEditRequestsCount().catch(() => {});
+    })
+    .catch(() => {
+      state.permissionsReady = true;
+    });
 }
 
 async function restoreSession() {
@@ -1488,34 +1516,13 @@ async function restoreSession() {
   if (state.routes.length) return;
 
   restoreScreenCacheFromStorage();
+  await prepareAuthenticatedSupabaseSession();
   const bootstrap = await api.bootstrap();
-  if (bootstrap.client_settings && typeof bootstrap.client_settings === 'object') {
-    state.clientSettings = { ...defaultClientSettings(), ...bootstrap.client_settings };
-  }
-  const normalizedRoutes = applySettingsToRoutes(bootstrap.routes || [], state.clientSettings);
-  state.routes = normalizedRoutes;
-  state.effectiveRoutes = normalizedRoutes;
-  state.route = resolveAllowedDefaultRoute(bootstrap.default_route, normalizedRoutes);
+  applyBootstrapRoutes(bootstrap);
+  state.route = resolveAllowedDefaultRoute(bootstrap.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
   consumePendingRouteFromUrlOrSession();
   clearFinancePrefsIfUserChanged(state.user?.user_id);
-  if (bootstrap.profile && state.user) {
-    const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
-    if (fn) state.user.full_name = fn;
-    state.user.display_role2 =
-      bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
-    if (bootstrap.profile.display_role_label != null) {
-      state.user.display_role_label = String(bootstrap.profile.display_role_label);
-    }
-    state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
-    state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);
-    state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
-    state.user.can_review_requests = permissionEnabled(bootstrap.can_review_requests);
-    state.user.finance_access = !!bootstrap.has_finance_access;
-    state.user.can_access_personal_reports = !!bootstrap.has_personal_reports_access;
-    state.user.personal_reports_manager = !!bootstrap.has_personal_reports_manager;
-    localStorage.setItem('dashboard_user', JSON.stringify(state.user));
-  }
   refreshOpenEditRequestsCount().catch(() => {});
 }
 
@@ -1863,6 +1870,8 @@ async function render() {
             firstPrefetchTimerStarted = false;
             beginPerfTimer('login:setSession');
             setSession({ token: data.token, user: data.user });
+            state.authSessionReady = true;
+            state.permissionsReady = true;
             clearFinancePrefsIfUserChanged(data.user?.user_id);
             endPerfTimer('login:setSession');
             beginPerfTimer('login:applyBootstrap');
