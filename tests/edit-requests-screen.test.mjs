@@ -24,5 +24,23 @@ test('edit requests screen hides empty requests and keeps non-empty field rows',
   assert.match(html, /הערות/);
   assert.match(html, /ישן/);
   assert.match(html, /חדש/);
-  assert.match(html, /בקשות \(1\)/);
+  assert.match(html, /בקשות פתוחות \(1\)/);
+});
+
+
+test('edit requests screen hides review actions for non-reviewers', () => {
+  const html = editRequestsScreen.render({
+    canReview: false,
+    groups: [
+      {
+        request_id: 'REQ-MINE',
+        status: 'pending',
+        fields: [{ field_name: 'notes', old_value: 'ישן', new_value: 'חדש' }]
+      }
+    ]
+  });
+
+  assert.match(html, /בקשות פעילות שהגשת/);
+  assert.doesNotMatch(html, /data-action="approve"/);
+  assert.doesNotMatch(html, /data-action="reject"/);
 });
