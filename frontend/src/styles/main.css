@@ -12677,6 +12677,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 /* Month selector card */
 .pr-month-selector-card { display: flex; flex-direction: column; gap: 10px; }
+.pr-input--month-compact {
+  width: 180px;
+  max-width: min(190px, 100%);
+  min-width: 160px;
+  flex: 0 0 auto;
+}
 .pr-month-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .pr-month-status { margin-top: 6px; }
 .pr-checking { color: #64748b; font-size: 0.88rem; }
@@ -13797,7 +13803,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pr-admin-filters--compact {
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(180px, 220px) auto auto;
+  grid-template-columns: minmax(160px, 190px) minmax(160px, 190px) auto auto;
   align-items: end;
   gap: 10px;
 }

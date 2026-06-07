@@ -60,11 +60,8 @@ const MY_REPORT_STATUS_META = {
 };
 
 const ADMIN_MANAGE_STATUS_META = {
-  not_started:      { label: 'לא התחיל', kind: 'neutral' },
-  in_progress:      { label: 'בטיפול העובד', kind: 'warning' },
-  submitted:        { label: 'נשלח לאישור', kind: 'warning' },
-  needs_correction: { label: 'הוחזר לתיקון', kind: 'danger' },
-  approved:         { label: 'אושר', kind: 'success' }
+  approved:     { label: 'אושר', kind: 'success' },
+  not_approved: { label: 'לא אושר', kind: 'neutral' }
 };
 
 const PR_SCREEN_MODES = {
@@ -215,16 +212,15 @@ async function runGuardedPersonalReportsLoad(requestKey, loadFn, { force = false
 }
 
 function defaultMonthFilterValue() {
-  const { month, year } = currentMonthYear();
-  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+  return defaultMyReportsMonthValue();
 }
 
 function parseMonthFilterValue(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return currentMonthYear();
-  const [year, month] = raw.split('-').map(Number);
-  if (!year || !month) return currentMonthYear();
-  return { month, year };
+  return parseMyReportsMonthValue(value);
+}
+
+function clampAdminMonthFilterValue(value) {
+  return clampMyReportsMonthValue(value);
 }
 
 function readAdminFilters(root) {
@@ -258,12 +254,8 @@ function deriveMyReportStatus(report, totals = {}) {
 }
 
 function deriveAdminManageStatus(report) {
-  if (!report) return 'not_started';
-  if (report.status === 'needs_correction') return 'needs_correction';
-  if (report.status === 'approved' || report.status === 'paid') return 'approved';
-  if (report.status === 'submitted' || report.status === 'reviewed') return 'submitted';
-  if (report.status === 'draft') return 'in_progress';
-  return 'not_started';
+  if (report && (report.status === 'approved' || report.status === 'paid')) return 'approved';
+  return 'not_approved';
 }
 
 function manageStatusOptionsHtml(selectedStatus = '') {
@@ -891,10 +883,12 @@ async function loadReportRow(reportId, { force = false } = {}) {
     prDebugLog('load skipped duplicate', buildReportRowRequestKey(normalizedId));
     return _prReportRowCache.get(normalizedId);
   }
+  const requestKey = buildReportRowRequestKey(normalizedId);
+  const shouldForce = force || (_prCompletedKeys.has(requestKey) && !_prReportRowCache.has(normalizedId));
   const row = await runGuardedPersonalReportsLoad(
-    buildReportRowRequestKey(normalizedId),
+    requestKey,
     () => fetchReport(normalizedId),
-    { force }
+    { force: shouldForce }
   );
   const resolved = row || _prReportRowCache.get(normalizedId);
   if (!resolved) throw new Error('personal_report_row_unavailable');
@@ -1156,6 +1150,8 @@ async function buildEmployeeReportsManagementRows(month, year) {
     return {
       employee,
       report,
+      reportId: report?.id || '',
+      reportStatus: report?.status || '',
       manageStatus: deriveAdminManageStatus(report),
       month,
       year,
@@ -1167,7 +1163,7 @@ async function buildEmployeeReportsManagementRows(month, year) {
 
 async function loadEmployeeReportsManagementList(filters = _prLastAdminFilters, { force = false } = {}) {
   const normalizedFilters = {
-    month: filters.month || defaultMonthFilterValue(),
+    month: clampAdminMonthFilterValue(filters.month || defaultMonthFilterValue()),
     status: filters.status || ''
   };
   const requestKey = buildAdminReportsRequestKey(normalizedFilters);
@@ -1420,7 +1416,7 @@ function myReportsMonthSelectorHtml(selectedMonthValue) {
   return `
     <section class="pr-card pr-month-selector-card" aria-label="בחירת חודש לדוחות אישיים">
       <label class="pr-label">בחירת חודש
-        <select class="pr-input pr-input--select" id="pr-my-report-month">
+        <select class="pr-input pr-input--select pr-input--month-compact" id="pr-my-report-month">
           ${buildMyReportsMonthOptions(selectedMonthValue)}
         </select>
       </label>
@@ -2034,20 +2030,26 @@ function employeeReportsManagementPlaceholderHtml(errorMsg = '') {
 }
 
 function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
-  const monthValue = filters.month || defaultMonthFilterValue();
+  const monthValue = clampAdminMonthFilterValue(filters.month || defaultMonthFilterValue());
   const { month, year } = parseMonthFilterValue(monthValue);
   const monthLabelText = monthLabel(month, year);
 
   const tableRows = rows.map((row) => {
     const employee = row.employee || {};
     const report = row.report || null;
+    const reportId = String(row.reportId || report?.id || '').trim();
+    const reportStatus = String(row.reportStatus || report?.status || '').trim();
     const totals = row.totals || { travel: 0, expenses: 0 };
     const workDaysLabel = row.workDays === null || row.workDays === undefined || row.workDays === ''
       ? '—'
       : fmtNum(row.workDays);
-    const reportIdAttr = report?.id ? ` data-report-id="${escapeHtml(report.id)}"` : '';
     return `
-      <tr class="pr-admin-report-row" data-employee-id="${escapeHtml(employee.id)}" data-report-month="${escapeHtml(monthValue)}" data-manage-status="${escapeHtml(row.manageStatus)}">
+      <tr class="pr-admin-report-row"
+        data-employee-id="${escapeHtml(employee.id)}"
+        data-report-month="${escapeHtml(monthValue)}"
+        data-report-id="${escapeHtml(reportId)}"
+        data-report-status="${escapeHtml(reportStatus)}"
+        data-manage-status="${escapeHtml(row.manageStatus)}">
         <td>${escapeHtml(employee.full_name || '—')}</td>
         <td>${escapeHtml(monthLabelText)}</td>
         <td class="pr-td-status">${manageStatusChipHtml(row.manageStatus)}</td>
@@ -2055,7 +2057,8 @@ function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
         <td class="pr-td-num pr-td-amount">₪${fmt(totals.expenses)}</td>
         <td class="pr-td-num">${escapeHtml(workDaysLabel)}</td>
         <td class="pr-actions-cell">
-          <button class="pr-btn pr-btn--primary pr-btn--sm" type="button" data-pr-action="admin-manage-report"${reportIdAttr}
+          <button class="pr-btn pr-btn--primary pr-btn--sm" type="button" data-pr-action="admin-manage-report"
+            data-report-id="${escapeHtml(reportId)}"
             data-employee-id="${escapeHtml(employee.id)}"
             data-report-month="${month}"
             data-report-year="${year}">צפייה וניהול</button>
@@ -2075,7 +2078,9 @@ function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
         ${personalReportsModeTabsHtml(PR_SCREEN_MODES.MANAGEMENT)}
         <div class="pr-card pr-admin-filters pr-admin-filters--compact" aria-label="סינון דוחות עובדים">
           <label class="pr-label">חודש דיווח
-            <input class="pr-input" id="pr-filter-month" type="month" value="${escapeHtml(monthValue)}" />
+            <select class="pr-input pr-input--select pr-input--month-compact" id="pr-filter-month">
+              ${buildMyReportsMonthOptions(monthValue)}
+            </select>
           </label>
           <label class="pr-label">סטטוס
             <select class="pr-input pr-input--select" id="pr-filter-status">
@@ -2113,7 +2118,7 @@ function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
 function adminNotStartedReportHtml({ employee, month, year }) {
   const monthYearLabel = monthLabel(month, year);
   const period = reportPeriodRange(month, year);
-  const statusChip = manageStatusChipHtml('not_started');
+  const statusChip = myReportStatusChipHtml('not_started');
   return `
     <div class="pr-screen pr-report-form" dir="rtl">
       <div class="pr-topbar">
@@ -2525,15 +2530,13 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
 
 // ─── binding ──────────────────────────────────────────────────────────────────
 
-async function safeOpenAdminManageReport(root, { reportId = '', employeeId = '', month = 0, year = 0 } = {}) {
-  if (reportId) {
-    await safeOpenReportDetail(root, reportId, true);
+async function safeOpenAdminManageReport(root, { reportId = '' } = {}) {
+  const normalizedReportId = String(reportId || '').trim();
+  if (normalizedReportId) {
+    await safeOpenReportDetail(root, normalizedReportId, true, { forceReload: true });
     return;
   }
-  const profile = await loadEmployeeProfile(employeeId, { force: true });
-  _prActiveView = { kind: 'admin-report', reportId: '', employeeId, month, year, isSimulation: false };
-  renderInto(root, adminNotStartedReportHtml({ employee: profile, month, year }));
-  bindAdminNotStartedView(root);
+  showToast('אין דוח לחודש זה', 'info');
 }
 
 function bindAdminNotStartedView(root) {
@@ -3110,7 +3113,7 @@ function bindEmployeeReportsManagement(root) {
     if (action === 'clear-admin-filters') {
       const monthInput = root.querySelector('#pr-filter-month');
       const statusInput = root.querySelector('#pr-filter-status');
-      if (monthInput) monthInput.value = defaultMonthFilterValue();
+      if (monthInput) monthInput.value = clampAdminMonthFilterValue(defaultMonthFilterValue());
       if (statusInput) statusInput.value = '';
       await rerender(root, _dashboardUser, { forceReload: true });
       return;
@@ -3132,12 +3135,9 @@ function bindEmployeeReportsManagement(root) {
     }
 
     if (action === 'admin-manage-report') {
-      await safeOpenAdminManageReport(root, {
-        reportId,
-        employeeId: btn.dataset.employeeId,
-        month: Number(btn.dataset.reportMonth || 0),
-        year: Number(btn.dataset.reportYear || 0)
-      });
+      const row = btn.closest('.pr-admin-report-row');
+      const resolvedReportId = String(btn.dataset.reportId || row?.dataset?.reportId || '').trim();
+      await safeOpenAdminManageReport(root, { reportId: resolvedReportId });
       return;
     }
   });
