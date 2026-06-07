@@ -60,6 +60,28 @@ test('main syncs can_access_personal_reports from bootstrap', async () => {
   assert.match(source, /state\.user\.profile_is_active = bootstrap\.profile_is_active !== false/);
 });
 
+test('main waits for Supabase auth session before bootstrap permission sync', async () => {
+  const mainSource = await readFile(MAIN_FILE, 'utf8');
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const clientSource = await readFile(new URL('../frontend/src/supabase-client.js', import.meta.url), 'utf8');
+  assert.match(clientSource, /function waitForSupabaseAuthSession/);
+  assert.match(mainSource, /waitForSupabaseAuthSession/);
+  assert.match(mainSource, /permissionsReady/);
+  assert.match(mainSource, /authSessionReady/);
+  assert.match(apiSource, /await waitForSupabaseAuthSession\(\)/);
+  assert.match(apiSource, /skipped: no supabase auth session/);
+});
+
+test('personal reports screen shows loading until permissions sync completes', async () => {
+  const source = await readFile(PR_FILE, 'utf8');
+  assert.match(source, /function personalReportsPermissionsPending/);
+  assert.match(source, /permissionsReady === false/);
+  assert.match(source, /personalReportsPermissionsLoadingHtml/);
+  assert.match(source, /if \(personalReportsPermissionsPending\(ctx\?\.state\)\)/);
+  assert.match(source, /if \(personalReportsPermissionsPending\(state\)\) return/);
+  assert.match(source, /waitForSupabaseAuthSession/);
+});
+
 test('login and bootstrap expose personal_reports_manager without granting admin routes', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
   const routesBlock = apiSource.match(/const SUPABASE_ROLE_ROUTES = \{[\s\S]*?\};/);
