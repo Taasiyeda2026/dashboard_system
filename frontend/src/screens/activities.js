@@ -522,6 +522,31 @@ function isEndingInMonth(row = {}, ym = '') {
   return /^\d{4}-\d{2}$/.test(month) && String(row?.end_date || row?.date_end || '').slice(0, 7) === month;
 }
 
+function currentYm() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function shiftYm(ym, delta) {
+  const base = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  const d = base ? new Date(Number(base[1]), Number(base[2]) - 1, 1) : new Date();
+  d.setMonth(d.getMonth() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthLabel(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return '';
+  return `${m[1]}-${m[2]}`;
+}
+
+const HE_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+function heMonthLabel(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return monthLabel(ym);
+  return HE_MONTHS[Number(m[2]) - 1] || monthLabel(ym);
+}
+
 function applyClientFilters(rows, state, settings) {
   let out = Array.isArray(rows) ? rows.slice() : [];
   const oneDayTypes = resolveOneDayTypes(settings);
@@ -1118,6 +1143,7 @@ function activityLayoutListHtml(groups = []) {
 export const activitiesScreen = {
   async load({ api, state }) {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
+    if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
     return api.activities({
       activity_type: 'all',
       include_inactive: true
@@ -1127,6 +1153,7 @@ export const activitiesScreen = {
   render(data, { state }) {
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
+    if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
     const periodRows    = activityPeriodRows(allRows, state.activityPeriodTab);
     const filteredRows  = applyActivitiesLocalFilters(periodRows, state, state?.clientSettings);
 
@@ -1284,9 +1311,11 @@ export const activitiesScreen = {
       </div>
     </div>`;
 
-    const titleNavRow = `<div class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" dir="rtl">
-      <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(activityPeriodLabelForKey(state.activityPeriodTab))} · ${total} פעילויות ${navLoadingChip}</h2>
-    </div>`;
+    const titleNavRow = `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם" title="חודש קודם" ${isNavLoading ? 'disabled' : ''}>▶</button>
+      <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${total} פעילויות ${navLoadingChip}</h2>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא" title="חודש הבא" ${isNavLoading ? 'disabled' : ''}>◀</button>
+    </nav>`;
     const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab);
 
     const html = dsScreenStack(`<section class="ds-activities-screen">
@@ -1473,6 +1502,22 @@ export const activitiesScreen = {
     };
 
     bindActivitiesViewSwitcher(root, state, rerender);
+
+    const runMonthShift = (delta) => {
+      if (state.activitiesNavLoading) return;
+      const startedAt = Date.now();
+      state.activitiesNavLoading = true;
+      state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), delta);
+      rerenderLocal();
+      const minMs = 420;
+      setTimeout(() => {
+        state.activitiesNavLoading = false;
+        rerenderLocal();
+      }, Math.max(0, minMs - (Date.now() - startedAt)));
+    };
+
+    root.querySelector('[data-activities-month-prev]')?.addEventListener('click', () => runMonthShift(-1));
+    root.querySelector('[data-activities-month-next]')?.addEventListener('click', () => runMonthShift(1));
 
     const upsertLocalRow = (rowId, patch) => {
       const hit = activitiesRows.find((row) => String(row?.RowID || '') === String(rowId || ''));
