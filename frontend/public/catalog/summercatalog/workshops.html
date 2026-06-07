@@ -1,0 +1,3935 @@
+
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>חוברת פעילויות A4 | בחירת סדנאות</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --paper: #fffdf7;
+      --line: rgba(23, 32, 51, 0.12);
+      --blue: #203b7a;
+      --cyan: #34c3d5;
+      --pink: #d82f78;
+      --purple: #6c4de6;
+      --green: #1a9c74;
+      --cream: #fff7e8;
+    }
+
+    * { box-sizing: border-box; }
+
+    @media screen {
+      html { zoom: 0.8; }
+    }
+
+    body {
+      margin: 0;
+      font-family: "Assistant", "Heebo", "Rubik", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 5%, rgba(52,195,213,.18), transparent 32%),
+        radial-gradient(circle at 92% 3%, rgba(216,47,120,.16), transparent 32%),
+        linear-gradient(180deg, #f7fbff 0%, #eef3f9 55%, #f8f1e6 100%);
+    }
+
+    button,
+    input { font: inherit; }
+
+    .screen-controls {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto 24px;
+      padding: 18px 0 0;
+    }
+
+    .control-hero {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 18px;
+      align-items: center;
+      padding: 18px 20px;
+      border-radius: 26px;
+      background: rgba(255,255,255,.9);
+      border: 1px solid rgba(255,255,255,.92);
+      box-shadow: 0 18px 45px rgba(20,34,66,.12);
+      backdrop-filter: blur(10px);
+    }
+
+    .control-hero h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    .control-hero p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+      font-weight: 700;
+    }
+
+    .print-btn,
+    .action-btn {
+      min-height: 34px;
+      border: 1px solid rgba(23,32,51,.12);
+      border-radius: 999px;
+      padding: 7px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 900;
+      color: #172033;
+      background: white;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .action-btn:hover,
+    .action-btn.is-active {
+      border-color: rgba(32,59,122,.36);
+      background: rgba(32,59,122,.08);
+      color: var(--blue);
+    }
+
+    .print-btn {
+      min-height: 44px;
+      padding: 11px 22px;
+      border-radius: 16px;
+      color: white;
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--pink), var(--purple));
+      box-shadow: 0 12px 24px rgba(108,77,230,.22);
+      white-space: nowrap;
+      font-size: 15px;
+    }
+
+    .print-btn:disabled {
+      background: #c8cdd6;
+      box-shadow: none;
+      cursor: not-allowed;
+      opacity: 1;
+    }
+
+    .selector-panel {
+      margin-top: 14px;
+      padding: 16px;
+      border-radius: 26px;
+      background: rgba(255,255,255,.86);
+      border: 1px solid rgba(255,255,255,.9);
+      box-shadow: 0 14px 36px rgba(20,34,66,.09);
+    }
+
+    .selector-panel.collapsed .selector-body {
+      display: none;
+    }
+
+    .selector-panel.collapsed .selector-top {
+      margin-bottom: 0;
+    }
+
+    .header-subtitle {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .selector-top {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .workflow-section {
+      margin-top: 12px;
+      padding: 14px;
+      border: 1px solid rgba(23,32,51,.10);
+      border-radius: 20px;
+      background: rgba(255,255,255,.76);
+    }
+
+    .workflow-section:first-child { margin-top: 0; }
+
+    .workflow-section.final-step {
+      border-color: rgba(108,77,230,.18);
+      background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(247,244,255,.84));
+    }
+
+    .workflow-heading {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 950;
+      color: var(--ink);
+    }
+
+    .workflow-subheading {
+      margin: 0 0 9px;
+      font-size: 14px;
+      line-height: 1.25;
+      font-weight: 900;
+      color: #344054;
+    }
+
+    .workflow-topline,
+    .final-actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .final-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .final-options .cover-letter-toggle,
+    .final-options .marketer-field {
+      flex: 0 0 152px;
+      width: 152px;
+      min-height: 40px;
+      height: 40px;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+
+    .selected-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      color: var(--blue);
+      background: rgba(52,195,213,.12);
+      border: 1px solid rgba(52,195,213,.25);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .selector-body {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .filter-panel {
+      border: 1px solid rgba(32,59,122,.10);
+      border-radius: 16px;
+      background: rgba(247,251,255,.78);
+      padding: 10px;
+    }
+
+    .filters-sidebar {
+      flex: none;
+      width: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .filter-group {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: white;
+      padding: 10px 12px;
+    }
+
+    .filter-label {
+      margin: 0 0 8px;
+      font-size: 12px;
+      font-weight: 900;
+      color: #344054;
+    }
+
+    .filter-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 8px;
+    }
+
+    .filter-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 2px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .filter-chip input {
+      accent-color: var(--blue);
+      width: 14px;
+      height: 14px;
+      flex: none;
+      cursor: pointer;
+    }
+
+    .search-box {
+      height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 15px;
+      border-radius: 16px;
+      background: white;
+      border: 1px solid var(--line);
+    }
+
+    .search-box input {
+      width: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-start;
+    }
+
+    .catalog-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .cover-letter-toggle {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.92);
+      color: #172033;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .cover-letter-toggle input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--purple);
+      cursor: pointer;
+    }
+
+    .marketer-field {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.92);
+      min-height: 34px;
+      cursor: pointer;
+    }
+
+    .marketer-face {
+      font-size: 13px;
+      font-weight: 900;
+      color: #172033;
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .marketer-select {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+    }
+
+    .secondary-action {
+      min-height: 30px;
+      padding: 5px 10px;
+      font-size: 12px;
+      color: #475467;
+      background: #fff;
+    }
+
+    .switch-interface-btn {
+      min-height: 34px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: inherit;
+      border: 1.5px solid rgba(31,47,61,0.22);
+      border-radius: 999px;
+      background: #fff;
+      color: #374151;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.13s, border-color 0.13s, color 0.13s;
+      flex-shrink: 0;
+    }
+    .switch-interface-btn:hover {
+      background: #f0f4f8;
+      border-color: rgba(31,47,61,0.38);
+      color: #111827;
+    }
+
+    .activity-picker {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 380px;
+      overflow: auto;
+      padding: 2px 2px 4px;
+    }
+
+    .picker-section-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--muted);
+      padding: 2px 0 0;
+      letter-spacing: .03em;
+    }
+
+    .picker-grid {
+      display: grid;
+      gap: 7px;
+    }
+
+    .picker-grid.workshops {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .picker-grid.escapes {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .activity-option {
+      position: relative;
+      display: block;
+      cursor: pointer;
+    }
+
+    .activity-option input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .option-card {
+      height: 100%;
+      display: grid;
+      grid-template-columns: 16px 1fr;
+      gap: 7px;
+      align-items: center;
+      padding: 6px 9px;
+      border-radius: 10px;
+      background: white;
+      border: 1px solid rgba(23,32,51,.11);
+      transition: .16s ease;
+    }
+
+    .checkmark {
+      width: 16px;
+      height: 16px;
+      border-radius: 5px;
+      border: 2px solid rgba(23,32,51,.2);
+      background: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 10px;
+      font-weight: 900;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .activity-option.selected .option-card {
+      border-color: color-mix(in srgb, var(--option-accent) 70%, white);
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--option-accent) 10%, white), white 68%);
+      box-shadow: 0 8px 18px rgba(20,34,66,.08);
+    }
+
+    .activity-option.selected .checkmark {
+      border-color: transparent;
+      background: var(--option-accent);
+    }
+
+    .activity-option.selected .checkmark::before { content: "✓"; }
+
+    .option-title {
+      display: block;
+      font-size: 12px;
+      line-height: 1.2;
+      font-weight: 900;
+      color: #172033;
+    }
+
+    .option-meta {
+      display: block;
+      margin-top: 2px;
+      font-size: 10px;
+      line-height: 1.3;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .type-pill,
+    .gefen-meta {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(32,59,122,.07);
+      color: #475467;
+      font-size: .92em;
+      font-weight: 900;
+    }
+
+
+    .catalog-gateway,
+    .program-gateway,
+    .workshop-interface {
+      margin-top: 14px;
+    }
+
+    .catalog-gateway,
+    .program-gateway {
+      padding: 22px;
+      border-radius: 26px;
+      background: rgba(255,255,255,.88);
+      border: 1px solid rgba(255,255,255,.92);
+      box-shadow: 0 14px 36px rgba(20,34,66,.09);
+      text-align: center;
+    }
+
+    .gateway-heading {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.25;
+      font-weight: 900;
+      letter-spacing: 0;
+      color: var(--ink);
+    }
+
+    .gateway-subtitle {
+      max-width: 620px;
+      margin: 7px auto 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.55;
+    }
+
+    .catalog-type-grid,
+    .program-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .program-grid {
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      max-width: 760px;
+      margin-inline: auto;
+    }
+
+    .catalog-tile,
+    .program-tile {
+      min-height: 68px;
+      padding: 12px 14px;
+      border: 1px solid rgba(23,32,51,.11);
+      border-radius: 17px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.98), rgba(247,251,255,.92));
+      color: #172033;
+      font-size: 17px;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(20,34,66,.07);
+      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, background .16s ease;
+    }
+
+    .catalog-tile:hover,
+    .catalog-tile:focus-visible,
+    .program-tile:hover,
+    .program-tile:focus-visible,
+    .program-tile.is-selected {
+      transform: translateY(-2px);
+      border-color: rgba(52,195,213,.58);
+      background:
+        linear-gradient(135deg, rgba(233,250,253,.98), rgba(255,255,255,.96));
+      box-shadow: 0 12px 26px rgba(32,59,122,.12);
+      outline: none;
+    }
+
+    .program-context {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+    }
+
+    .gateway-back-btn {
+      min-height: 38px;
+      padding: 8px 14px;
+      border: 1px solid rgba(23,32,51,.12);
+      border-radius: 999px;
+      background: white;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .program-note {
+      margin: 14px auto 0;
+      max-width: 620px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.55;
+    }
+
+    .course-interface {
+      margin-top: 14px;
+    }
+
+    .course-summary-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(247,251,255,.92));
+    }
+
+    .course-summary-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 900;
+      color: var(--ink);
+    }
+
+    .course-summary-text {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .course-controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .course-filter-select {
+      min-height: 46px;
+      min-width: 150px;
+      padding: 0 14px;
+      border-radius: 16px;
+      background: white;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 800;
+      outline: none;
+    }
+
+    .course-picker {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 7px;
+      max-height: 380px;
+      overflow: auto;
+      padding: 2px 2px 4px;
+    }
+
+    .course-option .option-card {
+      grid-template-columns: 18px 1fr;
+      align-items: start;
+      min-height: 58px;
+    }
+
+    .course-option .option-title {
+      font-size: 13px;
+    }
+
+    .course-option .option-meta {
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .is-hidden {
+      display: none !important;
+    }
+
+    .booklet {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 22px;
+      padding: 0 0 60px;
+    }
+
+    .a4-page {
+      width: 210mm;
+      height: 297mm;
+      position: relative;
+      overflow: hidden;
+      padding: 9mm 9mm 3mm;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(circle at 12% 7%, rgba(52,195,213,.15), transparent 29%),
+        radial-gradient(circle at 92% 10%, rgba(216,47,120,.13), transparent 27%),
+        linear-gradient(180deg, #fffdf8 0%, #ffffff 48%, #fff8eb 100%);
+      border-radius: 5mm;
+      box-shadow: 0 18px 55px rgba(20,34,66,.18);
+      border: 1px solid rgba(23,32,51,.08);
+    }
+
+    .a4-page::before {
+      content: "";
+      position: absolute;
+      inset: 4.5mm;
+      border: 1px solid rgba(32,59,122,.16);
+      border-radius: 4mm;
+      pointer-events: none;
+    }
+
+    .page-header {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: end;
+      gap: 12px;
+      height: 9mm;
+      padding: 0 1mm 1mm;
+      border-bottom: 1.4pt solid rgba(32,59,122,.88);
+      margin-bottom: 1mm;
+      flex-shrink: 0;
+    }
+
+    .page-header-logo {
+      height: 8.5mm;
+      width: auto;
+      object-fit: contain;
+      align-self: center;
+    }
+
+    .page-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 1.8mm;
+      color: #203b7a;
+      font-size: 10.5px;
+      font-weight: 900;
+    }
+
+    .page-grade-label {
+      margin: 0 0 .7mm;
+      font-size: 9px;
+      font-weight: 700;
+      color: #9ca3af;
+      letter-spacing: 0.03em;
+      direction: rtl;
+    }
+
+    .page-title {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .stem-word {
+      display: inline-flex;
+      direction: ltr;
+      gap: 0.3mm;
+      vertical-align: baseline;
+      font-weight: 950;
+    }
+    .stem-s { color: #1d4ed8; }
+    .stem-t { color: #dc2626; }
+    .stem-e { color: #facc15; }
+    .stem-m { color: #16a34a; }
+
+    .page-subtitle {
+      margin: 1.8mm 0 0;
+      color: var(--muted);
+      font-size: 10.6px;
+      line-height: 1.45;
+      font-weight: 700;
+      max-width: 138mm;
+    }
+
+    .page-badge {
+      min-width: 29mm;
+      text-align: center;
+      padding: 2.5mm 3mm;
+      border-radius: 99px;
+      color: white;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      font-size: 10px;
+      font-weight: 900;
+      box-shadow: 0 8px 18px rgba(32,59,122,.18);
+    }
+
+    .page-grid {
+      --grid-gap: 2.2mm;
+      --horizontal-card-height: 52mm;
+      --regular-card-row-height: calc((100% - var(--horizontal-card-height) - (2 * var(--grid-gap))) / 2);
+      position: relative;
+      z-index: 1;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--grid-gap);
+      align-content: stretch;
+    }
+
+    .page-grid.page-layout-top {
+      grid-template-areas:
+        "h h"
+        "a b"
+        "c d";
+      grid-template-rows: var(--horizontal-card-height) var(--regular-card-row-height) var(--regular-card-row-height);
+    }
+
+    .page-grid.page-layout-middle {
+      grid-template-areas:
+        "a b"
+        "h h"
+        "c d";
+      grid-template-rows: var(--regular-card-row-height) var(--horizontal-card-height) var(--regular-card-row-height);
+    }
+
+    .page-grid.page-layout-bottom {
+      grid-template-areas:
+        "a b"
+        "c d"
+        "h h";
+      grid-template-rows: var(--regular-card-row-height) var(--regular-card-row-height) var(--horizontal-card-height);
+    }
+
+    .cover-letter-page .cover-letter-block,
+    .cover-letter-page .cover-catalog-header {
+      flex-shrink: 0;
+    }
+
+    .cover-letter-page .cover-catalog-grid {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .cover-letter-page-title {
+      color: var(--pink);
+    }
+
+    .cover-catalog-header {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: end;
+      gap: 12px;
+      min-height: 9mm;
+      padding: 0 1mm 1mm;
+      border-bottom: 1.4pt solid rgba(32,59,122,.88);
+    }
+
+    .cover-letter-block {
+      position: relative;
+      z-index: 1;
+      min-height: 0;
+      overflow: hidden;
+      direction: rtl;
+      text-align: right;
+      padding: 3.5mm 6mm 3.2mm;
+      border: 1px solid rgba(32,59,122,.16);
+      border-radius: 4mm;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(52,195,213,.16), transparent 32%),
+        radial-gradient(circle at 94% 10%, rgba(216,47,120,.12), transparent 28%),
+        linear-gradient(135deg, rgba(255,255,255,.96), rgba(250,253,255,.9));
+      box-shadow: 0 10px 24px rgba(20,34,66,.08);
+    }
+
+    .cover-letter-title {
+      margin: 0;
+      color: var(--blue);
+      font-size: 24px;
+      line-height: 1.02;
+      font-weight: 950;
+      letter-spacing: 0;
+    }
+
+    .cover-letter-tagline {
+      margin: .8mm 0 1.4mm;
+      color: #0f766e;
+      font-size: 14px;
+      line-height: 1.25;
+      font-weight: 900;
+    }
+
+    .cover-letter-heading {
+      margin: 1.6mm 0 .8mm;
+      color: var(--ink);
+      font-size: 17px;
+      line-height: 1.15;
+      font-weight: 950;
+    }
+
+    .cover-letter-text {
+      margin: 0 0 1mm;
+      color: #334155;
+      font-size: 12.2px;
+      line-height: 1.42;
+      font-weight: 600;
+    }
+
+    .cover-letter-section-title {
+      margin: 1.3mm 0 .6mm;
+      color: var(--blue);
+      font-size: 13px;
+      line-height: 1.2;
+      font-weight: 950;
+    }
+
+    .cover-letter-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .8mm 4mm;
+    }
+
+    .cover-letter-list li {
+      position: relative;
+      padding-right: 4mm;
+      color: #374151;
+      font-size: 11.5px;
+      line-height: 1.3;
+      font-weight: 700;
+    }
+
+    .cover-letter-list li::before {
+      content: "•";
+      position: absolute;
+      right: 0;
+      top: 0;
+      color: var(--pink);
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    .cover-catalog-grid {
+      position: relative;
+      z-index: 1;
+      min-height: 52mm;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 52mm minmax(0, 1fr);
+      gap: 2.2mm;
+      align-content: start;
+    }
+
+    .cover-catalog-grid .activity-card {
+      width: 100%;
+    }
+
+    .cover-catalog-grid .activity-card.horizontal-card {
+      grid-column: 1 / -1;
+      height: 52mm;
+      min-height: 52mm;
+      max-height: 52mm;
+    }
+
+    .cover-catalog-grid .activity-card:not(.horizontal-card) {
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .cover-catalog-grid:empty::before {
+      content: "הקטלוג ממשיך בעמודים הבאים";
+      grid-column: 1 / -1;
+      display: grid;
+      place-items: center;
+      min-height: 100%;
+      border: 1px dashed rgba(32,59,122,.25);
+      border-radius: 4mm;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .activity-card {
+      --accent: #203b7a;
+      position: relative;
+      display: grid;
+      overflow: hidden;
+      background: rgba(255,255,255,.94);
+      border: 1px solid rgba(23,32,51,.11);
+      border-radius: 4mm;
+      box-shadow: 0 9px 22px rgba(20,34,66,.09);
+    }
+
+    .activity-card::before {
+      content: "";
+      position: absolute;
+      inset-inline-start: 0;
+      top: 0;
+      bottom: 0;
+      width: 1mm;
+      background: var(--accent);
+    }
+
+    .activity-card {
+      grid-template-columns: 35% minmax(0, 1fr);
+      grid-template-rows: auto auto;
+      padding: 2.4mm 2.5mm 2.4mm 4mm;
+      gap: 2mm;
+      align-items: stretch;
+      min-height: 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      direction: ltr;
+      text-align: right;
+    }
+
+    .escape-room-card {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 40% minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto;
+      gap: 3mm;
+      align-items: stretch;
+      direction: ltr;
+      text-align: right;
+      overflow: hidden;
+    }
+
+    .escape-room-card .media-column {
+      grid-column: 1;
+      grid-row: 1;
+      margin-top: 0;
+      align-self: center;
+    }
+
+    .escape-room-card .image-box {
+      aspect-ratio: 1 / 1;
+      height: auto;
+      width: 100%;
+      flex: none;
+      margin-top: 0;
+    }
+
+    .escape-domain-badge {
+      text-align: center;
+      margin-bottom: 2mm;
+    }
+
+    .escape-domain-badge .tag {
+      display: inline-block;
+    }
+
+    .escape-room-card .card-content {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .escape-room-card .goals-box {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    .escape-room-card--mirrored {
+      grid-template-columns: minmax(0, 1fr) 40%;
+    }
+
+    .escape-room-card--mirrored .media-column {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .escape-room-card--mirrored .card-content {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .escape-room-card--mirrored .goals-box {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+
+    .escape-room-page .page-title {
+      font-size: 29px;
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .escape-room-page {
+      padding-top: 7mm;
+      padding-bottom: 3mm;
+    }
+
+    .escape-room-page .page-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 2.5mm;
+      grid-template-columns: unset;
+      grid-template-rows: unset;
+      align-content: unset;
+    }
+
+    .escape-hero {
+      position: relative;
+      border: 1px solid rgba(32,59,122,.14);
+      border-radius: 3.6mm;
+      padding: 2.6mm 4.5mm;
+      background: rgba(247, 252, 255, 0.95);
+      direction: rtl;
+      text-align: right;
+    }
+
+    .escape-hero::after {
+      content: "";
+      position: absolute;
+      inset-inline: 5mm;
+      bottom: 0;
+      height: .8mm;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(30,58,138,.16), rgba(34,211,238,.18), rgba(30,58,138,.16));
+    }
+
+    .escape-hero-subtitle {
+      margin: 0;
+      font-size: 15.5px;
+      color: #1e3a8a;
+      font-weight: 800;
+      line-height: 1.5;
+    }
+
+    .ms-hero .escape-hero-subtitle {
+      font-size: 15.5px;
+      font-weight: 500;
+    }
+
+    .ms-page .escape-info-card-title {
+      font-size: 14px;
+    }
+
+    .ms-page .escape-info-card-tag {
+      font-size: 10px;
+    }
+
+    .ms-info-col .escape-info-card-body {
+      font-size: 12px;
+    }
+
+    /* ─── MS page layout ─── */
+    .ms-main-zone {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3.5mm;
+      min-height: 0;
+    }
+
+    .ms-top-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+      flex: 0 0 auto;
+    }
+
+    .ms-image-col {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(240,248,255,.55);
+      border: 1px solid rgba(3,105,161,.12);
+      border-radius: 4mm;
+      padding: 3mm;
+    }
+
+    .ms-image-col picture {
+      display: block;
+      width: 100%;
+    }
+
+    .ms-center-img {
+      width: 100%;
+      height: auto;
+      max-height: 82mm;
+      object-fit: contain;
+      border-radius: 3mm;
+      display: block;
+    }
+
+    .ms-info-col {
+      display: flex;
+      flex-direction: column;
+      gap: 3mm;
+    }
+
+    .escape-info-card-tag {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      color: #0369a1;
+      background: rgba(3,105,161,.1);
+      border-radius: 2mm;
+      padding: 0.5mm 2mm;
+      margin-bottom: 1.5mm;
+    }
+
+    .ms-summary-line {
+      margin: 3mm 0 0;
+      font-size: 13px;
+      color: #334155;
+      line-height: 1.6;
+      border-top: 1px solid rgba(148,163,184,.35);
+      padding-top: 3mm;
+    }
+
+    /* ─── MS unique activity panels ─── */
+    .ms-bottom-row {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+      min-height: 0;
+    }
+
+    .ms-activity-panel {
+      background: linear-gradient(180deg, rgba(248,252,255,.97), rgba(237,246,255,.95));
+      border: 1.2px solid rgba(3,105,161,.22);
+      border-radius: 3.5mm;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      direction: rtl;
+      text-align: right;
+      min-height: 0;
+    }
+
+    .ms-activity-panel-header {
+      background: linear-gradient(135deg, #075985 0%, #0369a1 60%, #0284c7 100%);
+      color: #fff;
+      padding: 2mm 5mm 1.5mm;
+    }
+
+    .ms-activity-panel-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin: 0;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .ms-activity-panel-title-tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      background: rgba(255,255,255,.22);
+      border: 1px solid rgba(255,255,255,.35);
+      border-radius: 2mm;
+      padding: 0.5mm 2.5mm;
+      vertical-align: middle;
+      margin-right: 2mm;
+    }
+
+    .ms-activity-panel-chips {
+      display: flex;
+      gap: 2.5mm;
+      flex-wrap: wrap;
+    }
+
+    .ms-activity-panel-chip {
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(255,255,255,.22);
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 10mm;
+      padding: 0.8mm 3mm;
+      white-space: nowrap;
+    }
+
+    .ms-activity-panel-body {
+      padding: 3mm 4mm;
+      display: flex;
+      flex-direction: column;
+      gap: 2mm;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .ms-activity-panel-desc {
+      font-size: 11.5px;
+      color: #374151;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .ms-activity-panel-goals-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #075985;
+      margin: 0;
+      border-bottom: 1.5px solid rgba(3,105,161,.22);
+      padding-bottom: 1.5mm;
+    }
+
+    .ms-activity-panel-goals {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2mm;
+    }
+
+    .ms-activity-panel-goals li {
+      font-size: 10.5px;
+      color: #1e3a8a;
+      padding-right: 3.5mm;
+      position: relative;
+      line-height: 1.35;
+    }
+
+    .ms-activity-panel-summary {
+      margin: 3mm 0 0;
+      font-size: 10.5px;
+      font-weight: 700;
+      font-style: italic;
+      color: #075985;
+      line-height: 1.5;
+      border-top: 1.5px solid rgba(3,105,161,.2);
+      padding-top: 2.5mm;
+    }
+
+    .ms-activity-panel-goals li::before {
+      content: "◆";
+      position: absolute;
+      right: 0;
+      font-size: 7px;
+      color: #0369a1;
+      top: 3px;
+    }
+
+    .ms-activity-panel-footer {
+      border-top: 1px solid rgba(3,105,161,.16);
+      padding: 3mm 5mm;
+      background: rgba(224,242,255,.45);
+      flex-shrink: 0;
+    }
+
+    .ms-activity-panel-product {
+      font-size: 11.5px;
+      color: #075985;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .ms-activity-panel-product span {
+      color: #374151;
+      font-weight: 400;
+    }
+
+    .escape-intro-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3mm;
+      flex: 0 0 auto;
+    }
+
+    .escape-info-card {
+      background: linear-gradient(180deg, rgba(254,255,255,.96), rgba(246,251,255,.96));
+      border: 1px solid rgba(148,163,184,.34);
+      border-radius: 3.2mm;
+      padding: 4.5mm 5mm;
+      direction: rtl;
+      text-align: right;
+    }
+
+    .escape-info-card-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #203b7a;
+      margin: 0 0 2mm;
+      line-height: 1.3;
+    }
+
+    .escape-info-card-body {
+      font-size: 10px;
+      color: #374151;
+      line-height: 1.5;
+      font-weight: 400;
+      margin: 0;
+    }
+
+    .duration-inline {
+      font-size: 0.62em;
+      font-weight: 500;
+      color: #667085;
+      margin-inline-start: 1.5mm;
+      white-space: nowrap;
+    }
+
+    .escape-cards-row {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 5mm;
+      min-height: 0;
+    }
+
+    .escape-cards-row .activity-card {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .escape-cards-row .escape-room-card {
+      grid-column: auto;
+    }
+
+    .escape-cards-row .escape-room-card + .escape-room-card {
+      margin-top: .8mm;
+    }
+
+    .escape-cards-row .escape-room-card {
+      border-radius: 4.2mm;
+      border: 1px solid rgba(100,116,139,.24);
+      padding: 4.2mm 4.2mm 4.2mm 5.8mm;
+      box-shadow: 0 10px 22px rgba(15,23,42,.08);
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .escape-room-card .image-box {
+      aspect-ratio: 1 / 1;
+      min-height: 56mm;
+    }
+
+    .escape-room-card--bio {
+      background: linear-gradient(145deg, rgba(254,255,250,.98), rgba(236,250,245,.96));
+      border-color: rgba(22,163,74,.3);
+      --accent: #0f766e;
+    }
+
+    .escape-room-card--astro {
+      background: linear-gradient(145deg, rgba(252,254,255,.98), rgba(237,244,255,.96));
+      border-color: rgba(99,102,241,.3);
+      --accent: #1d4ed8;
+    }
+
+    .media-column {
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1mm;
+      align-items: stretch;
+    }
+
+    .image-box {
+      height: 100%;
+      min-height: 100%;
+      border-radius: 3mm;
+      overflow: hidden;
+      background: #eef2f8;
+      border: 1px solid rgba(23,32,51,.08);
+      flex: none;
+    }
+
+    .image-box {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      height: auto;
+      min-height: 0;
+      margin-top: 5mm;
+    }
+
+    .image-box picture,
+    .image-box img {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .image-box img {
+      object-fit: cover;
+    }
+
+    .image-placeholder {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 3mm;
+      color: #8a99b4;
+      font-size: 8px;
+      text-align: center;
+      font-weight: 800;
+      background: linear-gradient(135deg, #eef2f8, #e4e9f4);
+    }
+
+    .card-content {
+      grid-column: 2;
+      grid-row: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2mm;
+      direction: rtl;
+      text-align: right;
+    }
+
+    .card-content { min-height: 13.5mm; }
+
+    .card-header {
+      display: flex;
+      flex-direction: column;
+      gap: 1.1mm;
+    }
+
+    .card-topline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0.5mm;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 4.5mm;
+      padding: 0.6mm 1.3mm;
+      border-radius: 999px;
+      font-size: 8.3px;
+      line-height: 1;
+      font-weight: 900;
+      color: #162033;
+      background: rgba(255,255,255,.75);
+      border: 1px solid rgba(23,32,51,.10);
+    }
+
+    .tag.accent {
+      color: white;
+      background: var(--accent);
+      border-color: transparent;
+    }
+
+    .activity-card h2 {
+      margin: 0 0 .8mm;
+      letter-spacing: 0;
+      color: var(--ink);
+      padding-bottom: .9mm;
+      border-bottom: 1px solid rgba(23, 32, 51, 0.18);
+    }
+
+    .activity-card h2 { font-size: 16.5px; line-height: 1.16; font-weight: 950; }
+
+    .product-box {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: .35mm;
+      text-align: center;
+      border-radius: 2.2mm;
+      padding: 1.3mm 1.6mm;
+      border: 1px solid color-mix(in srgb, var(--accent) 20%, rgba(23,32,51,.1));
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--accent) 9%, #f6f3ff), #f2f8ff 85%);
+    }
+
+    .product-line {
+      margin: 0;
+      font-size: 9px;
+      line-height: 1.3;
+      color: #24324a;
+      font-weight: 700;
+    }
+
+    .product-name {
+      font-weight: 950;
+      color: #1f2a3d;
+    }
+
+    .card-description {
+      margin: 0;
+      min-height: 2.9em;
+      color: #374151;
+      font-weight: 500;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .escape-room-card .card-description {
+      font-size: 13.5px;
+    }
+
+    .escape-room-card .card-content {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .escape-room-summary-line {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      margin: 0;
+      padding-top: 3mm;
+      border-top: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+      font-size: 1em;
+      font-weight: 800;
+      line-height: 1.35;
+      color: var(--accent);
+      direction: rtl;
+      text-align: center;
+      align-self: center;
+    }
+
+    .goals-box {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      padding-top: 1mm;
+      border-top: 1px solid color-mix(in srgb, var(--accent) 14%, rgba(23,32,51,.08));
+      direction: rtl;
+      text-align: right;
+    }
+
+    .goals-title {
+      margin: 0 0 .7mm;
+      font-size: 16px;
+      font-weight: 900;
+      color: var(--accent);
+      letter-spacing: 0;
+    }
+
+    .goals-box ul {
+      margin: 0;
+      padding: 0 3.5mm 0 0;
+    }
+
+    .goals-box li {
+      margin: .45mm 0;
+      color: #374151;
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 400;
+    }
+
+    .activity-card.horizontal-card,
+    .activity-card.side-card {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 1.4mm;
+      padding: 2.2mm 2.8mm 2.2mm 4mm;
+      direction: rtl;
+      text-align: right;
+      height: 52mm;
+      min-height: 52mm;
+      max-height: 52mm;
+      overflow: hidden;
+    }
+
+    .horizontal-card .horizontal-title {
+      display: flex;
+      flex-direction: row-reverse;
+      align-items: center;
+      gap: 3mm;
+      padding-bottom: .9mm;
+    }
+
+    .horizontal-card .horizontal-title h2 {
+      margin: 0;
+      flex: 1;
+    }
+
+    .horizontal-card .horizontal-title .card-topline {
+      flex-shrink: 0;
+      gap: 0.5mm;
+    }
+
+    .horizontal-body {
+      display: grid;
+      grid-template-columns: 28mm minmax(0, 1fr);
+      gap: 3mm;
+      min-height: 0;
+      direction: rtl;
+      align-items: stretch;
+      height: 100%;
+    }
+
+    .horizontal-media {
+      display: flex;
+      flex-direction: column;
+      gap: .8mm;
+      align-items: stretch;
+      direction: rtl;
+      text-align: center;
+      min-width: 0;
+      width: 28mm;
+      justify-content: flex-start;
+    }
+
+    .horizontal-media .image-box {
+      width: 26mm;
+      height: 26mm;
+      aspect-ratio: 1 / 1;
+      min-height: 0;
+      margin: 0;
+      align-self: center;
+    }
+
+    .horizontal-media .product-box {
+      padding: .9mm 1.2mm;
+    }
+
+    .horizontal-text {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
+      gap: 3mm;
+      direction: rtl;
+      text-align: right;
+      min-height: 0;
+      align-items: stretch;
+    }
+
+    .horizontal-text .card-description {
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .horizontal-text .goals-box {
+      grid-column: auto;
+      grid-row: auto;
+      padding-top: 0;
+      border-top: 0;
+      border-right: 1px solid color-mix(in srgb, var(--accent) 14%, rgba(23,32,51,.08));
+      padding-right: 2.3mm;
+    }
+
+    .horizontal-text .goals-title {
+      font-size: 14px;
+      margin-bottom: .6mm;
+    }
+
+    .horizontal-text .goals-box li {
+      font-size: 12.2px;
+      line-height: 1.35;
+      margin: .3mm 0;
+    }
+
+    .horizontal-meta {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: .8mm;
+      align-self: flex-start;
+      min-width: 0;
+      direction: rtl;
+      text-align: right;
+      margin-top: .4mm;
+      justify-content: flex-start;
+    }
+
+    .horizontal-meta .meta-item {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: auto;
+      min-height: 4.8mm;
+      padding: .75mm 1.7mm;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--accent) 26%, #ffffff);
+      background: color-mix(in srgb, var(--accent) 9%, #ffffff);
+      color: var(--accent);
+      font-size: 8.6px;
+      font-weight: 800;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .page-grid .activity-card {
+      height: 100%;
+    }
+
+    .page-grid .activity-card.horizontal-card,
+    .page-grid .activity-card.side-card {
+      height: 52mm;
+    }
+
+    .page-footer-zone {
+      width: 100%;
+      flex: 0 0 auto;
+      margin-top: auto;
+      border-top: 1px solid rgba(23,32,51,.10);
+      padding: 4.2mm 0 0;
+    }
+
+    .page-contact {
+      text-align: center;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #1e3a5f;
+      direction: rtl;
+      letter-spacing: 0.01em;
+      padding: 1.2mm 0 0.8mm;
+      margin: 0;
+      line-height: 1.25;
+    }
+
+    .page-footer {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+      align-items: center;
+      min-height: 3mm;
+      padding: 0 0 0;
+      color: #6b7280;
+      font-size: 8.8px;
+      font-weight: 800;
+    }
+
+    .page-number {
+      grid-row: 1;
+      grid-column: 1;
+      justify-self: start;
+      z-index: 1;
+      color: #9ca3af;
+      font-size: 8.5px;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .page-footer-org {
+      grid-row: 1;
+      grid-column: 1;
+      justify-self: center;
+      text-align: center;
+      font-size: 8px;
+      font-weight: 700;
+      color: #9ca3af;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .section-divider {
+      width: 210mm;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .04em;
+    }
+
+    .section-divider::before,
+    .section-divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+    }
+
+    @media print {
+      .section-divider { display: none; }
+    }
+
+    .empty-booklet {
+      width: min(620px, calc(100% - 40px));
+      margin: 26px auto 70px;
+      padding: 20px 24px;
+      border-radius: 20px;
+      background: rgba(255,255,255,.88);
+      border: 1px solid rgba(255,255,255,.9);
+      box-shadow: 0 14px 36px rgba(20,34,66,.09);
+      text-align: center;
+      font-weight: 800;
+      font-size: 14px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .catalog-mode .screen-controls {
+      display: none;
+    }
+
+    .catalog-mode .booklet {
+      display: flex;
+    }
+
+    .catalog-mode .a4-page {
+      background: #fff;
+      box-shadow: 0 2px 10px rgba(20,34,66,.1);
+    }
+
+    .catalog-mode .a4-page::before {
+      display: none;
+    }
+
+    .catalog-mode .activity-card,
+    .catalog-mode .escape-cards-row .escape-room-card {
+      box-shadow: none;
+    }
+
+    .back-bar {
+      display: none;
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 999;
+      flex-direction: row;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .catalog-mode .back-bar {
+      display: flex;
+    }
+
+    .back-btn {
+      padding: 10px 20px;
+      border-radius: 999px;
+      background: #172033;
+      color: white;
+      font-size: 14px;
+      font-weight: 800;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,.25);
+    }
+
+    .print-catalog-btn {
+      background: #0f766e;
+    }
+
+    @media print {
+      .back-bar { display: none !important; }
+    }
+
+    .empty-booklet strong {
+      display: block;
+      color: var(--ink);
+      font-size: 19px;
+      margin-bottom: 6px;
+    }
+
+    @media screen and (max-width: 900px) {
+      .control-hero,
+      .selector-top,
+      .selector-tools { grid-template-columns: 1fr; }
+      .action-row { justify-content: flex-start; }
+      .selector-body { flex-direction: column; }
+      .filters-sidebar { width: 100%; }
+      .activity-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .catalog-type-grid,
+      .program-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .a4-page { transform: scale(.62); transform-origin: top center; margin-bottom: -112mm; }
+    }
+
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+
+      *, *::before, *::after {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        filter: none !important;
+        text-shadow: none !important;
+        transition: none !important;
+        animation: none !important;
+      }
+
+      html, body {
+        width: 210mm;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .a4-page,
+      .catalog-page {
+        background: #fff !important;
+      }
+
+      .a4-page::before {
+        display: none !important;
+      }
+
+      .product-box {
+        background: #f2f8ff !important;
+      }
+
+      .image-placeholder {
+        background: #eef2f8 !important;
+      }
+
+      .escape-room-card--bio {
+        background: #f0faf5 !important;
+      }
+
+      .escape-room-card--astro {
+        background: #f2f6ff !important;
+      }
+
+      .screen-controls,
+      .empty-booklet { display: none !important; }
+
+      .booklet {
+        display: block;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+
+      .a4-page,
+      .catalog-page {
+        width: 210mm !important;
+        height: 297mm !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+        padding: 9mm 9mm 3mm !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        break-after: page;
+        page-break-after: always;
+        display: flex !important;
+        flex-direction: column !important;
+      }
+
+      .a4-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
+
+      .page-header {
+        flex-shrink: 0 !important;
+      }
+
+      .page-grid {
+        flex: 1 1 auto !important;
+      }
+
+      .cover-letter-page .cover-catalog-grid {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+      }
+
+      .cover-catalog-grid {
+        min-height: 52mm !important;
+        grid-template-columns: 1fr 1fr !important;
+        grid-template-rows: 52mm minmax(0, 1fr) !important;
+        align-content: start !important;
+      }
+
+      .cover-catalog-grid .activity-card.horizontal-card {
+        overflow: hidden !important;
+        grid-column: 1 / -1 !important;
+      }
+
+      .cover-catalog-grid .activity-card:not(.horizontal-card) {
+        min-height: 0 !important;
+        overflow: hidden !important;
+      }
+
+      .page-grid {
+        --grid-gap: 2.2mm;
+        --horizontal-card-height: 52mm;
+        --regular-card-row-height: calc((100% - var(--horizontal-card-height) - (2 * var(--grid-gap))) / 2);
+        min-height: 0 !important;
+        gap: var(--grid-gap) !important;
+      }
+
+
+      .activity-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        box-shadow: none !important;
+        overflow: visible !important;
+      }
+
+      .activity-card::before {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+        width: 3px;
+        top: 0;
+        bottom: 0;
+        border-radius: 4mm 0 0 4mm;
+      }
+
+      .activity-card.horizontal-card,
+      .activity-card.side-card {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 1.4mm;
+      padding: 2.2mm 2.8mm 2.2mm 4mm;
+      direction: rtl;
+      text-align: right;
+      height: 52mm;
+      min-height: 52mm;
+      max-height: 52mm;
+      overflow: hidden;
+    }
+
+    .horizontal-card .horizontal-title {
+      display: flex;
+      flex-direction: row-reverse;
+      align-items: center;
+      gap: 3mm;
+      padding-bottom: .9mm;
+    }
+
+    .horizontal-card .horizontal-title h2 {
+      margin: 0;
+      flex: 1;
+    }
+
+    .horizontal-card .horizontal-title .card-topline {
+      flex-shrink: 0;
+      gap: 0.5mm;
+    }
+
+    .horizontal-body {
+      display: grid;
+      grid-template-columns: 28mm minmax(0, 1fr);
+      gap: 3mm;
+      min-height: 0;
+      direction: rtl;
+      align-items: stretch;
+      height: 100%;
+    }
+
+    .horizontal-media {
+      display: flex;
+      flex-direction: column;
+      gap: .8mm;
+      align-items: stretch;
+      direction: rtl;
+      text-align: center;
+      min-width: 0;
+      width: 28mm;
+      justify-content: flex-start;
+    }
+
+    .horizontal-media .image-box {
+      width: 26mm;
+      height: 26mm;
+      aspect-ratio: 1 / 1;
+      min-height: 0;
+      margin: 0;
+      align-self: center;
+    }
+
+    .horizontal-media .product-box {
+      padding: .9mm 1.2mm;
+    }
+
+    .horizontal-text {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
+      gap: 3mm;
+      direction: rtl;
+      text-align: right;
+      min-height: 0;
+      align-items: stretch;
+    }
+
+    .horizontal-text .card-description {
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .horizontal-text .goals-box {
+      grid-column: auto;
+      grid-row: auto;
+      padding-top: 0;
+      border-top: 0;
+      border-right: 1px solid color-mix(in srgb, var(--accent) 14%, rgba(23,32,51,.08));
+      padding-right: 2.3mm;
+    }
+
+    .horizontal-text .goals-title {
+      font-size: 14px;
+      margin-bottom: .6mm;
+    }
+
+    .horizontal-text .goals-box li {
+      font-size: 12.2px;
+      line-height: 1.35;
+      margin: .3mm 0;
+    }
+
+    .page-footer-zone {
+        width: 100% !important;
+        flex: 0 0 auto !important;
+        margin-top: auto !important;
+        border-top: 1px solid rgba(23,32,51,.10) !important;
+        padding: 4.2mm 0 0 !important;
+      }
+
+      .page-contact {
+        padding: 1.2mm 0 0.8mm !important;
+        margin: 0 !important;
+      }
+
+      .page-footer {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        min-height: 3mm !important;
+        padding: 0 0 0 !important;
+        margin-top: 0 !important;
+        border-top: none !important;
+      }
+
+      .page-number {
+        justify-self: start !important;
+        grid-row: 1 !important;
+        grid-column: 1 !important;
+      }
+
+      .page-footer-org {
+        justify-self: center !important;
+        grid-row: 1 !important;
+        grid-column: 1 !important;
+        text-align: center !important;
+        transform: none !important;
+      }
+
+      h1, h2, h3,
+      .page-title,
+      .activity-card h2,
+      .goals-title,
+      .page-footer-org,
+      .page-badge {
+        letter-spacing: 0 !important;
+      }
+
+      /* ── עמוד חדרי בריחה ── */
+      .escape-room-page .page-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2.5mm !important;
+        grid-template-columns: unset !important;
+        grid-template-rows: unset !important;
+      }
+
+      .escape-intro-cards {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 3mm !important;
+        flex: 0 0 auto !important;
+      }
+
+      .escape-info-card {
+        background: rgba(246,251,255,.96) !important;
+        border: 1px solid rgba(148,163,184,.34) !important;
+        border-radius: 3.2mm !important;
+        padding: 3.5mm 4mm !important;
+      }
+
+      .escape-cards-row {
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 5mm !important;
+        min-height: 0 !important;
+      }
+
+      .escape-cards-row .activity-card {
+        flex: 1 !important;
+        min-height: 0 !important;
+      }
+
+      .escape-cards-row--single {
+        flex: 0 0 auto !important;
+      }
+
+      .escape-cards-row--single .activity-card {
+        flex: 0 0 auto !important;
+      }
+
+      .escape-cards-row--single .escape-room-card .image-box {
+        max-height: 80mm !important;
+      }
+
+      .escape-room-card {
+        display: grid !important;
+        grid-template-columns: 40% minmax(0, 1fr) !important;
+        grid-template-rows: minmax(0, 1fr) auto !important;
+        overflow: hidden !important;
+        gap: 3mm !important;
+        border-radius: 4.2mm !important;
+        border: 1px solid rgba(100,116,139,.24) !important;
+        padding: 4.2mm 4.2mm 4.2mm 5.8mm !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+
+      .escape-room-card .media-column {
+        grid-row: 1 !important;
+      }
+
+      .escape-room-card--mirrored {
+        grid-template-columns: minmax(0, 1fr) 40% !important;
+      }
+
+      .escape-room-card--mirrored .media-column {
+        grid-row: 1 !important;
+      }
+
+      .escape-room-card--bio {
+        background: linear-gradient(145deg, rgba(254,255,250,.98), rgba(236,250,245,.96)) !important;
+      }
+
+      .escape-room-card--astro {
+        background: linear-gradient(145deg, rgba(252,254,255,.98), rgba(237,244,255,.96)) !important;
+      }
+
+      .escape-room-summary-line {
+        grid-column: 1 / -1 !important;
+        grid-row: 2 !important;
+        text-align: center !important;
+        font-size: 1em !important;
+        font-weight: 800 !important;
+        padding-top: 3mm !important;
+        border-top: 1px solid rgba(0,0,0,.1) !important;
+        color: var(--accent) !important;
+        align-self: center !important;
+      }
+
+      .ms-center-zone {
+        display: grid !important;
+        grid-template-columns: 1fr auto 1fr !important;
+        gap: 3mm !important;
+        align-items: center !important;
+        flex: 0 0 auto !important;
+      }
+
+      .ms-text-col {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2.5mm !important;
+        align-self: stretch !important;
+        justify-content: center !important;
+      }
+
+      .ms-image-col {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+
+      .ms-image-col picture {
+        display: block !important;
+        width: 62mm !important;
+      }
+
+      .ms-center-img {
+        width: 62mm !important;
+        height: 62mm !important;
+        object-fit: contain !important;
+        border-radius: 4mm !important;
+      }
+
+      .ms-summary-line {
+        flex: 0 0 auto !important;
+        margin: 2.5mm 0 0 !important;
+        font-size: 12.5px !important;
+        color: #334155 !important;
+        line-height: 1.58 !important;
+        border-top: 1px solid rgba(148,163,184,.35) !important;
+        padding-top: 2.5mm !important;
+      }
+
+      .ms-main-zone {
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 3.5mm !important;
+        min-height: 0 !important;
+      }
+
+      .ms-top-row {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 4mm !important;
+        flex: 0 0 auto !important;
+      }
+
+      .ms-image-col {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      .ms-image-col picture {
+        width: 100% !important;
+      }
+
+      .ms-center-img {
+        width: 100% !important;
+        height: auto !important;
+        max-height: 82mm !important;
+        object-fit: contain !important;
+      }
+
+      .ms-info-col {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 3mm !important;
+      }
+
+      .escape-info-card-body {
+        font-size: 10px !important;
+        line-height: 1.5 !important;
+      }
+
+      .ms-page .escape-info-card-title {
+        font-size: 14px !important;
+      }
+
+      .ms-info-col .escape-info-card-body {
+        font-size: 12px !important;
+      }
+
+      .ms-bottom-row {
+        flex: 1 !important;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 4mm !important;
+        min-height: 0 !important;
+      }
+
+      .ms-activity-panel {
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        min-height: 0 !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+
+      .ms-activity-panel-body {
+        flex: 1 !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+      }
+
+      .ms-activity-panel-desc {
+        font-size: 11.5px !important;
+      }
+
+      .ms-activity-panel-goals-title {
+        font-size: 11.5px !important;
+      }
+
+      .ms-activity-panel-goals li {
+        font-size: 10.5px !important;
+        line-height: 1.35 !important;
+      }
+
+      .ms-activity-panel-summary {
+        font-size: 10.5px !important;
+        font-weight: 700 !important;
+        font-style: italic !important;
+        color: #075985 !important;
+        line-height: 1.5 !important;
+        border-top: 1.5px solid rgba(3,105,161,.2) !important;
+        padding-top: 2.5mm !important;
+        margin: 3mm 0 0 !important;
+      }
+
+      .ms-activity-panel-header {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      .catalog-page,
+      .activity-card,
+      .escape-info-card,
+      .ms-activity-panel,
+      .product-box,
+      .goals-box,
+      .cover-letter-block,
+      .cover-catalog-header,
+      .escape-hero {
+        box-shadow: none !important;
+        filter: none !important;
+        backdrop-filter: none !important;
+      }
+
+      .catalog-page::before {
+        display: none !important;
+      }
+
+      .activity-card,
+      .escape-info-card,
+      .ms-activity-panel,
+      .product-box,
+      .goals-box {
+        background-image: none !important;
+      }
+
+      .activity-card { background-color: #ffffff !important; }
+      .escape-info-card,
+      .ms-activity-panel { background-color: #f8fbff !important; }
+      .product-box,
+      .goals-box { background-color: #f6f8fc !important; }
+      .escape-room-card--bio { background-color: #f3fbf6 !important; }
+      .escape-room-card--astro { background-color: #f4f7ff !important; }
+    }
+
+    @media print {
+      body.is-course-catalog .screen-controls {
+        display: none !important;
+      }
+
+      body.is-course-catalog {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+      }
+
+      body.is-course-catalog .booklet {
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+      }
+
+      body.is-course-catalog .a4-page {
+        width: 210mm !important;
+        height: 297mm !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        break-after: page;
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="back-bar" id="backBar">
+    <button class="back-btn" id="backBtn" type="button">← חזרה לבחירה</button>
+    <button class="back-btn print-catalog-btn" type="button" onclick="window.print()">🖨 הדפסה / PDF</button>
+  </div>
+  <header class="screen-controls">
+    <section class="control-hero">
+      <img src="logo.png" alt="לוגו תעשיידע" style="height:54px;width:auto;object-fit:contain;flex:none;" />
+      <div>
+        <h1 id="mainCatalogTitle">קטלוג סדנאות וחדרי בריחה</h1>
+        <p class="header-subtitle">בחרו את סוג הקטלוג כדי להתקדם לשלב הבא</p>
+      </div>
+    </section>
+
+    <section class="catalog-gateway is-hidden" id="catalogGateway" aria-label="בחירת סוג קטלוג">
+      <h2 class="gateway-heading">מאיפה מתחילים?</h2>
+      <p class="gateway-subtitle">בחרו קבוצת קורסים מהירה או עברו לבחירה ידנית. ממשק הסדנאות נשאר זמין מכפתור הסדנאות הראשי.</p>
+      <div class="catalog-type-grid" id="catalogTypeGrid">
+        <button class="catalog-tile" type="button" data-catalog-type="courses-all">כל הקורסים</button>
+        <button class="catalog-tile" type="button" data-catalog-type="courses-elementary">יסודי</button>
+        <button class="catalog-tile" type="button" data-catalog-type="courses-middle">חטיבה</button>
+        <button class="catalog-tile" type="button" data-catalog-type="courses-high">תיכון</button>
+        <button class="catalog-tile" type="button" data-catalog-type="courses-manual">בחירה ידנית</button>
+        <button class="catalog-tile" type="button" data-catalog-type="workshops">סדנאות</button>
+      </div>
+    </section>
+
+    <section class="program-gateway is-hidden" id="programGateway" aria-live="polite" aria-label="בחירת תוכנית">
+      <div class="program-context">
+        <button class="gateway-back-btn" type="button" data-gateway-back>← חזרה לסוגי קטלוג</button>
+        <h2 class="gateway-heading" id="programGatewayTitle">בחירת תוכנית</h2>
+      </div>
+      <p class="gateway-subtitle" id="programGatewaySubtitle">בחרו תוכנית מתוך סוג הקטלוג שנבחר.</p>
+      <div class="program-grid" id="programGrid"></div>
+      <p class="program-note" id="programNote">לאחר בחירת תוכנית ניתן לחזור ולבחור סוג קטלוג אחר.</p>
+    </section>
+
+    <div class="course-interface is-hidden" id="courseInterface">
+      <section class="selector-panel" id="courseSelectorPanel" aria-label="בחירת קורסים לקטלוג">
+        <section class="workflow-section" aria-label="בחירת סוג התוכן להפקה">
+          <div class="workflow-topline">
+            <div>
+              <h2 class="workflow-heading">בחרו אילו תוכניות לכלול בקטלוג</h2>
+              <p class="header-subtitle">בחרו קבוצה מהירה או עברו לבחירה ידנית.</p>
+            </div>
+            <button class="switch-interface-btn" type="button" onclick="window.location.href='./index.html'">חזרה לראשי</button>
+          </div>
+          <div class="action-row" style="margin-top:10px;">
+            <button class="action-btn" type="button" data-course-action="all">כל התוכניות</button>
+            <button class="action-btn" type="button" data-course-action="elementary">יסודי</button>
+            <button class="action-btn" type="button" data-course-action="middle">חטיבה</button>
+            <button class="action-btn" type="button" data-course-action="high">תיכון</button>
+            <button class="action-btn" type="button" data-course-action="manual">בחירה ידנית</button>
+          </div>
+        </section>
+
+        <section class="workflow-section" aria-label="סינון ובחירת תוכניות">
+          <div class="selector-top">
+            <div>
+              <h3 class="workflow-subheading">סינון ובחירה</h3>
+              <div class="selected-count" id="selectedCourseCount">0 קורסים נבחרו</div>
+            </div>
+            <button class="action-btn secondary-action" id="toggleCoursePickerBtn" type="button">▾ בחר תוכניות</button>
+          </div>
+          <div class="course-summary-card">
+            <div>
+              <p class="course-summary-title" id="courseSelectionTitle">בחרו קבוצת תוכניות</p>
+              <p class="course-summary-text" id="courseSelectionText">אפשר להתחיל מבחירה מהירה או לפתוח בחירה ידנית.</p>
+            </div>
+            <button class="action-btn secondary-action" type="button" id="courseClearBtn">נקה הכל</button>
+          </div>
+          <div class="selector-body filter-panel" id="courseManualBody">
+            <div style="width:100%;">
+              <div class="course-controls-row">
+                <button class="action-btn secondary-action" type="button" data-course-manual="select-visible">בחר הכל</button>
+                <button class="action-btn secondary-action" type="button" data-course-manual="clear-visible">נקה הכל</button>
+                <select class="course-filter-select" id="courseLevelFilter" aria-label="סינון לפי שכבת גיל">
+                  <option value="all">כל שכבות הגיל</option>
+                  <option value="elementary">יסודי</option>
+                  <option value="middle">חטיבה</option>
+                  <option value="high">תיכון</option>
+                </select>
+              </div>
+              <div class="course-picker" id="coursePicker"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="workflow-section final-step" aria-label="חלקים נוספים והפקת PDF">
+          <h3 class="workflow-subheading">מה להוסיף לקטלוג?</h3>
+          <div class="final-actions-row">
+            <div class="final-options">
+              <label class="cover-letter-toggle" for="courseCoverLetterCheckbox">
+                <input id="courseCoverLetterCheckbox" type="checkbox" />
+                <span>מכתב מקדים</span>
+              </label>
+              <div class="marketer-field">
+                <span class="marketer-face">שיווק ▾</span>
+                <select id="courseMarketerSelect" class="marketer-select" aria-label="בחירת שיווק לקטלוג קורסים">
+                  <option value="none">ללא שיווק</option>
+                  <option value="yael">יעל אביב</option>
+                  <option value="israa">איסראא אבו-ראס</option>
+                </select>
+              </div>
+              <label class="cover-letter-toggle" for="courseIndexCheckbox">
+                <input id="courseIndexCheckbox" type="checkbox" />
+                <span>מקרא</span>
+              </label>
+            </div>
+            <button class="print-btn" id="courseCatalogModeBtn" type="button" disabled>הפקת קטלוג PDF</button>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <div class="workshop-interface is-hidden" id="workshopInterface">
+      <section class="selector-panel" id="selectorPanel" aria-label="בחירת פעילויות לקטלוג">
+        <section class="workflow-section" aria-label="בחירת סוג הפעילות להפקה">
+          <div class="workflow-topline">
+            <div>
+              <h2 class="workflow-heading">בחרו אילו פעילויות לכלול בקטלוג</h2>
+              <p class="header-subtitle">בחרו את היקף הקטלוג, ואז סננו או בחרו ידנית.</p>
+            </div>
+            <button class="switch-interface-btn" type="button" onclick="window.location.href='./index.html'">חזרה לראשי</button>
+          </div>
+          <div class="action-row" style="margin-top:10px;">
+            <button class="action-btn" type="button" data-action="all">כל הפעילויות</button>
+            <button class="action-btn" type="button" data-action="workshops">סדנאות בלבד</button>
+            <button class="action-btn" type="button" data-action="escapes">חדרי בריחה בלבד</button>
+            <button class="action-btn" type="button" data-action="manual">בחירה ידנית</button>
+            <span class="selected-count" id="selectedCount">0 נבחרו</span>
+          </div>
+        </section>
+
+        <section class="workflow-section" aria-label="סינון ובחירת פעילויות">
+          <div class="selector-top">
+            <h3 class="workflow-subheading">סינון ובחירה</h3>
+            <button class="action-btn secondary-action" id="togglePickerBtn" type="button">▾ בחר פעילויות</button>
+          </div>
+          <div class="action-row" style="margin-bottom:10px;">
+            <button class="action-btn secondary-action" type="button" data-action="all">בחר הכל</button>
+            <button class="action-btn secondary-action" type="button" data-action="none">נקה הכל</button>
+          </div>
+          <div class="selector-body filter-panel">
+            <div class="filters-sidebar">
+              <div class="filter-group">
+                <p class="filter-label">סינון לפי כיתות</p>
+                <div id="gradeFilters" class="filter-options"></div>
+              </div>
+              <div class="filter-group">
+                <p class="filter-label">סינון לפי תחומי תוכן</p>
+                <div id="domainFilters" class="filter-options"></div>
+              </div>
+            </div>
+            <div id="activityPicker" class="activity-picker"></div>
+          </div>
+        </section>
+
+        <section class="workflow-section final-step" aria-label="חלקים נוספים והפקת PDF">
+          <h3 class="workflow-subheading">מה להוסיף לקטלוג?</h3>
+          <div class="final-actions-row">
+            <div class="final-options">
+              <label class="cover-letter-toggle" for="coverLetterCheckbox">
+                <input id="coverLetterCheckbox" type="checkbox" />
+                <span>מכתב מקדים</span>
+              </label>
+              <div class="marketer-field">
+                <span class="marketer-face">שיווק ▾</span>
+                <select id="marketerSelect" class="marketer-select" aria-label="בחירת שיווק לקטלוג סדנאות">
+                  <option value="none">ללא שיווק</option>
+                  <option value="yael">יעל אביב</option>
+                  <option value="israa">איסראא אבו-ראס</option>
+                </select>
+              </div>
+            </div>
+            <button class="print-btn" id="catalogModeBtn" type="button" disabled>הפקת קטלוג PDF</button>
+          </div>
+        </section>
+      </section>
+    </div>
+  </header>
+
+  <main id="booklet" class="booklet" aria-label="חוברת פעילויות A4"></main>
+
+  <script>
+    let activities = [];
+
+    const booklet = document.getElementById("booklet");
+    const picker = document.getElementById("activityPicker");
+    const catalogGateway = document.getElementById("catalogGateway");
+    const catalogTypeGrid = document.getElementById("catalogTypeGrid");
+    const programGateway = document.getElementById("programGateway");
+    const programGatewayTitle = document.getElementById("programGatewayTitle");
+    const programGatewaySubtitle = document.getElementById("programGatewaySubtitle");
+    const programGrid = document.getElementById("programGrid");
+    const programNote = document.getElementById("programNote");
+    const workshopInterface = document.getElementById("workshopInterface");
+    const courseInterface = document.getElementById("courseInterface");
+    const courseSelectorPanel = document.getElementById("courseSelectorPanel");
+    const courseManualBody = document.getElementById("courseManualBody");
+    const coursePicker = document.getElementById("coursePicker");
+    const selectedCourseCount = document.getElementById("selectedCourseCount");
+    const courseSelectionTitle = document.getElementById("courseSelectionTitle");
+    const courseSelectionText = document.getElementById("courseSelectionText");
+    const courseCatalogModeBtn = document.getElementById("courseCatalogModeBtn");
+    const courseCoverLetterCheckbox = document.getElementById("courseCoverLetterCheckbox");
+    const courseMarketerSelect = document.getElementById("courseMarketerSelect");
+    const courseIndexCheckbox = document.getElementById("courseIndexCheckbox");
+    const courseLevelFilter = document.getElementById("courseLevelFilter");
+    const toggleCoursePickerBtn = document.getElementById("toggleCoursePickerBtn");
+    const courseClearBtn = document.getElementById("courseClearBtn");
+
+    const selectedCount = document.getElementById("selectedCount");
+    const gradeFilters = document.getElementById("gradeFilters");
+    const domainFilters = document.getElementById("domainFilters");
+    const catalogModeBtn = document.getElementById("catalogModeBtn");
+    const coverLetterCheckbox = document.getElementById("coverLetterCheckbox");
+    const ACTIVITIES_PER_PAGE = 5;
+    const COVER_LETTER_ACTIVITIES = 3;
+    const PAGE_LAYOUT_SEQUENCE = ["bottom", "middle", "top", "middle", "bottom"];
+    const LAYOUT_HORIZONTAL_INDEX = {
+      top: 0,
+      middle: 2,
+      bottom: 4
+    };
+    const selected = new Set();
+    const selectedCourses = new Set();
+    let selectedCoursePreset = null;
+    let courseManualOpen = false;
+
+    const selectedGrades = new Set();
+    const selectedDomains = new Set();
+    let selectedType = null;
+    let selectedProgram = null;
+    let catalogPrograms = [];
+    let catalogLoadError = null;
+
+    const CATALOG_TYPES = {
+      elementary: {
+        label: "יסודי",
+        subtitle: "תוכניות קטלוג לתלמידי יסודי"
+      },
+      middle: {
+        label: "חטיבה",
+        subtitle: "תוכניות קטלוג לתלמידי חטיבת ביניים"
+      },
+      high: {
+        label: "תיכון",
+        subtitle: "תוכניות קטלוג לתלמידי תיכון"
+      }
+    };
+
+    const DOMAIN_COLORS = {
+      "חלל":        "#1e3a8a",
+      "אסטרונומיה": "#5b21b6",
+      "אופטיקה":    "#0e7490",
+      "תעופה":      "#1d4ed8",
+      "ביומימיקרי": "#065f46",
+      "קיימות":     "#047857",
+      "כימיה":      "#c2410c",
+      "ביולוגיה":   "#9d174d",
+      "פיזיקה":     "#78350f",
+      "הנדסה":      "#4338ca",
+      "AI":         "#0369a1",
+    };
+
+    function showMainGateway() {
+      selectedProgram = null;
+      document.body.classList.remove("catalog-mode");
+      document.body.classList.add("is-course-catalog");
+      catalogGateway.classList.add("is-hidden");
+      programGateway.classList.add("is-hidden");
+      workshopInterface.classList.add("is-hidden");
+      courseInterface.classList.remove("is-hidden");
+      renderCourseSelection();
+    }
+
+    function stableProgramId(program = {}) {
+      const explicitId = String(program.id ?? "").trim();
+      if (explicitId) return explicitId;
+      const gefen = String(program.gefen ?? "").trim();
+      if (gefen) return `gefen-${gefen.replace(/\s+/g, "-")}`;
+      return String(program.title ?? "program")
+        .trim()
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, "-")
+        .replace(/^-+|-+$/g, "") || "program";
+    }
+
+    function normalizeProgram(program = {}) {
+      return {
+        ...program,
+        id: stableProgramId(program),
+        audienceLevel: String(program.audienceLevel ?? "").trim(),
+        title: String(program.title ?? "").trim()
+      };
+    }
+
+    async function loadCatalogPrograms() {
+      const response = await fetch("catalog-data.json", { cache: "no-store" });
+      if (!response.ok) throw new Error(`Failed to load catalog-data.json (${response.status})`);
+      const data = await response.json();
+      if (!Array.isArray(data?.programs)) throw new Error("catalog-data.json is missing programs array");
+      return data.programs.map(program => normalizeProgram(program)).filter(program => program.title);
+    }
+
+    function showProgramGateway(typeKey) {
+      const catalogType = CATALOG_TYPES[typeKey];
+      if (!catalogType) return;
+      selectedProgram = null;
+      document.body.classList.remove("is-course-catalog");
+      catalogGateway.classList.add("is-hidden");
+      workshopInterface.classList.add("is-hidden");
+      courseInterface.classList.add("is-hidden");
+      programGateway.classList.remove("is-hidden");
+      programGatewayTitle.textContent = `${catalogType.label} · בחירת תוכנית`;
+      programGatewaySubtitle.textContent = catalogType.subtitle;
+      programNote.textContent = "לאחר בחירת תוכנית ניתן לחזור ולבחור סוג קטלוג אחר.";
+      programGrid.innerHTML = "";
+
+      if (catalogLoadError) {
+        programNote.textContent = "לא ניתן לטעון את catalog-data.json. בדקו שהקובץ קיים ותקין.";
+        return;
+      }
+
+      const programsForType = catalogPrograms.filter(program => {
+        const level = program.audienceLevel;
+        if (level === typeKey) return true;
+        if (typeKey === "middle" && (level === "middle-high" || level === "elementary-middle")) return true;
+        if (typeKey === "high"   && (level === "middle-high" || level === "high-middle")) return true;
+        if (typeKey === "elementary" && level === "elementary-middle") return true;
+        return false;
+      });
+      if (!programsForType.length) {
+        programNote.textContent = "לא נמצאו תוכניות לקבוצת גיל זו בקובץ הנתונים.";
+        return;
+      }
+
+      programsForType.forEach(program => {
+        const button = document.createElement("button");
+        button.className = "program-tile";
+        button.type = "button";
+        button.textContent = program.title;
+        button.dataset.programId = program.id;
+        programGrid.appendChild(button);
+      });
+    }
+
+    function showWorkshopInterface() {
+      selectedProgram = null;
+      document.body.classList.remove("is-course-catalog");
+      catalogGateway.classList.add("is-hidden");
+      programGateway.classList.add("is-hidden");
+      courseInterface.classList.add("is-hidden");
+      workshopInterface.classList.remove("is-hidden");
+      document.getElementById("mainCatalogTitle").textContent = "קטלוג סדנאות וחדרי בריחה";
+      renderSelection();
+    }
+
+    function courseMatchesLevel(program, levelKey) {
+      const level = program.audienceLevel;
+      if (levelKey === "all") return true;
+      if (level === levelKey) return true;
+      if (levelKey === "middle" && (level === "middle-high" || level === "elementary-middle")) return true;
+      if (levelKey === "high" && (level === "middle-high" || level === "high-middle")) return true;
+      if (levelKey === "elementary" && level === "elementary-middle") return true;
+      return false;
+    }
+
+    function courseLevelLabel(program) {
+      const labels = [];
+      if (courseMatchesLevel(program, "elementary")) labels.push("יסודי");
+      if (courseMatchesLevel(program, "middle")) labels.push("חטיבה");
+      if (courseMatchesLevel(program, "high")) labels.push("תיכון");
+      return labels.join(" · ") || "כללי";
+    }
+
+    function getSelectedCoursePrograms() {
+      return catalogPrograms.filter(program => selectedCourses.has(program.id));
+    }
+
+    function visibleCoursePrograms() {
+      const level = courseLevelFilter.value;
+      const levelOrder = { elementary: 1, "elementary-middle": 2, middle: 3, "middle-high": 4, high: 5 };
+      return catalogPrograms.filter(program => {
+        const matchesLevel = level === "all" || courseMatchesLevel(program, level);
+        return matchesLevel;
+      }).sort((a, b) => (levelOrder[a.audienceLevel] ?? 99) - (levelOrder[b.audienceLevel] ?? 99));
+    }
+
+    function updateCourseSummary() {
+      const selectedPrograms = getSelectedCoursePrograms();
+      selectedCourseCount.textContent = `נבחרו ${selectedPrograms.length} תוכניות`;
+      courseCatalogModeBtn.disabled = selectedPrograms.length === 0;
+      document.querySelectorAll("[data-course-action]").forEach(button => {
+        button.classList.toggle("is-active", button.dataset.courseAction === selectedCoursePreset);
+      });
+      const presetLabels = {
+        all: "כל התוכניות",
+        elementary: "יסודי",
+        middle: "חטיבה",
+        high: "תיכון",
+        manual: "בחירה ידנית"
+      };
+      courseSelectionTitle.textContent = selectedCoursePreset ? presetLabels[selectedCoursePreset] : "בחירת תוכניות";
+      if (!selectedPrograms.length) {
+        courseSelectionText.textContent = "לא נבחרו קורסים. בחרו קבוצה מהירה או פתחו בחירה ידנית.";
+        return;
+      }
+      const preview = selectedPrograms.slice(0, 4).map(program => program.title).join(" · ");
+      const suffix = selectedPrograms.length > 4 ? ` ועוד ${selectedPrograms.length - 4}` : "";
+      courseSelectionText.textContent = `${preview}${suffix}`;
+    }
+
+    function renderCoursePicker() {
+      coursePicker.innerHTML = "";
+      const programs = visibleCoursePrograms();
+      if (!programs.length) {
+        coursePicker.innerHTML = `<p class="program-note">לא נמצאו קורסים בהתאם לסינון.</p>`;
+        return;
+      }
+      programs.forEach((program, index) => {
+        const label = document.createElement("label");
+        label.className = `activity-option course-option ${selectedCourses.has(program.id) ? "selected" : ""}`;
+        label.style.setProperty("--option-accent", program.c1 || "#203b7a");
+        label.innerHTML = `
+          <input type="checkbox" data-course-id="${escapeHTML(program.id)}" ${selectedCourses.has(program.id) ? "checked" : ""} />
+          <span class="option-card">
+            <span class="checkmark" aria-hidden="true"></span>
+            <span>
+              <span class="option-title">${escapeHTML(program.title)}</span>
+              <span class="option-meta">${escapeHTML(courseLevelLabel(program))}${program.gefen ? ` · <span class="gefen-meta">גפ״ן ${escapeHTML(String(program.gefen))}</span>` : ""}</span>
+            </span>
+          </span>`;
+        coursePicker.appendChild(label);
+      });
+    }
+
+    function renderCourseSelection() {
+      renderCoursePicker();
+      updateCourseSummary();
+      courseSelectorPanel.classList.toggle("collapsed", !courseManualOpen);
+      courseManualBody.classList.toggle("is-hidden", !courseManualOpen);
+      toggleCoursePickerBtn.textContent = courseManualOpen ? "▴ סגור" : "▾ בחר תוכניות";
+    }
+
+    function applyCoursePreset(preset) {
+      selectedCourses.clear();
+      selectedCoursePreset = preset;
+      const level = preset === "all" || preset === "manual" ? "all" : preset;
+      if (preset !== "manual") {
+        catalogPrograms.forEach(program => {
+          if (courseMatchesLevel(program, level)) selectedCourses.add(program.id);
+        });
+        courseManualOpen = false;
+      } else {
+        courseManualOpen = true;
+      }
+      showCourseInterface();
+    }
+
+    function showCourseInterface() {
+      document.body.classList.add("is-course-catalog");
+      document.body.classList.remove("catalog-mode");
+      catalogGateway.classList.add("is-hidden");
+      programGateway.classList.add("is-hidden");
+      workshopInterface.classList.add("is-hidden");
+      courseInterface.classList.remove("is-hidden");
+      document.getElementById("mainCatalogTitle").textContent = "קטלוג התוכניות החינוכיות";
+      renderCourseSelection();
+    }
+
+    function buildCourseCatalogUrl() {
+      const ids = [...selectedCourses];
+      const params = new URLSearchParams();
+      params.set("ids", ids.join(","));
+      params.set("catalog", "1");
+      if (courseCoverLetterCheckbox.checked) params.set("cover", "1");
+      if (courseMarketerSelect.value !== "none") params.set("marketer", courseMarketerSelect.value);
+      if (courseIndexCheckbox.checked) params.set("index", "1");
+      return `./course-page.html?${params.toString()}`;
+    }
+
+    function normalizeActivity(rawActivity = {}, gradeGroup = "") {
+      const title = rawActivity.workshopName ?? rawActivity.title ?? "";
+      const domain = rawActivity.domain ?? "";
+      const type = rawActivity.activityType ?? rawActivity.type ?? "סדנה";
+      const durationMinutes = Number(rawActivity.durationMinutes);
+      const duration = Number.isFinite(durationMinutes) && durationMinutes > 0
+        ? `${durationMinutes} דקות`
+        : (rawActivity.duration ?? "");
+      const product = rawActivity.personalProduct ?? rawActivity.product ?? "";
+      const text = rawActivity.description ?? rawActivity.text ?? "";
+      const goals = Array.isArray(rawActivity.goals) ? rawActivity.goals.filter(Boolean) : [];
+      const grades = Array.isArray(rawActivity.grades)
+        ? rawActivity.grades.filter(Boolean)
+        : (gradeGroup ? [gradeGroup] : []);
+      const manualImage = rawActivity.image ?? rawActivity.imageUrl ?? rawActivity.imagePath ?? "";
+      const paddedId = String(rawActivity.id ?? "").padStart(3, "0");
+      const image = manualImage || (rawActivity.id ? `image/${paddedId}.png` : "");
+      const imageWebp = toWebpPath(image);
+
+      return {
+        ...rawActivity,
+        gradeGroup: rawActivity.gradeGroup ?? gradeGroup,
+        title,
+        domain,
+        type,
+        duration,
+        product,
+        text,
+        goals,
+        grades,
+        image,
+        imageWebp,
+        accent: DOMAIN_COLORS[rawActivity.domain ?? ""] || rawActivity.accent || "#203b7a"
+      };
+    }
+
+    async function loadActivities() {
+      const response = await fetch("activities.json", { cache: "no-store" });
+      if (!response.ok) throw new Error(`Failed to load activities.json (${response.status})`);
+      const data = await response.json();
+
+      if (Array.isArray(data?.gradeGroups)) {
+        return data.gradeGroups.flatMap(group => {
+          const groupGrade = group?.gradeGroup ?? "";
+          const groupActivities = Array.isArray(group?.activities) ? group.activities : [];
+          return groupActivities.map(activity => normalizeActivity(activity, groupGrade));
+        });
+      }
+
+      if (Array.isArray(data?.activities)) {
+        return data.activities.map(activity => normalizeActivity(activity));
+      }
+
+      return [];
+    }
+
+function chunkActivities(items, size) {
+      const result = [];
+      for (let i = 0; i < items.length; i += size) {
+        result.push(items.slice(i, i + size));
+      }
+      return result;
+    }
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function toWebpSrc(src) {
+      if (!src || !/\.png$/i.test(src)) return "";
+      return src.replace(/\.png$/i, ".webp");
+    }
+
+    function activityImageHTML(src, alt, className = "") {
+      const classAttr = className ? ` class="${className}"` : "";
+      const altAttr = escapeHTML(alt);
+      const webpSrc = toWebpSrc(src);
+      if (webpSrc) {
+        return `<picture><source srcset="${escapeHTML(webpSrc)}" type="image/webp"><img src="${escapeHTML(src)}" alt="${altAttr}"${classAttr} decoding="async" loading="eager" onerror="this.closest('picture')?.replaceWith(createImagePlaceholder())"></picture>`;
+      }
+      return `<img src="${escapeHTML(src)}" alt="${altAttr}"${classAttr} decoding="async" loading="eager" onerror="this.replaceWith(createImagePlaceholder())">`;
+    }
+
+    function collectCatalogImageUrls(activities) {
+      const urls = new Set(["image/ai.webp"]);
+      activities.forEach(activity => {
+        if (!activity.image) return;
+        const webpSrc = toWebpSrc(activity.image);
+        urls.add(webpSrc || activity.image);
+      });
+      return [...urls];
+    }
+
+    function preloadImages(urls) {
+      return Promise.all(urls.map(url => new Promise(resolve => {
+        const img = new Image();
+        img.decoding = "async";
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+        img.src = url;
+      })));
+    }
+
+    function toWebpPath(path) {
+      return String(path || "").replace(/\.png(\?.*)?$/i, ".webp$1");
+    }
+
+    function handleCatalogImageError(img) {
+      const fallbackSrc = img.dataset.fallbackSrc;
+      const fallbackUrl = fallbackSrc ? new URL(fallbackSrc, window.location.href).href : "";
+      if (fallbackSrc && img.src !== fallbackUrl) {
+        img.closest("picture")?.querySelectorAll("source").forEach(source => source.remove());
+        img.src = fallbackSrc;
+        return;
+      }
+      img.closest("picture")?.replaceWith(createImagePlaceholder()) || img.replaceWith(createImagePlaceholder());
+    }
+
+    function responsiveImageMarkup({ src, webpSrc = toWebpPath(src), alt = "", className = "", imgAttrs = "" }) {
+      if (!src) return "";
+      const safeSrc = escapeHTML(src);
+      const safeWebpSrc = escapeHTML(webpSrc || src);
+      const safeAlt = escapeHTML(alt);
+      const safeClass = className ? ` class="${escapeHTML(className)}"` : "";
+      return `
+        <picture>
+          <source srcset="${safeWebpSrc}" type="image/webp">
+          <img src="${safeSrc}" data-fallback-src="${safeSrc}" alt="${safeAlt}"${safeClass} loading="eager" decoding="async" ${imgAttrs} onerror="handleCatalogImageError(this)" />
+        </picture>`;
+    }
+
+    function imageMarkup(activity) {
+      const isEscape = activity.type === "חדר בריחה";
+      const productHTML = isEscape ? "" : `
+          <div class="product-box">
+            <p class="product-line">תוצר: <strong class="product-name">${escapeHTML(activity.product)}</strong></p>
+          </div>`;
+      const tagHTML = isEscape ? "" : `
+          <div class="card-topline">
+            <span class="tag">${escapeHTML(activity.domain)}</span>
+          </div>`;
+      const escapeBadge = isEscape ? `
+          <div class="escape-domain-badge"><span class="tag">${escapeHTML(activity.domain)}</span></div>` : "";
+      return `
+        <div class="media-column">
+          ${escapeBadge}
+          <div class="image-box">
+            ${responsiveImageMarkup({ src: activity.image, webpSrc: activity.imageWebp, alt: activity.title })}
+          </div>
+          ${productHTML}
+          ${tagHTML}
+        </div>`;
+    }
+
+    function createImagePlaceholder() {
+      const placeholder = document.createElement("div");
+      placeholder.className = "image-placeholder";
+      placeholder.textContent = "תמונה תתווסף כאן";
+      return placeholder;
+    }
+
+    function renderCard(activity, isHorizontal = false, useEscapeLayout = false) {
+      const goals = activity.goals.map(goal => `<li>${escapeHTML(goal)}</li>`).join("");
+      const card = document.createElement("article");
+      const isEscape = activity.type === "חדר בריחה";
+      const escapeLayout = isEscape || useEscapeLayout;
+      card.className = escapeLayout ? "activity-card escape-room-card" : "activity-card";
+      if (!escapeLayout && isHorizontal) card.classList.add("horizontal-card");
+      card.style.setProperty("--accent", activity.accent || "#203b7a");
+
+      if (escapeLayout) {
+        const summaryHTML = activity.summaryLine
+          ? `<p class="escape-room-summary-line">${escapeHTML(activity.summaryLine)}</p>`
+          : "";
+        card.innerHTML = `
+        ${imageMarkup(activity)}
+        <div class="card-content">
+          <div class="card-header">
+            <h2>${escapeHTML(activity.title)}</h2>
+          </div>
+          <p class="card-description">${escapeHTML(activity.text)}</p>
+        </div>
+        ${summaryHTML}`;
+        return card;
+      }
+
+      if (isHorizontal) {
+        card.innerHTML = `
+        <div class="horizontal-title">
+          <h2>${escapeHTML(activity.title)}</h2>
+          <div class="card-topline">
+            <span class="tag">${escapeHTML(activity.domain)}</span>
+          </div>
+        </div>
+        <div class="horizontal-body">
+          <div class="horizontal-media">
+            <div class="image-box">
+              ${responsiveImageMarkup({ src: activity.image, webpSrc: activity.imageWebp, alt: activity.title })}
+            </div>
+            <div class="product-box">
+              <p class="product-line">תוצר: <strong class="product-name">${escapeHTML(activity.product)}</strong></p>
+            </div>
+          </div>
+          <div class="horizontal-text">
+            <p class="card-description">${escapeHTML(activity.text)}</p>
+            <div class="goals-box">
+              <p class="goals-title">מטרות מרכזיות</p>
+              <ul>${goals}</ul>
+            </div>
+          </div>
+        </div>`;
+        return card;
+      }
+
+      card.innerHTML = `
+        ${imageMarkup(activity)}
+        <div class="card-content">
+          <div class="card-header">
+            <h2>${escapeHTML(activity.title)}</h2>
+          </div>
+          <p class="card-description">${escapeHTML(activity.text)}</p>
+        </div>
+        <div class="goals-box">
+          <p class="goals-title">מטרות מרכזיות</p>
+          <ul>${goals}</ul>
+        </div>`;
+      return card;
+    }
+
+    function renderMiddleSchoolPage(msActivities, pageIndex, totalPages, contactLine = "") {
+      const page = document.createElement("section");
+      page.className = "a4-page catalog-page escape-room-page ms-page";
+      page.setAttribute("aria-label", `עמוד ${pageIndex + 1} מתוך ${totalPages}`);
+
+      page.innerHTML = `
+        <header class="page-header">
+          <img class="page-header-logo" src="logo.png" alt="לוגו" />
+          <div><h1 class="page-title">סדנאות AI – חט"ב</h1></div>
+        </header>
+        <div class="page-grid">
+          <div class="escape-hero ms-hero">
+            <p class="escape-hero-subtitle">עולם הבינה המלאכותית כבר נמצא סביבנו — בלמידה, ביצירת תוכן, בחיפוש מידע, בתקשורת, בעולם העבודה ובחיי היומיום. סדנאות הבינה המלאכותית של תעשיידע נועדו לאפשר לתלמידי חטיבת הביניים לפגוש את העולם הזה בצורה חווייתית, נגישה ומעשית, תוך התנסות בכלים עכשוויים ופיתוח חשיבה ביקורתית, יצירתית ואחראית.</p>
+          </div>
+          <div class="ms-main-zone">
+            <div class="ms-top-row">
+              <div class="ms-image-col">
+                ${responsiveImageMarkup({ src: "image/ai.png", webpSrc: "image/ai.webp", alt: "בינה מלאכותית", className: "ms-center-img" })}
+              </div>
+              <div class="ms-info-col">
+                <div class="escape-info-card">
+                  <p class="escape-info-card-title">למי ומתי?</p>
+                  <p class="escape-info-card-body">הפעילויות מותאמות לתלמידי כיתות ז׳–ט׳ ולמסגרות קיץ, ימי שיא, ימי העשרה או רצף קצר של מפגשים. הן מאפשרות לתלמידים לחוות את הבינה המלאכותית לא כנושא רחוק או מורכב, אלא ככלי עכשווי שמזמין חשיבה, יצירה, אחריות ואתיקה טכנולוגית.</p>
+                </div>
+                <div class="escape-info-card">
+                  <p class="escape-info-card-title">למידה פעילה עם AI</p>
+                  <p class="escape-info-card-body">הסדנאות משלבות למידה פעילה, עבודה בקבוצות, אתגרי חשיבה, יצירת רעיונות ותוצרים קצרים. התלמידים מתנסים בשימוש בכלי AI ככלי עזר לחשיבה, חקר, למידה ויצירה ובמקביל לומדים לעצור, לשאול, לבדוק ולהפעיל שיקול דעת.</p>
+                </div>
+                <div class="escape-info-card">
+                  <span class="escape-info-card-tag">בינה מלאכותית</span>
+                  <p class="escape-info-card-title">יותר מסתם שימוש בכלי</p>
+                  <p class="escape-info-card-body">הדגש בפעילות אינו רק על "איך משתמשים בכלי", אלא על הבנה רחבה יותר: איך שואלים שאלה טובה, איך בודקים מידע, איך מזהים מגבלות, איך משתמשים בטכנולוגיה בצורה הוגנת ואחראית ואיך משלבים בין סקרנות אנושית לבין כלים דיגיטליים מתקדמים.</p>
+                </div>
+              </div>
+            </div>
+            <div class="ms-bottom-row"></div>
+          </div>
+        </div>
+        ${footerZoneHTML(pageIndex, contactLine)}`;
+
+      const activitiesGrid = page.querySelector(".ms-bottom-row");
+      msActivities.slice(0, 2).forEach(activity => {
+        const goals = activity.goals.map(g => `<li>${escapeHTML(g)}</li>`).join("");
+        const panel = document.createElement("div");
+        panel.className = "ms-activity-panel";
+        panel.innerHTML = `
+          <div class="ms-activity-panel-header">
+            <p class="ms-activity-panel-title">${escapeHTML(activity.title)} <span class="ms-activity-panel-title-tag">AI</span></p>
+          </div>
+          <div class="ms-activity-panel-body">
+            <p class="ms-activity-panel-desc">${escapeHTML(activity.text)}</p>
+            <p class="ms-activity-panel-goals-title">מטרות הסדנה</p>
+            <ul class="ms-activity-panel-goals">${goals}</ul>
+            ${activity.summary ? `<p class="ms-activity-panel-summary">${escapeHTML(activity.summary)}</p>` : ""}
+          </div>
+          ${activity.personalProduct ? `<div class="ms-activity-panel-footer"><p class="ms-activity-panel-product">תוצר: <span>${escapeHTML(activity.personalProduct)}</span></p></div>` : ""}
+        `;
+        activitiesGrid.appendChild(panel);
+      });
+      return page;
+    }
+
+    function renderEscapeRoomPage(escapeActivities, pageIndex, totalPages, contactLine = "") {
+      const page = document.createElement("section");
+      page.className = "a4-page catalog-page escape-room-page";
+      page.setAttribute("aria-label", `עמוד ${pageIndex + 1} מתוך ${totalPages}`);
+
+      page.innerHTML = `
+        <header class="page-header">
+          <img class="page-header-logo" src="logo.png" alt="לוגו" />
+          <div><h1 class="page-title">חדרי בריחה דיגיטליים</h1></div>
+        </header>
+        <div class="page-grid">
+          <div class="escape-hero">
+            <p class="escape-hero-subtitle">מסע דיגיטלי של חידות, אתגרים וגילוי — בדרך ללמידה פעילה ומשמעותית.</p>
+          </div>
+          <div class="escape-intro-cards">
+            <div class="escape-info-card">
+              <p class="escape-info-card-title">חוויית למידה אחרת</p>
+              <p class="escape-info-card-body">חדרי הבריחה של תעשיידע מזמינים את התלמידים למסע אינטראקטיבי שבו סיפור, חידות, מדע וטכנולוגיה מתחברים לעולם מסקרן ומלא גילוי. מהרגע הראשון התלמידים נכנסים למשימה שמעוררת שאלה ומזמינה לגלות מה מסתתר מאחורי הדלת הבאה.</p>
+            </div>
+            <div class="escape-info-card">
+              <p class="escape-info-card-title">לומדים דרך משימה</p>
+              <p class="escape-info-card-body">במקום לפגוש את הידע רק דרך הסבר, המשתתפים נכנסים לתוך סיפור דיגיטלי חי. הם מפענחים רמזים, פותרים אתגרים, מקבלים החלטות, עובדים יחד ומגלים בהדרגה את הידע שמסתתר מאחורי העלילה. כל פתרון חושף פרט נוסף ומקדם את הקבוצה להמשך הדרך.</p>
+            </div>
+            <div class="escape-info-card">
+              <p class="escape-info-card-title">חשיבה, שיתוף פעולה וגילוי</p>
+              <p class="escape-info-card-body">לאורך הפעילות התלמידים מתבוננים בפרטים, שואלים שאלות ומחברים בין מידע ורעיונות. הם נדרשים להקשיב זה לזה, לחלק תפקידים ולתרגל עבודת צוות בדרך לפתרון משותף. כל חדר בריחה נבנה סביב עולם תוכן ייחודי ומאפשר למידה דרך אתגר, סיפור וגילוי.</p>
+            </div>
+          </div>
+          <div class="escape-cards-row"></div>
+        </div>
+        ${footerZoneHTML(pageIndex, contactLine)}`;
+
+      const cardsRow = page.querySelector(".escape-cards-row");
+      if (escapeActivities.length === 1) cardsRow.classList.add("escape-cards-row--single");
+      escapeActivities.forEach((activity, i) => {
+        const card = renderCard(activity);
+        const title = activity.title || "";
+        if (title.includes("ביומימיקרי")) card.classList.add("escape-room-card--bio");
+        if (title.includes("אסטרואיד")) card.classList.add("escape-room-card--astro");
+        if (i === 0) card.classList.add("escape-room-card--mirrored");
+        cardsRow.appendChild(card);
+      });
+      return page;
+    }
+
+    function formatGradeGroup(g) {
+      return ({ "א-ג": "כיתות א׳–ג׳", "ד-ו": "כיתות ד׳–ו׳", "א-ו": "כיתות א׳–ו׳" })[g] || g;
+    }
+
+    function renderCoverLetterPage(items, pageIndex, totalPages, gradeLabel = "", contactLine = "") {
+      const page = document.createElement("section");
+      page.className = "a4-page catalog-page cover-letter-page";
+      page.setAttribute("aria-label", `עמוד ${pageIndex + 1} מתוך ${totalPages} עם מכתב מקדים`);
+      const stemHTML = `<span class="stem-word" dir="ltr"><span class="stem-s">S</span><span class="stem-t">T</span><span class="stem-e">E</span><span class="stem-m">M</span></span>`;
+      const gradeTitle = gradeLabel ? ` | ${escapeHTML(gradeLabel)}` : "";
+
+      page.innerHTML = `
+        <header class="page-header">
+          <img class="page-header-logo" src="logo.png" alt="לוגו" />
+          <div>
+            <h1 class="page-title cover-letter-page-title">טכנו-כיף</h1>
+          </div>
+        </header>
+        <section class="cover-letter-block" aria-label="מכתב מקדים">
+          <h2 class="cover-letter-title">טכנולוגיה וכיף מתחברים בתוך טכנו-כיף אחד גדול</h2>
+          <p class="cover-letter-tagline">חוקרים. יוצרים. מגלים.</p>
+          <h3 class="cover-letter-heading">סדנאות מייקרים ${stemHTML}</h3>
+          <p class="cover-letter-text">למידה חווייתית דרך עשייה, חקר, בנייה ויצירה.</p>
+          <p class="cover-letter-text">בכל סדנה המשתתפים בונים תוצר אישי משלהם, תוך היכרות עם עקרונות מדעיים וטכנולוגיים בדרך פעילה ומסקרנת.</p>
+          <p class="cover-letter-text">הסדנאות משלבות התנסות מעשית, חשיבה יצירתית, פתרון בעיות וחיבור בין רעיון, תכנון, ניסוי ותוצאה.</p>
+          <p class="cover-letter-section-title">תחומים לדוגמה:</p>
+          <p class="cover-letter-text">אופטיקה, פיזיקה, הנדסה, כימיה, ביולוגיה, חלל וטכנולוגיה.</p>
+          <p class="cover-letter-section-title">איך זה עובד?</p>
+          <ul class="cover-letter-list">
+            <li>בוחרים פעילות בודדת: סדנה אחת של 45 דקות</li>
+            <li>יום מרוכז: מספר סדנאות ביום אחד</li>
+            <li>קייטנה מלאה: תוכנית קיץ של 5 ימים</li>
+            <li>שילוב גמיש: בחירה בין חדרי בריחה וסדנאות מייקרים</li>
+          </ul>
+          <p class="cover-letter-section-title">הפעילות כוללת את כל הציוד והחומרים הנדרשים.</p>
+        </section>
+        <header class="cover-catalog-header" aria-label="כותרת הקטלוג">
+          <img class="page-header-logo" src="logo.png" alt="לוגו" />
+          <div>
+            <h2 class="page-title">סדנאות ${stemHTML} חווייתיות${gradeTitle}</h2>
+          </div>
+        </header>
+        <div class="cover-catalog-grid"></div>
+        ${footerZoneHTML(pageIndex, contactLine)}`;
+
+      const grid = page.querySelector(".cover-catalog-grid");
+      items.slice(0, COVER_LETTER_ACTIVITIES).forEach((activity, index) => grid.appendChild(renderCard(activity, index === 0)));
+      return page;
+    }
+
+    function renderPage(items, pageIndex, totalPages, isEscapePage = false, gradeLabel = "", layoutIndex = pageIndex, contactLine = "") {
+      const page = document.createElement("section");
+      page.className = "a4-page catalog-page";
+      page.setAttribute("aria-label", `עמוד ${pageIndex + 1} מתוך ${totalPages}`);
+      const stemHTML = `<span class="stem-word" dir="ltr"><span class="stem-s">S</span><span class="stem-t">T</span><span class="stem-e">E</span><span class="stem-m">M</span></span>`;
+      const durationLabel = items?.[0]?.duration || "";
+      const pageTitleHTML = isEscapePage
+        ? "חדרי בריחה"
+        : `סדנאות ${stemHTML} חווייתיות${gradeLabel ? ` | ${escapeHTML(gradeLabel)}` : ""}${durationLabel ? ` <span class="duration-inline">(${escapeHTML(durationLabel)})</span>` : ""}`;
+
+      page.innerHTML = `
+        <header class="page-header">
+          <img class="page-header-logo" src="logo.png" alt="לוגו" />
+          <div>
+            <h1 class="page-title">${pageTitleHTML}</h1>
+          </div>
+        </header>
+        <div class="page-grid"></div>
+        ${footerZoneHTML(pageIndex, contactLine)}`;
+
+      const grid = page.querySelector(".page-grid");
+      const layoutKey = PAGE_LAYOUT_SEQUENCE[layoutIndex % PAGE_LAYOUT_SEQUENCE.length];
+      grid.classList.add(`page-layout-${layoutKey}`);
+      const horizontalIndex = LAYOUT_HORIZONTAL_INDEX[layoutKey];
+      const areaNames = ["a", "b", "c", "d"];
+      let gridIndex = 0;
+
+      items.forEach((activity, index) => {
+        const isHorizontal = index === horizontalIndex;
+        const card = renderCard(activity, isHorizontal);
+        if (isHorizontal) {
+          card.style.gridArea = "h";
+        } else if (gridIndex < areaNames.length) {
+          card.style.gridArea = areaNames[gridIndex++];
+        }
+        grid.appendChild(card);
+      });
+      return page;
+    }
+
+
+
+    function mixActivitiesByDomain(items) {
+      const buckets = new Map();
+      items.forEach(activity => {
+        const key = (activity.domain || "ללא תחום").trim();
+        if (!buckets.has(key)) buckets.set(key, []);
+        buckets.get(key).push(activity);
+      });
+
+      const domains = [...buckets.keys()].sort((a, b) => a.localeCompare(b, "he"));
+      const mixed = [];
+
+      while (domains.some(domain => buckets.get(domain).length > 0)) {
+        let pickedInRound = false;
+        domains.forEach(domain => {
+          const bucket = buckets.get(domain);
+          if (!bucket.length) return;
+          mixed.push(bucket.shift());
+          pickedInRound = true;
+        });
+        if (!pickedInRound) break;
+      }
+
+      return mixed;
+    }
+
+    function getSelectedActivities() {
+      return activities
+        .map((activity, index) => ({ ...activity, originalIndex: index }))
+        .filter(activity => selected.has(activity.originalIndex) && matchesAdvancedFilters(activity));
+    }
+
+    function contactLineHTML(marketer) {
+      if (marketer === "yael") {
+        return `<div class="page-contact">לפרטים נוספים: יעל אביב &nbsp;–&nbsp; 054-7790073 &nbsp;|&nbsp; <a href="mailto:yael_aviv@think.org.il" style="color:inherit;text-decoration:none;">yael_aviv@think.org.il</a></div>`;
+      }
+      if (marketer === "israa") {
+        return `<div class="page-contact">לפרטים נוספים: איסראא אבו-ראס &nbsp;–&nbsp; 054-5419396 &nbsp;|&nbsp; <a href="mailto:esraas@think.org.il" style="color:inherit;text-decoration:none;">esraas@think.org.il</a></div>`;
+      }
+      return "";
+    }
+
+    function footerZoneHTML(pageIndex, contactLine = "") {
+      const hasContact = Boolean(contactLine);
+      return `<div class="page-footer-zone${hasContact ? " has-contact" : ""}">
+        ${contactLine}
+        <footer class="page-footer">
+          <span class="page-number">${pageIndex + 1}</span>
+          <span class="page-footer-org">© כל הזכויות שמורות לתעשיידע – תעשייה למען חינוך מתקדם ע״ר</span>
+        </footer>
+      </div>`;
+    }
+
+    function renderCatalog(filteredActivities) {
+      selectedCount.textContent = `${filteredActivities.length} נבחרו`;
+
+      if (!filteredActivities.length) {
+        const emptySection = document.createElement("section");
+        emptySection.className = "empty-booklet";
+        emptySection.innerHTML = `<strong>לא נבחרו פעילויות</strong>בחר לפחות פעילות אחת כדי לבנות את קטלוג ה־A4.`;
+        booklet.replaceChildren(emptySection);
+        return;
+      }
+
+      const includeCoverLetter = coverLetterCheckbox.checked;
+      const marketer = document.getElementById("marketerSelect").value;
+      const contactLine = contactLineHTML(marketer);
+      const gradeGroupsOrder = ["א-ג", "ד-ו"];
+      const workshopActivities = filteredActivities.filter(a => a.type !== "חדר בריחה" && a.gradeGroup !== "ז-ט");
+      const escapeRoomActivities = filteredActivities.filter(a => a.type === "חדר בריחה");
+      const middleSchoolActivities = filteredActivities.filter(a => a.gradeGroup === "ז-ט");
+      const hasEscape = escapeRoomActivities.length > 0;
+      const hasMiddleSchool = middleSchoolActivities.length > 0;
+
+      const allGroups = gradeGroupsOrder
+        .map(group => ({
+          group,
+          label: formatGradeGroup(group),
+          items: mixActivitiesByDomain(workshopActivities.filter(a => a.gradeGroup === group))
+        }))
+        .filter(g => g.items.length > 0);
+
+      let coverLetterItems = [];
+      let coverLetterGradeLabel = "";
+      if (includeCoverLetter) {
+        const firstGroup = allGroups.find(g => g.items.length > 0);
+        if (firstGroup) {
+          coverLetterItems = firstGroup.items.splice(0, COVER_LETTER_ACTIVITIES);
+          coverLetterGradeLabel = firstGroup.label;
+        }
+      }
+
+      const allGroupPages = allGroups
+        .map(group => ({
+          ...group,
+          pages: chunkActivities(group.items, ACTIVITIES_PER_PAGE)
+        }))
+        .filter(g => g.pages.length > 0);
+
+      const totalWorkshopPages = allGroupPages.reduce((sum, g) => sum + g.pages.length, 0);
+      const totalPages = totalWorkshopPages + (includeCoverLetter ? 1 : 0) + (hasEscape ? 1 : 0) + (hasMiddleSchool ? 1 : 0);
+      const fragment = document.createDocumentFragment();
+      let globalPageIndex = 0;
+      if (includeCoverLetter) {
+        fragment.appendChild(renderCoverLetterPage(coverLetterItems, globalPageIndex, totalPages, coverLetterGradeLabel, contactLine));
+        globalPageIndex++;
+      }
+
+      allGroupPages.forEach(({ label, pages }) => {
+        pages.forEach((items, localIndex) => {
+          fragment.appendChild(renderPage(items, globalPageIndex, totalPages, false, label, localIndex, contactLine));
+          globalPageIndex++;
+        });
+      });
+
+      if (hasEscape) {
+        fragment.appendChild(renderEscapeRoomPage(escapeRoomActivities, globalPageIndex, totalPages, contactLine));
+        globalPageIndex++;
+      }
+
+      if (hasMiddleSchool) {
+        fragment.appendChild(renderMiddleSchoolPage(middleSchoolActivities, globalPageIndex, totalPages, contactLine));
+      }
+
+      booklet.replaceChildren(fragment);
+    }
+
+    
+
+    function uniqueValues(extractor) {
+      return [...new Set(activities.flatMap(extractor))];
+    }
+
+    function renderFilterChips(container, values, key) {
+      container.innerHTML = "";
+      values.forEach(value => {
+        const isChecked = key === "grade" ? selectedGrades.has(value) : selectedDomains.has(value);
+        const label = document.createElement("label");
+        label.className = "filter-chip";
+        const displayValue = key === "grade" ? formatGrade(value) : value;
+        label.innerHTML = `<input type="checkbox" data-filter-key="${key}" data-filter-value="${escapeHTML(value)}" ${isChecked ? "checked" : ""} />${escapeHTML(displayValue)}`;
+        container.appendChild(label);
+      });
+    }
+
+    const GRADE_ORDER = ["א","ב","ג","ד","ה","ו","ז-ט"];
+
+    function formatGrade(grade) {
+      if (grade === "ז-ט") return "ז׳–ט׳";
+      return String(grade ?? "").replace(/[\u05D0-\u05EA]/g, "$&׳");
+    }
+
+    function renderFilters() {
+      renderFilterChips(gradeFilters, GRADE_ORDER, "grade");
+      renderFilterChips(domainFilters, uniqueValues(activity => [activity.domain]), "domain");
+    }
+
+
+    function matchesAdvancedFilters(activity) {
+      const typeMatch = !selectedType || activity.type === selectedType;
+      const gradeMatch = !selectedGrades.size ||
+        (selectedGrades.has("ז-ט") && activity.gradeGroup === "ז-ט") ||
+        activity.grades.some(grade => selectedGrades.has(grade));
+      const domainMatch = !selectedDomains.size || selectedDomains.has(activity.domain);
+      return typeMatch && gradeMatch && domainMatch;
+    }
+
+    function renderPicker() {
+      picker.innerHTML = "";
+
+      const workshopGrid = document.createElement("div");
+      workshopGrid.className = "picker-grid workshops";
+      const escapeGrid = document.createElement("div");
+      escapeGrid.className = "picker-grid escapes";
+
+      activities.forEach((activity, index) => {
+        if (!matchesAdvancedFilters(activity)) return;
+        const label = document.createElement("label");
+        label.className = "activity-option" + (selected.has(index) ? " selected" : "");
+        label.style.setProperty("--option-accent", activity.accent || "#203b7a");
+        label.innerHTML = `
+          <input type="checkbox" data-index="${index}" ${selected.has(index) ? "checked" : ""} />
+          <span class="option-card">
+            <span class="checkmark" aria-hidden="true"></span>
+            <span>
+              <span class="option-title">${escapeHTML(activity.title)}</span>
+              <span class="option-meta"><span class="type-pill">${escapeHTML(activity.type)}</span> · ${escapeHTML(activity.domain)} · ${escapeHTML(activity.grades.map(formatGrade).join(", "))}</span>
+            </span>
+          </span>`;
+        if (activity.type === "חדר בריחה") {
+          escapeGrid.appendChild(label);
+        } else {
+          workshopGrid.appendChild(label);
+        }
+      });
+
+      if (workshopGrid.children.length) {
+        const lbl = document.createElement("p");
+        lbl.className = "picker-section-label";
+        lbl.textContent = "סדנאות";
+        picker.appendChild(lbl);
+        picker.appendChild(workshopGrid);
+      }
+      if (escapeGrid.children.length) {
+        const lbl = document.createElement("p");
+        lbl.className = "picker-section-label";
+        lbl.textContent = "חדרי בריחה";
+        picker.appendChild(lbl);
+        picker.appendChild(escapeGrid);
+      }
+    }
+
+    function updateCount() {
+      const sel = getSelectedActivities();
+      selectedCount.textContent = `נבחרו ${sel.length} פעילויות`;
+      catalogModeBtn.disabled = sel.length === 0;
+      document.querySelectorAll("[data-action]").forEach(button => {
+        const action = button.dataset.action;
+        const active = (selectedType === null && action === "all" && sel.length === activities.length && activities.length > 0) ||
+          (selectedType === "סדנה" && action === "workshops") ||
+          (selectedType === "חדר בריחה" && action === "escapes");
+        button.classList.toggle("is-active", active && !button.classList.contains("secondary-action"));
+      });
+    }
+
+    function renderSelection() {
+      renderFilters();
+      renderPicker();
+      updateCount();
+    }
+
+    catalogTypeGrid.addEventListener("click", event => {
+      const typeButton = event.target.closest("[data-catalog-type]");
+      if (!typeButton) return;
+      const typeKey = typeButton.dataset.catalogType;
+      if (typeKey === "workshops") {
+        showWorkshopInterface();
+        return;
+      }
+      if (typeKey.startsWith("courses-")) {
+        const preset = typeKey.replace("courses-", "");
+        applyCoursePreset(preset);
+        return;
+      }
+      showProgramGateway(typeKey);
+    });
+
+    programGrid.addEventListener("click", event => {
+      const programButton = event.target.closest("[data-program-id]");
+      if (!programButton) return;
+      selectedProgram = programButton.dataset.programId;
+      window.location.href = `./course-page.html?id=${encodeURIComponent(selectedProgram)}`;
+    });
+
+    document.addEventListener("click", event => {
+      if (!event.target.closest("[data-gateway-back]")) return;
+      showMainGateway();
+    });
+
+    picker.addEventListener("change", event => {
+      const checkbox = event.target.closest('input[type="checkbox"][data-index]');
+      if (!checkbox) return;
+      const index = Number(checkbox.dataset.index);
+      checkbox.checked ? selected.add(index) : selected.delete(index);
+      renderSelection();
+    });
+
+    document.addEventListener("change", event => {
+      const filterInput = event.target.closest("input[data-filter-key]");
+      if (!filterInput) return;
+      const { filterKey, filterValue } = filterInput.dataset;
+      const bucket = filterKey === "grade" ? selectedGrades : selectedDomains;
+
+      if (filterInput.checked) {
+        bucket.add(filterValue);
+        activities.forEach((activity, index) => {
+              const matches = filterKey === "grade"
+            ? (filterValue === "ז-ט" ? activity.gradeGroup === "ז-ט" : activity.grades.includes(filterValue) && activity.type !== "חדר בריחה")
+            : activity.domain === filterValue;
+          if (matches) selected.add(index);
+        });
+      } else {
+        bucket.delete(filterValue);
+        activities.forEach((activity, index) => {
+          const matches = filterKey === "grade"
+            ? (filterValue === "ז-ט" ? activity.gradeGroup === "ז-ט" : activity.grades.includes(filterValue) && activity.type !== "חדר בריחה")
+            : activity.domain === filterValue;
+          if (!matches) return;
+          const coveredByGrade = activity.grades.some(g => selectedGrades.has(g));
+          const coveredByDomain = selectedDomains.has(activity.domain);
+          if (!coveredByGrade && !coveredByDomain) selected.delete(index);
+        });
+      }
+      renderSelection();
+    });
+
+    async function waitForCatalogImages(timeout = 2500) {
+      const images = [...booklet.querySelectorAll("img")].filter(img => !img.complete);
+      if (!images.length) return;
+      await Promise.race([
+        Promise.allSettled(images.map(img => img.decode ? img.decode().catch(() => undefined) : new Promise(resolve => {
+          img.addEventListener("load", resolve, { once: true });
+          img.addEventListener("error", resolve, { once: true });
+        }))),
+        new Promise(resolve => setTimeout(resolve, timeout))
+      ]);
+    }
+
+    catalogModeBtn.addEventListener("click", async () => {
+      catalogModeBtn.disabled = true;
+      try {
+        renderCatalog(getSelectedActivities());
+        document.body.classList.remove("is-course-catalog");
+        document.body.classList.add("catalog-mode");
+        await waitForCatalogImages();
+      } finally {
+        catalogModeBtn.disabled = getSelectedActivities().length === 0;
+      }
+    });
+
+    document.getElementById("backBtn").addEventListener("click", () => {
+      document.body.classList.remove("catalog-mode");
+    });
+
+    coursePicker.addEventListener("change", event => {
+      const checkbox = event.target.closest('input[type="checkbox"][data-course-id]');
+      if (!checkbox) return;
+      checkbox.checked ? selectedCourses.add(checkbox.dataset.courseId) : selectedCourses.delete(checkbox.dataset.courseId);
+      selectedCoursePreset = "manual";
+      renderCourseSelection();
+    });
+
+    courseLevelFilter.addEventListener("change", renderCourseSelection);
+
+    toggleCoursePickerBtn.addEventListener("click", () => {
+      courseManualOpen = !courseManualOpen;
+      selectedCoursePreset = courseManualOpen && !selectedCoursePreset ? "manual" : selectedCoursePreset;
+      renderCourseSelection();
+    });
+
+    courseClearBtn.addEventListener("click", () => {
+      selectedCourses.clear();
+      selectedCoursePreset = null;
+      renderCourseSelection();
+    });
+
+    courseCatalogModeBtn.addEventListener("click", () => {
+      if (!selectedCourses.size) return;
+      window.location.href = buildCourseCatalogUrl();
+    });
+
+    document.addEventListener("click", event => {
+      const actionButton = event.target.closest("[data-course-action]");
+      if (!actionButton) return;
+      applyCoursePreset(actionButton.dataset.courseAction);
+    });
+
+    document.addEventListener("click", event => {
+      const actionButton = event.target.closest("[data-course-manual]");
+      if (!actionButton) return;
+      const visible = visibleCoursePrograms();
+      if (actionButton.dataset.courseManual === "select-visible") {
+        visible.forEach(program => selectedCourses.add(program.id));
+      } else if (actionButton.dataset.courseManual === "clear-visible") {
+        selectedCourses.clear();
+      }
+      selectedCoursePreset = "manual";
+      courseManualOpen = true;
+      renderCourseSelection();
+    });
+
+    const selectorPanel = document.getElementById("selectorPanel");
+    const togglePickerBtn = document.getElementById("togglePickerBtn");
+    togglePickerBtn.addEventListener("click", () => {
+      const isCollapsed = selectorPanel.classList.toggle("collapsed");
+      togglePickerBtn.textContent = isCollapsed ? "▾ בחר פעילויות" : "▴ סגור";
+    });
+
+
+    document.addEventListener("click", event => {
+      const actionButton = event.target.closest("[data-action]");
+      if (!actionButton) return;
+      const action = actionButton.dataset.action;
+      selected.clear();
+      selectedGrades.clear();
+      selectedDomains.clear();
+
+      if (action === "all") {
+        selectedType = null;
+        activities.forEach((_, index) => selected.add(index));
+        GRADE_ORDER.forEach(g => selectedGrades.add(g));
+        uniqueValues(a => [a.domain]).forEach(d => selectedDomains.add(d));
+      } else if (action === "none" || action === "manual") {
+        selectedType = null;
+      } else if (action === "workshops") {
+        selectedType = "סדנה";
+        activities.forEach((activity, index) => { if (activity.type === "סדנה") selected.add(index); });
+      } else if (action === "escapes") {
+        selectedType = "חדר בריחה";
+        activities.forEach((activity, index) => { if (activity.type === "חדר בריחה") selected.add(index); });
+      }
+
+      renderSelection();
+      if (action === "manual") {
+        selectorPanel.classList.remove("collapsed");
+        togglePickerBtn.textContent = "▴ סגור";
+      }
+    });
+
+    async function init() {
+      try {
+        catalogPrograms = await loadCatalogPrograms();
+        catalogLoadError = null;
+      } catch (error) {
+        console.error(error);
+        catalogPrograms = [];
+        catalogLoadError = error;
+      }
+
+      try {
+        activities = await loadActivities();
+        renderSelection();
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("catalog") === "workshops") {
+          showWorkshopInterface();
+        } else {
+          applyCoursePreset("manual");
+        }
+      } catch (error) {
+        console.error(error);
+        selectedCount.textContent = "0 נבחרו";
+        picker.innerHTML = "";
+        booklet.innerHTML = `<section class="empty-booklet"><strong>שגיאה בטעינת פעילויות</strong>לא ניתן היה לטעון את activities.json.</section>`;
+      }
+    }
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js?v=210").then(registration => registration.update());
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

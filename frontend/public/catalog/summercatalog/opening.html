@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" class="course-intro-page">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>קטלוג התוכניות החינוכיות של תעשיידע | תשפ״ז</title>
+  <style>
+    :root {
+      --ink: #1f2f3d;
+      --muted: #5f7180;
+      --blue: #1c6fa8;
+      --teal: #2f9c95;
+      --green: #3da66b;
+      --yellow: #fee346;
+      --paper: #ffffff;
+      --soft: #f3f8fb;
+      --line: rgba(31, 47, 61, 0.12);
+      --intro-margin-inline: 18mm;
+      --intro-margin-top: 17mm;
+      --intro-margin-bottom: 15mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    html.course-intro-page,
+    body.course-intro-page {
+      margin: 0;
+      padding: 0;
+      width: 210mm;
+      height: 297mm;
+      min-height: 297mm;
+      max-height: 297mm;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+
+    .course-intro-sheet {
+      width: 210mm;
+      height: 297mm;
+      min-height: 297mm;
+      max-height: 297mm;
+      background: var(--paper);
+      position: relative;
+      overflow: hidden;
+      padding: var(--intro-margin-top) var(--intro-margin-inline) var(--intro-margin-bottom);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .course-intro-sheet::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, transparent 0 72%, rgba(28, 111, 168, 0.05) 72% 100%),
+        radial-gradient(circle at 9% 88%, rgba(254, 227, 70, 0.28), transparent 22%),
+        radial-gradient(circle at 95% 9%, rgba(47, 156, 149, 0.15), transparent 24%);
+      pointer-events: none;
+    }
+
+    .accent-shape {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 215px;
+      height: 215px;
+      background: linear-gradient(135deg, rgba(28, 111, 168, 0.14), rgba(47, 156, 149, 0.12));
+      border-bottom-left-radius: 100%;
+    }
+
+    .page-logo {
+      position: relative;
+      z-index: 3;
+      display: block;
+      width: 118px;
+      max-height: 68px;
+      object-fit: contain;
+      flex-shrink: 0;
+      align-self: flex-end;
+      margin: 0 0 10px;
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      max-width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .eyebrow {
+      display: block;
+      margin: 6px 0 24px;
+      padding: 0;
+      border: none;
+      border-radius: 0;
+      background: none;
+      color: #247c76;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 35px;
+      line-height: 1.14;
+      letter-spacing: -0.35px;
+      color: var(--ink);
+      max-width: 100%;
+    }
+
+    .subtitle {
+      margin: 13px 0 0;
+      font-size: 22px;
+      line-height: 1.35;
+      font-weight: 700;
+      color: var(--blue);
+    }
+
+    .title-continued {
+      margin-top: 8px;
+      font-size: 28px;
+      color: var(--ink);
+    }
+
+    .domain-line {
+      margin-top: 10px;
+    }
+
+    .meta {
+      margin: 8px 0 34px;
+      font-size: 19px;
+      line-height: 1.35;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .text-block {
+      display: grid;
+      gap: 11px;
+      font-size: 16.7px;
+      line-height: 1.58;
+      color: #263846;
+    }
+
+    p {
+      margin: 0;
+    }
+
+    .course-intro-gefen-box {
+      width: fit-content;
+      max-width: calc(100% - 12mm);
+      margin: 11px auto;
+      padding: 8px 18px;
+      border: 2px solid #3da66b;
+      border-right: 7px solid #2f8f5b;
+      background: linear-gradient(90deg, rgba(61, 166, 107, 0.14), rgba(61, 166, 107, 0.045));
+      border-radius: 16px;
+      font-weight: 700;
+      color: #243646;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .invite-text {
+      font-size: 16.2px;
+    }
+
+    .closing {
+      margin-top: auto;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .tagline-row {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      direction: rtl;
+      text-align: center;
+    }
+
+    .brand-logo {
+      width: 58px;
+      height: 52px;
+      object-fit: contain;
+      flex: 0 0 auto;
+      margin-top: -2px;
+    }
+
+    .tagline-main {
+      margin: 0;
+      font-size: 23px;
+      line-height: 1.2;
+      font-weight: 800;
+      color: #4e5f65;
+      letter-spacing: -0.15px;
+    }
+
+    .tagline-sub {
+      margin: 2px 0 0;
+      font-size: 22px;
+      line-height: 1.2;
+      font-weight: 800;
+      letter-spacing: -0.12px;
+    }
+
+    .tagline-sub .innovation {
+      color: #f1aa3f;
+    }
+
+    .tagline-sub .curiosity {
+      color: #51c9d2;
+    }
+
+    .tagline-sub .entrepreneurship {
+      color: #e84f89;
+    }
+
+    @media print {
+      html.course-intro-page,
+      body.course-intro-page {
+        width: 210mm !important;
+        height: 297mm !important;
+        min-height: 297mm !important;
+        max-height: 297mm !important;
+        overflow: hidden !important;
+        background: #ffffff !important;
+      }
+
+      .course-intro-sheet {
+        width: 210mm !important;
+        height: 297mm !important;
+        min-height: 297mm !important;
+        max-height: 297mm !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        page-break-after: always;
+        break-after: page;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .course-intro-gefen-box {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+
+    @media (max-width: 760px) {
+      html.course-intro-page,
+      body.course-intro-page {
+        width: 100%;
+        height: auto;
+        min-height: 100vh;
+        max-height: none;
+        overflow: auto;
+      }
+
+      .course-intro-sheet {
+        width: min(100%, 210mm);
+        height: auto;
+        min-height: 297mm;
+        max-height: none;
+        padding: 46px 28px 52px;
+      }
+
+      .course-intro-gefen-box {
+        max-width: 100%;
+        white-space: normal;
+      }
+
+      .page-logo {
+        width: 105px;
+        align-self: flex-end;
+        margin-bottom: 10px;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+
+      .subtitle {
+        font-size: 22px;
+      }
+
+      .meta {
+        font-size: 19px;
+        margin-bottom: 36px;
+      }
+
+      .text-block {
+        font-size: 17.5px;
+        line-height: 1.62;
+      }
+
+      .tagline-main {
+        font-size: 20px;
+      }
+
+      .tagline-sub {
+        font-size: 19px;
+      }
+    }
+  </style>
+</head>
+<body class="course-intro-page">
+  <main class="course-intro-sheet" aria-label="עמוד פתיחה לקטלוג התוכניות החינוכיות של תעשיידע תשפז">
+    <div class="accent-shape"></div>
+    <img class="page-logo" src="logo.png" alt="לוגו תעשיידע" />
+
+    <section class="content">
+      <p class="eyebrow">קטלוג תשפ״ז</p>
+
+      <h1>קטלוג התוכניות החינוכיות</h1>
+      <p class="subtitle title-continued">של תעשיידע | תשפ״ז</p>
+      <p class="subtitle domain-line">בתחומי המדע והטכנולוגיה</p>
+      <p class="meta">כיתות א׳–י״ב | בפריסה ארצית</p>
+
+      <div class="text-block">
+        <p>תעשיידע היא עמותה חינוכית מיסודה של התאחדות התעשיינים בישראל,<br />הפועלת מאז שנת 1992 לחיבור בין מערכת החינוך לבין התעשייה בתחומי המדע והטכנולוגיה.</p>
+
+        <p>לאורך השנים פיתחה והפעילה העמותה תוכניות חינוכיות בבתי ספר ברחבי הארץ, מתוך היכרות עמוקה עם צורכי השטח, עם עבודת הצוותים החינוכיים ועם האתגרים של למידה משמעותית בבית הספר.</p>
+
+        <p>בקטלוג תשפ״ז ריכזנו מגוון תוכניות חינוכיות המשלבות תוכן פדגוגי איכותי, התנסות חווייתית ותהליכי למידה מעשיים. התוכניות מזמינות את התלמידות והתלמידים לשאול שאלות, לחקור, לבנות, ליצור, לעבוד יחד ולהציג תוצרים ורעיונות באופן ברור ובטוח.</p>
+
+        <p>דרך ההתנסות בתוכניות נחשפים המשתתפים לכלים ולמיומנויות הנדרשים במאה ה-21: חשיבה ביקורתית ויצירתית, פתרון בעיות, עבודת צוות, תקשורת בין-אישית, אוריינות מדעית וטכנולוגית, שימוש מושכל בכלים דיגיטליים, קבלת משוב, שיפור רעיונות והצגה בפני קהל.<br />מיומנויות אלו משתלבות בתוך הפעילות באופן טבעי, מתוך עשייה, חקר והתנסות ולא כלמידה מנותקת מהעולם האמיתי.</p>
+
+        <p>כל תוכנית נבנית מתוך מחשבה על התאמה לגיל, למטרות הלמידה ולמסגרת הבית-ספרית.<br />ההפעלה מתבצעת על ידי מדריכים מקצועיים, בליווי צוותי התוכן והפדגוגיה של תעשיידע ובאופן המאפשר לבית הספר לשלב את הפעילות כחלק ממענה חינוכי רחב, רלוונטי ומעשי.</p>
+
+        <p class="course-intro-gefen-box">תוכניות תעשיידע נמצאות במאגר התוכניות והמענים שאושרו במסלול המכרזי בגפ״ן.</p>
+
+        <p class="invite-text">אנו מזמינים אתכם לעיין בקטלוג ולבחור את התוכניות המתאימות לבית הספר שלכם — תוכניות שמחברות בין ידע לעשייה, בין סקרנות להתנסות ובין למידה לחוויות הצלחה.</p>
+      </div>
+
+      <div class="closing">
+        <div class="tagline-row" aria-label="סלוגן תעשיידע">
+          <img class="brand-logo" src="signature-logo.png" alt="לוגו חתימת תעשיידע" />
+          <div class="tagline-copy">
+            <p class="tagline-main">תעשיידע - מובילים דור אחד קדימה</p>
+            <p class="tagline-sub">
+              <span class="innovation">בחדשנות,</span>
+              <span class="curiosity">סקרנות</span>
+              <span class="entrepreneurship">ויזמות טכנולוגית.</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js?v=210").then(registration => registration.update());
+      });
+    }
+  </script>
+</body>
+</html>

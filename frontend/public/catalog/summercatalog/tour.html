@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>סיור בתעשייה - תעשיידע</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#1F2A35;
+  --text:#2C3A47;
+  --muted:#64717E;
+  --blue:#315F7D;
+  --blue-dark:#203A4F;
+  --blue-soft:#E7EEF4;
+  --blue-soft-2:#F3F6F8;
+  --gray:#ECEFF3;
+  --gray-2:#F7F8FA;
+  --blue-gray-light:#DFE8EF;
+  --line:#D6DEE7;
+  --line-dark:#B9C6D3;
+  --white:#FFFFFF;
+}
+html,body{
+  width:100%;
+  min-height:100%;
+  font-family:"Assistant",Arial,sans-serif;
+  direction:rtl;
+  color:var(--ink);
+  background:var(--gray);
+}
+body,button,input,textarea,select{font-family:"Assistant",Arial,sans-serif}
+.page-wrap{
+  min-height:100vh;
+  padding:18px 10px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+.a4{
+  width:210mm;
+  min-height:297mm;
+  max-height:297mm;
+  background:var(--white);
+  border:1px solid #D7DEE6;
+  box-shadow:0 4px 18px rgba(0,0,0,.08);
+  padding:6mm 9mm 0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  position:relative;
+}
+.a4::before{
+  content:"";
+  position:absolute;
+  top:0;right:0;left:0;
+  height:3px;
+  background:linear-gradient(90deg,var(--gray) 0%,var(--blue-gray-light) 28%,var(--blue) 50%,var(--blue-gray-light) 72%,var(--gray) 100%);
+}
+.top-row{
+  height:27px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  margin-bottom:2.2mm;
+}
+.logo-img{
+  position:absolute;
+  left:0;
+  top:50%;
+  transform:translateY(-50%);
+  height:44px;
+  width:auto;
+  object-fit:contain;
+}
+.meta{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  padding:3px 12px 4px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--white);
+  color:var(--ink);
+  font-size:11px;
+  line-height:1.5;
+  font-weight:700;
+}
+.dot{width:3px;height:3px;border-radius:50%;background:#AEB8C3;display:inline-block}
+.opening{
+  width:100%;
+  padding:6px 13px;
+  margin-bottom:3mm;
+  border:1px solid var(--line);
+  border-right:4px solid var(--blue-gray-light);
+  border-radius:8px;
+  background:var(--blue-soft-2);
+  text-align:center;
+  font-size:13.05px;
+  line-height:1.5;
+  font-weight:500;
+  color:#243648;
+}
+.header{
+  text-align:center;
+  margin-bottom:3mm;
+}
+.kicker{
+  display:inline-block;
+  margin-bottom:3px;
+  padding:2px 13px 3px;
+  border-radius:999px;
+  background:var(--blue-soft);
+  color:var(--blue-dark);
+  border:1px solid var(--blue-gray-light);
+  font-size:11.6px;
+  line-height:1.5;
+  font-weight:800;
+}
+h1{
+  color:var(--blue-dark);
+  font-size:30px;
+  line-height:1.5;
+  font-weight:900;
+  margin-bottom:3px;
+}
+.subtitle{
+  font-size:13.7px;
+  line-height:1.5;
+  font-weight:600;
+  color:#1F2A35;
+}
+.header::after{
+  content:"";
+  display:block;
+  width:88mm;
+  height:1px;
+  margin:7px auto 0;
+  background:linear-gradient(90deg,rgba(255,255,255,0),#C3D0DC,var(--blue),#C3D0DC,rgba(255,255,255,0));
+}
+.body{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+.section-title{
+  color:var(--blue-dark);
+  font-size:13.6px;
+  font-weight:850;
+  line-height:1.5;
+  margin-bottom:4px;
+}
+.text{
+  font-size:11.55px;
+  line-height:1.5;
+  color:var(--text);
+  font-weight:400;
+}
+.text p{margin:0 0 5.2px}
+.text p:last-child{margin-bottom:0}
+.intro-box{
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--white);
+  padding:8px 10px 7px;
+  margin-bottom:7px;
+}
+.intro-box .text{
+  column-count:2;
+  column-gap:16px;
+  column-rule:1px solid #E7EDF2;
+  font-size:11.4px;
+  line-height:1.5;
+}
+.goal-strip{
+  display:grid;
+  grid-template-columns:1.05fr .95fr;
+  gap:8px;
+  margin-bottom:7px;
+}
+.goal-card,
+.option-card{
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--blue-soft-2);
+  padding:7px 9px;
+}
+.goal-card .text,
+.option-card .text{
+  font-size:11.35px;
+  line-height:1.5;
+}
+.options-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.option-title{
+  color:var(--blue-dark);
+  font-size:12px;
+  line-height:1.5;
+  font-weight:800;
+  margin-bottom:3px;
+}
+.process{
+  border:1px solid var(--line-dark);
+  border-radius:10px;
+  overflow:hidden;
+  background:var(--white);
+  margin-bottom:7px;
+}
+.process-head{
+  background:linear-gradient(90deg,var(--blue-soft-2),var(--blue-gray-light));
+  border-bottom:1px solid var(--line);
+  padding:5px 10px;
+  color:var(--blue-dark);
+  font-size:13.3px;
+  line-height:1.5;
+  font-weight:850;
+}
+.steps{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+}
+.step{
+  padding:7px 9px 8px;
+  border-left:1px solid var(--line);
+  background:var(--white);
+}
+.step:last-child{border-left:none}
+.step-num{
+  width:22px;height:22px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  background:var(--blue-dark);
+  color:white;
+  font-size:11px;
+  font-weight:800;
+  margin-bottom:4px;
+}
+.step-title{
+  color:var(--ink);
+  font-size:11.9px;
+  line-height:1.5;
+  font-weight:800;
+  margin-bottom:3px;
+}
+.step-desc{
+  color:var(--text);
+  font-size:10.85px;
+  line-height:1.5;
+  font-weight:400;
+}
+.skills-wrap{
+  display:grid;
+  grid-template-columns:95px 1fr;
+  gap:10px;
+  align-items:start;
+  margin-bottom:7px;
+}
+.skills-wrap .section-title{margin-top:4px}
+.skills{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:5px;
+}
+.skill{
+  min-height:23px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:4px 6px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--white);
+  color:#2F3E4D;
+  font-size:10.8px;
+  line-height:1.5;
+  font-weight:500;
+}
+.uniqueness{
+  border:1px solid #C6D3DF;
+  border-right:5px solid var(--blue);
+  border-radius:10px;
+  background:linear-gradient(90deg,var(--white),var(--blue-soft));
+  padding:8px 10px 8px;
+  margin-top:auto;
+  margin-bottom:6px;
+}
+.uniqueness .text{
+  font-size:11.35px;
+  line-height:1.5;
+}
+.footer{
+  margin:0 -9mm;
+  padding:6px 9mm 7px;
+  border-top:1px solid var(--line);
+  background:var(--blue-soft-2);
+  color:var(--blue-dark);
+  text-align:center;
+  font-size:9.8px;
+  line-height:1.5;
+  font-weight:500;
+}
+.page-actions{
+  position:fixed;
+  left:16px;
+  bottom:16px;
+  z-index:9999;
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+.page-actions .action-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:84px;
+  height:36px;
+  padding:0 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:800;
+  line-height:1;
+  text-decoration:none;
+  cursor:pointer;
+  box-sizing:border-box;
+  white-space:nowrap;
+  box-shadow:0 4px 12px rgba(0,0,0,.16);
+}
+.page-actions .back-btn{
+  border:1px solid #C7D1DA;
+  background:#fff;
+  color:#3A4E62;
+}
+.page-actions .back-btn:hover{
+  background:#EEF2F5;
+  border-color:#9AAAB8;
+}
+.page-actions .print-btn{
+  border:1px solid #D8E1E8;
+  background:#263443;
+  color:#fff;
+}
+.page-actions .print-btn:hover{
+  opacity:.92;
+}
+@page{size:A4;margin:0}
+@media print{
+  html,body{width:210mm;min-width:210mm;background:white;overflow:visible}
+  .page-wrap{padding:0;display:block;background:white}
+  .a4{width:210mm;min-width:210mm;max-width:210mm;height:297mm;min-height:297mm;max-height:297mm;border:none;box-shadow:none;margin:0;padding:6mm 9mm 0;page-break-after:always;break-after:page}
+  .page-actions{display:none}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+@media screen and (max-width:820px){.a4{max-width:calc(100vw - 20px);height:auto;max-height:none}.page-wrap{padding:10px}.intro-box .text{column-count:1}.goal-strip,.options-grid,.steps,.skills-wrap{grid-template-columns:1fr}.step{border-left:none;border-bottom:1px solid var(--line)}.step:last-child{border-bottom:none}.skills{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="page-wrap">
+  <main class="a4">
+    <div class="top-row">
+      <img class="logo-img" src="logo.png" alt="לוגו תעשיידע" />
+      <div class="meta">
+        <span>סיור</span><span class="dot"></span><span>התנסות בתעשייה</span><span class="dot"></span><span>מספר גפ"ן 13990</span>
+      </div>
+    </div>
+
+    <div class="opening">
+      סיור חווייתי שמוציא את התלמידים מגבולות הכיתה וחושף אותם לעולמות העבודה, התעשייה, ההייטק והחדשנות בישראל.
+    </div>
+
+    <header class="header">
+      <div class="kicker">סיור בתעשייה</div>
+      <h1>התנסות בתעשייה</h1>
+      <p class="subtitle">מפגש חי עם תהליכי עבודה, טכנולוגיה, חדשנות ואנשים מעוררי השראה</p>
+    </header>
+
+    <div class="body">
+      <section class="intro-box">
+        <div class="section-title">על התוכנית</div>
+        <div class="text">
+          <p>בעולם שבו תלמידות ותלמידים נדרשים לחשוב קדימה, להכיר אפשרויות, להבין תהליכים ולהתחבר לעולמות מקצועיים מגוונים, הלמידה אינה יכולה להישאר רק בין כתלי הכיתה. סיור בתעשייה מאפשר להם לפגוש מקרוב את המקומות שבהם רעיונות הופכים למוצרים, טכנולוגיות מתפתחות לפתרונות, ואנשים בתפקידים שונים משתפים בסיפור המקצועי והאישי שלהם.</p>
+          <p>“התנסות בתעשייה” היא תוכנית סיור חווייתית, ממוקדת ומותאמת אישית, החושפת תלמידות ותלמידים לעולם העבודה המודרני דרך מפגש ישיר עם אתרי תעשייה, חברות הייטק, מרכזי חדשנות, מפעלים וארגונים מובילים ברחבי הארץ. במהלך הסיור נחשפים המשתתפים לתהליכי ייצור, פיתוח מוצרים, חדשנות הנדסית, טכנולוגיות מתקדמות, עבודת צוות מקצועית ואתגרים אמיתיים המאפיינים את עולם התעסוקה של ימינו.</p>
+          <p>הייחוד של הסיור אינו רק ביציאה מהכיתה, אלא באופן שבו החוויה נבנית. כל סיור מותאם לרקע הפדגוגי, לגיל המשתתפים, לתחומי הלימוד ולמטרות בית הספר. תעשיידע מחברת בין צורכי המוסד החינוכי לבין אתר הסיור המתאים, כך שהמפגש בשטח יהיה רלוונטי, מדויק ובעל ערך חינוכי ממשי. התלמידים אינם רק צופים מבחוץ; הם מקשיבים, שואלים, מתבוננים, מזהים תהליכים ומתחילים להבין כיצד ידע, מיומנויות, התמדה ויצירתיות באים לידי ביטוי בעולם האמיתי.</p>
+          <p>הסיור מפגיש את המשתתפים עם אנשי מקצוע ממגוון תחומים ותפקידים, ומאפשר להם להיחשף למסלולי קריירה, סיפורי התפתחות אישיים, תהליכי קבלת החלטות ואתגרים מקצועיים. דרך המפגש האנושי נוצר חיבור טבעי בין הלמידה בבית הספר לבין אפשרויות העתיד. עבור תלמידים רבים, זו הזדמנות ראשונה לראות כיצד תחומי מדע, טכנולוגיה, הנדסה, עיצוב, ייצור, ניהול, תקשורת ושירות משתלבים יחד בתוך מערכת אחת חיה ופועלת.</p>
+        </div>
+      </section>
+
+      <div class="goal-strip">
+        <section class="goal-card">
+          <div class="section-title">מטרת התוכנית</div>
+          <div class="text">מטרת התוכנית היא לחבר בין מערכת החינוך לבין עולם העבודה בישראל, ולעודד תלמידות ותלמידים לחשוב על עתידם הלימודי, האישי והתעסוקתי מתוך סקרנות, מסוגלות והשראה. הסיור מרחיב את תפיסת העולם של המשתתפים, מחזק ביטחון עצמי, מעודד יוזמה ומזמין אותם לראות בלמידה כלי משמעותי להתפתחות ולהשפעה.</div>
+        </section>
+        <section class="goal-card">
+          <div class="section-title">אפשרויות הפעלה</div>
+          <div class="options-grid">
+            <div class="option-card">
+              <div class="option-title">סיור חד-יומי</div>
+              <div class="text">ביקור ממוקד באתר תעשייה, חברת הייטק, מרכז חדשנות או ארגון מוביל, הכולל חשיפה לעשייה מקצועית, מפגש עם בעלי תפקידים ושיח מעורר השראה.</div>
+            </div>
+            <div class="option-card">
+              <div class="option-title">חבילת 3 מפגשים</div>
+              <div class="text">מודל תהליכי קצר הכולל הכנה, סיור ועיבוד. החבילה מעמיקה את החוויה והופכת את הביקור לתהליך חינוכי שלם יותר.</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="process">
+        <div class="process-head">מהלך חבילת 3 המפגשים</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-title">מפגש פתיחה והכנה לקראת הסיור</div>
+            <div class="step-desc">במפגש המקדים התלמידים נחשפים לחברה או לארגון המארח, לתחום הפעילות המרכזי, למושגים מקצועיים בסיסיים ולשאלות חקר שילוו אותם במהלך הסיור. המפגש מכין אותם להתבוננות פעילה, מסייע להם להבין מה הם עומדים לראות, ומעודד אותם להגיע לסיור כשהם סקרנים, מעורבים ומוכנים לשאול שאלות משמעותיות.</div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-title">מפגש הסיור בתעשייה</div>
+            <div class="step-desc">במפגש המרכזי יוצאים התלמידים אל השטח ונחשפים מקרוב לעשייה תעשייתית, טכנולוגית או ארגונית. הם פוגשים אנשי מקצוע, מכירים תהליכי עבודה, רואים כיצד רעיון מתפתח לכדי מוצר או שירות, ומבינים את הקשר בין ידע, מיומנויות, אחריות, עבודת צוות וחדשנות. הסיור מאפשר חוויה מוחשית, בלתי אמצעית ומעוררת השראה.</div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-title">מפגש סיכום, עיבוד והטמעת ההשראה</div>
+            <div class="step-desc">לאחר הסיור מתקיים מפגש עיבוד שבו התלמידים חוזרים אל החוויה, משתפים בתובנות, מחברים בין מה שראו לבין הלמידה בבית הספר, ומנסחים לעצמם מה לקחו מהמפגש עם עולם העבודה. זהו שלב חשוב שבו תעשיידע מסייעת להטמיע את ההשפעה החיובית של הסיור, לחזק את תחושת המסוגלות, ולעודד את התלמידים לחשוב על המשך הדרך שלהם מתוך השראה, אחריות וביטחון.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="skills-wrap">
+        <div class="section-title">כלים ומיומנויות</div>
+        <div class="skills">
+          <div class="skill">אוריינות תעסוקתית</div>
+          <div class="skill">תקשורת עם אנשי מקצוע</div>
+          <div class="skill">שאילת שאלות</div>
+          <div class="skill">חשיבה ביקורתית</div>
+          <div class="skill">ניתוח תהליכים</div>
+          <div class="skill">הבנת אתגרי עולם העבודה</div>
+          <div class="skill">עבודת צוות</div>
+          <div class="skill">סקרנות ויוזמה</div>
+          <div class="skill">הצגת תובנות</div>
+        </div>
+      </section>
+
+      <section class="uniqueness">
+        <div class="section-title">ייחודיות</div>
+        <div class="text">
+          הסיור מחזק מיומנויות חשובות כגון אוריינות תעסוקתית, תקשורת עם אנשי מקצוע, שאילת שאלות, חשיבה ביקורתית, ניתוח תהליכים, הבנת אתגרים מהעולם האמיתי, עבודת צוות, סקרנות, יוזמה והצגה של תובנות. מעבר לחשיפה המקצועית, הוא מעניק לתלמידים חוויה שמרחיבה אופקים ומחברת בין לימודים, יכולות אישיות והזדמנויות עתידיות. עבור בית הספר, “התנסות בתעשייה” היא דרך איכותית להוציא את הלמידה אל העולם, לחזק את הרלוונטיות של התוכן הנלמד, וליצור עבור התלמידים מפגש משמעותי עם תעשייה, חדשנות ואנשים מעוררי השראה. זהו סיור שמתחיל בביקור, אך יכול להמשיך הרבה מעבר אליו - בשיחה, במחשבה, בבחירה ובתחושת האפשרות שנפתחת בפני התלמידים.
+        </div>
+      </section>
+    </div>
+
+    <footer class="footer">
+      © כל הזכויות שמורות לתעשיידע – תעשייה למען חינוך מתקדם ע״ר
+    </footer>
+  </main>
+</div>
+
+<div class="page-actions" aria-label="פעולות עמוד">
+  <a class="action-btn back-btn" href="./index.html">← חזרה</a>
+  <button class="action-btn print-btn" type="button" onclick="window.print()">PDF</button>
+</div>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js?v=210").then(registration => registration.update());
+    });
+  }
+</script>
+</body>
+</html>

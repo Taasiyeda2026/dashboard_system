@@ -1,0 +1,6289 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>קטלוג תוכניות – תעשיידע</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+ font-family: "Assistant", Arial, sans-serif;
+ direction: rtl;
+ background: #EEF2F5;
+ color: #1E2D3D;
+}
+.a4, .a4 * { text-rendering: optimizeLegibility; }
+
+.nav {
+ display: flex;
+ gap: 6px;
+ flex-wrap: wrap;
+ padding: 11px 18px 9px;
+ border-bottom: 1px solid #D6DEE6;
+ background: #F7F9FB;
+ position: sticky;
+ top: 0;
+ z-index: 10;
+}
+.nav-btn {
+ font-size: 11px;
+ padding: 4px 11px;
+ border-radius: 20px;
+ border: 1px solid #C7D1DA;
+ background: #fff;
+ color: #3A4E62;
+ cursor: pointer;
+ font-family: "Assistant", Arial, sans-serif;
+ font-weight: bold;
+ transition: all .15s;
+ white-space: nowrap;
+}
+.nav-btn.active,
+.nav-btn:hover {
+ background: var(--c4);
+ border-color: var(--c2);
+ color: var(--c0);
+}
+
+.page-wrap {
+ padding: 28px 20px;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+}
+
+.a4 {
+ width: 210mm;
+ min-height: 297mm;
+ padding-top: 9mm;
+ background: #fff;
+ border: 1px solid #D7DEE6;
+ border-radius: 0;
+ display: flex;
+ flex-direction: column;
+ font-family: "Assistant", Arial, sans-serif;
+ overflow: hidden;
+ box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+}
+
+
+.top-meta-label {
+  width: fit-content;
+  max-width: calc(100% - 20mm);
+  margin: 0 auto 1.5mm;
+  padding: 5px 14px 6px;
+  background: #FFFFFF;
+  border: 1px solid #D8E1E8;
+  border-top: 3px solid var(--c1);
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 2px 7px rgba(0,0,0,0.06);
+  color: var(--c0);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 5px 9px;
+  text-align: center;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.top-meta-label .meta-main {
+ font-size: 12px;
+ color: var(--c0);
+}
+
+.top-meta-label .meta-value {
+ font-size: 11.2px;
+ color: #2D3E50;
+}
+
+.top-meta-label .meta-separator {
+ width: 4px;
+ height: 4px;
+ border-radius: 50%;
+ background: var(--c2);
+ opacity: 0.55;
+}
+
+.a4-opening {
+ width: calc(100% - 20mm);
+ margin: 0 10mm 3.5mm;
+ min-height: 36px;
+ padding: 8px 16px;
+ font-size: 12.8px;
+ line-height: 1.5;
+ font-style: italic;
+ font-weight: bold;
+ color: var(--c0);
+ background: #F7F9FB;
+ border: 1px solid #E1E7ED;
+ border-right: 5px solid var(--c2);
+ border-radius: 8px;
+ text-align: center;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+}
+
+.a4-banner {
+ width: calc(100% - 20mm);
+ margin: 0 10mm 6mm;
+ min-height: 82px;
+ padding: 30px 18px 18px;
+ color: #1E2D3D;
+ background: linear-gradient(90deg, #FFFFFF 0%, var(--c4) 100%);
+ border: 1px solid #D8E1E8;
+ border-top: 5px solid var(--c1);
+ border-right: 5px solid var(--c1);
+ border-radius: 10px;
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ gap: 18px;
+ position: relative;
+ overflow: visible;
+}
+.a4-banner-text { flex: 1; min-width: 0; }
+.a4-logo {
+ width: 58px;
+ height: 58px;
+ object-fit: contain;
+ flex-shrink: 0;
+ background: rgba(255,255,255,0.68);
+ border-radius: 6px;
+ align-self: flex-start;
+ margin-top: -10px;
+}
+.a4-gefen {
+ position: absolute;
+ top: -1px;
+ right: 18px;
+ display: inline-flex;
+ align-items: center;
+ gap: 5px;
+ padding: 5px 12px 6px;
+ background: #FFFFFF;
+ color: var(--c0);
+ border: 1px solid #D0DAE2;
+ border-top: none;
+ border-radius: 0 0 12px 12px;
+ box-shadow: 0 3px 8px rgba(0,0,0,0.09);
+ font-weight: bold;
+ line-height: 1;
+ z-index: 3;
+}
+.gefen-label { font-size: 10px; font-weight: 800; letter-spacing: 0.04em; color: var(--c0); }
+.gefen-number { font-size: 14.5px; font-weight: 900; color: var(--c0); }
+.a4-title {
+ font-size: 30px;
+ font-weight: bold;
+ color: var(--c0);
+ line-height: 1.12;
+ margin-bottom: 4px;
+}
+.a4-subtitle {
+ font-size: 14.6px;
+ color: #0f172a;
+ margin-bottom: 11px;
+ line-height: 1.35;
+}
+.a4-badges {
+ display: flex;
+ gap: 7px;
+ flex-wrap: wrap;
+}
+.badge {
+ font-size: 10.8px;
+ padding: 3px 10px;
+ border-radius: 20px;
+ background: #FFFFFF;
+ color: var(--c0);
+ border: 1px solid var(--c3);
+ font-weight: bold;
+ line-height: 1.25;
+}
+.badge-domain {
+ max-width: 260px;
+ overflow-wrap: break-word;
+}
+
+.a4-body {
+ padding: 0 10mm 13px;
+ display: flex;
+ flex-direction: column;
+ flex: 1;
+}
+
+.info-section {
+ margin-bottom: 9px;
+}
+.section-title {
+ display: inline-flex;
+ align-items: center;
+ gap: 7px;
+ margin: 0 0 5px;
+ font-size: 11px;
+ font-weight: 900;
+ color: var(--c0);
+ line-height: 1.2;
+}
+.section-title::before {
+ content: "";
+ display: inline-block;
+ width: 6px;
+ height: 18px;
+ border-radius: 20px;
+ background: var(--c1);
+}
+.section-body {
+ font-size: 12.15px;
+ color: #1E2D3D;
+ line-height: 1.62;
+}
+.overview-card {
+ padding: 10px 13px;
+ border: 1px solid #DDE5EC;
+ border-radius: 10px;
+ background: #FFFFFF;
+}
+.idea-card {
+ padding: 10px 15px 10px 13px;
+ border: 1px solid #D8E1E8;
+ border-right: 5px solid var(--c1);
+ border-radius: 10px;
+ background: linear-gradient(90deg, #FFFFFF 0%, var(--c4) 100%);
+ font-weight: bold;
+}
+.split-grid {
+ display: grid;
+ grid-template-columns: 1fr 1fr;
+ gap: 10px;
+ margin-bottom: 9px;
+}
+.mini-card {
+ padding: 10px 12px;
+ border: 1px solid #DDE5EC;
+ border-radius: 10px;
+ background: #FFFFFF;
+ min-height: 78px;
+}
+.mini-card .section-title { margin-bottom: 6px; }
+.mini-card .section-body { font-size: 11.85px; line-height: 1.56; }
+.skills-card {
+ padding: 10px 12px;
+ border: 1px solid #DDE5EC;
+ border-radius: 10px;
+ background: #FFFFFF;
+ min-height: 78px;
+}
+.pill-row {
+ display: flex;
+ gap: 6px;
+ flex-wrap: wrap;
+ justify-content: center;
+ align-items: center;
+ text-align: center;
+ padding-top: 2px;
+}
+.pill {
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ text-align: center;
+ font-size: 10.7px;
+ background: #F7F9FB;
+ color: #1E2D3D;
+ border: 1px solid var(--c3);
+ border-radius: 20px;
+ padding: 3px 9px;
+ font-weight: bold;
+ line-height: 1.25;
+}
+.outcome-card {
+ padding: 10px 12px;
+ border: 1px solid #DDE5EC;
+ border-radius: 10px;
+ background: #FFFFFF;
+ min-height: 78px;
+}
+.outcome-card .section-body {
+ font-size: 11.9px;
+ line-height: 1.56;
+ font-weight: bold;
+}
+.outcome-box-grid {
+ display: grid;
+ grid-template-columns: repeat(2, minmax(0, 1fr));
+ gap: 7px;
+ margin-top: 2px;
+}
+.outcome-item {
+ min-height: 40px;
+ padding: 7px 8px;
+ border-radius: 10px;
+ border: 1px solid var(--c3);
+ background: #F8FAFC;
+ color: #1E2D3D;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ text-align: center;
+ font-size: 11.4px;
+ line-height: 1.32;
+ font-weight: 800;
+}
+
+.course-grid .outcome-box-grid {
+ grid-template-columns: 1fr;
+ gap: 5px;
+}
+.course-grid .outcome-item {
+ min-height: 28px;
+ padding: 5px 8px;
+ font-size: 11.15px;
+ line-height: 1.25;
+}
+.course-description .section-body p {
+ margin: 0 0 10px;
+}
+.course-description .section-body p:last-of-type {
+ margin-bottom: 0;
+}
+.inline-outcomes-wrap {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #D6E0E8;
+}
+.inline-outcomes-label {
+  margin-bottom: 6px;
+  font-size: 10.4px;
+  font-weight: 900;
+  color: var(--c0);
+  line-height: 1.15;
+}
+.inline-outcomes-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+}
+.inline-outcomes-grid .outcome-item {
+  flex: 0 1 118px;
+  min-width: 112px;
+  max-width: 132px;
+  min-height: 30px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  border: 1px solid var(--c3);
+  background: #F8FAFC;
+  color: #1E2D3D;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 10.25px;
+  line-height: 1.18;
+  font-weight: 800;
+}
+.full-width-card {
+ margin-bottom: 9px;
+}
+.school-card {
+ padding: 10px 13px;
+ border: 1px solid #D8E1E8;
+ border-radius: 10px;
+ background: #FAFBFC;
+}
+
+.syllabus-wrap {
+ margin-bottom: 9px;
+ background: #FFFFFF;
+ border: 1px solid #DDE5EC;
+ border-radius: 10px;
+ overflow: visible;
+}
+.syllabus-header {
+ font-size: 11px;
+ font-weight: 900;
+ color: var(--c0);
+ background: #F8FAFC;
+ border-bottom: 1px solid #E3E9EF;
+ border-right: 5px solid var(--c1);
+ padding: 6px 12px;
+ line-height: 1.25;
+}
+.syllabus-table {
+ width: 100%;
+ border-collapse: collapse;
+ font-size: 11.7px;
+}
+.syllabus-table th {
+ background: var(--c0);
+ color: #FFFFFF;
+ font-size: 10.6px;
+ padding: 5px 8px;
+ font-weight: bold;
+ text-align: center;
+ line-height: 1.3;
+ border-left: 1px solid #DDE5EC;
+ border-bottom: 1px solid #DDE5EC;
+ -webkit-print-color-adjust: exact;
+ print-color-adjust: exact;
+}
+.syllabus-table th:last-child { text-align: right; border-left: none; }
+.syllabus-table th:first-child { text-align: center; width: 36px; }
+.syllabus-table td {
+ padding: 5px 8px;
+ border-bottom: 1px solid #E4EAEF;
+ border-left: 1px solid #E4EAEF;
+ vertical-align: top;
+ line-height: 1.42;
+}
+.syllabus-table td:last-child { border-left: none; }
+.syllabus-table tr:last-child td { border-bottom: none; }
+.syllabus-table tr:nth-child(even) td { background: #FAFBFC; }
+.syl-num {
+ color: var(--c0);
+ font-weight: bold;
+ width: 48px;
+ text-align: center;
+}
+.syl-topic {
+ font-weight: bold;
+ color: #1E2D3D;
+ width: 138px;
+ text-align: right;
+}
+.syl-desc { color: #3C4854; text-align: right; }
+
+.section-body { white-space: pre-line; }
+.course-main-grid {
+ display: grid;
+ grid-template-columns: 1fr 1fr;
+ gap: 10px;
+ margin-bottom: 9px;
+}
+.course-card {
+ break-inside: avoid;
+}
+.course-description .section-body {
+ column-count: 1;
+ column-gap: 0;
+ column-rule: none;
+ font-size: 12.9px;
+ line-height: 1.45;
+}
+.course-card .section-body {
+ font-size: 11.6px;
+ line-height: 1.47;
+}
+.course-card.idea-card .section-body {
+ font-weight: 600;
+}
+.course-grid .section-body {
+ font-size: 11.25px;
+ line-height: 1.45;
+}
+.badge strong {
+ font-weight: 900;
+ color: var(--c0);
+}
+
+.a4-footer {
+ margin-top: auto;
+ padding: 8px 10mm;
+ background: #F8FAFC;
+ border-top: 1px solid #E1E7ED;
+ display: flex;
+ justify-content: center;
+ align-items: center;
+ text-align: center;
+}
+.a4-footer-brand {
+ font-size: 9px;
+ color: #516170;
+ font-weight: bold;
+ text-align: center;
+}
+
+.a4-contact {
+ text-align: center;
+ font-size: 12.5px;
+ font-weight: 700;
+ color: #1e3a5f;
+ direction: rtl;
+ letter-spacing: 0.01em;
+ padding: 0 10mm 6px;
+}
+
+.print-btn {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+}
+.print-btn button {
+ font-size: 14px;
+ padding: 10px 28px;
+ border: none;
+ border-radius: 8px;
+ background: #3A5068;
+ color: #fff;
+ cursor: pointer;
+ font-family: "Assistant", Arial, sans-serif;
+ font-weight: bold;
+}
+.print-btn button:hover { opacity: 0.85; }
+.back-btn {
+  display: inline-block;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid #C7D1DA;
+  background: #fff;
+  color: #3A4E62;
+  text-decoration: none;
+  font-family: "Assistant", Arial, sans-serif;
+  font-weight: bold;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.back-btn:hover { background: #EEF2F5; border-color: #9AAAB8; }
+
+.catalog-toolbar {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 10002;
+  display: none;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #D8E1E8;
+  border-radius: 999px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.10);
+}
+body.catalog-view .catalog-toolbar { display: flex; }
+.catalog-toolbar .back-btn { font-size: 12px; }
+.catalog-print-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: #3A5068;
+  color: #fff;
+  font: 800 12px "Assistant", Arial, sans-serif;
+  cursor: pointer;
+}
+.catalog-opening-frame {
+  width: 210mm;
+  min-width: 210mm;
+  max-width: 210mm;
+  height: 297mm;
+  min-height: 297mm;
+  max-height: 297mm;
+  border: 0;
+  display: block;
+  margin: 0 auto;
+  background: #fff;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+  page-break-after: always;
+  break-after: page;
+  overflow: hidden;
+}
+body.catalog-view #a4-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+body.catalog-view .page-wrap { gap: 22px; }
+body.catalog-view .a4 { margin-bottom: 22px; }
+
+@media print {
+ @page { size: A4; margin: 0; }
+ .nav, .print-btn, .nav-toggle, .catalog-gen-link, .catalog-toolbar { display: none !important; }
+ html, body { width: 210mm; margin: 0; padding: 0; background: #fff; }
+ .page-wrap { padding: 0; }
+ .a4 {
+ width: 210mm;
+ max-width: 210mm;
+ box-shadow: none;
+ border-radius: 0;
+ border: none;
+ page-break-after: always;
+ min-height: 297mm;
+ padding-top: 9mm;
+ }
+ .top-meta-label {
+ max-width: calc(100% - 20mm);
+ margin: 0 auto 5mm;
+ box-shadow: none;
+ }
+ .a4-opening { width: calc(100% - 20mm); margin: 0 10mm 5mm; }
+ .a4-banner { width: calc(100% - 20mm); margin: 0 10mm 6mm; }
+}
+@page { size: A4; margin: 0; }
+
+/* Cleaner printed course layout: fewer framed sections */
+.course-clean-section {
+  margin-bottom: 8px;
+  padding: 0 2px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.course-clean-section .section-title {
+  margin-bottom: 4px;
+}
+
+.course-clean-section .section-body {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.course-clean-core {
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  background: #F8FAFC;
+  border-right: 4px solid var(--c2);
+  border-radius: 0;
+  font-weight: 700;
+}
+
+.course-clean-core .section-body {
+  padding: 0;
+}
+
+.course-description {
+  border: 1px solid #D8E1E8;
+  background: #FFFFFF;
+  border-radius: 10px;
+  padding: 10px 13px;
+}
+
+.course-description .section-title {
+  margin-bottom: 7px;
+}
+
+.course-description .section-body {
+  padding: 0;
+}
+
+.full-width-card {
+  border: none;
+  background: transparent;
+  padding: 0 2px;
+  margin-bottom: 8px;
+  min-height: 0;
+}
+
+.full-width-card .section-body {
+  padding: 0;
+}
+
+.school-card.course-clean-section {
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+}
+
+.inline-outcomes-wrap {
+  margin-top: 9px;
+  padding-top: 7px;
+  border-top: 1px solid #E5EBF0;
+}
+
+.inline-outcomes-label {
+  margin-bottom: 5px;
+}
+
+.inline-outcomes-grid {
+  justify-content: flex-start;
+  gap: 5px;
+}
+
+.inline-outcomes-grid .outcome-item {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: none;
+  min-height: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.2;
+  background: #F8FAFC;
+}
+
+
+/* FINAL CLEAN LAYOUT OVERRIDE - reduce visual boxes aggressively */
+.a4-body {
+  gap: 0;
+}
+
+/* Clean text-only sections: no frame, no card feeling */
+.text-only-section,
+.text-only-section.course-card,
+.text-only-section.overview-card,
+.text-only-section.school-card,
+.text-only-section.skills-card,
+.text-only-section.course-clean-section {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 3px !important;
+  margin: 0 0 7px !important;
+  min-height: 0 !important;
+}
+
+.text-only-section .section-title {
+  display: flex !important;
+  margin: 0 0 3px !important;
+  padding: 0 !important;
+  color: var(--c0) !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.text-only-section .section-title::before {
+  width: 4px !important;
+  height: 15px !important;
+  background: var(--c1) !important;
+}
+
+.text-only-section .section-body {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  font-size: 12.05px !important;
+  line-height: 1.54 !important;
+}
+
+/* Keep only the learning-process section as a framed block */
+.learning-process-section {
+  border: 1px solid #D8E1E8 !important;
+  background: #FFFFFF !important;
+  border-radius: 10px !important;
+  padding: 9px 12px !important;
+  margin: 0 0 8px !important;
+  box-shadow: none !important;
+}
+
+.learning-process-section .section-title {
+  margin-bottom: 6px !important;
+}
+
+.learning-process-section .section-body {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Inside the learning-process block, outcomes should be tiny tags, not another large box */
+.inline-outcomes-wrap {
+  margin-top: 7px !important;
+  padding-top: 6px !important;
+  border-top: 1px solid #E6ECF2 !important;
+}
+
+.inline-outcomes-label {
+  margin-bottom: 4px !important;
+  font-size: 10px !important;
+}
+
+.inline-outcomes-grid {
+  display: flex !important;
+  justify-content: flex-start !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+}
+
+.inline-outcomes-grid .outcome-item {
+  flex: 0 0 auto !important;
+  min-width: auto !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  padding: 3px 7px !important;
+  border: 1px solid #DDE5EC !important;
+  border-radius: 999px !important;
+  background: #F8FAFC !important;
+  font-size: 9.8px !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
+}
+
+/* Syllabus remains framed */
+.syllabus-wrap {
+  margin-top: 2px !important;
+}
+
+/* Tighter top label spacing */
+.top-meta-label {
+  margin-bottom: 1mm !important;
+}
+.a4-opening {
+  margin-bottom: 3mm !important;
+}
+
+
+/* Header height and clean section-title refinement */
+.a4-banner {
+  min-height: 56px !important;
+  padding: 14px 16px 12px !important;
+  gap: 12px !important;
+  border-top-width: 3px !important;
+  border-right-width: 4px !important;
+}
+
+.a4-logo {
+  width: 46px !important;
+  height: 46px !important;
+  margin-top: -4px !important;
+}
+
+.a4-title {
+  font-size: 27px !important;
+  line-height: 1.05 !important;
+  margin-bottom: 2px !important;
+}
+
+.a4-subtitle {
+  font-size: 13.2px !important;
+  line-height: 1.22 !important;
+  margin-bottom: 6px !important;
+}
+
+.a4-badges {
+  gap: 5px !important;
+}
+
+.badge {
+  font-size: 10.2px !important;
+  padding: 2px 8px !important;
+}
+
+/* Remove the large blue marker before clean text headings */
+.text-only-section .section-title::before {
+  display: none !important;
+  content: none !important;
+}
+
+.text-only-section .section-title {
+  font-size: 13px !important;
+  margin-bottom: 4px !important;
+  color: var(--c0) !important;
+}
+
+/* Keep the learning-process and syllabus visual hierarchy clean */
+.learning-process-section .section-title {
+  font-size: 12.2px !important;
+}
+
+.syllabus-header {
+  font-size: 12px !important;
+}
+
+
+/* Highlight main course goal without adding a heavy frame */
+.core-plain-card .section-body {
+  color: #2F6F68 !important;
+  font-weight: 900 !important;
+  font-size: 12.7px !important;
+  line-height: 1.56 !important;
+}
+
+.core-plain-card {
+  margin-bottom: 9px !important;
+}
+
+
+/* School value card after syllabus */
+.school-value-after-syllabus {
+  margin: 36px 0 0 !important;
+  padding: 9px 12px !important;
+  border: 1px solid rgba(78, 104, 128, 0.28) !important;
+  border-right: 5px solid rgba(78, 104, 128, 0.55) !important;
+  border-radius: 10px !important;
+  background: rgba(238, 243, 247, 0.62) !important;
+  box-shadow: none !important;
+}
+
+.school-value-after-syllabus .section-body {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  color: #273e56 !important;
+  font-size: 11.25px !important;
+  line-height: 1.46 !important;
+  font-weight: 700 !important;
+}
+
+
+/* Remove heading markers and strengthen headings */
+.section-title::before,
+.text-only-section .section-title::before,
+.learning-process-section .section-title::before {
+  display: none !important;
+  content: none !important;
+}
+
+.section-title,
+.text-only-section .section-title,
+.learning-process-section .section-title {
+  display: block !important;
+  margin: 0 0 5px !important;
+  padding: 0 !important;
+  color: var(--c0) !important;
+  font-size: 13.2px !important;
+  font-weight: 950 !important;
+  line-height: 1.2 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.learning-process-section .section-title {
+  font-size: 13px !important;
+  margin-bottom: 7px !important;
+}
+
+.syllabus-header {
+  border-right: none !important;
+  font-size: 12.4px !important;
+  font-weight: 950 !important;
+  padding-right: 12px !important;
+}
+
+
+/* A4 width + print-safe layout */
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+.page-wrap {
+  width: 100%;
+  padding: 18px 10px !important;
+}
+
+.a4 {
+  width: 210mm !important;
+  max-width: calc(100vw - 20px) !important;
+  min-height: 297mm !important;
+  margin: 0 auto !important;
+  overflow: hidden !important;
+}
+
+.a4-opening,
+.a4-banner,
+.a4-body,
+.a4-footer {
+  max-width: 100% !important;
+}
+
+.a4-opening,
+.a4-banner {
+  width: calc(100% - 20mm) !important;
+  margin-left: 10mm !important;
+  margin-right: 10mm !important;
+}
+
+.a4-body {
+  width: 100% !important;
+  padding-left: 10mm !important;
+  padding-right: 10mm !important;
+}
+
+.a4-footer {
+  width: 100% !important;
+  padding-left: 10mm !important;
+  padding-right: 10mm !important;
+}
+
+.a4 *,
+.a4 *::before,
+.a4 *::after {
+  max-width: 100%;
+}
+
+.a4-title,
+.a4-subtitle,
+.section-body,
+.syl-desc,
+.syl-topic,
+.badge,
+.top-meta-label {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.a4-logo {
+  max-width: 46px !important;
+  flex-shrink: 0 !important;
+}
+
+.syllabus-table {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+.syllabus-table th:first-child,
+.syllabus-table td:first-child {
+  width: 42px !important;
+}
+
+.syl-topic {
+  width: 120px !important;
+}
+
+.syl-desc {
+  width: auto !important;
+}
+
+/* Browser print/PDF settings */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #FFFFFF !important;
+    overflow: visible !important;
+  }
+
+  .nav,
+  .print-btn {
+    display: none !important;
+  }
+
+  .page-wrap {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+    background: #FFFFFF !important;
+  }
+
+  .a4 {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding-top: 7mm !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    page-break-after: always;
+    break-after: page;
+    background: #FFFFFF !important;
+  }
+
+  .a4-opening,
+  .a4-banner {
+    width: calc(100% - 20mm) !important;
+    margin-left: 10mm !important;
+    margin-right: 10mm !important;
+  }
+
+  .a4-body {
+    width: 100% !important;
+    padding-left: 10mm !important;
+    padding-right: 10mm !important;
+    padding-bottom: 8px !important;
+  }
+
+  .a4-footer {
+    width: 100% !important;
+    padding-left: 10mm !important;
+    padding-right: 10mm !important;
+  }
+
+  .syllabus-wrap,
+  .learning-process-section,
+  .school-value-after-syllabus {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+
+/* FINAL APPROVED DESIGN TUNE */
+.top-meta-label {
+  margin: 0 auto 1mm !important;
+  padding: 3px 12px 4px !important;
+  border-top: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.045) !important;
+  gap: 4px 8px !important;
+}
+
+.top-meta-label .meta-main {
+  font-size: 10.7px !important;
+}
+
+.top-meta-label .meta-value {
+  font-size: 10.15px !important;
+}
+
+.top-meta-label .meta-separator {
+  width: 3px !important;
+  height: 3px !important;
+  opacity: 0.42 !important;
+}
+
+.a4-opening {
+  min-height: 30px !important;
+  padding: 5px 13px !important;
+  margin-bottom: 2.5mm !important;
+  font-size: 12.45px !important;
+  line-height: 1.42 !important;
+  border-right-width: 3px !important;
+  border-radius: 7px !important;
+}
+
+.a4-banner {
+  min-height: 48px !important;
+  padding: 9px 15px 9px !important;
+  margin-bottom: 5mm !important;
+  gap: 10px !important;
+  border-top: none !important;
+  border-right-width: 3px !important;
+  border-radius: 9px !important;
+  background: linear-gradient(90deg, #FFFFFF 0%, rgba(238,243,247,0.78) 100%) !important;
+}
+
+.a4-logo {
+  width: 50px !important;
+  height: 50px !important;
+  margin-top: 0 !important;
+  align-self: center !important;
+  background: transparent !important;
+}
+
+.a4-title {
+  font-size: 28px !important;
+  line-height: 1.02 !important;
+  margin-bottom: 1px !important;
+}
+
+.a4-subtitle {
+  font-size: 13px !important;
+  line-height: 1.18 !important;
+  margin-bottom: 5px !important;
+}
+
+.a4-badges {
+  gap: 4px !important;
+}
+
+.badge {
+  font-size: 9.9px !important;
+  padding: 2px 7px !important;
+  line-height: 1.15 !important;
+}
+
+.text-only-section {
+  margin-bottom: 8px !important;
+}
+
+.text-only-section .section-title,
+.section-title {
+  font-size: 13.1px !important;
+  font-weight: 950 !important;
+  color: var(--c0) !important;
+  margin-bottom: 4px !important;
+}
+
+.text-only-section .section-body,
+.course-summary .section-body {
+  font-size: 12.8px !important;
+  line-height: 1.62 !important;
+}
+
+.core-plain-card .section-body {
+  color: #356F67 !important;
+  font-weight: 800 !important;
+  font-size: 12.35px !important;
+  line-height: 1.55 !important;
+}
+
+.learning-process-section,
+.course-description {
+  border: 1px solid #E1E8EF !important;
+  border-right: 2px solid rgba(78,104,128,0.42) !important;
+  background: #FFFFFF !important;
+  border-radius: 9px !important;
+  padding: 8px 11px !important;
+  margin-bottom: 8px !important;
+}
+
+.learning-process-section .section-title,
+.course-description .section-title {
+  font-size: 12.8px !important;
+  margin-bottom: 6px !important;
+}
+
+.course-description .section-body {
+  column-count: 1 !important;
+  column-gap: 0 !important;
+  column-rule: none !important;
+  font-size: 12.9px !important;
+  line-height: 1.48 !important;
+}
+
+.course-description .section-body p {
+  margin-bottom: 8px !important;
+}
+
+.inline-outcomes-wrap {
+  column-span: all !important;
+  margin-top: 7px !important;
+  padding-top: 7px !important;
+  border-top: 1px solid #E8EEF3 !important;
+}
+
+.inline-outcomes-label {
+  margin-bottom: 5px !important;
+  font-size: 10.4px !important;
+  font-weight: 900 !important;
+  color: var(--c0) !important;
+}
+
+.inline-outcomes-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 5px !important;
+  justify-content: stretch !important;
+  align-items: stretch !important;
+}
+
+.inline-outcomes-grid .outcome-item {
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 26px !important;
+  padding: 4px 5px !important;
+  border-radius: 8px !important;
+  border: 1px solid #DDE5EC !important;
+  background: #F8FAFC !important;
+  font-size: 9.55px !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+}
+
+.full-width-card .section-body {
+  font-size: 12.05px !important;
+  line-height: 1.58 !important;
+}
+
+.syllabus-wrap {
+  margin-top: 2px !important;
+}
+
+.syllabus-header {
+  font-size: 12.2px !important;
+  font-weight: 950 !important;
+  border-right: none !important;
+}
+
+@media print {
+  .top-meta-label {
+    margin-bottom: 1mm !important;
+    box-shadow: none !important;
+  }
+
+  .a4-opening {
+    margin-bottom: 2.5mm !important;
+  }
+
+  .a4-banner {
+    margin-bottom: 5mm !important;
+  }
+
+  .inline-outcomes-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
+
+
+/* Syllabus topic column narrower */
+.syl-topic {
+  width: 95px !important;
+}
+
+.syllabus-table th:nth-child(2),
+.syllabus-table td:nth-child(2) {
+  width: 95px !important;
+}
+
+.syllabus-table th:first-child,
+.syllabus-table td:first-child {
+  width: 38px !important;
+}
+
+
+/* Final requested updates: wider syllabus topic, top logo row, tinted outcome tags */
+.syl-topic {
+  width: 152px !important;
+}
+
+.syllabus-table th:nth-child(2),
+.syllabus-table td:nth-child(2) {
+  width: 152px !important;
+}
+
+.syllabus-table th:first-child,
+.syllabus-table td:first-child {
+  width: 60px !important;
+  text-align: center !important;
+}
+
+.top-meta-row {
+  position: relative;
+  width: calc(100% - 20mm);
+  min-height: 30px;
+  margin: 0 10mm 1mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.top-meta-row .top-meta-label {
+  margin: 0 auto !important;
+}
+
+.top-meta-logo {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 30px;
+  object-fit: contain;
+  display: block;
+}
+
+.a4-banner {
+  min-height: 46px !important;
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+}
+
+.a4-banner .a4-logo {
+  display: none !important;
+}
+
+.inline-outcomes-grid .outcome-item {
+  background: rgba(47, 111, 104, 0.10) !important;
+  border-color: rgba(47, 111, 104, 0.26) !important;
+  color: #2F6F68 !important;
+}
+
+@media print {
+  .top-meta-row {
+    width: calc(100% - 20mm) !important;
+    margin: 0 10mm 1mm !important;
+  }
+
+  .top-meta-logo {
+    width: 48px !important;
+    height: 30px !important;
+  }
+}
+
+
+/* Combined Gefen label refinement */
+.top-meta-label .meta-main {
+  white-space: nowrap !important;
+  font-weight: 950 !important;
+}
+
+
+/* Unified single-color theme language */
+.a4-banner {
+  border-right-color: rgba(var(--theme-rgb), 0.72) !important;
+  background: linear-gradient(90deg, #FFFFFF 0%, rgba(var(--theme-rgb), 0.075) 100%) !important;
+}
+
+.top-meta-label {
+  border-color: rgba(var(--theme-rgb), 0.24) !important;
+  background: rgba(var(--theme-rgb), 0.045) !important;
+}
+
+.top-meta-label .meta-separator {
+  background: rgba(var(--theme-rgb), 0.68) !important;
+}
+
+.a4-opening {
+  border-color: rgba(var(--theme-rgb), 0.16) !important;
+  border-right-color: rgba(var(--theme-rgb), 0.56) !important;
+  background: rgba(var(--theme-rgb), 0.055) !important;
+  color: var(--c0) !important;
+}
+
+.badge,
+.badge-domain {
+  border-color: rgba(var(--theme-rgb), 0.22) !important;
+  background: rgba(var(--theme-rgb), 0.055) !important;
+  color: var(--c0) !important;
+}
+
+.core-plain-card .section-body {
+  color: var(--c0) !important;
+  font-weight: 900 !important;
+  background: rgba(var(--theme-rgb), 0.075) !important;
+  border-radius: 8px !important;
+  padding: 7px 10px !important;
+}
+
+.learning-process-section,
+.course-description {
+  border-color: rgba(var(--theme-rgb), 0.22) !important;
+  border-right-color: rgba(var(--theme-rgb), 0.48) !important;
+  background: rgba(var(--theme-rgb), 0.028) !important;
+}
+
+.inline-outcomes-grid .outcome-item {
+  background: rgba(var(--theme-rgb), 0.11) !important;
+  border-color: rgba(var(--theme-rgb), 0.28) !important;
+  color: var(--c0) !important;
+}
+
+.school-value-after-syllabus {
+  border-color: rgba(var(--theme-rgb), 0.26) !important;
+  border-right-color: rgba(var(--theme-rgb), 0.62) !important;
+  background: rgba(var(--theme-rgb), 0.085) !important;
+}
+
+.school-value-after-syllabus .section-body {
+  color: #273e56 !important;
+}
+
+.syllabus-header {
+  background: rgba(var(--theme-rgb), 0.065) !important;
+  color: var(--c0) !important;
+}
+
+.syllabus-table th {
+  background: var(--c0) !important;
+  color: #FFFFFF !important;
+}
+
+.a4-footer {
+  background: rgba(var(--theme-rgb), 0.045) !important;
+  border-top-color: rgba(var(--theme-rgb), 0.18) !important;
+}
+
+@media print {
+  .core-plain-card .section-body,
+  .inline-outcomes-grid .outcome-item,
+  .school-value-after-syllabus,
+  .a4-opening,
+  .badge,
+  .top-meta-label {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+
+/* Approved final polish: logo/header + skills tags */
+.top-meta-row {
+  min-height: 34px !important;
+  margin-bottom: 1mm !important;
+}
+
+.top-meta-logo {
+  width: 68px !important;
+  height: 34px !important;
+  left: 0 !important;
+  opacity: 0.96 !important;
+}
+
+.top-meta-label {
+  padding: 3px 12px 4px !important;
+  gap: 4px 8px !important;
+}
+
+.a4-banner {
+  min-height: 42px !important;
+  padding: 7px 14px 8px !important;
+  margin-bottom: 4mm !important;
+  border-radius: 8px !important;
+}
+
+.a4-title {
+  font-size: 27px !important;
+  margin-bottom: 0 !important;
+}
+
+.a4-subtitle {
+  font-size: 12.8px !important;
+  margin-bottom: 4px !important;
+}
+
+.skills-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.skills-tags .skill-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--theme-rgb), 0.24);
+  background: rgba(var(--theme-rgb), 0.075);
+  color: var(--c0);
+  font-size: 10.15px;
+  line-height: 1.15;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.full-width-card.text-only-section .section-body {
+  padding-top: 1px !important;
+}
+
+/* ── Skill Groups Grid ── */
+.skills-group-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 72px);
+  gap: 6px;
+  width: fit-content;
+  margin-top: 3px;
+}
+.skill-group-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(var(--theme-rgb), 0.22);
+  border-radius: 7px;
+  padding: 7px 9px 8px;
+  width: 72px;
+  box-sizing: border-box;
+}
+.skill-group-title {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--c0);
+  margin-bottom: 5px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(var(--theme-rgb), 0.15);
+  line-height: 1.3;
+}
+.skill-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.skill-group-item {
+  font-size: 8.5px;
+  line-height: 1.5;
+  color: #3A4A58;
+  font-weight: 600;
+}
+@media print {
+  .skills-group-grid {
+    grid-template-columns: repeat(4, 72px) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .skill-group-card {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+@media print {
+  .top-meta-logo {
+    width: 68px !important;
+    height: 34px !important;
+    left: 0 !important;
+  }
+
+  .a4-banner {
+    min-height: 42px !important;
+    padding-top: 7px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .skills-tags .skill-tag {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+
+/* White background for syllabus course header */
+.syllabus-header {
+  background: #FFFFFF !important;
+}
+
+
+/* White wrapper box for final outcomes */
+.inline-outcomes-wrap {
+  background: #FFFFFF !important;
+  border: 1px solid #E3E9EF !important;
+  border-radius: 9px !important;
+  padding: 7px 8px !important;
+  margin-top: 8px !important;
+}
+
+
+/* Syllabus topic column slightly wider */
+.syl-topic {
+  width: 135px !important;
+}
+
+.syllabus-table th:nth-child(2),
+.syllabus-table td:nth-child(2) {
+  width: 135px !important;
+}
+
+
+/* Balanced color touch: neutral page with controlled green accents */
+.top-meta-label {
+  background: #FFFFFF !important;
+  border-color: #D8E1E8 !important;
+}
+
+.top-meta-label .meta-separator {
+  background: rgba(var(--theme-rgb), 0.45) !important;
+}
+
+.a4-opening {
+  background: #F8FAFC !important;
+  border-color: #E1E7ED !important;
+  border-right-color: rgba(var(--theme-rgb), 0.38) !important;
+  color: #2D3E50 !important;
+}
+
+.a4-banner {
+  background: linear-gradient(90deg, #FFFFFF 0%, #F8FAFC 100%) !important;
+  border-color: #D8E1E8 !important;
+  border-right-color: rgba(var(--theme-rgb), 0.42) !important;
+}
+
+.badge,
+.badge-domain {
+  background: #FFFFFF !important;
+  border-color: #D8E1E8 !important;
+  color: #2D3E50 !important;
+}
+
+.section-title,
+.text-only-section .section-title,
+.learning-process-section .section-title {
+  color: #1E2D3D !important;
+}
+
+.a4-title {
+  color: var(--c0) !important;
+}
+
+.core-plain-card .section-body {
+  color: var(--c0) !important;
+  background: rgba(var(--theme-rgb), 0.055) !important;
+  border: 1px solid rgba(var(--theme-rgb), 0.13) !important;
+  border-radius: 8px !important;
+  padding: 7px 10px !important;
+  font-weight: 900 !important;
+}
+
+.learning-process-section,
+.course-description {
+  background: #FFFFFF !important;
+  border-color: #DDE5EC !important;
+  border-right-color: rgba(var(--theme-rgb), 0.30) !important;
+}
+
+.inline-outcomes-wrap {
+  background: #FFFFFF !important;
+  border-color: #E3E9EF !important;
+}
+
+.inline-outcomes-grid .outcome-item {
+  background: rgba(var(--theme-rgb), 0.075) !important;
+  border-color: rgba(var(--theme-rgb), 0.20) !important;
+  color: #2F6F68 !important;
+}
+
+.skills-tags .skill-tag {
+  background: #FFFFFF !important;
+  border-color: #DDE5EC !important;
+  color: #2D3E50 !important;
+}
+
+.syllabus-header {
+  background: #FFFFFF !important;
+  color: #1E2D3D !important;
+  border-bottom-color: #E3E9EF !important;
+}
+
+.syllabus-table th {
+  background: var(--c0) !important;
+  color: #FFFFFF !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.syllabus-table tr:nth-child(even) td {
+  background: #FAFBFC !important;
+}
+
+.school-value-after-syllabus {
+  background: rgba(var(--theme-rgb), 0.045) !important;
+  border-color: rgba(var(--theme-rgb), 0.18) !important;
+  border-right-color: rgba(var(--theme-rgb), 0.46) !important;
+}
+
+.school-value-after-syllabus .section-body {
+  color: #273e56 !important;
+}
+
+.a4-footer {
+  background: #F8FAFC !important;
+  border-top-color: #E1E7ED !important;
+}
+
+@media print {
+  .core-plain-card .section-body,
+  .inline-outcomes-grid .outcome-item,
+  .school-value-after-syllabus {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+
+/* STRICT NEUTRAL LAYOUT - green only in selected accents */
+.a4,
+.a4-body,
+body {
+  color: #1E2D3D !important;
+}
+
+.top-meta-label,
+.a4-opening,
+.a4-banner,
+.badge,
+.badge-domain,
+.learning-process-section,
+.course-description,
+.inline-outcomes-wrap,
+.syllabus-header,
+.syllabus-table th,
+.a4-footer {
+  background: #FFFFFF !important;
+  color: #1E2D3D !important;
+  border-color: #DDE5EC !important;
+}
+
+.top-meta-label {
+  border: 1px solid #DDE5EC !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.035) !important;
+}
+
+.top-meta-label .meta-main,
+.top-meta-label .meta-value,
+.a4-opening,
+.badge,
+.badge-domain {
+  color: #1E2D3D !important;
+}
+
+.top-meta-label .meta-separator {
+  background: #A8B3BD !important;
+  opacity: 0.75 !important;
+}
+
+.a4-opening {
+  border-right: 1px solid #DDE5EC !important;
+  background: #FAFBFC !important;
+}
+
+.a4-banner {
+  background: #FFFFFF !important;
+  border: 1px solid #DDE5EC !important;
+  border-right: 1px solid #DDE5EC !important;
+}
+
+.a4-title {
+  color: var(--c0) !important;
+}
+
+.a4-subtitle {
+  color: #0f172a !important;
+}
+
+.section-title,
+.text-only-section .section-title,
+.learning-process-section .section-title,
+.syllabus-header {
+  color: #1E2D3D !important;
+}
+
+.course-summary .section-body,
+.text-only-section .section-body,
+.learning-process-section .section-body,
+.course-description .section-body {
+  color: #1E2D3D !important;
+}
+
+.learning-process-section,
+.course-description {
+  border: 1px solid #DDE5EC !important;
+  background: #FFFFFF !important;
+}
+
+.syllabus-wrap {
+  border-color: #DDE5EC !important;
+}
+
+.syllabus-header {
+  background: #FFFFFF !important;
+  border-bottom: 1px solid #E3E9EF !important;
+}
+
+.syllabus-table th {
+  background: #F7F9FB !important;
+  color: #1E2D3D !important;
+}
+
+.syllabus-table tr:nth-child(even) td {
+  background: #FAFBFC !important;
+}
+
+.syllabus-table td {
+  color: #2D3E50 !important;
+}
+
+.skills-tags .skill-tag {
+  background: #FFFFFF !important;
+  border-color: #DDE5EC !important;
+  color: #2D3E50 !important;
+}
+
+/* The only green accents */
+.core-plain-card .section-body {
+  color: #2F6F68 !important;
+  background: rgba(47, 111, 104, 0.065) !important;
+  border: 1px solid rgba(47, 111, 104, 0.16) !important;
+  border-radius: 8px !important;
+  padding: 7px 10px !important;
+  font-weight: 900 !important;
+}
+
+.inline-outcomes-grid .outcome-item {
+  background: rgba(47, 111, 104, 0.085) !important;
+  border-color: rgba(47, 111, 104, 0.22) !important;
+  color: #2F6F68 !important;
+}
+
+.school-value-after-syllabus {
+  background: rgba(47, 111, 104, 0.045) !important;
+  border: 1px solid rgba(47, 111, 104, 0.18) !important;
+  border-right: 4px solid rgba(47, 111, 104, 0.42) !important;
+}
+
+.school-value-after-syllabus .section-body {
+  color: #273e56 !important;
+}
+
+.a4-footer {
+  background: #FAFBFC !important;
+  border-top: 1px solid #E1E7ED !important;
+}
+
+@media print {
+  .core-plain-card .section-body,
+  .inline-outcomes-grid .outcome-item,
+  .school-value-after-syllabus {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+
+/* Compact accessible PDF button */
+.print-btn {
+  position: fixed !important;
+  left: 16px !important;
+  bottom: 16px !important;
+  margin: 0 !important;
+  z-index: 9999 !important;
+}
+
+.print-btn button {
+  min-width: 54px !important;
+  height: 36px !important;
+  padding: 0 14px !important;
+  border: 1px solid #D8E1E8 !important;
+  border-radius: 999px !important;
+  background: #1E2D3D !important;
+  color: #FFFFFF !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.03em !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.16) !important;
+  cursor: pointer !important;
+}
+
+.print-btn button:hover {
+  opacity: 0.92 !important;
+}
+
+.print-btn button:focus-visible {
+  outline: 3px solid rgba(47,111,104,0.35) !important;
+  outline-offset: 3px !important;
+}
+
+@media print {
+  .print-btn {
+    display: none !important;
+  }
+}
+
+
+/* Standalone program domain tag below opening sentence */
+.program-domain-strip {
+  width: fit-content;
+  max-width: calc(100% - 20mm);
+  margin: 0 auto 3mm;
+  padding: 4px 12px;
+  border: 1px solid #DDE5EC;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #2D3E50;
+  font-size: 10.6px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.a4-banner .a4-badges {
+  display: none !important;
+}
+
+@media print {
+  .program-domain-strip {
+    max-width: calc(100% - 20mm);
+    margin: 0 auto 3mm;
+  }
+}
+
+
+/* Centered clean title area without frame */
+.a4-banner {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+  padding: 1mm 0 3mm !important;
+  margin: 0 10mm 4mm !important;
+  display: block !important;
+  text-align: center !important;
+}
+
+.a4-banner-text {
+  width: 100% !important;
+  max-width: 100% !important;
+  text-align: center !important;
+  display: block !important;
+}
+
+.a4-title {
+  text-align: center !important;
+  margin: 0 auto 3px !important;
+  color: var(--c0) !important;
+}
+
+.a4-subtitle {
+  text-align: center !important;
+  margin: 0 auto !important;
+  color: #0f172a !important;
+}
+
+.a4-banner-text::after {
+  content: "";
+  display: block;
+  width: 88mm;
+  max-width: 62%;
+  height: 1px;
+  margin: 8px auto 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0) 0%,
+    rgba(47,111,104,0.18) 18%,
+    rgba(47,111,104,0.42) 50%,
+    rgba(47,111,104,0.18) 82%,
+    rgba(255,255,255,0) 100%
+  );
+}
+
+@media print {
+  .a4-banner {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 1mm 0 3mm !important;
+    margin: 0 10mm 4mm !important;
+  }
+
+  .a4-banner-text::after {
+    width: 88mm !important;
+    max-width: 62% !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+
+/* Domain strip centered above syllabus */
+.domain-before-syllabus {
+  margin: 2px auto 7px !important;
+  background: #FFFFFF !important;
+  border-color: #DDE5EC !important;
+  color: #2D3E50 !important;
+  box-shadow: none !important;
+}
+
+
+/* Full-width thin domain bar above syllabus */
+.domain-before-syllabus {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 4px 0 7px !important;
+  padding: 5px 12px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: rgba(var(--theme-rgb), 0.12) !important;
+  color: var(--c0) !important;
+  box-shadow: none !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+  display: block !important;
+}
+
+@media print {
+  .domain-before-syllabus {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 4px 0 7px !important;
+    padding: 5px 12px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+
+/* Skills and tools in 3 columns */
+.skills-tags {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  align-items: stretch !important;
+  margin-top: 3px !important;
+}
+
+.skills-column {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: stretch;
+}
+
+.skills-column .skill-tag {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  white-space: normal !important;
+  min-height: 25px;
+  padding: 4px 7px !important;
+  font-size: 10.15px !important;
+  line-height: 1.15 !important;
+}
+
+@media print {
+  .skills-tags {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+
+/* Skills columns: right aligned and evenly narrower */
+.skills-tags {
+  width: 78% !important;
+  max-width: 520px !important;
+  margin: 4px auto 0 !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 7px !important;
+  align-items: stretch !important;
+}
+
+.skills-column {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+  align-items: stretch !important;
+}
+
+.skills-column .skill-tag {
+  width: 100% !important;
+  justify-content: flex-start !important;
+  text-align: right !important;
+  direction: rtl !important;
+  white-space: normal !important;
+  min-height: 24px !important;
+  padding: 4px 9px !important;
+  font-size: 10.15px !important;
+  line-height: 1.15 !important;
+}
+
+@media print {
+  .skills-tags {
+    width: 78% !important;
+    max-width: 520px !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+
+/* Final micro layout adjustments */
+.a4-banner {
+  margin-bottom: 2.1mm !important;
+}
+
+.course-summary {
+  margin-top: 0 !important;
+}
+
+/* Align “כלים ומיומנויות” with the skills boxes */
+.full-width-card.text-only-section,
+.full-width-card {
+  display: grid !important;
+  grid-template-columns: 112px minmax(0, 1fr) !important;
+  column-gap: 12px !important;
+  align-items: start !important;
+}
+
+.full-width-card .section-title {
+  grid-column: 1 !important;
+  margin: 5px 0 0 !important;
+  line-height: 1.2 !important;
+}
+
+.full-width-card .section-body {
+  grid-column: 2 !important;
+}
+
+.full-width-card .skills-tags {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+/* Remove the framed box above “סילבוס הקורס” */
+.domain-before-syllabus {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 2px 0 4px !important;
+  padding: 2px 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #2D3E50 !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  text-align: center !important;
+}
+
+@media print {
+  .a4-banner {
+    margin-bottom: 2.1mm !important;
+  }
+
+  .full-width-card.text-only-section,
+  .full-width-card {
+    display: grid !important;
+    grid-template-columns: 112px minmax(0, 1fr) !important;
+    column-gap: 12px !important;
+  }
+
+  .domain-before-syllabus {
+    margin: 2px 0 4px !important;
+    padding: 2px 0 !important;
+    border: none !important;
+    background: transparent !important;
+  }
+}
+
+
+/* BIOMIMICRY A4 DESIGN UPGRADE */
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  --bio-main: #1F6F6B;
+  --bio-green: #7DBA45;
+  --bio-mint: #EAF7F3;
+  --bio-orange: #F4A340;
+  --bio-text: #173A4A;
+  --bio-bg: #FAFCFB;
+}
+
+body,
+.a4,
+.a4 * {
+  font-family: "Assistant", Arial, sans-serif !important;
+}
+
+body {
+  background: #EEF2F5 !important;
+  color: #173A4A !important;
+}
+
+.a4 {
+  background: #FFFFFF !important;
+  color: #173A4A !important;
+  position: relative !important;
+}
+
+.a4::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(var(--theme-rgb),0.08), var(--c0), rgba(var(--theme-rgb),0.08));
+  z-index: 2;
+}
+
+.top-meta-row {
+  min-height: 26px !important;
+  margin: 0 10mm 0.6mm !important;
+}
+
+.top-meta-label {
+  background: #FFFFFF !important;
+  border: 1px solid #DDE7E5 !important;
+  border-radius: 999px !important;
+  padding: 2px 11px 3px !important;
+  gap: 3px 7px !important;
+  box-shadow: none !important;
+  color: #173A4A !important;
+}
+
+.top-meta-label .meta-main,
+.top-meta-label .meta-value {
+  color: #173A4A !important;
+}
+
+.top-meta-label .meta-main {
+  font-weight: 900 !important;
+  font-size: 10.4px !important;
+}
+
+.top-meta-label .meta-value {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+}
+
+.top-meta-label .meta-separator {
+  background: #B8C8C5 !important;
+  opacity: 0.85 !important;
+}
+
+.top-meta-logo {
+  width: 62px !important;
+  height: 28px !important;
+  left: 0 !important;
+  opacity: 0.98 !important;
+}
+
+.a4-opening {
+  background: #FFFFFF !important;
+  border: 1px solid #E0EAE8 !important;
+  border-right: 3px solid rgba(var(--theme-rgb),0.42) !important;
+  color: #173A4A !important;
+  border-radius: 8px !important;
+  min-height: 24px !important;
+  padding: 4px 12px !important;
+  margin-bottom: 1.7mm !important;
+  font-size: 12.2px !important;
+  line-height: 1.35 !important;
+}
+
+.a4-banner {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+  padding: 0 0 2mm !important;
+  margin: 0 10mm 2.4mm !important;
+  display: block !important;
+  text-align: center !important;
+}
+
+.a4-banner-text {
+  width: 100% !important;
+  text-align: center !important;
+}
+
+.a4-title {
+  color: var(--c0) !important;
+  text-align: center !important;
+  font-size: 28.5px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  margin: 0 auto 2px !important;
+}
+
+.a4-title::before {
+  content: none;
+}
+
+.a4-subtitle {
+  color: #0f172a !important;
+  text-align: center !important;
+  font-size: 13.2px !important;
+  font-weight: 800 !important;
+  line-height: 1.16 !important;
+  margin: 0 auto !important;
+}
+
+.a4-banner-text::after {
+  content: "";
+  display: block;
+  width: 92mm;
+  max-width: 64%;
+  height: 1px;
+  margin: 7px auto 0;
+  background: linear-gradient(90deg, rgba(var(--theme-rgb),0), rgba(var(--theme-rgb),0.42), rgba(var(--theme-rgb),0.42), rgba(var(--theme-rgb),0));
+}
+
+.a4-banner .a4-logo,
+.a4-banner .a4-badges {
+  display: none !important;
+}
+
+.section-title,
+.text-only-section .section-title,
+.learning-process-section .section-title {
+  color: var(--c0) !important;
+  font-size: 13.3px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  margin: 0 0 4px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.section-title::before,
+.text-only-section .section-title::before,
+.learning-process-section .section-title::before {
+  display: none !important;
+  content: none !important;
+}
+
+.section-body,
+.text-only-section .section-body {
+  color: #173A4A !important;
+  font-size: 12.15px !important;
+  line-height: 1.58 !important;
+}
+
+.core-plain-card {
+  margin-bottom: 8px !important;
+}
+
+.core-plain-card .section-body {
+  color: #1E2D3D !important;
+  background: var(--c4) !important;
+  border: 1px solid rgba(var(--theme-rgb),0.18) !important;
+  border-right: 5px solid var(--c0) !important;
+  border-radius: 10px !important;
+  padding: 9px 12px !important;
+  font-size: 12.65px !important;
+  line-height: 1.55 !important;
+  font-weight: 900 !important;
+}
+
+.learning-process-section,
+.course-description {
+  background: #FFFFFF !important;
+  border: 1px solid #DDE8E6 !important;
+  border-right: 3px solid rgba(var(--theme-rgb),0.32) !important;
+  border-radius: 10px !important;
+  padding: 8px 11px !important;
+  margin-bottom: 8px !important;
+}
+
+.course-description .section-body {
+  column-count: 1 !important;
+  column-gap: 0 !important;
+  column-rule: none !important;
+  font-size: 12.9px !important;
+  line-height: 1.48 !important;
+}
+
+.course-description .section-body p {
+  margin-bottom: 8px !important;
+}
+
+.learning-flow-strip {
+  column-span: all;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  align-items: stretch;
+  margin: 1px 0 9px;
+  padding: 6px;
+  background: #F7FBFA;
+  border: 1px solid #E0ECE9;
+  border-radius: 9px;
+}
+
+.learning-flow-step {
+  position: relative;
+  text-align: center;
+  color: var(--c0);
+  font-weight: 900;
+  font-size: 9.65px;
+  line-height: 1.15;
+  padding: 5px 4px;
+  background: #FFFFFF;
+  border-radius: 7px;
+  border: 1px solid rgba(var(--theme-rgb),0.13);
+}
+
+.learning-flow-step:not(:last-child)::after {
+  content: "←";
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(var(--theme-rgb),0.48);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.inline-outcomes-wrap {
+  column-span: all !important;
+  background: #FFFFFF !important;
+  border: 1px solid #E1EAE8 !important;
+  border-radius: 9px !important;
+  padding: 7px 8px !important;
+  margin-top: 7px !important;
+}
+
+.inline-outcomes-label {
+  color: var(--c0) !important;
+  font-size: 10.8px !important;
+  font-weight: 900 !important;
+  margin-bottom: 5px !important;
+}
+
+.inline-outcomes-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 5px !important;
+}
+
+.inline-outcomes-grid .outcome-item {
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 27px !important;
+  padding: 4px 5px !important;
+  border-radius: 8px !important;
+  font-size: 9.7px !important;
+  line-height: 1.15 !important;
+  font-weight: 900 !important;
+  text-align: center !important;
+  background: rgba(var(--theme-rgb), 0.11) !important;
+  border: 1px solid rgba(var(--theme-rgb), 0.28) !important;
+  color: var(--c0) !important;
+}
+
+.full-width-card.text-only-section,
+.full-width-card {
+  display: block !important;
+  margin-bottom: 8px !important;
+}
+
+.full-width-card .section-title {
+  margin: 0 0 5px !important;
+}
+
+.skills-groups {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.skill-group {
+  border: 1px solid #E2EAE8;
+  border-radius: 9px;
+  background: #FFFFFF;
+  padding: 6px 7px;
+  min-height: 62px;
+}
+
+.skill-group-title {
+  display: block;
+  color: var(--c0);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+.skill-group-items {
+  color: #2D3E50;
+  font-size: 9.45px;
+  line-height: 1.28;
+  font-weight: 700;
+}
+
+.domain-before-syllabus {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 3px 0 6px !important;
+  padding: 4px 12px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: rgba(var(--theme-rgb),0.11) !important;
+  color: var(--c0) !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+}
+
+.syllabus-wrap {
+  border-color: #DDE8E6 !important;
+  border-radius: 10px !important;
+  overflow: visible !important;
+}
+
+.syllabus-header {
+  background: var(--c0) !important;
+  color: #FFFFFF !important;
+  font-size: 12.2px !important;
+  font-weight: 900 !important;
+  padding: 5px 12px !important;
+  border: none !important;
+}
+
+.syllabus-table {
+  font-size: 11.4px !important;
+  table-layout: fixed !important;
+}
+
+.syllabus-table th {
+  background: #F1F8F6 !important;
+  color: #173A4A !important;
+  font-size: 10.4px !important;
+  font-weight: 900 !important;
+  padding: 4px 7px !important;
+}
+
+.syllabus-table td {
+  padding: 4px 7px !important;
+  line-height: 1.38 !important;
+}
+
+.syllabus-table tr:nth-child(even) td { background: #FAFCFB !important; }
+.syllabus-table tr.stage-nature td { background: rgba(var(--theme-rgb),0.045) !important; }
+.syllabus-table tr.stage-tech td { background: rgba(var(--theme-rgb),0.045) !important; }
+.syllabus-table tr.stage-product td { background: rgba(var(--theme-rgb),0.055) !important; }
+
+.syl-num {
+  text-align: center !important;
+}
+
+.session-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(var(--theme-rgb),0.13);
+  color: var(--c0);
+  font-weight: 900;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.syl-topic {
+  width: 126px !important;
+  font-weight: 900 !important;
+  color: var(--c0) !important;
+}
+
+.syllabus-table th:nth-child(2),
+.syllabus-table td:nth-child(2) {
+  width: 152px !important;
+}
+
+.syllabus-table th:first-child,
+.syllabus-table td:first-child {
+  width: 60px !important;
+  text-align: center !important;
+}
+
+.term-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  margin: 0 1px;
+  border-radius: 999px;
+  background: rgba(var(--theme-rgb),0.10);
+  color: var(--c0);
+  border: 1px solid rgba(var(--theme-rgb),0.16);
+  font-weight: 900;
+  font-size: 9.3px;
+  line-height: 1.2;
+}
+
+.school-value-after-syllabus {
+  background: #F7FBFA !important;
+  border: 1px solid #DDE8E6 !important;
+  border-right: 4px solid var(--c0) !important;
+  border-radius: 10px !important;
+  padding: 8px 11px !important;
+  margin-top: 36px !important;
+}
+
+.school-value-after-syllabus .section-body {
+  color: #273e56 !important;
+  font-size: 11.25px !important;
+  line-height: 1.45 !important;
+  font-weight: 700 !important;
+}
+
+.a4-footer {
+  background: #FAFCFB !important;
+  border-top: 1px solid #E1E9E7 !important;
+}
+
+.print-btn {
+  position: fixed !important;
+  left: 16px !important;
+  bottom: 16px !important;
+  margin: 0 !important;
+  z-index: 9999 !important;
+}
+
+.print-btn button {
+  min-width: 54px !important;
+  height: 36px !important;
+  padding: 0 14px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  background: #3A5068 !important;
+  color: #FFFFFF !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.16) !important;
+  cursor: pointer !important;
+}
+
+@media print {
+  body,
+  .a4,
+  .a4 * {
+    font-family: "Assistant", Arial, sans-serif !important;
+  }
+
+  .a4 {
+    padding-top: 5mm !important;
+  }
+
+  .learning-flow-strip,
+  .inline-outcomes-grid .outcome-item,
+  .skill-group,
+  .domain-before-syllabus,
+  .syllabus-header,
+  .session-pill,
+  .term-chip,
+  .school-value-after-syllabus,
+  .core-plain-card .section-body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-btn {
+    display: none !important;
+  }
+
+  .skills-groups {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+
+/* Syllabus clean numbers and topics — no bubbles */
+.syl-num {
+  color: var(--c0) !important;
+  font-weight: 900 !important;
+  text-align: center !important;
+}
+
+.session-pill,
+.term-chip {
+  display: inline !important;
+  min-width: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  font: inherit !important;
+  line-height: inherit !important;
+}
+
+
+/* Vertical compression — only when auto-fit detects A4 overflow */
+.a4.fit-compact,
+.a4.fit-tight,
+.a4.fit-ultra {
+  padding-top: 4.5mm !important;
+}
+
+.a4.fit-normal .a4-opening,
+.a4.fit-compact .a4-opening,
+.a4.fit-tight .a4-opening,
+.a4.fit-ultra .a4-opening {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+  margin-bottom: 1.3mm !important;
+}
+
+.a4.fit-normal .a4-banner,
+.a4.fit-compact .a4-banner,
+.a4.fit-tight .a4-banner,
+.a4.fit-ultra .a4-banner {
+  padding-bottom: 1.4mm !important;
+  margin-bottom: 1.9mm !important;
+}
+
+.a4.fit-normal .course-summary,
+.a4.fit-normal .core-plain-card,
+.a4.fit-normal .full-width-card,
+.a4.fit-normal .learning-process-section,
+.a4.fit-normal .course-description,
+.a4.fit-compact .course-summary,
+.a4.fit-compact .core-plain-card,
+.a4.fit-compact .full-width-card,
+.a4.fit-compact .learning-process-section,
+.a4.fit-compact .course-description,
+.a4.fit-tight .course-summary,
+.a4.fit-tight .core-plain-card,
+.a4.fit-tight .full-width-card,
+.a4.fit-tight .learning-process-section,
+.a4.fit-tight .course-description,
+.a4.fit-ultra .course-summary,
+.a4.fit-ultra .core-plain-card,
+.a4.fit-ultra .full-width-card,
+.a4.fit-ultra .learning-process-section,
+.a4.fit-ultra .course-description {
+  margin-bottom: 6px !important;
+}
+
+.a4.fit-normal .core-plain-card .section-body,
+.a4.fit-compact .core-plain-card .section-body,
+.a4.fit-tight .core-plain-card .section-body,
+.a4.fit-ultra .core-plain-card .section-body {
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+}
+
+.a4.fit-normal .learning-flow-strip,
+.a4.fit-compact .learning-flow-strip,
+.a4.fit-tight .learning-flow-strip,
+.a4.fit-ultra .learning-flow-strip {
+  margin-bottom: 6px !important;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+
+.a4.fit-normal .inline-outcomes-wrap,
+.a4.fit-compact .inline-outcomes-wrap,
+.a4.fit-tight .inline-outcomes-wrap,
+.a4.fit-ultra .inline-outcomes-wrap {
+  margin-top: 6px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.a4.fit-normal .skills-groups,
+.a4.fit-compact .skills-groups,
+.a4.fit-tight .skills-groups,
+.a4.fit-ultra .skills-groups {
+  gap: 5px !important;
+}
+
+.a4.fit-normal .skill-group,
+.a4.fit-compact .skill-group,
+.a4.fit-tight .skill-group,
+.a4.fit-ultra .skill-group {
+  min-height: 58px !important;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+
+.a4.fit-normal .domain-before-syllabus,
+.a4.fit-compact .domain-before-syllabus,
+.a4.fit-tight .domain-before-syllabus,
+.a4.fit-ultra .domain-before-syllabus {
+  margin-top: 2px !important;
+  margin-bottom: 4px !important;
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+.a4.fit-normal .syllabus-header,
+.a4.fit-compact .syllabus-header,
+.a4.fit-tight .syllabus-header,
+.a4.fit-ultra .syllabus-header {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.a4.fit-normal .syllabus-table th,
+.a4.fit-compact .syllabus-table th,
+.a4.fit-tight .syllabus-table th,
+.a4.fit-ultra .syllabus-table th {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+.a4.fit-normal .syllabus-table td,
+.a4.fit-compact .syllabus-table td,
+.a4.fit-tight .syllabus-table td,
+.a4.fit-ultra .syllabus-table td {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+  line-height: 1.34 !important;
+}
+
+.a4.fit-normal .school-value-after-syllabus,
+.a4.fit-compact .school-value-after-syllabus,
+.a4.fit-tight .school-value-after-syllabus,
+.a4.fit-ultra .school-value-after-syllabus {
+  margin-top: 36px !important;
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+}
+
+.a4.fit-normal .a4-footer,
+.a4.fit-compact .a4-footer,
+.a4.fit-tight .a4-footer,
+.a4.fit-ultra .a4-footer {
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+
+@media print {
+  .a4.fit-normal,
+  .a4.fit-compact,
+  .a4.fit-tight,
+  .a4.fit-ultra {
+    padding-top: 4.5mm !important;
+  }
+
+  .a4.fit-normal .syllabus-table td,
+  .a4.fit-compact .syllabus-table td,
+  .a4.fit-tight .syllabus-table td,
+  .a4.fit-ultra .syllabus-table td {
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
+    line-height: 1.34 !important;
+  }
+
+  .a4.fit-normal .school-value-after-syllabus,
+  .a4.fit-compact .school-value-after-syllabus,
+  .a4.fit-tight .school-value-after-syllabus,
+  .a4.fit-ultra .school-value-after-syllabus {
+    margin-top: 8mm !important;
+    padding-top: 7px !important;
+    padding-bottom: 7px !important;
+  }
+}
+
+
+/* Opening sentence frame 15 percent narrower, font unchanged */
+.a4-opening {
+  width: calc(85% - 17mm) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+@media print {
+  .a4-opening {
+    width: calc(85% - 17mm) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  .syllabus-table th:first-child,
+  .syllabus-table td:first-child {
+    width: 48px !important;
+    text-align: center !important;
+  }
+}
+
+
+/* Syllabus meeting numbers: smaller and less dominant */
+.syl-num {
+  color: #3C4854 !important;
+  font-weight: 700 !important;
+  font-size: 10px !important;
+  text-align: center !important;
+}
+
+.syllabus-table th:first-child,
+.syllabus-table td:first-child {
+  width: 48px !important;
+}
+
+.syllabus-table td.syl-num {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+
+
+/* Reduce gap between syllabus and bottom summary */
+.syllabus-wrap {
+  margin-bottom: 3px !important;
+}
+
+.school-value-after-syllabus {
+  margin-top: 36px !important;
+}
+
+@media print {
+  .syllabus-wrap {
+    margin-bottom: 3px !important;
+  }
+
+  .school-value-after-syllabus {
+    margin-top: 3px !important;
+  }
+}
+
+
+/* Compact collapsible side course drawer */
+.nav-toggle {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 10002;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #D8E1E8;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #173A4A;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  cursor: pointer;
+}
+
+.nav-toggle:hover {
+  background: #F7FAF9;
+}
+
+.catalog-gen-link {
+  position: fixed;
+  top: 14px;
+  right: 60px;
+  z-index: 10002;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid #D8E1E8;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #173A4A;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: "Assistant", Arial, sans-serif;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.10);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.catalog-gen-link:hover { background: #F0F5FA; }
+
+.nav-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0,0,0,0.18);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease;
+}
+
+.nav-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.nav {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 200px !important;
+  max-width: 78vw !important;
+  height: 100vh !important;
+  z-index: 10001 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 3px !important;
+  padding: 46px 8px 10px !important;
+  overflow-y: auto !important;
+  background: #FFFFFF !important;
+  border-left: 1px solid #DDE5EC !important;
+  border-bottom: none !important;
+  box-shadow: -8px 0 22px rgba(0,0,0,0.12) !important;
+  transform: translateX(105%) !important;
+  transition: transform .2s ease !important;
+}
+
+.nav.open {
+  transform: translateX(0) !important;
+}
+
+.nav::before {
+  content: "תוכניות";
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  color: #8FA8B8;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.nav-section-heading {
+  font-size: 9px !important;
+  font-weight: 900 !important;
+  color: #A0B4C0 !important;
+  letter-spacing: 0.07em !important;
+  padding: 8px 6px 2px !important;
+  margin-top: 0 !important;
+  text-transform: uppercase !important;
+  border-top: 1px solid #EEF2F5 !important;
+}
+
+.nav-section-heading:first-of-type {
+  border-top: none !important;
+  padding-top: 0 !important;
+}
+
+.nav-pdf-footer {
+  margin-top: 6px !important;
+  padding-top: 8px !important;
+  border-top: 1px solid #E8EFF4 !important;
+}
+
+.nav-pdf-btn {
+  width: auto !important;
+  display: block !important;
+  margin: 0 auto !important;
+  padding: 5px 16px !important;
+  border: none !important;
+  border-radius: 6px !important;
+  background: #3A5068 !important;
+  color: #FFFFFF !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  font-family: "Assistant", Arial, sans-serif !important;
+  cursor: pointer !important;
+  text-align: center !important;
+  letter-spacing: 0.05em !important;
+}
+
+.nav-pdf-btn:hover { opacity: 0.85 !important; }
+
+.nav-btn {
+  width: 100% !important;
+  text-align: right !important;
+  justify-content: flex-start !important;
+  border-radius: 7px !important;
+  padding: 4px 7px !important;
+  font-size: 10px !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+  background: #FFFFFF !important;
+  min-height: 0 !important;
+}
+
+.nav-btn.active,
+.nav-btn:hover {
+  background: #EAF7F3 !important;
+  border-color: #AFCFC8 !important;
+  color: #173A4A !important;
+}
+
+body.nav-open {
+  overflow: hidden;
+}
+
+@media print {
+  .nav,
+  .nav-toggle,
+  .nav-overlay,
+  .nav-pdf-footer {
+    display: none !important;
+  }
+  body.nav-open {
+    overflow: visible !important;
+  }
+}
+
+
+/* Smart A4 auto-fit system */
+.a4 {
+  width: 210mm !important;
+  height: 297mm !important;
+  max-height: 297mm !important;
+  overflow: hidden !important;
+}
+
+.a4.fit-spacious .section-body {
+  font-size: 12.25px !important;
+  line-height: 1.62 !important;
+}
+
+.a4.fit-spacious .syllabus-table td {
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+  line-height: 1.42 !important;
+}
+
+.a4.fit-compact {
+  padding-top: 5mm !important;
+}
+
+.a4.fit-compact .top-meta-row {
+  min-height: 25px !important;
+  margin-bottom: 0.4mm !important;
+}
+
+.a4.fit-compact .a4-opening {
+  min-height: 23px !important;
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+  margin-bottom: 2.5mm !important;
+}
+
+.a4.fit-compact .a4-banner {
+  margin-bottom: 2mm !important;
+  padding-bottom: 1.4mm !important;
+}
+
+.a4.fit-compact .course-summary,
+.a4.fit-compact .core-plain-card,
+.a4.fit-compact .full-width-card,
+.a4.fit-compact .learning-process-section,
+.a4.fit-compact .course-description {
+  margin-bottom: 6px !important;
+}
+
+.a4.fit-compact .section-body {
+  font-size: 11.95px !important;
+  line-height: 1.50 !important;
+}
+
+.a4.fit-compact .course-description .section-body {
+  font-size: 12.9px !important;
+  line-height: 1.42 !important;
+}
+
+.a4.fit-compact .core-plain-card .section-body {
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+}
+
+.a4.fit-compact .syllabus-header {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.a4.fit-compact .syllabus-table th,
+.a4.fit-compact .syllabus-table td {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+  line-height: 1.34 !important;
+}
+
+.a4.fit-compact .school-value-after-syllabus {
+  margin-top: 18px !important;
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+}
+
+.a4.fit-tight {
+  padding-top: 4mm !important;
+}
+
+.a4.fit-tight .top-meta-row {
+  min-height: 23px !important;
+  margin-bottom: 0.2mm !important;
+}
+
+.a4.fit-tight .top-meta-label {
+  padding-top: 1px !important;
+  padding-bottom: 2px !important;
+}
+
+.a4.fit-tight .top-meta-logo {
+  width: 64px !important;
+  height: 40px !important;
+}
+
+.a4.fit-tight .a4-opening {
+  min-height: 21px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  margin-bottom: 2mm !important;
+  line-height: 1.26 !important;
+}
+
+.a4.fit-tight .a4-banner {
+  margin-bottom: 1.5mm !important;
+  padding-bottom: 1mm !important;
+}
+
+.a4.fit-tight .a4-title {
+  font-size: 26px !important;
+}
+
+.a4.fit-tight .a4-subtitle {
+  font-size: 12.2px !important;
+}
+
+.a4.fit-tight .course-summary,
+.a4.fit-tight .core-plain-card,
+.a4.fit-tight .full-width-card,
+.a4.fit-tight .learning-process-section,
+.a4.fit-tight .course-description {
+  margin-bottom: 4px !important;
+}
+
+.a4.fit-tight .section-title {
+  margin-bottom: 3px !important;
+}
+
+.a4.fit-tight .section-body {
+  font-size: 11.55px !important;
+  line-height: 1.42 !important;
+}
+
+.a4.fit-tight .course-description .section-body {
+  font-size: 12.9px !important;
+  line-height: 1.34 !important;
+}
+
+.a4.fit-tight .core-plain-card .section-body {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.a4.fit-tight .learning-flow-strip {
+  margin-bottom: 5px !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.a4.fit-tight .inline-outcomes-wrap {
+  margin-top: 4px !important;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+
+.a4.fit-tight .skill-group {
+  min-height: 52px !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.a4.fit-tight .domain-before-syllabus {
+  margin-top: 1px !important;
+  margin-bottom: 3px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+.a4.fit-tight .syllabus-header {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+.a4.fit-tight .syllabus-table th,
+.a4.fit-tight .syllabus-table td {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  line-height: 1.28 !important;
+}
+
+.a4.fit-tight .school-value-after-syllabus {
+  margin-top: 14px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.a4.fit-ultra {
+  padding-top: 3.5mm !important;
+}
+
+.a4.fit-ultra .top-meta-row {
+  min-height: 21px !important;
+}
+
+.a4.fit-ultra .a4-opening {
+  min-height: 19px !important;
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+  margin-bottom: 1.5mm !important;
+  line-height: 1.20 !important;
+}
+
+.a4.fit-ultra .a4-banner {
+  margin-bottom: 1mm !important;
+  padding-bottom: 0.6mm !important;
+}
+
+.a4.fit-ultra .a4-title {
+  font-size: 25px !important;
+}
+
+.a4.fit-ultra .a4-subtitle {
+  font-size: 11.8px !important;
+}
+
+.a4.fit-ultra .course-summary,
+.a4.fit-ultra .core-plain-card,
+.a4.fit-ultra .full-width-card,
+.a4.fit-ultra .learning-process-section,
+.a4.fit-ultra .course-description {
+  margin-bottom: 3px !important;
+}
+
+.a4.fit-ultra .section-title {
+  font-size: 12.4px !important;
+  margin-bottom: 2px !important;
+}
+
+.a4.fit-ultra .section-body {
+  font-size: 11.2px !important;
+  line-height: 1.34 !important;
+}
+
+.a4.fit-ultra .course-description .section-body {
+  font-size: 12.9px !important;
+  line-height: 1.28 !important;
+}
+
+.a4.fit-ultra .core-plain-card .section-body {
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+
+.a4.fit-ultra .learning-flow-strip,
+.a4.fit-ultra .inline-outcomes-wrap {
+  margin-top: 3px !important;
+  margin-bottom: 3px !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.a4.fit-ultra .skill-group {
+  min-height: 48px !important;
+  padding: 3px 5px !important;
+}
+
+.a4.fit-ultra .skill-group-title {
+  margin-bottom: 2px !important;
+}
+
+.a4.fit-ultra .skill-group-items {
+  font-size: 9px !important;
+  line-height: 1.18 !important;
+}
+
+.a4.fit-ultra .syllabus-header {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+.a4.fit-ultra .syllabus-table {
+  font-size: 10.95px !important;
+}
+
+.a4.fit-ultra .syllabus-table th,
+.a4.fit-ultra .syllabus-table td {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+  line-height: 1.22 !important;
+}
+
+.a4.fit-ultra .school-value-after-syllabus {
+  margin-top: 10px !important;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+
+.a4.fit-ultra .a4-footer {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+.fit-warning {
+  display: none;
+  position: fixed;
+  right: 14px;
+  bottom: 62px;
+  z-index: 9998;
+  max-width: 280px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #FFF4E5;
+  color: #7A4A00;
+  border: 1px solid #F3C06B;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.fit-warning.show {
+  display: block;
+}
+
+@media print {
+  .fit-warning {
+    display: none !important;
+  }
+
+  .a4 {
+    width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    overflow: hidden !important;
+  }
+}
+
+
+/* Logo in same folder + Assistant font everywhere */
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800;900&display=swap');
+
+html,
+body,
+button,
+input,
+select,
+textarea,
+.a4,
+.a4 * {
+  font-family: "Assistant", Arial, sans-serif !important;
+}
+
+.top-meta-logo {
+  width: 72px !important;
+  height: 34px !important;
+  object-fit: contain !important;
+}
+
+@media print {
+  html,
+  body,
+  button,
+  input,
+  select,
+  textarea,
+  .a4,
+  .a4 * {
+    font-family: "Assistant", Arial, sans-serif !important;
+  }
+
+  .top-meta-logo {
+    width: 72px !important;
+    height: 34px !important;
+  }
+}
+
+
+/* Subtle geometric background behind the upper area only */
+.a4 {
+  position: relative !important;
+  isolation: isolate !important;
+}
+
+.a4::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 84mm;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to bottom, rgba(255,255,255,0.00) 0%, rgba(255,255,255,0.02) 58%, rgba(255,255,255,0.78) 86%, rgba(255,255,255,1) 100%),
+    url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%221200%22%20height%3D%22340%22%20viewBox%3D%220%200%201200%20340%22%3E%0A%20%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%2374D8E8%22%20stroke-width%3D%221.5%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.42%22%3E%0A%20%20%20%20%3Cpolygon%20points%3D%2254%2C22%2070%2C12%2086%2C22%2086%2C42%2070%2C52%2054%2C42%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22138%2C58%20160%2C44%20182%2C58%20182%2C84%20160%2C98%20138%2C84%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22252%2C18%20285%2C0%20318%2C18%20318%2C54%20285%2C72%20252%2C54%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22338%2C72%20350%2C64%20362%2C72%20362%2C88%20350%2C96%20338%2C88%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22420%2C36%20454%2C18%20488%2C36%20488%2C74%20454%2C92%20420%2C74%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22562%2C18%20577%2C8%20592%2C18%20592%2C38%20577%2C48%20562%2C38%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22650%2C74%20683%2C56%20716%2C74%20716%2C110%20683%2C128%20650%2C110%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22806%2C22%20821%2C12%20836%2C22%20836%2C42%20821%2C52%20806%2C42%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22890%2C54%20912%2C40%20934%2C54%20934%2C80%20912%2C94%20890%2C80%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%221000%2C16%201034%2C0%201068%2C16%201068%2C54%201034%2C70%201000%2C54%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%221088%2C74%201101%2C66%201114%2C74%201114%2C90%201101%2C98%201088%2C90%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%221160%2C28%201174%2C20%201188%2C28%201188%2C44%201174%2C52%201160%2C44%22/%3E%0A%0A%20%20%20%20%3Cpolygon%20points%3D%2284%2C124%20117%2C106%20150%2C124%20150%2C162%20117%2C180%2084%2C162%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22186%2C146%20201%2C136%20216%2C146%20216%2C166%20201%2C176%20186%2C166%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22290%2C118%20324%2C100%20358%2C118%20358%2C156%20324%2C174%20290%2C156%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22424%2C136%20439%2C126%20454%2C136%20454%2C156%20439%2C166%20424%2C156%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22512%2C110%20534%2C96%20556%2C110%20556%2C136%20534%2C150%20512%2C136%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22654%2C128%20687%2C110%20720%2C128%20720%2C166%20687%2C184%20654%2C166%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22772%2C116%20784%2C108%20796%2C116%20796%2C132%20784%2C140%20772%2C132%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%22862%2C132%20895%2C114%20928%2C132%20928%2C170%20895%2C188%20862%2C170%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%221004%2C118%201018%2C110%201032%2C118%201032%2C134%201018%2C142%201004%2C134%22/%3E%0A%20%20%20%20%3Cpolygon%20points%3D%221092%2C140%201125%2C122%201158%2C140%201158%2C178%201125%2C196%201092%2C178%22/%3E%0A%0A%20%20%20%20%3Cline%20x1%3D%2286%22%20y1%3D%2232%22%20x2%3D%22138%22%20y2%3D%2258%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22182%22%20y1%3D%2258%22%20x2%3D%22252%22%20y2%3D%2236%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22318%22%20y1%3D%2236%22%20x2%3D%22338%22%20y2%3D%2280%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22362%22%20y1%3D%2280%22%20x2%3D%22420%22%20y2%3D%2256%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22488%22%20y1%3D%2256%22%20x2%3D%22562%22%20y2%3D%2228%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22592%22%20y1%3D%2228%22%20x2%3D%22650%22%20y2%3D%2292%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22716%22%20y1%3D%2292%22%20x2%3D%22806%22%20y2%3D%2232%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22836%22%20y1%3D%2232%22%20x2%3D%22890%22%20y2%3D%2254%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22934%22%20y1%3D%2254%22%20x2%3D%221000%22%20y2%3D%2234%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%221068%22%20y1%3D%2234%22%20x2%3D%221088%22%20y2%3D%2282%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%221114%22%20y1%3D%2282%22%20x2%3D%221160%22%20y2%3D%2236%22/%3E%0A%0A%20%20%20%20%3Cline%20x1%3D%22117%22%20y1%3D%22144%22%20x2%3D%22186%22%20y2%3D%22156%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22216%22%20y1%3D%22156%22%20x2%3D%22290%22%20y2%3D%22136%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22358%22%20y1%3D%22136%22%20x2%3D%22424%22%20y2%3D%22146%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22454%22%20y1%3D%22146%22%20x2%3D%22512%22%20y2%3D%22122%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22556%22%20y1%3D%22122%22%20x2%3D%22654%22%20y2%3D%22146%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22720%22%20y1%3D%22146%22%20x2%3D%22772%22%20y2%3D%22124%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22796%22%20y1%3D%22124%22%20x2%3D%22862%22%20y2%3D%22150%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%22928%22%20y1%3D%22150%22%20x2%3D%221004%22%20y2%3D%22126%22/%3E%0A%20%20%20%20%3Cline%20x1%3D%221032%22%20y1%3D%22126%22%20x2%3D%221092%22%20y2%3D%22158%22/%3E%0A%20%20%3C/g%3E%0A%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat;
+  background-size: 100% 100%, cover;
+  background-position: top center, top center;
+  opacity: 0.42;
+}
+
+.top-meta-row,
+.a4-opening,
+.a4-banner,
+.a4-body {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.a4-banner {
+  background: linear-gradient(90deg, rgba(255,255,255,0.90) 0%, rgba(234,247,243,0.58) 100%) !important;
+  backdrop-filter: blur(0.5px);
+}
+
+.a4-opening {
+  background: rgba(255,255,255,0.76) !important;
+}
+
+@media print {
+  .a4::before {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    opacity: 0.34 !important;
+  }
+
+  .a4-banner,
+  .a4-opening {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+
+/* Fix: limit decorative background strictly to banner area */
+.a4::before {
+  height: 36mm !important;
+}
+
+/* Fix: clear visual separator — banner ends, body begins */
+.a4-banner {
+  padding-bottom: 4mm !important;
+  margin-bottom: 3.5mm !important;
+}
+.a4-body {
+  padding-top: 1.5mm !important;
+}
+
+/* Fit-class overrides to absorb the added spacing */
+.a4.fit-compact .a4-banner {
+  margin-bottom: 2mm !important;
+  padding-bottom: 2mm !important;
+}
+.a4.fit-compact .a4-body {
+  padding-top: 1mm !important;
+}
+.a4.fit-tight .a4-banner {
+  margin-bottom: 1.5mm !important;
+  padding-bottom: 1.2mm !important;
+}
+.a4.fit-tight .a4-body {
+  padding-top: 0.8mm !important;
+}
+.a4.fit-ultra .a4-banner {
+  margin-bottom: 1mm !important;
+  padding-bottom: 0.6mm !important;
+}
+.a4.fit-ultra .a4-body {
+  padding-top: 0.5mm !important;
+}
+
+/* Visible gap between syllabus and school-value in print (fit-class overrides) */
+@media print {
+  .a4.fit-compact .school-value-after-syllabus {
+    margin-top: 6mm !important;
+  }
+  .a4.fit-tight .school-value-after-syllabus {
+    margin-top: 5mm !important;
+  }
+  .a4.fit-ultra .school-value-after-syllabus {
+    margin-top: 4mm !important;
+  }
+}
+
+/* "כלים ומיומנויות" title — centered full-width above the skills grid */
+.full-width-card {
+  display: block !important;
+}
+.full-width-card .section-title {
+  display: flex !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+  margin: 0 auto 6px !important;
+  grid-column: unset !important;
+}
+.full-width-card .section-body {
+  grid-column: unset !important;
+  width: 100% !important;
+}
+@media print {
+  .full-width-card {
+    display: block !important;
+  }
+  .full-width-card .section-title {
+    display: flex !important;
+    justify-content: center !important;
+    text-align: center !important;
+    width: 100% !important;
+    margin: 0 auto 6px !important;
+    grid-column: unset !important;
+  }
+  .full-width-card .section-body {
+    grid-column: unset !important;
+    width: 100% !important;
+  }
+}
+
+/* Syllabus header row — white background instead of dark */
+.syllabus-table th {
+  background: #FFFFFF !important;
+  color: var(--c0) !important;
+  border-bottom: 2px solid var(--c0) !important;
+}
+@media print {
+  .syllabus-table th {
+    background: #FFFFFF !important;
+    color: var(--c0) !important;
+    border-bottom: 2px solid var(--c0) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* core-plain-card (מטרת העל) — font size reduced by 0.5px */
+.core-plain-card .section-body {
+  font-size: 12.15px !important;
+}
+@media print {
+  .core-plain-card .section-body {
+    font-size: 12.15px !important;
+  }
+}
+
+/* Domain strip letter-spacing fix (was crowded at weight 900 with zero spacing) */
+.domain-before-syllabus {
+  letter-spacing: 0.04em !important;
+}
+.program-domain-strip {
+  letter-spacing: 0.04em !important;
+}
+@media print {
+  .domain-before-syllabus {
+    letter-spacing: 0.04em !important;
+  }
+  .program-domain-strip {
+    letter-spacing: 0.04em !important;
+  }
+}
+
+/* school-value section-body — +1px, less prominent */
+.school-value-after-syllabus .section-body {
+  font-size: 11.25px !important;
+  font-weight: 400 !important;
+  color: #273e56 !important;
+}
+@media print {
+  .school-value-after-syllabus .section-body {
+    font-size: 11.25px !important;
+    font-weight: 400 !important;
+    color: #273e56 !important;
+  }
+}
+
+/* skill-group text +1.75px */
+.skill-group-title {
+  font-size: 10.75px !important;
+}
+.skill-group-item {
+  font-size: 10.25px !important;
+}
+.skill-group-items {
+  font-size: 10.45px !important;
+}
+@media print {
+  .skill-group-title {
+    font-size: 10.75px !important;
+  }
+  .skill-group-item {
+    font-size: 10.25px !important;
+  }
+  .skill-group-items {
+    font-size: 10.45px !important;
+  }
+}
+
+/* תוצרי הסיום — 10% narrower */
+.inline-outcomes-grid .outcome-item {
+  flex: 0 1 106px !important;
+  min-width: 101px !important;
+  max-width: 119px !important;
+}
+@media print {
+  .inline-outcomes-grid .outcome-item {
+    flex: 0 1 106px !important;
+    min-width: 101px !important;
+    max-width: 119px !important;
+  }
+}
+
+/* learning-flow-strip — 20% narrower, centered */
+.learning-flow-strip {
+  width: 80% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+@media print {
+  .learning-flow-strip {
+    width: 80% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
+
+
+/* Visual separator line above school-value (screen + print) */
+.school-value-after-syllabus {
+  border-top: 2px solid rgba(var(--theme-rgb), 0.35) !important;
+  margin-top: 52px !important;
+}
+@media print {
+  .school-value-after-syllabus {
+    border-top: 2px solid rgba(var(--theme-rgb), 0.35) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin-top: 10mm !important;
+  }
+  .a4.fit-compact .school-value-after-syllabus {
+    margin-top: 8mm !important;
+  }
+  .a4.fit-tight .school-value-after-syllabus {
+    margin-top: 7mm !important;
+  }
+  .a4.fit-ultra .school-value-after-syllabus {
+    margin-top: 6mm !important;
+  }
+}
+
+/* Center + widen the skills-group-grid cards */
+.skills-group-grid {
+  grid-template-columns: repeat(4, 115px) !important;
+  margin: 3px auto 0 !important;
+  width: fit-content !important;
+  align-items: start !important;
+}
+.skill-group-card {
+  width: 115px !important;
+  height: fit-content !important;
+  align-self: start !important;
+}
+@media print {
+  .skills-group-grid {
+    grid-template-columns: repeat(4, 115px) !important;
+    margin: 3px auto 0 !important;
+    align-items: start !important;
+  }
+  .skill-group-card {
+    width: 115px !important;
+    height: fit-content !important;
+    align-self: start !important;
+  }
+}
+
+@media print {
+  .a4-logo {
+    width: 64px !important;
+    height: 64px !important;
+  }
+  .top-meta-logo {
+    width: 82px !important;
+    height: 40px !important;
+  }
+}
+
+/* ── Index / מקרא page ── */
+.index-page {
+  display: flex;
+  flex-direction: column;
+  padding-top: 14mm;
+  direction: rtl;
+}
+.idx-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 3mm 10mm 8mm;
+  border-bottom: 3px solid #1A2F50;
+}
+.idx-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.idx-title-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  text-align: right;
+  padding-top: 3mm;
+}
+.idx-main-title {
+  font-size: 26px;
+  font-weight: 900;
+  color: #1A2F50;
+  line-height: 1.15;
+  text-align: right;
+  width: 100%;
+}
+.idx-sub-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #607080;
+  margin-top: 3px;
+  text-align: right;
+  width: 100%;
+}
+.idx-body {
+  flex: 1;
+  padding: 11mm 10mm 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.idx-table {
+  width: 150mm;
+  margin: 0 auto;
+  border-collapse: collapse;
+  font-family: "Assistant", Arial, sans-serif;
+  font-size: 12.5px;
+  direction: rtl;
+  table-layout: fixed;
+}
+.idx-table thead tr {
+  background: #EEF2F6;
+  color: #1A2F50;
+}
+.idx-table th {
+  padding: 7px 8px;
+  font-weight: 800;
+  font-size: 11.5px;
+  text-align: center;
+  white-space: nowrap;
+  border-left: 1px solid #C8D5E0;
+  border-bottom: 2px solid #2C4560;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.idx-table th:last-child { border-left: none; }
+.idx-table td {
+  padding: 7px 8px;
+  color: #1E2D3D;
+  text-align: center;
+  border-bottom: 1px solid #E4EAEF;
+  border-left: 1px solid #E4EAEF;
+  vertical-align: middle;
+  line-height: 1.35;
+  overflow: hidden;
+}
+.idx-table td:last-child { border-left: none; }
+.idx-table tbody tr:nth-child(even) td {
+  background: #F5F8FA;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.idx-table th.idx-title,
+.idx-table td.idx-title  { width: 64mm; text-align: right; font-weight: 800; }
+.idx-table th.idx-level,
+.idx-table td.idx-level  { width: 23mm; text-align: right; }
+.idx-table th.idx-grades,
+.idx-table td.idx-grades { width: 19mm; text-align: center; }
+.idx-table th.idx-sessions,
+.idx-table td.idx-sessions { width: 23mm; text-align: right; }
+.idx-table th.idx-gefen,
+.idx-table td.idx-gefen  { width: 21mm; text-align: center; }
+@media print {
+  .index-page { padding-top: 14mm; }
+  .idx-header { padding-top: 3mm !important; }
+  .idx-title-block { padding-top: 3mm !important; }
+  .idx-body { padding-top: 11mm !important; }
+  .idx-table { width: 150mm !important; margin: 0 auto !important; }
+  .idx-table th.idx-title,
+  .idx-table td.idx-title  { width: 64mm !important; }
+  .idx-table th.idx-level,
+  .idx-table td.idx-level  { width: 23mm !important; }
+  .idx-table th.idx-grades,
+  .idx-table td.idx-grades { width: 19mm !important; }
+  .idx-table th.idx-sessions,
+  .idx-table td.idx-sessions { width: 23mm !important; }
+  .idx-table th.idx-gefen,
+  .idx-table td.idx-gefen  { width: 21mm !important; }
+  .idx-table th {
+    font-size: 11px !important;
+    border-bottom: 2px solid #2C4560 !important;
+  }
+  .idx-table td { font-size: 12px !important; }
+}
+
+/* ── White + light-gray + unique-color accent system ── */
+
+/* 1. Syllabus header + table headers: dark bg → clean light gray */
+.syllabus-header {
+  background: #EEF2F6 !important;
+  color: var(--c0) !important;
+  border-bottom: 2px solid var(--c2) !important;
+}
+.syllabus-table th {
+  background: #EEF2F6 !important;
+  color: var(--c0) !important;
+  border-bottom: 2px solid var(--c2) !important;
+}
+
+/* 2. Skill groups: light gray tint + thin color top-border */
+.skill-group,
+.skill-group-card {
+  background: #F5F8FA !important;
+  border-top: 2px solid var(--c2) !important;
+}
+
+/* 3. Section titles: thin right accent bar (RTL start edge) */
+.section-title,
+.text-only-section .section-title,
+.learning-process-section .section-title {
+  border-right: 3px solid var(--c1) !important;
+  padding-right: 7px !important;
+}
+
+/* 4. Outcome items: right-edge accent border */
+.outcome-item {
+  border-right: 3px solid var(--c3) !important;
+}
+
+/* 5. Cards: subtle top color strip */
+.overview-card,
+.outcome-card,
+.learning-process-section {
+  border-top: 2px solid var(--c3) !important;
+}
+
+/* 6. Opening quote: keep neutral gray, strengthen left accent */
+.a4-opening {
+  background: #F4F7FA !important;
+  border-right-width: 4px !important;
+}
+
+
+/* ── Targeted A4 auto-fit hierarchy correction ──
+   Applied only when auto-fit detects overflow (fit-normal = gaps only; fit-compact+ = tighter). */
+.a4.fit-compact,
+.a4.fit-tight,
+.a4.fit-ultra {
+  padding-top: 3.8mm !important;
+}
+
+.a4.fit-normal .top-meta-row,
+.a4.fit-compact .top-meta-row,
+.a4.fit-tight .top-meta-row,
+.a4.fit-ultra .top-meta-row {
+  min-height: 20px !important;
+  margin: 0 10mm 0.35mm !important;
+}
+
+.a4.fit-normal .top-meta-label,
+.a4.fit-compact .top-meta-label,
+.a4.fit-tight .top-meta-label,
+.a4.fit-ultra .top-meta-label {
+  padding: 1px 9px 2px !important;
+  gap: 2px 6px !important;
+  line-height: 1.05 !important;
+}
+
+.a4.fit-normal .top-meta-label .meta-main,
+.a4.fit-compact .top-meta-label .meta-main,
+.a4.fit-tight .top-meta-label .meta-main,
+.a4.fit-ultra .top-meta-label .meta-main {
+  font-size: 10.1px !important;
+}
+
+.a4.fit-normal .top-meta-label .meta-value,
+.a4.fit-compact .top-meta-label .meta-value,
+.a4.fit-tight .top-meta-label .meta-value,
+.a4.fit-ultra .top-meta-label .meta-value {
+  font-size: 9.75px !important;
+}
+
+.a4.fit-normal .top-meta-logo,
+.a4.fit-compact .top-meta-logo,
+.a4.fit-tight .top-meta-logo,
+.a4.fit-ultra .top-meta-logo {
+  width: 58px !important;
+  height: 24px !important;
+}
+
+.a4.fit-normal .a4-opening,
+.a4.fit-compact .a4-opening,
+.a4.fit-tight .a4-opening,
+.a4.fit-ultra .a4-opening {
+  min-height: 20px !important;
+  padding: 2px 10px !important;
+  margin-bottom: 3.5mm !important;
+  font-size: 12.15px !important;
+  line-height: 1.27 !important;
+}
+
+.a4.fit-normal .a4-banner,
+.a4.fit-compact .a4-banner,
+.a4.fit-tight .a4-banner,
+.a4.fit-ultra .a4-banner {
+  padding: 0 0 1mm !important;
+  margin: 0 10mm 1.4mm !important;
+}
+
+.a4.fit-normal .a4-title,
+.a4.fit-compact .a4-title,
+.a4.fit-tight .a4-title,
+.a4.fit-ultra .a4-title {
+  font-size: 27px !important;
+  line-height: 1 !important;
+  margin-bottom: 1px !important;
+}
+
+.a4.fit-normal .a4-subtitle,
+.a4.fit-compact .a4-subtitle,
+.a4.fit-tight .a4-subtitle,
+.a4.fit-ultra .a4-subtitle {
+  font-size: 12.7px !important;
+  line-height: 1.14 !important;
+}
+
+.a4.fit-normal .a4-banner-text::after,
+.a4.fit-compact .a4-banner-text::after,
+.a4.fit-tight .a4-banner-text::after,
+.a4.fit-ultra .a4-banner-text::after {
+  margin-top: 5px !important;
+}
+
+.a4.fit-normal .a4-body,
+.a4.fit-compact .a4-body,
+.a4.fit-tight .a4-body,
+.a4.fit-ultra .a4-body {
+  padding-top: 0 !important;
+  padding-bottom: 6px !important;
+}
+
+.a4.fit-normal .course-summary,
+.a4.fit-normal .core-plain-card,
+.a4.fit-normal .full-width-card,
+.a4.fit-normal .learning-process-section,
+.a4.fit-normal .course-description,
+.a4.fit-compact .course-summary,
+.a4.fit-compact .core-plain-card,
+.a4.fit-compact .full-width-card,
+.a4.fit-compact .learning-process-section,
+.a4.fit-compact .course-description,
+.a4.fit-tight .course-summary,
+.a4.fit-tight .core-plain-card,
+.a4.fit-tight .full-width-card,
+.a4.fit-tight .learning-process-section,
+.a4.fit-tight .course-description,
+.a4.fit-ultra .course-summary,
+.a4.fit-ultra .core-plain-card,
+.a4.fit-ultra .full-width-card,
+.a4.fit-ultra .learning-process-section,
+.a4.fit-ultra .course-description {
+  margin-bottom: 5px !important;
+}
+
+.a4.fit-normal .section-title,
+.a4.fit-normal .text-only-section .section-title,
+.a4.fit-normal .learning-process-section .section-title,
+.a4.fit-compact .section-title,
+.a4.fit-compact .text-only-section .section-title,
+.a4.fit-compact .learning-process-section .section-title,
+.a4.fit-tight .section-title,
+.a4.fit-tight .text-only-section .section-title,
+.a4.fit-tight .learning-process-section .section-title,
+.a4.fit-ultra .section-title,
+.a4.fit-ultra .text-only-section .section-title,
+.a4.fit-ultra .learning-process-section .section-title {
+  margin-bottom: 3px !important;
+}
+
+.a4.fit-normal .core-plain-card .section-body,
+.a4.fit-compact .core-plain-card .section-body,
+.a4.fit-tight .core-plain-card .section-body,
+.a4.fit-ultra .core-plain-card .section-body {
+  padding: 6px 9px !important;
+}
+
+.a4.fit-normal .learning-process-section,
+.a4.fit-normal .course-description,
+.a4.fit-compact .learning-process-section,
+.a4.fit-compact .course-description,
+.a4.fit-tight .learning-process-section,
+.a4.fit-tight .course-description,
+.a4.fit-ultra .learning-process-section,
+.a4.fit-ultra .course-description {
+  padding: 7px 10px !important;
+}
+
+.a4.fit-normal .learning-flow-strip,
+.a4.fit-compact .learning-flow-strip,
+.a4.fit-tight .learning-flow-strip,
+.a4.fit-ultra .learning-flow-strip {
+  margin-bottom: 5px !important;
+  padding: 4px 5px !important;
+}
+
+.a4.fit-normal .inline-outcomes-wrap,
+.a4.fit-compact .inline-outcomes-wrap,
+.a4.fit-tight .inline-outcomes-wrap,
+.a4.fit-ultra .inline-outcomes-wrap {
+  margin-top: 5px !important;
+  padding: 5px 7px !important;
+}
+
+.a4.fit-normal .domain-before-syllabus,
+.a4.fit-compact .domain-before-syllabus,
+.a4.fit-tight .domain-before-syllabus,
+.a4.fit-ultra .domain-before-syllabus {
+  margin: 10px 0 !important;
+  padding: 2px 10px !important;
+}
+
+.a4.fit-compact .domain-before-syllabus {
+  margin: 8px 0 !important;
+}
+
+.a4.fit-tight .domain-before-syllabus {
+  margin: 6px 0 !important;
+}
+
+.a4.fit-ultra .domain-before-syllabus {
+  margin: 5px 0 !important;
+}
+
+.a4.fit-normal .syllabus-header,
+.a4.fit-compact .syllabus-header,
+.a4.fit-tight .syllabus-header,
+.a4.fit-ultra .syllabus-header {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+.a4.fit-normal .syllabus-table th,
+.a4.fit-compact .syllabus-table th,
+.a4.fit-tight .syllabus-table th,
+.a4.fit-ultra .syllabus-table th {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+.a4.fit-normal .syllabus-table td,
+.a4.fit-compact .syllabus-table td,
+.a4.fit-tight .syllabus-table td,
+.a4.fit-ultra .syllabus-table td {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  line-height: 1.30 !important;
+}
+
+/* Subtle zebra rows: white alternating with soft gray + per-course theme tint */
+.syllabus-table tbody tr:nth-child(odd) td,
+.syllabus-table tbody tr.stage-nature:nth-child(odd) td,
+.syllabus-table tbody tr.stage-tech:nth-child(odd) td,
+.syllabus-table tbody tr.stage-product:nth-child(odd) td {
+  background: #FFFFFF !important;
+}
+
+.syllabus-table tbody tr:nth-child(even) td,
+.syllabus-table tbody tr.stage-nature:nth-child(even) td,
+.syllabus-table tbody tr.stage-tech:nth-child(even) td,
+.syllabus-table tbody tr.stage-product:nth-child(even) td {
+  background:
+    linear-gradient(rgba(var(--theme-rgb), 0.065), rgba(var(--theme-rgb), 0.065)),
+    #F1F4F7 !important;
+}
+
+/* Fixed, short modules: never let fit-* shrink their font. */
+.a4.fit-normal .school-value-after-syllabus,
+.a4.fit-compact .school-value-after-syllabus,
+.a4.fit-tight .school-value-after-syllabus,
+.a4.fit-ultra .school-value-after-syllabus {
+  margin-top: 28px !important;
+  padding: 6px 10px !important;
+}
+
+.a4.fit-compact .school-value-after-syllabus {
+  margin-top: 22px !important;
+}
+
+.a4.fit-tight .school-value-after-syllabus {
+  margin-top: 18px !important;
+}
+
+.a4.fit-ultra .school-value-after-syllabus {
+  margin-top: 14px !important;
+}
+
+.school-value-after-syllabus .section-body,
+.a4.fit-spacious .school-value-after-syllabus .section-body,
+.a4.fit-normal .school-value-after-syllabus .section-body,
+.a4.fit-compact .school-value-after-syllabus .section-body,
+.a4.fit-tight .school-value-after-syllabus .section-body,
+.a4.fit-ultra .school-value-after-syllabus .section-body {
+  font-size: 11.25px !important;
+  line-height: 1.45 !important;
+  font-weight: 400 !important;
+  color: #273e56 !important;
+}
+
+.skills-group-grid,
+.a4.fit-spacious .skills-group-grid,
+.a4.fit-normal .skills-group-grid,
+.a4.fit-compact .skills-group-grid,
+.a4.fit-tight .skills-group-grid,
+.a4.fit-ultra .skills-group-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, 108px) !important;
+  gap: 5px !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  margin: 2px auto 0 !important;
+  align-items: stretch !important;
+}
+
+.skill-group-card,
+.a4.fit-spacious .skill-group-card,
+.a4.fit-normal .skill-group-card,
+.a4.fit-compact .skill-group-card,
+.a4.fit-tight .skill-group-card,
+.a4.fit-ultra .skill-group-card {
+  width: 108px !important;
+  min-height: 50px !important;
+  height: auto !important;
+  padding: 4px 6px !important;
+}
+
+.skill-group-title,
+.a4.fit-spacious .skill-group-title,
+.a4.fit-normal .skill-group-title,
+.a4.fit-compact .skill-group-title,
+.a4.fit-tight .skill-group-title,
+.a4.fit-ultra .skill-group-title {
+  font-size: 10.25px !important;
+  line-height: 1.12 !important;
+  margin-bottom: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+.skill-group-items,
+.a4.fit-spacious .skill-group-items,
+.a4.fit-normal .skill-group-items,
+.a4.fit-compact .skill-group-items,
+.a4.fit-tight .skill-group-items,
+.a4.fit-ultra .skill-group-items {
+  font-size: 9.75px !important;
+  line-height: 1.18 !important;
+}
+
+.skill-group-item,
+.a4.fit-spacious .skill-group-item,
+.a4.fit-normal .skill-group-item,
+.a4.fit-compact .skill-group-item,
+.a4.fit-tight .skill-group-item,
+.a4.fit-ultra .skill-group-item {
+  font-size: 9.75px !important;
+  line-height: 1.18 !important;
+}
+
+.inline-outcomes-grid,
+.a4.fit-spacious .inline-outcomes-grid,
+.a4.fit-normal .inline-outcomes-grid,
+.a4.fit-compact .inline-outcomes-grid,
+.a4.fit-tight .inline-outcomes-grid,
+.a4.fit-ultra .inline-outcomes-grid {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  margin: 0 auto !important;
+}
+
+.inline-outcomes-grid .outcome-item,
+.a4.fit-spacious .inline-outcomes-grid .outcome-item,
+.a4.fit-normal .inline-outcomes-grid .outcome-item,
+.a4.fit-compact .inline-outcomes-grid .outcome-item,
+.a4.fit-tight .inline-outcomes-grid .outcome-item,
+.a4.fit-ultra .inline-outcomes-grid .outcome-item {
+  flex: 0 0 102px !important;
+  width: 102px !important;
+  min-width: 102px !important;
+  max-width: 102px !important;
+  min-height: 24px !important;
+  padding: 3px 5px !important;
+  font-size: 10px !important;
+  line-height: 1.14 !important;
+  font-weight: 900 !important;
+}
+
+/* Neutralize global .section-body fit changes for stable short sections. */
+.a4.fit-spacious .course-summary .section-body,
+.a4.fit-normal .course-summary .section-body,
+.a4.fit-compact .course-summary .section-body,
+.a4.fit-tight .course-summary .section-body,
+.a4.fit-ultra .course-summary .section-body {
+  font-size: 12.8px !important;
+  line-height: 1.55 !important;
+}
+
+.a4.fit-spacious .core-plain-card .section-body,
+.a4.fit-normal .core-plain-card .section-body,
+.a4.fit-compact .core-plain-card .section-body,
+.a4.fit-tight .core-plain-card .section-body,
+.a4.fit-ultra .core-plain-card .section-body,
+.a4.fit-spacious .full-width-card .section-body,
+.a4.fit-normal .full-width-card .section-body,
+.a4.fit-compact .full-width-card .section-body,
+.a4.fit-tight .full-width-card .section-body,
+.a4.fit-ultra .full-width-card .section-body {
+  font-size: 12.15px !important;
+  line-height: 1.55 !important;
+}
+
+/* Font compression is reserved for long content only. */
+.a4.fit-spacious .course-description .section-body,
+.a4.fit-normal .course-description .section-body,
+.a4.fit-compact .course-description .section-body,
+.a4.fit-tight .course-description .section-body,
+.a4.fit-ultra .course-description .section-body {
+  font-size: 12.9px !important;
+  line-height: 1.48 !important;
+}
+
+.a4.fit-compact .syllabus-table {
+  font-size: 11.05px !important;
+}
+
+.a4.fit-tight .syllabus-table {
+  font-size: 10.85px !important;
+}
+
+.a4.fit-ultra .syllabus-table {
+  font-size: 10.65px !important;
+}
+
+.a4.fit-normal .syllabus-table th,
+.a4.fit-normal .syllabus-table td {
+  line-height: 1.27 !important;
+}
+
+.a4.fit-compact .syllabus-table th,
+.a4.fit-compact .syllabus-table td {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+  line-height: 1.22 !important;
+}
+
+.a4.fit-tight .syllabus-table th,
+.a4.fit-tight .syllabus-table td,
+.a4.fit-ultra .syllabus-table th,
+.a4.fit-ultra .syllabus-table td {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+  line-height: 1.18 !important;
+}
+
+@media print {
+  .a4.fit-normal,
+  .a4.fit-compact,
+  .a4.fit-tight,
+  .a4.fit-ultra {
+    padding-top: 3.8mm !important;
+  }
+  .a4.fit-normal .top-meta-row,
+  .a4.fit-compact .top-meta-row,
+  .a4.fit-tight .top-meta-row,
+  .a4.fit-ultra .top-meta-row {
+    min-height: 20px !important;
+    margin-bottom: 0.35mm !important;
+  }
+  .a4.fit-normal .top-meta-logo,
+  .a4.fit-compact .top-meta-logo,
+  .a4.fit-tight .top-meta-logo,
+  .a4.fit-ultra .top-meta-logo {
+    width: 58px !important;
+    height: 24px !important;
+  }
+  .a4.fit-normal .a4-opening,
+  .a4.fit-compact .a4-opening,
+  .a4.fit-tight .a4-opening,
+  .a4.fit-ultra .a4-opening {
+    min-height: 20px !important;
+    padding: 2px 10px !important;
+    margin-bottom: 3.5mm !important;
+  }
+  .a4.fit-normal .a4-banner,
+  .a4.fit-compact .a4-banner,
+  .a4.fit-tight .a4-banner,
+  .a4.fit-ultra .a4-banner {
+    padding-bottom: 1mm !important;
+    margin-bottom: 1.4mm !important;
+  }
+  .skills-group-grid {
+    grid-template-columns: repeat(4, 108px) !important;
+  }
+  .inline-outcomes-grid {
+    display: flex !important;
+    flex-wrap: wrap !important;
+  }
+  .a4.fit-normal .domain-before-syllabus,
+  .a4.fit-compact .domain-before-syllabus,
+  .a4.fit-tight .domain-before-syllabus,
+  .a4.fit-ultra .domain-before-syllabus {
+    margin: 3mm 0 !important;
+  }
+  .a4.fit-compact .domain-before-syllabus {
+    margin: 2.5mm 0 !important;
+  }
+  .a4.fit-tight .domain-before-syllabus {
+    margin: 2mm 0 !important;
+  }
+  .a4.fit-ultra .domain-before-syllabus {
+    margin: 1.5mm 0 !important;
+  }
+  .a4.fit-normal .school-value-after-syllabus,
+  .a4.fit-compact .school-value-after-syllabus,
+  .a4.fit-tight .school-value-after-syllabus,
+  .a4.fit-ultra .school-value-after-syllabus {
+    margin-top: 8mm !important;
+  }
+  .a4.fit-compact .school-value-after-syllabus {
+    margin-top: 6mm !important;
+  }
+  .a4.fit-tight .school-value-after-syllabus {
+    margin-top: 5mm !important;
+  }
+  .a4.fit-ultra .school-value-after-syllabus {
+    margin-top: 4mm !important;
+  }
+  .syllabus-table tbody tr:nth-child(odd) td,
+  .syllabus-table tbody tr.stage-nature:nth-child(odd) td,
+  .syllabus-table tbody tr.stage-tech:nth-child(odd) td,
+  .syllabus-table tbody tr.stage-product:nth-child(odd) td {
+    background: #FFFFFF !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .syllabus-table tbody tr:nth-child(even) td,
+  .syllabus-table tbody tr.stage-nature:nth-child(even) td,
+  .syllabus-table tbody tr.stage-tech:nth-child(even) td,
+  .syllabus-table tbody tr.stage-product:nth-child(even) td {
+    background:
+      linear-gradient(rgba(var(--theme-rgb), 0.065), rgba(var(--theme-rgb), 0.065)),
+      #F1F4F7 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Course catalog print — scoped to multi-page catalog export only */
+@media print {
+  body.catalog-courses-print,
+  body.catalog-courses-print html {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  body.catalog-courses-print .page-wrap,
+  body.catalog-courses-print #a4-container {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  body.catalog-courses-print .a4:not(.a4-fit-scaled),
+  body.catalog-courses-print .index-page {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    margin: 0 !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  body.catalog-courses-print .catalog-opening-frame {
+    display: block !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+    overflow: hidden !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  body.catalog-courses-print .a4:last-child,
+  body.catalog-courses-print .catalog-opening-frame:last-child,
+  body.catalog-courses-print .index-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+}
+
+/* Summary + course description — enforce readable sizes in screen and print */
+.course-summary .section-body {
+  font-size: 12.8px !important;
+}
+
+.course-description .section-body {
+  font-size: 12.9px !important;
+}
+
+@media print {
+  .course-summary .section-body,
+  .a4.fit-spacious .course-summary .section-body,
+  .a4.fit-normal .course-summary .section-body,
+  .a4.fit-compact .course-summary .section-body,
+  .a4.fit-tight .course-summary .section-body,
+  .a4.fit-ultra .course-summary .section-body {
+    font-size: 12.8px !important;
+  }
+
+  .course-description .section-body,
+  .a4.fit-spacious .course-description .section-body,
+  .a4.fit-normal .course-description .section-body,
+  .a4.fit-compact .course-description .section-body,
+  .a4.fit-tight .course-description .section-body,
+  .a4.fit-ultra .course-description .section-body {
+    font-size: 12.9px !important;
+  }
+}
+
+.top-meta-logo {
+  width: 64px !important;
+  height: 40px !important;
+  object-fit: contain;
+}
+
+@media print {
+  .top-meta-logo {
+    width: 64px !important;
+    height: 40px !important;
+    object-fit: contain;
+  }
+}
+
+/* Syllabus column headers — thinner top/bottom rules */
+.syllabus-header {
+  border-bottom: 1px solid rgba(31, 47, 61, 0.18) !important;
+}
+
+.syllabus-table th {
+  border-top: 1px solid rgba(31, 47, 61, 0.18) !important;
+  border-bottom: 1px solid rgba(31, 47, 61, 0.18) !important;
+}
+
+@media print {
+  .syllabus-header {
+    border-bottom: 1px solid rgba(31, 47, 61, 0.18) !important;
+  }
+
+  .syllabus-table th {
+    border-top: 1px solid rgba(31, 47, 61, 0.18) !important;
+    border-bottom: 1px solid rgba(31, 47, 61, 0.18) !important;
+  }
+}
+
+/* Banner must not shrink below its content (prevents subtitle / תקציר overlap) */
+.a4-banner {
+  flex-shrink: 0 !important;
+  min-height: auto !important;
+}
+
+.a4-opening {
+  flex-shrink: 0 !important;
+}
+
+/* Banner → summary gap floor: only when auto-fit compresses (page overflows A4) */
+.a4.fit-compact .a4-banner:has(+ .a4-body > .course-summary),
+.a4.fit-tight .a4-banner:has(+ .a4-body > .course-summary),
+.a4.fit-ultra .a4-banner:has(+ .a4-body > .course-summary) {
+  margin-bottom: 1.5mm !important;
+  padding-bottom: 0 !important;
+}
+
+.a4.fit-compact .a4-body > .course-summary:first-child,
+.a4.fit-tight .a4-body > .course-summary:first-child,
+.a4.fit-ultra .a4-body > .course-summary:first-child {
+  margin-top: 1.5mm !important;
+}
+
+@media print {
+  .a4.fit-compact .a4-banner:has(+ .a4-body > .course-summary),
+  .a4.fit-tight .a4-banner:has(+ .a4-body > .course-summary),
+  .a4.fit-ultra .a4-banner:has(+ .a4-body > .course-summary) {
+    margin-bottom: 1.5mm !important;
+    padding-bottom: 0 !important;
+  }
+
+  .a4.fit-compact .a4-body > .course-summary:first-child,
+  .a4.fit-tight .a4-body > .course-summary:first-child,
+  .a4.fit-ultra .a4-body > .course-summary:first-child {
+    margin-top: 1.5mm !important;
+  }
+}
+
+/* Course catalog print — keep content top-aligned; never stretch gaps (hides syllabus rows) */
+body.catalog-courses-print .a4 {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+body.catalog-courses-print .a4 .top-meta-label,
+body.catalog-courses-print .a4 .top-meta-row,
+body.catalog-courses-print .a4 .a4-opening,
+body.catalog-courses-print .a4 .a4-banner,
+body.catalog-courses-print .a4 .a4-contact,
+body.catalog-courses-print .a4 .a4-footer {
+  flex-shrink: 0;
+}
+
+body.catalog-courses-print .a4:not(.a4-course-skeleton) .a4-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+}
+
+body.catalog-courses-print .a4 .a4-footer {
+  margin-top: 0 !important;
+}
+
+
+
+/* === A4 COURSE FIX V12: stable skeleton with calculated row spacing ===
+   - catalog keeps grid (not flex) on skeleton pages
+   - row tracks include inter-section gaps; section margins are zeroed
+   - only syllabus row padding varies by row count (8/10/12/14)
+   - school-value is a fixed final body row with an explicit gap above it
+*/
+.a4.a4-course-skeleton {
+  width: 210mm !important;
+  height: 297mm !important;
+  min-height: 297mm !important;
+  max-height: 297mm !important;
+  overflow: visible !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding-top: 7mm !important;
+  transform: none !important;
+}
+
+.a4.a4-course-skeleton > .a4-banner {
+  margin-top: 2mm !important;
+}
+
+.a4.a4-course-skeleton .a4-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-rows: 81px 58px 273px 101px 28px minmax(0, 1fr) 60px !important;
+  grid-template-columns: 1fr !important;
+  justify-content: flex-start !important;
+  align-content: start !important;
+  gap: 0 !important;
+  padding: 0 10mm 0 !important;
+  overflow: visible !important;
+}
+
+.a4.a4-course-skeleton > .top-meta-row,
+.a4.a4-course-skeleton > .top-meta-label,
+.a4.a4-course-skeleton > .a4-opening,
+.a4.a4-course-skeleton > .a4-banner,
+.a4.a4-course-skeleton > .a4-contact,
+.a4.a4-course-skeleton > .a4-footer {
+  flex-shrink: 0 !important;
+}
+
+.a4.a4-course-skeleton > .a4-footer {
+  margin-top: 0 !important;
+}
+
+/* Fixed section heights — identical on every course; gaps live in grid tracks */
+.a4.a4-course-skeleton .course-summary {
+  grid-row: 1;
+  align-self: start !important;
+  margin: 0 0 8px !important;
+  min-height: 81px !important;
+  max-height: 81px !important;
+  overflow: visible !important;
+}
+
+.a4.a4-course-skeleton .core-plain-card {
+  grid-row: 2;
+  align-self: start !important;
+  margin: 0 0 8px !important;
+  min-height: 58px !important;
+  max-height: 58px !important;
+  overflow: visible !important;
+}
+
+.a4.a4-course-skeleton .course-description,
+.a4.a4-course-skeleton .learning-process-section {
+  grid-row: 3;
+  align-self: start !important;
+  margin: 0 0 8px !important;
+  min-height: 273px !important;
+  max-height: 273px !important;
+  overflow: visible !important;
+}
+
+.a4.a4-course-skeleton .full-width-card {
+  grid-row: 4;
+  align-self: start !important;
+  margin: 0 !important;
+  min-height: 93px !important;
+  max-height: 93px !important;
+  overflow: visible !important;
+}
+
+.a4.a4-course-skeleton .domain-before-syllabus {
+  grid-row: 5;
+  align-self: start !important;
+  margin: 0 !important;
+  min-height: 22px !important;
+  max-height: 22px !important;
+  overflow: visible !important;
+}
+
+.a4.a4-course-skeleton .school-value-after-syllabus {
+  grid-row: 7;
+  align-self: start !important;
+  margin: 8px 0 0 !important;
+  position: static !important;
+  transform: none !important;
+  z-index: auto !important;
+  min-height: 52px !important;
+  max-height: 52px !important;
+  overflow: visible !important;
+}
+
+/* Approved: description as one full-width paragraph, not two columns */
+.a4.a4-course-skeleton .course-description .section-body {
+  column-count: 1 !important;
+  column-gap: 0 !important;
+  column-rule: none !important;
+}
+
+/* Syllabus: only flexible row; row padding/line-height varies by count */
+.a4.a4-course-skeleton .syllabus-wrap {
+  grid-row: 6;
+  align-self: stretch !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.a4.a4-course-skeleton .syllabus-header {
+  flex: 0 0 auto !important;
+}
+
+.a4.a4-course-skeleton .syllabus-table {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+.a4.a4-course-skeleton .syllabus-table tbody {
+  height: 100% !important;
+}
+
+.a4.a4-course-skeleton .syl-rows-8 .syllabus-table td {
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+  line-height: 1.48 !important;
+}
+
+.a4.a4-course-skeleton .syl-rows-10 .syllabus-table td {
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+  line-height: 1.42 !important;
+}
+
+.a4.a4-course-skeleton .syl-rows-12 .syllabus-table td {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+  line-height: 1.36 !important;
+}
+
+.a4.a4-course-skeleton .syl-rows-14 .syllabus-table td {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  line-height: 1.26 !important;
+}
+
+.a4.a4-course-skeleton .syl-rows-14 .syllabus-header {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+/* "השמיים אינם הגבול" only — wider syllabus "נושא" column; desc shrinks accordingly */
+.a4.a4-course-skeleton.syl-topic-wide .syl-topic,
+.a4.a4-course-skeleton.syl-topic-wide .syllabus-table th:nth-child(2),
+.a4.a4-course-skeleton.syl-topic-wide .syllabus-table td:nth-child(2) {
+  width: 170px !important;
+  max-width: 170px !important;
+}
+
+.a4.a4-course-skeleton.syl-topic-wide .syl-rows-10 .syllabus-table td {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  line-height: 1.38 !important;
+}
+
+/* Neutralize legacy auto-fit classes on skeleton pages */
+.a4.a4-course-skeleton.fit-spacious,
+.a4.a4-course-skeleton.fit-normal,
+.a4.a4-course-skeleton.fit-compact,
+.a4.a4-course-skeleton.fit-tight,
+.a4.a4-course-skeleton.fit-ultra,
+.a4.a4-course-skeleton.a4-fit-scaled,
+.a4.a4-course-skeleton.a4-fill-active {
+  padding-top: 7mm !important;
+  transform: none !important;
+  gap: 0 !important;
+}
+
+.a4.a4-course-skeleton.a4-fill-active .a4-body {
+  gap: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+body.catalog-courses-print .a4.a4-course-skeleton .a4-body,
+body.catalog-view .a4.a4-course-skeleton .a4-body {
+  display: grid !important;
+  grid-template-rows: 81px 58px 273px 101px 28px minmax(0, 1fr) 60px !important;
+  grid-template-columns: 1fr !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  justify-content: flex-start !important;
+  align-content: start !important;
+  gap: 0 !important;
+  padding: 0 10mm 0 !important;
+}
+
+@media print {
+  .a4.a4-course-skeleton {
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    overflow: visible !important;
+    transform: none !important;
+    padding-top: 7mm !important;
+  }
+
+  .a4.a4-course-skeleton > .a4-banner {
+    margin-top: 2mm !important;
+  }
+
+  .a4.a4-course-skeleton.syl-topic-wide .syl-topic,
+  .a4.a4-course-skeleton.syl-topic-wide .syllabus-table th:nth-child(2),
+  .a4.a4-course-skeleton.syl-topic-wide .syllabus-table td:nth-child(2) {
+    width: 170px !important;
+    max-width: 170px !important;
+  }
+
+  .a4.a4-course-skeleton .syllabus-wrap {
+    overflow: visible !important;
+  }
+
+  body.catalog-courses-print .a4.a4-course-skeleton .a4-body,
+  body.catalog-view .a4.a4-course-skeleton .a4-body {
+    display: grid !important;
+    grid-template-rows: 81px 58px 273px 101px 28px minmax(0, 1fr) 60px !important;
+    grid-template-columns: 1fr !important;
+    justify-content: flex-start !important;
+    align-content: start !important;
+    gap: 0 !important;
+    padding: 0 10mm 0 !important;
+  }
+}
+
+/* V6: one A4 per course — screen + print guardrails */
+.a4:not(.index-page) {
+  flex: 0 0 auto !important;
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+
+body.catalog-view .a4:not(.index-page),
+body.catalog-courses-print .a4:not(.index-page) {
+  page-break-after: always !important;
+  break-after: page !important;
+}
+
+body.catalog-view .a4:not(.index-page):last-child,
+body.catalog-courses-print .a4:not(.index-page):last-child {
+  page-break-after: auto !important;
+  break-after: auto !important;
+}
+
+@media print {
+  .a4:not(.index-page) {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .a4:not(.index-page):last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+}
+
+
+/* === A4 COURSE FIX V13: bounded grid skeleton, no syllabus overlap ===
+   The body owns a real grid track for each content area. Only the syllabus
+   track is flexible, and it clips its own area after row-count-specific
+   spacing has been reduced so rows remain inside the allocated track. */
+.a4.a4-course-skeleton {
+  height: 297mm !important;
+  min-height: 297mm !important;
+  max-height: 297mm !important;
+  padding-top: 6mm !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  transform: none !important;
+}
+
+.a4.a4-course-skeleton > .top-meta-row,
+.a4.a4-course-skeleton > .top-meta-label,
+.a4.a4-course-skeleton > .a4-opening,
+.a4.a4-course-skeleton > .a4-banner,
+.a4.a4-course-skeleton > .a4-contact,
+.a4.a4-course-skeleton > .a4-footer {
+  flex: 0 0 auto !important;
+  position: relative !important;
+  transform: none !important;
+  z-index: auto !important;
+}
+
+.a4.a4-course-skeleton > .a4-banner {
+  margin-top: 1.2mm !important;
+  margin-bottom: 2.2mm !important;
+  padding-bottom: 2.2mm !important;
+}
+
+.a4.a4-course-skeleton > .a4-contact {
+  padding-top: 2px !important;
+  padding-bottom: 4px !important;
+  overflow: hidden !important;
+}
+
+.a4.a4-course-skeleton > .a4-footer {
+  margin-top: 0 !important;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+  overflow: hidden !important;
+}
+
+.a4.a4-course-skeleton .a4-body,
+body.catalog-courses-print .a4.a4-course-skeleton .a4-body,
+body.catalog-view .a4.a4-course-skeleton .a4-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows:
+    auto
+    auto
+    auto
+    auto
+    auto
+    minmax(0, 1fr)
+    auto !important;
+  gap: 4px !important;
+  justify-content: stretch !important;
+  align-content: stretch !important;
+  padding: 0 10mm 4px !important;
+  overflow: hidden !important;
+}
+
+.a4.a4-course-skeleton .course-summary,
+.a4.a4-course-skeleton .core-plain-card,
+.a4.a4-course-skeleton .course-description,
+.a4.a4-course-skeleton .learning-process-section,
+.a4.a4-course-skeleton .full-width-card,
+.a4.a4-course-skeleton .domain-before-syllabus,
+.a4.a4-course-skeleton .school-value-after-syllabus {
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  align-self: start !important;
+  overflow: hidden !important;
+  position: static !important;
+  transform: none !important;
+  z-index: auto !important;
+}
+
+.a4.a4-course-skeleton .course-summary { grid-row: 1 !important; }
+.a4.a4-course-skeleton .core-plain-card { grid-row: 2 !important; }
+.a4.a4-course-skeleton .course-description,
+.a4.a4-course-skeleton .learning-process-section { grid-row: 3 !important; }
+.a4.a4-course-skeleton .full-width-card { grid-row: 4 !important; }
+.a4.a4-course-skeleton .domain-before-syllabus { grid-row: 5 !important; }
+
+.a4.a4-course-skeleton .course-summary .section-body,
+.a4.a4-course-skeleton .core-plain-card .section-body,
+.a4.a4-course-skeleton .full-width-card .section-body {
+  line-height: 1.48 !important;
+}
+
+.a4.a4-course-skeleton .course-description,
+.a4.a4-course-skeleton .learning-process-section {
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+}
+
+.a4.a4-course-skeleton .course-description .section-body {
+  line-height: 1.40 !important;
+}
+
+.a4.a4-course-skeleton .course-description .section-body p {
+  margin-bottom: 6px !important;
+}
+
+.a4.a4-course-skeleton .inline-outcomes-wrap {
+  margin-top: 5px !important;
+  padding: 5px 7px !important;
+}
+
+.a4.a4-course-skeleton .full-width-card {
+  margin-bottom: 0 !important;
+}
+
+.a4.a4-course-skeleton .skills-group-grid,
+.a4.a4-course-skeleton .skills-groups {
+  gap: 4px !important;
+}
+
+.a4.a4-course-skeleton .skill-group-card,
+.a4.a4-course-skeleton .skill-group {
+  min-height: 0 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.a4.a4-course-skeleton .domain-before-syllabus {
+  margin: 0 !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+.a4.a4-course-skeleton .syllabus-wrap {
+  grid-row: 6 !important;
+  align-self: stretch !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  position: static !important;
+  transform: none !important;
+  z-index: auto !important;
+}
+
+.a4.a4-course-skeleton .syllabus-header {
+  flex: 0 0 auto !important;
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+.a4.a4-course-skeleton .syllabus-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  font-size: 10.95px !important;
+}
+
+.a4.a4-course-skeleton .syllabus-table tbody {
+  height: auto !important;
+}
+
+.a4.a4-course-skeleton .syllabus-table th {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  line-height: 1.16 !important;
+}
+
+.a4.a4-course-skeleton .syl-rows-8 .syllabus-table td {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  line-height: 1.35 !important;
+}
+
+.a4.a4-course-skeleton .syl-rows-10 .syllabus-table td {
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+  line-height: 1.32 !important;
+}
+
+.a4.a4-course-skeleton .syl-rows-12 .syllabus-table td {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  line-height: 1.27 !important;
+}
+
+.a4.a4-course-skeleton .syl-rows-14 .syllabus-table td {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+  line-height: 1.18 !important;
+}
+
+.a4.a4-course-skeleton .school-value-after-syllabus {
+  grid-row: 7 !important;
+  min-height: 34px !important;
+  max-height: 46px !important;
+  padding: 6px 10px !important;
+  margin-top: 0 !important;
+  overflow: hidden !important;
+}
+
+.a4.a4-course-skeleton .school-value-after-syllabus .section-body {
+  font-size: 11.05px !important;
+  line-height: 1.30 !important;
+}
+
+.a4.a4-course-skeleton.syl-topic-wide .syl-topic,
+.a4.a4-course-skeleton.syl-topic-wide .syllabus-table th:nth-child(2),
+.a4.a4-course-skeleton.syl-topic-wide .syllabus-table td:nth-child(2) {
+  width: 165px !important;
+  max-width: 165px !important;
+}
+
+@media print {
+  .a4.a4-course-skeleton {
+    padding-top: 6mm !important;
+    overflow: hidden !important;
+  }
+
+  .a4.a4-course-skeleton .a4-body,
+  body.catalog-courses-print .a4.a4-course-skeleton .a4-body,
+  body.catalog-view .a4.a4-course-skeleton .a4-body {
+    grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto !important;
+    gap: 4px !important;
+    padding: 0 10mm 4px !important;
+    overflow: hidden !important;
+  }
+
+  .a4.a4-course-skeleton .syllabus-wrap,
+  .a4.a4-course-skeleton .school-value-after-syllabus,
+  .a4.a4-course-skeleton > .a4-contact,
+  .a4.a4-course-skeleton > .a4-footer {
+    overflow: hidden !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .a4.a4-course-skeleton.syl-topic-wide .syl-topic,
+  .a4.a4-course-skeleton.syl-topic-wide .syllabus-table th:nth-child(2),
+  .a4.a4-course-skeleton.syl-topic-wide .syllabus-table td:nth-child(2) {
+    width: 165px !important;
+    max-width: 165px !important;
+  }
+}
+
+/* Targeted course-page skills row: keep the existing skill cards, but place
+   the title inline beside them to free vertical space above the syllabus. */
+.a4.a4-course-skeleton .full-width-card.text-only-section {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, max-content) !important;
+  align-items: center !important;
+  justify-content: start !important;
+  column-gap: 10px !important;
+  margin: 0 !important;
+}
+
+.a4.a4-course-skeleton .full-width-card.text-only-section .section-title {
+  align-self: center !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  line-height: 1.2 !important;
+}
+
+.a4.a4-course-skeleton .full-width-card.text-only-section .section-body {
+  min-width: 0 !important;
+  padding-top: 0 !important;
+}
+
+.a4.a4-course-skeleton .full-width-card.text-only-section .skills-group-grid,
+.a4.a4-course-skeleton .full-width-card.text-only-section .skills-tags {
+  margin: 0 !important;
+}
+
+
+/* === A4 COURSE FIX V14: balanced vertical distribution ===
+   Keep the A4 shell as a fixed-height flex page, but let the course body
+   distribute any remaining vertical space between all content blocks instead
+   of reserving one large flexible track under the syllabus. */
+.a4.a4-course-skeleton .a4-body,
+body.catalog-courses-print .a4.a4-course-skeleton .a4-body,
+body.catalog-view .a4.a4-course-skeleton .a4-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+  padding: 0 10mm 4px !important;
+  overflow: hidden !important;
+}
+
+.a4.a4-course-skeleton .course-summary,
+.a4.a4-course-skeleton .core-plain-card,
+.a4.a4-course-skeleton .course-description,
+.a4.a4-course-skeleton .learning-process-section,
+.a4.a4-course-skeleton .full-width-card,
+.a4.a4-course-skeleton .domain-before-syllabus,
+.a4.a4-course-skeleton .syllabus-wrap,
+.a4.a4-course-skeleton .school-value-after-syllabus {
+  grid-row: auto !important;
+  flex: 0 0 auto !important;
+  align-self: stretch !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 !important;
+}
+
+.a4.a4-course-skeleton .syllabus-wrap {
+  display: block !important;
+  overflow: visible !important;
+}
+
+.a4.a4-course-skeleton .syllabus-table,
+.a4.a4-course-skeleton .syllabus-table tbody {
+  height: auto !important;
+}
+
+.a4.a4-course-skeleton .school-value-after-syllabus {
+  min-height: 34px !important;
+  max-height: none !important;
+}
+
+@media print {
+  .a4.a4-course-skeleton .a4-body,
+  body.catalog-courses-print .a4.a4-course-skeleton .a4-body,
+  body.catalog-view .a4.a4-course-skeleton .a4-body {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    gap: 4px !important;
+    padding: 0 10mm 4px !important;
+    overflow: hidden !important;
+  }
+
+  .a4.a4-course-skeleton .course-summary,
+  .a4.a4-course-skeleton .core-plain-card,
+  .a4.a4-course-skeleton .course-description,
+  .a4.a4-course-skeleton .learning-process-section,
+  .a4.a4-course-skeleton .full-width-card,
+  .a4.a4-course-skeleton .domain-before-syllabus,
+  .a4.a4-course-skeleton .syllabus-wrap,
+  .a4.a4-course-skeleton .school-value-after-syllabus {
+    grid-row: auto !important;
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+  }
+
+  .a4.a4-course-skeleton .syllabus-wrap {
+    display: block !important;
+    overflow: visible !important;
+  }
+}
+
+/* === Catalog design refinements V13 === */
+
+/* לפרטים נוספים — font −1px */
+.a4-contact {
+  font-size: 11.5px !important;
+}
+
+/* סילבוס הקורס — centered in title area */
+.syllabus-header {
+  text-align: center !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-right: none !important;
+  border-left: none !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+
+/* ערך לבית הספר — font ×1.15, safe wrapping */
+.school-value-after-syllabus .section-body,
+.a4.fit-spacious .school-value-after-syllabus .section-body,
+.a4.fit-normal .school-value-after-syllabus .section-body,
+.a4.fit-compact .school-value-after-syllabus .section-body,
+.a4.fit-tight .school-value-after-syllabus .section-body,
+.a4.fit-ultra .school-value-after-syllabus .section-body {
+  font-size: 12.94px !important;
+  line-height: 1.42 !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+
+.a4.a4-course-skeleton .school-value-after-syllabus .section-body {
+  font-size: 12.71px !important;
+  line-height: 1.32 !important;
+}
+
+/* Softer syllabus row tints and highlights */
+.syllabus-table tbody tr:nth-child(odd) td,
+.syllabus-table tbody tr.stage-nature:nth-child(odd) td,
+.syllabus-table tbody tr.stage-tech:nth-child(odd) td,
+.syllabus-table tbody tr.stage-product:nth-child(odd) td {
+  background: #FFFFFF !important;
+}
+
+.syllabus-table tbody tr:nth-child(even) td,
+.syllabus-table tbody tr.stage-nature:nth-child(even) td,
+.syllabus-table tbody tr.stage-tech:nth-child(even) td,
+.syllabus-table tbody tr.stage-product:nth-child(even) td {
+  background:
+    linear-gradient(rgba(var(--theme-rgb), 0.032), rgba(var(--theme-rgb), 0.032)),
+    #F3F5F8 !important;
+}
+
+.session-pill {
+  background: rgba(var(--theme-rgb), 0.07) !important;
+}
+
+.term-chip {
+  background: rgba(var(--theme-rgb), 0.055) !important;
+  border-color: rgba(var(--theme-rgb), 0.09) !important;
+}
+
+/* Darker title tones — רוקחים עולם + סודות ויסודות הבינה */
+.a4[style*="--c0:#181fd2"] .a4-title,
+.a4[style*="--c0:#181FD2"] .a4-title,
+.a4[style*="--c0:#181fd2"] .section-title,
+.a4[style*="--c0:#181FD2"] .section-title,
+.a4[style*="--c0:#181fd2"] .text-only-section .section-title,
+.a4[style*="--c0:#181FD2"] .text-only-section .section-title,
+.a4[style*="--c0:#181fd2"] .learning-process-section .section-title,
+.a4[style*="--c0:#181FD2"] .learning-process-section .section-title,
+.a4[style*="--c0:#181fd2"] .inline-outcomes-label,
+.a4[style*="--c0:#181FD2"] .inline-outcomes-label,
+.a4[style*="--c0:#181fd2"] .syllabus-header,
+.a4[style*="--c0:#181FD2"] .syllabus-header,
+.a4[style*="--c0:#181fd2"] .syllabus-table th,
+.a4[style*="--c0:#181FD2"] .syllabus-table th,
+.a4[style*="--c0:#181fd2"] .skill-group-title,
+.a4[style*="--c0:#181FD2"] .skill-group-title,
+.a4[style*="--c0:#181fd2"] .domain-before-syllabus,
+.a4[style*="--c0:#181FD2"] .domain-before-syllabus,
+.a4[style*="--c0:#181fd2"] .core-plain-card .section-body,
+.a4[style*="--c0:#181FD2"] .core-plain-card .section-body,
+.a4[style*="--c0:#181fd2"] .inline-outcomes-grid .outcome-item,
+.a4[style*="--c0:#181FD2"] .inline-outcomes-grid .outcome-item,
+.a4[style*="--c0:#181fd2"] .a4-opening,
+.a4[style*="--c0:#181FD2"] .a4-opening,
+.a4[style*="--c0:#181fd2"] .badge,
+.a4[style*="--c0:#181FD2"] .badge,
+.a4[style*="--c0:#181fd2"] .badge-domain,
+.a4[style*="--c0:#181FD2"] .badge-domain,
+.a4[style*="--c0:#181fd2"] .gefen-label,
+.a4[style*="--c0:#181FD2"] .gefen-label,
+.a4[style*="--c0:#181fd2"] .gefen-number,
+.a4[style*="--c0:#181FD2"] .gefen-number {
+  color: #0D1185 !important;
+}
+
+.a4[style*="--c0:#4915b2"] .a4-title,
+.a4[style*="--c0:#4915B2"] .a4-title,
+.a4[style*="--c0:#4915b2"] .section-title,
+.a4[style*="--c0:#4915B2"] .section-title,
+.a4[style*="--c0:#4915b2"] .text-only-section .section-title,
+.a4[style*="--c0:#4915B2"] .text-only-section .section-title,
+.a4[style*="--c0:#4915b2"] .learning-process-section .section-title,
+.a4[style*="--c0:#4915B2"] .learning-process-section .section-title,
+.a4[style*="--c0:#4915b2"] .inline-outcomes-label,
+.a4[style*="--c0:#4915B2"] .inline-outcomes-label,
+.a4[style*="--c0:#4915b2"] .syllabus-header,
+.a4[style*="--c0:#4915B2"] .syllabus-header,
+.a4[style*="--c0:#4915b2"] .syllabus-table th,
+.a4[style*="--c0:#4915B2"] .syllabus-table th,
+.a4[style*="--c0:#4915b2"] .skill-group-title,
+.a4[style*="--c0:#4915B2"] .skill-group-title,
+.a4[style*="--c0:#4915b2"] .domain-before-syllabus,
+.a4[style*="--c0:#4915B2"] .domain-before-syllabus,
+.a4[style*="--c0:#4915b2"] .core-plain-card .section-body,
+.a4[style*="--c0:#4915B2"] .core-plain-card .section-body,
+.a4[style*="--c0:#4915b2"] .inline-outcomes-grid .outcome-item,
+.a4[style*="--c0:#4915B2"] .inline-outcomes-grid .outcome-item,
+.a4[style*="--c0:#4915b2"] .a4-opening,
+.a4[style*="--c0:#4915B2"] .a4-opening,
+.a4[style*="--c0:#4915b2"] .badge,
+.a4[style*="--c0:#4915B2"] .badge,
+.a4[style*="--c0:#4915b2"] .badge-domain,
+.a4[style*="--c0:#4915B2"] .badge-domain,
+.a4[style*="--c0:#4915b2"] .gefen-label,
+.a4[style*="--c0:#4915B2"] .gefen-label,
+.a4[style*="--c0:#4915b2"] .gefen-number,
+.a4[style*="--c0:#4915B2"] .gefen-number {
+  color: #260A62 !important;
+}
+
+@media print {
+  .a4-contact {
+    font-size: 11.5px !important;
+  }
+
+  .syllabus-header {
+    text-align: center !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-right: none !important;
+    border-left: none !important;
+  }
+
+  .school-value-after-syllabus .section-body,
+  .a4.fit-spacious .school-value-after-syllabus .section-body,
+  .a4.fit-normal .school-value-after-syllabus .section-body,
+  .a4.fit-compact .school-value-after-syllabus .section-body,
+  .a4.fit-tight .school-value-after-syllabus .section-body,
+  .a4.fit-ultra .school-value-after-syllabus .section-body {
+    font-size: 12.94px !important;
+    line-height: 1.42 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .a4.a4-course-skeleton .school-value-after-syllabus .section-body {
+    font-size: 12.71px !important;
+    line-height: 1.32 !important;
+  }
+
+  .syllabus-table tbody tr:nth-child(odd) td,
+  .syllabus-table tbody tr.stage-nature:nth-child(odd) td,
+  .syllabus-table tbody tr.stage-tech:nth-child(odd) td,
+  .syllabus-table tbody tr.stage-product:nth-child(odd) td {
+    background: #FFFFFF !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .syllabus-table tbody tr:nth-child(even) td,
+  .syllabus-table tbody tr.stage-nature:nth-child(even) td,
+  .syllabus-table tbody tr.stage-tech:nth-child(even) td,
+  .syllabus-table tbody tr.stage-product:nth-child(even) td {
+    background:
+      linear-gradient(rgba(var(--theme-rgb), 0.032), rgba(var(--theme-rgb), 0.032)),
+      #F3F5F8 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .a4[style*="--c0:#181fd2"] .a4-title,
+  .a4[style*="--c0:#181FD2"] .a4-title,
+  .a4[style*="--c0:#181fd2"] .section-title,
+  .a4[style*="--c0:#181FD2"] .section-title,
+  .a4[style*="--c0:#181fd2"] .text-only-section .section-title,
+  .a4[style*="--c0:#181FD2"] .text-only-section .section-title,
+  .a4[style*="--c0:#181fd2"] .learning-process-section .section-title,
+  .a4[style*="--c0:#181FD2"] .learning-process-section .section-title,
+  .a4[style*="--c0:#181fd2"] .inline-outcomes-label,
+  .a4[style*="--c0:#181FD2"] .inline-outcomes-label,
+  .a4[style*="--c0:#181fd2"] .syllabus-header,
+  .a4[style*="--c0:#181FD2"] .syllabus-header,
+  .a4[style*="--c0:#181fd2"] .syllabus-table th,
+  .a4[style*="--c0:#181FD2"] .syllabus-table th,
+  .a4[style*="--c0:#181fd2"] .skill-group-title,
+  .a4[style*="--c0:#181FD2"] .skill-group-title,
+  .a4[style*="--c0:#181fd2"] .domain-before-syllabus,
+  .a4[style*="--c0:#181FD2"] .domain-before-syllabus,
+  .a4[style*="--c0:#181fd2"] .core-plain-card .section-body,
+  .a4[style*="--c0:#181FD2"] .core-plain-card .section-body,
+  .a4[style*="--c0:#181fd2"] .inline-outcomes-grid .outcome-item,
+  .a4[style*="--c0:#181FD2"] .inline-outcomes-grid .outcome-item,
+  .a4[style*="--c0:#181fd2"] .a4-opening,
+  .a4[style*="--c0:#181FD2"] .a4-opening,
+  .a4[style*="--c0:#181fd2"] .badge,
+  .a4[style*="--c0:#181FD2"] .badge,
+  .a4[style*="--c0:#181fd2"] .badge-domain,
+  .a4[style*="--c0:#181FD2"] .badge-domain,
+  .a4[style*="--c0:#181fd2"] .gefen-label,
+  .a4[style*="--c0:#181FD2"] .gefen-label,
+  .a4[style*="--c0:#181fd2"] .gefen-number,
+  .a4[style*="--c0:#181FD2"] .gefen-number {
+    color: #0D1185 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .a4[style*="--c0:#4915b2"] .a4-title,
+  .a4[style*="--c0:#4915B2"] .a4-title,
+  .a4[style*="--c0:#4915b2"] .section-title,
+  .a4[style*="--c0:#4915B2"] .section-title,
+  .a4[style*="--c0:#4915b2"] .text-only-section .section-title,
+  .a4[style*="--c0:#4915B2"] .text-only-section .section-title,
+  .a4[style*="--c0:#4915b2"] .learning-process-section .section-title,
+  .a4[style*="--c0:#4915B2"] .learning-process-section .section-title,
+  .a4[style*="--c0:#4915b2"] .inline-outcomes-label,
+  .a4[style*="--c0:#4915B2"] .inline-outcomes-label,
+  .a4[style*="--c0:#4915b2"] .syllabus-header,
+  .a4[style*="--c0:#4915B2"] .syllabus-header,
+  .a4[style*="--c0:#4915b2"] .syllabus-table th,
+  .a4[style*="--c0:#4915B2"] .syllabus-table th,
+  .a4[style*="--c0:#4915b2"] .skill-group-title,
+  .a4[style*="--c0:#4915B2"] .skill-group-title,
+  .a4[style*="--c0:#4915b2"] .domain-before-syllabus,
+  .a4[style*="--c0:#4915B2"] .domain-before-syllabus,
+  .a4[style*="--c0:#4915b2"] .core-plain-card .section-body,
+  .a4[style*="--c0:#4915B2"] .core-plain-card .section-body,
+  .a4[style*="--c0:#4915b2"] .inline-outcomes-grid .outcome-item,
+  .a4[style*="--c0:#4915B2"] .inline-outcomes-grid .outcome-item,
+  .a4[style*="--c0:#4915b2"] .a4-opening,
+  .a4[style*="--c0:#4915B2"] .a4-opening,
+  .a4[style*="--c0:#4915b2"] .badge,
+  .a4[style*="--c0:#4915B2"] .badge,
+  .a4[style*="--c0:#4915b2"] .badge-domain,
+  .a4[style*="--c0:#4915B2"] .badge-domain,
+  .a4[style*="--c0:#4915b2"] .gefen-label,
+  .a4[style*="--c0:#4915B2"] .gefen-label,
+  .a4[style*="--c0:#4915b2"] .gefen-number,
+  .a4[style*="--c0:#4915B2"] .gefen-number {
+    color: #260A62 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Course catalog — tech background on exported course pages only */
+body.catalog-view .a4:not(.index-page),
+body.catalog-courses-print .a4:not(.index-page) {
+  background-color: #FFFFFF !important;
+  background-image: url("./image/course-page-tech-bg.webp") !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+@media print {
+  body.catalog-view .a4:not(.index-page),
+  body.catalog-courses-print .a4:not(.index-page) {
+    background-color: #FFFFFF !important;
+    background-image: url("./image/course-page-tech-bg.webp") !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+</style>
+</head>
+<body>
+<button class="nav-toggle" type="button" aria-label="פתיחת רשימת קורסים" aria-expanded="false">☰</button>
+<div class="catalog-toolbar" id="catalogToolbar" aria-label="פעולות קטלוג קורסים">
+  <a class="back-btn" href="./workshops.html?catalog=courses">← חזרה לבחירה</a>
+  <button class="catalog-print-btn" type="button" onclick="window.print()">🖨 הדפסה / PDF</button>
+</div>
+<div class="nav-overlay" aria-hidden="true"></div>
+<div class="nav" id="nav"></div>
+<div class="page-wrap">
+ <div id="a4-container"></div>
+ <div class="print-btn">
+   <a class="back-btn" href="./workshops.html?catalog=courses">← חזרה</a>
+ </div>
+</div>
+<script>
+let programs = [];
+
+const LOGO = "logo.png";
+
+function escapeHtml(value) {
+ return String(value ?? "")
+ .replace(/&/g, "&amp;")
+ .replace(/</g, "&lt;")
+ .replace(/>/g, "&gt;")
+ .replace(/"/g, "&quot;")
+ .replace(/'/g, "&#039;");
+}
+
+function stableProgramId(program = {}) {
+ const explicitId = String(program.id ?? "").trim();
+ if (explicitId) return explicitId;
+ const gefen = String(program.gefen ?? "").trim();
+ if (gefen) return `gefen-${gefen.replace(/\s+/g, "-")}`;
+ return String(program.title ?? "program")
+   .trim()
+   .toLowerCase()
+   .replace(/[^\p{L}\p{N}]+/gu, "-")
+   .replace(/^-+|-+$/g, "") || "program";
+}
+
+function normalizeProgram(program = {}) {
+ const textFields = ["gefen", "activityNo", "catalogSection", "itemType", "title", "subtitle", "grades", "domain", "sessions", "duration", "opening", "core", "short", "goals", "flow", "develops", "outcome", "school"];
+ const normalized = { ...program };
+ textFields.forEach(field => { normalized[field] = String(program[field] ?? ""); });
+ normalized.id = stableProgramId(program);
+ normalized.audienceLevel = String(program.audienceLevel ?? "").trim();
+ normalized.skills = Array.isArray(program.skills) ? program.skills.filter(Boolean) : [];
+ normalized.skillGroups = Array.isArray(program.skillGroups) ? program.skillGroups.filter(g => g && typeof g === "object" && g.title) : [];
+ normalized.syllabus = Array.isArray(program.syllabus) ? program.syllabus : [];
+ normalized.c0 = program.c0 || "#2F6F68";
+ normalized.c1 = program.c1 || "#3B8C7F";
+ normalized.c2 = program.c2 || "#6FAFA5";
+ normalized.c3 = program.c3 || "#CFE7E1";
+ normalized.c4 = program.c4 || "#EEF8F5";
+ normalized.c5 = program.c5 || normalized.c0;
+ normalized.c6 = program.c6 || normalized.c1;
+ normalized.courseLayout = Boolean(program.courseLayout);
+ normalized.showLearningFlow = Boolean(program.showLearningFlow);
+ normalized.showInlineOutcomes = Boolean(program.showInlineOutcomes);
+ return normalized;
+}
+
+function setActiveNav(index) {
+ const activeId = index >= 0 && programs[index] ? programs[index].id : null;
+ document.querySelectorAll(".nav-btn").forEach(btn => {
+   btn.classList.toggle("active", btn.dataset.programId === activeId);
+ });
+}
+
+function buildNav(activeIndex = 0) {
+ const nav = document.getElementById("nav");
+ nav.innerHTML = "";
+ const activeProgram = programs[activeIndex];
+ const activeId = activeProgram ? activeProgram.id : null;
+ const activeLevel = activeProgram ? activeProgram.audienceLevel : "";
+
+ const levels = [
+   { label: "יסודי",  keys: ["elementary", "elementary-middle"] },
+   { label: "חטיבה", keys: ["middle", "middle-high"] },
+   { label: "תיכון",  keys: ["high", "high-middle"] },
+ ];
+
+ const activeGroup = levels.find(({ keys }) => keys.includes(activeLevel));
+ const keysToShow = activeGroup ? activeGroup.keys : levels.flatMap(l => l.keys);
+
+ const group = programs.filter(p => keysToShow.includes(p.audienceLevel));
+ group.forEach(p => {
+   const btn = document.createElement("button");
+   btn.className = "nav-btn" + (p.id === activeId ? " active" : "");
+   btn.style.setProperty('--c0', p.c0);
+   btn.style.setProperty('--c1', p.c1);
+   btn.style.setProperty('--c3', p.c3);
+   btn.style.setProperty('--c4', p.c4);
+   btn.textContent = p.title;
+   btn.dataset.programId = p.id;
+   btn.onclick = () => selectProgram(programs.indexOf(p), true);
+   nav.appendChild(btn);
+ });
+
+ const footer = document.createElement("div");
+ footer.className = "nav-pdf-footer";
+ const pdfBtn = document.createElement("button");
+ pdfBtn.className = "nav-pdf-btn";
+ pdfBtn.type = "button";
+ pdfBtn.textContent = "PDF";
+ pdfBtn.addEventListener("click", () => {
+   nav.classList.remove("open");
+   document.querySelector(".nav-overlay")?.classList.remove("open");
+   document.body.classList.remove("nav-open");
+   setTimeout(() => window.print(), 120);
+ });
+ footer.appendChild(pdfBtn);
+ nav.appendChild(footer);
+}
+
+function findProgramIndexFromUrl() {
+ const params = new URLSearchParams(window.location.search);
+ const requestedId = params.get("id");
+ const requestedGefen = params.get("gefen");
+ if (requestedId) return programs.findIndex(program => program.id === requestedId);
+ if (requestedGefen) return programs.findIndex(program => String(program.gefen) === requestedGefen);
+ return 0;
+}
+
+function selectProgram(index, pushUrl = false) {
+ if (index < 0 || index >= programs.length) return;
+ render(index);
+ setActiveNav(index);
+ scheduleA4Fit();
+ if (pushUrl) {
+   const url = `./course-page.html?id=${encodeURIComponent(programs[index].id)}`;
+   history.pushState({ programId: programs[index].id }, "", url);
+ }
+}
+
+function buildSkills(p) {
+ const items = Array.isArray(p.skills) && p.skills.length ? p.skills : String(p.develops || "").split(",").map(s => s.trim()).filter(Boolean);
+ return items.map(s => `<span class="pill">${escapeHtml(s)}</span>`).join("");
+}
+
+function buildSkillsTags(p) {
+ const items = Array.isArray(p.skills) && p.skills.length ? p.skills : String(p.develops || "").split(",").map(s => s.trim()).filter(Boolean);
+ return `<div class="skills-tags">${items.map(item => `<span class="skill-tag">${escapeHtml(item)}</span>`).join("")}</div>`;
+}
+
+function getOutcomeItems(p) {
+ return String(p.outcome || "").split(/\n|•/).map(s => s.trim()).filter(Boolean);
+}
+
+function buildOutcome(p, mode = "default") {
+ const items = getOutcomeItems(p);
+ if (items.length > 1) {
+ const gridClass = mode === "inline" ? "inline-outcomes-grid" : "outcome-box-grid";
+ return `<div class="${gridClass}">${items.map(item => `<div class="outcome-item">${escapeHtml(item)}</div>`).join("")}</div>`;
+ }
+ return `<div class="section-body">${escapeHtml(p.outcome || "")}</div>`;
+}
+
+function hexToRgbString(hex) {
+ const clean = String(hex || "").replace("#", "").trim();
+ if (!/^[0-9a-fA-F]{6}$/.test(clean)) return "78,104,128";
+ const r = parseInt(clean.slice(0, 2), 16);
+ const g = parseInt(clean.slice(2, 4), 16);
+ const b = parseInt(clean.slice(4, 6), 16);
+ return `${r},${g},${b}`;
+}
+
+function cleanGradeLabel(value) {
+ return String(value || "").replace(/^כיתות\s+/, "").trim();
+}
+
+function buildTopMetaLabel(p) {
+ const items = [
+ `<span class="meta-main">מספר גפ״ן ${escapeHtml(p.gefen)}</span>`,
+ `<span class="meta-value">${escapeHtml(cleanGradeLabel(p.grades))}</span>`,
+ `<span class="meta-value">${escapeHtml(p.sessions)}</span>`,
+ `<span class="meta-value">${escapeHtml(p.duration)}</span>`
+ ];
+ return `<div class="top-meta-row"><img class="top-meta-logo" src="${LOGO}" alt="לוגו תעשיידע"><div class="top-meta-label">${items.map((item, index) => index > 0 ? `<span class="meta-separator"></span>${item}` : item).join("")}</div></div>`;
+}
+
+function buildLearningFlow() {
+ const steps = ["חוקרים", "מתכננים", "מפתחים", "משפרים", "מציגים"];
+ return `<div class="learning-flow-strip">${steps.map(step => `<div class="learning-flow-step">${escapeHtml(step)}</div>`).join("")}</div>`;
+}
+
+function buildSkillsGroups(p) {
+ if (Array.isArray(p.skillGroups) && p.skillGroups.length) {
+   const cards = p.skillGroups.map(group => {
+     const title = escapeHtml(group.title || "");
+     const items = Array.isArray(group.items)
+       ? group.items.map(item => `<div class="skill-group-item">${escapeHtml(item)}</div>`).join("")
+       : "";
+     return `<div class="skill-group-card"><div class="skill-group-title">${title}</div><div class="skill-group-items">${items}</div></div>`;
+   }).join("");
+   return `<div class="skills-group-grid">${cards}</div>`;
+ }
+ return buildSkillsTags(p);
+}
+
+
+function syllabusStageClass(n) {
+ const num = Number(n);
+ if (num >= 1 && num <= 4) return "stage-nature";
+ if (num >= 5 && num <= 6) return "stage-tech";
+ if (num >= 7 && num <= 10) return "stage-product";
+ return "";
+}
+
+function buildCourseDescription(p) {
+ const paragraphs = String(p.goals || "").split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+ let html = p.showLearningFlow ? buildLearningFlow() : "";
+ html += paragraphs.map(par => `<p>${escapeHtml(par)}</p>`).join("");
+ if (p.showInlineOutcomes) {
+   html += `<div class="inline-outcomes-wrap"><div class="inline-outcomes-label">תוצרי סיום</div>${buildOutcome(p, "inline")}</div>`;
+ }
+ return html || escapeHtml(p.goals || "");
+}
+
+function syllabusRowsClass(rowCount) {
+ if (rowCount <= 8) return "syl-rows-8";
+ if (rowCount <= 10) return "syl-rows-10";
+ if (rowCount <= 12) return "syl-rows-12";
+ return "syl-rows-14";
+}
+
+function buildSyllabus(p) {
+ const rows = Array.isArray(p.syllabus) ? p.syllabus : [];
+ if (!rows.length) return '';
+ const rowsClass = syllabusRowsClass(rows.length);
+ return `<div class="syllabus-wrap ${rowsClass}">
+ <div class="syllabus-header">סילבוס הקורס</div>
+ <table class="syllabus-table">
+ <thead><tr><th>מפגש</th><th style="text-align:right">נושא</th><th style="text-align:right">תיאור</th></tr></thead>
+ <tbody>${rows.map(r=>`<tr class="${syllabusStageClass(r.n)}">
+ <td class="syl-num">${escapeHtml(r.n)}</td>
+ <td class="syl-topic">${escapeHtml(r.topic)}</td>
+ <td class="syl-desc">${escapeHtml(r.desc)}</td>
+ </tr>`).join('')}</tbody>
+ </table></div>`;
+}
+
+function contactLineHTML(marketer) {
+ if (marketer === "yael") {
+   return `<div class="a4-contact">לפרטים נוספים: יעל אביב &nbsp;–&nbsp; 054-7790073 &nbsp;|&nbsp; <a href="mailto:yael_aviv@think.org.il" style="color:inherit;text-decoration:none;">yael_aviv@think.org.il</a></div>`;
+ }
+ if (marketer === "israa") {
+   return `<div class="a4-contact">לפרטים נוספים: איסראא אבו-ראס &nbsp;–&nbsp; 054-5419396 &nbsp;|&nbsp; <a href="mailto:esraas@think.org.il" style="color:inherit;text-decoration:none;">esraas@think.org.il</a></div>`;
+ }
+ return "";
+}
+
+function courseNeedsWideSyllabusTopic(p) {
+ return String(p.title || "").includes("השמיים אינם הגבול");
+}
+
+function buildProgramPageHtml(p, marketer = "none") {
+ const style = `--c0:${p.c0};--c1:${p.c1};--c2:${p.c2};--c3:${p.c3};--c4:${p.c4};--c5:${p.c5};--c6:${p.c6};--theme-rgb:${hexToRgbString(p.c1)}`;
+ const contactLine = contactLineHTML(marketer);
+
+ if (p.courseLayout) {
+ const skeletonExtraClass = courseNeedsWideSyllabusTopic(p) ? " syl-topic-wide" : "";
+ return `
+ <div class="a4 a4-course-skeleton${skeletonExtraClass}" style="${style}">
+ ${buildTopMetaLabel(p)}
+ <p class="a4-opening">${escapeHtml(p.opening)}</p>
+ <div class="a4-banner">
+ <div class="a4-banner-text">
+ <h1 class="a4-title">${escapeHtml(p.title)}</h1>
+ <p class="a4-subtitle">${escapeHtml(p.subtitle)}</p>
+ <div class="a4-badges">
+ <span class="badge badge-domain">${escapeHtml(p.domain)}</span>
+ </div>
+ </div>
+ </div>
+ <div class="a4-body">
+ <section class="info-section text-only-section course-summary">
+ <div class="section-title">תקציר</div>
+ <div class="section-body">${escapeHtml(p.short)}</div>
+ </section>
+
+ <section class="info-section text-only-section core-plain-card">
+ <div class="section-body">${escapeHtml(p.core)}</div>
+ </section>
+
+ <section class="info-section learning-process-section course-description">
+ <div class="section-title">תיאור הקורס</div>
+ <div class="section-body">${buildCourseDescription(p)}</div>
+ </section>
+
+ <section class="info-section text-only-section full-width-card">
+ <div class="section-title">כלים ומיומנויות</div>
+ <div class="section-body">${buildSkillsGroups(p)}</div>
+ </section>
+ <div class="program-domain-strip domain-before-syllabus">${escapeHtml(p.domain)}</div>
+ ${buildSyllabus(p)}
+
+ <section class="info-section school-value-after-syllabus">
+ <div class="section-body">${escapeHtml(p.school)}</div>
+ </section>
+ </div>
+ ${contactLine}
+ <div class="a4-footer">
+ <span class="a4-footer-brand">© כל הזכויות שמורות לתעשיידע – תעשייה למען חינוך מתקדם ע״ר</span>
+ </div>
+ </div>`;
+ }
+
+ return `
+ <div class="a4" style="${style}">
+ <p class="a4-opening">${escapeHtml(p.opening)}</p>
+ <div class="a4-banner">
+ <div class="a4-banner-text">
+ <div class="a4-gefen"><span class="gefen-label">מס׳ גפ״ן</span><span class="gefen-number">${escapeHtml(p.gefen)}</span></div>
+ <h1 class="a4-title">${escapeHtml(p.title)}</h1>
+ <p class="a4-subtitle">${escapeHtml(p.subtitle)}</p>
+ <div class="a4-badges">
+ <span class="badge">${escapeHtml(p.grades)}</span>
+ <span class="badge">${escapeHtml(p.sessions)}</span>
+ <span class="badge">${escapeHtml(p.duration)}</span>
+ <span class="badge badge-domain">${escapeHtml(p.domain)}</span>
+ </div>
+ </div>
+ <img class="a4-logo" src="${LOGO}" alt="לוגו תעשיידע">
+ </div>
+ <div class="a4-body">
+ <section class="info-section overview-card">
+ <div class="section-title">על התוכנית</div>
+ <div class="section-body">${escapeHtml(p.short)}</div>
+ </section>
+
+ <section class="info-section idea-card">
+ <div class="section-title">הרעיון המרכזי</div>
+ <div class="section-body">${escapeHtml(p.core)}</div>
+ </section>
+
+ <div class="split-grid">
+ <section class="mini-card">
+ <div class="section-title">איך לומדים</div>
+ <div class="section-body">${escapeHtml(p.goals)}</div>
+ </section>
+ <section class="mini-card">
+ <div class="section-title">מה עושים</div>
+ <div class="section-body">${escapeHtml(p.flow)}</div>
+ </section>
+ </div>
+
+ <div class="split-grid">
+ <section class="skills-card">
+ <div class="section-title">כלים ומיומנויות</div>
+ <div class="pill-row">${buildSkills(p)}</div>
+ </section>
+ <section class="outcome-card">
+ <div class="section-title">תוצר סיום</div>
+ ${buildOutcome(p)}
+ </section>
+ </div>
+
+ <section class="info-section school-card">
+ <div class="section-title">ערך לבית הספר</div>
+ <div class="section-body">${escapeHtml(p.school)}</div>
+ </section>
+
+ ${buildSyllabus(p)}
+ </div>
+ ${contactLine}
+ <div class="a4-footer">
+ <span class="a4-footer-brand">© כל הזכויות שמורות לתעשיידע – תעשייה למען חינוך מתקדם ע״ר</span>
+ </div>
+ </div>`;
+}
+
+function render(i) {
+ const p = programs[i];
+ if (!p) return;
+ document.getElementById("a4-container").innerHTML = buildProgramPageHtml(p);
+}
+
+function findProgramIndexesFromUrl() {
+ const params = new URLSearchParams(window.location.search);
+ const ids = String(params.get("ids") || "").split(",").map(id => id.trim()).filter(Boolean);
+ if (!ids.length) return [];
+ const requested = new Set(ids);
+ return programs.map((program, index) => requested.has(program.id) ? index : -1).filter(index => index >= 0);
+}
+
+function isCatalogModeFromUrl() {
+ const params = new URLSearchParams(window.location.search);
+ return params.get("catalog") === "1" || params.has("ids");
+}
+
+function buildIndexPageHtml(selectedPrograms) {
+  const levelLabel = { elementary: "יסודי", "elementary-middle": "יסודי–חטיבה", middle: "חטיבה", "middle-high": "חטיבה–תיכון", high: "תיכון" };
+  const rows = selectedPrograms.map(p => `
+    <tr>
+      <td class="idx-title">${escapeHtml(p.title || "—")}</td>
+      <td class="idx-level">${escapeHtml(levelLabel[p.audienceLevel] || p.catalogSection || "—")}</td>
+      <td class="idx-grades">${escapeHtml(p.grades || "—")}</td>
+      <td class="idx-sessions">${escapeHtml(p.sessions || "—")}</td>
+      <td class="idx-gefen">${escapeHtml(String(p.gefen || p.activityNo || "—"))}</td>
+    </tr>`).join("");
+  return `
+  <div class="a4 index-page" style="page-break-after:always;break-after:page;">
+    <div class="idx-header">
+      <img class="idx-logo" src="logo.png" alt="תעשיידע">
+      <div class="idx-title-block">
+        <div class="idx-main-title">מקרא: תוכניות תעשיידע</div>
+        <div class="idx-sub-title">רשימת התוכניות הנכללות בקטלוג זה</div>
+      </div>
+    </div>
+    <div class="idx-body">
+      <table class="idx-table">
+        <thead>
+          <tr>
+            <th class="idx-title">שם התוכנית</th>
+            <th class="idx-level">שכבת גיל</th>
+            <th class="idx-grades">כיתות</th>
+            <th class="idx-sessions">מפגשים</th>
+            <th class="idx-gefen">גפ״ן</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="a4-footer">
+      <span class="a4-footer-brand">© כל הזכויות שמורות לתעשיידע – תעשייה למען חינוך מתקדם ע״ר</span>
+    </div>
+  </div>`;
+}
+
+function renderCourseCatalog(indexes, includeCover = false, includeIndex = false, marketer = "none") {
+ const selectedPrograms = indexes.map(index => programs[index]).filter(Boolean);
+ document.body.classList.add("catalog-view", "catalog-courses-print");
+ document.querySelector(".nav-toggle")?.setAttribute("hidden", "hidden");
+ document.getElementById("nav")?.setAttribute("hidden", "hidden");
+ const openingSrc = marketer && marketer !== "none" ? `./opening.html?marketer=${encodeURIComponent(marketer)}` : "./opening.html";
+ const openingHtml = includeCover ? `<iframe class="catalog-opening-frame" src="${openingSrc}" title="מכתב מקדים לקטלוג הקורסים"></iframe>` : "";
+ const indexHtml = includeIndex ? buildIndexPageHtml(selectedPrograms) : "";
+ document.getElementById("a4-container").innerHTML = openingHtml + indexHtml + selectedPrograms.map(p => buildProgramPageHtml(p, marketer)).join("");
+ scheduleA4Fit();
+}
+
+function showLoadError(msg, showBackLink = false) {
+  const backLink = showBackLink ? `<br><br><a href="./workshops.html?catalog=courses" style="display:inline-block;padding:10px 16px;border-radius:999px;background:#203b7a;color:#fff;text-decoration:none;">חזרה לבחירת קורסים</a>` : "";
+  document.getElementById("a4-container").innerHTML =
+    `<div style="direction:rtl;font-family:"Assistant",Arial,sans-serif;padding:40px;color:#c0392b;font-size:15px;text-align:center;">
+      <strong>שגיאה בטעינת הנתונים</strong><br><br>${msg}${backLink}
+    </div>`;
+}
+
+function showProgramNotFound() {
+  showLoadError("התוכנית המבוקשת לא נמצאה בקובץ הנתונים.", true);
+}
+
+async function init() {
+  try {
+    const res = await fetch("catalog-data.json", { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data.programs) || data.programs.length === 0) {
+      showLoadError("קובץ catalog-data.json ריק או חסר שדה programs.");
+      return;
+    }
+    const levelOrder = { elementary: 1, "elementary-middle": 2, middle: 3, "middle-high": 4, high: 5 };
+    programs = data.programs.map(program => normalizeProgram(program))
+      .sort((a, b) => (levelOrder[a.audienceLevel] ?? 99) - (levelOrder[b.audienceLevel] ?? 99));
+    if (isCatalogModeFromUrl()) {
+      const params = new URLSearchParams(window.location.search);
+      const requestedIndexes = findProgramIndexesFromUrl();
+      if (!requestedIndexes.length) {
+        showLoadError("לא נבחרו קורסים תקינים להפקת קטלוג.", true);
+        return;
+      }
+      renderCourseCatalog(requestedIndexes, params.get("cover") === "1", params.get("index") === "1", params.get("marketer") || "none");
+      return;
+    }
+    const requestedIndex = findProgramIndexFromUrl();
+    setupCourseDrawer();
+    if (requestedIndex === -1) {
+      buildNav();
+      showProgramNotFound();
+      return;
+    }
+    buildNav(requestedIndex);
+    selectProgram(requestedIndex, false);
+  } catch (err) {
+    showLoadError("לא ניתן לטעון את נתוני הקטלוג. בדקו שקובץ catalog-data.json קיים ותקין.<br><small>" + err.message + "</small>");
+  }
+}
+
+function setupCourseDrawer() {
+ const toggle = document.querySelector(".nav-toggle");
+ const nav = document.querySelector(".nav");
+ const overlay = document.querySelector(".nav-overlay");
+ if (!toggle || !nav || !overlay) return;
+
+ const closeDrawer = () => {
+   nav.classList.remove("open");
+   overlay.classList.remove("open");
+   document.body.classList.remove("nav-open");
+   toggle.setAttribute("aria-expanded", "false");
+ };
+
+ const openDrawer = () => {
+   nav.classList.add("open");
+   overlay.classList.add("open");
+   document.body.classList.add("nav-open");
+   toggle.setAttribute("aria-expanded", "true");
+ };
+
+ toggle.addEventListener("click", () => {
+   if (nav.classList.contains("open")) closeDrawer();
+   else openDrawer();
+ });
+
+ overlay.addEventListener("click", closeDrawer);
+
+ document.addEventListener("keydown", (event) => {
+   if (event.key === "Escape") closeDrawer();
+ });
+
+ nav.addEventListener("click", (event) => {
+   if (event.target.closest(".nav-btn")) closeDrawer();
+ });
+}
+
+
+init();
+
+function clearLegacyA4FitClasses(a4) {
+ const compressModes = ["fit-spacious", "fit-normal", "fit-compact", "fit-tight", "fit-ultra", "a4-fit-scaled", "a4-fill-active"];
+ a4.classList.remove(...compressModes);
+ a4.style.removeProperty("--a4-fit-scale");
+ a4.style.removeProperty("--a4-fill-gap");
+ a4.style.removeProperty("--a4-fill-pad");
+}
+
+function applyCourseSkeletonLayout() {
+ const warning = document.getElementById("fit-warning");
+ document.querySelectorAll(".a4.a4-course-skeleton").forEach(clearLegacyA4FitClasses);
+ if (warning) warning.classList.remove("show");
+}
+
+function scheduleA4Fit() {
+ requestAnimationFrame(applyCourseSkeletonLayout);
+}
+
+window.addEventListener("resize", scheduleA4Fit);
+window.addEventListener("beforeprint", applyCourseSkeletonLayout);
+window.addEventListener("popstate", () => {
+ const index = findProgramIndexFromUrl();
+ if (index === -1) {
+   showProgramNotFound();
+   setActiveNav(-1);
+   return;
+ }
+ selectProgram(index, false);
+});
+
+
+document.addEventListener("click", function(event) {
+ const courseButton = event.target.closest(".nav-btn");
+ if (courseButton) {
+   setTimeout(scheduleA4Fit, 0);
+ }
+});
+
+</script>
+<div class="fit-warning" id="fit-warning">התוכן עדיין ארוך מעט לעמוד A4 אחד. מומלץ לקצר מעט טקסט או סילבוס.</div>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js?v=210").then(registration => registration.update());
+    });
+  }
+</script>
+</body>
+</html>
