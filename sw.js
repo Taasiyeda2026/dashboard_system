@@ -1,3 +1,3 @@
 /* Entry at site root: default scope is `/` so navigations and all same-origin assets are controlled. */
-const SW_ENTRY_VERSION = 605;
+const SW_ENTRY_VERSION = 606;
 importScripts(new URL(`frontend/sw.js?v=${SW_ENTRY_VERSION}`, self.location).href);
