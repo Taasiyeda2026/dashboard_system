@@ -186,8 +186,8 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 593;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 593;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 594;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 594;/);
 });
 
 test('source guards personal reports loads with requestKey and abortable listeners', async () => {
@@ -322,6 +322,7 @@ test('management screen lists all report-eligible employees with one row action'
   const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 
   assert.match(source, /function fetchReportEligibleEmployees/);
+  assert.doesNotMatch(source, /fetchReportEligibleEmployees[\s\S]{0,500}!isAdminRole\(profile\.role\)/);
   assert.match(source, /function buildEmployeeReportsManagementRows/);
   assert.match(source, /ADMIN_MANAGE_STATUS_META/);
   assert.match(source, /בטיפול העובד/);
