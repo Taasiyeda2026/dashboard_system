@@ -550,8 +550,14 @@ function friendlyPersonalReportsError(error, fallback = 'אירעה תקלה ב�
   if (/missing_travel_rate|missing travel rate/i.test(raw)) {
     return 'לא הוגדר תעריף החזר נסיעות לעובד. יש לפנות למנהל המערכת.';
   }
+  if (/report_not_editable/i.test(raw)) {
+    return 'הדוח אינו ניתן לעריכה (אינו בסטטוס טיוטה). יש לפנות למנהל המערכת.';
+  }
   if (/permission denied|row-level security|rls|unauthorized|forbidden/i.test(raw)) {
     return 'אין הרשאה לצפייה בדוחות אלה.';
+  }
+  if (raw) {
+    return `${fallback} (${raw})`;
   }
   return fallback;
 }
@@ -1075,17 +1081,22 @@ async function upsertDeclaredTravel(entry) {
   const { travel_type: travelType = 'km', id, ...baseEntry } = entry;
   const isPublicTransport = travelType === 'public_transport';
   if (!isPublicTransport) {
-    const { data, error } = await supabase.rpc('upsert_declared_travel_entry', {
+    const rpcPayload = {
       p_id: id || null,
       p_report_id: baseEntry.report_id,
       p_employee_id: baseEntry.employee_id,
-      p_travel_date: baseEntry.travel_date,
+      p_travel_date: baseEntry.travel_date || null,
       p_origin: baseEntry.origin || '',
       p_destination: baseEntry.destination || '',
       p_description: baseEntry.description || '',
-      p_roundtrip_km: Number(baseEntry.roundtrip_km || 0)
-    });
-    if (error) throw error;
+      p_roundtrip_km: Number(baseEntry.roundtrip_km) || 0
+    };
+    console.error('[declared_travel] payload before upsert:', JSON.stringify(rpcPayload));
+    const { data, error } = await supabase.rpc('upsert_declared_travel_entry', rpcPayload);
+    if (error) {
+      console.error('[declared_travel] upsert error:', error.message, error.code, error.details, 'payload:', JSON.stringify(rpcPayload));
+      throw error;
+    }
     const row = Array.isArray(data) ? data[0] : data;
     return { ...row, travel_type: 'km', entry_table: 'declared_travel_entries' };
   }
@@ -3121,6 +3132,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       await safeOpenReportDetail(root, reportId, false, { isSimulation, initialTab: currentReportTab(root), forceReload: true });
       showToast('נשמר', 'success');
     } catch (err) {
+      console.error('[personal-reports] save error:', err?.message, err?.code, err?.details, err);
       showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בשמירת הדוח. יש לנסות שוב.'), 'danger');
     } finally {
       savingForms.delete(form);
