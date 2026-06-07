@@ -1668,7 +1668,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
 
 function reportSubmittedSuccessHtml(reportId, message = 'הדוח אושר ונשלח לשכר בהצלחה') {
   return `
-    <div class="pr-screen pr-report-form" dir="rtl">
+    <div class="pr-screen pr-submit-success-screen" dir="rtl">
       <div class="pr-body pr-report-detail-body">
         <section class="pr-card pr-submit-success-card" role="status">
           <span class="pr-submit-success-card__icon" aria-hidden="true">✓</span>
@@ -1848,6 +1848,30 @@ function renderInto(root, html) {
     <div id="pr-toast" class="pr-toast" role="alert" aria-live="assertive"></div>
     ${html}
   `;
+}
+
+function showReportSubmittedSuccess(root, reportId, message, { isSimulation = false } = {}) {
+  _prActiveView = { kind: 'submit-success', reportId, isSimulation };
+  invalidatePersonalReportsLoadCache({ reportId });
+  renderInto(root, reportSubmittedSuccessHtml(reportId, message));
+}
+
+async function returnToEmployeeDashboard(root, { isSimulation = false } = {}) {
+  const employeeId = isSimulation ? prViewAsEmployee?.id : prSession?.user?.id;
+  const profile = isSimulation ? prViewAsEmployee : prSession?.profile;
+  if (!employeeId || !profile) return;
+
+  const submittedReportId = _prActiveView?.reportId || prSelectedReport?.id;
+  if (submittedReportId) invalidatePersonalReportsLoadCache({ reportId: submittedReportId });
+
+  abortPersonalReportsScreenListeners(root);
+  prSelectedReport = null;
+  _prActiveView = { kind: 'employee-dashboard', isSimulation };
+
+  const { month, year } = currentMonthYear();
+  const currentReport = await loadCurrentMonthReport(employeeId, month, year, { force: true });
+  renderInto(root, employeeDashboardHtml(profile, { isSimulation, currentReport }));
+  bindEmployeeDashboard(root, { isSimulation });
 }
 
 async function loadMyReportsList(root, employeeId) {
@@ -2325,12 +2349,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
       await rerender(root, _dashboardUser); return;
     }
     if (action === 'back-to-my-reports') {
-      if (isSimulation) {
-        renderInto(root, employeeDashboardHtml(prViewAsEmployee, { isSimulation: true }));
-        bindEmployeeDashboard(root, { isSimulation: true });
-      } else {
-        await rerender(root, _dashboardUser);
-      }
+      await returnToEmployeeDashboard(root, { isSimulation });
       return;
     }
     if (action === 'back-to-dashboard') { dispatchBackToDashboard(); return; }
@@ -2447,10 +2466,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         const wasCorrection = prSelectedReport.status === 'needs_correction';
         await submitReport(prSelectedReport.id, signatureFullName);
         await openMonthlyReportPdf(prSelectedReport.id, 'נשלח לשכר');
-        renderInto(root, reportSubmittedSuccessHtml(
-          prSelectedReport.id,
-          wasCorrection ? 'הדוח נשלח מחדש בהצלחה' : 'הדוח אושר ונשלח לשכר בהצלחה'
-        ));
+        showReportSubmittedSuccess(root, prSelectedReport.id, wasCorrection ? 'הדוח נשלח מחדש בהצלחה' : 'הדוח אושר ונשלח לשכר בהצלחה', { isSimulation });
         showToast(wasCorrection ? 'הדוח נשלח מחדש בהצלחה' : 'הדוח אושר ונשלח לשכר בהצלחה', 'success');
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
