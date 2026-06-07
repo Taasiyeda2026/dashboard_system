@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
 
 if (!globalThis.sessionStorage) {
   const sessionStore = new Map();
@@ -186,6 +187,7 @@ test('activities quick filters include one-day summer rows by family and distric
 
 test('activities period tabs split rows by start_date and default to school 2026', () => {
   const state = baseState();
+  state.activitiesMonthYm = '2026-06';
   delete state.activityPeriodTab;
   const data = {
     rows: [
@@ -207,6 +209,86 @@ test('activities period tabs split rows by start_date and default to school 2026
   assert.doesNotMatch(html, /פעילות ספטמבר/);
   assert.doesNotMatch(html, /פעילות סגורה/);
   assert.doesNotMatch(html, /כל הפעילויות/);
+});
+
+test('activities selected month drives title, count and table rows', () => {
+  const state = baseState();
+  state.activitiesMonthYm = '2026-05';
+  const data = {
+    rows: [
+      { RowID: 'MAY-1', activity_name: 'פעילות מאי', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-05-10', end_date: '2026-05-10' },
+      { RowID: 'JUNE-1', activity_name: 'פעילות יוני', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-06-12', end_date: '2026-06-12' },
+      { RowID: 'SPAN-MAY-JUNE', activity_name: 'פעילות חוצה חודשים', activity_type: 'course', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-05-20', end_date: '2026-06-10' },
+      { RowID: 'DATES-JUNE', activity_name: 'מפגש יוני', activity_type: 'course', authority: 'רשות ד', school: 'בית ספר ד', start_date: '2026-05-01', end_date: '2026-05-31', date_1: '2026-06-03' }
+    ]
+  };
+
+  const mayHtml = activitiesScreen.render(data, { state });
+  assert.match(mayHtml, /ניהול פעילויות · מאי · 2 פעילויות/);
+  assert.match(mayHtml, /פעילות מאי/);
+  assert.match(mayHtml, /פעילות חוצה חודשים/);
+  assert.doesNotMatch(mayHtml, /פעילות יוני/);
+  assert.doesNotMatch(mayHtml, /מפגש יוני/);
+
+  state.activitiesMonthYm = '2026-06';
+  const juneHtml = activitiesScreen.render(data, { state });
+  assert.match(juneHtml, /ניהול פעילויות · יוני · 3 פעילויות/);
+  assert.doesNotMatch(juneHtml, /פעילות מאי/);
+  assert.match(juneHtml, /פעילות יוני/);
+  assert.match(juneHtml, /פעילות חוצה חודשים/);
+  assert.match(juneHtml, /מפגש יוני/);
+});
+
+test('activities month navigation updates the single selected month state and rerenders RTL title/table', async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
+  const dom = new JSDOM('<main id="root"></main>', { url: 'https://example.test/dashboard?route=activities' });
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const state = baseState();
+    state.activitiesMonthYm = '2026-05';
+    const data = {
+      rows: [
+        { RowID: 'MAY-1', activity_name: 'פעילות מאי', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-05-10', end_date: '2026-05-10' },
+        { RowID: 'JUNE-1', activity_name: 'פעילות יוני', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-06-12', end_date: '2026-06-12' }
+      ]
+    };
+    const root = dom.window.document.querySelector('#root');
+    const rerender = () => {
+      root.innerHTML = activitiesScreen.render(data, { state });
+      activitiesScreen.bind({ root, data, state, rerender, api: {}, ui: { bindInteractiveCards() {} } });
+    };
+
+    rerender();
+    assert.match(root.querySelector('.ds-activities-title-row')?.getAttribute('dir') || '', /rtl/);
+    assert.match(root.textContent, /ניהול פעילויות · מאי · 1 פעילויות/);
+    assert.match(root.textContent, /פעילות מאי/);
+    assert.doesNotMatch(root.textContent, /פעילות יוני/);
+
+    root.querySelector('[data-activities-month-next]').click();
+    assert.equal(state.activitiesMonthYm, '2026-06');
+    assert.match(root.textContent, /ניהול פעילויות · יוני · 1 פעילויות/);
+    assert.doesNotMatch(root.textContent, /פעילות מאי/);
+    assert.match(root.textContent, /פעילות יוני/);
+
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    root.querySelector('[data-activities-month-prev]').click();
+    assert.equal(state.activitiesMonthYm, '2026-05');
+    assert.match(root.textContent, /ניהול פעילויות · מאי · 1 פעילויות/);
+    assert.match(root.textContent, /פעילות מאי/);
+    assert.doesNotMatch(root.textContent, /פעילות יוני/);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+    if (previousAbortController === undefined) delete globalThis.AbortController;
+    else globalThis.AbortController = previousAbortController;
+  }
 });
 
 test('activities view switcher keeps week and month routes without an all/summer mixing button', () => {
@@ -364,7 +446,6 @@ test('all-activities Excel filename keeps Hebrew base and date stamp', async () 
   }
 });
 
-const { JSDOM } = await import('jsdom');
 const { getActivityNamesForType } = await import('../frontend/src/screens/shared/activity-options.js');
 const { activityWorkDrawerHtml } = await import('../frontend/src/screens/shared/activity-detail-html.js');
 const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
