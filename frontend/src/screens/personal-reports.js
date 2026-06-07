@@ -7,7 +7,7 @@
  *
  * Roles:
  *   employee — sees only their own reports
- *   admin    — sees all reports, can approve / return / mark paid
+ *   manager  — admin or personal_reports_manager=yes: sees all reports, can approve / return / mark paid
  */
 
 import { supabase } from '../supabase-client.js';
@@ -23,6 +23,21 @@ function permissionYes(value) {
 function canAccessPersonalReports(user = {}) {
   if (user?.profile_is_active === false) return false;
   return permissionYes(user?.can_access_personal_reports);
+}
+
+function isAdminRole(role) {
+  return String(role || '').trim().toLowerCase() === 'admin';
+}
+
+function canManagePersonalReports(user = {}) {
+  if (isAdminRole(user?.display_role || user?.role)) return true;
+  return permissionYes(user?.personal_reports_manager);
+}
+
+function profileCanManagePersonalReports(profile = {}) {
+  if (profile?.can_manage_personal_reports === true) return true;
+  if (isAdminRole(profile?.role)) return true;
+  return permissionYes(profile?.personal_reports_manager);
 }
 
 function personalReportsAccessDeniedHtml() {
@@ -454,10 +469,6 @@ function canEdit(report) {
   return !report || report.status === 'draft' || report.status === 'needs_correction';
 }
 
-function isAdminRole(role) {
-  return String(role || '').trim().toLowerCase() === 'admin';
-}
-
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
 }
@@ -548,13 +559,16 @@ function profileFromDashboardUser(user) {
   );
   const displayRole = String(user.display_role || user.role || '').trim();
   const role = isAdminRole(displayRole) ? 'admin' : 'employee';
+  const canManage = canManagePersonalReports(user);
   return {
     id,
     email: String(user.email || user.work_email || '').trim(),
     full_name: String(user.full_name || user.name || user.user_id || 'משתמש מחובר').trim(),
     role,
     display_role: displayRole,
-    emp_id: String(user.emp_id || user.employee_id || '').trim()
+    emp_id: String(user.emp_id || user.employee_id || '').trim(),
+    personal_reports_manager: permissionYes(user?.personal_reports_manager) ? 'yes' : 'no',
+    can_manage_personal_reports: canManage
   };
 }
 
@@ -809,7 +823,9 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
     full_name: String(user?.full_name || sessionEmail).trim(),
     role: isAdminRole(user?.display_role || user?.role) ? 'admin' : 'employee',
     display_role: String(user?.display_role || user?.role || '').trim(),
-    emp_id: String(user?.emp_id || user?.employee_id || '').trim()
+    emp_id: String(user?.emp_id || user?.employee_id || '').trim(),
+    personal_reports_manager: permissionYes(user?.personal_reports_manager) ? 'yes' : 'no',
+    can_manage_personal_reports: canManagePersonalReports(user)
   };
 
   return { user: { id: authUserId }, profile, needsInternalAuth: false };
@@ -2235,7 +2251,7 @@ async function returnToEmployeeDashboard(root, { isSimulation = false } = {}) {
   }
   prSelectedReport = null;
 
-  const showModeTabs = isAdminRole(profile.role) && !isSimulation;
+  const showModeTabs = profileCanManagePersonalReports(profile) && !isSimulation;
   await renderMyReportsDashboard(root, {
     profile,
     employeeId,
@@ -2634,7 +2650,7 @@ function bindMyReportsDashboard(root, { isSimulation = false } = {}) {
     const selectedMonth = clampMyReportsMonthValue(e.target.value);
     _prMyReportsSelectedMonth = selectedMonth;
     e.target.value = selectedMonth;
-    const showModeTabs = isAdminRole(profile.role) && !isSimulation;
+    const showModeTabs = profileCanManagePersonalReports(profile) && !isSimulation;
     await renderMyReportsDashboard(root, {
       profile,
       employeeId,
@@ -3349,7 +3365,7 @@ async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceRel
     bindInternalEmployeeLogin(root);
     return;
   }
-  if (isAdminRole(prSession.profile.role) && prScreenMode === PR_SCREEN_MODES.MY_REPORTS && !prViewAsEmployee) {
+  if (profileCanManagePersonalReports(prSession.profile) && prScreenMode === PR_SCREEN_MODES.MY_REPORTS && !prViewAsEmployee) {
     await renderMyReportsDashboard(root, {
       profile: prSession.profile,
       employeeId: prSession.user.id,
@@ -3357,7 +3373,7 @@ async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceRel
       selectedMonth: resolveMyReportsSelectedMonth(),
       force: forceReload
     });
-  } else if (isAdminRole(prSession.profile.role) && prViewAsEmployee) {
+  } else if (profileCanManagePersonalReports(prSession.profile) && prViewAsEmployee) {
     await renderMyReportsDashboard(root, {
       profile: prViewAsEmployee,
       employeeId: prViewAsEmployee.id,
@@ -3365,7 +3381,7 @@ async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceRel
       selectedMonth: resolveMyReportsSelectedMonth(),
       force: forceReload
     });
-  } else if (isAdminRole(prSession.profile.role)) {
+  } else if (profileCanManagePersonalReports(prSession.profile)) {
     try {
       const filters = {
         month: _prLastAdminFilters.month || defaultMonthFilterValue(),

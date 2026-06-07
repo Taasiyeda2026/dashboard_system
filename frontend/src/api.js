@@ -1893,6 +1893,12 @@ function permissionFlagYes(value) {
   return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
 }
 
+function canManagePersonalReportsUser(user = {}) {
+  const role = String(user?.display_role || user?.role || '').trim().toLowerCase();
+  if (role === 'admin') return true;
+  return permissionFlagYes(user?.personal_reports_manager);
+}
+
 function personalReportsProfileFlagYes(value) {
   if (value === true) return true;
   if (value === false) return false;
@@ -2040,6 +2046,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     allowedRoutes.push('edit-requests');
   }
   const hasPersonalReportsAccess = profileCanAccessPersonalReports(profileRow);
+  const hasPersonalReportsManager = canManagePersonalReportsUser(flat);
   const personalReportsIdx = allowedRoutes.indexOf('personal-reports');
   if (hasPersonalReportsAccess && personalReportsIdx === -1) allowedRoutes.push('personal-reports');
   if (!hasPersonalReportsAccess && personalReportsIdx >= 0) allowedRoutes.splice(personalReportsIdx, 1);
@@ -2048,6 +2055,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     default_route: allowedRoutes[0] || 'my-data',
     has_finance_access: hasFinanceAccess,
     has_personal_reports_access: hasPersonalReportsAccess,
+    has_personal_reports_manager: hasPersonalReportsManager,
     profile_is_active: profileRow?.is_active !== false,
     profile: {
       full_name: flat.full_name,
@@ -3032,7 +3040,8 @@ export const api = {
         can_review_requests: canDirectManageActivitiesUser(flat),
         finance_access: (flat.role === 'finance' || permissionFlagYes(flat.finance_access) || permissionFlagYes(flat.view_finance)),
         profile_is_active: profileRow?.is_active !== false,
-        can_access_personal_reports: hasPersonalReportsAccess
+        can_access_personal_reports: hasPersonalReportsAccess,
+        personal_reports_manager: permissionFlagYes(flat.personal_reports_manager) ? 'yes' : 'no'
       },
       ...buildBootstrapFromUser(user, profileRow),
       client_settings: buildClientSettingsFromLists(listsData, settingsRows)
