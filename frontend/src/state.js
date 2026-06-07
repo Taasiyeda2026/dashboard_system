@@ -67,7 +67,8 @@ function normalizeStoredUserFlags(user) {
     can_edit_direct: normalizeBoolPermission(user.can_edit_direct),
     can_request_edit: normalizeBoolPermission(user.can_request_edit),
     finance_access: normalizeBoolPermission(user.finance_access),
-    can_access_personal_reports: normalizeBoolPermission(user.can_access_personal_reports)
+    can_access_personal_reports: normalizeBoolPermission(user.can_access_personal_reports),
+    personal_reports_manager: normalizeBoolPermission(user.personal_reports_manager)
   };
 }
 
@@ -194,6 +195,7 @@ export function setSession(session) {
   state.user.can_request_edit = normalizeBoolPermission(state.user.can_request_edit);
   state.user.finance_access = normalizeBoolPermission(state.user.finance_access);
   state.user.can_access_personal_reports = normalizeBoolPermission(state.user.can_access_personal_reports);
+  state.user.personal_reports_manager = normalizeBoolPermission(state.user.personal_reports_manager);
   const newCalKey = calendarMonthSessionKey(state.user.user_id);
   state.monthYm = (newCalKey && sessionStorage.getItem(newCalKey)) || '';
   cleanupLegacyCalendarMonthLocalStorage(state.user.user_id);

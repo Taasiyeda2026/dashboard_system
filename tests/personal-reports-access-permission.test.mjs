@@ -7,6 +7,7 @@ const PR_FILE = new URL('../frontend/src/screens/personal-reports.js', import.me
 const PERM_FILE = new URL('../frontend/src/screens/permissions.js', import.meta.url);
 const MAIN_FILE = new URL('../frontend/src/main.js', import.meta.url);
 const MIGRATION_FILE = new URL('../supabase/migrations/20260609_profiles_personal_reports_access.sql', import.meta.url);
+const MANAGER_MIGRATION_FILE = new URL('../supabase/migrations/20260610_personal_reports_manager_permission.sql', import.meta.url);
 
 test('personal-reports route is not granted by role alone', async () => {
   const source = await readFile(API_FILE, 'utf8');
@@ -57,6 +58,32 @@ test('main syncs can_access_personal_reports from bootstrap', async () => {
   const source = await readFile(MAIN_FILE, 'utf8');
   assert.match(source, /state\.user\.can_access_personal_reports = !!bootstrap\.has_personal_reports_access/);
   assert.match(source, /state\.user\.profile_is_active = bootstrap\.profile_is_active !== false/);
+});
+
+test('login and bootstrap expose personal_reports_manager without granting admin routes', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const routesBlock = apiSource.match(/const SUPABASE_ROLE_ROUTES = \{[\s\S]*?\};/);
+  assert.ok(routesBlock, 'SUPABASE_ROLE_ROUTES should exist');
+  assert.doesNotMatch(routesBlock[0], /personal_reports_manager/);
+  assert.match(apiSource, /function canManagePersonalReportsUser\(/);
+  assert.match(apiSource, /has_personal_reports_manager: hasPersonalReportsManager/);
+  assert.match(apiSource, /personal_reports_manager: permissionFlagYes\(flat\.personal_reports_manager\)/);
+});
+
+test('main syncs personal_reports_manager from bootstrap', async () => {
+  const source = await readFile(MAIN_FILE, 'utf8');
+  assert.match(source, /state\.user\.personal_reports_manager = !!bootstrap\.has_personal_reports_manager/);
+});
+
+test('migration scopes personal reports manager to personal reports RLS only', async () => {
+  const sql = await readFile(MANAGER_MIGRATION_FILE, 'utf8');
+  assert.match(sql, /dashboard_user_can_manage_personal_reports/);
+  assert.match(sql, /personal_reports_manager/);
+  assert.match(sql, /reports_select_admin/);
+  assert.match(sql, /reports_update_admin/);
+  assert.match(sql, /profiles_select_admin/);
+  assert.doesNotMatch(sql, /view_admin/);
+  assert.doesNotMatch(sql, /view_permissions/);
 });
 
 test('migration grants personal reports access only to explicit profile whitelist', async () => {

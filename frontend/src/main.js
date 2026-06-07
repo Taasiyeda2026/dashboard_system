@@ -1466,6 +1466,7 @@ function backgroundSyncBootstrap() {
       state.user.finance_access = !!bootstrap.has_finance_access;
       state.user.profile_is_active = bootstrap.profile_is_active !== false;
       state.user.can_access_personal_reports = !!bootstrap.has_personal_reports_access;
+      state.user.personal_reports_manager = !!bootstrap.has_personal_reports_manager;
       localStorage.setItem('dashboard_user', JSON.stringify(state.user));
     }
     const routesChanged = normalizedRoutes.length !== prevRouteSet.size ||
@@ -1512,6 +1513,7 @@ async function restoreSession() {
     state.user.can_review_requests = permissionEnabled(bootstrap.can_review_requests);
     state.user.finance_access = !!bootstrap.has_finance_access;
     state.user.can_access_personal_reports = !!bootstrap.has_personal_reports_access;
+    state.user.personal_reports_manager = !!bootstrap.has_personal_reports_manager;
     localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   }
   refreshOpenEditRequestsCount().catch(() => {});

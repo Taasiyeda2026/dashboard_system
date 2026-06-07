@@ -187,8 +187,8 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
   const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 597;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 597;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 598;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 598;/);
   assert.match(css, /\.pr-input--month-compact/);
 });
 
@@ -429,4 +429,22 @@ test('migration keeps travel rates private and exposes only RPC entry points', a
   assert.match(sql, /public\.upsert_declared_travel_entry/);
   assert.match(sql, /public\.manage_employee_travel_rate/);
   assert.match(sql, /REVOKE ALL ON SCHEMA private/);
+});
+
+test('personal reports manager permission gates management UI without requiring admin role', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /function canManagePersonalReports\(/);
+  assert.match(source, /personal_reports_manager/);
+  assert.match(source, /function profileCanManagePersonalReports\(/);
+  assert.match(source, /profileCanManagePersonalReports\(prSession\.profile\)/);
+  assert.match(source, /profileCanManagePersonalReports\(profile\)/);
+  assert.doesNotMatch(source, /if \(isAdminRole\(prSession\.profile\.role\)\)/);
+});
+
+test('finance personal reports manager does not get admin role in profile mapping', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /can_manage_personal_reports: canManage/);
+  assert.match(source, /role = isAdminRole\(displayRole\) \? 'admin' : 'employee'/);
 });
