@@ -279,7 +279,9 @@ test('submit success back button returns to employee dashboard with a single ref
   assert.match(source, /showReportSubmittedSuccess\(root, prSelectedReport\.id/);
   assert.match(source, /pr-submit-success-screen/);
   assert.doesNotMatch(source, /pr-submit-success-screen[\s\S]{0,120}pr-report-form/);
-  assert.match(source, /loadMyReportCardData\(employeeId, month, year, \{ force: true \}\)/);
+  assert.match(source, /function renderMyReportsDashboard/);
+  assert.match(source, /await renderMyReportsDashboard\(root, \{[\s\S]{0,320}force: true/);
+  assert.match(source, /prSelectedReport\.report_month/);
   assert.doesNotMatch(source, /if \(action === 'back-to-my-reports'\)[\s\S]{0,220}await rerender\(root, _dashboardUser\)/);
 });
 
@@ -316,6 +318,22 @@ test('my-reports screen uses a single personal card without management controls'
   assert.match(source, /נשלח לאישור/);
   assert.doesNotMatch(source, /pr-month-list[\s\S]{0,400}pr-admin-table/);
   assert.doesNotMatch(source, /data-pr-action="admin-approve"[\s\S]{0,80}pr-admin-report-row/);
+});
+
+test('my-reports dashboard includes month selector from January 2026 through current month', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /id="pr-my-report-month"/);
+  assert.match(source, /pr-month-selector-card/);
+  assert.match(source, /MY_REPORTS_EARLIEST/);
+  assert.match(source, /month: 1, year: 2026/);
+  assert.match(source, /function buildMyReportsMonthOptions/);
+  assert.match(source, /function clampMyReportsMonthValue/);
+  assert.match(source, /defaultMyReportsMonthValue/);
+  assert.match(source, /לא נמצא דוח לחודש זה/);
+  assert.match(source, /function myReportNoReportHtml/);
+  assert.match(source, /selectedMonth: monthValue/);
+  assert.match(source, /#pr-my-report-month/);
 });
 
 test('management screen lists all report-eligible employees with one row action', async () => {

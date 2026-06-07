@@ -93,6 +93,8 @@ const _prCurrentReportCache = new Map();
 let _prCachedAdminReports = null;
 let _prLastAdminFilters = { month: '', status: '' };
 let _prActiveView = null;
+let _prMyReportsSelectedMonth = '';
+const MY_REPORTS_EARLIEST = { month: 1, year: 2026 };
 const savingForms = new WeakSet();
 
 function personalReportsDebugEnabled() {
@@ -393,6 +395,61 @@ function currentMonthYear() {
   return { month: now.getMonth() + 1, year: now.getFullYear() };
 }
 
+function myReportsMonthValue(month, year) {
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+}
+
+function defaultMyReportsMonthValue() {
+  const { month, year } = currentMonthYear();
+  return myReportsMonthValue(month, year);
+}
+
+function parseMyReportsMonthValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return currentMonthYear();
+  const [year, month] = raw.split('-').map(Number);
+  if (!year || !month) return currentMonthYear();
+  return { month, year };
+}
+
+function clampMyReportsMonthValue(value) {
+  const { month, year } = parseMyReportsMonthValue(value);
+  const requested = myReportsMonthValue(month, year);
+  const earliest = myReportsMonthValue(MY_REPORTS_EARLIEST.month, MY_REPORTS_EARLIEST.year);
+  const current = defaultMyReportsMonthValue();
+  if (requested < earliest) return earliest;
+  if (requested > current) return current;
+  return requested;
+}
+
+function resolveMyReportsSelectedMonth(preferred = '') {
+  const candidate = String(preferred || _prMyReportsSelectedMonth || _prActiveView?.selectedMonth || '').trim();
+  return candidate ? clampMyReportsMonthValue(candidate) : defaultMyReportsMonthValue();
+}
+
+function isCurrentReportMonth(month, year) {
+  const current = currentMonthYear();
+  return month === current.month && year === current.year;
+}
+
+function buildMyReportsMonthOptions(selectedValue) {
+  const current = currentMonthYear();
+  const options = [];
+  let year = current.year;
+  let month = current.month;
+  while (year > MY_REPORTS_EARLIEST.year || (year === MY_REPORTS_EARLIEST.year && month >= MY_REPORTS_EARLIEST.month)) {
+    const value = myReportsMonthValue(month, year);
+    const selected = value === selectedValue ? ' selected' : '';
+    options.push(`<option value="${escapeHtml(value)}"${selected}>${escapeHtml(monthLabel(month, year))}</option>`);
+    month -= 1;
+    if (month < 1) {
+      month = 12;
+      year -= 1;
+    }
+  }
+  return options.join('');
+}
+
 function monthLabel(month, year) {
   return `${MONTHS_HE[month - 1]} ${year}`;
 }
@@ -529,6 +586,7 @@ function resetPersonalReportsAuth() {
   _prProfileCache.clear();
   _prOpenReportInflight.clear();
   _prLastAdminFilters = { employee: '', month: '', status: '' };
+  _prMyReportsSelectedMonth = '';
   _prActiveView = null;
   // _dashboardUser is intentionally kept — it's set once on bind() and is needed
   // to re-bind the lock screen if the session is invalidated mid-navigation.
@@ -1296,6 +1354,26 @@ function myReportSummaryHtml(totals = {}, workDays = null) {
   `;
 }
 
+function myReportsMonthSelectorHtml(selectedMonthValue) {
+  return `
+    <section class="pr-card pr-month-selector-card" aria-label="בחירת חודש לדוחות אישיים">
+      <label class="pr-label">בחירת חודש
+        <select class="pr-input pr-input--select" id="pr-my-report-month">
+          ${buildMyReportsMonthOptions(selectedMonthValue)}
+        </select>
+      </label>
+    </section>
+  `;
+}
+
+function myReportNoReportHtml() {
+  return `
+    <div class="pr-no-report-state" role="status">
+      <p class="pr-no-report-msg">לא נמצא דוח לחודש זה</p>
+    </div>
+  `;
+}
+
 function myReportActionsHtml(myStatus, report, month, year) {
   const monthAttrs = `data-report-month="${month}" data-report-year="${year}"`;
   const reportId = report?.id ? ` data-report-id="${escapeHtml(report.id)}"` : '';
@@ -1320,10 +1398,12 @@ function myReportActionsHtml(myStatus, report, month, year) {
 function myReportsDashboardHtml(profile, {
   isSimulation = false,
   cardData = null,
-  showModeTabs = false
+  showModeTabs = false,
+  selectedMonthValue = defaultMyReportsMonthValue()
 } = {}) {
-  const { month, year } = currentMonthYear();
-  const currentLabel = monthLabel(month, year);
+  const monthValue = clampMyReportsMonthValue(selectedMonthValue);
+  const { month, year } = parseMyReportsMonthValue(monthValue);
+  const selectedLabel = monthLabel(month, year);
   const period = reportPeriodRange(month, year);
   const report = cardData?.report || null;
   const totals = cardData?.totals || { travel: 0, expenses: 0 };
@@ -1332,6 +1412,24 @@ function myReportsDashboardHtml(profile, {
   const statusChip = myReportStatusChipHtml(myStatus);
   const actions = myReportActionsHtml(myStatus, report, month, year);
   const modeTabs = showModeTabs ? personalReportsModeTabsHtml(PR_SCREEN_MODES.MY_REPORTS) : '';
+  const isCurrentMonth = isCurrentReportMonth(month, year);
+  const title = isCurrentMonth ? 'דוח אישי לחודש הנוכחי' : `דוח אישי — ${selectedLabel}`;
+  const showReportCard = Boolean(report) || isCurrentMonth;
+  const reportCardHtml = showReportCard ? `
+          <div class="pr-my-report-card__meta">
+            <div class="pr-my-report-card__meta-item">
+              <span class="pr-month-label">חודש דיווח</span>
+              <strong>${escapeHtml(selectedLabel)}</strong>
+              <span class="pr-my-report-card__period">${escapeHtml(period.label)}</span>
+            </div>
+            <div class="pr-my-report-card__meta-item">
+              <span class="pr-month-label">סטטוס</span>
+              ${statusChip}
+            </div>
+          </div>
+          ${myReportSummaryHtml(totals, workDays)}
+          <div class="pr-my-report-card__actions">${actions}</div>
+  ` : myReportNoReportHtml();
 
   return `
     <div class="pr-screen pr-screen--my-reports" dir="rtl">
@@ -1345,27 +1443,16 @@ function myReportsDashboardHtml(profile, {
       </div>
       <div class="pr-body pr-landing-body">
         ${modeTabs}
+        ${myReportsMonthSelectorHtml(monthValue)}
         <section class="pr-card pr-my-report-card" aria-label="הדוחות שלי">
           <div class="pr-my-report-card__header">
             <div>
               <span class="pr-eyebrow">הדוחות שלי</span>
-              <h1 class="pr-my-report-card__title">דוח אישי לחודש הנוכחי</h1>
+              <h1 class="pr-my-report-card__title">${escapeHtml(title)}</h1>
             </div>
             <span class="pr-my-report-card__employee">${escapeHtml(profile.full_name || '')}</span>
           </div>
-          <div class="pr-my-report-card__meta">
-            <div class="pr-my-report-card__meta-item">
-              <span class="pr-month-label">חודש דיווח</span>
-              <strong>${escapeHtml(currentLabel)}</strong>
-              <span class="pr-my-report-card__period">${escapeHtml(period.label)}</span>
-            </div>
-            <div class="pr-my-report-card__meta-item">
-              <span class="pr-month-label">סטטוס</span>
-              ${statusChip}
-            </div>
-          </div>
-          ${myReportSummaryHtml(totals, workDays)}
-          <div class="pr-my-report-card__actions">${actions}</div>
+          ${reportCardHtml}
         </section>
       </div>
     </div>
@@ -2048,6 +2135,23 @@ function showReportSubmittedSuccess(root, reportId, message, { isSimulation = fa
   renderInto(root, reportSubmittedSuccessHtml(reportId, message));
 }
 
+async function renderMyReportsDashboard(root, {
+  profile,
+  employeeId,
+  isSimulation = false,
+  showModeTabs = false,
+  selectedMonth = '',
+  force = false
+} = {}) {
+  const monthValue = resolveMyReportsSelectedMonth(selectedMonth);
+  _prMyReportsSelectedMonth = monthValue;
+  const { month, year } = parseMyReportsMonthValue(monthValue);
+  const cardData = await loadMyReportCardData(employeeId, month, year, { force });
+  _prActiveView = { kind: 'my-reports', isSimulation, selectedMonth: monthValue };
+  renderInto(root, myReportsDashboardHtml(profile, { isSimulation, cardData, showModeTabs, selectedMonthValue: monthValue }));
+  bindMyReportsDashboard(root, { isSimulation });
+}
+
 async function returnToEmployeeDashboard(root, { isSimulation = false } = {}) {
   const employeeId = isSimulation ? prViewAsEmployee?.id : prSession?.user?.id;
   const profile = isSimulation ? prViewAsEmployee : prSession?.profile;
@@ -2057,14 +2161,21 @@ async function returnToEmployeeDashboard(root, { isSimulation = false } = {}) {
   if (submittedReportId) invalidatePersonalReportsLoadCache({ reportId: submittedReportId });
 
   abortPersonalReportsScreenListeners(root);
+  let selectedMonth = _prActiveView?.selectedMonth || _prMyReportsSelectedMonth || '';
+  if (prSelectedReport?.report_month && prSelectedReport?.report_year) {
+    selectedMonth = myReportsMonthValue(prSelectedReport.report_month, prSelectedReport.report_year);
+  }
   prSelectedReport = null;
-  _prActiveView = { kind: 'my-reports', isSimulation };
 
-  const { month, year } = currentMonthYear();
-  const cardData = await loadMyReportCardData(employeeId, month, year, { force: true });
   const showModeTabs = isAdminRole(profile.role) && !isSimulation;
-  renderInto(root, myReportsDashboardHtml(profile, { isSimulation, cardData, showModeTabs }));
-  bindMyReportsDashboard(root, { isSimulation });
+  await renderMyReportsDashboard(root, {
+    profile,
+    employeeId,
+    isSimulation,
+    showModeTabs,
+    selectedMonth,
+    force: true
+  });
 }
 
 async function loadMyReportsList(root, employeeId) {
@@ -2410,6 +2521,7 @@ function bindMyReportsDashboard(root, { isSimulation = false } = {}) {
     }
     if (action === 'screen-mode-my-reports') {
       prScreenMode = PR_SCREEN_MODES.MY_REPORTS;
+      _prMyReportsSelectedMonth = defaultMyReportsMonthValue();
       await rerender(root, _dashboardUser);
       return;
     }
@@ -2447,6 +2559,23 @@ function bindMyReportsDashboard(root, { isSimulation = false } = {}) {
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
     }
+  });
+
+  listeners.on('change', async (e) => {
+    if (!e.target.matches('#pr-my-report-month')) return;
+    const profile = isSimulation ? prViewAsEmployee : prSession?.profile;
+    if (!employeeId || !profile) return;
+    const selectedMonth = clampMyReportsMonthValue(e.target.value);
+    _prMyReportsSelectedMonth = selectedMonth;
+    e.target.value = selectedMonth;
+    const showModeTabs = isAdminRole(profile.role) && !isSimulation;
+    await renderMyReportsDashboard(root, {
+      profile,
+      employeeId,
+      isSimulation,
+      showModeTabs,
+      selectedMonth
+    });
   });
 }
 
@@ -2906,6 +3035,7 @@ function bindEmployeeReportsManagement(root) {
     }
     if (action === 'screen-mode-my-reports') {
       prScreenMode = PR_SCREEN_MODES.MY_REPORTS;
+      _prMyReportsSelectedMonth = defaultMyReportsMonthValue();
       await rerender(root, _dashboardUser);
       return;
     }
@@ -3046,10 +3176,14 @@ function bindEmployeeSelector(root) {
         full_name:  btn.dataset.employeeName,
         email:      btn.dataset.employeeEmail
       };
-      const { month, year } = currentMonthYear();
-      const cardData = await loadMyReportCardData(prViewAsEmployee.id, month, year, { force: true });
-      renderInto(root, myReportsDashboardHtml(prViewAsEmployee, { isSimulation: true, cardData }));
-      bindMyReportsDashboard(root, { isSimulation: true });
+      _prMyReportsSelectedMonth = defaultMyReportsMonthValue();
+      await renderMyReportsDashboard(root, {
+        profile: prViewAsEmployee,
+        employeeId: prViewAsEmployee.id,
+        isSimulation: true,
+        selectedMonth: defaultMyReportsMonthValue(),
+        force: true
+      });
       return;
     }
   });
@@ -3138,17 +3272,21 @@ async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceRel
     return;
   }
   if (isAdminRole(prSession.profile.role) && prScreenMode === PR_SCREEN_MODES.MY_REPORTS && !prViewAsEmployee) {
-    const { month, year } = currentMonthYear();
-    const cardData = await loadMyReportCardData(prSession.user.id, month, year, { force: forceReload });
-    _prActiveView = { kind: 'my-reports', isSimulation: false };
-    renderInto(root, myReportsDashboardHtml(prSession.profile, { cardData, showModeTabs: true }));
-    bindMyReportsDashboard(root);
+    await renderMyReportsDashboard(root, {
+      profile: prSession.profile,
+      employeeId: prSession.user.id,
+      showModeTabs: true,
+      selectedMonth: resolveMyReportsSelectedMonth(),
+      force: forceReload
+    });
   } else if (isAdminRole(prSession.profile.role) && prViewAsEmployee) {
-    const { month, year } = currentMonthYear();
-    const cardData = await loadMyReportCardData(prViewAsEmployee.id, month, year, { force: forceReload });
-    _prActiveView = { kind: 'my-reports', isSimulation: true };
-    renderInto(root, myReportsDashboardHtml(prViewAsEmployee, { isSimulation: true, cardData }));
-    bindMyReportsDashboard(root, { isSimulation: true });
+    await renderMyReportsDashboard(root, {
+      profile: prViewAsEmployee,
+      employeeId: prViewAsEmployee.id,
+      isSimulation: true,
+      selectedMonth: resolveMyReportsSelectedMonth(),
+      force: forceReload
+    });
   } else if (isAdminRole(prSession.profile.role)) {
     try {
       const filters = {
@@ -3167,11 +3305,12 @@ async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceRel
       bindEmployeeReportsManagement(root);
     }
   } else {
-    const { month, year } = currentMonthYear();
-    const cardData = await loadMyReportCardData(prSession.user.id, month, year, { force: forceReload });
-    _prActiveView = { kind: 'my-reports', isSimulation: false };
-    renderInto(root, myReportsDashboardHtml(prSession.profile, { cardData }));
-    bindMyReportsDashboard(root);
+    await renderMyReportsDashboard(root, {
+      profile: prSession.profile,
+      employeeId: prSession.user.id,
+      selectedMonth: resolveMyReportsSelectedMonth(),
+      force: forceReload
+    });
   }
 }
 
