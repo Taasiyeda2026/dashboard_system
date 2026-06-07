@@ -1239,6 +1239,68 @@ function showToast(msg, kind = 'info') {
   el._t = setTimeout(() => el.classList.remove('pr-toast--visible'), 3500);
 }
 
+function csvEscape(value) {
+  const text = String(value ?? '');
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+function adminManageStatusLabel(statusKey) {
+  return ADMIN_MANAGE_STATUS_META[statusKey]?.label || statusKey || '—';
+}
+
+function adminExportButtonLabel(statusFilter = '') {
+  return statusFilter ? 'הורדת טבלה' : 'הורדת כל העובדים לחודש זה';
+}
+
+function getAdminExportRows(filters = _prLastAdminFilters) {
+  const rows = _prCachedAdminReports || [];
+  const status = String(filters.status || '').trim();
+  if (!status) return rows;
+  return rows.filter((row) => row.manageStatus === status);
+}
+
+function downloadAdminReportsCsv(rows, monthValue) {
+  const headers = [
+    'שם עובד',
+    'חודש דיווח',
+    'סטטוס',
+    'נסיעות',
+    'הוצאות',
+    'ימי עבודה',
+    'תאריך שליחה',
+    'תאריך אישור',
+    'הערות / החזרה לתיקון'
+  ];
+  const lines = [headers.map(csvEscape).join(',')];
+  for (const row of rows) {
+    const employee = row.employee || {};
+    const report = row.report || null;
+    const totals = row.totals || { travel: 0, expenses: 0 };
+    const workDays = row.workDays === null || row.workDays === undefined || row.workDays === ''
+      ? ''
+      : fmtNum(row.workDays);
+    lines.push([
+      employee.full_name || '—',
+      monthLabel(row.month, row.year),
+      adminManageStatusLabel(row.manageStatus),
+      fmt(totals.travel),
+      fmt(totals.expenses),
+      workDays,
+      report?.submitted_at ? fmtDate(String(report.submitted_at).slice(0, 10)) : '',
+      report?.approved_at ? fmtDate(String(report.approved_at).slice(0, 10)) : '',
+      report?.finance_notes || ''
+    ].map(csvEscape).join(','));
+  }
+  const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `personal-reports-${monthValue}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 
 function rowsToPrintTable(headers, rows, emptyColspan) {
   const head = `<thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>`;
@@ -2022,6 +2084,7 @@ function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
             </select>
           </label>
           <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="clear-admin-filters" type="button">נקה סינון</button>
+          <button class="pr-btn pr-btn--secondary pr-btn--sm" data-pr-action="export-admin-table" type="button">${escapeHtml(adminExportButtonLabel(filters.status || ''))}</button>
         </div>
         ${rows.length === 0 ? dsEmptyState('אין עובדים להצגה לחודש הנבחר') : `
           <div class="pr-table-scroll">
@@ -3050,6 +3113,21 @@ function bindEmployeeReportsManagement(root) {
       if (monthInput) monthInput.value = defaultMonthFilterValue();
       if (statusInput) statusInput.value = '';
       await rerender(root, _dashboardUser, { forceReload: true });
+      return;
+    }
+    if (action === 'export-admin-table') {
+      try {
+        const filters = readAdminFilters(root);
+        const exportRows = getAdminExportRows(filters);
+        if (!exportRows.length) {
+          showToast('אין נתונים לייצוא עבור הסינון הנוכחי', 'info');
+          return;
+        }
+        downloadAdminReportsCsv(exportRows, filters.month);
+        showToast('הטבלה הורדה בהצלחה', 'success');
+      } catch (err) {
+        showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בהורדת הטבלה. יש לנסות שוב.'), 'danger');
+      }
       return;
     }
 
