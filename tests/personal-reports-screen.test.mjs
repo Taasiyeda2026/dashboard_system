@@ -187,8 +187,8 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
   const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 596;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 596;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 597;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 597;/);
   assert.match(css, /\.pr-input--month-compact/);
 });
 
@@ -345,12 +345,15 @@ test('management screen lists all report-eligible employees with simplified admi
   assert.match(source, /function fetchReportEligibleEmployees/);
   assert.doesNotMatch(source, /fetchReportEligibleEmployees[\s\S]{0,500}!isAdminRole\(profile\.role\)/);
   assert.match(source, /function buildEmployeeReportsManagementRows/);
+  assert.match(source, /reportId: report\?\.id \|\| ''/);
+  assert.match(source, /reportStatus: report\?\.status \|\| ''/);
+  assert.match(source, /data-report-id="\$\{escapeHtml\(reportId\)\}"/);
+  assert.match(source, /data-report-status="\$\{escapeHtml\(reportStatus\)\}"/);
   assert.match(source, /ADMIN_MANAGE_STATUS_META/);
   assert.match(source, /approved:\s*\{\s*label:\s*'אושר'/);
   assert.match(source, /not_approved:\s*\{\s*label:\s*'לא אושר'/);
   assert.match(source, /function deriveAdminManageStatus/);
   assert.doesNotMatch(source, /ADMIN_MANAGE_STATUS_META[\s\S]{0,400}בטיפול העובד/);
-  assert.doesNotMatch(source, /ADMIN_MANAGE_STATUS_META[\s\S]{0,400}נשלח לאישור/);
   assert.match(source, /data-pr-action="admin-manage-report"/);
   assert.match(source, /צפייה וניהול/);
   assert.match(source, /id="pr-filter-month"/);
@@ -361,6 +364,17 @@ test('management screen lists all report-eligible employees with simplified admi
   assert.doesNotMatch(source, /pr-admin-status-select/);
   assert.doesNotMatch(source, /data-pr-action="admin-view-report"/);
   assert.doesNotMatch(source, /data-pr-action="admin-approve"[^>]*>אשר</);
+});
+
+test('admin manage action opens report by original id and shows toast when missing', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /async function safeOpenAdminManageReport/);
+  assert.match(source, /safeOpenReportDetail\(root, normalizedReportId, true, \{ forceReload: true \}\)/);
+  assert.match(source, /showToast\('אין דוח לחודש זה'/);
+  assert.match(source, /btn\.dataset\.reportId \|\| row\?\.dataset\?\.reportId/);
+  assert.doesNotMatch(source, /safeOpenAdminManageReport[\s\S]{0,500}manageStatus/);
+  assert.doesNotMatch(source, /safeOpenAdminManageReport[\s\S]{0,500}not_approved/);
 });
 
 test('admin management screen exports the visible table to CSV for the selected month', async () => {
