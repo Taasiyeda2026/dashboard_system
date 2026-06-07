@@ -1073,7 +1073,6 @@ async function fetchReportEligibleEmployees() {
   return (data || []).filter((profile) =>
     profile.is_active !== false
     && permissionYes(profile.can_access_personal_reports)
-    && !isAdminRole(profile.role)
   );
 }
 
