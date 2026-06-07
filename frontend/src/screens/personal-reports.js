@@ -51,12 +51,33 @@ const STATUS_KIND = {
   paid:             'success'
 };
 
+const MY_REPORT_STATUS_META = {
+  not_started:      { label: 'לא התחיל', kind: 'neutral' },
+  in_progress:      { label: 'בטיפול', kind: 'warning' },
+  submitted:        { label: 'נשלח לאישור', kind: 'warning' },
+  needs_correction: { label: 'הוחזר לתיקון', kind: 'danger' },
+  approved:         { label: 'אושר', kind: 'success' }
+};
+
+const ADMIN_MANAGE_STATUS_META = {
+  not_started:      { label: 'לא התחיל', kind: 'neutral' },
+  in_progress:      { label: 'בטיפול העובד', kind: 'warning' },
+  submitted:        { label: 'נשלח לאישור', kind: 'warning' },
+  needs_correction: { label: 'הוחזר לתיקון', kind: 'danger' },
+  approved:         { label: 'אושר', kind: 'success' }
+};
+
+const PR_SCREEN_MODES = {
+  MY_REPORTS: 'my-reports',
+  MANAGEMENT: 'employee-reports-management'
+};
+
 // ─── module state ─────────────────────────────────────────────────────────────
 
 let prSession        = null;
 let prSelectedReport = null;
 let prViewAsEmployee = null;
-let prAdminMode      = 'my';
+let prScreenMode     = PR_SCREEN_MODES.MY_REPORTS;
 let isPersonalReportsUnlocked = false;
 let _dashboardUser   = null;   // stored on bind() so all rerender() calls have it
 let _prShellAbort    = null;
@@ -70,7 +91,7 @@ const _prProfileCache = new Map();
 const _prOpenReportInflight = new Map();
 const _prCurrentReportCache = new Map();
 let _prCachedAdminReports = null;
-let _prLastAdminFilters = { employee: '', month: '', status: '' };
+let _prLastAdminFilters = { month: '', status: '' };
 let _prActiveView = null;
 const savingForms = new WeakSet();
 
@@ -94,7 +115,6 @@ function buildPersonalReportsRequestKey({ employeeId = '', month = '', status = 
 
 function buildAdminReportsRequestKey(filters = _prLastAdminFilters) {
   return `admin-reports|${buildPersonalReportsRequestKey({
-    employeeId: filters.employee,
     month: filters.month,
     status: filters.status
   })}`;
@@ -192,16 +212,72 @@ async function runGuardedPersonalReportsLoad(requestKey, loadFn, { force = false
   return promise;
 }
 
+function defaultMonthFilterValue() {
+  const { month, year } = currentMonthYear();
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+}
+
+function parseMonthFilterValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return currentMonthYear();
+  const [year, month] = raw.split('-').map(Number);
+  if (!year || !month) return currentMonthYear();
+  return { month, year };
+}
+
 function readAdminFilters(root) {
+  const monthInput = root.querySelector('#pr-filter-month');
   return {
-    employee: root.querySelector('#pr-filter-employee')?.value || '',
-    month: root.querySelector('#pr-filter-month')?.value || '',
+    month: monthInput?.value || defaultMonthFilterValue(),
     status: root.querySelector('#pr-filter-status')?.value || ''
   };
 }
 
 function adminFiltersChanged(next, prev = _prLastAdminFilters) {
-  return next.employee !== prev.employee || next.month !== prev.month || next.status !== prev.status;
+  return next.month !== prev.month || next.status !== prev.status;
+}
+
+function reportHasActivity(report, totals = {}) {
+  if (!report) return false;
+  const travel = Number(totals.travel || 0);
+  const expenses = Number(totals.expenses || 0);
+  const workDays = Number(report.work_days_in_month || 0);
+  const leaveDays = Number(report.vacation_days || 0) + Number(report.sick_days || 0) + Number(report.declaration_day || 0);
+  return travel > 0 || expenses > 0 || workDays > 0 || leaveDays > 0 || Boolean(String(report.report_notes || '').trim());
+}
+
+function deriveMyReportStatus(report, totals = {}) {
+  if (!report) return 'not_started';
+  if (report.status === 'needs_correction') return 'needs_correction';
+  if (report.status === 'approved' || report.status === 'paid') return 'approved';
+  if (report.status === 'submitted' || report.status === 'reviewed') return 'submitted';
+  if (report.status === 'draft') return reportHasActivity(report, totals) ? 'in_progress' : 'not_started';
+  return 'not_started';
+}
+
+function deriveAdminManageStatus(report) {
+  if (!report) return 'not_started';
+  if (report.status === 'needs_correction') return 'needs_correction';
+  if (report.status === 'approved' || report.status === 'paid') return 'approved';
+  if (report.status === 'submitted' || report.status === 'reviewed') return 'submitted';
+  if (report.status === 'draft') return 'in_progress';
+  return 'not_started';
+}
+
+function manageStatusOptionsHtml(selectedStatus = '') {
+  return Object.entries(ADMIN_MANAGE_STATUS_META).map(([value, meta]) =>
+    `<option value="${escapeHtml(value)}" ${value === selectedStatus ? 'selected' : ''}>${escapeHtml(meta.label)}</option>`
+  ).join('');
+}
+
+function manageStatusChipHtml(statusKey) {
+  const meta = ADMIN_MANAGE_STATUS_META[statusKey] || { label: statusKey, kind: 'neutral' };
+  return dsStatusChip(meta.label, meta.kind);
+}
+
+function myReportStatusChipHtml(statusKey) {
+  const meta = MY_REPORT_STATUS_META[statusKey] || { label: statusKey, kind: 'neutral' };
+  return dsStatusChip(meta.label, meta.kind);
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -444,7 +520,7 @@ function resetPersonalReportsAuth() {
   prSession        = null;
   prSelectedReport = null;
   prViewAsEmployee = null;
-  prAdminMode      = 'my';
+  prScreenMode     = PR_SCREEN_MODES.MY_REPORTS;
   isPersonalReportsUnlocked = false;
   _prScreenBound   = false;
   bumpPersonalReportsLoadGeneration();
@@ -988,36 +1064,89 @@ async function deleteAttachment(attachment) {
   await supabase.from('report_attachments').delete().eq('id', attachment.id);
 }
 
-async function fetchActiveEmployees() {
+async function fetchReportEligibleEmployees() {
   const { data, error } = await supabase
-    .from('profiles').select('id, full_name, email, role, is_active, can_access_personal_reports').order('full_name');
+    .from('profiles')
+    .select('id, full_name, email, role, is_active, can_access_personal_reports')
+    .order('full_name');
   if (error) throw error;
-  return (data || []).filter(p => p.role !== 'admin' && p.is_active !== false);
+  return (data || []).filter((profile) =>
+    profile.is_active !== false
+    && permissionYes(profile.can_access_personal_reports)
+    && !isAdminRole(profile.role)
+  );
 }
 
-async function fetchAllReports() {
+async function fetchReportsForMonth(month, year) {
   const { data, error } = await supabase
     .from('personal_reports')
     .select('*, profiles!personal_reports_employee_id_fkey(full_name, email)')
-    .order('report_year', { ascending: false })
-    .order('report_month', { ascending: false });
+    .eq('report_month', month)
+    .eq('report_year', year);
   if (error) throw error;
-  return enrichReportsWithTotals(data || []);
+  return data || [];
 }
 
-async function loadAdminReportsList(filters = _prLastAdminFilters, { force = false } = {}) {
-  const requestKey = buildAdminReportsRequestKey(filters);
+async function buildEmployeeReportsManagementRows(month, year) {
+  const [employees, reports] = await Promise.all([
+    fetchReportEligibleEmployees(),
+    fetchReportsForMonth(month, year)
+  ]);
+  const enrichedReports = await enrichReportsWithTotals(reports);
+  const reportByEmployee = new Map(enrichedReports.map((report) => [report.employee_id, report]));
+  return employees.map((employee) => {
+    const report = reportByEmployee.get(employee.id) || null;
+    return {
+      employee,
+      report,
+      manageStatus: deriveAdminManageStatus(report),
+      month,
+      year,
+      totals: report?.totals || { travel: 0, expenses: 0, all: 0 },
+      workDays: report?.work_days_in_month ?? null
+    };
+  });
+}
+
+async function loadEmployeeReportsManagementList(filters = _prLastAdminFilters, { force = false } = {}) {
+  const normalizedFilters = {
+    month: filters.month || defaultMonthFilterValue(),
+    status: filters.status || ''
+  };
+  const requestKey = buildAdminReportsRequestKey(normalizedFilters);
   if (!force && _prCachedAdminReports && _prCompletedKeys.has(requestKey)) {
     prDebugLog('load skipped duplicate', requestKey);
     return _prCachedAdminReports;
   }
   if (force) invalidatePersonalReportsLoadCache({ allReports: true });
-  const reports = await runGuardedPersonalReportsLoad(requestKey, fetchAllReports, { force });
-  const resolved = reports || _prCachedAdminReports;
+  const { month, year } = parseMonthFilterValue(normalizedFilters.month);
+  const rows = await runGuardedPersonalReportsLoad(
+    requestKey,
+    () => buildEmployeeReportsManagementRows(month, year),
+    { force }
+  );
+  const resolved = rows || _prCachedAdminReports;
   if (!resolved) throw new Error('personal_reports_admin_list_unavailable');
   _prCachedAdminReports = resolved;
-  _prLastAdminFilters = { ...filters };
+  _prLastAdminFilters = { ...normalizedFilters };
   return resolved;
+}
+
+async function loadMyReportCardData(employeeId, month, year, { force = false } = {}) {
+  const report = await loadCurrentMonthReport(employeeId, month, year, { force });
+  let totals = { travel: 0, expenses: 0, all: 0 };
+  if (report?.id) {
+    const bundle = await loadReportBundle(report.id, { force });
+    const travel = (bundle?.travel || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const expenses = (bundle?.expenses || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    totals = { travel, expenses, all: travel + expenses };
+  }
+  return {
+    report,
+    totals,
+    workDays: report?.work_days_in_month ?? null,
+    myStatus: deriveMyReportStatus(report, totals)
+  };
 }
 
 async function enrichReportsWithTotals(reports) {
@@ -1137,26 +1266,76 @@ function simulationBannerHtml(employeeName) {
   `;
 }
 
-function employeeDashboardHtml(profile, { isSimulation = false, currentReport = null } = {}) {
+function personalReportsModeTabsHtml(activeMode) {
+  return `
+    <div class="pr-screen-mode-switch" role="tablist" aria-label="מעבר בין דוח אישי לניהול עובדים">
+      <button class="pr-report-tab${activeMode === PR_SCREEN_MODES.MY_REPORTS ? ' is-active' : ''}" data-pr-action="screen-mode-my-reports" type="button" role="tab" aria-selected="${activeMode === PR_SCREEN_MODES.MY_REPORTS ? 'true' : 'false'}">הדוחות שלי</button>
+      <button class="pr-report-tab${activeMode === PR_SCREEN_MODES.MANAGEMENT ? ' is-active' : ''}" data-pr-action="screen-mode-management" type="button" role="tab" aria-selected="${activeMode === PR_SCREEN_MODES.MANAGEMENT ? 'true' : 'false'}">ניהול דוחות עובדים</button>
+    </div>
+  `;
+}
+
+function myReportSummaryHtml(totals = {}, workDays = null) {
+  const workDaysLabel = workDays === null || workDays === undefined || workDays === ''
+    ? '—'
+    : fmtNum(workDays);
+  return `
+    <div class="pr-my-report-summary" aria-label="סיכום קצר">
+      <div class="pr-my-report-summary__item">
+        <span class="pr-my-report-summary__label">סה״כ נסיעות</span>
+        <strong class="pr-my-report-summary__value">₪${fmt(totals.travel || 0)}</strong>
+      </div>
+      <div class="pr-my-report-summary__item">
+        <span class="pr-my-report-summary__label">סה״כ הוצאות</span>
+        <strong class="pr-my-report-summary__value">₪${fmt(totals.expenses || 0)}</strong>
+      </div>
+      <div class="pr-my-report-summary__item">
+        <span class="pr-my-report-summary__label">ימי עבודה</span>
+        <strong class="pr-my-report-summary__value">${escapeHtml(workDaysLabel)}</strong>
+      </div>
+    </div>
+  `;
+}
+
+function myReportActionsHtml(myStatus, report, month, year) {
+  const monthAttrs = `data-report-month="${month}" data-report-year="${year}"`;
+  const reportId = report?.id ? ` data-report-id="${escapeHtml(report.id)}"` : '';
+  if (myStatus === 'not_started') {
+    return `<button class="pr-btn pr-btn--primary pr-btn--lg" type="button" data-pr-action="open-month-report" ${monthAttrs}>מילוי דוח</button>`;
+  }
+  if (myStatus === 'in_progress') {
+    return `<button class="pr-btn pr-btn--primary pr-btn--lg" type="button" data-pr-action="open-month-report" ${monthAttrs}>המשך מילוי</button>`;
+  }
+  if (myStatus === 'needs_correction') {
+    return `<button class="pr-btn pr-btn--primary pr-btn--lg" type="button" data-pr-action="open-month-report" ${monthAttrs}>עריכת תיקונים</button>`;
+  }
+  if (myStatus === 'submitted' || myStatus === 'approved') {
+    return `
+      <button class="pr-btn pr-btn--primary pr-btn--lg" type="button" data-pr-action="view-my-report"${reportId}>צפייה בדוח</button>
+      <button class="pr-btn pr-btn--ghost pr-btn--lg" type="button" data-pr-action="download-report-pdf"${reportId}>הורדת PDF</button>
+    `;
+  }
+  return `<button class="pr-btn pr-btn--primary pr-btn--lg" type="button" data-pr-action="open-month-report" ${monthAttrs}>מילוי דוח</button>`;
+}
+
+function myReportsDashboardHtml(profile, {
+  isSimulation = false,
+  cardData = null,
+  showModeTabs = false
+} = {}) {
   const { month, year } = currentMonthYear();
   const currentLabel = monthLabel(month, year);
   const period = reportPeriodRange(month, year);
-
-  const rowStatus = currentReport?.status || 'draft';
-  const rowStatusChip = dsStatusChip(STATUS_LABELS[rowStatus] || rowStatus, STATUS_KIND[rowStatus] || 'neutral');
-
-  const adminCard = (isAdminRole(profile.role) && !isSimulation) ? `
-    <div class="pr-card pr-card--highlight pr-admin-entry-card">
-      <div>
-        <h2 class="pr-card__title" style="margin:0 0 4px">ניהול דוחות עובדים</h2>
-        <p class="pr-helper-text" style="margin:0">צפייה, אישור והחזרת דוחות לכלל העובדים</p>
-      </div>
-      <button class="pr-btn pr-btn--primary pr-btn--sm" data-pr-action="admin-mode-manage" type="button">ניהול</button>
-    </div>
-  ` : '';
+  const report = cardData?.report || null;
+  const totals = cardData?.totals || { travel: 0, expenses: 0 };
+  const workDays = cardData?.workDays ?? null;
+  const myStatus = cardData?.myStatus || deriveMyReportStatus(report, totals);
+  const statusChip = myReportStatusChipHtml(myStatus);
+  const actions = myReportActionsHtml(myStatus, report, month, year);
+  const modeTabs = showModeTabs ? personalReportsModeTabsHtml(PR_SCREEN_MODES.MY_REPORTS) : '';
 
   return `
-    <div class="pr-screen" dir="rtl">
+    <div class="pr-screen pr-screen--my-reports" dir="rtl">
       ${isSimulation ? simulationBannerHtml(profile.full_name) : ''}
       <div class="pr-topbar">
         ${isSimulation
@@ -1166,35 +1345,28 @@ function employeeDashboardHtml(profile, { isSimulation = false, currentReport = 
         <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="lock-screen" type="button" style="margin-right:auto" title="יציאה מהאזור הפנימי">יציאה</button>
       </div>
       <div class="pr-body pr-landing-body">
-        ${adminCard}
-        <section class="pr-card pr-my-reports-card" aria-label="הדוחות שלי">
-          <div class="pr-my-reports-head">
+        ${modeTabs}
+        <section class="pr-card pr-my-report-card" aria-label="הדוחות שלי">
+          <div class="pr-my-report-card__header">
             <div>
-              <span class="pr-eyebrow">אזור אישי נעול</span>
-              <h1 class="pr-my-reports-title">הדוחות שלי</h1>
+              <span class="pr-eyebrow">הדוחות שלי</span>
+              <h1 class="pr-my-report-card__title">דוח אישי לחודש הנוכחי</h1>
             </div>
-            <span class="pr-my-reports-user">${escapeHtml(profile.full_name || '')}</span>
+            <span class="pr-my-report-card__employee">${escapeHtml(profile.full_name || '')}</span>
           </div>
-          <div class="pr-month-list" role="list" aria-label="רשימת חודשים לדיווח">
-            <div class="pr-month-row" role="listitem">
-              <div class="pr-month-cell pr-month-cell--main">
-                <span class="pr-month-label">חודש דיווח</span>
-                <strong>${escapeHtml(currentLabel)}</strong>
-              </div>
-              <div class="pr-month-cell">
-                <span class="pr-month-label">תקופת דיווח</span>
-                <span>${escapeHtml(period.label)}</span>
-              </div>
-              <div class="pr-month-cell">
-                <span class="pr-month-label">סטטוס</span>
-                ${rowStatusChip}
-              </div>
-              <div class="pr-month-actions">
-                <button class="pr-btn pr-btn--primary pr-btn--sm" type="button"
-                  data-pr-action="open-month-report" data-report-month="${month}" data-report-year="${year}">פתיחה</button>
-              </div>
+          <div class="pr-my-report-card__meta">
+            <div class="pr-my-report-card__meta-item">
+              <span class="pr-month-label">חודש דיווח</span>
+              <strong>${escapeHtml(currentLabel)}</strong>
+              <span class="pr-my-report-card__period">${escapeHtml(period.label)}</span>
+            </div>
+            <div class="pr-my-report-card__meta-item">
+              <span class="pr-month-label">סטטוס</span>
+              ${statusChip}
             </div>
           </div>
+          ${myReportSummaryHtml(totals, workDays)}
+          <div class="pr-my-report-card__actions">${actions}</div>
         </section>
       </div>
     </div>
@@ -1690,25 +1862,22 @@ function statusOptionsHtml(selectedStatus) {
   ).join('');
 }
 
-function adminManagePlaceholderHtml(errorMsg = '') {
+function employeeReportsManagementPlaceholderHtml(errorMsg = '') {
   const errorHtml = errorMsg
     ? `<div class="pr-alert pr-alert--danger" role="alert">${escapeHtml(errorMsg)}</div>`
     : '';
   return `
-    <div class="pr-screen" dir="rtl">
+    <div class="pr-screen pr-screen--management" dir="rtl">
       <div class="pr-topbar">
         <button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-dashboard">← חזרה לדשבורד</button>
-        <span class="pr-topbar__title">דוחות אישיים</span>
+        <span class="pr-topbar__title">ניהול דוחות עובדים</span>
+        <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="lock-screen" type="button" style="margin-right:auto" title="יציאה מהאזור הפנימי">יציאה</button>
       </div>
-      <div class="pr-body pr-admin-body">
-        ${dsPageHeader('דוחות אישיים', 'הוצאות, נסיעות ודיווח שכר חודשי')}
-        <div class="pr-admin-mode-switch" role="tablist" aria-label="מצבי אדמין">
-          <button class="pr-report-tab" data-pr-action="admin-mode-my" type="button">הדוחות שלי</button>
-          <button class="pr-report-tab is-active" data-pr-action="admin-mode-manage" type="button">ניהול דוחות עובדים</button>
-        </div>
+      <div class="pr-body pr-management-body">
+        ${personalReportsModeTabsHtml(PR_SCREEN_MODES.MANAGEMENT)}
         <section class="pr-card pr-admin-placeholder" aria-label="ניהול דוחות עובדים">
           <h2 class="pr-card__title">ניהול דוחות עובדים</h2>
-          <p class="pr-helper-text">כאן יוצג אזור ניהול דוחות העובדים: סינון, צפייה, אישור והחזרה לתיקון.</p>
+          <p class="pr-helper-text">רשימת העובדים שחייבים בדיווח תוצג כאן לאחר טעינת הנתונים.</p>
           ${errorHtml}
         </section>
       </div>
@@ -1716,80 +1885,104 @@ function adminManagePlaceholderHtml(errorMsg = '') {
   `;
 }
 
-function adminDashboardHtml(reports) {
-  const employeeOptions = [...new Map(reports.map((r) => {
-    const p = r.profiles || {};
-    return [r.employee_id, p.full_name || p.email || '—'];
-  }))].map(([id, name]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('');
+function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
+  const monthValue = filters.month || defaultMonthFilterValue();
+  const { month, year } = parseMonthFilterValue(monthValue);
+  const monthLabelText = monthLabel(month, year);
 
-  const rows = reports.map(r => {
-    const p = r.profiles || {};
-    const totals = r.totals || { expenses: 0, travel: 0, all: 0 };
-    const monthValue = `${String(r.report_year).padStart(4, '0')}-${String(r.report_month).padStart(2, '0')}`;
+  const tableRows = rows.map((row) => {
+    const employee = row.employee || {};
+    const report = row.report || null;
+    const totals = row.totals || { travel: 0, expenses: 0 };
+    const workDaysLabel = row.workDays === null || row.workDays === undefined || row.workDays === ''
+      ? '—'
+      : fmtNum(row.workDays);
+    const reportIdAttr = report?.id ? ` data-report-id="${escapeHtml(report.id)}"` : '';
     return `
-      <tr class="pr-admin-report-row" data-employee-id="${escapeHtml(r.employee_id)}" data-report-month="${escapeHtml(monthValue)}" data-status="${escapeHtml(r.status)}">
-        <td>${escapeHtml(p.full_name || '—')}</td>
-        <td>${escapeHtml(monthLabel(r.report_month, r.report_year))}</td>
-        <td class="pr-td-num pr-td-amount">₪${fmt(totals.expenses)}</td>
+      <tr class="pr-admin-report-row" data-employee-id="${escapeHtml(employee.id)}" data-report-month="${escapeHtml(monthValue)}" data-manage-status="${escapeHtml(row.manageStatus)}">
+        <td>${escapeHtml(employee.full_name || '—')}</td>
+        <td>${escapeHtml(monthLabelText)}</td>
+        <td class="pr-td-status">${manageStatusChipHtml(row.manageStatus)}</td>
         <td class="pr-td-num pr-td-amount">₪${fmt(totals.travel)}</td>
-        <td>
-          <select class="pr-input pr-input--select pr-admin-status-select" data-report-id="${escapeHtml(r.id)}">
-            ${statusOptionsHtml(r.status)}
-          </select>
-        </td>
+        <td class="pr-td-num pr-td-amount">₪${fmt(totals.expenses)}</td>
+        <td class="pr-td-num">${escapeHtml(workDaysLabel)}</td>
         <td class="pr-actions-cell">
-          <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="admin-view-report" data-report-id="${escapeHtml(r.id)}">צפייה בדוח וקבצים</button>
-          ${r.status === 'submitted' ? `
-            <button class="pr-btn pr-btn--ghost pr-btn--sm pr-btn--success" data-pr-action="admin-approve" data-report-id="${escapeHtml(r.id)}">אשר</button>
-            <button class="pr-btn pr-btn--ghost pr-btn--sm pr-btn--warning" data-pr-action="admin-return" data-report-id="${escapeHtml(r.id)}">החזר לתיקון</button>
-          ` : ''}
+          <button class="pr-btn pr-btn--primary pr-btn--sm" type="button" data-pr-action="admin-manage-report"${reportIdAttr}
+            data-employee-id="${escapeHtml(employee.id)}"
+            data-report-month="${month}"
+            data-report-year="${year}">צפייה וניהול</button>
         </td>
       </tr>
     `;
   });
 
   return `
-    <div class="pr-screen" dir="rtl">
+    <div class="pr-screen pr-screen--management" dir="rtl">
       <div class="pr-topbar">
         <button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-dashboard">← חזרה לדשבורד</button>
-        <span class="pr-topbar__title">דוחות אישיים</span>
+        <span class="pr-topbar__title">ניהול דוחות עובדים</span>
+        <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="lock-screen" type="button" style="margin-right:auto" title="יציאה מהאזור הפנימי">יציאה</button>
       </div>
-      <div class="pr-body pr-admin-body">
-        ${dsPageHeader('דוחות אישיים', 'בחר מצב עבודה: דוח אישי שלך או ניהול דוחות עובדים')}
-        <div class="pr-admin-mode-switch" role="tablist" aria-label="מצבי אדמין">
-          <button class="pr-report-tab" data-pr-action="admin-mode-my" type="button">הדוחות שלי</button>
-          <button class="pr-report-tab is-active" data-pr-action="admin-mode-manage" type="button">ניהול דוחות עובדים</button>
-        </div>
-        <div class="pr-card pr-admin-filters" aria-label="סינון דוחות עובדים">
-          <label class="pr-label">עובד
-            <select class="pr-input pr-input--select" id="pr-filter-employee"><option value="">כל העובדים</option>${employeeOptions}</select>
-          </label>
-          <label class="pr-label">חודש
-            <input class="pr-input" id="pr-filter-month" type="month" />
+      <div class="pr-body pr-management-body">
+        ${personalReportsModeTabsHtml(PR_SCREEN_MODES.MANAGEMENT)}
+        <div class="pr-card pr-admin-filters pr-admin-filters--compact" aria-label="סינון דוחות עובדים">
+          <label class="pr-label">חודש דיווח
+            <input class="pr-input" id="pr-filter-month" type="month" value="${escapeHtml(monthValue)}" />
           </label>
           <label class="pr-label">סטטוס
-            <select class="pr-input pr-input--select" id="pr-filter-status"><option value="">כל הסטטוסים</option>${statusOptionsHtml('')}</select>
+            <select class="pr-input pr-input--select" id="pr-filter-status">
+              <option value="">כל הסטטוסים</option>
+              ${manageStatusOptionsHtml(filters.status || '')}
+            </select>
           </label>
-          <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="clear-admin-filters">נקה סינון</button>
+          <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="clear-admin-filters" type="button">נקה סינון</button>
         </div>
-        ${reports.length === 0 ? dsEmptyState('אין דוחות להצגה') : `
+        ${rows.length === 0 ? dsEmptyState('אין עובדים להצגה לחודש הנבחר') : `
           <div class="pr-table-scroll">
-            <table class="pr-table pr-admin-table">
+            <table class="pr-table pr-admin-table pr-admin-table--management">
               <colgroup>
                 <col class="pr-admin-col-employee" />
                 <col class="pr-admin-col-month" />
-                <col class="pr-admin-col-money" />
-                <col class="pr-admin-col-money" />
                 <col class="pr-admin-col-status" />
+                <col class="pr-admin-col-money" />
+                <col class="pr-admin-col-money" />
+                <col class="pr-admin-col-workdays" />
                 <col class="pr-admin-col-actions" />
               </colgroup>
               <thead><tr>
-                <th>עובד</th><th>חודש דיווח</th><th>סה"כ הוצאות</th><th>סה"כ נסיעות</th><th>סטטוס</th><th>פעולות</th>
+                <th>עובד</th><th>חודש דיווח</th><th>סטטוס</th><th>סה״כ נסיעות</th><th>סה״כ הוצאות</th><th>ימי עבודה</th><th>פעולה</th>
               </tr></thead>
-              <tbody>${rows.join('')}</tbody>
+              <tbody>${tableRows.join('')}</tbody>
             </table>
           </div>
         `}
+      </div>
+    </div>
+  `;
+}
+
+function adminNotStartedReportHtml({ employee, month, year }) {
+  const monthYearLabel = monthLabel(month, year);
+  const period = reportPeriodRange(month, year);
+  const statusChip = manageStatusChipHtml('not_started');
+  return `
+    <div class="pr-screen pr-report-form" dir="rtl">
+      <div class="pr-topbar">
+        <button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-admin">← חזרה לרשימה</button>
+        <span class="pr-topbar__title">${escapeHtml(monthYearLabel)} — ${escapeHtml(employee?.full_name || '')}</span>
+        <div class="pr-topbar-status">${statusChip}</div>
+      </div>
+      <div class="pr-body">
+        <section class="pr-card pr-report-header-card">
+          <h2 class="pr-section-title">פרטי דוח</h2>
+          <div class="pr-report-identity">
+            <div class="pr-id-item"><span class="pr-id-label">עובד</span><strong>${escapeHtml(employee?.full_name || '')}</strong></div>
+            <div class="pr-id-item"><span class="pr-id-label">חודש דיווח</span><strong>${escapeHtml(monthYearLabel)}</strong></div>
+            <div class="pr-id-item"><span class="pr-id-label">תקופת דיווח</span><strong>${escapeHtml(period.label)}</strong></div>
+            <div class="pr-id-item"><span class="pr-id-label">סטטוס</span>${statusChip}</div>
+          </div>
+          <p class="pr-helper-text">העובד עדיין לא התחיל למלא דוח לחודש זה.</p>
+        </section>
       </div>
     </div>
   `;
@@ -1866,12 +2059,13 @@ async function returnToEmployeeDashboard(root, { isSimulation = false } = {}) {
 
   abortPersonalReportsScreenListeners(root);
   prSelectedReport = null;
-  _prActiveView = { kind: 'employee-dashboard', isSimulation };
+  _prActiveView = { kind: 'my-reports', isSimulation };
 
   const { month, year } = currentMonthYear();
-  const currentReport = await loadCurrentMonthReport(employeeId, month, year, { force: true });
-  renderInto(root, employeeDashboardHtml(profile, { isSimulation, currentReport }));
-  bindEmployeeDashboard(root, { isSimulation });
+  const cardData = await loadMyReportCardData(employeeId, month, year, { force: true });
+  const showModeTabs = isAdminRole(profile.role) && !isSimulation;
+  renderInto(root, myReportsDashboardHtml(profile, { isSimulation, cardData, showModeTabs }));
+  bindMyReportsDashboard(root, { isSimulation });
 }
 
 async function loadMyReportsList(root, employeeId) {
@@ -2141,8 +2335,9 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
           <button class="pr-btn pr-btn--primary" data-pr-action="admin-save-notes"
             data-report-id="${escapeHtml(report.id)}" style="margin-top:8px">שמור הערות</button>
         </div>
-        <div class="pr-actions">
-          ${report.status === 'submitted' ? `
+        <div class="pr-actions pr-admin-detail-actions">
+          <button class="pr-btn pr-btn--ghost" data-pr-action="download-report-pdf" data-report-id="${escapeHtml(report.id)}">הורדת PDF</button>
+          ${report.status === 'submitted' || report.status === 'reviewed' ? `
             <button class="pr-btn pr-btn--primary" data-pr-action="admin-approve" data-report-id="${escapeHtml(report.id)}">✔ אשר דוח</button>
             <button class="pr-btn pr-btn--warning" data-pr-action="admin-return" data-report-id="${escapeHtml(report.id)}">↩ החזר לתיקון</button>
           ` : ''}
@@ -2157,7 +2352,34 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
 
 // ─── binding ──────────────────────────────────────────────────────────────────
 
-function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
+async function safeOpenAdminManageReport(root, { reportId = '', employeeId = '', month = 0, year = 0 } = {}) {
+  if (reportId) {
+    await safeOpenReportDetail(root, reportId, true);
+    return;
+  }
+  const profile = await loadEmployeeProfile(employeeId, { force: true });
+  _prActiveView = { kind: 'admin-report', reportId: '', employeeId, month, year, isSimulation: false };
+  renderInto(root, adminNotStartedReportHtml({ employee: profile, month, year }));
+  bindAdminNotStartedView(root);
+}
+
+function bindAdminNotStartedView(root) {
+  root.__prAdminViewAbort?.abort();
+  const adminViewAbort = new AbortController();
+  root.__prAdminViewAbort = adminViewAbort;
+  const listeners = bindScreenListeners(root, adminViewAbort.signal);
+  listeners.on('click', async (e) => {
+    const btn = e.target.closest('[data-pr-action]');
+    if (!btn) return;
+    if (btn.dataset.prAction === 'back-to-admin') {
+      _prActiveView = { kind: 'employee-reports-management' };
+      prSelectedReport = null;
+      await rerender(root, _dashboardUser);
+    }
+  });
+}
+
+function bindMyReportsDashboard(root, { isSimulation = false } = {}) {
   root.__prEmployeeAbort?.abort();
   const employeeAbort = new AbortController();
   root.__prEmployeeAbort = employeeAbort;
@@ -2182,7 +2404,16 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
     if (action === 'back-to-dashboard') {
       dispatchBackToDashboard(); return;
     }
-    if (action === 'admin-mode-manage') { prAdminMode = 'manage'; await rerender(root, _dashboardUser); return; }
+    if (action === 'screen-mode-management') {
+      prScreenMode = PR_SCREEN_MODES.MANAGEMENT;
+      await rerender(root, _dashboardUser);
+      return;
+    }
+    if (action === 'screen-mode-my-reports') {
+      prScreenMode = PR_SCREEN_MODES.MY_REPORTS;
+      await rerender(root, _dashboardUser);
+      return;
+    }
 
     if (action === 'open-month-report') {
       if (!employeeId) return;
@@ -2190,22 +2421,32 @@ function bindEmployeeDashboard(root, { isSimulation = false } = {}) {
       const year = Number(btn.dataset.reportYear || 0);
       try {
         btn.disabled = true;
+        const originalLabel = btn.textContent;
         btn.textContent = 'פותח…';
         const report = await getOrCreateReport(employeeId, month, year);
         await safeOpenReportDetail(root, report.id, false, { isSimulation, initialTab: 'status' });
+        btn.disabled = false;
+        btn.textContent = originalLabel;
       } catch (err) {
         showToast(friendlyPersonalReportsError(err), 'danger');
         btn.disabled = false;
-        btn.textContent = 'פתיחה';
       }
       return;
     }
-  });
 
-  listeners.on('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      const card = e.target.closest('[data-pr-action="open-month-report"]');
-      if (card) card.click();
+    if (action === 'view-my-report') {
+      const reportId = btn.dataset.reportId;
+      if (!reportId) return;
+      await safeOpenReportDetail(root, reportId, false, { isSimulation, initialTab: 'status' });
+      return;
+    }
+
+    if (action === 'download-report-pdf') {
+      try {
+        await openMonthlyReportPdf(btn.dataset.reportId || prSelectedReport?.id, 'אושר / נשלח לשכר');
+        showToast('PDF מוכן להורדה / שמירה', 'success');
+      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
+      return;
     }
   });
 }
@@ -2638,20 +2879,15 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
   });
 }
 
-function applyAdminFilters(root) {
+function applyAdminStatusFilter(root) {
   const filters = readAdminFilters(root);
-  if (!adminFiltersChanged(filters)) return;
-  bumpPersonalReportsLoadGeneration();
-  _prLastAdminFilters = { ...filters };
   root.querySelectorAll('.pr-admin-report-row').forEach((row) => {
-    const visible = (!filters.employee || row.dataset.employeeId === filters.employee)
-      && (!filters.month || row.dataset.reportMonth === filters.month)
-      && (!filters.status || row.dataset.status === filters.status);
+    const visible = !filters.status || row.dataset.manageStatus === filters.status;
     row.hidden = !visible;
   });
 }
 
-function bindAdminDashboard(root) {
+function bindEmployeeReportsManagement(root) {
   root.__prAdminAbort?.abort();
   const adminAbort = new AbortController();
   root.__prAdminAbort = adminAbort;
@@ -2663,87 +2899,53 @@ function bindAdminDashboard(root) {
     const reportId = btn.dataset.reportId;
 
     if (action === 'back-to-dashboard') { dispatchBackToDashboard(); return; }
-    if (action === 'admin-mode-my') {
-      prAdminMode = 'my';
-      renderInto(root, employeeDashboardHtml(prSession.profile));
-      bindEmployeeDashboard(root);
+    if (action === 'lock-screen') {
+      resetPersonalReportsAuth();
+      renderInto(root, internalEmployeeLoginHtml());
+      bindInternalEmployeeLogin(root);
       return;
     }
-    if (action === 'admin-mode-manage') { prAdminMode = 'manage'; await rerender(root, _dashboardUser); return; }
+    if (action === 'screen-mode-my-reports') {
+      prScreenMode = PR_SCREEN_MODES.MY_REPORTS;
+      await rerender(root, _dashboardUser);
+      return;
+    }
+    if (action === 'screen-mode-management') {
+      prScreenMode = PR_SCREEN_MODES.MANAGEMENT;
+      await rerender(root, _dashboardUser);
+      return;
+    }
     if (action === 'clear-admin-filters') {
-      const hadFilters = Boolean(
-        root.querySelector('#pr-filter-employee')?.value
-        || root.querySelector('#pr-filter-month')?.value
-        || root.querySelector('#pr-filter-status')?.value
-      );
-      root.querySelector('#pr-filter-employee').value = '';
-      root.querySelector('#pr-filter-month').value = '';
-      root.querySelector('#pr-filter-status').value = '';
-      if (hadFilters) applyAdminFilters(root);
+      const monthInput = root.querySelector('#pr-filter-month');
+      const statusInput = root.querySelector('#pr-filter-status');
+      if (monthInput) monthInput.value = defaultMonthFilterValue();
+      if (statusInput) statusInput.value = '';
+      await rerender(root, _dashboardUser, { forceReload: true });
       return;
     }
 
-    if (action === 'view-as-employee') {
-      try {
-        const employees = await fetchActiveEmployees();
-        renderInto(root, adminEmployeeSelectorHtml(employees));
-        bindEmployeeSelector(root);
-      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
-      return;
-    }
-
-    if (action === 'admin-view-report' && reportId) {
-      await safeOpenReportDetail(root, reportId, true); return;
-    }
-    if (action === 'admin-approve' && reportId) {
-      if (!confirm('לאשר דוח זה?')) return;
-      try {
-        await assertSalaryReady(reportId);
-        await adminUpdateReport(reportId, { status: 'approved', approved_at: new Date().toISOString() });
-        await openMonthlyReportPdf(reportId, 'אושר לשכר');
-        showToast('הדוח אושר וה-PDF הופק', 'success');
-        await rerender(root, _dashboardUser, { forceReload: true });
-      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
-      return;
-    }
-    if (action === 'admin-return' && reportId) {
-      const notes = prompt('הסבר לעובד:');
-      if (notes === null) return;
-      try {
-        await adminUpdateReport(reportId, { status: 'needs_correction', finance_notes: notes });
-        showToast('הדוח הוחזר לתיקון', 'success');
-        await rerender(root, _dashboardUser, { forceReload: true });
-      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
-      return;
-    }
-    if (action === 'admin-mark-paid' && reportId) {
-      if (!confirm('לסמן כשולם?')) return;
-      try {
-        await adminUpdateReport(reportId, { status: 'paid', paid_at: new Date().toISOString() });
-        showToast('סומן כשולם', 'success');
-        await rerender(root, _dashboardUser, { forceReload: true });
-      } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
+    if (action === 'admin-manage-report') {
+      await safeOpenAdminManageReport(root, {
+        reportId,
+        employeeId: btn.dataset.employeeId,
+        month: Number(btn.dataset.reportMonth || 0),
+        year: Number(btn.dataset.reportYear || 0)
+      });
       return;
     }
   });
 
   listeners.on('change', async (e) => {
-    if (e.target.matches('#pr-filter-employee, #pr-filter-month, #pr-filter-status')) {
-      applyAdminFilters(root);
+    if (e.target.matches('#pr-filter-month')) {
+      const filters = readAdminFilters(root);
+      if (adminFiltersChanged(filters)) {
+        _prLastAdminFilters = { ...filters };
+        await rerender(root, _dashboardUser, { forceReload: true });
+      }
       return;
     }
-    const statusSelect = e.target.closest('.pr-admin-status-select');
-    if (!statusSelect) return;
-    const reportId = statusSelect.dataset.reportId;
-    const status = statusSelect.value;
-    try {
-      if (status === 'approved') await assertSalaryReady(reportId);
-      await adminUpdateReport(reportId, { status });
-      statusSelect.closest('.pr-admin-report-row')?.setAttribute('data-status', status);
-      showToast('סטטוס עודכן', 'success');
-    } catch (err) {
-      showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בעדכון הסטטוס. יש לנסות שוב.'), 'danger');
-      await rerender(root, _dashboardUser, { forceReload: true });
+    if (e.target.matches('#pr-filter-status')) {
+      applyAdminStatusFilter(root);
     }
   });
 }
@@ -2760,9 +2962,9 @@ function bindAdminReportView(root) {
     const reportId = btn.dataset.reportId;
 
     if (action === 'back-to-admin') {
-      _prActiveView = { kind: 'admin-list' };
+      _prActiveView = { kind: 'employee-reports-management' };
       prSelectedReport = null;
-      await rerender(root, _dashboardUser);
+      await rerender(root, _dashboardUser, { forceReload: true });
       return;
     }
 
@@ -2833,9 +3035,9 @@ function bindEmployeeSelector(root) {
     const action = btn.dataset.prAction;
 
     if (action === 'back-to-admin') {
-      _prActiveView = { kind: 'admin-list' };
+      _prActiveView = { kind: 'employee-reports-management' };
       prSelectedReport = null;
-      await rerender(root, _dashboardUser);
+      await rerender(root, _dashboardUser, { forceReload: true });
       return;
     }
 
@@ -2845,8 +3047,10 @@ function bindEmployeeSelector(root) {
         full_name:  btn.dataset.employeeName,
         email:      btn.dataset.employeeEmail
       };
-      renderInto(root, employeeDashboardHtml(prViewAsEmployee, { isSimulation: true }));
-      bindEmployeeDashboard(root, { isSimulation: true });
+      const { month, year } = currentMonthYear();
+      const cardData = await loadMyReportCardData(prViewAsEmployee.id, month, year, { force: true });
+      renderInto(root, myReportsDashboardHtml(prViewAsEmployee, { isSimulation: true, cardData }));
+      bindMyReportsDashboard(root, { isSimulation: true });
       return;
     }
   });
@@ -2887,7 +3091,7 @@ function bindInternalEmployeeLogin(root) {
       if (signal.aborted) return;
       prSelectedReport = null;
       prViewAsEmployee = null;
-      prAdminMode = 'my';
+      prScreenMode = PR_SCREEN_MODES.MY_REPORTS;
       isPersonalReportsUnlocked = true;
       await rerender(root, dashboardUser);
     } catch (err) {
@@ -2934,38 +3138,41 @@ async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceRel
     bindInternalEmployeeLogin(root);
     return;
   }
-  if (isAdminRole(prSession.profile.role) && prAdminMode === 'my' && !prViewAsEmployee) {
+  if (isAdminRole(prSession.profile.role) && prScreenMode === PR_SCREEN_MODES.MY_REPORTS && !prViewAsEmployee) {
     const { month, year } = currentMonthYear();
-    const currentReport = await loadCurrentMonthReport(prSession.user.id, month, year, { force: forceReload });
-    _prActiveView = { kind: 'employee-dashboard', isSimulation: false };
-    renderInto(root, employeeDashboardHtml(prSession.profile, { currentReport }));
-    bindEmployeeDashboard(root);
+    const cardData = await loadMyReportCardData(prSession.user.id, month, year, { force: forceReload });
+    _prActiveView = { kind: 'my-reports', isSimulation: false };
+    renderInto(root, myReportsDashboardHtml(prSession.profile, { cardData, showModeTabs: true }));
+    bindMyReportsDashboard(root);
   } else if (isAdminRole(prSession.profile.role) && prViewAsEmployee) {
     const { month, year } = currentMonthYear();
-    const currentReport = await loadCurrentMonthReport(prViewAsEmployee.id, month, year, { force: forceReload });
-    _prActiveView = { kind: 'employee-dashboard', isSimulation: true };
-    renderInto(root, employeeDashboardHtml(prViewAsEmployee, { isSimulation: true, currentReport }));
-    bindEmployeeDashboard(root, { isSimulation: true });
+    const cardData = await loadMyReportCardData(prViewAsEmployee.id, month, year, { force: forceReload });
+    _prActiveView = { kind: 'my-reports', isSimulation: true };
+    renderInto(root, myReportsDashboardHtml(prViewAsEmployee, { isSimulation: true, cardData }));
+    bindMyReportsDashboard(root, { isSimulation: true });
   } else if (isAdminRole(prSession.profile.role)) {
     try {
-      const reports = await loadAdminReportsList(_prLastAdminFilters, { force: forceReload });
-      _prActiveView = { kind: 'admin-list' };
+      const filters = {
+        month: _prLastAdminFilters.month || defaultMonthFilterValue(),
+        status: _prLastAdminFilters.status || ''
+      };
+      const rows = await loadEmployeeReportsManagementList(filters, { force: forceReload });
+      _prActiveView = { kind: 'employee-reports-management' };
       prSelectedReport = null;
-      renderInto(root, adminDashboardHtml(reports || []));
-      bindAdminDashboard(root);
-      const filters = readAdminFilters(root);
-      if (filters.employee || filters.month || filters.status) applyAdminFilters(root);
+      renderInto(root, employeeReportsManagementHtml(rows || [], filters));
+      bindEmployeeReportsManagement(root);
+      if (filters.status) applyAdminStatusFilter(root);
     } catch (err) {
-      _prActiveView = { kind: 'admin-list' };
-      renderInto(root, adminManagePlaceholderHtml(friendlyPersonalReportsError(err, 'אזור ניהול דוחות עובדים לא נטען כרגע.')));
-      bindAdminDashboard(root);
+      _prActiveView = { kind: 'employee-reports-management' };
+      renderInto(root, employeeReportsManagementPlaceholderHtml(friendlyPersonalReportsError(err, 'אזור ניהול דוחות עובדים לא נטען כרגע.')));
+      bindEmployeeReportsManagement(root);
     }
   } else {
     const { month, year } = currentMonthYear();
-    const currentReport = await loadCurrentMonthReport(prSession.user.id, month, year, { force: forceReload });
-    _prActiveView = { kind: 'employee-dashboard', isSimulation: false };
-    renderInto(root, employeeDashboardHtml(prSession.profile, { currentReport }));
-    bindEmployeeDashboard(root);
+    const cardData = await loadMyReportCardData(prSession.user.id, month, year, { force: forceReload });
+    _prActiveView = { kind: 'my-reports', isSimulation: false };
+    renderInto(root, myReportsDashboardHtml(prSession.profile, { cardData }));
+    bindMyReportsDashboard(root);
   }
 }
 

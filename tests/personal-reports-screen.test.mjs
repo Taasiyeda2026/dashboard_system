@@ -55,7 +55,7 @@ test('admin also starts locked and does not render personal or management report
   const { root } = mountWithUser(userWithPersonalReportsAccess({ full_name: 'מנהלת מערכת', display_role: 'admin', user_id: 'admin', auth_user_id: ADMIN_UUID }));
 
   assert.ok(root.querySelector('#pr-internal-login-form'));
-  assert.equal(root.querySelector('.pr-admin-mode-switch'), null);
+  assert.equal(root.querySelector('.pr-screen-mode-switch'), null);
   assert.equal(root.querySelector('.pr-quick-tabs'), null);
   assert.doesNotMatch(root.textContent, /ניהול דוחות עובדים/);
 });
@@ -186,8 +186,8 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 592;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 592;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 593;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 593;/);
 });
 
 test('source guards personal reports loads with requestKey and abortable listeners', async () => {
@@ -202,7 +202,7 @@ test('source guards personal reports loads with requestKey and abortable listene
   assert.match(source, /function loadReportRow/);
   assert.match(source, /function loadEmployeeProfile/);
   assert.match(source, /function loadReportBundle/);
-  assert.match(source, /function loadAdminReportsList/);
+  assert.match(source, /function loadEmployeeReportsManagementList/);
   assert.match(source, /function restorePersonalReportsShellView/);
   assert.match(source, /personalReportsReportAlreadyRendered/);
   assert.match(source, /let _prActiveView = null/);
@@ -279,8 +279,82 @@ test('submit success back button returns to employee dashboard with a single ref
   assert.match(source, /showReportSubmittedSuccess\(root, prSelectedReport\.id/);
   assert.match(source, /pr-submit-success-screen/);
   assert.doesNotMatch(source, /pr-submit-success-screen[\s\S]{0,120}pr-report-form/);
-  assert.match(source, /loadCurrentMonthReport\(employeeId, month, year, \{ force: true \}\)/);
+  assert.match(source, /loadMyReportCardData\(employeeId, month, year, \{ force: true \}\)/);
   assert.doesNotMatch(source, /if \(action === 'back-to-my-reports'\)[\s\S]{0,220}await rerender\(root, _dashboardUser\)/);
+});
+
+test('source separates my-reports from employee-reports-management modes', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /PR_SCREEN_MODES/);
+  assert.match(source, /MY_REPORTS: 'my-reports'/);
+  assert.match(source, /MANAGEMENT: 'employee-reports-management'/);
+  assert.match(source, /function myReportsDashboardHtml/);
+  assert.match(source, /function employeeReportsManagementHtml/);
+  assert.match(source, /function bindMyReportsDashboard/);
+  assert.match(source, /function bindEmployeeReportsManagement/);
+  assert.match(source, /kind: 'my-reports'/);
+  assert.match(source, /kind: 'employee-reports-management'/);
+  assert.match(source, /prScreenMode = PR_SCREEN_MODES\.MY_REPORTS/);
+  assert.doesNotMatch(source, /prAdminMode/);
+  assert.doesNotMatch(source, /function employeeDashboardHtml/);
+  assert.doesNotMatch(source, /function adminDashboardHtml/);
+  assert.doesNotMatch(source, /id="pr-filter-employee"/);
+  assert.doesNotMatch(source, /כל העובדים/);
+});
+
+test('my-reports screen uses a single personal card without management controls', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /pr-my-report-card/);
+  assert.match(source, /מילוי דוח/);
+  assert.match(source, /המשך מילוי/);
+  assert.match(source, /עריכת תיקונים/);
+  assert.match(source, /צפייה בדוח/);
+  assert.match(source, /MY_REPORT_STATUS_META/);
+  assert.match(source, /לא התחיל/);
+  assert.match(source, /נשלח לאישור/);
+  assert.doesNotMatch(source, /pr-month-list[\s\S]{0,400}pr-admin-table/);
+  assert.doesNotMatch(source, /data-pr-action="admin-approve"[\s\S]{0,80}pr-admin-report-row/);
+});
+
+test('management screen lists all report-eligible employees with one row action', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /function fetchReportEligibleEmployees/);
+  assert.match(source, /function buildEmployeeReportsManagementRows/);
+  assert.match(source, /ADMIN_MANAGE_STATUS_META/);
+  assert.match(source, /בטיפול העובד/);
+  assert.match(source, /data-pr-action="admin-manage-report"/);
+  assert.match(source, /צפייה וניהול/);
+  assert.match(source, /id="pr-filter-month"/);
+  assert.match(source, /id="pr-filter-status"/);
+  assert.doesNotMatch(source, /pr-admin-status-select/);
+  assert.doesNotMatch(source, /data-pr-action="admin-view-report"/);
+  assert.doesNotMatch(source, /data-pr-action="admin-approve"[^>]*>אשר</);
+});
+
+test('admin defaults to my-reports and can switch to management via tabs', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /prScreenMode = PR_SCREEN_MODES\.MY_REPORTS/);
+  assert.match(source, /data-pr-action="screen-mode-management"/);
+  assert.match(source, /data-pr-action="screen-mode-my-reports"/);
+  assert.match(source, /personalReportsModeTabsHtml/);
+  assert.match(source, /showModeTabs: true/);
+  assert.match(source, /prScreenMode === PR_SCREEN_MODES\.MY_REPORTS/);
+});
+
+test('management actions stay inside admin report detail view', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /pr-admin-detail-actions/);
+  assert.match(source, /data-pr-action="admin-approve"/);
+  assert.match(source, /data-pr-action="admin-return"/);
+  assert.match(source, /data-pr-action="download-report-pdf"/);
+  assert.match(source, /function adminReportViewHtml/);
+  assert.match(source, /function safeOpenAdminManageReport/);
+  assert.match(source, /function adminNotStartedReportHtml/);
 });
 
 test('migration keeps travel rates private and exposes only RPC entry points', async () => {

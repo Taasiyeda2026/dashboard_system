@@ -13703,12 +13703,129 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   flex-wrap: wrap;
   white-space: normal;
 }
+
+/* Personal reports — my-reports vs management separation */
+.pr-screen-mode-switch {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #e2deea;
+  border-radius: 12px;
+  background: #f8fafc;
+  margin-bottom: 4px;
+}
+.pr-screen--my-reports .pr-landing-body {
+  max-width: min(560px, 96vw);
+}
+.pr-screen--management .pr-management-body {
+  max-width: min(1180px, 96vw);
+  gap: 12px;
+}
+.pr-my-report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+.pr-my-report-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pr-my-report-card__title {
+  margin: 4px 0 0;
+  font-size: 1.22rem;
+  color: #0f172a;
+}
+.pr-my-report-card__employee {
+  color: #334155;
+  font-size: 0.84rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: #fff;
+  white-space: nowrap;
+}
+.pr-my-report-card__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.pr-my-report-card__meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #e8edf5;
+  border-radius: 12px;
+  background: #fff;
+}
+.pr-my-report-card__period {
+  color: #64748b;
+  font-size: 0.74rem;
+}
+.pr-my-report-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.pr-my-report-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #e8edf5;
+  border-radius: 12px;
+  background: #fff;
+}
+.pr-my-report-summary__label {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.pr-my-report-summary__value {
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+.pr-my-report-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pr-admin-filters--compact {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(180px, 220px) auto;
+  align-items: end;
+  gap: 10px;
+}
+.pr-admin-table--management .pr-admin-col-employee { width: 18%; }
+.pr-admin-table--management .pr-admin-col-month { width: 12%; }
+.pr-admin-table--management .pr-admin-col-status { width: 16%; }
+.pr-admin-table--management .pr-admin-col-money { width: 12%; }
+.pr-admin-table--management .pr-admin-col-workdays { width: 10%; }
+.pr-admin-table--management .pr-admin-col-actions { width: 14%; }
+.pr-admin-table--management .pr-td-status .ds-status-chip {
+  font-weight: 700;
+}
+.pr-admin-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 @media (max-width: 760px) {
   .pr-landing-body,
   .pr-report-detail-body { max-width: 96vw; padding-inline: 8px; }
   .pr-report-identity { grid-template-columns: 1fr; }
   .pr-btn { min-width: 96px; }
   .pr-admin-table { min-width: 680px; }
+  .pr-my-report-card__meta,
+  .pr-my-report-summary { grid-template-columns: 1fr; }
+  .pr-admin-filters--compact { grid-template-columns: 1fr; }
+  .pr-my-report-card__actions .pr-btn { flex: 1 1 100%; }
 }
 
 /* Personal reports monthly detail — focused compact UX pass */
