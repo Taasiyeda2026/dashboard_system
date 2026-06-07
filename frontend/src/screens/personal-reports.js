@@ -1037,12 +1037,17 @@ async function loadReportBundle(reportId, { force = false } = {}) {
     invalidatePersonalReportsLoadCache({ reportId });
   }
   const bundle = await runGuardedPersonalReportsLoad(requestKey, async () => {
-    const [travel, expenses, absences, attachments] = await Promise.all([
+    const [travel, expenses, absences] = await Promise.all([
       fetchDeclaredTravel(reportId),
       fetchExpenses(reportId),
-      fetchAbsences(reportId),
-      fetchAttachments(reportId)
+      fetchAbsences(reportId)
     ]);
+    let attachments = [];
+    try {
+      attachments = await fetchAttachments(reportId);
+    } catch (attErr) {
+      console.error('[personal-reports] loadReportBundle: fetchAttachments failed, report_id=%s', reportId, attErr);
+    }
     return { travel, expenses, absences, attachments };
   }, { force });
   const resolved = bundle || _prReportBundleCache.get(requestKey);
@@ -2413,6 +2418,7 @@ async function safeOpenReportDetail(root, reportId, isAdmin = false, options = {
     if (options.forceReload) invalidatePersonalReportsLoadCache({ reportId });
     await openReportDetail(root, reportId, isAdmin, options);
   } catch (err) {
+    console.error('[personal-reports] safeOpenReportDetail failed: report_id=%s, isAdmin=%s, step=openReportDetail', reportId, isAdmin, err);
     showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בטעינת הדוחות. יש לנסות שוב או לפנות למנהל המערכת.'), 'danger');
   }
 }
@@ -2421,6 +2427,10 @@ async function safeOpenReportDetail(root, reportId, isAdmin = false, options = {
 
 function adminReportViewHtml(report, travel, expenses, absences, attachments) {
   const profile = report.profiles || {};
+  const reportPeriod = reportPeriodRange(report.report_month, report.report_year);
+  const workDaysLabel = report.work_days_in_month === null || report.work_days_in_month === undefined
+    ? '—'
+    : fmtNum(Number(report.work_days_in_month));
   const totalTravelKm  = travel.reduce((s, r) => s + Number(r.roundtrip_km || 0), 0);
   const totalTravel    = travel.reduce((s, r) => s + Number(r.amount || 0), 0);
   const totalExpenses  = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
@@ -2487,6 +2497,7 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
             <div class="pr-id-item"><span class="pr-id-label">סטטוס</span>${statusChip}</div>
           </div>
           <div class="pr-meta-grid">
+            <div class="pr-meta-item"><span class="pr-meta-label">ימי עבודה</span><strong>${escapeHtml(workDaysLabel)}</strong></div>
             <div class="pr-meta-item"><span class="pr-meta-label">ימי חופש מחושבים</span><strong>${fmtNum(totalVacationDays)}</strong></div>
             <div class="pr-meta-item"><span class="pr-meta-label">ימי מחלה מחושבים</span><strong>${fmtNum(totalSickDays)}</strong></div>
             <div class="pr-meta-item"><span class="pr-meta-label">ימי הצהרה מחושבים</span><strong>${fmtNum(totalDeclarationDays)}</strong></div>
