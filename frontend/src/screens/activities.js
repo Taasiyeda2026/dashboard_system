@@ -522,6 +522,55 @@ function isEndingInMonth(row = {}, ym = '') {
   return /^\d{4}-\d{2}$/.test(month) && String(row?.end_date || row?.date_end || '').slice(0, 7) === month;
 }
 
+function selectedMonthRange(ym = '') {
+  const month = String(ym || '').trim().slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(month)) return null;
+  const [year, monthNumber] = month.split('-').map(Number);
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+  return {
+    month,
+    start: `${month}-01`,
+    end: `${month}-${String(lastDay).padStart(2, '0')}`
+  };
+}
+
+function normalizedActivityDateValue(value) {
+  const date = String(value || '').trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '';
+}
+
+function activityMeetingDates(row = {}) {
+  const dates = [];
+  const addDate = (value) => {
+    const date = normalizedActivityDateValue(value);
+    if (date && !dates.includes(date)) dates.push(date);
+  };
+  const cols = Array.isArray(row?.meeting_dates) ? row.meeting_dates
+    : Array.isArray(row?.date_cols) ? row.date_cols : [];
+  cols.forEach(addDate);
+  for (let i = 1; i <= 35; i++) {
+    addDate(row?.[`date_${i}`]);
+    addDate(row?.[`Date${i}`]);
+  }
+  return dates;
+}
+
+function activityOccursInSelectedMonth(row = {}, ym = '') {
+  const range = selectedMonthRange(ym);
+  if (!range) return true;
+  const dates = activityMeetingDates(row);
+  if (dates.length > 0) return dates.some((date) => date >= range.start && date <= range.end);
+
+  const start = normalizedActivityDateValue(row?.start_date ?? row?.date_start);
+  if (!start) return false;
+  const end = normalizedActivityDateValue(row?.end_date ?? row?.date_end) || start;
+  return start <= range.end && end >= range.start;
+}
+
+function applySelectedActivitiesMonth(rows, state) {
+  return (Array.isArray(rows) ? rows : []).filter((row) => activityOccursInSelectedMonth(row, state?.activitiesMonthYm));
+}
+
 function currentYm() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -1155,7 +1204,8 @@ export const activitiesScreen = {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
     const periodRows    = activityPeriodRows(allRows, state.activityPeriodTab);
-    const filteredRows  = applyActivitiesLocalFilters(periodRows, state, state?.clientSettings);
+    const monthRows     = applySelectedActivitiesMonth(periodRows, state);
+    const filteredRows  = applyActivitiesLocalFilters(monthRows, state, state?.clientSettings);
 
     const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
     const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
@@ -1291,7 +1341,9 @@ export const activitiesScreen = {
       safeRows.length === 0
         ? dsEmptyState(periodRows.length === 0
             ? 'אין פעילויות להצגה בתקופה זו'
-            : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
+            : monthRows.length === 0
+              ? 'אין פעילויות להצגה בחודש הנבחר'
+              : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
                 ${tableColsHtml}
                 <tbody>${tableRows}</tbody>
@@ -1354,7 +1406,7 @@ export const activitiesScreen = {
       const canViewExceptions = userRoutes.includes('exceptions');
 
       const exceptionsBtn = canViewExceptions
-        ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-overdue-exceptions>מעבר לתיקון החריגה</button>`
+        ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-overdue-exceptions>מעבר לעמוד החריגות</button>`
         : '';
 
       const el = document.createElement('div');
