@@ -106,7 +106,7 @@ function todayIso() {
 
 function reopenModalHtml() {
   return `<div class="ds-perm-edit-form" dir="rtl" data-archive-reopen-form>
-    <p class="ds-muted">הפעילות תיפתח מחדש בסטטוס פעיל, ללא שינוי בתאריכים הקיימים. אם תאריך הסיום כבר חלף, היא תופיע בחריגות להמשך טיפול.</p>
+    <p class="ds-muted">הפעילות תיפתח מחדש בסטטוס פתוח, ללא שינוי בתאריכים הקיימים. אם תאריך הסיום כבר חלף, היא תופיע בחריגות להמשך טיפול.</p>
     <p class="ds-muted" role="alert" data-reopen-error></p>
   </div>`;
 }
@@ -506,7 +506,7 @@ export const archiveScreen = {
             await api.saveActivity({
               source_sheet: row.source_sheet || 'activities',
               source_row_id: row.RowID || row.row_id,
-              changes: { status: 'פעיל' }
+              changes: { status: 'פתוח' }
             });
             ui.closeModal?.();
             ui.closeDrawer?.();

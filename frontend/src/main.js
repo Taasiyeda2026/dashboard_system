@@ -514,7 +514,7 @@ const screenLabels = {
   'admin-lists': 'ניהול רשימות',
   archive: 'ארכיון',
   'proposals-agreements': 'הצעות מחיר',
-  finance: 'כספים / גבייה',
+  finance: 'כספים',
   invitations: 'הזמנות',
   orders: 'הזמנות',
   catalog: 'קטלוג',

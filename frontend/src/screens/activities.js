@@ -50,7 +50,7 @@ const ACTIVITY_PERIOD_TABS = [
   { key: 'school_2026', label: 'תשפ״ו / 2026', start: '', end: '2026-06-30' },
   { key: 'summer_2026', label: 'קיץ 2026', start: '2026-07-01', end: '2026-08-31' },
   { key: 'school_2027', label: 'תשפ״ז / 2027', start: '2026-09-01', end: '2027-06-30' },
-  { key: 'archive', label: 'ארכיון / הסתיימו', archive: true }
+  { key: 'archive', label: 'ארכיון', archive: true }
 ];
 const DEFAULT_ACTIVITY_PERIOD_TAB = 'school_2026';
 const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'closed', 'deleted', 'inactive']);
@@ -90,13 +90,14 @@ function isInactiveActivityStatus(row = {}) {
 }
 
 function activityPeriodKey(row = {}) {
-  if (isInactiveActivityStatus(row)) return 'archive';
+  const status = String(row?.status || '').trim();
+  if (status === 'נמחק') return 'deleted';
+  if (status === 'סגור') return 'archive';
+  const season = String(row?.activity_season || '').trim();
+  if (season === 'summer_2026') return 'summer_2026';
   const start = normalizedActivityStartDate(row);
-  if (!start) return 'archive';
-  if (start <= '2026-06-30') return 'school_2026';
-  if (start >= '2026-07-01' && start <= '2026-08-31') return 'summer_2026';
-  if (start >= '2026-09-01' && start <= '2027-06-30') return 'school_2027';
-  return 'archive';
+  if (start >= '2026-09-01') return 'school_2027';
+  return 'school_2026';
 }
 
 function activityPeriodLabelForKey(key) {
@@ -1390,9 +1391,7 @@ export const activitiesScreen = {
       const allRows = Array.isArray(data?.rows) ? data.rows : [];
       const overdue = allRows.filter((row) => {
         const status = String(row?.status || '').trim();
-        const isLegacyActiveOneDay = isOneDayActivityTypeValue(row?.activity_type || row?.item_type) && status === 'פעיל';
-        if (status === 'סגור' || status === 'closed' || status === 'inactive') return false;
-        if (status !== 'פתוח' && !isLegacyActiveOneDay) return false;
+        if (status !== 'פתוח') return false;
         const endRaw = String(row?.end_date || '').trim();
         if (!endRaw) return false;
         const endDate = new Date(endRaw);
@@ -1677,26 +1676,84 @@ export const activitiesScreen = {
       bindActivityEditForm(contentRoot);
     }
 
+    function bindActivitiesReopenBtn(contentRoot, row) {
+      const btn = contentRoot.querySelector('[data-activity-archive-reopen]');
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        ui.openModal({
+          title: 'פתיחה מחדש של פעילות',
+          content: `<div class="ds-perm-edit-form" dir="rtl">
+            <p class="ds-muted">הפעילות תיפתח מחדש בסטטוס פתוח, ללא שינוי בתאריכים הקיימים.</p>
+            <p class="ds-muted" role="alert" data-activity-reopen-error></p>
+          </div>`,
+          actions: `
+            <button type="button" class="ds-btn ds-btn--ghost" data-ui-close-modal>ביטול</button>
+            <button type="button" class="ds-btn ds-btn--primary" data-activity-reopen-confirm>אישור פתיחה מחדש</button>
+          `
+        });
+        const modal = document.querySelector('.ds-modal');
+        const errorEl = modal?.querySelector('[data-activity-reopen-error]');
+        const confirmBtn = modal?.querySelector('[data-activity-reopen-confirm]');
+        const setError = (msg) => { if (errorEl) errorEl.textContent = msg || ''; };
+        confirmBtn?.addEventListener('click', async () => {
+          setError('');
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'שומר…';
+          try {
+            await api.saveActivity({
+              source_sheet: row.source_sheet || 'activities',
+              source_row_id: row.RowID || row.row_id,
+              changes: { status: 'פתוח' }
+            });
+            ui.closeModal?.();
+            ui.closeDrawer?.();
+            patchLocalRowFromSave({ sourceRowId: row.RowID || row.row_id, changes: { status: 'פתוח' } });
+            rerenderLocal();
+            void scheduleQuietRefresh();
+          } catch (_e) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'אישור פתיחה מחדש';
+            setError('שמירת הפתיחה מחדש נכשלה. נסו שוב.');
+          }
+        });
+      });
+    }
+
     async function openActivityDetail(summaryRow) {
       if (!summaryRow || !ui) return;
       const cachedDetail = getCachedActivityDetail(summaryRow, state);
       const cachedDates  = getCachedActivityDates(summaryRow, state);
       const canDirectEdit = canDirectManageActivities(state);
       const canRequestEdit = canRequestActivityChanges(state);
+      const canReopenActivity = canDirectManageActivities(state) && state.activityPeriodTab === 'archive';
       const settings = mergeSettingsWithFallback(
         state?.clientSettings || {},
         buildFallbackOptionsFromRows(activitiesRows)
       );
 
+      const buildDrawerContent = (row, datesLoading) => {
+        const base = activityDrawerContent(
+          row, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
+          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading }
+        );
+        if (!canReopenActivity) return base;
+        return `<div style="padding:12px 16px 0;text-align:right">
+          <button type="button" class="ds-btn ds-btn--sm ds-archive-reopen-btn" data-activity-archive-reopen="${escapeHtml(String(row.RowID || ''))}">
+            🔓 פתח מחדש
+          </button>
+        </div>` + base;
+      };
+
+      const makeOnOpenWithReopen = (row) => (contentRoot) => {
+        makeOnOpen(contentRoot);
+        if (canReopenActivity) bindActivitiesReopenBtn(contentRoot, row);
+      };
+
       if (cachedDetail) {
         ui.openDrawer({
           title: '',
-          content: activityDrawerContent(
-            cachedDetail, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
-            canDeleteActivity,
-            hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading: false }
-          ),
-          onOpen: makeOnOpen,
+          content: buildDrawerContent(cachedDetail, false),
+          onOpen: makeOnOpenWithReopen(cachedDetail),
           onClose: () => {
             const shellHdr = document.querySelector('.ds-drawer > header');
             if (shellHdr) shellHdr.hidden = false;
@@ -1708,12 +1765,8 @@ export const activitiesScreen = {
       const needDates = !cachedDates;
       ui.openDrawer({
         title: '',
-        content: activityDrawerContent(
-          summaryRow, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
-          canDeleteActivity,
-          hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading: needDates }
-        ),
-        onOpen: makeOnOpen,
+        content: buildDrawerContent(summaryRow, needDates),
+        onOpen: makeOnOpenWithReopen(summaryRow),
         onClose: () => {
           const shellHdr = document.querySelector('.ds-drawer > header');
           if (shellHdr) shellHdr.hidden = false;
