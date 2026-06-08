@@ -1204,7 +1204,8 @@ export const activitiesScreen = {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
     const periodRows    = activityPeriodRows(allRows, state.activityPeriodTab);
-    const monthRows     = applySelectedActivitiesMonth(periodRows, state);
+    const isMonthFilterActive = state.activityPeriodTab !== 'summer_2026' && state.activityPeriodTab !== 'archive';
+    const monthRows     = isMonthFilterActive ? applySelectedActivitiesMonth(periodRows, state) : periodRows;
     const filteredRows  = applyActivitiesLocalFilters(monthRows, state, state?.clientSettings);
 
     const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
@@ -1341,7 +1342,7 @@ export const activitiesScreen = {
       safeRows.length === 0
         ? dsEmptyState(periodRows.length === 0
             ? 'אין פעילויות להצגה בתקופה זו'
-            : monthRows.length === 0
+            : (isMonthFilterActive && monthRows.length === 0)
               ? 'אין פעילויות להצגה בחודש הנבחר'
               : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
