@@ -71,8 +71,8 @@ function fmtIls(num) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   });
-  // Keep the number and currency sign together in the correct visual order inside RTL text.
-  return `<span class="money money--ils" dir="ltr">${formatted}&nbsp;₪</span>`;
+
+  return `<span class="money money--ils" dir="ltr"><span class="money__value">${formatted}</span><span class="money__symbol">₪</span></span>`;
 }
 
 function fmtDate(val) {
@@ -388,7 +388,24 @@ const ISRAA_CSS = `<style data-israa-styles>
 .israa-table-wrap{overflow-x:auto;border:1px solid var(--ds-border,#e2e8f0);border-radius:6px;background:#fff}
 .israa-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;background:#fff}
 .israa-th{background:var(--ds-table-head-bg,#f1f5f9);padding:5px 8px;text-align:right;font-weight:600;white-space:nowrap;border-bottom:1px solid var(--ds-border,#e2e8f0);font-size:12px}
-.money{display:inline-block;direction:ltr;unicode-bidi:isolate;white-space:nowrap;font-variant-numeric:tabular-nums}
+.money{
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  direction:ltr;
+  unicode-bidi:isolate;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+
+.money__value{
+  display:inline-block;
+}
+
+.money__symbol{
+  display:inline-block;
+  line-height:1;
+}
 .israa-th--actions{width:72px;text-align:center}
 .israa-cell{padding:3px 6px;border-bottom:1px solid var(--ds-border,#f1f5f9);vertical-align:middle;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .israa-cell--actions{text-align:center;white-space:nowrap;overflow:visible;width:72px}
@@ -435,10 +452,37 @@ const ISRAA_CSS = `<style data-israa-styles>
 .sim-goal-opts__formatted{font-size:14px;font-weight:700;color:var(--ds-text,#1e293b)}
 .sim-goal-opts__result{font-size:15px;font-weight:600;color:var(--ds-text,#1e293b);line-height:1.9}
 .sim-goal-opts__highlight{font-weight:800;color:var(--ds-accent,#1a3358)}
-.sim-table-section{margin-top:6px;display:flex;flex-direction:column;align-items:flex-end}
-.sim-table-section .israa-toolbar{width:fit-content;min-width:520px;max-width:100%;justify-content:flex-start}
-.sim-table-section .israa-table-wrap{width:fit-content;min-width:520px;max-width:100%;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 2px 8px rgba(26,51,88,.06)}
-@media (max-width:700px){.sim-table-section .israa-toolbar,.sim-table-section .israa-table-wrap{width:100%;min-width:0}}
+.sim-table-section{
+  margin-top:18px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+
+.sim-table-section .israa-toolbar{
+  width:520px;
+  max-width:100%;
+  display:flex;
+  justify-content:flex-start;
+  margin-bottom:8px;
+}
+
+.sim-table-section .israa-table-wrap{
+  width:520px;
+  max-width:100%;
+  background:#fff;
+  border:1px solid #cbd5e1;
+  border-radius:8px;
+  box-shadow:0 2px 8px rgba(26,51,88,.06);
+}
+
+@media (max-width:700px){
+  .sim-table-section .israa-toolbar,
+  .sim-table-section .israa-table-wrap{
+    width:100%;
+    min-width:0;
+  }
+}
 .sim-table{table-layout:auto;width:auto;background:#fff;border-collapse:separate;border-spacing:0}
 .sim-table .israa-th{background:#f8fafc;border-bottom:1px solid #cbd5e1;border-inline-start:1px solid #e2e8f0;font-weight:700}
 .sim-table .israa-th:first-child{border-inline-start:none}
