@@ -67,7 +67,12 @@ function getActivityNames(state) {
 
 // ── Formatting helpers ─────────────────────────────────────────────────────────
 function fmtIls(num) {
-  return '₪ ' + (Number(num) || 0).toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const formatted = (Number(num) || 0).toLocaleString('he-IL', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  });
+  // Keep the number and currency sign together in the correct visual order inside RTL text.
+  return `<span class="money money--ils" dir="ltr">${formatted}&nbsp;₪</span>`;
 }
 
 function fmtDate(val) {
@@ -196,15 +201,17 @@ function simCalc(rows, collab) {
 // Pure local calculation — no network calls. Returns safe HTML (numbers + fixed strings only).
 function simGoalLines(calc) {
   if (calc.overGoal || calc.balance <= 0) {
-    const lines = ['היעד הושג. אין צורך בקורסים או סדנאות נוספים כדי להגיע ליעד.'];
-    if (calc.overAmt > 0) lines.push(`מעבר ליעד: +${fmtIls(calc.overAmt)}`);
+    const lines = ['<strong class="sim-goal-opts__highlight">היעד הושג.</strong> אין צורך בקורסים או סדנאות נוספים כדי להגיע ליעד.'];
+    if (calc.overAmt > 0) lines.push(`מעבר ליעד: <strong class="sim-goal-opts__highlight">+${fmtIls(calc.overAmt)}</strong>`);
     return lines.join('<br>');
   }
   const courses   = Math.ceil(calc.balance * 0.7 / 9000);
   const workshops = Math.ceil(calc.balance * 0.3 / 500);
+  const coursesText = courses.toLocaleString('he-IL');
+  const workshopsText = workshops.toLocaleString('he-IL');
   return [
-    `להגעה ליעד אפשר להביא עוד ${courses.toLocaleString('he-IL')} קורסים במחיר ממוצע של ₪ 9,000 לקורס.`,
-    `להגעה ליעד אפשר להביא עוד ${workshops.toLocaleString('he-IL')} סדנאות מייקרים במחיר ממוצע של ₪ 500 לסדנה.`
+    `להגעה ליעד אפשר להביא עוד <strong class="sim-goal-opts__highlight">${coursesText} קורסים</strong> במחיר ממוצע של <strong class="sim-goal-opts__highlight">${fmtIls(9000)}</strong> לקורס.`,
+    `להגעה ליעד אפשר להביא עוד <strong class="sim-goal-opts__highlight">${workshopsText} סדנאות מייקרים</strong> במחיר ממוצע של <strong class="sim-goal-opts__highlight">${fmtIls(500)}</strong> לסדנה.`
   ].join('<br>');
 }
 
@@ -222,9 +229,9 @@ function simCardsHtml(calc) {
 
 function simProgressHtml(calc) {
   const fill = Math.min(calc.rawPct, 100).toFixed(2);
-  return `<div class="sim-progress">
+  return `<div class="sim-progress" dir="rtl">
+    <div class="sim-progress__head"><span class="sim-progress__pct">${calc.rawPct.toFixed(1)}%</span></div>
     <div class="sim-progress__track"><div class="sim-progress__fill${calc.overGoal ? ' sim-progress__fill--over' : ''}" style="width:${fill}%"></div></div>
-    <span class="sim-progress__pct">${calc.rawPct.toFixed(1)}%</span>
   </div>`;
 }
 
@@ -237,7 +244,7 @@ function simGoalOptionsHtml(calc, collab) {
         <span>סה"כ שיתופי פעולה:</span>
         <input class="israa-inp sim-goal-opts__collab-inp" type="number" min="0" step="1"
                value="${escapeHtml(String(collabAmt))}" data-sim-collab placeholder="0" />
-        <span class="sim-goal-opts__ils">₪</span>
+        <span class="sim-goal-opts__formatted" data-sim-collab-formatted>${fmtIls(collabAmt)}</span>
       </label>
     </div>
     <div class="sim-goal-opts__result" data-sim-goal-result>${simGoalLines(calc)}</div>
@@ -308,7 +315,7 @@ function simPanelHtml(rows, editingId, editData, addingNew, newData, error, load
   </div>`;
 }
 
-// ── Tab bar + full HTML ────────────────────────────────────────────────────────
+// ── Tab bar + full HTML ─────────────────────────────────────
 function tabBarHtml(activeTab) {
   return `<div class="israa-tabbar" role="tablist" dir="rtl">
     <button class="israa-tab${activeTab === 'table' ? ' is-active' : ''}" data-israa-tab="table" role="tab">טבלת תוכניות</button>
@@ -324,7 +331,7 @@ function fullHtml(activeTab, actNames) {
   return tabBarHtml(activeTab) + progTableHtml(_rows, _editingId, _editData, _addingNew, _newData, _error, _expandedId, actNames);
 }
 
-// ── CSV export ─────────────────────────────────────────────────────────────────
+// ── CSV export ──────────────────────────────────────────────
 function exportToCsv(rows) {
   const hdr = PROG_COLS.map((c) => c.label);
   const csvRows = [hdr.join(','), ...rows.map((row) =>
@@ -342,7 +349,7 @@ function exportToCsv(rows) {
   URL.revokeObjectURL(url);
 }
 
-// ── Form data collectors ───────────────────────────────────────────────────────
+// ── Form data collectors ────────────────────────────────────
 function collectProgForm(mainTr) {
   // Contact fields live in the adjacent prog-detail-row; check there too
   const detailTr = mainTr.nextElementSibling?.classList.contains('prog-detail-row')
@@ -369,18 +376,19 @@ function collectSimForm(tr) {
   };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════
 // CSS
-// ══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════
 const ISRAA_CSS = `<style data-israa-styles>
 .israa-mgmt{direction:rtl}
 .israa-tabbar{display:flex;gap:4px;margin-bottom:14px;border-bottom:2px solid var(--ds-border,#e2e8f0)}
 .israa-tab{background:none;border:none;border-bottom:3px solid transparent;padding:8px 18px;font-size:14px;cursor:pointer;color:var(--ds-text-secondary,#64748b);margin-bottom:-2px;transition:color .15s,border-color .15s}
 .israa-tab.is-active{color:var(--ds-accent,#1a3358);border-bottom-color:var(--ds-accent,#1a3358);font-weight:600}
 .israa-toolbar{display:flex;gap:8px;margin-bottom:10px;align-items:center}
-.israa-table-wrap{overflow-x:auto;border:1px solid var(--ds-border,#e2e8f0);border-radius:6px}
-.israa-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.israa-table-wrap{overflow-x:auto;border:1px solid var(--ds-border,#e2e8f0);border-radius:6px;background:#fff}
+.israa-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;background:#fff}
 .israa-th{background:var(--ds-table-head-bg,#f1f5f9);padding:5px 8px;text-align:right;font-weight:600;white-space:nowrap;border-bottom:1px solid var(--ds-border,#e2e8f0);font-size:12px}
+.money{display:inline-block;direction:ltr;unicode-bidi:isolate;white-space:nowrap;font-variant-numeric:tabular-nums}
 .israa-th--actions{width:72px;text-align:center}
 .israa-cell{padding:3px 6px;border-bottom:1px solid var(--ds-border,#f1f5f9);vertical-align:middle;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .israa-cell--actions{text-align:center;white-space:nowrap;overflow:visible;width:72px}
@@ -413,25 +421,34 @@ const ISRAA_CSS = `<style data-israa-styles>
 .sim-card__val{font-size:17px;font-weight:700;color:var(--ds-text,#1e293b);white-space:nowrap}
 .sim-card__val--goal{color:#1a3358}
 .sim-card__val--over{color:#16a34a}
-.sim-progress{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-.sim-progress__track{flex:1;height:10px;background:#e2e8f0;border-radius:99px;overflow:hidden}
+.sim-progress{max-width:680px;margin:0 auto 16px;direction:rtl}
+.sim-progress__head{display:flex;justify-content:flex-start;margin-bottom:5px}
+.sim-progress__track{height:10px;background:#e2e8f0;border-radius:99px;overflow:hidden;display:flex;justify-content:flex-start;direction:rtl}
 .sim-progress__fill{height:100%;background:var(--ds-accent,#1a3358);border-radius:99px;transition:width .4s ease}
 .sim-progress__fill--over{background:#16a34a}
-.sim-progress__pct{font-size:12px;font-weight:600;white-space:nowrap;min-width:40px}
-.sim-goal-opts{background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;padding:14px 18px;margin-bottom:14px}
-.sim-goal-opts__title{font-size:15px;font-weight:700;color:var(--ds-text,#1e293b);margin-bottom:10px}
+.sim-progress__pct{font-size:12px;font-weight:700;white-space:nowrap;min-width:40px;color:var(--ds-text,#1e293b)}
+.sim-goal-opts{background:#fff;border:1.5px solid #cbd5e1;border-radius:10px;padding:14px 18px;margin:0 auto 16px;max-width:880px;box-shadow:0 2px 8px rgba(26,51,88,.05)}
+.sim-goal-opts__title{font-size:17px;font-weight:800;color:var(--ds-text,#1e293b);margin-bottom:10px;text-align:right}
 .sim-goal-opts__collab-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.sim-goal-opts__collab-label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--ds-text,#1e293b)}
-.sim-goal-opts__collab-inp{width:120px!important;text-align:left}
-.sim-goal-opts__ils{font-size:13px}
-.sim-goal-opts__result{font-size:14px;color:var(--ds-text,#1e293b);line-height:1.8}
-.sim-table-section{margin-top:4px}
-.sim-table-section .israa-table-wrap{width:fit-content;min-width:300px;max-width:100%}
-@media (max-width:700px){.sim-table-section .israa-table-wrap{width:100%}}
-.sim-table{table-layout:auto;width:auto}
+.sim-goal-opts__collab-label{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ds-text,#1e293b);flex-wrap:wrap}
+.sim-goal-opts__collab-inp{width:120px!important;text-align:left;direction:ltr}
+.sim-goal-opts__formatted{font-size:14px;font-weight:700;color:var(--ds-text,#1e293b)}
+.sim-goal-opts__result{font-size:15px;font-weight:600;color:var(--ds-text,#1e293b);line-height:1.9}
+.sim-goal-opts__highlight{font-weight:800;color:var(--ds-accent,#1a3358)}
+.sim-table-section{margin-top:6px;display:flex;flex-direction:column;align-items:flex-end}
+.sim-table-section .israa-toolbar{width:fit-content;min-width:520px;max-width:100%;justify-content:flex-start}
+.sim-table-section .israa-table-wrap{width:fit-content;min-width:520px;max-width:100%;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 2px 8px rgba(26,51,88,.06)}
+@media (max-width:700px){.sim-table-section .israa-toolbar,.sim-table-section .israa-table-wrap{width:100%;min-width:0}}
+.sim-table{table-layout:auto;width:auto;background:#fff;border-collapse:separate;border-spacing:0}
+.sim-table .israa-th{background:#f8fafc;border-bottom:1px solid #cbd5e1;border-inline-start:1px solid #e2e8f0;font-weight:700}
+.sim-table .israa-th:first-child{border-inline-start:none}
+.sim-table .israa-cell{background:#fff;border-bottom:1px solid #e2e8f0;border-inline-start:1px solid #eef2f7}
+.sim-table .israa-cell:first-child{border-inline-start:none}
+.sim-table .israa-row:nth-child(even) .israa-cell{background:#fbfdff}
+.sim-table .israa-row:hover .israa-cell{background:#f8fafc}
 .sim-th--date{width:90px;text-align:right}
-.sim-th--amt{width:110px;text-align:right}
-.sim-th--comm{width:100px;text-align:right}
+.sim-th--amt{width:112px;text-align:right}
+.sim-th--comm{width:106px;text-align:right}
 .sim-cell--date{text-align:right;white-space:nowrap}
 .sim-cell--amt{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .sim-cell--comm{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ds-text-secondary,#64748b)}
@@ -452,9 +469,9 @@ const ISRAA_CSS = `<style data-israa-styles>
 .prog-detail-cell--edit .prog-detail__field .israa-inp{width:150px!important}
 </style>`;
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════
 // SCREEN EXPORT
-// ══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════
 export const israaManagementScreen = {
   load: async ({ api, state }) => {
     if (!isAllowedUser(state)) return { rows: [] };
@@ -647,9 +664,11 @@ export const israaManagementScreen = {
     mgmt.addEventListener('input', (e) => {
       if (!e.target.matches('[data-sim-collab]')) return;
       const val = Math.max(0, parseFloat(e.target.value) || 0);
-      // Update only the result node directly — zero DOM churn, zero network call
+      // Update only the result/formatted nodes directly — zero DOM churn, zero network call
       const resultEl = mgmt.querySelector('[data-sim-goal-result]');
       if (resultEl) resultEl.innerHTML = simGoalLines(simCalc(_simRows, val));
+      const formattedEl = mgmt.querySelector('[data-sim-collab-formatted]');
+      if (formattedEl) formattedEl.innerHTML = fmtIls(val);
     });
 
     // On blur: commit value and repaint cards/progress — no focus loss (change fires after blur)
