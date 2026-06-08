@@ -1,6 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { hebrewPermissionField, hebrewRole, translateApiErrorForUser, hebrewColumn } from './shared/ui-hebrew.js';
-import { dsPageHeader, dsCard, dsScreenStack, dsEmptyState, dsStatusChip, dsKpiGrid } from './shared/layout.js';
+import { dsPageHeader, dsScreenStack, dsEmptyState, dsStatusChip } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { showConfirmModal } from './shared/interactions.js';
 
@@ -103,12 +103,6 @@ function sortedPermissionEditorKeys(row) {
   return keys;
 }
 
-function roleChipKind(role) {
-  if (role === 'admin') return 'danger';
-  if (role === 'operation_manager') return 'warning';
-  return 'neutral';
-}
-
 function buildPermFlagGrid(row, keys) {
   const allFlags = keys.filter((k) => k.startsWith('view_') || k.startsWith('can_'));
   if (allFlags.length === 0) return '';
@@ -122,32 +116,6 @@ function buildPermFlagGrid(row, keys) {
   }).join('');
 
   return `<div class="ds-perm-flag-grid">${chips}</div>`;
-}
-
-
-function resolveEmployeeNumber(row) {
-  const source = row && typeof row === 'object' ? row : {};
-  const preferredKeys = [
-    'entry_code',
-    'employee_number',
-    'employeeNumber',
-    'employee_id',
-    'employeeId',
-    'worker_number',
-    'payroll_number',
-    'payrollNumber',
-    'ms',
-    'id'
-  ];
-
-  for (const key of preferredKeys) {
-    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
-    const value = source[key];
-    if (value == null) continue;
-    const text = String(value).trim();
-    if (text) return text;
-  }
-  return '—';
 }
 
 function buildAddUserDrawerHtml(roleDefaults) {
@@ -247,16 +215,16 @@ function buildEditDrawerHtml(row) {
   </div>`;
 }
 
+const TRASH_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/><path d="M9 6V4h6v2"/></svg>`;
+
 function renderUserRow(row, canEdit, isAdmin, currentUserId, adminCount) {
   const uid = escapeHtml(row.user_id);
   const code = permRowRoleCode(row);
   const label = permRowRoleLabel(row);
-  const searchHay = [row.full_name, row.user_id, code, label, row.display_role2].filter(Boolean).join(' ');
-  const roleKey = code;
   const isActive = String(row.active || '').toLowerCase() === 'yes';
   const activeLabel = isActive ? 'פעיל/ה' : 'לא פעיל/ה';
-  const activeKind = isActive ? 'success' : 'neutral';
   const isSelf = String(row.user_id) === String(currentUserId);
+  const employeeCode = row.user_id ? escapeHtml(String(row.user_id)) : '—';
 
   const editBtn = canEdit
     ? `<button type="button" class="ds-btn ds-btn--sm" data-edit-perm data-user-id="${uid}" title="עריכת הרשאות">עריכה</button>`
@@ -271,17 +239,17 @@ function renderUserRow(row, canEdit, isAdmin, currentUserId, adminCount) {
   const isLastAdmin = adminCount === 1 && permRowRoleCode(row) === 'admin';
   const deleteBtn = isAdmin && !isActive
     ? isLastAdmin
-      ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" disabled title="לא ניתן למחוק את מנהל המערכת האחרון">מחק</button>`
-      : `<button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-delete-user data-user-id="${uid}">מחק</button>`
+      ? `<button type="button" class="ds-perm-delete-btn" disabled title="לא ניתן למחוק את מנהל המערכת האחרון" aria-label="לא ניתן למחוק">${TRASH_ICON}</button>`
+      : `<button type="button" class="ds-perm-delete-btn" data-delete-user data-user-id="${uid}" title="מחיקת משתמש" aria-label="מחיקת משתמש">${TRASH_ICON}</button>`
     : '';
 
   const actionBtns = [editBtn, permissionsBtn, deactivateBtn, reactivateBtn, deleteBtn].filter(Boolean).join(' ');
 
-  return `<tr class="ds-perm-row" data-perm-user="${uid}" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(roleKey)}" data-status-filter="${isActive ? 'yes' : 'no'}">
+  return `<tr class="ds-perm-row" data-perm-user="${uid}">
     <td style="font-weight:600;">${escapeHtml(row.full_name || uid)}</td>
-    <td class="ds-muted" style="font-size:0.75rem;">${escapeHtml(resolveEmployeeNumber(row))}</td>
-    <td>${dsStatusChip(label, roleChipKind(code))}</td>
-    <td>${dsStatusChip(activeLabel, activeKind)}</td>
+    <td class="ds-muted">${employeeCode}</td>
+    <td>${escapeHtml(label)}</td>
+    <td>${escapeHtml(activeLabel)}</td>
     <td><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${actionBtns}</div></td>
   </tr>`;
 }
@@ -338,154 +306,27 @@ export const permissionsScreen = {
       state?.user?.display_role === 'admin' || state?.user?.display_role === 'operation_manager';
     const isAdmin = state?.user?.display_role === 'admin';
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
-
-    const activeCount = safeRows.filter((r) => String(r.active || '').toLowerCase() === 'yes').length;
     const adminCount = safeRows.filter((r) => permRowRoleCode(r) === 'admin').length;
-    const reviewerCount = safeRows.filter((r) => permRowRoleCode(r) === 'operation_manager').length;
-    const authorizedCount = safeRows.filter((r) => permRowRoleCode(r) === 'authorized_user').length;
-    const instructorCount = safeRows.filter((r) => permRowRoleCode(r) === 'instructor').length;
-
-    const kpis = [
-      { label: 'סה"כ משתמשים', value: String(safeRows.length) },
-      { label: 'פעילים', value: String(activeCount) },
-      { label: 'מנהלים', value: String(adminCount) },
-      { label: 'בקרי תפעול', value: String(reviewerCount) },
-      ...(authorizedCount > 0 ? [{ label: 'משתמשים מורשים', value: String(authorizedCount) }] : []),
-      ...(instructorCount > 0 ? [{ label: 'מדריכים', value: String(instructorCount) }] : [])
-    ];
 
     const rowPairs = safeRows.map((row) => renderUserRow(row, canEdit, isAdmin, state?.user?.user_id, adminCount)).join('');
 
-    const body =
+    const tableHtml =
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו שורות הרשאה')
-        : `<div class="ds-table-wrap" dir="rtl"><table class="ds-table ds-perm-table">
-            <thead><tr><th>שם</th><th>מספר עובד</th><th>תפקיד</th><th>סטטוס</th><th style="text-align:start;">פעולות</th></tr></thead>
+        : `<div class="ds-table-wrap ds-perm-table-wrap" dir="rtl"><table class="ds-table ds-perm-table">
+            <thead><tr><th>שם</th><th>קוד עובד</th><th>תפקיד</th><th>סטטוס</th><th style="text-align:start;">פעולות</th></tr></thead>
             <tbody>${rowPairs}</tbody>
           </table></div>`;
 
-    const roleFilters = [...new Set(safeRows.map((r) => permRowRoleCode(r)).filter(Boolean))].map((r) => ({
-      value: r,
-      label: hebrewRole(r)
-    }));
-
-    const statusFilters = [
-      { value: 'yes', label: 'פעיל/ה' },
-      { value: 'no', label: 'לא פעיל/ה' }
-    ];
-
-    const toolsBar = safeRows.length
-      ? `<div class="ds-perm-tools" role="search" aria-label="חיפוש וסינון משתמשים">
-          <input type="search" class="ds-input ds-input--sm ds-perm-tools__q" data-page-q placeholder="חיפוש משתמש…" aria-label="חיפוש משתמש" />
-          <select class="ds-input ds-input--sm ds-perm-tools__select" data-page-role-filter aria-label="סינון לפי תפקיד">
-            <option value="">כל התפקידים</option>
-            ${roleFilters.map((f) => `<option value="${escapeHtml(String(f.value))}">${escapeHtml(f.label)}</option>`).join('')}
-          </select>
-          <select class="ds-input ds-input--sm ds-perm-tools__select" data-page-status-filter aria-label="סינון לפי סטטוס">
-            <option value="">כל הסטטוסים</option>
-            ${statusFilters.map((f) => `<option value="${f.value}">${f.label}</option>`).join('')}
-          </select>
-          ${isAdmin ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-add-user>הוסף משתמש</button>' : ''}
-        </div>`
-      : '';
-
     return dsScreenStack(`
       <section class="ds-perm-screen">
-        ${dsPageHeader('הרשאות', '')}
-        ${safeRows.length ? dsKpiGrid(kpis) : ''}
-        ${toolsBar}
-        ${dsCard({
-        title: 'משתמשים והרשאות',
-        badge: `${safeRows.length} משתמשים`,
-        body,
-        padded: safeRows.length === 0
-      })}
+        ${dsPageHeader('משתמשים והרשאות', '')}
+        ${tableHtml}
       </section>
     `);
   },
   bind({ root, data, api, ui, rerender, clearScreenDataCache }) {
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
-
-    const searchInput = root.querySelector('[data-page-q]');
-    const roleFilter = root.querySelector('[data-page-role-filter]');
-    const statusFilter = root.querySelector('[data-page-status-filter]');
-    const listRows = Array.from(root.querySelectorAll('[data-list-item]'));
-    let searchTimer = null;
-    const applyFilters = () => {
-      const q = String(searchInput?.value || '').trim().toLowerCase();
-      const role = String(roleFilter?.value || '').trim();
-      const status = String(statusFilter?.value || '').trim();
-      listRows.forEach((el) => {
-        const hay = String(el.getAttribute('data-search') || '').toLowerCase();
-        const rowRole = String(el.getAttribute('data-filter') || '').trim();
-        const rowStatus = String(el.getAttribute('data-status-filter') || '').trim();
-        const okQ = !q || hay.includes(q);
-        const okRole = !role || rowRole === role;
-        const okStatus = !status || rowStatus === status;
-        el.toggleAttribute('hidden', !(okQ && okRole && okStatus));
-      });
-    };
-    searchInput?.addEventListener('input', () => {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(applyFilters, 120);
-    });
-    roleFilter?.addEventListener('change', applyFilters);
-    statusFilter?.addEventListener('change', applyFilters);
-    const addUserBtn = root.querySelector('[data-add-user]');
-    if (addUserBtn && ui) {
-      addUserBtn.addEventListener('click', () => {
-        ui.openDrawer({
-          title: 'הוסף משתמש חדש',
-          content: buildAddUserDrawerHtml(data?.roleDefaults),
-          onOpen: (contentNode) => {
-            const statusEl = contentNode.querySelector('.ds-perm-save-status');
-            const submitBtn = contentNode.querySelector('[data-add-user-submit]');
-            const roleSelect = contentNode.querySelector('#new-display-role');
-            const previewEl = contentNode.querySelector('[data-role-preview]');
-
-            if (roleSelect && previewEl) {
-              roleSelect.addEventListener('change', () => {
-                previewEl.innerHTML = buildRolePreviewHtml(roleSelect.value, data?.roleDefaults);
-              });
-            }
-
-            if (!submitBtn) return;
-
-            submitBtn.addEventListener('click', async () => {
-              const user_id = contentNode.querySelector('#new-user-id')?.value.trim();
-              const full_name = contentNode.querySelector('#new-full-name')?.value.trim();
-              const entry_code = contentNode.querySelector('#new-entry-code')?.value.trim();
-              const display_role = contentNode.querySelector('#new-display-role')?.value;
-
-              if (!user_id) {
-                if (statusEl) statusEl.textContent = 'יש להזין מזהה משתמש';
-                return;
-              }
-
-              submitBtn.classList.add('is-loading');
-              if (statusEl) statusEl.textContent = '';
-              try {
-                await api.addUser({ user_id, full_name, entry_code, role: display_role });
-                if (statusEl) statusEl.textContent = 'המשתמש נוצר בהצלחה';
-                clearScreenDataCache?.();
-                if (typeof rerender === 'function') await rerender();
-                try {
-                  const freshData = await api.permissions();
-                  const newRow = (freshData?.rows || []).find((r) => String(r.user_id) === String(user_id));
-                  if (newRow) openEditModal(newRow);
-                } catch (autoOpenErr) {
-                  console.warn('[permissions] Could not auto-open edit drawer after user creation:', autoOpenErr);
-                }
-              } catch (error) {
-                if (statusEl) statusEl.textContent = translateApiErrorForUser(error?.message);
-              } finally {
-                submitBtn.classList.remove('is-loading');
-              }
-            });
-          }
-        });
-      });
-    }
 
     root.querySelectorAll('[data-deactivate-user]').forEach((btn) => {
       btn.addEventListener('click', (e) => {

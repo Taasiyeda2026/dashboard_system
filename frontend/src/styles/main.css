@@ -10450,68 +10450,26 @@ select.ds-input {
   }
 }
 
-/* Permissions page compact alignment (content area only) */
+/* Permissions page – compact table, 70% width, no filters */
 .ds-perm-screen .ds-page-header {
-  margin-bottom: var(--ds-space-2);
+  margin-bottom: var(--ds-space-3);
 }
 
-.ds-perm-screen .ds-kpi-grid {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: var(--ds-space-2);
-}
-
-.ds-perm-screen .ds-kpi {
-  min-height: 86px;
-  height: 100%;
-}
-
-.ds-perm-screen .ds-perm-tools {
-  margin-bottom: var(--ds-space-2);
-  gap: 8px;
-  flex-wrap: nowrap;
-}
-
-.ds-perm-screen .ds-perm-tools__q,
-.ds-perm-screen .ds-perm-tools__select,
-.ds-perm-screen .ds-perm-tools .ds-btn {
-  min-height: 34px;
-  height: 34px;
-}
-
-.ds-perm-screen .ds-perm-tools__q {
-  flex: 1 1 260px;
-  min-width: 280px;
-  max-width: 360px;
-  order: 1;
-}
-
-.ds-perm-screen .ds-perm-tools__select {
-  flex: 0 0 152px;
-  min-width: 152px;
-}
-
-.ds-perm-screen .ds-perm-tools__select[data-page-role-filter] { order: 2; }
-.ds-perm-screen .ds-perm-tools__select[data-page-status-filter] { order: 3; }
-.ds-perm-screen .ds-perm-tools .ds-btn[data-add-user] { order: 4; }
-
-.ds-perm-screen .ds-card {
-  margin-top: 0;
-}
-
-.ds-perm-screen .ds-card__head {
-  padding-block: 10px;
+.ds-perm-table-wrap {
+  width: 70%;
+  margin-inline: auto;
 }
 
 .ds-perm-screen .ds-perm-table th,
 .ds-perm-screen .ds-perm-table td {
-  padding: 3px 8px;
-  line-height: 1.2;
+  padding: 2px 6px;
+  line-height: 1.15;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .ds-perm-screen .ds-perm-table td {
-  height: 34px;
+  height: 30px;
 }
 
 .ds-perm-screen .ds-perm-table td .ds-btn {
@@ -10519,29 +10477,43 @@ select.ds-input {
   padding: 1px 8px;
 }
 
-@media (max-width: 1200px) {
-  .ds-perm-screen .ds-kpi-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+/* Trash icon delete button */
+.ds-perm-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-sm, 4px);
+  background: transparent;
+  color: #ef4444;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: background 0.15s, opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.ds-perm-delete-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  opacity: 1;
+}
+
+.ds-perm-delete-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1100px) {
+  .ds-perm-table-wrap {
+    width: 90%;
   }
 }
 
-@media (max-width: 900px) {
-  .ds-perm-screen .ds-perm-tools {
-    flex-wrap: wrap;
-  }
-
-  .ds-perm-screen .ds-perm-tools__q,
-  .ds-perm-screen .ds-perm-tools__select,
-  .ds-perm-screen .ds-perm-tools .ds-btn {
-    flex: 1 1 100%;
-    min-width: 100%;
-    max-width: 320px;
-    height: auto;
-    min-height: 34px;
-  }
-
-  .ds-perm-screen .ds-kpi-grid {
-    grid-template-columns: repeat(2, minmax(280px, 320px));
+@media (max-width: 700px) {
+  .ds-perm-table-wrap {
+    width: 100%;
   }
 }
 
