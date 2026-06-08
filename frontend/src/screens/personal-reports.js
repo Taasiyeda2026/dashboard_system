@@ -1082,14 +1082,14 @@ async function upsertDeclaredTravel(entry) {
   const isPublicTransport = travelType === 'public_transport';
   if (!isPublicTransport) {
     const rpcPayload = {
-      p_id: id || null,
       p_report_id: baseEntry.report_id,
-      p_employee_id: baseEntry.employee_id,
       p_travel_date: baseEntry.travel_date || null,
       p_origin: baseEntry.origin || '',
       p_destination: baseEntry.destination || '',
       p_description: baseEntry.description || '',
-      p_roundtrip_km: Number(baseEntry.roundtrip_km) || 0
+      p_roundtrip_km: Number(baseEntry.roundtrip_km) || 0,
+      p_notes: baseEntry.notes || '',
+      p_entry_id: id || null
     };
     console.error('[declared_travel] payload before upsert:', JSON.stringify(rpcPayload));
     const { data, error } = await supabase.rpc('upsert_declared_travel_entry', rpcPayload);

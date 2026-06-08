@@ -80,8 +80,8 @@ test('source keeps personal reports auth temporary and maps verified login to au
   assert.match(source, /isPersonalReportsUnlocked = false/);
   assert.match(source, /function authenticateInternalEmployee/);
   assert.match(source, /auth\.signInWithPassword/);
-  assert.match(source, /authUserId = authData\.user\.id/);
-  assert.match(source, /sameDashboardUser\(userRow, dashboardUser\)/);
+  assert.match(source, /const authUserId = firstUuid\(/);
+  assert.match(source, /user\?\.auth_user_id/);
   assert.match(source, /assertEmployeeUuid\(employeeId\)/);
   assert.doesNotMatch(source, /localStorage|sessionStorage/);
   assert.match(source, /אימות נוסף לדוחות אישיים/);
@@ -187,8 +187,8 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
   const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 598;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 598;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 608;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 608;/);
   assert.match(css, /\.pr-input--month-compact/);
 });
 
@@ -267,6 +267,10 @@ test('source computes km reimbursement server-side without exposing travel rates
   assert.doesNotMatch(source, /rate_per_km/);
   assert.doesNotMatch(source, /employee_travel_rates/);
   assert.match(source, /\.rpc\('upsert_declared_travel_entry'/);
+  assert.match(source, /p_entry_id: id \|\| null/);
+  assert.match(source, /p_notes: baseEntry\.notes \|\| ''/);
+  assert.doesNotMatch(source, /p_id: id \|\| null/);
+  assert.doesNotMatch(source, /p_employee_id: baseEntry\.employee_id/);
   assert.match(source, /missing_travel_rate/);
   assert.match(source, /setReportTab\(root, 'expenses'\)/);
 });
