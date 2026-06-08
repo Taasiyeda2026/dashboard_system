@@ -58,11 +58,11 @@ const MONTHS_HE = ['ינואר','פברואר','מרץ','אפריל','מאי','�
 
 const STATUS_LABELS = {
   draft:            'פתוח לדיווח',
-  submitted:        'נשלח',
-  reviewed:         'נבדק',
-  approved:         'טופל ואושר לשכר',
+  submitted:        'הוגש לבדיקה',
+  reviewed:         'הוגש לבדיקה',
   needs_correction: 'הוחזר לתיקון',
-  paid:             'החודש נסגר'
+  approved:         'אושר',
+  paid:             'שולם / טופל לשכר'
 };
 
 const STATUS_KIND = {
@@ -75,17 +75,17 @@ const STATUS_KIND = {
 };
 
 const MY_REPORT_STATUS_META = {
-  not_started:      { label: 'לא התחיל', kind: 'neutral' },
-  in_progress:      { label: 'בטיפול', kind: 'warning' },
-  submitted:        { label: 'נשלח לאישור', kind: 'warning' },
+  not_started:      { label: 'פתוח לדיווח', kind: 'neutral' },
+  in_progress:      { label: 'פתוח לדיווח', kind: 'warning' },
+  submitted:        { label: 'הוגש לבדיקה', kind: 'warning' },
   needs_correction: { label: 'הוחזר לתיקון', kind: 'danger' },
-  approved:         { label: 'אושר', kind: 'success' }
+  approved:         { label: 'אושר', kind: 'success' },
+  paid:             { label: 'שולם / טופל לשכר', kind: 'success' }
 };
 
-const ADMIN_MANAGE_STATUS_META = {
-  approved:     { label: 'אושר', kind: 'success' },
-  not_approved: { label: 'לא אושר', kind: 'neutral' }
-};
+const ADMIN_MANAGE_STATUS_META = Object.fromEntries(
+  Object.entries(STATUS_LABELS).map(([status, label]) => [status, { label, kind: STATUS_KIND[status] || 'neutral' }])
+);
 
 const PR_SCREEN_MODES = {
   MY_REPORTS: 'my-reports',
@@ -270,15 +270,15 @@ function reportHasActivity(report, totals = {}) {
 function deriveMyReportStatus(report, totals = {}) {
   if (!report) return 'not_started';
   if (report.status === 'needs_correction') return 'needs_correction';
-  if (report.status === 'approved' || report.status === 'paid') return 'approved';
+  if (report.status === 'paid') return 'paid';
+  if (report.status === 'approved') return 'approved';
   if (report.status === 'submitted' || report.status === 'reviewed') return 'submitted';
   if (report.status === 'draft') return reportHasActivity(report, totals) ? 'in_progress' : 'not_started';
   return 'not_started';
 }
 
 function deriveAdminManageStatus(report) {
-  if (report && (report.status === 'approved' || report.status === 'paid')) return 'approved';
-  return 'not_approved';
+  return report?.status || 'draft';
 }
 
 function manageStatusOptionsHtml(selectedStatus = '') {
@@ -379,6 +379,22 @@ function attachmentStatusHtml(attachment) {
   return attachment ? 'צורפה' : 'לא צורפה';
 }
 
+function expenseAttachmentStatus(expense, attachment) {
+  if (attachment) return { label: 'צורפה', missing: false };
+  if (expenseHasReliabilityDeclaration(expense)) return { label: 'הצהרת מהימנות', missing: false };
+  return { label: 'חסרה', missing: true };
+}
+
+function absenceAttachmentStatus(absence, attachment) {
+  if (attachment) return { label: 'צורף אישור', missing: false };
+  if (absence?.absence_type === 'sick') return { label: 'חסר אישור מחלה', missing: true };
+  return { label: 'לא נדרש', missing: false };
+}
+
+function correctionNoteText(report) {
+  return String(report?.correction_note || report?.finance_notes || '').trim();
+}
+
 function calculatedAbsenceDays(row) {
   return countWorkdaysInclusive(row?.start_date, row?.end_date);
 }
@@ -389,19 +405,34 @@ function sumAbsenceDays(absences, type) {
     .reduce((sum, row) => sum + calculatedAbsenceDays(row), 0);
 }
 
+function expenseHasReliabilityDeclaration(expense) {
+  return permissionYes(expense?.reliability_declaration || expense?.integrity_declaration || expense?.no_receipt_declaration);
+}
+
 function missingExpenseAttachments(expenses, attachments) {
   return (expenses || []).filter((expense) => Number(expense.amount || 0) > 0
-    && !attachmentForEntry(attachments, 'expense_entry_id', expense.id));
+    && !attachmentForEntry(attachments, 'expense_entry_id', expense.id)
+    && !expenseHasReliabilityDeclaration(expense));
+}
+
+function missingSickAttachments(absences, attachments) {
+  return (absences || []).filter((absence) => absence?.absence_type === 'sick'
+    && !attachmentForEntry(attachments, 'absence_entry_id', absence.id));
 }
 
 async function assertSalaryReady(reportId) {
-  const [expenses, attachments] = await Promise.all([
+  const [expenses, absences, attachments] = await Promise.all([
     fetchExpenses(reportId),
+    fetchAbsences(reportId),
     fetchAttachments(reportId)
   ]);
   const missingExpenses = missingExpenseAttachments(expenses, attachments);
   if (missingExpenses.length) {
     throw new Error(`missing_expense_receipts:${missingExpenses.length}`);
+  }
+  const missingSick = missingSickAttachments(absences, attachments);
+  if (missingSick.length) {
+    throw new Error(`missing_sick_attachments:${missingSick.length}`);
   }
 }
 
@@ -545,7 +576,19 @@ function friendlyPersonalReportsError(error, fallback = 'אירעה תקלה ב�
     return 'לא נמצא מזהה עובד תקין במערכת. יש לצאת ולהיכנס מחדש לדשבורד, ואז לנסות שוב.';
   }
   if (/missing_expense_receipts/i.test(raw)) {
-    return 'לא ניתן לשלוח או לאשר לשכר: קיימת הוצאה כספית ללא קובץ אסמכתא / קבלה.';
+    return 'קיימת הוצאה כספית ללא קבלה וללא הצהרת מהימנות.';
+  }
+  if (/missing_sick_attachments/i.test(raw)) {
+    return 'קיים יום מחלה ללא אישור מחלה.';
+  }
+  if (/correction_note_required/i.test(raw)) {
+    return 'חובה להזין הודעה לעובד בעת החזרה לתיקון.';
+  }
+  if (/report_paid_not_returnable/i.test(raw)) {
+    return 'דוח ששולם / טופל לשכר לא ניתן להחזיר לתיקון.';
+  }
+  if (/report_status_not_returnable/i.test(raw)) {
+    return 'ניתן להחזיר לתיקון רק דוח שהוגש לבדיקה או אושר.';
   }
   if (/missing_travel_rate|missing travel rate/i.test(raw)) {
     return 'לא הוגדר תעריף החזר נסיעות לעובד. יש לפנות למנהל המערכת.';
@@ -980,11 +1023,13 @@ async function updateReportMeta(reportId, fields) {
 }
 
 async function submitReport(reportId, signatureFullName) {
+  await assertSalaryReady(reportId);
   const { error } = await supabase
     .from('personal_reports')
     .update({
       status: 'submitted',
       submitted_at: new Date().toISOString(),
+      correction_note: null,
       signature_full_name: signatureFullName || null,
       signature_confirmed_at: new Date().toISOString()
     })
@@ -995,6 +1040,32 @@ async function submitReport(reportId, signatureFullName) {
 async function adminUpdateReport(reportId, fields) {
   const { error } = await supabase.from('personal_reports').update(fields).eq('id', reportId);
   if (error) throw error;
+}
+
+async function adminReturnReportForCorrection(reportId, correctionNote) {
+  const note = String(correctionNote || '').trim();
+  if (!note) throw new Error('correction_note_required');
+  const { error } = await supabase.rpc('return_personal_report_for_correction', {
+    p_report_id: reportId,
+    p_correction_note: note
+  });
+  if (!error) return;
+  if (!/function .*return_personal_report_for_correction|schema cache|PGRST202/i.test(String(error.message || error.code || ''))) {
+    throw error;
+  }
+  const report = await loadReportRow(reportId, { force: true });
+  if (report?.status === 'paid') throw new Error('report_paid_not_returnable');
+  if (!['submitted', 'approved'].includes(report?.status)) throw new Error('report_status_not_returnable');
+  const { error: fallbackError } = await supabase.from('personal_reports')
+    .update({
+      status: 'needs_correction',
+      correction_note: note,
+      correction_requested_at: new Date().toISOString(),
+      correction_requested_by: prSession?.user?.id || null,
+      finance_notes: note
+    })
+    .eq('id', reportId);
+  if (fallbackError) throw fallbackError;
 }
 
 async function fetchDeclaredTravel(reportId) {
@@ -1236,15 +1307,22 @@ async function loadEmployeeReportsManagementList(filters = _prLastAdminFilters, 
 async function loadMyReportCardData(employeeId, month, year, { force = false } = {}) {
   const report = await loadCurrentMonthReport(employeeId, month, year, { force });
   let totals = { travel: 0, expenses: 0, all: 0 };
+  let absences = { vacation: 0, sick: 0, declaration: 0 };
   if (report?.id) {
     const bundle = await loadReportBundle(report.id, { force });
     const travel = (bundle?.travel || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
     const expenses = (bundle?.expenses || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
     totals = { travel, expenses, all: travel + expenses };
+    absences = {
+      vacation: sumAbsenceDays(bundle?.absences || [], 'vacation'),
+      sick: sumAbsenceDays(bundle?.absences || [], 'sick'),
+      declaration: sumAbsenceDays(bundle?.absences || [], 'declaration')
+    };
   }
   return {
     report,
     totals,
+    absences,
     workDays: report?.work_days_in_month ?? null,
     myStatus: deriveMyReportStatus(report, totals)
   };
@@ -1378,11 +1456,13 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
   });
   const expenseRows = expenses.map((r) => {
     const attachment = attachmentForEntry(attachments, 'expense_entry_id', r.id);
-    return `<tr><td>${fmtDate(r.expense_date)}</td><td>${escapeHtml(r.description || '')}</td><td>₪${fmt(r.amount)}</td><td>${escapeHtml(attachmentStatusHtml(attachment))}</td></tr>`;
+    const attachmentStatus = expenseAttachmentStatus(r, attachment);
+    return `<tr><td>${fmtDate(r.expense_date)}</td><td>${escapeHtml(r.description || '')}</td><td>₪${fmt(r.amount)}</td><td>${escapeHtml(attachmentStatus.label)}</td></tr>`;
   });
   const absenceRows = absences.map((r) => {
     const attachment = attachmentForEntry(attachments, 'absence_entry_id', r.id);
-    return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td>${fmtNum(calculatedAbsenceDays(r))}</td><td>${escapeHtml(attachmentStatusHtml(attachment))}</td></tr>`;
+    const attachmentStatus = absenceAttachmentStatus(r, attachment);
+    return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td>${fmtNum(calculatedAbsenceDays(r))}</td><td>${escapeHtml(attachmentStatus.label)}</td></tr>`;
   });
 
   const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
@@ -1438,10 +1518,15 @@ function personalReportsModeTabsHtml(activeMode) {
   `;
 }
 
-function myReportSummaryHtml(totals = {}, workDays = null) {
+function myReportSummaryHtml(totals = {}, workDays = null, absences = {}) {
   const workDaysLabel = workDays === null || workDays === undefined || workDays === ''
-    ? '—'
+    ? 'חודש מלא'
     : fmtNum(workDays);
+  const absenceItems = [
+    Number(absences.vacation || 0) > 0 ? `<div class="pr-my-report-summary__item"><span class="pr-my-report-summary__label">חופש</span><strong class="pr-my-report-summary__value">${fmtNum(absences.vacation)}</strong></div>` : '',
+    Number(absences.sick || 0) > 0 ? `<div class="pr-my-report-summary__item"><span class="pr-my-report-summary__label">מחלה</span><strong class="pr-my-report-summary__value">${fmtNum(absences.sick)}</strong></div>` : '',
+    Number(absences.declaration || 0) > 0 ? `<div class="pr-my-report-summary__item"><span class="pr-my-report-summary__label">הצהרה</span><strong class="pr-my-report-summary__value">${fmtNum(absences.declaration)}</strong></div>` : ''
+  ].filter(Boolean).join('');
   return `
     <div class="pr-my-report-summary" aria-label="סיכום קצר">
       <div class="pr-my-report-summary__item">
@@ -1456,6 +1541,7 @@ function myReportSummaryHtml(totals = {}, workDays = null) {
         <span class="pr-my-report-summary__label">ימי עבודה</span>
         <strong class="pr-my-report-summary__value">${escapeHtml(workDaysLabel)}</strong>
       </div>
+      ${absenceItems}
     </div>
   `;
 }
@@ -1533,7 +1619,7 @@ function myReportsDashboardHtml(profile, {
               ${statusChip}
             </div>
           </div>
-          ${myReportSummaryHtml(totals, workDays)}
+          ${myReportSummaryHtml(totals, workDays, cardData?.absences || {})}
           <div class="pr-my-report-card__actions">${actions}</div>
   ` : myReportNoReportHtml();
 
@@ -1632,7 +1718,7 @@ function signatureDisplayName(profile, report) {
 function statusPanelHtml(report, reportPeriod, statusChip, statusText, correctionDate, resentText) {
   const detailRows = [
     reportInfoRowHtml('תקופת דיווח', reportPeriod.label),
-    reportInfoRowHtml('הערת כספים / סיבת החזרה', report.finance_notes || ''),
+    reportInfoRowHtml('הודעת תיקון מהמנהל', correctionNoteText(report)),
     reportInfoRowHtml('תאריך החזרה לתיקון', correctionDate),
     reportInfoRowHtml('נשלח מחדש', resentText)
   ].filter(Boolean).join('');
@@ -1679,6 +1765,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
 
   const absenceRows = absences.map((r) => {
     const attachment = attachmentForEntry(attachments, 'absence_entry_id', r.id);
+    const attachmentStatus = absenceAttachmentStatus(r, attachment);
     const actions = editable ? `
       <div class="pr-td-actions-group">
         ${prIconUploadHtml({ icon: 'receipt', title: 'צרף אסמכתא להיעדרות', attrs: `data-entry-id="${escapeHtml(r.id)}" data-entry-type="absence"` })}
@@ -1691,7 +1778,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <td class="pr-td-date">${fmtDate(r.start_date)}</td>
         <td class="pr-td-date">${fmtDate(r.end_date)}</td>
         <td class="pr-td-num">${fmtNum(calculatedAbsenceDays(r))}</td>
-        <td class="pr-col-status"><span class="pr-attachment-status ${attachment ? 'is-attached' : 'is-missing'}">${attachment ? 'צורפה' : 'חסרה'}</span></td>
+        <td class="pr-col-status"><span class="pr-attachment-status ${attachmentStatus.missing ? 'is-missing' : 'is-attached'}">${escapeHtml(attachmentStatus.label)}</span></td>
         <td class="pr-td-actions">${actions}</td>
       </tr>`;
   }).join('');
@@ -1733,7 +1820,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
             <div class="pr-field"><label class="pr-label">ימים מחושבים</label><input class="pr-input" type="number" name="calculated_days" readonly value="0" /></div>
           </div>
           <div class="pr-form-row">
-            <div class="pr-field pr-field--wide"><label class="pr-label">קובץ אסמכתא</label><input class="pr-input" type="file" name="attachment" accept="image/*,.pdf" /></div>
+            <div class="pr-field pr-field--wide"><label class="pr-label">אישור מחלה (נדרש רק במחלה)</label><input class="pr-input" type="file" name="attachment" accept="image/*,.pdf" /></div>
           </div>
           <div class="pr-add-form-actions">
             <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
@@ -1801,10 +1888,11 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
 
   const expenseRows = expenses.map(r => {
     const attachment = attachmentForEntry(attachments, 'expense_entry_id', r.id);
+    const attachmentStatus = expenseAttachmentStatus(r, attachment);
     const actions = editable ? `
       <div class="pr-td-actions-group">
         ${prIconUploadHtml({ icon: 'receipt', title: 'צרף קבלה או אסמכתא', attrs: `data-entry-id="${escapeHtml(r.id)}" data-entry-type="expense"` })}
-        ${prIconBtnHtml({ icon: 'edit', title: 'עריכה', action: 'edit-expense', attrs: `data-entry-id="${escapeHtml(r.id)}" data-expense-date="${escapeHtml(r.expense_date)}" data-document-type="${escapeHtml(r.document_type || 'receipt')}" data-description="${escapeHtml(r.description || '')}" data-amount="${escapeHtml(r.amount || '')}" data-notes="${escapeHtml(r.notes || '')}"` })}
+        ${prIconBtnHtml({ icon: 'edit', title: 'עריכה', action: 'edit-expense', attrs: `data-entry-id="${escapeHtml(r.id)}" data-expense-date="${escapeHtml(r.expense_date)}" data-document-type="${escapeHtml(r.document_type || 'receipt')}" data-description="${escapeHtml(r.description || '')}" data-amount="${escapeHtml(r.amount || '')}" data-notes="${escapeHtml(r.notes || '')}" data-reliability-declaration="${expenseHasReliabilityDeclaration(r) ? 'yes' : 'no'}"` })}
         ${prIconBtnHtml({ icon: 'delete', title: 'מחיקה', action: 'delete-entry', danger: true, attrs: `data-entry-id="${escapeHtml(r.id)}" data-entry-table="expense_entries"` })}
       </div>` : '';
     return `
@@ -1812,7 +1900,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <td class="pr-td-date">${fmtDate(r.expense_date)}</td>
         <td class="pr-col-detail">${escapeHtml(r.description)}</td>
         <td class="pr-td-num pr-td-amount">₪${fmt(r.amount)}</td>
-        <td class="pr-col-status"><span class="pr-attachment-status ${attachment ? 'is-attached' : 'is-missing'}">${attachment ? 'צורפה' : 'חסרה'}</span></td>
+        <td class="pr-col-status"><span class="pr-attachment-status ${attachmentStatus.missing ? 'is-missing' : 'is-attached'}">${escapeHtml(attachmentStatus.label)}</span></td>
         <td class="pr-td-actions">${actions}</td>
       </tr>`;
   }).join('');
@@ -1845,6 +1933,10 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
           <div class="pr-field pr-field--wide"><label class="pr-label">קובץ אסמכתא / קבלה</label>
             <input class="pr-input" type="file" name="attachment" accept="image/*,.pdf" /></div>
         </div>
+        <label class="pr-confirm-label pr-reliability-label">
+          <input type="checkbox" name="reliability_declaration" value="yes" />
+          <span>אין ברשותי קבלה — אני מסמן/ת הצהרת מהימנות להוצאה זו</span>
+        </label>
         <div class="pr-add-form-actions">
           <button class="pr-btn pr-btn--primary" type="submit">שמירה</button>
           <button class="pr-btn pr-btn--ghost" type="button" data-pr-action="hide-add-expense">ביטול</button>
@@ -1936,13 +2028,14 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     </div>
   `;
 
-  const correctionDate = report.status === 'needs_correction' && report.updated_at ? fmtDate(String(report.updated_at).slice(0, 10)) : '';
+  const correctionDate = report.status === 'needs_correction' && (report.correction_requested_at || report.updated_at) ? fmtDate(String(report.correction_requested_at || report.updated_at).slice(0, 10)) : '';
   const resentText = report.status !== 'needs_correction' && report.finance_notes && report.submitted_at
     ? `כן, ${fmtDate(String(report.submitted_at).slice(0, 10))}`
     : '';
   const detailsSummary = [
     totalExpenses > 0 ? summaryPillHtml('סה"כ הוצאות', `₪${fmt(totalExpenses)}`) : '',
     totalTravel > 0 ? summaryPillHtml('סה"כ נסיעות', `₪${fmt(totalTravel)}`) : '',
+    totalVacationDays + totalSickDays + totalDeclarationDays === 0 ? summaryPillHtml('ימי עבודה', 'חודש מלא') : '',
     totalVacationDays > 0 ? summaryPillHtml('ימי חופש', fmtNum(totalVacationDays)) : '',
     totalSickDays > 0 ? summaryPillHtml('ימי מחלה', fmtNum(totalSickDays)) : '',
     totalDeclarationDays > 0 ? summaryPillHtml('ימי הצהרה', fmtNum(totalDeclarationDays)) : ''
@@ -2005,6 +2098,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         </section>
 
         <section class="pr-card pr-section-card pr-tab-panel" data-tab-panel="status" id="pr-report-header">
+          ${report.status === 'needs_correction' ? `<div class="pr-correction-alert" role="alert"><strong>הדוח הוחזר לתיקון</strong><span>${escapeHtml(correctionNoteText(report))}</span></div>` : ''}
           <div class="pr-status-log" aria-label="יומן מצב">
             ${statusPanelHtml(report, reportPeriod, statusChip, statusText, correctionDate, resentText)}
           </div>
@@ -2092,7 +2186,7 @@ function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
     const reportStatus = String(row.reportStatus || report?.status || '').trim();
     const totals = row.totals || { travel: 0, expenses: 0 };
     const workDaysLabel = row.workDays === null || row.workDays === undefined || row.workDays === ''
-      ? '—'
+      ? 'חודש מלא'
       : fmtNum(row.workDays);
     return `
       <tr class="pr-admin-report-row"
@@ -2440,12 +2534,11 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
   const profile = report.profiles || {};
   const reportPeriod = reportPeriodRange(report.report_month, report.report_year);
   const workDaysLabel = report.work_days_in_month === null || report.work_days_in_month === undefined
-    ? '—'
+    ? 'חודש מלא'
     : fmtNum(Number(report.work_days_in_month));
   const totalTravelKm  = travel.reduce((s, r) => s + Number(r.roundtrip_km || 0), 0);
   const totalTravel    = travel.reduce((s, r) => s + Number(r.amount || 0), 0);
   const totalExpenses  = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const totalAll       = totalTravel + totalExpenses;
   const totalVacationDays = sumAbsenceDays(absences, 'vacation');
   const totalSickDays = sumAbsenceDays(absences, 'sick');
   const totalDeclarationDays = sumAbsenceDays(absences, 'declaration');
@@ -2464,19 +2557,21 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
     ? `<tr><td colspan="7" class="pr-table-empty">אין רשומות</td></tr>`
     : expenses.map(r => {
         const attachment = attachmentForEntry(attachments, 'expense_entry_id', r.id);
+        const status = expenseAttachmentStatus(r, attachment);
         return `
         <tr><td>${fmtDate(r.expense_date)}</td>
         <td>${escapeHtml(r.document_type === 'receipt' ? 'קבלה' : r.document_type === 'invoice' ? 'חשבונית' : 'אחר')}</td>
         <td>${escapeHtml(r.description)}</td>
         <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
-        <td>${escapeHtml(attachmentStatusHtml(attachment))}</td><td>${escapeHtml(r.notes || '')}</td><td></td></tr>`;
+        <td>${escapeHtml(status.label)}</td><td>${escapeHtml(r.notes || '')}</td><td></td></tr>`;
       }).join('');
 
   const absenceRows = absences.length === 0
     ? `<tr><td colspan="6" class="pr-table-empty">אין רשומות</td></tr>`
     : absences.map((r) => {
         const attachment = attachmentForEntry(attachments, 'absence_entry_id', r.id);
-        return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td class="pr-td-num">${fmtNum(calculatedAbsenceDays(r))}</td><td>${escapeHtml(attachmentStatusHtml(attachment))}</td><td>${escapeHtml(r.notes || '')}</td></tr>`;
+        const status = absenceAttachmentStatus(r, attachment);
+        return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td class="pr-td-num">${fmtNum(calculatedAbsenceDays(r))}</td><td>${escapeHtml(status.label)}</td><td>${escapeHtml(r.notes || '')}</td></tr>`;
       }).join('');
 
   const attachRows = attachments.map(a => `
@@ -2519,7 +2614,6 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
         <div class="pr-summary-bar">
           <div class="pr-sum-item"><span class="pr-sum-label">נסיעות בהצהרה</span><span class="pr-sum-value">₪${fmt(totalTravel)}</span></div>
           <div class="pr-sum-item"><span class="pr-sum-label">החזר הוצאות</span><span class="pr-sum-value">₪${fmt(totalExpenses)}</span></div>
-          <div class="pr-sum-item pr-sum-item--total"><span class="pr-sum-label">סה"כ החזרים</span><span class="pr-sum-value">₪${fmt(totalAll)}</span></div>
           <div class="pr-sum-item"><span class="pr-sum-label">חופש</span><span class="pr-sum-value">${fmtNum(totalVacationDays)}</span></div>
           <div class="pr-sum-item"><span class="pr-sum-label">מחלה</span><span class="pr-sum-value">${fmtNum(totalSickDays)}</span></div>
           <div class="pr-sum-item"><span class="pr-sum-label">הצהרה</span><span class="pr-sum-value">${fmtNum(totalDeclarationDays)}</span></div>
@@ -2578,9 +2672,9 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
         </div>
         <div class="pr-actions pr-admin-detail-actions">
           <button class="pr-btn pr-btn--ghost" data-pr-action="download-report-pdf" data-report-id="${escapeHtml(report.id)}">הורדת PDF</button>
-          ${report.status === 'submitted' || report.status === 'reviewed' ? `
-            <button class="pr-btn pr-btn--primary" data-pr-action="admin-approve" data-report-id="${escapeHtml(report.id)}">✔ אשר דוח</button>
-            <button class="pr-btn pr-btn--warning" data-pr-action="admin-return" data-report-id="${escapeHtml(report.id)}">↩ החזר לתיקון</button>
+          ${['submitted', 'reviewed', 'approved'].includes(report.status) ? `
+            ${report.status !== 'approved' ? `<button class="pr-btn pr-btn--primary" data-pr-action="admin-approve" data-report-id="${escapeHtml(report.id)}">✔ אשר דוח</button>` : ''}
+            <button class="pr-btn pr-btn--warning" data-pr-action="admin-return" data-report-id="${escapeHtml(report.id)}">↩ החזרה לתיקון</button>
           ` : ''}
           ${report.status === 'approved' ? `
             <button class="pr-btn pr-btn--primary" data-pr-action="admin-mark-paid" data-report-id="${escapeHtml(report.id)}">₪ סמן כשולם</button>
@@ -2872,6 +2966,8 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
     if (action === 'show-add-expense') {
       setReportTab(root, 'expenses');
       const panel = showPanel('pr-add-expense-panel');
+      const form = panel?.querySelector('form[data-form-type="expense"]');
+      form?.reset();
       panel?.querySelector('form[data-form-type="expense"] input,select,textarea')?.focus();
       return;
     }
@@ -2927,6 +3023,8 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
         amount: btn.dataset.amount,
         notes: btn.dataset.notes
       });
+      const reliability = form?.querySelector('input[name="reliability_declaration"]');
+      if (reliability) reliability.checked = btn.dataset.reliabilityDeclaration === 'yes';
       return;
     }
 
@@ -3099,6 +3197,7 @@ function bindReportDetail(root, { isSimulation = false } = {}) {
           document_type: fd.get('document_type') || 'receipt',
           description: fd.get('description') || '',
           amount: Number(fd.get('amount') || 0),
+          reliability_declaration: fd.get('reliability_declaration') === 'yes',
           notes: fd.get('notes') || ''
         });
         const file = form.querySelector('input[name="attachment"]')?.files?.[0];
@@ -3258,7 +3357,7 @@ function bindAdminReportView(root) {
       const notes = prompt('הסבר לעובד:');
       if (notes === null) return;
       try {
-        await adminUpdateReport(reportId, { status: 'needs_correction', finance_notes: notes });
+        await adminReturnReportForCorrection(reportId, notes);
         showToast('הדוח הוחזר לתיקון', 'success');
         await safeOpenReportDetail(root, reportId, true, { forceReload: true });
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }

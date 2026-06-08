@@ -187,8 +187,8 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
   const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 608;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 608;/);
+  assert.match(frontendSw, /const CACHE_VERSION = 609;/);
+  assert.match(rootSw, /const SW_ENTRY_VERSION = 609;/);
   assert.match(css, /\.pr-input--month-compact/);
 });
 
@@ -320,8 +320,8 @@ test('my-reports screen uses a single personal card without management controls'
   assert.match(source, /עריכת תיקונים/);
   assert.match(source, /צפייה בדוח/);
   assert.match(source, /MY_REPORT_STATUS_META/);
-  assert.match(source, /לא התחיל/);
-  assert.match(source, /נשלח לאישור/);
+  assert.match(source, /פתוח לדיווח/);
+  assert.match(source, /הוגש לבדיקה/);
   assert.doesNotMatch(source, /pr-month-list[\s\S]{0,400}pr-admin-table/);
   assert.doesNotMatch(source, /data-pr-action="admin-approve"[\s\S]{0,80}pr-admin-report-row/);
 });
@@ -354,8 +354,10 @@ test('management screen lists all report-eligible employees with simplified admi
   assert.match(source, /data-report-id="\$\{escapeHtml\(reportId\)\}"/);
   assert.match(source, /data-report-status="\$\{escapeHtml\(reportStatus\)\}"/);
   assert.match(source, /ADMIN_MANAGE_STATUS_META/);
-  assert.match(source, /approved:\s*\{\s*label:\s*'אושר'/);
-  assert.match(source, /not_approved:\s*\{\s*label:\s*'לא אושר'/);
+  assert.match(source, /Object\.entries\(STATUS_LABELS\)/);
+  assert.match(source, /submitted:\s*'הוגש לבדיקה'/);
+  assert.match(source, /needs_correction:\s*'הוחזר לתיקון'/);
+  assert.match(source, /paid:\s*'שולם \/ טופל לשכר'/);
   assert.match(source, /function deriveAdminManageStatus/);
   assert.doesNotMatch(source, /ADMIN_MANAGE_STATUS_META[\s\S]{0,400}בטיפול העובד/);
   assert.match(source, /data-pr-action="admin-manage-report"/);
