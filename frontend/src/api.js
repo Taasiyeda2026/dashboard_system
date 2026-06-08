@@ -72,6 +72,8 @@ const READ_ACTIONS = {
   adminSettings: true,
   adminLists: true,
   listSheets: true,
+  israaProgramTracking: true,
+  israaSimulatorEntries: true,
 };
 
 const API_TIMEOUT_MS_READ = 20000;
@@ -2061,6 +2063,14 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   const personalReportsIdx = allowedRoutes.indexOf('personal-reports');
   if (hasPersonalReportsAccess && personalReportsIdx === -1) allowedRoutes.push('personal-reports');
   if (!hasPersonalReportsAccess && personalReportsIdx >= 0) allowedRoutes.splice(personalReportsIdx, 1);
+  // Israa's personal management tab — visible to Israa and to admin (for maintenance)
+  const ISRAA_USER_ID = '3030';
+  const ISRAA_AUTH_USER_ID = '92bfb9d9-1b17-4022-901a-5f7cf17a263a';
+  const isIsraaUser = String(flat.user_id || '') === ISRAA_USER_ID || String(flat.auth_user_id || '') === ISRAA_AUTH_USER_ID;
+  const isAdminRole = role === 'admin';
+  if (isIsraaUser || isAdminRole) {
+    if (!allowedRoutes.includes('israa-management')) allowedRoutes.push('israa-management');
+  }
   return {
     routes: [...allowedRoutes],
     default_route: allowedRoutes[0] || 'my-data',
@@ -3871,6 +3881,84 @@ export const api = {
     };
     const { error } = await supabase.from('settings').upsert(row, { onConflict: 'key' });
     if (error) throw new Error(error.message || 'save_sheet_mapping_failed');
+    return { ok: true };
+  },
+  israaProgramTracking: async () => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase
+      .from('israa_program_tracking')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message || 'israa_program_tracking_read_failed');
+    return { rows: Array.isArray(data) ? data : [] };
+  },
+  israaInsertRow: async (row) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase
+      .from('israa_program_tracking')
+      .insert([row])
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message || 'israa_insert_failed');
+    return { row: data };
+  },
+  israaUpdateRow: async (id, changes) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase
+      .from('israa_program_tracking')
+      .update({ ...changes, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message || 'israa_update_failed');
+    return { row: data };
+  },
+  israaDeleteRow: async (id) => {
+    await waitForSupabaseAuthSession();
+    const { error } = await supabase
+      .from('israa_program_tracking')
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error(error.message || 'israa_delete_failed');
+    return { ok: true };
+  },
+  israaSimulatorEntries: async () => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase
+      .from('israa_revenue_simulator_entries')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message || 'israa_simulator_read_failed');
+    return { rows: Array.isArray(data) ? data : [] };
+  },
+  israaSimInsertRow: async (row) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase
+      .from('israa_revenue_simulator_entries')
+      .insert([row])
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message || 'israa_sim_insert_failed');
+    return { row: data };
+  },
+  israaSimUpdateRow: async (id, changes) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase
+      .from('israa_revenue_simulator_entries')
+      .update({ ...changes, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message || 'israa_sim_update_failed');
+    return { row: data };
+  },
+  israaSimDeleteRow: async (id) => {
+    await waitForSupabaseAuthSession();
+    const { error } = await supabase
+      .from('israa_revenue_simulator_entries')
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error(error.message || 'israa_sim_delete_failed');
     return { ok: true };
   },
 };
