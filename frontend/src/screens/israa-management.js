@@ -245,25 +245,33 @@ function simGoalOptionsHtml(calc, collab) {
 }
 
 function simRowHtml(row, editingId, editData) {
-  const ed     = row.id === editingId;
-  const payerV = ed ? escapeHtml(String(editData.payer_name ?? row.payer_name ?? '')) : escapeHtml(String(row.payer_name ?? ''));
-  const amtRaw = ed ? (editData.amount ?? row.amount ?? '') : (row.amount ?? '');
+  const ed      = row.id === editingId;
+  const dateRaw = ed ? (editData.revenue_date ?? row.revenue_date ?? '') : (row.revenue_date ?? '');
+  const payerV  = ed ? escapeHtml(String(editData.payer_name ?? row.payer_name ?? '')) : escapeHtml(String(row.payer_name ?? ''));
+  const amtRaw  = ed ? (editData.amount ?? row.amount ?? '') : (row.amount ?? '');
+  const comm    = Number(amtRaw) > 0 ? Number(amtRaw) * 0.1 : null;
+  const dateCell  = ed
+    ? `<td class="israa-cell sim-cell--date"><input class="israa-inp" name="revenue_date" type="date" value="${escapeHtml(String(dateRaw))}" /></td>`
+    : `<td class="israa-cell sim-cell--date">${escapeHtml(fmtDate(dateRaw))}</td>`;
   const payerCell = ed
     ? `<td class="israa-cell"><input class="israa-inp" name="payer_name" type="text" value="${payerV}" /></td>`
     : `<td class="israa-cell">${payerV}</td>`;
-  const amtCell = ed
+  const amtCell   = ed
     ? `<td class="israa-cell sim-cell--amt"><input class="israa-inp sim-inp--amt" name="amount" type="number" min="0" step="1" value="${escapeHtml(String(amtRaw))}" /></td>`
-    : `<td class="israa-cell sim-cell--amt">${amtRaw !== '' && amtRaw != null ? escapeHtml(fmtIls(amtRaw)) : ''}</td>`;
-  const actions = ed
+    : `<td class="israa-cell sim-cell--amt">${amtRaw !== '' && amtRaw != null ? fmtIls(amtRaw) : ''}</td>`;
+  const commCell  = `<td class="israa-cell sim-cell--comm">${comm != null ? fmtIls(comm) : ''}</td>`;
+  const actions   = ed
     ? `<td class="israa-cell israa-cell--actions"><button class="israa-btn israa-btn--save" data-sim-save="${escapeHtml(row.id)}" title="שמירה">💾</button> <button class="israa-btn israa-btn--cancel" data-sim-cancel="${escapeHtml(row.id)}" title="ביטול">✕</button></td>`
     : `<td class="israa-cell israa-cell--actions"><button class="israa-btn israa-btn--edit" data-sim-edit="${escapeHtml(row.id)}" title="עריכה">✏️</button> <button class="israa-btn israa-btn--del" data-sim-del="${escapeHtml(row.id)}" title="מחיקה">🗑️</button></td>`;
-  return `<tr class="israa-row${ed ? ' israa-row--editing' : ''}" data-sim-row-id="${escapeHtml(row.id)}">${payerCell}${amtCell}${actions}</tr>`;
+  return `<tr class="israa-row${ed ? ' israa-row--editing' : ''}" data-sim-row-id="${escapeHtml(row.id)}">${dateCell}${payerCell}${amtCell}${commCell}${actions}</tr>`;
 }
 
 function simNewRowHtml(newData) {
   return `<tr class="israa-row israa-row--new">
+    <td class="israa-cell sim-cell--date"><input class="israa-inp" name="revenue_date" type="date" value="${escapeHtml(String(newData.revenue_date ?? ''))}" /></td>
     <td class="israa-cell"><input class="israa-inp" name="payer_name" type="text" value="${escapeHtml(String(newData.payer_name ?? ''))}" placeholder="גורם משלם" /></td>
     <td class="israa-cell sim-cell--amt"><input class="israa-inp sim-inp--amt" name="amount" type="number" min="0" step="1" value="${escapeHtml(String(newData.amount ?? ''))}" placeholder="0" /></td>
+    <td class="israa-cell sim-cell--comm"></td>
     <td class="israa-cell israa-cell--actions"><button class="israa-btn israa-btn--save" data-sim-save-new title="שמירה">💾</button> <button class="israa-btn israa-btn--cancel" data-sim-cancel-new title="ביטול">✕</button></td>
   </tr>`;
 }
@@ -272,7 +280,7 @@ function simPanelHtml(rows, editingId, editData, addingNew, newData, error, load
   if (loading) return `<div class="sim-loading">טוען נתוני סימולטור…</div>`;
   const calc = simCalc(rows, collab);
   const body = [
-    !rows.length && !addingNew ? `<tr><td colspan="3" class="israa-empty">אין הכנסות. לחצי "+ הוספת הכנסה" להתחיל.</td></tr>` : '',
+    !rows.length && !addingNew ? `<tr><td colspan="5" class="israa-empty">אין הכנסות. לחצי "+ הוספת הכנסה" להתחיל.</td></tr>` : '',
     rows.map((r) => simRowHtml(r, editingId, editData)).join(''),
     addingNew ? simNewRowHtml(newData) : ''
   ].join('');
@@ -287,7 +295,13 @@ function simPanelHtml(rows, editingId, editData, addingNew, newData, error, load
     ${error ? `<div class="israa-error">${escapeHtml(error)}</div>` : ''}
     <div class="israa-table-wrap">
       <table class="israa-table sim-table" dir="rtl">
-        <thead><tr><th class="israa-th">גורם משלם</th><th class="israa-th sim-th--amt">סכום (₪)</th><th class="israa-th israa-th--actions">פעולות</th></tr></thead>
+        <thead><tr>
+          <th class="israa-th sim-th--date">תאריך</th>
+          <th class="israa-th">גורם משלם</th>
+          <th class="israa-th sim-th--amt">סכום (₪)</th>
+          <th class="israa-th sim-th--comm">עמלות (₪)</th>
+          <th class="israa-th israa-th--actions">פעולות</th>
+        </tr></thead>
         <tbody>${body}</tbody>
       </table>
     </div>
@@ -346,10 +360,12 @@ function collectProgForm(mainTr) {
 }
 
 function collectSimForm(tr) {
-  const amtVal = tr.querySelector('[name="amount"]')?.value ?? '';
+  const amtVal  = tr.querySelector('[name="amount"]')?.value ?? '';
+  const dateVal = tr.querySelector('[name="revenue_date"]')?.value ?? '';
   return {
-    payer_name: tr.querySelector('[name="payer_name"]')?.value ?? '',
-    amount: amtVal === '' ? null : parseFloat(amtVal)
+    revenue_date: dateVal || null,
+    payer_name:   tr.querySelector('[name="payer_name"]')?.value ?? '',
+    amount:       amtVal === '' ? null : parseFloat(amtVal)
   };
 }
 
@@ -410,12 +426,16 @@ const ISRAA_CSS = `<style data-israa-styles>
 .sim-goal-opts__ils{font-size:13px}
 .sim-goal-opts__result{font-size:14px;color:var(--ds-text,#1e293b);line-height:1.8}
 .sim-table-section{margin-top:4px}
-.sim-table-section .israa-table-wrap{max-width:55%;margin-right:0}
-@media (max-width:700px){.sim-table-section .israa-table-wrap{max-width:100%}}
-.sim-table{table-layout:auto}
-.sim-th--amt{width:130px;text-align:left}
-.sim-cell--amt{text-align:left;font-variant-numeric:tabular-nums}
-.sim-inp--amt{text-align:left}
+.sim-table-section .israa-table-wrap{width:fit-content;min-width:300px;max-width:100%}
+@media (max-width:700px){.sim-table-section .israa-table-wrap{width:100%}}
+.sim-table{table-layout:auto;width:auto}
+.sim-th--date{width:90px;text-align:right}
+.sim-th--amt{width:110px;text-align:right}
+.sim-th--comm{width:100px;text-align:right}
+.sim-cell--date{text-align:right;white-space:nowrap}
+.sim-cell--amt{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sim-cell--comm{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ds-text-secondary,#64748b)}
+.sim-inp--amt{text-align:left;direction:ltr}
 .prog-section{max-width:80%}
 @media (max-width:768px){.prog-section{max-width:100%}}
 .prog-section .israa-table-wrap{background:#fff;box-shadow:0 2px 8px rgba(26,51,88,.07)}
