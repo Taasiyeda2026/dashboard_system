@@ -26,7 +26,7 @@ let _simEditData  = {};
 let _simAddingNew = false;
 let _simNewData   = {};
 let _simError     = null;
-let _simAvgPrice  = 9000; // session-local, never persisted to DB
+let _simCollab    = 0;    // session-local collaboration total, never persisted to DB
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = ['', 'נשלחה הצעה', 'גפן תשפ"ז', 'תוכנית קיץ'];
@@ -143,20 +143,31 @@ function progTableHtml(rows, editingId, editData, addingNew, newData, error, act
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Pure local computation — never triggers a network request
-function simCalc(rows) {
+function simCalc(rows, collab) {
+  const collabAmt = Number(collab) || 0;
   const total     = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-  const remaining = Math.max(0, SIM_GOAL - total);
-  const rawPct    = (total / SIM_GOAL) * 100;
-  const overGoal  = total > SIM_GOAL;
-  return { total, remaining, rawPct, overGoal, overAmt: total - SIM_GOAL };
+  const reached   = total + collabAmt;
+  const balance   = SIM_GOAL - reached;
+  const remaining = Math.max(0, balance);
+  const rawPct    = (reached / SIM_GOAL) * 100;
+  const overGoal  = balance <= 0;
+  const overAmt   = Math.max(0, reached - SIM_GOAL);
+  return { total, collabAmt, reached, balance, remaining, rawPct, overGoal, overAmt };
 }
 
-// Pure local text — called both during full repaint and during inline price-input update
-function goalOptionsText(calc, avgPrice) {
-  if (calc.overGoal || calc.remaining === 0) return 'היעד הושג. אין צורך בקורסים נוספים כדי להגיע ליעד.';
-  const price = Math.max(1, avgPrice);
-  const count = Math.ceil(calc.remaining / price);
-  return `להגעה ליעד אפשר להביא עוד ${count.toLocaleString('he-IL')} קורסים במחיר ממוצע של ${fmtIls(price)} לקורס.`;
+// Pure local calculation — no network calls. Returns safe HTML (numbers + fixed strings only).
+function simGoalLines(calc) {
+  if (calc.overGoal || calc.balance <= 0) {
+    const lines = ['היעד הושג. אין צורך בקורסים או סדנאות נוספים כדי להגיע ליעד.'];
+    if (calc.overAmt > 0) lines.push(`מעבר ליעד: +${fmtIls(calc.overAmt)}`);
+    return lines.join('<br>');
+  }
+  const courses   = Math.ceil(calc.balance * 0.7 / 9000);
+  const workshops = Math.ceil(calc.balance * 0.3 / 500);
+  return [
+    `להגעה ליעד אפשר להביא עוד ${courses.toLocaleString('he-IL')} קורסים במחיר ממוצע של ₪ 9,000 לקורס.`,
+    `להגעה ליעד אפשר להביא עוד ${workshops.toLocaleString('he-IL')} סדנאות מייקרים במחיר ממוצע של ₪ 500 לסדנה.`
+  ].join('<br>');
 }
 
 function simCardsHtml(calc) {
@@ -179,18 +190,19 @@ function simProgressHtml(calc) {
   </div>`;
 }
 
-function simGoalOptionsHtml(calc, avgPrice) {
-  const safe = Math.max(1, avgPrice || 9000);
+function simGoalOptionsHtml(calc, collab) {
+  const collabAmt = Number(collab) || 0;
   return `<div class="sim-goal-opts">
-    <div class="sim-goal-opts__header">
-      <span class="sim-goal-opts__title">אפשרויות להגעה ליעד</span>
-      <label class="sim-goal-opts__price-label">מחיר ממוצע לקורס:
-        <input class="israa-inp sim-goal-opts__price-inp" type="number" min="1" step="100"
-               value="${escapeHtml(String(safe))}" data-sim-avg-price />
+    <div class="sim-goal-opts__title">אפשרויות להגעה ליעד</div>
+    <div class="sim-goal-opts__collab-row">
+      <label class="sim-goal-opts__collab-label">
+        <span>סה"כ שיתופי פעולה:</span>
+        <input class="israa-inp sim-goal-opts__collab-inp" type="number" min="0" step="1"
+               value="${escapeHtml(String(collabAmt))}" data-sim-collab placeholder="0" />
         <span class="sim-goal-opts__ils">₪</span>
       </label>
     </div>
-    <div class="sim-goal-opts__result" data-sim-goal-result>${escapeHtml(goalOptionsText(calc, safe))}</div>
+    <div class="sim-goal-opts__result" data-sim-goal-result>${simGoalLines(calc)}</div>
   </div>`;
 }
 
@@ -218,9 +230,9 @@ function simNewRowHtml(newData) {
   </tr>`;
 }
 
-function simPanelHtml(rows, editingId, editData, addingNew, newData, error, loading, avgPrice) {
+function simPanelHtml(rows, editingId, editData, addingNew, newData, error, loading, collab) {
   if (loading) return `<div class="sim-loading">טוען נתוני סימולטור…</div>`;
-  const calc = simCalc(rows);
+  const calc = simCalc(rows, collab);
   const body = [
     !rows.length && !addingNew ? `<tr><td colspan="3" class="israa-empty">אין הכנסות. לחצי "+ הוספת הכנסה" להתחיל.</td></tr>` : '',
     rows.map((r) => simRowHtml(r, editingId, editData)).join(''),
@@ -229,7 +241,7 @@ function simPanelHtml(rows, editingId, editData, addingNew, newData, error, load
   return `
   ${simCardsHtml(calc)}
   ${simProgressHtml(calc)}
-  ${simGoalOptionsHtml(calc, avgPrice)}
+  ${simGoalOptionsHtml(calc, collab)}
   <div class="sim-table-section">
     <div class="israa-toolbar">
       <button class="israa-btn israa-btn--primary" data-sim-action="add-row"${addingNew ? ' disabled' : ''}>+ הוספת הכנסה</button>
@@ -255,7 +267,7 @@ function tabBarHtml(activeTab) {
 function fullHtml(activeTab, actNames) {
   if (activeTab === 'simulator') {
     return tabBarHtml(activeTab) +
-      `<div class="sim-panel">${simPanelHtml(_simRows, _simEditingId, _simEditData, _simAddingNew, _simNewData, _simError, _simLoading, _simAvgPrice)}</div>`;
+      `<div class="sim-panel">${simPanelHtml(_simRows, _simEditingId, _simEditData, _simAddingNew, _simNewData, _simError, _simLoading, _simCollab)}</div>`;
   }
   return tabBarHtml(activeTab) + progTableHtml(_rows, _editingId, _editData, _addingNew, _newData, _error, actNames);
 }
@@ -335,12 +347,12 @@ const ISRAA_CSS = `<style data-israa-styles>
 .israa-btn--edit{background:var(--ds-accent,#1a3358);color:#fff;border-color:var(--ds-accent,#1a3358)}
 .sim-panel{direction:rtl}
 .sim-loading{padding:28px;text-align:center;color:var(--ds-text-secondary,#64748b);font-size:14px}
-.sim-cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
-.sim-card{background:#fff;border:1px solid var(--ds-border,#e2e8f0);border-radius:8px;padding:12px 16px;min-width:110px;flex:1;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.sim-cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;justify-content:center}
+.sim-card{background:#fff;border:1px solid var(--ds-border,#e2e8f0);border-radius:8px;padding:10px 14px;min-width:120px;max-width:200px;flex:0 1 auto;box-shadow:0 1px 2px rgba(0,0,0,.04);text-align:center}
 .sim-card--highlight{border-color:var(--ds-accent,#1a3358);background:#f0f4ff}
 .sim-card--over-banner{border-color:#16a34a;background:#f0fdf4}
-.sim-card__lbl{font-size:11px;color:var(--ds-text-secondary,#64748b);margin-bottom:4px;white-space:nowrap}
-.sim-card__val{font-size:17px;font-weight:700;color:var(--ds-text,#1e293b)}
+.sim-card__lbl{font-size:13px;color:var(--ds-text-secondary,#64748b);margin-bottom:4px;white-space:nowrap}
+.sim-card__val{font-size:17px;font-weight:700;color:var(--ds-text,#1e293b);white-space:nowrap}
 .sim-card__val--goal{color:#1a3358}
 .sim-card__val--over{color:#16a34a}
 .sim-progress{display:flex;align-items:center;gap:10px;margin-bottom:14px}
@@ -348,14 +360,16 @@ const ISRAA_CSS = `<style data-israa-styles>
 .sim-progress__fill{height:100%;background:var(--ds-accent,#1a3358);border-radius:99px;transition:width .4s ease}
 .sim-progress__fill--over{background:#16a34a}
 .sim-progress__pct{font-size:12px;font-weight:600;white-space:nowrap;min-width:40px}
-.sim-goal-opts{background:#f8fafc;border:1px solid var(--ds-border,#e2e8f0);border-radius:8px;padding:10px 14px;margin-bottom:14px}
-.sim-goal-opts__header{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px}
-.sim-goal-opts__title{font-size:13px;font-weight:600;color:var(--ds-text,#1e293b)}
-.sim-goal-opts__price-label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ds-text-secondary,#64748b);margin-right:auto}
-.sim-goal-opts__price-inp{width:90px!important;text-align:left}
-.sim-goal-opts__ils{font-size:12px}
-.sim-goal-opts__result{font-size:13px;color:var(--ds-text,#1e293b);line-height:1.6}
+.sim-goal-opts{background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;padding:14px 18px;margin-bottom:14px}
+.sim-goal-opts__title{font-size:15px;font-weight:700;color:var(--ds-text,#1e293b);margin-bottom:10px}
+.sim-goal-opts__collab-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.sim-goal-opts__collab-label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--ds-text,#1e293b)}
+.sim-goal-opts__collab-inp{width:120px!important;text-align:left}
+.sim-goal-opts__ils{font-size:13px}
+.sim-goal-opts__result{font-size:14px;color:var(--ds-text,#1e293b);line-height:1.8}
 .sim-table-section{margin-top:4px}
+.sim-table-section .israa-table-wrap{max-width:55%;margin-right:0}
+@media (max-width:700px){.sim-table-section .israa-table-wrap{max-width:100%}}
 .sim-table{table-layout:auto}
 .sim-th--amt{width:130px;text-align:left}
 .sim-cell--amt{text-align:left;font-variant-numeric:tabular-nums}
@@ -542,21 +556,22 @@ export const israaManagementScreen = {
       }
     }); // end single click delegation
 
-    // ── Avg price: live local calculation — NO repaint, NO network call ───────
+    // ── Collab amount: live goal-lines update on input, full repaint on confirm ─
     // Uses delegation so it survives innerHTML replacement on mgmt.
     mgmt.addEventListener('input', (e) => {
-      if (!e.target.matches('[data-sim-avg-price]')) return;
-      _simAvgPrice = Math.max(1, parseFloat(e.target.value) || 9000);
-      // Update only the result text node directly — zero DOM churn, zero re-render
+      if (!e.target.matches('[data-sim-collab]')) return;
+      const val = Math.max(0, parseFloat(e.target.value) || 0);
+      // Update only the result node directly — zero DOM churn, zero network call
       const resultEl = mgmt.querySelector('[data-sim-goal-result]');
-      if (resultEl) resultEl.textContent = goalOptionsText(simCalc(_simRows), _simAvgPrice);
+      if (resultEl) resultEl.innerHTML = simGoalLines(simCalc(_simRows, val));
     });
 
-    // Normalize the price value when the user leaves the field
+    // On blur: commit value and repaint cards/progress — no focus loss (change fires after blur)
     mgmt.addEventListener('change', (e) => {
-      if (!e.target.matches('[data-sim-avg-price]')) return;
-      _simAvgPrice = Math.max(1, parseFloat(e.target.value) || 9000);
-      e.target.value = _simAvgPrice;
+      if (!e.target.matches('[data-sim-collab]')) return;
+      _simCollab = Math.max(0, parseFloat(e.target.value) || 0);
+      e.target.value = _simCollab;
+      repaint();
     });
 
     // Load simulator data if already on that tab (e.g. preserved state from prev visit)
