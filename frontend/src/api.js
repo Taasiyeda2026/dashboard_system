@@ -73,6 +73,7 @@ const READ_ACTIONS = {
   adminLists: true,
   listSheets: true,
   israaProgramTracking: true,
+  israaSimulatorEntries: true,
 };
 
 const API_TIMEOUT_MS_READ = 20000;
@@ -3919,6 +3920,45 @@ export const api = {
       .delete()
       .eq('id', id);
     if (error) throw new Error(error.message || 'israa_delete_failed');
+    return { ok: true };
+  },
+  israaSimulatorEntries: async () => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase
+      .from('israa_revenue_simulator_entries')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message || 'israa_simulator_read_failed');
+    return { rows: Array.isArray(data) ? data : [] };
+  },
+  israaSimInsertRow: async (row) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase
+      .from('israa_revenue_simulator_entries')
+      .insert([row])
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message || 'israa_sim_insert_failed');
+    return { row: data };
+  },
+  israaSimUpdateRow: async (id, changes) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase
+      .from('israa_revenue_simulator_entries')
+      .update({ ...changes, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message || 'israa_sim_update_failed');
+    return { row: data };
+  },
+  israaSimDeleteRow: async (id) => {
+    await waitForSupabaseAuthSession();
+    const { error } = await supabase
+      .from('israa_revenue_simulator_entries')
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error(error.message || 'israa_sim_delete_failed');
     return { ok: true };
   },
 };
