@@ -1044,7 +1044,7 @@ async function dashboardReadModelFromSupabase(month) {
       delete stats._instructors;
       return stats;
     });
-    const exceptionsCount = Number(exceptionSummary.totalExceptionInstances || 0);
+    const exceptionsCount = Number(exceptionSummary.uniqueExceptionActivities || exceptionSummary.totalExceptionRows || 0);
     const totals = {
       total_short_activities: allMonthRows.filter(isOneDayActivity).length,
       total_long_activities: allMonthRows.filter(isProgramActivity).length,
@@ -1247,7 +1247,7 @@ function buildExceptionsModelFromRows(activityRows = [], month = '', opts = {}) 
   const uniqueActivityIds = new Set();
   for (const row of allRows) {
     const district = districtDisplayKey(row);
-    byDistrict[district] = (byDistrict[district] || 0) + Number(row.exception_count || 0);
+    byDistrict[district] = (byDistrict[district] || 0) + 1;
     for (const type of row.exception_types || []) counts[type] = (counts[type] || 0) + 1;
     const activityKey = String(row?.RowID || row?.row_id || '').trim() || [row?.activity_name, row?.school, row?.authority].map((v) => String(v || '').trim()).join('|');
     if (activityKey) uniqueActivityIds.add(activityKey);
