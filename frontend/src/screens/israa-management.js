@@ -907,7 +907,7 @@ const ISRAA_CSS = `<style data-israa-styles>
 }
 
 .sim-table-section .israa-toolbar{
-  width:620px;
+  width:600px;
   max-width:100%;
   display:flex;
   justify-content:flex-start;
@@ -915,18 +915,17 @@ const ISRAA_CSS = `<style data-israa-styles>
 }
 
 .sim-table-section .israa-table-wrap{
-  width:620px;
+  width:600px;
   max-width:100%;
   background:#fff;
   border:1px solid #cbd5e1;
   border-radius:8px;
   box-shadow:0 2px 8px rgba(26,51,88,.06);
-  overflow-x:auto;
+  overflow-x:hidden;
 }
 
 .sim-table{
-  width:620px;
-  max-width:100%;
+  width:100%;
   table-layout:fixed;
   background:#fff;
   border-collapse:separate;
@@ -966,31 +965,31 @@ const ISRAA_CSS = `<style data-israa-styles>
 
 .sim-table th:nth-child(1),
 .sim-table td:nth-child(1){
-  width:95px;
+  width:13%;
   text-align:center;
 }
 
 .sim-table th:nth-child(2),
 .sim-table td:nth-child(2){
-  width:190px;
+  width:33%;
   text-align:right;
 }
 
 .sim-table th:nth-child(3),
 .sim-table td:nth-child(3){
-  width:125px;
+  width:20%;
   text-align:center;
 }
 
 .sim-table th:nth-child(4),
 .sim-table td:nth-child(4){
-  width:115px;
+  width:20%;
   text-align:center;
 }
 
 .sim-table th:nth-child(5),
 .sim-table td:nth-child(5){
-  width:95px;
+  width:14%;
   text-align:center;
 }
 
@@ -1026,6 +1025,12 @@ const ISRAA_CSS = `<style data-israa-styles>
 
 .sim-table .money{
   justify-content:center;
+}
+
+@media (max-width:640px){
+  .sim-table-section .israa-table-wrap{
+    overflow-x:auto;
+  }
 }
 
 /* ── Program table ─────────────────────────────────────────────────────────── */
