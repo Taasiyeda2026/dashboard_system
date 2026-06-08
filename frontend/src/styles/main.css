@@ -14341,3 +14341,58 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     max-width: none;
   }
 }
+
+/* Personal reports — focused correction/workflow refinements */
+.pr-correction-alert {
+  display: grid;
+  gap: 4px;
+  margin: 10px 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #7c2d12;
+  line-height: 1.45;
+}
+.pr-correction-alert strong {
+  font-size: 0.88rem;
+}
+.pr-correction-alert span {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.pr-reliability-label {
+  align-items: flex-start;
+  gap: 8px;
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 9px;
+  background: #f8fbff;
+  color: #334155;
+}
+.pr-reliability-label input {
+  margin-top: 2px;
+}
+.pr-entries-table .pr-col-actions,
+.pr-entries-table .pr-th-actions,
+.pr-entries-table .pr-td-actions {
+  width: 124px;
+  min-width: 112px;
+  max-width: 140px;
+}
+.pr-td-actions-group {
+  min-width: 106px;
+  justify-content: center;
+}
+.pr-summary-bar--details {
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+}
+.pr-summary-bar--details .pr-sum-item,
+.pr-summary-bar .pr-sum-item {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pr-my-report-summary {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
