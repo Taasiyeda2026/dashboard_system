@@ -518,7 +518,8 @@ const screenLabels = {
   invitations: 'הזמנות',
   orders: 'הזמנות',
   catalog: 'קטלוג',
-  'personal-reports': 'דוחות אישיים'
+  'personal-reports': 'דוחות אישיים',
+  'israa-management': 'ניהול איסראא'
 };
 
 function navLabelForRoute(route) {
@@ -566,7 +567,8 @@ const screenLoaders = {
   invitations: () => import('./screens/invitations.js').then((m) => m.invitationsScreen),
   orders: () => import('./screens/orders.js').then((m) => m.ordersScreen),
   catalog: () => import('./screens/catalog.js').then((m) => m.catalogScreen),
-  'personal-reports': () => import('./screens/personal-reports.js').then((m) => m.personalReportsScreen)
+  'personal-reports': () => import('./screens/personal-reports.js').then((m) => m.personalReportsScreen),
+  'israa-management': () => import('./screens/israa-management.js').then((m) => m.israaManagementScreen)
 };
 const loadedScreens = new Map();
 const loadingScreens = new Map();
