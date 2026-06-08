@@ -72,7 +72,7 @@ function fmtIls(num) {
     maximumFractionDigits: 0
   });
 
-  return `<span class="money money--ils" dir="ltr"><span class="money__value">${formatted}</span><span class="money__symbol">₪</span></span>`;
+ return `<span class="money money--ils" dir="ltr"><span class="money__symbol">₪</span><span class="money__value">${formatted}</span></span>`;
 }
 
 function fmtDate(val) {
@@ -444,7 +444,15 @@ const ISRAA_CSS = `<style data-israa-styles>
 .sim-progress__fill{height:100%;background:var(--ds-accent,#1a3358);border-radius:99px;transition:width .4s ease}
 .sim-progress__fill--over{background:#16a34a}
 .sim-progress__pct{font-size:12px;font-weight:700;white-space:nowrap;min-width:40px;color:var(--ds-text,#1e293b)}
-.sim-goal-opts{background:#fff;border:1.5px solid #cbd5e1;border-radius:10px;padding:14px 18px;margin:0 auto 16px;max-width:880px;box-shadow:0 2px 8px rgba(26,51,88,.05)}
+.sim-goal-opts{
+  background:#fff;
+  border:1.5px solid #cbd5e1;
+  border-radius:10px;
+  padding:14px 18px;
+  margin:0 auto 16px;
+  max-width:640px;
+  box-shadow:0 2px 8px rgba(26,51,88,.05);
+}
 .sim-goal-opts__title{font-size:17px;font-weight:800;color:var(--ds-text,#1e293b);margin-bottom:10px;text-align:right}
 .sim-goal-opts__collab-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .sim-goal-opts__collab-label{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ds-text,#1e293b);flex-wrap:wrap}
@@ -497,6 +505,56 @@ const ISRAA_CSS = `<style data-israa-styles>
 .sim-cell--amt{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .sim-cell--comm{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ds-text-secondary,#64748b)}
 .sim-inp--amt{text-align:left;direction:ltr}
+/* תיקון רוחב וסידור עמודות בטבלת ההכנסות */
+.sim-table-section .israa-toolbar{
+  width:640px;
+  max-width:100%;
+}
+
+.sim-table-section .israa-table-wrap{
+  width:640px;
+  max-width:100%;
+}
+
+.sim-table{
+  width:640px;
+  max-width:100%;
+  table-layout:fixed;
+}
+
+.sim-table th:nth-child(1),
+.sim-table td:nth-child(1){
+  width:95px;
+  text-align:center;
+}
+
+.sim-table th:nth-child(2),
+.sim-table td:nth-child(2){
+  width:210px;
+  text-align:right;
+}
+
+.sim-table th:nth-child(3),
+.sim-table td:nth-child(3){
+  width:120px;
+  text-align:center;
+}
+
+.sim-table th:nth-child(4),
+.sim-table td:nth-child(4){
+  width:110px;
+  text-align:center;
+}
+
+.sim-table th:nth-child(5),
+.sim-table td:nth-child(5){
+  width:90px;
+  text-align:center;
+}
+
+.sim-table .money{
+  justify-content:center;
+}
 .prog-section{max-width:80%}
 @media (max-width:768px){.prog-section{max-width:100%}}
 .prog-section .israa-table-wrap{background:#fff;box-shadow:0 2px 8px rgba(26,51,88,.07)}
