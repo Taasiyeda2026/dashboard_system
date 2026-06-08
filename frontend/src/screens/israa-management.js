@@ -4,7 +4,7 @@ import { dsScreenStack } from './shared/layout.js';
 const ISRAA_AUTH_USER_ID = '92bfb9d9-1b17-4022-901a-5f7cf17a263a';
 const SIM_GOAL = 1_000_000;
 
-// ── Tab state ──────────────────────────────────────────────────────────────────
+// ── Tab state (persists across renders / navigations) ──────────────────────────
 let _activeTab = 'table';
 
 // ── Program-tracking table state ───────────────────────────────────────────────
@@ -16,6 +16,8 @@ let _newData   = {};
 let _error     = null;
 
 // ── Simulator state ────────────────────────────────────────────────────────────
+// _simLoaded / _simLoading guard: data is fetched exactly once per session.
+// Supabase is only called for explicit user actions (add / edit / delete).
 let _simRows      = [];
 let _simLoaded    = false;
 let _simLoading   = false;
@@ -24,7 +26,7 @@ let _simEditData  = {};
 let _simAddingNew = false;
 let _simNewData   = {};
 let _simError     = null;
-let _simAvgPrice  = 9000;
+let _simAvgPrice  = 9000; // session-local, never persisted to DB
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = ['', 'נשלחה הצעה', 'גפן תשפ"ז', 'תוכנית קיץ'];
@@ -59,7 +61,7 @@ function getActivityNames(state) {
 
 // ── Formatting helpers ─────────────────────────────────────────────────────────
 function fmtIls(num) {
-  return '₪ ' + (Number(num) || 0).toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return '₪ ' + (Number(num) || 0).toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 function fmtDate(val) {
@@ -71,7 +73,7 @@ function fmtDate(val) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// PROGRAM TRACKING TABLE
+// PROGRAM TRACKING TABLE — HTML builders (pure, no side effects)
 // ══════════════════════════════════════════════════════════════════════════════
 function progCellView(row, col) {
   if (col.key === 'activity_date') return escapeHtml(fmtDate(row?.[col.key]));
@@ -137,21 +139,21 @@ function progTableHtml(rows, editingId, editData, addingNew, newData, error, act
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SIMULATOR
+// SIMULATOR — all calculations are LOCAL, no network calls
 // ══════════════════════════════════════════════════════════════════════════════
+
+// Pure local computation — never triggers a network request
 function simCalc(rows) {
-  const total    = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const total     = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const remaining = Math.max(0, SIM_GOAL - total);
-  const rawPct   = (total / SIM_GOAL) * 100;
-  const overGoal = total > SIM_GOAL;
-  const overAmt  = total - SIM_GOAL;
-  return { total, remaining, rawPct, overGoal, overAmt };
+  const rawPct    = (total / SIM_GOAL) * 100;
+  const overGoal  = total > SIM_GOAL;
+  return { total, remaining, rawPct, overGoal, overAmt: total - SIM_GOAL };
 }
 
+// Pure local text — called both during full repaint and during inline price-input update
 function goalOptionsText(calc, avgPrice) {
-  if (calc.overGoal || calc.remaining === 0) {
-    return 'היעד הושג. אין צורך בקורסים נוספים כדי להגיע ליעד.';
-  }
+  if (calc.overGoal || calc.remaining === 0) return 'היעד הושג. אין צורך בקורסים נוספים כדי להגיע ליעד.';
   const price = Math.max(1, avgPrice);
   const count = Math.ceil(calc.remaining / price);
   return `להגעה ליעד אפשר להביא עוד ${count.toLocaleString('he-IL')} קורסים במחיר ממוצע של ${fmtIls(price)} לקורס.`;
@@ -171,32 +173,31 @@ function simCardsHtml(calc) {
 
 function simProgressHtml(calc) {
   const fill = Math.min(calc.rawPct, 100).toFixed(2);
-  const label = calc.rawPct.toFixed(1) + '%';
   return `<div class="sim-progress">
     <div class="sim-progress__track"><div class="sim-progress__fill${calc.overGoal ? ' sim-progress__fill--over' : ''}" style="width:${fill}%"></div></div>
-    <span class="sim-progress__pct">${label}</span>
+    <span class="sim-progress__pct">${calc.rawPct.toFixed(1)}%</span>
   </div>`;
 }
 
 function simGoalOptionsHtml(calc, avgPrice) {
-  const safePrice = Math.max(1, avgPrice || 9000);
+  const safe = Math.max(1, avgPrice || 9000);
   return `<div class="sim-goal-opts">
     <div class="sim-goal-opts__header">
       <span class="sim-goal-opts__title">אפשרויות להגעה ליעד</span>
       <label class="sim-goal-opts__price-label">מחיר ממוצע לקורס:
         <input class="israa-inp sim-goal-opts__price-inp" type="number" min="1" step="100"
-               value="${escapeHtml(String(safePrice))}" data-sim-avg-price />
+               value="${escapeHtml(String(safe))}" data-sim-avg-price />
         <span class="sim-goal-opts__ils">₪</span>
       </label>
     </div>
-    <div class="sim-goal-opts__result" data-sim-goal-result>${escapeHtml(goalOptionsText(calc, safePrice))}</div>
+    <div class="sim-goal-opts__result" data-sim-goal-result>${escapeHtml(goalOptionsText(calc, safe))}</div>
   </div>`;
 }
 
 function simRowHtml(row, editingId, editData) {
-  const ed = row.id === editingId;
-  const payerV  = ed ? escapeHtml(String(editData.payer_name ?? row.payer_name ?? '')) : escapeHtml(String(row.payer_name ?? ''));
-  const amtRaw  = ed ? (editData.amount ?? row.amount ?? '') : (row.amount ?? '');
+  const ed     = row.id === editingId;
+  const payerV = ed ? escapeHtml(String(editData.payer_name ?? row.payer_name ?? '')) : escapeHtml(String(row.payer_name ?? ''));
+  const amtRaw = ed ? (editData.amount ?? row.amount ?? '') : (row.amount ?? '');
   const payerCell = ed
     ? `<td class="israa-cell"><input class="israa-inp" name="payer_name" type="text" value="${payerV}" /></td>`
     : `<td class="israa-cell">${payerV}</td>`;
@@ -221,7 +222,7 @@ function simPanelHtml(rows, editingId, editData, addingNew, newData, error, load
   if (loading) return `<div class="sim-loading">טוען נתוני סימולטור…</div>`;
   const calc = simCalc(rows);
   const body = [
-    !rows.length && !addingNew ? `<tr><td colspan="3" class="israa-empty">אין הכנסות עדיין. לחצי "+ הוספת הכנסה" להתחיל.</td></tr>` : '',
+    !rows.length && !addingNew ? `<tr><td colspan="3" class="israa-empty">אין הכנסות. לחצי "+ הוספת הכנסה" להתחיל.</td></tr>` : '',
     rows.map((r) => simRowHtml(r, editingId, editData)).join(''),
     addingNew ? simNewRowHtml(newData) : ''
   ].join('');
@@ -243,7 +244,7 @@ function simPanelHtml(rows, editingId, editData, addingNew, newData, error, load
   </div>`;
 }
 
-// ── Tab bar ────────────────────────────────────────────────────────────────────
+// ── Tab bar + full HTML ────────────────────────────────────────────────────────
 function tabBarHtml(activeTab) {
   return `<div class="israa-tabbar" role="tablist" dir="rtl">
     <button class="israa-tab${activeTab === 'table' ? ' is-active' : ''}" data-israa-tab="table" role="tab">טבלת תוכניות</button>
@@ -277,7 +278,7 @@ function exportToCsv(rows) {
   URL.revokeObjectURL(url);
 }
 
-// ── form collectors ────────────────────────────────────────────────────────────
+// ── Form data collectors ───────────────────────────────────────────────────────
 function collectProgForm(tr) {
   const data = {};
   PROG_COLS.forEach((col) => {
@@ -291,9 +292,10 @@ function collectProgForm(tr) {
 }
 
 function collectSimForm(tr) {
+  const amtVal = tr.querySelector('[name="amount"]')?.value ?? '';
   return {
     payer_name: tr.querySelector('[name="payer_name"]')?.value ?? '',
-    amount: (() => { const v = tr.querySelector('[name="amount"]')?.value ?? ''; return v === '' ? null : parseFloat(v); })()
+    amount: amtVal === '' ? null : parseFloat(amtVal)
   };
 }
 
@@ -331,7 +333,6 @@ const ISRAA_CSS = `<style data-israa-styles>
 .israa-btn--del:hover:not(:disabled){opacity:.85}
 .israa-btn--cancel{background:#64748b;color:#fff;border-color:#64748b}
 .israa-btn--edit{background:var(--ds-accent,#1a3358);color:#fff;border-color:var(--ds-accent,#1a3358)}
-/* ── simulator ── */
 .sim-panel{direction:rtl}
 .sim-loading{padding:28px;text-align:center;color:var(--ds-text-secondary,#64748b);font-size:14px}
 .sim-cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
@@ -381,20 +382,23 @@ export const israaManagementScreen = {
   },
 
   bind({ root, state, api }) {
+    const mgmt = root.querySelector('.israa-mgmt');
+    if (!mgmt) return;
+
+    // repaint() replaces only mgmt's innerHTML.
+    // The delegated listeners on mgmt itself are NOT removed — they persist.
     function repaint() {
-      const mgmt = root.querySelector('.israa-mgmt');
-      if (!mgmt) return;
+      if (!root.contains(mgmt)) return; // screen unmounted — bail silently
       mgmt.innerHTML = fullHtml(_activeTab, getActivityNames(state));
-      bindEvents();
     }
 
     async function loadSimIfNeeded() {
-      if (_simLoaded || _simLoading) return;
+      if (_simLoaded || _simLoading) return; // exactly-once guard
       _simLoading = true;
-      repaint();
+      repaint(); // show loading spinner
       try {
-        const result = await api.israaSimulatorEntries();
-        _simRows  = Array.isArray(result?.rows) ? result.rows : [];
+        const result = await api.israaSimulatorEntries(); // single network call
+        _simRows   = Array.isArray(result?.rows) ? result.rows : [];
         _simLoaded = true;
         _simError  = null;
       } catch (e) {
@@ -405,162 +409,157 @@ export const israaManagementScreen = {
       repaint();
     }
 
-    function bindEvents() {
-      const mgmt = root.querySelector('.israa-mgmt') || root;
+    // ── Single delegated click handler (bound ONCE, survives repaints) ────────
+    mgmt.addEventListener('click', async (e) => {
+      const t = e.target;
 
-      // ── tabs ────────────────────────────────────────────────────────────────
-      mgmt.querySelectorAll('[data-israa-tab]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          _activeTab = btn.dataset.israaTab;
-          repaint();
-          if (_activeTab === 'simulator') loadSimIfNeeded();
-        });
-      });
+      // Tab switching
+      const tabBtn = t.closest('[data-israa-tab]');
+      if (tabBtn) {
+        _activeTab = tabBtn.dataset.israaTab;
+        repaint();
+        if (_activeTab === 'simulator') loadSimIfNeeded();
+        return;
+      }
 
-      // ── program table ───────────────────────────────────────────────────────
-      mgmt.querySelector('[data-israa-action="add-row"]')?.addEventListener('click', () => {
-        if (_addingNew) return;
-        _addingNew = true; _newData = {}; _editingId = null; repaint();
-      });
-      mgmt.querySelector('[data-israa-action="export-csv"]')?.addEventListener('click', () => exportToCsv(_rows));
+      // ── Program table ──────────────────────────────────────────────────────
+      if (t.closest('[data-israa-action="add-row"]')) {
+        if (!_addingNew) { _addingNew = true; _newData = {}; _editingId = null; repaint(); }
+        return;
+      }
+      if (t.closest('[data-israa-action="export-csv"]')) { exportToCsv(_rows); return; }
 
-      mgmt.querySelectorAll('[data-israa-edit]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const row = _rows.find((r) => r.id === btn.dataset.israaEdit);
-          if (!row) return;
-          _editingId = row.id; _editData = { ...row }; _addingNew = false; repaint();
-        });
-      });
-      mgmt.querySelectorAll('[data-israa-cancel]').forEach((btn) => {
-        btn.addEventListener('click', () => { _editingId = null; _editData = {}; repaint(); });
-      });
-      mgmt.querySelector('[data-israa-cancel-new]')?.addEventListener('click', () => {
-        _addingNew = false; _newData = {}; repaint();
-      });
+      const editBtn = t.closest('[data-israa-edit]');
+      if (editBtn) {
+        const row = _rows.find((r) => r.id === editBtn.dataset.israaEdit);
+        if (row) { _editingId = row.id; _editData = { ...row }; _addingNew = false; repaint(); }
+        return;
+      }
 
-      mgmt.querySelectorAll('[data-israa-save]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const id = btn.dataset.israaSave;
-          const tr = mgmt.querySelector(`[data-row-id="${id}"]`);
-          if (!tr) return;
-          btn.disabled = true; btn.textContent = '…';
-          try {
-            const changes = collectProgForm(tr);
-            const res = await api.israaUpdateRow(id, changes);
-            const updated = res?.row || { ...(_rows.find((r) => r.id === id) || {}), ...changes };
-            _rows = _rows.map((r) => r.id === id ? updated : r);
-            _editingId = null; _editData = {}; _error = null;
-          } catch (e) { _error = e.message || 'שגיאה בשמירה'; }
-          repaint();
-        });
-      });
-      mgmt.querySelector('[data-israa-save-new]')?.addEventListener('click', async function () {
+      if (t.closest('[data-israa-cancel]')) { _editingId = null; _editData = {}; repaint(); return; }
+      if (t.closest('[data-israa-cancel-new]')) { _addingNew = false; _newData = {}; repaint(); return; }
+
+      const saveBtn = t.closest('[data-israa-save]');
+      if (saveBtn) {
+        const id = saveBtn.dataset.israaSave;
+        const tr = mgmt.querySelector(`[data-row-id="${id}"]`);
+        if (!tr) return;
+        saveBtn.disabled = true; saveBtn.textContent = '…';
+        try {
+          const changes = collectProgForm(tr);
+          const res = await api.israaUpdateRow(id, changes);
+          _rows = _rows.map((r) => r.id === id ? (res?.row || { ...r, ...changes }) : r);
+          _editingId = null; _editData = {}; _error = null;
+        } catch (e) { _error = e.message || 'שגיאה בשמירה'; }
+        repaint(); return;
+      }
+
+      const saveNewBtn = t.closest('[data-israa-save-new]');
+      if (saveNewBtn) {
         const tr = mgmt.querySelector('.israa-row--new');
         if (!tr) return;
-        this.disabled = true; this.textContent = '…';
+        saveNewBtn.disabled = true; saveNewBtn.textContent = '…';
         try {
           const data = collectProgForm(tr);
           const res = await api.israaInsertRow(data);
           _rows = [..._rows, res?.row || { id: String(Date.now()), ...data }];
           _addingNew = false; _newData = {}; _error = null;
         } catch (e) { _error = e.message || 'שגיאה בהוספה'; }
-        repaint();
-      });
-      mgmt.querySelectorAll('[data-israa-del]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const id = btn.dataset.israaDel;
-          if (!window.confirm('למחוק את השורה הזו?')) return;
-          btn.disabled = true;
-          try {
-            await api.israaDeleteRow(id);
-            _rows = _rows.filter((r) => r.id !== id);
-            if (_editingId === id) { _editingId = null; _editData = {}; }
-            _error = null;
-          } catch (e) { _error = e.message || 'שגיאה במחיקה'; }
-          repaint();
-        });
-      });
-
-      // ── simulator ──────────────────────────────────────────────────────────
-      // Average price input — live update of result text only (no repaint, no focus loss)
-      const avgPriceInp = mgmt.querySelector('[data-sim-avg-price]');
-      if (avgPriceInp) {
-        avgPriceInp.addEventListener('input', () => {
-          const v = parseFloat(avgPriceInp.value) || 9000;
-          _simAvgPrice = Math.max(1, v);
-          const resultEl = mgmt.querySelector('[data-sim-goal-result]');
-          if (resultEl) resultEl.textContent = goalOptionsText(simCalc(_simRows), _simAvgPrice);
-        });
-        avgPriceInp.addEventListener('change', () => {
-          _simAvgPrice = Math.max(1, parseFloat(avgPriceInp.value) || 9000);
-          avgPriceInp.value = _simAvgPrice;
-        });
+        repaint(); return;
       }
 
-      mgmt.querySelector('[data-sim-action="add-row"]')?.addEventListener('click', () => {
-        if (_simAddingNew) return;
-        _simAddingNew = true; _simNewData = {}; _simEditingId = null; repaint();
-      });
+      const delBtn = t.closest('[data-israa-del]');
+      if (delBtn) {
+        const id = delBtn.dataset.israaDel;
+        if (!window.confirm('למחוק את השורה הזו?')) return;
+        delBtn.disabled = true;
+        try {
+          await api.israaDeleteRow(id);
+          _rows = _rows.filter((r) => r.id !== id);
+          if (_editingId === id) { _editingId = null; _editData = {}; }
+          _error = null;
+        } catch (e) { _error = e.message || 'שגיאה במחיקה'; }
+        repaint(); return;
+      }
 
-      mgmt.querySelectorAll('[data-sim-edit]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const row = _simRows.find((r) => r.id === btn.dataset.simEdit);
-          if (!row) return;
-          _simEditingId = row.id; _simEditData = { ...row }; _simAddingNew = false; repaint();
-        });
-      });
-      mgmt.querySelectorAll('[data-sim-cancel]').forEach((btn) => {
-        btn.addEventListener('click', () => { _simEditingId = null; _simEditData = {}; repaint(); });
-      });
-      mgmt.querySelector('[data-sim-cancel-new]')?.addEventListener('click', () => {
-        _simAddingNew = false; _simNewData = {}; repaint();
-      });
+      // ── Simulator table ────────────────────────────────────────────────────
+      if (t.closest('[data-sim-action="add-row"]')) {
+        if (!_simAddingNew) { _simAddingNew = true; _simNewData = {}; _simEditingId = null; repaint(); }
+        return;
+      }
 
-      mgmt.querySelectorAll('[data-sim-save]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const id = btn.dataset.simSave;
-          const tr = mgmt.querySelector(`[data-sim-row-id="${id}"]`);
-          if (!tr) return;
-          btn.disabled = true; btn.textContent = '…';
-          const changes = collectSimForm(tr);
-          try {
-            const res = await api.israaSimUpdateRow(id, changes);
-            const updated = res?.row || { ...(_simRows.find((r) => r.id === id) || {}), ...changes };
-            _simRows = _simRows.map((r) => r.id === id ? updated : r);
-            _simEditingId = null; _simEditData = {}; _simError = null;
-          } catch (e) { _simError = e.message || 'שגיאה בשמירה'; }
-          repaint();
-        });
-      });
-      mgmt.querySelector('[data-sim-save-new]')?.addEventListener('click', async function () {
+      const simEditBtn = t.closest('[data-sim-edit]');
+      if (simEditBtn) {
+        const row = _simRows.find((r) => r.id === simEditBtn.dataset.simEdit);
+        if (row) { _simEditingId = row.id; _simEditData = { ...row }; _simAddingNew = false; repaint(); }
+        return;
+      }
+
+      if (t.closest('[data-sim-cancel]')) { _simEditingId = null; _simEditData = {}; repaint(); return; }
+      if (t.closest('[data-sim-cancel-new]')) { _simAddingNew = false; _simNewData = {}; repaint(); return; }
+
+      const simSaveBtn = t.closest('[data-sim-save]');
+      if (simSaveBtn) {
+        const id = simSaveBtn.dataset.simSave;
+        const tr = mgmt.querySelector(`[data-sim-row-id="${id}"]`);
+        if (!tr) return;
+        simSaveBtn.disabled = true; simSaveBtn.textContent = '…';
+        const changes = collectSimForm(tr);
+        try {
+          const res = await api.israaSimUpdateRow(id, changes);
+          _simRows = _simRows.map((r) => r.id === id ? (res?.row || { ...r, ...changes }) : r);
+          _simEditingId = null; _simEditData = {}; _simError = null;
+        } catch (e) { _simError = e.message || 'שגיאה בשמירה'; }
+        repaint(); return;
+      }
+
+      const simSaveNewBtn = t.closest('[data-sim-save-new]');
+      if (simSaveNewBtn) {
         const tr = mgmt.querySelector('.sim-panel .israa-row--new');
         if (!tr) return;
-        this.disabled = true; this.textContent = '…';
+        simSaveNewBtn.disabled = true; simSaveNewBtn.textContent = '…';
         const entry = collectSimForm(tr);
         try {
           const res = await api.israaSimInsertRow(entry);
           _simRows = [..._simRows, res?.row || { id: String(Date.now()), ...entry }];
           _simAddingNew = false; _simNewData = {}; _simError = null;
         } catch (e) { _simError = e.message || 'שגיאה בהוספה'; }
-        repaint();
-      });
-      mgmt.querySelectorAll('[data-sim-del]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const id = btn.dataset.simDel;
-          if (!window.confirm('למחוק את הרשומה הזו?')) return;
-          btn.disabled = true;
-          try {
-            await api.israaSimDeleteRow(id);
-            _simRows = _simRows.filter((r) => r.id !== id);
-            if (_simEditingId === id) { _simEditingId = null; _simEditData = {}; }
-            _simError = null;
-          } catch (e) { _simError = e.message || 'שגיאה במחיקה'; }
-          repaint();
-        });
-      });
-    }
+        repaint(); return;
+      }
 
-    bindEvents();
+      const simDelBtn = t.closest('[data-sim-del]');
+      if (simDelBtn) {
+        const id = simDelBtn.dataset.simDel;
+        if (!window.confirm('למחוק את הרשומה הזו?')) return;
+        simDelBtn.disabled = true;
+        try {
+          await api.israaSimDeleteRow(id);
+          _simRows = _simRows.filter((r) => r.id !== id);
+          if (_simEditingId === id) { _simEditingId = null; _simEditData = {}; }
+          _simError = null;
+        } catch (e) { _simError = e.message || 'שגיאה במחיקה'; }
+        repaint(); return;
+      }
+    }); // end single click delegation
+
+    // ── Avg price: live local calculation — NO repaint, NO network call ───────
+    // Uses delegation so it survives innerHTML replacement on mgmt.
+    mgmt.addEventListener('input', (e) => {
+      if (!e.target.matches('[data-sim-avg-price]')) return;
+      _simAvgPrice = Math.max(1, parseFloat(e.target.value) || 9000);
+      // Update only the result text node directly — zero DOM churn, zero re-render
+      const resultEl = mgmt.querySelector('[data-sim-goal-result]');
+      if (resultEl) resultEl.textContent = goalOptionsText(simCalc(_simRows), _simAvgPrice);
+    });
+
+    // Normalize the price value when the user leaves the field
+    mgmt.addEventListener('change', (e) => {
+      if (!e.target.matches('[data-sim-avg-price]')) return;
+      _simAvgPrice = Math.max(1, parseFloat(e.target.value) || 9000);
+      e.target.value = _simAvgPrice;
+    });
+
+    // Load simulator data if already on that tab (e.g. preserved state from prev visit)
     if (_activeTab === 'simulator') loadSimIfNeeded();
   }
 };
