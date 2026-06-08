@@ -166,6 +166,8 @@ const PERMISSION_FIELD_LABELS = {
   view_edit_requests: 'צפייה — בקשות עריכה',
   view_final_approvals: 'צפייה — אישורים סופיים',
   view_contacts: 'צפייה — אנשי קשר (מקור ישן)',
+  view_proposals: 'צפייה — הצעות מחיר',
+  view_israa_management: 'צפייה — ניהול איסראא',
   can_request_edit: 'יכול לבקש עריכה',
   can_edit_direct: 'עריכה ישירה',
   can_add_activity: 'הוספת פעילות',

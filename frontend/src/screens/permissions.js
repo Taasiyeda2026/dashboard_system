@@ -13,6 +13,8 @@ const KEY_PERM_FLAGS = [
   'view_permissions',
   'view_catalog',
   'view_orders',
+  'view_proposals',
+  'view_israa_management',
   'finance_access',
   'can_access_personal_reports'
 ];
@@ -180,6 +182,8 @@ function buildAddUserDrawerHtml(roleDefaults) {
 }
 
 function buildEditDrawerHtml(row) {
+  // Ensure new key permission flags are always visible in the form even if not yet stored
+  row = { view_proposals: 'no', view_israa_management: 'no', ...row };
   const uid = escapeHtml(row.user_id);
   const keys = sortedPermissionEditorKeys(row);
 
@@ -290,10 +294,11 @@ function buildPermissionsDetailsHtml(row) {
     { label: 'קטלוג', keys: ['view_catalog'] },
     { label: 'הזמנות', keys: ['view_orders'] },
     { label: 'ארכיון', keys: ['view_archive'] },
-    { label: 'הצעות', keys: ['view_offers'] },
+    { label: 'הצעות מחיר', keys: ['view_proposals'] },
     { label: 'אנשי קשר', keys: ['view_contacts'] },
     { label: 'אישורים', keys: ['view_approvals'] },
     { label: 'הרשאות', keys: ['view_permissions'] },
+    { label: 'ניהול איסראא', keys: ['view_israa_management'] },
     { label: 'ניהול משתמשים', keys: ['view_user_management'] },
     { label: 'נתונים אישיים', keys: ['view_profile'] }
   ];
