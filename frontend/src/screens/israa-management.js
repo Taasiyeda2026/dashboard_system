@@ -13,7 +13,8 @@ let _editingId = null;
 let _editData  = {};
 let _addingNew = false;
 let _newData   = {};
-let _error     = null;
+let _error      = null;
+let _expandedId = null; // which prog row has its contact details open
 
 // ── Simulator state ────────────────────────────────────────────────────────────
 // _simLoaded / _simLoading guard: data is fetched exactly once per session.
@@ -44,6 +45,11 @@ const PROG_COLS = [
   { key: 'status',         label: 'סטטוס',        type: 'status' },
   { key: 'notes',          label: 'הערות',        type: 'text' },
 ];
+
+// Contact fields stay hidden in the outer row and appear only in the expandable detail row
+const PROG_CONTACT_KEYS = new Set(['contact_person', 'phone', 'email']);
+const PROG_MAIN_COL_DEFS    = PROG_COLS.filter((c) => !PROG_CONTACT_KEYS.has(c.key));
+const PROG_CONTACT_COL_DEFS = PROG_COLS.filter((c) =>  PROG_CONTACT_KEYS.has(c.key));
 
 // ── Access guard ───────────────────────────────────────────────────────────────
 function isAllowedUser(state) {
@@ -100,41 +106,73 @@ function progCellEdit(key, value, col, actNames) {
   return `<input class="israa-inp" name="${key}" type="text" value="${v}" />`;
 }
 
-function progRowHtml(row, editingId, editData, actNames) {
-  const ed = row.id === editingId;
-  const cells = PROG_COLS.map((col) => {
+function progRowHtml(row, editingId, editData, expandedId, actNames) {
+  const ed         = row.id === editingId;
+  const isExpanded = ed || row.id === expandedId;
+
+  const mainCells = PROG_MAIN_COL_DEFS.map((col) => {
     const c = ed ? progCellEdit(col.key, editData[col.key] ?? row[col.key], col, actNames) : progCellView(row, col);
-    return `<td class="israa-cell">${c}</td>`;
+    return `<td class="israa-cell${col.key === 'notes' ? ' israa-cell--notes' : ''}">${c}</td>`;
   }).join('');
+
   const actions = ed
     ? `<td class="israa-cell israa-cell--actions"><button class="israa-btn israa-btn--save" data-israa-save="${escapeHtml(row.id)}" title="שמירה">💾</button> <button class="israa-btn israa-btn--cancel" data-israa-cancel="${escapeHtml(row.id)}" title="ביטול">✕</button></td>`
     : `<td class="israa-cell israa-cell--actions"><button class="israa-btn israa-btn--edit" data-israa-edit="${escapeHtml(row.id)}" title="עריכה">✏️</button> <button class="israa-btn israa-btn--del" data-israa-del="${escapeHtml(row.id)}" title="מחיקה">🗑️</button></td>`;
-  return `<tr class="israa-row${ed ? ' israa-row--editing' : ''}" data-row-id="${escapeHtml(row.id)}">${cells}${actions}</tr>`;
+
+  const mainRow = `<tr class="israa-row${ed ? ' israa-row--editing' : ''}" data-row-id="${escapeHtml(row.id)}"${!ed ? ` data-prog-toggle="${escapeHtml(row.id)}"` : ''}>${mainCells}${actions}</tr>`;
+
+  if (!isExpanded) return mainRow;
+
+  let detailContent;
+  if (ed) {
+    detailContent = PROG_CONTACT_COL_DEFS.map((col) => {
+      const inp = progCellEdit(col.key, editData[col.key] ?? row[col.key], col, actNames);
+      return `<div class="prog-detail__field"><span class="prog-detail__lbl">${escapeHtml(col.label)}:</span>${inp}</div>`;
+    }).join('');
+  } else {
+    const parts = PROG_CONTACT_COL_DEFS.map((col) => {
+      const val = String(row[col.key] ?? '');
+      return val ? `<span class="prog-detail__item"><span class="prog-detail__lbl">${escapeHtml(col.label)}:</span> <span>${escapeHtml(val)}</span></span>` : '';
+    }).join('');
+    detailContent = parts || `<span class="prog-detail__empty">אין פרטי איש קשר</span>`;
+  }
+
+  return mainRow + `<tr class="prog-detail-row" data-detail-for="${escapeHtml(row.id)}"><td colspan="${PROG_MAIN_COL_DEFS.length + 1}" class="prog-detail-cell${ed ? ' prog-detail-cell--edit' : ''}">${detailContent}</td></tr>`;
 }
 
 function progNewRowHtml(newData, actNames) {
-  return `<tr class="israa-row israa-row--new">${PROG_COLS.map((col) =>
-    `<td class="israa-cell">${progCellEdit(col.key, newData[col.key], col, actNames)}</td>`
-  ).join('')}<td class="israa-cell israa-cell--actions"><button class="israa-btn israa-btn--save" data-israa-save-new title="שמירה">💾</button> <button class="israa-btn israa-btn--cancel" data-israa-cancel-new title="ביטול">✕</button></td></tr>`;
+  const mainCells = PROG_MAIN_COL_DEFS.map((col) =>
+    `<td class="israa-cell${col.key === 'notes' ? ' israa-cell--notes' : ''}">${progCellEdit(col.key, newData[col.key], col, actNames)}</td>`
+  ).join('');
+  const contactCells = PROG_CONTACT_COL_DEFS.map((col) => {
+    const inp = progCellEdit(col.key, newData[col.key], col, actNames);
+    return `<div class="prog-detail__field"><span class="prog-detail__lbl">${escapeHtml(col.label)}:</span>${inp}</div>`;
+  }).join('');
+  return `<tr class="israa-row israa-row--new" data-row-id="__new__">${mainCells}<td class="israa-cell israa-cell--actions"><button class="israa-btn israa-btn--save" data-israa-save-new title="שמירה">💾</button> <button class="israa-btn israa-btn--cancel" data-israa-cancel-new title="ביטול">✕</button></td></tr><tr class="prog-detail-row"><td colspan="${PROG_MAIN_COL_DEFS.length + 1}" class="prog-detail-cell prog-detail-cell--edit">${contactCells}</td></tr>`;
 }
 
-function progTableHtml(rows, editingId, editData, addingNew, newData, error, actNames) {
-  const hdr = PROG_COLS.map((c) => `<th class="israa-th">${escapeHtml(c.label)}</th>`).join('');
+function progTableHtml(rows, editingId, editData, addingNew, newData, error, expandedId, actNames) {
+  const hdr = PROG_MAIN_COL_DEFS.map((c) =>
+    `<th class="israa-th${c.key === 'notes' ? ' israa-th--notes' : ''}">${escapeHtml(c.label)}</th>`
+  ).join('');
+  const colCount = PROG_MAIN_COL_DEFS.length + 1;
   const body = [
-    !rows.length && !addingNew ? `<tr><td colspan="${PROG_COLS.length+1}" class="israa-empty">אין רשומות. לחצי "+ הוספת שורה" להתחיל.</td></tr>` : '',
-    rows.map((r) => progRowHtml(r, editingId, editData, actNames)).join(''),
+    !rows.length && !addingNew ? `<tr><td colspan="${colCount}" class="israa-empty">אין רשומות. לחצי "+ הוספת שורה" להתחיל.</td></tr>` : '',
+    rows.map((r) => progRowHtml(r, editingId, editData, expandedId, actNames)).join(''),
     addingNew ? progNewRowHtml(newData, actNames) : ''
   ].join('');
   return `<div class="israa-toolbar">
     <button class="israa-btn israa-btn--primary" data-israa-action="add-row"${addingNew ? ' disabled' : ''}>+ הוספת שורה</button>
     <button class="israa-btn" data-israa-action="export-csv">📥 ייצוא לאקסל</button>
   </div>
-  ${error ? `<div class="israa-error">${escapeHtml(error)}</div>` : ''}
-  <div class="israa-table-wrap">
-    <table class="israa-table" dir="rtl">
-      <thead><tr>${hdr}<th class="israa-th israa-th--actions">פעולות</th></tr></thead>
-      <tbody>${body}</tbody>
-    </table>
+  <div class="prog-section">
+    ${error ? `<div class="israa-error">${escapeHtml(error)}</div>` : ''}
+    <div class="israa-table-wrap">
+      <table class="israa-table prog-table" dir="rtl">
+        <thead><tr>${hdr}<th class="israa-th israa-th--actions">פעולות</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
   </div>`;
 }
 
@@ -269,7 +307,7 @@ function fullHtml(activeTab, actNames) {
     return tabBarHtml(activeTab) +
       `<div class="sim-panel">${simPanelHtml(_simRows, _simEditingId, _simEditData, _simAddingNew, _simNewData, _simError, _simLoading, _simCollab)}</div>`;
   }
-  return tabBarHtml(activeTab) + progTableHtml(_rows, _editingId, _editData, _addingNew, _newData, _error, actNames);
+  return tabBarHtml(activeTab) + progTableHtml(_rows, _editingId, _editData, _addingNew, _newData, _error, _expandedId, actNames);
 }
 
 // ── CSV export ─────────────────────────────────────────────────────────────────
@@ -291,10 +329,14 @@ function exportToCsv(rows) {
 }
 
 // ── Form data collectors ───────────────────────────────────────────────────────
-function collectProgForm(tr) {
+function collectProgForm(mainTr) {
+  // Contact fields live in the adjacent prog-detail-row; check there too
+  const detailTr = mainTr.nextElementSibling?.classList.contains('prog-detail-row')
+    ? mainTr.nextElementSibling : null;
   const data = {};
   PROG_COLS.forEach((col) => {
-    const inp = tr.querySelector(`[name="${col.key}"]`);
+    const inp = mainTr.querySelector(`[name="${col.key}"]`)
+             || (detailTr ? detailTr.querySelector(`[name="${col.key}"]`) : null);
     if (!inp) return;
     data[col.key] = col.type === 'number' ? (inp.value === '' ? null : parseInt(inp.value, 10))
                   : col.type === 'date'   ? (inp.value || null)
@@ -374,6 +416,20 @@ const ISRAA_CSS = `<style data-israa-styles>
 .sim-th--amt{width:130px;text-align:left}
 .sim-cell--amt{text-align:left;font-variant-numeric:tabular-nums}
 .sim-inp--amt{text-align:left}
+.prog-section{max-width:80%}
+@media (max-width:768px){.prog-section{max-width:100%}}
+.prog-section .israa-table-wrap{background:#fff;box-shadow:0 2px 8px rgba(26,51,88,.07)}
+.prog-table{table-layout:auto}
+.israa-th--notes{min-width:140px}
+.israa-cell--notes{white-space:normal;word-break:break-word}
+.prog-table .israa-row[data-prog-toggle]{cursor:pointer}
+.prog-detail-row .prog-detail-cell{background:#eef2fa;padding:8px 14px;border-bottom:1px solid var(--ds-border,#e2e8f0)}
+.prog-detail__item{display:inline-flex;gap:4px;align-items:center;font-size:12px;color:var(--ds-text,#1e293b);margin-left:18px}
+.prog-detail__lbl{font-weight:600;color:var(--ds-text-secondary,#64748b);white-space:nowrap}
+.prog-detail__empty{color:var(--ds-text-secondary,#94a3b8);font-size:12px;font-style:italic}
+.prog-detail-cell--edit{background:#fffbeb!important}
+.prog-detail-cell--edit .prog-detail__field{display:inline-flex;align-items:center;gap:6px;font-size:12px;margin-left:14px}
+.prog-detail-cell--edit .prog-detail__field .israa-inp{width:150px!important}
 </style>`;
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -491,9 +547,19 @@ export const israaManagementScreen = {
           await api.israaDeleteRow(id);
           _rows = _rows.filter((r) => r.id !== id);
           if (_editingId === id) { _editingId = null; _editData = {}; }
+          if (_expandedId === id) { _expandedId = null; }
           _error = null;
         } catch (e) { _error = e.message || 'שגיאה במחיקה'; }
         repaint(); return;
+      }
+
+      // Row expand/collapse — fires only after all action buttons have been checked above
+      const progToggle = t.closest('[data-prog-toggle]');
+      if (progToggle && !t.closest('.israa-cell--actions')) {
+        const id = progToggle.dataset.progToggle;
+        _expandedId = (_expandedId === id) ? null : id;
+        repaint();
+        return;
       }
 
       // ── Simulator table ────────────────────────────────────────────────────
