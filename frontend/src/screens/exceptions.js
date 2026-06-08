@@ -93,7 +93,11 @@ function hasMissingDateException(row) {
 }
 
 function isSummerMissingDateException(row) {
-  return isSummerActivity(row) && hasMissingDateException(row);
+  const status = String(row?.status || '').trim();
+  if (status === 'סגור' || status === 'נמחק') return false;
+  const season = String(row?.activity_season || '').trim();
+  if (season !== 'summer_2026' && season !== 'summer') return false;
+  return hasMissingDateException(row);
 }
 
 function splitRowsByExceptionTab(rows = []) {
@@ -292,7 +296,7 @@ export const exceptionsScreen = {
       ${toolbarHtml}
       <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}</h2></section>
       ${(() => { try { return sessionStorage.getItem('ds_exceptions_save_notice') === '1'; } catch { return false; } })() ? `<div class="ds-exceptions-save-notice" role="status" dir="rtl"><strong>הפעילות נשמרה בהצלחה.</strong> החריגה תוקנה ולכן הפעילות הוסרה ממסך החריגות. <button type="button" class="ds-btn ds-btn--sm" data-exception-go-activities>מעבר למסך פעילויות</button></div>` : ''}
-      ${exceptionTabsHtml(activeTab, { general: tabRows.general.length, summerDates: tabRows.summerDates.length })}
+      ${exceptionTabsHtml(activeTab, { general: uniqueExceptionActivityCount(tabRows.general), summerDates: uniqueExceptionActivityCount(tabRows.summerDates) })}
       ${activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? '<p class="ds-exceptions-tab-note">פעילויות קיץ ללא תאריך מוצגות כאן בנפרד, מאחר שבדרך כלל מדובר בהזמנות שנכנסו למערכת ונמצאות עדיין בשלב תיאום.</p>' : ''}
       ${exceptionsSummaryHtml(visibleRows)}
       ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState(emptyText)}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group)}</section>`).join('')}
