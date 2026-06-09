@@ -11213,14 +11213,15 @@ select.ds-input {
 .proposal-signature {
   margin-top: 36px;
   margin-inline-start: auto;
-  width: 220px;
-  text-align: left;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
   direction: rtl;
 }
 .proposal-signature-line {
-  width: 220px;
+  width: 100%;
   border-top: 1px solid #9ca3af;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 .proposal-signature-name {
   font-size: 13px;
@@ -11332,8 +11333,8 @@ select.ds-input {
   width: 100%;
 }
 /* Legacy aliases kept for any residual references */
-.ds-pa-doc-signature { margin-top: 36px; margin-inline-start: auto; width: 220px; text-align: left; direction: rtl; }
-.ds-pa-doc-signature-line { width: 220px; border-top: 1px solid #9ca3af; margin-bottom: 6px; }
+.ds-pa-doc-signature { margin-top: 36px; margin-inline-start: auto; display: inline-flex; flex-direction: column; align-items: stretch; direction: rtl; }
+.ds-pa-doc-signature-line { width: 100%; border-top: 1px solid #9ca3af; margin-bottom: 2px; }
 .ds-pa-doc-signature-name { font-size: 13px; color: #111827; white-space: nowrap; }
 /* שורות פעילות — נקודה מפורשת לפני כל שורה */
 .pa-proposal-lines ul {
