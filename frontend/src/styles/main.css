@@ -11282,15 +11282,15 @@ select.ds-input {
 .proposal-header-left {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
 }
 .proposal-logo {
-  width: 280px;
-  max-width: 42%;
+  width: 320px;
+  max-width: 46%;
   height: auto;
   object-fit: contain;
   display: block;
-  margin-left: -6px;
+  margin-left: 0;
 }
 .proposal-document-body {
   flex: 1 1 auto;
@@ -11336,7 +11336,7 @@ select.ds-input {
   white-space: nowrap;
 }
 .pa-doc-date {
-  text-align: center;
+  text-align: left;
   direction: ltr;
   font-size: 7.5pt;
   color: #374151;
@@ -11593,14 +11593,15 @@ select.ds-input {
   .proposal-header-left {
     display: flex !important;
     flex-direction: column !important;
-    align-items: center !important;
+    align-items: flex-start !important;
   }
   .proposal-logo {
-    width: 260px !important;
-    max-width: 42% !important;
+    width: 300px !important;
+    max-width: 46% !important;
     height: auto !important;
     object-fit: contain !important;
     display: block !important;
+    margin-left: 0 !important;
   }
 
   /* Footer — normal flow (same as screen) */
