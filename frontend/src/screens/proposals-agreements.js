@@ -668,9 +668,8 @@ function recipientLineHtml(...values) {
 function recipientBlockHtml(row = {}) {
   return `<div class="pa-doc-address">
     <p><strong>לכבוד:</strong></p>
-    ${recipientLineHtml(row.contact_name)}
-    ${recipientLineHtml(row.school_framework)}
-    ${recipientLineHtml(row.client_authority)}
+    ${recipientLineHtml(row.contact_name, row.contact_role)}
+    ${recipientLineHtml(row.school_framework, row.client_authority)}
   </div>`;
 }
 

@@ -1058,7 +1058,7 @@ test('changing proposal type reloads relevant item areas and preview template', 
       const overlay = dom.window.document.getElementById('pa-preview-overlay');
       assert.ok(overlay, 'preview overlay should open');
       assert.match(overlay.textContent, /הצעת מחיר לפעילויות תעשיידע \| קיץ תשפ״ו ושנת הלימודים תשפ״ז/);
-      assert.match(overlay.textContent, /ישראל ישראלי/);
+      assert.match(overlay.textContent, /ישראל ישראלי, מנהל בית הספר/);
       assert.doesNotMatch(overlay.textContent, /undefined|null|NaN|שורה חדשה|בדיקות פנימיות/);
     }
   );
@@ -1136,7 +1136,7 @@ test('proposal preview renders recipient block before title without empty commas
   const row = {
     ...sampleRows[0],
     contact_name: 'יונית לוי',
-    contact_role: 'מנהלת בית הספר',
+    contact_role: 'מנהלת',
     school_framework: 'בית ספר אורט',
     client_authority: 'רשות הדוגמה',
     custom_document_sections: [{
@@ -1168,9 +1168,8 @@ test('proposal preview renders recipient block before title without empty commas
     assert.ok(address.compareDocumentPosition(intro) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
     assert.deepEqual(Array.from(address.querySelectorAll('p')).map((p) => p.textContent), [
       'לכבוד:',
-      'יונית לוי',
-      'בית ספר אורט',
-      'רשות הדוגמה'
+      'יונית לוי, מנהלת',
+      'בית ספר אורט, רשות הדוגמה'
     ]);
     assert.doesNotMatch(address.textContent, /undefined|null|NaN|,,|,\s*$/);
   });
@@ -1206,8 +1205,8 @@ test('proposal preview uses updated central contact details when reopening', asy
     await delay(20);
 
     const address = dom.window.document.querySelector('.pa-doc-address');
-    assert.match(address.textContent, /דנה קשר/);
-    assert.doesNotMatch(address.textContent, /תפקיד ישן|מנהלת מעודכנת|undefined|null|NaN/);
+    assert.match(address.textContent, /דנה קשר, מנהלת מעודכנת/);
+    assert.doesNotMatch(address.textContent, /תפקיד ישן|undefined|null|NaN/);
   });
 });
 
