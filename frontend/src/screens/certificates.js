@@ -201,10 +201,10 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl}
   object-fit:fill;
   display:block;
 }
-/* Logo overlay — transparent, centered, top ~8% inside the certificate */
+/* Logo overlay — transparent, centered, top ~5% inside the certificate */
 .cert-print-logo-bar{
   position:absolute;
-  top:8%;
+  top:5%;
   left:50%;
   transform:translateX(-50%);
   z-index:10;
@@ -216,7 +216,7 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl}
   padding:0;
   white-space:nowrap;
 }
-.pl{height:14mm;max-width:35mm;object-fit:contain;display:block;flex-shrink:0}
+.pl{max-height:11mm;height:auto;max-width:28mm;width:auto;object-fit:contain;display:block;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -344,10 +344,10 @@ function ensureStyles() {
 .cert-preview-viewer{display:flex;flex-direction:column;align-items:center;width:100%;max-width:460px}
 .cert-preview-iframe-wrap{position:relative;width:100%;aspect-ratio:210/297;background:#f1f5f9;flex-shrink:0;border-radius:4px;overflow:hidden}
 .cert-preview-iframe-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;display:block}
-/* ─ Logo overlay — transparent, centered, top ~8% inside the certificate ─ */
+/* ─ Logo overlay — transparent, centered, top ~5% inside the certificate ─ */
 .cert-preview-logo-strip{
   position:absolute;
-  top:8%;
+  top:5%;
   left:50%;
   transform:translateX(-50%);
   z-index:10;
@@ -361,7 +361,7 @@ function ensureStyles() {
   pointer-events:none;
 }
 .cert-preview-logo-strip--empty{display:none}
-.cert-strip-logo{height:5%;max-width:22%;object-fit:contain;display:block;flex-shrink:0}
+.cert-strip-logo{max-height:36px;height:auto;max-width:80px;width:auto;object-fit:contain;display:block;flex-shrink:0}
 @media print{
   body>*{display:none!important}
 }`;
