@@ -1258,19 +1258,7 @@ function proposalTypeCardsHtml(selected) {
 }
 
 function proposalStepperHtml() {
-  const steps = [
-    ['client', 'פרטי לקוח ואיש קשר'],
-    ['proposal', 'סוג ההצעה'],
-    ['activity', 'בחירת פעילות'],
-    ['summary', 'סיכום והפקת הצעה']
-  ];
-  return `<ol class="ds-pa-stepper" data-pa-stepper aria-label="שלבי יצירת הצעת מחיר">
-    ${steps.map(([key, label], idx) => `<li class="ds-pa-stepper-item" data-pa-step-indicator="${key}" aria-current="${idx === 0 ? 'step' : 'false'}">
-      <span class="ds-pa-stepper-num">${idx + 1}</span>
-      <span class="ds-pa-stepper-label">${escapeHtml(label)}</span>
-      <span class="ds-pa-stepper-status" data-pa-step-status="${key}">${idx === 0 ? 'פעיל' : 'ממתין'}</span>
-    </li>`).join('')}
-  </ol>`;
+  return '';
 }
 
 function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = []) {
@@ -1291,26 +1279,25 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
 
   return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
-    <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
-    ${proposalStepperHtml()}
-
-    <div class="ds-pa-form-section" data-pa-step-panel="client">
-      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">1</span> פרטי לקוח</h4>
-      <div class="ds-pa-client-row">
-        ${clientSelectHtml(contactOptions, row)}
-        <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>+ לקוח חדש</button>
-      </div>
-      <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail) : ''}</div>
-      <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הוספת לקוח חדש</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לבחירת לקוח קיים</button></div>
-      <div class="ds-pa-form-grid" data-pa-client-fields${isLocked ? ' hidden' : ''}>
-        ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
-        ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, true)}
-      </div>
+    <div class="ds-pa-form-header">
+      <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
     </div>
 
-    <div class="ds-pa-form-section ds-pa-form-section--contact" data-pa-step-panel="contact">
-      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">1ב</span> פרטי איש קשר</h4>
-      <div class="ds-pa-section-body">
+    <div class="ds-pa-form-meta-panel">
+      <div data-pa-step-panel="client">
+        <div class="ds-pa-client-row">
+          ${clientSelectHtml(contactOptions, row)}
+          <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>+ לקוח חדש</button>
+        </div>
+        <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail) : ''}</div>
+        <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הוספת לקוח חדש</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לבחירת לקוח קיים</button></div>
+        <div class="ds-pa-form-grid" data-pa-client-fields${isLocked ? ' hidden' : ''}>
+          ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
+          ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, true)}
+        </div>
+      </div>
+      <div data-pa-step-panel="contact">
         <div data-pa-contact-picker-host>${initPickerHtml}</div>
         <div class="ds-pa-form-grid">
           ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
@@ -1321,40 +1308,35 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       </div>
     </div>
 
-    <div class="ds-pa-form-section ds-pa-form-section--proposal" data-pa-step-panel="proposal">
-      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">2</span> סוג ההצעה</h4>
-      <div class="ds-pa-section-body">
-        <div class="ds-pa-form-field ds-pa-form-field--wide">
+    <div class="ds-pa-form-type-panel" data-pa-step-panel="proposal">
+      <div class="ds-pa-type-meta-grid">
+        <div class="ds-pa-form-field">
           <span>${escapeHtml(FIELD_LABELS.activity_type_group)} *</span>
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
         </div>
-        <div class="ds-pa-form-grid ds-pa-form-grid--proposal" style="margin-top:10px">
+        <div class="ds-pa-type-meta-aux">
           <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
           <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.status)}</span><output class="ds-pa-status-output">${escapeHtml(STATUS_LABELS[currentStatus] || currentStatus)}</output></label>
           <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
         </div>
-        <div class="ds-pa-type-row">
-          ${templateIndicatorHtml(normalizedActivityGroup)}
-        </div>
-        <p class="ds-pa-template-mode ${hasCustomSections ? 'ds-pa-template-mode--custom' : ''}" data-pa-template-mode>${hasCustomSections ? 'הצעה זו כוללת נוסח מותאם אישית' : 'הצעה זו משתמשת בתבנית המקור'}</p>
       </div>
+      <div class="ds-pa-type-row">${templateIndicatorHtml(normalizedActivityGroup)}</div>
+      <p class="ds-pa-template-mode ${hasCustomSections ? 'ds-pa-template-mode--custom' : ''}" data-pa-template-mode>${hasCustomSections ? 'הצעה זו כוללת נוסח מותאם אישית' : 'הצעה זו משתמשת בתבנית המקור'}</p>
     </div>
 
-    <div class="ds-pa-form-section ds-pa-form-section--activities" data-pa-step-panel="activity">
-      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">3</span> בחירת פעילות</h4>
-      <div class="ds-pa-section-body ds-pa-section-body--activities">
-        <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
-      </div>
+    <div class="ds-pa-form-activities-panel" data-pa-step-panel="activity">
+      <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
     </div>
 
-    <div class="ds-pa-form-section ds-pa-form-section--notes" data-pa-step-panel="summary">
-      <h4 class="ds-pa-section-heading ds-pa-step-title"><span class="ds-pa-section-num">4</span> סיכום והפקת הצעה</h4>
-      <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm ds-pa-notes-input" name="notes" rows="3">${escapeHtml(text(row.notes))}</textarea></label>
+    <div class="ds-pa-form-bottom-panel" data-pa-step-panel="summary">
+      <details class="ds-pa-notes-details"${text(row.notes) ? ' open' : ''}>
+        <summary class="ds-pa-notes-summary">הערות</summary>
+        <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm ds-pa-notes-input" name="notes" rows="3">${escapeHtml(text(row.notes))}</textarea></label>
+      </details>
       ${proposalSummaryHtml(row.total_amount)}
       <div class="ds-pa-validation-notice" data-pa-validation-notice hidden></div>
       <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
       <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
         <div class="ds-pa-form-actions-main">
           <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
           <button type="button" class="ds-btn ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
@@ -1634,25 +1616,7 @@ export const proposalsAgreementsScreen = {
     const updateProposalStepper = (container) => {
       const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]') || container;
       if (!form) return;
-      const done = stepComplete(form);
-      setPanelOpen(form, 'client', true);
-      setPanelOpen(form, 'contact', true);
-      setPanelOpen(form, 'proposal', done.client);
-      setPanelOpen(form, 'activity', done.proposal);
-      setPanelOpen(form, 'summary', done.activity);
-      const activeKey = !done.client ? 'client' : !done.proposal ? 'proposal' : !done.activity ? 'activity' : 'summary';
-      const completed = { client: done.client, proposal: done.proposal, activity: done.activity, summary: done.summary };
-      form.querySelectorAll('[data-pa-step-indicator]').forEach((item) => {
-        const key = text(item.dataset.paStepIndicator);
-        const isActive = key === activeKey;
-        const isDone = Boolean(completed[key]) && key !== activeKey;
-        item.classList.toggle('is-active', isActive);
-        item.classList.toggle('is-complete', isDone);
-        item.classList.toggle('is-disabled', !isActive && !isDone);
-        item.setAttribute('aria-current', isActive ? 'step' : 'false');
-        const status = item.querySelector('[data-pa-step-status]');
-        if (status) status.textContent = isDone ? 'הושלם' : (isActive ? 'פעיל' : 'ממתין');
-      });
+      ['client', 'contact', 'proposal', 'activity', 'summary'].forEach((key) => setPanelOpen(form, key, true));
     };
     const setupFormStepper = (container) => {
       const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]');

@@ -10992,6 +10992,84 @@ select.ds-input {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   Proposals – Compact single-form layout (replaces stepper wizard)
+   ═══════════════════════════════════════════════════════════════════ */
+.ds-pa-form--compact { padding: 14px; }
+
+.ds-pa-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+.ds-pa-form-header .ds-pa-form-title { margin: 0; }
+
+.ds-pa-form-meta-panel {
+  background: var(--ds-color-surface, #fff);
+  border: 1px solid var(--ds-border, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.ds-pa-form-type-panel {
+  background: var(--ds-color-surface, #fff);
+  border: 1px solid var(--ds-border, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.ds-pa-type-meta-grid {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.ds-pa-type-meta-grid > .ds-pa-form-field { flex: 1 1 300px; }
+
+.ds-pa-type-meta-aux {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.ds-pa-form-activities-panel { margin-bottom: 10px; }
+
+.ds-pa-form-bottom-panel {
+  background: var(--ds-color-surface, #fff);
+  border: 1px solid var(--ds-border, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.ds-pa-notes-details { margin-bottom: 10px; }
+.ds-pa-notes-summary {
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ds-color-text-muted, #64748b);
+  user-select: none;
+  padding: 4px 0;
+  list-style: none;
+}
+.ds-pa-notes-summary::-webkit-details-marker { display: none; }
+.ds-pa-notes-summary::before { content: '▸ '; font-size: 0.7rem; }
+.ds-pa-notes-details[open] .ds-pa-notes-summary::before { content: '▾ '; }
+.ds-pa-notes-details[open] .ds-pa-notes-summary { margin-bottom: 8px; }
+
+@media (max-width: 760px) {
+  .ds-pa-type-meta-grid { flex-direction: column; }
+  .ds-pa-type-meta-aux { flex-direction: row; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    Proposals – Simplified item quick row + collapsible extras
    ═══════════════════════════════════════════════════════════════════ */
 .ds-pa-item-quick-row {
