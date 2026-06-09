@@ -14368,3 +14368,20 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pr-my-report-summary {
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Print guard — certificates screen
+   Hides all shell chrome when the user triggers browser print while
+   the certificates screen is active (print window opens separately,
+   but this ensures nothing leaks through).
+   ═══════════════════════════════════════════════════════════════════ */
+@media print {
+  .app-shell .shell-sidebar,
+  .app-shell .shell-top,
+  .cert-card__actions,
+  .cert-screen__header .cert-upload-lbl,
+  #certClearLogo,
+  #certLogoStatus {
+    display: none !important;
+  }
+}

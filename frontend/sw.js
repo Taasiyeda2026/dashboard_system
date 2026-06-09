@@ -3,7 +3,7 @@
  * App shell, JS and CSS: network-first so a normal reload can pick up a new deploy.
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 623;
+const CACHE_VERSION = 624;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -34,7 +34,7 @@ function isStaticAssetUrl(url) {
   const p = url.pathname;
   if (p.endsWith('/index.html') || p === '/' || p.endsWith('.html')) return true;
   if (p.endsWith('.js') || p.endsWith('.css')) return true;
-  if (p.endsWith('.png') || p.endsWith('.ico') || p.endsWith('.svg') || p.endsWith('.webp')) return true;
+  if (p.endsWith('.png') || p.endsWith('.ico') || p.endsWith('.svg') || p.endsWith('.webp') || p.endsWith('.pdf')) return true;
   if (isManifestUrl(url)) return true;
   if (p.endsWith('.woff2') || p.endsWith('.woff')) return true;
   return false;
