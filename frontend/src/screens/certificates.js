@@ -159,9 +159,10 @@ function buildPrintLogosHtml(certId) {
 function doPrint(certId) {
   const cert = CERTIFICATES.find(c => c.id === certId);
   if (!cert) return;
-  const pdfUrl = new URL(`${CERT_TEMPLATES}${cert.file}`, window.location.href).href;
-  const logosHtml = buildPrintLogosHtml(certId);
-  const hasLogos = logosHtml.length > 0;
+  /* Use the preview PNG as the base — stable HTML page, no iframe/embed clipping */
+  const previewUrl = new URL(`${CERT_PREVIEWS}${certId}.png`, window.location.href).href;
+  const logosHtml  = buildPrintLogosHtml(certId);
+  const hasLogos   = logosHtml.length > 0;
   const win = window.open('', '_blank', 'width=900,height=1200');
   if (!win) return;
   win.document.write(`<!DOCTYPE html>
@@ -171,7 +172,7 @@ function doPrint(certId) {
 <title>${cert.name}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:100%}
+html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl}
 @page{size:A4 portrait;margin:0}
 @media print{
   html,body{background:white}
@@ -180,7 +181,7 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:1
 .no-print{text-align:center;padding:12px;background:#f8fafc;border-bottom:1px solid #e2e8f0}
 .no-print button{background:#1a8c6e;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin:0 6px}
 .no-print button:hover{background:#157a5e}
-/* A4 page wrapper — position:relative so logo overlay is inside */
+/* A4 page — exact dimensions, no scroll */
 .cert-print-page{
   position:relative;
   width:210mm;
@@ -189,17 +190,18 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:1
   background:white;
   box-shadow:0 4px 20px rgba(0,0,0,.2);
   overflow:hidden;
+  page-break-inside:avoid;
 }
-/* iframe fills full page */
-.cert-print-iframe{
+/* Preview image fills full A4 */
+.cert-print-img{
   position:absolute;
   top:0;left:0;
   width:100%;
   height:100%;
-  border:none;
+  object-fit:fill;
   display:block;
 }
-/* logo overlay — transparent, centered, top ~8% inside the certificate */
+/* Logo overlay — transparent, centered, top ~8% inside the certificate */
 .cert-print-logo-bar{
   position:absolute;
   top:8%;
@@ -212,9 +214,9 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:1
   gap:8mm;
   background:transparent;
   padding:0;
-  pointer-events:none;
+  white-space:nowrap;
 }
-.pl{height:14mm;max-width:35mm;object-fit:contain;display:block}
+.pl{height:14mm;max-width:35mm;object-fit:contain;display:block;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -223,11 +225,13 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:1
   <button onclick="window.close()">סגירה</button>
 </div>
 <div class="cert-print-page">
-  <iframe class="cert-print-iframe" src="${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0"></iframe>
+  <img class="cert-print-img" src="${previewUrl}" alt="${cert.name}" />
   ${hasLogos ? `<div class="cert-print-logo-bar">${logosHtml}</div>` : ''}
 </div>
 <script>
-window.addEventListener('load',function(){setTimeout(function(){window.print();},1000)});
+var img=document.querySelector('.cert-print-img');
+function doP(){setTimeout(function(){window.print();},300)}
+if(img.complete){doP()}else{img.onload=doP;img.onerror=doP}
 window.onafterprint=function(){setTimeout(function(){window.close();},250)};
 <\/script>
 </body>
