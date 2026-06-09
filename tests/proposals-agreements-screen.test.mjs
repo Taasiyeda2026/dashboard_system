@@ -1135,9 +1135,9 @@ test('proposal preview preserves multiline section paragraphs and dash bullets',
 test('proposal preview renders recipient block before title without empty commas', async () => {
   const row = {
     ...sampleRows[0],
-    contact_name: '',
-    contact_role: 'מנהלת בית הספר',
-    school_framework: '',
+    contact_name: 'יונית לוי',
+    contact_role: 'מנהלת',
+    school_framework: 'בית ספר אורט',
     client_authority: 'רשות הדוגמה',
     custom_document_sections: [{
       section_key: 'intro',
@@ -1168,8 +1168,8 @@ test('proposal preview renders recipient block before title without empty commas
     assert.ok(address.compareDocumentPosition(intro) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
     assert.deepEqual(Array.from(address.querySelectorAll('p')).map((p) => p.textContent), [
       'לכבוד:',
-      'מנהלת בית הספר',
-      'רשות הדוגמה'
+      'יונית לוי, מנהלת',
+      'בית ספר אורט, רשות הדוגמה'
     ]);
     assert.doesNotMatch(address.textContent, /undefined|null|NaN|,,|,\s*$/);
   });
