@@ -185,7 +185,7 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:1
 .no-print{text-align:center;padding:12px;background:#f8fafc;border-bottom:1px solid #e2e8f0}
 .no-print button{background:#1a8c6e;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin:0 6px}
 .no-print button:hover{background:#157a5e}
-/* A4 page — flex column so embed + logo bar stack vertically */
+/* A4 page — flex column: logo bar first (top), then embed fills rest */
 .cert-print-page{
   width:210mm;height:297mm;
   margin:0 auto;
@@ -195,15 +195,7 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:1
   flex-direction:column;
   overflow:hidden;
 }
-/* embed fills all height minus logo bar */
-.cert-print-embed{
-  width:100%;
-  flex:1;
-  display:block;
-  border:none;
-  min-height:0;
-}
-/* logo bar at the bottom — real bottom, not overlay */
+/* logo bar at the TOP */
 .cert-print-logo-bar{
   flex-shrink:0;
   width:100%;
@@ -213,10 +205,18 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:1
   justify-content:center;
   gap:6mm;
   background:#f0f4f8;
-  border-top:0.3mm solid #cbd5e1;
+  border-bottom:0.3mm solid #cbd5e1;
   padding:2mm 6mm;
 }
 .pl{height:12mm;max-width:32mm;object-fit:contain;display:block}
+/* embed fills remaining height */
+.cert-print-embed{
+  width:100%;
+  flex:1;
+  display:block;
+  border:none;
+  min-height:0;
+}
 </style>
 </head>
 <body>
@@ -225,8 +225,8 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:1
   <button onclick="window.close()">סגירה</button>
 </div>
 <div class="cert-print-page">
-  <embed class="cert-print-embed" src="${pdfUrl}" type="application/pdf" />
   ${hasLogos ? `<div class="cert-print-logo-bar">${logosHtml}</div>` : ''}
+  <embed class="cert-print-embed" src="${pdfUrl}" type="application/pdf" />
 </div>
 <script>
 window.addEventListener('load',function(){setTimeout(function(){window.print();},800)});
@@ -259,10 +259,10 @@ function openPreview(certId) {
   ${logoSelectorHtml(certId)}
   <div class="cert-preview-modal__body">
     <div class="cert-preview-viewer">
+      ${logoPreviewStripHtml(certId)}
       <div class="cert-preview-iframe-wrap">
         <iframe src="${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0" title="${cert.name}"></iframe>
       </div>
-      ${logoPreviewStripHtml(certId)}
     </div>
   </div>
   <div class="cert-preview-modal__footer">
@@ -341,10 +341,10 @@ function ensureStyles() {
 .cert-logo-pick__remove-custom:hover{background:#fee2e2}
 /* ─ PDF iframe viewer ─ */
 .cert-preview-viewer{display:flex;flex-direction:column;align-items:center;width:100%;max-width:460px;gap:0}
-.cert-preview-iframe-wrap{width:100%;aspect-ratio:210/297;background:#f1f5f9;flex-shrink:0;border-radius:4px 4px 0 0;overflow:hidden}
+.cert-preview-iframe-wrap{width:100%;aspect-ratio:210/297;background:#f1f5f9;flex-shrink:0;border-radius:0 0 4px 4px;overflow:hidden}
 .cert-preview-iframe-wrap iframe{width:100%;height:100%;border:none;display:block}
-/* ─ Logo strip below iframe ─ */
-.cert-preview-logo-strip{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 12px;background:#1e293b;border-radius:0 0 4px 4px;flex-wrap:wrap;min-height:44px}
+/* ─ Logo strip above iframe ─ */
+.cert-preview-logo-strip{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 12px;background:#1e293b;border-radius:4px 4px 0 0;flex-wrap:wrap;min-height:44px}
 .cert-strip-logo{height:26px;max-width:70px;object-fit:contain;display:block;filter:brightness(0) invert(1)}
 .cert-strip-empty{font-size:.72rem;color:#94a3b8;font-style:italic}
 @media print{
