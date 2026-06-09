@@ -1132,7 +1132,7 @@ test('proposal preview preserves multiline section paragraphs and dash bullets',
   });
 });
 
-test('proposal preview renders recipient block after title without empty commas', async () => {
+test('proposal preview renders recipient block before title without empty commas', async () => {
   const row = {
     ...sampleRows[0],
     contact_name: '',
@@ -1164,7 +1164,7 @@ test('proposal preview renders recipient block after title without empty commas'
     assert.ok(subject, 'proposal title should render');
     assert.ok(address, 'recipient block should render');
     assert.ok(intro, 'intro should render after recipient block');
-    assert.ok(subject.compareDocumentPosition(address) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+    assert.ok(address.compareDocumentPosition(subject) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
     assert.ok(address.compareDocumentPosition(intro) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
     assert.deepEqual(Array.from(address.querySelectorAll('p')).map((p) => p.textContent), [
       'לכבוד:',

@@ -998,20 +998,22 @@ function buildProposalDocumentHtml({ dateDisplay, row, introText, sections, orgR
   return `
     <div class="proposal-document" dir="rtl">
       <div class="proposal-document-header">
-        <img
-          src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
-          alt="לוגו תעשיידע"
-          class="proposal-logo"
-          loading="eager"
-          decoding="async"
-          onerror="this.style.display='none';"
-        >
+        <div class="proposal-header-left">
+          <img
+            src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
+            alt="לוגו תעשיידע"
+            class="proposal-logo"
+            loading="eager"
+            decoding="async"
+            onerror="this.style.display='none';"
+          >
+          <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
+        </div>
       </div>
       <div class="proposal-document-body">
-        <div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>
         <hr class="pa-doc-divider">
-        <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
         ${recipientBlockHtml(row)}
+        <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
         ${introText ? sectionLines(introText, { className: 'pa-doc-intro' }) : ''}
         ${sections.join('')}
         ${orgResponsibility}
