@@ -2095,7 +2095,18 @@ export const proposalsAgreementsScreen = {
       const rowGroup = text(itemRow.dataset.paRowGroup || picked.proposal_group);
       const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
       if (infoStrip) {
-        infoStrip.innerHTML = buildInfoStripInnerHtml({ ...picked, activity_name: picked.activity_name, proposal_group: rowGroup }, rowGroup);
+        const get = (name) => text(itemRow.querySelector(`[name="${name}"]`)?.value);
+        const getNum = (name) => { const v = itemRow.querySelector(`[name="${name}"]`)?.value; return v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : null; };
+        infoStrip.innerHTML = buildInfoStripInnerHtml({
+          activity_no: get('activity_no'),
+          item_name: get('item_name'),
+          item_type: get('item_type'),
+          gefen_number: get('gefen_number'),
+          meetings_count: getNum('meetings_count'),
+          hours_count: getNum('hours_count'),
+          hourly_price: getNum('hourly_price'),
+          proposal_group: rowGroup
+        }, rowGroup);
         infoStrip.hidden = !text(picked.activity_name);
       }
 

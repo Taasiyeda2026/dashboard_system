@@ -1790,7 +1790,7 @@ async function readProposalActivityPricingFromSupabase() {
       meetings_count: row?.meetings_count != null ? Number(row.meetings_count) || null : null,
       unit_duration: cleanProposalAgreementText(row?.unit_duration),
       unit_price: row?.unit_price != null ? Number(row.unit_price) || null : null,
-      hourly_price: row?.hourly_price != null ? Number(row.hourly_price) || null : null,
+      hourly_price: row?.hourly_price != null ? Number(row.hourly_price) : null,
       description_for_proposal: cleanProposalAgreementText(row?.description_for_proposal),
       sort_order: Number(row?.sort_order) || 0
     }));
