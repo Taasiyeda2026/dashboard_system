@@ -3491,6 +3491,7 @@ export const api = {
     if (kind === 'school') {
       const nextRow = { ...row };
       if (nextRow.role !== undefined && nextRow.contact_role === undefined) nextRow.contact_role = nextRow.role;
+      delete nextRow.role;
       const { error } = await supabase.from('contacts_schools').upsert(nextRow, { onConflict: 'authority,school,contact_name' });
       if (error) throw new Error(error.message || 'add_contact_failed');
       return { ok: true };
@@ -3506,6 +3507,7 @@ export const api = {
     if (kind === 'school') {
       const nextRow = { ...row };
       if (nextRow.role !== undefined && nextRow.contact_role === undefined) nextRow.contact_role = nextRow.role;
+      delete nextRow.role;
       const orig = payload?._supabase_orig && typeof payload._supabase_orig === 'object' ? payload._supabase_orig : null;
       const keyChanged = !!orig && (
         String(orig.authority || '') !== String(nextRow.authority || '') ||

@@ -244,7 +244,7 @@ function schoolFormHtml(row = {}) {
       <div class="ds-perm-field"><span class="ds-muted">רשות</span><input class="ds-input ds-input--sm" name="authority" value="${escapeHtml(String(row.authority || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">בית ספר</span><input class="ds-input ds-input--sm" name="school" value="${escapeHtml(String(row.school || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">שם איש קשר</span><input class="ds-input ds-input--sm" name="contact_name" value="${escapeHtml(String(row.contact_name || ''))}"></div>
-      <div class="ds-perm-field"><span class="ds-muted">תפקיד</span><input class="ds-input ds-input--sm" name="role" value="${escapeHtml(String(row.role || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">תפקיד</span><input class="ds-input ds-input--sm" name="contact_role" value="${escapeHtml(String(row.contact_role || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">טלפון</span><input class="ds-input ds-input--sm" name="phone" value="${escapeHtml(String(row.phone || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">נייד</span><input class="ds-input ds-input--sm" name="mobile" value="${escapeHtml(String(row.mobile || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">אימייל</span><input class="ds-input ds-input--sm" name="email" value="${escapeHtml(String(row.email || ''))}"></div>
@@ -526,7 +526,7 @@ export const contactsScreen = {
           authority: get('authority'),
           school: get('school'),
           contact_name: get('contact_name'),
-          role: get('role'),
+          contact_role: get('contact_role'),
           phone: get('phone'),
           mobile: get('mobile'),
           email: get('email'),
