@@ -11156,7 +11156,7 @@ select.ds-input {
   min-height: 1123px;
   font-family: Arial, "Noto Sans Hebrew", "David", sans-serif;
   font-size: 9.5pt;
-  line-height: 1.45;
+  line-height: 1.3;
   letter-spacing: 0.1px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
   border-radius: 2px;
@@ -11180,11 +11180,12 @@ select.ds-input {
   align-items: center;
 }
 .proposal-logo {
-  width: 190px;
-  max-width: 40%;
+  width: 200px;
+  max-width: 42%;
   height: auto;
   object-fit: contain;
   display: block;
+  margin-left: -6px;
 }
 .proposal-document-body {
   flex: 1 1 auto;
@@ -11239,14 +11240,14 @@ select.ds-input {
 .pa-doc-address {
   margin: 0 0 6pt;
   font-size: 9.5pt;
-  line-height: 1.45;
+  line-height: 1.3;
   text-align: right;
 }
 .pa-doc-address p { margin: 0; }
 .pa-doc-divider {
   border: none;
-  border-top: 1.5px solid #1f4e79;
-  margin: 10pt 0 12pt;
+  border-top: 1px solid #1f4e79;
+  margin: 8pt 0 10pt;
 }
 .pa-doc-subject {
   margin: 12pt 0 10pt;
@@ -11254,7 +11255,7 @@ select.ds-input {
   font-size: 11.5pt;
   font-weight: 700;
   text-decoration: underline;
-  line-height: 1.45;
+  line-height: 1.3;
   text-align: center;
   letter-spacing: 0.2px;
 }
@@ -11271,7 +11272,7 @@ select.ds-input {
   text-decoration: underline;
   color: #1f4e79;
   margin: 0 0 4pt;
-  line-height: 1.45;
+  line-height: 1.3;
   letter-spacing: 0.15px;
   padding: 0;
   border: 0;
@@ -11280,7 +11281,7 @@ select.ds-input {
 .pa-doc-intro,
 .pa-section-body {
   font-size: 9.5pt;
-  line-height: 1.45;
+  line-height: 1.3;
   letter-spacing: 0.15px;
   margin: 0 0 4pt;
 }
@@ -11305,7 +11306,7 @@ select.ds-input {
 .proposal-document .pa-section-body li,
 .proposal-document .pa-doc-intro li {
   margin: 0 0 7px;
-  line-height: 1.45;
+  line-height: 1.3;
   white-space: normal;
   word-break: break-word;
   break-inside: avoid;
@@ -11447,11 +11448,11 @@ select.ds-input {
 
   /* ── The document itself ──────────────────────────────────────── */
   .proposal-document {
-    width: 100% !important;
+    width: 210mm !important;
     max-width: none !important;
-    min-height: 0 !important;
+    min-height: 297mm !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 32px 36px 28px !important;
     box-shadow: none !important;
     border: none !important;
     border-radius: 0 !important;
@@ -11460,29 +11461,29 @@ select.ds-input {
     direction: rtl !important;
     font-family: Arial, "Noto Sans Hebrew", "David", sans-serif !important;
     font-size: 9.5pt !important;
-    line-height: 1.45 !important;
+    line-height: 1.3 !important;
     letter-spacing: 0.1px !important;
-    display: block !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  /* Fixed header / footer on every printed page */
+  /* Header — normal flow (same as screen) */
   .proposal-document-header {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    height: 90px !important;
+    position: static !important;
+    height: auto !important;
     display: flex !important;
     justify-content: flex-start !important;
     align-items: flex-start !important;
-    padding: 15px 12mm 0 12mm !important;
-    box-sizing: border-box !important;
-    background: #fff !important;
-    z-index: 10 !important;
+    padding-top: 5mm !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-bottom: 0 !important;
+    background: transparent !important;
     direction: ltr !important;
-    margin-bottom: 0 !important;
+    margin-bottom: 16px !important;
   }
   .proposal-header-left {
     display: flex !important;
@@ -11490,23 +11491,20 @@ select.ds-input {
     align-items: center !important;
   }
   .proposal-logo {
-    width: 170px !important;
+    width: 200px !important;
     height: auto !important;
     object-fit: contain !important;
     display: block !important;
   }
 
+  /* Footer — normal flow (same as screen) */
   .proposal-document-footer {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
+    position: static !important;
     width: 100% !important;
     height: auto !important;
     padding: 0 !important;
     border-top: none !important;
-    margin-top: 0 !important;
-    z-index: 10 !important;
+    margin-top: 8px !important;
     line-height: 0 !important;
   }
   .proposal-footer-logo {
@@ -11518,13 +11516,17 @@ select.ds-input {
     opacity: 1 !important;
   }
 
-  /* Body content between fixed header/footer */
+  /* Body — keep flex so margin-top:auto pushes signature to bottom */
   .proposal-document-body {
-    display: block !important;
-    padding: 100px 12mm 80px !important;
-    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    padding: 0 !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
+  }
+  .pa-doc-bottom {
+    margin-top: auto !important;
   }
 
   /* ── Inner document content ───────────────────────────────────── */
@@ -11532,7 +11534,7 @@ select.ds-input {
     font-size: 7pt !important;
     text-align: center !important;
     direction: ltr !important;
-    line-height: 1.45 !important;
+    line-height: 1.3 !important;
     color: #374151 !important;
     margin-top: 3pt !important;
   }
@@ -11540,14 +11542,14 @@ select.ds-input {
     text-align: right !important;
     direction: rtl !important;
     font-size: 9.5pt !important;
-    line-height: 1.45 !important;
+    line-height: 1.3 !important;
     margin-bottom: 4pt !important;
     overflow-wrap: anywhere !important;
   }
   .pa-doc-address p { margin: 0 !important; }
   .pa-doc-divider {
     border: none !important;
-    border-top: 1.5px solid #1f4e79 !important;
+    border-top: 1px solid #1f4e79 !important;
     margin: 8pt 0 10pt !important;
   }
   .pa-doc-subject {
@@ -11557,7 +11559,7 @@ select.ds-input {
     color: #1f4e79 !important;
     text-decoration: underline !important;
     margin: 10pt 0 8pt !important;
-    line-height: 1.45 !important;
+    line-height: 1.3 !important;
     overflow-wrap: anywhere !important;
   }
   .pa-section {
@@ -11573,13 +11575,13 @@ select.ds-input {
     text-decoration: underline !important;
     color: #1f4e79 !important;
     margin: 0 0 3pt !important;
-    line-height: 1.45 !important;
+    line-height: 1.3 !important;
   }
   .pa-doc-intro,
   .pa-section-body,
   .pa-proposal-lines {
     font-size: 9.5pt !important;
-    line-height: 1.45 !important;
+    line-height: 1.3 !important;
     color: #000 !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
@@ -11603,7 +11605,7 @@ select.ds-input {
   .proposal-document .pa-section-body li,
   .proposal-document .pa-doc-intro li {
     margin: 0 0 6pt !important;
-    line-height: 1.45 !important;
+    line-height: 1.3 !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
     break-inside: avoid !important;
@@ -11628,7 +11630,6 @@ select.ds-input {
   .ds-pa-doc-signature {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
-    margin-bottom: 16pt !important;
   }
   .pa-proposal-lines ul {
     list-style: none !important;

@@ -615,7 +615,7 @@ function templateBodyText(section) {
 function proposalTitle(row) {
   const grp = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
   if (grp === 'קיץ תשפ״ו')         return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו';
-  if (grp === NEXT_YEAR_GROUP_LABEL) return 'הצעת מחיר לקורסי תעשיידע | שנת הלימודים תשפ״ז';
+  if (grp === NEXT_YEAR_GROUP_LABEL) return 'הצעת מחיר לתוכניות תעשיידע | תשפ״ז';
   return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו ושנת הלימודים תשפ״ז';
 }
 
@@ -1011,8 +1011,8 @@ function buildProposalDocumentHtml({ dateDisplay, row, introText, sections, orgR
         </div>
       </div>
       <div class="proposal-document-body">
-        <hr class="pa-doc-divider">
         ${recipientBlockHtml(row)}
+        <hr class="pa-doc-divider">
         <h1 class="pa-doc-subject">${escapeHtml(proposalTitle(row))}</h1>
         ${introText ? sectionLines(introText, { className: 'pa-doc-intro' }) : ''}
         ${sections.join('')}
