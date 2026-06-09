@@ -63,11 +63,14 @@ function userRole(state) {
 }
 
 export function canAccessProposalsAgreements(state) {
-  return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(userRole(state));
+  return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(userRole(state))
+    || state?.user?.view_proposals_agreements === true
+    || state?.user?.manage_proposals_agreements === true;
 }
 
 export function canManageProposalsAgreements(state) {
-  return PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(userRole(state));
+  return PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(userRole(state))
+    || state?.user?.manage_proposals_agreements === true;
 }
 
 function text(value) {
