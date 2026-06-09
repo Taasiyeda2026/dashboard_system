@@ -12,9 +12,9 @@ const CERTIFICATES = [
 ];
 
 const SYSTEM_LOGOS = [
-  { id: 'ministry', file: 'ministry-of-education.png', label: 'משרד החינוך' },
-  { id: 'taasiyeda1', file: 'taasiyeda1.png',          label: 'תעשיידע 1' },
-  { id: 'taasiyeda2', file: 'taasiyeda2.png',          label: 'תעשיידע 2' },
+  { id: 'ministry',   file: 'ministry-of-education.png', label: 'משרד החינוך' },
+  { id: 'taasiyeda1', file: 'taasiyeda1.png',            label: 'תעשיידע 1' },
+  { id: 'taasiyeda2', file: 'taasiyeda2.png',            label: 'תעשיידע 2' },
 ];
 
 /* Per-cert state: { selected: Set<logoId>, customLogo: {dataUrl,name}|null } */
@@ -84,7 +84,7 @@ ${custom ? `<button type="button" class="cert-logo-pick__remove-custom" data-cer
 </div>`;
 }
 
-/* ── Logo preview strip (below iframe in modal) ─────────────────── */
+/* ── Logo overlay strip — absolute inside the certificate ───────── */
 function logoPreviewStripHtml(certId) {
   const state = getCertState(certId);
   const imgs = [
@@ -95,12 +95,8 @@ function logoPreviewStripHtml(certId) {
       ? [`<img src="${state.customLogo.dataUrl}" alt="לוגו נוסף" class="cert-strip-logo" />`]
       : [])
   ].join('');
-  const isEmpty = imgs.length === 0;
-  return `<div class="cert-preview-logo-strip" id="certLogoStrip">${
-    isEmpty
-      ? '<span class="cert-strip-empty">לא נבחרו לוגואים</span>'
-      : imgs
-  }</div>`;
+  if (!imgs) return `<div class="cert-preview-logo-strip cert-preview-logo-strip--empty" id="certLogoStrip"></div>`;
+  return `<div class="cert-preview-logo-strip" id="certLogoStrip">${imgs}</div>`;
 }
 
 /* ── Refresh both selector + strip after state change ───────────── */
@@ -146,7 +142,7 @@ function bindLogoSelector(certId) {
   });
 }
 
-/* ── Build logo HTML for print window ───────────────────────────── */
+/* ── Build logo <img> tags for print window (absolute URLs) ─────── */
 function buildPrintLogosHtml(certId) {
   const state = getCertState(certId);
   const logos = [
@@ -166,7 +162,6 @@ function doPrint(certId) {
   const pdfUrl = new URL(`${CERT_TEMPLATES}${cert.file}`, window.location.href).href;
   const logosHtml = buildPrintLogosHtml(certId);
   const hasLogos = logosHtml.length > 0;
-  const LOGO_BAR_HEIGHT = hasLogos ? '18mm' : '0px';
   const win = window.open('', '_blank', 'width=900,height=1200');
   if (!win) return;
   win.document.write(`<!DOCTYPE html>
@@ -185,38 +180,41 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:1
 .no-print{text-align:center;padding:12px;background:#f8fafc;border-bottom:1px solid #e2e8f0}
 .no-print button{background:#1a8c6e;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin:0 6px}
 .no-print button:hover{background:#157a5e}
-/* A4 page — flex column: logo bar first (top), then embed fills rest */
+/* A4 page wrapper — position:relative so logo overlay is inside */
 .cert-print-page{
-  width:210mm;height:297mm;
+  position:relative;
+  width:210mm;
+  height:297mm;
   margin:0 auto;
   background:white;
   box-shadow:0 4px 20px rgba(0,0,0,.2);
-  display:flex;
-  flex-direction:column;
   overflow:hidden;
 }
-/* logo bar at the TOP */
-.cert-print-logo-bar{
-  flex-shrink:0;
+/* iframe fills full page */
+.cert-print-iframe{
+  position:absolute;
+  top:0;left:0;
   width:100%;
-  height:${LOGO_BAR_HEIGHT};
+  height:100%;
+  border:none;
+  display:block;
+}
+/* logo overlay — transparent, centered, top ~8% inside the certificate */
+.cert-print-logo-bar{
+  position:absolute;
+  top:8%;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:10;
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:6mm;
-  background:#f0f4f8;
-  border-bottom:0.3mm solid #cbd5e1;
-  padding:2mm 6mm;
+  gap:8mm;
+  background:transparent;
+  padding:0;
+  pointer-events:none;
 }
-.pl{height:12mm;max-width:32mm;object-fit:contain;display:block}
-/* embed fills remaining height */
-.cert-print-embed{
-  width:100%;
-  flex:1;
-  display:block;
-  border:none;
-  min-height:0;
-}
+.pl{height:14mm;max-width:35mm;object-fit:contain;display:block}
 </style>
 </head>
 <body>
@@ -225,13 +223,13 @@ html,body{background:#e5e7eb;font-family:Arial,sans-serif;direction:rtl;height:1
   <button onclick="window.close()">סגירה</button>
 </div>
 <div class="cert-print-page">
+  <iframe class="cert-print-iframe" src="${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0"></iframe>
   ${hasLogos ? `<div class="cert-print-logo-bar">${logosHtml}</div>` : ''}
-  <embed class="cert-print-embed" src="${pdfUrl}" type="application/pdf" />
 </div>
 <script>
-window.addEventListener('load',function(){setTimeout(function(){window.print();},800)});
+window.addEventListener('load',function(){setTimeout(function(){window.print();},1000)});
 window.onafterprint=function(){setTimeout(function(){window.close();},250)};
-</script>
+<\/script>
 </body>
 </html>`);
   win.document.close();
@@ -259,9 +257,9 @@ function openPreview(certId) {
   ${logoSelectorHtml(certId)}
   <div class="cert-preview-modal__body">
     <div class="cert-preview-viewer">
-      ${logoPreviewStripHtml(certId)}
       <div class="cert-preview-iframe-wrap">
         <iframe src="${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0" title="${cert.name}"></iframe>
+        ${logoPreviewStripHtml(certId)}
       </div>
     </div>
   </div>
@@ -312,7 +310,6 @@ function ensureStyles() {
 .cert-btn--secondary:hover{background:#e2e8f0}
 .cert-btn--print{background:#16a34a;color:#fff}
 .cert-btn--print:hover{background:#15803d}
-.cert-upload-lbl{display:inline-flex;align-items:center;justify-content:center}
 /* ─ Modal shell ─ */
 .cert-preview-modal{position:fixed;inset:0;z-index:9900;display:flex;align-items:center;justify-content:center;direction:rtl}
 .cert-preview-modal__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
@@ -339,14 +336,28 @@ function ensureStyles() {
 .cert-logo-pick__plus{font-size:1.3rem;color:#94a3b8;line-height:1}
 .cert-logo-pick__remove-custom{border:none;background:none;cursor:pointer;font-size:.75rem;color:#dc2626;padding:2px 5px;border-radius:4px;align-self:flex-end}
 .cert-logo-pick__remove-custom:hover{background:#fee2e2}
-/* ─ PDF iframe viewer ─ */
-.cert-preview-viewer{display:flex;flex-direction:column;align-items:center;width:100%;max-width:460px;gap:0}
-.cert-preview-iframe-wrap{width:100%;aspect-ratio:210/297;background:#f1f5f9;flex-shrink:0;border-radius:0 0 4px 4px;overflow:hidden}
-.cert-preview-iframe-wrap iframe{width:100%;height:100%;border:none;display:block}
-/* ─ Logo strip above iframe ─ */
-.cert-preview-logo-strip{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 12px;background:#1e293b;border-radius:4px 4px 0 0;flex-wrap:wrap;min-height:44px}
-.cert-strip-logo{height:26px;max-width:70px;object-fit:contain;display:block;filter:brightness(0) invert(1)}
-.cert-strip-empty{font-size:.72rem;color:#94a3b8;font-style:italic}
+/* ─ PDF iframe viewer — relative so logo overlay sits inside ─ */
+.cert-preview-viewer{display:flex;flex-direction:column;align-items:center;width:100%;max-width:460px}
+.cert-preview-iframe-wrap{position:relative;width:100%;aspect-ratio:210/297;background:#f1f5f9;flex-shrink:0;border-radius:4px;overflow:hidden}
+.cert-preview-iframe-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;display:block}
+/* ─ Logo overlay — transparent, centered, top ~8% inside the certificate ─ */
+.cert-preview-logo-strip{
+  position:absolute;
+  top:8%;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:10;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:3%;
+  background:transparent;
+  padding:0;
+  width:80%;
+  pointer-events:none;
+}
+.cert-preview-logo-strip--empty{display:none}
+.cert-strip-logo{height:5%;max-width:22%;object-fit:contain;display:block;flex-shrink:0}
 @media print{
   body>*{display:none!important}
 }`;
