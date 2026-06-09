@@ -491,7 +491,8 @@ function applyBootstrapFromLoginData(data) {
   const effectiveRoutes = applySettingsToRoutes(data.routes, state.clientSettings);
   state.routes = effectiveRoutes;
   state.effectiveRoutes = effectiveRoutes;
-  state.route = resolveAllowedDefaultRoute(data.default_route, effectiveRoutes);
+  enforceProposalsAgreementsRoute();
+  state.route = resolveAllowedDefaultRoute(data.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
   consumePendingRouteFromUrlOrSession();
 }
@@ -828,10 +829,26 @@ function shellUserRoleLine() {
 // מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
 const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'instructor-contacts', 'archive', 'contacts', 'edit-requests']);
 
+const PROPOSALS_AGREEMENTS_NAV_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'business_development_manager']);
+
+function enforceProposalsAgreementsRoute() {
+  if (!state.token || !state.user) return;
+  if (!screenLoaders['proposals-agreements']) return;
+  if ((state.effectiveRoutes || []).includes('proposals-agreements')) return;
+  const role = String(state.user.display_role || state.user.role || '').trim();
+  const hasRole = PROPOSALS_AGREEMENTS_NAV_ROLES.has(role);
+  const hasFlag = state.user.view_proposals_agreements === true || state.user.manage_proposals_agreements === true;
+  if (hasRole || hasFlag) {
+    state.effectiveRoutes = [...(state.effectiveRoutes || []), 'proposals-agreements'];
+    state.routes = state.effectiveRoutes;
+  }
+}
+
 // מסכי ניהול — נגישים למי שיש לו הרשאה, אך לא מוצגים בסרגל הצד
 const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'admin-lists']);
 
 function shell(content) {
+  enforceProposalsAgreementsRoute();
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
   const isAdminUser = state?.user?.display_role === 'admin';
@@ -1433,7 +1450,8 @@ function tryRestoreRoutesInstant() {
     const effectiveR = applySettingsToRoutes(saved.routes, state.clientSettings);
     state.routes = effectiveR;
     state.effectiveRoutes = effectiveR;
-    state.route = resolveAllowedDefaultRoute(saved.defaultRoute || '', effectiveR);
+    enforceProposalsAgreementsRoute();
+    state.route = resolveAllowedDefaultRoute(saved.defaultRoute || '', state.effectiveRoutes);
     restoreScreenCacheFromStorage();
     return true;
   } catch { return false; }
@@ -1479,7 +1497,8 @@ function applyBootstrapRoutes(bootstrap) {
   const normalizedRoutes = applySettingsToRoutes(bootstrap.routes || [], state.clientSettings);
   state.routes = normalizedRoutes;
   state.effectiveRoutes = normalizedRoutes;
-  const newDefault = resolveAllowedDefaultRoute(bootstrap.default_route, normalizedRoutes);
+  enforceProposalsAgreementsRoute();
+  const newDefault = resolveAllowedDefaultRoute(bootstrap.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, newDefault, state.clientSettings);
   applyBootstrapUserFlags(bootstrap);
   state.permissionsReady = true;
