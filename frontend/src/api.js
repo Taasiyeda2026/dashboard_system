@@ -3384,7 +3384,7 @@ export const api = {
     if (!rowId) return [];
     const { data, error } = await supabase
       .from('proposal_agreement_items')
-      .select('id,activity_no,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_duration,unit_price,total_price,description,proposal_group,sort_order')
+      .select('id,activity_no,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_duration,unit_price,hourly_price,total_price,description,proposal_group,sort_order')
       .eq('proposal_agreement_id', rowId)
       .order('sort_order', { ascending: true });
     if (error) throw new Error(error.message || 'items_read_failed');
@@ -3399,6 +3399,7 @@ export const api = {
       hours_count:    item.hours_count != null ? Number(item.hours_count) : null,
       quantity:       item.quantity != null ? Number(item.quantity) || 1 : 1,
       unit_price:     item.unit_price != null ? Number(item.unit_price) : null,
+      hourly_price:   item.hourly_price != null ? Number(item.hourly_price) : null,
       total_price:    item.total_price != null ? Number(item.total_price) : null,
       description:    cleanProposalAgreementText(item.description),
       unit_duration:  cleanProposalAgreementText(item.unit_duration),
@@ -3454,6 +3455,7 @@ export const api = {
         hours_count:    item.hours_count != null ? Number(item.hours_count) || null : null,
         quantity:       Number(item.quantity) || 1,
         unit_price:     item.unit_price != null ? Number(item.unit_price) || null : null,
+        hourly_price:   item.hourly_price != null ? Number(item.hourly_price) || null : null,
         total_price:    item.total_price != null ? Number(item.total_price) || null : null,
         description:    cleanProposalAgreementText(item.description),
         unit_duration:  cleanProposalAgreementText(item.unit_duration),
