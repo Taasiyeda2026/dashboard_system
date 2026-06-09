@@ -653,21 +653,54 @@ function sectionHeadingText(rawTitle, fallback = '') {
 }
 
 function proposalLineHtml(item = {}, options = {}) {
+  const itemName = text(item.item_name);
+  if (!itemName) return '';
+
+  const isSummer = options.showGefen === false;
   const parts = [];
+
+  // Gefen (שנתי / משולב בלבד)
+  const gefenNumber = isSummer ? '' : text(item.gefen_number);
+  if (gefenNumber) parts.push(`גפ״ן ${gefenNumber}`);
+
+  // מפגשים / שעות
   const duration = text(item.unit_duration);
-  const meetings = item.meetings_count != null && item.meetings_count !== '' ? `${formatCurrency(item.meetings_count)} מפגשים` : '';
-  const hours = item.hours_count != null && item.hours_count !== '' ? `${formatCurrency(item.hours_count)} שעות` : '';
-  if (duration) parts.push(duration);
-  else {
+  if (duration) {
+    parts.push(duration);
+  } else {
+    const meetings = item.meetings_count != null && item.meetings_count !== '' ? `${formatCurrency(item.meetings_count)} מפגשים` : '';
+    const hours = item.hours_count != null && item.hours_count !== '' ? `${formatCurrency(item.hours_count)} שעות` : '';
     if (meetings) parts.push(meetings);
     if (hours) parts.push(hours);
   }
-  const total = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
-  if (total) parts.push(`${formatCurrency(total)} ₪`);
-  const gefenNumber = options.showGefen === false ? '' : text(item.gefen_number);
-  if (gefenNumber) parts.push(`גפ״ן ${gefenNumber}`);
-  const itemName = text(item.item_name);
-  if (!itemName) return '';
+
+  // מחיר לשעה (קורסים שנתיים / משולבים בלבד)
+  if (!isSummer) {
+    const hourlyPrice = Number(item.hourly_price);
+    if (hourlyPrice > 0) parts.push(`${formatCurrency(hourlyPrice)} ₪ לשעה`);
+  }
+
+  // מחיר וכמות
+  const unitPrice = Number(item.unit_price);
+  const quantity = Number(item.quantity) || 1;
+  const total = Number(item.total_price) || (quantity * unitPrice);
+
+  if (!isSummer && unitPrice > 0) {
+    parts.push(`מחיר לקבוצה: ${formatCurrency(unitPrice)} ₪`);
+    if (quantity > 1 && total > 0) {
+      parts.push(`כמות קבוצות: ${quantity}`);
+      parts.push(`סה״כ: ${formatCurrency(total)} ₪`);
+    }
+  } else if (total > 0) {
+    if (quantity > 1 && unitPrice > 0) {
+      parts.push(`מחיר יחידה: ${formatCurrency(unitPrice)} ₪`);
+      parts.push(`כמות: ${quantity}`);
+    }
+    parts.push(`${formatCurrency(total)} ₪`);
+  } else if (unitPrice > 0) {
+    parts.push(`${formatCurrency(unitPrice)} ₪`);
+  }
+
   const suffix = parts.length ? `: ${parts.join(' | ')}` : ':';
   return ` ${itemName}${suffix}`;
 }
