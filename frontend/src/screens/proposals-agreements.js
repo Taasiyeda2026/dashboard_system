@@ -68,7 +68,8 @@ export function canAccessProposalsAgreements(state) {
   if (!state?.user) return false;
   return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(userRole(state))
     || permFlag(state.user.view_proposals_agreements)
-    || permFlag(state.user.manage_proposals_agreements);
+    || permFlag(state.user.manage_proposals_agreements)
+    || (Array.isArray(state.effectiveRoutes) && state.effectiveRoutes.includes('proposals-agreements'));
 }
 
 export function canManageProposalsAgreements(state) {
@@ -1585,7 +1586,7 @@ function replaceLocalRow(data, savedRow) {
 
 export const proposalsAgreementsScreen = {
   load: ({ api, state }) => {
-    if (!canAccessProposalsAgreements(state)) return { rows: [], unauthorized: true };
+    if (!canAccessProposalsAgreements(state)) return Promise.resolve({ rows: [], unauthorized: true });
     return api.proposalsAgreements();
   },
   render(data = {}, { state } = {}) {
