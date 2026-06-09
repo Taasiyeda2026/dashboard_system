@@ -1875,14 +1875,14 @@ const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_
 const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
 
 const SUPABASE_ROLE_ROUTES = {
-  admin: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists'],
-  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
-  authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  finance: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
-  activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
-  domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates'],
-  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
-  instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests'],
+  admin: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists', 'certificates'],
+  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
+  finance: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
+  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
   instructor: ['my-data', 'week', 'month']
 };
 
