@@ -1,5 +1,5 @@
-const CERT_TEMPLATES = './frontend/assets/certificates/templates/';
-const CERT_LOGOS_BASE = './frontend/assets/certificates/logos/';
+const CERT_TEMPLATES = './assets/certificates/templates/';
+const CERT_LOGOS_BASE = './assets/certificates/logos/';
 
 const CERTIFICATES = [
   { id: 'sky', file: 'sky.pdf', name: 'השמיים אינם הגבול' },
