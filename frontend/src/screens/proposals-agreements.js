@@ -62,15 +62,19 @@ function userRole(state) {
   return String(state?.user?.display_role || state?.user?.role || '').trim();
 }
 
+function permFlag(v) { return v === true || v === 'yes' || v === 1; }
+
 export function canAccessProposalsAgreements(state) {
+  if (!state?.user) return false;
   return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(userRole(state))
-    || state?.user?.view_proposals_agreements === true
-    || state?.user?.manage_proposals_agreements === true;
+    || permFlag(state.user.view_proposals_agreements)
+    || permFlag(state.user.manage_proposals_agreements);
 }
 
 export function canManageProposalsAgreements(state) {
+  if (!state?.user) return false;
   return PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(userRole(state))
-    || state?.user?.manage_proposals_agreements === true;
+    || permFlag(state.user.manage_proposals_agreements);
 }
 
 function text(value) {

@@ -1522,14 +1522,14 @@ function notesWithActivityNames(notes, activity_names) {
 function canUseProposalsAgreementsApi() {
   const role = String(state?.user?.display_role || state?.user?.role || '').trim();
   return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(role)
-    || state?.user?.view_proposals_agreements === true
-    || state?.user?.manage_proposals_agreements === true;
+    || permissionFlagYes(state?.user?.view_proposals_agreements)
+    || permissionFlagYes(state?.user?.manage_proposals_agreements);
 }
 
 function canManageProposalsAgreementsApi() {
   const role = String(state?.user?.display_role || state?.user?.role || '').trim();
   return PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(role)
-    || state?.user?.manage_proposals_agreements === true;
+    || permissionFlagYes(state?.user?.manage_proposals_agreements);
 }
 
 function assertCanUseProposalsAgreementsApi() {
@@ -1872,7 +1872,7 @@ async function readProposalsAgreementsFromSupabase() {
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id,view_proposals_agreements,manage_proposals_agreements';
+const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id';
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
@@ -2056,8 +2056,8 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if ((permissionFlagYes(flat.view_orders) || permissionFlagYes(flat.view_invitations)) && !allowedRoutes.includes('orders')) allowedRoutes.push('orders');
   if (
     permissionFlagYes(flat.view_proposals) ||
-    userRow?.view_proposals_agreements === true ||
-    userRow?.manage_proposals_agreements === true
+    permissionFlagYes(flat.view_proposals_agreements) ||
+    permissionFlagYes(flat.manage_proposals_agreements)
   ) { if (!allowedRoutes.includes('proposals-agreements')) allowedRoutes.push('proposals-agreements'); }
   const canEditDirect = canDirectManageActivities;
   const canRequestEdit = canDirectManageActivities || canRequestActivities;
@@ -3072,7 +3072,9 @@ export const api = {
         finance_access: (flat.role === 'finance' || permissionFlagYes(flat.finance_access) || permissionFlagYes(flat.view_finance)),
         profile_is_active: profileRow?.is_active !== false,
         can_access_personal_reports: hasPersonalReportsAccess,
-        personal_reports_manager: permissionFlagYes(flat.personal_reports_manager) ? 'yes' : 'no'
+        personal_reports_manager: permissionFlagYes(flat.personal_reports_manager) ? 'yes' : 'no',
+        view_proposals_agreements: permissionFlagYes(flat.view_proposals_agreements) || permissionFlagYes(flat.manage_proposals_agreements) || undefined,
+        manage_proposals_agreements: permissionFlagYes(flat.manage_proposals_agreements) || undefined
       },
       ...buildBootstrapFromUser(user, profileRow),
       client_settings: buildClientSettingsFromLists(listsData, settingsRows)
