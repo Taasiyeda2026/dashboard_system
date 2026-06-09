@@ -426,21 +426,35 @@ function shouldShowGefenForItem(item = {}, contextGroup = '') {
 
 function buildInfoStripInnerHtml(item = {}, contextGroup = '') {
   const numVal = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? Number(v) : null;
+  const showGefen = shouldShowGefenForItem(item, contextGroup);
   const parts = [];
-  const actNo = text(item.activity_no);
-  if (actNo) parts.push(`<span class="ds-pa-info-chip"><span class="ds-pa-info-chip-label">מס׳ פעילות</span>${escapeHtml(actNo)}</span>`);
-  if (shouldShowGefenForItem(item, contextGroup) && text(item.gefen_number)) {
-    parts.push(`<span class="ds-pa-info-chip ds-pa-info-chip--accent"><span class="ds-pa-info-chip-label">גפ״ן</span>${escapeHtml(text(item.gefen_number))}</span>`);
-  }
-  const typeVal = text(item.item_type);
-  if (typeVal) parts.push(`<span class="ds-pa-info-chip"><span class="ds-pa-info-chip-label">סוג</span>${escapeHtml(typeVal)}</span>`);
+
+  // Gefen (annual / combined only)
+  const gefenNumber = showGefen ? text(item.gefen_number) : '';
+  if (gefenNumber) parts.push(`גפ״ן ${escapeHtml(gefenNumber)}`);
+
+  // Meetings / hours (always show if present)
   const meetings = numVal(item.meetings_count);
-  if (meetings != null) parts.push(`<span class="ds-pa-info-chip" data-pa-info-field="meetings_count"><span class="ds-pa-info-chip-label">מפגשים</span>${escapeHtml(String(meetings))}</span>`);
   const hours = numVal(item.hours_count);
-  if (hours != null) parts.push(`<span class="ds-pa-info-chip" data-pa-info-field="hours_count"><span class="ds-pa-info-chip-label">שעות</span>${escapeHtml(String(hours))}</span>`);
-  const hourlyPrice = numVal(item.hourly_price);
-  parts.push(`<span class="ds-pa-info-chip"><span class="ds-pa-info-chip-label">מחיר/שעה</span>${hourlyPrice != null ? '₪' + formatCurrency(hourlyPrice) : '—'}</span>`);
-  return parts.join('');
+  if (meetings != null) parts.push(`${meetings} מפגשים`);
+  if (hours != null) parts.push(`${hours} שעות`);
+
+  // Hourly price (annual / combined only)
+  if (showGefen) {
+    const hourlyPrice = numVal(item.hourly_price);
+    if (hourlyPrice != null && hourlyPrice > 0) parts.push(`₪${formatCurrency(hourlyPrice)} לשעה`);
+  }
+
+  // Unit price
+  const unitPrice = numVal(item.unit_price);
+  if (unitPrice != null && unitPrice > 0) {
+    parts.push(showGefen
+      ? `מחיר לקבוצה ₪${formatCurrency(unitPrice)}`
+      : `₪${formatCurrency(unitPrice)}`);
+  }
+
+  if (!parts.length) return '';
+  return `<span class="ds-pa-info-summary">${parts.join(' | ')}</span>`;
 }
 
 function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
@@ -653,21 +667,54 @@ function sectionHeadingText(rawTitle, fallback = '') {
 }
 
 function proposalLineHtml(item = {}, options = {}) {
+  const itemName = text(item.item_name);
+  if (!itemName) return '';
+
+  const isSummer = options.showGefen === false;
   const parts = [];
+
+  // Gefen (שנתי / משולב בלבד)
+  const gefenNumber = isSummer ? '' : text(item.gefen_number);
+  if (gefenNumber) parts.push(`גפ״ן ${gefenNumber}`);
+
+  // מפגשים / שעות
   const duration = text(item.unit_duration);
-  const meetings = item.meetings_count != null && item.meetings_count !== '' ? `${formatCurrency(item.meetings_count)} מפגשים` : '';
-  const hours = item.hours_count != null && item.hours_count !== '' ? `${formatCurrency(item.hours_count)} שעות` : '';
-  if (duration) parts.push(duration);
-  else {
+  if (duration) {
+    parts.push(duration);
+  } else {
+    const meetings = item.meetings_count != null && item.meetings_count !== '' ? `${formatCurrency(item.meetings_count)} מפגשים` : '';
+    const hours = item.hours_count != null && item.hours_count !== '' ? `${formatCurrency(item.hours_count)} שעות` : '';
     if (meetings) parts.push(meetings);
     if (hours) parts.push(hours);
   }
-  const total = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
-  if (total) parts.push(`${formatCurrency(total)} ₪`);
-  const gefenNumber = options.showGefen === false ? '' : text(item.gefen_number);
-  if (gefenNumber) parts.push(`גפ״ן ${gefenNumber}`);
-  const itemName = text(item.item_name);
-  if (!itemName) return '';
+
+  // מחיר לשעה (קורסים שנתיים / משולבים בלבד)
+  if (!isSummer) {
+    const hourlyPrice = Number(item.hourly_price);
+    if (hourlyPrice > 0) parts.push(`${formatCurrency(hourlyPrice)} ₪ לשעה`);
+  }
+
+  // מחיר וכמות
+  const unitPrice = Number(item.unit_price);
+  const quantity = Number(item.quantity) || 1;
+  const total = Number(item.total_price) || (quantity * unitPrice);
+
+  if (!isSummer && unitPrice > 0) {
+    parts.push(`מחיר לקבוצה: ${formatCurrency(unitPrice)} ₪`);
+    if (quantity > 1 && total > 0) {
+      parts.push(`כמות קבוצות: ${quantity}`);
+      parts.push(`סה״כ: ${formatCurrency(total)} ₪`);
+    }
+  } else if (total > 0) {
+    if (quantity > 1 && unitPrice > 0) {
+      parts.push(`מחיר יחידה: ${formatCurrency(unitPrice)} ₪`);
+      parts.push(`כמות: ${quantity}`);
+    }
+    parts.push(`${formatCurrency(total)} ₪`);
+  } else if (unitPrice > 0) {
+    parts.push(`${formatCurrency(unitPrice)} ₪`);
+  }
+
   const suffix = parts.length ? `: ${parts.join(' | ')}` : ':';
   return ` ${itemName}${suffix}`;
 }
@@ -2019,9 +2066,9 @@ export const proposalsAgreementsScreen = {
         const getNum = (name) => { const v = itemRow.querySelector(`[name="${name}"]`)?.value; return v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : null; };
         const rowGroup = getVal('proposal_group') || text(itemRow.dataset.paRowGroup);
         infoStrip.innerHTML = buildInfoStripInnerHtml({
-          activity_no: getVal('activity_no'), item_name: getVal('item_name'), item_type: getVal('item_type'),
+          item_name: getVal('item_name'), item_type: getVal('item_type'),
           gefen_number: getVal('gefen_number'), meetings_count: getNum('meetings_count'), hours_count: getNum('hours_count'),
-          hourly_price: getNum('hourly_price'), proposal_group: rowGroup
+          hourly_price: getNum('hourly_price'), unit_price: getNum('unit_price'), proposal_group: rowGroup
         }, rowGroup);
       }
     }, { signal });
@@ -2062,13 +2109,13 @@ export const proposalsAgreementsScreen = {
         const get = (name) => text(itemRow.querySelector(`[name="${name}"]`)?.value);
         const getNum = (name) => { const v = itemRow.querySelector(`[name="${name}"]`)?.value; return v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : null; };
         infoStrip.innerHTML = buildInfoStripInnerHtml({
-          activity_no: get('activity_no'),
           item_name: get('item_name'),
           item_type: get('item_type'),
           gefen_number: get('gefen_number'),
           meetings_count: getNum('meetings_count'),
           hours_count: getNum('hours_count'),
           hourly_price: getNum('hourly_price'),
+          unit_price: getNum('unit_price'),
           proposal_group: rowGroup
         }, rowGroup);
         infoStrip.hidden = !text(picked.activity_name);
