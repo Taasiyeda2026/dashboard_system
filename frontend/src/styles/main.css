@@ -10163,6 +10163,13 @@ select.ds-input {
   gap: 10px 14px;
   margin: 0 0 8px;
 }
+/* contact picker host — transparent to grid; its <label> child becomes a direct grid item */
+[data-pa-contact-picker-host] {
+  display: contents;
+}
+[data-pa-contact-picker-host]:empty {
+  display: none;
+}
 
 .ds-pa-form-field {
   display: grid;

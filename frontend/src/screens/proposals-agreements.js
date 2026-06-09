@@ -365,7 +365,7 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
       return `<option value="${escapeHtml(val)}"${text(c.contact_name) === selectedContactName || val === selectedContactName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     })
   ].join('');
-  return `<label class="ds-pa-form-field"><span>בחרו איש קשר</span>
+  return `<label class="ds-pa-form-field"><span>איש קשר</span>
     <select class="ds-input ds-input--sm" data-pa-contact-select>${optionsHtml}</select>
   </label>`;
 }
@@ -1345,8 +1345,8 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         </div>
       </div>
       <div data-pa-step-panel="contact">
-        <div data-pa-contact-picker-host>${initPickerHtml}</div>
         <div class="ds-pa-form-grid">
+          <div data-pa-contact-picker-host>${initPickerHtml}</div>
           ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
           ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
           ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
