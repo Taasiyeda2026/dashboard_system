@@ -615,7 +615,7 @@ function templateBodyText(section) {
 function proposalTitle(row) {
   const grp = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
   if (grp === 'קיץ תשפ״ו')         return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו';
-  if (grp === NEXT_YEAR_GROUP_LABEL) return 'הצעת מחיר לקורסי תעשיידע | שנת הלימודים תשפ״ז';
+  if (grp === NEXT_YEAR_GROUP_LABEL) return 'הצעת מחיר לתוכניות תעשיידע | תשפ״ז';
   return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו ושנת הלימודים תשפ״ז';
 }
 
