@@ -393,7 +393,7 @@ test('contact picker fills fields and passes existing contact source on save', a
       assert.equal(form.querySelector('input[name="contact_name"]').value, 'מיכל כהן');
       assert.equal(form.querySelector('input[name="contact_source_id"]').value, contact.id);
 
-      form.querySelector('select[name="activity_type_group"]').value = 'קיץ תשפ״ו';
+      form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו';
       form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(20);
 
@@ -458,7 +458,7 @@ test('save draft sends status=draft and send-for-approval sends status=pending_a
       form.querySelector('input[name="client_authority"]').value = 'רשות בדיקה';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר בדיקה';
       form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
-      form.querySelector('select[name="activity_type_group"]').value = 'קיץ תשפ״ו';
+      form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו';
 
       form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(20);
@@ -473,7 +473,7 @@ test('save draft sends status=draft and send-for-approval sends status=pending_a
       form2.querySelector('input[name="client_authority"]').value = 'רשות בדיקה 2';
       form2.querySelector('input[name="school_framework"]').value = 'בית ספר בדיקה 2';
       form2.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
-      form2.querySelector('select[name="activity_type_group"]').value = 'שנת הלימודים תשפ״ז';
+      form2.querySelector('[name="activity_type_group"]').value = 'שנת הלימודים תשפ״ז';
       form2.dataset.paPreviewSeen = 'yes';
       form2.querySelector('[data-pa-item-row] [name="item_name"]').value = 'קורס רובוטיקה';
       form2.querySelector('[data-pa-item-qty]').value = '1';
@@ -517,7 +517,7 @@ test('saving after new client toggle sends is_new_client=true', async () => {
       form.querySelector('input[name="client_authority"]').value = 'רשות חדשה';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר חדש';
       form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
-      form.querySelector('select[name="activity_type_group"]').value = 'קיץ תשפ״ו';
+      form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו';
       form.querySelector('input[name="contact_name"]').value = 'שרון חדש';
 
       form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -588,9 +588,9 @@ test('multiple proposal item names are preserved on save', async () => {
       form.querySelector('input[name="client_authority"]').value = 'רשות ג';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר ג';
       form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
-      form.querySelector('select[name="activity_type_group"]').value = 'קיץ תשפ״ו ושנת הלימודים תשפ״ז';
+      form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו ושנת הלימודים תשפ״ז';
 
-      form.querySelector('select[name="activity_type_group"]').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      form.querySelector('[name="activity_type_group"]').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
       const itemRows = form.querySelectorAll('[data-pa-item-row]');
       itemRows[0].querySelector('[name="item_name"]').value = 'סדנת מייקרים';
       itemRows[1].querySelector('[name="item_name"]').value = 'קורס רובוטיקה';
@@ -792,7 +792,7 @@ test('save includes items via saveProposalAgreementItems', async () => {
       form.querySelector('input[name="client_authority"]').value = 'רשות הבדיקה';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר הבדיקה';
       form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
-      form.querySelector('select[name="activity_type_group"]').value = 'קיץ תשפ״ו';
+      form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו';
 
       // Fill in a line item
       const nameInput = form.querySelector('[data-pa-item-row] [name="item_name"]');
@@ -940,7 +940,7 @@ test('proposal form opens as a gated stepper flow', async () => {
       assert.equal(proposalStep.hidden, false, 'proposal step opens after required client fields');
       assert.equal(activityStep.hidden, true, 'activity step waits for proposal type');
 
-      const typeSelect = form.querySelector('select[name="activity_type_group"]');
+      const typeSelect = form.querySelector('[name="activity_type_group"]');
       typeSelect.value = 'קיץ תשפ״ו';
       typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
 
@@ -986,7 +986,7 @@ test('activity selection is first and reveals populated item details', async () 
 
       root.querySelector('[data-pa-add]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       const form = root.querySelector('[data-pa-form]');
-      const typeSelect = form.querySelector('select[name="activity_type_group"]');
+      const typeSelect = form.querySelector('[name="activity_type_group"]');
       typeSelect.value = 'קיץ תשפ״ו';
       typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
 
@@ -997,12 +997,12 @@ test('activity selection is first and reveals populated item details', async () 
 
       assert.equal(firstField?.querySelector('[data-pa-pricing-select]'), pricingSelect, 'activity select should be first in item row');
       assert.doesNotMatch(itemRow.textContent, /בחירה מהירה/);
-      assert.equal(details.hidden, true, 'details should be hidden before activity selection');
+      assert.equal(details.open, false, 'details should be collapsed before activity selection');
 
       pricingSelect.selectedIndex = 1;
       pricingSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
 
-      assert.equal(details.hidden, false, 'details should be shown after activity selection');
+      assert.equal(details.open, true, 'details should be open after activity selection');
       assert.equal(itemRow.querySelector('[name="item_name"]').value, 'סדנת מייקרים');
       assert.equal(itemRow.querySelector('[name="item_type"]').value, 'סדנה');
       assert.equal(itemRow.querySelector('[name="meetings_count"]').value, '3');
@@ -1037,7 +1037,7 @@ test('changing proposal type reloads relevant item areas and preview template', 
       form.querySelector('input[name="contact_name"]').value = 'ישראל ישראלי';
       form.querySelector('input[name="contact_role"]').value = 'מנהל בית הספר';
 
-      const typeSelect = form.querySelector('select[name="activity_type_group"]');
+      const typeSelect = form.querySelector('[name="activity_type_group"]');
       typeSelect.value = 'קיץ תשפ״ו';
       typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
       assert.match(form.querySelector('[data-pa-items-host]').textContent, /סדנת מייקרים/);

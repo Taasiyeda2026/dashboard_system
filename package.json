@@ -21,7 +21,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "jsdom": "^29.0.2",
+    "jsdom": "^29.1.1",
     "vite": "^6.0.3",
     "xlsx": "^0.18.5"
   },
