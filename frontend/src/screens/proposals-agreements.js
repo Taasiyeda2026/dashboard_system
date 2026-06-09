@@ -424,6 +424,25 @@ function shouldShowGefenForItem(item = {}, contextGroup = '') {
   return Boolean(text(item.gefen_number));
 }
 
+function buildInfoStripInnerHtml(item = {}, contextGroup = '') {
+  const numVal = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? Number(v) : null;
+  const parts = [];
+  const actNo = text(item.activity_no);
+  if (actNo) parts.push(`<span class="ds-pa-info-chip"><span class="ds-pa-info-chip-label">מס׳ פעילות</span>${escapeHtml(actNo)}</span>`);
+  if (shouldShowGefenForItem(item, contextGroup) && text(item.gefen_number)) {
+    parts.push(`<span class="ds-pa-info-chip ds-pa-info-chip--accent"><span class="ds-pa-info-chip-label">גפ״ן</span>${escapeHtml(text(item.gefen_number))}</span>`);
+  }
+  const typeVal = text(item.item_type);
+  if (typeVal) parts.push(`<span class="ds-pa-info-chip"><span class="ds-pa-info-chip-label">סוג</span>${escapeHtml(typeVal)}</span>`);
+  const meetings = numVal(item.meetings_count);
+  if (meetings != null) parts.push(`<span class="ds-pa-info-chip" data-pa-info-field="meetings_count"><span class="ds-pa-info-chip-label">מפגשים</span>${escapeHtml(String(meetings))}</span>`);
+  const hours = numVal(item.hours_count);
+  if (hours != null) parts.push(`<span class="ds-pa-info-chip" data-pa-info-field="hours_count"><span class="ds-pa-info-chip-label">שעות</span>${escapeHtml(String(hours))}</span>`);
+  const hourlyPrice = numVal(item.hourly_price);
+  parts.push(`<span class="ds-pa-info-chip"><span class="ds-pa-info-chip-label">מחיר/שעה</span>${hourlyPrice != null ? '₪' + formatCurrency(hourlyPrice) : '—'}</span>`);
+  return parts.join('');
+}
+
 function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const n = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? escapeHtml(String(v)) : '';
   const calcTotal = (Number(item.quantity) || 0) && (Number(item.unit_price) || 0)
@@ -437,24 +456,25 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}>${escapeHtml(labelParts.join(' — ') || value)}</option>`;
   })].join('');
   const contextGroup = text(options.groupKey || item.proposal_group || '');
-  const showGefen = shouldShowGefenForItem(item, contextGroup);
   const gefenValue = text(item.gefen_number);
-  const hasExtra = Boolean(text(item.item_name) || text(item.item_type) || n(item.meetings_count) || n(item.hours_count) || text(item.description));
+  const hasActivity = Boolean(text(item.item_name));
+  const hasExtra = Boolean(text(item.description));
+  const infoStripHtml = hasActivity ? buildInfoStripInnerHtml(item, contextGroup) : '';
   return `<article class="ds-pa-item-card ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}">
     <div class="ds-pa-item-quick-row">
       <label class="ds-pa-item-field ds-pa-item-field--select"><span>בחירת פעילות / קורס</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><span>כמות קבוצות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
-      <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
+      <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
       <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪${formatCurrency(calcTotal)}` : '₪0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove" data-pa-remove-item aria-label="הסר שורה">✕ הסר</button>
     </div>
+    <div class="ds-pa-item-info-strip" data-pa-item-info-strip${hasActivity ? '' : ' hidden'}>${infoStripHtml}</div>
     <details class="ds-pa-item-extra" data-pa-item-details${hasExtra ? ' open' : ''}>
-      <summary class="ds-pa-item-extra-toggle">אפשרויות נוספות</summary>
+      <summary class="ds-pa-item-extra-toggle">עריכה / הערות</summary>
       <div class="ds-pa-item-extra-body">
         <div class="ds-pa-item-grid ds-pa-item-grid--extras">
           <label class="ds-pa-item-field ds-pa-item-field--type"><span>סוג פעילות</span><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(item.item_type || '')}" list="pa-item-type-list" placeholder="סוג"></label>
           <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
-          <label class="ds-pa-item-field ds-pa-item-field--gefen" data-pa-gefen-field${showGefen ? '' : ' hidden'}><span>מספר גפ״ן</span><input class="ds-input ds-input--sm" name="gefen_number_display" value="${escapeHtml(gefenValue)}" readonly></label>
           <label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
           <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>
         </div>
@@ -464,7 +484,9 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     <input type="hidden" name="activity_no" value="${escapeHtml(item.activity_no || item.pricing_activity_no || '')}">
     <input type="hidden" name="pricing_option_key" value="${escapeHtml(item.pricing_option_key || '')}">
     <input type="hidden" name="gefen_number" value="${escapeHtml(gefenValue)}">
+    <input type="hidden" name="gefen_number_display" value="${escapeHtml(gefenValue)}">
     <input type="hidden" name="unit_duration" value="${escapeHtml(item.unit_duration || '')}">
+    <input type="hidden" name="hourly_price" value="${n(item.hourly_price)}">
     <input type="hidden" name="proposal_group" value="${escapeHtml(item.proposal_group || contextGroup || '')}">
   </article>`;
 }
@@ -548,6 +570,7 @@ function extractItemsFromForm(form) {
     hours_count:    parseFloat(row.querySelector('[name="hours_count"]')?.value) || null,
     quantity:       parseFloat(row.querySelector('[name="quantity"]')?.value) || 1,
     unit_price:     parseFloat(row.querySelector('[name="unit_price"]')?.value) || null,
+    hourly_price:   parseFloat(row.querySelector('[name="hourly_price"]')?.value) || null,
     total_price:    parseFloat(row.querySelector('[data-pa-item-total]')?.value) || null,
     description:    text(row.querySelector('[name="description"]')?.value),
     unit_duration:  text(row.querySelector('[name="unit_duration"]')?.value),
@@ -2023,6 +2046,20 @@ export const proposalsAgreementsScreen = {
         if (itemRow) calcItemRow(itemRow);
         if (form) calcGrandTotal(form);
       }
+      if (target.name === 'meetings_count' || target.name === 'hours_count') {
+        const itemRow = target.closest?.('[data-pa-item-row]');
+        if (!itemRow) return;
+        const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
+        if (!infoStrip || infoStrip.hidden) return;
+        const getVal = (name) => text(itemRow.querySelector(`[name="${name}"]`)?.value);
+        const getNum = (name) => { const v = itemRow.querySelector(`[name="${name}"]`)?.value; return v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : null; };
+        const rowGroup = getVal('proposal_group') || text(itemRow.dataset.paRowGroup);
+        infoStrip.innerHTML = buildInfoStripInnerHtml({
+          activity_no: getVal('activity_no'), item_name: getVal('item_name'), item_type: getVal('item_type'),
+          gefen_number: getVal('gefen_number'), meetings_count: getNum('meetings_count'), hours_count: getNum('hours_count'),
+          hourly_price: getNum('hourly_price'), proposal_group: rowGroup
+        }, rowGroup);
+      }
     }, { signal });
     root.addEventListener('change', (event) => {
       const pricingSelect = event.target.closest?.('[data-pa-pricing-select]');
@@ -2051,14 +2088,16 @@ export const proposalsAgreementsScreen = {
       setValue('hours_count', picked.hours_count);
       setValue('meetings_count', picked.meetings_count);
       setValue('unit_price', picked.unit_price);
+      setValue('hourly_price', picked.hourly_price ?? '');
       setValue('description', picked.description_for_proposal || '');
       setValue('unit_duration', picked.unit_duration || '');
       setValue('proposal_group', picked.proposal_group || text(itemRow.dataset.paRowGroup) || '');
       const rowGroup = text(itemRow.dataset.paRowGroup || picked.proposal_group);
-      const gefenField = itemRow.querySelector('[data-pa-gefen-field]');
-      if (gefenField) gefenField.hidden = !shouldShowGefenForItem({ ...picked, proposal_group: rowGroup }, rowGroup);
-      const detailsEl = itemRow.querySelector('[data-pa-item-details]');
-      if (detailsEl) { if ('open' in detailsEl) detailsEl.open = true; else detailsEl.hidden = false; }
+      const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
+      if (infoStrip) {
+        infoStrip.innerHTML = buildInfoStripInnerHtml({ ...picked, activity_name: picked.activity_name, proposal_group: rowGroup }, rowGroup);
+        infoStrip.hidden = !text(picked.activity_name);
+      }
 
       calcItemRow(itemRow);
       if (form) calcGrandTotal(form);

@@ -11053,6 +11053,47 @@ select.ds-input {
   align-items: end;
 }
 
+/* ── Item info strip (visible summary after activity selection) ── */
+.ds-pa-item-info-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 0;
+  padding: 5px 10px;
+  margin-top: 4px;
+  background: var(--ds-surface-soft, #f8fafc);
+  border: 1px solid var(--ds-color-border-subtle, #e2e8f0);
+  border-radius: 6px;
+  font-size: 0.77rem;
+  line-height: 1.6;
+}
+.ds-pa-item-info-strip[hidden] { display: none; }
+.ds-pa-info-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  color: var(--ds-color-text, #0f172a);
+  font-weight: 500;
+  padding: 0 10px 0 0;
+}
+.ds-pa-info-chip + .ds-pa-info-chip {
+  padding-inline-start: 10px;
+  border-inline-start: 1px solid var(--ds-color-border-subtle, #cbd5e1);
+}
+.ds-pa-info-chip-label {
+  color: var(--ds-color-text-muted, #64748b);
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-inline-end: 2px;
+}
+.ds-pa-info-chip--accent { color: var(--ds-accent, #2563eb); }
+.ds-pa-info-chip--accent .ds-pa-info-chip-label { color: var(--ds-accent, #2563eb); opacity: 0.8; }
+@media (max-width: 600px) {
+  .ds-pa-item-info-strip { font-size: 0.73rem; padding: 4px 8px; }
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    Proposals – Table actions cell
    ═══════════════════════════════════════════════════════════════════ */
