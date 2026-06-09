@@ -1,4 +1,5 @@
 const CERT_TEMPLATES = './assets/certificates/templates/';
+const CERT_PREVIEWS  = './assets/certificates/previews/';
 const CERT_LOGOS_BASE = './assets/certificates/logos/';
 
 const CERTIFICATES = [
@@ -14,28 +15,27 @@ let _uploadedLogoDataUrl = null;
 let _uploadedLogoName = '';
 
 function certCardHtml(cert) {
-  const pdfUrl = `${CERT_TEMPLATES}${cert.file}`;
+  const previewUrl = `${CERT_PREVIEWS}${cert.id}.png`;
   return `
 <div class="cert-card" data-cert-id="${cert.id}">
   <div class="cert-card__preview-wrap">
-    <iframe
-      class="cert-card__iframe"
-      src="${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH"
-      title="${cert.name}"
+    <img
+      class="cert-card__preview-img"
+      src="${previewUrl}"
+      alt="${cert.name}"
       loading="lazy"
-    ></iframe>
-    <div class="cert-card__logo-overlay" data-cert-logo-overlay="${cert.id}" aria-hidden="true"></div>
+    />
   </div>
   <div class="cert-card__body">
     <p class="cert-card__name">${cert.name}</p>
     <p class="cert-card__file">${cert.file}</p>
     <div class="cert-card__actions">
-      <button type="button" class="cert-btn cert-btn--primary" data-cert-open="${cert.id}">בחר / פתח</button>
+      <button type="button" class="cert-btn cert-btn--primary" data-cert-open="${cert.id}">פתח תעודה</button>
       <label class="cert-btn cert-btn--secondary cert-upload-lbl" title="העלאת לוגו">
         העלאת לוגו
         <input type="file" class="cert-logo-input" data-cert-upload="${cert.id}" accept="image/*" hidden />
       </label>
-      <button type="button" class="cert-btn cert-btn--print" data-cert-print="${cert.id}">הדפסה / PDF</button>
+      <button type="button" class="cert-btn cert-btn--print" data-cert-print="${cert.id}">הפקת PDF</button>
     </div>
   </div>
 </div>`;
@@ -48,24 +48,22 @@ function ensureStyles() {
   s.textContent = `
 .cert-screen{padding:var(--ds-space-4,16px);direction:rtl}
 .cert-screen__title{font-size:1.25rem;font-weight:700;margin-bottom:var(--ds-space-4,16px);color:var(--ds-text-primary,#111)}
-.cert-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,200px));gap:var(--ds-space-4,16px)}
-.cert-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 1px 4px rgba(0,0,0,.07);transition:box-shadow .15s}
-.cert-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.12)}
-.cert-card__preview-wrap{position:relative;width:100%;height:160px;background:#f1f5f9;overflow:hidden}
-.cert-card__iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;pointer-events:none}
-.cert-card__logo-overlay{position:absolute;top:8%;left:4%;width:28%;max-height:12%;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2}
-.cert-card__logo-overlay img{width:100%;height:100%;object-fit:contain;display:block}
-.cert-card__body{padding:10px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
-.cert-card__name{font-size:.9rem;font-weight:700;color:#1e293b;margin:0}
-.cert-card__file{font-size:.75rem;color:#64748b;font-family:monospace;margin:0}
-.cert-card__actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
-.cert-btn{font-family:inherit;font-size:.78rem;font-weight:600;padding:5px 11px;border-radius:7px;cursor:pointer;border:none;transition:background .15s}
-.cert-btn--primary{background:var(--ds-accent,#1a3358);color:#fff}
+.cert-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,210px));gap:14px}
+.cert-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 1px 4px rgba(0,0,0,.07);transition:box-shadow .15s}
+.cert-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.13)}
+.cert-card__preview-wrap{width:100%;aspect-ratio:210/297;background:#f1f5f9;overflow:hidden;flex-shrink:0}
+.cert-card__preview-img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.cert-card__body{padding:8px 10px;display:flex;flex-direction:column;gap:5px;flex:1}
+.cert-card__name{font-size:.82rem;font-weight:700;color:#1e293b;margin:0;line-height:1.3}
+.cert-card__file{font-size:.7rem;color:#94a3b8;font-family:monospace;margin:0}
+.cert-card__actions{display:flex;gap:4px;flex-wrap:nowrap;margin-top:6px;align-items:center}
+.cert-btn{font-family:inherit;font-size:.72rem;font-weight:600;padding:4px 8px;border-radius:6px;cursor:pointer;border:none;transition:background .15s;white-space:nowrap;line-height:1.4}
+.cert-btn--primary{background:var(--ds-accent,#1a3358);color:#fff;flex:1}
 .cert-btn--primary:hover{filter:brightness(1.12)}
-.cert-btn--secondary{background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;cursor:pointer}
+.cert-btn--secondary{background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;cursor:pointer;flex:1}
 .cert-btn--secondary:hover{background:#e2e8f0}
-.cert-upload-lbl{display:inline-flex;align-items:center}
-.cert-btn--print{background:#16a34a;color:#fff}
+.cert-upload-lbl{display:inline-flex;align-items:center;justify-content:center}
+.cert-btn--print{background:#16a34a;color:#fff;flex:1}
 .cert-btn--print:hover{background:#15803d}
 .cert-preview-modal{position:fixed;inset:0;z-index:9900;display:flex;align-items:center;justify-content:center;direction:rtl}
 .cert-preview-modal__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
