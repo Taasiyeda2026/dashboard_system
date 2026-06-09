@@ -9947,12 +9947,13 @@ select.ds-input {
   box-shadow: var(--ds-shadow-xs);
 }
 
-.ds-pa-table thead th:nth-child(1) { width: 22%; }
-.ds-pa-table thead th:nth-child(2) { width: 22%; }
+.ds-pa-table thead th:nth-child(1) { width: 18%; }
+.ds-pa-table thead th:nth-child(2) { width: 18%; }
 .ds-pa-table thead th:nth-child(3) { width: 16%; }
-.ds-pa-table thead th:nth-child(4) { width: 13%; }
-.ds-pa-table thead th:nth-child(5) { width: 15%; }
-.ds-pa-table thead th:nth-child(6) { width: 12%; }
+.ds-pa-table thead th:nth-child(4) { width: 11%; }
+.ds-pa-table thead th:nth-child(5) { width: 12%; }
+.ds-pa-table thead th:nth-child(6) { width: 10%; }
+.ds-pa-table thead th:nth-child(7) { width: 15%; }
 
 .ds-pa-table th {
   font-weight: 700;
@@ -10937,6 +10938,194 @@ select.ds-input {
 }
 .ds-pa-doc-indicator--template {
   background: #f0fdf4; color: #166534; border: 1px solid #86efac;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Proposals – Proposal type cards (step 2)
+   ═══════════════════════════════════════════════════════════════════ */
+.ds-pa-type-cards {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 6px 0 4px;
+}
+.ds-pa-type-card {
+  flex: 1 1 160px;
+  min-width: 130px;
+  padding: 12px 14px;
+  border: 2px solid var(--ds-border, #e2e8f0);
+  border-radius: 12px;
+  background: var(--ds-surface, #fff);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: right;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+  line-height: 1.3;
+}
+.ds-pa-type-card:hover {
+  border-color: #93c5fd;
+  background: #f0f9ff;
+  box-shadow: 0 1px 6px rgba(37,99,235,0.09);
+}
+.ds-pa-type-card.is-selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+}
+.ds-pa-type-card-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ds-color-text, #0f172a);
+}
+.ds-pa-type-card.is-selected .ds-pa-type-card-label {
+  color: #1d4ed8;
+}
+.ds-pa-type-card-desc {
+  font-size: 0.7rem;
+  color: var(--ds-color-text-muted, #64748b);
+}
+@media (max-width: 600px) {
+  .ds-pa-type-cards { gap: 6px; }
+  .ds-pa-type-card { flex: 1 1 100%; min-width: 0; padding: 10px 12px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Proposals – Simplified item quick row + collapsible extras
+   ═══════════════════════════════════════════════════════════════════ */
+.ds-pa-item-quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.ds-pa-item-quick-row .ds-pa-item-field--select {
+  flex: 1 1 260px;
+  min-width: 200px;
+  max-width: none;
+  width: auto;
+}
+.ds-pa-item-quick-row .ds-pa-item-field--qty { flex: 0 0 90px; width: 90px; }
+.ds-pa-item-quick-row .ds-pa-item-field--price { flex: 0 0 110px; width: 110px; }
+.ds-pa-item-quick-row .ds-pa-item-field--total { flex: 0 0 auto; min-width: 100px; }
+.ds-pa-item-remove { align-self: flex-end; flex: 0 0 auto; }
+
+.ds-pa-item-extra {
+  margin-top: 4px;
+  border: none;
+}
+.ds-pa-item-extra-toggle {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ds-color-text-muted, #64748b);
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px 2px 0;
+  user-select: none;
+  border-radius: 4px;
+}
+.ds-pa-item-extra-toggle::-webkit-details-marker { display: none; }
+.ds-pa-item-extra-toggle::before {
+  content: '▸';
+  font-size: 0.65rem;
+  transition: transform 0.15s;
+}
+.ds-pa-item-extra[open] > .ds-pa-item-extra-toggle::before { content: '▾'; }
+.ds-pa-item-extra-toggle:hover { color: var(--ds-accent, #2563eb); }
+
+.ds-pa-item-extra-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: var(--ds-surface-soft, #f8fafc);
+  border-radius: 8px;
+  border: 1px solid var(--ds-color-border-subtle, #e2e8f0);
+}
+.ds-pa-item-grid--extras {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Proposals – Table actions cell
+   ═══════════════════════════════════════════════════════════════════ */
+.ds-pa-actions-cell {
+  white-space: nowrap;
+  padding: 4px 6px !important;
+}
+.ds-pa-row-action {
+  padding: 2px 7px !important;
+  font-size: 0.72rem !important;
+  min-height: 24px !important;
+}
+.ds-pa-row-action--danger {
+  color: #dc2626 !important;
+}
+.ds-pa-row-action--danger:hover {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Proposals – Enhanced summary card (step 4)
+   ═══════════════════════════════════════════════════════════════════ */
+.ds-pa-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.ds-pa-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.65);
+  border: 1px solid rgba(191,219,254,0.5);
+}
+.ds-pa-summary-item--total {
+  grid-column: 1 / -1;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.ds-pa-summary-label {
+  font-size: 0.7rem;
+  color: var(--ds-color-text-muted, #64748b);
+  font-weight: 600;
+}
+.ds-pa-summary-value {
+  font-size: 0.86rem;
+  color: var(--ds-color-text, #0f172a);
+  font-weight: 600;
+  word-break: break-word;
+}
+.ds-pa-summary-total-val {
+  font-size: 1.1rem;
+  color: #1d4ed8;
+}
+@media (max-width: 480px) {
+  .ds-pa-summary-grid { grid-template-columns: 1fr; }
+  .ds-pa-summary-item--total { grid-column: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Proposals – Preview toolbar improvements
+   ═══════════════════════════════════════════════════════════════════ */
+.ds-pa-preview-client {
+  font-size: 0.8rem;
+  color: var(--ds-color-text-muted, #64748b);
+  margin-right: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
