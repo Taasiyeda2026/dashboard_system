@@ -1872,7 +1872,7 @@ async function readProposalsAgreementsFromSupabase() {
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id';
+const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id,view_proposals_agreements,manage_proposals_agreements';
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
@@ -2027,7 +2027,7 @@ function flattenUserRow(userRow = {}) {
   const permissions = parsePermissions(userRow?.permissions);
   const role = normalizeSupabaseRole(userRow.role);
   const customDisplayRole = String(userRow.display_role || '').trim();
-  return {
+  const flat = {
     user_id: String(userRow.user_id || ''),
     full_name: String(userRow.name || ''),
     role,
@@ -2039,6 +2039,9 @@ function flattenUserRow(userRow = {}) {
     active: userRow.is_active ? 'yes' : 'no',
     ...permissions
   };
+  if (userRow.view_proposals_agreements != null) flat.view_proposals_agreements = userRow.view_proposals_agreements;
+  if (userRow.manage_proposals_agreements != null) flat.manage_proposals_agreements = userRow.manage_proposals_agreements;
+  return flat;
 }
 
 function buildBootstrapFromUser(userRow, profileRow = null) {
