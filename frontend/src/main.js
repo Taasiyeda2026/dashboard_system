@@ -824,7 +824,7 @@ function shellUserRoleLine() {
 }
 
 // מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
-const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'instructor-contacts']);
+const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'instructor-contacts', 'archive', 'contacts', 'edit-requests']);
 
 // מסכי ניהול — נגישים למי שיש לו הרשאה, אך לא מוצגים בסרגל הצד
 const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'admin-lists']);
@@ -857,12 +857,12 @@ function shell(content) {
 
   const systemName = escapeHtml(systemNameDisplay());
 
-  const HEADER_ALWAYS_EXCLUDE = new Set(['edit-requests', 'contacts', 'instructor-contacts', 'proposals-agreements', 'week', 'month']);
+  const HEADER_ALWAYS_EXCLUDE = new Set(['instructor-contacts', 'proposals-agreements', 'week', 'month']);
   const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data', 'permissions']) : new Set();
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
     routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r))
-  }, { exceptions: exceptionsNavCount() });
+  }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0 });
   const headerTechHtml = '';
 
   return `

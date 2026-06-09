@@ -2,24 +2,27 @@ import { escapeHtml } from './html.js';
 
 function itemLabelHtml(item, counts = {}) {
   const label = escapeHtml(item.label);
-  const count = item.route === 'exceptions' ? Number(counts.exceptions || 0) : 0;
-  if (!Number.isFinite(count) || count <= 0) return label;
-  return `${label} <span class="ds-nav-count-badge" aria-label="${escapeHtml(String(count))} חריגות">(${escapeHtml(String(count))})</span>`;
+  if (item.route === 'exceptions') {
+    const count = Number(counts.exceptions || 0);
+    if (!Number.isFinite(count) || count <= 0) return label;
+    return `${label} <span class="ds-nav-count-badge" aria-label="${escapeHtml(String(count))} חריגות">(${escapeHtml(String(count))})</span>`;
+  }
+  if (item.route === 'edit-requests') {
+    const count = Number(counts.editRequests || 0);
+    if (!Number.isFinite(count) || count <= 0) return label;
+    return `${label} <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" aria-label="${escapeHtml(String(count))} בקשות עריכה פתוחות">${escapeHtml(String(count))}</span>`;
+  }
+  return label;
 }
 
 export const ACT_SUBNAV_ITEMS = [
-  { route: 'dashboard',           label: 'לוח בקרה',             icon: '📊' },
-  { route: 'activities',          label: 'פעילויות',             icon: '📋' },
-  { route: 'week',                label: 'שבוע',                 icon: '📅' },
-  { route: 'month',               label: 'חודש',                 icon: '🗓️' },
-  { route: 'end-dates',           label: 'תאריכי סיום',          icon: '🏁' },
-  { route: 'exceptions',          label: 'חריגות',               icon: '⚠️' },
-  { route: 'instructors',         label: 'מדריכים',              icon: '👥' },
-  { route: 'contacts',            label: 'אנשי קשר',             icon: '📇' },
-  { route: 'permissions',         label: 'הרשאות',               icon: '🔑' },
-  { route: 'edit-requests',       label: 'אישורים',              icon: '✅' },
-  { route: 'my-data',             label: 'הנתונים שלי',          icon: '👤' },
-  { route: 'finance',             label: 'כספים / גבייה',         icon: '💰' }
+  { route: 'activities',    label: 'כל הפעילויות',  icon: '📋' },
+  { route: 'end-dates',     label: 'תאריכי סיום',   icon: '🏁' },
+  { route: 'exceptions',    label: 'חריגות',         icon: '⚠️' },
+  { route: 'instructors',   label: 'מדריכים',        icon: '👥' },
+  { route: 'archive',       label: 'ארכיון',         icon: '🗄️' },
+  { route: 'contacts',      label: 'אנשי קשר',       icon: '📇' },
+  { route: 'edit-requests', label: 'אישורי עריכה',   icon: '✅' },
 ];
 
 /**
