@@ -2055,6 +2055,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if (permissionFlagYes(flat.view_catalog) && !allowedRoutes.includes('catalog')) allowedRoutes.push('catalog');
   if ((permissionFlagYes(flat.view_orders) || permissionFlagYes(flat.view_invitations)) && !allowedRoutes.includes('orders')) allowedRoutes.push('orders');
   if (
+    PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(role) ||
     permissionFlagYes(flat.view_proposals) ||
     permissionFlagYes(flat.view_proposals_agreements) ||
     permissionFlagYes(flat.manage_proposals_agreements)
