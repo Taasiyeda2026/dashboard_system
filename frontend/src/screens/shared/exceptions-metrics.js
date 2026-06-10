@@ -18,6 +18,7 @@ export const APPROVED_EXCEPTION_TYPES = new Set(EXCEPTION_TYPE_ORDER);
 export const COURSE_EXCEPTION_TYPES = new Set(EXCEPTION_TYPE_ORDER);
 
 export const SHORT_ACTIVITY_EXCEPTION_TYPES = new Set([
+  'end_date_passed',
   'missing_instructor',
   'missing_start_date'
 ]);
