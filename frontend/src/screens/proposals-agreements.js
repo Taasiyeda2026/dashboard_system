@@ -1812,7 +1812,7 @@ export const proposalsAgreementsScreen = {
     return dsScreenStack(`
       ${dsPageHeader('הצעות מחיר')}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
-        <div class="ds-pa-screen-tabs" style="display:flex;gap:4px;border-bottom:2px solid var(--ds-border,#e5e7eb);margin-bottom:12px">
+        <div class="ds-pa-screen-tabs" data-pa-screen-tabs style="display:flex;gap:4px;border-bottom:2px solid var(--ds-border,#e5e7eb);margin-bottom:12px">
           <button type="button" class="ds-pa-screen-tab is-active" data-pa-tab="records" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;color:inherit;font-size:0.9rem">📋 רשומות</button>
           ${canManage ? '<button type="button" class="ds-pa-screen-tab" data-pa-tab="new" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--ds-text-muted,#6b7280);font-size:0.9rem">+ הצעה חדשה</button>' : ''}
         </div>
@@ -2153,6 +2153,8 @@ export const proposalsAgreementsScreen = {
     // ── Form open/close ───────────────────────────────────────────────────────
     const openForm = async (mode, row = {}, preloadedItems = []) => {
       if (!formHost) return;
+      // Switch to the "new" tab panel so formHost is visible
+      switchTab('new');
       let items = preloadedItems;
       if (mode === 'edit' && text(row.id) && !preloadedItems.length) {
         try {
@@ -2310,16 +2312,16 @@ export const proposalsAgreementsScreen = {
     };
 
     // ── Tab switching ──────────────────────────────────────────────────────────
-    root.querySelector('[data-pa-screen-tabs],[data-pa-tabs]')?.addEventListener('click', (e) => {
+    root.querySelector('[data-pa-screen-tabs]')?.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-pa-tab]');
       if (!btn) return;
       const tabName = btn.dataset.paTab;
-      switchTab(tabName);
       if (tabName === 'new' && canManage) {
-        openForm('add');
+        openForm('add'); // openForm calls switchTab('new') internally
       } else if (tabName === 'records') {
-        closeForm();
-        switchTab('records'); // ensure records shown even after closeForm
+        // Clear the new-proposal form and switch back to records
+        if (formHost) { formHost.hidden = true; formHost.innerHTML = ''; }
+        switchTab('records');
       }
     }, { signal });
 
