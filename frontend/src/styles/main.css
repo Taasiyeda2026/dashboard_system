@@ -4507,6 +4507,22 @@ select.ds-input {
   padding: 12px;
 }
 
+.ci-person-card-wrap {
+  position: relative;
+}
+
+.ci-person-card-wrap .ci-person-card {
+  padding-inline-start: 32px;
+}
+
+.ci-person-card__actions {
+  position: absolute;
+  top: 4px;
+  inset-inline-start: 4px;
+  z-index: 1;
+  line-height: 1;
+}
+
 .ci-person-card {
   display: flex;
   align-items: center;

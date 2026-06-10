@@ -84,17 +84,18 @@ function renderInstrCard(row) {
   const initials = escapeHtml(avatarInitials(nameRaw));
   const bg = avatarColor(row.emp_id || nameRaw);
 
-  const actions = `<span class="ci-person-card__actions">${actionBtn('edit-instr', { emp_id: row.emp_id }, '✎')}</span>`;
   return `
-    <button type="button" class="ci-person-card${isInactive ? ' ci-person-card--inactive' : ''}"
-      data-card-action="icontact:${encodeURIComponent(row.emp_id || '')}">
-      <span class="ci-person-card__avatar" style="background:${bg}" aria-hidden="true">${initials}</span>
-      <span class="ci-person-card__info">
-        <span class="ci-person-card__name">${name}</span>
-        <span class="ci-person-card__phone">${phone || '—'}</span>
-      </span>
-      ${actions}
-    </button>`;
+    <div class="ci-person-card-wrap">
+      <button type="button" class="ci-person-card${isInactive ? ' ci-person-card--inactive' : ''}"
+        data-card-action="icontact:${encodeURIComponent(row.emp_id || '')}">
+        <span class="ci-person-card__avatar" style="background:${bg}" aria-hidden="true">${initials}</span>
+        <span class="ci-person-card__info">
+          <span class="ci-person-card__name">${name}</span>
+          <span class="ci-person-card__phone">${phone || '—'}</span>
+        </span>
+      </button>
+      <span class="ci-person-card__actions">${actionBtn('edit-instr', { emp_id: row.emp_id }, '✎')}</span>
+    </div>`;
 }
 
 function instrTabHtml(rows, filters) {
@@ -462,6 +463,7 @@ export const contactsScreen = {
     const openInstructorEditor = (row, isCreate = false) => {
       if (!ui) return;
       const target = row || {};
+      const originalId = target.id != null ? target.id : null;
       ui.openModal({
         title: isCreate ? 'הוספת איש קשר מדריך' : 'עריכת איש קשר מדריך',
         content: instructorFormHtml(target, managerOptions),
@@ -485,6 +487,7 @@ export const contactsScreen = {
           direct_manager: get('direct_manager'),
           active: get('active') || 'yes'
         };
+        if (!isCreate && originalId != null) payload.id = originalId;
         if (!payload.emp_id) {
           if (statusEl) statusEl.textContent = 'יש להזין מזהה מדריך';
           return;
@@ -494,7 +497,7 @@ export const contactsScreen = {
           if (statusEl) statusEl.textContent = 'שומר...';
           await (isCreate
             ? api.addContact({ kind: 'instructor', row: payload })
-            : api.saveContact({ kind: 'instructor', row_index: target._row_index, row: payload }));
+            : api.saveContact({ kind: 'instructor', row: payload }));
           showToast('✅ נשמר בהצלחה', 'success', 1800);
           ui.closeModal();
           rerender();
@@ -509,6 +512,7 @@ export const contactsScreen = {
     const openSchoolEditor = (row, isCreate = false) => {
       if (!ui) return;
       const target = row || {};
+      const originalId = target.id != null ? target.id : null;
       ui.openModal({
         title: isCreate ? 'הוספת איש קשר בית ספר' : 'עריכת איש קשר בית ספר',
         content: schoolFormHtml(target),
@@ -530,9 +534,9 @@ export const contactsScreen = {
           phone: get('phone'),
           mobile: get('mobile'),
           email: get('email'),
-          notes: get('notes'),
-          _row_index: target._row_index
+          notes: get('notes')
         };
+        if (!isCreate && originalId != null) payload.id = originalId;
         if (!payload.authority || !payload.school || !payload.contact_name) {
           if (statusEl) statusEl.textContent = 'יש להזין לפחות רשות, בית ספר ושם איש קשר';
           return;
@@ -544,7 +548,6 @@ export const contactsScreen = {
             ? api.addContact({ kind: 'school', row: payload })
             : api.saveContact({
                 kind: 'school',
-                row_index: target._row_index,
                 row: payload,
                 _supabase_orig: {
                   authority: String(target.authority || '').trim(),
@@ -595,10 +598,11 @@ export const contactsScreen = {
         }
         if (action === 'edit-school') {
           const payload = ctx.decodePayload?.(btn) || {};
-          const idx = Number(payload._row_index);
-          const hit = Number.isFinite(idx)
-            ? (ctx.schoolRows || []).find((r) => Number(r._row_index) === idx)
-            : null;
+          const hit = (ctx.schoolRows || []).find((r) =>
+            String(r.authority || '') === String(payload.authority || '') &&
+            String(r.school || '') === String(payload.school || '') &&
+            String(r.contact_name || '') === String(payload.contact_name || '')
+          ) || null;
           if (hit) ctx.openSchoolEditor?.(hit, false);
         }
       });
