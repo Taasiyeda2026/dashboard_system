@@ -107,7 +107,7 @@ function normalizeSearch(value) {
 
 export function buildProposalsAgreementsSearchText(row = {}) {
   return [
-    row.id, row.client_authority, row.school_framework, row.document_type,
+    row.id, row.client_name, row.client_authority, row.school_framework, row.document_type,
     row.activity_type_group,
     Array.isArray(row.activity_names) ? row.activity_names.join(' ') : row.activity_names,
     row.notes, row.contact_name, row.contact_role, row.phone, row.email,
@@ -123,6 +123,8 @@ export function normalizeProposalAgreementRow(row = {}) {
   const rawGroup = text(row.activity_type_group);
   const normalized = {
     id:                  text(row.id),
+    client_name:         text(row.client_name),
+    client_type:         text(row.client_type),
     client_authority:    text(row.client_authority),
     school_framework:    text(row.school_framework),
     document_type:       text(row.document_type) || 'הצעת מחיר',
@@ -280,7 +282,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     }
     return `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
-      <td>${escapeHtml(row.client_authority || '—')}</td>
+      <td>${escapeHtml(row.client_name || row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(row.activity_type_group || '—')}</td>
       <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
@@ -643,14 +645,18 @@ function itemsSummaryHtml(items = []) {
   }, 0);
   const rows = visibleSummaryItems.map((item) => {
     const t = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
+    const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
+    const bundleNames = bundleItems.map((bi) => typeof bi === 'object' ? text(bi.activity_name) : text(bi)).filter(Boolean);
+    const bundleStr = bundleNames.length ? bundleNames.join(', ') : '';
     const details = [
       text(item.activity_no) ? `מס׳ פעילות: ${text(item.activity_no)}` : '',
       text(item.gefen_number) ? `גפ״ן: ${text(item.gefen_number)}` : '',
       text(item.meetings_count) ? `מפגשים: ${text(item.meetings_count)}` : '',
       text(item.hours_count) ? `שעות: ${text(item.hours_count)}` : '',
       text(item.unit_duration) ? `משך: ${text(item.unit_duration)}` : '',
+      bundleStr ? `פירוט: ${bundleStr}` : '',
       text(item.proposal_group) ? `קבוצה: ${text(item.proposal_group)}` : '',
-      text(item.description)
+      !bundleStr ? text(item.description) : ''
     ].filter(Boolean).join(' | ');
     return `<tr>
       <td>${escapeHtml(item.item_name || '')}${details ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(details)}</div>` : ''}</td>
@@ -1425,12 +1431,6 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           <div data-pa-school-field>
             ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, true)}
           </div>
-          <div data-pa-new-client-only hidden>
-            <div class="ds-pa-create-client-row">
-              <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-create-client>✓ צור לקוח</button>
-              <span data-pa-new-client-create-status style="font-size:.85em;color:var(--ds-text-muted,#888)"></span>
-            </div>
-          </div>
         </div>
       </div>
       <div data-pa-step-panel="contact">
@@ -1541,19 +1541,34 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     ? `<span class="ds-pa-badge" title="המסמך הזה כולל עריכה מותאמת אישית" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#6366f1;color:#fff;margin-right:4px">מסמך מותאם</span>`
     : '';
 
+  const clientDisplayName = text(row.client_name) || text(row.school_framework) || text(row.client_authority) || '—';
+  const schoolLine = text(row.school_framework) && text(row.school_framework) !== clientDisplayName
+    ? `<p class="ds-muted" style="font-size:0.78rem;margin:2px 0 0">${escapeHtml(row.school_framework)}</p>`
+    : '';
+  const authLine = text(row.client_authority) && text(row.client_authority) !== clientDisplayName && text(row.client_authority) !== text(row.school_framework)
+    ? `<p class="ds-muted" style="font-size:0.78rem;margin:1px 0 0">רשות: ${escapeHtml(row.client_authority)}</p>`
+    : '';
+  const proposalIdHtml = row.id
+    ? `<p class="ds-muted" style="font-size:0.72rem;margin:0 0 2px;font-family:monospace">מס׳ ${escapeHtml(String(row.id))}</p>`
+    : '';
   return `<aside class="ds-pa-drawer" data-pa-drawer data-pa-drawer-id="${escapeHtml(row.id)}" aria-live="polite" dir="rtl">
     <div class="ds-pa-drawer-panel">
       <header class="ds-pa-drawer-head">
-        <div><p class="ds-muted">פרטי רשומה</p><h3>${escapeHtml(row.client_authority || '—')}</h3></div>
+        <div>
+          ${proposalIdHtml}
+          <h3 style="margin:0">${escapeHtml(clientDisplayName)}</h3>
+          ${schoolLine}${authLine}
+        </div>
         <button type="button" class="ds-btn ds-btn--sm" data-pa-close-drawer aria-label="סגירת פרטי רשומה">✕</button>
       </header>
-      <div class="ds-pa-drawer-status" style="margin-bottom:8px">${statusBadgeHtml(row.status)}${customBadge}</div>
+      <div class="ds-pa-drawer-status" style="margin:6px 0 8px">${statusBadgeHtml(row.status)}${customBadge}</div>
       <div class="ds-pa-detail-grid">${detailRowsHtml(row)}</div>
       ${totalHtml}
       ${approvalNoteHtml}
       ${contactDetailRowsHtml(row)}
       <div data-pa-drawer-items style="margin:8px 0"><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
       <div class="ds-pa-drawer-actions">${drawerActionButtons(row, state)}</div>
+      <p class="ds-pa-form-error" data-pa-drawer-error role="alert" style="color:#dc2626;font-size:0.8rem;margin-top:4px"></p>
       <div data-pa-inline-form></div>
     </div>
   </aside>`;
@@ -1620,7 +1635,7 @@ function payloadFromForm(form) {
   payload._items = items;
   payload._contact_original = {
     id:           text(formData.get('contact_source_id')),
-    client_type:  text(formData.get('contact_source_client_type')),
+    client_type:  text(formData.get('contact_source_client_type')) || text(formData.get('new_client_type')),
     client_name:  text(formData.get('contact_source_client_name')),
     authority:    text(formData.get('contact_source_authority')),
     school:       text(formData.get('contact_source_school')),
@@ -1717,12 +1732,14 @@ export const proposalsAgreementsScreen = {
       if (!contact) return row;
       return {
         ...row,
+        client_name:      text(contact.client_name) || row.client_name || text(contact.school) || text(contact.authority),
+        client_type:      text(contact.client_type) || row.client_type,
         client_authority: text(contact.authority) || row.client_authority,
         school_framework: text(contact.school) || row.school_framework,
-        contact_name: text(contact.contact_name) || row.contact_name,
-        contact_role: text(contact.contact_role) || row.contact_role,
-        phone: text(contact.phone || contact.mobile || '') || row.phone,
-        email: text(contact.email) || row.email
+        contact_name:     text(contact.contact_name) || row.contact_name,
+        contact_role:     text(contact.contact_role) || row.contact_role,
+        phone:            text(contact.phone || contact.mobile || '') || row.phone,
+        email:            text(contact.email) || row.email
       };
     };
     let debounceTimer = null;
@@ -2075,30 +2092,7 @@ export const proposalsAgreementsScreen = {
       const allBtns = form.querySelectorAll('button');
       allBtns.forEach((b) => { b.disabled = true; });
       const payload = payloadFromForm(form);
-      payload.is_new_client = form.dataset.paNewClient === 'yes';
       if (statusOverride) payload.status = statusOverride;
-
-      // Client dedup — warn if a similar client already exists
-      if (payload.is_new_client && text(payload.client_authority)) {
-        const similar = findSimilarClients(contactOptions, payload.client_authority, payload.school_framework);
-        if (similar.length) {
-          const pick = similar[0];
-          const shouldUseExisting = window.confirm(`נמצא לקוח דומה במערכת:\nלקוח / רשות: ${text(pick.authority)}\nבית ספר / מסגרת: ${text(pick.school) || '—'}\nאיש קשר: ${text(pick.contact_name) || '—'}\n\nבחר את הלקוח הקיים?`);
-          if (shouldUseExisting) {
-            const match = similar[0];
-            payload.client_authority = text(match.authority);
-            payload.school_framework = text(match.school);
-            payload.is_new_client = false;
-          } else {
-            const shouldKeepNew = window.confirm('להמשיך ולשמור כלקוח חדש בכל זאת?');
-            if (!shouldKeepNew) {
-              form.dataset.saving = '';
-              allBtns.forEach((b) => { b.disabled = false; });
-              return;
-            }
-          }
-        }
-      }
 
       const validationErrors = validatePayload(payload, statusOverride);
       if ((statusOverride === 'pending_approval') && form.dataset.paPreviewSeen !== 'yes') {
@@ -2485,22 +2479,63 @@ export const proposalsAgreementsScreen = {
         const newStatus = text(statusActionBtn.dataset.paStatusAction);
         const id = text(statusActionBtn.dataset.paActionId);
         if (!newStatus || !id) return;
-        let approvalNote = '';
         if (newStatus === 'returned_for_changes') {
-          approvalNote = (window.prompt('הערה לתיקון (אופציונלי):') || '').trim();
+          const drawer = root.querySelector('[data-pa-drawer]');
+          const inlineFormHost = drawer?.querySelector('[data-pa-inline-form]');
+          if (!inlineFormHost) return;
+          inlineFormHost.innerHTML = `<div class="ds-pa-return-form" data-pa-return-form>
+            <h4 style="font-size:0.85rem;margin:0 0 6px;font-weight:600">החזרה לתיקון</h4>
+            <label style="display:block;font-size:0.8rem;margin-bottom:4px">הערה לתיקון (אופציונלי)</label>
+            <textarea class="ds-input ds-input--sm" data-pa-return-note rows="3" style="width:100%;margin-bottom:8px;box-sizing:border-box" placeholder="הסבר מה יש לתקן..."></textarea>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="ds-btn ds-btn--sm" data-pa-return-confirm data-pa-return-id="${escapeHtml(id)}">החזר לתיקון</button>
+              <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-return-cancel>ביטול</button>
+            </div>
+            <p class="ds-pa-form-error" data-pa-return-error role="alert" style="color:#dc2626;font-size:0.8rem;margin-top:4px"></p>
+          </div>`;
+          inlineFormHost.querySelector('[data-pa-return-note]')?.focus();
+          return;
         }
         statusActionBtn.disabled = true;
         try {
-          const result = await api.updateProposalAgreementStatus(id, newStatus, approvalNote);
-          replaceLocalRow(data, result?.row || { id, status: newStatus, approval_note: approvalNote });
+          const result = await api.updateProposalAgreementStatus(id, newStatus, '');
+          replaceLocalRow(data, result?.row || { id, status: newStatus, approval_note: '' });
           refreshTable();
           const updated = data.rows.find((item) => text(item.id) === id);
           const drawer = root.querySelector('[data-pa-drawer]');
           if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
         } catch (err) {
           statusActionBtn.disabled = false;
-          window.alert(`שגיאה בעדכון סטטוס: ${err?.message || err}`);
+          const drawerErrEl = root.querySelector('[data-pa-drawer-error]');
+          if (drawerErrEl) drawerErrEl.textContent = `שגיאה בעדכון סטטוס: ${err?.message || err}`;
+          else window.alert(`שגיאה בעדכון סטטוס: ${err?.message || err}`);
         }
+        return;
+      }
+
+      const returnConfirmBtn = event.target.closest?.('[data-pa-return-confirm]');
+      if (returnConfirmBtn) {
+        const id = text(returnConfirmBtn.dataset.paReturnId);
+        const returnForm = returnConfirmBtn.closest('[data-pa-return-form]');
+        const note = text(returnForm?.querySelector('[data-pa-return-note]')?.value) || '';
+        const errorEl = returnForm?.querySelector('[data-pa-return-error]');
+        returnConfirmBtn.disabled = true;
+        try {
+          const result = await api.updateProposalAgreementStatus(id, 'returned_for_changes', note);
+          replaceLocalRow(data, result?.row || { id, status: 'returned_for_changes', approval_note: note });
+          refreshTable();
+          const updated = data.rows.find((item) => text(item.id) === id);
+          const drawer = root.querySelector('[data-pa-drawer]');
+          if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
+        } catch (err) {
+          returnConfirmBtn.disabled = false;
+          if (errorEl) errorEl.textContent = `שגיאה: ${err?.message || err}`;
+        }
+        return;
+      }
+
+      if (event.target.closest?.('[data-pa-return-cancel]')) {
+        event.target.closest('[data-pa-return-form]')?.remove();
         return;
       }
 
@@ -2514,8 +2549,14 @@ export const proposalsAgreementsScreen = {
         try { pickedData = JSON.parse(itemRow.dataset.paBundlePicked || '{}'); } catch { /* ignore */ }
         const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
         if (bundlePrompt) bundlePrompt.hidden = true;
-        const checkedNames = Array.from(itemRow.querySelectorAll('[name="bundle_child_sel"]:checked'))
-          .map((cb) => text(cb.value)).filter(Boolean);
+        const checkedBundleItems = Array.from(itemRow.querySelectorAll('[name="bundle_child_sel"]:checked'))
+          .map((cb) => {
+            const name = text(cb.value);
+            if (!name) return null;
+            const childPricing = proposalActivityPricing.find((r) => text(r.activity_name) === name && text(r.proposal_display_mode) === 'bundle_child');
+            return { pricing_key: text(childPricing?.pricing_key) || '', activity_name: name };
+          }).filter(Boolean);
+        const checkedNames = checkedBundleItems.map((i) => i.activity_name);
         const description = checkedNames.length > 0 ? checkedNames.map((n) => `• ${n}`).join('\n') : '';
         const setValue = (name, value) => { const input = itemRow.querySelector(`[name="${name}"]`); if (input) input.value = value == null ? '' : String(value); };
         setValue('item_name', pickedData.activity_name || '');
@@ -2525,7 +2566,7 @@ export const proposalsAgreementsScreen = {
         setValue('description', description);
         setValue('item_display_mode', 'bundle_parent');
         setValue('item_source_pricing_key', pickedData.pricing_key || '');
-        setValue('item_selected_bundle_items', JSON.stringify(checkedNames));
+        setValue('item_selected_bundle_items', JSON.stringify(checkedBundleItems));
         if (description) {
           const detailsEl = itemRow.querySelector('[data-pa-item-details]');
           if (detailsEl) detailsEl.open = true;
@@ -2677,64 +2718,6 @@ export const proposalsAgreementsScreen = {
         const clientSelect = form.querySelector('[data-pa-client-select]');
         updateProposalStepper(form);
         clientSelect?.focus();
-        return;
-      }
-      if (event.target.closest?.('[data-pa-create-client]')) {
-        const btn = event.target.closest('[data-pa-create-client]');
-        const form = btn?.closest('[data-pa-form]');
-        if (!form) return;
-        const statusEl = form.querySelector('[data-pa-new-client-create-status]');
-        const clientType = text(form.querySelector('[name="new_client_type"]')?.value) || 'school';
-        const authority = text(form.querySelector('input[name="client_authority"]')?.value);
-        const school = clientType === 'authority' ? '' : text(form.querySelector('input[name="school_framework"]')?.value);
-        const contactName = text(form.querySelector('input[name="contact_name"]')?.value);
-        const contactRole = text(form.querySelector('input[name="contact_role"]')?.value);
-        const phone = text(form.querySelector('input[name="phone"]')?.value);
-        const email = text(form.querySelector('input[name="email"]')?.value);
-        if (!authority) { if (statusEl) statusEl.textContent = 'יש להזין שם רשות / לקוח'; return; }
-        if (clientType === 'school' && !school) { if (statusEl) statusEl.textContent = 'יש להזין שם בית הספר'; return; }
-        if (!contactName) { if (statusEl) statusEl.textContent = 'יש להזין שם איש קשר'; return; }
-        const clientName = clientType === 'school' ? school : authority;
-        try {
-          btn.disabled = true;
-          if (statusEl) statusEl.textContent = 'יוצר לקוח...';
-          const result = await api.addProposalClient({
-            client_type: clientType,
-            client_name: clientName,
-            authority,
-            school: school || null,
-            contact_name: contactName,
-            contact_role: contactRole || null,
-            phone: phone || null,
-            email: email || null,
-            active: 'פעיל'
-          });
-          const newRow = result.row || {};
-          if (newRow.id != null) contactOptions.push(newRow);
-          const authInput = form.querySelector('input[name="client_authority"]');
-          const schoolInput = form.querySelector('input[name="school_framework"]');
-          if (authInput) authInput.value = authority;
-          if (schoolInput) schoolInput.value = school;
-          fillContactFields(form, { contact_name: contactName, contact_role: contactRole, phone, email });
-          setContactSource(form, newRow);
-          form.dataset.paNewClient = 'no';
-          form.querySelectorAll('[data-pa-new-client-only]').forEach((el) => { el.hidden = true; });
-          const hint = form.querySelector('[data-pa-new-client-hint]');
-          if (hint) hint.hidden = true;
-          lockClientFields(form, authority, school, contactName, contactRole, phone, email, clientName);
-          const clientSelectEl = form.querySelector('[data-pa-client-select]');
-          if (clientSelectEl) {
-            const tmp = document.createElement('div');
-            tmp.innerHTML = clientSelectHtml(contactOptions, { client_authority: authority, school_framework: school });
-            const newSelect = tmp.querySelector('[data-pa-client-select]');
-            if (newSelect) { clientSelectEl.replaceWith(newSelect); setupClientSelector(form); }
-          }
-          updateProposalStepper(form);
-          if (statusEl) statusEl.textContent = '';
-        } catch (err) {
-          if (statusEl) statusEl.textContent = `שגיאה: ${err?.message || err}`;
-          btn.disabled = false;
-        }
         return;
       }
 
