@@ -101,7 +101,8 @@ test('exception relevance follows activity_type before counts and display', () =
       activity({ RowID: `${activity_type}-late`, activity_type, status: 'פתוח', end_date: '2026-06-16', date_1: '2026-06-16' }),
       activity({ RowID: `${activity_type}-missing-end`, activity_type, end_date: '', date_1: '' }),
       activity({ RowID: `${activity_type}-missing-instructor`, activity_type, instructor_name: '', emp_id: '', instructor_name_2: '', emp_id_2: '' }),
-      activity({ RowID: `${activity_type}-missing-start`, activity_type, start_date: '', date_1: '' })
+      activity({ RowID: `${activity_type}-missing-start`, activity_type, start_date: '', date_1: '' }),
+      activity({ RowID: `${activity_type}-ended-open`, activity_type, status: 'פתוח', end_date: '2026-01-01', date_1: '2026-01-01' })
     ])
   ];
 
@@ -113,7 +114,7 @@ test('exception relevance follows activity_type before counts and display', () =
   assert.equal(model.counts.end_date_after_cutoff, 2, 'only actual summer activities should be exempt from late end date');
   assert.equal(model.counts.missing_end_date, 0, 'short activity missing end date should not count');
   assert.equal(model.counts.missing_district, 0, 'short activity district gaps should not count');
-  assert.equal(model.counts.end_date_passed, 0, 'short activity ended-open should not count');
+  assert.equal(model.counts.end_date_passed, shortTypes.length, 'short activity ended-open should count as end_date_passed');
   assert.equal(model.counts.missing_instructor, shortTypes.length);
   assert.equal(model.counts.missing_start_date, shortTypes.length + 1);
   assert.ok(model.rows.some((row) => row.RowID === 'COURSE-LATE' && row.exception_types.includes('end_date_after_cutoff')));
@@ -123,6 +124,12 @@ test('exception relevance follows activity_type before counts and display', () =
   assert.ok(model.rows.some((row) => row.RowID === 'SUMMER-EXPLICIT-NO-START' && row.exception_types.includes('missing_start_date')));
   assert.ok(!model.exceptionInstances.some((row) => String(row.RowID || '').includes('-late') && row.activity_type !== 'course'));
   assert.ok(!model.exceptionInstances.some((row) => String(row.RowID || '').includes('-missing-end')));
+  assert.ok(
+    shortTypes.every((activity_type) =>
+      model.exceptionInstances.some((row) => row.RowID === `${activity_type}-ended-open` && row.exception_types.includes('end_date_passed'))
+    ),
+    'short activities with past end_date and open status should appear with end_date_passed'
+  );
 });
 
 test('unassigned manager with valid district is counted under the district and totals are exception instances', () => {
