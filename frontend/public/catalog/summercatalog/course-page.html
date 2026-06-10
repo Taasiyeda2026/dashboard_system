@@ -6165,11 +6165,33 @@ function showProgramNotFound() {
 
 async function init() {
   try {
-    const res = await fetch("catalog-data.json", { cache: "no-store" });
+    const urlParams = new URLSearchParams(window.location.search);
+    const isAdminCatalog = urlParams.get("catalog") === "admin";
+    let dataUrl = "catalog-data.json";
+
+    if (isAdminCatalog) {
+      const ADMIN_TOKEN_KEY = "tsy_catalog_admin_token";
+      let authorized = false;
+      try {
+        const tokenRaw = localStorage.getItem(ADMIN_TOKEN_KEY);
+        if (tokenRaw) {
+          const token = JSON.parse(tokenRaw);
+          authorized = token.ok === true && typeof token.exp === "number" && Date.now() < token.exp;
+        }
+      } catch (_) {}
+      try { localStorage.removeItem(ADMIN_TOKEN_KEY); } catch (_) {}
+      if (!authorized) {
+        showLoadError("אין הרשאה לטעינת קטלוג אדמין. יש לפתוח מתוך המערכת.");
+        return;
+      }
+      dataUrl = "catalog-admin-data.json";
+    }
+
+    const res = await fetch(dataUrl, { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (!Array.isArray(data.programs) || data.programs.length === 0) {
-      showLoadError("קובץ catalog-data.json ריק או חסר שדה programs.");
+      showLoadError(`קובץ ${dataUrl} ריק או חסר שדה programs.`);
       return;
     }
     const levelOrder = { elementary: 1, "elementary-middle": 2, middle: 3, "middle-high": 4, high: 5 };
@@ -6195,7 +6217,7 @@ async function init() {
     buildNav(requestedIndex);
     selectProgram(requestedIndex, false);
   } catch (err) {
-    showLoadError("לא ניתן לטעון את נתוני הקטלוג. בדקו שקובץ catalog-data.json קיים ותקין.<br><small>" + err.message + "</small>");
+    showLoadError("לא ניתן לטעון את נתוני הקטלוג.<br><small>" + err.message + "</small>");
   }
 }
 

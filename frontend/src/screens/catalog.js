@@ -1,4 +1,11 @@
 const CATALOG_URL = './catalog/summercatalog/';
+const COURSE_PAGE_ADMIN_URL = './catalog/summercatalog/course-page.html?catalog=admin';
+const ADMIN_TOKEN_KEY = 'tsy_catalog_admin_token';
+const ADMIN_TOKEN_TTL = 30000;
+
+function isCatalogAdmin(state) {
+  return state?.user?.role === 'admin' || Number(state?.user?.user_id) === 8000;
+}
 
 function ensureCatalogEmbedStyles() {
   if (document.getElementById('catalog-embed-screen-styles')) return;
@@ -41,6 +48,12 @@ function ensureCatalogEmbedStyles() {
   font-size: 13px;
   line-height: 1.4;
 }
+.catalog-embed-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .catalog-embed-open {
   display: inline-flex;
   align-items: center;
@@ -61,6 +74,30 @@ function ensureCatalogEmbedStyles() {
 .catalog-embed-open:focus-visible {
   background: #1d4ed8;
   border-color: #1d4ed8;
+  transform: translateY(-1px);
+  outline: none;
+}
+.catalog-embed-admin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  border: 1px solid #7c3aed;
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: #fff;
+  color: #7c3aed;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: background .16s ease, color .16s ease, transform .16s ease;
+}
+.catalog-embed-admin-btn:hover,
+.catalog-embed-admin-btn:focus-visible {
+  background: #7c3aed;
+  color: #fff;
   transform: translateY(-1px);
   outline: none;
 }
@@ -93,7 +130,12 @@ function ensureCatalogEmbedStyles() {
   .catalog-embed-title h2 {
     font-size: 19px;
   }
-  .catalog-embed-open {
+  .catalog-embed-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .catalog-embed-open,
+  .catalog-embed-admin-btn {
     width: 100%;
   }
   .catalog-embed-frame-wrap {
@@ -110,15 +152,22 @@ function ensureCatalogEmbedStyles() {
 }
 
 export const catalogScreen = {
-  render: () => {
+  render: (data, { state } = {}) => {
     ensureCatalogEmbedStyles();
+    const isAdmin = isCatalogAdmin(state);
+    const adminBtn = isAdmin
+      ? `<button type="button" class="catalog-embed-admin-btn" id="catalog-admin-open-btn">🔒 הפקת קטלוג אדמין</button>`
+      : '';
     return `<section class="catalog-embed-screen" aria-labelledby="catalog-embed-title">
       <header class="catalog-embed-header">
         <div class="catalog-embed-title">
           <h2 id="catalog-embed-title">קטלוג</h2>
           <p>קטלוג הקיץ החדש נטען מתוך המערכת.</p>
         </div>
-        <a class="catalog-embed-open" href="${CATALOG_URL}" target="_blank" rel="noopener noreferrer">פתח בחלון חדש</a>
+        <div class="catalog-embed-actions">
+          ${adminBtn}
+          <a class="catalog-embed-open" href="${CATALOG_URL}" target="_blank" rel="noopener noreferrer">פתח בחלון חדש</a>
+        </div>
       </header>
       <div class="catalog-embed-frame-wrap">
         <iframe
@@ -129,5 +178,20 @@ export const catalogScreen = {
         ></iframe>
       </div>
     </section>`;
+  },
+
+  bind({ root, state }) {
+    if (!isCatalogAdmin(state)) return;
+    const btn = root.querySelector('#catalog-admin-open-btn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      try {
+        localStorage.setItem(
+          ADMIN_TOKEN_KEY,
+          JSON.stringify({ ok: true, exp: Date.now() + ADMIN_TOKEN_TTL })
+        );
+      } catch (_) {}
+      window.open(COURSE_PAGE_ADMIN_URL, '_blank', 'noopener,noreferrer');
+    });
   }
 };
