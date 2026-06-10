@@ -147,7 +147,7 @@ function firstHebrewLetter(str) {
 function groupByAuthorityThenSchool(rows) {
   const authMap = new Map();
   for (const row of rows) {
-    const authority = String(row.authority || '').trim() || '—';
+    const authority = String(row.authority || row.client_name || '').trim() || '—';
     if (!authMap.has(authority)) authMap.set(authority, []);
     authMap.get(authority).push(row);
   }
@@ -156,11 +156,21 @@ function groupByAuthorityThenSchool(rows) {
   sorted.forEach((authRows, authority) => {
     const schoolMap = new Map();
     for (const row of authRows) {
-      const school = String(row.school || '').trim() || '—';
-      if (!schoolMap.has(school)) schoolMap.set(school, []);
-      schoolMap.get(school).push(row);
+      const isAuthorityType = String(row.client_type || '').trim() === 'authority' || !String(row.school || '').trim();
+      if (isAuthorityType) {
+        if (!schoolMap.has('__direct__')) schoolMap.set('__direct__', []);
+        schoolMap.get('__direct__').push(row);
+      } else {
+        const school = String(row.school || '').trim() || '—';
+        if (!schoolMap.has(school)) schoolMap.set(school, []);
+        schoolMap.get(school).push(row);
+      }
     }
-    result.set(authority, new Map([...schoolMap.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he'))));
+    result.set(authority, new Map([...schoolMap.entries()].sort((a, b) => {
+      if (a[0] === '__direct__') return -1;
+      if (b[0] === '__direct__') return 1;
+      return a[0].localeCompare(b[0], 'he');
+    })));
   });
   return result;
 }
@@ -194,15 +204,23 @@ function renderSchoolCard(schoolName, rows) {
 }
 
 function renderAuthorityGroup(authority, schoolsMap) {
+  let directPersonsHtml = '';
   let schoolsHtml = '';
-  schoolsMap.forEach((rows, schoolName) => { schoolsHtml += renderSchoolCard(schoolName, rows); });
-  if (!schoolsHtml) return '';
+  schoolsMap.forEach((rows, schoolName) => {
+    if (schoolName === '__direct__') {
+      directPersonsHtml = rows.map(schoolPersonHtml).filter(Boolean).join('');
+    } else {
+      schoolsHtml += renderSchoolCard(schoolName, rows);
+    }
+  });
+  if (!directPersonsHtml && !schoolsHtml) return '';
   return `<div class="sc-authority-group">
     <div class="sc-authority-head">
       <span class="sc-authority-icon" aria-hidden="true">🏛️</span>
       <span class="sc-authority-name">${escapeHtml(authority)}</span>
     </div>
-    <div class="sc-school-stack">${schoolsHtml}</div>
+    ${directPersonsHtml ? `<div class="sc-contact-list">${directPersonsHtml}</div>` : ''}
+    ${schoolsHtml ? `<div class="sc-school-stack">${schoolsHtml}</div>` : ''}
   </div>`;
 }
 
@@ -240,10 +258,18 @@ function instructorFormHtml(row = {}, managerOptions = []) {
 }
 
 function schoolFormHtml(row = {}) {
+  const clientType = String(row.client_type || 'school');
   return `
     <div class="ds-perm-edit-form ds-contact-edit-form" dir="rtl">
-      <div class="ds-perm-field"><span class="ds-muted">רשות</span><input class="ds-input ds-input--sm" name="authority" value="${escapeHtml(String(row.authority || ''))}"></div>
-      <div class="ds-perm-field"><span class="ds-muted">בית ספר</span><input class="ds-input ds-input--sm" name="school" value="${escapeHtml(String(row.school || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">סוג לקוח</span>
+        <select class="ds-input ds-input--sm" name="client_type" data-school-client-type>
+          <option value="school"${clientType === 'school' ? ' selected' : ''}>בית ספר</option>
+          <option value="authority"${clientType === 'authority' ? ' selected' : ''}>רשות / מועצה / עירייה</option>
+          <option value="other"${clientType === 'other' ? ' selected' : ''}>אחר</option>
+        </select>
+      </div>
+      <div class="ds-perm-field"><span class="ds-muted">רשות / עירייה / מועצה</span><input class="ds-input ds-input--sm" name="authority" value="${escapeHtml(String(row.authority || ''))}"></div>
+      <div class="ds-perm-field" data-school-field${clientType === 'authority' ? ' hidden' : ''}><span class="ds-muted">בית ספר</span><input class="ds-input ds-input--sm" name="school" value="${escapeHtml(String(row.school || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">שם איש קשר</span><input class="ds-input ds-input--sm" name="contact_name" value="${escapeHtml(String(row.contact_name || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">תפקיד</span><input class="ds-input ds-input--sm" name="contact_role" value="${escapeHtml(String(row.contact_role || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">טלפון</span><input class="ds-input ds-input--sm" name="phone" value="${escapeHtml(String(row.phone || ''))}"></div>
@@ -317,7 +343,7 @@ export const contactsScreen = {
     const tab     = state?.contactsTab || (canViewInstr ? 'instr' : 'school');
     const tabBtns = [
       canViewInstr  && { key: 'instr',  label: `אנשי קשר מדריכים (${instrRows.length})`  },
-      canViewSchool && { key: 'school', label: `אנשי קשר בתי ספר (${schoolRows.length})` }
+      canViewSchool && { key: 'school', label: `לקוחות ואנשי קשר (${schoolRows.length})` }
     ].filter(Boolean).map((t) =>
       `<button type="button" class="ds-chip--tab${tab === t.key ? ' is-active' : ''}" data-contacts-tab="${t.key}">${escapeHtml(t.label)}</button>`
     ).join('');
@@ -514,21 +540,33 @@ export const contactsScreen = {
       const target = row || {};
       const originalId = target.id != null ? target.id : null;
       ui.openModal({
-        title: isCreate ? 'הוספת איש קשר בית ספר' : 'עריכת איש קשר בית ספר',
+        title: isCreate ? 'הוספת לקוח / איש קשר' : 'עריכת לקוח / איש קשר',
         content: schoolFormHtml(target),
         actions: `<button type="button" class="ds-btn ds-btn--primary" data-save-contact="school">${isCreate ? 'הוספה' : 'שמירה'}</button>
                   <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>`
       });
       const saveBtn = document.querySelector('[data-save-contact="school"]');
       if (!saveBtn) return;
+      const modalEl = document.querySelector('.ds-modal__content');
+      const clientTypeSelectEl = modalEl?.querySelector('[data-school-client-type]');
+      const schoolFieldEl = modalEl?.querySelector('[data-school-field]');
+      clientTypeSelectEl?.addEventListener('change', () => {
+        if (schoolFieldEl) schoolFieldEl.hidden = clientTypeSelectEl.value === 'authority';
+      });
       saveBtn.onclick = async () => {
         const modal = document.querySelector('.ds-modal__content');
         if (!modal) return;
         const statusEl = modal.querySelector('[data-contact-form-status]');
         const get = (name) => String(modal.querySelector(`[name="${name}"]`)?.value || '').trim();
+        const clientType = get('client_type') || 'school';
+        const authority = get('authority');
+        const school = clientType === 'authority' ? '' : get('school');
+        const clientName = clientType === 'school' ? school : (clientType === 'authority' ? authority : (school || authority));
         const payload = {
-          authority: get('authority'),
-          school: get('school'),
+          client_type: clientType,
+          client_name: clientName || null,
+          authority,
+          school: school || null,
           contact_name: get('contact_name'),
           contact_role: get('contact_role'),
           phone: get('phone'),
@@ -537,8 +575,12 @@ export const contactsScreen = {
           notes: get('notes')
         };
         if (!isCreate && originalId != null) payload.id = originalId;
-        if (!payload.authority || !payload.school || !payload.contact_name) {
-          if (statusEl) statusEl.textContent = 'יש להזין לפחות רשות, בית ספר ושם איש קשר';
+        if (clientType === 'school' && (!authority || !school || !payload.contact_name)) {
+          if (statusEl) statusEl.textContent = 'לבית ספר: יש להזין רשות, שם בית ספר ושם איש קשר';
+          return;
+        }
+        if (clientType !== 'school' && (!authority || !payload.contact_name)) {
+          if (statusEl) statusEl.textContent = 'יש להזין שם הרשות / הלקוח ושם איש קשר';
           return;
         }
         try {

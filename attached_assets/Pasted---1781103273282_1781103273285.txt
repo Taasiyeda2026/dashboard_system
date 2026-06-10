@@ -1,0 +1,113 @@
+צריך לתקן את תהליך יצירת הצעת מחיר כך שכל הצעה חדשה תוודא שיש לקוח באנשי הקשר.
+
+המודל:
+לקוח = הגוף שמקבל את הצעת המחיר.
+איש קשר = האדם אצל הלקוח.
+
+הטבלה contacts_schools משמשת כטבלת לקוחות ואנשי קשר.
+יש בה:
+id
+client_type
+client_name
+authority
+school
+contact_name
+contact_role
+phone
+mobile
+email
+address
+notes
+active
+
+בטבלת proposals_agreements נוסף שדה:
+contact_school_id bigint
+שמקשר אל contacts_schools.id.
+
+ביצירת הצעת מחיר חדשה:
+1. לפני insert ל-proposals_agreements יש לקרוא לפונקציה:
+   ensure_contact_school_from_proposal
+
+2. להעביר אליה את נתוני הלקוח מתוך טופס ההצעה:
+   p_client_type:
+     'school' אם הלקוח הוא בית ספר
+     'authority' אם הלקוח הוא רשות / עירייה / מועצה
+     'other' אם אחר
+
+   p_client_name:
+     שם הלקוח לתצוגה
+
+   p_authority:
+     שם הרשות / עירייה / מועצה
+
+   p_school:
+     שם בית הספר / מסגרת, רק אם רלוונטי
+
+   p_contact_name:
+     שם איש הקשר
+
+   p_contact_role:
+     תפקיד איש הקשר
+
+   p_phone:
+     טלפון
+
+   p_mobile:
+     נייד
+
+   p_email:
+     אימייל
+
+   p_address:
+     כתובת
+
+   p_notes:
+     הערות
+
+3. דוגמה לקריאה:
+
+const { data: contactSchoolId, error: contactError } = await supabase.rpc(
+  'ensure_contact_school_from_proposal',
+  {
+    p_client_type: form.client_type,
+    p_client_name: form.client_name,
+    p_authority: form.client_authority,
+    p_school: form.school_framework,
+    p_contact_name: form.contact_name,
+    p_contact_role: form.contact_role,
+    p_phone: form.phone,
+    p_mobile: form.mobile,
+    p_email: form.email,
+    p_address: form.address,
+    p_notes: form.notes
+  }
+)
+
+if (contactError) {
+  throw contactError
+}
+
+4. רק אחרי שמתקבל contactSchoolId, לבצע insert להצעת המחיר:
+
+supabase
+  .from('proposals_agreements')
+  .insert({
+    ...proposalPayload,
+    contact_school_id: contactSchoolId,
+    client_authority: form.client_authority || form.client_name,
+    school_framework: form.school_framework || form.client_name,
+    contact_name: form.contact_name,
+    contact_role: form.contact_role,
+    phone: form.phone || form.mobile,
+    email: form.email
+  })
+
+5. חשוב:
+- לא לשמור את שם הלקוח בתוך contact_name.
+- contact_name הוא רק שם האדם.
+- client_name הוא שם הלקוח.
+- אם הלקוח הוא רשות, school_framework יכול לקבל את שם הרשות או ערך תצוגה מתאים, כי כרגע השדה מוגדר NOT NULL.
+- אם הלקוח הוא בית ספר, school_framework = שם בית הספר.
+- לא להשתמש ב-client_id/contact_id הקיימים כי הם uuid ולא מתאימים ל-contacts_schools.id שהוא bigint.
+- אחרי יצירת הצעה חדשה, הלקוח צריך להופיע גם במסך אנשי קשר.
+- אם הלקוח כבר קיים, לא ליצור כפילות אלא להשתמש ב-id הקיים שמוחזר מהפונקציה.

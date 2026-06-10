@@ -51,8 +51,8 @@ const FIELD_LABELS = {
   approval_note:       'הערת אישור'
 };
 
-const REQUIRED_FIELDS_DRAFT = ['client_authority', 'school_framework', 'activity_type_group'];
-const REQUIRED_FIELDS_PENDING = ['client_authority', 'school_framework', 'activity_type_group', 'proposal_date'];
+const REQUIRED_FIELDS_DRAFT = ['client_authority', 'activity_type_group'];
+const REQUIRED_FIELDS_PENDING = ['client_authority', 'activity_type_group', 'proposal_date'];
 const FORM_FIELDS = [
   'client_authority', 'school_framework', 'document_type', 'activity_type_group',
   'proposal_date', 'activity_names', 'contact_name', 'contact_role', 'phone', 'email', 'notes'
@@ -344,16 +344,22 @@ function clientSelectHtml(contactOptions, row) {
   const pairs = [];
   for (const c of (Array.isArray(contactOptions) ? contactOptions : [])) {
     const key = `${text(c.authority)}||${text(c.school)}`;
-    if (!seen.has(key)) { seen.add(key); pairs.push({ authority: text(c.authority), school: text(c.school) }); }
+    if (!seen.has(key)) {
+      seen.add(key);
+      const clientName = text(c.client_name) || text(c.school) || text(c.authority);
+      pairs.push({ authority: text(c.authority), school: text(c.school), clientName });
+    }
   }
-  pairs.sort((a, b) => a.authority.localeCompare(b.authority, 'he') || a.school.localeCompare(b.school, 'he'));
+  pairs.sort((a, b) => a.clientName.localeCompare(b.clientName, 'he') || a.authority.localeCompare(b.authority, 'he'));
   const rowAuth = text(row.client_authority);
   const rowSchool = text(row.school_framework);
   const selectedVal = rowAuth ? `${rowAuth}||${rowSchool}` : '';
   const optionsHtml = ['<option value="">— בחרו לקוח קיים —</option>',
     ...pairs.map((p) => {
       const val = `${p.authority}||${p.school}`;
-      const label = p.school ? `${p.authority} — ${p.school}` : p.authority;
+      const label = p.school && p.clientName !== p.authority
+        ? `${p.clientName} — ${p.authority}`
+        : p.clientName;
       return `<option value="${escapeHtml(val)}"${val === selectedVal ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     })
   ].join('');
@@ -1254,13 +1260,15 @@ function templateIndicatorHtml(group) {
   return `<p class="ds-pa-template-indicator ds-pa-template-indicator--active" data-pa-template-indicator>${escapeHtml(label)}</p>`;
 }
 
-function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email) {
-  if (!auth) return '';
+function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '') {
+  if (!auth && !clientName) return '';
+  const displayName = clientName || school || auth;
   return `<div class="ds-pa-client-locked">
-    <p class="ds-pa-client-locked-state">לקוח קיים שנבחר</p>
+    <p class="ds-pa-client-locked-state">לקוח נבחר</p>
     <div class="ds-pa-client-locked-body">
-      <strong class="ds-pa-client-locked-name">לקוח / רשות: ${escapeHtml(auth)}</strong>
-      ${school ? `<span class="ds-pa-client-locked-detail">בית ספר / מסגרת: ${escapeHtml(school)}</span>` : ''}
+      <strong class="ds-pa-client-locked-name">${escapeHtml(displayName)}</strong>
+      ${school && school !== displayName ? `<span class="ds-pa-client-locked-detail">מסגרת: ${escapeHtml(school)}</span>` : ''}
+      ${auth && auth !== displayName ? `<span class="ds-pa-client-locked-detail">רשות: ${escapeHtml(auth)}</span>` : ''}
       ${contactName ? `<span class="ds-pa-client-locked-detail">איש קשר: ${escapeHtml(contactName)}</span>` : ''}
       ${contactRole ? `<span class="ds-pa-client-locked-detail">תפקיד: ${escapeHtml(contactRole)}</span>` : ''}
       ${phone ? `<span class="ds-pa-client-locked-detail">טלפון: ${escapeHtml(phone)}</span>` : ''}
@@ -1339,6 +1347,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const isLocked = !!initAuth;
   const initContactSource = findContactForProposalRow(contactOptions, row);
   const initPickerHtml = initAuth ? contactPickerHtml(contactOptions, initAuth, initSchool, initContact) : '';
+  const initClientName = text(initContactSource?.client_name) || initSchool || initAuth;
   const proposalDate = mode === 'add' ? (text(row.proposal_date) || localDateInputValue()) : text(row.proposal_date);
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
 
@@ -1354,11 +1363,27 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           ${clientSelectHtml(contactOptions, row)}
           <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>+ לקוח חדש</button>
         </div>
-        <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail) : ''}</div>
+        <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName) : ''}</div>
         <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הוספת לקוח חדש</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לבחירת לקוח קיים</button></div>
         <div class="ds-pa-form-grid" data-pa-client-fields${isLocked ? ' hidden' : ''}>
+          <label class="ds-pa-form-field" data-pa-new-client-only hidden>
+            <span>סוג לקוח</span>
+            <select class="ds-input ds-input--sm" name="new_client_type" data-pa-new-client-type>
+              <option value="school">בית ספר</option>
+              <option value="authority">רשות / מועצה / עירייה</option>
+              <option value="other">אחר</option>
+            </select>
+          </label>
           ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
-          ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, true)}
+          <div data-pa-school-field>
+            ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, true)}
+          </div>
+          <div data-pa-new-client-only hidden>
+            <div class="ds-pa-create-client-row">
+              <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-create-client>✓ צור לקוח</button>
+              <span data-pa-new-client-create-status style="font-size:.85em;color:var(--ds-text-muted,#888)"></span>
+            </div>
+          </div>
         </div>
       </div>
       <div data-pa-step-panel="contact">
@@ -1660,12 +1685,20 @@ export const proposalsAgreementsScreen = {
 
     root.querySelector('[data-pa-search]')?.addEventListener('input', debouncedRefresh, { signal });
     root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable, { signal }));
+    root.addEventListener('change', (event) => {
+      const typeSelect = event.target.closest?.('[data-pa-new-client-type]');
+      if (!typeSelect) return;
+      const form = typeSelect.closest('[data-pa-form]');
+      if (!form) return;
+      const schoolField = form.querySelector('[data-pa-school-field]');
+      if (schoolField) schoolField.hidden = typeSelect.value === 'authority';
+    }, { signal });
 
     const formHost = root.querySelector('[data-pa-form-host]');
 
     const stepPanel = (form, key) => form?.querySelector(`[data-pa-step-panel="${key}"]`);
     const stepComplete = (form) => {
-      const clientDone = Boolean(text(form?.querySelector('[name="client_authority"]')?.value) && text(form?.querySelector('[name="school_framework"]')?.value));
+      const clientDone = Boolean(text(form?.querySelector('[name="client_authority"]')?.value));
       const proposalDone = clientDone && Boolean(text(form?.querySelector('[name="activity_type_group"]')?.value));
       const items = proposalDone ? extractItemsFromForm(form) : [];
       const activityDone = proposalDone && items.some((item) => text(item.item_name) && (Number(item.total_price) > 0 || ((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)) > 0));
@@ -1724,11 +1757,11 @@ export const proposalsAgreementsScreen = {
     };
 
     // ── Client lock / unlock helpers ──────────────────────────────────────────
-    const lockClientFields = (form, auth, school, cName, cRole, phone, email) => {
+    const lockClientFields = (form, auth, school, cName, cRole, phone, email, clientName = '') => {
       const cardEl = form?.querySelector('[data-pa-client-card]');
       const fieldsEl = form?.querySelector('[data-pa-client-fields]');
       const hintEl = form?.querySelector('[data-pa-new-client-hint]');
-      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email); cardEl.hidden = false; }
+      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName); cardEl.hidden = false; }
       if (fieldsEl) fieldsEl.hidden = true;
       if (hintEl) hintEl.hidden = true;
     };
@@ -1849,7 +1882,10 @@ export const proposalsAgreementsScreen = {
             setContactSource(form, {});
           }
         }
-        lockClientFields(form, authority, school, cName, cRole, phone, email);
+        const clientName = matches.length > 0
+          ? (text(matches[0].client_name) || text(matches[0].school) || text(matches[0].authority))
+          : (school || authority);
+        lockClientFields(form, authority, school, cName, cRole, phone, email, clientName);
       }, { signal });
     };
 
@@ -2445,12 +2481,15 @@ export const proposalsAgreementsScreen = {
         if (sourceHost) sourceHost.innerHTML = contactSourceInputsHtml({});
         const hint = form?.querySelector('[data-pa-new-client-hint]');
         if (hint) hint.hidden = false;
+        form?.querySelectorAll('[data-pa-new-client-only]').forEach((el) => { el.hidden = false; });
+        const schoolField = form?.querySelector('[data-pa-school-field]');
+        if (schoolField) schoolField.hidden = false;
         ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {
           const inp = form?.querySelector(`input[name="${name}"]`);
           if (inp) inp.value = '';
         });
         updateProposalStepper(form);
-        form?.querySelector('input[name="client_authority"]')?.focus();
+        form?.querySelector('[data-pa-new-client-type]')?.focus?.();
         return;
       }
       if (event.target.closest?.('[data-pa-back-existing-client]')) {
@@ -2459,9 +2498,68 @@ export const proposalsAgreementsScreen = {
         form.dataset.paNewClient = 'no';
         const hint = form.querySelector('[data-pa-new-client-hint]');
         if (hint) hint.hidden = true;
+        form.querySelectorAll('[data-pa-new-client-only]').forEach((el) => { el.hidden = true; });
         const clientSelect = form.querySelector('[data-pa-client-select]');
         updateProposalStepper(form);
         clientSelect?.focus();
+        return;
+      }
+      if (event.target.closest?.('[data-pa-create-client]')) {
+        const btn = event.target.closest('[data-pa-create-client]');
+        const form = btn?.closest('[data-pa-form]');
+        if (!form) return;
+        const statusEl = form.querySelector('[data-pa-new-client-create-status]');
+        const clientType = text(form.querySelector('[name="new_client_type"]')?.value) || 'school';
+        const authority = text(form.querySelector('input[name="client_authority"]')?.value);
+        const school = clientType === 'authority' ? '' : text(form.querySelector('input[name="school_framework"]')?.value);
+        const contactName = text(form.querySelector('input[name="contact_name"]')?.value);
+        const contactRole = text(form.querySelector('input[name="contact_role"]')?.value);
+        const phone = text(form.querySelector('input[name="phone"]')?.value);
+        const email = text(form.querySelector('input[name="email"]')?.value);
+        if (!authority) { if (statusEl) statusEl.textContent = 'יש להזין שם רשות / לקוח'; return; }
+        if (clientType === 'school' && !school) { if (statusEl) statusEl.textContent = 'יש להזין שם בית הספר'; return; }
+        if (!contactName) { if (statusEl) statusEl.textContent = 'יש להזין שם איש קשר'; return; }
+        const clientName = clientType === 'school' ? school : authority;
+        try {
+          btn.disabled = true;
+          if (statusEl) statusEl.textContent = 'יוצר לקוח...';
+          const result = await api.addProposalClient({
+            client_type: clientType,
+            client_name: clientName,
+            authority,
+            school: school || null,
+            contact_name: contactName,
+            contact_role: contactRole || null,
+            phone: phone || null,
+            email: email || null,
+            active: 'פעיל'
+          });
+          const newRow = result.row || {};
+          if (newRow.id != null) contactOptions.push(newRow);
+          const authInput = form.querySelector('input[name="client_authority"]');
+          const schoolInput = form.querySelector('input[name="school_framework"]');
+          if (authInput) authInput.value = authority;
+          if (schoolInput) schoolInput.value = school;
+          fillContactFields(form, { contact_name: contactName, contact_role: contactRole, phone, email });
+          setContactSource(form, newRow);
+          form.dataset.paNewClient = 'no';
+          form.querySelectorAll('[data-pa-new-client-only]').forEach((el) => { el.hidden = true; });
+          const hint = form.querySelector('[data-pa-new-client-hint]');
+          if (hint) hint.hidden = true;
+          lockClientFields(form, authority, school, contactName, contactRole, phone, email, clientName);
+          const clientSelectEl = form.querySelector('[data-pa-client-select]');
+          if (clientSelectEl) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = clientSelectHtml(contactOptions, { client_authority: authority, school_framework: school });
+            const newSelect = tmp.querySelector('[data-pa-client-select]');
+            if (newSelect) { clientSelectEl.replaceWith(newSelect); setupClientSelector(form); }
+          }
+          updateProposalStepper(form);
+          if (statusEl) statusEl.textContent = '';
+        } catch (err) {
+          if (statusEl) statusEl.textContent = `שגיאה: ${err?.message || err}`;
+          btn.disabled = false;
+        }
         return;
       }
 

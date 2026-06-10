@@ -1714,10 +1714,13 @@ async function upsertProposalClientContactIfNeeded(payload = {}) {
   const contact_name = cleanProposalAgreementText(payload.contact_name);
   const phone = cleanProposalAgreementText(payload.phone);
   const email = cleanProposalAgreementText(payload.email);
-  if (!authority || !school || (!contact_name && !phone && !email)) return;
+  if (!authority || (!contact_name && !phone && !email)) return;
+  const client_type = school ? 'school' : 'authority';
   const contactRow = {
+    client_type,
+    client_name: school || authority,
     authority,
-    school,
+    school: school || null,
     contact_name,
     contact_role: cleanProposalAgreementText(payload.contact_role),
     phone,
@@ -3504,6 +3507,13 @@ export const api = {
       const nextRow = { ...row };
       if (nextRow.role !== undefined && nextRow.contact_role === undefined) nextRow.contact_role = nextRow.role;
       delete nextRow.role;
+      if (!nextRow.client_type) nextRow.client_type = 'school';
+      if (!nextRow.client_name) {
+        nextRow.client_name = nextRow.client_type === 'authority'
+          ? (nextRow.authority || null)
+          : (nextRow.school || nextRow.authority || null);
+      }
+      if (!nextRow.active) nextRow.active = 'פעיל';
       const { error } = await supabase.from('contacts_schools').upsert(nextRow, { onConflict: 'authority,school,contact_name' });
       if (error) throw new Error(error.message || 'add_contact_failed');
       return { ok: true };
@@ -3537,7 +3547,10 @@ export const api = {
     if (kind === 'school') {
       const id = row.id != null ? row.id : null;
       if (id == null) throw new Error('missing_school_key:id');
+      const clientType = String(row.client_type || 'school').trim();
       const updateBody = {
+        client_type:  clientType,
+        client_name:  String(row.client_name || (clientType === 'authority' ? row.authority : row.school) || '').trim() || null,
         authority:    String(row.authority    || '').trim() || null,
         school:       String(row.school       || '').trim() || null,
         contact_name: String(row.contact_name || '').trim() || null,
@@ -3558,6 +3571,30 @@ export const api = {
       return { ok: true };
     }
     throw new Error('invalid_contact_kind');
+  },
+  addProposalClient: async (payload) => {
+    const clientType = String(payload.client_type || 'school').trim();
+    const row = {
+      client_type:  clientType,
+      client_name:  String(payload.client_name || (clientType === 'authority' ? payload.authority : payload.school) || '').trim() || null,
+      authority:    String(payload.authority    || '').trim() || null,
+      school:       String(payload.school       || '').trim() || null,
+      contact_name: String(payload.contact_name || '').trim() || null,
+      contact_role: String(payload.contact_role || '').trim() || null,
+      phone:        String(payload.phone        || '').trim() || null,
+      mobile:       String(payload.mobile       || '').trim() || null,
+      email:        String(payload.email        || '').trim() || null,
+      address:      String(payload.address      || '').trim() || null,
+      notes:        String(payload.notes        || '').trim() || null,
+      active:       String(payload.active       || 'פעיל').trim()
+    };
+    const { data, error } = await supabase
+      .from('contacts_schools')
+      .insert(row)
+      .select()
+      .single();
+    if (error) throw new Error(error.message || 'add_proposal_client_failed');
+    return { ok: true, row: data };
   },
   addActivity: async (target, data) => {
     if (!canDirectManageActivitiesUser()) throw new Error('forbidden_add_activity');
