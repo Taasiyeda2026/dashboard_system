@@ -508,6 +508,9 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     <input type="hidden" name="activity_no" value="${escapeHtml(item.activity_no || item.pricing_activity_no || '')}">
     <input type="hidden" name="pricing_option_key" value="${escapeHtml(item.pricing_option_key || '')}">
     <input type="hidden" name="bundle_pricing_key" value="">
+    <input type="hidden" name="item_display_mode" value="${escapeHtml(item.proposal_display_mode || 'single')}">
+    <input type="hidden" name="item_source_pricing_key" value="${escapeHtml(item.source_pricing_key || item.pricing_key || '')}">
+    <input type="hidden" name="item_selected_bundle_items" value="${escapeHtml(Array.isArray(item.selected_bundle_items) ? JSON.stringify(item.selected_bundle_items) : (item.selected_bundle_items || '[]'))}">
     <input type="hidden" name="gefen_number" value="${escapeHtml(gefenValue)}">
     <input type="hidden" name="gefen_number_display" value="${escapeHtml(gefenValue)}">
     <input type="hidden" name="unit_duration" value="${escapeHtml(item.unit_duration || '')}">
@@ -600,23 +603,31 @@ function proposalSummaryHtml(totalAmount) {
 }
 
 function extractItemsFromForm(form) {
-  return Array.from(form.querySelectorAll('[data-pa-item-row]')).map((row) => ({
-    activity_no:    text(row.querySelector('[name="activity_no"]')?.value),
-    pricing_activity_no: text(row.querySelector('[name="activity_no"]')?.value),
-    pricing_option_key: text(row.querySelector('[name="pricing_option_key"]')?.value),
-    item_name:      text(row.querySelector('[name="item_name"]')?.value),
-    item_type:      text(row.querySelector('[name="item_type"]')?.value),
-    gefen_number:   text(row.querySelector('[name="gefen_number"]')?.value),
-    meetings_count: parseFloat(row.querySelector('[name="meetings_count"]')?.value) || null,
-    hours_count:    parseFloat(row.querySelector('[name="hours_count"]')?.value) || null,
-    quantity:       parseFloat(row.querySelector('[name="quantity"]')?.value) || 1,
-    unit_price:     parseFloat(row.querySelector('[name="unit_price"]')?.value) || null,
-    hourly_price:   parseFloat(row.querySelector('[name="hourly_price"]')?.value) || null,
-    total_price:    parseFloat(row.querySelector('[data-pa-item-total]')?.value) || null,
-    description:    text(row.querySelector('[name="description"]')?.value),
-    unit_duration:  text(row.querySelector('[name="unit_duration"]')?.value),
-    proposal_group: text(row.querySelector('[name="proposal_group"]')?.value)
-  })).filter((item) => item.item_name && !isTestHoursItem(item));
+  return Array.from(form.querySelectorAll('[data-pa-item-row]')).map((row) => {
+    const rawBundleItems = text(row.querySelector('[name="item_selected_bundle_items"]')?.value) || '[]';
+    let selectedBundleItems = [];
+    try { selectedBundleItems = JSON.parse(rawBundleItems); if (!Array.isArray(selectedBundleItems)) selectedBundleItems = []; } catch { selectedBundleItems = []; }
+    return {
+      activity_no:            text(row.querySelector('[name="activity_no"]')?.value),
+      pricing_activity_no:    text(row.querySelector('[name="activity_no"]')?.value),
+      pricing_option_key:     text(row.querySelector('[name="pricing_option_key"]')?.value),
+      item_name:              text(row.querySelector('[name="item_name"]')?.value),
+      item_type:              text(row.querySelector('[name="item_type"]')?.value),
+      gefen_number:           text(row.querySelector('[name="gefen_number"]')?.value),
+      meetings_count:         parseFloat(row.querySelector('[name="meetings_count"]')?.value) || null,
+      hours_count:            parseFloat(row.querySelector('[name="hours_count"]')?.value) || null,
+      quantity:               parseFloat(row.querySelector('[name="quantity"]')?.value) || 1,
+      unit_price:             parseFloat(row.querySelector('[name="unit_price"]')?.value) || null,
+      hourly_price:           parseFloat(row.querySelector('[name="hourly_price"]')?.value) || null,
+      total_price:            parseFloat(row.querySelector('[data-pa-item-total]')?.value) || null,
+      description:            text(row.querySelector('[name="description"]')?.value),
+      unit_duration:          text(row.querySelector('[name="unit_duration"]')?.value),
+      proposal_group:         text(row.querySelector('[name="proposal_group"]')?.value),
+      proposal_display_mode:  text(row.querySelector('[name="item_display_mode"]')?.value) || 'single',
+      source_pricing_key:     text(row.querySelector('[name="item_source_pricing_key"]')?.value),
+      selected_bundle_items:  selectedBundleItems
+    };
+  }).filter((item) => item.item_name && !isTestHoursItem(item));
 }
 
 // ─── Items summary (drawer read-only) ────────────────────────────────────────
@@ -2118,7 +2129,7 @@ export const proposalsAgreementsScreen = {
         const savedId = text(result?.row?.id || id);
         const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
         if (savedId && typeof api.saveProposalAgreementItems === 'function') {
-          try { await api.saveProposalAgreementItems(savedId, items); } catch { /* non-fatal */ }
+          await api.saveProposalAgreementItems(savedId, items);
         }
         replaceLocalRow(data, result?.row || { ...payload, id: savedId });
         refreshTable();
@@ -2252,6 +2263,9 @@ export const proposalsAgreementsScreen = {
       setValue('description', picked.description_for_proposal || '');
       setValue('unit_duration', picked.unit_duration || '');
       setValue('proposal_group', picked.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+      setValue('item_display_mode', 'single');
+      setValue('item_source_pricing_key', text(picked.pricing_key) || '');
+      setValue('item_selected_bundle_items', '[]');
       const rowGroup = text(itemRow.dataset.paRowGroup || picked.proposal_group);
       const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
       if (infoStrip) {
@@ -2509,11 +2523,12 @@ export const proposalsAgreementsScreen = {
         setValue('unit_price', pickedData.unit_price ?? '');
         setValue('proposal_group', pickedData.proposal_group || text(itemRow.dataset.paRowGroup) || '');
         setValue('description', description);
+        setValue('item_display_mode', 'bundle_parent');
+        setValue('item_source_pricing_key', pickedData.pricing_key || '');
+        setValue('item_selected_bundle_items', JSON.stringify(checkedNames));
         if (description) {
           const detailsEl = itemRow.querySelector('[data-pa-item-details]');
           if (detailsEl) detailsEl.open = true;
-          const descEl = itemRow.querySelector('[name="description"]');
-          if (descEl) descEl.value = description;
         }
         const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
         if (infoStrip) {
@@ -2540,6 +2555,9 @@ export const proposalsAgreementsScreen = {
         setValue('unit_price', pickedData.unit_price ?? '');
         setValue('proposal_group', pickedData.proposal_group || text(itemRow.dataset.paRowGroup) || '');
         setValue('description', '');
+        setValue('item_display_mode', 'bundle_parent');
+        setValue('item_source_pricing_key', pickedData.pricing_key || '');
+        setValue('item_selected_bundle_items', '[]');
         const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
         if (infoStrip) {
           infoStrip.innerHTML = buildInfoStripInnerHtml({ item_name: pickedData.activity_name, item_type: pickedData.item_type, unit_price: pickedData.unit_price }, pickedData.proposal_group || '');

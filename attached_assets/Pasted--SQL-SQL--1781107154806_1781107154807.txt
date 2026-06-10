@@ -1,0 +1,92 @@
+בוצעו כבר שינויי SQL במערכת. לא לבצע SQL נוסף.
+
+צריך לחבר את מסך הצעות המחיר לשדות החדשים שכבר קיימים:
+
+1. לקוחות מתוך הצעת מחיר
+
+ביצירת הצעת מחיר חדשה:
+
+* אם הלקוח לא קיים, ליצור אותו אוטומטית דרך RPC:
+  ensure_contact_school_from_proposal
+* לקבל בחזרה contact_school_id
+* לשמור את ההצעה עם contact_school_id
+
+הפרדה חשובה:
+
+* לקוח = הגוף שמקבל את ההצעה
+* איש קשר = האדם אצל הלקוח
+* client_name = שם הלקוח לתצוגה
+* client_type = school / authority / other
+* contact_name = שם איש הקשר בלבד
+
+לא לשמור את שם הלקוח בתוך contact_name.
+
+2. רשימת פעילויות להצעות מחיר
+
+ברשימה הראשית להציג רק:
+is_active_for_proposals = true
+
+לא להציג ברשימה הראשית:
+proposal_display_mode = bundle_child
+
+כן להציג:
+proposal_display_mode = single
+proposal_display_mode = bundle_parent
+
+פעילויות "תמיר" כבר מסומנות ב־DB כ־is_active_for_proposals = false, ולכן הן לא אמורות להופיע בהצעות מחיר.
+
+3. סדנאות STEM / סדנאות חלל / חדרי בריחה
+
+כאשר המשתמש בוחר פעילות מסוג:
+proposal_display_mode = bundle_parent
+
+להציג בחירה:
+
+* להשאיר כהגדרה כוללת
+* לפרט סדנאות / מוצרים
+
+אם משאירים כללי:
+ליצור פריט הצעה אחד בלבד.
+
+אם מפרטים:
+להציג בחירה מרובה מתוך פריטי הבן:
+parent_pricing_key = pricing_key של האב
+proposal_display_mode = bundle_child
+is_active_for_proposals = true
+
+לא ליצור שורה נפרדת לכל סדנה.
+צריך לשמור שורה אחת בלבד ב־proposal_agreement_items.
+
+בשורה הזאת:
+
+* item_name = שם ההגדרה הכוללת, לדוגמה סדנאות STEM
+* proposal_display_mode = bundle_parent
+* source_pricing_key = pricing_key של האב
+* selected_bundle_items = מערך JSON של הסדנאות שנבחרו
+
+אם אין פירוט:
+selected_bundle_items = []
+
+4. פריט רגיל
+
+אם הפריט הוא:
+proposal_display_mode = single
+
+לשמור:
+
+* proposal_display_mode = single
+* source_pricing_key = pricing_key
+* selected_bundle_items = []
+
+5. בסיום
+
+לוודא:
+
+* הצעה חדשה נשמרת.
+* לקוח חדש מתוך ההצעה נוסף לאנשי קשר.
+* contact_school_id נשמר בהצעה.
+* תמיר לא מופיע ברשימת הצעות מחיר.
+* bundle_child לא מופיע ברשימה הראשית.
+* פירוט סדנאות נשמר בתוך selected_bundle_items ולא כשורות נוספות.
+* להציג error.message אמיתי במקרה של שגיאה.
+* לבצע build ולעדכן Service Worker / cache version.
