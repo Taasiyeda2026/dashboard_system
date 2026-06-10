@@ -1537,15 +1537,13 @@ function drawerActionButtons(row, state) {
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}">אישור</button>`);
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}">החזרה לתיקון</button>`);
     }
-    if (status === 'approved') {
-      buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-print="${escapeHtml(row.id)}">הדפסה / שמירה כ-PDF</button>`);
-    }
     if (!['cancelled', 'approved'].includes(status)) {
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}">ביטול</button>`);
     }
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-delete-row="${escapeHtml(row.id)}">מחיקה</button>`);
   }
   if (canManage && status === 'approved') {
+    buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-print="${escapeHtml(row.id)}">הדפסה / שמירה כ-PDF</button>`);
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-clone-row="${escapeHtml(row.id)}">שכפול להצעה חדשה</button>`);
   }
   return buttons.join('');
@@ -1707,6 +1705,156 @@ function replaceLocalRow(data, savedRow) {
   if (idx >= 0) rows[idx] = normalized;
   else rows.unshift(normalized);
   data.rows = dedupeById(sortRows(rows.map(normalizeProposalAgreementRow)));
+}
+
+// ─── Catalog appendix helpers ────────────────────────────────────────────────
+
+let _catalogDataCache = null;
+
+async function loadCatalogData() {
+  if (_catalogDataCache) return _catalogDataCache;
+  const [wResult, pResult] = await Promise.allSettled([
+    fetch(`${PUBLIC_BASE}catalog/summercatalog/activities.json`).then((r) => (r.ok ? r.json() : null)),
+    fetch(`${PUBLIC_BASE}catalog/catalog_programs_tashpaz.json`).then((r) => (r.ok ? r.json() : null))
+  ]);
+  _catalogDataCache = {
+    workshops: wResult.status === 'fulfilled' && wResult.value ? wResult.value : { gradeGroups: [] },
+    programs:  pResult.status === 'fulfilled' && pResult.value ? pResult.value : { programs: [] }
+  };
+  return _catalogDataCache;
+}
+
+function allWorkshopsFlat(workshopCatalog) {
+  const all = [];
+  for (const group of (workshopCatalog?.gradeGroups || [])) {
+    for (const act of (group?.activities || [])) {
+      const t = text(act.activityType);
+      if (t && t !== 'סדנה') continue;
+      all.push(act);
+    }
+  }
+  return all;
+}
+
+function catalogWorkshopCardHtml(act) {
+  const gradesStr = Array.isArray(act.grades) ? act.grades.join(', ') : '';
+  const goalsHtml = Array.isArray(act.goals) && act.goals.length
+    ? `<ul class="catalog-card-goals">${act.goals.map((g) => `<li>${escapeHtml(g)}</li>`).join('')}</ul>`
+    : '';
+  return `<div class="catalog-workshop-card">
+    <div class="catalog-card-header">
+      <h3 class="catalog-card-name">${escapeHtml(act.workshopName || '')}</h3>
+      ${act.domain ? `<span class="catalog-card-domain">${escapeHtml(act.domain)}</span>` : ''}
+    </div>
+    <div class="catalog-card-body">
+      ${act.durationMinutes ? `<p><strong>משך:</strong> ${escapeHtml(String(act.durationMinutes))} דקות</p>` : ''}
+      ${act.personalProduct ? `<p><strong>תוצר אישי:</strong> ${escapeHtml(act.personalProduct)}</p>` : ''}
+      ${act.description ? `<p class="catalog-card-desc">${escapeHtml(act.description)}</p>` : ''}
+      ${goalsHtml}
+      ${gradesStr ? `<p class="catalog-card-grades"><strong>שכבות:</strong> ${escapeHtml(gradesStr)}</p>` : ''}
+    </div>
+  </div>`;
+}
+
+function catalogProgramCardHtml(prog) {
+  const syllabusHtml = Array.isArray(prog.syllabus) && prog.syllabus.length
+    ? `<ol class="catalog-program-syllabus">${prog.syllabus.map((s) => `<li><strong>מפגש ${escapeHtml(String(s.meeting || ''))}:</strong> ${escapeHtml(s.topic || '')}${s.description ? ` — ${escapeHtml(s.description)}` : ''}</li>`).join('')}</ol>`
+    : '';
+  return `<div class="catalog-program-card">
+    <div class="catalog-card-header">
+      <h3 class="catalog-card-name">${escapeHtml(prog.title || '')}</h3>
+      ${prog.productType ? `<span class="catalog-card-type">${escapeHtml(prog.productType)}</span>` : ''}
+    </div>
+    <div class="catalog-card-body">
+      ${prog.audienceLevel ? `<p><strong>רמת קהל:</strong> ${escapeHtml(prog.audienceLevel)}</p>` : ''}
+      ${syllabusHtml}
+    </div>
+  </div>`;
+}
+
+function buildCatalogAppendixHtml(items, catalogData) {
+  if (!catalogData || !Array.isArray(items) || !items.length) return '';
+  const allWorkshops = allWorkshopsFlat(catalogData.workshops);
+  const allPrograms = Array.isArray(catalogData.programs?.programs) ? catalogData.programs.programs : [];
+  const workshopCards = [];
+  const programCards = [];
+  const seenWorkshopNames = new Set();
+  const seenProgramTitles = new Set();
+
+  for (const item of items) {
+    const displayMode = text(item.proposal_display_mode);
+    const itemType  = text(item.item_type);
+    const sourcePricingKey = text(item.source_pricing_key);
+
+    if (displayMode === 'bundle_parent') {
+      const selected = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
+      if (selected.length > 0) {
+        for (const sel of selected) {
+          const selName = text(sel.activity_name || sel.item_name || '');
+          if (!selName || seenWorkshopNames.has(selName)) continue;
+          const catId = text(sel.activity_no || sel.pricing_key || '').replace(/^cat-/, '');
+          const match = allWorkshops.find((w) =>
+            text(w.workshopName) === selName || (catId && String(w.id) === catId)
+          );
+          if (match) { seenWorkshopNames.add(selName); workshopCards.push(catalogWorkshopCardHtml(match)); }
+        }
+      } else {
+        const isSpace = sourcePricingKey === 'space_workshop' || text(item.item_name).includes('חלל');
+        const filtered = allWorkshops.filter((w) => (isSpace ? w.domain === 'חלל' : w.domain !== 'חלל'));
+        for (const w of filtered) {
+          const wName = text(w.workshopName);
+          if (!wName || seenWorkshopNames.has(wName)) continue;
+          seenWorkshopNames.add(wName);
+          workshopCards.push(catalogWorkshopCardHtml(w));
+        }
+      }
+    } else if (itemType === 'סדנה') {
+      const name = text(item.item_name);
+      if (!name || seenWorkshopNames.has(name)) continue;
+      const match = allWorkshops.find((w) => text(w.workshopName) === name);
+      if (match) { seenWorkshopNames.add(name); workshopCards.push(catalogWorkshopCardHtml(match)); }
+    } else if (itemType === 'קורס' || itemType === 'תוכנית' || itemType === 'הדרכה') {
+      const name = text(item.item_name);
+      if (!name || seenProgramTitles.has(name)) continue;
+      const match = allPrograms.find((p) =>
+        text(p.title) === name || text(p.title).includes(name) || name.includes(text(p.title)) ||
+        (text(item.gefen_number) && String(p.programNumber) === text(item.gefen_number))
+      );
+      if (match) { seenProgramTitles.add(name); programCards.push(catalogProgramCardHtml(match)); }
+    }
+  }
+
+  if (!workshopCards.length && !programCards.length) return '';
+  const sectionsHtml = [];
+  if (workshopCards.length) {
+    sectionsHtml.push(`<div class="catalog-appendix-section">
+      <h3 class="catalog-section-title">סדנאות</h3>
+      <div class="catalog-cards-grid">${workshopCards.join('')}</div>
+    </div>`);
+  }
+  if (programCards.length) {
+    sectionsHtml.push(`<div class="catalog-appendix-section">
+      <h3 class="catalog-section-title">תוכניות וקורסים</h3>
+      <div class="catalog-cards-grid">${programCards.join('')}</div>
+    </div>`);
+  }
+  return `<div class="proposal-catalog-appendix" dir="rtl">
+    <div class="catalog-appendix-page-break"></div>
+    <div class="proposal-document" dir="rtl">
+      <div class="proposal-document-header">
+        <div class="proposal-header-left">
+          <img src="${PUBLIC_BASE}proposals/proposal-header-logo.png" alt="לוגו תעשיידע" class="proposal-logo" loading="eager" decoding="async" onerror="this.style.display='none';">
+        </div>
+      </div>
+      <div class="proposal-document-body">
+        <h2 class="catalog-appendix-main-title">נספח מידע על הפעילויות המוצעות</h2>
+        ${sectionsHtml.join('')}
+      </div>
+      <div class="proposal-document-footer">
+        <img src="${PUBLIC_BASE}proposals/proposal-footer-logo.png" alt="לוגו תחתון תעשיידע" class="proposal-footer-logo" loading="lazy" decoding="async" onerror="this.style.display='none';">
+      </div>
+    </div>
+  </div>`;
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -2089,11 +2237,13 @@ export const proposalsAgreementsScreen = {
     };
 
     // ── Preview ───────────────────────────────────────────────────────────────
-    const openPreview = (row, items, options = {}) => {
+    const openPreview = async (row, items, options = {}) => {
       // Always rebuild preview from current state + current templates
       const freshRow = rowWithCentralContact(data.rows.find((r) => text(r.id) === text(row.id)) || row);
       const templateKey = TEMPLATE_KEY_BY_GROUP[text(freshRow.activity_type_group)] || 'combined';
       const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
+      const catalogData = await loadCatalogData().catch(() => null);
+      const appendixHtml = buildCatalogAppendixHtml(items, catalogData);
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
       overlay.id = 'pa-preview-overlay';
@@ -2110,6 +2260,7 @@ export const proposalsAgreementsScreen = {
         </div>
         <div class="proposal-preview-area">
           ${proposalPreviewBodyHtml(freshRow, items, templateSections)}
+          ${appendixHtml}
         </div>`;
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
@@ -2499,7 +2650,7 @@ export const proposalsAgreementsScreen = {
           }
         } catch { items = []; }
         previewBtn.disabled = false;
-        openPreview(row, items);
+        await openPreview(row, items);
         // Mark preview seen on any open form for this record
         root.querySelectorAll(`[data-pa-form][data-pa-id="${id}"]`).forEach((f) => { f.dataset.paPreviewSeen = 'yes'; });
         return;
@@ -2519,7 +2670,7 @@ export const proposalsAgreementsScreen = {
           }
         } catch { items = []; }
         printBtn.disabled = false;
-        openPreview(row, items);
+        await openPreview(row, items);
         return;
       }
 
@@ -2869,7 +3020,7 @@ export const proposalsAgreementsScreen = {
         const payload = payloadFromForm(form);
         const tempRow = { ...payload, id: text(form.dataset.paId) || '' };
         const items = payload._items || [];
-        openPreview(tempRow, items, {
+        await openPreview(tempRow, items, {
           onSave: async () => { await saveForm(form, 'draft'); }
         });
         form.dataset.paPreviewSeen = 'yes';
