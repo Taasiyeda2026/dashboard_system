@@ -477,12 +477,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     ? String(((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)).toFixed(2))
     : n(item.total_price);
   const selectedPricingKey = text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
-  const pricingSelectOptions = ['<option value="">— בחר פעילות מהרשימה —</option>', ...pricingOptions.filter((row) => !isTestHoursItem(row)).map((row, optionIdx) => {
-    const value = pricingOptionKey(row, optionIdx);
-    const legacySelected = selectedPricingKey && [value, text(row.activity_no), text(row.activity_name)].includes(selectedPricingKey);
-    const labelParts = [row.activity_name, row.item_type, row.proposal_group].map(text).filter(Boolean);
-    return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}>${escapeHtml(labelParts.join(' — ') || value)}</option>`;
-  })].join('');
+  const pricingSelectOptionsHtml = buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey);
   const contextGroup = text(options.groupKey || item.proposal_group || '');
   const gefenValue = text(item.gefen_number);
   const hasActivity = Boolean(text(item.item_name));
@@ -490,11 +485,16 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const infoStripHtml = hasActivity ? buildInfoStripInnerHtml(item, contextGroup) : '';
   return `<article class="ds-pa-item-card ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}">
     <div class="ds-pa-item-quick-row">
-      <label class="ds-pa-item-field ds-pa-item-field--select"><span>בחירת פעילות / קורס</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptions}</select></label>
+      <label class="ds-pa-item-field ds-pa-item-field--select"><span>בחירת פעילות / קורס</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><span>כמות קבוצות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
       <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
       <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪${formatCurrency(calcTotal)}` : '₪0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove" data-pa-remove-item aria-label="הסר שורה">✕ הסר</button>
+    </div>
+    <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden>
+      <span class="ds-pa-bundle-label">זוהי הגדרה כוללת. האם לפרט את הרכיבים?</span>
+      <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-pa-bundle-expand>כן, פרט</button>
+      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-bundle-keep>לא, השאר כללי</button>
     </div>
     <div class="ds-pa-item-info-strip" data-pa-item-info-strip${hasActivity ? '' : ' hidden'}>${infoStripHtml}</div>
     <details class="ds-pa-item-extra" data-pa-item-details${hasExtra ? ' open' : ''}>
@@ -511,6 +511,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     </details>
     <input type="hidden" name="activity_no" value="${escapeHtml(item.activity_no || item.pricing_activity_no || '')}">
     <input type="hidden" name="pricing_option_key" value="${escapeHtml(item.pricing_option_key || '')}">
+    <input type="hidden" name="bundle_pricing_key" value="">
     <input type="hidden" name="gefen_number" value="${escapeHtml(gefenValue)}">
     <input type="hidden" name="gefen_number_display" value="${escapeHtml(gefenValue)}">
     <input type="hidden" name="unit_duration" value="${escapeHtml(item.unit_duration || '')}">
@@ -542,8 +543,22 @@ function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOff
   </div>`;
 }
 
+function activityTypeFilterHtml(pricingOptions) {
+  const types = [...new Set((Array.isArray(pricingOptions) ? pricingOptions : [])
+    .filter((r) => text(r.item_type) && text(r.proposal_display_mode) !== 'bundle_child')
+    .map((r) => text(r.item_type)))].sort((a, b) => a.localeCompare(b, 'he'));
+  if (!types.length) return '';
+  const opts = ['<option value="">כל סוגי הפעילות</option>',
+    ...types.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`)
+  ].join('');
+  return `<label class="ds-pa-activity-type-filter"><span style="font-size:0.75rem;white-space:nowrap">סוג פעילות:</span>
+    <select class="ds-input ds-input--sm" data-pa-activity-type-filter style="min-width:120px">${opts}</select>
+  </label>`;
+}
+
 function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '') {
   const isCombined = activityTypeGroup === COMBINED_GROUP_LABEL;
+  const filterHtml = activityTypeFilterHtml(pricingOptions);
   const footer = `<datalist id="pa-item-type-list">${ITEM_TYPE_OPTIONS.map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>`;
 
@@ -555,6 +570,7 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
     const summerPricing = filterPricingByProposalType(pricingOptions, SUMMER_PROPOSAL_GROUP);
     const nextYearPricing = filterPricingByProposalType(pricingOptions, NEXT_YEAR_GROUP_LABEL);
     return `<div class="ds-pa-items-section ds-pa-items-combined">
+      <div class="ds-pa-items-header">${filterHtml}</div>
       ${combinedItemsSectionHtml('פעילויות קיץ תשפ״ו', SUMMER_PROPOSAL_GROUP, allSummer, summerPricing, 0)}
       ${combinedItemsSectionHtml(NEXT_YEAR_GROUP_LABEL, NEXT_YEAR_GROUP_LABEL, nextYearItems, nextYearPricing, allSummer.length || 1)}
       ${footer}
@@ -566,6 +582,7 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
   return `<div class="ds-pa-items-section">
     <div class="ds-pa-items-header">
       <span style="font-size:0.76rem;color:var(--ds-color-text-muted,#64748b);font-weight:600">שורות הצעה</span>
+      ${filterHtml}
       <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item>+ הוסף שורה</button>
     </div>
     <div class="ds-pa-items-list" data-pa-items-body>${rowsHtml}</div>
@@ -1237,6 +1254,22 @@ function pricingMatchesGroup(row, activityTypeGroup) {
 
 function filterPricingByProposalType(pricingOptions, activityTypeGroup) {
   return (Array.isArray(pricingOptions) ? pricingOptions : []).filter((row) => pricingMatchesGroup(row, activityTypeGroup));
+}
+
+function filterPricingByActivityType(pricing, activityType) {
+  if (!activityType) return pricing;
+  return pricing.filter((row) => text(row.item_type) === activityType);
+}
+
+function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey) {
+  const visibleRows = pricingOptions.filter((row) => !isTestHoursItem(row) && text(row.proposal_display_mode) !== 'bundle_child');
+  return ['<option value="">— בחר פעילות מהרשימה —</option>', ...visibleRows.map((row, optionIdx) => {
+    const value = pricingOptionKey(row, optionIdx);
+    const legacySelected = selectedPricingKey && [value, text(row.activity_no), text(row.activity_name)].includes(selectedPricingKey);
+    const isBundleParent = row.proposal_display_mode === 'bundle_parent' || row.is_bundle_parent;
+    const labelParts = [row.activity_name, isBundleParent ? '📦 כללי' : row.item_type, row.proposal_group].map(text).filter(Boolean);
+    return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}${isBundleParent ? ' data-bundle-parent="1"' : ''}>${escapeHtml(labelParts.join(' — ') || value)}</option>`;
+  })].join('');
 }
 
 function filterItemsByProposalType(items, activityTypeGroup) {
@@ -2132,6 +2165,23 @@ export const proposalsAgreementsScreen = {
       }
     }, { signal });
     root.addEventListener('change', (event) => {
+      // ── Activity type filter ──────────────────────────────────────────────
+      const activityTypeFilter = event.target.closest?.('[data-pa-activity-type-filter]');
+      if (activityTypeFilter) {
+        const form = activityTypeFilter.closest('[data-pa-form]');
+        if (!form) return;
+        const selectedActivityType = text(activityTypeFilter.value);
+        const contractType = text(form.querySelector('[name="activity_type_group"]')?.value);
+        const basePricing = filterPricingByProposalType(proposalActivityPricing, contractType);
+        const filteredPricing = filterPricingByActivityType(basePricing, selectedActivityType);
+        form.querySelectorAll('[data-pa-pricing-select]').forEach((sel) => {
+          const currentVal = text(sel.value);
+          sel.innerHTML = buildPricingSelectOptionsHtml(filteredPricing, currentVal);
+        });
+        return;
+      }
+
+      // ── Pricing select ────────────────────────────────────────────────────
       const pricingSelect = event.target.closest?.('[data-pa-pricing-select]');
       if (!pricingSelect) return;
       const itemRow = pricingSelect.closest('[data-pa-item-row]');
@@ -2144,7 +2194,24 @@ export const proposalsAgreementsScreen = {
         activityName: selectedKey,
         itemType: itemTypeInput?.value
       });
-      if (!itemRow || !picked) return;
+      if (!itemRow) return;
+      const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
+      if (!picked) { if (bundlePrompt) bundlePrompt.hidden = true; return; }
+      const isBundle = picked.proposal_display_mode === 'bundle_parent' || picked.is_bundle_parent;
+      if (isBundle && bundlePrompt) {
+        bundlePrompt.hidden = false;
+        const pkeyInput = itemRow.querySelector('[name="bundle_pricing_key"]');
+        if (pkeyInput) pkeyInput.value = text(picked.pricing_key);
+        itemRow.dataset.paBundlePicked = JSON.stringify({
+          pricing_key: text(picked.pricing_key),
+          activity_name: text(picked.activity_name),
+          item_type: text(picked.item_type),
+          unit_price: picked.unit_price,
+          proposal_group: text(picked.proposal_group)
+        });
+        return;
+      }
+      if (bundlePrompt) bundlePrompt.hidden = true;
       const setValue = (name, value) => {
         const input = itemRow.querySelector(`[name="${name}"]`);
         if (input) input.value = value == null ? '' : String(value);
@@ -2400,6 +2467,69 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
+      // Bundle: expand to children
+      const bundleExpandBtn = event.target.closest?.('[data-pa-bundle-expand]');
+      if (bundleExpandBtn) {
+        const itemRow = bundleExpandBtn.closest('[data-pa-item-row]');
+        const form = bundleExpandBtn.closest('[data-pa-form]');
+        if (!itemRow || !form) return;
+        let pickedData = {};
+        try { pickedData = JSON.parse(itemRow.dataset.paBundlePicked || '{}'); } catch { /* ignore */ }
+        const parentPricingKey = text(pickedData.pricing_key || itemRow.querySelector('[name="bundle_pricing_key"]')?.value);
+        const contractType = text(form.querySelector('[name="activity_type_group"]')?.value);
+        const basePricing = filterPricingByProposalType(proposalActivityPricing, contractType);
+        const children = basePricing.filter((r) =>
+          text(r.proposal_display_mode) === 'bundle_child' &&
+          text(r.parent_pricing_key) &&
+          text(r.parent_pricing_key) === parentPricingKey
+        );
+        if (!children.length) {
+          alert('לא נמצאו רכיבים מפורטים עבור הגדרה זו');
+          return;
+        }
+        const tbody = itemRow.closest('[data-pa-items-body]') || form.querySelector('[data-pa-items-body]');
+        const rowGroup = text(itemRow.dataset.paRowGroup) || contractType;
+        const startIdx = form.querySelectorAll('[data-pa-item-row]').length - 1;
+        const tmp = document.createElement('div');
+        children.forEach((child, ci) => {
+          tmp.innerHTML = itemRowHtml(
+            { item_name: child.activity_name, item_type: child.item_type, unit_price: child.unit_price, activity_no: child.activity_no, hours_count: child.hours_count, meetings_count: child.meetings_count, gefen_number: child.gefen_number, proposal_group: child.proposal_group || rowGroup },
+            startIdx + ci,
+            [child],
+            { groupKey: rowGroup }
+          );
+          itemRow.before(tmp.firstElementChild);
+        });
+        itemRow.remove();
+        calcGrandTotal(form);
+        updateProposalStepper(form);
+        return;
+      }
+
+      // Bundle: keep as general
+      const bundleKeepBtn = event.target.closest?.('[data-pa-bundle-keep]');
+      if (bundleKeepBtn) {
+        const itemRow = bundleKeepBtn.closest('[data-pa-item-row]');
+        const form = bundleKeepBtn.closest('[data-pa-form]');
+        if (!itemRow) return;
+        let pickedData = {};
+        try { pickedData = JSON.parse(itemRow.dataset.paBundlePicked || '{}'); } catch { /* ignore */ }
+        const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
+        if (bundlePrompt) bundlePrompt.hidden = true;
+        const setValue = (name, value) => { const input = itemRow.querySelector(`[name="${name}"]`); if (input) input.value = value == null ? '' : String(value); };
+        setValue('item_name', pickedData.activity_name || '');
+        setValue('item_type', pickedData.item_type || '');
+        setValue('unit_price', pickedData.unit_price ?? '');
+        setValue('proposal_group', pickedData.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+        const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
+        if (infoStrip) {
+          infoStrip.innerHTML = buildInfoStripInnerHtml({ item_name: pickedData.activity_name, item_type: pickedData.item_type, unit_price: pickedData.unit_price }, pickedData.proposal_group || '');
+          infoStrip.hidden = !pickedData.activity_name;
+        }
+        if (form) { calcItemRow(itemRow); calcGrandTotal(form); updateProposalStepper(form); }
+        return;
+      }
+
       // Items: add row
       const addItemBtn = event.target.closest?.('[data-pa-add-item]');
       if (addItemBtn) {
@@ -2412,7 +2542,9 @@ export const proposalsAgreementsScreen = {
         const tmp = document.createElement('div');
         const currentType = text(form?.querySelector('[name="activity_type_group"]')?.value);
         const rowGroup = groupKey || currentType;
-        const rowPricing = filterPricingByProposalType(proposalActivityPricing, rowGroup || currentType);
+        const selectedActivityType = text(form?.querySelector('[data-pa-activity-type-filter]')?.value);
+        const basePricing = filterPricingByProposalType(proposalActivityPricing, rowGroup || currentType);
+        const rowPricing = filterPricingByActivityType(basePricing, selectedActivityType);
         tmp.innerHTML = itemRowHtml({ proposal_group: rowGroup }, idx, rowPricing, { groupKey: rowGroup });
         tbody.appendChild(tmp.firstElementChild);
         if (form) calcGrandTotal(form);

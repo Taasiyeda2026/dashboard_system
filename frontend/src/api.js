@@ -1774,23 +1774,28 @@ async function readProposalActivityPricingFromSupabase() {
   try {
     const { data, error } = await supabase
       .from('proposal_activity_pricing')
-      .select('activity_no,activity_name,proposal_group,item_type,gefen_number,hours_count,meetings_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order')
+      .select('activity_no,activity_name,proposal_group,item_type,catalog_group,gefen_number,hours_count,meetings_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order,pricing_key,parent_pricing_key,proposal_display_mode,is_bundle_parent')
       .eq('is_active_for_proposals', true)
       .order('sort_order', { ascending: true });
     if (error) return [];
     return (Array.isArray(data) ? data : []).map((row) => ({
-      activity_no: cleanProposalAgreementText(row?.activity_no),
-      activity_name: cleanProposalAgreementText(row?.activity_name),
-      proposal_group: cleanProposalAgreementText(row?.proposal_group),
-      item_type: cleanProposalAgreementText(row?.item_type),
-      gefen_number: cleanProposalAgreementText(row?.gefen_number),
-      hours_count: row?.hours_count != null ? Number(row.hours_count) || null : null,
-      meetings_count: row?.meetings_count != null ? Number(row.meetings_count) || null : null,
-      unit_duration: cleanProposalAgreementText(row?.unit_duration),
-      unit_price: row?.unit_price != null ? Number(row.unit_price) || null : null,
-      hourly_price: row?.hourly_price != null ? Number(row.hourly_price) : null,
+      activity_no:             cleanProposalAgreementText(row?.activity_no),
+      activity_name:           cleanProposalAgreementText(row?.activity_name),
+      proposal_group:          cleanProposalAgreementText(row?.proposal_group),
+      item_type:               cleanProposalAgreementText(row?.item_type),
+      catalog_group:           cleanProposalAgreementText(row?.catalog_group),
+      gefen_number:            cleanProposalAgreementText(row?.gefen_number),
+      hours_count:             row?.hours_count != null ? Number(row.hours_count) || null : null,
+      meetings_count:          row?.meetings_count != null ? Number(row.meetings_count) || null : null,
+      unit_duration:           cleanProposalAgreementText(row?.unit_duration),
+      unit_price:              row?.unit_price != null ? Number(row.unit_price) || null : null,
+      hourly_price:            row?.hourly_price != null ? Number(row.hourly_price) : null,
       description_for_proposal: cleanProposalAgreementText(row?.description_for_proposal),
-      sort_order: Number(row?.sort_order) || 0
+      sort_order:              Number(row?.sort_order) || 0,
+      pricing_key:             cleanProposalAgreementText(row?.pricing_key),
+      parent_pricing_key:      cleanProposalAgreementText(row?.parent_pricing_key),
+      proposal_display_mode:   cleanProposalAgreementText(row?.proposal_display_mode) || 'single',
+      is_bundle_parent:        Boolean(row?.is_bundle_parent)
     }));
   } catch {
     return [];
