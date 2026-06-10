@@ -277,8 +277,11 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     const status = text(row.status || 'draft');
     const actionBtns = [];
     actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action" data-pa-preview="${escapeHtml(row.id)}" title="תצוגה מקדימה">צפייה</button>`);
-    if (canManage && (['draft', 'returned_for_changes'].includes(status) || isAdmin)) {
+    if (canManage && (['draft', 'returned_for_changes'].includes(status) || (isAdmin && status !== 'approved'))) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action" data-pa-edit-row="${escapeHtml(row.id)}" title="עריכה">עריכה</button>`);
+    }
+    if (canManage && status === 'approved') {
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action" data-pa-clone-row="${escapeHtml(row.id)}" title="שכפול להצעה חדשה">שכפול</button>`);
     }
     if (isAdmin && status === 'approved') {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action" data-pa-print="${escapeHtml(row.id)}" title="הדפסה">PDF</button>`);
@@ -1520,7 +1523,7 @@ function drawerActionButtons(row, state) {
 
   buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-preview="${escapeHtml(row.id)}">תצוגה מקדימה</button>`);
 
-  if (canManage && (['draft', 'returned_for_changes'].includes(status) || isAdminRole)) {
+  if (canManage && (['draft', 'returned_for_changes'].includes(status) || (isAdminRole && status !== 'approved'))) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-edit-row="${escapeHtml(row.id)}">עריכה</button>`);
   }
   if (canManage && ['draft', 'returned_for_changes'].includes(status)) {
@@ -1541,6 +1544,9 @@ function drawerActionButtons(row, state) {
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}">ביטול</button>`);
     }
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-delete-row="${escapeHtml(row.id)}">מחיקה</button>`);
+  }
+  if (canManage && status === 'approved') {
+    buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-clone-row="${escapeHtml(row.id)}">שכפול להצעה חדשה</button>`);
   }
   return buttons.join('');
 }
@@ -2341,7 +2347,7 @@ export const proposalsAgreementsScreen = {
       }
 
       // Row click — skip if clicking an inline action button inside the row
-      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row]')
+      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row]')
         ? event.target.closest?.('[data-pa-row-id]')
         : null;
       if (rowEl) {
@@ -2374,7 +2380,12 @@ export const proposalsAgreementsScreen = {
       const editBtn = event.target.closest?.('[data-pa-edit-row]');
       if (editBtn) {
         if (!canManage) return;
-        const row = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(editBtn.dataset.paEditRow)));
+        const editTargetRow = data.rows.find((item) => text(item.id) === text(editBtn.dataset.paEditRow));
+        if (editTargetRow && text(editTargetRow.status) === 'approved') {
+          window.alert('לא ניתן לערוך הצעה מאושרת. ניתן לשכפל אותה להצעה חדשה.');
+          return;
+        }
+        const row = rowWithCentralContact(editTargetRow);
         const host = root.querySelector('[data-pa-inline-form]');
         if (host && row) {
           let items = [];
@@ -2723,6 +2734,86 @@ export const proposalsAgreementsScreen = {
         } catch (err) {
           deleteBtn.disabled = false;
           window.alert(`שגיאה במחיקה: ${err?.message || err}`);
+        }
+        return;
+      }
+
+      const cloneBtn = event.target.closest?.('[data-pa-clone-row]');
+      if (cloneBtn) {
+        if (!canManage) return;
+        const id = text(cloneBtn.dataset.paCloneRow);
+        const sourceRow = data.rows.find((item) => text(item.id) === id);
+        if (!sourceRow) return;
+        cloneBtn.disabled = true;
+        try {
+          let sourceItems = [];
+          try {
+            if (typeof api.readProposalAgreementItems === 'function') {
+              sourceItems = await api.readProposalAgreementItems(id);
+            }
+          } catch { sourceItems = []; }
+          const clonePayload = {
+            client_authority: text(sourceRow.client_authority),
+            school_framework: text(sourceRow.school_framework),
+            contact_name: text(sourceRow.contact_name),
+            contact_role: text(sourceRow.contact_role),
+            phone: text(sourceRow.phone),
+            email: text(sourceRow.email),
+            contact_school_id: sourceRow.contact_school_id || null,
+            document_type: text(sourceRow.document_type),
+            activity_type_group: text(sourceRow.activity_type_group),
+            proposal_date: text(sourceRow.proposal_date),
+            activity_names: text(sourceRow.activity_names),
+            notes: text(sourceRow.notes),
+            custom_document_sections: Array.isArray(sourceRow.custom_document_sections) ? sourceRow.custom_document_sections : [],
+            status: 'draft',
+          };
+          const cloneItems = sourceItems.map(({ id: _id, ...rest }) => rest);
+          const result = await api.addProposalAgreement(clonePayload);
+          if (!result?.ok || !result?.row?.id) throw new Error('clone_failed');
+          const newId = result.row.id;
+          if (cloneItems.length) {
+            await api.saveProposalAgreementItems(newId, cloneItems);
+          }
+          data.rows = dedupeById([result.row, ...(Array.isArray(data.rows) ? data.rows : []).map(normalizeProposalAgreementRow)]);
+          refreshTable();
+          const newRow = rowWithCentralContact(result.row);
+          const drawer = root.querySelector('[data-pa-drawer]');
+          if (drawer && newRow) {
+            drawer.outerHTML = drawerHtml(newRow, activityNameOptions, state);
+            const newDrawer = root.querySelector('[data-pa-drawer]');
+            const successEl = newDrawer?.querySelector('[data-pa-drawer-error]');
+            if (successEl) {
+              successEl.style.color = '#16a34a';
+              successEl.textContent = 'ההצעה שוכפלה כטיוטה חדשה';
+              setTimeout(() => { if (successEl.isConnected) { successEl.textContent = ''; successEl.style.color = ''; } }, 4000);
+            }
+            const host = newDrawer?.querySelector('[data-pa-inline-form]');
+            if (host && newRow) {
+              let newItems = [];
+              try {
+                if (typeof api.readProposalAgreementItems === 'function') {
+                  newItems = await api.readProposalAgreementItems(newId);
+                }
+              } catch { newItems = []; }
+              host.innerHTML = formHtml('edit', newRow, activityNameOptions, contactOptions, newItems, proposalActivityPricing);
+              setDocumentEditMode(root, false);
+              setupTypeChangeHandler(host);
+              setupClientSelector(host);
+              setupActivityPickers(host);
+              setupItemCalc(host);
+              setupFormStepper(host);
+              const pickerHost = host.querySelector('[data-pa-contact-picker-host]');
+              if (pickerHost && pickerHost.children.length) {
+                setupContactPicker(pickerHost, host.querySelector('[data-pa-form]'));
+              }
+            }
+          }
+        } catch (err) {
+          cloneBtn.disabled = false;
+          const drawerErrEl = root.querySelector('[data-pa-drawer-error]');
+          if (drawerErrEl) drawerErrEl.textContent = `שגיאה בשכפול: ${err?.message || err}`;
+          else window.alert(`שגיאה בשכפול: ${err?.message || err}`);
         }
         return;
       }
