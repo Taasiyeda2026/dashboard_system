@@ -178,11 +178,14 @@ function formatCurrency(num) {
 }
 
 function sortRows(rows) {
-  return [...(Array.isArray(rows) ? rows : [])].sort((a, b) => (
-    text(a.client_authority).localeCompare(text(b.client_authority), 'he') ||
-    text(a.school_framework).localeCompare(text(b.school_framework), 'he') ||
-    text(a.activity_type_group).localeCompare(text(b.activity_type_group), 'he')
-  ));
+  return [...(Array.isArray(rows) ? rows : [])].sort((a, b) => {
+    const dateA = text(a.proposal_date) || '';
+    const dateB = text(b.proposal_date) || '';
+    if (dateB !== dateA) return dateB.localeCompare(dateA);
+    const tsA = text(a.updated_at) || text(a.created_at) || '';
+    const tsB = text(b.updated_at) || text(b.created_at) || '';
+    return tsB.localeCompare(tsA);
+  });
 }
 
 function rowMatches(row, filters) {
@@ -1809,16 +1812,23 @@ export const proposalsAgreementsScreen = {
     return dsScreenStack(`
       ${dsPageHeader('הצעות מחיר')}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
-        <div class="ds-pa-toolbar">
-          <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
-          ${filterSelectHtml('activity_type_group', 'סוג הצעה', ACTIVITY_TYPE_GROUP_OPTIONS)}
-          ${statusFilterHtml()}
-          ${canManage ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-add>+ הצעה חדשה</button>' : ''}
+        <div class="ds-pa-screen-tabs" style="display:flex;gap:4px;border-bottom:2px solid var(--ds-border,#e5e7eb);margin-bottom:12px">
+          <button type="button" class="ds-pa-screen-tab is-active" data-pa-tab="records" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;color:inherit;font-size:0.9rem">📋 רשומות</button>
+          ${canManage ? '<button type="button" class="ds-pa-screen-tab" data-pa-tab="new" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--ds-text-muted,#6b7280);font-size:0.9rem">+ הצעה חדשה</button>' : ''}
         </div>
-        <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> רשומות</div>
-        <div data-pa-form-host hidden></div>
-        ${dsCard({ title: 'רשומות', padded: false, body: `<div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>` })}
-        ${drawerHtml(null, [], state)}
+        <div data-pa-tab-panel="records">
+          <div class="ds-pa-toolbar">
+            <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
+            ${filterSelectHtml('activity_type_group', 'סוג הצעה', ACTIVITY_TYPE_GROUP_OPTIONS)}
+            ${statusFilterHtml()}
+          </div>
+          <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> רשומות</div>
+          ${dsCard({ title: 'רשומות', padded: false, body: `<div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>` })}
+          ${drawerHtml(null, [], state)}
+        </div>
+        <div data-pa-tab-panel="new" hidden>
+          <div data-pa-form-host></div>
+        </div>
       </section>
     `);
   },
@@ -2165,10 +2175,24 @@ export const proposalsAgreementsScreen = {
       formHost.querySelector('select,input,textarea')?.focus?.();
     };
 
+    const switchTab = (tabName) => {
+      root.querySelectorAll('[data-pa-tab]').forEach((btn) => {
+        const active = btn.dataset.paTab === tabName;
+        btn.classList.toggle('is-active', active);
+        btn.style.fontWeight = active ? '700' : '500';
+        btn.style.color = active ? '' : 'var(--ds-text-muted,#6b7280)';
+        btn.style.borderBottomColor = active ? 'var(--ds-primary,#6366f1)' : 'transparent';
+      });
+      root.querySelectorAll('[data-pa-tab-panel]').forEach((panel) => {
+        panel.hidden = panel.dataset.paTabPanel !== tabName;
+      });
+    };
+
     const closeForm = () => {
       if (!formHost) return;
       formHost.hidden = true;
       formHost.innerHTML = '';
+      switchTab('records');
     };
 
     // ── Preview ───────────────────────────────────────────────────────────────
@@ -2285,8 +2309,19 @@ export const proposalsAgreementsScreen = {
       }
     };
 
-    // ── Add button ────────────────────────────────────────────────────────────
-    if (canManage) root.querySelector('[data-pa-add]')?.addEventListener('click', () => openForm('add'), { signal });
+    // ── Tab switching ──────────────────────────────────────────────────────────
+    root.querySelector('[data-pa-screen-tabs],[data-pa-tabs]')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-pa-tab]');
+      if (!btn) return;
+      const tabName = btn.dataset.paTab;
+      switchTab(tabName);
+      if (tabName === 'new' && canManage) {
+        openForm('add');
+      } else if (tabName === 'records') {
+        closeForm();
+        switchTab('records'); // ensure records shown even after closeForm
+      }
+    }, { signal });
 
     // ── Input handler (items calc) ────────────────────────────────────────────
     root.addEventListener('input', (event) => {
@@ -2495,14 +2530,35 @@ export const proposalsAgreementsScreen = {
           return;
         }
         const row = rowWithCentralContact(editTargetRow);
-        const host = root.querySelector('[data-pa-inline-form]');
-        if (host && row) {
-          let items = [];
-          try {
-            if (typeof api.readProposalAgreementItems === 'function') {
-              items = await api.readProposalAgreementItems(text(row.id));
-            }
-          } catch { items = []; }
+        if (!row) return;
+
+        // Ensure we are on the records tab (edit opens in the drawer, not in the new-proposal panel)
+        switchTab('records');
+
+        // Load items first
+        let items = [];
+        try {
+          if (typeof api.readProposalAgreementItems === 'function') {
+            items = await api.readProposalAgreementItems(text(row.id));
+          }
+        } catch { items = []; }
+
+        // Open / update the drawer for this row if needed
+        let drawer = root.querySelector('[data-pa-drawer]');
+        if (!drawer || text(drawer.dataset.paDrawerId) !== text(row.id)) {
+          if (drawer) drawer.outerHTML = drawerHtml(row, activityNameOptions, state);
+          else root.querySelector('[data-pa-screen]')?.insertAdjacentHTML('beforeend', drawerHtml(row, activityNameOptions, state));
+          drawer = root.querySelector('[data-pa-drawer]');
+        }
+        if (drawer) drawer.hidden = false;
+
+        // Show items in drawer
+        const drawerItemsHost = drawer?.querySelector('[data-pa-drawer-items]');
+        if (drawerItemsHost) drawerItemsHost.innerHTML = itemsSummaryHtml(items);
+
+        // Inject edit form
+        const host = drawer?.querySelector('[data-pa-inline-form]');
+        if (host) {
           host.innerHTML = formHtml('edit', row, activityNameOptions, contactOptions, items, proposalActivityPricing);
           setDocumentEditMode(root, false);
           setupTypeChangeHandler(host);
@@ -2514,6 +2570,7 @@ export const proposalsAgreementsScreen = {
           if (pickerHost && pickerHost.children.length) {
             setupContactPicker(pickerHost, host.querySelector('[data-pa-form]'));
           }
+          setTimeout(() => host.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
         }
         return;
       }
