@@ -1829,11 +1829,13 @@ async function readContactsSchoolsForProposals() {
   try {
     const { data, error } = await supabase
       .from('contacts_schools')
-      .select('id,authority,school,contact_name,contact_role,phone,email,mobile')
+      .select('id,client_type,client_name,authority,school,contact_name,contact_role,phone,email,mobile')
       .order('authority', { ascending: true });
     if (error) return [];
     return (Array.isArray(data) ? data : []).map((c) => ({
       id:           cleanProposalAgreementText(c.id),
+      client_type:  cleanProposalAgreementText(c.client_type),
+      client_name:  cleanProposalAgreementText(c.client_name),
       authority:    cleanProposalAgreementText(c.authority),
       school:       cleanProposalAgreementText(c.school),
       contact_name: cleanProposalAgreementText(c.contact_name),
