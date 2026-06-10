@@ -660,7 +660,7 @@ function itemsSummaryHtml(items = []) {
     const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
     const bundleLinesList = bundleItems.map((bi) => {
       if (typeof bi === 'object') {
-        const parts = [text(bi.activity_no), text(bi.activity_name)].filter(Boolean);
+        const parts = [text(bi.activity_name)].filter(Boolean);
         if (bi.unit_price != null && bi.unit_price !== '') parts.push(`₪${formatCurrency(Number(bi.unit_price))}`);
         return parts.join(' — ');
       }
@@ -789,10 +789,9 @@ function proposalLineHtml(item = {}, options = {}) {
   const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
   if (bundleItems.length && (item.proposal_display_mode === 'bundle_parent' || item.is_bundle_parent)) {
     const subLines = bundleItems.map((bi) => {
-      const no = typeof bi === 'object' ? text(bi.activity_no) : '';
       const name = typeof bi === 'object' ? text(bi.activity_name) : text(bi);
       const price = typeof bi === 'object' && bi.unit_price != null ? `${formatCurrency(Number(bi.unit_price))} ₪` : '';
-      return [no, name, price].filter(Boolean).join(' — ');
+      return [name, price].filter(Boolean).join(' — ');
     }).filter(Boolean);
     if (subLines.length) return ` ${itemName}${suffix}\n${subLines.map((l) => `  • ${l}`).join('\n')}`;
   }
@@ -1335,9 +1334,7 @@ const TEMPLATE_LABELS = {
 };
 
 function templateIndicatorHtml(group) {
-  const label = TEMPLATE_LABELS[group] || '';
-  if (!label) return `<p class="ds-pa-template-indicator" data-pa-template-indicator></p>`;
-  return `<p class="ds-pa-template-indicator ds-pa-template-indicator--active" data-pa-template-indicator>${escapeHtml(label)}</p>`;
+  return `<p class="ds-pa-template-indicator" data-pa-template-indicator hidden></p>`;
 }
 
 function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '') {
@@ -1485,7 +1482,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         </div>
       </div>
       <div class="ds-pa-type-row">${templateIndicatorHtml(normalizedActivityGroup)}</div>
-      <p class="ds-pa-template-mode ${hasCustomSections ? 'ds-pa-template-mode--custom' : ''}" data-pa-template-mode>${hasCustomSections ? 'הצעה זו כוללת נוסח מותאם אישית' : 'הצעה זו משתמשת בתבנית המקור'}</p>
+      <p class="ds-pa-template-mode ${hasCustomSections ? 'ds-pa-template-mode--custom' : ''}" data-pa-template-mode${hasCustomSections ? '' : ' hidden'}>${hasCustomSections ? 'הצעה זו כוללת נוסח מותאם אישית' : ''}</p>
     </div>
 
     <div class="ds-pa-form-activities-panel" data-pa-step-panel="activity">
@@ -2404,7 +2401,6 @@ export const proposalsAgreementsScreen = {
         );
         const childCheckboxesHtml = children.length
           ? children.map((child, ci) => {
-              const noStr = text(child.activity_no) ? `${text(child.activity_no)} — ` : '';
               const priceStr = child.unit_price != null && child.unit_price !== '' ? ` — ₪${formatCurrency(Number(child.unit_price))}` : '';
               const childData = {
                 activity_no: text(child.activity_no),
@@ -2415,7 +2411,7 @@ export const proposalsAgreementsScreen = {
               };
               return `<label class="ds-pa-bundle-child-option">
                 <input type="checkbox" name="bundle_child_sel" value="${escapeHtml(text(child.activity_name))}" data-bundle-child-idx="${ci}" data-child-json="${escapeHtml(JSON.stringify(childData))}">
-                <span>${escapeHtml(`${noStr}${text(child.activity_name)}${priceStr}`)}</span>
+                <span>${escapeHtml(`${text(child.activity_name)}${priceStr}`)}</span>
               </label>`;
             }).join('')
           : '<p style="font-size:0.8rem;margin:4px 0;color:var(--ds-text-muted,#888)">אין פריטי פירוט מוגדרים עבור הגדרה זו</p>';
