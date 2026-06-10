@@ -5,13 +5,19 @@ export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'op
 export const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const SEARCH_DEBOUNCE_MS = 280;
 
-const ACTIVITY_TYPE_GROUP_OPTIONS = ['פעילויות קיץ', 'שנה הבאה', 'הצעה משולבת', 'קורסים', 'סדנאות', 'סיור', 'תוכניות חינוכיות', 'STEM ומייקרים', 'התנסות בתעשייה'];
+const ACTIVITY_TYPE_GROUP_OPTIONS = ['פעילויות קיץ', 'שנה הבאה', 'הצעה משולבת'];
 const LEGACY_GROUP_MAP = {
   'קיץ תשפ״ו':                       'פעילויות קיץ',
   'שנת הלימודים תשפ״ז':              'שנה הבאה',
   'תוכניות תשפ״ז':                   'שנה הבאה',
   'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'הצעה משולבת',
-  'קיץ תשפ״ו + תשפ״ז':              'הצעה משולבת'
+  'קיץ תשפ״ו + תשפ״ז':              'הצעה משולבת',
+  'קורסים':                          'הצעה משולבת',
+  'סדנאות':                          'הצעה משולבת',
+  'סיור':                            'הצעה משולבת',
+  'תוכניות חינוכיות':                'הצעה משולבת',
+  'STEM ומייקרים':                   'הצעה משולבת',
+  'התנסות בתעשייה':                  'הצעה משולבת'
 };
 const NEXT_YEAR_GROUP_LABEL = 'שנה הבאה';
 const SUMMER_PROPOSAL_GROUP = 'פעילויות קיץ';
@@ -1369,17 +1375,15 @@ function showValidationNotice(form, errors, isPending) {
 }
 
 function proposalTypeCardsHtml(selected) {
-  const primaryOptions = [
-    { value: SUMMER_PROPOSAL_GROUP, label: SUMMER_PROPOSAL_GROUP,  desc: 'קיץ תשפ״ו' },
-    { value: NEXT_YEAR_GROUP_LABEL, label: NEXT_YEAR_GROUP_LABEL,  desc: 'קורסים ותוכניות לשנה"ל' },
-    { value: COMBINED_GROUP_LABEL,  label: COMBINED_GROUP_LABEL,   desc: 'קיץ + שנה"ל' },
+  const normalizedSelected = LEGACY_GROUP_MAP[selected] || selected;
+  const options = [
+    { value: SUMMER_PROPOSAL_GROUP, label: SUMMER_PROPOSAL_GROUP, desc: 'קיץ תשפ״ו' },
+    { value: NEXT_YEAR_GROUP_LABEL, label: NEXT_YEAR_GROUP_LABEL, desc: 'קורסים ותוכניות לשנה"ל' },
+    { value: COMBINED_GROUP_LABEL,  label: COMBINED_GROUP_LABEL,  desc: 'קיץ + שנה"ל' },
   ];
-  const additionalOptions = ['קורסים', 'סדנאות', 'סיור', 'תוכניות חינוכיות', 'STEM ומייקרים', 'התנסות בתעשייה']
-    .map((v) => ({ value: v, label: v, desc: '' }));
-  const allOptions = [...primaryOptions, ...additionalOptions];
   return `<div class="ds-pa-type-cards" data-pa-type-cards>
-    ${allOptions.map((opt) => `<button type="button" class="ds-pa-type-card${selected === opt.value ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.value)}"><span class="ds-pa-type-card-label">${escapeHtml(opt.label)}</span>${opt.desc ? `<span class="ds-pa-type-card-desc">${escapeHtml(opt.desc)}</span>` : ''}</button>`).join('')}
-  </div><input type="hidden" name="activity_type_group" value="${escapeHtml(selected)}" data-pa-type-hidden>`;
+    ${options.map((opt) => `<button type="button" class="ds-pa-type-card${normalizedSelected === opt.value ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.value)}"><span class="ds-pa-type-card-label">${escapeHtml(opt.label)}</span>${opt.desc ? `<span class="ds-pa-type-card-desc">${escapeHtml(opt.desc)}</span>` : ''}</button>`).join('')}
+  </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
 }
 
 function proposalStepperHtml() {
