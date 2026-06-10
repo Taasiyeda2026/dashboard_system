@@ -652,20 +652,28 @@ function itemsSummaryHtml(items = []) {
   const rows = visibleSummaryItems.map((item) => {
     const t = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
     const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
-    const bundleNames = bundleItems.map((bi) => typeof bi === 'object' ? text(bi.activity_name) : text(bi)).filter(Boolean);
-    const bundleStr = bundleNames.length ? bundleNames.join(', ') : '';
+    const bundleLinesList = bundleItems.map((bi) => {
+      if (typeof bi === 'object') {
+        const parts = [text(bi.activity_no), text(bi.activity_name)].filter(Boolean);
+        if (bi.unit_price != null && bi.unit_price !== '') parts.push(`₪${formatCurrency(Number(bi.unit_price))}`);
+        return parts.join(' — ');
+      }
+      return text(bi);
+    }).filter(Boolean);
     const details = [
       text(item.activity_no) ? `מס׳ פעילות: ${text(item.activity_no)}` : '',
       text(item.gefen_number) ? `גפ״ן: ${text(item.gefen_number)}` : '',
       text(item.meetings_count) ? `מפגשים: ${text(item.meetings_count)}` : '',
       text(item.hours_count) ? `שעות: ${text(item.hours_count)}` : '',
       text(item.unit_duration) ? `משך: ${text(item.unit_duration)}` : '',
-      bundleStr ? `פירוט: ${bundleStr}` : '',
       text(item.proposal_group) ? `קבוצה: ${text(item.proposal_group)}` : '',
-      !bundleStr ? text(item.description) : ''
+      !bundleLinesList.length ? text(item.description) : ''
     ].filter(Boolean).join(' | ');
+    const bundleDetailHtml = bundleLinesList.length
+      ? `<ul style="margin:2px 0 0;padding-right:14px;font-size:0.71rem">${bundleLinesList.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`
+      : '';
     return `<tr>
-      <td>${escapeHtml(item.item_name || '')}${details ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(details)}</div>` : ''}</td>
+      <td>${escapeHtml(item.item_name || '')}${details ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(details)}</div>` : ''}${bundleDetailHtml}</td>
       <td>${escapeHtml(item.item_type || '')}</td>
       <td>${item.quantity != null ? item.quantity : ''}</td>
       <td>${item.unit_price != null ? '₪' + formatCurrency(item.unit_price) : ''}</td>
@@ -772,6 +780,16 @@ function proposalLineHtml(item = {}, options = {}) {
   }
 
   const suffix = parts.length ? `: ${parts.join(' | ')}` : ':';
+  const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
+  if (bundleItems.length && (item.proposal_display_mode === 'bundle_parent' || item.is_bundle_parent)) {
+    const subLines = bundleItems.map((bi) => {
+      const no = typeof bi === 'object' ? text(bi.activity_no) : '';
+      const name = typeof bi === 'object' ? text(bi.activity_name) : text(bi);
+      const price = typeof bi === 'object' && bi.unit_price != null ? `${formatCurrency(Number(bi.unit_price))} ₪` : '';
+      return [no, name, price].filter(Boolean).join(' — ');
+    }).filter(Boolean);
+    if (subLines.length) return ` ${itemName}${suffix}\n${subLines.map((l) => `  • ${l}`).join('\n')}`;
+  }
   return ` ${itemName}${suffix}`;
 }
 
@@ -2233,12 +2251,21 @@ export const proposalsAgreementsScreen = {
           text(r.parent_pricing_key) === text(picked.pricing_key)
         );
         const childCheckboxesHtml = children.length
-          ? children.map((child, ci) =>
-              `<label class="ds-pa-bundle-child-option">
-                <input type="checkbox" name="bundle_child_sel" value="${escapeHtml(text(child.activity_name))}" data-bundle-child-idx="${ci}">
-                <span>${escapeHtml(text(child.activity_name))}</span>
-              </label>`
-            ).join('')
+          ? children.map((child, ci) => {
+              const noStr = text(child.activity_no) ? `${text(child.activity_no)} — ` : '';
+              const priceStr = child.unit_price != null && child.unit_price !== '' ? ` — ₪${formatCurrency(Number(child.unit_price))}` : '';
+              const childData = {
+                activity_no: text(child.activity_no),
+                pricing_key: text(child.pricing_key),
+                activity_name: text(child.activity_name),
+                unit_price: child.unit_price ?? null,
+                proposal_bundle_label: text(picked.activity_name)
+              };
+              return `<label class="ds-pa-bundle-child-option">
+                <input type="checkbox" name="bundle_child_sel" value="${escapeHtml(text(child.activity_name))}" data-bundle-child-idx="${ci}" data-child-json="${escapeHtml(JSON.stringify(childData))}">
+                <span>${escapeHtml(`${noStr}${text(child.activity_name)}${priceStr}`)}</span>
+              </label>`;
+            }).join('')
           : '<p style="font-size:0.8rem;margin:4px 0;color:var(--ds-text-muted,#888)">אין פריטי פירוט מוגדרים עבור הגדרה זו</p>';
         bundlePrompt.innerHTML = `
           <div style="margin:6px 0 4px;font-size:0.82rem;font-weight:600">${escapeHtml(text(picked.activity_name))} — הגדרה כוללת</div>
@@ -2561,12 +2588,23 @@ export const proposalsAgreementsScreen = {
         try { pickedData = JSON.parse(itemRow.dataset.paBundlePicked || '{}'); } catch { /* ignore */ }
         const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
         if (bundlePrompt) bundlePrompt.hidden = true;
+        const bundleParentLabel = pickedData.activity_name || '';
         const checkedBundleItems = Array.from(itemRow.querySelectorAll('[name="bundle_child_sel"]:checked'))
           .map((cb) => {
             const name = text(cb.value);
             if (!name) return null;
+            try {
+              const parsed = JSON.parse(cb.dataset.childJson || 'null');
+              if (parsed && parsed.activity_name) return parsed;
+            } catch { /* fallthrough */ }
             const childPricing = proposalActivityPricing.find((r) => text(r.activity_name) === name && text(r.proposal_display_mode) === 'bundle_child');
-            return { pricing_key: text(childPricing?.pricing_key) || '', activity_name: name };
+            return {
+              activity_no: text(childPricing?.activity_no) || '',
+              pricing_key: text(childPricing?.pricing_key) || '',
+              activity_name: name,
+              unit_price: childPricing?.unit_price ?? null,
+              proposal_bundle_label: bundleParentLabel
+            };
           }).filter(Boolean);
         const checkedNames = checkedBundleItems.map((i) => i.activity_name);
         const description = checkedNames.length > 0 ? checkedNames.map((n) => `• ${n}`).join('\n') : '';
