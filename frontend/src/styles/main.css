@@ -11500,61 +11500,13 @@ select.ds-input {
   break-before: page;
   page-break-before: always;
 }
-.catalog-appendix-main-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #1f4e79;
-  text-align: center;
-  text-decoration: underline;
-  margin: 0 0 16px;
-  padding-bottom: 8px;
-  border-bottom: 2px solid #1f4e79;
-}
-.catalog-appendix-section { margin-bottom: 24px; }
-.catalog-section-title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #1f4e79;
-  margin: 0 0 12px;
-  border-bottom: 1px solid #d1d5db;
-  padding-bottom: 4px;
-}
-.catalog-cards-grid { display: flex; flex-direction: column; gap: 14px; }
-.catalog-workshop-card,
-.catalog-program-card {
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 12px 14px;
-  background: #f9fafb;
-  break-inside: avoid;
-  page-break-inside: avoid;
-}
-.catalog-card-header {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-.catalog-card-name { font-size: 0.95rem; font-weight: 700; color: #111827; margin: 0; }
-.catalog-card-domain,
-.catalog-card-type {
-  font-size: 0.78rem;
+.pa-catalog-shadow-host { display: block; }
+.pa-catalog-loading {
   color: #6b7280;
-  background: #e5e7eb;
-  padding: 1px 6px;
-  border-radius: 10px;
-  white-space: nowrap;
+  font-style: italic;
+  padding: 16px;
+  text-align: center;
 }
-.catalog-card-body { font-size: 0.85rem; color: #374151; line-height: 1.5; }
-.catalog-card-body p { margin: 0 0 4px; }
-.catalog-card-body strong { color: #111827; }
-.catalog-card-desc { margin: 6px 0 !important; }
-.catalog-card-goals { list-style: disc; padding-inline-start: 20px; margin: 4px 0; }
-.catalog-card-goals li { margin: 2px 0; }
-.catalog-card-grades { font-size: 0.8rem; color: #6b7280; margin-top: 4px !important; }
-.catalog-program-syllabus { padding-inline-start: 24px; margin: 4px 0 0; }
-.catalog-program-syllabus li { margin: 3px 0; }
 
 @media (max-width: 720px) {
   .proposal-preview-area {
@@ -11857,50 +11809,11 @@ select.ds-input {
     margin: 0 !important;
     padding: 0 !important;
   }
-  .catalog-appendix-main-title {
-    font-size: 11pt !important;
-    font-weight: 700 !important;
-    color: #1f4e79 !important;
-    text-align: center !important;
-    text-decoration: underline !important;
-    margin: 0 0 12pt !important;
-    border-bottom: 1.5pt solid #1f4e79 !important;
-    padding-bottom: 4pt !important;
-  }
-  .catalog-section-title {
-    font-size: 10pt !important;
-    font-weight: 700 !important;
-    color: #1f4e79 !important;
-    text-decoration: underline !important;
-    margin: 10pt 0 4pt !important;
-    border-bottom: 0.5pt solid #9ca3af !important;
-    padding-bottom: 2pt !important;
-  }
-  .catalog-workshop-card,
-  .catalog-program-card {
-    border: 0.5pt solid #9ca3af !important;
-    padding: 7pt 9pt !important;
-    margin-bottom: 6pt !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-    background: #fff !important;
-    border-radius: 0 !important;
+  .pa-catalog-shadow-host {
+    display: block !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  .catalog-cards-grid { gap: 0 !important; }
-  .catalog-card-name { font-size: 9.5pt !important; font-weight: 700 !important; }
-  .catalog-card-body { font-size: 8.5pt !important; line-height: 1.4 !important; }
-  .catalog-card-body p { margin: 0 0 2pt !important; }
-  .catalog-card-domain,
-  .catalog-card-type {
-    font-size: 7.5pt !important;
-    background: #f3f4f6 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-  .catalog-card-goals li { margin: 1pt 0 !important; }
-  .catalog-program-syllabus li { margin: 2pt 0 !important; }
 }
 
 /* ===== Exceptions UX refresh: grouped cards, balanced grid, and header count badge ===== */
