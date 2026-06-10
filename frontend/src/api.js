@@ -3514,50 +3514,48 @@ export const api = {
     const kind = String(payload?.kind || '').trim();
     const row = payload?.row || {};
     if (kind === 'instructor') {
-      const { id: rowId, _row_index, _supabase_orig, ...updateFields } = row;
-      const id = rowId != null ? rowId : null;
-      const empId = String(updateFields.emp_id || '').trim();
-      if (id == null && !empId) throw new Error('missing_instructor_key');
-      const q = id != null
-        ? supabase.from('contacts_instructors').update(updateFields).eq('id', id)
-        : supabase.from('contacts_instructors').update(updateFields).eq('emp_id', empId);
-      const { error } = await q.select().single();
+      const empId = String(row.emp_id || '').trim();
+      if (!empId) throw new Error('missing_instructor_key:emp_id');
+      const updateBody = {
+        full_name:        String(row.full_name        || '').trim() || null,
+        mobile:           String(row.mobile           || '').trim() || null,
+        email:            String(row.email            || '').trim() || null,
+        address:          String(row.address          || '').trim() || null,
+        employment_type:  String(row.employment_type  || '').trim() || null,
+        direct_manager:   String(row.direct_manager   || '').trim() || null,
+        active:           String(row.active           || 'yes').trim()
+      };
+      const { error } = await supabase
+        .from('contacts_instructors')
+        .update(updateBody)
+        .eq('emp_id', empId)
+        .select()
+        .single();
       if (error) throw new Error(error.message || 'save_contact_failed');
       return { ok: true };
     }
     if (kind === 'school') {
-      const { id: rowId, _row_index, _supabase_orig: _so, role: formRole, ...updateFields } = row;
-      if (formRole !== undefined && updateFields.contact_role === undefined) updateFields.contact_role = formRole;
-      const id = rowId != null ? rowId : null;
-      if (id != null) {
-        const { error } = await supabase
-          .from('contacts_schools')
-          .update(updateFields)
-          .eq('id', id)
-          .select()
-          .single();
-        if (error) throw new Error(error.message || 'save_contact_failed');
-        return { ok: true };
-      }
-      const orig = payload?._supabase_orig && typeof payload._supabase_orig === 'object' ? payload._supabase_orig : null;
-      const keyChanged = !!orig && (
-        String(orig.authority || '') !== String(updateFields.authority || '') ||
-        String(orig.school || '') !== String(updateFields.school || '') ||
-        String(orig.contact_name || '') !== String(updateFields.contact_name || '')
-      );
-      if (keyChanged) {
-        const { error: delErr } = await supabase
-          .from('contacts_schools')
-          .delete()
-          .eq('authority', String(orig.authority || ''))
-          .eq('school', String(orig.school || ''))
-          .eq('contact_name', String(orig.contact_name || ''));
-        if (delErr) throw new Error(delErr.message || 'save_contact_failed');
-        const { error: insErr } = await supabase.from('contacts_schools').insert(updateFields);
-        if (insErr) throw new Error(insErr.message || 'save_contact_failed');
-        return { ok: true };
-      }
-      return api.addContact({ kind: 'school', row: updateFields });
+      const id = row.id != null ? row.id : null;
+      if (id == null) throw new Error('missing_school_key:id');
+      const updateBody = {
+        authority:    String(row.authority    || '').trim() || null,
+        school:       String(row.school       || '').trim() || null,
+        contact_name: String(row.contact_name || '').trim() || null,
+        contact_role: String(row.contact_role ?? row.role ?? '').trim() || null,
+        phone:        String(row.phone        || '').trim() || null,
+        mobile:       String(row.mobile       || '').trim() || null,
+        email:        String(row.email        || '').trim() || null,
+        address:      String(row.address      || '').trim() || null,
+        notes:        String(row.notes        || '').trim() || null
+      };
+      const { error } = await supabase
+        .from('contacts_schools')
+        .update(updateBody)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw new Error(error.message || 'save_contact_failed');
+      return { ok: true };
     }
     throw new Error('invalid_contact_kind');
   },
