@@ -5725,6 +5725,7 @@ body.catalog-courses-print .a4:not(.index-page) {
 </div>
 <script>
 let programs = [];
+let adminMarketer = "none";
 
 const LOGO = "logo.png";
 
@@ -6084,7 +6085,7 @@ function buildProgramPageHtml(p, marketer = "none") {
 function render(i) {
  const p = programs[i];
  if (!p) return;
- document.getElementById("a4-container").innerHTML = buildProgramPageHtml(p);
+ document.getElementById("a4-container").innerHTML = buildProgramPageHtml(p, adminMarketer);
 }
 
 function findProgramIndexesFromUrl() {
@@ -6185,6 +6186,8 @@ async function init() {
         return;
       }
       dataUrl = "catalog-admin-data.json";
+      const marketerParam = urlParams.get("marketer");
+      if (marketerParam && marketerParam !== "none") adminMarketer = marketerParam;
     }
 
     const res = await fetch(dataUrl, { cache: "no-store" });

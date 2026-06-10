@@ -1,5 +1,5 @@
 const CATALOG_URL = './catalog/summercatalog/';
-const COURSE_PAGE_ADMIN_URL = './catalog/summercatalog/course-page.html?catalog=admin';
+const COURSE_PAGE_ADMIN_BASE = './catalog/summercatalog/course-page.html?catalog=admin';
 const ADMIN_TOKEN_KEY = 'tsy_catalog_admin_token';
 const ADMIN_TOKEN_TTL = 30000;
 
@@ -101,6 +101,39 @@ function ensureCatalogEmbedStyles() {
   transform: translateY(-1px);
   outline: none;
 }
+.catalog-embed-admin-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid #7c3aed;
+  border-radius: 999px;
+  background: #fff;
+  overflow: hidden;
+}
+.catalog-embed-marketer-select {
+  border: none;
+  border-left: 1px solid #d8b4fe;
+  border-radius: 0;
+  background: #faf5ff;
+  color: #7c3aed;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 0 10px 0 6px;
+  height: 36px;
+  cursor: pointer;
+  outline: none;
+  appearance: auto;
+  min-width: 110px;
+}
+.catalog-embed-marketer-select:focus {
+  background: #ede9fe;
+}
+.catalog-embed-admin-group .catalog-embed-admin-btn {
+  border: none;
+  border-radius: 0;
+  border-right: none;
+}
 .catalog-embed-frame-wrap {
   flex: 1 1 auto;
   min-height: min(760px, calc(100dvh - 210px));
@@ -156,7 +189,14 @@ export const catalogScreen = {
     ensureCatalogEmbedStyles();
     const isAdmin = isCatalogAdmin(state);
     const adminBtn = isAdmin
-      ? `<button type="button" class="catalog-embed-admin-btn" id="catalog-admin-open-btn">🔒 הפקת קטלוג אדמין</button>`
+      ? `<div class="catalog-embed-admin-group">
+          <select class="catalog-embed-marketer-select" id="catalog-admin-marketer-select" aria-label="שורת שיווק לקטלוג אדמין">
+            <option value="none">ללא שיווק</option>
+            <option value="yael">יעל אביב</option>
+            <option value="israa">איסראא אבו-ראס</option>
+          </select>
+          <button type="button" class="catalog-embed-admin-btn" id="catalog-admin-open-btn">🔒 הפקת קטלוג אדמין</button>
+        </div>`
       : '';
     return `<section class="catalog-embed-screen" aria-labelledby="catalog-embed-title">
       <header class="catalog-embed-header">
@@ -185,13 +225,17 @@ export const catalogScreen = {
     const btn = root.querySelector('#catalog-admin-open-btn');
     if (!btn) return;
     btn.addEventListener('click', () => {
+      const marketerSelect = root.querySelector('#catalog-admin-marketer-select');
+      const marketer = marketerSelect?.value || 'none';
+      let url = COURSE_PAGE_ADMIN_BASE;
+      if (marketer && marketer !== 'none') url += `&marketer=${encodeURIComponent(marketer)}`;
       try {
         localStorage.setItem(
           ADMIN_TOKEN_KEY,
           JSON.stringify({ ok: true, exp: Date.now() + ADMIN_TOKEN_TTL })
         );
       } catch (_) {}
-      window.open(COURSE_PAGE_ADMIN_URL, '_blank', 'noopener,noreferrer');
+      window.open(url, '_blank', 'noopener,noreferrer');
     });
   }
 };
