@@ -1639,14 +1639,23 @@ function normalizeProposalAgreementRow(row = {}) {
 
 const PA_VALID_STATUSES_SET = new Set(['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
 
+const PROPOSAL_GROUP_CANONICAL_MAP = {
+  'קיץ תשפ״ו':                       'פעילויות קיץ',
+  'שנת הלימודים תשפ״ז':              'שנה הבאה',
+  'תוכניות תשפ״ז':                   'שנה הבאה',
+  'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'הצעה משולבת',
+  'קיץ תשפ״ו + תשפ״ז':              'הצעה משולבת'
+};
+
 function sanitizeProposalAgreementPayload(payload = {}) {
   const activity_names = normalizeProposalAgreementActivityNames(payload.activity_names);
   const rawStatus = cleanProposalAgreementText(payload.status);
+  const rawGroup = cleanProposalAgreementText(payload.activity_type_group);
   const row = {
     client_authority:    cleanProposalAgreementText(payload.client_authority),
     school_framework:    cleanProposalAgreementText(payload.school_framework),
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
-    activity_type_group: cleanProposalAgreementText(payload.activity_type_group),
+    activity_type_group: PROPOSAL_GROUP_CANONICAL_MAP[rawGroup] || rawGroup,
     proposal_date:       cleanProposalAgreementText(payload.proposal_date) || null,
     activity_names:      activity_names,
     contact_name:        cleanProposalAgreementText(payload.contact_name),

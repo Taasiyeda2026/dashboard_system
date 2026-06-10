@@ -5,21 +5,21 @@ export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'op
 export const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const SEARCH_DEBOUNCE_MS = 280;
 
-const ACTIVITY_TYPE_GROUP_OPTIONS = ['קיץ תשפ״ו', 'שנת הלימודים תשפ״ז', 'קיץ תשפ״ו ושנת הלימודים תשפ״ז'];
+const ACTIVITY_TYPE_GROUP_OPTIONS = ['פעילויות קיץ', 'שנה הבאה', 'הצעה משולבת', 'קורסים', 'סדנאות', 'סיור', 'תוכניות חינוכיות', 'STEM ומייקרים', 'התנסות בתעשייה'];
 const LEGACY_GROUP_MAP = {
-  'פעילויות קיץ':       'קיץ תשפ״ו',
-  'שנה הבאה':           'שנת הלימודים תשפ״ז',
-  'תוכניות תשפ״ז':       'שנת הלימודים תשפ״ז',
-  'הצעה משולבת':        'קיץ תשפ״ו ושנת הלימודים תשפ״ז',
-  'קיץ תשפ״ו + תשפ״ז':  'קיץ תשפ״ו ושנת הלימודים תשפ״ז'
+  'קיץ תשפ״ו':                       'פעילויות קיץ',
+  'שנת הלימודים תשפ״ז':              'שנה הבאה',
+  'תוכניות תשפ״ז':                   'שנה הבאה',
+  'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'הצעה משולבת',
+  'קיץ תשפ״ו + תשפ״ז':              'הצעה משולבת'
 };
-const NEXT_YEAR_GROUP_LABEL = 'שנת הלימודים תשפ״ז';
-const SUMMER_PROPOSAL_GROUP = 'קיץ תשפ״ו';
-const COMBINED_GROUP_LABEL = 'קיץ תשפ״ו ושנת הלימודים תשפ״ז';
+const NEXT_YEAR_GROUP_LABEL = 'שנה הבאה';
+const SUMMER_PROPOSAL_GROUP = 'פעילויות קיץ';
+const COMBINED_GROUP_LABEL = 'הצעה משולבת';
 const PROPOSAL_GROUP_FOR_TYPE = {
-  [SUMMER_PROPOSAL_GROUP]:                  ['summer', 'קיץ', SUMMER_PROPOSAL_GROUP, 'פעילויות קיץ'],
-  [NEXT_YEAR_GROUP_LABEL]:              ['next_year', 'תשפ״ז', 'שנה הבאה', 'תוכניות תשפ״ז', NEXT_YEAR_GROUP_LABEL],
-  [COMBINED_GROUP_LABEL]:               null
+  [SUMMER_PROPOSAL_GROUP]: ['summer', 'קיץ', SUMMER_PROPOSAL_GROUP, 'קיץ תשפ״ו'],
+  [NEXT_YEAR_GROUP_LABEL]: ['next_year', 'תשפ״ז', NEXT_YEAR_GROUP_LABEL, 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז'],
+  [COMBINED_GROUP_LABEL]:  null
 };
 const ITEM_TYPE_OPTIONS = ['סדנה', 'קורס', 'הדרכה', 'פעילות', 'ייעוץ', 'ליווי'];
 const TEST_HOURS_REGEX = /(?:שעות\s*)?בדיק(?:ה|ות)?/i;
@@ -513,8 +513,8 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   </article>`;
 }
 
-const SUMMER_GROUP_KEYS = new Set(['summer', 'קיץ', SUMMER_PROPOSAL_GROUP, 'פעילויות קיץ']);
-const NEXT_YEAR_GROUP_KEYS = new Set(['next_year', 'תשפ״ז', 'שנה הבאה', 'תוכניות תשפ״ז', NEXT_YEAR_GROUP_LABEL]);
+const SUMMER_GROUP_KEYS = new Set(['summer', 'קיץ', SUMMER_PROPOSAL_GROUP, 'קיץ תשפ״ו']);
+const NEXT_YEAR_GROUP_KEYS = new Set(['next_year', 'תשפ״ז', NEXT_YEAR_GROUP_LABEL, 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז']);
 
 function isSummerItem(item) {
   return isSummerProposalItem(item);
@@ -643,14 +643,20 @@ function itemsSummaryHtml(items = []) {
 // ─── Preview document ─────────────────────────────────────────────────────────
 
 const TEMPLATE_KEY_BY_GROUP = {
-  'קיץ תשפ״ו':          'summer',
-  'תוכניות תשפ״ז':                 'next_year',
+  [SUMMER_PROPOSAL_GROUP]:         'summer',
   [NEXT_YEAR_GROUP_LABEL]:         'next_year',
-  'קיץ תשפ״ו + תשפ״ז':            'combined',
   [COMBINED_GROUP_LABEL]:          'combined',
-  'פעילויות קיץ':       'summer',
-  'שנה הבאה':           'next_year',
-  'הצעה משולבת':        'combined'
+  'קיץ תשפ״ו':                    'summer',
+  'שנת הלימודים תשפ״ז':           'next_year',
+  'תוכניות תשפ״ז':                'next_year',
+  'קיץ תשפ״ו + תשפ״ז':           'combined',
+  'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'combined',
+  'קורסים':                       'combined',
+  'סדנאות':                       'combined',
+  'סיור':                         'combined',
+  'תוכניות חינוכיות':             'combined',
+  'STEM ומייקרים':                'combined',
+  'התנסות בתעשייה':               'combined'
 };
 
 function templateBodyText(section) {
@@ -659,7 +665,7 @@ function templateBodyText(section) {
 
 function proposalTitle(row) {
   const grp = LEGACY_GROUP_MAP[text(row.activity_type_group)] || text(row.activity_type_group);
-  if (grp === 'קיץ תשפ״ו')         return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו';
+  if (grp === SUMMER_PROPOSAL_GROUP) return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו';
   if (grp === NEXT_YEAR_GROUP_LABEL) return 'הצעת מחיר לתוכניות תעשיידע | תשפ״ז';
   return 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו ושנת הלימודים תשפ״ז';
 }
@@ -1302,13 +1308,16 @@ function showValidationNotice(form, errors, isPending) {
 }
 
 function proposalTypeCardsHtml(selected) {
-  const options = [
-    { value: SUMMER_PROPOSAL_GROUP, label: 'קיץ תשפ״ו', desc: 'פעילויות קיץ' },
-    { value: NEXT_YEAR_GROUP_LABEL, label: 'שנת הלימודים תשפ״ז', desc: 'קורסים ותוכניות לשנה"ל' },
-    { value: COMBINED_GROUP_LABEL, label: 'הצעה משולבת', desc: 'קיץ תשפ״ו + שנת הלימודים תשפ״ז' },
+  const primaryOptions = [
+    { value: SUMMER_PROPOSAL_GROUP, label: SUMMER_PROPOSAL_GROUP,  desc: 'קיץ תשפ״ו' },
+    { value: NEXT_YEAR_GROUP_LABEL, label: NEXT_YEAR_GROUP_LABEL,  desc: 'קורסים ותוכניות לשנה"ל' },
+    { value: COMBINED_GROUP_LABEL,  label: COMBINED_GROUP_LABEL,   desc: 'קיץ + שנה"ל' },
   ];
+  const additionalOptions = ['קורסים', 'סדנאות', 'סיור', 'תוכניות חינוכיות', 'STEM ומייקרים', 'התנסות בתעשייה']
+    .map((v) => ({ value: v, label: v, desc: '' }));
+  const allOptions = [...primaryOptions, ...additionalOptions];
   return `<div class="ds-pa-type-cards" data-pa-type-cards>
-    ${options.map((opt) => `<button type="button" class="ds-pa-type-card${selected === opt.value ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.value)}"><span class="ds-pa-type-card-label">${escapeHtml(opt.label)}</span><span class="ds-pa-type-card-desc">${escapeHtml(opt.desc)}</span></button>`).join('')}
+    ${allOptions.map((opt) => `<button type="button" class="ds-pa-type-card${selected === opt.value ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.value)}"><span class="ds-pa-type-card-label">${escapeHtml(opt.label)}</span>${opt.desc ? `<span class="ds-pa-type-card-desc">${escapeHtml(opt.desc)}</span>` : ''}</button>`).join('')}
   </div><input type="hidden" name="activity_type_group" value="${escapeHtml(selected)}" data-pa-type-hidden>`;
 }
 
