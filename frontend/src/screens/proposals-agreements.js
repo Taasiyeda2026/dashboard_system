@@ -1295,11 +1295,14 @@ function contactSourceInputsHtml(contact = {}) {
   const source = contact || {};
   return `
     <input type="hidden" name="contact_source_id" value="${escapeHtml(text(source.id))}">
+    <input type="hidden" name="contact_source_client_type" value="${escapeHtml(text(source.client_type))}">
+    <input type="hidden" name="contact_source_client_name" value="${escapeHtml(text(source.client_name))}">
     <input type="hidden" name="contact_source_authority" value="${escapeHtml(text(source.authority))}">
     <input type="hidden" name="contact_source_school" value="${escapeHtml(text(source.school))}">
     <input type="hidden" name="contact_source_name" value="${escapeHtml(text(source.contact_name))}">
     <input type="hidden" name="contact_source_role" value="${escapeHtml(text(source.contact_role))}">
     <input type="hidden" name="contact_source_phone" value="${escapeHtml(text(source.phone || source.mobile || ''))}">
+    <input type="hidden" name="contact_source_mobile" value="${escapeHtml(text(source.mobile))}">
     <input type="hidden" name="contact_source_email" value="${escapeHtml(text(source.email))}">`;
 }
 
@@ -1572,13 +1575,16 @@ function payloadFromForm(form) {
   payload.total_amount = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 0) * (Number(i.unit_price) || 0))), 0) || null;
   payload._items = items;
   payload._contact_original = {
-    id:             text(formData.get('contact_source_id')),
-    authority:      text(formData.get('contact_source_authority')),
-    school:         text(formData.get('contact_source_school')),
-    contact_name:   text(formData.get('contact_source_name')),
-    contact_role:   text(formData.get('contact_source_role')),
-    phone:          text(formData.get('contact_source_phone')),
-    email:          text(formData.get('contact_source_email'))
+    id:           text(formData.get('contact_source_id')),
+    client_type:  text(formData.get('contact_source_client_type')),
+    client_name:  text(formData.get('contact_source_client_name')),
+    authority:    text(formData.get('contact_source_authority')),
+    school:       text(formData.get('contact_source_school')),
+    contact_name: text(formData.get('contact_source_name')),
+    contact_role: text(formData.get('contact_source_role')),
+    phone:        text(formData.get('contact_source_phone')),
+    mobile:       text(formData.get('contact_source_mobile')),
+    email:        text(formData.get('contact_source_email'))
   };
   return payload;
 }

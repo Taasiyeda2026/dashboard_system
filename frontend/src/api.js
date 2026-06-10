@@ -1488,7 +1488,7 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,contact_school_id,created_at,updated_at';
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -1651,9 +1651,11 @@ function sanitizeProposalAgreementPayload(payload = {}) {
   const activity_names = normalizeProposalAgreementActivityNames(payload.activity_names);
   const rawStatus = cleanProposalAgreementText(payload.status);
   const rawGroup = cleanProposalAgreementText(payload.activity_type_group);
+  const clientAuthority = cleanProposalAgreementText(payload.client_authority);
+  const schoolFramework = cleanProposalAgreementText(payload.school_framework) || clientAuthority;
   const row = {
-    client_authority:    cleanProposalAgreementText(payload.client_authority),
-    school_framework:    cleanProposalAgreementText(payload.school_framework),
+    client_authority:    clientAuthority,
+    school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
     activity_type_group: PROPOSAL_GROUP_CANONICAL_MAP[rawGroup] || rawGroup,
     proposal_date:       cleanProposalAgreementText(payload.proposal_date) || null,
@@ -1668,7 +1670,7 @@ function sanitizeProposalAgreementPayload(payload = {}) {
     total_amount:        payload.total_amount != null ? Number(payload.total_amount) || null : null,
     custom_document_sections: Array.isArray(payload.custom_document_sections) ? payload.custom_document_sections : []
   };
-  const missing = ['client_authority', 'school_framework', 'document_type', 'activity_type_group'].filter((key) => !row[key]);
+  const missing = ['client_authority', 'document_type', 'activity_type_group'].filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
   return row;
 }
@@ -1708,52 +1710,33 @@ function proposalContactMatches(existing = {}, next = {}, original = {}) {
   return Boolean(existingAuthority && nextAuthority && existingAuthority === nextAuthority);
 }
 
-async function upsertProposalClientContactIfNeeded(payload = {}) {
-  const authority = cleanProposalAgreementText(payload.client_authority);
-  const school = cleanProposalAgreementText(payload.school_framework);
-  const contact_name = cleanProposalAgreementText(payload.contact_name);
-  const phone = cleanProposalAgreementText(payload.phone);
-  const email = cleanProposalAgreementText(payload.email);
-  if (!authority || (!contact_name && !phone && !email)) return;
-  const client_type = school ? 'school' : 'authority';
-  const contactRow = {
-    client_type,
-    client_name: school || authority,
-    authority,
-    school: school || null,
-    contact_name,
-    contact_role: cleanProposalAgreementText(payload.contact_role),
-    phone,
-    email
-  };
-
-  const original = payload?._contact_original && typeof payload._contact_original === 'object'
+async function ensureContactSchoolFromProposal(payload = {}) {
+  const orig = (payload?._contact_original && typeof payload._contact_original === 'object')
     ? payload._contact_original
     : {};
-
-  const { data: existingRows, error: readError } = await supabase
-    .from('contacts_schools')
-    .select('id,authority,school,contact_name,contact_role,phone,mobile,email');
-  if (readError) throw new Error(readError.message || 'proposal_contact_lookup_failed');
-
-  const existing = (Array.isArray(existingRows) ? existingRows : [])
-    .find((row) => proposalContactMatches(row, contactRow, original));
-
-  if (existing?.id != null) {
-    const { error } = await supabase
-      .from('contacts_schools')
-      .update(contactRow)
-      .eq('id', existing.id);
-    if (!error) return;
-    if (!/duplicate|unique/i.test(String(error.message || error.code || ''))) {
-      throw new Error(error.message || 'proposal_contact_update_failed');
+  const authority = cleanProposalAgreementText(payload.client_authority);
+  const school = cleanProposalAgreementText(payload.school_framework);
+  if (!authority) return null;
+  const clientType = cleanProposalAgreementText(orig.client_type) || (school && school !== authority ? 'school' : 'authority');
+  const clientName = cleanProposalAgreementText(orig.client_name) || (clientType === 'school' ? school : authority);
+  const { data: contactSchoolId, error } = await supabase.rpc(
+    'ensure_contact_school_from_proposal',
+    {
+      p_client_type:   clientType,
+      p_client_name:   clientName || authority,
+      p_authority:     authority,
+      p_school:        school || null,
+      p_contact_name:  cleanProposalAgreementText(payload.contact_name) || null,
+      p_contact_role:  cleanProposalAgreementText(payload.contact_role) || null,
+      p_phone:         cleanProposalAgreementText(payload.phone) || null,
+      p_mobile:        cleanProposalAgreementText(orig.mobile) || null,
+      p_email:         cleanProposalAgreementText(payload.email) || null,
+      p_address:       null,
+      p_notes:         cleanProposalAgreementText(payload.notes) || null
     }
-  }
-
-  const { error } = await supabase
-    .from('contacts_schools')
-    .upsert(contactRow, { onConflict: 'authority,school,contact_name' });
-  if (error) throw new Error(error.message || 'proposal_contact_upsert_failed');
+  );
+  if (error) throw new Error(error.message || 'ensure_contact_school_failed');
+  return contactSchoolId ?? null;
 }
 
 
@@ -3351,7 +3334,8 @@ export const api = {
   addProposalAgreement: async (payload) => {
     assertCanManageProposalsAgreementsApi();
     const insert = sanitizeProposalAgreementPayload(payload);
-    await upsertProposalClientContactIfNeeded({ ...insert, _contact_original: payload?._contact_original });
+    const contactSchoolId = await ensureContactSchoolFromProposal({ ...insert, _contact_original: payload?._contact_original });
+    if (contactSchoolId != null) insert.contact_school_id = contactSchoolId;
     const { data, error } = await supabase
       .from('proposals_agreements')
       .insert(insert)
@@ -3365,7 +3349,8 @@ export const api = {
     const rowId = cleanProposalAgreementText(id);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     const patch = sanitizeProposalAgreementPayload(payload);
-    await upsertProposalClientContactIfNeeded({ ...patch, _contact_original: payload?._contact_original });
+    const contactSchoolId = await ensureContactSchoolFromProposal({ ...patch, _contact_original: payload?._contact_original });
+    if (contactSchoolId != null) patch.contact_school_id = contactSchoolId;
     const { data, error } = await supabase
       .from('proposals_agreements')
       .update(patch)
