@@ -43,7 +43,7 @@ export const STATUS_LABELS = {
 };
 
 const FIELD_LABELS = {
-  client_authority:    'לקוח / רשות',
+  client_authority:    'רשות / מועצה / עירייה',
   school_framework:    'בית ספר / מסגרת',
   activity_type_group: 'סוג הצעה',
   proposal_date:       'תאריך הצעה',
@@ -302,7 +302,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
 function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <thead><tr><th>לקוח / רשות</th><th>בית ספר / מסגרת</th><th>סוג הצעה</th><th>תאריך הצעה</th><th>סטטוס</th><th>סה״כ</th><th>פעולות</th></tr></thead>
+      <thead><tr><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th>סוג הצעה</th><th>תאריך הצעה</th><th>סטטוס</th><th>סה״כ</th><th>פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
   `);
@@ -362,7 +362,7 @@ function clientSelectHtml(contactOptions, row) {
   const rowAuth = text(row.client_authority);
   const rowSchool = text(row.school_framework);
   const selectedVal = rowAuth ? `${rowAuth}||${rowSchool}` : '';
-  const optionsHtml = ['<option value="">— בחרו לקוח קיים —</option>',
+  const optionsHtml = ['<option value="">— בחרו בית ספר / רשות קיימים —</option>',
     ...pairs.map((p) => {
       const val = `${p.authority}||${p.school}`;
       const label = p.school && p.clientName !== p.authority
@@ -602,7 +602,7 @@ function proposalSummaryHtml(totalAmount) {
   return `<section class="ds-pa-summary" aria-label="סיכום הצעה">
     <h4 class="ds-pa-summary-title">סיכום הצעה</h4>
     <div class="ds-pa-summary-grid">
-      <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">לקוח / רשות</span><strong class="ds-pa-summary-value" data-pa-summary-client>—</strong></div>
+      <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">רשות / גורם מקבל</span><strong class="ds-pa-summary-value" data-pa-summary-client>—</strong></div>
       <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">סוג הצעה</span><strong class="ds-pa-summary-value" data-pa-summary-type>—</strong></div>
       <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">מספר פעילויות</span><strong class="ds-pa-summary-value" data-pa-summary-count>—</strong></div>
       <div class="ds-pa-summary-item ds-pa-summary-item--total"><span class="ds-pa-summary-label">סה״כ כללי</span><strong class="ds-pa-summary-value ds-pa-summary-total-val" data-pa-summary-total>${initialTotal ? `₪${formatCurrency(initialTotal)}` : '₪0'}</strong></div>
@@ -1320,7 +1320,7 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
   if (!auth && !clientName) return '';
   const displayName = clientName || school || auth;
   return `<div class="ds-pa-client-locked">
-    <p class="ds-pa-client-locked-state">לקוח נבחר</p>
+    <p class="ds-pa-client-locked-state">גורם נבחר</p>
     <div class="ds-pa-client-locked-body">
       <strong class="ds-pa-client-locked-name">${escapeHtml(displayName)}</strong>
       ${school && school !== displayName ? `<span class="ds-pa-client-locked-detail">מסגרת: ${escapeHtml(school)}</span>` : ''}
@@ -1330,7 +1330,7 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
       ${phone ? `<span class="ds-pa-client-locked-detail">טלפון: ${escapeHtml(phone)}</span>` : ''}
       ${email ? `<span class="ds-pa-client-locked-detail">דוא״ל: ${escapeHtml(email)}</span>` : ''}
     </div>
-    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי לקוח</button>
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי גורם</button>
   </div>`;
 }
 
@@ -1418,22 +1418,22 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <div data-pa-step-panel="client">
         <div class="ds-pa-client-row">
           ${clientSelectHtml(contactOptions, row)}
-          <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>+ לקוח חדש</button>
+          <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>+ הוספה ידנית</button>
         </div>
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName) : ''}</div>
-        <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הוספת לקוח חדש</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לבחירת לקוח קיים</button></div>
+        <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הוספה ידנית של רשות / בית ספר</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לבחירה קיימת</button></div>
         <div class="ds-pa-form-grid" data-pa-client-fields${isLocked ? ' hidden' : ''}>
           <label class="ds-pa-form-field" data-pa-new-client-only hidden>
-            <span>סוג לקוח</span>
+            <span>סוג גורם</span>
             <select class="ds-input ds-input--sm" name="new_client_type" data-pa-new-client-type>
-              <option value="school">בית ספר</option>
-              <option value="authority">רשות / מועצה / עירייה</option>
+              <option value="school">בית ספר / מסגרת</option>
+              <option value="authority">רשות / אגף חינוך</option>
               <option value="other">אחר</option>
             </select>
           </label>
           ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
           <div data-pa-school-field>
-            ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, true)}
+            ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, false)}
           </div>
         </div>
       </div>
@@ -1762,7 +1762,15 @@ export const proposalsAgreementsScreen = {
       const form = typeSelect.closest('[data-pa-form]');
       if (!form) return;
       const schoolField = form.querySelector('[data-pa-school-field]');
-      if (schoolField) schoolField.hidden = typeSelect.value === 'authority';
+      const schoolInput = form.querySelector('[name="school_framework"]');
+      const isSchoolType = typeSelect.value === 'school';
+      if (schoolField) schoolField.hidden = !isSchoolType;
+      if (schoolInput) {
+        schoolInput.required = isSchoolType;
+        schoolInput.setAttribute('aria-required', String(isSchoolType));
+        const label = schoolInput.closest('label')?.querySelector('span');
+        if (label) label.textContent = `${FIELD_LABELS.school_framework}${isSchoolType ? ' *' : ''}`;
+      }
     }, { signal });
 
     const formHost = root.querySelector('[data-pa-form-host]');
