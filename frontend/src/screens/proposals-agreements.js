@@ -1707,155 +1707,90 @@ function replaceLocalRow(data, savedRow) {
   data.rows = dedupeById(sortRows(rows.map(normalizeProposalAgreementRow)));
 }
 
-// ─── Catalog appendix helpers ────────────────────────────────────────────────
+// ─── Catalog appendix via iframe ─────────────────────────────────────────────
 
-let _catalogDataCache = null;
-
-async function loadCatalogData() {
-  if (_catalogDataCache) return _catalogDataCache;
-  const [wResult, pResult] = await Promise.allSettled([
-    fetch(`${PUBLIC_BASE}catalog/summercatalog/activities.json`).then((r) => (r.ok ? r.json() : null)),
-    fetch(`${PUBLIC_BASE}catalog/catalog_programs_tashpaz.json`).then((r) => (r.ok ? r.json() : null))
-  ]);
-  _catalogDataCache = {
-    workshops: wResult.status === 'fulfilled' && wResult.value ? wResult.value : { gradeGroups: [] },
-    programs:  pResult.status === 'fulfilled' && pResult.value ? pResult.value : { programs: [] }
-  };
-  return _catalogDataCache;
-}
-
-function allWorkshopsFlat(workshopCatalog) {
-  const all = [];
-  for (const group of (workshopCatalog?.gradeGroups || [])) {
-    for (const act of (group?.activities || [])) {
-      const t = text(act.activityType);
-      if (t && t !== 'סדנה') continue;
-      all.push(act);
-    }
-  }
-  return all;
-}
-
-function catalogWorkshopCardHtml(act) {
-  const gradesStr = Array.isArray(act.grades) ? act.grades.join(', ') : '';
-  const goalsHtml = Array.isArray(act.goals) && act.goals.length
-    ? `<ul class="catalog-card-goals">${act.goals.map((g) => `<li>${escapeHtml(g)}</li>`).join('')}</ul>`
-    : '';
-  return `<div class="catalog-workshop-card">
-    <div class="catalog-card-header">
-      <h3 class="catalog-card-name">${escapeHtml(act.workshopName || '')}</h3>
-      ${act.domain ? `<span class="catalog-card-domain">${escapeHtml(act.domain)}</span>` : ''}
-    </div>
-    <div class="catalog-card-body">
-      ${act.durationMinutes ? `<p><strong>משך:</strong> ${escapeHtml(String(act.durationMinutes))} דקות</p>` : ''}
-      ${act.personalProduct ? `<p><strong>תוצר אישי:</strong> ${escapeHtml(act.personalProduct)}</p>` : ''}
-      ${act.description ? `<p class="catalog-card-desc">${escapeHtml(act.description)}</p>` : ''}
-      ${goalsHtml}
-      ${gradesStr ? `<p class="catalog-card-grades"><strong>שכבות:</strong> ${escapeHtml(gradesStr)}</p>` : ''}
-    </div>
-  </div>`;
-}
-
-function catalogProgramCardHtml(prog) {
-  const syllabusHtml = Array.isArray(prog.syllabus) && prog.syllabus.length
-    ? `<ol class="catalog-program-syllabus">${prog.syllabus.map((s) => `<li><strong>מפגש ${escapeHtml(String(s.meeting || ''))}:</strong> ${escapeHtml(s.topic || '')}${s.description ? ` — ${escapeHtml(s.description)}` : ''}</li>`).join('')}</ol>`
-    : '';
-  return `<div class="catalog-program-card">
-    <div class="catalog-card-header">
-      <h3 class="catalog-card-name">${escapeHtml(prog.title || '')}</h3>
-      ${prog.productType ? `<span class="catalog-card-type">${escapeHtml(prog.productType)}</span>` : ''}
-    </div>
-    <div class="catalog-card-body">
-      ${prog.audienceLevel ? `<p><strong>רמת קהל:</strong> ${escapeHtml(prog.audienceLevel)}</p>` : ''}
-      ${syllabusHtml}
-    </div>
-  </div>`;
-}
-
-function buildCatalogAppendixHtml(items, catalogData) {
-  if (!catalogData || !Array.isArray(items) || !items.length) return '';
-  const allWorkshops = allWorkshopsFlat(catalogData.workshops);
-  const allPrograms = Array.isArray(catalogData.programs?.programs) ? catalogData.programs.programs : [];
-  const workshopCards = [];
-  const programCards = [];
-  const seenWorkshopNames = new Set();
-  const seenProgramTitles = new Set();
+function buildProposalCatalogEntries(items) {
+  if (!Array.isArray(items) || !items.length) return [];
+  const catalogBase = `${PUBLIC_BASE}catalog/summercatalog/`;
+  const allWorkshopIds = [];
+  let needSpaceAll = false;
+  let needStemAll = false;
+  const programGefenIds = [];
+  const seenGefenIds = new Set();
 
   for (const item of items) {
     const displayMode = text(item.proposal_display_mode);
-    const itemType  = text(item.item_type);
-    const sourcePricingKey = text(item.source_pricing_key);
-
+    const itemType = text(item.item_type);
     if (displayMode === 'bundle_parent') {
       const selected = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
       if (selected.length > 0) {
         for (const sel of selected) {
-          const selName = text(sel.activity_name || sel.item_name || '');
-          if (!selName || seenWorkshopNames.has(selName)) continue;
-          const catId = text(sel.activity_no || sel.pricing_key || '').replace(/^cat-/, '');
-          const match = allWorkshops.find((w) =>
-            text(w.workshopName) === selName || (catId && String(w.id) === catId)
-          );
-          if (match) { seenWorkshopNames.add(selName); workshopCards.push(catalogWorkshopCardHtml(match)); }
+          const raw = text(sel.activity_no || sel.pricing_key || '').replace(/^cat-/, '');
+          const n = Number(raw);
+          if (n > 0) allWorkshopIds.push(n);
         }
       } else {
-        const isSpace = sourcePricingKey === 'space_workshop' || text(item.item_name).includes('חלל');
-        const filtered = allWorkshops.filter((w) => (isSpace ? w.domain === 'חלל' : w.domain !== 'חלל'));
-        for (const w of filtered) {
-          const wName = text(w.workshopName);
-          if (!wName || seenWorkshopNames.has(wName)) continue;
-          seenWorkshopNames.add(wName);
-          workshopCards.push(catalogWorkshopCardHtml(w));
-        }
+        const isSpace = text(item.source_pricing_key) === 'space_workshop' || text(item.item_name).includes('חלל');
+        if (isSpace) needSpaceAll = true; else needStemAll = true;
       }
-    } else if (itemType === 'סדנה') {
-      const name = text(item.item_name);
-      if (!name || seenWorkshopNames.has(name)) continue;
-      const match = allWorkshops.find((w) => text(w.workshopName) === name);
-      if (match) { seenWorkshopNames.add(name); workshopCards.push(catalogWorkshopCardHtml(match)); }
-    } else if (itemType === 'קורס' || itemType === 'תוכנית' || itemType === 'הדרכה') {
-      const name = text(item.item_name);
-      if (!name || seenProgramTitles.has(name)) continue;
-      const match = allPrograms.find((p) =>
-        text(p.title) === name || text(p.title).includes(name) || name.includes(text(p.title)) ||
-        (text(item.gefen_number) && String(p.programNumber) === text(item.gefen_number))
-      );
-      if (match) { seenProgramTitles.add(name); programCards.push(catalogProgramCardHtml(match)); }
+    } else if (displayMode !== 'bundle_child' && (itemType === 'קורס' || itemType === 'תוכנית' || itemType === 'הדרכה')) {
+      const gef = text(item.gefen_number);
+      if (gef && !seenGefenIds.has(gef)) { seenGefenIds.add(gef); programGefenIds.push(gef); }
     }
   }
 
-  if (!workshopCards.length && !programCards.length) return '';
-  const sectionsHtml = [];
-  if (workshopCards.length) {
-    sectionsHtml.push(`<div class="catalog-appendix-section">
-      <h3 class="catalog-section-title">סדנאות</h3>
-      <div class="catalog-cards-grid">${workshopCards.join('')}</div>
-    </div>`);
+  const entries = [];
+  if (allWorkshopIds.length > 0) {
+    entries.push(`${catalogBase}workshops.html?proposalMode=1&workshopIds=${[...new Set(allWorkshopIds)].join(',')}`);
   }
-  if (programCards.length) {
-    sectionsHtml.push(`<div class="catalog-appendix-section">
-      <h3 class="catalog-section-title">תוכניות וקורסים</h3>
-      <div class="catalog-cards-grid">${programCards.join('')}</div>
-    </div>`);
-  }
-  return `<div class="proposal-catalog-appendix" dir="rtl">
-    <div class="catalog-appendix-page-break"></div>
-    <div class="proposal-document" dir="rtl">
-      <div class="proposal-document-header">
-        <div class="proposal-header-left">
-          <img src="${PUBLIC_BASE}proposals/proposal-header-logo.png" alt="לוגו תעשיידע" class="proposal-logo" loading="eager" decoding="async" onerror="this.style.display='none';">
-        </div>
-      </div>
-      <div class="proposal-document-body">
-        <h2 class="catalog-appendix-main-title">נספח מידע על הפעילויות המוצעות</h2>
-        ${sectionsHtml.join('')}
-      </div>
-      <div class="proposal-document-footer">
-        <img src="${PUBLIC_BASE}proposals/proposal-footer-logo.png" alt="לוגו תחתון תעשיידע" class="proposal-footer-logo" loading="lazy" decoding="async" onerror="this.style.display='none';">
-      </div>
-    </div>
-  </div>`;
+  if (needStemAll) entries.push(`${catalogBase}workshops.html?proposalMode=1&domain=stem`);
+  if (needSpaceAll) entries.push(`${catalogBase}workshops.html?proposalMode=1&domain=space`);
+  if (programGefenIds.length > 0) entries.push(`${catalogBase}course-page.html?ids=${programGefenIds.join(',')}&proposalMode=1`);
+  return entries;
 }
+
+async function loadCatalogViaIframe(url) {
+  return new Promise((resolve, reject) => {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = 'position:fixed;inset-inline-start:-9999px;top:-9999px;width:1200px;height:4000px;opacity:0;pointer-events:none;border:none;';
+    let settled = false;
+    const settle = (fn) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      iframe.remove();
+      fn();
+    };
+    const timer = setTimeout(() => settle(() => reject(new Error('Catalog iframe timed out'))), 30000);
+    const onMessage = (event) => {
+      if (!event.data || event.data.type !== 'PROPOSAL_CATALOG_READY') return;
+      try { if (event.source !== iframe.contentWindow) return; } catch (_) { return; }
+      settle(() => {
+        try {
+          const doc = iframe.contentDocument;
+          if (!doc) { reject(new Error('iframe contentDocument unavailable')); return; }
+          const styles = Array.from(doc.querySelectorAll('style')).map((s) => s.textContent).join('\n');
+          const contentEl = doc.getElementById('booklet') || doc.getElementById('a4-container');
+          if (!contentEl) { reject(new Error('Catalog content element not found in iframe')); return; }
+          const baseUrl = new URL('./', iframe.src).href;
+          contentEl.querySelectorAll('img[src]').forEach((img) => {
+            const src = img.getAttribute('src');
+            if (src && !src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('//')) {
+              try { img.setAttribute('src', new URL(src, baseUrl).href); } catch (_) {}
+            }
+          });
+          resolve({ html: contentEl.outerHTML, styles });
+        } catch (e) { reject(e); }
+      });
+    };
+    window.addEventListener('message', onMessage);
+    document.body.appendChild(iframe);
+    iframe.src = url;
+  });
+}
+
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -2238,12 +2173,9 @@ export const proposalsAgreementsScreen = {
 
     // ── Preview ───────────────────────────────────────────────────────────────
     const openPreview = async (row, items, options = {}) => {
-      // Always rebuild preview from current state + current templates
       const freshRow = rowWithCentralContact(data.rows.find((r) => text(r.id) === text(row.id)) || row);
       const templateKey = TEMPLATE_KEY_BY_GROUP[text(freshRow.activity_type_group)] || 'combined';
       const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
-      const catalogData = await loadCatalogData().catch(() => null);
-      const appendixHtml = buildCatalogAppendixHtml(items, catalogData);
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
       overlay.id = 'pa-preview-overlay';
@@ -2260,7 +2192,6 @@ export const proposalsAgreementsScreen = {
         </div>
         <div class="proposal-preview-area">
           ${proposalPreviewBodyHtml(freshRow, items, templateSections)}
-          ${appendixHtml}
         </div>`;
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
@@ -2269,6 +2200,33 @@ export const proposalsAgreementsScreen = {
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', closeOverlay);
       if (options.onSave) overlay.querySelector('#pa-preview-save')?.addEventListener('click', () => options.onSave());
       overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
+
+      if (text(freshRow.status) === 'approved') {
+        const catalogUrls = buildProposalCatalogEntries(items);
+        if (catalogUrls.length > 0) {
+          const previewArea = overlay.querySelector('.proposal-preview-area');
+          const sep = document.createElement('div');
+          sep.className = 'catalog-appendix-page-break';
+          previewArea.appendChild(sep);
+          const loadingEl = document.createElement('p');
+          loadingEl.className = 'pa-catalog-loading no-print';
+          loadingEl.textContent = 'טוען קטלוג...';
+          previewArea.appendChild(loadingEl);
+          for (const url of catalogUrls) {
+            try {
+              const { html, styles } = await loadCatalogViaIframe(url);
+              const shadowHost = document.createElement('div');
+              shadowHost.className = 'pa-catalog-shadow-host';
+              const shadow = shadowHost.attachShadow({ mode: 'open' });
+              shadow.innerHTML = `<style>${styles}</style>${html}`;
+              previewArea.appendChild(shadowHost);
+            } catch (e) {
+              console.warn('[PA] Catalog iframe failed:', url, e);
+            }
+          }
+          loadingEl.remove();
+        }
+      }
     };
 
     // ── Save ──────────────────────────────────────────────────────────────────

@@ -3896,6 +3896,34 @@ function chunkActivities(items, size) {
       }
     });
 
+    async function handleProposalPdfMode(params) {
+      try {
+        const workshopIds = (params.get("workshopIds") || "")
+          .split(",").map(s => s.trim()).filter(Boolean).map(Number).filter(n => n > 0);
+        const domain = (params.get("domain") || "").toLowerCase();
+        let filtered;
+        if (workshopIds.length > 0) {
+          const idSet = new Set(workshopIds);
+          filtered = activities.filter(a => idSet.has(Number(a.id)));
+        } else if (domain === "space") {
+          filtered = activities.filter(a => a.domain === "חלל" && a.type !== "חדר בריחה");
+        } else if (domain === "stem") {
+          filtered = activities.filter(a => a.domain !== "חלל" && a.type !== "חדר בריחה");
+        } else {
+          filtered = activities.filter(a => a.type !== "חדר בריחה");
+        }
+        document.body.classList.add("catalog-mode");
+        renderCatalog(filtered);
+        await waitForCatalogImages();
+      } catch (e) {
+        console.warn("[proposalPdfMode]", e);
+      } finally {
+        if (window.parent !== window) {
+          window.parent.postMessage({ type: "PROPOSAL_CATALOG_READY" }, "*");
+        }
+      }
+    }
+
     async function init() {
       try {
         catalogPrograms = await loadCatalogPrograms();
@@ -3912,6 +3940,8 @@ function chunkActivities(items, size) {
         const params = new URLSearchParams(window.location.search);
         if (params.get("catalog") === "workshops") {
           showWorkshopInterface();
+        } else if (params.get("proposalMode") === "1") {
+          await handleProposalPdfMode(params);
         } else {
           applyCoursePreset("manual");
         }

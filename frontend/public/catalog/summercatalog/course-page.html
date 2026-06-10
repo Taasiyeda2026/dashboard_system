@@ -6093,7 +6093,12 @@ function findProgramIndexesFromUrl() {
  const ids = String(params.get("ids") || "").split(",").map(id => id.trim()).filter(Boolean);
  if (!ids.length) return [];
  const requested = new Set(ids);
- return programs.map((program, index) => requested.has(program.id) ? index : -1).filter(index => index >= 0);
+ return programs.map((program, index) => {
+   if (requested.has(program.id)) return index;
+   if (program.gefen && requested.has(String(program.gefen))) return index;
+   if (program.activityNo && requested.has(String(program.activityNo))) return index;
+   return -1;
+ }).filter(index => index >= 0);
 }
 
 function isCatalogModeFromUrl() {
@@ -6150,6 +6155,9 @@ function renderCourseCatalog(indexes, includeCover = false, includeIndex = false
  const indexHtml = includeIndex ? buildIndexPageHtml(selectedPrograms) : "";
  document.getElementById("a4-container").innerHTML = openingHtml + indexHtml + selectedPrograms.map(p => buildProgramPageHtml(p, marketer)).join("");
  scheduleA4Fit();
+ if (new URLSearchParams(window.location.search).get("proposalMode") === "1" && window.parent !== window) {
+   requestAnimationFrame(() => window.parent.postMessage({ type: "PROPOSAL_CATALOG_READY" }, "*"));
+ }
 }
 
 function showLoadError(msg, showBackLink = false) {
