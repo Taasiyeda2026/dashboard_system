@@ -491,11 +491,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
       <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪${formatCurrency(calcTotal)}` : '₪0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove" data-pa-remove-item aria-label="הסר שורה">✕ הסר</button>
     </div>
-    <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden>
-      <span class="ds-pa-bundle-label">זוהי הגדרה כוללת. האם לפרט את הרכיבים?</span>
-      <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-pa-bundle-expand>כן, פרט</button>
-      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-bundle-keep>לא, השאר כללי</button>
-    </div>
+    <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
     <div class="ds-pa-item-info-strip" data-pa-item-info-strip${hasActivity ? '' : ' hidden'}>${infoStripHtml}</div>
     <details class="ds-pa-item-extra" data-pa-item-details${hasExtra ? ' open' : ''}>
       <summary class="ds-pa-item-extra-toggle">עריכה / הערות</summary>
@@ -1262,12 +1258,16 @@ function filterPricingByActivityType(pricing, activityType) {
 }
 
 function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey) {
-  const visibleRows = pricingOptions.filter((row) => !isTestHoursItem(row) && text(row.proposal_display_mode) !== 'bundle_child');
+  const visibleRows = pricingOptions.filter((row) =>
+    !isTestHoursItem(row) &&
+    text(row.proposal_display_mode) !== 'bundle_child' &&
+    !/^תמיר/i.test(text(row.activity_name))
+  );
   return ['<option value="">— בחר פעילות מהרשימה —</option>', ...visibleRows.map((row, optionIdx) => {
     const value = pricingOptionKey(row, optionIdx);
     const legacySelected = selectedPricingKey && [value, text(row.activity_no), text(row.activity_name)].includes(selectedPricingKey);
     const isBundleParent = row.proposal_display_mode === 'bundle_parent' || row.is_bundle_parent;
-    const labelParts = [row.activity_name, isBundleParent ? '📦 כללי' : row.item_type, row.proposal_group].map(text).filter(Boolean);
+    const labelParts = [row.activity_name, isBundleParent ? '(הגדרה כוללת)' : row.item_type, row.proposal_group].map(text).filter(Boolean);
     return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}${isBundleParent ? ' data-bundle-parent="1"' : ''}>${escapeHtml(labelParts.join(' — ') || value)}</option>`;
   })].join('');
 }
@@ -2199,7 +2199,6 @@ export const proposalsAgreementsScreen = {
       if (!picked) { if (bundlePrompt) bundlePrompt.hidden = true; return; }
       const isBundle = picked.proposal_display_mode === 'bundle_parent' || picked.is_bundle_parent;
       if (isBundle && bundlePrompt) {
-        bundlePrompt.hidden = false;
         const pkeyInput = itemRow.querySelector('[name="bundle_pricing_key"]');
         if (pkeyInput) pkeyInput.value = text(picked.pricing_key);
         itemRow.dataset.paBundlePicked = JSON.stringify({
@@ -2209,6 +2208,30 @@ export const proposalsAgreementsScreen = {
           unit_price: picked.unit_price,
           proposal_group: text(picked.proposal_group)
         });
+        const contractType = text(form?.querySelector('[name="activity_type_group"]')?.value);
+        const allPricingForContract = filterPricingByProposalType(proposalActivityPricing, contractType);
+        const children = allPricingForContract.filter((r) =>
+          text(r.proposal_display_mode) === 'bundle_child' &&
+          text(r.parent_pricing_key) &&
+          text(r.parent_pricing_key) === text(picked.pricing_key)
+        );
+        const childCheckboxesHtml = children.length
+          ? children.map((child, ci) =>
+              `<label class="ds-pa-bundle-child-option">
+                <input type="checkbox" name="bundle_child_sel" value="${escapeHtml(text(child.activity_name))}" data-bundle-child-idx="${ci}">
+                <span>${escapeHtml(text(child.activity_name))}</span>
+              </label>`
+            ).join('')
+          : '<p style="font-size:0.8rem;margin:4px 0;color:var(--ds-text-muted,#888)">אין פריטי פירוט מוגדרים עבור הגדרה זו</p>';
+        bundlePrompt.innerHTML = `
+          <div style="margin:6px 0 4px;font-size:0.82rem;font-weight:600">${escapeHtml(text(picked.activity_name))} — הגדרה כוללת</div>
+          ${children.length ? '<div style="font-size:0.8rem;margin-bottom:6px">בחרו פריטים לפירוט (לא חובה):</div>' : ''}
+          <div class="ds-pa-bundle-children">${childCheckboxesHtml}</div>
+          <div class="ds-pa-bundle-actions" style="display:flex;gap:6px;margin-top:8px">
+            <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-pa-bundle-confirm>✓ אשר</button>
+            <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-bundle-keep>השאר כללי (ללא פירוט)</button>
+          </div>`;
+        bundlePrompt.hidden = false;
         return;
       }
       if (bundlePrompt) bundlePrompt.hidden = true;
@@ -2467,46 +2490,41 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
-      // Bundle: expand to children
-      const bundleExpandBtn = event.target.closest?.('[data-pa-bundle-expand]');
-      if (bundleExpandBtn) {
-        const itemRow = bundleExpandBtn.closest('[data-pa-item-row]');
-        const form = bundleExpandBtn.closest('[data-pa-form]');
-        if (!itemRow || !form) return;
+      // Bundle: confirm with optional child detail
+      const bundleConfirmBtn = event.target.closest?.('[data-pa-bundle-confirm]');
+      if (bundleConfirmBtn) {
+        const itemRow = bundleConfirmBtn.closest('[data-pa-item-row]');
+        const form = bundleConfirmBtn.closest('[data-pa-form]');
+        if (!itemRow) return;
         let pickedData = {};
         try { pickedData = JSON.parse(itemRow.dataset.paBundlePicked || '{}'); } catch { /* ignore */ }
-        const parentPricingKey = text(pickedData.pricing_key || itemRow.querySelector('[name="bundle_pricing_key"]')?.value);
-        const contractType = text(form.querySelector('[name="activity_type_group"]')?.value);
-        const basePricing = filterPricingByProposalType(proposalActivityPricing, contractType);
-        const children = basePricing.filter((r) =>
-          text(r.proposal_display_mode) === 'bundle_child' &&
-          text(r.parent_pricing_key) &&
-          text(r.parent_pricing_key) === parentPricingKey
-        );
-        if (!children.length) {
-          alert('לא נמצאו רכיבים מפורטים עבור הגדרה זו');
-          return;
+        const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
+        if (bundlePrompt) bundlePrompt.hidden = true;
+        const checkedNames = Array.from(itemRow.querySelectorAll('[name="bundle_child_sel"]:checked'))
+          .map((cb) => text(cb.value)).filter(Boolean);
+        const description = checkedNames.length > 0 ? checkedNames.map((n) => `• ${n}`).join('\n') : '';
+        const setValue = (name, value) => { const input = itemRow.querySelector(`[name="${name}"]`); if (input) input.value = value == null ? '' : String(value); };
+        setValue('item_name', pickedData.activity_name || '');
+        setValue('item_type', pickedData.item_type || '');
+        setValue('unit_price', pickedData.unit_price ?? '');
+        setValue('proposal_group', pickedData.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+        setValue('description', description);
+        if (description) {
+          const detailsEl = itemRow.querySelector('[data-pa-item-details]');
+          if (detailsEl) detailsEl.open = true;
+          const descEl = itemRow.querySelector('[name="description"]');
+          if (descEl) descEl.value = description;
         }
-        const tbody = itemRow.closest('[data-pa-items-body]') || form.querySelector('[data-pa-items-body]');
-        const rowGroup = text(itemRow.dataset.paRowGroup) || contractType;
-        const startIdx = form.querySelectorAll('[data-pa-item-row]').length - 1;
-        const tmp = document.createElement('div');
-        children.forEach((child, ci) => {
-          tmp.innerHTML = itemRowHtml(
-            { item_name: child.activity_name, item_type: child.item_type, unit_price: child.unit_price, activity_no: child.activity_no, hours_count: child.hours_count, meetings_count: child.meetings_count, gefen_number: child.gefen_number, proposal_group: child.proposal_group || rowGroup },
-            startIdx + ci,
-            [child],
-            { groupKey: rowGroup }
-          );
-          itemRow.before(tmp.firstElementChild);
-        });
-        itemRow.remove();
-        calcGrandTotal(form);
-        updateProposalStepper(form);
+        const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
+        if (infoStrip) {
+          infoStrip.innerHTML = buildInfoStripInnerHtml({ item_name: pickedData.activity_name, item_type: pickedData.item_type, unit_price: pickedData.unit_price }, pickedData.proposal_group || '');
+          infoStrip.hidden = !pickedData.activity_name;
+        }
+        if (form) { calcItemRow(itemRow); calcGrandTotal(form); updateProposalStepper(form); }
         return;
       }
 
-      // Bundle: keep as general
+      // Bundle: keep as general (no detail)
       const bundleKeepBtn = event.target.closest?.('[data-pa-bundle-keep]');
       if (bundleKeepBtn) {
         const itemRow = bundleKeepBtn.closest('[data-pa-item-row]');
@@ -2521,6 +2539,7 @@ export const proposalsAgreementsScreen = {
         setValue('item_type', pickedData.item_type || '');
         setValue('unit_price', pickedData.unit_price ?? '');
         setValue('proposal_group', pickedData.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+        setValue('description', '');
         const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
         if (infoStrip) {
           infoStrip.innerHTML = buildInfoStripInnerHtml({ item_name: pickedData.activity_name, item_type: pickedData.item_type, unit_price: pickedData.unit_price }, pickedData.proposal_group || '');
