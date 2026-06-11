@@ -2498,6 +2498,7 @@ export const proposalsAgreementsScreen = {
       overlay.setAttribute('dir', 'rtl');
       const clientLabel = [freshRow.client_authority, freshRow.school_framework].filter(Boolean).map(escapeHtml).join(' — ');
       const saveBtnHtml = options.onSave ? `<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-save">שמירת טיוטה</button>` : '';
+      const submitBtnHtml = options.onSubmit ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-submit">שליחה לאישור</button>` : '';
       const hasCustomSections = Array.isArray(freshRow.custom_document_sections) && freshRow.custom_document_sections.length > 0;
       const missingTemplateNotice = (!templateSections.length && !hasCustomSections)
         ? '<p class="ds-pa-template-missing-notice no-print" role="alert" style="margin:6px 0 0;color:#b45309;font-size:0.85rem">לא נמצאה תבנית פעילה לסוג הצעה זה</p>'
@@ -2510,7 +2511,8 @@ export const proposalsAgreementsScreen = {
         <div class="proposal-preview-toolbar no-print">
           <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-close">← חזרה לעריכה</button>
           ${saveBtnHtml}
-          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
+          ${submitBtnHtml}
+          <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
           <span class="ds-pa-preview-client no-print">${clientLabel}</span>
           ${missingTemplateNotice}
           ${missingItemsNotice}
@@ -2524,6 +2526,7 @@ export const proposalsAgreementsScreen = {
       const closeOverlay = () => { overlay.remove(); document.body.classList.remove('is-print-preview'); };
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', closeOverlay);
       if (options.onSave) overlay.querySelector('#pa-preview-save')?.addEventListener('click', () => options.onSave());
+      if (options.onSubmit) overlay.querySelector('#pa-preview-submit')?.addEventListener('click', () => { closeOverlay(); options.onSubmit(); });
       overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
 
       // The catalog appendix is attached per proposal (include_catalog), chosen in the form.
@@ -2604,10 +2607,7 @@ export const proposalsAgreementsScreen = {
       const isPending = targetStatus === 'pending_approval';
 
       const validationErrors = validatePayload(payload, targetStatus);
-      // Preview check only for pending_approval — never for draft
-      if (isPending && form.dataset.paPreviewSeen !== 'yes') {
-        validationErrors.push('מומלץ לבדוק תצוגה מקדימה לפני שליחה לאישור.');
-      }
+      // No preview check here — the pending button handler manages the preview flow
       if (validationErrors.length) {
         showValidationNotice(form, validationErrors, isPending);
         form.dataset.saving = '';
@@ -3196,7 +3196,24 @@ export const proposalsAgreementsScreen = {
       const savePendingBtn = event.target.closest?.('[data-pa-save-pending]');
       if (savePendingBtn) {
         const form = savePendingBtn.closest('[data-pa-form]');
-        if (form) await saveForm(form, 'pending_approval');
+        if (!form) return;
+        if (form.dataset.paPreviewSeen !== 'yes') {
+          // Preview not yet seen — open it automatically with a submit button inside
+          const payload = payloadFromForm(form);
+          const tempRow = { ...payload, id: text(form.dataset.paId) || '' };
+          const items = payload._items || [];
+          form.dataset.paPreviewSeen = 'yes'; // mark immediately
+          try {
+            await openPreview(tempRow, items, {
+              onSave: async () => { await saveForm(form, 'draft'); },
+              onSubmit: async () => { await saveForm(form, 'pending_approval'); }
+            });
+          } catch (e) {
+            console.warn('[PA] openPreview error (pending flow):', e);
+          }
+        } else {
+          await saveForm(form, 'pending_approval');
+        }
         return;
       }
 
@@ -3323,6 +3340,8 @@ export const proposalsAgreementsScreen = {
       if (previewFormBtn) {
         const form = previewFormBtn.closest('[data-pa-form]');
         if (!form) return;
+        // Mark immediately — before any await — so paPreviewSeen is always set
+        form.dataset.paPreviewSeen = 'yes';
         const payload = payloadFromForm(form);
         const tempRow = { ...payload, id: text(form.dataset.paId) || '' };
         const items = payload._items || [];
@@ -3333,8 +3352,6 @@ export const proposalsAgreementsScreen = {
         } catch (e) {
           console.warn('[PA] openPreview error:', e);
         }
-        // Mark preview seen — always, even if preview threw an error
-        form.dataset.paPreviewSeen = 'yes';
         return;
       }
 
