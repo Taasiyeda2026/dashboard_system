@@ -1327,28 +1327,15 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
       const key = candidateKeys.find((candidate) => byKey.has(candidate)) || candidateKeys[0];
       const body = filterCatalogContentFromBody(sectionBody(key), includeCatalog);
       const heading = sectionTitle(key) || proposalGroupDisplayName(groupKey);
-      const showGefen = !groupKey.includes('קיץ') && groupKey !== 'summer';
-      const groupItems = (Array.isArray(items) ? items : []).filter((item) =>
-        !isTestHoursItem(item) &&
-        text(item.proposal_display_mode) !== 'bundle_child' &&
-        itemBelongsToGroup(item, groupKey)
-      );
-      const itemsHtml = groupItems.length ? proposalItemsListHtml(groupItems, { showGefen }) : '';
-      const sectionContent = [body ? sectionBodyHtml(body) : '', itemsHtml].filter(Boolean).join('');
-      if (!sectionContent) return;
-      sections.push(`<section class="pa-section">${heading ? `<h3>${escapeHtml(sectionHeadingText(heading))}</h3>` : ''}${sectionContent}</section>`);
+      const section = renderActivitySection(heading, body);
+      if (section) sections.push(section);
     });
   } else {
-    const showGefen = activityTypeGroup !== 'קיץ תשפ״ו' && !activityTypeGroup.includes('קיץ') && activityTypeGroup !== 'summer';
-    const visibleItems = (Array.isArray(items) ? items : []).filter((item) =>
-      !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child'
+    const activitySection = renderActivitySection(
+      sectionTitle('activity_intro'),
+      activityIntro
     );
-    const itemsHtml = visibleItems.length ? proposalItemsListHtml(visibleItems, { showGefen }) : '';
-    const sectionContent = [activityIntro ? sectionBodyHtml(activityIntro) : '', itemsHtml].filter(Boolean).join('');
-    if (sectionContent) {
-      const heading = sectionTitle('activity_intro');
-      sections.push(`<section class="pa-section">${heading ? `<h3>${escapeHtml(sectionHeadingText(heading))}</h3>` : ''}${sectionContent}</section>`);
-    }
+    if (activitySection) sections.push(activitySection);
   }
 
   const renderSectionFromSupabase = (key, options = {}) => {
@@ -2542,47 +2529,64 @@ export const proposalsAgreementsScreen = {
       // The catalog appendix is attached per proposal (include_catalog), chosen in the form.
       if (includeCatalogValue(freshRow.include_catalog)) {
         const previewArea = overlay.querySelector('.proposal-preview-area');
+        const printBtn = overlay.querySelector('#pa-print-btn');
+
+        // Disable print while loading appendices
+        if (printBtn) printBtn.disabled = true;
+        const loadingNotice = document.createElement('span');
+        loadingNotice.className = 'pa-catalog-loading no-print';
+        loadingNotice.textContent = 'טוען נספחי קטלוג...';
+        overlay.querySelector('.proposal-preview-toolbar')?.appendChild(loadingNotice);
+
+        // Track first appendix element — it gets the page-break class (not an empty div)
+        let firstAppendixAdded = false;
+        const markFirst = (el) => {
+          if (!firstAppendixAdded) { el.classList.add('pa-appendix-start'); firstAppendixAdded = true; }
+        };
 
         // PDF appendices (per gefen_number / activity_no)
         const pdfNums = buildPdfAppendixEntries(items);
         for (const num of pdfNums) {
           const url = `${PUBLIC_BASE}catalog/appendices/${encodeURIComponent(num)}.pdf`;
-          const sep = document.createElement('div');
-          sep.className = 'catalog-appendix-page-break';
-          previewArea.appendChild(sep);
           const frame = document.createElement('iframe');
           frame.src = url;
           frame.className = 'pa-pdf-appendix-frame';
           frame.setAttribute('aria-label', `נספח ${num}`);
           frame.setAttribute('title', `נספח ${num}`);
-          frame.onerror = () => console.warn('[PA] PDF appendix not found:', url);
+          markFirst(frame);
+          frame.addEventListener('error', () => {
+            const notice = document.createElement('p');
+            notice.className = 'pa-appendix-missing no-print';
+            notice.textContent = `⚠ נספח ${num} לא נמצא`;
+            frame.replaceWith(notice);
+          });
           previewArea.appendChild(frame);
         }
 
         // HTML catalog (workshop/STEM/space iframes)
         const catalogUrls = buildProposalCatalogEntries(items);
-        if (catalogUrls.length > 0) {
-          const sep = document.createElement('div');
-          sep.className = 'catalog-appendix-page-break';
-          previewArea.appendChild(sep);
-          const loadingEl = document.createElement('p');
-          loadingEl.className = 'pa-catalog-loading no-print';
-          loadingEl.textContent = 'טוען קטלוג...';
-          previewArea.appendChild(loadingEl);
-          for (const url of catalogUrls) {
-            try {
-              const { html, styles } = await loadCatalogViaIframe(url);
-              const shadowHost = document.createElement('div');
-              shadowHost.className = 'pa-catalog-shadow-host';
-              const shadow = shadowHost.attachShadow({ mode: 'open' });
-              shadow.innerHTML = `<style>${styles}</style>${html}`;
-              previewArea.appendChild(shadowHost);
-            } catch (e) {
-              console.warn('[PA] Catalog iframe failed:', url, e);
-            }
+        for (const url of catalogUrls) {
+          try {
+            const { html, styles } = await loadCatalogViaIframe(url);
+            const shadowHost = document.createElement('div');
+            shadowHost.className = 'pa-catalog-shadow-host';
+            markFirst(shadowHost);
+            const shadow = shadowHost.attachShadow({ mode: 'open' });
+            shadow.innerHTML = `<style>${styles}</style>${html}`;
+            previewArea.appendChild(shadowHost);
+          } catch (e) {
+            console.warn('[PA] Catalog iframe failed:', url, e);
+            const notice = document.createElement('p');
+            notice.className = 'pa-appendix-missing no-print';
+            notice.textContent = '⚠ לא ניתן לטעון חלק מהקטלוג';
+            markFirst(notice);
+            previewArea.appendChild(notice);
           }
-          loadingEl.remove();
         }
+
+        // Re-enable print
+        loadingNotice.remove();
+        if (printBtn) printBtn.disabled = false;
       }
     };
 
@@ -2660,17 +2664,42 @@ export const proposalsAgreementsScreen = {
     // ── Input handler (items calc) ────────────────────────────────────────────
     root.addEventListener('input', (event) => {
       const target = event.target;
-      if (target.closest?.('[data-pa-item-qty]') || target.dataset?.paItemQty != null ||
-          target.closest?.('[data-pa-item-price]') || target.dataset?.paItemPrice != null ||
-          target.matches?.('[data-pa-item-qty]') || target.matches?.('[data-pa-item-price]')) {
-        const itemRow = target.closest('[data-pa-item-row]');
+      const itemRow = target.closest?.('[data-pa-item-row]');
+      const isItemPrice = target.matches?.('[data-pa-item-price]');
+      const isItemQty = target.matches?.('[data-pa-item-qty]') || target.dataset?.paItemQty != null ||
+        target.closest?.('[data-pa-item-qty]') != null;
+
+      if (isItemPrice || isItemQty ||
+          target.closest?.('[data-pa-item-price]') || target.dataset?.paItemPrice != null) {
         const form = target.closest('[data-pa-form]');
         if (itemRow) calcItemRow(itemRow);
         if (form) calcGrandTotal(form);
       }
-      if (target.name === 'meetings_count' || target.name === 'hours_count') {
-        const itemRow = target.closest?.('[data-pa-item-row]');
-        if (!itemRow) return;
+
+      // Recalc hourly_price = unit_price / hours_count when unit_price changes
+      if (isItemPrice && itemRow) {
+        const hoursEl = itemRow.querySelector('[name="hours_count"]');
+        const hourlyEl = itemRow.querySelector('[name="hourly_price"]');
+        if (hourlyEl) {
+          const hours = parseFloat(hoursEl?.value || '0') || 0;
+          const newPrice = parseFloat(target.value || '0') || 0;
+          hourlyEl.value = hours > 0 ? (newPrice / hours).toFixed(4) : '';
+        }
+      }
+
+      // Recalc hourly_price = unit_price / hours_count when hours_count changes
+      if (target.name === 'hours_count' && itemRow) {
+        const priceEl = itemRow.querySelector('[data-pa-item-price]');
+        const hourlyEl = itemRow.querySelector('[name="hourly_price"]');
+        if (hourlyEl && priceEl) {
+          const hours = parseFloat(target.value || '0') || 0;
+          const unitPrice = parseFloat(priceEl.value || '0') || 0;
+          hourlyEl.value = hours > 0 ? (unitPrice / hours).toFixed(4) : '';
+        }
+      }
+
+      // Update info strip on price / meetings / hours changes
+      if ((isItemPrice || target.name === 'meetings_count' || target.name === 'hours_count') && itemRow) {
         const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
         if (!infoStrip || infoStrip.hidden) return;
         const getVal = (name) => text(itemRow.querySelector(`[name="${name}"]`)?.value);

@@ -11581,7 +11581,7 @@ select.ds-input {
 }
 
 /* ─── Catalog appendix (proposal PDF) ──────────────────────────────────── */
-.catalog-appendix-page-break {
+.pa-appendix-start {
   break-before: page;
   page-break-before: always;
 }
@@ -11589,8 +11589,17 @@ select.ds-input {
 .pa-catalog-loading {
   color: #6b7280;
   font-style: italic;
-  padding: 16px;
-  text-align: center;
+  padding: 4px 12px;
+  font-size: 0.82rem;
+}
+.pa-appendix-missing {
+  color: #dc2626;
+  font-size: 0.82rem;
+  padding: 6px 14px;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  margin: 6px 0;
+  background: #fef2f2;
 }
 .pa-pdf-appendix-frame {
   display: block;
@@ -11740,15 +11749,17 @@ select.ds-input {
     margin-left: 0 !important;
   }
 
-  /* Footer — normal flow (same as screen) */
+  /* Footer — follows content, never breaks to an empty page */
   .proposal-document-footer {
     position: static !important;
     width: 100% !important;
     height: auto !important;
     padding: 0 !important;
     border-top: none !important;
-    margin-top: auto !important;
+    margin-top: 16pt !important;
     line-height: 0 !important;
+    break-before: avoid !important;
+    page-break-before: avoid !important;
   }
   .proposal-footer-logo {
     width: 100% !important;
