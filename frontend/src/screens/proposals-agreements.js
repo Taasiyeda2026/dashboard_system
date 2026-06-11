@@ -666,6 +666,8 @@ function groupKindText(value) {
 function itemKindText(item = {}) {
   return [
     item.item_type,
+    item.type,
+    item.catalog_type,
     item.proposal_group,
     item.activity_type_group,
     item.item_name,
@@ -688,6 +690,25 @@ function isCourseKindText(value = '') {
   return /קורס|תוכנית|תכנית|הדרכה|שנת|שנה הבאה|תשפ|program|course/.test(value);
 }
 
+function isNonCourseActivityKindText(value = '') {
+  return /פעילו|פעילות|משחק|game|activity/.test(value);
+}
+
+function explicitCatalogKindText(item = {}) {
+  return [
+    item.item_type,
+    item.type,
+    item.catalog_type,
+    item.proposal_group,
+    item.activity_type_group
+  ].map(normalizedKindText).filter(Boolean).join(' ');
+}
+
+function hasExplicitCourseKind(item = {}) {
+  const kindText = explicitCatalogKindText(item);
+  return isCourseKindText(kindText) && !isWorkshopKindText(kindText) && !isNonCourseActivityKindText(kindText);
+}
+
 function itemCatalogKind(item = {}) {
   if (!item || isTestHoursItem(item)) return '';
   const displayMode = text(item.proposal_display_mode);
@@ -696,8 +717,8 @@ function itemCatalogKind(item = {}) {
   const kindText = itemKindText(item);
   if (isSummerKindText(kindText)) return 'summer';
   if (isWorkshopKindText(kindText)) return 'workshop';
-  if (text(item.gefen_number) || isCourseKindText(kindText)) return 'course';
-  return text(item.activity_no || item.pricing_key || item.source_pricing_key) ? 'workshop' : '';
+  if (hasExplicitCourseKind(item)) return 'course';
+  return '';
 }
 
 function proposalActivityKind(row = {}, items = []) {
@@ -707,6 +728,7 @@ function proposalActivityKind(row = {}, items = []) {
   if (/משולב|combined/.test(kindText)) return 'combined';
   if (isSummerKindText(kindText)) return 'summer';
   if (isWorkshopKindText(kindText)) return 'workshop';
+  if (isNonCourseActivityKindText(kindText)) return 'activity';
   if (isCourseKindText(kindText)) return 'course';
 
   const itemKinds = new Set((Array.isArray(items) ? items : [])
@@ -716,17 +738,21 @@ function proposalActivityKind(row = {}, items = []) {
   return itemKinds.values().next().value || 'course';
 }
 
-function activityIntroForCatalog(row = {}, items = []) {
+function activityIntroForCatalog(row = {}, items = [], hasCatalogAppendix = true) {
+  const appendixSuffix = hasCatalogAppendix ? ' מצורף כנספח להצעה זו.' : '.';
   switch (proposalActivityKind(row, items)) {
     case 'workshop':
-      return 'פירוט הסדנאות המוצעות מצורף כנספח להצעה זו.';
+      return `פירוט הסדנאות המוצעות${appendixSuffix}`;
     case 'summer':
-      return 'פירוט פעילויות הקיץ המוצעות מצורף כנספח להצעה זו.';
+      return `פירוט הפעילויות המוצעות${appendixSuffix}`;
     case 'combined':
-      return 'פירוט הפעילויות המוצעות מצורף כנספח להצעה זו.';
+    case 'activity':
+      return `פירוט הפעילויות המוצעות${appendixSuffix}`;
     case 'course':
     default:
-      return 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז. פירוט מלא של הקורסים מצורף כנספח להצעה זו.';
+      return hasCatalogAppendix
+        ? 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז. פירוט מלא של הקורסים מצורף כנספח להצעה זו.'
+        : 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז.';
   }
 }
 
@@ -1372,8 +1398,8 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   const hasCatalogAppendix = catalogEntries.length > 0;
   const introText = sectionBody('intro');
   const remarks = sectionBody('notes') || String(row.notes || '').replace(/\r\n?/g, '\n').trim();
-  const activityIntro = includeCatalog && hasCatalogAppendix
-    ? activityIntroForCatalog(row, items)
+  const activityIntro = includeCatalog
+    ? activityIntroForCatalog(row, items, hasCatalogAppendix)
     : filterCatalogContentFromBody(sectionBody('activity_intro'), false);
 
   const renderActivitySection = (heading, body) => {
@@ -1957,30 +1983,36 @@ function replaceLocalRow(data, savedRow) {
 
 // ─── Catalog appendix via hidden iframe extraction ───────────────────────────
 
-function buildProposalCatalogEntryDetails(items) {
-  if (!Array.isArray(items) || !items.length) return [];
+function buildProposalCatalogAppendixPlan(items) {
+  if (!Array.isArray(items) || !items.length) return { entries: [], skipped: [] };
   const catalogBase = `${PUBLIC_BASE}catalog/summercatalog/`;
   const entries = [];
+  const skipped = [];
   const seenUrls = new Set();
   const seenGefen = new Set();
   const seenActivityNo = new Set();
   const seenWorkshopIds = new Set();
+  const seenSkipped = new Set();
 
-  const cleanIdentifier = (value) => text(value || '').replace(/^cat-/i, '').trim();
+  const cleanIdentifier = (value) => text(value || '').replace(/^cat-/i, '').trim().replace(/\/$/, '');
   const labelForItem = (item = {}, fallback = 'פעילות') => (
     text(item.item_name || item.pricing_activity_name || item.activity_name || item.description) || fallback
   );
+  const activityNoForItem = (item = {}) => cleanIdentifier(
+    item.activity_no || item.pricing_activity_no || item.activity_id || item.id || item.pricing_key || item.source_pricing_key
+  );
   const cleanGefenId = (value) => {
-    const gefen = text(value).trim();
-    // Gefen catalog pages are keyed by Gefen numbers. Do not fall back to
-    // activity_no for courses, because that creates course-page URLs that are
-    // not guaranteed to exist for the selected proposal item.
-    return /\d/.test(gefen) ? gefen : '';
+    const gefen = text(value).trim().replace(/\/$/, '');
+    // Course catalog pages are keyed by Gefen/catalog numbers. Do not fall
+    // back to activity_no/id: those identifiers can also belong to games,
+    // activities or pricing rows that do not have a course-page appendix.
+    return /^\d{3,}$/.test(gefen) ? gefen : '';
   };
   const cleanWorkshopId = (item = {}) => {
     const candidates = [
       item.workshopId,
       item.workshop_id,
+      item.workshop_ids,
       item.activity_no,
       item.pricing_activity_no,
       item.pricing_key,
@@ -1993,15 +2025,28 @@ function buildProposalCatalogEntryDetails(items) {
     }
     return '';
   };
+  const skipItem = (item, reason = 'missing_appendix') => {
+    const label = labelForItem(item);
+    const activityNo = activityNoForItem(item);
+    const key = [label, activityNo, reason].join('||');
+    if (seenSkipped.has(key)) return;
+    seenSkipped.add(key);
+    skipped.push({ label, activityNo, reason });
+  };
   const addEntry = ({ url, label, gefenNumber = '', activityNo = '', workshopId = '' }) => {
-    if (!url || seenUrls.has(url)) return;
+    if (!url || seenUrls.has(url)) return false;
     seenUrls.add(url);
     entries.push({ url, label: text(label) || 'פעילות', gefenNumber, activityNo, workshopId });
+    return true;
   };
   const addCourseEntry = (item) => {
-    const gefenNumber = cleanGefenId(item.gefen_number);
-    const activityNo = cleanIdentifier(item.activity_no || item.pricing_activity_no || item.pricing_key || item.source_pricing_key);
-    if (!gefenNumber || seenGefen.has(gefenNumber) || (activityNo && seenActivityNo.has(activityNo))) return;
+    const gefenNumber = cleanGefenId(item.gefen_number || item.catalog_id || item.catalogId);
+    const activityNo = activityNoForItem(item);
+    if (!hasExplicitCourseKind(item) || !gefenNumber) {
+      skipItem(item, 'no_course_catalog');
+      return;
+    }
+    if (seenGefen.has(gefenNumber) || (activityNo && seenActivityNo.has(activityNo))) return;
     seenGefen.add(gefenNumber);
     if (activityNo) seenActivityNo.add(activityNo);
     addEntry({
@@ -2013,8 +2058,12 @@ function buildProposalCatalogEntryDetails(items) {
   };
   const addWorkshopEntry = (item) => {
     const workshopId = cleanWorkshopId(item);
-    const activityNo = cleanIdentifier(item.activity_no || item.pricing_activity_no || item.pricing_key || item.source_pricing_key || workshopId);
-    if (!workshopId || seenWorkshopIds.has(workshopId) || (activityNo && seenActivityNo.has(activityNo))) return;
+    const activityNo = activityNoForItem(item) || workshopId;
+    if (!workshopId) {
+      skipItem(item, 'no_workshop_catalog');
+      return;
+    }
+    if (seenWorkshopIds.has(workshopId) || (activityNo && seenActivityNo.has(activityNo))) return;
     seenWorkshopIds.add(workshopId);
     if (activityNo) seenActivityNo.add(activityNo);
     addEntry({
@@ -2026,6 +2075,7 @@ function buildProposalCatalogEntryDetails(items) {
   };
   const addBundleWorkshops = (item) => {
     const selected = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
+    if (!selected.length) skipItem(item, 'no_workshop_catalog');
     selected.forEach((sel) => addWorkshopEntry({
       ...sel,
       item_name: sel.item_name || sel.activity_name || item.item_name,
@@ -2052,15 +2102,24 @@ function buildProposalCatalogEntryDetails(items) {
 
     if (kind === 'workshop' || kind === 'summer') {
       addWorkshopEntry(item);
+      continue;
     }
+
+    skipItem(item, 'unsupported_catalog_kind');
   }
 
-  return entries.sort((a, b) => {
+  entries.sort((a, b) => {
     const aIsWorkshop = a.url.includes('/workshops.html');
     const bIsWorkshop = b.url.includes('/workshops.html');
     if (aIsWorkshop !== bIsWorkshop) return aIsWorkshop ? -1 : 1;
     return 0;
   });
+
+  return { entries, skipped };
+}
+
+function buildProposalCatalogEntryDetails(items) {
+  return buildProposalCatalogAppendixPlan(items).entries;
 }
 
 export function buildProposalCatalogEntries(items) {
@@ -2666,18 +2725,22 @@ export const proposalsAgreementsScreen = {
             firstAppendixAdded = true;
           }
         };
-        const appendAppendixWarning = (message) => {
+        const appendAppendixNotice = (message, className = 'pa-appendix-note') => {
           const notice = document.createElement('p');
-          notice.className = 'pa-appendix-missing no-print';
+          notice.className = `${className} no-print`;
           notice.textContent = message;
           previewArea?.appendChild(notice);
           return notice;
         };
         const appendixLoads = [];
-        const catalogEntries = buildProposalCatalogEntryDetails(items);
-        if (!catalogEntries.length) {
-          const notice = appendAppendixWarning('לא נמצא נספח קטלוג מתאים לפריטים שנבחרו');
-          markFirst(notice);
+        const catalogPlan = buildProposalCatalogAppendixPlan(items);
+        const catalogEntries = catalogPlan.entries;
+        const skippedCatalogItems = catalogPlan.skipped;
+        if (skippedCatalogItems.length) {
+          skippedCatalogItems.forEach((skipped) => {
+            const notice = appendAppendixNotice(`לא נמצא נספח קטלוג מתאים עבור: ${skipped.label}`);
+            if (!catalogEntries.length) markFirst(notice);
+          });
         }
         for (const entry of catalogEntries) {
           const loadCatalog = (async () => {
@@ -2692,7 +2755,7 @@ export const proposalsAgreementsScreen = {
               return true;
             } catch (e) {
               console.warn('[PA] Catalog iframe failed:', entry.url, e);
-              const notice = appendAppendixWarning(`⚠ לא ניתן לטעון נספח: ${entry.label} — ${entry.url}`);
+              const notice = appendAppendixNotice(`⚠ לא ניתן לטעון נספח: ${entry.label} — ${entry.url}`, 'pa-appendix-missing');
               markFirst(notice);
               return false;
             }

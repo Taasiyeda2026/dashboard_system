@@ -1328,6 +1328,35 @@ test('catalog appendix entries split mixed proposals by true item type without d
   ]);
 });
 
+
+test('catalog appendix entries skip non-course activities even when they have Gefen/activity ids', async () => {
+  const gameItem = {
+    item_name: 'משחקי קופסה – פיתוח ופיצוח משחקי לוח',
+    item_type: 'פעילות',
+    type: 'activity',
+    activity_type_group: 'פעילויות',
+    activity_no: '27342',
+    gefen_number: '27342'
+  };
+
+  const urls = buildProposalCatalogEntries([gameItem]);
+  assert.deepEqual(urls, []);
+
+  const html = proposalPreviewBodyHtml(
+    { ...sampleRows[0], activity_type_group: 'פעילויות', include_catalog: true },
+    [gameItem],
+    [{ template_key: '', section_key: 'activity_intro', section_title: 'הפעילות המוצעת', section_body: 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז. פירוט מלא של הקורסים מצורף כנספח להצעה זו.' }]
+  );
+
+  await withJSDOM(html, async (_root, dom) => {
+    const activitySection = [...dom.window.document.querySelectorAll('.proposal-document .pa-section')]
+      .find((section) => section.querySelector('h3')?.textContent.includes('הפעילות המוצעת'));
+    assert.ok(activitySection);
+    assert.match(activitySection.textContent, /פירוט הפעילויות המוצעות\./);
+    assert.doesNotMatch(activitySection.textContent, /להלן הקורסים|מצורף כנספח/);
+  });
+});
+
 test('workshop proposal preview uses short appendix wording and keeps prices only in cost table', async () => {
   const row = {
     ...sampleRows[0],
@@ -1364,7 +1393,7 @@ test('workshop proposal preview uses short appendix wording and keeps prices onl
   });
 });
 
-test('summer proposal preview shows catalog sentence only when include_catalog is enabled', async () => {
+test('summer proposal preview only mentions an appendix when a matching appendix exists', async () => {
   const baseSections = [
     { template_key: 'summer', template_name: 'הצעת מחיר', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח.' },
     { template_key: 'summer', section_key: 'activity_intro', section_title: 'הפעילות המוצעת', section_body: 'טקסט פעילות.\n דף מידע עם פירוט מגוון הפעילויות המוצעות מצורף להצעה.' },
@@ -1396,7 +1425,7 @@ test('summer proposal preview shows catalog sentence only when include_catalog i
 
     const onText = await openPreviewForRow(rowOn, dom, root);
     assert.doesNotMatch(offText, /מצורף להצעה/);
-    assert.match(onText, /מצורף[\s\S]*להצעה/);
+    assert.doesNotMatch(onText, /מצורף[\s\S]*להצעה/);
   });
 });
 
