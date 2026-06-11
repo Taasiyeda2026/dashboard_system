@@ -366,6 +366,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     approval_note:       text(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
     custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections.map(normalizeDocumentSection) : [],
+    include_catalog:     row.include_catalog === true || row.include_catalog === 'yes',
     created_at:          text(row.created_at),
     updated_at:          text(row.updated_at)
   };
@@ -1514,6 +1515,24 @@ function proposalStepperHtml() {
   return '';
 }
 
+// ─── Catalog appendix attach (per proposal) ──────────────────────────────────
+
+function includeCatalogValue(value) {
+  return value === true || value === 'yes' || value === 'true' || value === 1;
+}
+
+function catalogAttachHtml(row = {}) {
+  const attached = includeCatalogValue(row.include_catalog);
+  return `<div class="ds-pa-catalog-attach" data-pa-catalog-attach>
+    <input type="hidden" name="include_catalog" value="${attached ? 'yes' : 'no'}">
+    <div class="ds-pa-catalog-attach-text">
+      <strong>נספח קטלוג</strong>
+      <span class="ds-pa-catalog-status${attached ? ' is-attached' : ''}" data-pa-catalog-status>${attached ? '✓ הקטלוג צורף להצעה' : 'דף המידע / קטלוג הפעילויות יצורף למסמך בתצוגה מקדימה וב-PDF'}</span>
+    </div>
+    <button type="button" class="ds-btn ds-btn--sm${attached ? ' ds-btn--ghost' : ''}" data-pa-catalog-toggle aria-pressed="${attached ? 'true' : 'false'}">${attached ? 'הסרת הקטלוג מההצעה' : 'הוספת הקטלוג להצעה'}</button>
+  </div>`;
+}
+
 function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = []) {
   const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
   const normalizedActivityGroup = normalizeProposalGroup(row.activity_type_group);
@@ -1598,6 +1617,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm ds-pa-notes-input" name="notes" rows="3">${escapeHtml(text(row.notes))}</textarea></label>
       </details>
       ${proposalSummaryHtml(row.total_amount)}
+      ${catalogAttachHtml(row)}
       <div class="ds-pa-validation-notice" data-pa-validation-notice hidden></div>
       <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
       <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
@@ -1605,6 +1625,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
           <button type="button" class="ds-btn ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
           <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending>שליחה לאישור</button>
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
         </div>
       </div>
     </div>
@@ -1664,6 +1685,11 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       <span class="ds-pa-detail-label">סה״כ</span>
       <span class="ds-pa-detail-value"><strong>₪${formatCurrency(row.total_amount)}</strong></span>
     </div>` : '';
+  const catalogHtml = includeCatalogValue(row.include_catalog) ? `
+    <div class="ds-pa-detail-row">
+      <span class="ds-pa-detail-label">נספח קטלוג</span>
+      <span class="ds-pa-detail-value">הקטלוג צורף להצעה</span>
+    </div>` : '';
 
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
   const customBadge = hasCustomSections
@@ -1691,6 +1717,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       <div class="ds-pa-drawer-status" style="margin:6px 0 8px">${statusBadgeHtml(row.status)}${customBadge}</div>
       <div class="ds-pa-detail-grid">${detailRowsHtml(row)}</div>
       ${totalHtml}
+      ${catalogHtml}
       ${approvalNoteHtml}
       ${contactDetailRowsHtml(row)}
       <div data-pa-drawer-items style="margin:8px 0"><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
@@ -1755,6 +1782,7 @@ function payloadFromForm(form) {
   });
   payload.status = text(formData.get('status')) || 'draft';
   payload.document_type = 'הצעת מחיר';
+  payload.include_catalog = text(formData.get('include_catalog')) === 'yes';
   const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
   const itemNames = Array.from(new Set(items.map((i) => text(i.item_name)).filter(Boolean)));
   if (itemNames.length) payload.activity_names = itemNames;
@@ -2315,9 +2343,16 @@ export const proposalsAgreementsScreen = {
     };
 
     // ── Form open/close ───────────────────────────────────────────────────────
+    const setFormTabLabel = (mode) => {
+      const tabBtn = root.querySelector('[data-pa-tab="new"]');
+      if (tabBtn) tabBtn.textContent = mode === 'edit' ? 'עריכת הצעה' : '+ הצעה חדשה';
+    };
+
     const openForm = async (mode, row = {}, preloadedItems = []) => {
       if (!formHost) return;
-      // Switch to the "new" tab panel so formHost is visible
+      // Switch to the "new" tab panel so formHost is visible (add and edit share the
+      // same full-width work area).
+      setFormTabLabel(mode);
       switchTab('new');
       let items = preloadedItems;
       if (mode === 'edit' && text(row.id) && !preloadedItems.length) {
@@ -2358,6 +2393,7 @@ export const proposalsAgreementsScreen = {
       if (!formHost) return;
       formHost.hidden = true;
       formHost.innerHTML = '';
+      setFormTabLabel('add');
       switchTab('records');
     };
 
@@ -2401,7 +2437,8 @@ export const proposalsAgreementsScreen = {
       if (options.onSave) overlay.querySelector('#pa-preview-save')?.addEventListener('click', () => options.onSave());
       overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
 
-      if (text(freshRow.status) === 'approved') {
+      // The catalog appendix is attached per proposal (include_catalog), chosen in the form.
+      if (includeCatalogValue(freshRow.include_catalog)) {
         const catalogUrls = buildProposalCatalogEntries(items);
         if (catalogUrls.length > 0) {
           const previewArea = overlay.querySelector('.proposal-preview-area');
@@ -2741,47 +2778,10 @@ export const proposalsAgreementsScreen = {
         }
         const row = rowWithCentralContact(editTargetRow);
         if (!row) return;
-
-        // Ensure we are on the records tab (edit opens in the drawer, not in the new-proposal panel)
-        switchTab('records');
-
-        // Load items first
-        let items = [];
-        try {
-          if (typeof api.readProposalAgreementItems === 'function') {
-            items = await api.readProposalAgreementItems(text(row.id));
-          }
-        } catch { items = []; }
-
-        // Open / update the drawer for this row if needed
-        let drawer = root.querySelector('[data-pa-drawer]');
-        if (!drawer || text(drawer.dataset.paDrawerId) !== text(row.id)) {
-          if (drawer) drawer.outerHTML = drawerHtml(row, activityNameOptions, state);
-          else root.querySelector('[data-pa-screen]')?.insertAdjacentHTML('beforeend', drawerHtml(row, activityNameOptions, state));
-          drawer = root.querySelector('[data-pa-drawer]');
-        }
-        if (drawer) drawer.hidden = false;
-
-        // Show items in drawer
-        const drawerItemsHost = drawer?.querySelector('[data-pa-drawer-items]');
-        if (drawerItemsHost) drawerItemsHost.innerHTML = itemsSummaryHtml(items);
-
-        // Inject edit form
-        const host = drawer?.querySelector('[data-pa-inline-form]');
-        if (host) {
-          host.innerHTML = formHtml('edit', row, activityNameOptions, contactOptions, items, proposalActivityPricing);
-          setDocumentEditMode(root, false);
-          setupTypeChangeHandler(host);
-          setupClientSelector(host);
-          setupActivityPickers(host);
-          setupItemCalc(host);
-          setupFormStepper(host);
-          const pickerHost = host.querySelector('[data-pa-contact-picker-host]');
-          if (pickerHost && pickerHost.children.length) {
-            setupContactPicker(pickerHost, host.querySelector('[data-pa-form]'));
-          }
-          setTimeout(() => host.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
-        }
+        // Edit opens in the full-width work area (same experience as creating a new proposal),
+        // never inside the narrow side drawer.
+        setDocumentEditMode(root, false);
+        await openForm('edit', row);
         return;
       }
 
@@ -2997,6 +2997,24 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
+      // Catalog appendix attach/detach toggle
+      const catalogToggleBtn = event.target.closest?.('[data-pa-catalog-toggle]');
+      if (catalogToggleBtn) {
+        const wrap = catalogToggleBtn.closest('[data-pa-catalog-attach]');
+        const input = wrap?.querySelector('[name="include_catalog"]');
+        const statusEl = wrap?.querySelector('[data-pa-catalog-status]');
+        const attached = input?.value !== 'yes';
+        if (input) input.value = attached ? 'yes' : 'no';
+        catalogToggleBtn.textContent = attached ? 'הסרת הקטלוג מההצעה' : 'הוספת הקטלוג להצעה';
+        catalogToggleBtn.classList.toggle('ds-btn--ghost', attached);
+        catalogToggleBtn.setAttribute('aria-pressed', String(attached));
+        if (statusEl) {
+          statusEl.textContent = attached ? '✓ הקטלוג צורף להצעה' : 'דף המידע / קטלוג הפעילויות יצורף למסמך בתצוגה מקדימה וב-PDF';
+          statusEl.classList.toggle('is-attached', attached);
+        }
+        return;
+      }
+
       // Items: add row
       const addItemBtn = event.target.closest?.('[data-pa-add-item]');
       if (addItemBtn) {
@@ -3094,6 +3112,7 @@ export const proposalsAgreementsScreen = {
             activity_names: text(sourceRow.activity_names),
             notes: text(sourceRow.notes),
             custom_document_sections: Array.isArray(sourceRow.custom_document_sections) ? sourceRow.custom_document_sections : [],
+            include_catalog: includeCatalogValue(sourceRow.include_catalog),
             status: 'draft',
           };
           const cloneItems = sourceItems.map(({ id: _id, ...rest }) => rest);
@@ -3105,38 +3124,11 @@ export const proposalsAgreementsScreen = {
           }
           data.rows = dedupeById([result.row, ...(Array.isArray(data.rows) ? data.rows : []).map(normalizeProposalAgreementRow)]);
           refreshTable();
-          const newRow = rowWithCentralContact(result.row);
-          const drawer = root.querySelector('[data-pa-drawer]');
-          if (drawer && newRow) {
-            drawer.outerHTML = drawerHtml(newRow, activityNameOptions, state);
-            const newDrawer = root.querySelector('[data-pa-drawer]');
-            const successEl = newDrawer?.querySelector('[data-pa-drawer-error]');
-            if (successEl) {
-              successEl.style.color = '#16a34a';
-              successEl.textContent = 'ההצעה שוכפלה כטיוטה חדשה';
-              setTimeout(() => { if (successEl.isConnected) { successEl.textContent = ''; successEl.style.color = ''; } }, 4000);
-            }
-            const host = newDrawer?.querySelector('[data-pa-inline-form]');
-            if (host && newRow) {
-              let newItems = [];
-              try {
-                if (typeof api.readProposalAgreementItems === 'function') {
-                  newItems = await api.readProposalAgreementItems(newId);
-                }
-              } catch { newItems = []; }
-              host.innerHTML = formHtml('edit', newRow, activityNameOptions, contactOptions, newItems, proposalActivityPricing);
-              setDocumentEditMode(root, false);
-              setupTypeChangeHandler(host);
-              setupClientSelector(host);
-              setupActivityPickers(host);
-              setupItemCalc(host);
-              setupFormStepper(host);
-              const pickerHost = host.querySelector('[data-pa-contact-picker-host]');
-              if (pickerHost && pickerHost.children.length) {
-                setupContactPicker(pickerHost, host.querySelector('[data-pa-form]'));
-              }
-            }
-          }
+          cloneBtn.disabled = false;
+          const newRow = rowWithCentralContact(normalizeProposalAgreementRow(result.row));
+          // The cloned draft opens straight in the full-width edit form.
+          setDocumentEditMode(root, false);
+          if (newRow) await openForm('edit', newRow);
         } catch (err) {
           cloneBtn.disabled = false;
           const drawerErrEl = root.querySelector('[data-pa-drawer-error]');

@@ -10771,6 +10771,38 @@ select.ds-input {
   max-height: 180px;
 }
 
+/* Catalog appendix attach block (end of form, before the workflow actions) */
+.ds-pa-catalog-attach {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #dbe7f3;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+.ds-pa-catalog-attach-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ds-pa-catalog-attach-text strong {
+  font-size: 0.82rem;
+  color: #0f172a;
+}
+.ds-pa-catalog-status {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+.ds-pa-catalog-status.is-attached {
+  color: #15803d;
+  font-weight: 700;
+}
+
 /* Workflow action buttons */
 .ds-pa-form-actions--workflow {
   display: flex;

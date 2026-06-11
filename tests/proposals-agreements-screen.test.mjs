@@ -639,10 +639,13 @@ test('no duplicate rows after save and update', async () => {
       const editBtn = root.querySelector(`[data-pa-edit-row="${existingRow.id}"]`);
       assert.ok(editBtn, 'edit button should exist');
       editBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
 
-      const inlineForm = root.querySelector('[data-pa-inline-form]');
-      const form = inlineForm?.querySelector('[data-pa-form]');
-      assert.ok(form, 'inline form should exist');
+      // Edit opens in the full-width form host (same as new proposal), not in the side drawer.
+      const formHost = root.querySelector('[data-pa-form-host]');
+      const form = formHost?.querySelector('[data-pa-form]');
+      assert.ok(form, 'edit form should open in the full-width form host');
+      assert.equal(root.querySelector('[data-pa-inline-form] [data-pa-form]'), null, 'edit form should not render inside the drawer');
 
       form.querySelector('[data-pa-save-pending]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(20);
