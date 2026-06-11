@@ -107,6 +107,12 @@ function normalizeProposalGroupRecord(record = {}, fallbackIndex = 0) {
   };
 }
 
+function dataGroupAliasRows(data = {}) {
+  return Array.isArray(data.proposalGroupAliases)
+    ? data.proposalGroupAliases
+    : Array.isArray(data.proposal_group_aliases) ? data.proposal_group_aliases : [];
+}
+
 function collectGroupRecords(data = {}, rows = [], pricingOptions = []) {
   const directGroups = [
     data.proposalActivityGroups,
@@ -116,10 +122,19 @@ function collectGroupRecords(data = {}, rows = [], pricingOptions = []) {
   ].find(Array.isArray) || [];
   const groups = [];
   const seen = new Set();
+  // Names already covered by Supabase groups/aliases must not become standalone groups.
+  const knownNames = new Set();
+  dataGroupAliasRows(data).forEach((aliasRow) => {
+    const alias = text(aliasRow.alias_name || aliasRow.alias || aliasRow.name || aliasRow.value);
+    if (alias) knownNames.add(alias);
+  });
   const addGroup = (record, idx = groups.length) => {
     const normalized = normalizeProposalGroupRecord(record, idx);
     if (!normalized || seen.has(normalized.group_key)) return;
     seen.add(normalized.group_key);
+    knownNames.add(normalized.group_key);
+    knownNames.add(normalized.display_name);
+    normalized.aliases.forEach((alias) => knownNames.add(alias));
     groups.push(normalized);
   };
 
@@ -127,7 +142,7 @@ function collectGroupRecords(data = {}, rows = [], pricingOptions = []) {
 
   const addRawGroup = (value) => {
     const raw = text(value);
-    if (!raw || seen.has(raw)) return;
+    if (!raw || seen.has(raw) || knownNames.has(raw)) return;
     addGroup({ group_key: raw, display_name: raw, template_key: raw, is_active: true }, groups.length);
   };
 
@@ -147,7 +162,7 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
     aliasToKey.set(group.display_name, group.group_key);
     group.aliases.forEach((alias) => aliasToKey.set(alias, group.group_key));
   });
-  (Array.isArray(data.proposalGroupAliases) ? data.proposalGroupAliases : Array.isArray(data.proposal_group_aliases) ? data.proposal_group_aliases : [])
+  dataGroupAliasRows(data)
     .forEach((aliasRow) => {
       const alias = text(aliasRow.alias_name || aliasRow.alias || aliasRow.name || aliasRow.value);
       const groupKey = text(aliasRow.group_key || aliasRow.target_group_key || aliasRow.proposal_group_key);
@@ -199,7 +214,7 @@ function shouldShowGefenForGroup(value) {
 
 function proposalGroupOptions(data = {}, rows = [], pricingOptions = []) {
   const lookups = setProposalGroupLookups(data, rows, pricingOptions);
-  return lookups.groups.map((group) => group.display_name);
+  return lookups.groups.map((group) => ({ value: group.group_key, label: group.display_name }));
 }
 
 function itemTypeOptions(pricingOptions = []) {
@@ -284,7 +299,7 @@ function normalizeSearch(value) {
 export function buildProposalsAgreementsSearchText(row = {}) {
   return [
     row.id, row.client_name, row.client_authority, row.school_framework, row.document_type,
-    row.activity_type_group,
+    row.activity_type_group, proposalGroupDisplayName(row.activity_type_group),
     Array.isArray(row.activity_names) ? row.activity_names.join(' ') : row.activity_names,
     row.notes, row.contact_name, row.contact_role, row.phone, row.email,
     row.status ? (STATUS_LABELS[row.status] || row.status) : ''
@@ -361,7 +376,7 @@ function sortRows(rows) {
 function rowMatches(row, filters) {
   const q = normalizeSearch(filters.q);
   if (q && !normalizeSearch(row._searchText).includes(q)) return false;
-  if (filters.activity_type_group && text(row.activity_type_group) !== filters.activity_type_group) return false;
+  if (filters.activity_type_group && normalizeProposalGroup(row.activity_type_group) !== normalizeProposalGroup(filters.activity_type_group)) return false;
   if (filters.status && text(row.status) !== filters.status) return false;
   return true;
 }
@@ -378,7 +393,9 @@ function optionHtml(value, selected = '', display = '') {
 }
 
 function filterSelectHtml(key, label, values) {
-  const options = ['<option value="">הכול</option>', ...values.map((value) => optionHtml(value))].join('');
+  const pairs = (Array.isArray(values) ? values : []).map((value) =>
+    (value && typeof value === 'object') ? { value: text(value.value), label: text(value.label || value.value) } : { value: text(value), label: text(value) });
+  const options = ['<option value="">הכול</option>', ...pairs.map((pair) => optionHtml(pair.value, '', pair.label))].join('');
   return `<label class="ds-pa-filter"><span>${escapeHtml(label)}</span><select class="ds-input ds-input--sm" data-pa-filter="${escapeHtml(key)}">${options}</select></label>`;
 }
 
@@ -412,6 +429,8 @@ function detailRowsHtml(row) {
       displayValue = `<ul class="ds-pa-activity-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
     } else if (key === 'proposal_date') {
       displayValue = formatDateDisplay(row[key]);
+    } else if (key === 'activity_type_group') {
+      displayValue = proposalGroupDisplayName(row[key]);
     } else {
       displayValue = row[key] || '';
     }
@@ -466,7 +485,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td>${escapeHtml(row.client_name || row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
-      <td>${escapeHtml(row.activity_type_group || '—')}</td>
+      <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td>${statusBadgeHtml(row.status)}</td>
       <td>${row.total_amount != null ? `₪${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
@@ -819,7 +838,7 @@ function itemsSummaryHtml(items = []) {
       text(item.meetings_count) ? `מפגשים: ${text(item.meetings_count)}` : '',
       text(item.hours_count) ? `שעות: ${text(item.hours_count)}` : '',
       text(item.unit_duration) ? `משך: ${text(item.unit_duration)}` : '',
-      text(item.proposal_group) ? `קבוצה: ${text(item.proposal_group)}` : '',
+      text(item.proposal_group) ? `קבוצה: ${proposalGroupDisplayName(item.proposal_group)}` : '',
       !bundleLinesList.length ? cleanCustomerText(item.description) : ''
     ].filter(Boolean).join(' | ');
     const bundleDetailHtml = bundleLinesList.length
@@ -1057,7 +1076,7 @@ function resolveDocumentSections(row, templateSections = []) {
 function documentSectionsEditorHtml(sections = [], isCustom = false) {
   if (!Array.isArray(sections) || !sections.length) {
     return `<div class="ds-pa-doc-editor" data-pa-doc-editor>
-      <p class="ds-pa-doc-indicator ds-pa-doc-indicator--missing">לא נמצאו סעיפי מסמך מ־Supabase עבור סוג ההצעה הזה. יש להגדיר תבנית במסד הנתונים לפני עריכת מסמך.</p>
+      <p class="ds-pa-doc-indicator ds-pa-doc-indicator--missing">לא נמצאה תבנית פעילה לסוג הצעה זה</p>
     </div>`;
   }
   const indicator = isCustom
@@ -1149,7 +1168,9 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const childGroups = isCombinedProposalGroup(activityTypeGroup) ? includedProposalGroups(activityTypeGroup) : [];
   if (childGroups.length) {
     childGroups.forEach((groupKey) => {
-      const key = `activity_intro_${groupKey}`;
+      // Supabase template sections may use either naming convention for per-group intros.
+      const candidateKeys = [`activity_intro_${groupKey}`, `${groupKey}_activity_intro`];
+      const key = candidateKeys.find((candidate) => byKey.has(candidate)) || candidateKeys[0];
       const body = sectionBody(key);
       const heading = sectionTitle(key) || proposalGroupDisplayName(groupKey);
       const section = renderActivitySection(key, heading, body, itemsByGroup[groupKey] || [], { showGefen: shouldShowGefenForGroup(groupKey) });
@@ -2056,7 +2077,7 @@ export const proposalsAgreementsScreen = {
         const clientEl = form.querySelector('[data-pa-summary-client]');
         if (clientEl) clientEl.textContent = text(form.querySelector('[name="client_authority"]')?.value) || '—';
         const typeEl = form.querySelector('[data-pa-summary-type]');
-        if (typeEl) typeEl.textContent = text(form.querySelector('[name="activity_type_group"]')?.value) || '—';
+        if (typeEl) typeEl.textContent = proposalGroupDisplayName(form.querySelector('[name="activity_type_group"]')?.value) || '—';
         const countEl = form.querySelector('[data-pa-summary-count]');
         if (countEl) countEl.textContent = String(form.querySelectorAll('[data-pa-item-row]').length) || '—';
       }
@@ -2209,12 +2230,17 @@ export const proposalsAgreementsScreen = {
       overlay.setAttribute('dir', 'rtl');
       const clientLabel = [freshRow.client_authority, freshRow.school_framework].filter(Boolean).map(escapeHtml).join(' — ');
       const saveBtnHtml = options.onSave ? `<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-save">שמירת טיוטה</button>` : '';
+      const hasCustomSections = Array.isArray(freshRow.custom_document_sections) && freshRow.custom_document_sections.length > 0;
+      const missingTemplateNotice = (!templateSections.length && !hasCustomSections)
+        ? '<p class="ds-pa-template-missing-notice no-print" role="alert" style="margin:6px 0 0;color:#b45309;font-size:0.85rem">לא נמצאה תבנית פעילה לסוג הצעה זה</p>'
+        : '';
       overlay.innerHTML = `
         <div class="proposal-preview-toolbar no-print">
           <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-close">← חזרה לעריכה</button>
           ${saveBtnHtml}
           <button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
           <span class="ds-pa-preview-client no-print">${clientLabel}</span>
+          ${missingTemplateNotice}
         </div>
         <div class="proposal-preview-area">
           ${proposalPreviewBodyHtml(freshRow, items, templateSections)}

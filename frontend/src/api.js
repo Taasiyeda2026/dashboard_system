@@ -1609,7 +1609,7 @@ function normalizeProposalAgreementRow(row = {}) {
     client_authority:    cleanProposalAgreementText(row.client_authority),
     school_framework:    cleanProposalAgreementText(row.school_framework),
     document_type:       cleanProposalAgreementText(row.document_type),
-    activity_type_group: cleanProposalAgreementText(row.activity_type_group),
+    activity_type_group: normalizeProposalGroupValue(row.activity_type_group),
     proposal_date:       cleanProposalAgreementText(row.proposal_date),
     activity_names:      normalizeProposalAgreementActivityNames(
       Array.isArray(row.activity_names) && row.activity_names.length
@@ -1639,15 +1639,95 @@ function normalizeProposalAgreementRow(row = {}) {
 
 const PA_VALID_STATUSES_SET = new Set(['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
 
-const PROPOSAL_GROUP_CANONICAL_MAP = {
-  'קיץ תשפ״ו':                       'פעילויות קיץ',
-  'שנת הלימודים תשפ״ז':              'שנה הבאה',
-  'תוכניות תשפ״ז':                   'שנה הבאה',
-  'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'הצעה משולבת',
-  'קיץ תשפ״ו + תשפ״ז':              'הצעה משולבת'
-};
+// Proposal group definitions and legacy-name aliases are business data and live in Supabase
+// (proposal_activity_groups / proposal_group_aliases). The lookup below is loaded from there
+// and used to normalize any group value (legacy Hebrew label, display name) to its group_key.
+let proposalGroupLookupCache = null;
 
-function sanitizeProposalAgreementPayload(payload = {}) {
+async function readProposalActivityGroupsFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('proposal_activity_groups')
+      .select('group_key,display_name,template_key,included_group_keys,sort_order,is_active')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+    if (error) return [];
+    return (Array.isArray(data) ? data : []).map((row) => ({
+      group_key:           cleanProposalAgreementText(row?.group_key),
+      display_name:        cleanProposalAgreementText(row?.display_name),
+      template_key:        cleanProposalAgreementText(row?.template_key) || cleanProposalAgreementText(row?.group_key),
+      included_group_keys: Array.isArray(row?.included_group_keys)
+        ? row.included_group_keys.map(cleanProposalAgreementText).filter(Boolean)
+        : [],
+      sort_order:          Number(row?.sort_order) || 0,
+      is_active:           row?.is_active !== false
+    })).filter((row) => row.group_key);
+  } catch {
+    return [];
+  }
+}
+
+async function readProposalGroupAliasesFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('proposal_group_aliases')
+      .select('alias_name,group_key,is_active')
+      .eq('is_active', true);
+    if (error) return [];
+    return (Array.isArray(data) ? data : []).map((row) => ({
+      alias_name: cleanProposalAgreementText(row?.alias_name),
+      group_key:  cleanProposalAgreementText(row?.group_key),
+      is_active:  row?.is_active !== false
+    })).filter((row) => row.alias_name && row.group_key);
+  } catch {
+    return [];
+  }
+}
+
+function buildProposalGroupLookup(groups = [], aliases = []) {
+  const aliasToKey = new Map();
+  const groupByKey = new Map();
+  (Array.isArray(groups) ? groups : []).forEach((group) => {
+    if (!group?.group_key) return;
+    groupByKey.set(group.group_key, group);
+    aliasToKey.set(group.group_key, group.group_key);
+    if (group.display_name) aliasToKey.set(group.display_name, group.group_key);
+  });
+  (Array.isArray(aliases) ? aliases : []).forEach((alias) => {
+    if (alias?.alias_name && alias?.group_key) aliasToKey.set(alias.alias_name, alias.group_key);
+  });
+  return { groups, aliases, aliasToKey, groupByKey };
+}
+
+function normalizeProposalGroupValue(value, groupLookup = proposalGroupLookupCache) {
+  const raw = cleanProposalAgreementText(value);
+  if (!raw) return '';
+  return groupLookup?.aliasToKey?.get(raw) || raw;
+}
+
+async function getProposalGroupLookup() {
+  if (proposalGroupLookupCache) return proposalGroupLookupCache;
+  const [groups, aliases] = await Promise.all([
+    readProposalActivityGroupsFromSupabase(),
+    readProposalGroupAliasesFromSupabase()
+  ]);
+  proposalGroupLookupCache = buildProposalGroupLookup(groups, aliases);
+  return proposalGroupLookupCache;
+}
+
+function enrichProposalPricingRows(rows = [], groupLookup = proposalGroupLookupCache) {
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    const groupKey = normalizeProposalGroupValue(row?.proposal_group, groupLookup);
+    const groupMeta = groupLookup?.groupByKey?.get(groupKey) || null;
+    return {
+      ...row,
+      group_key:    groupKey,
+      template_key: cleanProposalAgreementText(groupMeta?.template_key) || groupKey
+    };
+  });
+}
+
+function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGroupLookupCache) {
   const activity_names = normalizeProposalAgreementActivityNames(payload.activity_names);
   const rawStatus = cleanProposalAgreementText(payload.status);
   const rawGroup = cleanProposalAgreementText(payload.activity_type_group);
@@ -1657,7 +1737,7 @@ function sanitizeProposalAgreementPayload(payload = {}) {
     client_authority:    clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
-    activity_type_group: PROPOSAL_GROUP_CANONICAL_MAP[rawGroup] || rawGroup,
+    activity_type_group: normalizeProposalGroupValue(rawGroup, groupLookup),
     proposal_date:       cleanProposalAgreementText(payload.proposal_date) || null,
     activity_names:      activity_names,
     contact_name:        cleanProposalAgreementText(payload.contact_name),
@@ -1850,7 +1930,7 @@ async function readContactsSchoolsForProposals() {
 
 async function readProposalsAgreementsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
-  const [paResult, contactOptions, proposalActivityPricing, proposalTemplateSections] = await Promise.all([
+  const [paResult, contactOptions, rawProposalActivityPricing, proposalTemplateSections, proposalActivityGroups, proposalGroupAliases] = await Promise.all([
     supabase
       .from('proposals_agreements')
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
@@ -1860,14 +1940,22 @@ async function readProposalsAgreementsFromSupabase() {
       .order('activity_type_group', { ascending: true }),
     readContactsSchoolsForProposals(),
     readProposalActivityPricingFromSupabase(),
-    readProposalTemplateSectionsFromSupabase()
+    readProposalTemplateSectionsFromSupabase(),
+    readProposalActivityGroupsFromSupabase(),
+    readProposalGroupAliasesFromSupabase()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
+  // Group/alias normalization happens here in the loader so the frontend receives
+  // logical group keys (e.g. summer/next_year/combined) instead of legacy Hebrew labels.
+  proposalGroupLookupCache = buildProposalGroupLookup(proposalActivityGroups, proposalGroupAliases);
+  const proposalActivityPricing = enrichProposalPricingRows(rawProposalActivityPricing, proposalGroupLookupCache);
   const activityNameOptions = await readProposalActivityNamesFromSupabase();
   return {
     rows: (Array.isArray(paResult.data) ? paResult.data : []).map(normalizeProposalAgreementRow),
     activityNameOptions,
     contactOptions,
+    proposalActivityGroups,
+    proposalGroupAliases,
     proposalActivityPricing,
     proposalTemplateSections,
     _source: 'supabase'
@@ -3340,7 +3428,8 @@ export const api = {
   },
   addProposalAgreement: async (payload) => {
     assertCanManageProposalsAgreementsApi();
-    const insert = sanitizeProposalAgreementPayload(payload);
+    const groupLookup = await getProposalGroupLookup();
+    const insert = sanitizeProposalAgreementPayload(payload, groupLookup);
     const contactSchoolId = await ensureContactSchoolFromProposal({ ...insert, _contact_original: payload?._contact_original });
     if (contactSchoolId != null) insert.contact_school_id = contactSchoolId;
     const { data, error } = await supabase
@@ -3355,7 +3444,8 @@ export const api = {
     assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
-    const patch = sanitizeProposalAgreementPayload(payload);
+    const groupLookup = await getProposalGroupLookup();
+    const patch = sanitizeProposalAgreementPayload(payload, groupLookup);
     const contactSchoolId = await ensureContactSchoolFromProposal({ ...patch, _contact_original: payload?._contact_original });
     if (contactSchoolId != null) patch.contact_school_id = contactSchoolId;
     const { data, error } = await supabase
@@ -3399,6 +3489,7 @@ export const api = {
     assertCanUseProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(proposalId);
     if (!rowId) return [];
+    const groupLookup = await getProposalGroupLookup();
     const { data, error } = await supabase
       .from('proposal_agreement_items')
       .select('id,activity_no,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_duration,unit_price,hourly_price,total_price,description,proposal_group,sort_order,proposal_display_mode,source_pricing_key,selected_bundle_items')
@@ -3423,17 +3514,28 @@ export const api = {
         total_price:           item.total_price != null ? Number(item.total_price) : null,
         description:           cleanProposalAgreementText(item.description),
         unit_duration:         cleanProposalAgreementText(item.unit_duration),
-        proposal_group:        cleanProposalAgreementText(item.proposal_group),
+        proposal_group:        normalizeProposalGroupValue(item.proposal_group, groupLookup),
+        group_key:             normalizeProposalGroupValue(item.proposal_group, groupLookup),
         sort_order:            Number(item.sort_order) || 0,
         proposal_display_mode: cleanProposalAgreementText(item.proposal_display_mode) || 'single',
         source_pricing_key:    cleanProposalAgreementText(item.source_pricing_key),
+        pricing_key:           cleanProposalAgreementText(item.source_pricing_key),
         selected_bundle_items: selectedBundleItems
       };
     });
   },
   readProposalActivityPricing: async () => {
     assertCanUseProposalsAgreementsApi();
-    return readProposalActivityPricingFromSupabase();
+    const groupLookup = await getProposalGroupLookup();
+    return enrichProposalPricingRows(await readProposalActivityPricingFromSupabase(), groupLookup);
+  },
+  readProposalActivityGroups: async () => {
+    assertCanUseProposalsAgreementsApi();
+    return readProposalActivityGroupsFromSupabase();
+  },
+  readProposalGroupAliases: async () => {
+    assertCanUseProposalsAgreementsApi();
+    return readProposalGroupAliasesFromSupabase();
   },
   readProposalTemplateSections: async () => {
     assertCanUseProposalsAgreementsApi();
@@ -3462,6 +3564,7 @@ export const api = {
     assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(proposalId);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const groupLookup = await getProposalGroupLookup();
     const { error: delError } = await supabase
       .from('proposal_agreement_items')
       .delete()
@@ -3486,7 +3589,7 @@ export const api = {
           total_price:           item.total_price != null ? Number(item.total_price) || null : null,
           description:           cleanProposalAgreementText(item.description),
           unit_duration:         cleanProposalAgreementText(item.unit_duration),
-          proposal_group:        cleanProposalAgreementText(item.proposal_group),
+          proposal_group:        normalizeProposalGroupValue(item.proposal_group || item.group_key, groupLookup),
           sort_order:            idx,
           proposal_display_mode: cleanProposalAgreementText(item.proposal_display_mode) || 'single',
           source_pricing_key:    cleanProposalAgreementText(item.source_pricing_key) || null,
