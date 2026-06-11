@@ -644,6 +644,92 @@ function isTestHoursItem(item = {}) {
   return TEST_HOURS_REGEX.test(itemIdentityText(item));
 }
 
+
+function normalizedKindText(value) {
+  return text(value).replace(/["'׳״]/g, '').toLowerCase();
+}
+
+function groupKindText(value) {
+  const normalized = normalizeProposalGroup(value);
+  const meta = proposalGroupMeta(normalized);
+  return [
+    normalized,
+    meta?.display_name,
+    meta?.template_key,
+    meta?.document_title,
+    meta?.proposal_title,
+    meta?.title,
+    ...(Array.isArray(meta?.aliases) ? meta.aliases : [])
+  ].map(normalizedKindText).filter(Boolean).join(' ');
+}
+
+function itemKindText(item = {}) {
+  return [
+    item.item_type,
+    item.proposal_group,
+    item.activity_type_group,
+    item.item_name,
+    item.pricing_activity_name,
+    item.activity_name,
+    item.source_pricing_key,
+    item.pricing_key
+  ].map(normalizedKindText).filter(Boolean).join(' ');
+}
+
+function isSummerKindText(value = '') {
+  return /קיץ|קייטנה|summer/.test(value);
+}
+
+function isWorkshopKindText(value = '') {
+  return /סדנ|workshop|stem|חלל/.test(value);
+}
+
+function isCourseKindText(value = '') {
+  return /קורס|תוכנית|תכנית|הדרכה|שנת|שנה הבאה|תשפ|program|course/.test(value);
+}
+
+function itemCatalogKind(item = {}) {
+  if (!item || isTestHoursItem(item)) return '';
+  const displayMode = text(item.proposal_display_mode);
+  if (displayMode === 'bundle_child') return '';
+  if (displayMode === 'bundle_parent' || item.is_bundle_parent) return 'workshop';
+  const kindText = itemKindText(item);
+  if (isSummerKindText(kindText)) return 'summer';
+  if (isWorkshopKindText(kindText)) return 'workshop';
+  if (text(item.gefen_number) || isCourseKindText(kindText)) return 'course';
+  return text(item.activity_no || item.pricing_key || item.source_pricing_key) ? 'workshop' : '';
+}
+
+function proposalActivityKind(row = {}, items = []) {
+  const group = normalizeProposalGroup(row.activity_type_group);
+  if (isCombinedProposalGroup(group)) return 'combined';
+  const kindText = groupKindText(group || row.activity_type_group);
+  if (/משולב|combined/.test(kindText)) return 'combined';
+  if (isSummerKindText(kindText)) return 'summer';
+  if (isWorkshopKindText(kindText)) return 'workshop';
+  if (isCourseKindText(kindText)) return 'course';
+
+  const itemKinds = new Set((Array.isArray(items) ? items : [])
+    .map(itemCatalogKind)
+    .filter(Boolean));
+  if (itemKinds.size > 1) return 'combined';
+  return itemKinds.values().next().value || 'course';
+}
+
+function activityIntroForCatalog(row = {}, items = []) {
+  switch (proposalActivityKind(row, items)) {
+    case 'workshop':
+      return 'פירוט הסדנאות המוצעות מצורף כנספח להצעה זו.';
+    case 'summer':
+      return 'פירוט פעילויות הקיץ המוצעות מצורף כנספח להצעה זו.';
+    case 'combined':
+      return 'פירוט הפעילויות המוצעות מצורף כנספח להצעה זו.';
+    case 'course':
+    default:
+      return 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז. פירוט מלא של הקורסים מצורף כנספח להצעה זו.';
+  }
+}
+
 function pricingOptionKey(row = {}) {
   return [row.activity_no, row.activity_name, row.item_type, row.proposal_group, row.unit_duration, row.unit_price, row.sort_order].map(text).join('||');
 }
@@ -1268,7 +1354,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
     </div>`;
 }
 
-function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
+export function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const activityTypeGroup = normalizeProposalGroup(row.activity_type_group);
   const templateKey = proposalGroupTemplateKey(activityTypeGroup);
   // Date comes only from the proposal row — no "today" fallback in customer documents.
@@ -1284,7 +1370,9 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const includeCatalog = includeCatalogValue(row.include_catalog);
   const introText = sectionBody('intro');
   const remarks = sectionBody('notes') || String(row.notes || '').replace(/\r\n?/g, '\n').trim();
-  const activityIntro = filterCatalogContentFromBody(sectionBody('activity_intro'), includeCatalog);
+  const activityIntro = includeCatalog
+    ? activityIntroForCatalog(row, items)
+    : filterCatalogContentFromBody(sectionBody('activity_intro'), includeCatalog);
 
   const renderActivitySection = (heading, body) => {
     const bodyHtml = body ? sectionBodyHtml(body) : '';
@@ -1294,7 +1382,7 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
 
   const sections = [];
   const childGroups = isCombinedProposalGroup(activityTypeGroup) ? includedProposalGroups(activityTypeGroup) : [];
-  if (childGroups.length) {
+  if (childGroups.length && !includeCatalog) {
     childGroups.forEach((groupKey) => {
       // Supabase template sections may use either naming convention for per-group intros.
       const candidateKeys = [`activity_intro_${groupKey}`, `${groupKey}_activity_intro`];
@@ -1867,53 +1955,93 @@ function replaceLocalRow(data, savedRow) {
 
 // ─── Catalog appendix via hidden iframe extraction ───────────────────────────
 
-function buildProposalCatalogEntries(items) {
+export function buildProposalCatalogEntries(items) {
   if (!Array.isArray(items) || !items.length) return [];
   const catalogBase = `${PUBLIC_BASE}catalog/summercatalog/`;
-  const allWorkshopIds = [];
+  const workshopIds = [];
+  const workshopIdSet = new Set();
+  const programGefenIds = [];
+  const programGefenSet = new Set();
+  const activityNoSet = new Set();
   let needSpaceAll = false;
   let needStemAll = false;
-  const programGefenIds = [];
-  const seenGefenIds = new Set();
 
+  const cleanActivityNo = (value) => text(value || '').replace(/^cat-/, '');
+  const addActivityNo = (value) => {
+    const key = cleanActivityNo(value);
+    if (key) activityNoSet.add(key);
+    return key;
+  };
   const addWorkshopId = (value) => {
-    const raw = text(value || '').replace(/^cat-/, '');
+    const raw = addActivityNo(value);
     const n = Number(raw);
-    if (n > 0) allWorkshopIds.push(n);
+    if (n > 0 && !workshopIdSet.has(String(n))) {
+      workshopIdSet.add(String(n));
+      workshopIds.push(n);
+      return true;
+    }
+    return false;
+  };
+  const addGefenId = (value) => {
+    const gef = text(value);
+    if (gef && !programGefenSet.has(gef)) {
+      programGefenSet.add(gef);
+      programGefenIds.push(gef);
+      return true;
+    }
+    return false;
+  };
+
+  const addBundleWorkshops = (item) => {
+    const selected = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
+    if (selected.length > 0) {
+      selected.forEach((sel) => addWorkshopId(sel.activity_no || sel.pricing_key || sel.source_pricing_key));
+      return;
+    }
+    const isSpace = text(item.source_pricing_key) === 'space_workshop' || text(item.item_name).includes('חלל');
+    if (isSpace) needSpaceAll = true;
+    else needStemAll = true;
   };
 
   for (const item of items) {
     if (isTestHoursItem(item)) continue;
     const displayMode = text(item.proposal_display_mode);
-    const itemType = text(item.item_type);
     if (displayMode === 'bundle_child') continue;
 
-    if (displayMode === 'bundle_parent') {
-      const selected = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
-      if (selected.length > 0) {
-        for (const sel of selected) addWorkshopId(sel.activity_no || sel.pricing_key);
-      } else {
-        const isSpace = text(item.source_pricing_key) === 'space_workshop' || text(item.item_name).includes('חלל');
-        if (isSpace) needSpaceAll = true; else needStemAll = true;
-      }
-    } else if (itemType === 'קורס' || itemType === 'תוכנית' || itemType === 'הדרכה') {
-      const gef = text(item.gefen_number);
-      if (gef && !seenGefenIds.has(gef)) { seenGefenIds.add(gef); programGefenIds.push(gef); }
-    } else {
-      addWorkshopId(item.activity_no || item.pricing_key || item.source_pricing_key);
+    if (displayMode === 'bundle_parent' || item.is_bundle_parent) {
+      addBundleWorkshops(item);
+      continue;
+    }
+
+    const kind = itemCatalogKind(item);
+    if (kind === 'course') {
+      // Course/program appendices are driven by Gefen/activity identifiers only;
+      // do not also request workshops.html for the same activity row.
+      addGefenId(item.gefen_number || item.activity_no || item.pricing_activity_no);
+      continue;
+    }
+
+    if (kind === 'workshop' || kind === 'summer') {
+      addWorkshopId(item.activity_no || item.pricing_key || item.source_pricing_key || item.pricing_activity_no);
     }
   }
 
   const entries = [];
-  if (allWorkshopIds.length > 0) {
-    entries.push(`${catalogBase}workshops.html?proposalMode=1&workshopIds=${[...new Set(allWorkshopIds)].join(',')}`);
+  const seenUrls = new Set();
+  const addUrl = (url) => {
+    if (!url || seenUrls.has(url)) return;
+    seenUrls.add(url);
+    entries.push(url);
+  };
+
+  if (workshopIds.length > 0) {
+    addUrl(`${catalogBase}workshops.html?proposalMode=1&workshopIds=${workshopIds.join(',')}`);
   }
-  if (needStemAll) entries.push(`${catalogBase}workshops.html?proposalMode=1&domain=stem`);
-  if (needSpaceAll) entries.push(`${catalogBase}workshops.html?proposalMode=1&domain=space`);
-  if (programGefenIds.length > 0) entries.push(`${catalogBase}course-page.html?ids=${programGefenIds.join(',')}&proposalMode=1`);
+  if (needStemAll) addUrl(`${catalogBase}workshops.html?proposalMode=1&domain=stem`);
+  if (needSpaceAll) addUrl(`${catalogBase}workshops.html?proposalMode=1&domain=space`);
+  if (programGefenIds.length > 0) addUrl(`${catalogBase}course-page.html?ids=${programGefenIds.join(',')}&proposalMode=1`);
   return entries;
 }
-
 async function loadCatalogViaIframe(url) {
   return new Promise((resolve, reject) => {
     const iframe = document.createElement('iframe');
