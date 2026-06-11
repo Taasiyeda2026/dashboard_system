@@ -11610,10 +11610,11 @@ select.ds-input {
   background: #fff;
 }
 @media print {
-  .pa-pdf-appendix-frame {
-    width: 210mm;
-    height: 297mm;
-    page-break-inside: avoid;
+  .pa-pdf-appendix-frame,
+  iframe[src$=".pdf"],
+  iframe[src*=".pdf#"],
+  iframe[src*=".pdf?"] {
+    display: none !important;
   }
 }
 
