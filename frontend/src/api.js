@@ -1981,12 +1981,18 @@ const SUPABASE_ROLE_ROUTES = {
   instructor: ['my-data', 'week', 'month']
 };
 
-function normalizeSupabaseRole(role) {
+function normalizeRoleAlias(role) {
   const normalized = String(role || 'authorized_user').trim();
+  return normalized === 'activity_manager' ? 'activities_manager' : normalized;
+}
+
+function normalizeSupabaseRole(role) {
+  const normalized = normalizeRoleAlias(role);
   return VALID_SUPABASE_ROLES.has(normalized) ? normalized : 'authorized_user';
 }
 
 function permissionFlagYes(value) {
+  if (value === true || value === 1) return true;
   return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
 }
 
@@ -2063,20 +2069,23 @@ const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
 const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
 
 function currentActivityRole(user = state?.user || {}) {
-  return String(user?.display_role || user?.role || '').trim();
+  return normalizeSupabaseRole(user?.display_role || user?.role || '');
 }
 
 function canDirectManageActivitiesUser(user = state?.user || {}) {
-  return ACTIVITY_DIRECT_MANAGE_ROLES.has(currentActivityRole(user));
+  return permissionFlagYes(user?.can_edit_direct) || ACTIVITY_DIRECT_MANAGE_ROLES.has(currentActivityRole(user));
+}
+
+function canAddActivitiesUser(user = state?.user || {}) {
+  return permissionFlagYes(user?.can_add_activity) || canDirectManageActivitiesUser(user);
 }
 
 function canSubmitActivityRequestsUser(user = state?.user || {}) {
-  return canDirectManageActivitiesUser(user) || ACTIVITY_REQUEST_ROLES.has(currentActivityRole(user));
+  return permissionFlagYes(user?.can_request_edit) || canDirectManageActivitiesUser(user) || ACTIVITY_REQUEST_ROLES.has(currentActivityRole(user));
 }
 
 function canReviewEditRequestsUser(user = state?.user || {}) {
-  // Legacy permissionFlagYes(user?.can_review_requests) is intentionally not enough for activity request review.
-  return canDirectManageActivitiesUser(user);
+  return permissionFlagYes(user?.can_review_requests) || canDirectManageActivitiesUser(user);
 }
 
 function getLoginStatus(row) {
@@ -2097,7 +2106,7 @@ function throwLoginError(code, details = {}) {
 }
 
 function assertValidLoginUserRow(userRow) {
-  const role = String(userRow?.role || '').trim();
+  const role = normalizeRoleAlias(userRow?.role);
   if (!VALID_SUPABASE_ROLES.has(role)) {
     throwLoginError('invalid_role', { role, user_id: String(userRow?.user_id || '') });
   }
@@ -2141,12 +2150,14 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   const role = normalizeSupabaseRole(flat.role);
   const allowedRoutes = [...(SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user)];
   const isBusinessDevelopmentManager = role === 'business_development_manager';
-  const canDirectManageActivities = ACTIVITY_DIRECT_MANAGE_ROLES.has(role);
-  const canRequestActivities = ACTIVITY_REQUEST_ROLES.has(role);
+  const canDirectManageActivities = permissionFlagYes(flat.can_edit_direct) || ACTIVITY_DIRECT_MANAGE_ROLES.has(role);
+  const canAddActivities = permissionFlagYes(flat.can_add_activity) || canDirectManageActivities;
+  const canRequestActivities = permissionFlagYes(flat.can_request_edit) || ACTIVITY_REQUEST_ROLES.has(role);
   const hasFinanceAccess = isBusinessDevelopmentManager ? false : (role === 'finance' || permissionFlagYes(parsePermissions(userRow?.permissions).finance_access) || permissionFlagYes(parsePermissions(userRow?.permissions).view_finance));
   const financeIdx = allowedRoutes.indexOf('finance');
   if (hasFinanceAccess && financeIdx === -1) allowedRoutes.push('finance');
   if (!hasFinanceAccess && financeIdx >= 0) allowedRoutes.splice(financeIdx, 1);
+  if (permissionFlagYes(flat.view_activities) && !allowedRoutes.includes('activities')) allowedRoutes.push('activities');
   if (permissionFlagYes(flat.view_catalog) && !allowedRoutes.includes('catalog')) allowedRoutes.push('catalog');
   if ((permissionFlagYes(flat.view_orders) || permissionFlagYes(flat.view_invitations)) && !allowedRoutes.includes('orders')) allowedRoutes.push('orders');
   if (
@@ -2157,7 +2168,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   ) { if (!allowedRoutes.includes('proposals-agreements')) allowedRoutes.push('proposals-agreements'); }
   const canEditDirect = canDirectManageActivities;
   const canRequestEdit = canDirectManageActivities || canRequestActivities;
-  const canReviewRequests = canDirectManageActivities;
+  const canReviewRequests = permissionFlagYes(flat.can_review_requests) || canDirectManageActivities;
   const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests) || allowedRoutes.includes('edit-requests');
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
@@ -2187,7 +2198,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
       display_role2: flat.display_role2 || '',
       display_role_label: flat.display_role_label || hebrewRole(role)
     },
-    can_add_activity: canDirectManageActivities || canRequestActivities,
+    can_add_activity: canAddActivities,
     can_edit_direct: canEditDirect,
     can_request_edit: canRequestEdit,
     can_review_requests: canReviewRequests,
@@ -3161,10 +3172,10 @@ export const api = {
         emp_id: flat.emp_id,
         auth_user_id: flat.auth_user_id,
         personal_reports_user_id: flat.auth_user_id,
-        can_add_activity: canDirectManageActivitiesUser(flat) || ACTIVITY_REQUEST_ROLES.has(String(flat.role || '').trim()),
+        can_add_activity: canAddActivitiesUser(flat),
         can_edit_direct: canDirectManageActivitiesUser(flat),
         can_request_edit: canSubmitActivityRequestsUser(flat),
-        can_review_requests: canDirectManageActivitiesUser(flat),
+        can_review_requests: canReviewEditRequestsUser(flat),
         finance_access: (flat.role === 'finance' || permissionFlagYes(flat.finance_access) || permissionFlagYes(flat.view_finance)),
         profile_is_active: profileRow?.is_active !== false,
         can_access_personal_reports: hasPersonalReportsAccess,
@@ -3708,7 +3719,7 @@ export const api = {
     return { ok: true, row: data };
   },
   addActivity: async (target, data) => {
-    if (!canDirectManageActivitiesUser()) throw new Error('forbidden_add_activity');
+    if (!canAddActivitiesUser()) throw new Error('forbidden_add_activity');
     const payload = (typeof target === 'object' && target !== null && data === undefined)
       ? { activity: target }
       : { activity: { ...(data || {}), source: target } };

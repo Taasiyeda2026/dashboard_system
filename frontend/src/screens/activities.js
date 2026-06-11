@@ -59,20 +59,34 @@ const ACTIVITY_LAYOUT_ALLOWED_ROLES = new Set(['admin', 'operation_manager']);
 const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
 const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
 
+function permissionFlagYes(value) {
+  if (value === true || value === 1) return true;
+  return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
+}
+
 function activityRole(state) {
-  return String(state?.user?.display_role || state?.user?.role || '').trim();
+  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+  return role === 'activity_manager' ? 'activities_manager' : role;
 }
 
 function canDirectManageActivities(state) {
-  return ACTIVITY_DIRECT_MANAGE_ROLES.has(activityRole(state));
+  return permissionFlagYes(state?.user?.can_edit_direct) || ACTIVITY_DIRECT_MANAGE_ROLES.has(activityRole(state));
+}
+
+function canAddActivities(state) {
+  return permissionFlagYes(state?.user?.can_add_activity) || canDirectManageActivities(state);
 }
 
 function canRequestActivityChanges(state) {
-  return canDirectManageActivities(state) || ACTIVITY_REQUEST_ROLES.has(activityRole(state));
+  return permissionFlagYes(state?.user?.can_request_edit) || canDirectManageActivities(state) || ACTIVITY_REQUEST_ROLES.has(activityRole(state));
+}
+
+function canReviewActivityRequests(state) {
+  return permissionFlagYes(state?.user?.can_review_requests) || canDirectManageActivities(state);
 }
 
 function canOpenCreateActivity(state) {
-  return canDirectManageActivities(state) || ACTIVITY_REQUEST_ROLES.has(activityRole(state));
+  return canAddActivities(state) || canRequestActivityChanges(state);
 }
 
 function normalizeActivityPeriodTab(value) {
@@ -1211,14 +1225,14 @@ export const activitiesScreen = {
 
     const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
     const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
-    const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
+    const canSeePrivateNotes = canReviewActivityRequests(state);
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const role = String(state?.user?.display_role || state?.user?.role || '').trim();
     const canDeleteActivity = canDirectManageActivities(state);
     const canAddActivity = canOpenCreateActivity(state);
-    const isCreateRequestOnly = canAddActivity && !canDirectManageActivities(state);
+    const isCreateRequestOnly = canAddActivity && !canAddActivities(state);
     const isAdmin = isAdminUser(state);
     const canUseLayout = canUseActivityLayout(state) && state.activityPeriodTab === ACTIVITY_LAYOUT_SEASON;
 
@@ -1537,7 +1551,7 @@ export const activitiesScreen = {
       await doMarkActivityLayoutSent(group, button);
     }
     const filteredRows      = applyActivitiesLocalFilters(periodRows, state, state?.clientSettings);
-    const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
+    const canSeePrivateNotes = canReviewActivityRequests(state);
     const canEditActivity   = canRequestActivityChanges(state);
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
@@ -1545,7 +1559,7 @@ export const activitiesScreen = {
     const role = String(state?.user?.display_role || state?.user?.role || '').trim();
     const canDeleteActivity = canDirectManageActivities(state);
     const canAddActivity = canOpenCreateActivity(state);
-    const isCreateRequestOnly = canAddActivity && !canDirectManageActivities(state);
+    const isCreateRequestOnly = canAddActivity && !canAddActivities(state);
     const isAdmin = isAdminUser(state);
 
     const rerenderLocal = () => {
