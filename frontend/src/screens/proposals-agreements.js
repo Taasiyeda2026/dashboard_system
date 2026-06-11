@@ -1865,25 +1865,7 @@ function replaceLocalRow(data, savedRow) {
   data.rows = dedupeById(sortRows(rows.map(normalizeProposalAgreementRow)));
 }
 
-// ─── PDF appendix entries (per gefen_number / activity_no) ──────────────────
-
-function buildPdfAppendixEntries(items) {
-  if (!Array.isArray(items) || !items.length) return [];
-  const seen = new Set();
-  const entries = [];
-  for (const item of items) {
-    if (isTestHoursItem(item)) continue;
-    if (text(item.proposal_display_mode) === 'bundle_child') continue;
-    const num = text(item.gefen_number) || text(item.activity_no) || '';
-    if (num && !seen.has(num)) {
-      seen.add(num);
-      entries.push(num);
-    }
-  }
-  return entries;
-}
-
-// ─── Catalog appendix via iframe ─────────────────────────────────────────────
+// ─── Catalog appendix via hidden iframe extraction ───────────────────────────
 
 function buildProposalCatalogEntries(items) {
   if (!Array.isArray(items) || !items.length) return [];
@@ -1894,24 +1876,31 @@ function buildProposalCatalogEntries(items) {
   const programGefenIds = [];
   const seenGefenIds = new Set();
 
+  const addWorkshopId = (value) => {
+    const raw = text(value || '').replace(/^cat-/, '');
+    const n = Number(raw);
+    if (n > 0) allWorkshopIds.push(n);
+  };
+
   for (const item of items) {
+    if (isTestHoursItem(item)) continue;
     const displayMode = text(item.proposal_display_mode);
     const itemType = text(item.item_type);
+    if (displayMode === 'bundle_child') continue;
+
     if (displayMode === 'bundle_parent') {
       const selected = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
       if (selected.length > 0) {
-        for (const sel of selected) {
-          const raw = text(sel.activity_no || sel.pricing_key || '').replace(/^cat-/, '');
-          const n = Number(raw);
-          if (n > 0) allWorkshopIds.push(n);
-        }
+        for (const sel of selected) addWorkshopId(sel.activity_no || sel.pricing_key);
       } else {
         const isSpace = text(item.source_pricing_key) === 'space_workshop' || text(item.item_name).includes('חלל');
         if (isSpace) needSpaceAll = true; else needStemAll = true;
       }
-    } else if (displayMode !== 'bundle_child' && (itemType === 'קורס' || itemType === 'תוכנית' || itemType === 'הדרכה')) {
+    } else if (itemType === 'קורס' || itemType === 'תוכנית' || itemType === 'הדרכה') {
       const gef = text(item.gefen_number);
       if (gef && !seenGefenIds.has(gef)) { seenGefenIds.add(gef); programGefenIds.push(gef); }
+    } else {
+      addWorkshopId(item.activity_no || item.pricing_key || item.source_pricing_key);
     }
   }
 
@@ -2531,45 +2520,7 @@ export const proposalsAgreementsScreen = {
           previewArea?.appendChild(notice);
           return notice;
         };
-        const waitForFrame = (frame, label) => new Promise((resolve) => {
-          let done = false;
-          const finish = (ok) => {
-            if (done) return;
-            done = true;
-            window.clearTimeout(timer);
-            frame.removeEventListener('load', onLoad);
-            frame.removeEventListener('error', onError);
-            resolve(ok);
-          };
-          const onLoad = () => finish(true);
-          const onError = () => {
-            const notice = appendAppendixWarning(`⚠ ${label} לא נטען`);
-            frame.replaceWith(notice);
-            finish(false);
-          };
-          const timer = window.setTimeout(() => {
-            const notice = appendAppendixWarning(`⚠ ${label} עדיין לא סיים טעינה`);
-            frame.replaceWith(notice);
-            finish(false);
-          }, 15000);
-          frame.addEventListener('load', onLoad, { once: true });
-          frame.addEventListener('error', onError, { once: true });
-        });
-
         const appendixLoads = [];
-        const pdfNums = buildPdfAppendixEntries(items);
-        for (const num of pdfNums) {
-          const url = `${PUBLIC_BASE}catalog/appendices/${encodeURIComponent(num)}.pdf`;
-          const frame = document.createElement('iframe');
-          frame.src = url;
-          frame.className = 'pa-pdf-appendix-frame';
-          frame.setAttribute('aria-label', `נספח ${num}`);
-          frame.setAttribute('title', `נספח ${num}`);
-          markFirst(frame);
-          previewArea?.appendChild(frame);
-          appendixLoads.push(waitForFrame(frame, `נספח ${num}`));
-        }
-
         const catalogUrls = buildProposalCatalogEntries(items);
         for (const url of catalogUrls) {
           const loadCatalog = (async () => {
