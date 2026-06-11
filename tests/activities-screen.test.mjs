@@ -360,9 +360,9 @@ test('activities screen wires add-activity form submit to api.addActivity flow',
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
   assert.match(source, /data-add-activity-form/);
-  assert.match(source, /document\.addEventListener\('submit'[\s\S]*submitAddActivityForm/);
+  assert.match(source, /form\.addEventListener\('submit'[\s\S]*submitAddActivityForm/);
   assert.match(source, /await api\.addActivity\(payload\)/);
-  assert.match(source, /statusEl\) statusEl\.textContent = `שגיאה בשמירה:/);
+  assert.match(source, /setAddActivityStatus\(statusEl, `לא ניתן לשמור:/);
   assert.match(source, /const ADD_ACTIVITY_TYPE_ORDER = \['workshop', 'escape_room', 'tour', 'after_school'\]/);
   assert.doesNotMatch(source, /data-add-family=/);
   assert.match(source, /'workshop'/);
@@ -570,5 +570,90 @@ test('activity add form refreshes activity_name options and clears stale name wh
     globalThis.window = previousWindow;
     globalThis.document = previousDocument;
     globalThis.AbortController = previousAbortController;
+  }
+});
+
+test('activity add validation clears saving state and does not show duplicate in-progress error', async () => {
+  const settings = activityNameSettings();
+  settings.dropdown_options.authorities = ['רשות א'];
+  settings.dropdown_options.schools = ['בית ספר א'];
+  settings.dropdown_options.activity_managers = ['מנהלת א'];
+  const state = baseState();
+  state.clientSettings = settings;
+  state.user = { display_role: 'admin', role: 'admin', can_add_activity: true };
+  const dom = new JSDOM('<body><main id="root"></main></body>', { url: 'https://example.test/dashboard_system/' });
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
+  const previousFormData = globalThis.FormData;
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
+  globalThis.FormData = dom.window.FormData;
+  let addCalls = 0;
+  try {
+    const root = dom.window.document.querySelector('#root');
+    root.innerHTML = activitiesScreen.render({ rows: [] }, { state });
+    activitiesScreen.bind({
+      root,
+      data: { rows: [] },
+      state,
+      rerender: () => {},
+      rerenderActivitiesView: () => {},
+      clearScreenDataCache: () => {},
+      api: {
+        activities: async () => ({ rows: [] }),
+        allActivities: async () => ({ rows: [] }),
+        addActivity: async () => { addCalls += 1; return { row: { RowID: 'A-NEW', start_date: '2026-06-15' } }; }
+      },
+      ui: {
+        bindInteractiveCards: () => {},
+        closeModal: () => {},
+        openModal: ({ content, actions }) => {
+          const modal = dom.window.document.createElement('div');
+          modal.className = 'ds-modal__content';
+          modal.innerHTML = `${content}<footer>${actions}</footer>`;
+          dom.window.document.body.appendChild(modal);
+        }
+      }
+    });
+
+    root.querySelector('[data-activities-add-btn]').click();
+    const form = dom.window.document.querySelector('[data-add-activity-form]');
+    const status = form.querySelector('[data-add-activity-status]');
+    const submit = dom.window.document.querySelector('[data-add-activity-submit]');
+
+    const typeSelect = form.querySelector('[data-add-activity-type]');
+    const nameSelect = form.querySelector('[data-add-activity-name]');
+    typeSelect.value = 'escape_room';
+    typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    nameSelect.value = 'חדר בריחה חלל';
+    nameSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    form.querySelector('[name="authority"]').value = 'רשות א';
+    form.querySelector('[name="school"]').value = 'בית ספר א';
+
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(status.textContent, 'יש למלא תאריך פעילות');
+    assert.notEqual(form.dataset.saving, 'yes');
+    assert.equal(submit.disabled, false);
+    assert.equal(submit.classList.contains('is-loading'), false);
+    assert.doesNotMatch(status.textContent, /השמירה כבר בתהליך/);
+    assert.equal(addCalls, 0);
+
+    form.querySelector('[name="one_day_date"]').value = '2026-06-15';
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(status.textContent, 'יש לבחור שעת התחלה');
+
+    form.querySelector('[name="start_time"]').value = '09:00';
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(status.textContent, 'יש לבחור שעת סיום');
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+    globalThis.AbortController = previousAbortController;
+    globalThis.FormData = previousFormData;
   }
 });
