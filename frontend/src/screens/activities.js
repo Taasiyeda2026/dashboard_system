@@ -2132,6 +2132,11 @@ export const activitiesScreen = {
         form.dataset.submitting = 'no';
         return;
       }
+      if (!isOneDay && !meetingDateValues.some((dateValue) => String(dateValue || '').trim())) {
+        if (statusEl) statusEl.textContent = 'יש להשלים לפחות תאריך מפגש אחד';
+        form.dataset.submitting = 'no';
+        return;
+      }
 
       const required = [
         ['activity_type', 'סוג פעילות'],
@@ -2154,11 +2159,8 @@ export const activitiesScreen = {
           submitBtn.textContent = isCreateRequestOnly ? 'שולח בקשה...' : 'שומר...';
         }
         if (statusEl) statusEl.textContent = isCreateRequestOnly ? 'שולח בקשה לאישור...' : 'שומר...';
-        console.info('[addActivity] submit fired', { requestOnly: isCreateRequestOnly });
-        console.info('[addActivity] payload', payload);
         if (isCreateRequestOnly) {
           const rsp = await api.submitCreateActivityRequest(payload);
-          console.info('[addActivity] request success', rsp);
           clearScreenDataCache?.();
           try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
           const requestId = String(rsp?.request_id || '').trim();
@@ -2167,8 +2169,7 @@ export const activitiesScreen = {
           ui?.closeModal?.();
           return;
         }
-        const rsp = await api.addActivity(payload);
-        console.info('[addActivity] success', rsp);
+        await api.addActivity(payload);
         clearScreenDataCache?.();
         const savedPeriod = activityPeriodKey(payload);
         const savedToOtherPeriod = savedPeriod !== state.activityPeriodTab;
@@ -2193,28 +2194,27 @@ export const activitiesScreen = {
       }
     }
 
-    const modalRoot = document;
-    const addActivityForm = modalRoot.querySelector('[data-add-activity-form]');
-    if (addActivityForm && addActivityForm.dataset.submitBound !== 'yes') {
-      addActivityForm.dataset.submitBound = 'yes';
-      addActivityForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const submitBtn = document.querySelector('[data-add-activity-submit]');
-        if (submitBtn?.disabled) return;
-        await submitAddActivityForm(addActivityForm, submitBtn);
-      }, addActivitySig);
-    }
-    if (document.body?.dataset?.globalActivitySubmitBound !== 'yes') {
-      document.body.dataset.globalActivitySubmitBound = 'yes';
-      document.addEventListener('submit', async (event) => {
-        const form = event.target?.closest?.('[data-add-activity-form]');
-        if (!form) return;
+    function bindAddActivitySubmit(form) {
+      if (!form || form.dataset.submitBound === 'yes') return;
+      form.dataset.submitBound = 'yes';
+      form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const submitBtn = document.querySelector('[data-add-activity-submit]');
         if (submitBtn?.disabled) return;
         await submitAddActivityForm(form, submitBtn);
       }, addActivitySig);
     }
+
+    const modalRoot = document;
+    bindAddActivitySubmit(modalRoot.querySelector('[data-add-activity-form]'));
+    document.addEventListener('submit', async (event) => {
+      const form = event.target?.closest?.('[data-add-activity-form]');
+      if (!form) return;
+      event.preventDefault();
+      const submitBtn = document.querySelector('[data-add-activity-submit]');
+      if (submitBtn?.disabled) return;
+      await submitAddActivityForm(form, submitBtn);
+    }, addActivitySig);
 
     document.addEventListener('click', (ev) => {
       const submit = ev.target.closest('[data-add-activity-submit]');
@@ -2223,7 +2223,8 @@ export const activitiesScreen = {
       const form = modal?.querySelector('[data-add-activity-form]');
       if (!form) return;
       if (submit.disabled) return;
-      form.requestSubmit?.();
+      if (typeof form.requestSubmit === 'function') form.requestSubmit();
+      else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     }, addActivitySig);
 
     const addBtn = root.querySelector('[data-activities-add-btn]');
@@ -2240,6 +2241,7 @@ export const activitiesScreen = {
           `
         });
         bindAddActivityForm();
+        bindAddActivitySubmit(document.querySelector('.ds-modal__content [data-add-activity-form]'));
       }, addActivitySig);
     }
 
