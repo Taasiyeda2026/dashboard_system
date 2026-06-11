@@ -2598,14 +2598,18 @@ export const proposalsAgreementsScreen = {
       const allBtns = form.querySelectorAll('button');
       allBtns.forEach((b) => { b.disabled = true; });
       const payload = payloadFromForm(form);
-      if (statusOverride) payload.status = statusOverride;
+      // Always set status explicitly — 'draft' is the safe default
+      const targetStatus = statusOverride || 'draft';
+      payload.status = targetStatus;
+      const isPending = targetStatus === 'pending_approval';
 
-      const validationErrors = validatePayload(payload, statusOverride);
-      if ((statusOverride === 'pending_approval') && form.dataset.paPreviewSeen !== 'yes') {
+      const validationErrors = validatePayload(payload, targetStatus);
+      // Preview check only for pending_approval — never for draft
+      if (isPending && form.dataset.paPreviewSeen !== 'yes') {
         validationErrors.push('מומלץ לבדוק תצוגה מקדימה לפני שליחה לאישור.');
       }
       if (validationErrors.length) {
-        showValidationNotice(form, validationErrors, statusOverride === 'pending_approval');
+        showValidationNotice(form, validationErrors, isPending);
         form.dataset.saving = '';
         allBtns.forEach((b) => { b.disabled = false; });
         return;
@@ -3322,9 +3326,14 @@ export const proposalsAgreementsScreen = {
         const payload = payloadFromForm(form);
         const tempRow = { ...payload, id: text(form.dataset.paId) || '' };
         const items = payload._items || [];
-        await openPreview(tempRow, items, {
-          onSave: async () => { await saveForm(form, 'draft'); }
-        });
+        try {
+          await openPreview(tempRow, items, {
+            onSave: async () => { await saveForm(form, 'draft'); }
+          });
+        } catch (e) {
+          console.warn('[PA] openPreview error:', e);
+        }
+        // Mark preview seen — always, even if preview threw an error
         form.dataset.paPreviewSeen = 'yes';
         return;
       }
