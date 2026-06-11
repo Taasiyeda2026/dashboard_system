@@ -10784,6 +10784,18 @@ select.ds-input {
   border-radius: 12px;
   background: #f8fbff;
 }
+.ds-pa-catalog-attach.is-attached {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.ds-pa-catalog-attach .ds-btn--primary[data-pa-catalog-toggle] {
+  font-weight: 700;
+}
+.ds-pa-catalog-attach.is-attached [data-pa-catalog-toggle] {
+  color: #15803d;
+  border-color: #86efac;
+  font-weight: 700;
+}
 .ds-pa-catalog-attach-text {
   display: flex;
   flex-direction: column;
@@ -11357,7 +11369,7 @@ select.ds-input {
 }
 .proposal-document-footer {
   width: 100%;
-  margin-top: 8px;
+  margin-top: auto;
   padding: 0;
   border-top: none;
   line-height: 0;
@@ -11375,7 +11387,7 @@ select.ds-input {
 /* Inline-flow block after the last section ("בברכה," + name from Supabase).
    Never absolute/fixed, never pushed above the footer, no auto margins. */
 .proposal-signature {
-  margin: 14pt 0 0;
+  margin: 10pt 0 4pt;
   display: block;
   direction: rtl;
   text-align: right;
@@ -11399,6 +11411,7 @@ select.ds-input {
   font-size: 7.5pt;
   color: #374151;
   margin-top: 4px;
+  margin-left: 9px;
   margin-right: 3mm;
 }
 .pa-doc-address {
@@ -11712,7 +11725,7 @@ select.ds-input {
     height: auto !important;
     padding: 0 !important;
     border-top: none !important;
-    margin-top: 8px !important;
+    margin-top: auto !important;
     line-height: 0 !important;
   }
   .proposal-footer-logo {
@@ -11740,11 +11753,12 @@ select.ds-input {
   /* ── Inner document content ───────────────────────────────────── */
   .pa-doc-date {
     font-size: 7pt !important;
-    text-align: center !important;
+    text-align: left !important;
     direction: ltr !important;
     line-height: 1.3 !important;
     color: #374151 !important;
     margin-top: 3pt !important;
+    margin-left: 9px !important;
     margin-right: 3mm !important;
   }
   .pa-doc-address {
