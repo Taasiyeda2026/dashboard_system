@@ -2040,10 +2040,28 @@ export const activitiesScreen = {
       render();
     }
 
+    function setAddActivityStatus(statusEl, message, { isError = false } = {}) {
+      if (!statusEl) return;
+      statusEl.textContent = message;
+      statusEl.setAttribute('role', isError ? 'alert' : 'status');
+      statusEl.classList.toggle('ds-error-text', isError);
+    }
+
+    function readableActivityAddError(error) {
+      const status = String(error?.status || error?.code || '').trim();
+      const message = String(error?.message || error || '').trim();
+      if (message === 'forbidden_add_activity' || status === '403') return 'אין הרשאת הוספת פעילות';
+      if (message === 'forbidden_create_activity_request') return 'אין הרשאה לשליחת בקשת הוספת פעילות';
+      return message || 'שגיאה לא ידועה';
+    }
+
     async function submitAddActivityForm(form, submitBtn) {
-      if (form.dataset.submitting === 'yes') return;
-      form.dataset.submitting = 'yes';
       const statusEl = form.querySelector('[data-add-activity-status]');
+      if (form.dataset.submitting === 'yes') {
+        setAddActivityStatus(statusEl, 'השמירה כבר בתהליך. אם ההודעה לא משתנה, סגרו ופתחו את החלון מחדש.', { isError: true });
+        return;
+      }
+      form.dataset.submitting = 'yes';
       const activityMap = decodeJsonAttr(form.dataset.addActivityNames, []);
       const roster = decodeJsonAttr(form.dataset.addRosterUsers, []);
       const fd = new (window?.FormData || FormData)(form);
@@ -2054,13 +2072,14 @@ export const activitiesScreen = {
       const schoolValue = schoolCustom || get('school');
       const selectedName = get('activity_name');
       const selectedType = normalizeOneDayActivityType(get('activity_type')) || normalizeActivityTypeKey(get('activity_type'));
+      let activityAddDiagnostics = {};
       const hit = activityMap.find((x) => {
         const label = String(x?.label || '').trim();
         const parent = x?.parent_value || x?.activity_type;
         return label === selectedName && activityTypeMatches(parent, selectedType);
       });
       if (!selectedType || !selectedName || !hit) {
-        if (statusEl) statusEl.textContent = 'יש לבחור סוג פעילות ושם פעילות מתוך הרשימה המסוננת';
+        setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסרה פעילות מקור מתוך הרשימה המסוננת', { isError: true });
         form.dataset.submitting = 'no';
         return;
       }
@@ -2126,14 +2145,32 @@ export const activitiesScreen = {
         const lastDate = meetingDateValues.filter(Boolean).pop();
         payload.end_date = lastDate || payload.start_date || null;
       }
+      activityAddDiagnostics = {
+        date: isOneDay ? oneDayDate : String(meetingDateValues[0] || payload.start_date || '').trim(),
+        start_time: payload.start_time,
+        end_time: payload.end_time,
+        activity_manager: payload.activity_manager,
+        main_instructor: payload.instructor_name,
+        extra_instructor: payload.instructor_name_2,
+        notes: payload.notes,
+        selected_activity_no: payload.activity_no,
+        selected_activity_name: payload.activity_name,
+        selected_activity_type: payload.activity_type,
+        permissions: {
+          can_add_activity: state?.user?.can_add_activity,
+          can_edit_direct: state?.user?.can_edit_direct,
+          can_request_edit: state?.user?.can_request_edit,
+          role: String(state?.user?.display_role || state?.user?.role || '').trim()
+        }
+      };
 
       if (isOneDay && (!String(payload.activity_name || '').trim() || GENERIC_ONE_DAY_ACTIVITY_NAMES.has(String(payload.activity_name || '').trim()))) {
-        if (statusEl) statusEl.textContent = 'יש לבחור שם פעילות מתוך הרשימה';
+        setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסר שם פעילות מתוך הרשימה', { isError: true });
         form.dataset.submitting = 'no';
         return;
       }
       if (!isOneDay && !meetingDateValues.some((dateValue) => String(dateValue || '').trim())) {
-        if (statusEl) statusEl.textContent = 'יש להשלים לפחות תאריך מפגש אחד';
+        setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסר לפחות תאריך מפגש אחד', { isError: true });
         form.dataset.submitting = 'no';
         return;
       }
@@ -2147,44 +2184,66 @@ export const activitiesScreen = {
       ];
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
       if (missing.length) {
-        if (statusEl) statusEl.textContent = `יש להשלים שדות חובה: ${missing.join(' ,')}`;
+        setAddActivityStatus(statusEl, `לא ניתן לשמור: חסר ${missing.join(' / ')}`, { isError: true });
         form.dataset.submitting = 'no';
         return;
       }
-
+      if (!String(payload.activity_no || '').trim()) {
+        setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסר מזהה פעילות מקור', { isError: true });
+        form.dataset.submitting = 'no';
+        return;
+      }
+      if (!isCreateRequestOnly && !canAddActivities(state)) {
+        setAddActivityStatus(statusEl, 'לא ניתן לשמור: אין הרשאת הוספה', { isError: true });
+        form.dataset.submitting = 'no';
+        return;
+      }
+      if (isCreateRequestOnly && !canRequestActivityChanges(state)) {
+        setAddActivityStatus(statusEl, 'לא ניתן לשמור: אין הרשאה לשליחת בקשת הוספה', { isError: true });
+        form.dataset.submitting = 'no';
+        return;
+      }
       const originalText = submitBtn?.textContent || (isCreateRequestOnly ? 'שליחת בקשה' : 'שמור');
       try {
         if (submitBtn) {
           submitBtn.disabled = true;
           submitBtn.textContent = isCreateRequestOnly ? 'שולח בקשה...' : 'שומר...';
         }
-        if (statusEl) statusEl.textContent = isCreateRequestOnly ? 'שולח בקשה לאישור...' : 'שומר...';
+        setAddActivityStatus(statusEl, isCreateRequestOnly ? 'שולח בקשה לאישור...' : 'שומר...');
         if (isCreateRequestOnly) {
           const rsp = await api.submitCreateActivityRequest(payload);
           clearScreenDataCache?.();
           try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
           const requestId = String(rsp?.request_id || '').trim();
-          if (statusEl) statusEl.textContent = requestId ? `הבקשה נשלחה לאישור · מזהה בקשה: ${requestId}` : 'הבקשה נשלחה לאישור';
+          setAddActivityStatus(statusEl, requestId ? `הבקשה נשלחה לאישור · מזהה בקשה: ${requestId}` : 'הבקשה נשלחה לאישור');
           showToast('הבקשה להוספת פעילות נשלחה לאישור', 'success', 3200);
           ui?.closeModal?.();
           return;
         }
-        await api.addActivity(payload);
+        const saved = await api.addActivity(payload);
+        const savedRow = saved?.row;
+        if (savedRow) {
+          const savedRowId = String(savedRow.RowID || savedRow.row_id || '').trim();
+          const existingIndex = activitiesRows.findIndex((row) => String(row?.RowID || row?.row_id || '').trim() === savedRowId);
+          if (existingIndex >= 0) activitiesRows.splice(existingIndex, 1, savedRow);
+          else activitiesRows.unshift(savedRow);
+        }
         clearScreenDataCache?.();
-        const savedPeriod = activityPeriodKey(payload);
+        const savedPeriod = activityPeriodKey(savedRow || payload);
         const savedToOtherPeriod = savedPeriod !== state.activityPeriodTab;
-        if (statusEl) statusEl.textContent = savedToOtherPeriod
+        setAddActivityStatus(statusEl, savedToOtherPeriod
           ? 'הפעילות נשמרה בתקופה אחרת והועברה ללשונית המתאימה.'
-          : 'הפעילות נשמרה';
+          : 'הפעילות נשמרה');
         showToast(savedToOtherPeriod ? 'הפעילות נשמרה בתקופה אחרת והועברה ללשונית המתאימה.' : 'הפעילות נשמרה', 'success', 3000);
         if (savedToOtherPeriod) {
           state.activityPeriodTab = savedPeriod;
         }
         ui?.closeModal?.();
         await scheduleQuietRefresh();
+        rerenderLocal();
       } catch (err) {
-        console.error('[addActivity] failed', err);
-        if (statusEl) statusEl.textContent = `שגיאה בשמירה: ${String(err?.message || '')}`;
+        console.error('[activity-add] save failed', { error: err, payload, diagnostics: activityAddDiagnostics });
+        setAddActivityStatus(statusEl, `לא ניתן לשמור: ${readableActivityAddError(err)}`, { isError: true });
       } finally {
         form.dataset.submitting = 'no';
         if (submitBtn) {
@@ -2221,7 +2280,17 @@ export const activitiesScreen = {
       if (!submit) return;
       const modal = document.querySelector('.ds-modal__content');
       const form = modal?.querySelector('[data-add-activity-form]');
-      if (!form) return;
+      if (!form) {
+        console.error('[activity-add] save failed', new Error('missing_add_activity_form'));
+        if (modal) {
+          const errorEl = document.createElement('p');
+          errorEl.className = 'ds-error-text';
+          errorEl.setAttribute('role', 'alert');
+          errorEl.textContent = 'לא ניתן לשמור: טופס הוספת הפעילות לא נטען. סגרו ופתחו את החלון מחדש.';
+          modal.appendChild(errorEl);
+        }
+        return;
+      }
       if (submit.disabled) return;
       if (typeof form.requestSubmit === 'function') form.requestSubmit();
       else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
