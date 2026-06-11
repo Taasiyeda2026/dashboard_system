@@ -1028,40 +1028,57 @@ function proposalItemsListHtml(items = [], options = {}) {
   return lines ? sectionLinesHtml(lines, { alwaysBullet: true, className: 'pa-proposal-lines' }) : '';
 }
 
+function costTableRowData(name, quantity, unitPrice, total) {
+  if (!name || unitPrice == null || unitPrice <= 0 || total == null || total <= 0) return null;
+  return {
+    name,
+    quantity: Number(quantity) || 1,
+    unitPrice,
+    total
+  };
+}
+
+function costTableRowsFromItem(item = {}) {
+  const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
+  const displayMode = text(item.proposal_display_mode);
+  const isBundleParent = displayMode === 'bundle_parent' || item.is_bundle_parent;
+
+  if (isBundleParent && bundleItems.length) {
+    const childRows = bundleItems.map((bundleItem) => {
+      const name = publicActivityName(typeof bundleItem === 'object' ? bundleItem.activity_name : bundleItem);
+      const unitPrice = numberValue(typeof bundleItem === 'object' ? bundleItem.unit_price : null);
+      const quantity = 1;
+      const total = unitPrice != null ? quantity * unitPrice : null;
+      return costTableRowData(name, quantity, unitPrice, total);
+    }).filter(Boolean);
+    if (childRows.length) return childRows;
+  }
+
+  const name = publicActivityName(item.item_name);
+  const quantity = Number(item.quantity) || 1;
+  const unitPrice = numberValue(item.unit_price);
+  const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
+  const row = costTableRowData(name, quantity, unitPrice, total);
+  return row ? [row] : [];
+}
+
 // Customer-facing price breakdown, built only from saved proposal_agreement_items.
-// Rows without a real price are never shown; bundle parents are the billed product
-// and their selected children appear as sub-detail without double counting.
+// Rows without a real price are never shown. Selected bundle children become billed
+// rows; the parent row is omitted when children carry the actual prices.
 function proposalCostTableHtml(items = []) {
   const billedItems = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
-  const rows = billedItems.map((item) => {
-    const name = publicActivityName(item.item_name);
-    const quantity = Number(item.quantity) || 1;
-    const unitPrice = numberValue(item.unit_price);
-    const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
-    if (!name || unitPrice == null || unitPrice <= 0 || total == null || total <= 0) return null;
-    const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
-    const bundleDetail = bundleItems
-      .map((bi) => publicActivityName(typeof bi === 'object' ? bi.activity_name : bi))
-      .filter(Boolean);
-    const bundleHtml = bundleDetail.length
-      ? `<ul class="pa-cost-bundle-detail">${bundleDetail.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`
-      : '';
-    return {
-      total,
-      html: `<tr>
-        <td>${escapeHtml(name)}${bundleHtml}</td>
-        <td>${escapeHtml(formatCurrency(quantity))}</td>
-        <td>${escapeHtml(formatCurrency(unitPrice))} ₪</td>
-        <td>${escapeHtml(formatCurrency(total))} ₪</td>
-      </tr>`
-    };
-  }).filter(Boolean);
+  const rows = billedItems.flatMap((item) => costTableRowsFromItem(item));
   if (!rows.length) return '';
   const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
   return `<table class="pa-cost-table">
     <thead><tr><th>פעילות</th><th>כמות</th><th>מחיר יחידה</th><th>סה״כ</th></tr></thead>
-    <tbody>${rows.map((row) => row.html).join('')}</tbody>
+    <tbody>${rows.map((row) => `<tr>
+        <td>${escapeHtml(row.name)}</td>
+        <td>${escapeHtml(formatCurrency(row.quantity))}</td>
+        <td>${escapeHtml(formatCurrency(row.unitPrice))} ₪</td>
+        <td>${escapeHtml(formatCurrency(row.total))} ₪</td>
+      </tr>`).join('')}</tbody>
     <tfoot><tr><td colspan="3">סה״כ כללי</td><td>${escapeHtml(formatCurrency(grandTotal))} ₪</td></tr></tfoot>
   </table>`;
 }
@@ -1203,7 +1220,15 @@ function templateDefaultSections(_templateKey) {
 function resolveDocumentSections(row, templateSections = []) {
   const custom = Array.isArray(row?.custom_document_sections) ? row.custom_document_sections : [];
   const fromSupabase = Array.isArray(templateSections) ? templateSections : [];
-  const source = custom.length ? custom : fromSupabase;
+  let source = custom.length ? custom : fromSupabase;
+  if (custom.length) {
+    const customKeys = new Set(custom.map((section) => text(section.section_key)));
+    if (!customKeys.has('signature')) {
+      const templateSignature = fromSupabase.find((section) =>
+        text(section.section_key) === 'signature' && text(section.section_body));
+      if (templateSignature) source = [...source, templateSignature];
+    }
+  }
   return source
     .map(normalizeDocumentSection)
     .filter((section) => text(section.section_key) || text(section.section_title) || text(section.section_body));
@@ -1282,22 +1307,15 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const sectionBody = (key) => templateBodyText(byKey.get(key));
   const sectionTitle = (key) => text(byKey.get(key)?.section_title);
 
+  const includeCatalog = includeCatalogValue(row.include_catalog);
   const introText = sectionBody('intro');
   const remarks = sectionBody('notes') || String(row.notes || '').replace(/\r\n?/g, '\n').trim();
-  const activityIntro = sectionBody('activity_intro');
+  const activityIntro = filterCatalogContentFromBody(sectionBody('activity_intro'), includeCatalog);
 
-  const itemsByGroup = Array.isArray(items) ? items.reduce((acc, item) => {
-    const group = proposalGroupText(item) || activityTypeGroup;
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(item);
-    return acc;
-  }, {}) : {};
-
-  const renderActivitySection = (key, heading, body, itemList, options = {}) => {
-    const itemsHtml = proposalItemsListHtml(itemList || [], options);
+  const renderActivitySection = (heading, body) => {
     const bodyHtml = body ? sectionBodyHtml(body) : '';
-    if (!bodyHtml && !itemsHtml) return '';
-    return `<section class="pa-section">${heading ? `<h3>${escapeHtml(sectionHeadingText(heading))}</h3>` : ''}${bodyHtml}${itemsHtml}</section>`;
+    if (!bodyHtml) return '';
+    return `<section class="pa-section">${heading ? `<h3>${escapeHtml(sectionHeadingText(heading))}</h3>` : ''}${bodyHtml}</section>`;
   };
 
   const sections = [];
@@ -1307,18 +1325,15 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
       // Supabase template sections may use either naming convention for per-group intros.
       const candidateKeys = [`activity_intro_${groupKey}`, `${groupKey}_activity_intro`];
       const key = candidateKeys.find((candidate) => byKey.has(candidate)) || candidateKeys[0];
-      const body = sectionBody(key);
+      const body = filterCatalogContentFromBody(sectionBody(key), includeCatalog);
       const heading = sectionTitle(key) || proposalGroupDisplayName(groupKey);
-      const section = renderActivitySection(key, heading, body, itemsByGroup[groupKey] || [], { showGefen: shouldShowGefenForGroup(groupKey) });
+      const section = renderActivitySection(heading, body);
       if (section) sections.push(section);
     });
   } else {
     const activitySection = renderActivitySection(
-      'activity_intro',
       sectionTitle('activity_intro'),
-      activityIntro,
-      itemsByGroup[activityTypeGroup] || items,
-      { showGefen: shouldShowGefenForGroup(activityTypeGroup) }
+      activityIntro
     );
     if (activitySection) sections.push(activitySection);
   }
@@ -1519,6 +1534,25 @@ function proposalStepperHtml() {
 
 function includeCatalogValue(value) {
   return value === true || value === 'yes' || value === 'true' || value === 1;
+}
+
+// Catalog-attachment wording lives in Supabase template bodies; hide it in the document
+// when the proposal was saved without include_catalog.
+const CATALOG_ATTACH_LINE_RE = /דף\s+מידע[\s\S]*?(?:קטלוג|מגוון\s+הפעילויות)[\s\S]*?מצורף[\s\S]*?הצעה/u;
+
+function isCatalogAttachLine(line = '') {
+  const stripped = text(line).replace(/^[•\-·]\s*/, '');
+  if (!stripped) return false;
+  if (CATALOG_ATTACH_LINE_RE.test(stripped)) return true;
+  return /(?:קטלוג|דף\s+מידע|מגוון\s+הפעילויות)/u.test(stripped) && /מצורף/u.test(stripped);
+}
+
+function filterCatalogContentFromBody(body = '', includeCatalog = false) {
+  if (!body || includeCatalog) return body;
+  const kept = normalizeMultilineText(body)
+    .split('\n')
+    .filter((line) => !isCatalogAttachLine(line));
+  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function catalogAttachHtml(row = {}) {
