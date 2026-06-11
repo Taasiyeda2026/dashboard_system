@@ -59,7 +59,7 @@ const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', i
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogEntries, proposalPreviewBodyHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -1303,6 +1303,67 @@ test('summer proposal preview keeps prices out of activity section and expands b
   });
 });
 
+
+test('catalog appendix entries load workshop proposals only from workshops catalog and dedupe ids', () => {
+  const urls = buildProposalCatalogEntries([
+    { item_name: 'סדנת רובוטיקה', item_type: 'סדנה', activity_no: 'cat-12', pricing_key: 'cat-12', unit_price: 500 },
+    { item_name: 'סדנת רובוטיקה', item_type: 'סדנה', activity_no: '12', pricing_key: 'cat-12', unit_price: 500 }
+  ]);
+
+  assert.deepEqual(urls, ['./catalog/summercatalog/workshops.html?proposalMode=1&workshopIds=12']);
+  assert.equal(urls.some((url) => url.includes('course-page.html')), false);
+});
+
+test('catalog appendix entries split mixed proposals by true item type without duplicate appendices', () => {
+  const urls = buildProposalCatalogEntries([
+    { item_name: 'קורס רובוטיקה', item_type: 'קורס', gefen_number: '1234', activity_no: '555' },
+    { item_name: 'קורס רובוטיקה נוסף', item_type: 'תוכנית', gefen_number: '1234', activity_no: '555' },
+    { item_name: 'סדנת רחפנים', item_type: 'סדנה', activity_no: '88', pricing_key: 'cat-88' },
+    { item_name: 'סדנת רחפנים', item_type: 'סדנה', activity_no: '88', pricing_key: 'cat-88' }
+  ]);
+
+  assert.deepEqual(urls, [
+    './catalog/summercatalog/workshops.html?proposalMode=1&workshopIds=88',
+    './catalog/summercatalog/course-page.html?ids=1234&proposalMode=1'
+  ]);
+});
+
+test('workshop proposal preview uses short appendix wording and keeps prices only in cost table', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: '77777777-7777-7777-7777-777777777777',
+    activity_type_group: 'סדנאות',
+    include_catalog: true,
+    proposal_date: '2026-06-01'
+  };
+  const proposalTemplateSections = [
+    { template_key: 'workshops', template_name: 'הצעת מחיר לסדנאות', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח.' },
+    { template_key: 'workshops', section_key: 'activity_intro', section_title: 'הפעילות המוצעת', section_body: `להלן הקורסים המוצעים לשנת הלימודים תשפ״ז.
+ גפ״ן 1234 | 10 מפגשים | 20 שעות | ₪200 לשעה | מחיר לקבוצה ₪4,000
+ סדנת רובוטיקה` },
+    { template_key: 'workshops', section_key: 'payment_terms', section_title: 'עלות ותנאי תשלום', section_body: ' תנאי תשלום.' }
+  ];
+  const items = [{ item_name: 'סדנת רובוטיקה', item_type: 'סדנה', activity_no: '12', unit_price: 4000, total_price: 4000, quantity: 1, proposal_group: 'סדנאות' }];
+
+  proposalsAgreementsScreen.render({
+    rows: [row],
+    proposalActivityGroups: [{ group_key: 'סדנאות', display_name: 'סדנאות', template_key: 'workshops', show_gefen: false }]
+  }, { state: stateFor('admin') });
+
+  await withJSDOM(proposalPreviewBodyHtml(row, items, proposalTemplateSections), async (_root, dom) => {
+    const activitySection = [...dom.window.document.querySelectorAll('.proposal-document .pa-section')]
+      .find((section) => section.querySelector('h3')?.textContent.includes('הפעילות המוצעת'));
+    const paymentSection = [...dom.window.document.querySelectorAll('.proposal-document .pa-section')]
+      .find((section) => section.querySelector('h3')?.textContent.includes('עלות ותנאי תשלום'));
+
+    assert.ok(activitySection);
+    assert.match(activitySection.textContent, /פירוט הסדנאות המוצעות מצורף כנספח להצעה זו/);
+    assert.doesNotMatch(activitySection.textContent, /קורסים|גפ״ן|מפגשים|שעות|לשעה|מחיר לקבוצה|4,000|סדנת רובוטיקה/);
+    assert.ok(paymentSection);
+    assert.match(paymentSection.textContent, /4,000/);
+  });
+});
+
 test('summer proposal preview shows catalog sentence only when include_catalog is enabled', async () => {
   const baseSections = [
     { template_key: 'summer', template_name: 'הצעת מחיר', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח.' },
@@ -1335,7 +1396,7 @@ test('summer proposal preview shows catalog sentence only when include_catalog i
 
     const onText = await openPreviewForRow(rowOn, dom, root);
     assert.doesNotMatch(offText, /מצורף להצעה/);
-    assert.match(onText, /מצורף להצעה/);
+    assert.match(onText, /מצורף[\s\S]*להצעה/);
   });
 });
 
