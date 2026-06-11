@@ -327,6 +327,7 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
+const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 function isOneDayActivityTypeValue(value) {
   return Boolean(normalizeOneDayActivityType(value));
 }
@@ -2047,6 +2048,17 @@ export const activitiesScreen = {
       statusEl.classList.toggle('ds-error-text', isError);
     }
 
+    function resetAddActivitySavingState(form, submitBtn) {
+      if (!form) return;
+      form.dataset.saving = '';
+      form.dataset.submitting = 'no';
+      const button = submitBtn || document.querySelector('[data-add-activity-submit]');
+      if (!button) return;
+      button.disabled = false;
+      button.classList.remove('is-loading');
+      if (button.dataset.defaultText) button.textContent = button.dataset.defaultText;
+    }
+
     function readableActivityAddError(error) {
       const status = String(error?.status || error?.code || '').trim();
       const message = String(error?.message || error || '').trim();
@@ -2057,11 +2069,9 @@ export const activitiesScreen = {
 
     async function submitAddActivityForm(form, submitBtn) {
       const statusEl = form.querySelector('[data-add-activity-status]');
-      if (form.dataset.submitting === 'yes') {
-        setAddActivityStatus(statusEl, 'השמירה כבר בתהליך. אם ההודעה לא משתנה, סגרו ופתחו את החלון מחדש.', { isError: true });
+      if (form.dataset.saving === 'yes' || form.dataset.submitting === 'yes') {
         return;
       }
-      form.dataset.submitting = 'yes';
       const activityMap = decodeJsonAttr(form.dataset.addActivityNames, []);
       const roster = decodeJsonAttr(form.dataset.addRosterUsers, []);
       const fd = new (window?.FormData || FormData)(form);
@@ -2073,14 +2083,24 @@ export const activitiesScreen = {
       const selectedName = get('activity_name');
       const selectedType = normalizeOneDayActivityType(get('activity_type')) || normalizeActivityTypeKey(get('activity_type'));
       let activityAddDiagnostics = {};
+      if (!selectedType) {
+        setAddActivityStatus(statusEl, 'יש לבחור סוג פעילות', { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
+      if (!selectedName) {
+        setAddActivityStatus(statusEl, 'יש לבחור שם פעילות', { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
       const hit = activityMap.find((x) => {
         const label = String(x?.label || '').trim();
         const parent = x?.parent_value || x?.activity_type;
         return label === selectedName && activityTypeMatches(parent, selectedType);
       });
-      if (!selectedType || !selectedName || !hit) {
-        setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסרה פעילות מקור מתוך הרשימה המסוננת', { isError: true });
-        form.dataset.submitting = 'no';
+      if (!hit) {
+        setAddActivityStatus(statusEl, 'יש לבחור שם פעילות מתוך הרשימה המסוננת', { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
         return;
       }
       const pickEmp = (name) => {
@@ -2165,13 +2185,28 @@ export const activitiesScreen = {
       };
 
       if (isOneDay && (!String(payload.activity_name || '').trim() || GENERIC_ONE_DAY_ACTIVITY_NAMES.has(String(payload.activity_name || '').trim()))) {
-        setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסר שם פעילות מתוך הרשימה', { isError: true });
-        form.dataset.submitting = 'no';
+        setAddActivityStatus(statusEl, 'יש לבחור שם פעילות מתוך הרשימה', { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
+      if (isOneDay && !String(payload.date_1 || payload.start_date || '').trim()) {
+        setAddActivityStatus(statusEl, 'יש למלא תאריך פעילות', { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
         return;
       }
       if (!isOneDay && !meetingDateValues.some((dateValue) => String(dateValue || '').trim())) {
-        setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסר לפחות תאריך מפגש אחד', { isError: true });
-        form.dataset.submitting = 'no';
+        setAddActivityStatus(statusEl, 'יש למלא לפחות תאריך מפגש אחד', { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
+      if (!String(payload.start_time || '').trim()) {
+        setAddActivityStatus(statusEl, 'יש לבחור שעת התחלה', { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
+      if (!String(payload.end_time || '').trim()) {
+        setAddActivityStatus(statusEl, 'יש לבחור שעת סיום', { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
         return;
       }
 
@@ -2180,33 +2215,37 @@ export const activitiesScreen = {
         ['activity_name', 'שם פעילות'],
         ['authority', 'רשות'],
         ['school', 'בית ספר'],
-        ...(isOneDay ? [['start_date', 'תאריך פעילות חד־יומית'], ['end_date', 'תאריך סיום'], ['date_1', 'תאריך פעילות']] : [])
+        ...(isOneDay ? [['start_date', 'תאריך פעילות'], ['end_date', 'תאריך סיום'], ['date_1', 'תאריך פעילות']] : [])
       ];
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
       if (missing.length) {
         setAddActivityStatus(statusEl, `לא ניתן לשמור: חסר ${missing.join(' / ')}`, { isError: true });
-        form.dataset.submitting = 'no';
+        resetAddActivitySavingState(form, submitBtn);
         return;
       }
       if (!String(payload.activity_no || '').trim()) {
         setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסר מזהה פעילות מקור', { isError: true });
-        form.dataset.submitting = 'no';
+        resetAddActivitySavingState(form, submitBtn);
         return;
       }
       if (!isCreateRequestOnly && !canAddActivities(state)) {
         setAddActivityStatus(statusEl, 'לא ניתן לשמור: אין הרשאת הוספה', { isError: true });
-        form.dataset.submitting = 'no';
+        resetAddActivitySavingState(form, submitBtn);
         return;
       }
       if (isCreateRequestOnly && !canRequestActivityChanges(state)) {
         setAddActivityStatus(statusEl, 'לא ניתן לשמור: אין הרשאה לשליחת בקשת הוספה', { isError: true });
-        form.dataset.submitting = 'no';
+        resetAddActivitySavingState(form, submitBtn);
         return;
       }
       const originalText = submitBtn?.textContent || (isCreateRequestOnly ? 'שליחת בקשה' : 'שמור');
+      if (submitBtn && !submitBtn.dataset.defaultText) submitBtn.dataset.defaultText = originalText;
+      form.dataset.saving = 'yes';
+      form.dataset.submitting = 'yes';
       try {
         if (submitBtn) {
           submitBtn.disabled = true;
+          submitBtn.classList.add('is-loading');
           submitBtn.textContent = isCreateRequestOnly ? 'שולח בקשה...' : 'שומר...';
         }
         setAddActivityStatus(statusEl, isCreateRequestOnly ? 'שולח בקשה לאישור...' : 'שומר...');
@@ -2245,9 +2284,11 @@ export const activitiesScreen = {
         console.error('[activity-add] save failed', { error: err, payload, diagnostics: activityAddDiagnostics });
         setAddActivityStatus(statusEl, `לא ניתן לשמור: ${readableActivityAddError(err)}`, { isError: true });
       } finally {
+        form.dataset.saving = '';
         form.dataset.submitting = 'no';
         if (submitBtn) {
           submitBtn.disabled = false;
+          submitBtn.classList.remove('is-loading');
           submitBtn.textContent = originalText;
         }
       }
@@ -2258,22 +2299,14 @@ export const activitiesScreen = {
       form.dataset.submitBound = 'yes';
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
+        event.stopPropagation();
         const submitBtn = document.querySelector('[data-add-activity-submit]');
         if (submitBtn?.disabled) return;
         await submitAddActivityForm(form, submitBtn);
       }, addActivitySig);
     }
 
-    const modalRoot = document;
-    bindAddActivitySubmit(modalRoot.querySelector('[data-add-activity-form]'));
-    document.addEventListener('submit', async (event) => {
-      const form = event.target?.closest?.('[data-add-activity-form]');
-      if (!form) return;
-      event.preventDefault();
-      const submitBtn = document.querySelector('[data-add-activity-submit]');
-      if (submitBtn?.disabled) return;
-      await submitAddActivityForm(form, submitBtn);
-    }, addActivitySig);
+    bindAddActivitySubmit(document.querySelector('[data-add-activity-form]'));
 
     document.addEventListener('click', (ev) => {
       const submit = ev.target.closest('[data-add-activity-submit]');
@@ -2296,6 +2329,11 @@ export const activitiesScreen = {
       else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     }, addActivitySig);
 
+    document.addEventListener('click', (ev) => {
+      if (!ev.target.closest('[data-ui-close-modal]')) return;
+      resetAddActivitySavingState(document.querySelector('[data-add-activity-form]'), document.querySelector('[data-add-activity-submit]'));
+    }, addActivitySig);
+
     const addBtn = root.querySelector('[data-activities-add-btn]');
     if (canAddActivity && ui && addBtn) {
       addBtn.addEventListener('click', () => {
@@ -2309,8 +2347,11 @@ export const activitiesScreen = {
             <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>
           `
         });
+        const addActivityForm = document.querySelector('.ds-modal__content [data-add-activity-form]');
+        const addActivitySubmit = document.querySelector('[data-add-activity-submit]');
+        resetAddActivitySavingState(addActivityForm, addActivitySubmit);
         bindAddActivityForm();
-        bindAddActivitySubmit(document.querySelector('.ds-modal__content [data-add-activity-form]'));
+        bindAddActivitySubmit(addActivityForm);
       }, addActivitySig);
     }
 
