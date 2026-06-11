@@ -5751,7 +5751,7 @@ function stableProgramId(program = {}) {
 }
 
 function normalizeProgram(program = {}) {
- const textFields = ["gefen", "activityNo", "catalogSection", "itemType", "title", "subtitle", "grades", "domain", "sessions", "duration", "opening", "core", "short", "goals", "flow", "develops", "outcome", "school"];
+ const textFields = ["gefen", "activityNo", "activity_no", "gefen_number", "catalogSection", "itemType", "title", "subtitle", "grades", "domain", "sessions", "duration", "opening", "core", "short", "goals", "flow", "develops", "outcome", "school"];
  const normalized = { ...program };
  textFields.forEach(field => { normalized[field] = String(program[field] ?? ""); });
  normalized.id = stableProgramId(program);
@@ -5825,12 +5825,33 @@ function buildNav(activeIndex = 0) {
  nav.appendChild(footer);
 }
 
+function normalizedProgramIdentifier(value) {
+ return String(value ?? "").trim().replace(/^cat-/i, "").replace(/\/$/, "");
+}
+
+function programIdentifierMatches(program = {}, requestedId = "") {
+ const id = normalizedProgramIdentifier(requestedId);
+ if (!id) return false;
+ const identifiers = [
+   program.id,
+   program.gefen,
+   program.activityNo,
+   program.activity_no,
+   program.gefen_number
+ ];
+ return identifiers.some(value => normalizedProgramIdentifier(value) === id);
+}
+
+function findProgramIndexByIdentifier(requestedId = "") {
+ return programs.findIndex(program => programIdentifierMatches(program, requestedId));
+}
+
 function findProgramIndexFromUrl() {
  const params = new URLSearchParams(window.location.search);
  const requestedId = params.get("id");
  const requestedGefen = params.get("gefen");
- if (requestedId) return programs.findIndex(program => program.id === requestedId);
- if (requestedGefen) return programs.findIndex(program => String(program.gefen) === requestedGefen);
+ if (requestedId) return findProgramIndexByIdentifier(requestedId);
+ if (requestedGefen) return findProgramIndexByIdentifier(requestedGefen);
  return 0;
 }
 
@@ -6090,15 +6111,14 @@ function render(i) {
 
 function findProgramIndexesFromUrl() {
  const params = new URLSearchParams(window.location.search);
- const ids = String(params.get("ids") || "").split(",").map(id => id.trim()).filter(Boolean);
+ const ids = String(params.get("ids") || "").split(",").map(id => normalizedProgramIdentifier(id)).filter(Boolean);
  if (!ids.length) return [];
- const requested = new Set(ids);
- return programs.map((program, index) => {
-   if (requested.has(program.id)) return index;
-   if (program.gefen && requested.has(String(program.gefen))) return index;
-   if (program.activityNo && requested.has(String(program.activityNo))) return index;
-   return -1;
- }).filter(index => index >= 0);
+ const matchedIndexes = [];
+ ids.forEach(id => {
+   const index = findProgramIndexByIdentifier(id);
+   if (index >= 0 && !matchedIndexes.includes(index)) matchedIndexes.push(index);
+ });
+ return matchedIndexes;
 }
 
 function isCatalogModeFromUrl() {

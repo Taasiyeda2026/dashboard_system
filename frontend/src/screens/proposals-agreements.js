@@ -1995,11 +1995,31 @@ function buildProposalCatalogAppendixPlan(items) {
   const seenSkipped = new Set();
 
   const cleanIdentifier = (value) => text(value || '').replace(/^cat-/i, '').trim().replace(/\/$/, '');
+  const COURSE_CATALOG_ID_BY_EXTERNAL_ID = new Map([
+    ['6089', 'biomimicry-elementary']
+  ]);
+  const resolveCourseCatalogId = (...values) => {
+    for (const value of values) {
+      const id = cleanIdentifier(value);
+      if (!id) continue;
+      const resolved = COURSE_CATALOG_ID_BY_EXTERNAL_ID.get(id);
+      if (resolved) return resolved;
+      if (!/^\d+$/.test(id)) return id;
+    }
+    return '';
+  };
+  const resolveCourseCatalogExternalId = (...values) => {
+    for (const value of values) {
+      const resolved = COURSE_CATALOG_ID_BY_EXTERNAL_ID.get(cleanIdentifier(value));
+      if (resolved) return resolved;
+    }
+    return '';
+  };
   const labelForItem = (item = {}, fallback = 'פעילות') => (
     text(item.item_name || item.pricing_activity_name || item.activity_name || item.description) || fallback
   );
   const activityNoForItem = (item = {}) => cleanIdentifier(
-    item.activity_no || item.pricing_activity_no || item.activity_id || item.id || item.pricing_key || item.source_pricing_key
+    item.activity_no || item.activityNo || item.pricing_activity_no || item.activity_id || item.pricing_key || item.source_pricing_key
   );
   const cleanGefenId = (value) => {
     const gefen = text(value).trim().replace(/\/$/, '');
@@ -2040,18 +2060,34 @@ function buildProposalCatalogAppendixPlan(items) {
     return true;
   };
   const addCourseEntry = (item) => {
-    const gefenNumber = cleanGefenId(item.gefen_number || item.catalog_id || item.catalogId);
+    const gefenNumber = cleanGefenId(item.gefen_number || item.catalog_gefen || item.gefen);
     const activityNo = activityNoForItem(item);
-    if (!hasExplicitCourseKind(item) || !gefenNumber) {
+    const courseCatalogId = resolveCourseCatalogId(
+      item.catalog_program_id,
+      item.catalogProgramId,
+      item.course_catalog_id,
+      item.courseCatalogId,
+      item.catalog_id,
+      item.catalogId
+    );
+    const mappedCourseCatalogId = resolveCourseCatalogExternalId(
+      gefenNumber,
+      activityNo,
+      item.activityNo,
+      item.activity_no,
+      item.gefen_number
+    );
+    const courseLookupId = courseCatalogId || mappedCourseCatalogId || gefenNumber || activityNo;
+    if (!hasExplicitCourseKind(item) || !courseLookupId) {
       skipItem(item, 'no_course_catalog');
       return;
     }
-    if (seenGefen.has(gefenNumber) || (activityNo && seenActivityNo.has(activityNo))) return;
-    seenGefen.add(gefenNumber);
+    if ((gefenNumber && seenGefen.has(gefenNumber)) || (activityNo && seenActivityNo.has(activityNo))) return;
+    if (gefenNumber) seenGefen.add(gefenNumber);
     if (activityNo) seenActivityNo.add(activityNo);
     addEntry({
-      url: `${catalogBase}course-page.html?ids=${encodeURIComponent(gefenNumber)}&proposalMode=1`,
-      label: labelForItem(item, `גפ״ן ${gefenNumber}`),
+      url: `${catalogBase}course-page.html?ids=${encodeURIComponent(courseLookupId)}&proposalMode=1`,
+      label: labelForItem(item, gefenNumber ? `גפ״ן ${gefenNumber}` : `קורס ${courseLookupId}`),
       gefenNumber,
       activityNo
     });
