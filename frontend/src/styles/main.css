@@ -11326,6 +11326,7 @@ select.ds-input {
 
 /* ── The official A4 document ─────────────────────────────────────── */
 .proposal-document {
+  position: relative;
   background: #fff;
   color: #111827;
   direction: rtl;
@@ -11749,17 +11750,22 @@ select.ds-input {
     margin-left: 0 !important;
   }
 
-  /* Footer — follows content, never breaks to an empty page */
+  /* Footer — reserved inside the proposal page, never pushed alone to a blank page */
   .proposal-document-footer {
-    position: static !important;
-    width: 100% !important;
+    position: absolute !important;
+    right: 36px !important;
+    left: 36px !important;
+    bottom: 28px !important;
+    width: auto !important;
     height: auto !important;
     padding: 0 !important;
     border-top: none !important;
-    margin-top: 8pt !important;
+    margin-top: 0 !important;
     line-height: 0 !important;
     break-before: avoid !important;
     page-break-before: avoid !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
   .proposal-footer-logo {
     width: 100% !important;
@@ -11775,7 +11781,7 @@ select.ds-input {
   .proposal-document-body {
     display: block !important;
     flex: none !important;
-    padding: 0 !important;
+    padding: 0 0 28mm !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
   }
@@ -11922,11 +11928,11 @@ select.ds-input {
 
   /* ── Catalog appendix ──────────────────────────────────────────── */
   .catalog-appendix-page-break {
+    display: none !important;
+  }
+  .pa-appendix-start {
     break-before: page !important;
     page-break-before: always !important;
-    height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
   }
   .pa-catalog-shadow-host {
     display: block !important;

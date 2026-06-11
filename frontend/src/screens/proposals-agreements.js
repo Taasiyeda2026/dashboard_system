@@ -664,8 +664,21 @@ function shouldShowGefenForItem(item = {}, contextGroup = '') {
   return Boolean(text(item.gefen_number)) && shouldShowGefenForGroup(group);
 }
 
+function paNumberOrNull(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function recalculateHourlyPriceValue(unitPrice, hoursCount) {
+  const price = paNumberOrNull(unitPrice);
+  const hours = paNumberOrNull(hoursCount);
+  if (price == null || hours == null || hours <= 0) return null;
+  return Number((price / hours).toFixed(4));
+}
+
 function buildInfoStripInnerHtml(item = {}, contextGroup = '') {
-  const numVal = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? Number(v) : null;
+  const numVal = paNumberOrNull;
   const showGefen = shouldShowGefenForItem(item, contextGroup);
   const parts = [];
 
@@ -846,6 +859,9 @@ function extractItemsFromForm(form) {
     const itemName = editedName || pricingName;
     const quantity = fieldNumber('quantity') ?? 1;
     const unitPrice = fieldNumber('unit_price') ?? numberValue(pricingRow?.unit_price);
+    const hoursCount = fieldNumber('hours_count') ?? numberValue(pricingRow?.hours_count);
+    const hourlyPrice = recalculateHourlyPriceValue(unitPrice, hoursCount)
+      ?? (hoursCount != null && hoursCount > 0 ? fieldNumber('hourly_price') : null);
     const hiddenTotal = numberValue(row.querySelector('[data-pa-item-total]')?.value);
     const totalPrice = unitPrice != null
       ? Number(((quantity || 1) * unitPrice).toFixed(2))
@@ -866,11 +882,11 @@ function extractItemsFromForm(form) {
       item_type:              fieldText('item_type') || text(pricingRow?.item_type),
       gefen_number:           fieldText('gefen_number') || text(pricingRow?.gefen_number),
       meetings_count:         fieldNumber('meetings_count') ?? numberValue(pricingRow?.meetings_count),
-      hours_count:            fieldNumber('hours_count') ?? numberValue(pricingRow?.hours_count),
+      hours_count:            hoursCount,
       quantity:               quantity || 1,
       unit_duration:          fieldText('unit_duration') || text(pricingRow?.unit_duration),
       unit_price:             unitPrice,
-      hourly_price:           fieldNumber('hourly_price') ?? numberValue(pricingRow?.hourly_price),
+      hourly_price:           hourlyPrice,
       total_price:            totalPrice,
       description:            fieldText('description') || '',
       proposal_group:         normalizeProposalGroup(rawGroup),
@@ -963,62 +979,20 @@ function sectionHeadingText(rawTitle, fallback = '') {
   return /[:：]\s*$/.test(title) ? title : `${title}:`;
 }
 
-function proposalLineHtml(item = {}, options = {}) {
+function proposalLineHtml(item = {}, _options = {}) {
   const itemName = publicActivityName(item.item_name);
   if (!itemName) return '';
 
-  const isSummer = options.showGefen === false;
-  const parts = [];
-
-  const gefenNumber = isSummer ? '' : text(item.gefen_number);
-  if (gefenNumber) parts.push(`גפ״ן ${gefenNumber}`);
-
-  const duration = text(item.unit_duration);
-  if (duration) {
-    parts.push(duration);
-  } else {
-    const meetings = item.meetings_count != null && item.meetings_count !== '' ? `${formatCurrency(item.meetings_count)} מפגשים` : '';
-    const hours = item.hours_count != null && item.hours_count !== '' ? `${formatCurrency(item.hours_count)} שעות` : '';
-    if (meetings) parts.push(meetings);
-    if (hours) parts.push(hours);
-  }
-
-  if (!isSummer) {
-    const hourlyPrice = Number(item.hourly_price);
-    if (hourlyPrice > 0) parts.push(`${formatCurrency(hourlyPrice)} ₪ לשעה`);
-  }
-
-  const unitPrice = Number(item.unit_price);
-  const quantity = Number(item.quantity) || 1;
-  const total = Number(item.total_price) || (quantity * unitPrice);
-
-  if (!isSummer && unitPrice > 0) {
-    parts.push(`מחיר לקבוצה: ${formatCurrency(unitPrice)} ₪`);
-    if (quantity > 1 && total > 0) {
-      parts.push(`כמות קבוצות: ${quantity}`);
-      parts.push(`סה״כ: ${formatCurrency(total)} ₪`);
-    }
-  } else if (total > 0) {
-    if (quantity > 1 && unitPrice > 0) {
-      parts.push(`מחיר יחידה: ${formatCurrency(unitPrice)} ₪`);
-      parts.push(`כמות: ${quantity}`);
-    }
-    parts.push(`${formatCurrency(total)} ₪`);
-  } else if (unitPrice > 0) {
-    parts.push(`${formatCurrency(unitPrice)} ₪`);
-  }
-
-  const suffix = parts.length ? `: ${parts.join(' | ')}` : ':';
   const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
   if (bundleItems.length && (item.proposal_display_mode === 'bundle_parent' || item.is_bundle_parent)) {
     const subLines = bundleItems.map((bi) => {
       const name = typeof bi === 'object' ? publicActivityName(bi.activity_name) : publicActivityName(bi);
-      const price = typeof bi === 'object' && bi.unit_price != null ? `${formatCurrency(Number(bi.unit_price))} ₪` : '';
-      return [name, price].filter(Boolean).join(' — ');
+      return name;
     }).filter(Boolean);
-    if (subLines.length) return ` ${itemName}${suffix}\n${subLines.map((l) => `  • ${l}`).join('\n')}`;
+    if (subLines.length) return ` ${itemName}\n${subLines.map((line) => `  • ${line}`).join('\n')}`;
   }
-  return ` ${itemName}${suffix}`;
+
+  return ` ${itemName}`;
 }
 
 function proposalItemsListHtml(items = [], options = {}) {
@@ -2486,6 +2460,7 @@ export const proposalsAgreementsScreen = {
 
     // ── Preview ───────────────────────────────────────────────────────────────
     const openPreview = async (row, items, options = {}) => {
+      if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const savedRow = data.rows.find((r) => text(r.id) === text(row.id));
       const mergedRow = savedRow ? { ...savedRow, ...row } : row;
       const freshRow = rowWithCentralContact(mergedRow);
@@ -2522,6 +2497,7 @@ export const proposalsAgreementsScreen = {
         </div>`;
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
+      if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       overlay.querySelector('#pa-print-btn')?.addEventListener('click', () => window.print());
       const closeOverlay = () => { overlay.remove(); document.body.classList.remove('is-print-preview'); };
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', closeOverlay);
@@ -2533,21 +2509,54 @@ export const proposalsAgreementsScreen = {
       if (includeCatalogValue(freshRow.include_catalog)) {
         const previewArea = overlay.querySelector('.proposal-preview-area');
         const printBtn = overlay.querySelector('#pa-print-btn');
+        const toolbar = overlay.querySelector('.proposal-preview-toolbar');
 
-        // Disable print while loading appendices
         if (printBtn) printBtn.disabled = true;
         const loadingNotice = document.createElement('span');
         loadingNotice.className = 'pa-catalog-loading no-print';
         loadingNotice.textContent = 'טוען נספחי קטלוג...';
-        overlay.querySelector('.proposal-preview-toolbar')?.appendChild(loadingNotice);
+        toolbar?.appendChild(loadingNotice);
 
-        // Track first appendix element — it gets the page-break class (not an empty div)
         let firstAppendixAdded = false;
         const markFirst = (el) => {
-          if (!firstAppendixAdded) { el.classList.add('pa-appendix-start'); firstAppendixAdded = true; }
+          if (!firstAppendixAdded) {
+            el.classList.add('pa-appendix-start');
+            firstAppendixAdded = true;
+          }
         };
+        const appendAppendixWarning = (message) => {
+          const notice = document.createElement('p');
+          notice.className = 'pa-appendix-missing no-print';
+          notice.textContent = message;
+          previewArea?.appendChild(notice);
+          return notice;
+        };
+        const waitForFrame = (frame, label) => new Promise((resolve) => {
+          let done = false;
+          const finish = (ok) => {
+            if (done) return;
+            done = true;
+            window.clearTimeout(timer);
+            frame.removeEventListener('load', onLoad);
+            frame.removeEventListener('error', onError);
+            resolve(ok);
+          };
+          const onLoad = () => finish(true);
+          const onError = () => {
+            const notice = appendAppendixWarning(`⚠ ${label} לא נטען`);
+            frame.replaceWith(notice);
+            finish(false);
+          };
+          const timer = window.setTimeout(() => {
+            const notice = appendAppendixWarning(`⚠ ${label} עדיין לא סיים טעינה`);
+            frame.replaceWith(notice);
+            finish(false);
+          }, 15000);
+          frame.addEventListener('load', onLoad, { once: true });
+          frame.addEventListener('error', onError, { once: true });
+        });
 
-        // PDF appendices (per gefen_number / activity_no)
+        const appendixLoads = [];
         const pdfNums = buildPdfAppendixEntries(items);
         for (const num of pdfNums) {
           const url = `${PUBLIC_BASE}catalog/appendices/${encodeURIComponent(num)}.pdf`;
@@ -2557,41 +2566,38 @@ export const proposalsAgreementsScreen = {
           frame.setAttribute('aria-label', `נספח ${num}`);
           frame.setAttribute('title', `נספח ${num}`);
           markFirst(frame);
-          frame.addEventListener('error', () => {
-            const notice = document.createElement('p');
-            notice.className = 'pa-appendix-missing no-print';
-            notice.textContent = `⚠ נספח ${num} לא נמצא`;
-            frame.replaceWith(notice);
-          });
-          previewArea.appendChild(frame);
+          previewArea?.appendChild(frame);
+          appendixLoads.push(waitForFrame(frame, `נספח ${num}`));
         }
 
-        // HTML catalog (workshop/STEM/space iframes)
         const catalogUrls = buildProposalCatalogEntries(items);
         for (const url of catalogUrls) {
-          try {
-            const { html, styles } = await loadCatalogViaIframe(url);
-            const shadowHost = document.createElement('div');
-            shadowHost.className = 'pa-catalog-shadow-host';
-            markFirst(shadowHost);
-            const shadow = shadowHost.attachShadow({ mode: 'open' });
-            shadow.innerHTML = `<style>${styles}</style>${html}`;
-            previewArea.appendChild(shadowHost);
-          } catch (e) {
-            console.warn('[PA] Catalog iframe failed:', url, e);
-            const notice = document.createElement('p');
-            notice.className = 'pa-appendix-missing no-print';
-            notice.textContent = '⚠ לא ניתן לטעון חלק מהקטלוג';
-            markFirst(notice);
-            previewArea.appendChild(notice);
-          }
+          const loadCatalog = (async () => {
+            try {
+              const { html, styles } = await loadCatalogViaIframe(url);
+              const shadowHost = document.createElement('div');
+              shadowHost.className = 'pa-catalog-shadow-host';
+              markFirst(shadowHost);
+              const shadow = shadowHost.attachShadow({ mode: 'open' });
+              shadow.innerHTML = `<style>${styles}</style>${html}`;
+              previewArea?.appendChild(shadowHost);
+              return true;
+            } catch (e) {
+              console.warn('[PA] Catalog iframe failed:', url, e);
+              const notice = appendAppendixWarning('⚠ לא ניתן לטעון חלק מהקטלוג');
+              markFirst(notice);
+              return false;
+            }
+          })();
+          appendixLoads.push(loadCatalog);
         }
 
-        // Re-enable print
+        await Promise.allSettled(appendixLoads);
         loadingNotice.remove();
         if (printBtn) printBtn.disabled = false;
       }
     };
+
 
     // ── Save ──────────────────────────────────────────────────────────────────
     const saveForm = async (form, statusOverride) => {
@@ -2680,26 +2686,18 @@ export const proposalsAgreementsScreen = {
         if (form) calcGrandTotal(form);
       }
 
-      // Recalc hourly_price = unit_price / hours_count when unit_price changes
-      if (isItemPrice && itemRow) {
+      const updateRowHourlyPrice = () => {
+        if (!itemRow) return;
+        const priceEl = itemRow.querySelector('[data-pa-item-price]');
         const hoursEl = itemRow.querySelector('[name="hours_count"]');
         const hourlyEl = itemRow.querySelector('[name="hourly_price"]');
-        if (hourlyEl) {
-          const hours = parseFloat(hoursEl?.value || '0') || 0;
-          const newPrice = parseFloat(target.value || '0') || 0;
-          hourlyEl.value = hours > 0 ? (newPrice / hours).toFixed(4) : '';
-        }
-      }
+        if (!hourlyEl) return;
+        const hourlyPrice = recalculateHourlyPriceValue(priceEl?.value, hoursEl?.value);
+        hourlyEl.value = hourlyPrice == null ? '' : String(hourlyPrice);
+      };
 
-      // Recalc hourly_price = unit_price / hours_count when hours_count changes
-      if (target.name === 'hours_count' && itemRow) {
-        const priceEl = itemRow.querySelector('[data-pa-item-price]');
-        const hourlyEl = itemRow.querySelector('[name="hourly_price"]');
-        if (hourlyEl && priceEl) {
-          const hours = parseFloat(target.value || '0') || 0;
-          const unitPrice = parseFloat(priceEl.value || '0') || 0;
-          hourlyEl.value = hours > 0 ? (unitPrice / hours).toFixed(4) : '';
-        }
+      if ((isItemPrice || target.name === 'hours_count') && itemRow) {
+        updateRowHourlyPrice();
       }
 
       // Update info strip on price / meetings / hours changes
@@ -3205,6 +3203,7 @@ export const proposalsAgreementsScreen = {
           form.dataset.paPreviewSeen = 'yes'; // mark immediately
           try {
             await openPreview(tempRow, items, {
+              form,
               onSave: async () => { await saveForm(form, 'draft'); },
               onSubmit: async () => { await saveForm(form, 'pending_approval'); }
             });
@@ -3347,6 +3346,7 @@ export const proposalsAgreementsScreen = {
         const items = payload._items || [];
         try {
           await openPreview(tempRow, items, {
+            form,
             onSave: async () => { await saveForm(form, 'draft'); }
           });
         } catch (e) {
