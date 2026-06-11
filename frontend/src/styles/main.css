@@ -10771,6 +10771,38 @@ select.ds-input {
   max-height: 180px;
 }
 
+/* Catalog appendix attach block (end of form, before the workflow actions) */
+.ds-pa-catalog-attach {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #dbe7f3;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+.ds-pa-catalog-attach-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ds-pa-catalog-attach-text strong {
+  font-size: 0.82rem;
+  color: #0f172a;
+}
+.ds-pa-catalog-status {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+.ds-pa-catalog-status.is-attached {
+  color: #15803d;
+  font-weight: 700;
+}
+
 /* Workflow action buttons */
 .ds-pa-form-actions--workflow {
   display: flex;
@@ -11340,23 +11372,26 @@ select.ds-input {
 }
 
 /* ── Signature ────────────────────────────────────────────────────── */
+/* Inline-flow block after the last section ("בברכה," + name from Supabase).
+   Never absolute/fixed, never pushed above the footer, no auto margins. */
 .proposal-signature {
-  margin-top: 36px;
-  margin-right: auto;
-  margin-left: 0;
+  margin: 14pt 0 0;
   display: block;
-  width: fit-content;
   direction: rtl;
+  text-align: right;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
-.proposal-signature-line {
-  width: 100%;
-  border-top: 1px solid #9ca3af;
-  margin-bottom: 2px;
+.proposal-signature-greeting {
+  margin: 0 0 2pt;
+  font-size: 9.5pt;
+  color: #111827;
 }
 .proposal-signature-name {
-  font-size: 11px;
+  margin: 0;
+  font-size: 10pt;
+  font-weight: 700;
   color: #111827;
-  white-space: nowrap;
 }
 .pa-doc-date {
   text-align: left;
@@ -11459,14 +11494,43 @@ select.ds-input {
 .pa-proposal-lines {
   margin-top: 2pt;
 }
+/* Legacy wrapper: the signature is no longer pushed to the bottom of the page. */
 .pa-doc-bottom {
-  margin-top: auto;
+  margin: 0;
   width: 100%;
 }
+/* ── Cost / payment table (built from proposal_agreement_items) ───── */
+.pa-cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+  margin: 2pt 0 6pt;
+}
+.pa-cost-table th,
+.pa-cost-table td {
+  border: 1px solid #cbd5e1;
+  padding: 3pt 6pt;
+  text-align: right;
+  vertical-align: top;
+}
+.pa-cost-table thead th {
+  background: #eef4fa;
+  color: #1f4e79;
+  font-weight: 700;
+}
+.pa-cost-table tfoot td {
+  font-weight: 700;
+  background: #f8fbff;
+}
+.pa-cost-bundle-detail {
+  margin: 2pt 0 0;
+  padding-inline-start: 12pt;
+  font-size: 8.5pt;
+  color: #374151;
+}
 /* Legacy aliases kept for any residual references */
-.ds-pa-doc-signature { margin-top: 36px; margin-right: auto; margin-left: 0; display: block; width: fit-content; direction: rtl; }
-.ds-pa-doc-signature-line { width: 100%; border-top: 1px solid #9ca3af; margin-bottom: 2px; }
-.ds-pa-doc-signature-name { font-size: 11px; color: #111827; white-space: nowrap; }
+.ds-pa-doc-signature { margin: 14pt 0 0; display: block; direction: rtl; text-align: right; }
+.ds-pa-doc-signature-name { font-size: 10pt; font-weight: 700; color: #111827; }
 /* שורות פעילות — נקודה מפורשת לפני כל שורה */
 .pa-proposal-lines ul {
   list-style: none;
@@ -11660,7 +11724,7 @@ select.ds-input {
     opacity: 1 !important;
   }
 
-  /* Body — keep flex so margin-top:auto pushes signature to bottom */
+  /* Body — normal flow; the signature follows the content, not the footer */
   .proposal-document-body {
     display: flex !important;
     flex-direction: column !important;
@@ -11670,7 +11734,7 @@ select.ds-input {
     word-break: normal !important;
   }
   .pa-doc-bottom {
-    margin-top: auto !important;
+    margin: 0 !important;
   }
 
   /* ── Inner document content ───────────────────────────────────── */

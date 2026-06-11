@@ -1488,7 +1488,7 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,contact_school_id,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,contact_school_id,created_at,updated_at';
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -1630,6 +1630,7 @@ function normalizeProposalAgreementRow(row = {}) {
         section_body: normalizeProposalAgreementMultilineText(section?.section_body)
       }))
       : [],
+    include_catalog:     row.include_catalog === true || row.include_catalog === 'yes',
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };
@@ -1748,7 +1749,8 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     status:              PA_VALID_STATUSES_SET.has(rawStatus) ? rawStatus : 'draft',
     approval_note:       cleanProposalAgreementText(payload.approval_note),
     total_amount:        payload.total_amount != null ? Number(payload.total_amount) || null : null,
-    custom_document_sections: Array.isArray(payload.custom_document_sections) ? payload.custom_document_sections : []
+    custom_document_sections: Array.isArray(payload.custom_document_sections) ? payload.custom_document_sections : [],
+    include_catalog:     payload.include_catalog === true || payload.include_catalog === 'yes'
   };
   const missing = ['client_authority', 'document_type', 'activity_type_group'].filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
