@@ -1329,6 +1329,22 @@ test('catalog appendix entries split mixed proposals by true item type without d
 });
 
 
+test('catalog appendix entries resolve biomimicry Gefen number to internal course id', () => {
+  const urls = buildProposalCatalogEntries([
+    {
+      item_name: 'המצאות בהשראה מן הטבע – ביומימיקרי לתלמידי יסודי',
+      item_type: 'קורס',
+      gefen_number: '6089',
+      activity_no: '6089'
+    }
+  ]);
+
+  assert.deepEqual(urls, [
+    './catalog/summercatalog/course-page.html?ids=biomimicry-elementary&proposalMode=1'
+  ]);
+});
+
+
 test('catalog appendix entries skip non-course activities even when they have Gefen/activity ids', async () => {
   const gameItem = {
     item_name: 'משחקי קופסה – פיתוח ופיצוח משחקי לוח',
