@@ -1327,15 +1327,28 @@ function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
       const key = candidateKeys.find((candidate) => byKey.has(candidate)) || candidateKeys[0];
       const body = filterCatalogContentFromBody(sectionBody(key), includeCatalog);
       const heading = sectionTitle(key) || proposalGroupDisplayName(groupKey);
-      const section = renderActivitySection(heading, body);
-      if (section) sections.push(section);
+      const showGefen = !groupKey.includes('קיץ') && groupKey !== 'summer';
+      const groupItems = (Array.isArray(items) ? items : []).filter((item) =>
+        !isTestHoursItem(item) &&
+        text(item.proposal_display_mode) !== 'bundle_child' &&
+        itemBelongsToGroup(item, groupKey)
+      );
+      const itemsHtml = groupItems.length ? proposalItemsListHtml(groupItems, { showGefen }) : '';
+      const sectionContent = [body ? sectionBodyHtml(body) : '', itemsHtml].filter(Boolean).join('');
+      if (!sectionContent) return;
+      sections.push(`<section class="pa-section">${heading ? `<h3>${escapeHtml(sectionHeadingText(heading))}</h3>` : ''}${sectionContent}</section>`);
     });
   } else {
-    const activitySection = renderActivitySection(
-      sectionTitle('activity_intro'),
-      activityIntro
+    const showGefen = activityTypeGroup !== 'קיץ תשפ״ו' && !activityTypeGroup.includes('קיץ') && activityTypeGroup !== 'summer';
+    const visibleItems = (Array.isArray(items) ? items : []).filter((item) =>
+      !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child'
     );
-    if (activitySection) sections.push(activitySection);
+    const itemsHtml = visibleItems.length ? proposalItemsListHtml(visibleItems, { showGefen }) : '';
+    const sectionContent = [activityIntro ? sectionBodyHtml(activityIntro) : '', itemsHtml].filter(Boolean).join('');
+    if (sectionContent) {
+      const heading = sectionTitle('activity_intro');
+      sections.push(`<section class="pa-section">${heading ? `<h3>${escapeHtml(sectionHeadingText(heading))}</h3>` : ''}${sectionContent}</section>`);
+    }
   }
 
   const renderSectionFromSupabase = (key, options = {}) => {
@@ -1889,6 +1902,24 @@ function replaceLocalRow(data, savedRow) {
   if (idx >= 0) rows[idx] = normalized;
   else rows.unshift(normalized);
   data.rows = dedupeById(sortRows(rows.map(normalizeProposalAgreementRow)));
+}
+
+// ─── PDF appendix entries (per gefen_number / activity_no) ──────────────────
+
+function buildPdfAppendixEntries(items) {
+  if (!Array.isArray(items) || !items.length) return [];
+  const seen = new Set();
+  const entries = [];
+  for (const item of items) {
+    if (isTestHoursItem(item)) continue;
+    if (text(item.proposal_display_mode) === 'bundle_child') continue;
+    const num = text(item.gefen_number) || text(item.activity_no) || '';
+    if (num && !seen.has(num)) {
+      seen.add(num);
+      entries.push(num);
+    }
+  }
+  return entries;
 }
 
 // ─── Catalog appendix via iframe ─────────────────────────────────────────────
@@ -2510,9 +2541,27 @@ export const proposalsAgreementsScreen = {
 
       // The catalog appendix is attached per proposal (include_catalog), chosen in the form.
       if (includeCatalogValue(freshRow.include_catalog)) {
+        const previewArea = overlay.querySelector('.proposal-preview-area');
+
+        // PDF appendices (per gefen_number / activity_no)
+        const pdfNums = buildPdfAppendixEntries(items);
+        for (const num of pdfNums) {
+          const url = `${PUBLIC_BASE}catalog/appendices/${encodeURIComponent(num)}.pdf`;
+          const sep = document.createElement('div');
+          sep.className = 'catalog-appendix-page-break';
+          previewArea.appendChild(sep);
+          const frame = document.createElement('iframe');
+          frame.src = url;
+          frame.className = 'pa-pdf-appendix-frame';
+          frame.setAttribute('aria-label', `נספח ${num}`);
+          frame.setAttribute('title', `נספח ${num}`);
+          frame.onerror = () => console.warn('[PA] PDF appendix not found:', url);
+          previewArea.appendChild(frame);
+        }
+
+        // HTML catalog (workshop/STEM/space iframes)
         const catalogUrls = buildProposalCatalogEntries(items);
         if (catalogUrls.length > 0) {
-          const previewArea = overlay.querySelector('.proposal-preview-area');
           const sep = document.createElement('div');
           sep.className = 'catalog-appendix-page-break';
           previewArea.appendChild(sep);

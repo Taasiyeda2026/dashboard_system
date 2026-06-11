@@ -11197,9 +11197,15 @@ select.ds-input {
 }
 .ds-pa-item-grid--extras {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 8px;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 10px 12px;
   align-items: end;
+}
+@media (max-width: 600px) {
+  .ds-pa-item-grid--extras { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 400px) {
+  .ds-pa-item-grid--extras { grid-template-columns: 1fr; }
 }
 
 /* ── Item info strip (clean summary line after activity selection) ── */
@@ -11327,8 +11333,8 @@ select.ds-input {
   max-width: 100%;
   min-height: 1123px;
   font-family: Arial, "Noto Sans Hebrew", "David", sans-serif;
-  font-size: 9.5pt;
-  line-height: 1.3;
+  font-size: 9.25pt;
+  line-height: 1.4;
   letter-spacing: 0.1px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
   border-radius: 2px;
@@ -11385,25 +11391,27 @@ select.ds-input {
 
 /* ── Signature ────────────────────────────────────────────────────── */
 /* Inline-flow block after the last section ("בברכה," + name from Supabase).
-   Never absolute/fixed, never pushed above the footer, no auto margins. */
+   "בברכה" centered; name left-aligned. Never absolute/fixed. */
 .proposal-signature {
-  margin: 10pt 0 4pt;
+  margin: 14pt 0 4pt;
   display: block;
   direction: rtl;
-  text-align: right;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 .proposal-signature-greeting {
-  margin: 0 0 2pt;
+  margin: 0 0 18pt;
   font-size: 9.5pt;
   color: #111827;
+  text-align: center;
 }
 .proposal-signature-name {
   margin: 0;
   font-size: 10pt;
   font-weight: 700;
   color: #111827;
+  text-align: left;
+  direction: ltr;
 }
 .pa-doc-date {
   text-align: left;
@@ -11584,6 +11592,20 @@ select.ds-input {
   padding: 16px;
   text-align: center;
 }
+.pa-pdf-appendix-frame {
+  display: block;
+  width: 100%;
+  height: 1123px;
+  border: none;
+  background: #fff;
+}
+@media print {
+  .pa-pdf-appendix-frame {
+    width: 210mm;
+    height: 297mm;
+    page-break-inside: avoid;
+  }
+}
 
 @media (max-width: 720px) {
   .proposal-preview-area {
@@ -11614,7 +11636,7 @@ select.ds-input {
     background: #fff !important;
     margin: 0 !important;
     padding: 0 !important;
-    font-size: 9.5pt !important;
+    font-size: 9.25pt !important;
   }
 
   /* When print preview is open, hide all dashboard chrome */
@@ -11679,8 +11701,8 @@ select.ds-input {
     color: #000 !important;
     direction: rtl !important;
     font-family: Arial, "Noto Sans Hebrew", "David", sans-serif !important;
-    font-size: 9.5pt !important;
-    line-height: 1.3 !important;
+    font-size: 9.25pt !important;
+    line-height: 1.4 !important;
     letter-spacing: 0.1px !important;
     display: flex !important;
     flex-direction: column !important;
@@ -11853,6 +11875,14 @@ select.ds-input {
   .ds-pa-doc-signature {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+  }
+  .proposal-signature-greeting {
+    text-align: center !important;
+    margin: 0 0 18pt !important;
+  }
+  .proposal-signature-name {
+    text-align: left !important;
+    direction: ltr !important;
   }
   .pa-proposal-lines ul {
     list-style: none !important;
