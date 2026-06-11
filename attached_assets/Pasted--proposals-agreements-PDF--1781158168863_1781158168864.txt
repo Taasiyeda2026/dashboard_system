@@ -1,0 +1,62 @@
+תתקן את בעיית ההדפסה בהצעות מחיר במסך proposals-agreements.
+
+כרגע בהדפסה/שמירה ל־PDF נוצר עמוד שלישי כמעט ריק שמכיל רק את החתימה והפוטר. זה לא תקין. ההצעה צריכה לזרום טבעית ולצמצם עמודים, כך שהחתימה תישאר בסוף עמוד התוכן האחרון כאשר יש מקום.
+
+בצע תיקון ממוקד ב־frontend/src/styles/main.css בלבד, באזור Print styles — A4 proposal document.
+
+דרישות:
+
+בתוך @media print, אל תשתמש ב־display:flex עבור .proposal-document ואל תשתמש ב־flex: 1 1 auto עבור .proposal-document-body. המסמך צריך להיות בלוק רגיל שזורם טבעית בין עמודי A4.
+הסר או החלש את break-inside: avoid מ־.pa-section, כי זה דוחף סעיפים שלמים לעמוד הבא וגורם לעמוד חתימה מיותר.
+השאר break-inside: avoid רק על .proposal-signature, .pa-cost-table, כותרות קצרות או בלוקים שבאמת אסור לפצל.
+צמצם מעט ריווחים בהדפסה: margins של .pa-section, רשימות, חתימה ופוטר.
+ודא שהפוטר לא יוצר עמוד חדש בפני עצמו. אין להשתמש ב־break-before, page-break-before, או גובה קבוע שמדחף אותו לעמוד חדש.
+לא לשנות את מבנה הנתונים, לא לשנות את נוסח ההצעה, ולא לשנות את עיצוב המסך הרגיל — רק את CSS ההדפסה.
+בדיקה נדרשת: הצעה קצרה כמו בצילום צריכה לצאת ב־2 עמודים ולא ב־3, ללא עמוד כמעט ריק בסוף.
+
+אפשר להוסיף CSS בסוף אזור ההדפסה:
+
+@media print {
+  .proposal-document {
+    display: block !important;
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  .proposal-document-body {
+    display: block !important;
+    flex: none !important;
+  }
+
+  .pa-section {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    margin: 6pt 0 3pt !important;
+  }
+
+  .pa-section h3 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  .proposal-signature {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-top: 10pt !important;
+  }
+
+  .proposal-signature-greeting {
+    margin-bottom: 8pt !important;
+  }
+
+  .proposal-document-footer {
+    break-before: avoid !important;
+    page-break-before: avoid !important;
+    margin-top: 8pt !important;
+  }
+
+  .proposal-footer-logo {
+    max-height: 24mm !important;
+    object-fit: contain !important;
+  }
+}

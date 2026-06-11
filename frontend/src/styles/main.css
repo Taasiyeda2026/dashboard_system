@@ -11700,7 +11700,8 @@ select.ds-input {
   .proposal-document {
     width: 210mm !important;
     max-width: none !important;
-    min-height: 297mm !important;
+    min-height: auto !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 32px 36px 28px !important;
     box-shadow: none !important;
@@ -11713,8 +11714,7 @@ select.ds-input {
     font-size: 9.25pt !important;
     line-height: 1.4 !important;
     letter-spacing: 0.1px !important;
-    display: flex !important;
-    flex-direction: column !important;
+    display: block !important;
     box-sizing: border-box !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -11756,7 +11756,7 @@ select.ds-input {
     height: auto !important;
     padding: 0 !important;
     border-top: none !important;
-    margin-top: 16pt !important;
+    margin-top: 8pt !important;
     line-height: 0 !important;
     break-before: avoid !important;
     page-break-before: avoid !important;
@@ -11764,17 +11764,17 @@ select.ds-input {
   .proposal-footer-logo {
     width: 100% !important;
     height: auto !important;
+    max-height: 24mm !important;
     max-width: none !important;
-    object-fit: cover !important;
+    object-fit: contain !important;
     display: block !important;
     opacity: 1 !important;
   }
 
-  /* Body — normal flow; the signature follows the content, not the footer */
+  /* Body — normal block flow, no flex stretching */
   .proposal-document-body {
-    display: flex !important;
-    flex-direction: column !important;
-    flex: 1 1 auto !important;
+    display: block !important;
+    flex: none !important;
     padding: 0 !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
@@ -11819,9 +11819,9 @@ select.ds-input {
     overflow-wrap: anywhere !important;
   }
   .pa-section {
-    margin: 8pt 0 4pt !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
+    margin: 6pt 0 3pt !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
   }
   .pa-section h3 {
     font-size: 10pt !important;
@@ -11889,7 +11889,7 @@ select.ds-input {
   }
   .proposal-signature-greeting {
     text-align: center !important;
-    margin: 0 0 18pt !important;
+    margin: 0 0 8pt !important;
   }
   .proposal-signature-name {
     text-align: left !important;
