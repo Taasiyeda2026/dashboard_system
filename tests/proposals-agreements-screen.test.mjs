@@ -1338,3 +1338,117 @@ test('summer proposal preview shows catalog sentence only when include_catalog i
     assert.match(onText, /מצורף להצעה/);
   });
 });
+
+test('catalog attach button toggles include_catalog and save payload', async () => {
+  let savedPayload = null;
+  const pricing = [
+    { activity_no: 'S1', activity_name: 'סדנת מייקרים', item_type: 'סדנה', proposal_group: 'קיץ תשפ״ו', unit_price: 450 }
+  ];
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: {
+          rows: [],
+          contactOptions: [],
+          proposalActivityPricing: pricing,
+          proposalActivityGroups: [{ group_key: 'קיץ תשפ״ו', display_name: 'קיץ תשפ״ו', template_key: 'summer' }]
+        },
+        state: stateFor('admin'),
+        api: {
+          addProposalAgreement: async (payload) => {
+            savedPayload = payload;
+            return { ok: true, row: { ...payload, id: '55555555-5555-5555-5555-555555555555' } };
+          },
+          saveProposalAgreementItems: async () => ({ ok: true })
+        }
+      });
+
+      root.querySelector('[data-pa-tab="new"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const form = root.querySelector('[data-pa-form]');
+      form.querySelector('input[name="client_authority"]').value = 'רשות הדוגמה';
+      form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו';
+      const pricingSelect = form.querySelector('[data-pa-pricing-select]');
+      pricingSelect.selectedIndex = 1;
+      pricingSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      await delay(10);
+
+      const catalogBtn = form.querySelector('[data-pa-catalog-toggle]');
+      const catalogInput = form.querySelector('[name="include_catalog"]');
+      assert.equal(catalogInput.value, 'no');
+      assert.equal(catalogBtn.textContent, 'הוספת הקטלוג להצעה');
+
+      catalogBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      assert.equal(catalogInput.value, 'yes');
+      assert.equal(catalogBtn.textContent, 'הקטלוג צורף להצעה');
+      assert.ok(form.querySelector('[data-pa-catalog-attach]')?.classList.contains('is-attached'));
+
+      form.querySelector('[data-pa-save-draft]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(40);
+      assert.equal(savedPayload?.include_catalog, true);
+    }
+  );
+});
+
+test('next_year proposal title uses template_name תוכניות from Supabase', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: '66666666-6666-6666-6666-666666666666',
+    activity_type_group: 'שנת הלימודים תשפ״ז',
+    include_catalog: false
+  };
+  const proposalTemplateSections = [
+    {
+      template_key: 'next_year',
+      template_name: 'הצעת מחיר לתוכניות תעשיידע | שנת הלימודים תשפ״ז',
+      section_key: 'intro',
+      section_title: 'פתיח',
+      section_body: 'פתיח.'
+    },
+    {
+      template_key: 'next_year',
+      section_key: 'activity_intro',
+      section_title: 'הפעילות המוצעת',
+      section_body: 'טקסט פעילות.'
+    },
+    {
+      template_key: 'next_year',
+      section_key: 'payment_terms',
+      section_title: 'עלות ותנאי תשלום',
+      section_body: ' תנאי תשלום.'
+    }
+  ];
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: {
+        rows: [row],
+        proposalTemplateSections,
+        proposalActivityGroups: [{ group_key: 'שנת הלימודים תשפ״ז', display_name: 'שנת הלימודים תשפ״ז', template_key: 'next_year' }]
+      },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => [{ item_name: 'קורס רובוטיקה', unit_price: 500, total_price: 500, quantity: 1, proposal_group: 'שנת הלימודים תשפ״ז' }] }
+    });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+
+    const title = dom.window.document.querySelector('.pa-doc-subject')?.textContent || '';
+    assert.match(title, /הצעת מחיר לתוכניות תעשיידע \| שנת הלימודים תשפ״ז/);
+    assert.doesNotMatch(title, /קורסי תעשיידע/);
+  });
+});
+
+test('next_year template_name migration updates programs wording', async () => {
+  const migration = await readFile(
+    new URL('../supabase/migrations/20260616_next_year_template_name_programs.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(migration, /הצעת מחיר לתוכניות תעשיידע \| שנת הלימודים תשפ״ז/);
+  assert.match(migration, /where template_key = 'next_year'/i);
+});

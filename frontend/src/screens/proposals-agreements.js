@@ -1555,15 +1555,36 @@ function filterCatalogContentFromBody(body = '', includeCatalog = false) {
   return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+function setCatalogAttachState(wrap, attached) {
+  if (!wrap) return;
+  const input = wrap.querySelector('[name="include_catalog"]');
+  const statusEl = wrap.querySelector('[data-pa-catalog-status]');
+  const toggleBtn = wrap.querySelector('[data-pa-catalog-toggle]');
+  if (input) input.value = attached ? 'yes' : 'no';
+  wrap.classList.toggle('is-attached', attached);
+  if (toggleBtn) {
+    toggleBtn.textContent = attached ? 'הקטלוג צורף להצעה' : 'הוספת הקטלוג להצעה';
+    toggleBtn.classList.toggle('ds-btn--ghost', attached);
+    toggleBtn.classList.toggle('ds-btn--primary', !attached);
+    toggleBtn.setAttribute('aria-pressed', String(attached));
+  }
+  if (statusEl) {
+    statusEl.textContent = attached
+      ? '✓ הקטלוג צורף להצעה'
+      : 'דף המידע / קטלוג הפעילויות יצורף למסמך בתצוגה מקדימה וב-PDF';
+    statusEl.classList.toggle('is-attached', attached);
+  }
+}
+
 function catalogAttachHtml(row = {}) {
   const attached = includeCatalogValue(row.include_catalog);
-  return `<div class="ds-pa-catalog-attach" data-pa-catalog-attach>
+  return `<div class="ds-pa-catalog-attach${attached ? ' is-attached' : ''}" data-pa-catalog-attach>
     <input type="hidden" name="include_catalog" value="${attached ? 'yes' : 'no'}">
     <div class="ds-pa-catalog-attach-text">
       <strong>נספח קטלוג</strong>
       <span class="ds-pa-catalog-status${attached ? ' is-attached' : ''}" data-pa-catalog-status>${attached ? '✓ הקטלוג צורף להצעה' : 'דף המידע / קטלוג הפעילויות יצורף למסמך בתצוגה מקדימה וב-PDF'}</span>
     </div>
-    <button type="button" class="ds-btn ds-btn--sm${attached ? ' ds-btn--ghost' : ''}" data-pa-catalog-toggle aria-pressed="${attached ? 'true' : 'false'}">${attached ? 'הסרת הקטלוג מההצעה' : 'הוספת הקטלוג להצעה'}</button>
+    <button type="button" class="ds-btn ds-btn--sm${attached ? ' ds-btn--ghost' : ' ds-btn--primary'}" data-pa-catalog-toggle aria-pressed="${attached ? 'true' : 'false'}">${attached ? 'הקטלוג צורף להצעה' : 'הוספת הקטלוג להצעה'}</button>
   </div>`;
 }
 
@@ -2083,6 +2104,19 @@ export const proposalsAgreementsScreen = {
       if (!form) return;
       ['client', 'contact', 'proposal', 'activity', 'summary'].forEach((key) => setPanelOpen(form, key, true));
     };
+    const setupCatalogAttach = (container) => {
+      const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]');
+      const wrap = form?.querySelector('[data-pa-catalog-attach]');
+      const toggleBtn = wrap?.querySelector('[data-pa-catalog-toggle]');
+      if (!wrap || !toggleBtn || toggleBtn.dataset.paCatalogBound === 'yes') return;
+      toggleBtn.dataset.paCatalogBound = 'yes';
+      toggleBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const attached = text(wrap.querySelector('[name="include_catalog"]')?.value) !== 'yes';
+        setCatalogAttachState(wrap, attached);
+      }, { signal });
+    };
     const setupFormStepper = (container) => {
       const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]');
       if (!form || form.dataset.paStepperBound === 'yes') return;
@@ -2090,6 +2124,7 @@ export const proposalsAgreementsScreen = {
       form.addEventListener('input', () => { updateProposalStepper(form); calcGrandTotal(form); }, { signal });
       form.addEventListener('change', () => setTimeout(() => { updateProposalStepper(form); calcGrandTotal(form); }, 0), { signal });
       updateProposalStepper(form);
+      setupCatalogAttach(form);
     };
 
     // ── Type change → re-render items section + update template indicator ────
@@ -2433,7 +2468,9 @@ export const proposalsAgreementsScreen = {
 
     // ── Preview ───────────────────────────────────────────────────────────────
     const openPreview = async (row, items, options = {}) => {
-      const freshRow = rowWithCentralContact(data.rows.find((r) => text(r.id) === text(row.id)) || row);
+      const savedRow = data.rows.find((r) => text(r.id) === text(row.id));
+      const mergedRow = savedRow ? { ...savedRow, ...row } : row;
+      const freshRow = rowWithCentralContact(mergedRow);
       const templateKey = proposalGroupTemplateKey(freshRow.activity_type_group);
       const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
       document.getElementById('pa-preview-overlay')?.remove();
@@ -3031,23 +3068,7 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
-      // Catalog appendix attach/detach toggle
-      const catalogToggleBtn = event.target.closest?.('[data-pa-catalog-toggle]');
-      if (catalogToggleBtn) {
-        const wrap = catalogToggleBtn.closest('[data-pa-catalog-attach]');
-        const input = wrap?.querySelector('[name="include_catalog"]');
-        const statusEl = wrap?.querySelector('[data-pa-catalog-status]');
-        const attached = input?.value !== 'yes';
-        if (input) input.value = attached ? 'yes' : 'no';
-        catalogToggleBtn.textContent = attached ? 'הסרת הקטלוג מההצעה' : 'הוספת הקטלוג להצעה';
-        catalogToggleBtn.classList.toggle('ds-btn--ghost', attached);
-        catalogToggleBtn.setAttribute('aria-pressed', String(attached));
-        if (statusEl) {
-          statusEl.textContent = attached ? '✓ הקטלוג צורף להצעה' : 'דף המידע / קטלוג הפעילויות יצורף למסמך בתצוגה מקדימה וב-PDF';
-          statusEl.classList.toggle('is-attached', attached);
-        }
-        return;
-      }
+      // Catalog toggle is bound directly on the form button (setupCatalogAttach).
 
       // Items: add row
       const addItemBtn = event.target.closest?.('[data-pa-add-item]');

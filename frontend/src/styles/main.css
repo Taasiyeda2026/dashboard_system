@@ -10784,6 +10784,18 @@ select.ds-input {
   border-radius: 12px;
   background: #f8fbff;
 }
+.ds-pa-catalog-attach.is-attached {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.ds-pa-catalog-attach .ds-btn--primary[data-pa-catalog-toggle] {
+  font-weight: 700;
+}
+.ds-pa-catalog-attach.is-attached [data-pa-catalog-toggle] {
+  color: #15803d;
+  border-color: #86efac;
+  font-weight: 700;
+}
 .ds-pa-catalog-attach-text {
   display: flex;
   flex-direction: column;
