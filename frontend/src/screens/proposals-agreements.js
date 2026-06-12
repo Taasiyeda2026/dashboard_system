@@ -2163,6 +2163,13 @@ async function catalogPdfExists(entry = {}) {
 async function resolvePrintableCatalogPdfEntries(entries = []) {
   const printable = [];
   for (const entry of (Array.isArray(entries) ? entries : [])) {
+    if (entry?.missing) {
+      const courseName = text(entry.label) || 'קורס';
+      const shouldContinue = window.confirm(`לא נמצא מספר גפ״ן לנספח הקורס: ${courseName}. ניתן להמשיך ללא נספח או לבטל ולעדכן את פרטי הקורס.`);
+      if (!shouldContinue) return null;
+      continue;
+    }
+    if (!entry?.url) continue;
     if (entry.kind !== 'course') {
       printable.push(entry);
       continue;
@@ -2178,6 +2185,32 @@ async function resolvePrintableCatalogPdfEntries(entries = []) {
   return printable;
 }
 
+function catalogPdfDownloadName(entry = {}, index = 0) {
+  const pathName = text(entry.path || entry.url).split(/[?#]/)[0].split('/').filter(Boolean).pop();
+  const fallbackName = `catalog-appendix-${index + 1}.pdf`;
+  return /\.pdf$/i.test(pathName) ? pathName : fallbackName;
+}
+
+function triggerCatalogPdfDownload(entry = {}, index = 0) {
+  if (!entry?.url || typeof document === 'undefined') return;
+  const link = document.createElement('a');
+  link.href = entry.url;
+  link.download = catalogPdfDownloadName(entry, index);
+  link.target = '_blank';
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function prepareCatalogPdfDownloads(entries = []) {
+  const printableEntries = await resolvePrintableCatalogPdfEntries(entries);
+  if (printableEntries === null) return false;
+  printableEntries.forEach((entry, index) => triggerCatalogPdfDownload(entry, index));
+  return true;
+}
+
 function ensureCatalogAppendixNotice(previewArea, row = {}, items = []) {
   const doc = previewArea?.querySelector?.('.proposal-document-body');
   if (!doc || doc.querySelector('[data-pa-catalog-appendix-notice]')) return;
@@ -2188,12 +2221,6 @@ function ensureCatalogAppendixNotice(previewArea, row = {}, items = []) {
   const signature = doc.querySelector('.proposal-signature');
   if (signature) doc.insertBefore(notice, signature);
   else doc.appendChild(notice);
-}
-
-function appendCatalogPdfPlaceholders(_previewArea, _entries = []) {
-  // Browser print cannot reliably merge external PDF pages without printing the
-  // built-in PDF viewer chrome. Keep preview/print clean; the proposal document
-  // itself shows a small non-technical appendix indication instead.
 }
 
 
@@ -2822,8 +2849,10 @@ export const proposalsAgreementsScreen = {
           const previewArea = overlay.querySelector('.proposal-preview-area');
           ensureCatalogAppendixNotice(previewArea, freshRow, items);
           // Do not embed external PDF files in the printable DOM; browsers print
-          // the PDF viewer shell rather than clean A4 appendix pages.
-          appendCatalogPdfPlaceholders(previewArea, buildProposalCatalogPdfEntries(freshRow, items));
+          // the PDF viewer shell rather than clean A4 appendix pages. Download
+          // resolved appendix PDFs alongside the proposal print/save flow instead.
+          const canContinueWithCatalog = await prepareCatalogPdfDownloads(buildProposalCatalogPdfEntries(freshRow, items));
+          if (!canContinueWithCatalog) return;
           catalogValidationDone = true;
         }
         window.print();
