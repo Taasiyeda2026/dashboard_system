@@ -436,7 +436,7 @@ test('exceptions screen totals, district sum, and rendered cards use the same ex
   assert.equal((html.match(/data-card-action="exception:/g) || []).length, 3);
 });
 
-test('exceptions screen separates summer missing-date rows from general exceptions', () => {
+test('exceptions screen separates all summer rows from general exceptions', () => {
   const data = {
     month: '2026-05',
     rows: [
@@ -457,30 +457,47 @@ test('exceptions screen separates summer missing-date rows from general exceptio
         exception_types: ['missing_start_date']
       },
       {
-        RowID: 'SUMMER-DATED',
-        activity_name: 'פעילות קיץ עם תאריך',
+        RowID: 'SUMMER-MISSING-INSTRUCTOR',
+        activity_name: 'פעילות קיץ עם מדריך חסר',
         activity_season: 'summer_2026',
         start_date: '2026-07-15',
         end_date: '2026-07-15',
         exception_types: ['missing_instructor']
+      },
+      {
+        RowID: 'SUMMER-MISSING-DISTRICT',
+        activity_name: 'פעילות קיץ עם מחוז חסר',
+        activity_season: 'summer_2026',
+        start_date: '2026-07-16',
+        end_date: '2026-07-16',
+        exception_types: ['missing_district']
+      },
+      {
+        RowID: 'SUMMER-END-DATE-PASSED',
+        activity_name: 'פעילות קיץ עם תאריך סיום עבר',
+        activity_season: 'summer_2026',
+        start_date: '2026-07-17',
+        end_date: '2026-07-17',
+        exception_types: ['end_date_passed']
       }
     ]
   };
 
   const generalHtml = exceptionsScreen.render(data, { state: { listFilters: {}, clientSettings: {} } });
-  assert.match(generalHtml, /חריגות כלליות[\s\S]*<span>2<\/span>/);
-  assert.match(generalHtml, /חריגות קיץ[\s\S]*<span>1<\/span>/);
+  assert.match(generalHtml, /חריגות כלליות[\s\S]*<span>1<\/span>/);
+  assert.match(generalHtml, /חריגות קיץ[\s\S]*<span>4<\/span>/);
   assert.match(generalHtml, /פעילות רגילה ללא תאריך/);
-  assert.match(generalHtml, /פעילות קיץ עם תאריך/);
   assert.doesNotMatch(generalHtml, /הזמנת קיץ ללא תאריך/);
-  assert.equal((generalHtml.match(/data-card-action="exception:/g) || []).length, 2);
+  assert.equal((generalHtml.match(/data-card-action="exception:/g) || []).length, 1);
 
   const summerHtml = exceptionsScreen.render(data, { state: { exceptionsTab: 'summer_dates', listFilters: {}, clientSettings: {} } });
-  assert.match(summerHtml, /פעילויות קיץ ללא תאריך מוצגות כאן בנפרד/);
+  assert.match(summerHtml, /חריגות של פעילויות קיץ מוצגות כאן בנפרד כדי להפריד בין פעילות קיץ לבין פעילות רגילה/);
   assert.match(summerHtml, /הזמנת קיץ ללא תאריך/);
   assert.doesNotMatch(summerHtml, /פעילות רגילה ללא תאריך/);
-  assert.doesNotMatch(summerHtml, /פעילות קיץ עם תאריך/);
-  assert.equal((summerHtml.match(/data-card-action="exception:/g) || []).length, 1);
+  assert.match(summerHtml, /פעילות קיץ עם מדריך חסר/);
+  assert.match(summerHtml, /פעילות קיץ עם מחוז חסר/);
+  assert.match(summerHtml, /פעילות קיץ עם תאריך סיום עבר/);
+  assert.equal((summerHtml.match(/data-card-action="exception:/g) || []).length, 4);
 });
 
 test('frontend drawer shows exception type chip when opening activity detail', async () => {
