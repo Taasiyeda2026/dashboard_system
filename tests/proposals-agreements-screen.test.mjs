@@ -1416,6 +1416,61 @@ test('print catalog prompt keeps PDF viewers out of the preview and printed DOM'
   });
 });
 
+test('print flow downloads resolved catalog appendix PDFs without embedding them', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: 'course-download-pdf-row',
+    activity_type_group: 'הצעה משולבת',
+    status: 'approved',
+    include_catalog: true
+  };
+  const items = [
+    { item_name: 'סדנת מייקרים', item_type: 'סדנה', proposal_group: 'סדנאות', quantity: 1, unit_price: 100, total_price: 100 },
+    { item_name: 'קורס רובוטיקה', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', gefen_number: '9545', quantity: 1, unit_price: 200, total_price: 200 }
+  ];
+  const savedFetch = globalThis.fetch;
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    const downloads = [];
+    let printCalls = 0;
+    dom.window.HTMLAnchorElement.prototype.click = function click() {
+      downloads.push({ href: this.getAttribute('href'), download: this.getAttribute('download'), connected: this.isConnected });
+    };
+    dom.window.confirm = () => { throw new Error('resolved appendices should not prompt'); };
+    dom.window.print = () => { printCalls += 1; };
+    globalThis.fetch = async () => ({ ok: true, status: 200 });
+    try {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: {
+          rows: [row],
+          proposalActivityGroups: [
+            { group_key: 'הצעה משולבת', display_name: 'הצעה משולבת', template_key: 'combined' },
+            { group_key: 'סדנאות', display_name: 'סדנאות', template_key: 'workshops' },
+            { group_key: 'שנת הלימודים תשפ״ז', display_name: 'שנת הלימודים תשפ״ז', template_key: 'next_year' }
+          ]
+        },
+        state: stateFor('admin'),
+        api: { readProposalAgreementItems: async () => items }
+      });
+      root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+      dom.window.document.getElementById('pa-print-btn')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+
+      assert.equal(printCalls, 1);
+      assert.deepEqual(downloads.map((entry) => entry.href), ['./catalog/appendices/workshop.pdf', './catalog/appendices/9545.pdf']);
+      assert.deepEqual(downloads.map((entry) => entry.download), ['workshop.pdf', '9545.pdf']);
+      assert.ok(downloads.every((entry) => entry.connected), 'download link should be clicked while temporarily attached');
+      assert.doesNotMatch(dom.window.document.body.innerHTML, /catalog\/appendices\/(workshop|9545)\.pdf/i);
+    } finally {
+      globalThis.fetch = savedFetch;
+    }
+  });
+});
+
+
 test('catalog PDF appendices report missing selected course appendix identifiers', () => {
   const entries = buildProposalCatalogPdfEntries(
     { activity_type_group: 'שנת הלימודים תשפ״ז' },

@@ -11646,61 +11646,6 @@ select.ds-input {
   break-before: page;
   page-break-before: always;
 }
-.pa-catalog-shadow-host { display: block; }
-.pa-catalog-loading {
-  color: #6b7280;
-  font-style: italic;
-  padding: 4px 12px;
-  font-size: 0.82rem;
-}
-.pa-appendix-note,
-.pa-appendix-missing {
-  font-size: 0.82rem;
-  padding: 6px 14px;
-  border-radius: 4px;
-  margin: 6px 0;
-}
-.pa-appendix-note {
-  color: #92400e;
-  border: 1px solid #fcd34d;
-  background: #fffbeb;
-}
-.pa-appendix-missing {
-  color: #dc2626;
-  border: 1px solid #fca5a5;
-  background: #fef2f2;
-}
-.pa-pdf-appendix-frame {
-  display: block;
-  width: 100%;
-  height: 1123px;
-  border: none;
-  background: #fff;
-}
-
-.pa-catalog-pdf-appendix {
-  width: 794px;
-  min-height: 1123px;
-  max-width: 100%;
-  background: #fff;
-  box-sizing: border-box;
-  padding: 28px 34px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
-  direction: rtl;
-  font-family: Arial, "Noto Sans Hebrew", "David", sans-serif;
-}
-.pa-catalog-pdf-appendix h2 {
-  margin: 0 0 8pt;
-  color: #1f4e79;
-  font-size: 13pt;
-}
-.pa-catalog-pdf-object,
-.pa-catalog-pdf-frame {
-  display: block;
-  width: 100%;
-  height: 980px;
-  border: 0;
-}
 
 @media (max-width: 720px) {
   .proposal-preview-area {
@@ -12014,19 +11959,6 @@ select.ds-input {
     color: #1f4e79 !important;
   }
 
-  /* ── Catalog appendix ──────────────────────────────────────────── */
-  .catalog-appendix-page-break {
-    display: none !important;
-  }
-  .pa-appendix-start {
-    break-before: page !important;
-    page-break-before: always !important;
-  }
-  .pa-catalog-shadow-host {
-    display: block !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
 }
 
 /* ===== Exceptions UX refresh: grouped cards, balanced grid, and header count badge ===== */
@@ -14972,8 +14904,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-signature-greeting { font-size: 8.5pt !important; margin-bottom: 8pt !important; }
   .proposal-signature-line { width: 42mm !important; border-top: 0.3mm solid #111827 !important; margin: 0 0 0 auto !important; }
   .proposal-signature-name { font-size: 9pt !important; }
-  .pa-catalog-pdf-appendix { box-shadow: none !important; width: 210mm !important; min-height: 297mm !important; padding: 10mm 12mm !important; break-before: page !important; page-break-before: always !important; }
-  .pa-catalog-pdf-appendix, .pa-catalog-pdf-object, .pa-catalog-pdf-frame { display: none !important; }
 }
 
 /* Proposals polish: wider workspace, clearer fields, search-first client picking. */
@@ -15089,16 +15019,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-align: center;
   direction: rtl;
 }
-.pa-catalog-pdf-clean-title {
-  margin: 0 0 8pt;
-  color: #1f4e79;
-  font-size: 13pt;
-  font-weight: 700;
-}
-.pa-catalog-pdf-frame {
-  border: 0;
-  background: #fff;
-}
 @media print {
   .proposal-logo {
     width: auto !important;
@@ -15111,9 +15031,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-signature { width: 58mm !important; margin-top: 8pt !important; margin-inline-start: auto !important; }
   .proposal-signature-line { width: 100% !important; margin: 0 auto !important; }
   .proposal-signature-name { text-align: center !important; direction: rtl !important; }
-  .pa-catalog-pdf-clean-title,
-  .pa-catalog-pdf-appendix,
-  .pa-catalog-pdf-frame { display: none !important; }
 }
 @media (max-width: 900px) {
   .ds-pa-form { width: 100%; padding: 12px; }
