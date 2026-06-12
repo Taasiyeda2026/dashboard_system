@@ -682,6 +682,10 @@ function isSummerKindText(value = '') {
   return /קיץ|קייטנה|summer/.test(value);
 }
 
+function isSummerProposalGroup(value = '') {
+  return isSummerKindText(groupKindText(value));
+}
+
 function isWorkshopKindText(value = '') {
   return /סדנ|workshop|stem|חלל/.test(value);
 }
@@ -897,7 +901,7 @@ function activityTypeFilterHtml(pricingOptions) {
 
 function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '') {
   const normalizedGroup = normalizeProposalGroup(activityTypeGroup);
-  const filterHtml = activityTypeFilterHtml(pricingOptions);
+  const filterHtml = isSummerProposalGroup(normalizedGroup) ? '' : activityTypeFilterHtml(pricingOptions);
   const footer = `<datalist id="pa-item-type-list">${itemTypeOptions(pricingOptions).map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>`;
 
@@ -1169,6 +1173,55 @@ function proposalCostTableHtml(items = []) {
   </table>`;
 }
 
+
+function itemGroupPrice(item = {}) {
+  const quantity = Number(item.quantity) || 1;
+  const unitPrice = numberValue(item.unit_price);
+  const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
+  return total != null && total > 0 ? total : unitPrice;
+}
+
+function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
+  const visibleItems = (Array.isArray(items) ? items : []).filter((item) =>
+    !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
+  const rows = visibleItems.map((item) => {
+    const hasPedagogicPricingData = Boolean(
+      text(item.gefen_number) || item.meetings_count != null || item.hours_count != null || item.hourly_price != null
+    );
+    if (!hasPedagogicPricingData && !isCourseKindText(groupKindText(contextGroup))) return '';
+    const cells = [
+      publicActivityName(item.item_name),
+      shouldShowGefenForItem(item, contextGroup) ? text(item.gefen_number) : '',
+      item.meetings_count != null ? formatCurrency(item.meetings_count) : '',
+      item.hours_count != null ? formatCurrency(item.hours_count) : '',
+      item.hourly_price != null ? `${formatCurrency(item.hourly_price)} ₪` : '',
+      itemGroupPrice(item) != null ? `${formatCurrency(itemGroupPrice(item))} ₪` : ''
+    ];
+    if (!cells.some(Boolean)) return '';
+    return `<tr>${cells.map((cell) => `<td>${escapeHtml(cell || '—')}</td>`).join('')}</tr>`;
+  }).filter(Boolean);
+  if (!rows.length) return '';
+  return `<table class="pa-item-details-table">
+    <thead><tr><th>תוכנית / פעילות</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>שעות</th><th>עלות לשעה</th><th>מחיר לקבוצה</th></tr></thead>
+    <tbody>${rows.join('')}</tbody>
+  </table>`;
+}
+
+function summerActivityProposalBody() {
+  return 'ההצעה כוללת פעילויות מותאמות להפעלה במהלך חודש יולי, בין התאריכים 1.7.26–30.7.26. כל פעילות נמשכת 45 דקות ומיועדת לקבוצה של עד 25 משתתפים.\nבסדנאות כל משתתף מכין תוצר אישי ולוקח אותו איתו בסיום הפעילות.';
+}
+
+function costsIntroBody(row = {}, items = []) {
+  const groupText = groupKindText(row.activity_type_group);
+  if (isCourseKindText(groupText)) {
+    return 'פירוט התוכניות, נתוני גפ״ן והעלויות מוצגים בטבלאות שלהלן.';
+  }
+  if (isSummerProposalGroup(row.activity_type_group)) {
+    return 'פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן.';
+  }
+  return items?.length ? 'פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן.' : '';
+}
+
 function sectionHtml(title, body, className = '', options = {}) {
   return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(sectionHeadingText(title))}</h3>${sectionBodyHtml(body, options)}</section>`;
 }
@@ -1279,18 +1332,11 @@ function sectionLinesHtml(value, options = {}) {
 // Signature content (name, role) comes only from Supabase (section_key = 'signature').
 // The block renders inline after the document sections, under "בברכה," — never floated
 // or pushed above the footer. When Supabase has no signature, nothing is rendered.
-function signatureSectionHtml(signatureBody = '') {
-  const body = normalizeMultilineText(signatureBody);
-  if (!body) return '';
-  const lines = body
-    .split('\n')
-    .map(text)
-    .filter(Boolean)
-    .filter((line) => !/^בברכה[,،]?$/.test(line));
-  if (!lines.length) return '';
+function signatureSectionHtml(_signatureBody = '') {
   return `<section class="proposal-signature" aria-label="חתימה">
     <p class="proposal-signature-greeting">בברכה,</p>
-    ${lines.map((line) => `<p class="proposal-signature-name">${escapeHtml(line)}</p>`).join('\n    ')}
+    <div class="proposal-signature-line" aria-hidden="true"></div>
+    <p class="proposal-signature-name">עידן נחום, סמנכ״ל כספים</p>
   </section>`;
 }
 
@@ -1398,9 +1444,10 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   const hasCatalogAppendix = catalogEntries.length > 0;
   const introText = sectionBody('intro');
   const remarks = sectionBody('notes') || String(row.notes || '').replace(/\r\n?/g, '\n').trim();
-  const activityIntro = includeCatalog
-    ? activityIntroForCatalog(row, items, hasCatalogAppendix)
-    : filterCatalogContentFromBody(sectionBody('activity_intro'), false);
+  const templateActivityIntro = filterCatalogContentFromBody(sectionBody('activity_intro'), false);
+  const activityIntro = isSummerProposalGroup(activityTypeGroup)
+    ? summerActivityProposalBody()
+    : (includeCatalog ? activityIntroForCatalog(row, items, hasCatalogAppendix) : templateActivityIntro);
 
   const renderActivitySection = (heading, body) => {
     const bodyHtml = body ? sectionBodyHtml(body) : '';
@@ -1437,9 +1484,11 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   // Payment section: general terms text comes from Supabase, while the price
   // breakdown is always built dynamically from proposal_agreement_items.
   const paymentTermsBody = sectionBody('payment_terms');
+  const itemDetailsHtml = proposalItemDetailsTableHtml(items, activityTypeGroup);
   const costTableHtml = proposalCostTableHtml(items);
-  const paymentTerms = (paymentTermsBody || costTableHtml)
-    ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${costTableHtml}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}</section>`
+  const costsIntro = costsIntroBody(row, items);
+  const paymentTerms = (paymentTermsBody || costTableHtml || itemDetailsHtml || costsIntro)
+    ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${costsIntro ? sectionBodyHtml(costsIntro) : ''}${itemDetailsHtml}${costTableHtml}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}</section>`
     : '';
 
   const signatureHtml = signatureSectionHtml(sectionBody('signature'));
@@ -1728,10 +1777,12 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <div data-pa-step-panel="contact">
         <div class="ds-pa-form-grid">
           <div data-pa-contact-picker-host>${initPickerHtml}</div>
-          ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
-          ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
-          ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
-          ${textField('email', FIELD_LABELS.email, row.email, false)}
+          <div class="ds-pa-form-grid ds-pa-contact-manual-fields" data-pa-contact-manual-fields${isLocked ? ' hidden' : ''}>
+            ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
+            ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
+            ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
+            ${textField('email', FIELD_LABELS.email, row.email, false)}
+          </div>
         </div>
       </div>
     </div>
@@ -1767,7 +1818,6 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
       <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
         <div class="ds-pa-form-actions-main">
-          <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
           <button type="button" class="ds-btn ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
           <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending>שליחה לאישור</button>
           <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
@@ -2162,6 +2212,60 @@ export function buildProposalCatalogEntries(items) {
   return buildProposalCatalogEntryDetails(items).map((entry) => entry.url);
 }
 
+const CATALOG_PDF_FILES = Object.freeze({
+  workshops: 'proposals/catalogs/catalog-workshops.pdf',
+  courses: 'proposals/catalogs/catalog-courses.pdf',
+  tours: 'proposals/catalogs/catalog-tours.pdf'
+});
+
+function proposalCatalogPdfKinds(row = {}, items = []) {
+  const kinds = new Set();
+  const groupText = groupKindText(row.activity_type_group);
+  const sourceItems = Array.isArray(items) ? items : [];
+  if (isCombinedProposalGroup(row.activity_type_group)) {
+    const groups = includedProposalGroups(row.activity_type_group);
+    groups.forEach((groupKey) => {
+      const kindText = groupKindText(groupKey);
+      if (isWorkshopKindText(kindText) || isSummerKindText(kindText)) kinds.add('workshops');
+      if (isCourseKindText(kindText)) kinds.add('courses');
+      if (/סיור|tour/.test(kindText)) kinds.add('tours');
+    });
+  }
+  if (isSummerKindText(groupText) || isWorkshopKindText(groupText)) kinds.add('workshops');
+  if (isCourseKindText(groupText)) kinds.add('courses');
+  if (/סיור|tour/.test(groupText)) kinds.add('tours');
+  sourceItems.forEach((item) => {
+    const kindText = itemKindText(item);
+    const catalogKind = itemCatalogKind(item);
+    if (catalogKind === 'workshop' || catalogKind === 'summer' || isWorkshopKindText(kindText) || isSummerKindText(kindText)) kinds.add('workshops');
+    if (catalogKind === 'course' || isCourseKindText(kindText)) kinds.add('courses');
+    if (/סיור|tour/.test(kindText)) kinds.add('tours');
+  });
+  return Array.from(kinds);
+}
+
+function buildProposalCatalogPdfEntries(row = {}, items = []) {
+  return proposalCatalogPdfKinds(row, items)
+    .map((kind) => ({ kind, path: CATALOG_PDF_FILES[kind], url: `${PUBLIC_BASE}${CATALOG_PDF_FILES[kind]}` }))
+    .filter((entry) => entry.path);
+}
+
+function appendCatalogPdfPlaceholders(previewArea, entries = []) {
+  if (!previewArea || !entries.length) return;
+  entries.forEach((entry, idx) => {
+    const appendix = document.createElement('section');
+    appendix.className = `pa-catalog-pdf-appendix${idx === 0 ? ' pa-appendix-start' : ''}`;
+    appendix.innerHTML = `<h2>נספח קטלוג</h2>
+      <p>קטלוג זה יצורף להצעה הסופית מקובץ: <strong>${escapeHtml(entry.path)}</strong></p>
+      <object data="${escapeHtml(entry.url)}" type="application/pdf" class="pa-catalog-pdf-object">
+        <iframe src="${escapeHtml(entry.url)}" class="pa-catalog-pdf-frame" title="נספח קטלוג"></iframe>
+        <p><a href="${escapeHtml(entry.url)}" target="_blank" rel="noopener">פתיחת נספח הקטלוג</a></p>
+      </object>`;
+    previewArea.appendChild(appendix);
+  });
+}
+
+
 async function loadCatalogViaIframe(url) {
   return new Promise((resolve, reject) => {
     const iframe = document.createElement('iframe');
@@ -2395,6 +2499,7 @@ export const proposalsAgreementsScreen = {
       const hintEl = form?.querySelector('[data-pa-new-client-hint]');
       if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName); cardEl.hidden = false; }
       if (fieldsEl) fieldsEl.hidden = true;
+      form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
       if (hintEl) hintEl.hidden = true;
     };
 
@@ -2403,6 +2508,7 @@ export const proposalsAgreementsScreen = {
       const fieldsEl = form?.querySelector('[data-pa-client-fields]');
       if (cardEl) cardEl.hidden = true;
       if (fieldsEl) fieldsEl.hidden = false;
+      form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
     };
 
     // ── Contact / client setup ────────────────────────────────────────────────
@@ -2435,6 +2541,7 @@ export const proposalsAgreementsScreen = {
         if (contact) {
           fillContactFields(form, contact);
           setContactSource(form, contact);
+          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.phone || contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority));
         }
       }, { signal });
     };
@@ -2709,7 +2816,7 @@ export const proposalsAgreementsScreen = {
       overlay.className = 'proposal-preview-overlay';
       overlay.setAttribute('dir', 'rtl');
       const clientLabel = [freshRow.client_authority, freshRow.school_framework].filter(Boolean).map(escapeHtml).join(' — ');
-      const saveBtnHtml = options.onSave ? `<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-save">שמירת טיוטה</button>` : '';
+      const saveBtnHtml = '';
       const submitBtnHtml = options.onSubmit ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-submit">שליחה לאישור</button>` : '';
       const hasCustomSections = Array.isArray(freshRow.custom_document_sections) && freshRow.custom_document_sections.length > 0;
       const missingTemplateNotice = (!templateSections.length && !hasCustomSections)
@@ -2735,14 +2842,25 @@ export const proposalsAgreementsScreen = {
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
-      overlay.querySelector('#pa-print-btn')?.addEventListener('click', () => window.print());
+      const printButton = overlay.querySelector('#pa-print-btn');
+      let catalogPromptHandled = includeCatalogValue(freshRow.include_catalog);
+      printButton?.addEventListener('click', () => {
+        if (!catalogPromptHandled) {
+          catalogPromptHandled = true;
+          if (window.confirm('האם להוסיף קטלוג להצעה?')) {
+            freshRow.include_catalog = true;
+            appendCatalogPdfPlaceholders(overlay.querySelector('.proposal-preview-area'), buildProposalCatalogPdfEntries(freshRow, items));
+          }
+        }
+        window.print();
+      });
       const closeOverlay = () => { overlay.remove(); document.body.classList.remove('is-print-preview'); };
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', closeOverlay);
-      if (options.onSave) overlay.querySelector('#pa-preview-save')?.addEventListener('click', () => options.onSave());
       if (options.onSubmit) overlay.querySelector('#pa-preview-submit')?.addEventListener('click', () => { closeOverlay(); options.onSubmit(); });
       overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
 
       // The catalog appendix is attached per proposal (include_catalog), chosen in the form.
+      appendCatalogPdfPlaceholders(overlay.querySelector('.proposal-preview-area'), includeCatalogValue(freshRow.include_catalog) ? buildProposalCatalogPdfEntries(freshRow, items) : []);
       if (includeCatalogValue(freshRow.include_catalog)) {
         const previewArea = overlay.querySelector('.proposal-preview-area');
         const printBtn = overlay.querySelector('#pa-print-btn');
@@ -3391,13 +3509,6 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
-      const saveDraftBtn = event.target.closest?.('[data-pa-save-draft]');
-      if (saveDraftBtn) {
-        const form = saveDraftBtn.closest('[data-pa-form]');
-        if (form) await saveForm(form, 'draft');
-        return;
-      }
-
       const savePendingBtn = event.target.closest?.('[data-pa-save-pending]');
       if (savePendingBtn) {
         const form = savePendingBtn.closest('[data-pa-form]');
@@ -3411,7 +3522,6 @@ export const proposalsAgreementsScreen = {
           try {
             await openPreview(tempRow, items, {
               form,
-              onSave: async () => { await saveForm(form, 'draft'); },
               onSubmit: async () => { await saveForm(form, 'pending_approval'); }
             });
           } catch (e) {
@@ -3536,6 +3646,7 @@ export const proposalsAgreementsScreen = {
         const hint = form.querySelector('[data-pa-new-client-hint]');
         if (hint) hint.hidden = true;
         form.querySelectorAll('[data-pa-new-client-only]').forEach((el) => { el.hidden = true; });
+        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
         const clientSelect = form.querySelector('[data-pa-client-select]');
         updateProposalStepper(form);
         clientSelect?.focus();
@@ -3552,10 +3663,7 @@ export const proposalsAgreementsScreen = {
         const tempRow = { ...payload, id: text(form.dataset.paId) || '' };
         const items = payload._items || [];
         try {
-          await openPreview(tempRow, items, {
-            form,
-            onSave: async () => { await saveForm(form, 'draft'); }
-          });
+          await openPreview(tempRow, items, { form });
         } catch (e) {
           console.warn('[PA] openPreview error:', e);
         }
