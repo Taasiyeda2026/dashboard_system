@@ -11341,7 +11341,7 @@ select.ds-input {
   border-radius: 2px;
   display: flex;
   flex-direction: column;
-  padding: 32px 36px 28px;
+  padding: 32px 36px 16px;
   box-sizing: border-box;
 }
 .proposal-document-header {
@@ -11350,17 +11350,18 @@ select.ds-input {
   align-items: flex-start;
   direction: ltr;
   width: 100%;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
   padding-top: 5mm;
 }
 .proposal-header-left {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  width: 320px;
 }
 .proposal-logo {
   width: 320px;
-  max-width: 46%;
+  max-width: 100%;
   height: auto;
   object-fit: contain;
   display: block;
@@ -11394,25 +11395,30 @@ select.ds-input {
 /* Inline-flow block after the last section ("בברכה," + name from Supabase).
    "בברכה" centered; name left-aligned. Never absolute/fixed. */
 .proposal-signature {
-  margin: 14pt 0 4pt;
+  margin: 10pt 0 2pt;
   display: block;
   direction: rtl;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 .proposal-signature-greeting {
-  margin: 0 0 18pt;
-  font-size: 9.5pt;
+  margin: 0 0 10pt;
+  font-size: 8.5pt;
   color: #111827;
   text-align: center;
 }
 .proposal-signature-name {
-  margin: 0;
-  font-size: 10pt;
+  margin: 3pt 0 0;
+  font-size: 9pt;
   font-weight: 700;
   color: #111827;
   text-align: left;
   direction: ltr;
+}
+.proposal-signature-line {
+  width: 165px;
+  border-top: 1px solid #111827;
+  margin: 0 0 0 auto;
 }
 .pa-doc-date {
   text-align: left;
@@ -11420,8 +11426,8 @@ select.ds-input {
   font-size: 7.5pt;
   color: #374151;
   margin-top: 4px;
-  margin-left: 9px;
-  margin-right: 3mm;
+  margin-left: 0;
+  margin-right: 0;
 }
 .pa-doc-address {
   margin: 0 0 6pt;
@@ -11440,13 +11446,13 @@ select.ds-input {
   color: #1f4e79;
   font-size: 11.5pt;
   font-weight: 700;
-  text-decoration: underline;
+  text-decoration: none;
   line-height: 1.3;
   text-align: center;
   letter-spacing: 0.2px;
 }
 .pa-section {
-  margin: 10pt 0 6pt;
+  margin: 7pt 0 4pt;
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -11455,7 +11461,7 @@ select.ds-input {
   break-after: avoid;
   page-break-after: avoid;
   font-weight: 700;
-  text-decoration: underline;
+  text-decoration: none;
   color: #1f4e79;
   margin: 0 0 4pt;
   line-height: 1.3;
@@ -11523,10 +11529,11 @@ select.ds-input {
 }
 /* ── Cost / payment table (built from proposal_agreement_items) ───── */
 .pa-cost-table {
-  width: 100%;
+  width: 86%;
+  max-width: 620px;
   border-collapse: collapse;
   font-size: 9.5pt;
-  margin: 2pt 0 6pt;
+  margin: 4pt auto 7pt;
 }
 .pa-cost-table th,
 .pa-cost-table td {
@@ -11540,6 +11547,36 @@ select.ds-input {
   color: #1f4e79;
   font-weight: 700;
 }
+.pa-cost-table th:first-child,
+.pa-cost-table td:first-child { width: 58%; }
+.pa-cost-table th:nth-child(2),
+.pa-cost-table td:nth-child(2) { width: 12%; text-align: center; }
+.pa-cost-table th:nth-child(3),
+.pa-cost-table td:nth-child(3),
+.pa-cost-table th:nth-child(4),
+.pa-cost-table td:nth-child(4) { width: 15%; white-space: nowrap; }
+.pa-item-details-table {
+  width: 92%;
+  max-width: 660px;
+  border-collapse: collapse;
+  font-size: 8.7pt;
+  margin: 3pt auto 6pt;
+}
+.pa-item-details-table th,
+.pa-item-details-table td {
+  border: 1px solid #d5dee8;
+  padding: 3pt 5pt;
+  text-align: right;
+  vertical-align: top;
+}
+.pa-item-details-table thead th {
+  background: #f5f9fc;
+  color: #1f4e79;
+  font-weight: 700;
+}
+.pa-item-details-table th:first-child,
+.pa-item-details-table td:first-child { width: 36%; }
+.pa-cost-section .pa-section-body p { margin-bottom: 3pt; }
 .pa-cost-table tfoot td {
   font-weight: 700;
   background: #f8fbff;
@@ -11617,13 +11654,29 @@ select.ds-input {
   border: none;
   background: #fff;
 }
-@media print {
-  .pa-pdf-appendix-frame,
-  iframe[src$=".pdf"],
-  iframe[src*=".pdf#"],
-  iframe[src*=".pdf?"] {
-    display: none !important;
-  }
+
+.pa-catalog-pdf-appendix {
+  width: 794px;
+  min-height: 1123px;
+  max-width: 100%;
+  background: #fff;
+  box-sizing: border-box;
+  padding: 28px 34px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
+  direction: rtl;
+  font-family: Arial, "Noto Sans Hebrew", "David", sans-serif;
+}
+.pa-catalog-pdf-appendix h2 {
+  margin: 0 0 8pt;
+  color: #1f4e79;
+  font-size: 13pt;
+}
+.pa-catalog-pdf-object,
+.pa-catalog-pdf-frame {
+  display: block;
+  width: 100%;
+  height: 980px;
+  border: 0;
 }
 
 @media (max-width: 720px) {
@@ -11710,10 +11763,10 @@ select.ds-input {
   .proposal-document {
     width: 210mm !important;
     max-width: none !important;
-    min-height: auto !important;
+    min-height: 297mm !important;
     height: auto !important;
     margin: 0 !important;
-    padding: 32px 36px 28px !important;
+    padding: 10mm 12mm 6mm !important;
     box-shadow: none !important;
     border: none !important;
     border-radius: 0 !important;
@@ -11752,7 +11805,7 @@ select.ds-input {
   }
   .proposal-logo {
     width: 300px !important;
-    max-width: 46% !important;
+    max-width: 100% !important;
     height: auto !important;
     object-fit: contain !important;
     display: block !important;
@@ -11762,9 +11815,9 @@ select.ds-input {
   /* Footer — reserved inside the proposal page, never pushed alone to a blank page */
   .proposal-document-footer {
     position: absolute !important;
-    right: 36px !important;
-    left: 36px !important;
-    bottom: 28px !important;
+    right: 12mm !important;
+    left: 12mm !important;
+    bottom: 6mm !important;
     width: auto !important;
     height: auto !important;
     padding: 0 !important;
@@ -11790,7 +11843,7 @@ select.ds-input {
   .proposal-document-body {
     display: block !important;
     flex: none !important;
-    padding: 0 0 28mm !important;
+    padding: 0 0 25mm !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
   }
@@ -11806,8 +11859,8 @@ select.ds-input {
     line-height: 1.3 !important;
     color: #374151 !important;
     margin-top: 3pt !important;
-    margin-left: 9px !important;
-    margin-right: 3mm !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
   }
   .pa-doc-address {
     text-align: right !important;
@@ -11828,7 +11881,7 @@ select.ds-input {
     font-size: 11pt !important;
     font-weight: 700 !important;
     color: #1f4e79 !important;
-    text-decoration: underline !important;
+    text-decoration: none !important;
     margin: 10pt 0 8pt !important;
     line-height: 1.3 !important;
     overflow-wrap: anywhere !important;
@@ -11843,10 +11896,12 @@ select.ds-input {
     break-after: avoid !important;
     page-break-after: avoid !important;
     font-weight: 700 !important;
-    text-decoration: underline !important;
+    text-decoration: none !important;
     color: #1f4e79 !important;
-    margin: 0 0 3pt !important;
+    margin: 0 0 2pt !important;
     line-height: 1.3 !important;
+    padding-bottom: 2pt !important;
+    border-bottom: 1px solid #d8e5f2 !important;
   }
   .pa-doc-intro,
   .pa-section-body,
@@ -14884,4 +14939,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   #certLogoStatus {
     display: none !important;
   }
+}
+
+@media print {
+  .pa-cost-table { width: 86% !important; max-width: 168mm !important; margin-left: auto !important; margin-right: auto !important; }
+  .pa-item-details-table { width: 92% !important; max-width: 176mm !important; margin-left: auto !important; margin-right: auto !important; }
+  .proposal-signature { margin-top: 8pt !important; }
+  .proposal-signature-greeting { font-size: 8.5pt !important; margin-bottom: 8pt !important; }
+  .proposal-signature-line { width: 42mm !important; border-top: 0.3mm solid #111827 !important; margin: 0 0 0 auto !important; }
+  .proposal-signature-name { font-size: 9pt !important; }
+  .pa-catalog-pdf-appendix { box-shadow: none !important; width: 210mm !important; min-height: 297mm !important; padding: 10mm 12mm !important; break-before: page !important; page-break-before: always !important; }
+  .pa-catalog-pdf-object, .pa-catalog-pdf-frame { height: 260mm !important; }
 }
