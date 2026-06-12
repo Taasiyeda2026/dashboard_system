@@ -10678,10 +10678,10 @@ select.ds-input {
 /* Readonly client card */
 .ds-pa-client-locked {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
   background: var(--ds-surface-2, #f8fafc);
   border: 1px solid var(--ds-border, #e2e8f0);
   border-radius: 8px;
@@ -10696,16 +10696,26 @@ select.ds-input {
 }
 .ds-pa-client-locked-body {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 .ds-pa-client-locked-name {
   font-size: 0.82rem;
   color: var(--ds-color-text, #0f172a);
 }
+.ds-pa-client-locked-actions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
 .ds-pa-client-locked-detail {
   font-size: 0.76rem;
   color: var(--ds-color-text-muted, #64748b);
+}
+.ds-pa-client-locked-detail--warn {
+  color: #b45309;
+  font-weight: 700;
 }
 .ds-pa-new-client-label {
   font-size: 0.78rem;
@@ -11428,6 +11438,7 @@ select.ds-input {
   margin-top: 4px;
   margin-left: 0;
   margin-right: 0;
+  transform: translateX(10mm);
 }
 .pa-doc-address {
   margin: 0 0 6pt;
@@ -11619,6 +11630,18 @@ select.ds-input {
 }
 
 /* ─── Catalog appendix (proposal PDF) ──────────────────────────────────── */
+
+.pa-catalog-appendix-notice {
+  margin: 8pt 0 0;
+  padding: 5pt 7pt;
+  border: 1px solid #dbe7f3;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #475569;
+  font-size: 8pt;
+  font-weight: 700;
+}
+
 .pa-appendix-start {
   break-before: page;
   page-break-before: always;
@@ -11861,6 +11884,7 @@ select.ds-input {
     margin-top: 3pt !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
+    transform: translateX(10mm) !important;
   }
   .pa-doc-address {
     text-align: right !important;
@@ -14949,7 +14973,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-signature-line { width: 42mm !important; border-top: 0.3mm solid #111827 !important; margin: 0 0 0 auto !important; }
   .proposal-signature-name { font-size: 9pt !important; }
   .pa-catalog-pdf-appendix { box-shadow: none !important; width: 210mm !important; min-height: 297mm !important; padding: 10mm 12mm !important; break-before: page !important; page-break-before: always !important; }
-  .pa-catalog-pdf-object, .pa-catalog-pdf-frame { height: 260mm !important; }
+  .pa-catalog-pdf-appendix, .pa-catalog-pdf-object, .pa-catalog-pdf-frame { display: none !important; }
 }
 
 /* Proposals polish: wider workspace, clearer fields, search-first client picking. */
@@ -15087,9 +15111,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-signature { width: 58mm !important; margin-top: 8pt !important; margin-inline-start: auto !important; }
   .proposal-signature-line { width: 100% !important; margin: 0 auto !important; }
   .proposal-signature-name { text-align: center !important; direction: rtl !important; }
-  .pa-catalog-pdf-clean-title { display: none !important; }
-  .pa-catalog-pdf-appendix { padding: 0 !important; overflow: hidden !important; }
-  .pa-catalog-pdf-frame { width: 210mm !important; height: 297mm !important; border: 0 !important; }
+  .pa-catalog-pdf-clean-title,
+  .pa-catalog-pdf-appendix,
+  .pa-catalog-pdf-frame { display: none !important; }
 }
 @media (max-width: 900px) {
   .ds-pa-form { width: 100%; padding: 12px; }

@@ -1440,6 +1440,15 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
     </div>`;
 }
 
+function catalogAppendixNoticeHtml(row = {}, items = []) {
+  if (!includeCatalogValue(row.include_catalog)) return '';
+  const count = buildProposalCatalogPdfEntries(row, items).filter((entry) => entry.path && !entry.missing).length;
+  const message = count > 1
+    ? `מצורפים ${count} נספחי קטלוג לקובץ ההפקה`
+    : 'נספח קטלוג יצורף לקובץ הסופי';
+  return `<section class="pa-catalog-appendix-notice" data-pa-catalog-appendix-notice>${escapeHtml(message)}</section>`;
+}
+
 export function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
   const activityTypeGroup = normalizeProposalGroup(row.activity_type_group);
   const templateKey = proposalGroupTemplateKey(activityTypeGroup);
@@ -1518,7 +1527,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
     schoolResponsibility: renderSectionFromSupabase('school_responsibility', { alwaysBullet: true }),
     paymentTerms,
     changesCancellation: renderSectionFromSupabase('cancellation_terms', { alwaysBullet: true }),
-    remarks: remarks ? sectionHtml(sectionTitle('notes') || '', remarks) : '',
+    remarks: `${remarks ? sectionHtml(sectionTitle('notes') || '', remarks) : ''}${catalogAppendixNoticeHtml(row, items)}`,
     signatureHtml,
     sectionLinesHtml,
   });
@@ -1614,18 +1623,24 @@ function templateIndicatorHtml(group) {
 function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '') {
   if (!auth && !clientName) return '';
   const displayName = clientName || school || auth;
+  const summaryParts = [
+    displayName,
+    auth && auth !== displayName ? auth : '',
+    contactName || 'ללא איש קשר'
+  ].filter(Boolean);
   return `<div class="ds-pa-client-locked">
-    <p class="ds-pa-client-locked-state">גורם נבחר</p>
     <div class="ds-pa-client-locked-body">
-      <strong class="ds-pa-client-locked-name">${escapeHtml(displayName)}</strong>
+      <p class="ds-pa-client-locked-state">נבחר: ${escapeHtml(summaryParts.join(' — '))}</p>
       ${school && school !== displayName ? `<span class="ds-pa-client-locked-detail">מסגרת: ${escapeHtml(school)}</span>` : ''}
-      ${auth && auth !== displayName ? `<span class="ds-pa-client-locked-detail">רשות: ${escapeHtml(auth)}</span>` : ''}
-      ${contactName ? `<span class="ds-pa-client-locked-detail">איש קשר: ${escapeHtml(contactName)}</span>` : ''}
       ${contactRole ? `<span class="ds-pa-client-locked-detail">תפקיד: ${escapeHtml(contactRole)}</span>` : ''}
       ${phone ? `<span class="ds-pa-client-locked-detail">טלפון: ${escapeHtml(phone)}</span>` : ''}
       ${email ? `<span class="ds-pa-client-locked-detail">דוא״ל: ${escapeHtml(email)}</span>` : ''}
+      ${!contactName ? '<span class="ds-pa-client-locked-detail ds-pa-client-locked-detail--warn">אפשר להשלים איש קשר ידנית.</span>' : ''}
     </div>
-    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי גורם</button>
+    <div class="ds-pa-client-locked-actions">
+      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי</button>
+      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-clear-client>נקה בחירה</button>
+    </div>
   </div>`;
 }
 
@@ -1771,12 +1786,12 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
 
     <div class="ds-pa-form-meta-panel">
       <div data-pa-step-panel="client">
-        <div class="ds-pa-client-row">
+        <div class="ds-pa-client-row" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
           ${clientSearchHtml(contactOptions, row)}
-          <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>הזנה ידנית</button>
+          <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>לא מצאת? הוסף ידנית</button>
         </div>
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName) : ''}</div>
-        <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הזנה ידנית</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לחיפוש</button></div>
+        <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">לקוח חדש / הזנה ידנית</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לחיפוש</button></div>
         <div class="ds-pa-form-grid" data-pa-client-fields${isLocked ? ' hidden' : ''}>
           ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
           <div data-pa-school-field>
@@ -2163,20 +2178,22 @@ async function resolvePrintableCatalogPdfEntries(entries = []) {
   return printable;
 }
 
-function appendCatalogPdfPlaceholders(previewArea, entries = []) {
-  if (!previewArea || !entries.length) return;
-  const existing = new Set(Array.from(previewArea.querySelectorAll('[data-pa-catalog-pdf-path]')).map((el) => text(el.dataset.paCatalogPdfPath)));
-  entries.forEach((entry, idx) => {
-    if (!entry?.path || existing.has(entry.path)) return;
-    existing.add(entry.path);
-    const appendix = document.createElement('section');
-    appendix.className = `pa-catalog-pdf-appendix${idx === 0 && !previewArea.querySelector('[data-pa-catalog-pdf-path]') ? ' pa-appendix-start' : ''}`;
-    appendix.dataset.paCatalogPdfPath = entry.path;
-    const pdfUrl = `${entry.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
-    appendix.innerHTML = `<div class="pa-catalog-pdf-clean-title">נספח קטלוג</div>
-      <iframe src="${escapeHtml(pdfUrl)}" class="pa-catalog-pdf-frame" title="נספח קטלוג" loading="lazy"></iframe>`;
-    previewArea.appendChild(appendix);
-  });
+function ensureCatalogAppendixNotice(previewArea, row = {}, items = []) {
+  const doc = previewArea?.querySelector?.('.proposal-document-body');
+  if (!doc || doc.querySelector('[data-pa-catalog-appendix-notice]')) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = catalogAppendixNoticeHtml({ ...row, include_catalog: true }, items);
+  const notice = tmp.firstElementChild;
+  if (!notice) return;
+  const signature = doc.querySelector('.proposal-signature');
+  if (signature) doc.insertBefore(notice, signature);
+  else doc.appendChild(notice);
+}
+
+function appendCatalogPdfPlaceholders(_previewArea, _entries = []) {
+  // Browser print cannot reliably merge external PDF pages without printing the
+  // built-in PDF viewer chrome. Keep preview/print clean; the proposal document
+  // itself shows a small non-technical appendix indication instead.
 }
 
 
@@ -2354,17 +2371,23 @@ export const proposalsAgreementsScreen = {
       const cardEl = form?.querySelector('[data-pa-client-card]');
       const fieldsEl = form?.querySelector('[data-pa-client-fields]');
       const hintEl = form?.querySelector('[data-pa-new-client-hint]');
+      const searchRow = form?.querySelector('[data-pa-client-search-row]');
+      const results = form?.querySelector('[data-pa-client-results]');
       if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName); cardEl.hidden = false; }
       if (fieldsEl) fieldsEl.hidden = true;
-      form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+      if (searchRow) searchRow.hidden = true;
+      if (results) { results.hidden = true; results.innerHTML = ''; }
+      form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = Boolean(cName); });
       if (hintEl) hintEl.hidden = true;
     };
 
     const unlockClientFields = (form) => {
       const cardEl = form?.querySelector('[data-pa-client-card]');
       const fieldsEl = form?.querySelector('[data-pa-client-fields]');
+      const searchRow = form?.querySelector('[data-pa-client-search-row]');
       if (cardEl) cardEl.hidden = true;
       if (fieldsEl) fieldsEl.hidden = false;
+      if (searchRow) searchRow.hidden = false;
       form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
     };
 
@@ -2496,7 +2519,7 @@ export const proposalsAgreementsScreen = {
       }
       if (authorityInput) {
         const label = authorityInput.closest('label')?.querySelector('span');
-        if (label) label.textContent = `${clientTypeLabel(type)} *`;
+        if (label) label.textContent = `${isOther ? 'שם גוף' : clientTypeLabel(type)} *`;
       }
     };
 
@@ -2518,6 +2541,10 @@ export const proposalsAgreementsScreen = {
       const phone = text(contact.phone || contact.mobile || '');
       const email = text(contact.email || '');
       lockClientFields(form, authority, school, cName, cRole, phone, email, text(contact.client_name) || school || authority);
+      const input = form.querySelector('[data-pa-client-search-input]');
+      const results = form.querySelector('[data-pa-client-results]');
+      if (input) input.value = '';
+      if (results) { results.hidden = true; results.innerHTML = ''; }
     };
 
     const renderClientResults = (form) => {
@@ -2532,7 +2559,7 @@ export const proposalsAgreementsScreen = {
         return;
       }
       if (!matches.length) {
-        results.innerHTML = '<p class="ds-pa-client-results-empty">לא נמצאו תוצאות. ניתן לעבור להזנה ידנית.</p>';
+        results.innerHTML = '<p class="ds-pa-client-results-empty">לא נמצאו תוצאות.</p><button type="button" class="ds-pa-client-result ds-pa-client-result--manual" data-pa-new-client-toggle>לא מצאת? הוסף ידנית</button>';
         results.hidden = false;
         return;
       }
@@ -2792,9 +2819,11 @@ export const proposalsAgreementsScreen = {
           }
         }
         if (includeCatalogValue(freshRow.include_catalog) && !catalogValidationDone) {
-          const printableEntries = await resolvePrintableCatalogPdfEntries(buildProposalCatalogPdfEntries(freshRow, items));
-          if (printableEntries === null) return;
-          appendCatalogPdfPlaceholders(overlay.querySelector('.proposal-preview-area'), printableEntries);
+          const previewArea = overlay.querySelector('.proposal-preview-area');
+          ensureCatalogAppendixNotice(previewArea, freshRow, items);
+          // Do not embed external PDF files in the printable DOM; browsers print
+          // the PDF viewer shell rather than clean A4 appendix pages.
+          appendCatalogPdfPlaceholders(previewArea, buildProposalCatalogPdfEntries(freshRow, items));
           catalogValidationDone = true;
         }
         window.print();
@@ -3506,11 +3535,35 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
+      if (event.target.closest?.('[data-pa-clear-client]')) {
+        const form = event.target.closest('[data-pa-form]');
+        if (!form) return;
+        form.dataset.paNewClient = 'no';
+        ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {
+          const inp = form.querySelector(`input[name="${name}"]`);
+          if (inp) inp.value = '';
+        });
+        setContactSource(form, {});
+        const card = form.querySelector('[data-pa-client-card]');
+        if (card) { card.hidden = true; card.innerHTML = ''; }
+        const searchRow = form.querySelector('[data-pa-client-search-row]');
+        if (searchRow) searchRow.hidden = false;
+        const fields = form.querySelector('[data-pa-client-fields]');
+        if (fields) fields.hidden = true;
+        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+        const search = form.querySelector('[data-pa-client-search-input]');
+        if (search) { search.value = ''; search.focus(); }
+        updateProposalStepper(form);
+        return;
+      }
+
       if (event.target.closest?.('[data-pa-new-client-toggle]')) {
         const form = event.target.closest('[data-pa-form]');
         const clientSearchInput = form?.querySelector('[data-pa-client-search-input]');
         if (clientSearchInput) clientSearchInput.value = '';
         if (form) form.dataset.paNewClient = 'yes';
+        const typeSelect = form?.querySelector('[data-pa-new-client-type]');
+        if (typeSelect) typeSelect.value = 'other';
         unlockClientFields(form);
         const sourceHost = form?.querySelector('[data-pa-contact-source]');
         if (sourceHost) sourceHost.innerHTML = contactSourceInputsHtml({});
@@ -3518,8 +3571,6 @@ export const proposalsAgreementsScreen = {
         if (hint) hint.hidden = false;
         form?.querySelectorAll('[data-pa-new-client-only]').forEach((el) => { el.hidden = false; });
         applyClientTypeMode(form);
-        const schoolField = form?.querySelector('[data-pa-school-field]');
-        if (schoolField) schoolField.hidden = false;
         ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {
           const inp = form?.querySelector(`input[name="${name}"]`);
           if (inp) inp.value = '';
@@ -3536,6 +3587,10 @@ export const proposalsAgreementsScreen = {
         if (hint) hint.hidden = true;
         form.querySelectorAll('[data-pa-new-client-only]').forEach((el) => { el.hidden = true; });
         form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+        const fields = form.querySelector('[data-pa-client-fields]');
+        if (fields) fields.hidden = true;
+        const searchRow = form.querySelector('[data-pa-client-search-row]');
+        if (searchRow) searchRow.hidden = false;
         applyClientTypeMode(form);
         updateProposalStepper(form);
         form.querySelector('[data-pa-client-search-input]')?.focus();
