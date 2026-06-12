@@ -1365,16 +1365,18 @@ test('catalog PDF appendices use fixed workshop/tour PDFs and specific selected 
       { item_name: 'סיור טכנולוגי', item_type: 'סיור', proposal_group: 'סיור' },
       { item_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', gefen_number: '6089' },
       { item_name: 'ביומימיקרי כפול', item_type: 'תוכנית', proposal_group: 'שנת הלימודים תשפ״ז', gefen_number: '6089' },
-      { item_name: 'AI Basics', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', course_slug: 'ai-basics' }
+      { item_name: 'AI Basics', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', gefen_number: '9545' }
     ]
   );
   const paths = entries.map((entry) => entry.path).filter(Boolean);
-  assert.ok(paths.includes('proposals/catalogs/catalog-workshops.pdf'));
-  assert.ok(paths.includes('proposals/catalogs/catalog-tours.pdf'));
-  assert.ok(paths.includes('proposals/catalogs/courses/course-6089.pdf'));
-  assert.ok(paths.includes('proposals/catalogs/courses/course-ai-basics.pdf'));
-  assert.equal(paths.filter((path) => path === 'proposals/catalogs/courses/course-6089.pdf').length, 1);
-  assert.doesNotMatch(paths.join('\n'), /catalog-courses\.pdf/);
+  assert.ok(paths.includes('catalog/appendices/workshop.pdf'));
+  assert.ok(entries.find((entry) => entry.path === 'catalog/appendices/workshop.pdf')?.url.endsWith('catalog/appendices/workshop.pdf'));
+  assert.ok(paths.includes('catalog/appendices/tour.pdf'));
+  assert.ok(entries.find((entry) => entry.path === 'catalog/appendices/tour.pdf')?.url.endsWith('catalog/appendices/tour.pdf'));
+  assert.ok(paths.includes('catalog/appendices/6089.pdf'));
+  assert.ok(paths.includes('catalog/appendices/9545.pdf'));
+  assert.equal(paths.filter((path) => path === 'catalog/appendices/6089.pdf').length, 1);
+  assert.doesNotMatch(paths.join('\n'), new RegExp([`catalog-${'courses'}\\.pdf`, `catalog-${'workshops'}\\.pdf`, `catalog-${'tours'}\\.pdf`, `proposals/${'catalogs'}`, `course${'-'}`].join('|')));
 });
 
 
@@ -1411,8 +1413,9 @@ test('print catalog prompt warns when selected course PDF is missing and continu
       assert.ok(confirmMessages.some((message) => /האם להוסיף קטלוג להצעה/.test(message)), 'print should ask whether to add a catalog');
       assert.ok(confirmMessages.some((message) => /לא נמצא קובץ נספח לקורס: קורס רובוטיקה/.test(message)), 'missing selected course PDF should be reported');
       assert.equal(printCalls, 1, 'print should continue when the user confirms continuing without appendix');
-      assert.doesNotMatch(dom.window.document.body.innerHTML, /course-9545\.pdf/);
-      assert.doesNotMatch(dom.window.document.body.innerHTML, /catalog-courses\.pdf/);
+      assert.doesNotMatch(dom.window.document.body.innerHTML, /catalog\/appendices\/9545\.pdf/);
+      assert.doesNotMatch(dom.window.document.body.innerHTML, new RegExp(`course${'-'}9545\\.pdf`));
+      assert.doesNotMatch(dom.window.document.body.innerHTML, new RegExp(`catalog-${'courses'}\\.pdf`));
     } finally {
       globalThis.fetch = savedFetch;
     }
