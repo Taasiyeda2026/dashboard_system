@@ -24,7 +24,6 @@ import { showToast } from './shared/toast.js';
 const EXCEPTIONS_SCOPE = 'exceptions';
 const EXCEPTIONS_TAB_GENERAL = 'general';
 const EXCEPTIONS_TAB_SUMMER_DATES = 'summer_dates';
-const DATE_MISSING_EXCEPTION_TYPES = new Set(['missing_start_date', 'missing_end_date']);
 
 const HEBREW_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 function hebrewMonthLabel(ym) {
@@ -88,23 +87,11 @@ function exceptionInstanceRows(rows = []) {
   });
 }
 
-function hasMissingDateException(row) {
-  return normalizedExceptionTypes(row).some((type) => DATE_MISSING_EXCEPTION_TYPES.has(type));
-}
-
-function isSummerMissingDateException(row) {
-  const status = String(row?.status || '').trim();
-  if (status === 'סגור' || status === 'נמחק') return false;
-  const season = String(row?.activity_season || '').trim();
-  if (season !== 'summer_2026' && season !== 'summer') return false;
-  return hasMissingDateException(row);
-}
-
 function splitRowsByExceptionTab(rows = []) {
   const general = [];
   const summerDates = [];
   for (const row of Array.isArray(rows) ? rows : []) {
-    if (isSummerMissingDateException(row)) {
+    if (isSummerActivity(row)) {
       summerDates.push(row);
     } else {
       general.push(row);
@@ -167,12 +154,17 @@ function exceptionCardHtml(row, groupKey) {
 }
 
 function exceptionGroupCard({ title, rows, key }) {
-  const groupTitle = `${title} · ${rows.length}`;
+  const uniqueCount = uniqueExceptionActivityCount(rows);
+  const groupTitle = `${title} · ${uniqueCount}`;
+  const rowCount = Array.isArray(rows) ? rows.length : 0;
+  const countMeta = rowCount !== uniqueCount
+    ? `<span class="ds-exception-group__meta">${escapeHtml(String(uniqueCount))} פעילויות (${escapeHtml(String(rowCount))} רשומות)</span>`
+    : '';
   const body = `<div class="ds-exceptions-grid">${rows.map((row) => exceptionCardHtml(row, key)).join('')}</div>`;
-  // Keep the historical dsCard title contract for group-count regressions: return dsCard({ title: `${title} · ${rows.length}`
   return `<section class="ds-exception-group" data-exception-group="${escapeHtml(key || 'other')}">
     <header class="ds-exception-group__head">
       <button type="button" class="ds-exception-group__title" data-exception-type-filter="${escapeHtml(String(rows[0]?.exception_type || ''))}">${escapeHtml(groupTitle)}</button>
+      ${countMeta}
     </header>
     <div class="ds-exception-group__body">${body}</div>
   </section>`;
@@ -288,7 +280,7 @@ export const exceptionsScreen = {
       rows: byType.get(type) || []
     })).filter((group) => group.rows.length > 0);
     const emptyText = activeTab === EXCEPTIONS_TAB_SUMMER_DATES
-      ? 'אין פעילויות קיץ ללא תאריך להצגה.'
+      ? 'אין חריגות קיץ פעילות להצגה.'
       : 'אין חריגות כלליות פעילות להצגה.';
 
     return dsScreenStack(`
@@ -297,7 +289,7 @@ export const exceptionsScreen = {
       <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות${data?.month ? ` · ${escapeHtml(hebrewMonthLabel(data.month))}` : ''}</h2></section>
       ${(() => { try { return sessionStorage.getItem('ds_exceptions_save_notice') === '1'; } catch { return false; } })() ? `<div class="ds-exceptions-save-notice" role="status" dir="rtl"><strong>הפעילות נשמרה בהצלחה.</strong> החריגה תוקנה ולכן הפעילות הוסרה ממסך החריגות. <button type="button" class="ds-btn ds-btn--sm" data-exception-go-activities>מעבר למסך פעילויות</button></div>` : ''}
       ${exceptionTabsHtml(activeTab, { general: uniqueExceptionActivityCount(tabRows.general), summerDates: uniqueExceptionActivityCount(tabRows.summerDates) })}
-      ${activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? '<p class="ds-exceptions-tab-note">פעילויות קיץ ללא תאריך מוצגות כאן בנפרד, מאחר שבדרך כלל מדובר בהזמנות שנכנסו למערכת ונמצאות עדיין בשלב תיאום.</p>' : ''}
+      ${activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? '<p class="ds-exceptions-tab-note">חריגות של פעילויות קיץ מוצגות כאן בנפרד כדי להפריד בין פעילות קיץ לבין פעילות רגילה.</p>' : ''}
       ${exceptionsSummaryHtml(visibleRows)}
       ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState(emptyText)}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group)}</section>`).join('')}
       </div>

@@ -379,8 +379,10 @@ test('frontend exceptions screen renders only non-empty groups', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
   assert.match(src, /\.filter\(\(group\) => group\.rows\.length > 0\)/,
     'empty exception groups should be filtered out');
-  assert.match(src, /const groupTitle = `\$\{title\} · \$\{rows\.length\}`/,
-    'group titles should include item count');
+  assert.match(src, /const uniqueCount = uniqueExceptionActivityCount\(rows\)/,
+    'group titles should use unique activity count');
+  assert.match(src, /const groupTitle = `\$\{title\} · \$\{uniqueCount\}`/,
+    'group titles should include unique activity count');
 });
 
 test('frontend exception Hebrew labels describe the exception details clearly', async () => {
@@ -398,21 +400,24 @@ test('exceptions screen separates end_date_passed and end_date_after_cutoff into
   assert.doesNotMatch(src, /פעילויות עם חריגת תאריך סיום/);
 });
 
-test('exceptions screen group count matches rendered clickable cards', () => {
+test('exceptions screen group count uses unique activities and explains duplicate records', () => {
   const state = { exceptionsListFilters: {}, activityListFilters: {}, clientSettings: {} };
   const data = {
     month: '2026-05',
     rows: [
       { RowID: '1', activity_name: 'א', authority: 'ר1', school: 'ב1', exception_types: ['end_date_passed'] },
       { RowID: '2', activity_name: 'ב', authority: 'ר1', school: 'ב1', exception_types: ['end_date_after_cutoff'] },
-      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['end_date_after_cutoff', 'missing_instructor'] }
+      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['end_date_after_cutoff', 'missing_instructor'] },
+      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['missing_instructor'] }
     ]
   };
   const html = exceptionsScreen.render(data, { state });
   assert.match(html, /הסתיימה ולא נסגרה · 1/);
   assert.match(html, /תאריך סיום מאוחר · 2/);
+  assert.match(html, /ללא מדריך · 1/);
+  assert.match(html, /1 פעילויות \(2 רשומות\)/);
   const clickableCards = (html.match(/data-card-action="exception:/g) || []).length;
-  assert.equal(clickableCards, 4, 'each grouped appearance must be rendered as a clickable card');
+  assert.equal(clickableCards, 5, 'each grouped appearance must still be rendered as a clickable card');
   assert.doesNotMatch(html, /data-action="delete"/);
 });
 
@@ -432,11 +437,12 @@ test('exceptions screen totals, district sum, and rendered cards use the same ex
   assert.match(html, /data-exceptions-unique-activities>2</);
   assert.doesNotMatch(html, /סה״כ חריגות/);
   assert.doesNotMatch(html, /סכום לפי מחוזות/);
-  assert.match(html, /ללא מחוז \/ לא משויך/);
+  assert.match(html, /data-exception-district-filter="ללא מחוז \/ לא משויך"><span>ללא מחוז \/ לא משויך<\/span><strong>1<\/strong>/);
+  assert.match(html, /data-exception-district-filter="צפון"><span>צפון<\/span><strong>1<\/strong>/);
   assert.equal((html.match(/data-card-action="exception:/g) || []).length, 3);
 });
 
-test('exceptions screen separates summer missing-date rows from general exceptions', () => {
+test('exceptions screen separates all summer rows from general exceptions', () => {
   const data = {
     month: '2026-05',
     rows: [
@@ -457,30 +463,47 @@ test('exceptions screen separates summer missing-date rows from general exceptio
         exception_types: ['missing_start_date']
       },
       {
-        RowID: 'SUMMER-DATED',
-        activity_name: 'פעילות קיץ עם תאריך',
+        RowID: 'SUMMER-MISSING-INSTRUCTOR',
+        activity_name: 'פעילות קיץ עם מדריך חסר',
         activity_season: 'summer_2026',
         start_date: '2026-07-15',
         end_date: '2026-07-15',
         exception_types: ['missing_instructor']
+      },
+      {
+        RowID: 'SUMMER-MISSING-DISTRICT',
+        activity_name: 'פעילות קיץ עם מחוז חסר',
+        activity_season: 'summer_2026',
+        start_date: '2026-07-16',
+        end_date: '2026-07-16',
+        exception_types: ['missing_district']
+      },
+      {
+        RowID: 'SUMMER-END-DATE-PASSED',
+        activity_name: 'פעילות קיץ עם תאריך סיום עבר',
+        activity_season: 'summer_2026',
+        start_date: '2026-07-17',
+        end_date: '2026-07-17',
+        exception_types: ['end_date_passed']
       }
     ]
   };
 
   const generalHtml = exceptionsScreen.render(data, { state: { listFilters: {}, clientSettings: {} } });
-  assert.match(generalHtml, /חריגות כלליות[\s\S]*<span>2<\/span>/);
-  assert.match(generalHtml, /חריגות קיץ[\s\S]*<span>1<\/span>/);
+  assert.match(generalHtml, /חריגות כלליות[\s\S]*<span>1<\/span>/);
+  assert.match(generalHtml, /חריגות קיץ[\s\S]*<span>4<\/span>/);
   assert.match(generalHtml, /פעילות רגילה ללא תאריך/);
-  assert.match(generalHtml, /פעילות קיץ עם תאריך/);
   assert.doesNotMatch(generalHtml, /הזמנת קיץ ללא תאריך/);
-  assert.equal((generalHtml.match(/data-card-action="exception:/g) || []).length, 2);
+  assert.equal((generalHtml.match(/data-card-action="exception:/g) || []).length, 1);
 
   const summerHtml = exceptionsScreen.render(data, { state: { exceptionsTab: 'summer_dates', listFilters: {}, clientSettings: {} } });
-  assert.match(summerHtml, /פעילויות קיץ ללא תאריך מוצגות כאן בנפרד/);
+  assert.match(summerHtml, /חריגות של פעילויות קיץ מוצגות כאן בנפרד כדי להפריד בין פעילות קיץ לבין פעילות רגילה/);
   assert.match(summerHtml, /הזמנת קיץ ללא תאריך/);
   assert.doesNotMatch(summerHtml, /פעילות רגילה ללא תאריך/);
-  assert.doesNotMatch(summerHtml, /פעילות קיץ עם תאריך/);
-  assert.equal((summerHtml.match(/data-card-action="exception:/g) || []).length, 1);
+  assert.match(summerHtml, /פעילות קיץ עם מדריך חסר/);
+  assert.match(summerHtml, /פעילות קיץ עם מחוז חסר/);
+  assert.match(summerHtml, /פעילות קיץ עם תאריך סיום עבר/);
+  assert.equal((summerHtml.match(/data-card-action="exception:/g) || []).length, 4);
 });
 
 test('frontend drawer shows exception type chip when opening activity detail', async () => {
