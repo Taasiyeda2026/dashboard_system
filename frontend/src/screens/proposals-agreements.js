@@ -2212,11 +2212,11 @@ export function buildProposalCatalogEntries(items) {
   return buildProposalCatalogEntryDetails(items).map((entry) => entry.url);
 }
 
+const CATALOG_APPENDICES_DIR = 'catalog/appendices/';
 const CATALOG_PDF_FILES = Object.freeze({
-  workshops: 'proposals/catalogs/catalog-workshops.pdf',
-  tours: 'proposals/catalogs/catalog-tours.pdf'
+  workshops: `${CATALOG_APPENDICES_DIR}workshop.pdf`,
+  tours: `${CATALOG_APPENDICES_DIR}tour.pdf`
 });
-const COURSE_CATALOG_PDF_DIR = 'proposals/catalogs/courses/';
 
 function cleanCourseCatalogIdentifier(value = '') {
   return text(value).replace(/^cat-/i, '').replace(/\.pdf$/i, '').replace(/^course-/i, '').trim().replace(/\/$/, '');
@@ -2224,25 +2224,7 @@ function cleanCourseCatalogIdentifier(value = '') {
 
 function courseCatalogPdfId(item = {}) {
   const gefen = cleanCourseCatalogIdentifier(item.gefen_number || item.catalog_gefen || item.gefen);
-  if (/^\d{3,}$/.test(gefen)) return gefen;
-  const candidates = [
-    item.catalog_program_id,
-    item.catalogProgramId,
-    item.course_catalog_id,
-    item.courseCatalogId,
-    item.catalog_id,
-    item.catalogId,
-    item.course_slug,
-    item.courseSlug,
-    item.catalog_slug,
-    item.catalogSlug,
-    item.slug
-  ];
-  for (const candidate of candidates) {
-    const id = cleanCourseCatalogIdentifier(candidate);
-    if (id && !/^\d+$/.test(id)) return id;
-  }
-  return '';
+  return /^\d{3,}$/.test(gefen) ? gefen : '';
 }
 
 function proposalStaticCatalogPdfKinds(row = {}, items = []) {
@@ -2288,7 +2270,7 @@ function proposalCourseCatalogPdfEntries(items = []) {
       }
       return;
     }
-    const path = `${COURSE_CATALOG_PDF_DIR}course-${pdfId}.pdf`;
+    const path = `${CATALOG_APPENDICES_DIR}${pdfId}.pdf`;
     if (seen.has(path)) return;
     seen.add(path);
     entries.push({ kind: 'course', label, path, url: `${PUBLIC_BASE}${path}` });
