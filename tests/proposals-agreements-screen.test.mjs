@@ -59,7 +59,7 @@ const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', i
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogEntries, proposalPreviewBodyHtml } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogEntries, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -1355,6 +1355,79 @@ test('summer proposal preview keeps prices out of activity section and expands b
   });
 });
 
+
+
+test('catalog PDF appendices use fixed workshop/tour PDFs and specific selected course PDFs only', () => {
+  const entries = buildProposalCatalogPdfEntries(
+    { activity_type_group: 'הצעה משולבת' },
+    [
+      { item_name: 'סדנת מייקרים', item_type: 'סדנה', proposal_group: 'סדנאות' },
+      { item_name: 'סיור טכנולוגי', item_type: 'סיור', proposal_group: 'סיור' },
+      { item_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', gefen_number: '6089' },
+      { item_name: 'ביומימיקרי כפול', item_type: 'תוכנית', proposal_group: 'שנת הלימודים תשפ״ז', gefen_number: '6089' },
+      { item_name: 'AI Basics', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', course_slug: 'ai-basics' }
+    ]
+  );
+  const paths = entries.map((entry) => entry.path).filter(Boolean);
+  assert.ok(paths.includes('proposals/catalogs/catalog-workshops.pdf'));
+  assert.ok(paths.includes('proposals/catalogs/catalog-tours.pdf'));
+  assert.ok(paths.includes('proposals/catalogs/courses/course-6089.pdf'));
+  assert.ok(paths.includes('proposals/catalogs/courses/course-ai-basics.pdf'));
+  assert.equal(paths.filter((path) => path === 'proposals/catalogs/courses/course-6089.pdf').length, 1);
+  assert.doesNotMatch(paths.join('\n'), /catalog-courses\.pdf/);
+});
+
+
+test('print catalog prompt warns when selected course PDF is missing and continues without that appendix', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: 'course-missing-pdf-row',
+    activity_type_group: 'שנת הלימודים תשפ״ז',
+    status: 'approved',
+    include_catalog: false
+  };
+  const courseItems = [{ item_name: 'קורס רובוטיקה', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', gefen_number: '9545', quantity: 1, unit_price: 100, total_price: 100 }];
+  const savedFetch = globalThis.fetch;
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    const confirmMessages = [];
+    let printCalls = 0;
+    dom.window.confirm = (message) => { confirmMessages.push(String(message)); return true; };
+    dom.window.print = () => { printCalls += 1; };
+    globalThis.fetch = async () => ({ ok: false, status: 404 });
+    try {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [row], proposalActivityGroups: [{ group_key: 'שנת הלימודים תשפ״ז', display_name: 'שנת הלימודים תשפ״ז', template_key: 'next_year' }] },
+        state: stateFor('admin'),
+        api: { readProposalAgreementItems: async () => courseItems }
+      });
+      root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+      dom.window.document.getElementById('pa-print-btn')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+
+      assert.ok(confirmMessages.some((message) => /האם להוסיף קטלוג להצעה/.test(message)), 'print should ask whether to add a catalog');
+      assert.ok(confirmMessages.some((message) => /לא נמצא קובץ נספח לקורס: קורס רובוטיקה/.test(message)), 'missing selected course PDF should be reported');
+      assert.equal(printCalls, 1, 'print should continue when the user confirms continuing without appendix');
+      assert.doesNotMatch(dom.window.document.body.innerHTML, /course-9545\.pdf/);
+      assert.doesNotMatch(dom.window.document.body.innerHTML, /catalog-courses\.pdf/);
+    } finally {
+      globalThis.fetch = savedFetch;
+    }
+  });
+});
+
+test('catalog PDF appendices report missing selected course appendix identifiers', () => {
+  const entries = buildProposalCatalogPdfEntries(
+    { activity_type_group: 'שנת הלימודים תשפ״ז' },
+    [{ item_name: 'קורס ללא מזהה', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז' }]
+  );
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].missing, true);
+  assert.equal(entries[0].label, 'קורס ללא מזהה');
+});
 
 test('catalog appendix entries load workshop proposals only from workshops catalog and dedupe ids', () => {
   const urls = buildProposalCatalogEntries([

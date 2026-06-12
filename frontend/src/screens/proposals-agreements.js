@@ -2214,11 +2214,38 @@ export function buildProposalCatalogEntries(items) {
 
 const CATALOG_PDF_FILES = Object.freeze({
   workshops: 'proposals/catalogs/catalog-workshops.pdf',
-  courses: 'proposals/catalogs/catalog-courses.pdf',
   tours: 'proposals/catalogs/catalog-tours.pdf'
 });
+const COURSE_CATALOG_PDF_DIR = 'proposals/catalogs/courses/';
 
-function proposalCatalogPdfKinds(row = {}, items = []) {
+function cleanCourseCatalogIdentifier(value = '') {
+  return text(value).replace(/^cat-/i, '').replace(/\.pdf$/i, '').replace(/^course-/i, '').trim().replace(/\/$/, '');
+}
+
+function courseCatalogPdfId(item = {}) {
+  const gefen = cleanCourseCatalogIdentifier(item.gefen_number || item.catalog_gefen || item.gefen);
+  if (/^\d{3,}$/.test(gefen)) return gefen;
+  const candidates = [
+    item.catalog_program_id,
+    item.catalogProgramId,
+    item.course_catalog_id,
+    item.courseCatalogId,
+    item.catalog_id,
+    item.catalogId,
+    item.course_slug,
+    item.courseSlug,
+    item.catalog_slug,
+    item.catalogSlug,
+    item.slug
+  ];
+  for (const candidate of candidates) {
+    const id = cleanCourseCatalogIdentifier(candidate);
+    if (id && !/^\d+$/.test(id)) return id;
+  }
+  return '';
+}
+
+function proposalStaticCatalogPdfKinds(row = {}, items = []) {
   const kinds = new Set();
   const groupText = groupKindText(row.activity_type_group);
   const sourceItems = Array.isArray(items) ? items : [];
@@ -2244,17 +2271,81 @@ function proposalCatalogPdfKinds(row = {}, items = []) {
   return Array.from(kinds);
 }
 
-function buildProposalCatalogPdfEntries(row = {}, items = []) {
-  return proposalCatalogPdfKinds(row, items)
-    .map((kind) => ({ kind, path: CATALOG_PDF_FILES[kind], url: `${PUBLIC_BASE}${CATALOG_PDF_FILES[kind]}` }))
+function proposalCourseCatalogPdfEntries(items = []) {
+  const entries = [];
+  const seen = new Set();
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    if (isTestHoursItem(item) || text(item.proposal_display_mode) === 'bundle_child') return;
+    const kindText = itemKindText(item);
+    if (itemCatalogKind(item) !== 'course' && !isCourseKindText(kindText)) return;
+    const label = publicActivityName(item.item_name || item.pricing_activity_name || item.activity_name || item.description) || 'קורס';
+    const pdfId = courseCatalogPdfId(item);
+    if (!pdfId) {
+      const missingKey = `missing||${label}`;
+      if (!seen.has(missingKey)) {
+        seen.add(missingKey);
+        entries.push({ kind: 'course', label, missing: true, reason: 'missing_course_pdf_id' });
+      }
+      return;
+    }
+    const path = `${COURSE_CATALOG_PDF_DIR}course-${pdfId}.pdf`;
+    if (seen.has(path)) return;
+    seen.add(path);
+    entries.push({ kind: 'course', label, path, url: `${PUBLIC_BASE}${path}` });
+  });
+  return entries;
+}
+
+export function buildProposalCatalogPdfEntries(row = {}, items = []) {
+  const staticEntries = proposalStaticCatalogPdfKinds(row, items)
+    .map((kind) => ({ kind, label: kind === 'tours' ? 'סיור' : 'סדנאות', path: CATALOG_PDF_FILES[kind], url: `${PUBLIC_BASE}${CATALOG_PDF_FILES[kind]}` }))
     .filter((entry) => entry.path);
+  return [...staticEntries, ...proposalCourseCatalogPdfEntries(items)];
+}
+
+async function catalogPdfExists(entry = {}) {
+  if (!entry?.url || entry.missing) return false;
+  if (typeof fetch !== 'function') return true;
+  try {
+    const response = await fetch(entry.url, { method: 'HEAD', cache: 'no-store' });
+    if (response.ok) return true;
+    if (response.status === 405 || response.status === 501) {
+      const getResponse = await fetch(entry.url, { method: 'GET', cache: 'no-store' });
+      return getResponse.ok;
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function resolvePrintableCatalogPdfEntries(entries = []) {
+  const printable = [];
+  for (const entry of (Array.isArray(entries) ? entries : [])) {
+    if (entry.kind !== 'course') {
+      printable.push(entry);
+      continue;
+    }
+    if (await catalogPdfExists(entry)) {
+      printable.push(entry);
+      continue;
+    }
+    const courseName = text(entry.label) || 'קורס';
+    const shouldContinue = window.confirm(`לא נמצא קובץ נספח לקורס: ${courseName}. ניתן להמשיך ללא נספח או לבטל ולהעלות קובץ.`);
+    if (!shouldContinue) return null;
+  }
+  return printable;
 }
 
 function appendCatalogPdfPlaceholders(previewArea, entries = []) {
   if (!previewArea || !entries.length) return;
+  const existing = new Set(Array.from(previewArea.querySelectorAll('[data-pa-catalog-pdf-path]')).map((el) => text(el.dataset.paCatalogPdfPath)));
   entries.forEach((entry, idx) => {
+    if (!entry?.path || existing.has(entry.path)) return;
+    existing.add(entry.path);
     const appendix = document.createElement('section');
-    appendix.className = `pa-catalog-pdf-appendix${idx === 0 ? ' pa-appendix-start' : ''}`;
+    appendix.className = `pa-catalog-pdf-appendix${idx === 0 && !previewArea.querySelector('[data-pa-catalog-pdf-path]') ? ' pa-appendix-start' : ''}`;
+    appendix.dataset.paCatalogPdfPath = entry.path;
     appendix.innerHTML = `<h2>נספח קטלוג</h2>
       <p>קטלוג זה יצורף להצעה הסופית מקובץ: <strong>${escapeHtml(entry.path)}</strong></p>
       <object data="${escapeHtml(entry.url)}" type="application/pdf" class="pa-catalog-pdf-object">
@@ -2264,7 +2355,6 @@ function appendCatalogPdfPlaceholders(previewArea, entries = []) {
     previewArea.appendChild(appendix);
   });
 }
-
 
 async function loadCatalogViaIframe(url) {
   return new Promise((resolve, reject) => {
@@ -2844,13 +2934,19 @@ export const proposalsAgreementsScreen = {
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const printButton = overlay.querySelector('#pa-print-btn');
       let catalogPromptHandled = includeCatalogValue(freshRow.include_catalog);
-      printButton?.addEventListener('click', () => {
+      let catalogValidationDone = false;
+      printButton?.addEventListener('click', async () => {
         if (!catalogPromptHandled) {
           catalogPromptHandled = true;
           if (window.confirm('האם להוסיף קטלוג להצעה?')) {
             freshRow.include_catalog = true;
-            appendCatalogPdfPlaceholders(overlay.querySelector('.proposal-preview-area'), buildProposalCatalogPdfEntries(freshRow, items));
           }
+        }
+        if (includeCatalogValue(freshRow.include_catalog) && !catalogValidationDone) {
+          const printableEntries = await resolvePrintableCatalogPdfEntries(buildProposalCatalogPdfEntries(freshRow, items));
+          if (printableEntries === null) return;
+          appendCatalogPdfPlaceholders(overlay.querySelector('.proposal-preview-area'), printableEntries);
+          catalogValidationDone = true;
         }
         window.print();
       });
@@ -2860,7 +2956,7 @@ export const proposalsAgreementsScreen = {
       overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
 
       // The catalog appendix is attached per proposal (include_catalog), chosen in the form.
-      appendCatalogPdfPlaceholders(overlay.querySelector('.proposal-preview-area'), includeCatalogValue(freshRow.include_catalog) ? buildProposalCatalogPdfEntries(freshRow, items) : []);
+      appendCatalogPdfPlaceholders(overlay.querySelector('.proposal-preview-area'), includeCatalogValue(freshRow.include_catalog) ? buildProposalCatalogPdfEntries(freshRow, items).filter((entry) => !entry.missing) : []);
       if (includeCatalogValue(freshRow.include_catalog)) {
         const previewArea = overlay.querySelector('.proposal-preview-area');
         const printBtn = overlay.querySelector('#pa-print-btn');
