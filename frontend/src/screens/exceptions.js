@@ -154,12 +154,17 @@ function exceptionCardHtml(row, groupKey) {
 }
 
 function exceptionGroupCard({ title, rows, key }) {
-  const groupTitle = `${title} · ${rows.length}`;
+  const uniqueCount = uniqueExceptionActivityCount(rows);
+  const groupTitle = `${title} · ${uniqueCount}`;
+  const rowCount = Array.isArray(rows) ? rows.length : 0;
+  const countMeta = rowCount !== uniqueCount
+    ? `<span class="ds-exception-group__meta">${escapeHtml(String(uniqueCount))} פעילויות (${escapeHtml(String(rowCount))} רשומות)</span>`
+    : '';
   const body = `<div class="ds-exceptions-grid">${rows.map((row) => exceptionCardHtml(row, key)).join('')}</div>`;
-  // Keep the historical dsCard title contract for group-count regressions: return dsCard({ title: `${title} · ${rows.length}`
   return `<section class="ds-exception-group" data-exception-group="${escapeHtml(key || 'other')}">
     <header class="ds-exception-group__head">
       <button type="button" class="ds-exception-group__title" data-exception-type-filter="${escapeHtml(String(rows[0]?.exception_type || ''))}">${escapeHtml(groupTitle)}</button>
+      ${countMeta}
     </header>
     <div class="ds-exception-group__body">${body}</div>
   </section>`;

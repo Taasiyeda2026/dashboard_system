@@ -379,8 +379,10 @@ test('frontend exceptions screen renders only non-empty groups', async () => {
   const src = await read('frontend/src/screens/exceptions.js');
   assert.match(src, /\.filter\(\(group\) => group\.rows\.length > 0\)/,
     'empty exception groups should be filtered out');
-  assert.match(src, /const groupTitle = `\$\{title\} · \$\{rows\.length\}`/,
-    'group titles should include item count');
+  assert.match(src, /const uniqueCount = uniqueExceptionActivityCount\(rows\)/,
+    'group titles should use unique activity count');
+  assert.match(src, /const groupTitle = `\$\{title\} · \$\{uniqueCount\}`/,
+    'group titles should include unique activity count');
 });
 
 test('frontend exception Hebrew labels describe the exception details clearly', async () => {
@@ -398,21 +400,24 @@ test('exceptions screen separates end_date_passed and end_date_after_cutoff into
   assert.doesNotMatch(src, /פעילויות עם חריגת תאריך סיום/);
 });
 
-test('exceptions screen group count matches rendered clickable cards', () => {
+test('exceptions screen group count uses unique activities and explains duplicate records', () => {
   const state = { exceptionsListFilters: {}, activityListFilters: {}, clientSettings: {} };
   const data = {
     month: '2026-05',
     rows: [
       { RowID: '1', activity_name: 'א', authority: 'ר1', school: 'ב1', exception_types: ['end_date_passed'] },
       { RowID: '2', activity_name: 'ב', authority: 'ר1', school: 'ב1', exception_types: ['end_date_after_cutoff'] },
-      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['end_date_after_cutoff', 'missing_instructor'] }
+      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['end_date_after_cutoff', 'missing_instructor'] },
+      { RowID: '3', activity_name: 'ג', authority: 'ר1', school: 'ב1', exception_types: ['missing_instructor'] }
     ]
   };
   const html = exceptionsScreen.render(data, { state });
   assert.match(html, /הסתיימה ולא נסגרה · 1/);
   assert.match(html, /תאריך סיום מאוחר · 2/);
+  assert.match(html, /ללא מדריך · 1/);
+  assert.match(html, /1 פעילויות \(2 רשומות\)/);
   const clickableCards = (html.match(/data-card-action="exception:/g) || []).length;
-  assert.equal(clickableCards, 4, 'each grouped appearance must be rendered as a clickable card');
+  assert.equal(clickableCards, 5, 'each grouped appearance must still be rendered as a clickable card');
   assert.doesNotMatch(html, /data-action="delete"/);
 });
 
@@ -432,7 +437,8 @@ test('exceptions screen totals, district sum, and rendered cards use the same ex
   assert.match(html, /data-exceptions-unique-activities>2</);
   assert.doesNotMatch(html, /סה״כ חריגות/);
   assert.doesNotMatch(html, /סכום לפי מחוזות/);
-  assert.match(html, /ללא מחוז \/ לא משויך/);
+  assert.match(html, /data-exception-district-filter="ללא מחוז \/ לא משויך"><span>ללא מחוז \/ לא משויך<\/span><strong>1<\/strong>/);
+  assert.match(html, /data-exception-district-filter="צפון"><span>צפון<\/span><strong>1<\/strong>/);
   assert.equal((html.match(/data-card-action="exception:/g) || []).length, 3);
 });
 

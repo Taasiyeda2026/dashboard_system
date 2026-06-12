@@ -774,11 +774,23 @@ function exceptionsNavCount() {
   const rows = Array.isArray(entry?.data?.rows) ? entry.data.rows : [];
   const uniqueRowActivities = uniqueExceptionActivityCount(rows);
   if (uniqueRowActivities > 0) return uniqueRowActivities;
-  const explicit = Number(entry?.data?.totalExceptionRows ?? entry?.data?.summary?.totalExceptionRows ?? entry?.data?.summary?.total_exception_rows);
+  const explicit = Number(
+    entry?.data?.uniqueExceptionActivities ??
+    entry?.data?.summary?.uniqueExceptionActivities ??
+    entry?.data?.summary?.operational_gaps_unique_count ??
+    entry?.data?.totalExceptionRows ??
+    entry?.data?.summary?.totalExceptionRows ??
+    entry?.data?.summary?.total_exception_rows
+  );
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
   const dashboardKey = buildScreenDataCacheKey('dashboard', state);
   const dashboardEntry = state.screenDataCache?.[dashboardKey] || state.screenDataCache?.dashboard;
-  const dashboardCount = Number(dashboardEntry?.data?.summary?.totalExceptionRows ?? dashboardEntry?.data?.summary?.total_exception_rows);
+  const dashboardCount = Number(
+    dashboardEntry?.data?.summary?.uniqueExceptionActivities ??
+    dashboardEntry?.data?.summary?.operational_gaps_unique_count ??
+    dashboardEntry?.data?.summary?.totalExceptionRows ??
+    dashboardEntry?.data?.summary?.total_exception_rows
+  );
   return Number.isFinite(dashboardCount) && dashboardCount > 0 ? dashboardCount : 0;
 }
 

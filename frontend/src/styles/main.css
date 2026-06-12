@@ -12207,6 +12207,14 @@ select.ds-input {
   box-shadow: 0 2px 0 color-mix(in srgb, var(--ds-accent) 42%, transparent);
 }
 
+.ds-exception-group__meta {
+  color: var(--ds-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
 .ds-exception-group__body {
   overflow: visible;
 }
