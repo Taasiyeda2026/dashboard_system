@@ -357,6 +357,9 @@ test('client selector auto-fills contact fields when existing client is chosen',
       assert.equal(schoolInput.value, 'מסגרת ב', 'school should be filled');
       assert.equal(contactInput.value, 'יוסי קשר', 'contact_name should be auto-filled');
       assert.equal(phoneInput.value, '050-2222222', 'phone should be auto-filled');
+      assert.equal(form.querySelector('[data-pa-client-results]').hidden, true, 'results should close after selection');
+      assert.equal(form.querySelector('[data-pa-client-search-row]').hidden, true, 'search row should close after selection');
+      assert.match(form.querySelector('[data-pa-client-card]').textContent, /נבחר:.*מסגרת ב.*רשות ב.*יוסי קשר/, 'clear selected-client summary should be shown');
     }
   );
 });
@@ -562,7 +565,7 @@ test('saving after new client toggle keeps manual contact fields in pending payl
       assert.equal(savedPayloads.length, 1);
       assert.equal(savedPayloads[0].status, 'approved');
       assert.equal(savedPayloads[0].contact_name, 'שרון חדש', 'manual contact name should be saved');
-      assert.equal(savedPayloads[0]._contact_original.client_type, 'school', 'new-client source metadata should be preserved');
+      assert.equal(savedPayloads[0]._contact_original.client_type, 'other', 'manual client source metadata should be preserved');
     }
   );
 });
@@ -1371,7 +1374,7 @@ test('catalog PDF appendices use fixed workshop/tour PDFs and specific selected 
 });
 
 
-test('print catalog prompt warns when selected course PDF is missing and continues without that appendix', async () => {
+test('print catalog prompt keeps PDF viewers out of the preview and printed DOM', async () => {
   const row = {
     ...sampleRows[0],
     id: 'course-missing-pdf-row',
@@ -1402,11 +1405,11 @@ test('print catalog prompt warns when selected course PDF is missing and continu
       await delay(30);
 
       assert.ok(confirmMessages.some((message) => /האם להוסיף קטלוג להצעה/.test(message)), 'print should ask whether to add a catalog');
-      assert.ok(confirmMessages.some((message) => /לא נמצא קובץ נספח לקורס: קורס רובוטיקה/.test(message)), 'missing selected course PDF should be reported');
-      assert.equal(printCalls, 1, 'print should continue when the user confirms continuing without appendix');
-      assert.doesNotMatch(dom.window.document.body.innerHTML, /catalog\/appendices\/9545\.pdf/);
-      assert.doesNotMatch(dom.window.document.body.innerHTML, new RegExp(`course${'-'}9545\\.pdf`));
-      assert.doesNotMatch(dom.window.document.body.innerHTML, new RegExp(`catalog-${'courses'}\\.pdf`));
+      assert.equal(printCalls, 1, 'print should continue with a clean proposal document');
+      assert.match(dom.window.document.querySelector('.proposal-document')?.textContent || '', /נספח קטלוג יצורף לקובץ הסופי/);
+      assert.doesNotMatch(dom.window.document.body.innerHTML, /<iframe|<object|PDF viewer|catalog\/appendices\/9545\.pdf/i);
+      assert.doesNotMatch(dom.window.document.body.innerHTML, new RegExp(`course${'-'}9545\.pdf`));
+      assert.doesNotMatch(dom.window.document.body.innerHTML, new RegExp(`catalog-${'courses'}\.pdf`));
     } finally {
       globalThis.fetch = savedFetch;
     }
