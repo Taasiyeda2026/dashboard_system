@@ -2254,15 +2254,18 @@ function proposalStaticCatalogPdfKinds(row = {}, items = []) {
     groups.forEach((groupKey) => {
       const kindText = groupKindText(groupKey);
       if (isWorkshopKindText(kindText) || isSummerKindText(kindText)) kinds.add('workshops');
+      if (isCourseKindText(kindText)) kinds.add('courses');
       if (/סיור|tour/.test(kindText)) kinds.add('tours');
     });
   }
   if (isSummerKindText(groupText) || isWorkshopKindText(groupText)) kinds.add('workshops');
+  if (isCourseKindText(groupText)) kinds.add('courses');
   if (/סיור|tour/.test(groupText)) kinds.add('tours');
   sourceItems.forEach((item) => {
     const kindText = itemKindText(item);
     const catalogKind = itemCatalogKind(item);
     if (catalogKind === 'workshop' || catalogKind === 'summer' || isWorkshopKindText(kindText) || isSummerKindText(kindText)) kinds.add('workshops');
+    if (catalogKind === 'course' || isCourseKindText(kindText)) kinds.add('courses');
     if (/סיור|tour/.test(kindText)) kinds.add('tours');
   });
   return Array.from(kinds);
