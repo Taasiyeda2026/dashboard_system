@@ -61,6 +61,10 @@ export function canManageProposalsAgreements(state) {
     || permFlag(state.user.manage_proposals_agreements);
 }
 
+function canApproveProposalsAgreements(state) {
+  return canManageProposalsAgreements(state);
+}
+
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
@@ -578,31 +582,36 @@ function activityPickerHtml(value, activityNameOptions) {
   </div>`;
 }
 
-function clientSelectHtml(contactOptions, row) {
-  const seen = new Set();
-  const pairs = [];
-  for (const c of (Array.isArray(contactOptions) ? contactOptions : [])) {
-    const key = `${text(c.authority)}||${text(c.school)}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      const clientName = text(c.client_name) || text(c.school) || text(c.authority);
-      pairs.push({ authority: text(c.authority), school: text(c.school), clientName });
-    }
-  }
-  pairs.sort((a, b) => a.clientName.localeCompare(b.clientName, 'he') || a.authority.localeCompare(b.authority, 'he'));
-  const rowAuth = text(row.client_authority);
-  const rowSchool = text(row.school_framework);
-  const selectedVal = rowAuth ? `${rowAuth}||${rowSchool}` : '';
-  const optionsHtml = ['<option value="">— בחרו בית ספר / רשות קיימים —</option>',
-    ...pairs.map((p) => {
-      const val = `${p.authority}||${p.school}`;
-      const label = p.school && p.clientName !== p.authority
-        ? `${p.clientName} — ${p.authority}`
-        : p.clientName;
-      return `<option value="${escapeHtml(val)}"${val === selectedVal ? ' selected' : ''}>${escapeHtml(label)}</option>`;
-    })
-  ].join('');
-  return `<select class="ds-input ds-input--sm" data-pa-client-select style="flex:1;min-width:0">${optionsHtml}</select>`;
+function clientTypeLabel(type = 'school') {
+  if (type === 'authority') return 'רשות';
+  if (type === 'other') return 'אחר';
+  return 'בית ספר';
+}
+
+function clientSearchTypeFromRow(row = {}) {
+  if (text(row.school_framework)) return 'school';
+  if (text(row.client_authority)) return 'authority';
+  return 'school';
+}
+
+function clientSearchHtml(_contactOptions, row = {}) {
+  const selectedType = clientSearchTypeFromRow(row);
+  const existingValue = selectedType === 'authority' ? text(row.client_authority) : text(row.school_framework || row.client_authority);
+  return `<div class="ds-pa-client-search" data-pa-client-search-wrap>
+    <label class="ds-pa-form-field ds-pa-form-field--client-type">
+      <span>סוג גורם</span>
+      <select class="ds-input ds-input--sm" name="new_client_type" data-pa-new-client-type>
+        <option value="school"${selectedType === 'school' ? ' selected' : ''}>בית ספר</option>
+        <option value="authority"${selectedType === 'authority' ? ' selected' : ''}>רשות</option>
+        <option value="other"${selectedType === 'other' ? ' selected' : ''}>אחר</option>
+      </select>
+    </label>
+    <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-client-search-field>
+      <span data-pa-client-search-label>${escapeHtml(clientTypeLabel(selectedType))}</span>
+      <input class="ds-input ds-input--sm" type="search" data-pa-client-search-input value="${escapeHtml(existingValue)}" placeholder="התחילו להקליד לחיפוש" autocomplete="off" aria-autocomplete="list">
+    </label>
+    <div class="ds-pa-client-results" data-pa-client-results hidden></div>
+  </div>`;
 }
 
 function contactPickerHtml(contactOptions, authority, school, selectedContactName) {
@@ -755,8 +764,8 @@ function activityIntroForCatalog(row = {}, items = [], hasCatalogAppendix = true
     case 'course':
     default:
       return hasCatalogAppendix
-        ? 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז. פירוט מלא של הקורסים מצורף כנספח להצעה זו.'
-        : 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז.';
+        ? 'ההצעה כוללת קורסים ותוכניות חינוכיות לשנת הלימודים תשפ״ז. פירוט התכנים, מבנה הקורסים והמידע הפדגוגי מצורפים כנספח להצעה זו.'
+        : 'ההצעה כוללת קורסים ותוכניות חינוכיות לשנת הלימודים תשפ״ז.';
   }
 }
 
@@ -1213,13 +1222,18 @@ function summerActivityProposalBody() {
 
 function costsIntroBody(row = {}, items = []) {
   const groupText = groupKindText(row.activity_type_group);
+  const visibleCount = (Array.isArray(items) ? items : []).filter((item) =>
+    !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child' && text(item.item_name)
+  ).length;
   if (isCourseKindText(groupText)) {
-    return 'פירוט התוכניות, נתוני גפ״ן והעלויות מוצגים בטבלאות שלהלן.';
+    return visibleCount === 1
+      ? 'להלן פירוט הקורס והעלות הכלולה בהצעה.'
+      : 'להלן פירוט הקורסים והעלויות הכלולות בהצעה.';
   }
   if (isSummerProposalGroup(row.activity_type_group)) {
     return 'פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן.';
   }
-  return items?.length ? 'פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן.' : '';
+  return visibleCount ? 'פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן.' : '';
 }
 
 function sectionHtml(title, body, className = '', options = {}) {
@@ -1440,7 +1454,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   const sectionTitle = (key) => text(byKey.get(key)?.section_title);
 
   const includeCatalog = includeCatalogValue(row.include_catalog);
-  const catalogEntries = includeCatalog ? buildProposalCatalogEntryDetails(items) : [];
+  const catalogEntries = includeCatalog ? buildProposalCatalogPdfEntries(row, items).filter((entry) => !entry.missing) : [];
   const hasCatalogAppendix = catalogEntries.length > 0;
   const introText = sectionBody('intro');
   const remarks = sectionBody('notes') || String(row.notes || '').replace(/\r\n?/g, '\n').trim();
@@ -1485,7 +1499,8 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   // breakdown is always built dynamically from proposal_agreement_items.
   const paymentTermsBody = sectionBody('payment_terms');
   const itemDetailsHtml = proposalItemDetailsTableHtml(items, activityTypeGroup);
-  const costTableHtml = proposalCostTableHtml(items);
+  const usesUnifiedCourseCostTable = proposalActivityKind(row, items) === 'course' && itemDetailsHtml;
+  const costTableHtml = usesUnifiedCourseCostTable ? '' : proposalCostTableHtml(items);
   const costsIntro = costsIntroBody(row, items);
   const paymentTerms = (paymentTermsBody || costTableHtml || itemDetailsHtml || costsIntro)
     ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${costsIntro ? sectionBodyHtml(costsIntro) : ''}${itemDetailsHtml}${costTableHtml}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}</section>`
@@ -1727,7 +1742,7 @@ function catalogAttachHtml(row = {}) {
   </div>`;
 }
 
-function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = []) {
+function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = [], state = null) {
   const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
   const normalizedActivityGroup = normalizeProposalGroup(row.activity_type_group);
   const filteredPricing = filterPricingByProposalType(pricingOptions, normalizedActivityGroup);
@@ -1744,6 +1759,9 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initClientName = text(initContactSource?.client_name) || initSchool || initAuth;
   const proposalDate = mode === 'add' ? (text(row.proposal_date) || localDateInputValue()) : text(row.proposal_date);
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
+  const canApproveDirectly = canApproveProposalsAgreements(state);
+  const primaryActionLabel = canApproveDirectly ? 'אישור והפקת הצעה' : 'שליחה לאישור';
+  const primaryActionStatus = canApproveDirectly ? 'approved' : 'pending_approval';
 
   return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
     <div class="ds-pa-form-header">
@@ -1754,20 +1772,12 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     <div class="ds-pa-form-meta-panel">
       <div data-pa-step-panel="client">
         <div class="ds-pa-client-row">
-          ${clientSelectHtml(contactOptions, row)}
-          <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>+ הוספה ידנית</button>
+          ${clientSearchHtml(contactOptions, row)}
+          <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>הזנה ידנית</button>
         </div>
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName) : ''}</div>
-        <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הוספה ידנית של רשות / בית ספר</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לבחירה קיימת</button></div>
+        <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">הזנה ידנית</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לחיפוש</button></div>
         <div class="ds-pa-form-grid" data-pa-client-fields${isLocked ? ' hidden' : ''}>
-          <label class="ds-pa-form-field" data-pa-new-client-only hidden>
-            <span>סוג גורם</span>
-            <select class="ds-input ds-input--sm" name="new_client_type" data-pa-new-client-type>
-              <option value="school">בית ספר / מסגרת</option>
-              <option value="authority">רשות / אגף חינוך</option>
-              <option value="other">אחר</option>
-            </select>
-          </label>
           ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
           <div data-pa-school-field>
             ${textField('school_framework', FIELD_LABELS.school_framework, row.school_framework, false)}
@@ -1819,7 +1829,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
         <div class="ds-pa-form-actions-main">
           <button type="button" class="ds-btn ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
-          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending>שליחה לאישור</button>
+          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending data-pa-target-status="${primaryActionStatus}">${escapeHtml(primaryActionLabel)}</button>
           <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
         </div>
       </div>
@@ -2000,13 +2010,14 @@ function payloadFromForm(form) {
 
 function validatePayload(payload, statusOverride) {
   const targetStatus = statusOverride || payload.status || 'draft';
-  const requiredFields = targetStatus === 'pending_approval'
+  const requiresCompleteProposal = targetStatus === 'pending_approval' || targetStatus === 'approved';
+  const requiredFields = requiresCompleteProposal
     ? REQUIRED_FIELDS_PENDING
     : REQUIRED_FIELDS_DRAFT;
   const missing = requiredFields.filter((key) => !text(payload[key]));
   const errors = missing.map((key) => FIELD_LABELS[key] || key);
 
-  if (targetStatus === 'pending_approval') {
+  if (requiresCompleteProposal) {
     const grp = normalizeProposalGroup(payload.activity_type_group);
     const items = filterItemsByProposalType(Array.isArray(payload._items) ? payload._items : [], grp);
     if (!items.length) errors.push('לפחות שורת הצעה אחת רלוונטית לסוג ההצעה');
@@ -2031,185 +2042,18 @@ function replaceLocalRow(data, savedRow) {
   data.rows = dedupeById(sortRows(rows.map(normalizeProposalAgreementRow)));
 }
 
-// ─── Catalog appendix via hidden iframe extraction ───────────────────────────
+// ─── Catalog appendix PDF planning ─────────────────────────────────────────
 
 function buildProposalCatalogAppendixPlan(items) {
-  if (!Array.isArray(items) || !items.length) return { entries: [], skipped: [] };
-  const catalogBase = `${PUBLIC_BASE}catalog/summercatalog/`;
-  const entries = [];
-  const skipped = [];
-  const seenUrls = new Set();
-  const seenGefen = new Set();
-  const seenActivityNo = new Set();
-  const seenWorkshopIds = new Set();
-  const seenSkipped = new Set();
-
-  const cleanIdentifier = (value) => text(value || '').replace(/^cat-/i, '').trim().replace(/\/$/, '');
-  const COURSE_CATALOG_ID_BY_EXTERNAL_ID = new Map([
-    ['6089', 'biomimicry-elementary']
-  ]);
-  const resolveCourseCatalogId = (...values) => {
-    for (const value of values) {
-      const id = cleanIdentifier(value);
-      if (!id) continue;
-      const resolved = COURSE_CATALOG_ID_BY_EXTERNAL_ID.get(id);
-      if (resolved) return resolved;
-      if (!/^\d+$/.test(id)) return id;
-    }
-    return '';
-  };
-  const resolveCourseCatalogExternalId = (...values) => {
-    for (const value of values) {
-      const resolved = COURSE_CATALOG_ID_BY_EXTERNAL_ID.get(cleanIdentifier(value));
-      if (resolved) return resolved;
-    }
-    return '';
-  };
-  const labelForItem = (item = {}, fallback = 'פעילות') => (
-    text(item.item_name || item.pricing_activity_name || item.activity_name || item.description) || fallback
-  );
-  const activityNoForItem = (item = {}) => cleanIdentifier(
-    item.activity_no || item.activityNo || item.pricing_activity_no || item.activity_id || item.pricing_key || item.source_pricing_key
-  );
-  const cleanGefenId = (value) => {
-    const gefen = text(value).trim().replace(/\/$/, '');
-    // Course catalog pages are keyed by Gefen/catalog numbers. Do not fall
-    // back to activity_no/id: those identifiers can also belong to games,
-    // activities or pricing rows that do not have a course-page appendix.
-    return /^\d{3,}$/.test(gefen) ? gefen : '';
-  };
-  const cleanWorkshopId = (item = {}) => {
-    const candidates = [
-      item.workshopId,
-      item.workshop_id,
-      item.workshop_ids,
-      item.activity_no,
-      item.pricing_activity_no,
-      item.pricing_key,
-      item.source_pricing_key
-    ];
-    for (const candidate of candidates) {
-      const raw = cleanIdentifier(candidate);
-      const n = Number(raw);
-      if (Number.isInteger(n) && n > 0) return String(n);
-    }
-    return '';
-  };
-  const skipItem = (item, reason = 'missing_appendix') => {
-    const label = labelForItem(item);
-    const activityNo = activityNoForItem(item);
-    const key = [label, activityNo, reason].join('||');
-    if (seenSkipped.has(key)) return;
-    seenSkipped.add(key);
-    skipped.push({ label, activityNo, reason });
-  };
-  const addEntry = ({ url, label, gefenNumber = '', activityNo = '', workshopId = '' }) => {
-    if (!url || seenUrls.has(url)) return false;
-    seenUrls.add(url);
-    entries.push({ url, label: text(label) || 'פעילות', gefenNumber, activityNo, workshopId });
-    return true;
-  };
-  const addCourseEntry = (item) => {
-    const gefenNumber = cleanGefenId(item.gefen_number || item.catalog_gefen || item.gefen);
-    const activityNo = activityNoForItem(item);
-    const courseCatalogId = resolveCourseCatalogId(
-      item.catalog_program_id,
-      item.catalogProgramId,
-      item.course_catalog_id,
-      item.courseCatalogId,
-      item.catalog_id,
-      item.catalogId
-    );
-    const mappedCourseCatalogId = resolveCourseCatalogExternalId(
-      gefenNumber,
-      activityNo,
-      item.activityNo,
-      item.activity_no,
-      item.gefen_number
-    );
-    const courseLookupId = courseCatalogId || mappedCourseCatalogId || gefenNumber || activityNo;
-    if (!hasExplicitCourseKind(item) || !courseLookupId) {
-      skipItem(item, 'no_course_catalog');
-      return;
-    }
-    if ((gefenNumber && seenGefen.has(gefenNumber)) || (activityNo && seenActivityNo.has(activityNo))) return;
-    if (gefenNumber) seenGefen.add(gefenNumber);
-    if (activityNo) seenActivityNo.add(activityNo);
-    addEntry({
-      url: `${catalogBase}course-page.html?ids=${encodeURIComponent(courseLookupId)}&proposalMode=1`,
-      label: labelForItem(item, gefenNumber ? `גפ״ן ${gefenNumber}` : `קורס ${courseLookupId}`),
-      gefenNumber,
-      activityNo
-    });
-  };
-  const addWorkshopEntry = (item) => {
-    const workshopId = cleanWorkshopId(item);
-    const activityNo = activityNoForItem(item) || workshopId;
-    if (!workshopId) {
-      skipItem(item, 'no_workshop_catalog');
-      return;
-    }
-    if (seenWorkshopIds.has(workshopId) || (activityNo && seenActivityNo.has(activityNo))) return;
-    seenWorkshopIds.add(workshopId);
-    if (activityNo) seenActivityNo.add(activityNo);
-    addEntry({
-      url: `${catalogBase}workshops.html?proposalMode=1&workshopIds=${encodeURIComponent(workshopId)}`,
-      label: labelForItem(item, `סדנה ${workshopId}`),
-      workshopId,
-      activityNo
-    });
-  };
-  const addBundleWorkshops = (item) => {
-    const selected = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
-    if (!selected.length) skipItem(item, 'no_workshop_catalog');
-    selected.forEach((sel) => addWorkshopEntry({
-      ...sel,
-      item_name: sel.item_name || sel.activity_name || item.item_name,
-      item_type: sel.item_type || 'סדנה',
-      proposal_group: sel.proposal_group || item.proposal_group || item.activity_type_group
-    }));
-  };
-
-  for (const item of items) {
-    if (isTestHoursItem(item)) continue;
-    const displayMode = text(item.proposal_display_mode);
-    if (displayMode === 'bundle_child') continue;
-
-    if (displayMode === 'bundle_parent' || item.is_bundle_parent) {
-      addBundleWorkshops(item);
-      continue;
-    }
-
-    const kind = itemCatalogKind(item);
-    if (kind === 'course') {
-      addCourseEntry(item);
-      continue;
-    }
-
-    if (kind === 'workshop' || kind === 'summer') {
-      addWorkshopEntry(item);
-      continue;
-    }
-
-    skipItem(item, 'unsupported_catalog_kind');
-  }
-
-  entries.sort((a, b) => {
-    const aIsWorkshop = a.url.includes('/workshops.html');
-    const bIsWorkshop = b.url.includes('/workshops.html');
-    if (aIsWorkshop !== bIsWorkshop) return aIsWorkshop ? -1 : 1;
-    return 0;
-  });
-
-  return { entries, skipped };
+  return { entries: proposalCourseCatalogPdfEntries(items), skipped: [] };
 }
 
 function buildProposalCatalogEntryDetails(items) {
-  return buildProposalCatalogAppendixPlan(items).entries;
+  return proposalCourseCatalogPdfEntries(items).filter((entry) => !entry.missing);
 }
 
 export function buildProposalCatalogEntries(items) {
-  return buildProposalCatalogEntryDetails(items).map((entry) => entry.url);
+  return proposalCourseCatalogPdfEntries(items).filter((entry) => !entry.missing).map((entry) => entry.url);
 }
 
 const CATALOG_APPENDICES_DIR = 'catalog/appendices/';
@@ -2328,55 +2172,10 @@ function appendCatalogPdfPlaceholders(previewArea, entries = []) {
     const appendix = document.createElement('section');
     appendix.className = `pa-catalog-pdf-appendix${idx === 0 && !previewArea.querySelector('[data-pa-catalog-pdf-path]') ? ' pa-appendix-start' : ''}`;
     appendix.dataset.paCatalogPdfPath = entry.path;
-    appendix.innerHTML = `<h2>נספח קטלוג</h2>
-      <p>קטלוג זה יצורף להצעה הסופית מקובץ: <strong>${escapeHtml(entry.path)}</strong></p>
-      <object data="${escapeHtml(entry.url)}" type="application/pdf" class="pa-catalog-pdf-object">
-        <iframe src="${escapeHtml(entry.url)}" class="pa-catalog-pdf-frame" title="נספח קטלוג"></iframe>
-        <p><a href="${escapeHtml(entry.url)}" target="_blank" rel="noopener">פתיחת נספח הקטלוג</a></p>
-      </object>`;
+    const pdfUrl = `${entry.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
+    appendix.innerHTML = `<div class="pa-catalog-pdf-clean-title">נספח קטלוג</div>
+      <iframe src="${escapeHtml(pdfUrl)}" class="pa-catalog-pdf-frame" title="נספח קטלוג" loading="lazy"></iframe>`;
     previewArea.appendChild(appendix);
-  });
-}
-
-async function loadCatalogViaIframe(url) {
-  return new Promise((resolve, reject) => {
-    const iframe = document.createElement('iframe');
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.style.cssText = 'position:fixed;inset-inline-start:-9999px;top:-9999px;width:1200px;height:4000px;opacity:0;pointer-events:none;border:none;';
-    let settled = false;
-    const settle = (fn) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      window.removeEventListener('message', onMessage);
-      iframe.remove();
-      fn();
-    };
-    const timer = setTimeout(() => settle(() => reject(new Error('Catalog iframe timed out'))), 30000);
-    const onMessage = (event) => {
-      if (!event.data || event.data.type !== 'PROPOSAL_CATALOG_READY') return;
-      try { if (event.source !== iframe.contentWindow) return; } catch (_) { return; }
-      settle(() => {
-        try {
-          const doc = iframe.contentDocument;
-          if (!doc) { reject(new Error('iframe contentDocument unavailable')); return; }
-          const styles = Array.from(doc.querySelectorAll('style')).map((s) => s.textContent).join('\n');
-          const contentEl = doc.getElementById('booklet') || doc.getElementById('a4-container');
-          if (!contentEl) { reject(new Error('Catalog content element not found in iframe')); return; }
-          const baseUrl = new URL('./', iframe.src).href;
-          contentEl.querySelectorAll('img[src]').forEach((img) => {
-            const src = img.getAttribute('src');
-            if (src && !src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('//')) {
-              try { img.setAttribute('src', new URL(src, baseUrl).href); } catch (_) {}
-            }
-          });
-          resolve({ html: contentEl.outerHTML, styles });
-        } catch (e) { reject(e); }
-      });
-    };
-    window.addEventListener('message', onMessage);
-    document.body.appendChild(iframe);
-    iframe.src = url;
   });
 }
 
@@ -2471,22 +2270,8 @@ export const proposalsAgreementsScreen = {
 
     root.querySelector('[data-pa-search]')?.addEventListener('input', debouncedRefresh, { signal });
     root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable, { signal }));
-    root.addEventListener('change', (event) => {
-      const typeSelect = event.target.closest?.('[data-pa-new-client-type]');
-      if (!typeSelect) return;
-      const form = typeSelect.closest('[data-pa-form]');
-      if (!form) return;
-      const schoolField = form.querySelector('[data-pa-school-field]');
-      const schoolInput = form.querySelector('[name="school_framework"]');
-      const isSchoolType = typeSelect.value === 'school';
-      if (schoolField) schoolField.hidden = !isSchoolType;
-      if (schoolInput) {
-        schoolInput.required = isSchoolType;
-        schoolInput.setAttribute('aria-required', String(isSchoolType));
-        const label = schoolInput.closest('label')?.querySelector('span');
-        if (label) label.textContent = `${FIELD_LABELS.school_framework}${isSchoolType ? ' *' : ''}`;
-      }
-    }, { signal });
+    
+
 
     const formHost = root.querySelector('[data-pa-form-host]');
 
@@ -2660,45 +2445,127 @@ export const proposalsAgreementsScreen = {
       });
     };
 
+    const clientSearchMatches = (query, selectedType) => {
+      const q = normalizeSearch(query);
+      if (!q || q.length < 2) return [];
+      const seen = new Set();
+      return contactOptions.filter((c) => {
+        const typeOk = selectedType === 'authority' ? text(c.authority) : text(c.school);
+        if (!typeOk) return false;
+        const haystack = [c.school, c.authority, c.client_name, c.contact_name, c.phone, c.mobile, c.email]
+          .map(normalizeSearch).join(' ');
+        if (!haystack.includes(q)) return false;
+        const key = [text(c.authority), text(c.school), text(c.contact_name), text(c.phone || c.mobile || ''), text(c.email)].join('||');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, 12);
+    };
+
+    const clientResultLabel = (contact, selectedType) => {
+      const school = text(contact.school);
+      const authority = text(contact.authority);
+      const contactName = text(contact.contact_name);
+      if (selectedType === 'authority') return [authority, contactName].filter(Boolean).join(' — ');
+      return [school || text(contact.client_name), authority, contactName].filter(Boolean).join(' — ');
+    };
+
+    const applyClientTypeMode = (form) => {
+      const type = form?.querySelector('[data-pa-new-client-type]')?.value || 'school';
+      const searchWrap = form?.querySelector('[data-pa-client-search-wrap]');
+      const searchField = form?.querySelector('[data-pa-client-search-field]');
+      const searchLabel = form?.querySelector('[data-pa-client-search-label]');
+      const searchInput = form?.querySelector('[data-pa-client-search-input]');
+      const results = form?.querySelector('[data-pa-client-results]');
+      const schoolField = form?.querySelector('[data-pa-school-field]');
+      const authorityInput = form?.querySelector('input[name="client_authority"]');
+      const schoolInput = form?.querySelector('input[name="school_framework"]');
+      const isOther = type === 'other';
+      if (searchWrap) searchWrap.classList.toggle('is-manual-only', isOther);
+      if (searchField) searchField.hidden = isOther;
+      if (results) { results.hidden = true; results.innerHTML = ''; }
+      if (searchLabel) searchLabel.textContent = clientTypeLabel(type);
+      if (searchInput) searchInput.placeholder = isOther ? '' : `חיפוש לפי ${clientTypeLabel(type)}, איש קשר, טלפון או דוא״ל`;
+      if (schoolField) schoolField.hidden = type === 'authority';
+      if (schoolInput) {
+        schoolInput.required = type === 'school';
+        schoolInput.setAttribute('aria-required', String(type === 'school'));
+        const label = schoolInput.closest('label')?.querySelector('span');
+        if (label) label.textContent = `${clientTypeLabel(type === 'authority' ? 'authority' : 'school')}${type === 'school' ? ' *' : ''}`;
+        if (type === 'authority') schoolInput.value = '';
+      }
+      if (authorityInput) {
+        const label = authorityInput.closest('label')?.querySelector('span');
+        if (label) label.textContent = `${clientTypeLabel(type)} *`;
+      }
+    };
+
+    const selectExistingClient = (form, contact) => {
+      if (!form || !contact) return;
+      form.dataset.paNewClient = 'no';
+      const authority = text(contact.authority);
+      const school = text(contact.school);
+      const authInput = form.querySelector('input[name="client_authority"]');
+      const schoolInput = form.querySelector('input[name="school_framework"]');
+      if (authInput) authInput.value = authority;
+      if (schoolInput) schoolInput.value = school;
+      fillContactFields(form, contact);
+      setContactSource(form, contact);
+      const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+      if (pickerHost) pickerHost.innerHTML = '';
+      const cName = text(contact.contact_name);
+      const cRole = text(contact.contact_role);
+      const phone = text(contact.phone || contact.mobile || '');
+      const email = text(contact.email || '');
+      lockClientFields(form, authority, school, cName, cRole, phone, email, text(contact.client_name) || school || authority);
+    };
+
+    const renderClientResults = (form) => {
+      const type = form?.querySelector('[data-pa-new-client-type]')?.value || 'school';
+      const input = form?.querySelector('[data-pa-client-search-input]');
+      const results = form?.querySelector('[data-pa-client-results]');
+      if (!input || !results || type === 'other') return;
+      const matches = clientSearchMatches(input.value, type);
+      if (!text(input.value) || text(input.value).length < 2) {
+        results.innerHTML = '<p class="ds-pa-client-results-empty">הקלידו לפחות שני תווים לחיפוש.</p>';
+        results.hidden = true;
+        return;
+      }
+      if (!matches.length) {
+        results.innerHTML = '<p class="ds-pa-client-results-empty">לא נמצאו תוצאות. ניתן לעבור להזנה ידנית.</p>';
+        results.hidden = false;
+        return;
+      }
+      results.innerHTML = matches.map((contact, idx) => `<button type="button" class="ds-pa-client-result" data-pa-client-result="${idx}">
+        <strong>${escapeHtml(clientResultLabel(contact, type))}</strong>
+        ${text(contact.phone || contact.mobile || contact.email) ? `<span>${escapeHtml([contact.phone || contact.mobile, contact.email].map(text).filter(Boolean).join(' · '))}</span>` : ''}
+      </button>`).join('');
+      results.hidden = false;
+      results.querySelectorAll('[data-pa-client-result]').forEach((btn) => {
+        btn.addEventListener('click', () => selectExistingClient(form, matches[Number(btn.dataset.paClientResult)]), { signal });
+      });
+    };
+
     const setupClientSelector = (container) => {
-      const clientSelect = container?.querySelector?.('[data-pa-client-select]');
-      if (!clientSelect) return;
-      const form = clientSelect.closest('[data-pa-form]');
-      if (!form) return;
-      clientSelect.addEventListener('change', () => {
-        const val = clientSelect.value;
-        if (!val) { unlockClientFields(form); return; }
-        form.dataset.paNewClient = 'no';
-        const [authority, school] = val.split('||');
-        const matches = contactOptions.filter((c) => text(c.authority) === authority && text(c.school) === school);
-        const authInput = form.querySelector('input[name="client_authority"]');
-        const schoolInput = form.querySelector('input[name="school_framework"]');
-        if (authInput) authInput.value = authority;
-        if (schoolInput) schoolInput.value = school;
-        const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
-        let cName = '', cRole = '', phone = '', email = '';
-        if (matches.length > 1) {
-          if (pickerHost) { pickerHost.innerHTML = contactPickerHtml(contactOptions, authority, school, ''); setupContactPicker(pickerHost, form); }
-          setContactSource(form, {});
-        } else {
-          if (pickerHost) pickerHost.innerHTML = '';
-          if (matches.length === 1) {
-            fillContactFields(form, matches[0]);
-            setContactSource(form, matches[0]);
-            cName = text(matches[0].contact_name);
-            cRole = text(matches[0].contact_role);
-            phone = text(matches[0].phone || matches[0].mobile || '');
-            email = text(matches[0].email || '');
-          } else {
-            setContactSource(form, {});
-          }
-        }
-        const clientName = matches.length > 0
-          ? (text(matches[0].client_name) || text(matches[0].school) || text(matches[0].authority))
-          : (school || authority);
-        lockClientFields(form, authority, school, cName, cRole, phone, email, clientName);
+      const form = container?.querySelector?.('[data-pa-form]') || container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
+      if (!form || form.dataset.paClientSearchBound === 'yes') return;
+      form.dataset.paClientSearchBound = 'yes';
+      applyClientTypeMode(form);
+      form.querySelector('[data-pa-client-search-input]')?.addEventListener('input', () => renderClientResults(form), { signal });
+      form.querySelector('[data-pa-new-client-type]')?.addEventListener('change', () => {
+        form.dataset.paNewClient = 'yes';
+        unlockClientFields(form);
+        applyClientTypeMode(form);
+        ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {
+          const inp = form.querySelector(`input[name="${name}"]`);
+          if (inp) inp.value = '';
+        });
+        setContactSource(form, {});
+        form.querySelector('[data-pa-contact-picker-host]').innerHTML = '';
+        updateProposalStepper(form);
       }, { signal });
     };
+
 
     // ── Items calc ────────────────────────────────────────────────────────────
     const calcItemRow = (rowEl) => {
@@ -2840,7 +2707,7 @@ export const proposalsAgreementsScreen = {
         } catch { items = []; }
       }
       formHost.hidden = false;
-      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing);
+      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state);
       setupTypeChangeHandler(formHost);
       setupClientSelector(formHost);
       setupActivityPickers(formHost);
@@ -2889,7 +2756,7 @@ export const proposalsAgreementsScreen = {
       overlay.setAttribute('dir', 'rtl');
       const clientLabel = [freshRow.client_authority, freshRow.school_framework].filter(Boolean).map(escapeHtml).join(' — ');
       const saveBtnHtml = '';
-      const submitBtnHtml = options.onSubmit ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-submit">שליחה לאישור</button>` : '';
+      const submitBtnHtml = options.onSubmit ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-submit">${escapeHtml(options.submitLabel || 'שליחה לאישור')}</button>` : '';
       const hasCustomSections = Array.isArray(freshRow.custom_document_sections) && freshRow.custom_document_sections.length > 0;
       const missingTemplateNotice = (!templateSections.length && !hasCustomSections)
         ? '<p class="ds-pa-template-missing-notice no-print" role="alert" style="margin:6px 0 0;color:#b45309;font-size:0.85rem">לא נמצאה תבנית פעילה לסוג הצעה זה</p>'
@@ -2938,67 +2805,8 @@ export const proposalsAgreementsScreen = {
       overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
 
       // The catalog appendix is attached per proposal (include_catalog), chosen in the form.
-      appendCatalogPdfPlaceholders(overlay.querySelector('.proposal-preview-area'), includeCatalogValue(freshRow.include_catalog) ? buildProposalCatalogPdfEntries(freshRow, items).filter((entry) => !entry.missing) : []);
-      if (includeCatalogValue(freshRow.include_catalog)) {
-        const previewArea = overlay.querySelector('.proposal-preview-area');
-        const printBtn = overlay.querySelector('#pa-print-btn');
-        const toolbar = overlay.querySelector('.proposal-preview-toolbar');
+      // Only the new PDF appendix mechanism is active here; no legacy catalog HTML is loaded.
 
-        if (printBtn) printBtn.disabled = true;
-        const loadingNotice = document.createElement('span');
-        loadingNotice.className = 'pa-catalog-loading no-print';
-        loadingNotice.textContent = 'טוען נספחי קטלוג...';
-        toolbar?.appendChild(loadingNotice);
-
-        let firstAppendixAdded = false;
-        const markFirst = (el) => {
-          if (!firstAppendixAdded) {
-            el.classList.add('pa-appendix-start');
-            firstAppendixAdded = true;
-          }
-        };
-        const appendAppendixNotice = (message, className = 'pa-appendix-note') => {
-          const notice = document.createElement('p');
-          notice.className = `${className} no-print`;
-          notice.textContent = message;
-          previewArea?.appendChild(notice);
-          return notice;
-        };
-        const appendixLoads = [];
-        const catalogPlan = buildProposalCatalogAppendixPlan(items);
-        const catalogEntries = catalogPlan.entries;
-        const skippedCatalogItems = catalogPlan.skipped;
-        if (skippedCatalogItems.length) {
-          skippedCatalogItems.forEach((skipped) => {
-            const notice = appendAppendixNotice(`לא נמצא נספח קטלוג מתאים עבור: ${skipped.label}`);
-            if (!catalogEntries.length) markFirst(notice);
-          });
-        }
-        for (const entry of catalogEntries) {
-          const loadCatalog = (async () => {
-            try {
-              const { html, styles } = await loadCatalogViaIframe(entry.url);
-              const shadowHost = document.createElement('div');
-              shadowHost.className = 'pa-catalog-shadow-host';
-              markFirst(shadowHost);
-              const shadow = shadowHost.attachShadow({ mode: 'open' });
-              shadow.innerHTML = `<style>${styles}</style>${html}`;
-              previewArea?.appendChild(shadowHost);
-              return true;
-            } catch (e) {
-              console.warn('[PA] Catalog iframe failed:', entry.url, e);
-              const notice = appendAppendixNotice(`⚠ לא ניתן לטעון נספח: ${entry.label} — ${entry.url}`, 'pa-appendix-missing');
-              markFirst(notice);
-              return false;
-            }
-          })();
-          appendixLoads.push(loadCatalog);
-        }
-
-        await Promise.allSettled(appendixLoads);
-        loadingNotice.remove();
-        if (printBtn) printBtn.disabled = false;
-      }
     };
 
 
@@ -3591,6 +3399,7 @@ export const proposalsAgreementsScreen = {
       if (savePendingBtn) {
         const form = savePendingBtn.closest('[data-pa-form]');
         if (!form) return;
+        const targetStatus = text(savePendingBtn.dataset.paTargetStatus) || 'pending_approval';
         if (form.dataset.paPreviewSeen !== 'yes') {
           // Preview not yet seen — open it automatically with a submit button inside
           const payload = payloadFromForm(form);
@@ -3600,13 +3409,14 @@ export const proposalsAgreementsScreen = {
           try {
             await openPreview(tempRow, items, {
               form,
-              onSubmit: async () => { await saveForm(form, 'pending_approval'); }
+              onSubmit: async () => { await saveForm(form, targetStatus); },
+              submitLabel: targetStatus === 'approved' ? 'אישור והפקת הצעה' : 'שליחה לאישור'
             });
           } catch (e) {
             console.warn('[PA] openPreview error (pending flow):', e);
           }
         } else {
-          await saveForm(form, 'pending_approval');
+          await saveForm(form, targetStatus);
         }
         return;
       }
@@ -3698,8 +3508,8 @@ export const proposalsAgreementsScreen = {
 
       if (event.target.closest?.('[data-pa-new-client-toggle]')) {
         const form = event.target.closest('[data-pa-form]');
-        const clientSelect = form?.querySelector('[data-pa-client-select]');
-        if (clientSelect) clientSelect.value = '';
+        const clientSearchInput = form?.querySelector('[data-pa-client-search-input]');
+        if (clientSearchInput) clientSearchInput.value = '';
         if (form) form.dataset.paNewClient = 'yes';
         unlockClientFields(form);
         const sourceHost = form?.querySelector('[data-pa-contact-source]');
@@ -3707,6 +3517,7 @@ export const proposalsAgreementsScreen = {
         const hint = form?.querySelector('[data-pa-new-client-hint]');
         if (hint) hint.hidden = false;
         form?.querySelectorAll('[data-pa-new-client-only]').forEach((el) => { el.hidden = false; });
+        applyClientTypeMode(form);
         const schoolField = form?.querySelector('[data-pa-school-field]');
         if (schoolField) schoolField.hidden = false;
         ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {
@@ -3725,9 +3536,9 @@ export const proposalsAgreementsScreen = {
         if (hint) hint.hidden = true;
         form.querySelectorAll('[data-pa-new-client-only]').forEach((el) => { el.hidden = true; });
         form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
-        const clientSelect = form.querySelector('[data-pa-client-select]');
+        applyClientTypeMode(form);
         updateProposalStepper(form);
-        clientSelect?.focus();
+        form.querySelector('[data-pa-client-search-input]')?.focus();
         return;
       }
 

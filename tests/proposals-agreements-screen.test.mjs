@@ -59,7 +59,7 @@ const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', i
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogEntries, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -299,7 +299,7 @@ test('preview uses only existing proposal template section keys and required key
   }
 });
 
-test('new proposal tab opens compact form with preview and pending-approval actions', async () => {
+test('new proposal tab opens compact form with preview and role-aware primary action', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: sampleRows, contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     (root, dom) => {
@@ -320,9 +320,10 @@ test('new proposal tab opens compact form with preview and pending-approval acti
       assert.ok(form, 'form element should exist');
       assert.doesNotMatch(form.innerHTML, /שמירת טיוטה/);
       assert.match(form.innerHTML, /תצוגה מקדימה/);
-      assert.match(form.innerHTML, /שליחה לאישור/);
-      assert.match(form.innerHTML, /data-pa-client-select/);
-      assert.match(form.innerHTML, /הוספה ידנית/);
+      assert.match(form.innerHTML, /אישור והפקת הצעה/);
+      assert.doesNotMatch(form.innerHTML, /שליחה לאישור/);
+      assert.match(form.innerHTML, /data-pa-client-search-input/);
+      assert.match(form.innerHTML, /הזנה ידנית/);
     }
   );
 });
@@ -339,11 +340,13 @@ test('client selector auto-fills contact fields when existing client is chosen',
       });
 
       const form = openNewProposalForm(root, dom);
-      const clientSelect = form.querySelector('[data-pa-client-select]');
-
-      // Select "רשות ב" which has exactly one contact
-      clientSelect.value = 'רשות ב||מסגרת ב';
-      clientSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      const typeSelect = form.querySelector('[data-pa-new-client-type]');
+      const searchInput = form.querySelector('[data-pa-client-search-input]');
+      typeSelect.value = 'school';
+      typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      searchInput.value = 'יוסי';
+      searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      form.querySelector('[data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
       const authorityInput = form.querySelector('input[name="client_authority"]');
       const schoolInput = form.querySelector('input[name="school_framework"]');
@@ -370,17 +373,14 @@ test('multiple contacts for same client shows contact picker dropdown', async ()
       });
 
       const form = openNewProposalForm(root, dom);
-      const clientSelect = form.querySelector('[data-pa-client-select]');
+      const searchInput = form.querySelector('[data-pa-client-search-input]');
+      searchInput.value = 'רשות א';
+      searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
 
-      // "רשות א" has 2 contacts → should show contact picker
-      clientSelect.value = 'רשות א||בית ספר א';
-      clientSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
-
-      const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
-      assert.ok(pickerHost, 'contact picker host should exist');
-      assert.match(pickerHost.innerHTML, /data-pa-contact-select/, 'contact picker select should appear');
-      assert.match(pickerHost.innerHTML, /דנה קשר/, 'first contact should be in picker');
-      assert.match(pickerHost.innerHTML, /מיכל כהן/, 'second contact should be in picker');
+      const results = form.querySelector('[data-pa-client-results]');
+      assert.ok(results, 'results host should exist');
+      assert.match(results.innerHTML, /דנה קשר/, 'first contact should be in results');
+      assert.match(results.innerHTML, /מיכל כהן/, 'second contact should be in results');
     }
   );
 });
@@ -406,21 +406,12 @@ test('contact picker fills fields and passes existing contact source on save', a
       });
 
       const form = openNewProposalForm(root, dom);
-      const clientSelect = form.querySelector('[data-pa-client-select]');
-      clientSelect.value = 'רשות א||בית ספר א';
-      clientSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      const searchInput = form.querySelector('[data-pa-client-search-input]');
+      searchInput.value = 'מיכל';
+      searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
 
-      const contactSelect = form.querySelector('[data-pa-contact-select]');
       const contact = contacts.find((c) => c.contact_name === 'מיכל כהן');
-      contactSelect.value = [
-        contact.id,
-        contact.authority,
-        contact.school,
-        contact.contact_name,
-        contact.email,
-        contact.phone
-      ].join('||');
-      contactSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      form.querySelector('[data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
       assert.equal(form.querySelector('input[name="contact_name"]').value, 'מיכל כהן');
       assert.equal(form.querySelector('input[name="contact_source_id"]').value, contact.id);
@@ -432,7 +423,7 @@ test('contact picker fills fields and passes existing contact source on save', a
       await delay(100);
 
       assert.equal(savedPayloads.length, 1);
-      assert.equal(savedPayloads[0].status, 'pending_approval');
+      assert.equal(savedPayloads[0].status, 'approved');
       assert.equal(savedPayloads[0]._contact_original.id, contact.id);
       assert.notEqual(savedPayloads[0].is_new_client, true);
     }
@@ -451,23 +442,23 @@ test('new client toggle button shows hint and clears client selector', async () 
       });
 
       const form = openNewProposalForm(root, dom);
-      const clientSelect = form.querySelector('[data-pa-client-select]');
+      const searchInput = form.querySelector('[data-pa-client-search-input]');
 
-      // Pre-select a client
-      clientSelect.value = 'רשות ב||מסגרת ב';
+      // Pre-fill a search
+      searchInput.value = 'רשות ב';
 
-      // Click new client toggle
+      // Click manual client toggle
       form.querySelector('[data-pa-new-client-toggle]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
       const hint = form.querySelector('[data-pa-new-client-hint]');
       assert.equal(hint.hidden, false, 'hint should be visible after toggle');
-      assert.equal(clientSelect.value, '', 'client selector should be cleared');
+      assert.equal(searchInput.value, '', 'client search should be cleared');
       assert.equal(form.dataset.paNewClient, 'yes', 'form should mark new client mode');
     }
   );
 });
 
-test('proposal form has no draft save and send-for-approval sends status=pending_approval', async () => {
+test('proposal form has no draft save and admin primary action approves directly', async () => {
   const savedPayloads = [];
   const mockApi = {
     addProposalAgreement: async (payload) => {
@@ -501,7 +492,7 @@ test('proposal form has no draft save and send-for-approval sends status=pending
       await delay(100);
 
       assert.equal(savedPayloads.length, 1, 'one save call');
-      assert.equal(savedPayloads[0].status, 'pending_approval', 'send for approval should set status=pending_approval');
+      assert.equal(savedPayloads[0].status, 'approved', 'admin primary action should approve directly');
       assert.notEqual(savedPayloads[0].is_new_client, true, 'default save should not mark as new client');
     }
   );
@@ -528,7 +519,7 @@ test('pending flow preview has submit and back actions without draft save', asyn
 
       const overlay = dom.window.document.getElementById('pa-preview-overlay');
       assert.ok(overlay, 'preview overlay should open before submit');
-      assert.match(overlay.textContent, /שליחה לאישור/);
+      assert.match(overlay.textContent, /אישור והפקת הצעה/);
       assert.match(overlay.textContent, /חזרה לעריכה/);
       assert.doesNotMatch(overlay.textContent, /שמירת טיוטה/);
     }
@@ -569,7 +560,7 @@ test('saving after new client toggle keeps manual contact fields in pending payl
       await delay(100);
 
       assert.equal(savedPayloads.length, 1);
-      assert.equal(savedPayloads[0].status, 'pending_approval');
+      assert.equal(savedPayloads[0].status, 'approved');
       assert.equal(savedPayloads[0].contact_name, 'שרון חדש', 'manual contact name should be saved');
       assert.equal(savedPayloads[0]._contact_original.client_type, 'school', 'new-client source metadata should be preserved');
     }
@@ -1432,46 +1423,18 @@ test('catalog PDF appendices report missing selected course appendix identifiers
   assert.equal(entries[0].label, 'קורס ללא מזהה');
 });
 
-test('catalog appendix entries load workshop proposals only from workshops catalog and dedupe ids', () => {
-  const urls = buildProposalCatalogEntries([
-    { item_name: 'סדנת רובוטיקה', item_type: 'סדנה', activity_no: 'cat-12', pricing_key: 'cat-12', unit_price: 500 },
-    { item_name: 'סדנת רובוטיקה', item_type: 'סדנה', activity_no: '12', pricing_key: 'cat-12', unit_price: 500 }
-  ]);
+test('legacy HTML catalog appendix URLs are not generated for proposal appendices', () => {
+  const urls = buildProposalCatalogPdfEntries(
+    { activity_type_group: 'שנת הלימודים תשפ״ז' },
+    [
+      { item_name: 'קורס רובוטיקה', item_type: 'קורס', gefen_number: '1234', activity_no: '555' },
+      { item_name: 'סדנת רחפנים', item_type: 'סדנה', activity_no: '88', pricing_key: 'cat-88' }
+    ]
+  ).map((entry) => entry.url || '');
 
-  assert.deepEqual(urls, ['./catalog/summercatalog/workshops.html?proposalMode=1&workshopIds=12']);
-  assert.equal(urls.some((url) => url.includes('course-page.html')), false);
+  assert.ok(urls.includes('./catalog/appendices/1234.pdf'));
+  assert.equal(urls.some((url) => new RegExp(['course' + '-page\\.html', 'catalog/' + 'summercatalog', 'proposal' + 'Mode'].join('|')).test(url)), false);
 });
-
-test('catalog appendix entries split mixed proposals by true item type without duplicate appendices', () => {
-  const urls = buildProposalCatalogEntries([
-    { item_name: 'קורס רובוטיקה', item_type: 'קורס', gefen_number: '1234', activity_no: '555' },
-    { item_name: 'קורס רובוטיקה נוסף', item_type: 'תוכנית', gefen_number: '1234', activity_no: '555' },
-    { item_name: 'סדנת רחפנים', item_type: 'סדנה', activity_no: '88', pricing_key: 'cat-88' },
-    { item_name: 'סדנת רחפנים', item_type: 'סדנה', activity_no: '88', pricing_key: 'cat-88' }
-  ]);
-
-  assert.deepEqual(urls, [
-    './catalog/summercatalog/workshops.html?proposalMode=1&workshopIds=88',
-    './catalog/summercatalog/course-page.html?ids=1234&proposalMode=1'
-  ]);
-});
-
-
-test('catalog appendix entries resolve biomimicry Gefen number to internal course id', () => {
-  const urls = buildProposalCatalogEntries([
-    {
-      item_name: 'המצאות בהשראה מן הטבע – ביומימיקרי לתלמידי יסודי',
-      item_type: 'קורס',
-      gefen_number: '6089',
-      activity_no: '6089'
-    }
-  ]);
-
-  assert.deepEqual(urls, [
-    './catalog/summercatalog/course-page.html?ids=biomimicry-elementary&proposalMode=1'
-  ]);
-});
-
 
 test('catalog appendix entries skip non-course activities even when they have Gefen/activity ids', async () => {
   const gameItem = {
@@ -1483,7 +1446,7 @@ test('catalog appendix entries skip non-course activities even when they have Ge
     gefen_number: '27342'
   };
 
-  const urls = buildProposalCatalogEntries([gameItem]);
+  const urls = buildProposalCatalogPdfEntries({ activity_type_group: 'פעילויות' }, [gameItem]).map((entry) => entry.url || '');
   assert.deepEqual(urls, []);
 
   const html = proposalPreviewBodyHtml(

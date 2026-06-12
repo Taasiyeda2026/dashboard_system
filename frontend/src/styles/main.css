@@ -14951,3 +14951,149 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pa-catalog-pdf-appendix { box-shadow: none !important; width: 210mm !important; min-height: 297mm !important; padding: 10mm 12mm !important; break-before: page !important; page-break-before: always !important; }
   .pa-catalog-pdf-object, .pa-catalog-pdf-frame { height: 260mm !important; }
 }
+
+/* Proposals polish: wider workspace, clearer fields, search-first client picking. */
+.ds-pa-form {
+  width: min(1480px, calc(100vw - 48px));
+  padding: 22px;
+}
+.ds-pa-form--compact { padding: 22px; }
+.ds-pa-form-meta-panel,
+.ds-pa-form-type-panel,
+.ds-pa-form-bottom-panel {
+  padding: 18px 20px;
+  border-radius: 14px;
+}
+.ds-pa-form-grid {
+  grid-template-columns: repeat(4, minmax(190px, 1fr));
+  gap: 14px 18px;
+}
+.ds-pa-form-field {
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.ds-pa-form-field .ds-input,
+.ds-pa-form-field select.ds-input,
+.ds-pa-form-field textarea.ds-input {
+  min-height: 42px;
+  padding: 8px 11px;
+  font-size: 0.88rem;
+  border-radius: 10px;
+}
+.ds-pa-client-row {
+  align-items: flex-start;
+  gap: 12px;
+}
+.ds-pa-client-search {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) minmax(280px, 1fr);
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ds-pa-client-search.is-manual-only [data-pa-client-search-field],
+.ds-pa-client-search.is-manual-only [data-pa-client-results] {
+  display: none;
+}
+.ds-pa-client-results {
+  position: absolute;
+  z-index: 8;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
+  top: calc(100% + 6px);
+  display: grid;
+  gap: 4px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+}
+.ds-pa-client-result {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: right;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #0f172a;
+  cursor: pointer;
+}
+.ds-pa-client-result:hover,
+.ds-pa-client-result:focus-visible {
+  background: #eff6ff;
+  outline: none;
+}
+.ds-pa-client-result span,
+.ds-pa-client-results-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+.ds-pa-notes-details:not([open]) .ds-pa-notes-summary {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+}
+.proposal-logo {
+  width: auto;
+  max-width: 165px;
+  max-height: 58px;
+  height: auto;
+  object-fit: contain;
+}
+.proposal-header-left { width: auto; min-width: 165px; }
+.proposal-signature {
+  width: 58mm;
+  margin-inline-start: auto;
+  text-align: center;
+}
+.proposal-signature-line {
+  width: 100%;
+  margin: 0 auto;
+}
+.proposal-signature-name {
+  text-align: center;
+  direction: rtl;
+}
+.pa-catalog-pdf-clean-title {
+  margin: 0 0 8pt;
+  color: #1f4e79;
+  font-size: 13pt;
+  font-weight: 700;
+}
+.pa-catalog-pdf-frame {
+  border: 0;
+  background: #fff;
+}
+@media print {
+  .proposal-logo {
+    width: auto !important;
+    max-width: 42mm !important;
+    max-height: 16mm !important;
+    height: auto !important;
+    object-fit: contain !important;
+  }
+  .proposal-header-left { width: auto !important; min-width: 42mm !important; }
+  .proposal-signature { width: 58mm !important; margin-top: 8pt !important; margin-inline-start: auto !important; }
+  .proposal-signature-line { width: 100% !important; margin: 0 auto !important; }
+  .proposal-signature-name { text-align: center !important; direction: rtl !important; }
+  .pa-catalog-pdf-clean-title { display: none !important; }
+  .pa-catalog-pdf-appendix { padding: 0 !important; overflow: hidden !important; }
+  .pa-catalog-pdf-frame { width: 210mm !important; height: 297mm !important; border: 0 !important; }
+}
+@media (max-width: 900px) {
+  .ds-pa-form { width: 100%; padding: 12px; }
+  .ds-pa-form--compact { padding: 12px; }
+  .ds-pa-client-search { grid-template-columns: 1fr; }
+  .ds-pa-form-grid { grid-template-columns: 1fr; }
+}
