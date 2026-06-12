@@ -768,7 +768,7 @@ function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionC
     ...typeCards,
     { id: 'summer',      action: 'kpi|summer',      title: String(activeTypeCounts.summer || 0), subtitle: 'קיץ',            value: activeTypeCounts.summer || 0 },
     { id: 'endings',     action: 'kpi|endings',     title: String(courseEndings),         subtitle: 'סיומי קורסים',   value: courseEndings },
-    { id: 'instructors', action: 'kpi|instructors', title: String(uniqueInstructorCount), subtitle: 'מדריכים פעילים', value: uniqueInstructorCount },
+    { id: 'instructors', action: 'kpi|instructors', title: String(uniqueInstructorCount), subtitle: 'מדריכים משובצים החודש', value: uniqueInstructorCount },
     { id: 'exceptions',  action: 'kpi|exceptions',  title: String(exceptionCount),        subtitle: 'חריגות',          value: exceptionCount }
   ];
 }
