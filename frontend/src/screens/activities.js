@@ -62,7 +62,7 @@ const ACTIVITY_PERIOD_TABS = [
   { key: 'archive', label: 'ארכיון', archive: true }
 ];
 const DEFAULT_ACTIVITY_PERIOD_TAB = 'school_2026';
-const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'closed', 'deleted', 'inactive']);
+const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'בוטל', 'closed', 'deleted', 'inactive', 'cancelled', 'canceled']);
 const ACTIVITY_LAYOUT_SEASON = 'summer_2026';
 const ACTIVITIES_ACCESS_ROLES = new Set([
   'operation_manager',
@@ -135,13 +135,18 @@ function isClosedActivity(row = {}) {
   return status === 'סגור' || status.toLowerCase() === 'closed';
 }
 
+function isActiveActivity(row = {}) {
+  return !isInactiveActivityStatus(row);
+}
+
 function activityPeriodKey(row = {}) {
-  const status = String(row?.status || '').trim();
-  if (status === 'נמחק') return 'deleted';
-  if (status === 'סגור') return 'archive';
+  if (isDeletedActivity(row)) return 'deleted';
+  if (isClosedActivity(row)) return 'archive';
   if (isSummerActivity(row)) return 'summer_2026';
+  if (!isActiveActivity(row)) return 'inactive';
   const start = normalizedActivityStartDate(row);
-  if (start >= '2026-09-01') return 'school_2027';
+  if (start >= '2027-01-01' && start <= '2027-12-31') return 'school_2027';
+  if (start >= '2026-01-01' && start <= '2026-12-31') return 'school_2026';
   return 'school_2026';
 }
 
@@ -171,9 +176,15 @@ function allActivitiesRows(rows, state = {}) {
   });
 }
 
+function shouldApplyActivitiesMonthFilter(state = {}) {
+  const tab = normalizeActivityPeriodTab(state.activityPeriodTab);
+  return tab === 'school_2026' || tab === 'school_2027';
+}
+
 function activityRowsForPeriodAndMonth(rows, state = {}) {
   if (isAllActivitiesMode(state)) return allActivitiesRows(rows, state);
   const periodRows = activityPeriodRows(rows, state.activityPeriodTab);
+  if (!shouldApplyActivitiesMonthFilter(state)) return periodRows;
   return periodRows.filter((row) => activityMatchesSelectedStartMonth(row, state.activitiesMonthYm));
 }
 
@@ -216,7 +227,7 @@ function activityPeriodTabsHtml(rows, activeKey, state = {}) {
   const safeActiveKey = normalizeActivityPeriodTab(activeKey);
   const counts = ACTIVITY_PERIOD_TABS.reduce((acc, tab) => ({ ...acc, [tab.key]: 0 }), {});
   ACTIVITY_PERIOD_TABS.forEach((tab) => {
-    counts[tab.key] = activityRowsForPeriodAndMonth(rows, { ...state, activityPeriodTab: tab.key }).length;
+    counts[tab.key] = activityPeriodRows(rows, tab.key).length;
   });
   const allCount = allActivitiesRows(rows, { allActivitiesStatusFilter: 'all' }).length;
   return `<div class="ds-activities-period-tabs" role="tablist" aria-label="תקופות פעילות" dir="rtl">
