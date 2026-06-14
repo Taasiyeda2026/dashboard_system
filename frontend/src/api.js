@@ -158,8 +158,8 @@ async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
   try {
-    const { data, error } = await supabase.from('activities').select('*');
-    if (error) throw new Error(error.message || 'activities_read_failed');
+    const { data, error } = await supabase.from('activities_directory_view').select('*');
+    if (error) throw new Error(error.message || 'activities_directory_view_read_failed');
     const rows = (Array.isArray(data) ? data : [])
       .map(normalizeActivityRow)
       .filter((row) => filters?.include_inactive ? true : !isActivityInactive(row))
@@ -409,7 +409,7 @@ async function readContactsFromSupabase() {
   try {
     const [instrResult, schoolResult] = await Promise.all([
       supabase.from('contacts_instructors').select('*'),
-      supabase.from('contacts_schools').select('*')
+      supabase.from('contacts_directory_view').select('*')
     ]);
     if (instrResult.error) {
       // eslint-disable-next-line no-console
@@ -418,7 +418,7 @@ async function readContactsFromSupabase() {
     }
     if (schoolResult.error) {
       // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load contacts_schools:', schoolResult.error);
+      console.error('[supabase] Failed to load contacts_directory_view:', schoolResult.error);
       return null;
     }
     const instructor_rows = Array.isArray(instrResult.data) ? instrResult.data : [];
@@ -1491,7 +1491,7 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,contact_school_id,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_type,authority_id,school_id,contact_school_id,authority,school,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,created_at,updated_at';
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -1609,8 +1609,14 @@ function normalizeProposalAgreementRow(row = {}) {
   const rawStatus = cleanProposalAgreementText(row.status);
   const normalized = {
     id:                  cleanProposalAgreementText(row.id),
-    client_authority:    cleanProposalAgreementText(row.client_authority),
-    school_framework:    cleanProposalAgreementText(row.school_framework),
+    client_type:         cleanProposalAgreementText(row.client_type),
+    authority_id:        row.authority_id ?? null,
+    school_id:           row.school_id ?? null,
+    contact_school_id:   row.contact_school_id ?? null,
+    authority:           cleanProposalAgreementText(row.authority),
+    school:              cleanProposalAgreementText(row.school),
+    client_authority:    cleanProposalAgreementText(row.client_authority || row.authority),
+    school_framework:    cleanProposalAgreementText(row.school_framework || row.school || row.authority),
     document_type:       cleanProposalAgreementText(row.document_type),
     activity_type_group: normalizeProposalGroupValue(row.activity_type_group),
     proposal_date:       cleanProposalAgreementText(row.proposal_date),
@@ -1735,9 +1741,16 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   const activity_names = normalizeProposalAgreementActivityNames(payload.activity_names);
   const rawStatus = cleanProposalAgreementText(payload.status);
   const rawGroup = cleanProposalAgreementText(payload.activity_type_group);
-  const clientAuthority = cleanProposalAgreementText(payload.client_authority);
-  const schoolFramework = cleanProposalAgreementText(payload.school_framework) || clientAuthority;
+  const clientType = cleanProposalAgreementText(payload.client_type) || (payload.school_id ? 'school' : 'authority');
+  const clientAuthority = cleanProposalAgreementText(payload.client_authority || payload.authority);
+  const schoolFramework = cleanProposalAgreementText(payload.school_framework || payload.school) || (clientType === 'other' ? cleanProposalAgreementText(payload.client_name) : clientAuthority);
   const row = {
+    client_type:         clientType,
+    authority_id:        payload.authority_id || null,
+    school_id:           clientType === 'school' ? (payload.school_id || null) : null,
+    contact_school_id:   payload.contact_school_id || null,
+    authority:           clientAuthority || null,
+    school:              schoolFramework || null,
     client_authority:    clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
@@ -1755,7 +1768,10 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     custom_document_sections: Array.isArray(payload.custom_document_sections) ? payload.custom_document_sections : [],
     include_catalog:     payload.include_catalog === true || payload.include_catalog === 'yes'
   };
-  const missing = ['client_authority', 'document_type', 'activity_type_group'].filter((key) => !row[key]);
+  const requiredKeys = clientType === 'other'
+    ? ['school_framework', 'document_type', 'activity_type_group']
+    : ['client_authority', 'document_type', 'activity_type_group'];
+  const missing = requiredKeys.filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
   return row;
 }
@@ -1914,13 +1930,16 @@ async function readContactsSchoolsForProposals() {
   try {
     const { data, error } = await supabase
       .from('contacts_schools')
-      .select('id,client_type,client_name,authority,school,contact_name,contact_role,phone,email,mobile')
+      .select('id,client_type,client_name,authority_id,school_id,semel_mosad,authority,school,contact_name,contact_role,phone,email,mobile')
       .order('authority', { ascending: true });
     if (error) return [];
     return (Array.isArray(data) ? data : []).map((c) => ({
       id:           cleanProposalAgreementText(c.id),
       client_type:  cleanProposalAgreementText(c.client_type),
       client_name:  cleanProposalAgreementText(c.client_name),
+      authority_id: c.authority_id ?? null,
+      school_id:    c.school_id ?? null,
+      semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
       authority:    cleanProposalAgreementText(c.authority),
       school:       cleanProposalAgreementText(c.school),
       contact_name: cleanProposalAgreementText(c.contact_name),
@@ -1937,7 +1956,7 @@ async function readProposalsAgreementsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
   const [paResult, contactOptions, rawProposalActivityPricing, proposalTemplateSections, proposalActivityGroups, proposalGroupAliases] = await Promise.all([
     supabase
-      .from('proposals_agreements')
+      .from('proposals_agreements_directory_view')
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
       .order('client_authority', { ascending: true })
       .order('school_framework', { ascending: true })
@@ -2460,6 +2479,9 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'activity_family',
   'activity_manager',
   'district',
+  'authority_id',
+  'school_id',
+  'semel_mosad',
   'authority',
   'school',
   'grade',
@@ -2599,9 +2621,28 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
   return sanitized;
 }
 
+async function saveActivitySchoolsForActivity(activityRow = {}, source = {}) {
+  const activityId = activityRow?.id || activityRow?.activity_id || null;
+  if (!activityId) return;
+  const rawSchools = Array.isArray(source?.school_ids) ? source.school_ids : (Array.isArray(source?.schools) ? source.schools : []);
+  const schoolIds = rawSchools
+    .map((item) => (item && typeof item === 'object') ? (item.school_id || item.id) : item)
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  const singleSchoolId = String(source?.school_id || activityRow?.school_id || '').trim();
+  if (singleSchoolId && !schoolIds.includes(singleSchoolId)) schoolIds.push(singleSchoolId);
+  const uniqueSchoolIds = [...new Set(schoolIds)];
+  if (!uniqueSchoolIds.length) return;
+  const rows = uniqueSchoolIds.map((schoolId) => ({ activity_id: activityId, school_id: schoolId }));
+  const { error } = await supabase.from('activity_schools').upsert(rows, { onConflict: 'activity_id,school_id' });
+  if (error) throw new Error(error.message || 'activity_schools_save_failed');
+}
+
 async function upsertActivityToSupabase(payload = {}) {
   const act = payload?.activity || payload || {};
   const row = sanitizeActivityPayloadForSupabase(synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(act)), { includeRowId: true });
+  const rawSchoolIds = Array.isArray(act.school_ids) ? act.school_ids.map((id) => String(id || '').trim()).filter(Boolean) : [];
+  if (rawSchoolIds.length > 1 && !act.school_id) row.school_id = null;
   const derivedEnd = deriveEndDateFromDates(row);
   const existingEndDate = normalizeDateFieldForSupabase(row.end_date);
   const startDate = normalizeDateFieldForSupabase(row.start_date);
@@ -2628,6 +2669,7 @@ async function upsertActivityToSupabase(payload = {}) {
     });
     throw buildSupabaseMutationError('addActivity', error, 'save_failed');
   }
+  await saveActivitySchoolsForActivity(data || row, act);
   const normalized = normalizeActivityRow(data || row);
   logActivityMutationDebug('success', 'addActivity', { source_sheet: 'activities', source_row_id: normalized.row_id, changes: row });
   return { RowID: normalized.RowID, row_id: normalized.row_id, source_sheet: 'activities', row: normalized };
@@ -3447,8 +3489,10 @@ export const api = {
     assertCanManageProposalsAgreementsApi();
     const groupLookup = await getProposalGroupLookup();
     const insert = sanitizeProposalAgreementPayload(payload, groupLookup);
-    const contactSchoolId = await ensureContactSchoolFromProposal({ ...insert, _contact_original: payload?._contact_original });
-    if (contactSchoolId != null) insert.contact_school_id = contactSchoolId;
+    if (!insert.contact_school_id) {
+      const contactSchoolId = await ensureContactSchoolFromProposal({ ...insert, _contact_original: payload?._contact_original });
+      if (contactSchoolId != null) insert.contact_school_id = contactSchoolId;
+    }
     const { data, error } = await supabase
       .from('proposals_agreements')
       .insert(insert)
@@ -3463,8 +3507,10 @@ export const api = {
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     const groupLookup = await getProposalGroupLookup();
     const patch = sanitizeProposalAgreementPayload(payload, groupLookup);
-    const contactSchoolId = await ensureContactSchoolFromProposal({ ...patch, _contact_original: payload?._contact_original });
-    if (contactSchoolId != null) patch.contact_school_id = contactSchoolId;
+    if (!patch.contact_school_id) {
+      const contactSchoolId = await ensureContactSchoolFromProposal({ ...patch, _contact_original: payload?._contact_original });
+      if (contactSchoolId != null) patch.contact_school_id = contactSchoolId;
+    }
     const { data, error } = await supabase
       .from('proposals_agreements')
       .update(patch)
@@ -3634,6 +3680,8 @@ export const api = {
       if (nextRow.role !== undefined && nextRow.contact_role === undefined) nextRow.contact_role = nextRow.role;
       delete nextRow.role;
       if (!nextRow.client_type) nextRow.client_type = 'school';
+      if (nextRow.client_type === 'authority') nextRow.school_id = null;
+      if (nextRow.client_type !== 'school') nextRow.semel_mosad = nextRow.semel_mosad || null;
       if (!nextRow.client_name) {
         nextRow.client_name = nextRow.client_type === 'authority'
           ? (nextRow.authority || null)
@@ -3677,6 +3725,9 @@ export const api = {
       const updateBody = {
         client_type:  clientType,
         client_name:  String(row.client_name || (clientType === 'authority' ? row.authority : row.school) || '').trim() || null,
+        authority_id: row.authority_id || null,
+        school_id:    clientType === 'school' ? (row.school_id || null) : null,
+        semel_mosad:  clientType === 'school' ? (String(row.semel_mosad || '').trim() || null) : null,
         authority:    String(row.authority    || '').trim() || null,
         school:       String(row.school       || '').trim() || null,
         contact_name: String(row.contact_name || '').trim() || null,
@@ -3703,6 +3754,9 @@ export const api = {
     const row = {
       client_type:  clientType,
       client_name:  String(payload.client_name || (clientType === 'authority' ? payload.authority : payload.school) || '').trim() || null,
+      authority_id: payload.authority_id || null,
+      school_id:    clientType === 'school' ? (payload.school_id || null) : null,
+      semel_mosad:  clientType === 'school' ? (String(payload.semel_mosad || '').trim() || null) : null,
       authority:    String(payload.authority    || '').trim() || null,
       school:       String(payload.school       || '').trim() || null,
       contact_name: String(payload.contact_name || '').trim() || null,
