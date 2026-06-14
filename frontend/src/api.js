@@ -6,6 +6,7 @@ import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared
 import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
 import { supabase, supabaseConfig, waitForSupabaseAuthSession } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
+import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
 
 /**
  * Actions that modify server-side data.
@@ -1964,10 +1965,9 @@ async function readProposalsAgreementsFromSupabase() {
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id,view_proposals_agreements,manage_proposals_agreements';
+const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements';
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
-const ROLES_WITH_DIRECT_EDIT = new Set(['admin', 'operation_manager']);
 
 const SUPABASE_ROLE_ROUTES = {
   admin: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists', 'certificates'],
@@ -1989,11 +1989,6 @@ function normalizeRoleAlias(role) {
 function normalizeSupabaseRole(role) {
   const normalized = normalizeRoleAlias(role);
   return VALID_SUPABASE_ROLES.has(normalized) ? normalized : 'authorized_user';
-}
-
-function permissionFlagYes(value) {
-  if (value === true || value === 1) return true;
-  return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
 }
 
 function canManagePersonalReportsUser(user = {}) {
@@ -2065,27 +2060,24 @@ function mergePersonalReportsProfileIntoFlatUser(flat, profileRow) {
   };
 }
 
-const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
-const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
-
-function currentActivityRole(user = state?.user || {}) {
-  return normalizeSupabaseRole(user?.display_role || user?.role || '');
-}
-
 function canDirectManageActivitiesUser(user = state?.user || {}) {
-  return permissionFlagYes(user?.can_edit_direct) || ACTIVITY_DIRECT_MANAGE_ROLES.has(currentActivityRole(user));
+  return canEditDirect(user);
 }
 
 function canAddActivitiesUser(user = state?.user || {}) {
-  return permissionFlagYes(user?.can_add_activity) || canDirectManageActivitiesUser(user);
+  return canAddActivityDirect(user);
 }
 
 function canSubmitActivityRequestsUser(user = state?.user || {}) {
-  return permissionFlagYes(user?.can_request_edit) || canDirectManageActivitiesUser(user) || ACTIVITY_REQUEST_ROLES.has(currentActivityRole(user));
+  return canRequestEdit(user);
+}
+
+function canSubmitCreateActivityRequestsUser(user = state?.user || {}) {
+  return canRequestCreateActivity(user);
 }
 
 function canReviewEditRequestsUser(user = state?.user || {}) {
-  return permissionFlagYes(user?.can_review_requests) || canDirectManageActivitiesUser(user);
+  return canReviewRequests(user);
 }
 
 function getLoginStatus(row) {
@@ -2140,6 +2132,7 @@ function flattenUserRow(userRow = {}) {
     active: userRow.is_active ? 'yes' : 'no',
     ...permissions
   };
+  if (userRow.can_review_requests != null) flat.can_review_requests = userRow.can_review_requests;
   if (userRow.view_proposals_agreements != null) flat.view_proposals_agreements = userRow.view_proposals_agreements;
   if (userRow.manage_proposals_agreements != null) flat.manage_proposals_agreements = userRow.manage_proposals_agreements;
   return flat;
@@ -2150,9 +2143,9 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   const role = normalizeSupabaseRole(flat.role);
   const allowedRoutes = [...(SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user)];
   const isBusinessDevelopmentManager = role === 'business_development_manager';
-  const canDirectManageActivities = permissionFlagYes(flat.can_edit_direct) || ACTIVITY_DIRECT_MANAGE_ROLES.has(role);
-  const canAddActivities = permissionFlagYes(flat.can_add_activity) || canDirectManageActivities;
-  const canRequestActivities = permissionFlagYes(flat.can_request_edit) || ACTIVITY_REQUEST_ROLES.has(role);
+  const canDirectManageActivities = canEditDirect(flat);
+  const canAddActivities = canAddActivityDirect(flat);
+  const canRequestActivities = canRequestEdit(flat);
   const hasFinanceAccess = isBusinessDevelopmentManager ? false : (role === 'finance' || permissionFlagYes(parsePermissions(userRow?.permissions).finance_access) || permissionFlagYes(parsePermissions(userRow?.permissions).view_finance));
   const financeIdx = allowedRoutes.indexOf('finance');
   if (hasFinanceAccess && financeIdx === -1) allowedRoutes.push('finance');
@@ -2167,8 +2160,8 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     permissionFlagYes(flat.manage_proposals_agreements)
   ) { if (!allowedRoutes.includes('proposals-agreements')) allowedRoutes.push('proposals-agreements'); }
   const canEditDirect = canDirectManageActivities;
-  const canRequestEdit = canDirectManageActivities || canRequestActivities;
-  const canReviewRequests = permissionFlagYes(flat.can_review_requests) || canDirectManageActivities;
+  const canRequestEdit = canRequestActivities;
+  const canReviewRequests = canReviewEditRequestsUser(flat);
   const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests) || allowedRoutes.includes('edit-requests');
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
@@ -2201,6 +2194,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     can_add_activity: canAddActivities,
     can_edit_direct: canEditDirect,
     can_request_edit: canRequestEdit,
+    can_request_create_activity: canRequestCreateActivity(flat),
     can_review_requests: canReviewRequests,
     client_settings: {}
   };

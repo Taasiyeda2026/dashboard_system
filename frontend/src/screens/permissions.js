@@ -8,7 +8,10 @@ const KEY_PERM_FLAGS = [
   'can_add_activity',
   'can_edit_direct',
   'can_request_edit',
+  'can_request_edit_2',
+  'can_request_create_activity',
   'can_review_requests',
+  'can_review_requests_2',
   'view_admin',
   'view_permissions',
   'view_catalog',
@@ -258,7 +261,7 @@ function buildPermissionsDetailsHtml(row) {
   const keys = sortedPermissionEditorKeys(row).filter((k) => k.startsWith('view_') || k.startsWith('can_'));
   const groups = [
     { label: 'לוח בקרה', keys: ['view_admin'] },
-    { label: 'פעילויות', keys: ['view_activities', 'can_add_activity', 'can_edit_direct', 'can_request_edit', 'can_review_requests'] },
+    { label: 'פעילויות', keys: ['view_activities', 'can_add_activity', 'can_edit_direct', 'can_request_edit', 'can_request_edit_2', 'can_request_create_activity', 'can_review_requests', 'can_review_requests_2'] },
     { label: 'קטלוג', keys: ['view_catalog'] },
     { label: 'הזמנות', keys: ['view_orders'] },
     { label: 'ארכיון', keys: ['view_archive'] },
