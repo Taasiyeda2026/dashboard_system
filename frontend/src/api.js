@@ -3168,6 +3168,7 @@ export const api = {
         user_id: flat.user_id,
         username: flat.username,
         email: String(user.email || '').trim(),
+        role: flat.role,
         display_role: flat.role,
         display_role_label: flat.display_role_label,
         display_role2: flat.display_role2,
