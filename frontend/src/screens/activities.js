@@ -56,6 +56,14 @@ const ACTIVITY_PERIOD_TABS = [
 const DEFAULT_ACTIVITY_PERIOD_TAB = 'school_2026';
 const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'closed', 'deleted', 'inactive']);
 const ACTIVITY_LAYOUT_SEASON = 'summer_2026';
+const ACTIVITIES_ACCESS_ROLES = new Set([
+  'operation_manager',
+  'domain_manager',
+  'activities_manager',
+  'instructor_manager',
+  'business_development_manager'
+]);
+const ACTIVITY_LAYOUT_ALLOWED_ROLES = ACTIVITIES_ACCESS_ROLES;
 
 function canDirectManageActivities(state) {
   return canEditDirect(state?.user);
@@ -132,6 +140,57 @@ function activityPeriodTabsHtml(rows, activeKey) {
 
 function isAdminUser(state) {
   return state?.user?.display_role === 'admin' || state?.user?.role === 'admin';
+}
+
+function permissionFlagYes(value) {
+  if (value === true || value === 1) return true;
+  return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
+}
+
+function currentUserRoutes(state) {
+  if (Array.isArray(state?.user?.routes)) return state.user.routes;
+  if (Array.isArray(state?.effectiveRoutes)) return state.effectiveRoutes;
+  return Array.isArray(state?.routes) ? state.routes : [];
+}
+
+export function getActivitiesAccessDebug(state = {}) {
+  const currentUser = state?.user || {};
+  const role = String(currentUser.display_role || currentUser.role || '').trim();
+  const permissions = currentUser.permissions && typeof currentUser.permissions === 'object' ? currentUser.permissions : {};
+  const routes = currentUserRoutes(state);
+  const hasActivitiesAccess =
+    role === 'admin' ||
+    ACTIVITIES_ACCESS_ROLES.has(role) ||
+    permissionFlagYes(currentUser.view_activities ?? permissions.view_activities) ||
+    routes.includes('activities');
+  const deniedReasons = [];
+  if (!hasActivitiesAccess) {
+    deniedReasons.push('role is not admin or an allowed activities role');
+    deniedReasons.push('permissions.view_activities is not yes');
+    deniedReasons.push('user.routes/state routes do not include activities');
+  }
+  return {
+    currentUser,
+    username: currentUser.username,
+    role,
+    permissions,
+    routes,
+    hasActivitiesAccess,
+    reasonDenied: deniedReasons.join('; ')
+  };
+}
+
+function logActivitiesAccess(state) {
+  const debug = getActivitiesAccessDebug(state);
+  console.info('[activities-access]', {
+    username: debug.username,
+    role: debug.role,
+    permissions: debug.permissions,
+    routes: debug.routes,
+    hasActivitiesAccess: debug.hasActivitiesAccess,
+    reasonDenied: debug.reasonDenied
+  });
+  return debug;
 }
 
 function normalizeAdminSummaryText(value) {
@@ -1208,6 +1267,11 @@ export const activitiesScreen = {
   },
 
   render(data, { state }) {
+    const accessDebug = logActivitiesAccess(state);
+    if (!accessDebug.hasActivitiesAccess) {
+      return dsScreenStack(dsEmptyState('אין הרשאה לצפייה בעמוד פעילויות.'));
+    }
+
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();

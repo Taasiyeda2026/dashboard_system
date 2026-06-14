@@ -661,6 +661,40 @@ function effectiveRoutes() {
   return Array.isArray(state.routes) ? state.routes : [];
 }
 
+const ACTIVITIES_ACCESS_ROLES = new Set([
+  'operation_manager',
+  'domain_manager',
+  'activities_manager',
+  'instructor_manager',
+  'business_development_manager'
+]);
+
+function currentUserRoutesForAccess() {
+  if (Array.isArray(state?.user?.routes)) return state.user.routes;
+  return effectiveRoutes();
+}
+
+function hasActivitiesRouteAccess() {
+  const user = state?.user || {};
+  const permissions = user.permissions && typeof user.permissions === 'object' ? user.permissions : {};
+  const role = String(user.display_role || user.role || '').trim();
+  const routes = currentUserRoutesForAccess();
+  const hasActivitiesAccess =
+    role === 'admin' ||
+    ACTIVITIES_ACCESS_ROLES.has(role) ||
+    permissionEnabled(user.view_activities ?? permissions.view_activities) ||
+    routes.includes('activities');
+  console.info('[activities-access]', {
+    username: user.username,
+    role,
+    permissions,
+    routes,
+    hasActivitiesAccess,
+    reasonDenied: hasActivitiesAccess ? '' : 'role/permissions/routes do not allow activities'
+  });
+  return hasActivitiesAccess;
+}
+
 /**
  * Routes that are permanently disabled regardless of user permissions.
  * Any attempt to navigate to these is silently redirected to dashboard (or the first allowed route).
@@ -675,6 +709,7 @@ function redirectIfDisabledRoute() {
 
 function isAllowedRoute(route) {
   if (PERMANENTLY_DISABLED_ROUTES.has(route)) return false;
+  if (route === 'activities' && hasActivitiesRouteAccess()) return true;
   return !!route && effectiveRoutes().includes(route);
 }
 
@@ -1507,6 +1542,10 @@ function applyBootstrapUserFlags(bootstrap) {
   state.user.profile_is_active = bootstrap.profile_is_active !== false;
   state.user.can_access_personal_reports = !!bootstrap.has_personal_reports_access;
   state.user.personal_reports_manager = !!bootstrap.has_personal_reports_manager;
+  if (hasActivitiesRouteAccess() && !state.effectiveRoutes.includes('activities')) {
+    state.effectiveRoutes = [...state.effectiveRoutes, 'activities'];
+    state.routes = state.effectiveRoutes;
+  }
   localStorage.setItem('dashboard_user', JSON.stringify(state.user));
 }
 

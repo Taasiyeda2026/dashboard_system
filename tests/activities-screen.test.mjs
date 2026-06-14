@@ -22,7 +22,7 @@ if (!globalThis.localStorage) {
   };
 }
 
-const { activitiesScreen } = await import('../frontend/src/screens/activities.js');
+const { activitiesScreen, getActivitiesAccessDebug } = await import('../frontend/src/screens/activities.js');
 
 function baseState() {
   return {
@@ -109,6 +109,46 @@ test('activities render: admin sees compact Excel export but no admin summary bu
   assert.doesNotMatch(html, /ייצוא כל הפעילויות לאקסל<\/button>/);
 });
 
+test('activities access: admin idann can view without edit or add permissions', () => {
+  const state = baseState();
+  state.user = {
+    username: 'idann',
+    display_role: 'admin',
+    role: 'admin',
+    permissions: { view_activities: 'yes' },
+    can_review_requests: true,
+    can_edit_direct: false,
+    can_add_activity: false
+  };
+  const debug = getActivitiesAccessDebug(state);
+  assert.equal(debug.hasActivitiesAccess, true);
+  assert.equal(debug.reasonDenied, '');
+  const html = activitiesScreen.render({ rows: [] }, { state });
+  assert.doesNotMatch(html, /אין הרשאה/);
+});
+
+test('activities access: view permission and activities route allow viewing without add/edit permissions', () => {
+  const permittedByPermission = baseState();
+  permittedByPermission.user = {
+    display_role: 'authorized_user',
+    role: 'authorized_user',
+    permissions: { view_activities: 'yes' },
+    can_edit_direct: false,
+    can_add_activity: false
+  };
+  assert.equal(getActivitiesAccessDebug(permittedByPermission).hasActivitiesAccess, true);
+
+  const permittedByRoute = baseState();
+  permittedByRoute.user = {
+    display_role: 'authorized_user',
+    role: 'authorized_user',
+    routes: ['activities'],
+    can_edit_direct: false,
+    can_add_activity: false
+  };
+  assert.equal(getActivitiesAccessDebug(permittedByRoute).hasActivitiesAccess, true);
+});
+
 test('activities render: non-admin does not see admin toolbar buttons', () => {
   const state = baseState();
   state.user = { display_role: 'authorized_user', role: 'authorized_user', can_add_activity: false };
@@ -121,7 +161,7 @@ test('activities render: non-admin does not see admin toolbar buttons', () => {
 
 test('activities render: operation_manager sees add activity button', () => {
   const state = baseState();
-  state.user = { display_role: 'operation_manager', role: 'operation_manager', can_add_activity: false };
+  state.user = { display_role: 'operation_manager', role: 'operation_manager', can_add_activity: true };
   const html = activitiesScreen.render({ rows: [] }, { state });
   assert.match(html, /data-activities-add-btn/);
 });
