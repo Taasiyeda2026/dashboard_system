@@ -80,6 +80,8 @@ const READ_ACTIONS = {
 const API_TIMEOUT_MS_READ = 20000;
 const API_TIMEOUT_MS_WRITE = 45000;
 const PERF_MAX_REQUESTS = 150;
+const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
+const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
 /** Logs direct heavy reads for performance diagnostics. */
 const HEAVY_GUARDED_READ_ACTIONS = new Set([
   'dashboardSnapshot',
@@ -3243,8 +3245,8 @@ export const api = {
     return normalizeData(buildSupabaseErrorPayload({ rows: [] }, 'activities_supabase_failed', { filters: resolvedFilters }));
   },
   activityLayoutStatuses: async (payload = {}) => {
-    const role = String(state?.user?.display_role || state?.user?.role || '').trim();
-    if (!['admin', 'operation_manager'].includes(role)) throw new Error('activity_layout_forbidden');
+    const role = String(state?.user?.role || '').trim();
+    if (!ACTIVITY_DIRECT_MANAGE_ROLES.has(role)) throw new Error('activity_layout_forbidden');
     const season = String(payload?.season || 'summer_2026').trim() || 'summer_2026';
     const { data, error } = await supabase
       .from('activity_layout_statuses')
@@ -3254,8 +3256,8 @@ export const api = {
     return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
   saveActivityLayoutStatus: async (payload = {}) => {
-    const role = String(state?.user?.display_role || state?.user?.role || '').trim();
-    if (!['admin', 'operation_manager'].includes(role)) throw new Error('activity_layout_forbidden');
+    const role = String(state?.user?.role || '').trim();
+    if (!ACTIVITY_DIRECT_MANAGE_ROLES.has(role)) throw new Error('activity_layout_forbidden');
     const row = {
       season: String(payload?.season || 'summer_2026').trim() || 'summer_2026',
       authority: String(payload?.authority || '').trim(),
@@ -3282,7 +3284,7 @@ export const api = {
     const weekOffset = Number.parseInt(resolved.week_offset, 10);
     const offset = Number.isFinite(weekOffset) ? weekOffset : 0;
     const payload = await readWeekFromSupabase(offset);
-    return String(state?.user?.display_role || '') === 'instructor'
+    return String(state?.user?.role || '') === 'instructor'
       ? filterCalendarPayloadForInstructor(payload)
       : payload;
   },
@@ -3293,7 +3295,7 @@ export const api = {
     const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const ym = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
     const payload = await readMonthFromSupabase(ym);
-    return String(state?.user?.display_role || '') === 'instructor'
+    return String(state?.user?.role || '') === 'instructor'
       ? filterCalendarPayloadForInstructor(payload)
       : payload;
   },
@@ -3727,7 +3729,7 @@ export const api = {
     return upsertActivityToSupabase(payload);
   },
   submitCreateActivityRequest: async (activity) => {
-    if (!canSubmitActivityRequestsUser()) throw new Error('forbidden_create_activity_request');
+    if (!canSubmitCreateActivityRequestsUser()) throw new Error('forbidden_create_activity_request');
     const currentUser = state?.user || {};
     const requestedPayload = sanitizeActivityPayloadForSupabase(
       synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(activity || {})),
@@ -3762,7 +3764,7 @@ export const api = {
     const payload = (b !== undefined && b !== null)
       ? { source_row_id: a, changes: b }
       : a;
-    const userRole = String(state?.user?.display_role || state?.user?.role || '').trim();
+    const userRole = String(state?.user?.role || '').trim();
     const canEditDirect = canDirectManageActivitiesUser();
     if (!canEditDirect && canSubmitActivityRequestsUser()) {
       // eslint-disable-next-line no-console
@@ -3779,8 +3781,8 @@ export const api = {
   deleteActivity: async (source_row_id) => {
     const rowId = String(source_row_id || '').trim();
     if (!rowId) throw new Error('missing_row_id');
-    const role = String(state?.user?.display_role || state?.user?.role || '').trim();
-    if (!['admin', 'operation_manager'].includes(role)) throw new Error('forbidden_delete_activity');
+    const role = String(state?.user?.role || '').trim();
+    if (!ACTIVITY_DIRECT_MANAGE_ROLES.has(role)) throw new Error('forbidden_delete_activity');
     const { data, error } = await supabase
       .from('activities')
       .update({ status: DELETED_STATUS })
