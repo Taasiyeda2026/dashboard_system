@@ -306,16 +306,16 @@ test('activities period tabs split rows by start_date and default to school 2026
 
   assert.match(html, /data-activity-period-tab="school_2026"[\s\S]*תשפ״ו \/ 2026[\s\S]*<strong>1<\/strong>/);
   assert.match(html, /aria-selected="true" data-activity-period-tab="school_2026"/);
-  assert.match(html, /data-activity-period-tab="school_2027"[\s\S]*<strong>1<\/strong>/);
-  assert.match(html, /data-activity-period-tab="archive"[\s\S]*<strong>1<\/strong>/);
+  assert.match(html, /data-activity-period-tab="school_2027"[\s\S]*<strong>0<\/strong>/);
+  assert.match(html, /data-activity-period-tab="archive"[\s\S]*<strong>0<\/strong>/);
   assert.match(html, /פעילות יוני/);
   assert.doesNotMatch(html, /פעילות יולי/);
   assert.doesNotMatch(html, /פעילות ספטמבר/);
   assert.doesNotMatch(html, /פעילות סגורה/);
-  assert.doesNotMatch(html, /כל הפעילויות/);
+  assert.match(html, /data-activity-period-tab="all_activities"[\s\S]*כל הפעילויות/);
 });
 
-test('activities summer tab opens on first dated summer month and counts all active summer rows', () => {
+test('activities summer tab opens on first dated summer month and filters rows by start_date month', () => {
   const state = baseState();
   state.activityPeriodTab = 'summer_2026';
   state.activitiesMonthYm = '2026-06';
@@ -331,11 +331,11 @@ test('activities summer tab opens on first dated summer month and counts all act
   const html = activitiesScreen.render(data, { state });
 
   assert.equal(state.activitiesMonthYm, '2026-07');
-  assert.match(html, /data-activity-period-tab="summer_2026"[\s\S]*<strong>2<\/strong>/);
-  assert.match(html, /ניהול פעילויות · יולי · 2 פעילויות/);
+  assert.match(html, /data-activity-period-tab="summer_2026"[\s\S]*<strong>1<\/strong>/);
+  assert.match(html, /ניהול פעילויות · יולי · 1 פעילויות/);
   assert.match(html, /פעילות יולי/);
-  assert.match(html, /פעילות קיץ ללא תאריך/);
-  assert.match(html, /דורש שיבוץ תאריך/);
+  assert.doesNotMatch(html, /פעילות קיץ ללא תאריך/);
+  assert.doesNotMatch(html, /דורש שיבוץ תאריך/);
   assert.doesNotMatch(html, /פעילות קיץ מבוטלת/);
   assert.doesNotMatch(html, /פעילות רגילה ביולי/);
 });
@@ -358,7 +358,8 @@ test('activities summer month initialization does not override manual summer nav
   state.activitiesMonthYm = '2026-08';
   const html = activitiesScreen.render(data, { state });
   assert.equal(state.activitiesMonthYm, '2026-08');
-  assert.match(html, /ניהול פעילויות · אוגוסט · 1 פעילויות/);
+  assert.match(html, /ניהול פעילויות · אוגוסט · 0 פעילויות/);
+  assert.doesNotMatch(html, /פעילות יולי/);
 });
 
 test('activities selected month drives title, count and table rows', () => {
@@ -374,19 +375,65 @@ test('activities selected month drives title, count and table rows', () => {
   };
 
   const mayHtml = activitiesScreen.render(data, { state });
-  assert.match(mayHtml, /ניהול פעילויות · מאי · 2 פעילויות/);
+  assert.match(mayHtml, /ניהול פעילויות · מאי · 3 פעילויות/);
   assert.match(mayHtml, /פעילות מאי/);
   assert.match(mayHtml, /פעילות חוצה חודשים/);
   assert.doesNotMatch(mayHtml, /פעילות יוני/);
-  assert.doesNotMatch(mayHtml, /מפגש יוני/);
+  assert.match(mayHtml, /מפגש יוני/);
 
   state.activitiesMonthYm = '2026-06';
   const juneHtml = activitiesScreen.render(data, { state });
-  assert.match(juneHtml, /ניהול פעילויות · יוני · 3 פעילויות/);
+  assert.match(juneHtml, /ניהול פעילויות · יוני · 1 פעילויות/);
   assert.doesNotMatch(juneHtml, /פעילות מאי/);
   assert.match(juneHtml, /פעילות יוני/);
-  assert.match(juneHtml, /פעילות חוצה חודשים/);
-  assert.match(juneHtml, /מפגש יוני/);
+  assert.doesNotMatch(juneHtml, /פעילות חוצה חודשים/);
+  assert.doesNotMatch(juneHtml, /מפגש יוני/);
+});
+
+
+test('activities all activities mode ignores month/period filters and supports status filters', () => {
+  const state = baseState();
+  state.activityPeriodTab = 'all_activities';
+  state.activitiesMonthYm = '2026-06';
+  const data = {
+    rows: [
+      { RowID: 'summer_july_1', row_id: 'summer_july_1', activity_name: 'פעילות קיץ', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-07-01', status: 'פתוח', emp_id: 'E1', single_semel_mosad: '111' },
+      { RowID: 'SCHOOL-MAY', row_id: 'SCHOOL-MAY', activity_name: 'פעילות מאי', activity_type: 'course', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-05-10', status: 'פתוח', emp_id: 'E2', single_semel_mosad: '222' },
+      { RowID: 'ARCHIVE-CLOSED', row_id: 'ARCHIVE-CLOSED', activity_name: 'פעילות סגורה', activity_type: 'course', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-03-01', status: 'סגור', emp_id: 'E3', single_semel_mosad: '333' },
+      { RowID: 'UNDATED-OPEN', row_id: 'UNDATED-OPEN', activity_name: 'פעילות ללא תאריך', activity_type: 'tour', authority: 'רשות ד', school: 'בית ספר ד', start_date: '', status: 'פתוח', emp_id: 'E4', single_semel_mosad: '444' },
+      { RowID: 'DELETED-1', row_id: 'DELETED-1', activity_name: 'פעילות נמחקה', activity_type: 'tour', authority: 'רשות ה', school: 'בית ספר ה', start_date: '2026-06-01', status: 'נמחק', emp_id: 'E5', single_semel_mosad: '555' }
+    ]
+  };
+
+  const html = activitiesScreen.render(data, { state });
+
+  assert.match(html, /data-activity-period-tab="all_activities"/);
+  assert.match(html, /חיפוש בכל הפעילויות · 4 פעילויות/);
+  assert.doesNotMatch(html, /data-activities-month-prev/);
+  assert.match(html, /פעילות קיץ/);
+  assert.match(html, /פעילות מאי/);
+  assert.match(html, /פעילות סגורה/);
+  assert.match(html, /פעילות ללא תאריך/);
+  assert.doesNotMatch(html, /פעילות נמחקה/);
+  assert.match(html, /data-all-activities-status-filter/);
+  assert.match(html, /חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד/);
+
+  state.allActivitiesStatusFilter = 'closed';
+  const closedHtml = activitiesScreen.render(data, { state });
+  assert.match(closedHtml, /חיפוש בכל הפעילויות · 1 פעילויות/);
+  assert.match(closedHtml, /פעילות סגורה/);
+  assert.doesNotMatch(closedHtml, /פעילות קיץ/);
+
+  state.allActivitiesStatusFilter = 'undated';
+  const undatedHtml = activitiesScreen.render(data, { state });
+  assert.match(undatedHtml, /חיפוש בכל הפעילויות · 1 פעילויות/);
+  assert.match(undatedHtml, /פעילות ללא תאריך/);
+  assert.doesNotMatch(undatedHtml, /פעילות נמחקה/);
+
+  state.allActivitiesStatusFilter = 'include_deleted';
+  const includeDeletedHtml = activitiesScreen.render(data, { state });
+  assert.match(includeDeletedHtml, /חיפוש בכל הפעילויות · 5 פעילויות/);
+  assert.match(includeDeletedHtml, /פעילות נמחקה/);
 });
 
 test('activities month navigation updates the single selected month state and rerenders RTL title/table', async () => {
@@ -546,7 +593,7 @@ test('admin all-activities Excel export is imported and logs failures', async ()
   const source = await fs.readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
   assert.match(source, /import \{ exportActivitiesToExcel \} from '\.\/shared\/excel-export\.js';/);
   assert.match(source, /data-activities-export-all/);
-  assert.match(source, /const rows = activityPeriodRows/);
+  assert.match(source, /const rows = isAllActivitiesMode\(state\) \? allActivitiesRows\(sourceRows, state\) : activityPeriodRows/);
   assert.match(source, /catch \(err\) \{[\s\S]*console\.error\('Failed to export all activities to Excel', err\);/);
 });
 
