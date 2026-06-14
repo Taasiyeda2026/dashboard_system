@@ -1,10 +1,10 @@
 {
-  "id": "./",
+  "id": "/dashboard_system/",
   "name": "Dashboard-Taasiyeda",
   "short_name": "Dashboard-Taasiyeda",
   "description": "מערכת ניהול פנימית לפעילויות, הרשאות ותפעול.",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/dashboard_system/",
+  "scope": "/dashboard_system/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#111827",
@@ -17,25 +17,25 @@
   ],
   "icons": [
     {
-      "src": "./assets/pwa/icon-192.png",
+      "src": "/dashboard_system/assets/pwa/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./assets/pwa/icon-512.png",
+      "src": "/dashboard_system/assets/pwa/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./assets/pwa/icon-maskable-512.png",
+      "src": "/dashboard_system/assets/pwa/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "./assets/apple-touch-icon.png",
+      "src": "/dashboard_system/assets/apple-touch-icon.png",
       "sizes": "180x180",
       "type": "image/png",
       "purpose": "any"

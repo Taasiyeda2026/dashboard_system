@@ -74,6 +74,19 @@ if (typeof window !== 'undefined') {
 }
 
 
+function logRuntimePermissionSnapshot(source) {
+  if (typeof console === 'undefined') return;
+  const user = state?.user || {};
+  console.info('[runtime-permissions]', {
+    source,
+    role: user.role,
+    can_edit_direct: !!user.can_edit_direct,
+    can_request_edit: !!user.can_request_edit,
+    can_add_activity: !!user.can_add_activity,
+    can_request_create_activity: !!user.can_request_create_activity
+  });
+}
+
 function clearStaleBuildStorageIfNeeded() {
   if (typeof localStorage === 'undefined') return;
   const key = 'dashboard_build_version';
@@ -1549,7 +1562,9 @@ function applyBootstrapUserFlags(bootstrap) {
     state.routes = state.effectiveRoutes;
   }
   localStorage.setItem('dashboard_user', JSON.stringify(state.user));
+  logRuntimePermissionSnapshot('bootstrap');
 }
+
 
 async function prepareAuthenticatedSupabaseSession() {
   if (!state.token) {
