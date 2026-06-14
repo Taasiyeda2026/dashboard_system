@@ -95,14 +95,13 @@ test('only a valid start_date removes missing_start_date automatically', () => {
   assert.equal(rowExceptionTypesFromActivity(activeCourse({ start_date: '', date_1: '2026-05-10' })).includes('missing_start_date'), true);
 });
 
-test('activity_season defaults to regular and isSummerActivity uses only season or start_date', () => {
+test('activity_season defaults to regular and isSummerActivity uses summer row_id with active status only', () => {
   assert.equal(activeCourse({ activity_season: '' }).activity_season, 'regular');
-  assert.equal(isSummerActivity(activeCourse({ activity_season: 'summer_2026', start_date: '' })), true);
-  assert.equal(isSummerActivity(activeCourse({ activity_season: 'summer', start_date: '' })), true);
-  assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-07-01' })), true);
-  assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-08-31' })), true);
-  assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-06-30', notes: 'קיץ' })), false);
-  assert.equal(isSummerActivity(activeCourse({ activity_season: 'regular', start_date: '2026-09-01' })), false);
+  assert.equal(isSummerActivity(activeCourse({ RowID: 'summer_001', activity_season: '', start_date: '' })), true);
+  assert.equal(isSummerActivity(activeCourse({ row_id: 'summer_002', activity_season: 'regular', start_date: '2026-06-30' })), true);
+  assert.equal(isSummerActivity(activeCourse({ RowID: 'A-1', activity_season: 'summer_2026', start_date: '2026-07-01' })), false);
+  assert.equal(isSummerActivity(activeCourse({ RowID: 'summer_003', status: 'בוטל' })), false);
+  assert.equal(isSummerActivity(activeCourse({ RowID: 'summer_004', status: 'נמחק' })), false);
 });
 
 test('end_date_out_of_sync is computed from latest date_1..date_35', () => {

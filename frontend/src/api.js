@@ -259,8 +259,11 @@ function isActivityClosed(row) {
 function isActivityDeleted(row) {
   return String(row?.status || '').trim() === DELETED_STATUS;
 }
+function isActivityCancelled(row) {
+  return String(row?.status || '').trim() === 'בוטל';
+}
 function isActivityInactive(row) {
-  return isActivityClosed(row) || isActivityDeleted(row);
+  return isActivityClosed(row) || isActivityDeleted(row) || isActivityCancelled(row);
 }
 
 function isProgramActivity(row) {
@@ -1500,7 +1503,7 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_type,authority_id,school_id,contact_school_id,authority,school,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,authority,school,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,created_at,updated_at';
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -1618,7 +1621,7 @@ function normalizeProposalAgreementRow(row = {}) {
   const rawStatus = cleanProposalAgreementText(row.status);
   const normalized = {
     id:                  cleanProposalAgreementText(row.id),
-    client_type:         cleanProposalAgreementText(row.client_type),
+    client_type:         cleanProposalAgreementText(row.client_type) || (row.school_id ? 'school' : 'authority'),
     authority_id:        row.authority_id ?? null,
     school_id:           row.school_id ?? null,
     contact_school_id:   row.contact_school_id ?? null,

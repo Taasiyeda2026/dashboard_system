@@ -1,5 +1,7 @@
 const SUMMER_START_DATE = '2026-07-01';
 const SUMMER_END_DATE = '2026-08-31';
+const SUMMER_ROW_ID_PREFIX = 'summer_';
+const EXCLUDED_SUMMER_STATUSES = new Set(['בוטל', 'נמחק']);
 export const SUMMER_DEFAULT_MONTH_YM = SUMMER_START_DATE.slice(0, 7);
 export const ACTIVITY_SEASON_REGULAR = 'regular';
 export const ACTIVITY_SEASON_SUMMER_2026 = 'summer_2026';
@@ -35,9 +37,7 @@ export function activitySeasonLabel(value) {
 }
 
 export function isSummerActivity(activity = {}) {
-  if (normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason) === ACTIVITY_SEASON_SUMMER_2026) {
-    return true;
-  }
-  const startDate = normalizedDateText(activity?.start_date || activity?.date_start);
-  return startDate >= SUMMER_START_DATE && startDate <= SUMMER_END_DATE;
+  const rowId = String(activity?.row_id ?? activity?.RowID ?? activity?.id ?? '').trim().toLowerCase();
+  const status = String(activity?.status || '').trim();
+  return rowId.startsWith(SUMMER_ROW_ID_PREFIX) && !EXCLUDED_SUMMER_STATUSES.has(status);
 }

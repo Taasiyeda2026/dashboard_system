@@ -39,7 +39,7 @@ import {
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
-import { ACTIVITY_SEASON_OPTIONS, normalizeActivitySeason } from './shared/summer-activity.js';
+import { ACTIVITY_SEASON_OPTIONS, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
@@ -107,8 +107,7 @@ function activityPeriodKey(row = {}) {
   const status = String(row?.status || '').trim();
   if (status === 'נמחק') return 'deleted';
   if (status === 'סגור') return 'archive';
-  const season = String(row?.activity_season || '').trim();
-  if (season === 'summer_2026') return 'summer_2026';
+  if (isSummerActivity(row)) return 'summer_2026';
   const start = normalizedActivityStartDate(row);
   if (start >= '2026-09-01') return 'school_2027';
   return 'school_2026';
