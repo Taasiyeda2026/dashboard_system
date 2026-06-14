@@ -1374,6 +1374,64 @@ test('catalog PDF appendices use fixed workshop/tour PDFs and specific selected 
 });
 
 
+test('course item details table separates quantity, unit group price, and quantity total', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: 'course-price-breakdown-row',
+    activity_type_group: 'שנת הלימודים תשפ״ז',
+    proposal_date: '2026-06-01'
+  };
+  const items = [{
+    item_name: 'קורס רובוטיקה',
+    item_type: 'קורס',
+    proposal_group: 'שנת הלימודים תשפ״ז',
+    gefen_number: '9545',
+    meetings_count: 10,
+    hours_count: 20,
+    hourly_price: 450,
+    quantity: 2,
+    unit_price: 9000,
+    total_price: 18000
+  }];
+
+  await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
+    const itemDetailsTable = dom.window.document.querySelector('.pa-item-details-table');
+    assert.ok(itemDetailsTable, 'course item details table should render');
+    const headers = [...itemDetailsTable.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+    assert.deepEqual(headers.slice(-3), ['כמות', 'מחיר לקורס / קבוצה אחת', 'סה״כ לפי כמות']);
+    const cells = [...itemDetailsTable.querySelectorAll('tbody td')].map((td) => td.textContent.trim());
+    assert.equal(cells.at(-3), '2');
+    assert.equal(cells.at(-2), '9,000 ₪');
+    assert.equal(cells.at(-1), '18,000 ₪');
+  });
+});
+
+test('course item details table calculates quantity total when total price is empty', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: 'course-price-breakdown-fallback-row',
+    activity_type_group: 'שנת הלימודים תשפ״ז',
+    proposal_date: '2026-06-01'
+  };
+  const items = [{
+    item_name: 'קורס רובוטיקה',
+    item_type: 'קורס',
+    proposal_group: 'שנת הלימודים תשפ״ז',
+    gefen_number: '9545',
+    meetings_count: 10,
+    quantity: 2,
+    unit_price: 9000,
+    total_price: ''
+  }];
+
+  await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
+    const cells = [...dom.window.document.querySelectorAll('.pa-item-details-table tbody td')].map((td) => td.textContent.trim());
+    assert.equal(cells.at(-3), '2');
+    assert.equal(cells.at(-2), '9,000 ₪');
+    assert.equal(cells.at(-1), '18,000 ₪');
+  });
+});
+
 test('print flow does not prompt for or embed catalog appendices', async () => {
   const row = {
     ...sampleRows[0],

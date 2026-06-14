@@ -1183,11 +1183,15 @@ function proposalCostTableHtml(items = []) {
 }
 
 
-function itemGroupPrice(item = {}) {
-  const quantity = Number(item.quantity) || 1;
+function itemQuantity(item = {}) {
+  return Number(item.quantity) || 1;
+}
+
+function itemQuantityTotal(item = {}) {
+  const quantity = itemQuantity(item);
   const unitPrice = numberValue(item.unit_price);
   const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
-  return total != null && total > 0 ? total : unitPrice;
+  return total != null && total > 0 ? total : null;
 }
 
 function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
@@ -1199,20 +1203,25 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       text(item.gefen_number) || item.meetings_count != null || item.hours_count != null || item.hourly_price != null
     );
     if (!hasPedagogicPricingData) return '';
+    const quantity = itemQuantity(item);
+    const unitPrice = numberValue(item.unit_price);
+    const quantityTotal = itemQuantityTotal(item);
     const cells = [
       publicActivityName(item.item_name),
       shouldShowGefenForItem(item, contextGroup) ? text(item.gefen_number) : '',
       item.meetings_count != null ? formatCurrency(item.meetings_count) : '',
       item.hours_count != null ? formatCurrency(item.hours_count) : '',
       item.hourly_price != null ? `${formatCurrency(item.hourly_price)} ₪` : '',
-      itemGroupPrice(item) != null ? `${formatCurrency(itemGroupPrice(item))} ₪` : ''
+      formatCurrency(quantity),
+      unitPrice != null ? `${formatCurrency(unitPrice)} ₪` : '',
+      quantityTotal != null ? `${formatCurrency(quantityTotal)} ₪` : ''
     ];
     if (!cells.some(Boolean)) return '';
     return `<tr>${cells.map((cell) => `<td>${escapeHtml(cell || '—')}</td>`).join('')}</tr>`;
   }).filter(Boolean);
   if (!rows.length) return '';
   return `<table class="pa-item-details-table">
-    <thead><tr><th>תוכנית / פעילות</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>שעות</th><th>עלות לשעה</th><th>מחיר לקבוצה</th></tr></thead>
+    <thead><tr><th>תוכנית / פעילות</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>שעות</th><th>עלות לשעה</th><th>כמות</th><th>מחיר לקורס / קבוצה אחת</th><th>סה״כ לפי כמות</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
   </table>`;
 }
