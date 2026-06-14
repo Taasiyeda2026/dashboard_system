@@ -199,7 +199,11 @@ export function setSession(session) {
     display_role_label: String((session.user && session.user.display_role_label) || '').trim(),
     emp_id: String((session.user && session.user.emp_id) || (claims && claims.emp_id) || '').trim(),
     full_name: String((session.user && session.user.full_name) || (claims && claims.full_name) || '').trim(),
-    display_role2: String((session.user && session.user.display_role2) || (claims && claims.display_role2) || '').trim()
+    display_role2: String((session.user && session.user.display_role2) || (claims && claims.display_role2) || '').trim(),
+    can_add_activity: (session.user && session.user.can_add_activity) ?? (claims && claims.can_add_activity),
+    can_edit_direct: session.user && session.user.can_edit_direct,
+    can_request_edit: session.user && session.user.can_request_edit,
+    can_request_create_activity: session.user && session.user.can_request_create_activity
   };
   state.user.can_add_activity = normalizeBoolPermission(state.user.can_add_activity);
   state.user.can_edit_direct = normalizeBoolPermission(state.user.can_edit_direct);
