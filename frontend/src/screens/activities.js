@@ -137,11 +137,13 @@ function firstActivityMonthYm(rows) {
   return [...months].sort()[0] || '';
 }
 
-function ensureActivityPeriodMonth(state, rows) {
+function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
   if (state?.activityPeriodTab !== 'summer_2026') return;
+  if (!force && state._activitiesSummerMonthInitialized) return;
   const firstMonth = firstActivityMonthYm(activityPeriodRows(rows, 'summer_2026'));
   const targetMonth = firstMonth || SUMMER_DEFAULT_MONTH_YM;
   if (state.activitiesMonthYm !== targetMonth) state.activitiesMonthYm = targetMonth;
+  state._activitiesSummerMonthInitialized = true;
 }
 
 function activityPeriodTabsHtml(rows, activeKey) {
@@ -1365,7 +1367,7 @@ export const activitiesScreen = {
 
         if (isSummerTab) {
           const activityDateRaw = String(row.date_1 || row.start_date || '').trim();
-          const activityDateHe = activityDateRaw ? (formatDateHe(activityDateRaw) || activityDateRaw) : '—';
+          const activityDateHe = activityDateRaw ? (formatDateHe(activityDateRaw) || activityDateRaw) : 'דורש שיבוץ תאריך';
           const gradeDisplay = escapeHtml(String(row.grade || '—'));
           const startTime = activityLayoutStartTime(row);
           const endTime = activityLayoutEndTime(row);
@@ -1970,7 +1972,7 @@ export const activitiesScreen = {
     root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activityPeriodTab = normalizeActivityPeriodTab(btn.getAttribute('data-activity-period-tab'));
-        ensureActivityPeriodMonth(state, activitiesRows);
+        ensureActivityPeriodMonth(state, activitiesRows, { force: true });
         ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
         rerenderLocal();
       });
