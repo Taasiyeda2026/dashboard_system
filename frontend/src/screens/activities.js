@@ -139,7 +139,7 @@ function activityPeriodTabsHtml(rows, activeKey) {
 
 
 function isAdminUser(state) {
-  return state?.user?.display_role === 'admin' || state?.user?.role === 'admin';
+  return state?.user?.role === 'admin';
 }
 
 function permissionFlagYes(value) {
@@ -155,7 +155,8 @@ function currentUserRoutes(state) {
 
 export function getActivitiesAccessDebug(state = {}) {
   const currentUser = state?.user || {};
-  const role = String(currentUser.display_role || currentUser.role || '').trim();
+  const role = String(currentUser.role || '').trim();
+  const displayRole = String(currentUser.display_role || '').trim();
   const permissions = currentUser.permissions && typeof currentUser.permissions === 'object' ? currentUser.permissions : {};
   const routes = currentUserRoutes(state);
   const hasActivitiesAccess =
@@ -173,6 +174,7 @@ export function getActivitiesAccessDebug(state = {}) {
     currentUser,
     username: currentUser.username,
     role,
+    displayRole,
     permissions,
     routes,
     hasActivitiesAccess,
@@ -895,7 +897,7 @@ function nextMeetingDate(row) {
 }
 
 function canUseActivityLayout(state) {
-  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+  const role = String(state?.user?.role || '').trim();
   return ACTIVITY_LAYOUT_ALLOWED_ROLES.has(role);
 }
 
@@ -1286,7 +1288,7 @@ export const activitiesScreen = {
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+    const role = String(state?.user?.role || '').trim();
     const canDeleteActivity = canDirectManageActivities(state);
     const canAddActivity = canOpenCreateActivity(state);
     const isCreateRequestOnly = canAddActivity && !canAddActivities(state);
@@ -1613,7 +1615,7 @@ export const activitiesScreen = {
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+    const role = String(state?.user?.role || '').trim();
     const canDeleteActivity = canDirectManageActivities(state);
     const canAddActivity = canOpenCreateActivity(state);
     const isCreateRequestOnly = canAddActivity && !canAddActivities(state);
@@ -2236,7 +2238,7 @@ export const activitiesScreen = {
           can_add_activity: state?.user?.can_add_activity,
           can_edit_direct: state?.user?.can_edit_direct,
           can_request_edit: state?.user?.can_request_edit,
-          role: String(state?.user?.display_role || state?.user?.role || '').trim()
+          role: String(state?.user?.role || '').trim()
         }
       };
 

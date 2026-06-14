@@ -677,7 +677,8 @@ function currentUserRoutesForAccess() {
 function hasActivitiesRouteAccess() {
   const user = state?.user || {};
   const permissions = user.permissions && typeof user.permissions === 'object' ? user.permissions : {};
-  const role = String(user.display_role || user.role || '').trim();
+  const role = String(user.role || '').trim();
+  const displayRole = String(user.display_role || '').trim();
   const routes = currentUserRoutesForAccess();
   const hasActivitiesAccess =
     role === 'admin' ||
@@ -687,6 +688,7 @@ function hasActivitiesRouteAccess() {
   console.info('[activities-access]', {
     username: user.username,
     role,
+    displayRole,
     permissions,
     routes,
     hasActivitiesAccess,
@@ -886,7 +888,7 @@ function shellUserRoleLine() {
   const r2 = repairHebrewMojibake(state.user?.display_role2).trim();
   if (r2) return escapeHtml(r2);
   const sheetLabel = repairHebrewMojibake(state.user?.display_role_label).trim();
-  const code = String(state.user?.display_role || state.user?.role || '').trim();
+  const code = String(state.user?.role || '').trim();
   if (sheetLabel && (!code || sheetLabel.toLowerCase() !== code.toLowerCase())) {
     return escapeHtml(sheetLabel);
   }
@@ -902,7 +904,7 @@ function enforceProposalsAgreementsRoute() {
   if (!state.token || !state.user) return;
   if (!screenLoaders['proposals-agreements']) return;
   if ((state.effectiveRoutes || []).includes('proposals-agreements')) return;
-  const role = String(state.user.display_role || state.user.role || '').trim();
+  const role = String(state.user.role || '').trim();
   const hasRole = PROPOSALS_AGREEMENTS_NAV_ROLES.has(role);
   const hasFlag = state.user.view_proposals_agreements === true || state.user.manage_proposals_agreements === true;
   if (hasRole || hasFlag) {
@@ -918,7 +920,7 @@ function shell(content) {
   enforceProposalsAgreementsRoute();
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
-  const isAdminUser = state?.user?.display_role === 'admin';
+  const isAdminUser = state?.user?.role === 'admin';
   // לאדמין: הנתונים שלי — מוסתר לחלוטין; הרשאות — בסרגל בלבד
   const adminSidebarExclude = isAdminUser ? new Set(['my-data']) : new Set();
   const nav = effectiveRoutes()
@@ -1962,7 +1964,7 @@ async function render() {
             console.info('[login user]', {
               login_username: userId,
               user_id: data?.user?.user_id,
-              role: data?.user?.display_role,
+              role: data?.user?.role,
               routes_returned: data?.routes || [],
               default_route: data?.default_route || '',
               has_client_settings: !!data?.client_settings
