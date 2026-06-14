@@ -335,8 +335,30 @@ test('activities summer tab opens on first dated summer month and counts all act
   assert.match(html, /ניהול פעילויות · יולי · 2 פעילויות/);
   assert.match(html, /פעילות יולי/);
   assert.match(html, /פעילות קיץ ללא תאריך/);
+  assert.match(html, /דורש שיבוץ תאריך/);
   assert.doesNotMatch(html, /פעילות קיץ מבוטלת/);
   assert.doesNotMatch(html, /פעילות רגילה ביולי/);
+});
+
+
+
+test('activities summer month initialization does not override manual summer navigation after first entry', () => {
+  const state = baseState();
+  state.activityPeriodTab = 'summer_2026';
+  state.activitiesMonthYm = '2026-06';
+  const data = {
+    rows: [
+      { RowID: 'summer_july_1', activity_name: 'פעילות יולי', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-07-01', status: 'פעיל' }
+    ]
+  };
+
+  activitiesScreen.render(data, { state });
+  assert.equal(state.activitiesMonthYm, '2026-07');
+
+  state.activitiesMonthYm = '2026-08';
+  const html = activitiesScreen.render(data, { state });
+  assert.equal(state.activitiesMonthYm, '2026-08');
+  assert.match(html, /ניהול פעילויות · אוגוסט · 1 פעילויות/);
 });
 
 test('activities selected month drives title, count and table rows', () => {
