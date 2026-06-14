@@ -268,6 +268,9 @@ function schoolFormHtml(row = {}) {
           <option value="other"${clientType === 'other' ? ' selected' : ''}>אחר</option>
         </select>
       </div>
+      <input type="hidden" name="authority_id" value="${escapeHtml(String(row.authority_id || ''))}">
+      <input type="hidden" name="school_id" value="${escapeHtml(String(row.school_id || ''))}">
+      <input type="hidden" name="semel_mosad" value="${escapeHtml(String(row.semel_mosad || ''))}">
       <div class="ds-perm-field"><span class="ds-muted">רשות / עירייה / מועצה</span><input class="ds-input ds-input--sm" name="authority" value="${escapeHtml(String(row.authority || ''))}"></div>
       <div class="ds-perm-field" data-school-field${clientType === 'authority' ? ' hidden' : ''}><span class="ds-muted">בית ספר</span><input class="ds-input ds-input--sm" name="school" value="${escapeHtml(String(row.school || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">שם איש קשר</span><input class="ds-input ds-input--sm" name="contact_name" value="${escapeHtml(String(row.contact_name || ''))}"></div>
@@ -335,7 +338,7 @@ export const contactsScreen = {
       'full_name', 'name', 'contact_name', 'emp_id', 'employee_id',
       'mobile', 'phone', 'email', 'authority', 'school',
       'role', 'contact_role', 'position', 'active', 'notes', 'address',
-      'instructor_name', 'activity_name', 'activity_type'
+      'instructor_name', 'activity_name', 'activity_type', 'client_type', 'client_name', 'authority_id', 'school_id', 'semel_mosad'
     ]);
     const filters = ensureActivityListFilters(state, CONTACTS_SCOPE);
     const canViewInstr  = data?.can_view_instructors !== false;
@@ -353,7 +356,7 @@ export const contactsScreen = {
 
     searchInput = filtersToolbarHtml(CONTACTS_SCOPE, activeContactRows(tab, instrRows, schoolRows), state, {
       searchPlaceholder: 'חיפוש לפי שם / תפקיד / טלפון / מייל / רשות / בית ספר…',
-      filterFields: [],
+      filterFields: ['authority', 'school', 'client_type', 'contact_name'],
       search: true
     });
 
@@ -565,6 +568,9 @@ export const contactsScreen = {
         const payload = {
           client_type: clientType,
           client_name: clientName || null,
+          authority_id: get('authority_id') || null,
+          school_id: clientType === 'school' ? (get('school_id') || null) : null,
+          semel_mosad: clientType === 'school' ? (get('semel_mosad') || null) : null,
           authority,
           school: school || null,
           contact_name: get('contact_name'),
