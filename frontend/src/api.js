@@ -1970,14 +1970,14 @@ const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_repor
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
 const SUPABASE_ROLE_ROUTES = {
-  admin: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-lists', 'certificates'],
-  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  admin: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-home', 'admin-settings', 'admin-lists', 'finance', 'certificates'],
+  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
   authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
-  finance: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
-  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  finance: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
+  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
   instructor: ['my-data', 'week', 'month']
 };
 
@@ -2152,7 +2152,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if (!hasFinanceAccess && financeIdx >= 0) allowedRoutes.splice(financeIdx, 1);
   if (permissionFlagYes(flat.view_activities) && !allowedRoutes.includes('activities')) allowedRoutes.push('activities');
   if (permissionFlagYes(flat.view_catalog) && !allowedRoutes.includes('catalog')) allowedRoutes.push('catalog');
-  if ((permissionFlagYes(flat.view_orders) || permissionFlagYes(flat.view_invitations)) && !allowedRoutes.includes('orders')) allowedRoutes.push('orders');
+  if ((permissionFlagYes(flat.view_orders) || permissionFlagYes(flat.view_invitations)) && !allowedRoutes.includes('invitations')) allowedRoutes.push('invitations');
   if (
     PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(role) ||
     permissionFlagYes(flat.view_proposals) ||
@@ -2171,10 +2171,15 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   const personalReportsIdx = allowedRoutes.indexOf('personal-reports');
   if (hasPersonalReportsAccess && personalReportsIdx === -1) allowedRoutes.push('personal-reports');
   if (!hasPersonalReportsAccess && personalReportsIdx >= 0) allowedRoutes.splice(personalReportsIdx, 1);
-  // Israa management tab — requires view_israa_management=yes AND (israa user or admin role)
-  const ISRAA_USER_ID = '3030';
-  const ISRAA_AUTH_USER_ID = '92bfb9d9-1b17-4022-901a-5f7cf17a263a';
-  const isIsraaUser = String(flat.user_id || '') === ISRAA_USER_ID || String(flat.auth_user_id || '') === ISRAA_AUTH_USER_ID;
+  // General admin routes are only for role=admin, never for feature-specific flags.
+  if (role !== 'admin') {
+    ['admin-home', 'admin-settings', 'admin-lists', 'permissions'].forEach((route) => {
+      const idx = allowedRoutes.indexOf(route);
+      if (idx >= 0) allowedRoutes.splice(idx, 1);
+    });
+  }
+  // Israa management tab — requires view_israa_management=yes AND (the esraaa username or admin role).
+  const isIsraaUser = String(flat.user_id || '').trim().toLowerCase() === 'esraaa';
   const isAdminRole = role === 'admin';
   if ((isIsraaUser || isAdminRole) && permissionFlagYes(flat.view_israa_management)) {
     if (!allowedRoutes.includes('israa-management')) allowedRoutes.push('israa-management');
@@ -2251,7 +2256,8 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   const code = String(entry_code || '').trim();
   if (!uid || !code) throwLoginError('missing_user_id_or_entry_code');
 
-  const authEmail = uid.includes('@') ? uid : `${uid}@think.org.il`;
+  const username = uid.toLowerCase();
+  const authEmail = `${username}@think.org.il`;
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
     email: authEmail,
@@ -2268,6 +2274,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
     .from('users')
     .select(USER_PUBLIC_COLUMNS)
     .eq('auth_user_id', authUserId)
+    .eq('user_id', username)
     .eq('is_active', true)
     .single();
 
