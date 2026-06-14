@@ -329,6 +329,7 @@ const ACTIVITY_FILTER_FIELDS = [
   { key: 'authority', label: 'רשות' },
   { key: 'funding', label: 'מימון' },
   { key: 'school', label: 'בית ספר' },
+  { key: 'semel_mosad_search', label: 'סמל מוסד', getValues: (row) => [row?.single_semel_mosad, row?.linked_semel_mosad_list] },
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
 ];
 const ACTIVITY_SEARCH_FIELDS = [
@@ -337,8 +338,8 @@ const ACTIVITY_SEARCH_FIELDS = [
   'activity_manager', 'manager_name',
   'instructor_name', 'instructor_name_2', 'Instructor', 'Instructor2',
   'emp_id', 'emp_id_2', 'EmployeeID', 'EmployeeID2',
-  'authority', 'school', 'grade', 'class_group', 'group', 'class',
-  'funding', 'status',
+  'authority', 'school', 'single_school_name', 'linked_school_name_list', 'grade', 'class_group', 'group', 'class',
+  'funding', 'status', 'single_semel_mosad', 'linked_semel_mosad_list',
   'start_date', 'end_date', 'date_1', 'meeting_dates', 'date_cols',
   'notes', 'description',
   (row) => Array.from({ length: 30 }, (_, i) => row?.[`date_${i + 1}`]).filter(Boolean).join(' '),
@@ -474,6 +475,7 @@ function addActivityModalHtml(settings) {
   const managerRoleNames = getManagerUsers(settings);
   const fundingOptions = mergeOptions(settings, ['funding', 'fundings']);
   const gradeOptions = resolveGradeOptions(settings);
+  const schoolRecords = Array.isArray(settings?.dropdown_options?.school_records) ? settings.dropdown_options.school_records : [];
   const schoolOptions = mergeOptions(settings, ['school', 'schools']);
   const authorityOptions = mergeOptions(settings, ['authority', 'authorities']);
   const managerOptions = managerRoleNames.length
@@ -509,7 +511,8 @@ function addActivityModalHtml(settings) {
   return `
     <form class="ds-activity-add-form" dir="rtl" data-add-activity-form
       data-add-activity-names="${escapeHtml(encodeURIComponent(JSON.stringify(allActivityNames)))}"
-      data-add-roster-users="${escapeHtml(encodeURIComponent(JSON.stringify(rosterUsers)))}">
+      data-add-roster-users="${escapeHtml(encodeURIComponent(JSON.stringify(rosterUsers)))}"
+      data-add-school-records="${escapeHtml(encodeURIComponent(JSON.stringify(schoolRecords)))}">
       <input type="hidden" name="source" value="catalog">
       <div class="ds-activity-add-grid">
         <p class="ds-activity-add-section">פרטי פעילות</p>
@@ -2132,12 +2135,17 @@ export const activitiesScreen = {
       }
       const activityMap = decodeJsonAttr(form.dataset.addActivityNames, []);
       const roster = decodeJsonAttr(form.dataset.addRosterUsers, []);
+      const schoolRecords = decodeJsonAttr(form.dataset.addSchoolRecords, []);
       const fd = new (window?.FormData || FormData)(form);
       const get = (k) => String(fd.get(k) || '').trim();
       const authorityCustom = get('authority_custom');
       const schoolCustom = get('school_custom');
       const authorityValue = authorityCustom || get('authority');
       const schoolValue = schoolCustom || get('school');
+      const selectedSchool = !schoolCustom ? schoolRecords.find((school) => {
+        const label = String(school?.name || school?.value || '').trim();
+        return label && label === schoolValue;
+      }) : null;
       const selectedName = get('activity_name');
       const selectedType = normalizeOneDayActivityType(get('activity_type')) || normalizeActivityTypeKey(get('activity_type'));
       let activityAddDiagnostics = {};
@@ -2173,7 +2181,9 @@ export const activitiesScreen = {
         source: isOneDay ? 'short' : 'long',
         activity_family: isOneDay ? 'one_day' : 'program',
         activity_manager: get('activity_manager'),
-        authority: authorityValue,
+        authority_id: String(selectedSchool?.authority_id || '').trim() || null,
+        school_id: String(selectedSchool?.school_id || '').trim() || null,
+        authority: authorityValue || String(selectedSchool?.authority || '').trim(),
         school: schoolValue,
         grade: get('grade'),
         class_group: get('class_group'),

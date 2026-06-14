@@ -534,7 +534,8 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
   const activityNameItems = getItems('activity_names', 'activity_name', 'activities', 'activity');
   const fundingValues   = getValues('funding', 'fundings');
   const gradeValues     = getValues('grade', 'grades', 'class');
-  const schoolValues    = getValues('school', 'schools');
+  const schoolItems     = getItems('school', 'schools');
+  const schoolValues    = schoolItems.map((i) => i.value).filter(Boolean);
   const authorityValues = getValues('authority', 'authorities');
   const activitySeasonItems = getItems('activity_season');
 
@@ -562,6 +563,13 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
     sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
   }));
   const activityTypes = [...new Set(activityNames.map((row) => String(row.activity_type || row.parent_value || row.type || '').trim()).filter(Boolean))];
+  const schoolRecords = schoolItems.map((i) => ({
+    name:        String(i._row?.school || i._row?.school_name || i.label || i.value || '').trim(),
+    value:       String(i.value || i._row?.school || i._row?.school_name || '').trim(),
+    school_id:   String(i._row?.school_id || i._row?.id || '').trim(),
+    authority_id:String(i._row?.authority_id || '').trim(),
+    authority:   String(i._row?.authority || '').trim()
+  })).filter((school) => school.name || school.value);
 
   const managerIsActive = (item) => {
     const row = item?._row && typeof item._row === 'object' ? item._row : item;
@@ -604,6 +612,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
       grades:                   gradeValues,
       school:                   schoolValues,
       schools:                  schoolValues,
+      school_records:           schoolRecords,
       authority:                authorityValues,
       authorities:              authorityValues,
       activity_manager:         managerNames,
@@ -2481,7 +2490,6 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'district',
   'authority_id',
   'school_id',
-  'semel_mosad',
   'authority',
   'school',
   'grade',
