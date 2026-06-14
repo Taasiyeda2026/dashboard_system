@@ -268,6 +268,28 @@ test('screen and API source enforce authorization before API/Supabase calls', as
   assert.match(apiSource, /assertCanUseProposalsAgreementsApi\(\);[\s\S]*\.from\('proposals_agreements'\)/);
 });
 
+test('proposals agreements directory view uses only existing Supabase columns', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const columnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = '([^']+)'/);
+  assert.ok(columnsMatch, 'directory columns constant should be defined');
+  const columns = columnsMatch[1].split(',').map((column) => column.trim());
+
+  for (const column of ['authority_name', 'legacy_client_authority', 'contact_client_type', 'school_name', 'contact_client_name', 'legacy_school_framework']) {
+    assert.ok(columns.includes(column), `directory select should include ${column}`);
+  }
+  for (const missingColumn of ['client_authority', 'authority', 'client_type']) {
+    assert.ok(!columns.includes(missingColumn), `directory select must not request ${missingColumn}`);
+  }
+
+  const viewReadBlock = apiSource.match(/\.from\('proposals_agreements_directory_view'\)[\s\S]*?\]\);/);
+  assert.ok(viewReadBlock, 'directory view read block should exist');
+  for (const missingColumn of ['client_authority', 'authority', 'client_type']) {
+    assert.ok(!viewReadBlock[0].includes(`.select('${missingColumn}'`));
+    assert.ok(!viewReadBlock[0].includes(`.filter('${missingColumn}'`));
+    assert.ok(!viewReadBlock[0].includes(`.order('${missingColumn}'`));
+  }
+});
+
 test('migration creates proposals_agreements with indexes, updated_at trigger and role RLS', async () => {
   const migration = await readFile(MIGRATION_FILE, 'utf8');
   assert.match(migration, /create table if not exists public\.proposals_agreements/);

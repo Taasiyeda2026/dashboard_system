@@ -39,7 +39,7 @@ import {
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
-import { ACTIVITY_SEASON_OPTIONS, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
+import { ACTIVITY_SEASON_OPTIONS, SUMMER_DEFAULT_MONTH_YM, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
@@ -140,7 +140,8 @@ function firstActivityMonthYm(rows) {
 function ensureActivityPeriodMonth(state, rows) {
   if (state?.activityPeriodTab !== 'summer_2026') return;
   const firstMonth = firstActivityMonthYm(activityPeriodRows(rows, 'summer_2026'));
-  if (firstMonth && state.activitiesMonthYm !== firstMonth) state.activitiesMonthYm = firstMonth;
+  const targetMonth = firstMonth || SUMMER_DEFAULT_MONTH_YM;
+  if (state.activitiesMonthYm !== targetMonth) state.activitiesMonthYm = targetMonth;
 }
 
 function activityPeriodTabsHtml(rows, activeKey) {
