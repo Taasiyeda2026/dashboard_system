@@ -113,6 +113,12 @@ function activityPeriodKey(row = {}) {
   return 'school_2026';
 }
 
+function activityMatchesSelectedStartMonth(row = {}, ym = '') {
+  const month = String(ym || '').trim().slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(month)) return true;
+  return normalizedActivityStartDate(row).slice(0, 7) === month;
+}
+
 function activityPeriodLabelForKey(key) {
   return ACTIVITY_PERIOD_TABS.find((tab) => tab.key === key)?.label || '';
 }
@@ -120,6 +126,11 @@ function activityPeriodLabelForKey(key) {
 function activityPeriodRows(rows, periodKey) {
   const activeKey = normalizeActivityPeriodTab(periodKey);
   return (Array.isArray(rows) ? rows : []).filter((row) => activityPeriodKey(row) === activeKey);
+}
+
+function activityRowsForPeriodAndMonth(rows, state = {}) {
+  const periodRows = activityPeriodRows(rows, state.activityPeriodTab);
+  return periodRows.filter((row) => activityMatchesSelectedStartMonth(row, state.activitiesMonthYm));
 }
 
 function firstActivityMonthYm(rows) {
@@ -146,12 +157,11 @@ function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
   state._activitiesSummerMonthInitialized = true;
 }
 
-function activityPeriodTabsHtml(rows, activeKey) {
+function activityPeriodTabsHtml(rows, activeKey, state = {}) {
   const safeActiveKey = normalizeActivityPeriodTab(activeKey);
   const counts = ACTIVITY_PERIOD_TABS.reduce((acc, tab) => ({ ...acc, [tab.key]: 0 }), {});
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const key = activityPeriodKey(row);
-    counts[key] = (counts[key] || 0) + 1;
+  ACTIVITY_PERIOD_TABS.forEach((tab) => {
+    counts[tab.key] = activityRowsForPeriodAndMonth(rows, { ...state, activityPeriodTab: tab.key }).length;
   });
   return `<div class="ds-activities-period-tabs" role="tablist" aria-label="תקופות פעילות" dir="rtl">
     ${ACTIVITY_PERIOD_TABS.map((tab) => `<button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab${tab.key === safeActiveKey ? ' is-active' : ''}" role="tab" aria-selected="${tab.key === safeActiveKey ? 'true' : 'false'}" data-activity-period-tab="${escapeHtml(tab.key)}">
@@ -663,7 +673,7 @@ function activityOccursInSelectedMonth(row = {}, ym = '') {
 }
 
 function applySelectedActivitiesMonth(rows, state) {
-  return (Array.isArray(rows) ? rows : []).filter((row) => activityOccursInSelectedMonth(row, state?.activitiesMonthYm));
+  return (Array.isArray(rows) ? rows : []).filter((row) => activityMatchesSelectedStartMonth(row, state?.activitiesMonthYm));
 }
 
 function currentYm() {
@@ -1307,8 +1317,7 @@ export const activitiesScreen = {
     if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
     ensureActivityPeriodMonth(state, allRows);
     const periodRows    = activityPeriodRows(allRows, state.activityPeriodTab);
-    const isMonthFilterActive = state.activityPeriodTab !== 'summer_2026' && state.activityPeriodTab !== 'archive';
-    const monthRows     = isMonthFilterActive ? applySelectedActivitiesMonth(periodRows, state) : periodRows;
+    const monthRows     = activityRowsForPeriodAndMonth(allRows, state);
     const filteredRows  = applyActivitiesLocalFilters(monthRows, state, state?.clientSettings);
 
     const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
@@ -1445,7 +1454,7 @@ export const activitiesScreen = {
       safeRows.length === 0
         ? dsEmptyState(periodRows.length === 0
             ? 'אין פעילויות להצגה בתקופה זו'
-            : (isMonthFilterActive && monthRows.length === 0)
+            : (monthRows.length === 0)
               ? 'אין פעילויות להצגה בחודש הנבחר'
               : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
@@ -1472,7 +1481,7 @@ export const activitiesScreen = {
       <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${total} פעילויות ${navLoadingChip}</h2>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא" title="חודש הבא" ${isNavLoading ? 'disabled' : ''}>◀</button>
     </nav>`;
-    const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab);
+    const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab, state);
 
     const html = dsScreenStack(`<section class="ds-activities-screen">
       ${viewSwitcher}
@@ -1555,7 +1564,7 @@ export const activitiesScreen = {
 
     const activitiesRows = Array.isArray(data?.rows) ? data.rows : [];
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
-    const periodRows = activityPeriodRows(activitiesRows, state.activityPeriodTab);
+    const periodRows = activityRowsForPeriodAndMonth(activitiesRows, state);
     let activityLayoutGroups = [];
 
     async function loadActivityLayoutStatuses() {
