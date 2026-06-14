@@ -2160,10 +2160,8 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     permissionFlagYes(flat.view_proposals_agreements) ||
     permissionFlagYes(flat.manage_proposals_agreements)
   ) { if (!allowedRoutes.includes('proposals-agreements')) allowedRoutes.push('proposals-agreements'); }
-  const canEditDirect = canDirectManageActivities;
-  const canRequestEdit = canRequestActivities;
   const canReviewRequests = canReviewEditRequestsUser(flat);
-  const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests) || allowedRoutes.includes('edit-requests');
+  const canViewEditRequests = canReviewRequests || canRequestActivities || permissionFlagYes(flat.view_edit_requests) || allowedRoutes.includes('edit-requests');
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
@@ -2198,8 +2196,8 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
       display_role_label: flat.display_role_label || hebrewRole(role)
     },
     can_add_activity: canAddActivities,
-    can_edit_direct: canEditDirect,
-    can_request_edit: canRequestEdit,
+    can_edit_direct: canDirectManageActivities,
+    can_request_edit: canRequestActivities,
     can_request_create_activity: canRequestCreateActivity(flat),
     can_review_requests: canReviewRequests,
     client_settings: {}
