@@ -47,6 +47,14 @@ const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href
 const inflightActivityDetailRequests = new Map();
 const ADD_ACTIVITY_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
 
+const ALL_ACTIVITIES_TAB_KEY = 'all_activities';
+const ALL_ACTIVITIES_STATUS_FILTERS = [
+  { key: 'all', label: 'הכל' },
+  { key: 'open', label: 'פתוח' },
+  { key: 'closed', label: 'סגור' },
+  { key: 'undated', label: 'ללא תאריך' },
+  { key: 'include_deleted', label: 'כולל נמחקים' }
+];
 const ACTIVITY_PERIOD_TABS = [
   { key: 'school_2026', label: 'תשפ״ו / 2026', start: '', end: '2026-06-30' },
   { key: 'summer_2026', label: 'קיץ 2026', start: '2026-07-01', end: '2026-08-31' },
@@ -91,7 +99,17 @@ function canOpenCreateActivity(state) {
 
 function normalizeActivityPeriodTab(value) {
   const key = String(value || '').trim();
+  if (key === ALL_ACTIVITIES_TAB_KEY) return key;
   return ACTIVITY_PERIOD_TABS.some((tab) => tab.key === key) ? key : DEFAULT_ACTIVITY_PERIOD_TAB;
+}
+
+function isAllActivitiesMode(state = {}) {
+  return normalizeActivityPeriodTab(state.activityPeriodTab) === ALL_ACTIVITIES_TAB_KEY;
+}
+
+function normalizeAllActivitiesStatusFilter(value) {
+  const key = String(value || '').trim();
+  return ALL_ACTIVITIES_STATUS_FILTERS.some((filter) => filter.key === key) ? key : 'all';
 }
 
 function normalizedActivityStartDate(row = {}) {
@@ -101,6 +119,20 @@ function normalizedActivityStartDate(row = {}) {
 
 function isInactiveActivityStatus(row = {}) {
   return INACTIVE_ACTIVITY_STATUSES.has(String(row?.status || '').trim().toLowerCase()) || INACTIVE_ACTIVITY_STATUSES.has(String(row?.status || '').trim());
+}
+
+function normalizedActivityStatus(row = {}) {
+  return String(row?.status || '').trim();
+}
+
+function isDeletedActivity(row = {}) {
+  const status = normalizedActivityStatus(row);
+  return status === 'נמחק' || status.toLowerCase() === 'deleted';
+}
+
+function isClosedActivity(row = {}) {
+  const status = normalizedActivityStatus(row);
+  return status === 'סגור' || status.toLowerCase() === 'closed';
 }
 
 function activityPeriodKey(row = {}) {
@@ -128,7 +160,19 @@ function activityPeriodRows(rows, periodKey) {
   return (Array.isArray(rows) ? rows : []).filter((row) => activityPeriodKey(row) === activeKey);
 }
 
+function allActivitiesRows(rows, state = {}) {
+  const filter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
+  return (Array.isArray(rows) ? rows : []).filter((row) => {
+    if (filter !== 'include_deleted' && isDeletedActivity(row)) return false;
+    if (filter === 'open') return !isClosedActivity(row) && !isDeletedActivity(row);
+    if (filter === 'closed') return isClosedActivity(row);
+    if (filter === 'undated') return !normalizedActivityStartDate(row);
+    return true;
+  });
+}
+
 function activityRowsForPeriodAndMonth(rows, state = {}) {
+  if (isAllActivitiesMode(state)) return allActivitiesRows(rows, state);
   const periodRows = activityPeriodRows(rows, state.activityPeriodTab);
   return periodRows.filter((row) => activityMatchesSelectedStartMonth(row, state.activitiesMonthYm));
 }
@@ -157,13 +201,28 @@ function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
   state._activitiesSummerMonthInitialized = true;
 }
 
+function allActivitiesStatusFilterHtml(state = {}) {
+  if (!isAllActivitiesMode(state)) return '';
+  const selected = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
+  return `<label class="ds-filter-inline ds-filter-inline--all-activities" dir="rtl">
+    <span>סטטוס</span>
+    <select class="ds-input ds-input--sm" data-all-activities-status-filter aria-label="סינון סטטוס בכל הפעילויות">
+      ${ALL_ACTIVITIES_STATUS_FILTERS.map((filter) => `<option value="${escapeHtml(filter.key)}"${filter.key === selected ? ' selected' : ''}>${escapeHtml(filter.label)}</option>`).join('')}
+    </select>
+  </label>`;
+}
+
 function activityPeriodTabsHtml(rows, activeKey, state = {}) {
   const safeActiveKey = normalizeActivityPeriodTab(activeKey);
   const counts = ACTIVITY_PERIOD_TABS.reduce((acc, tab) => ({ ...acc, [tab.key]: 0 }), {});
   ACTIVITY_PERIOD_TABS.forEach((tab) => {
     counts[tab.key] = activityRowsForPeriodAndMonth(rows, { ...state, activityPeriodTab: tab.key }).length;
   });
+  const allCount = allActivitiesRows(rows, { allActivitiesStatusFilter: 'all' }).length;
   return `<div class="ds-activities-period-tabs" role="tablist" aria-label="תקופות פעילות" dir="rtl">
+    <button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab ds-activities-period-tab--all${safeActiveKey === ALL_ACTIVITIES_TAB_KEY ? ' is-active' : ''}" role="tab" aria-selected="${safeActiveKey === ALL_ACTIVITIES_TAB_KEY ? 'true' : 'false'}" data-activity-period-tab="${ALL_ACTIVITIES_TAB_KEY}">
+      <span>כל הפעילויות</span><strong>${escapeHtml(String(allCount))}</strong>
+    </button>
     ${ACTIVITY_PERIOD_TABS.map((tab) => `<button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab${tab.key === safeActiveKey ? ' is-active' : ''}" role="tab" aria-selected="${tab.key === safeActiveKey ? 'true' : 'false'}" data-activity-period-tab="${escapeHtml(tab.key)}">
       <span>${escapeHtml(tab.label)}</span><strong>${escapeHtml(String(counts[tab.key] || 0))}</strong>
     </button>`).join('')}
@@ -366,7 +425,7 @@ const ACTIVITY_FILTER_FIELDS = [
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
 ];
 const ACTIVITY_SEARCH_FIELDS = [
-  'RowID', 'row_id', 'source_row_id',
+  'id', 'RowID', 'row_id', 'source_row_id',
   'activity_no', 'activity_number', 'activity_name', 'activity_type', 'activity_family',
   'activity_manager', 'manager_name',
   'instructor_name', 'instructor_name_2', 'Instructor', 'Instructor2',
@@ -1316,7 +1375,9 @@ export const activitiesScreen = {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
     ensureActivityPeriodMonth(state, allRows);
-    const periodRows    = activityPeriodRows(allRows, state.activityPeriodTab);
+    state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
+    const isAllMode = isAllActivitiesMode(state);
+    const periodRows    = isAllMode ? allActivitiesRows(allRows, { allActivitiesStatusFilter: 'include_deleted' }) : activityPeriodRows(allRows, state.activityPeriodTab);
     const monthRows     = activityRowsForPeriodAndMonth(allRows, state);
     const filteredRows  = applyActivitiesLocalFilters(monthRows, state, state?.clientSettings);
 
@@ -1465,8 +1526,10 @@ export const activitiesScreen = {
     const isNavLoading = !!state.activitiesNavLoading;
     const navLoadingChip = isNavLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : '';
     const viewSwitcher = renderActivitiesViewSwitcher(state, 'activities');
+    const allActivitiesStatusFilter = allActivitiesStatusFilterHtml(state);
     const mainToolbar = `<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
-      <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי פעילות / מדריך / רשות / בית ספר" />
+      <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד" />
+      ${allActivitiesStatusFilter}
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">↻</button>
@@ -1476,7 +1539,11 @@ export const activitiesScreen = {
       </div>
     </div>`;
 
-    const titleNavRow = `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
+    const titleNavRow = isAllMode
+      ? `<nav class="ds-activities-title-row" aria-label="חיפוש בכל הפעילויות" dir="rtl">
+      <h2 class="ds-activities-page-title">חיפוש בכל הפעילויות · ${total} פעילויות</h2>
+    </nav>`
+      : `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם" title="חודש קודם" ${isNavLoading ? 'disabled' : ''}>▶</button>
       <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${total} פעילויות ${navLoadingChip}</h2>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא" title="חודש הבא" ${isNavLoading ? 'disabled' : ''}>◀</button>
@@ -1564,6 +1631,7 @@ export const activitiesScreen = {
 
     const activitiesRows = Array.isArray(data?.rows) ? data.rows : [];
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
+    state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const periodRows = activityRowsForPeriodAndMonth(activitiesRows, state);
     let activityLayoutGroups = [];
 
@@ -1937,8 +2005,10 @@ export const activitiesScreen = {
       btn.textContent = 'מייצא…';
       try {
         const res = await loadAllActivitiesForAdmin();
-        const rows = activityPeriodRows(Array.isArray(res?.rows) ? res.rows : [], state.activityPeriodTab);
-        exportActivitiesToExcel(rows, `פעילויות_${activityPeriodLabelForKey(state.activityPeriodTab) || 'תקופה'}`);
+        const sourceRows = Array.isArray(res?.rows) ? res.rows : [];
+        const rows = isAllActivitiesMode(state) ? allActivitiesRows(sourceRows, state) : activityPeriodRows(sourceRows, state.activityPeriodTab);
+        const exportLabel = isAllActivitiesMode(state) ? 'כל_הפעילויות' : (activityPeriodLabelForKey(state.activityPeriodTab) || 'תקופה');
+        exportActivitiesToExcel(rows, `פעילויות_${exportLabel}`);
       } catch (err) {
         console.error('Failed to export all activities to Excel', err);
       } finally {
@@ -1985,6 +2055,12 @@ export const activitiesScreen = {
         ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
         rerenderLocal();
       });
+    });
+
+    root.querySelector('[data-all-activities-status-filter]')?.addEventListener('change', (ev) => {
+      state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(ev.currentTarget?.value);
+      ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
+      rerenderLocal();
     });
     root.querySelector(`[data-list-show-more="${ACTIVITIES_SCOPE}"]`)?.addEventListener('click', (ev) => {
       const next = Number(ev.currentTarget?.dataset?.nextCount || 200);
