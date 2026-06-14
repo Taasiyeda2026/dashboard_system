@@ -122,6 +122,27 @@ function activityPeriodRows(rows, periodKey) {
   return (Array.isArray(rows) ? rows : []).filter((row) => activityPeriodKey(row) === activeKey);
 }
 
+function firstActivityMonthYm(rows) {
+  const months = new Set();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    [
+      normalizedActivityStartDate(row),
+      String(row?.end_date ?? row?.date_end ?? '').trim().slice(0, 10),
+      ...activityMeetingDates(row)
+    ].forEach((date) => {
+      const value = String(date || '').trim().slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) months.add(value.slice(0, 7));
+    });
+  });
+  return [...months].sort()[0] || '';
+}
+
+function ensureActivityPeriodMonth(state, rows) {
+  if (state?.activityPeriodTab !== 'summer_2026') return;
+  const firstMonth = firstActivityMonthYm(activityPeriodRows(rows, 'summer_2026'));
+  if (firstMonth && state.activitiesMonthYm !== firstMonth) state.activitiesMonthYm = firstMonth;
+}
+
 function activityPeriodTabsHtml(rows, activeKey) {
   const safeActiveKey = normalizeActivityPeriodTab(activeKey);
   const counts = ACTIVITY_PERIOD_TABS.reduce((acc, tab) => ({ ...acc, [tab.key]: 0 }), {});
@@ -1264,10 +1285,12 @@ export const activitiesScreen = {
   async load({ api, state }) {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
-    return api.activities({
+    const result = await api.activities({
       activity_type: 'all',
       include_inactive: true
     });
+    ensureActivityPeriodMonth(state, Array.isArray(result?.rows) ? result.rows : []);
+    return result;
   },
 
   render(data, { state }) {
@@ -1279,6 +1302,7 @@ export const activitiesScreen = {
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
+    ensureActivityPeriodMonth(state, allRows);
     const periodRows    = activityPeriodRows(allRows, state.activityPeriodTab);
     const isMonthFilterActive = state.activityPeriodTab !== 'summer_2026' && state.activityPeriodTab !== 'archive';
     const monthRows     = isMonthFilterActive ? applySelectedActivitiesMonth(periodRows, state) : periodRows;
@@ -1945,6 +1969,7 @@ export const activitiesScreen = {
     root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activityPeriodTab = normalizeActivityPeriodTab(btn.getAttribute('data-activity-period-tab'));
+        ensureActivityPeriodMonth(state, activitiesRows);
         ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
         rerenderLocal();
       });
