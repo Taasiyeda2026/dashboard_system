@@ -70,8 +70,32 @@ const SUPABASE_READONLY_ROUTES = ['dashboard', 'activities', 'week', 'month', 'i
 
 if (typeof window !== 'undefined') {
   window.__HOTFIX_VERSION__ = config.HOTFIX_VERSION;
-  window.__FRONTEND_BUILD_MARKER__ = 'emergency-disable-diagnostics-v2';
+  window.__FRONTEND_BUILD_MARKER__ = config.HOTFIX_VERSION;
 }
+
+
+function clearStaleBuildStorageIfNeeded() {
+  if (typeof localStorage === 'undefined') return;
+  const key = 'dashboard_build_version';
+  const current = String(config.HOTFIX_VERSION || '').trim();
+  if (!current) return;
+  try {
+    const previous = localStorage.getItem(key) || '';
+    if (previous && previous !== current) {
+      localStorage.removeItem('dashboard_routes');
+      localStorage.removeItem('dashboard_screen_cache_v1');
+      Object.keys(localStorage)
+        .filter((storageKey) => storageKey.startsWith(SCREEN_CACHE_STORAGE_PREFIX))
+        .forEach((storageKey) => localStorage.removeItem(storageKey));
+      console.info('[build-version-changed]', { previous, current, cleared: ['dashboard_routes', 'screen_cache'] });
+    }
+    localStorage.setItem(key, current);
+  } catch {
+    /* ignore */
+  }
+}
+
+clearStaleBuildStorageIfNeeded();
 
 function beginPerfTimer(label) {
   if (!label || typeof console === 'undefined' || typeof console.time !== 'function') return;
@@ -480,6 +504,7 @@ function saveRoutesToStorage(routes, defaultRoute, clientSettings) {
 
 function applyBootstrapFromLoginData(data) {
   if (!data || !Array.isArray(data.routes) || !data.routes.length) return;
+  try { localStorage.removeItem('dashboard_routes'); } catch { /* ignore */ }
   if (data.client_settings && typeof data.client_settings === 'object') {
     state.clientSettings = { ...defaultClientSettings(), ...data.client_settings };
   }
@@ -511,8 +536,8 @@ const screenLabels = {
   archive: 'ארכיון',
   'proposals-agreements': 'הצעות מחיר',
   finance: 'כספים',
-  invitations: 'הזמנות',
-  orders: 'הזמנות',
+  invitations: 'הזמנות לאירועים',
+  orders: 'הזמנות לאירועים',
   catalog: 'קטלוג',
   'personal-reports': 'דוחות אישיים',
   'israa-management': 'ניהול איסראא',
@@ -622,9 +647,9 @@ function applySettingsToRoutes(routes, settings = state.clientSettings) {
   const seen = new Set();
   const baseRoutes = Array.isArray(routes) ? [...routes] : [];
   return baseRoutes
-    .map((route) => (route === 'invitations' ? 'orders' : route))
+    .map((route) => (route === 'orders' ? 'invitations' : route))
     .filter((route) => {
-      if (!route || blocked.has(route) || (route === 'orders' && blocked.has('invitations')) || seen.has(route)) return false;
+      if (!route || blocked.has(route) || (route === 'invitations' && blocked.has('orders')) || seen.has(route)) return false;
       if (!screenLoaders[route]) return false;
       seen.add(route);
       return true;
@@ -684,7 +709,7 @@ function consumePendingRouteFromUrlOrSession() {
       window.history.replaceState({}, '', url);
     }
   } catch { /* ignore */ }
-  if (pending === 'invitations') pending = 'orders';
+  if (pending === 'orders') pending = 'invitations';
   if (isAllowedRoute(pending)) {
     state.route = pending;
     saveRoutesToStorage(state.routes, pending, state.clientSettings);
@@ -1891,9 +1916,18 @@ async function render() {
             initialRoutePerfReported = false;
             beginPerfTimer('login:api.login');
             const loginApiStartMs = performance.now();
+            console.info('[login username]', { username: userId });
             const data = await api.login(userId, code);
             loginApiDurationMs = performance.now() - loginApiStartMs;
             endPerfTimer('login:api.login');
+            console.info('[login user]', {
+              login_username: userId,
+              user_id: data?.user?.user_id,
+              role: data?.user?.display_role,
+              routes_returned: data?.routes || [],
+              default_route: data?.default_route || '',
+              has_client_settings: !!data?.client_settings
+            });
             hasMountedAuthenticatedShell = false;
             firstAuthenticatedRenderTimerStarted = false;
             firstLoadTimerStarted = false;
@@ -1908,6 +1942,10 @@ async function render() {
             beginPerfTimer('login:applyBootstrap');
             const bootstrapApplyStartMs = performance.now();
             applyBootstrapFromLoginData(data);
+            console.info('[effectiveRoutes after applySettingsToRoutes]', {
+              effectiveRoutes: effectiveRoutes(),
+              default_route: state.route
+            });
             refreshOpenEditRequestsCount().catch(() => {});
             loginBootstrapDurationMs = performance.now() - bootstrapApplyStartMs;
             applyGlobalAccent(accentNameFromStorage(state.clientSettings));
@@ -1936,11 +1974,17 @@ async function render() {
                   source: 'login'
                 });
               }
-            }).catch(async (error) => {
+            }).catch((error) => {
+              const message = error?.message || String(error);
               // eslint-disable-next-line no-console
-              console.warn('[first-route-render:failed]', { route: state.route, error: error?.message || String(error) });
-              rollbackToLogin('כשל בטעינת נתוני משתמש אחרי התחברות');
-              await render();
+              console.error('[first route load error]', { route: state.route, error: message });
+              loginInlineError = '';
+              app.innerHTML = `<div class="ds-error" dir="rtl"><h1>שגיאה בטעינת המסך הראשון</h1><p>${escapeHtml(message)}</p><button type="button" id="logoutBtn">חזרה להתחברות</button></div>`;
+              document.getElementById('logoutBtn')?.addEventListener('click', () => {
+                setSession(null);
+                clearRoutesSnapshot();
+                render().catch(() => {});
+              });
             });
           } catch (error) {
             endPerfTimer('login:api.login');
