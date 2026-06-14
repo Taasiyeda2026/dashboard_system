@@ -328,6 +328,52 @@ test('new proposal tab opens compact form with preview and role-aware primary ac
   );
 });
 
+
+test('non-admin manager submits proposals for approval instead of approving directly', async () => {
+  const managerState = stateFor('operation_manager');
+  managerState.user.manage_proposals_agreements = true;
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: managerState }),
+    async (root, dom) => {
+      const saves = [];
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: [] },
+        state: managerState,
+        api: {
+          addProposalAgreement: async (payload) => { saves.push(payload); return { ok: true, row: { ...payload, id: 'pending-id' } }; },
+          saveProposalAgreementItems: async () => ({ ok: true, items: [] })
+        }
+      });
+
+      const form = openNewProposalForm(root, dom);
+      const primary = form.querySelector('[data-pa-save-pending]');
+      assert.equal(primary.textContent.trim(), 'שליחה לאישור');
+      assert.equal(primary.dataset.paTargetStatus, 'pending_approval');
+      assert.doesNotMatch(form.innerHTML, /אישור והפקת הצעה/);
+
+      fillPendingMinimum(form, dom, { unit_price: '650', quantity: '3' });
+      primary.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+      assert.equal(saves[0]?.status, 'pending_approval');
+    }
+  );
+});
+
+test('admin sees approve and return actions for pending proposals', async () => {
+  const pendingRow = { ...sampleRows[0], status: 'pending_approval' };
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: stateFor('admin') }),
+    (root) => {
+      proposalsAgreementsScreen.bind({ root, data: { rows: [pendingRow] }, state: stateFor('admin'), api: {} });
+      root.querySelector(`[data-pa-row-id="${pendingRow.id}"]`)?.click();
+      const drawerText = root.querySelector('[data-pa-drawer]')?.textContent || '';
+      assert.match(drawerText, /אישור/);
+      assert.match(drawerText, /החזרה לתיקון/);
+    }
+  );
+});
+
 test('client selector auto-fills contact fields when existing client is chosen', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
@@ -766,6 +812,68 @@ test('items auto-calc: quantity × price updates row total and grand total', asy
 
       assert.equal(totalInput.value, '1500.00', 'row total should be 3×500=1500');
       assert.match(grandTotal.textContent, /1[,.]?500/, 'grand total should show 1500');
+    }
+  );
+});
+
+
+test('manual unit price edits recalculate row and grand totals without changing quantity', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({ root, data: { rows: [], activityNameOptions: [], contactOptions: [] }, state: stateFor('admin'), api: {} });
+      const form = openNewProposalForm(root, dom);
+      const qtyInput = form.querySelector('[data-pa-item-qty]');
+      const priceInput = form.querySelector('[data-pa-item-price]');
+      const totalInput = form.querySelector('[data-pa-item-total]');
+      const grandTotal = form.querySelector('[data-pa-grand-total]');
+
+      qtyInput.value = '3';
+      qtyInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      priceInput.value = '650';
+      priceInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      assert.equal(totalInput.value, '1950.00');
+
+      priceInput.value = '600';
+      priceInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      assert.equal(qtyInput.value, '3');
+      assert.equal(totalInput.value, '1800.00');
+      assert.match(grandTotal.textContent, /1[,.]?800/);
+    }
+  );
+});
+
+test('discount controls update payable total and save a negative discount item', async () => {
+  const itemCalls = [];
+  const saves = [];
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: [] },
+        state: stateFor('admin'),
+        api: {
+          addProposalAgreement: async (payload) => { saves.push(payload); return { ok: true, row: { ...payload, id: 'discount-id' } }; },
+          saveProposalAgreementItems: async (_id, items) => { itemCalls.push(items); return { ok: true, items: [] }; }
+        }
+      });
+      const form = openNewProposalForm(root, dom);
+      fillPendingMinimum(form, dom, { unit_price: '1000', quantity: '2' });
+      const discountValue = form.querySelector('[data-pa-discount-value]');
+      discountValue.value = '250';
+      discountValue.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      assert.match(form.querySelector('[data-pa-summary-subtotal]').textContent, /2[,.]?000/);
+      assert.match(form.querySelector('[data-pa-summary-discount]').textContent, /250/);
+      assert.match(form.querySelector('[data-pa-summary-total]').textContent, /1[,.]?750/);
+
+      form.querySelector('[data-pa-save-pending]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+      assert.equal(saves[0]?.total_amount, 1750);
+      const discountItem = itemCalls[0]?.find((item) => item.item_name === 'הנחה');
+      assert.ok(discountItem, 'discount should be saved as a proposal item');
+      assert.equal(discountItem.unit_price, -250);
+      assert.equal(discountItem.total_price, -250);
     }
   );
 });
