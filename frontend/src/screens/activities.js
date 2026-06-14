@@ -63,7 +63,7 @@ const ACTIVITIES_ACCESS_ROLES = new Set([
   'instructor_manager',
   'business_development_manager'
 ]);
-const ACTIVITY_LAYOUT_ALLOWED_ROLES = ACTIVITIES_ACCESS_ROLES;
+const ACTIVITY_LAYOUT_ALLOWED_ROLES = new Set(['admin', ...ACTIVITIES_ACCESS_ROLES]);
 
 function canDirectManageActivities(state) {
   return canEditDirect(state?.user);
@@ -1611,7 +1611,7 @@ export const activitiesScreen = {
     }
     const filteredRows      = applyActivitiesLocalFilters(periodRows, state, state?.clientSettings);
     const canSeePrivateNotes = canReviewActivityRequests(state);
-    const canEditActivity   = canRequestActivityChanges(state);
+    const canEditActivity   = canDirectManageActivities(state) || canRequestActivityChanges(state);
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo    = !!state?.clientSettings?.hide_activity_no_on_screens;

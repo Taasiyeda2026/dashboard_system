@@ -157,6 +157,40 @@ test('activities access: allowed technical roles can view when display_role is H
   }
 });
 
+
+test('activities render: admin idann sees summer activity layout button without add/edit flags', () => {
+  const state = baseState();
+  state.activityPeriodTab = 'summer_2026';
+  state.user = {
+    username: 'idann',
+    display_role: 'מנהל מערכת',
+    role: 'admin',
+    can_edit_direct: false,
+    can_add_activity: false,
+    can_request_edit: false,
+    can_request_create_activity: false
+  };
+  const html = activitiesScreen.render({ rows: [] }, { state });
+  assert.match(html, /data-activity-layout-list/);
+  assert.match(html, />פריסת פעילות<\/button>/);
+});
+
+test('activities render: giln can request adding an activity when direct add is disabled', () => {
+  const state = baseState();
+  state.user = {
+    username: 'giln',
+    display_role: 'מנהל פעילויות',
+    role: 'activities_manager',
+    can_add_activity: false,
+    can_edit_direct: false,
+    can_request_create_activity: true,
+    can_request_edit: true
+  };
+  const html = activitiesScreen.render({ rows: [] }, { state });
+  assert.match(html, /data-activities-add-btn/);
+  assert.match(html, /בקשה להוספת פעילות/);
+});
+
 test('activities access: view permission and activities route allow viewing without add/edit permissions', () => {
   const permittedByPermission = baseState();
   permittedByPermission.user = {
