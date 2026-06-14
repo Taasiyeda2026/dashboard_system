@@ -1515,7 +1515,7 @@ function normalizeData(data) {
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,authority,school,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,created_at,updated_at';
-const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,school_id,contact_school_id,authority_name,legacy_client_authority,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,created_at,updated_at';
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -1631,17 +1631,17 @@ function normalizeProposalAgreementRow(row = {}) {
   const parsedNotes = parseActivityNamesFromNotes(row.notes);
   const PA_VALID_STATUSES = new Set(['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
   const rawStatus = cleanProposalAgreementText(row.status);
-  const authorityName = cleanProposalAgreementText(row.authority_name || row.legacy_client_authority || row.client_authority || row.authority);
-  const schoolFramework = cleanProposalAgreementText(row.school_framework || row.school);
+  const authorityName = cleanProposalAgreementText(row.authority_name || row.legacy_client_authority);
+  const schoolFramework = cleanProposalAgreementText(row.school_name || row.contact_client_name || row.legacy_school_framework);
   const normalized = {
     id:                  cleanProposalAgreementText(row.id),
-    client_type:         cleanProposalAgreementText(row.client_type) || (row.school_id ? 'school' : 'authority'),
+    client_type:         cleanProposalAgreementText(row.contact_client_type) || (row.school_id ? 'school' : 'authority'),
     authority_id:        row.authority_id ?? null,
     school_id:           row.school_id ?? null,
     contact_school_id:   row.contact_school_id ?? null,
     authority:           authorityName,
     school:              schoolFramework,
-    client_authority:    cleanProposalAgreementText(row.client_authority) || authorityName,
+    client_authority:    authorityName,
     school_framework:    schoolFramework || authorityName,
     document_type:       cleanProposalAgreementText(row.document_type),
     activity_type_group: normalizeProposalGroupValue(row.activity_type_group),
@@ -1984,8 +1984,8 @@ async function readProposalsAgreementsFromSupabase() {
     supabase
       .from('proposals_agreements_directory_view')
       .select(PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS)
-      .order('client_authority', { ascending: true })
-      .order('school_framework', { ascending: true })
+      .order('authority_name', { ascending: true })
+      .order('school_name', { ascending: true })
       .order('document_type', { ascending: true })
       .order('activity_type_group', { ascending: true }),
     readContactsSchoolsForProposals(),
