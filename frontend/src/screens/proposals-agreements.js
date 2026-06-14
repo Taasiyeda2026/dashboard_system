@@ -62,7 +62,7 @@ export function canManageProposalsAgreements(state) {
 }
 
 function canApproveProposalsAgreements(state) {
-  return canManageProposalsAgreements(state);
+  return userRole(state) === 'admin';
 }
 
 function text(value) {
@@ -502,9 +502,8 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
   if (!rows.length) {
     return `<tr class="ds-pa-empty-row"><td colspan="7">אין רשומות להצגה</td></tr>`;
   }
-  const role = state ? String(state?.user?.display_role || state?.user?.role || '').trim() : '';
-  const canManage = PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(role);
-  const isAdmin = role === 'admin';
+  const canManage = canManageProposalsAgreements(state);
+  const isAdmin = canApproveProposalsAgreements(state);
   return rows.map((row) => {
     const status = text(row.status || 'draft');
     const actionBtns = [];
@@ -952,7 +951,14 @@ function proposalSummaryHtml(totalAmount) {
       <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">רשות / גורם מקבל</span><strong class="ds-pa-summary-value" data-pa-summary-client>—</strong></div>
       <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">סוג הצעה</span><strong class="ds-pa-summary-value" data-pa-summary-type>—</strong></div>
       <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">מספר פעילויות</span><strong class="ds-pa-summary-value" data-pa-summary-count>—</strong></div>
-      <div class="ds-pa-summary-item ds-pa-summary-item--total"><span class="ds-pa-summary-label">סה״כ כללי</span><strong class="ds-pa-summary-value ds-pa-summary-total-val" data-pa-summary-total>${initialTotal ? `₪${formatCurrency(initialTotal)}` : '₪0'}</strong></div>
+      <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">סה״כ לפני הנחה</span><strong class="ds-pa-summary-value" data-pa-summary-subtotal>₪0</strong></div>
+      <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">הנחה</span><strong class="ds-pa-summary-value" data-pa-summary-discount>₪0</strong></div>
+      <div class="ds-pa-summary-item ds-pa-summary-item--total"><span class="ds-pa-summary-label">סה״כ לתשלום</span><strong class="ds-pa-summary-value ds-pa-summary-total-val" data-pa-summary-total>${initialTotal ? `₪${formatCurrency(initialTotal)}` : '₪0'}</strong></div>
+    </div>
+    <div class="ds-pa-discount-row" data-pa-discount-controls>
+      <label class="ds-pa-form-field"><span>הנחה</span><select class="ds-input ds-input--sm" name="discount_type" data-pa-discount-type><option value="amount">₪</option><option value="percent">%</option></select></label>
+      <label class="ds-pa-form-field"><span>סכום / אחוז</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="discount_value" data-pa-discount-value></label>
+      <label class="ds-pa-form-field"><span>הערת הנחה</span><input class="ds-input ds-input--sm" name="discount_note" data-pa-discount-note placeholder="אופציונלי"></label>
     </div>
   </section>`;
 }
@@ -1127,8 +1133,13 @@ function proposalItemsListHtml(items = [], options = {}) {
   return lines ? sectionLinesHtml(lines, { alwaysBullet: true, className: 'pa-proposal-lines' }) : '';
 }
 
+function isDiscountItem(item = {}) {
+  return text(item.item_name) === 'הנחה' || Number(item.total_price) < 0 || Number(item.unit_price) < 0;
+}
+
 function costTableRowData(name, quantity, unitPrice, total) {
-  if (!name || unitPrice == null || unitPrice <= 0 || total == null || total <= 0) return null;
+  if (!name || unitPrice == null || total == null || total === 0) return null;
+  if (total > 0 && unitPrice <= 0) return null;
   return {
     name,
     quantity: Number(quantity) || 1,
@@ -1169,25 +1180,56 @@ function proposalCostTableHtml(items = []) {
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
   const rows = billedItems.flatMap((item) => costTableRowsFromItem(item));
   if (!rows.length) return '';
+  const subtotal = rows.filter((row) => row.total > 0).reduce((sum, row) => sum + row.total, 0);
+  const discount = Math.abs(rows.filter((row) => row.total < 0).reduce((sum, row) => sum + row.total, 0));
   const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
+  const discountFooter = discount > 0
+    ? `<tr><td colspan="3">סה״כ לפני הנחה</td><td>${escapeHtml(formatCurrency(subtotal))} ₪</td></tr>
+       <tr><td colspan="3">הנחה</td><td>-${escapeHtml(formatCurrency(discount))} ₪</td></tr>`
+    : '';
   return `<table class="pa-cost-table">
-    <thead><tr><th>פעילות</th><th>כמות</th><th>מחיר יחידה</th><th>סה״כ</th></tr></thead>
+    <thead><tr><th>פעילות</th><th>כמות</th><th>מחיר יחידה</th><th>סה״כ שורה</th></tr></thead>
     <tbody>${rows.map((row) => `<tr>
         <td>${escapeHtml(row.name)}</td>
         <td>${escapeHtml(formatCurrency(row.quantity))}</td>
         <td>${escapeHtml(formatCurrency(row.unitPrice))} ₪</td>
         <td>${escapeHtml(formatCurrency(row.total))} ₪</td>
       </tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="3">סה״כ כללי</td><td>${escapeHtml(formatCurrency(grandTotal))} ₪</td></tr></tfoot>
+    <tfoot>${discountFooter}<tr><td colspan="3">סה״כ לתשלום</td><td>${escapeHtml(formatCurrency(grandTotal))} ₪</td></tr></tfoot>
   </table>`;
 }
 
 
-function itemGroupPrice(item = {}) {
-  const quantity = Number(item.quantity) || 1;
+
+function proposalDiscountSummaryHtml(items = []) {
+  const allItems = Array.isArray(items) ? items : [];
+  const discount = Math.abs(allItems.filter(isDiscountItem).reduce((sum, item) => sum + (Number(item.total_price) || Number(item.unit_price) || 0), 0));
+  if (!discount) return '';
+  const subtotal = allItems.filter((item) => !isDiscountItem(item)).reduce((sum, item) => {
+    const quantity = Number(item.quantity) || 1;
+    const unitPrice = numberValue(item.unit_price);
+    const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : 0);
+    return sum + (Number(total) || 0);
+  }, 0);
+  const payable = Math.max(subtotal - discount, 0);
+  return `<table class="pa-cost-table pa-discount-summary-table">
+    <tbody>
+      <tr><td>סה״כ לפני הנחה</td><td>${escapeHtml(formatCurrency(subtotal))} ₪</td></tr>
+      <tr><td>הנחה</td><td>-${escapeHtml(formatCurrency(discount))} ₪</td></tr>
+      <tr><td><strong>סה״כ לתשלום</strong></td><td><strong>${escapeHtml(formatCurrency(payable))} ₪</strong></td></tr>
+    </tbody>
+  </table>`;
+}
+
+function itemQuantity(item = {}) {
+  return Number(item.quantity) || 1;
+}
+
+function itemQuantityTotal(item = {}) {
+  const quantity = itemQuantity(item);
   const unitPrice = numberValue(item.unit_price);
   const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
-  return total != null && total > 0 ? total : unitPrice;
+  return total != null && total > 0 ? total : null;
 }
 
 function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
@@ -1199,20 +1241,25 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       text(item.gefen_number) || item.meetings_count != null || item.hours_count != null || item.hourly_price != null
     );
     if (!hasPedagogicPricingData) return '';
+    const quantity = itemQuantity(item);
+    const unitPrice = numberValue(item.unit_price);
+    const quantityTotal = itemQuantityTotal(item);
     const cells = [
       publicActivityName(item.item_name),
       shouldShowGefenForItem(item, contextGroup) ? text(item.gefen_number) : '',
       item.meetings_count != null ? formatCurrency(item.meetings_count) : '',
       item.hours_count != null ? formatCurrency(item.hours_count) : '',
       item.hourly_price != null ? `${formatCurrency(item.hourly_price)} ₪` : '',
-      itemGroupPrice(item) != null ? `${formatCurrency(itemGroupPrice(item))} ₪` : ''
+      formatCurrency(quantity),
+      unitPrice != null ? `${formatCurrency(unitPrice)} ₪` : '',
+      quantityTotal != null ? `${formatCurrency(quantityTotal)} ₪` : ''
     ];
     if (!cells.some(Boolean)) return '';
     return `<tr>${cells.map((cell) => `<td>${escapeHtml(cell || '—')}</td>`).join('')}</tr>`;
   }).filter(Boolean);
   if (!rows.length) return '';
   return `<table class="pa-item-details-table">
-    <thead><tr><th>תוכנית / פעילות</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>שעות</th><th>עלות לשעה</th><th>מחיר לקבוצה</th></tr></thead>
+    <thead><tr><th>תוכנית / פעילות</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>שעות</th><th>עלות לשעה</th><th>כמות</th><th>מחיר לקורס / קבוצה אחת</th><th>סה״כ לפי כמות</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
   </table>`;
 }
@@ -1508,7 +1555,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   const paymentTermsBody = sectionBody('payment_terms');
   const itemDetailsHtml = proposalItemDetailsTableHtml(items, activityTypeGroup);
   const usesUnifiedCourseCostTable = proposalActivityKind(row, items) === 'course' && itemDetailsHtml;
-  const costTableHtml = usesUnifiedCourseCostTable ? '' : proposalCostTableHtml(items);
+  const costTableHtml = usesUnifiedCourseCostTable ? proposalDiscountSummaryHtml(items) : proposalCostTableHtml(items);
   const costsIntro = costsIntroBody(row, items);
   const paymentTerms = (paymentTermsBody || costTableHtml || itemDetailsHtml || costsIntro)
     ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${costsIntro ? sectionBodyHtml(costsIntro) : ''}${itemDetailsHtml}${costTableHtml}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}</section>`
@@ -1879,9 +1926,8 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
 
 function drawerActionButtons(row, state) {
   const status = text(row?.status) || 'draft';
-  const role = state ? String(state?.user?.display_role || state?.user?.role || '').trim() : '';
-  const isAdminRole = role === 'admin';
-  const canManage = PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(role);
+  const isAdminRole = canApproveProposalsAgreements(state);
+  const canManage = canManageProposalsAgreements(state);
   const buttons = [];
 
   buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-preview="${escapeHtml(row.id)}">תצוגה מקדימה</button>`);
@@ -1905,7 +1951,7 @@ function drawerActionButtons(row, state) {
     }
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-delete-row="${escapeHtml(row.id)}">מחיקה</button>`);
   }
-  if (canManage && status === 'approved') {
+  if (isAdminRole && status === 'approved') {
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-print="${escapeHtml(row.id)}">הדפסה / שמירה כ-PDF</button>`);
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-clone-row="${escapeHtml(row.id)}">שכפול להצעה חדשה</button>`);
   }
@@ -2016,7 +2062,20 @@ function payloadFromForm(form) {
   payload.document_type = 'הצעת מחיר';
   payload.include_catalog = false;
   const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
-  const itemNames = Array.from(new Set(items.map((i) => text(i.item_name)).filter(Boolean)));
+  const subtotal = items.reduce((s, i) => s + Math.max(Number(i.total_price) || ((Number(i.quantity) || 0) * (Number(i.unit_price) || 0)), 0), 0);
+  const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
+  const discountValue = Number(form.querySelector('[data-pa-discount-value]')?.value) || 0;
+  const discountAmount = discountType === 'percent' ? subtotal * (Math.min(discountValue, 100) / 100) : Math.min(discountValue, subtotal);
+  if (discountAmount > 0) {
+    items.push({
+      activity_no: '', pricing_activity_no: '', pricing_option_key: '', item_name: 'הנחה', item_type: '',
+      gefen_number: '', meetings_count: null, hours_count: null, quantity: 1, unit_duration: '',
+      unit_price: -Number(discountAmount.toFixed(2)), hourly_price: null, total_price: -Number(discountAmount.toFixed(2)),
+      description: text(form.querySelector('[data-pa-discount-note]')?.value), proposal_group: normalizeProposalGroup(payload.activity_type_group),
+      sort_order: items.length, proposal_display_mode: 'single', source_pricing_key: '', selected_bundle_items: []
+    });
+  }
+  const itemNames = Array.from(new Set(items.map((i) => text(i.item_name)).filter((name) => name && name !== 'הנחה')));
   if (itemNames.length) payload.activity_names = itemNames;
   payload.total_amount = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 0) * (Number(i.unit_price) || 0))), 0) || null;
   payload._items = items;
@@ -2646,10 +2705,18 @@ export const proposalsAgreementsScreen = {
     };
 
     const calcGrandTotal = (container) => {
-      let sum = 0;
-      container.querySelectorAll('[data-pa-item-row]').forEach((rowEl) => { sum += calcItemRow(rowEl); });
+      let subtotal = 0;
+      container.querySelectorAll('[data-pa-item-row]').forEach((rowEl) => { subtotal += calcItemRow(rowEl); });
+      const discountType = text(container.querySelector('[data-pa-discount-type]')?.value) || 'amount';
+      const discountValue = parseFloat(container.querySelector('[data-pa-discount-value]')?.value || '0') || 0;
+      const discount = discountType === 'percent' ? subtotal * (Math.min(discountValue, 100) / 100) : Math.min(discountValue, subtotal);
+      const sum = Math.max(subtotal - discount, 0);
       const el = container.querySelector('[data-pa-grand-total]');
       if (el) el.textContent = sum ? `₪${formatCurrency(sum)}` : '₪0';
+      const subtotalEl = container.querySelector('[data-pa-summary-subtotal]');
+      if (subtotalEl) subtotalEl.textContent = subtotal ? `₪${formatCurrency(subtotal)}` : '₪0';
+      const discountEl = container.querySelector('[data-pa-summary-discount]');
+      if (discountEl) discountEl.textContent = discount ? `-₪${formatCurrency(discount)}` : '₪0';
       const summaryEl = container.querySelector('[data-pa-summary-total]');
       if (summaryEl) summaryEl.textContent = sum ? `₪${formatCurrency(sum)}` : '₪0';
       // Update summary card fields
@@ -2898,7 +2965,7 @@ export const proposalsAgreementsScreen = {
           ? await api.updateProposalAgreement(id, payload)
           : await api.addProposalAgreement(payload);
         const savedId = text(result?.row?.id || id);
-        const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
+        const items = Array.isArray(payload._items) ? payload._items : filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
         if (savedId && typeof api.saveProposalAgreementItems === 'function') {
           console.debug('[PA_SAVE_ITEMS]', { savedId, activity_type_group: payload.activity_type_group, items });
           await api.saveProposalAgreementItems(savedId, items);
@@ -2940,7 +3007,7 @@ export const proposalsAgreementsScreen = {
       const isItemQty = target.matches?.('[data-pa-item-qty]') || target.dataset?.paItemQty != null ||
         target.closest?.('[data-pa-item-qty]') != null;
 
-      if (isItemPrice || isItemQty ||
+      if (isItemPrice || isItemQty || target.matches?.('[data-pa-discount-type], [data-pa-discount-value]') ||
           target.closest?.('[data-pa-item-price]') || target.dataset?.paItemPrice != null) {
         const form = target.closest('[data-pa-form]');
         if (itemRow) calcItemRow(itemRow);
