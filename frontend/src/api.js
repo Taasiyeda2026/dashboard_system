@@ -3168,6 +3168,7 @@ export const api = {
         user_id: flat.user_id,
         username: flat.username,
         email: String(user.email || '').trim(),
+        role: flat.role,
         display_role: flat.role,
         display_role_label: flat.display_role_label,
         display_role2: flat.display_role2,
@@ -3768,7 +3769,7 @@ export const api = {
     const canEditDirect = canDirectManageActivitiesUser();
     if (!canEditDirect && canSubmitActivityRequestsUser()) {
       // eslint-disable-next-line no-console
-      console.warn('wrong_flow: activities_manager attempted saveActivity; using submitEditRequest instead', {
+      console.warn('wrong_flow: request-only user attempted saveActivity; using submitEditRequest instead', {
         action: 'saveActivity',
         row_id: String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim(),
         role: userRole

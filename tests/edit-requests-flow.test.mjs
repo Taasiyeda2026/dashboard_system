@@ -5,6 +5,8 @@ import { JSDOM } from 'jsdom';
 
 const BIND_MODULE = new URL('../frontend/src/screens/shared/bind-activity-edit-form.js', import.meta.url).href;
 
+function makeStorage(){ const m=new Map(); return {getItem:(k)=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),removeItem:(k)=>m.delete(k),clear:()=>m.clear(),key:(i)=>Array.from(m.keys())[i]||null,get length(){return m.size;}}; }
+
 function setupDom() {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'https://example.test/' });
   global.window = dom.window;
@@ -13,6 +15,8 @@ function setupDom() {
   global.Event = dom.window.Event;
   global.MouseEvent = dom.window.MouseEvent;
   global.AbortController = dom.window.AbortController;
+  global.localStorage = makeStorage();
+  global.sessionStorage = makeStorage();
   global.requestAnimationFrame = (cb) => setTimeout(cb, 0);
   global.setTimeout = global.setTimeout || dom.window.setTimeout.bind(dom.window);
 }
@@ -21,10 +25,10 @@ function wait(ms = 0) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function buildEditRoot({ canDirectEdit = false } = {}) {
+function buildEditRoot({ canDirectEdit = false, canRequestEdit = !canDirectEdit } = {}) {
   const root = document.createElement('div');
   root.innerHTML = `
-    <form data-drawer-form data-source-sheet="activities" data-row-id="ACT-1" data-can-direct-edit="${canDirectEdit ? 'yes' : 'no'}">
+    <form data-drawer-form data-source-sheet="activities" data-row-id="ACT-1" data-can-direct-edit="${canDirectEdit ? 'yes' : 'no'}" data-can-request-edit="${canRequestEdit ? 'yes' : 'no'}">
       <div data-mode="view"></div>
       <div data-mode="edit" hidden></div>
       <div data-edit-actions hidden></div>
@@ -75,7 +79,7 @@ test('user with can_request_edit only calls submitEditRequest and not saveActivi
     changes: { activity_name: 'שם חדש' }
   });
   assert.equal(form.querySelector('[name="activity_name"]').value, 'שם ישן');
-  assert.match(form.querySelector('.ds-activity-edit-status').textContent, /העדכון התקבל/);
+  assert.match(form.querySelector('.ds-activity-edit-status').textContent, /הבקשה נשלחה לאישור/);
 });
 
 test('user with can_edit_direct calls saveActivity and not submitEditRequest', async () => {

@@ -254,9 +254,10 @@ export function bindActivityEditForm(contentRoot, {
     const submitBtn = form.querySelector('[data-action="save-edit"]');
     const sourceSheet = form.getAttribute('data-source-sheet') || '';
     const sourceRowId = form.getAttribute('data-row-id') || '';
-    const canDirectEdit = String(form.dataset.canDirectEdit || '') === 'yes';
+    const rawCanDirectEdit = String(form.dataset.canDirectEdit || '') === 'yes';
     const canRequestEdit = String(form.dataset.canRequestEdit || '') === 'yes';
-    const userRole = String(state?.user?.display_role || state?.user?.role || '').trim();
+    const sessionRequestOnly = !state?.user?.can_edit_direct && !!state?.user?.can_request_edit;
+    const canDirectEdit = rawCanDirectEdit && !sessionRequestOnly;
     const changes = {};
     const initialValues = form._initialValues || {};
 
@@ -313,43 +314,13 @@ export function bindActivityEditForm(contentRoot, {
       // eslint-disable-next-line no-console
       console.info('[activity-save:form-submit]', {
         operation,
+        rawCanDirectEdit,
         canDirectEdit,
         source_sheet: sourceSheet,
         source_row_id: sourceRowId,
         changed_fields: Object.keys(changes),
         changes
       });
-
-      if (canDirectEdit && userRole === 'activities_manager') {
-        // eslint-disable-next-line no-console
-        console.warn('wrong_flow: activities_manager attempted saveActivity; using submitEditRequest instead', {
-          action: 'saveActivity',
-          row_id: sourceRowId,
-          role: userRole
-        });
-        const requestResult = await api.submitEditRequest(debugPayload);
-        const requestId = String(requestResult?.request_id || '').trim();
-        const statusText = requestId
-          ? `✅ הבקשה נשלחה לאישור. סטטוס: ממתין לאישור · מזהה בקשה: ${requestId}`
-          : '✅ הבקשה נשלחה לאישור. סטטוס: ממתין לאישור';
-        setStatus(statusEl, 'is-success', statusText);
-        form.dataset.lastEditRequestId = requestId;
-        showToast('הבקשה נשלחה לאישור · סטטוס: ממתין לאישור', 'success', 3000);
-        try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
-        form.reset();
-        updateMeetingWeekdays(form);
-        updateMoreDatesToggle(form);
-        updateEndDateDisplay(form);
-        setEditMode(form, false);
-        if (typeof quietRefresh === 'function') {
-          quietRefresh({ sourceSheet, sourceRowId, changes: {}, form });
-        } else if (typeof rerender === 'function') {
-          requestAnimationFrame(() => {
-            rerender();
-          });
-        }
-        return;
-      }
 
       if (!canDirectEdit && !canRequestEdit) {
         setStatus(statusEl, 'is-error', 'אין לך הרשאה לערוך פעילות זו');
