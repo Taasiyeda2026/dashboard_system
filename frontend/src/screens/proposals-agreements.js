@@ -370,7 +370,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     approval_note:       text(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
     custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections.map(normalizeDocumentSection) : [],
-    include_catalog:     row.include_catalog === true || row.include_catalog === 'yes',
+    include_catalog:     false,
     created_at:          text(row.created_at),
     updated_at:          text(row.updated_at)
   };
@@ -1191,13 +1191,14 @@ function itemGroupPrice(item = {}) {
 }
 
 function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
+  if (!isCourseKindText(groupKindText(contextGroup))) return '';
   const visibleItems = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
   const rows = visibleItems.map((item) => {
     const hasPedagogicPricingData = Boolean(
       text(item.gefen_number) || item.meetings_count != null || item.hours_count != null || item.hourly_price != null
     );
-    if (!hasPedagogicPricingData && !isCourseKindText(groupKindText(contextGroup))) return '';
+    if (!hasPedagogicPricingData) return '';
     const cells = [
       publicActivityName(item.item_name),
       shouldShowGefenForItem(item, contextGroup) ? text(item.gefen_number) : '',
@@ -1462,15 +1463,13 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   const sectionBody = (key) => templateBodyText(byKey.get(key));
   const sectionTitle = (key) => text(byKey.get(key)?.section_title);
 
-  const includeCatalog = includeCatalogValue(row.include_catalog);
-  const catalogEntries = includeCatalog ? buildProposalCatalogPdfEntries(row, items).filter((entry) => !entry.missing) : [];
-  const hasCatalogAppendix = catalogEntries.length > 0;
+  const includeCatalog = false;
   const introText = sectionBody('intro');
   const remarks = sectionBody('notes') || String(row.notes || '').replace(/\r\n?/g, '\n').trim();
   const templateActivityIntro = filterCatalogContentFromBody(sectionBody('activity_intro'), false);
   const activityIntro = isSummerProposalGroup(activityTypeGroup)
     ? summerActivityProposalBody()
-    : (includeCatalog ? activityIntroForCatalog(row, items, hasCatalogAppendix) : templateActivityIntro);
+    : templateActivityIntro;
 
   const renderActivitySection = (heading, body) => {
     const bodyHtml = body ? sectionBodyHtml(body) : '';
@@ -1626,15 +1625,19 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
   const summaryParts = [
     displayName,
     auth && auth !== displayName ? auth : '',
-    contactName || 'ללא איש קשר'
+    contactName || ''
+  ].filter(Boolean);
+  const details = [
+    school && school !== displayName ? ['בית ספר', school] : null,
+    contactName ? ['איש קשר', contactName] : null,
+    contactRole ? ['תפקיד', contactRole] : null,
+    phone ? ['טלפון', phone] : null,
+    email ? ['דוא״ל', email] : null
   ].filter(Boolean);
   return `<div class="ds-pa-client-locked">
     <div class="ds-pa-client-locked-body">
-      <p class="ds-pa-client-locked-state">נבחר: ${escapeHtml(summaryParts.join(' — '))}</p>
-      ${school && school !== displayName ? `<span class="ds-pa-client-locked-detail">מסגרת: ${escapeHtml(school)}</span>` : ''}
-      ${contactRole ? `<span class="ds-pa-client-locked-detail">תפקיד: ${escapeHtml(contactRole)}</span>` : ''}
-      ${phone ? `<span class="ds-pa-client-locked-detail">טלפון: ${escapeHtml(phone)}</span>` : ''}
-      ${email ? `<span class="ds-pa-client-locked-detail">דוא״ל: ${escapeHtml(email)}</span>` : ''}
+      ${summaryParts.length ? `<p class="ds-pa-client-locked-state">נבחר: ${escapeHtml(summaryParts.join(' — '))}</p>` : ''}
+      ${details.map(([label, value]) => `<span class="ds-pa-client-locked-detail"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`).join('')}
       ${!contactName ? '<span class="ds-pa-client-locked-detail ds-pa-client-locked-detail--warn">אפשר להשלים איש קשר ידנית.</span>' : ''}
     </div>
     <div class="ds-pa-client-locked-actions">
@@ -1713,14 +1716,31 @@ function isCatalogAttachLine(line = '') {
   const stripped = text(line).replace(/^[•\-·]\s*/, '');
   if (!stripped) return false;
   if (CATALOG_ATTACH_LINE_RE.test(stripped)) return true;
-  return /(?:קטלוג|דף\s+מידע|מגוון\s+הפעילויות)/u.test(stripped) && /מצורף/u.test(stripped);
+  return (/(?:קטלוג|דף\s+מידע|מגוון\s+הפעילויות|נספח)/u.test(stripped) && /מצורף/u.test(stripped)) || (/פירוט\s+מלא/u.test(stripped) && /מצורף/u.test(stripped));
+}
+
+function isProposalPricingDetailLine(line = '') {
+  const stripped = text(line).replace(/^[•\-·]\s*/, '');
+  if (!stripped) return false;
+  return /(?:גפ״ן|גפן|מפגשים|שעות|לשעה|מחיר\s+לקבוצה|₪|\bILS\b)/u.test(stripped);
+}
+
+function stripCatalogSentences(line = '') {
+  const raw = String(line || '').trim();
+  if (!raw) return '';
+  return raw
+    .split(/(?<=[.!?׃:])\s+/u)
+    .filter((part) => !isCatalogAttachLine(part))
+    .join(' ')
+    .trim();
 }
 
 function filterCatalogContentFromBody(body = '', includeCatalog = false) {
-  if (!body || includeCatalog) return body;
+  if (!body) return body;
   const kept = normalizeMultilineText(body)
     .split('\n')
-    .filter((line) => !isCatalogAttachLine(line));
+    .map((line) => includeCatalog ? line : stripCatalogSentences(line))
+    .filter((line) => !isCatalogAttachLine(line) && !isProposalPricingDetailLine(line));
   return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
@@ -1838,7 +1858,6 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm ds-pa-notes-input" name="notes" rows="3">${escapeHtml(text(row.notes))}</textarea></label>
       </details>
       ${proposalSummaryHtml(row.total_amount)}
-      ${catalogAttachHtml(row)}
       <div class="ds-pa-validation-notice" data-pa-validation-notice hidden></div>
       <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
       <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
@@ -1905,12 +1924,6 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       <span class="ds-pa-detail-label">סה״כ</span>
       <span class="ds-pa-detail-value"><strong>₪${formatCurrency(row.total_amount)}</strong></span>
     </div>` : '';
-  const catalogHtml = includeCatalogValue(row.include_catalog) ? `
-    <div class="ds-pa-detail-row">
-      <span class="ds-pa-detail-label">נספח קטלוג</span>
-      <span class="ds-pa-detail-value">הקטלוג צורף להצעה</span>
-    </div>` : '';
-
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
   const customBadge = hasCustomSections
     ? `<span class="ds-pa-badge" title="המסמך הזה כולל עריכה מותאמת אישית" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#6366f1;color:#fff;margin-right:4px">מסמך מותאם</span>`
@@ -1937,7 +1950,6 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       <div class="ds-pa-drawer-status" style="margin:6px 0 8px">${statusBadgeHtml(row.status)}${customBadge}</div>
       <div class="ds-pa-detail-grid">${detailRowsHtml(row)}</div>
       ${totalHtml}
-      ${catalogHtml}
       ${approvalNoteHtml}
       ${contactDetailRowsHtml(row)}
       <div data-pa-drawer-items style="margin:8px 0"><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
@@ -2002,7 +2014,7 @@ function payloadFromForm(form) {
   });
   payload.status = text(formData.get('status')) || 'draft';
   payload.document_type = 'הצעת מחיר';
-  payload.include_catalog = text(formData.get('include_catalog')) === 'yes';
+  payload.include_catalog = false;
   const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
   const itemNames = Array.from(new Set(items.map((i) => text(i.item_name)).filter(Boolean)));
   if (itemNames.length) payload.activity_names = itemNames;
@@ -2836,25 +2848,7 @@ export const proposalsAgreementsScreen = {
       document.body.classList.add('is-print-preview');
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const printButton = overlay.querySelector('#pa-print-btn');
-      let catalogPromptHandled = includeCatalogValue(freshRow.include_catalog);
-      let catalogValidationDone = false;
-      printButton?.addEventListener('click', async () => {
-        if (!catalogPromptHandled) {
-          catalogPromptHandled = true;
-          if (window.confirm('האם להוסיף קטלוג להצעה?')) {
-            freshRow.include_catalog = true;
-          }
-        }
-        if (includeCatalogValue(freshRow.include_catalog) && !catalogValidationDone) {
-          const previewArea = overlay.querySelector('.proposal-preview-area');
-          ensureCatalogAppendixNotice(previewArea, freshRow, items);
-          // Do not embed external PDF files in the printable DOM; browsers print
-          // the PDF viewer shell rather than clean A4 appendix pages. Download
-          // resolved appendix PDFs alongside the proposal print/save flow instead.
-          const canContinueWithCatalog = await prepareCatalogPdfDownloads(buildProposalCatalogPdfEntries(freshRow, items));
-          if (!canContinueWithCatalog) return;
-          catalogValidationDone = true;
-        }
+      printButton?.addEventListener('click', () => {
         window.print();
       });
       const closeOverlay = () => { overlay.remove(); document.body.classList.remove('is-print-preview'); };
@@ -2862,8 +2856,6 @@ export const proposalsAgreementsScreen = {
       if (options.onSubmit) overlay.querySelector('#pa-preview-submit')?.addEventListener('click', () => { closeOverlay(); options.onSubmit(); });
       overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
 
-      // The catalog appendix is attached per proposal (include_catalog), chosen in the form.
-      // Only the new PDF appendix mechanism is active here; no legacy catalog HTML is loaded.
 
     };
 

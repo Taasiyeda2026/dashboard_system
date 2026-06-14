@@ -10677,11 +10677,10 @@ select.ds-input {
 
 /* Readonly client card */
 .ds-pa-client-locked {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
   background: var(--ds-surface-2, #f8fafc);
   border: 1px solid var(--ds-border, #e2e8f0);
   border-radius: 8px;
@@ -10689,16 +10688,18 @@ select.ds-input {
   margin-bottom: 6px;
 }
 .ds-pa-client-locked-state {
+  grid-column: 1 / -1;
   margin: 0;
-  font-size: 0.74rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: #1d4ed8;
 }
 .ds-pa-client-locked-body {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  align-items: start;
+  gap: 7px 10px;
+  min-width: 0;
 }
 .ds-pa-client-locked-name {
   font-size: 0.82rem;
@@ -10710,8 +10711,11 @@ select.ds-input {
   align-items: center;
 }
 .ds-pa-client-locked-detail {
-  font-size: 0.76rem;
+  display: inline-block;
+  min-width: 0;
+  font-size: 0.8rem;
   color: var(--ds-color-text-muted, #64748b);
+  overflow-wrap: anywhere;
 }
 .ds-pa-client-locked-detail--warn {
   color: #b45309;
@@ -15037,4 +15041,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .ds-pa-form--compact { padding: 12px; }
   .ds-pa-client-search { grid-template-columns: 1fr; }
   .ds-pa-form-grid { grid-template-columns: 1fr; }
+}
+
+.ds-pa-client-results[hidden],
+[data-pa-contact-picker-host]:empty {
+  display: none !important;
 }

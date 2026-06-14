@@ -1374,7 +1374,7 @@ test('catalog PDF appendices use fixed workshop/tour PDFs and specific selected 
 });
 
 
-test('print catalog prompt keeps PDF viewers out of the preview and printed DOM', async () => {
+test('print flow does not prompt for or embed catalog appendices', async () => {
   const row = {
     ...sampleRows[0],
     id: 'course-missing-pdf-row',
@@ -1404,9 +1404,9 @@ test('print catalog prompt keeps PDF viewers out of the preview and printed DOM'
       dom.window.document.getElementById('pa-print-btn')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(30);
 
-      assert.ok(confirmMessages.some((message) => /האם להוסיף קטלוג להצעה/.test(message)), 'print should ask whether to add a catalog');
+      assert.deepEqual(confirmMessages, [], 'print should not ask whether to add a catalog');
       assert.equal(printCalls, 1, 'print should continue with a clean proposal document');
-      assert.match(dom.window.document.querySelector('.proposal-document')?.textContent || '', /נספח קטלוג יצורף לקובץ הסופי/);
+      assert.doesNotMatch(dom.window.document.querySelector('.proposal-document')?.textContent || '', /קטלוג|נספח קטלוג/);
       assert.doesNotMatch(dom.window.document.body.innerHTML, /<iframe|<object|PDF viewer|catalog\/appendices\/9545\.pdf/i);
       assert.doesNotMatch(dom.window.document.body.innerHTML, new RegExp(`course${'-'}9545\.pdf`));
       assert.doesNotMatch(dom.window.document.body.innerHTML, new RegExp(`catalog-${'courses'}\.pdf`));
@@ -1416,7 +1416,7 @@ test('print catalog prompt keeps PDF viewers out of the preview and printed DOM'
   });
 });
 
-test('print flow downloads resolved catalog appendix PDFs without embedding them', async () => {
+test('print flow skips catalog appendix downloads even when legacy row has include_catalog', async () => {
   const row = {
     ...sampleRows[0],
     id: 'course-download-pdf-row',
@@ -1460,9 +1460,8 @@ test('print flow downloads resolved catalog appendix PDFs without embedding them
       await delay(30);
 
       assert.equal(printCalls, 1);
-      assert.deepEqual(downloads.map((entry) => entry.href), ['./catalog/appendices/workshop.pdf', './catalog/appendices/9545.pdf']);
-      assert.deepEqual(downloads.map((entry) => entry.download), ['workshop.pdf', '9545.pdf']);
-      assert.ok(downloads.every((entry) => entry.connected), 'download link should be clicked while temporarily attached');
+      assert.deepEqual(downloads.map((entry) => entry.href), []);
+      assert.deepEqual(downloads.map((entry) => entry.download), []);
       assert.doesNotMatch(dom.window.document.body.innerHTML, /catalog\/appendices\/(workshop|9545)\.pdf/i);
     } finally {
       globalThis.fetch = savedFetch;
@@ -1517,12 +1516,11 @@ test('catalog appendix entries skip non-course activities even when they have Ge
     const activitySection = [...dom.window.document.querySelectorAll('.proposal-document .pa-section')]
       .find((section) => section.querySelector('h3')?.textContent.includes('הפעילות המוצעת'));
     assert.ok(activitySection);
-    assert.match(activitySection.textContent, /פירוט הפעילויות המוצעות\./);
-    assert.doesNotMatch(activitySection.textContent, /להלן הקורסים|מצורף כנספח/);
+    assert.doesNotMatch(activitySection.textContent, /מצורף כנספח|קטלוג|דף מידע/);
   });
 });
 
-test('workshop proposal preview uses short appendix wording and keeps prices only in cost table', async () => {
+test('workshop proposal preview removes catalog wording and keeps prices only in cost table', async () => {
   const row = {
     ...sampleRows[0],
     id: '77777777-7777-7777-7777-777777777777',
@@ -1551,8 +1549,8 @@ test('workshop proposal preview uses short appendix wording and keeps prices onl
       .find((section) => section.querySelector('h3')?.textContent.includes('עלות ותנאי תשלום'));
 
     assert.ok(activitySection);
-    assert.match(activitySection.textContent, /פירוט הסדנאות המוצעות מצורף כנספח להצעה זו/);
-    assert.doesNotMatch(activitySection.textContent, /קורסים|גפ״ן|מפגשים|שעות|לשעה|מחיר לקבוצה|4,000|סדנת רובוטיקה/);
+    assert.doesNotMatch(activitySection.textContent, /מצורף כנספח|קטלוג|דף מידע/);
+    assert.doesNotMatch(activitySection.textContent, /גפ״ן|מפגשים|שעות|לשעה|מחיר לקבוצה|4,000/);
     assert.ok(paymentSection);
     assert.match(paymentSection.textContent, /4,000/);
   });
@@ -1594,7 +1592,7 @@ test('summer proposal preview only mentions an appendix when a matching appendix
   });
 });
 
-test('catalog attach button toggles include_catalog and save payload', async () => {
+test('proposal form has no catalog attach control and saves include_catalog false', async () => {
   let savedPayload = null;
   const pricing = [
     { activity_no: 'S1', activity_name: 'סדנת מייקרים', item_type: 'סדנה', proposal_group: 'קיץ תשפ״ו', unit_price: 450 }
@@ -1631,20 +1629,14 @@ test('catalog attach button toggles include_catalog and save payload', async () 
       pricingSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
       await delay(10);
 
-      const catalogBtn = form.querySelector('[data-pa-catalog-toggle]');
-      const catalogInput = form.querySelector('[name="include_catalog"]');
-      assert.equal(catalogInput.value, 'no');
-      assert.equal(catalogBtn.textContent, 'הוספת הקטלוג להצעה');
-
-      catalogBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-      assert.equal(catalogInput.value, 'yes');
-      assert.equal(catalogBtn.textContent, 'הקטלוג צורף להצעה');
-      assert.ok(form.querySelector('[data-pa-catalog-attach]')?.classList.contains('is-attached'));
+      assert.equal(form.querySelector('[data-pa-catalog-toggle]'), null);
+      assert.equal(form.querySelector('[name="include_catalog"]'), null);
+      assert.equal(form.querySelector('[data-pa-catalog-attach]'), null);
 
       form.dataset.paPreviewSeen = 'yes';
       form.querySelector('[data-pa-save-pending]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(100);
-      assert.equal(savedPayload?.include_catalog, true);
+      assert.equal(savedPayload?.include_catalog, false);
     }
   );
 });
