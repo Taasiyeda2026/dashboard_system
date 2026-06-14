@@ -169,9 +169,12 @@ const PERMISSION_FIELD_LABELS = {
   view_proposals: 'צפייה — הצעות מחיר',
   view_israa_management: 'צפייה — ניהול איסראא',
   can_request_edit: 'יכול לבקש עריכה',
+  can_request_edit_2: 'יכול לבקש עריכה 2',
+  can_request_create_activity: 'יכול לבקש הוספת פעילות',
   can_edit_direct: 'עריכה ישירה',
   can_add_activity: 'הוספת פעילות',
-  can_review_requests: 'אישור בקשות'
+  can_review_requests: 'אישור בקשות',
+  can_review_requests_2: 'אישור בקשות 2'
 };
 
 export function hebrewPermissionField(key) {

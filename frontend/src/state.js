@@ -1,4 +1,5 @@
 import { resetSupabaseAuthSessionWait } from './supabase-client.js';
+import { permissionFlagYes } from './permissions.js';
 
 function defaultClientSettings() {
   return {
@@ -56,9 +57,7 @@ function cleanupLegacyCalendarMonthLocalStorage(userId) {
 }
 
 function normalizeBoolPermission(value) {
-  if (typeof value === 'boolean') return value;
-  const normalized = String(value || '').trim().toLowerCase();
-  return ['yes', 'true', '1'].includes(normalized);
+  return permissionFlagYes(value);
 }
 
 function normalizeStoredUserFlags(user) {
@@ -68,6 +67,8 @@ function normalizeStoredUserFlags(user) {
     can_add_activity: normalizeBoolPermission(user.can_add_activity),
     can_edit_direct: normalizeBoolPermission(user.can_edit_direct),
     can_request_edit: normalizeBoolPermission(user.can_request_edit),
+    can_request_create_activity: normalizeBoolPermission(user.can_request_create_activity),
+    can_review_requests: normalizeBoolPermission(user.can_review_requests),
     finance_access: normalizeBoolPermission(user.finance_access),
     can_access_personal_reports: normalizeBoolPermission(user.can_access_personal_reports),
     personal_reports_manager: normalizeBoolPermission(user.personal_reports_manager)
@@ -202,6 +203,8 @@ export function setSession(session) {
   state.user.can_add_activity = normalizeBoolPermission(state.user.can_add_activity);
   state.user.can_edit_direct = normalizeBoolPermission(state.user.can_edit_direct);
   state.user.can_request_edit = normalizeBoolPermission(state.user.can_request_edit);
+  state.user.can_request_create_activity = normalizeBoolPermission(state.user.can_request_create_activity);
+  state.user.can_review_requests = normalizeBoolPermission(state.user.can_review_requests);
   state.user.finance_access = normalizeBoolPermission(state.user.finance_access);
   state.user.can_access_personal_reports = normalizeBoolPermission(state.user.can_access_personal_reports);
   state.user.personal_reports_manager = normalizeBoolPermission(state.user.personal_reports_manager);

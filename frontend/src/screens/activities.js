@@ -41,6 +41,7 @@ import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 import { ACTIVITY_SEASON_OPTIONS, normalizeActivitySeason } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
+import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
@@ -55,38 +56,29 @@ const ACTIVITY_PERIOD_TABS = [
 const DEFAULT_ACTIVITY_PERIOD_TAB = 'school_2026';
 const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'closed', 'deleted', 'inactive']);
 const ACTIVITY_LAYOUT_SEASON = 'summer_2026';
-const ACTIVITY_LAYOUT_ALLOWED_ROLES = new Set(['admin', 'operation_manager']);
-const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
-const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
-
-function permissionFlagYes(value) {
-  if (value === true || value === 1) return true;
-  return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
-}
-
-function activityRole(state) {
-  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
-  return role === 'activity_manager' ? 'activities_manager' : role;
-}
 
 function canDirectManageActivities(state) {
-  return permissionFlagYes(state?.user?.can_edit_direct) || ACTIVITY_DIRECT_MANAGE_ROLES.has(activityRole(state));
+  return canEditDirect(state?.user);
 }
 
 function canAddActivities(state) {
-  return permissionFlagYes(state?.user?.can_add_activity) || canDirectManageActivities(state);
+  return canAddActivityDirect(state?.user);
 }
 
 function canRequestActivityChanges(state) {
-  return permissionFlagYes(state?.user?.can_request_edit) || canDirectManageActivities(state) || ACTIVITY_REQUEST_ROLES.has(activityRole(state));
+  return canRequestEdit(state?.user);
+}
+
+function canRequestActivityCreate(state) {
+  return canRequestCreateActivity(state?.user);
 }
 
 function canReviewActivityRequests(state) {
-  return permissionFlagYes(state?.user?.can_review_requests) || canDirectManageActivities(state);
+  return canReviewRequests(state?.user);
 }
 
 function canOpenCreateActivity(state) {
-  return canAddActivities(state) || canRequestActivityChanges(state);
+  return canAddActivities(state) || canRequestActivityCreate(state);
 }
 
 function normalizeActivityPeriodTab(value) {
@@ -2233,7 +2225,7 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (isCreateRequestOnly && !canRequestActivityChanges(state)) {
+      if (isCreateRequestOnly && !canRequestActivityCreate(state)) {
         setAddActivityStatus(statusEl, 'לא ניתן לשמור: אין הרשאה לשליחת בקשת הוספה', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;

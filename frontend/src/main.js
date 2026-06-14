@@ -11,6 +11,7 @@ import { loginScreen } from './screens/login.js';
 import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-storage.js';
 import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindAccentPickerListenerOnce } from './accent-picker.js';
 import { waitForSupabaseAuthSession } from './supabase-client.js';
+import { permissionFlagYes as permissionEnabled } from './permissions.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc  = new URL('../assets/logo1.png',      import.meta.url).href;
@@ -32,12 +33,6 @@ const inflightRequests = new Map();
 const PERF_MAX_RENDERS = 150;
 
 export { applyGlobalAccent };
-
-function permissionEnabled(value) {
-  if (typeof value === 'boolean') return value;
-  const normalized = String(value || '').trim().toLowerCase();
-  return ['yes', 'true', '1'].includes(normalized);
-}
 
 export function bindAccentPickerOnce() {
   bindAccentPickerListenerOnce({
@@ -1482,6 +1477,7 @@ function applyBootstrapUserFlags(bootstrap) {
   state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);
   state.user.can_request_edit = permissionEnabled(bootstrap.can_request_edit);
   state.user.can_review_requests = permissionEnabled(bootstrap.can_review_requests);
+  state.user.can_request_create_activity = permissionEnabled(bootstrap.can_request_create_activity);
   state.user.finance_access = !!bootstrap.has_finance_access;
   state.user.profile_is_active = bootstrap.profile_is_active !== false;
   state.user.can_access_personal_reports = !!bootstrap.has_personal_reports_access;
