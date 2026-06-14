@@ -28,7 +28,7 @@ function baseState() {
   return {
     activitiesMonthYm: '2026-04',
     activityPeriodTab: 'school_2026',
-    user: { display_role: 'admin', can_add_activity: true },
+    user: { display_role: 'מנהל מערכת', role: 'admin', can_add_activity: true },
     clientSettings: { hide_emp_id_on_screens: true, dropdown_options: {} },
     activityListFilters: {},
     screenDataCache: {}
@@ -125,6 +125,36 @@ test('activities access: admin idann can view without edit or add permissions', 
   assert.equal(debug.reasonDenied, '');
   const html = activitiesScreen.render({ rows: [] }, { state });
   assert.doesNotMatch(html, /אין הרשאה/);
+});
+
+
+test('activities access: allowed technical roles can view when display_role is Hebrew label', () => {
+  const users = [
+    ['idann', 'admin', 'מנהל מערכת'],
+    ['edenc', 'operation_manager', 'מנהלת תפעול'],
+    ['giln', 'activities_manager', 'מנהל פעילויות'],
+    ['yaela', 'domain_manager', 'מנהלת תחום'],
+    ['hilar', 'instructor_manager', 'מנהלת מדריכים'],
+    ['esraaa', 'business_development_manager', 'מנהלת פיתוח עסקי']
+  ];
+
+  for (const [username, role, displayRole] of users) {
+    const state = baseState();
+    state.user = {
+      username,
+      role,
+      display_role: displayRole,
+      permissions: {},
+      can_edit_direct: false,
+      can_add_activity: false
+    };
+    const debug = getActivitiesAccessDebug(state);
+    assert.equal(debug.role, role);
+    assert.equal(debug.displayRole, displayRole);
+    assert.equal(debug.hasActivitiesAccess, true, `${username} with role=${role} should access activities`);
+    const html = activitiesScreen.render({ rows: [] }, { state });
+    assert.doesNotMatch(html, /אין הרשאה/, `${username} with role=${role} should not see access denied`);
+  }
 });
 
 test('activities access: view permission and activities route allow viewing without add/edit permissions', () => {
