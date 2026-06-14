@@ -1965,7 +1965,7 @@ async function readProposalsAgreementsFromSupabase() {
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,display_role,is_active,permissions,auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements';
+const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,role,display_role,is_active,permissions,auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements';
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
@@ -2122,6 +2122,7 @@ function flattenUserRow(userRow = {}) {
   const customDisplayRole = String(userRow.display_role || '').trim();
   const flat = {
     user_id: String(userRow.user_id || ''),
+    username: String(userRow.username || ''),
     full_name: String(userRow.name || ''),
     role,
     display_role: role,
@@ -2179,7 +2180,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     });
   }
   // Israa management tab — requires view_israa_management=yes AND (the esraaa username or admin role).
-  const isIsraaUser = String(flat.user_id || '').trim().toLowerCase() === 'esraaa';
+  const isIsraaUser = String(flat.username || '').trim().toLowerCase() === 'esraaa';
   const isAdminRole = role === 'admin';
   if ((isIsraaUser || isAdminRole) && permissionFlagYes(flat.view_israa_management)) {
     if (!allowedRoutes.includes('israa-management')) allowedRoutes.push('israa-management');
@@ -2274,7 +2275,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
     .from('users')
     .select(USER_PUBLIC_COLUMNS)
     .eq('auth_user_id', authUserId)
-    .eq('user_id', username)
+    .eq('username', username)
     .eq('is_active', true)
     .single();
 
@@ -3165,6 +3166,7 @@ export const api = {
       token,
       user: {
         user_id: flat.user_id,
+        username: flat.username,
         email: String(user.email || '').trim(),
         display_role: flat.role,
         display_role_label: flat.display_role_label,
