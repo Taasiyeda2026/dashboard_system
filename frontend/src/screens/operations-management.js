@@ -742,9 +742,9 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     groupMap.get(groupKey).entries.push(entry);
   });
 
-  const title = selectedInstructorFilter
-    ? `סידור עבודה למדריך: ${selectedInstructorFilter}`
-    : 'סידור עבודה — כל המדריכים';
+  const instructorLine = selectedInstructorFilter
+    ? `מדריך: ${selectedInstructorFilter}`
+    : 'מדריך: כל המדריכים';
   const dateRange = `${formatDateHe(ops.dateFrom) || '—'}–${formatDateHe(ops.dateTo) || '—'}`;
 
   const blocks = groups.map((group) => {
@@ -772,7 +772,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     </div>`;
   }).join('');
 
-  return `<div class="ops-print-page"><h1>${escapeHtml(title)}</h1><p class="subtitle">טווח תאריכים: ${escapeHtml(dateRange)}</p><div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
+  return `<div class="ops-print-page"><h1>שיבוץ פעילויות קיץ</h1><p class="subtitle">${escapeHtml(instructorLine)} | טווח תאריכים: ${escapeHtml(dateRange)}</p><div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
 }
 
 function printInstructorSchedule() {
@@ -782,8 +782,8 @@ function printInstructorSchedule() {
     return;
   }
   const title = ctx.selectedInstructorFilter
-    ? `סידור עבודה — ${ctx.selectedInstructorFilter}`
-    : 'סידור עבודה';
+    ? ctx.selectedInstructorFilter
+    : 'שיבוץ פעילויות קיץ - כל המדריכים';
   const css = `
     body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:10px 14px;color:#111;background:#fff;font-size:11px;line-height:1.3}
     .ops-print-page{width:96%;margin:0 auto}
