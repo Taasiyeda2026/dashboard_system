@@ -1463,8 +1463,10 @@ function sectionLinesHtml(value, options = {}) {
 function signatureSectionHtml(_signatureBody = '') {
   return `<section class="proposal-signature" aria-label="חתימה">
     <p class="proposal-signature-greeting">בברכה,</p>
-    <div class="proposal-signature-line" aria-hidden="true"></div>
-    <p class="proposal-signature-name">עידן נחום, סמנכ״ל כספים</p>
+    <div class="proposal-signature-block">
+      <div class="proposal-signature-line" aria-hidden="true"></div>
+      <p class="proposal-signature-name">עידן נחום, סמנכ״ל כספים</p>
+    </div>
   </section>`;
 }
 
