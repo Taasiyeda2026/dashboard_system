@@ -474,13 +474,57 @@ export function renderAdminActivitiesSummary(rows, settings = {}) {
 }
 
 const ACTIVITIES_SCOPE = 'activities';
+
+/** מפרסר את linked_schools_json בבטחה — מחזיר מערך. */
+function parseLinkedSchoolsJson(row) {
+  const raw = row?.linked_schools_json;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string' && raw.startsWith('[')) {
+    try { return JSON.parse(raw); } catch (_) { return []; }
+  }
+  return [];
+}
+
+/**
+ * מחזיר את כל שמות בתי הספר לפעילות (כולל מרובי שיוך).
+ * משמש גם לפילטר (getValues) וגם לחיפוש.
+ */
+function getActivitySchoolNames(row) {
+  const names = new Set();
+  parseLinkedSchoolsJson(row).forEach((s) => {
+    const n = String(s?.school_name || '').trim();
+    if (n) names.add(n);
+  });
+  const lsn = String(row?.linked_school_names || '').trim();
+  if (lsn) lsn.split(/\s*\+\s*|\s*[,،]\s*/).forEach((n) => { const t = n.trim(); if (t) names.add(t); });
+  const ssn = String(row?.single_school_name || '').trim();
+  if (ssn) names.add(ssn);
+  const ls = String(row?.legacy_school || row?.school || '').trim();
+  if (ls) names.add(ls);
+  return Array.from(names);
+}
+
+/**
+ * שם בית ספר לתצוגה:
+ * עדיפות: linked_school_names > single_school_name > legacy_school/school > 'לא משויך'
+ */
+function getActivitySchoolDisplayName(row) {
+  const linkedCount = Number(row?.linked_schools_count || 0);
+  const lsn = String(row?.linked_school_names || '').trim();
+  if (linkedCount > 0 && lsn) return lsn;
+  const ssn = String(row?.single_school_name || '').trim();
+  if (ssn) return ssn;
+  const ls = String(row?.legacy_school || row?.school || '').trim();
+  return ls || 'לא משויך';
+}
+
 const ACTIVITY_FILTER_FIELDS = [
   { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
   { key: 'instructor', label: 'מדריך', getValues: (row) => [row?.instructor_name, row?.instructor_name_2] },
   { key: 'activity_name', label: 'תוכנית' },
   { key: 'authority', label: 'רשות' },
   { key: 'funding', label: 'מימון' },
-  { key: 'school', label: 'בית ספר' },
+  { key: 'school', label: 'בית ספר', getValues: getActivitySchoolNames },
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
 ];
 const ACTIVITY_SEARCH_FIELDS = [
@@ -489,10 +533,11 @@ const ACTIVITY_SEARCH_FIELDS = [
   'activity_manager', 'manager_name',
   'instructor_name', 'instructor_name_2', 'Instructor', 'Instructor2',
   'emp_id', 'emp_id_2', 'EmployeeID', 'EmployeeID2',
-  'authority', 'school', 'single_school_name', 'linked_school_name_list', 'grade', 'class_group', 'group', 'class',
+  'authority', 'school', 'single_school_name', 'linked_school_names', 'legacy_school', 'grade', 'class_group', 'group', 'class',
   'funding', 'status', 'single_semel_mosad', 'linked_semel_mosad_list',
   'start_date', 'end_date', 'date_1', 'meeting_dates', 'date_cols',
   'notes', 'description',
+  (row) => getActivitySchoolNames(row).join(' '),
   (row) => Array.from({ length: 30 }, (_, i) => row?.[`date_${i + 1}`]).filter(Boolean).join(' '),
   (row) => Array.isArray(row?.meeting_dates) ? row.meeting_dates.join(' ') : '',
   (row) => Array.isArray(row?.date_cols) ? row.date_cols.join(' ') : ''
@@ -1529,7 +1574,7 @@ export const activitiesScreen = {
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
         <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
-        <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.school || '—')}">${escapeHtml(row.school || '—')}</span></td>
+        <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--grade" style="text-align:center">${gradeDisplay}</td>
         <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}<span class="ds-activities-manager-line" title="${escapeHtml(managerLabel || '—')}">מנהל: ${escapeHtml(managerLabel || '—')}</span></div></td>
         <td class="ds-activities-col ds-activities-col--date" style="text-align:center"><time class="ds-activities-date">${escapeHtml(activityDateHe)}</time></td>
@@ -1546,7 +1591,7 @@ export const activitiesScreen = {
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
         <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
-        <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.school || '—')}">${escapeHtml(row.school || '—')}</span></td>
+        <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}<span class="ds-activities-manager-line" title="${escapeHtml(managerLabel || '—')}">מנהל: ${escapeHtml(managerLabel || '—')}</span></div></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe)}</time></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe)}</time></td>
