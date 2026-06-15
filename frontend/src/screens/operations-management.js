@@ -771,7 +771,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     </div>`;
   }).join('');
 
-  return `<div class="ops-print-page"><h1>${escapeHtml(title)}</h1><p class="subtitle">טווח תאריכים: ${escapeHtml(dateRange)}</p>${blocks}<p class="footer">לפני כל יום פעילות, נדרש לאשר את קיום הפעילות מול איש הקשר של בית הספר לפחות 48 שעות מראש.</p></div>`;
+  return `<div class="ops-print-page"><h1>${escapeHtml(title)}</h1><p class="subtitle">טווח תאריכים: ${escapeHtml(dateRange)}</p>${blocks}<p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
 }
 
 function printInstructorSchedule() {
@@ -796,7 +796,7 @@ function printInstructorSchedule() {
     .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 5px;text-align:right;font-size:10.5px;line-height:1.2;white-space:nowrap}
     .pb-act th{background:#e6f6fb;font-weight:700}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
-    .footer{margin-top:10px;font-size:10px;color:#64748b;text-align:center}
+    .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
     @page{size:A4 portrait;margin:8mm}
     @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}}
   `;
