@@ -98,6 +98,9 @@ test('operations management render includes menu page structure and tabs', () =>
   assert.match(html, /כמויות סדנאות/);
   assert.match(html, /לפי בתי ספר/);
   assert.match(html, /הדפס סידור מדריך/);
+  assert.match(html, /ds-filter-panel/);
+  assert.match(html, /ds-ops-mgmt-summary/);
+  assert.match(html, /ds-exceptions-tabs/);
   assert.doesNotMatch(html, /סמל מוסד/);
 });
 

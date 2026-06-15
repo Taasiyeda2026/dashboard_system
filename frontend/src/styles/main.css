@@ -15489,101 +15489,199 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 /* ═══════════════════════════════════════════════════════════════════
    Operations management screen
    ═══════════════════════════════════════════════════════════════════ */
-.ds-ops-mgmt-filters {
-  margin-bottom: 0.75rem;
+.ds-ops-mgmt-screen {
+  gap: 0.65rem;
 }
 
-.ds-ops-mgmt-filters__row {
+.ds-ops-mgmt-screen .ds-page-header {
+  margin-bottom: 0.15rem;
+}
+
+.ds-ops-mgmt-filters {
+  margin: 0;
+}
+
+.ds-ops-mgmt-filters__grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.ds-ops-mgmt-filters .ds-filter-field--search {
+  grid-column: span 2;
+}
+
+.ds-ops-mgmt-filters__actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
   align-items: end;
+  justify-content: flex-end;
 }
 
 .ds-ops-mgmt-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin: 0.5rem 0 0.75rem;
+  width: 100%;
+  max-width: 100%;
+  margin: 0.15rem 0 0.35rem;
 }
 
-.ds-ops-mgmt-tab {
-  border: 1px solid var(--ds-border, #d5dde8);
-  background: var(--ds-surface, #fff);
-  color: var(--ds-text, #0f172a);
-  border-radius: 999px;
-  padding: 0.35rem 0.8rem;
-  font-size: 0.82rem;
-  cursor: pointer;
+.ds-ops-mgmt-content {
+  display: grid;
+  gap: 0.55rem;
 }
 
-.ds-ops-mgmt-tab.is-active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
+.ds-ops-mgmt-panel {
+  display: grid;
+  gap: 0.55rem;
 }
 
 .ds-ops-mgmt-summary {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
   gap: 0.45rem;
-  margin-bottom: 0.75rem;
 }
 
 .ds-ops-mgmt-summary__card {
-  min-width: 7rem;
-  border: 1px solid var(--ds-border, #d5dde8);
-  border-radius: 8px;
-  padding: 0.45rem 0.6rem;
-  background: var(--ds-surface-muted, #f8fafc);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  gap: 0.1rem 0.45rem;
+  align-items: center;
+  min-height: 3.4rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--ds-border) 88%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ds-accent) 3%, var(--ds-surface));
+}
+
+.ds-ops-mgmt-summary__card--alert {
+  border-color: color-mix(in srgb, #f59e0b 35%, var(--ds-border));
+  background: color-mix(in srgb, #f59e0b 7%, var(--ds-surface));
+}
+
+.ds-ops-mgmt-summary__card--ok {
+  border-color: color-mix(in srgb, #16a34a 24%, var(--ds-border));
+}
+
+.ds-ops-mgmt-summary__icon {
+  grid-row: 1 / span 2;
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0.9;
 }
 
 .ds-ops-mgmt-summary__label {
-  display: block;
   font-size: 0.72rem;
-  color: var(--ds-text-muted, #64748b);
+  color: var(--ds-text-muted);
+  line-height: 1.2;
 }
 
 .ds-ops-mgmt-summary__value {
-  font-size: 0.95rem;
+  font-size: 1.15rem;
+  line-height: 1.1;
+  color: var(--ds-text);
 }
 
 .ds-ops-mgmt-panel__toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.45rem;
   align-items: end;
-  margin-bottom: 0.65rem;
+  justify-content: space-between;
 }
 
-.ds-ops-mgmt-subtitle {
-  margin: 0.85rem 0 0.45rem;
-  font-size: 0.95rem;
+.ds-ops-mgmt-instructor-field {
+  min-width: min(100%, 16rem);
 }
 
 .ds-ops-mgmt-count {
-  margin-top: 0.5rem;
-  font-size: 0.78rem;
+  margin: 0;
+  font-size: 0.76rem;
 }
 
+.ds-ops-mgmt-cell-muted {
+  color: var(--ds-text-muted);
+}
+
+.ds-ops-mgmt-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+
+.ds-ops-mgmt-data-table th,
+.ds-ops-mgmt-data-table td,
 .ds-ops-mgmt-schedule th,
 .ds-ops-mgmt-schedule td {
   font-size: 0.78rem;
-  white-space: nowrap;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  vertical-align: top;
 }
 
-.ds-link-btn {
-  border: 0;
-  background: none;
-  color: #2563eb;
-  cursor: pointer;
-  padding: 0;
-  font: inherit;
-  text-decoration: underline;
+.ds-ops-mgmt-schedule tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--ds-accent) 2.5%, var(--ds-surface));
+}
+
+.ds-ops-col--date,
+.ds-ops-col--school,
+.ds-ops-col--instructor {
+  color: var(--ds-text);
+}
+
+.ds-ops-mgmt-screen .ds-card {
+  margin: 0;
+}
+
+.ds-ops-mgmt-screen .ds-card__head {
+  padding: 0.55rem 0.7rem;
+}
+
+.ds-ops-mgmt-screen .ds-card__title {
+  font-size: 0.92rem;
+}
+
+.ds-ops-mgmt-screen .ds-table-wrap {
+  overflow-x: auto;
 }
 
 .only-print {
   display: none;
+}
+
+@media (max-width: 1100px) {
+  .ds-ops-mgmt-filters__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ds-ops-mgmt-filters .ds-filter-field--search {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 720px) {
+  .ds-ops-mgmt-filters__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ds-ops-mgmt-filters .ds-filter-field--search,
+  .ds-ops-mgmt-filters__actions {
+    grid-column: 1 / -1;
+  }
+
+  .ds-ops-mgmt-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ds-ops-mgmt-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .ds-ops-mgmt-filters__grid,
+  .ds-ops-mgmt-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media print {
@@ -15591,7 +15689,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   body.is-ops-mgmt-print .app-shell .shell-top,
   body.is-ops-mgmt-print .no-print,
   body.is-ops-mgmt-print .ds-ops-mgmt-tabs,
-  body.is-ops-mgmt-print .ds-page-header__subtitle {
+  body.is-ops-mgmt-print .ds-page-header__subtitle,
+  body.is-ops-mgmt-print .ds-ops-mgmt-summary,
+  body.is-ops-mgmt-print .ds-card__head,
+  body.is-ops-mgmt-print .ds-ops-mgmt-count {
     display: none !important;
   }
 
@@ -15599,22 +15700,60 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     display: block !important;
   }
 
+  body.is-ops-mgmt-print .ds-ops-mgmt-print-header {
+    margin: 0 0 10mm;
+    text-align: center;
+  }
+
   body.is-ops-mgmt-print .ds-ops-mgmt-print-header h2 {
-    margin: 0 0 0.25rem;
-    font-size: 1.1rem;
+    margin: 0 0 2mm;
+    font-size: 16pt;
+    font-weight: 800;
   }
 
   body.is-ops-mgmt-print .ds-ops-mgmt-print-header p {
-    margin: 0 0 0.75rem;
+    margin: 0;
+    font-size: 11pt;
+    color: #334155;
   }
 
   body.is-ops-mgmt-print .ds-ops-mgmt-print-footer {
-    margin-top: 1rem;
-    font-size: 0.85rem;
+    margin-top: 8mm;
+    font-size: 9.5pt;
+    color: #475569;
+    text-align: center;
   }
 
   body.is-ops-mgmt-print .ds-ops-mgmt-schedule {
     width: 100%;
     font-size: 9pt;
+    border-collapse: collapse;
+  }
+
+  body.is-ops-mgmt-print .ds-ops-mgmt-schedule th,
+  body.is-ops-mgmt-print .ds-ops-mgmt-schedule td {
+    border: 1px solid #cbd5e1;
+    padding: 2.5mm 2mm;
+  }
+
+  body.is-ops-mgmt-print .ds-ops-mgmt-schedule thead th {
+    background: #e2e8f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.is-ops-mgmt-print .ds-ops-col--groups,
+  body.is-ops-mgmt-print .ds-ops-col--grade,
+  body.is-ops-mgmt-print .ds-ops-col--address,
+  body.is-ops-mgmt-print .ds-ops-col--contact,
+  body.is-ops-mgmt-print .ds-ops-col--phone,
+  body.is-ops-mgmt-print .ds-ops-col--notes,
+  body.is-ops-mgmt-print .ds-ops-mgmt-schedule .ds-ops-col--groups,
+  body.is-ops-mgmt-print .ds-ops-mgmt-schedule .ds-ops-col--grade,
+  body.is-ops-mgmt-print .ds-ops-mgmt-schedule .ds-ops-col--address,
+  body.is-ops-mgmt-print .ds-ops-mgmt-schedule .ds-ops-col--contact,
+  body.is-ops-mgmt-print .ds-ops-mgmt-schedule .ds-ops-col--phone,
+  body.is-ops-mgmt-print .ds-ops-mgmt-schedule .ds-ops-col--notes {
+    display: none !important;
   }
 }

@@ -4,7 +4,8 @@ import {
   dsPageHeader,
   dsCard,
   dsTableWrap,
-  dsEmptyState
+  dsEmptyState,
+  dsStatusChip
 } from './shared/layout.js';
 import {
   ensureActivityListFilters,
@@ -149,7 +150,7 @@ function applyAllFilters(rows, state) {
   return applyLocalFilters(base, filters, { filterFields: FILTER_FIELDS });
 }
 
-function filterOptionsHtml(scope, fieldKey, label, options, selected) {
+function filterOptionsHtml(fieldKey, label, options, selected) {
   return `<label class="ds-filter-field">
     <span class="ds-filter-field__label">${escapeHtml(label)}</span>
     <select class="ds-input ds-input--sm" data-ops-filter="${escapeHtml(fieldKey)}">
@@ -168,8 +169,9 @@ function topFiltersHtml(rows, state) {
     if (selected && !(optionsMap[field.key] || []).includes(selected)) filters[field.key] = '';
   });
 
-  return `<section class="ds-ops-mgmt-filters no-print" dir="rtl">
-    <div class="ds-ops-mgmt-filters__row">
+  return `<section class="ds-filter-panel ds-ops-mgmt-filters no-print" dir="rtl">
+    <h2 class="ds-filter-panel__title">סינון וחיפוש</h2>
+    <div class="ds-filter-panel__grid ds-ops-mgmt-filters__grid">
       <label class="ds-filter-field"><span class="ds-filter-field__label">מתאריך</span><input class="ds-input ds-input--sm" type="date" data-ops-date="from" value="${escapeHtml(ops.dateFrom || '')}"></label>
       <label class="ds-filter-field"><span class="ds-filter-field__label">עד תאריך</span><input class="ds-input ds-input--sm" type="date" data-ops-date="to" value="${escapeHtml(ops.dateTo || '')}"></label>
       <label class="ds-filter-field"><span class="ds-filter-field__label">תקופה</span>
@@ -178,15 +180,16 @@ function topFiltersHtml(rows, state) {
         </select>
       </label>
       ${filterFieldsHtml(optionsMap, filters)}
-      <label class="ds-filter-field"><span class="ds-filter-field__label">חיפוש</span><input class="ds-input ds-input--sm" type="search" data-ops-search value="${escapeHtml(filters.q || '')}" placeholder="חיפוש חופשי…"></label>
-      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-clear-filters>ניקוי</button>
+      <label class="ds-filter-field ds-filter-field--search"><span class="ds-filter-field__label">חיפוש חופשי</span><input class="ds-input ds-input--sm" type="search" data-ops-search value="${escapeHtml(filters.q || '')}" placeholder="שם, רשות, בית ספר, מדריך…"></label>
+      <div class="ds-filter-panel__actions ds-ops-mgmt-filters__actions">
+        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-clear-filters">ניקוי פילטרים</button>
+      </div>
     </div>
   </section>`;
 }
 
 function filterFieldsHtml(optionsMap, filters) {
   return FILTER_FIELDS.map((field) => filterOptionsHtml(
-    SCOPE,
     field.key,
     field.label,
     optionsMap[field.key] || [],
@@ -201,15 +204,59 @@ function tabsHtml(activeTab) {
     [TAB_WORKSHOPS, 'כמויות סדנאות'],
     [TAB_SCHOOLS, 'לפי בתי ספר']
   ];
-  return `<nav class="ds-ops-mgmt-tabs no-print" aria-label="לשוניות ניהול תפעול" dir="rtl">
-    ${tabs.map(([key, label]) => `<button type="button" class="ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
+  return `<nav class="ds-exceptions-tabs ds-ops-mgmt-tabs no-print" aria-label="לשוניות ניהול תפעול" dir="rtl">
+    ${tabs.map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
   </nav>`;
 }
 
-function summaryCardsHtml(items) {
-  return `<div class="ds-ops-mgmt-summary" dir="rtl">${items.map(([label, value]) => `
-    <div class="ds-ops-mgmt-summary__card"><span class="ds-ops-mgmt-summary__label">${escapeHtml(label)}</span><strong class="ds-ops-mgmt-summary__value">${escapeHtml(String(value))}</strong></div>
-  `).join('')}</div>`;
+function summaryKpiHtml(items = []) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return '';
+  return `<div class="ds-ops-mgmt-summary" dir="rtl">${list.map((item) => {
+    const tone = item.tone === 'alert' ? ' ds-ops-mgmt-summary__card--alert' : (item.tone === 'ok' ? ' ds-ops-mgmt-summary__card--ok' : '');
+    return `<article class="ds-ops-mgmt-summary__card${tone}">
+      <span class="ds-ops-mgmt-summary__icon" aria-hidden="true">${escapeHtml(item.icon || '•')}</span>
+      <span class="ds-ops-mgmt-summary__label">${escapeHtml(item.label)}</span>
+      <strong class="ds-ops-mgmt-summary__value">${escapeHtml(String(item.value ?? ''))}</strong>
+    </article>`;
+  }).join('')}</div>`;
+}
+
+function getSummerExceptionTags(activity) {
+  if (!isSummerActivity(activity)) return [];
+  const tags = [];
+  if (getActivityInstructorName(activity) === 'לא משויך') tags.push({ label: 'ללא מדריך', kind: 'warning' });
+  if (!getActivityPrimaryDate(activity) && getActivityScheduleDates(activity).length === 0) {
+    tags.push({ label: 'ללא תאריך', kind: 'danger' });
+  }
+  return tags;
+}
+
+function exceptionTagsHtml(activity) {
+  const tags = getSummerExceptionTags(activity);
+  if (!tags.length) return '<span class="ds-ops-mgmt-cell-muted">—</span>';
+  return `<span class="ds-ops-mgmt-tags">${tags.map((tag) => dsStatusChip(tag.label, tag.kind)).join('')}</span>`;
+}
+
+function exceptionCountCell(count) {
+  const value = Number(count || 0);
+  if (!value) return '<span class="ds-ops-mgmt-cell-muted">—</span>';
+  return dsStatusChip(String(value), 'warning');
+}
+
+function tabOverviewSummary(rows) {
+  const instructors = instructorOptions(rows);
+  const schools = uniqueSorted(rows.map(getActivitySchoolDisplayName).filter((name) => name !== 'לא משויך'));
+  const authorities = uniqueSorted(rows.map(getActivityAuthorityName));
+  const exceptions = rows.filter(isSummerOperationsException).length;
+  const items = [
+    { icon: '📋', label: 'פעילויות', value: rows.length },
+    { icon: '👥', label: 'מדריכים', value: instructors.length },
+    { icon: '🏫', label: 'בתי ספר / מסגרות', value: schools.length },
+    { icon: '🏛️', label: 'רשויות', value: authorities.length }
+  ];
+  if (exceptions > 0) items.push({ icon: '⚠️', label: 'חריגות קיץ', value: exceptions, tone: 'alert' });
+  return summaryKpiHtml(items);
 }
 
 function uniqueSorted(values) {
@@ -265,13 +312,12 @@ function instructorSummary(rows, state, scheduleRows) {
   const workDays = uniqueSorted(scheduleRows.map((row) => row.date).filter(Boolean)).length;
   const authorities = uniqueSorted(rows.map(getActivityAuthorityName));
   const schools = uniqueSorted(rows.map(getActivitySchoolDisplayName).filter((name) => name !== 'לא משויך'));
-  return summaryCardsHtml([
-    ['מדריך', selected],
-    ['טווח תאריכים', `${formatDateHe(ops.dateFrom)}–${formatDateHe(ops.dateTo)}`],
-    ['ימי עבודה', workDays],
-    ['פעילויות', rows.length],
-    ['בתי ספר / מסגרות', schools.length],
-    ['רשויות', authorities.join(' · ') || '—']
+  return summaryKpiHtml([
+    { icon: '👤', label: 'מדריך', value: selected },
+    { icon: '📅', label: 'ימי עבודה', value: workDays },
+    { icon: '📋', label: 'פעילויות', value: rows.length },
+    { icon: '🏫', label: 'בתי ספר / מסגרות', value: schools.length },
+    { icon: '🏛️', label: 'רשויות', value: authorities.length }
   ]);
 }
 
@@ -285,19 +331,19 @@ function instructorsTabHtml(rows, state) {
 
   const tableRows = scheduleRows.map((entry) => {
     const activity = entry.activity;
-  return `<tr>
-      <td>${escapeHtml(formatDateHe(entry.date) || '—')}</td>
-      <td>${escapeHtml(entry.date ? formatDateHeWithWeekday(entry.date).split(' · ')[0] : '—')}</td>
-      <td>${escapeHtml(entry.time || '—')}</td>
+    return `<tr>
+      <td class="ds-ops-col--date"><strong>${escapeHtml(formatDateHe(entry.date) || '—')}</strong></td>
+      <td class="ds-ops-col--weekday">${escapeHtml(entry.date ? formatDateHeWithWeekday(entry.date).split(' · ')[0] : '—')}</td>
+      <td class="ds-ops-col--time">${escapeHtml(entry.time || '—')}</td>
       <td>${escapeHtml(getActivityAuthorityName(activity))}</td>
-      <td>${escapeHtml(getActivitySchoolDisplayName(activity))}</td>
+      <td class="ds-ops-col--school"><strong>${escapeHtml(getActivitySchoolDisplayName(activity))}</strong></td>
       <td>${escapeHtml(getActivityName(activity))}</td>
-      <td>${escapeHtml(getActivityGroupsCount(activity) || '—')}</td>
-      <td>${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
-      <td>${escapeHtml(getActivityAddress(activity) || '—')}</td>
-      <td>${escapeHtml(getActivityContactName(activity) || '—')}</td>
-      <td>${escapeHtml(getActivityContactPhone(activity) || '—')}</td>
-      <td>${escapeHtml(getActivityOperationalNotes(activity) || '—')}</td>
+      <td class="ds-ops-col--groups">${escapeHtml(getActivityGroupsCount(activity) || '—')}</td>
+      <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
+      <td class="ds-ops-col--address">${escapeHtml(getActivityAddress(activity) || '—')}</td>
+      <td class="ds-ops-col--contact">${escapeHtml(getActivityContactName(activity) || '—')}</td>
+      <td class="ds-ops-col--phone">${escapeHtml(getActivityContactPhone(activity) || '—')}</td>
+      <td class="ds-ops-col--notes">${escapeHtml(getActivityOperationalNotes(activity) || '—')}</td>
     </tr>`;
   }).join('');
 
@@ -305,13 +351,18 @@ function instructorsTabHtml(rows, state) {
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-schedule">
       <thead><tr>
         <th>תאריך</th><th>יום</th><th>שעה</th><th>רשות</th><th>בית ספר / מסגרת</th><th>פעילות</th>
-        <th>קבוצות</th><th>שכבה / כיתה</th><th>כתובת</th><th>איש קשר</th><th>טלפון</th><th>הערות</th>
+        <th class="ds-ops-col--groups">קבוצות</th><th class="ds-ops-col--grade">שכבה / כיתה</th><th class="ds-ops-col--address">כתובת</th><th class="ds-ops-col--contact">איש קשר</th><th class="ds-ops-col--phone">טלפון</th><th class="ds-ops-col--notes">הערות</th>
       </tr></thead><tbody>${tableRows}</tbody></table>`)
     : dsEmptyState('לא נמצאו פעילויות בטווח הנבחר');
 
+  const instructorRows = selected === '__all__'
+    ? rows
+    : rows.filter((row) => getActivityInstructorName(row) === selected);
+
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
+    ${tabOverviewSummary(rows)}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
-      <label class="ds-filter-field"><span class="ds-filter-field__label">מדריך</span>
+      <label class="ds-filter-field ds-ops-mgmt-instructor-field"><span class="ds-filter-field__label">מדריך לסידור</span>
         <select class="ds-input ds-input--sm" data-ops-instructor>
           <option value="__all__"${selected === '__all__' ? ' selected' : ''}>כל המדריכים</option>
           ${instructors.map((name) => `<option value="${escapeHtml(name)}"${name === selected ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}
@@ -323,8 +374,8 @@ function instructorsTabHtml(rows, state) {
       <h2>סידור עבודה למדריך: ${escapeHtml(printTitle)}</h2>
       <p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p>
     </div>
-    ${selected !== '__all__' ? instructorSummary(rows.filter((row) => getActivityInstructorName(row) === selected), state, scheduleRows) : ''}
-    ${table}
+    ${selected !== '__all__' ? instructorSummary(instructorRows, state, scheduleRows) : ''}
+    ${dsCard({ title: 'טבלת סידור עבודה', badge: String(scheduleRows.length), body: table, padded: false })}
     <p class="ds-ops-mgmt-print-footer only-print">יש לבדוק את פרטי הפעילות לפני הגעה. במקרה של שינוי, יש לעדכן את התפעול.</p>
   </section>`;
 }
@@ -354,9 +405,9 @@ function summerTabHtml(rows, state) {
 
   const districtRows = Array.from(byDistrict.values()).sort((a, b) => a.district.localeCompare(b.district, 'he'));
   const districtTable = districtRows.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive">
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table">
       <thead><tr><th>מחוז / אזור</th><th>רשויות</th><th>בתי ספר</th><th>פעילויות</th><th>מדריכים</th><th>חריגות</th></tr></thead>
-      <tbody>${districtRows.map((row) => `<tr data-ops-district="${escapeHtml(row.district)}"><td><button type="button" class="ds-link-btn" data-ops-district="${escapeHtml(row.district)}">${escapeHtml(row.district)}</button></td><td>${row.authorities.size}</td><td>${row.schools.size}</td><td>${row.activities}</td><td>${row.instructors.size}</td><td>${row.exceptions}</td></tr>`).join('')}</tbody>
+      <tbody>${districtRows.map((row) => `<tr data-ops-district="${escapeHtml(row.district)}"><td><button type="button" class="ds-link-btn" data-ops-district="${escapeHtml(row.district)}">${escapeHtml(row.district)}</button></td><td>${row.authorities.size}</td><td>${row.schools.size}</td><td>${row.activities}</td><td>${row.instructors.size}</td><td>${exceptionCountCell(row.exceptions)}</td></tr>`).join('')}</tbody>
     </table>`)
     : dsEmptyState('אין פעילויות קיץ בטווח הנבחר');
 
@@ -376,21 +427,23 @@ function summerTabHtml(rows, state) {
   const instructorRows = Array.from(byInstructor.values()).sort((a, b) => a.instructor.localeCompare(b.instructor, 'he'));
 
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
-    ${summaryCardsHtml([
-      ['פעילויות קיץ', summerRows.length],
-      ['מדריכים פעילים', instructors.length],
-      ['רשויות', authorities.length],
-      ['בתי ספר / מסגרות', schools.length],
-      ['סדנאות שונות', workshops.length],
-      ['חריגות קיץ', exceptions]
+    ${summaryKpiHtml([
+      { icon: '☀️', label: 'פעילויות קיץ', value: summerRows.length },
+      { icon: '👥', label: 'מדריכים פעילים', value: instructors.length },
+      { icon: '🏛️', label: 'רשויות', value: authorities.length },
+      { icon: '🏫', label: 'בתי ספר / מסגרות', value: schools.length },
+      { icon: '🎨', label: 'סדנאות שונות', value: workshops.length },
+      { icon: '⚠️', label: 'חריגות קיץ', value: exceptions, tone: exceptions ? 'alert' : 'ok' }
     ])}
-    <h3 class="ds-ops-mgmt-subtitle">לפי אזורים / מחוזות</h3>
-    ${districtTable}
-    <h3 class="ds-ops-mgmt-subtitle">לפי מדריכים בקיץ</h3>
-    ${instructorRows.length ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive">
+    ${dsCard({ title: 'לפי אזורים / מחוזות', body: districtTable, padded: false })}
+    ${instructorRows.length ? dsCard({
+      title: 'לפי מדריכים בקיץ',
+      body: dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table">
       <thead><tr><th>מדריך</th><th>פעילויות</th><th>ימי עבודה</th><th>רשויות</th><th>בתי ספר</th><th>חריגות</th></tr></thead>
-      <tbody>${instructorRows.map((row) => `<tr><td><button type="button" class="ds-link-btn" data-ops-instructor-jump="${escapeHtml(row.instructor)}">${escapeHtml(row.instructor)}</button></td><td>${row.activities}</td><td>${row.days.size}</td><td>${escapeHtml(Array.from(row.authorities).join(' · '))}</td><td>${escapeHtml(Array.from(row.schools).join(' · '))}</td><td>${row.exceptions || '—'}</td></tr>`).join('')}</tbody>
-    </table>`) : dsEmptyState('אין מדריכים בקיץ')}
+      <tbody>${instructorRows.map((row) => `<tr><td class="ds-ops-col--instructor"><button type="button" class="ds-link-btn" data-ops-instructor-jump="${escapeHtml(row.instructor)}">${escapeHtml(row.instructor)}</button></td><td>${row.activities}</td><td>${row.days.size}</td><td>${escapeHtml(Array.from(row.authorities).join(' · '))}</td><td>${escapeHtml(Array.from(row.schools).join(' · '))}</td><td>${exceptionCountCell(row.exceptions)}</td></tr>`).join('')}</tbody>
+    </table>`),
+      padded: false
+    }) : dsCard({ title: 'לפי מדריכים בקיץ', body: dsEmptyState('אין מדריכים בקיץ'), padded: true })}
   </section>`;
 }
 
@@ -416,9 +469,9 @@ function workshopsTabHtml(rows, state) {
 
   const list = Array.from(groups.values()).sort((a, b) => b.activities - a.activities);
   const table = list.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive">
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table">
       <thead><tr><th>שם סדנה</th><th>פעילויות</th><th>בתי ספר</th><th>רשויות</th><th>מדריכים</th><th>קבוצות</th><th>חריגות</th></tr></thead>
-      <tbody>${list.map((row) => `<tr><td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.name)}">${escapeHtml(row.name)}</button></td><td>${row.activities}</td><td>${row.schools.size}</td><td>${row.authorities.size}</td><td>${row.instructors.size}</td><td>${row.groupsCount || '—'}</td><td>${row.exceptions || '—'}</td></tr>`).join('')}</tbody>
+      <tbody>${list.map((row) => `<tr><td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.name)}">${escapeHtml(row.name)}</button></td><td>${row.activities}</td><td>${row.schools.size}</td><td>${row.authorities.size}</td><td>${row.instructors.size}</td><td>${row.groupsCount || '—'}</td><td>${exceptionCountCell(row.exceptions)}</td></tr>`).join('')}</tbody>
     </table>`)
     : dsEmptyState('לא נמצאו סדנאות');
 
@@ -426,18 +479,29 @@ function workshopsTabHtml(rows, state) {
   const detail = expanded
     ? dsCard({
       title: `פירוט: ${expanded.name}`,
-      body: dsTableWrap(`<table class="ds-table ds-table--compact"><thead><tr><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך</th><th>קבוצות</th><th>הערות</th></tr></thead><tbody>${expanded.items.map((row) => `<tr>
+      body: dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך</th><th>קבוצות</th><th>חריגות</th><th>הערות</th></tr></thead><tbody>${expanded.items.map((row) => `<tr>
         <td>${escapeHtml(getActivityAuthorityName(row))}</td>
-        <td>${escapeHtml(getActivitySchoolDisplayName(row))}</td>
-        <td>${escapeHtml(getActivityInstructorName(row))}</td>
-        <td>${escapeHtml(formatDateHe(getActivityPrimaryDate(row)) || formatDateHe(getActivityScheduleDates(row).join(', ')) || '—')}</td>
+        <td class="ds-ops-col--school">${escapeHtml(getActivitySchoolDisplayName(row))}</td>
+        <td class="ds-ops-col--instructor">${escapeHtml(getActivityInstructorName(row))}</td>
+        <td class="ds-ops-col--date">${escapeHtml(formatDateHe(getActivityPrimaryDate(row)) || '—')}</td>
         <td>${escapeHtml(getActivityGroupsCount(row) || '—')}</td>
+        <td>${exceptionTagsHtml(row)}</td>
         <td>${escapeHtml(getActivityOperationalNotes(row) || '—')}</td>
-      </tr>`).join('')}</tbody></table>`)
+      </tr>`).join('')}</tbody></table>`),
+      padded: false
     })
     : '';
 
-  return `<section class="ds-ops-mgmt-panel" dir="rtl">${table}${detail}</section>`;
+  return `<section class="ds-ops-mgmt-panel" dir="rtl">
+    ${summaryKpiHtml([
+      { icon: '🎨', label: 'סדנאות שונות', value: list.length },
+      { icon: '📋', label: 'פעילויות', value: rows.length },
+      { icon: '🏫', label: 'בתי ספר', value: uniqueSorted(rows.map(getActivitySchoolDisplayName).filter((name) => name !== 'לא משויך')).length },
+      { icon: '👥', label: 'מדריכים', value: instructorOptions(rows).length }
+    ])}
+    ${dsCard({ title: 'סיכום לפי שם סדנה', badge: String(list.length), body: table, padded: false })}
+    ${detail}
+  </section>`;
 }
 
 function schoolsTabHtml(rows, state) {
@@ -470,9 +534,9 @@ function schoolsTabHtml(rows, state) {
 
   const list = Array.from(groups.values()).sort((a, b) => a.authority.localeCompare(b.authority, 'he') || a.school.localeCompare(b.school, 'he'));
   const table = list.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive">
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table">
       <thead><tr><th>רשות</th><th>בית ספר / מסגרת</th><th>פעילויות</th><th>סדנאות</th><th>מדריכים</th><th>תאריכים</th><th>חריגות</th></tr></thead>
-      <tbody>${list.map((row) => `<tr><td>${escapeHtml(row.authority)}</td><td><button type="button" class="ds-link-btn" data-ops-school="${escapeHtml(row.key)}">${escapeHtml(row.school)}</button></td><td>${row.activities}</td><td>${escapeHtml(Array.from(row.workshops).join(' · '))}</td><td>${escapeHtml(Array.from(row.instructors).join(' · '))}</td><td>${escapeHtml(Array.from(row.dates).slice(0, 4).map(formatDateHe).join(' · '))}</td><td>${row.exceptions || '—'}</td></tr>`).join('')}</tbody>
+      <tbody>${list.map((row) => `<tr><td>${escapeHtml(row.authority)}</td><td class="ds-ops-col--school"><button type="button" class="ds-link-btn" data-ops-school="${escapeHtml(row.key)}">${escapeHtml(row.school)}</button></td><td>${row.activities}</td><td>${escapeHtml(Array.from(row.workshops).join(' · '))}</td><td>${escapeHtml(Array.from(row.instructors).join(' · '))}</td><td>${escapeHtml(Array.from(row.dates).slice(0, 4).map(formatDateHe).join(' · '))}</td><td>${exceptionCountCell(row.exceptions)}</td></tr>`).join('')}</tbody>
     </table>`)
     : dsEmptyState('לא נמצאו בתי ספר / מסגרות');
 
@@ -480,18 +544,24 @@ function schoolsTabHtml(rows, state) {
   const detail = expanded
     ? dsCard({
       title: `פירוט: ${expanded.school}`,
-      body: dsTableWrap(`<table class="ds-table ds-table--compact"><thead><tr><th>תאריך</th><th>מדריך</th><th>סדנה</th><th>קבוצות</th><th>שכבה</th><th>הערות</th></tr></thead><tbody>${expanded.items.map((row) => `<tr>
-        <td>${escapeHtml(formatDateHe(getActivityPrimaryDate(row)) || '—')}</td>
-        <td>${escapeHtml(getActivityInstructorName(row))}</td>
+      body: dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>תאריך</th><th>מדריך</th><th>סדנה</th><th>קבוצות</th><th>שכבה</th><th>חריגות</th><th>הערות</th></tr></thead><tbody>${expanded.items.map((row) => `<tr>
+        <td class="ds-ops-col--date">${escapeHtml(formatDateHe(getActivityPrimaryDate(row)) || '—')}</td>
+        <td class="ds-ops-col--instructor">${escapeHtml(getActivityInstructorName(row))}</td>
         <td>${escapeHtml(getActivityName(row))}</td>
         <td>${escapeHtml(getActivityGroupsCount(row) || '—')}</td>
         <td>${escapeHtml(getActivityGradeLabel(row) || '—')}</td>
+        <td>${exceptionTagsHtml(row)}</td>
         <td>${escapeHtml(getActivityOperationalNotes(row) || '—')}</td>
-      </tr>`).join('')}</tbody></table>`)
+      </tr>`).join('')}</tbody></table>`),
+      padded: false
     })
     : '';
 
-  return `<section class="ds-ops-mgmt-panel" dir="rtl">${table}${detail}</section>`;
+  return `<section class="ds-ops-mgmt-panel" dir="rtl">
+    ${tabOverviewSummary(rows)}
+    ${dsCard({ title: 'פעילויות לפי בית ספר / מסגרת', badge: String(list.length), body: table, padded: false })}
+    ${detail}
+  </section>`;
 }
 
 function renderTab(rows, state) {
@@ -514,7 +584,7 @@ export const operationsManagementScreen = {
     return `<div class="ds-screen-stack ds-ops-mgmt-screen">${dsPageHeader('ניהול תפעול', 'עמוד תפעולי להצגת סידור עבודה למדריכים, תכנון קיץ, כמויות סדנאות ופירוט לפי בתי ספר.')}
       ${topFiltersHtml(baseRows, state)}
       ${tabsHtml(ops.tab)}
-      ${renderTab(filteredRows, state)}
+      <div class="ds-ops-mgmt-content">${renderTab(filteredRows, state)}</div>
       <p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>
     </div>`;
   },
