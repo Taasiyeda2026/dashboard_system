@@ -144,8 +144,9 @@ function activityPeriodKey(row = {}) {
   if (isSummerActivity(row)) return 'summer_2026';
   if (!isActiveActivity(row)) return 'inactive';
   const start = normalizedActivityStartDate(row);
-  if (start >= '2027-01-01' && start <= '2027-12-31') return 'school_2027';
-  if (start >= '2026-01-01' && start <= '2026-12-31') return 'school_2026';
+  if (!start) return 'school_2026';
+  if (start >= '2026-09-01') return 'school_2027';
+  if (start >= '2026-07-01') return 'summer_2026';
   return 'school_2026';
 }
 
@@ -184,7 +185,7 @@ function activityRowsForPeriodAndMonth(rows, state = {}) {
   if (isAllActivitiesMode(state)) return allActivitiesRows(rows, state);
   const periodRows = activityPeriodRows(rows, state.activityPeriodTab);
   if (!shouldApplyActivitiesMonthFilter(state)) return periodRows;
-  return periodRows.filter((row) => activityMatchesSelectedStartMonth(row, state.activitiesMonthYm));
+  return periodRows.filter((row) => activityOccursInSelectedMonth(row, state.activitiesMonthYm));
 }
 
 function firstActivityMonthYm(rows) {
@@ -200,6 +201,17 @@ function firstActivityMonthYm(rows) {
     });
   });
   return [...months].sort()[0] || '';
+}
+
+function pickBestMonthForPeriod(rows, periodKey) {
+  const first = firstActivityMonthYm(activityPeriodRows(rows, periodKey));
+  if (first) return first;
+  for (const tab of ACTIVITY_PERIOD_TABS) {
+    if (tab.key === periodKey || tab.archive) continue;
+    const other = firstActivityMonthYm(activityPeriodRows(rows, tab.key));
+    if (other) return other;
+  }
+  return currentYm();
 }
 
 function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
@@ -1367,12 +1379,15 @@ function activityLayoutListHtml(groups = []) {
 export const activitiesScreen = {
   async load({ api, state }) {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
-    if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
     const result = await api.activities({
       activity_type: 'all',
       include_inactive: true
     });
-    ensureActivityPeriodMonth(state, Array.isArray(result?.rows) ? result.rows : []);
+    const loadedRows = Array.isArray(result?.rows) ? result.rows : [];
+    ensureActivityPeriodMonth(state, loadedRows);
+    if (!state.activitiesMonthYm) {
+      state.activitiesMonthYm = pickBestMonthForPeriod(loadedRows, state.activityPeriodTab);
+    }
     return result;
   },
 
@@ -1384,8 +1399,10 @@ export const activitiesScreen = {
 
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
-    if (!state.activitiesMonthYm) state.activitiesMonthYm = currentYm();
     ensureActivityPeriodMonth(state, allRows);
+    if (!state.activitiesMonthYm) {
+      state.activitiesMonthYm = pickBestMonthForPeriod(allRows, state.activityPeriodTab);
+    }
     state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const isAllMode = isAllActivitiesMode(state);
     const periodRows    = isAllMode ? allActivitiesRows(allRows, state) : activityPeriodRows(allRows, state.activityPeriodTab);
@@ -2072,7 +2089,7 @@ export const activitiesScreen = {
       btn.addEventListener('click', () => {
         state.activityPeriodTab = normalizeActivityPeriodTab(btn.getAttribute('data-activity-period-tab'));
         if (shouldApplyActivitiesMonthFilter(state)) {
-          state.activitiesMonthYm = currentYm();
+          state.activitiesMonthYm = pickBestMonthForPeriod(activitiesRows, state.activityPeriodTab);
           state._activitiesSummerMonthInitialized = false;
         } else {
           ensureActivityPeriodMonth(state, activitiesRows, { force: true });
