@@ -52,8 +52,7 @@ const ALL_ACTIVITIES_STATUS_FILTERS = [
   { key: 'all', label: 'הכל' },
   { key: 'open', label: 'פתוח' },
   { key: 'closed', label: 'סגור' },
-  { key: 'undated', label: 'ללא תאריך' },
-  { key: 'include_deleted', label: 'כולל נמחקים' }
+  { key: 'undated', label: 'ללא תאריך' }
 ];
 const ACTIVITY_PERIOD_TABS = [
   { key: 'school_2026', label: 'תשפ״ו / 2026', start: '', end: '2026-06-30' },
@@ -168,8 +167,8 @@ function activityPeriodRows(rows, periodKey) {
 function allActivitiesRows(rows, state = {}) {
   const filter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
   return (Array.isArray(rows) ? rows : []).filter((row) => {
-    if (filter !== 'include_deleted' && isDeletedActivity(row)) return false;
-    if (filter === 'open') return !isClosedActivity(row) && !isDeletedActivity(row);
+    if (isDeletedActivity(row)) return false;
+    if (filter === 'open') return !isClosedActivity(row);
     if (filter === 'closed') return isClosedActivity(row);
     if (filter === 'undated') return !normalizedActivityStartDate(row);
     return true;
@@ -783,7 +782,7 @@ function applyClientFilters(rows, state, settings) {
   if (state.activityQuickManager) {
     out = out.filter((row) => matchesQuickDistrictOrManager(row, state.activityQuickManager));
   }
-  if (state.activityEndingCurrentMonth) {
+  if (state.activityEndingCurrentMonth && !isAllActivitiesMode(state)) {
     out = out.filter((row) => isEndingInMonth(row, state.activitiesMonthYm));
   }
   return out;
@@ -1389,7 +1388,7 @@ export const activitiesScreen = {
     ensureActivityPeriodMonth(state, allRows);
     state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const isAllMode = isAllActivitiesMode(state);
-    const periodRows    = isAllMode ? allActivitiesRows(allRows, { allActivitiesStatusFilter: 'include_deleted' }) : activityPeriodRows(allRows, state.activityPeriodTab);
+    const periodRows    = isAllMode ? allActivitiesRows(allRows, state) : activityPeriodRows(allRows, state.activityPeriodTab);
     const monthRows     = activityRowsForPeriodAndMonth(allRows, state);
     const filteredRows  = applyActivitiesLocalFilters(monthRows, state, state?.clientSettings);
 
@@ -1525,11 +1524,13 @@ export const activitiesScreen = {
                 <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>הערות</th></tr></thead>`;
     const tableSection =
       safeRows.length === 0
-        ? dsEmptyState(periodRows.length === 0
-            ? 'אין פעילויות להצגה בתקופה זו'
-            : (monthRows.length === 0)
-              ? 'אין פעילויות להצגה בחודש הנבחר'
-              : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
+        ? dsEmptyState(isAllMode
+            ? (monthRows.length === 0 ? 'אין פעילויות להצגה' : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
+            : periodRows.length === 0
+              ? 'אין פעילויות להצגה בתקופה זו'
+              : (monthRows.length === 0)
+                ? 'אין פעילויות להצגה בחודש הנבחר'
+                : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
                 ${tableColsHtml}
                 <tbody>${tableRows}</tbody>
