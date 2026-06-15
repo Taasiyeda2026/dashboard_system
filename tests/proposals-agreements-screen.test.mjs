@@ -1185,6 +1185,77 @@ test('activity selection is first and reveals populated item details', async () 
       assert.equal(itemRow.querySelector('[name="hours_count"]').value, '6');
       assert.equal(itemRow.querySelector('[name="unit_price"]').value, '450');
       assert.match(itemRow.querySelector('[name="description"]').value, /התאמה/);
+      assert.equal(details.open, false, 'details should stay collapsed after activity selection');
+      assert.ok(itemRow.querySelector('[data-pa-item-info-strip]')?.hidden, 'summer rows should not show the info strip');
+      assert.equal(itemRow.querySelector('.ds-pa-item-field--select span')?.textContent, 'פעילות');
+      assert.equal(itemRow.querySelector('label span')?.textContent?.includes('מפגשים'), false, 'summer accordion should not show meetings field');
+    }
+  );
+});
+
+test('summer item rows keep edit accordion closed even when description exists', async () => {
+  const pricing = [
+    {
+      activity_no: 'S1',
+      activity_name: 'סדנת מייקרים',
+      item_type: 'סדנה',
+      proposal_group: 'קיץ תשפ״ו',
+      meetings_count: 3,
+      hours_count: 6,
+      unit_price: 450,
+      description_for_proposal: 'התאמה לפי בית הספר'
+    }
+  ];
+  const existingRow = {
+    id: 'summer-edit-row-1',
+    client_authority: 'רשות קיימת',
+    school_framework: 'בית ספר קיים',
+    activity_type_group: 'קיץ תשפ״ו',
+    status: 'draft'
+  };
+  const items = [{
+    item_name: 'סדנת מייקרים',
+    item_type: 'סדנה',
+    proposal_group: 'קיץ תשפ״ו',
+    quantity: 1,
+    unit_price: 450,
+    total_price: 450,
+    meetings_count: 3,
+    hours_count: 6,
+    description: 'התאמה לפי בית הספר'
+  }];
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [existingRow] }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: {
+          rows: [existingRow],
+          activityNameOptions: [],
+          contactOptions: [],
+          proposalActivityPricing: pricing,
+          proposalActivityGroups: [
+            { group_key: 'קיץ תשפ״ו', display_name: 'קיץ תשפ״ו', template_key: 'summer' }
+          ]
+        },
+        state: stateFor('admin'),
+        api: { readProposalAgreementItems: async () => items }
+      });
+
+      root.querySelector(`[data-pa-row-id="${existingRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      root.querySelector(`[data-pa-edit-row="${existingRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      const itemRow = root.querySelector('[data-pa-form] [data-pa-item-row]');
+      const details = itemRow?.querySelector('[data-pa-item-details]');
+      assert.ok(itemRow, 'edit form should render summer item row');
+      assert.equal(details?.open, false, 'accordion stays closed when editing saved summer rows with notes');
+      assert.ok(itemRow.hasAttribute('data-pa-summer-row'));
+      assert.ok(itemRow.querySelector('[data-pa-item-info-strip]')?.hidden);
+      assert.equal(itemRow.querySelector('input[name="meetings_count"]')?.type, 'hidden');
+      assert.equal(itemRow.querySelector('input[name="hours_count"]')?.type, 'hidden');
+      assert.match(itemRow.querySelector('[name="description"]')?.value || '', /התאמה/);
     }
   );
 });

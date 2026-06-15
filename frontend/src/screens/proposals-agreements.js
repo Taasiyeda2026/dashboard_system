@@ -834,6 +834,10 @@ function buildInfoStripInnerHtml(item = {}, contextGroup = '') {
   return `<span class="ds-pa-info-summary">${parts.join(' | ')}</span>`;
 }
 
+function isSummerItemRowContext(contextGroup = '') {
+  return isSummerProposalGroup(contextGroup);
+}
+
 function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const n = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? escapeHtml(String(v)) : '';
   const calcTotal = (Number(item.quantity) || 0) && (Number(item.unit_price) || 0)
@@ -842,28 +846,33 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const selectedPricingKey = text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
   const pricingSelectOptionsHtml = buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey);
   const contextGroup = text(options.groupKey || item.proposal_group || '');
+  const isSummerRow = isSummerItemRowContext(contextGroup);
   const gefenValue = text(item.gefen_number);
   const hasActivity = Boolean(text(item.item_name));
-  const hasExtra = Boolean(text(item.description));
-  const infoStripHtml = hasActivity ? buildInfoStripInnerHtml(item, contextGroup) : '';
-  return `<article class="ds-pa-item-card ds-pa-item-row" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}">
+  const infoStripHtml = !isSummerRow && hasActivity ? buildInfoStripInnerHtml(item, contextGroup) : '';
+  const activitySelectLabel = isSummerRow ? 'פעילות' : 'בחירת פעילות / קורס';
+  const meetingsHoursFieldsHtml = isSummerRow
+    ? `<input type="hidden" name="meetings_count" value="${n(item.meetings_count)}">
+    <input type="hidden" name="hours_count" value="${n(item.hours_count)}">`
+    : `<label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
+          <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>`;
+  return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}>
     <div class="ds-pa-item-quick-row">
-      <label class="ds-pa-item-field ds-pa-item-field--select"><span>בחירת פעילות / קורס</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
+      <label class="ds-pa-item-field ds-pa-item-field--select"><span>${activitySelectLabel}</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><span>כמות קבוצות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
       <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
       <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪${formatCurrency(calcTotal)}` : '₪0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove" data-pa-remove-item aria-label="הסר שורה">✕ הסר</button>
     </div>
     <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
-    <div class="ds-pa-item-info-strip" data-pa-item-info-strip${hasActivity ? '' : ' hidden'}>${infoStripHtml}</div>
-    <details class="ds-pa-item-extra" data-pa-item-details${hasExtra ? ' open' : ''}>
+    <div class="ds-pa-item-info-strip" data-pa-item-info-strip${!isSummerRow && hasActivity ? '' : ' hidden'}>${infoStripHtml}</div>
+    <details class="ds-pa-item-extra" data-pa-item-details>
       <summary class="ds-pa-item-extra-toggle">עריכה / הערות</summary>
       <div class="ds-pa-item-extra-body">
         <div class="ds-pa-item-grid ds-pa-item-grid--extras">
           <label class="ds-pa-item-field ds-pa-item-field--type"><span>סוג פעילות</span><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(item.item_type || '')}" list="pa-item-type-list" placeholder="סוג"></label>
           <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
-          <label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
-          <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>
+          ${meetingsHoursFieldsHtml}
         </div>
         <label class="ds-pa-item-field ds-pa-item-field--full"><span>הערות או התאמות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>
       </div>
@@ -2889,7 +2898,7 @@ export const proposalsAgreementsScreen = {
       setRowValue(itemRow, 'bundle_pricing_key', pickedData.pricing_key || '');
       setRowValue(itemRow, 'item_selected_bundle_items', JSON.stringify(selected));
       const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
-      if (infoStrip) {
+      if (infoStrip && !itemRow.hasAttribute('data-pa-summer-row')) {
         infoStrip.innerHTML = buildInfoStripInnerHtml({ item_name: parentName, item_type: pickedData.item_type, unit_price: unitPrice, proposal_group: pickedData.proposal_group }, pickedData.proposal_group || '');
         infoStrip.hidden = !parentName;
       }
@@ -3107,8 +3116,8 @@ export const proposalsAgreementsScreen = {
         updateRowHourlyPrice();
       }
 
-      // Update info strip on price / meetings / hours changes
-      if ((isItemPrice || target.name === 'meetings_count' || target.name === 'hours_count') && itemRow) {
+      // Update info strip on price / meetings / hours changes (annual / combined rows only)
+      if ((isItemPrice || target.name === 'meetings_count' || target.name === 'hours_count') && itemRow && !itemRow.hasAttribute('data-pa-summer-row')) {
         const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
         if (!infoStrip || infoStrip.hidden) return;
         const getVal = (name) => text(itemRow.querySelector(`[name="${name}"]`)?.value);
@@ -3256,7 +3265,7 @@ export const proposalsAgreementsScreen = {
       setValue('item_selected_bundle_items', '[]');
       const rowGroup = text(itemRow.dataset.paRowGroup || picked.proposal_group);
       const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
-      if (infoStrip) {
+      if (infoStrip && !itemRow.hasAttribute('data-pa-summer-row')) {
         const get = (name) => text(itemRow.querySelector(`[name="${name}"]`)?.value);
         const getNum = (name) => { const v = itemRow.querySelector(`[name="${name}"]`)?.value; return v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : null; };
         infoStrip.innerHTML = buildInfoStripInnerHtml({
@@ -3543,11 +3552,6 @@ export const proposalsAgreementsScreen = {
         let pickedData = {};
         try { pickedData = JSON.parse(itemRow.dataset.paBundlePicked || '{}'); } catch { pickedData = {}; }
         applyBundleParentToRow(itemRow, pickedData, { keepGeneral: false });
-        const selected = selectedBundleChildren(itemRow);
-        if (selected.length) {
-          const detailsEl = itemRow.querySelector('[data-pa-item-details]');
-          if (detailsEl) detailsEl.open = true;
-        }
         const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
         if (bundlePrompt) bundlePrompt.hidden = true;
         return;
