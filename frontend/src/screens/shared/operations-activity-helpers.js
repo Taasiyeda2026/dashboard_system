@@ -117,6 +117,163 @@ export function getActivityTimeRange(activity) {
   return start || end || '';
 }
 
+export const WORKSHOP_ESTIMATE_PER_ACTIVITY = 25;
+
+function parsePositiveNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+function parseJsonObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function normalizeWorkshopProductKey(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+export function parseStockQuantityFromRow(row = {}) {
+  const candidates = [
+    row.stock_quantity,
+    row.stock_qty,
+    row.inventory_quantity,
+    row.inventory_qty,
+    row.stock,
+    row.inventory,
+    row.quantity,
+    row.amount,
+    row.qty
+  ];
+  for (const candidate of candidates) {
+    const n = parsePositiveNumber(candidate);
+    if (n !== null) return n;
+  }
+  const metadata = parseJsonObject(row.metadata);
+  if (metadata) {
+    for (const key of ['stock_quantity', 'stock_qty', 'inventory_quantity', 'inventory', 'stock', 'quantity']) {
+      const n = parsePositiveNumber(metadata[key]);
+      if (n !== null) return n;
+    }
+  }
+  return null;
+}
+
+const STOCK_LIST_CATEGORIES = new Set([
+  'workshop_stock',
+  'product_stock',
+  'inventory',
+  'stock',
+  'workshop_inventory',
+  'product_inventory',
+  'מלאי',
+  'מלאי סדנאות',
+  'מלאי תוצרים'
+]);
+
+const ACTIVITY_NAME_LIST_CATEGORIES = new Set([
+  'activity_names',
+  'activity_name',
+  'activities',
+  'activity'
+]);
+
+function addStockToMap(map, names, stock) {
+  if (stock === null) return;
+  names.map((name) => String(name || '').trim()).filter(Boolean).forEach((name) => {
+    map.set(normalizeWorkshopProductKey(name), stock);
+  });
+}
+
+export function buildWorkshopStockMapFromLists(listsData) {
+  const map = new Map();
+  const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
+  categories.forEach(({ category, items }) => {
+    const cat = String(category || '').trim().toLowerCase();
+    const list = Array.isArray(items) ? items : [];
+    const isStockCategory = STOCK_LIST_CATEGORIES.has(cat);
+    const isActivityNamesCategory = ACTIVITY_NAME_LIST_CATEGORIES.has(cat);
+    if (!isStockCategory && !isActivityNamesCategory) return;
+    list.forEach((item) => {
+      const row = item?._row && typeof item._row === 'object' ? item._row : item;
+      const stock = parseStockQuantityFromRow(row);
+      if (stock === null) return;
+      const names = isStockCategory
+        ? [item?.value, item?.label, row?.product_name, row?.item_name, row?.activity_name, row?.workshop_name]
+        : [item?.value, item?.label, row?.activity_name, row?.label_he];
+      addStockToMap(map, names, stock);
+    });
+  });
+  return map;
+}
+
+export function getWorkshopStockQuantity(productName, stockMap) {
+  if (!(stockMap instanceof Map)) return null;
+  const key = normalizeWorkshopProductKey(productName);
+  if (!key || !stockMap.has(key)) return null;
+  return stockMap.get(key);
+}
+
+export function getActivityActualParticipantCount(activity) {
+  const fields = [
+    'participants_count',
+    'participant_count',
+    'students_count',
+    'student_count',
+    'num_participants',
+    'num_students',
+    'participants',
+    'students',
+    'total_participants',
+    'total_students'
+  ];
+  for (const field of fields) {
+    const n = parsePositiveNumber(activity?.[field]);
+    if (n !== null && n > 0) return n;
+  }
+  return null;
+}
+
+export function sumActivityParticipantCounts(activities = []) {
+  let total = 0;
+  let hasAny = false;
+  (Array.isArray(activities) ? activities : []).forEach((activity) => {
+    const count = getActivityActualParticipantCount(activity);
+    if (count === null) return;
+    total += count;
+    hasAny = true;
+  });
+  return hasAny ? total : null;
+}
+
+export function buildWorkshopQuantityMetrics({ workshopName, activityCount, activities = [], stockMap } = {}) {
+  const count = Number(activityCount || 0);
+  const estimatedQuantity = count * WORKSHOP_ESTIMATE_PER_ACTIVITY;
+  const actualQuantity = sumActivityParticipantCounts(activities);
+  const stockQuantity = getWorkshopStockQuantity(workshopName, stockMap);
+  let gap = null;
+  if (stockQuantity !== null) {
+    const required = actualQuantity !== null ? actualQuantity : estimatedQuantity;
+    gap = stockQuantity - required;
+  }
+  return {
+    workshopName: String(workshopName || '').trim(),
+    activityCount: count,
+    estimatedQuantity,
+    actualQuantity,
+    stockQuantity,
+    gap
+  };
+}
+
 export function getActivityGroupsCount(activity) {
   const raw = activity?.groups_count ?? activity?.group_count ?? activity?.num_groups ?? activity?.groups ?? '';
   const text = String(raw || '').trim();

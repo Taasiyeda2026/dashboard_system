@@ -7,7 +7,11 @@ import {
   getActivityInstructorName,
   getActivityPrimaryDate,
   getActivitySchoolNames,
-  isSummerOperationsException
+  isSummerOperationsException,
+  buildWorkshopStockMapFromLists,
+  buildWorkshopQuantityMetrics,
+  getActivityActualParticipantCount,
+  WORKSHOP_ESTIMATE_PER_ACTIVITY
 } from '../frontend/src/screens/shared/operations-activity-helpers.js';
 import { operationsManagementScreen } from '../frontend/src/screens/operations-management.js';
 
@@ -91,7 +95,7 @@ test('summer exceptions only include missing instructor or missing date', () => 
 });
 
 test('operations management render includes menu page structure and tabs', () => {
-  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS }, { state: baseState() });
+  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState() });
   assert.match(html, /ניהול תפעול/);
   assert.match(html, /סידור מדריכים/);
   assert.match(html, /תכנון קיץ/);
@@ -104,8 +108,75 @@ test('operations management render includes menu page structure and tabs', () =>
   assert.doesNotMatch(html, /סמל מוסד/);
 });
 
+test('workshop quantity metrics use x25 estimate and stock gap rules', () => {
+  const stockMap = buildWorkshopStockMapFromLists({
+    categories: [{
+      category: 'workshop_stock',
+      items: [{ label: 'פרוגי המקפצת', value: 'פרוגי המקפצת', _row: { stock_quantity: 300 } }]
+    }]
+  });
+  const withActual = buildWorkshopQuantityMetrics({
+    workshopName: 'פרוגי המקפצת',
+    activityCount: 10,
+    activities: [{ participants_count: 120 }, { participants_count: 118 }],
+    stockMap
+  });
+  assert.equal(withActual.estimatedQuantity, 250);
+  assert.equal(withActual.actualQuantity, 238);
+  assert.equal(withActual.stockQuantity, 300);
+  assert.equal(withActual.gap, 62);
+
+  const withoutActual = buildWorkshopQuantityMetrics({
+    workshopName: 'אסטרונאוט על חוטים',
+    activityCount: 8,
+    activities: [{ activity_name: 'אסטרונאוט על חוטים' }],
+    stockMap: buildWorkshopStockMapFromLists({
+      categories: [{ category: 'inventory', items: [{ value: 'אסטרונאוט על חוטים', _row: { inventory: 150 } }] }]
+    })
+  });
+  assert.equal(withoutActual.estimatedQuantity, 200);
+  assert.equal(withoutActual.actualQuantity, null);
+  assert.equal(withoutActual.gap, -50);
+
+  const noStock = buildWorkshopQuantityMetrics({
+    workshopName: 'צמידי שמש',
+    activityCount: 12,
+    activities: [],
+    stockMap: new Map()
+  });
+  assert.equal(noStock.estimatedQuantity, 300);
+  assert.equal(noStock.stockQuantity, null);
+  assert.equal(noStock.gap, null);
+});
+
+test('workshops tab shows inventory columns and print action', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const rows = [
+    { RowID: 'W-1', status: 'פתוח', activity_name: 'פרוגי המקפצת', start_date: '2026-04-10', participants_count: 120 },
+    { RowID: 'W-2', status: 'פתוח', activity_name: 'פרוגי המקפצת', start_date: '2026-04-11', participants_count: 118 }
+  ];
+  const stockMap = buildWorkshopStockMapFromLists({
+    categories: [{ category: 'workshop_stock', items: [{ value: 'פרוגי המקפצת', _row: { stock_quantity: 300 } }] }]
+  });
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: stockMap }, { state });
+  assert.match(html, /כמות משוערת לפי 25/);
+  assert.match(html, /כמות במלאי/);
+  assert.match(html, /פער מול מלאי/);
+  assert.match(html, /הדפס כמויות סדנאות/);
+  assert.match(html, /ds-ops-gap--ok/);
+  assert.match(html, />62</);
+  assert.match(html, />300</);
+  assert.match(html, />238</);
+});
+
+test('actual participant count only uses existing activity fields', () => {
+  assert.equal(getActivityActualParticipantCount({ participants_count: 25 }), 25);
+  assert.equal(getActivityActualParticipantCount({ activity_name: 'סדנה' }), null);
+});
+
 test('operations management render shows text-school activities without school_id', () => {
-  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS }, { state: baseState() });
+  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState() });
   assert.match(html, /מתנ(&quot;|")ס בנימינה גבעת עדה/);
   assert.match(html, /אלאשראק/);
   assert.match(html, /יד בנימין/);

@@ -15600,6 +15600,25 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   color: var(--ds-text-muted);
 }
 
+.ds-ops-mgmt-note {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--ds-text-muted);
+  line-height: 1.45;
+}
+
+.ds-ops-gap {
+  font-weight: 700;
+}
+
+.ds-ops-gap--ok {
+  color: #15803d;
+}
+
+.ds-ops-gap--shortage {
+  color: #b45309;
+}
+
 .ds-ops-mgmt-tags {
   display: inline-flex;
   flex-wrap: wrap;
@@ -15755,5 +15774,17 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   body.is-ops-mgmt-print .ds-ops-mgmt-schedule .ds-ops-col--phone,
   body.is-ops-mgmt-print .ds-ops-mgmt-schedule .ds-ops-col--notes {
     display: none !important;
+  }
+
+  body.is-ops-mgmt-print-workshops .ds-ops-workshops-table {
+    width: 100%;
+    font-size: 9pt;
+    border-collapse: collapse;
+  }
+
+  body.is-ops-mgmt-print-workshops .ds-ops-workshops-table th,
+  body.is-ops-mgmt-print-workshops .ds-ops-workshops-table td {
+    border: 1px solid #cbd5e1;
+    padding: 2.5mm 2mm;
   }
 }

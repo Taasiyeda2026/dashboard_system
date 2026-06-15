@@ -43,7 +43,11 @@ import {
   activityOverlapsDateRange,
   isSummerOperationsException,
   schoolGroupKey,
-  buildActivitySearchText
+  buildActivitySearchText,
+  buildWorkshopStockMapFromLists,
+  buildWorkshopQuantityMetrics,
+  getActivityActualParticipantCount,
+  WORKSHOP_ESTIMATE_PER_ACTIVITY
 } from './shared/operations-activity-helpers.js';
 
 const SCOPE = 'operations-management';
@@ -242,6 +246,51 @@ function exceptionCountCell(count) {
   const value = Number(count || 0);
   if (!value) return '<span class="ds-ops-mgmt-cell-muted">—</span>';
   return dsStatusChip(String(value), 'warning');
+}
+
+function formatQuantityCell(value) {
+  if (value === null || value === undefined || value === '') {
+    return '<span class="ds-ops-mgmt-cell-muted">—</span>';
+  }
+  return escapeHtml(String(value));
+}
+
+function formatStockCell(value) {
+  if (value === null || value === undefined || value === '') {
+    return '<span class="ds-ops-mgmt-cell-muted">לא הוזן</span>';
+  }
+  return escapeHtml(String(value));
+}
+
+function formatGapCell(gap, hasStock) {
+  if (!hasStock || gap === null || gap === undefined) {
+    return '<span class="ds-ops-mgmt-cell-muted">—</span>';
+  }
+  const value = Number(gap);
+  if (!Number.isFinite(value)) return '<span class="ds-ops-mgmt-cell-muted">—</span>';
+  const tone = value < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok';
+  return `<span class="ds-ops-gap ${tone}">${escapeHtml(String(value))}</span>`;
+}
+
+function workshopMetricsRows(rows, stockMap) {
+  const groups = new Map();
+  rows.forEach((row) => {
+    const name = getActivityName(row);
+    if (!groups.has(name)) {
+      groups.set(name, { name, activities: 0, items: [] });
+    }
+    const bucket = groups.get(name);
+    bucket.activities += 1;
+    bucket.items.push(row);
+  });
+  return Array.from(groups.values())
+    .map((group) => buildWorkshopQuantityMetrics({
+      workshopName: group.name,
+      activityCount: group.activities,
+      activities: group.items,
+      stockMap
+    }))
+    .sort((a, b) => b.activityCount - a.activityCount);
 }
 
 function tabOverviewSummary(rows) {
@@ -447,59 +496,73 @@ function summerTabHtml(rows, state) {
   </section>`;
 }
 
-function workshopsTabHtml(rows, state) {
+function workshopsTabHtml(rows, state, stockMap) {
   const ops = ensureOpsState(state);
-  const groups = new Map();
+  const metrics = workshopMetricsRows(rows, stockMap);
+  const groupsByName = new Map();
   rows.forEach((row) => {
     const name = getActivityName(row);
-    if (!groups.has(name)) {
-      groups.set(name, { name, activities: 0, schools: new Set(), authorities: new Set(), instructors: new Set(), groupsCount: 0, exceptions: 0, items: [] });
-    }
-    const bucket = groups.get(name);
-    bucket.activities += 1;
-    bucket.schools.add(getActivitySchoolDisplayName(row));
-    bucket.authorities.add(getActivityAuthorityName(row));
-    const instructor = getActivityInstructorName(row);
-    if (instructor !== 'לא משויך') bucket.instructors.add(instructor);
-    const groupsCount = Number(getActivityGroupsCount(row) || 0);
-    if (Number.isFinite(groupsCount) && groupsCount > 0) bucket.groupsCount += groupsCount;
-    if (isSummerOperationsException(row)) bucket.exceptions += 1;
-    bucket.items.push(row);
+    if (!groupsByName.has(name)) groupsByName.set(name, []);
+    groupsByName.get(name).push(row);
   });
 
-  const list = Array.from(groups.values()).sort((a, b) => b.activities - a.activities);
-  const table = list.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table">
-      <thead><tr><th>שם סדנה</th><th>פעילויות</th><th>בתי ספר</th><th>רשויות</th><th>מדריכים</th><th>קבוצות</th><th>חריגות</th></tr></thead>
-      <tbody>${list.map((row) => `<tr><td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.name)}">${escapeHtml(row.name)}</button></td><td>${row.activities}</td><td>${row.schools.size}</td><td>${row.authorities.size}</td><td>${row.instructors.size}</td><td>${row.groupsCount || '—'}</td><td>${exceptionCountCell(row.exceptions)}</td></tr>`).join('')}</tbody>
+  const table = metrics.length
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table">
+      <thead><tr>
+        <th>שם סדנה</th>
+        <th>מספר סדנאות</th>
+        <th>כמות משוערת לפי ${WORKSHOP_ESTIMATE_PER_ACTIVITY}</th>
+        <th>כמות בפועל</th>
+        <th>כמות במלאי</th>
+        <th>פער מול מלאי</th>
+      </tr></thead>
+      <tbody>${metrics.map((row) => `<tr>
+        <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
+        <td>${row.activityCount}</td>
+        <td>${row.estimatedQuantity}</td>
+        <td>${formatQuantityCell(row.actualQuantity)}</td>
+        <td>${formatStockCell(row.stockQuantity)}</td>
+        <td>${formatGapCell(row.gap, row.stockQuantity !== null)}</td>
+      </tr>`).join('')}</tbody>
     </table>`)
     : dsEmptyState('לא נמצאו סדנאות');
 
-  const expanded = list.find((row) => row.name === ops.expandedWorkshop);
+  const expanded = metrics.find((row) => row.workshopName === ops.expandedWorkshop);
+  const expandedItems = expanded ? (groupsByName.get(expanded.workshopName) || []) : [];
   const detail = expanded
     ? dsCard({
-      title: `פירוט: ${expanded.name}`,
-      body: dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך</th><th>קבוצות</th><th>חריגות</th><th>הערות</th></tr></thead><tbody>${expanded.items.map((row) => `<tr>
+      title: `פירוט: ${expanded.workshopName}`,
+      body: dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך</th><th>כמות בפועל</th><th>הערות</th></tr></thead><tbody>${expandedItems.map((row) => `<tr>
         <td>${escapeHtml(getActivityAuthorityName(row))}</td>
         <td class="ds-ops-col--school">${escapeHtml(getActivitySchoolDisplayName(row))}</td>
         <td class="ds-ops-col--instructor">${escapeHtml(getActivityInstructorName(row))}</td>
         <td class="ds-ops-col--date">${escapeHtml(formatDateHe(getActivityPrimaryDate(row)) || '—')}</td>
-        <td>${escapeHtml(getActivityGroupsCount(row) || '—')}</td>
-        <td>${exceptionTagsHtml(row)}</td>
+        <td>${formatQuantityCell(getActivityActualParticipantCount(row))}</td>
         <td>${escapeHtml(getActivityOperationalNotes(row) || '—')}</td>
       </tr>`).join('')}</tbody></table>`),
       padded: false
     })
     : '';
 
-  return `<section class="ds-ops-mgmt-panel" dir="rtl">
+  const stockCount = metrics.filter((row) => row.stockQuantity !== null).length;
+  const shortageCount = metrics.filter((row) => row.stockQuantity !== null && Number(row.gap) < 0).length;
+
+  return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
     ${summaryKpiHtml([
-      { icon: '🎨', label: 'סדנאות שונות', value: list.length },
+      { icon: '🎨', label: 'סדנאות שונות', value: metrics.length },
       { icon: '📋', label: 'פעילויות', value: rows.length },
-      { icon: '🏫', label: 'בתי ספר', value: uniqueSorted(rows.map(getActivitySchoolDisplayName).filter((name) => name !== 'לא משויך')).length },
-      { icon: '👥', label: 'מדריכים', value: instructorOptions(rows).length }
+      { icon: '📦', label: 'עם נתון מלאי', value: stockCount },
+      { icon: '⚠️', label: 'חוסר במלאי', value: shortageCount, tone: shortageCount ? 'alert' : 'ok' }
     ])}
-    ${dsCard({ title: 'סיכום לפי שם סדנה', badge: String(list.length), body: table, padded: false })}
+    <div class="ds-ops-mgmt-panel__toolbar no-print">
+      <p class="ds-ops-mgmt-note">כמות משוערת = מספר סדנאות × ${WORKSHOP_ESTIMATE_PER_ACTIVITY}. מלאי לפי שם תוצר/סדנה מרשימות המערכת, אם קיים.</p>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס כמויות סדנאות</button>
+    </div>
+    <div class="ds-ops-mgmt-print-header only-print">
+      <h2>כמויות סדנאות ומלאי</h2>
+      <p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p>
+    </div>
+    ${dsCard({ title: 'סיכום לפי שם סדנה', badge: String(metrics.length), body: table, padded: false })}
     ${detail}
   </section>`;
 }
@@ -564,16 +627,26 @@ function schoolsTabHtml(rows, state) {
   </section>`;
 }
 
-function renderTab(rows, state) {
+function renderTab(rows, state, data) {
   const ops = ensureOpsState(state);
+  const stockMap = data?.workshopStockMap instanceof Map ? data.workshopStockMap : new Map();
   if (ops.tab === TAB_SUMMER) return summerTabHtml(rows, state);
-  if (ops.tab === TAB_WORKSHOPS) return workshopsTabHtml(rows, state);
+  if (ops.tab === TAB_WORKSHOPS) return workshopsTabHtml(rows, state, stockMap);
   if (ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state);
   return instructorsTabHtml(rows, state);
 }
 
 export const operationsManagementScreen = {
-  load: ({ api }) => api.allActivities(),
+  load: async ({ api }) => {
+    const [activities, lists] = await Promise.all([
+      api.allActivities(),
+      api.adminLists().catch(() => ({ categories: [] }))
+    ]);
+    return {
+      ...activities,
+      workshopStockMap: buildWorkshopStockMapFromLists(lists)
+    };
+  },
   render(data, { state } = {}) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const prepared = prepareRows(allRows);
@@ -584,7 +657,7 @@ export const operationsManagementScreen = {
     return `<div class="ds-screen-stack ds-ops-mgmt-screen">${dsPageHeader('ניהול תפעול', 'עמוד תפעולי להצגת סידור עבודה למדריכים, תכנון קיץ, כמויות סדנאות ופירוט לפי בתי ספר.')}
       ${topFiltersHtml(baseRows, state)}
       ${tabsHtml(ops.tab)}
-      <div class="ds-ops-mgmt-content">${renderTab(filteredRows, state)}</div>
+      <div class="ds-ops-mgmt-content">${renderTab(filteredRows, state, data)}</div>
       <p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>
     </div>`;
   },
@@ -656,6 +729,16 @@ export const operationsManagementScreen = {
       document.body.classList.add('is-ops-mgmt-print');
       const cleanup = () => {
         document.body.classList.remove('is-ops-mgmt-print');
+        window.removeEventListener('afterprint', cleanup);
+      };
+      window.addEventListener('afterprint', cleanup);
+      window.print();
+    });
+
+    root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => {
+      document.body.classList.add('is-ops-mgmt-print', 'is-ops-mgmt-print-workshops');
+      const cleanup = () => {
+        document.body.classList.remove('is-ops-mgmt-print', 'is-ops-mgmt-print-workshops');
         window.removeEventListener('afterprint', cleanup);
       };
       window.addEventListener('afterprint', cleanup);
