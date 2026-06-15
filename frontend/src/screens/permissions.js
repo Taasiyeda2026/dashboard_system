@@ -18,6 +18,7 @@ const KEY_PERM_FLAGS = [
   'view_orders',
   'view_proposals',
   'view_israa_management',
+  'view_operations_management',
   'finance_access',
   'can_access_personal_reports'
 ];

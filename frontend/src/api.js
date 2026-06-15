@@ -2575,6 +2575,9 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if ((isIsraaUser || isAdminRole) && permissionFlagYes(flat.view_israa_management)) {
     if (!allowedRoutes.includes('israa-management')) allowedRoutes.push('israa-management');
   }
+  if (permissionFlagYes(flat.view_operations_management) && !allowedRoutes.includes('operations-management')) {
+    allowedRoutes.push('operations-management');
+  }
   return {
     routes: [...allowedRoutes],
     default_route: allowedRoutes[0] || 'my-data',
