@@ -5113,6 +5113,17 @@ select.ds-input {
   transform: rotate(90deg);
 }
 
+.sc-authority-code {
+  font-size: 0.72rem;
+  color: var(--ds-text-secondary);
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: var(--ds-radius-full);
+  padding: 1px 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .sc-authority-badges {
   font-size: 0.72rem;
   color: var(--ds-text-secondary);

@@ -319,8 +319,16 @@ function renderSchoolAccordion(schoolName, rows) {
   </details>`;
 }
 
+function authorityCodeFromBucket(bucket) {
+  const rows = [];
+  bucket.schools.forEach((schoolRows) => { rows.push(...schoolRows); });
+  rows.push(...bucket.authority, ...bucket.other);
+  return rows.map((row) => String(row.authority_code || '').trim()).find(Boolean) || '';
+}
+
 function renderAuthorityAccordion(authority, bucket) {
   const { schools, authority: authContacts, other } = bucket;
+  const authorityCode = authorityCodeFromBucket(bucket);
   let schoolsHtml = '';
   const sortedSchools = [...schools.entries()]
     .filter(([schoolName, rows]) => String(schoolName || '').trim() && rows.some(isValidContact))
@@ -363,6 +371,7 @@ function renderAuthorityAccordion(authority, bucket) {
       <span class="sc-card__chevron" aria-hidden="true">›</span>
       <span class="sc-authority-icon" aria-hidden="true">🏛️</span>
       <span class="sc-authority-name">${escapeHtml(authority)}</span>
+      ${authorityCode ? `<span class="sc-authority-code">מספר רשות: ${escapeHtml(authorityCode)}</span>` : ''}
       ${badges ? `<span class="sc-authority-badges">${escapeHtml(badges)}</span>` : ''}
     </summary>
     <div class="sc-authority-body">
@@ -527,7 +536,7 @@ export const contactsScreen = {
       'full_name', 'name', 'contact_name', 'emp_id', 'employee_id',
       'mobile', 'phone', 'email', 'authority', 'school',
       'role', 'contact_role', 'position', 'active', 'notes', 'address',
-      'instructor_name', 'activity_name', 'activity_type', 'client_type', 'client_name', 'authority_id', 'school_id', 'semel_mosad'
+      'instructor_name', 'activity_name', 'activity_type', 'client_type', 'client_name', 'authority_id', 'school_id', 'semel_mosad', 'authority_code'
     ]);
     const filters = ensureActivityListFilters(state, CONTACTS_SCOPE);
     const canViewInstr  = data?.can_view_instructors !== false;
@@ -547,7 +556,7 @@ export const contactsScreen = {
     const searchInput = tab === 'instr'
       ? instrToolbarHtml(CONTACTS_SCOPE, state)
       : filtersToolbarHtml(CONTACTS_SCOPE, schoolRows, state, {
-        searchPlaceholder: 'חיפוש לפי שם / תפקיד / טלפון / מייל / רשות / בית ספר…',
+        searchPlaceholder: 'חיפוש לפי שם / תפקיד / טלפון / מייל / רשות / מספר רשות / בית ספר / סמל מוסד…',
         filterFields: SCHOOL_FILTER_FIELDS,
         dependent: true,
         search: true
