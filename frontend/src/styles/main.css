@@ -15871,6 +15871,23 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin-inline: 0 !important;
 }
 
+/* ── חתימה: "בברכה" ימין, רווח 2 שורות, ואז שם החותם ── */
+.proposal-signature {
+  align-items: flex-start !important;  /* RTL flex-start = ימין פיזי */
+}
+.proposal-signature-greeting {
+  text-align: right !important;
+  direction: rtl !important;
+  margin-bottom: 28pt !important;  /* ~2 שורות רווח */
+}
+.proposal-signature-line {
+  align-self: flex-start !important;
+}
+.proposal-signature-name {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
 /* ── Print ── */
 @media print {
   .proposal-document-header {
@@ -15903,5 +15920,20 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     max-width: none !important;
     width: 100% !important;
     margin-inline: 0 !important;
+  }
+  .proposal-signature {
+    align-items: flex-start !important;
+  }
+  .proposal-signature-greeting {
+    text-align: right !important;
+    direction: rtl !important;
+    margin-bottom: 28pt !important;
+  }
+  .proposal-signature-line {
+    align-self: flex-start !important;
+  }
+  .proposal-signature-name {
+    text-align: right !important;
+    direction: rtl !important;
   }
 }
