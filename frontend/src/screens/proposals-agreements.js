@@ -1317,10 +1317,14 @@ function recipientBlockHtml(row = {}) {
   const safeVal = (v) => { const s = text(v); return (s === 'undefined' || s === 'null') ? '' : s; };
   const schoolName = safeVal(row.school_framework) || safeVal(row.school_name);
   const authorityName = safeVal(row.client_authority) || safeVal(row.authority_name);
-  const lines = [
-    recipientLineHtml(safeVal(row.contact_name), safeVal(row.contact_role)),
-    recipientLineHtml(schoolName, authorityName)
-  ].filter(Boolean);
+  const contactName = safeVal(row.contact_name);
+  const contactRole = safeVal(row.contact_role);
+  const contactParts = [];
+  if (contactName) contactParts.push(`<strong>${escapeHtml(contactName)}</strong>`);
+  if (contactRole && contactRole !== contactName) contactParts.push(escapeHtml(contactRole));
+  const contactLine = contactParts.length ? `<p>${contactParts.join(', ')}</p>` : '';
+  const orgLine = recipientLineHtml(schoolName, authorityName);
+  const lines = [contactLine, orgLine].filter(Boolean);
   return `<div class="pa-doc-address">
     <p><strong>לכבוד:</strong></p>
     ${lines.join('\n    ')}
