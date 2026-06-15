@@ -478,7 +478,6 @@ const ACTIVITY_FILTER_FIELDS = [
   { key: 'authority', label: 'רשות' },
   { key: 'funding', label: 'מימון' },
   { key: 'school', label: 'בית ספר' },
-  { key: 'semel_mosad_search', label: 'סמל מוסד', getValues: (row) => [row?.single_semel_mosad, row?.linked_semel_mosad_list] },
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
 ];
 const ACTIVITY_SEARCH_FIELDS = [
