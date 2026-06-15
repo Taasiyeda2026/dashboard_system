@@ -554,6 +554,7 @@ const screenLabels = {
   catalog: 'קטלוג',
   'personal-reports': 'דוחות אישיים',
   'israa-management': 'ניהול איסראא',
+  'operations-management': 'ניהול תפעול',
   certificates: 'תעודות'
 };
 
@@ -604,6 +605,7 @@ const screenLoaders = {
   catalog: () => import('./screens/catalog.js').then((m) => m.catalogScreen),
   'personal-reports': () => import('./screens/personal-reports.js').then((m) => m.personalReportsScreen),
   'israa-management': () => import('./screens/israa-management.js').then((m) => m.israaManagementScreen),
+  'operations-management': () => import('./screens/operations-management.js').then((m) => m.operationsManagementScreen),
   certificates: () => import('./screens/certificates.js').then((m) => m.certificatesScreen)
 };
 const loadedScreens = new Map();
