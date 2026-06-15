@@ -772,7 +772,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     </div>`;
   }).join('');
 
-  return `<div class="ops-print-page"><h1>${escapeHtml(title)}</h1><p class="subtitle">טווח תאריכים: ${escapeHtml(dateRange)}</p>${blocks}<p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
+  return `<div class="ops-print-page"><h1>${escapeHtml(title)}</h1><p class="subtitle">טווח תאריכים: ${escapeHtml(dateRange)}</p><div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
 }
 
 function printInstructorSchedule() {
@@ -786,23 +786,24 @@ function printInstructorSchedule() {
     : 'סידור עבודה';
   const css = `
     body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:10px 14px;color:#111;background:#fff;font-size:11px;line-height:1.3}
-    .ops-print-page{width:80%;margin:0 auto}
-    h1{margin:0 0 2px;font-size:14px;color:#0f172a}.subtitle{margin:0 0 8px;color:#475569;font-size:10.5px}
-    .pb{border:1px solid #cfd8dc;padding:5px 8px;margin:0 auto 6px auto;page-break-inside:avoid;break-inside:avoid}
+    .ops-print-page{width:96%;margin:0 auto}
+    h1{margin:0 0 2px;font-size:14px;color:#0f172a}.subtitle{margin:0 0 6px;color:#475569;font-size:10.5px}
+    .ops-print-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;align-items:start}
+    .pb{border:1px solid #cfd8dc;padding:5px 6px;page-break-inside:avoid;break-inside:avoid}
     .pb-hdr{margin-bottom:3px}
-    .pb-date{font-weight:700;font-size:11.5px;color:#0369a1;margin-left:6px}
-    .pb-meta{font-size:12px;font-weight:700;color:#1e293b;display:block;line-height:1.3;margin-top:2px;text-align:center}
+    .pb-date{font-weight:700;font-size:11px;color:#0369a1;margin-left:4px}
+    .pb-meta{font-size:11px;font-weight:700;color:#1e293b;display:block;line-height:1.3;margin-top:1px;text-align:center}
     table{border-collapse:collapse;margin:0}
-    .pb-act{width:60%;margin:0 auto;border-collapse:collapse;table-layout:fixed}
-    .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 5px;text-align:right;font-size:10.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pb-act{width:100%;border-collapse:collapse;table-layout:fixed}
+    .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pb-act th{background:#e6f6fb;font-weight:700}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
-    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:28%}
+    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:28%;text-align:center}
     .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:52%}
-    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:20%}
-    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:24%}
+    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:20%;text-align:center}
+    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:24%;text-align:center}
     .pb-act.has-instructor th:nth-child(2),.pb-act.has-instructor td:nth-child(2){width:42%}
-    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:14%}
+    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:14%;text-align:center}
     .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:20%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
     @page{size:A4 portrait;margin:8mm}
