@@ -15863,7 +15863,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-align: right !important;
 }
 .pa-doc-date {
-  margin-top: 4px !important;
+  margin-top: 1px !important;
   text-align: right !important;
   width: auto !important;
 }
@@ -15929,7 +15929,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     text-align: right !important;
   }
   .pa-doc-date {
-    margin-top: 4px !important;
+    margin-top: 1px !important;
     text-align: right !important;
     width: auto !important;
   }
