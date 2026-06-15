@@ -1744,6 +1744,8 @@ function contactSourceInputsHtml(contact = {}) {
   const source = contact || {};
   return `
     <input type="hidden" name="contact_source_id" value="${escapeHtml(text(source.id))}">
+    <input type="hidden" name="contact_source_authority_id" value="${escapeHtml(text(source.authority_id))}">
+    <input type="hidden" name="contact_source_school_id" value="${escapeHtml(text(source.school_id))}">
     <input type="hidden" name="contact_source_client_type" value="${escapeHtml(text(source.client_type))}">
     <input type="hidden" name="contact_source_client_name" value="${escapeHtml(text(source.client_name))}">
     <input type="hidden" name="contact_source_authority" value="${escapeHtml(text(source.authority))}">
@@ -1888,7 +1890,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <div data-pa-step-panel="client">
         <div class="ds-pa-client-row" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
           ${clientSearchHtml(contactOptions, row)}
-          <button type="button" class="ds-btn ds-btn--sm" data-pa-new-client-toggle>לא מצאת? הוסף ידנית</button>
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-new-client-toggle hidden>לא מצאת? הוסף ידנית</button>
         </div>
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName) : ''}</div>
         <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">לקוח חדש / הזנה ידנית</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לחיפוש</button></div>
@@ -2112,9 +2114,15 @@ function payloadFromForm(form) {
   if (itemNames.length) payload.activity_names = itemNames;
   payload.total_amount = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 0) * (Number(i.unit_price) || 0))), 0) || null;
   payload._items = items;
+  payload.contact_school_id = text(formData.get('contact_source_id')) || null;
+  payload.authority_id = text(formData.get('contact_source_authority_id')) || null;
+  payload.school_id = text(formData.get('contact_source_school_id')) || null;
+  payload.client_type = text(formData.get('contact_source_client_type')) || text(formData.get('new_client_type')) || (payload.school_id ? 'school' : 'authority');
   payload._contact_original = {
     id:           text(formData.get('contact_source_id')),
-    client_type:  text(formData.get('contact_source_client_type')) || text(formData.get('new_client_type')),
+    client_type:  payload.client_type,
+    authority_id: text(formData.get('contact_source_authority_id')) || null,
+    school_id:    text(formData.get('contact_source_school_id')) || null,
     client_name:  text(formData.get('contact_source_client_name')),
     authority:    text(formData.get('contact_source_authority')),
     school:       text(formData.get('contact_source_school')),
@@ -2350,7 +2358,7 @@ export const proposalsAgreementsScreen = {
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <style>
           .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}
-          .ds-pa-form{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:14px;background:#fff;padding:14px;margin:10px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
+          .ds-pa-form{max-width:1080px;margin-inline:auto}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:14px;background:#fff;padding:14px;margin:10px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
           .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(260px,1fr) 110px 130px 130px auto;gap:10px;align-items:end}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:4px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
           @media (max-width:900px){.ds-pa-item-quick-row{grid-template-columns:1fr 1fr}.ds-pa-item-field--select,.ds-pa-line-total{grid-column:1/-1}.ds-pa-bundle-grid{grid-template-columns:1fr}}
@@ -2604,7 +2612,7 @@ export const proposalsAgreementsScreen = {
       if (!q || q.length < 2) return [];
       const seen = new Set();
       return contactOptions.filter((c) => {
-        const typeOk = selectedType === 'authority' ? text(c.authority) : text(c.school);
+        const typeOk = selectedType === 'authority' ? text(c.authority) : (text(c.school) || text(c.authority) || text(c.client_name));
         if (!typeOk) return false;
         const haystack = [c.school, c.authority, c.client_name, c.contact_name, c.phone, c.mobile, c.email]
           .map(normalizeSearch).join(' ');
@@ -2684,12 +2692,15 @@ export const proposalsAgreementsScreen = {
       const results = form?.querySelector('[data-pa-client-results]');
       if (!input || !results || type === 'other') return;
       const matches = clientSearchMatches(input.value, type);
+      const manualBtn = form.querySelector('[data-pa-client-search-row] > [data-pa-new-client-toggle]');
+      if (manualBtn) manualBtn.hidden = true;
       if (!text(input.value) || text(input.value).length < 2) {
         results.innerHTML = '<p class="ds-pa-client-results-empty">הקלידו לפחות שני תווים לחיפוש.</p>';
         results.hidden = true;
         return;
       }
       if (!matches.length) {
+        if (manualBtn) manualBtn.hidden = false;
         results.innerHTML = '<p class="ds-pa-client-results-empty">לא נמצאו תוצאות.</p><button type="button" class="ds-pa-client-result ds-pa-client-result--manual" data-pa-new-client-toggle>לא מצאת? הוסף ידנית</button>';
         results.hidden = false;
         return;
@@ -2711,7 +2722,7 @@ export const proposalsAgreementsScreen = {
       applyClientTypeMode(form);
       form.querySelector('[data-pa-client-search-input]')?.addEventListener('input', () => renderClientResults(form), { signal });
       form.querySelector('[data-pa-new-client-type]')?.addEventListener('change', () => {
-        form.dataset.paNewClient = 'yes';
+        form.dataset.paNewClient = 'no';
         unlockClientFields(form);
         applyClientTypeMode(form);
         ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {

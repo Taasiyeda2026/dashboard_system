@@ -98,10 +98,22 @@ function renderInstrCard(row) {
     </div>`;
 }
 
+function hasActiveContactFilters(filters = {}) {
+  return Boolean(String(filters.appliedQ || filters.q || '').trim())
+    || Object.entries(filters || {}).some(([key, value]) => key.startsWith('field:') && String(value || '').trim());
+}
+
+function contactEmptyState(rows, filters) {
+  if (Array.isArray(rows) && rows.length && hasActiveContactFilters(filters)) {
+    return dsEmptyState('לא נמצאו אנשי קשר שתואמים לסינון הפעיל.');
+  }
+  return dsEmptyState('לא נמצאו אנשי קשר');
+}
+
 function instrTabHtml(rows, filters) {
   const filtered = applyLocalFilters(rows, filters, { filterFields: [] });
   const body = filtered.length === 0
-    ? dsEmptyState('לא נמצאו אנשי קשר')
+    ? contactEmptyState(rows, filters)
     : `<div class="ci-person-grid">${filtered.map((r) => renderInstrCard(r)).join('')}</div>`;
   return { filtered, body };
 }
@@ -305,7 +317,7 @@ function contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr = tru
 
 function schoolTabHtml(rows, filters) {
   const filtered = applyLocalFilters(rows, filters, { filterFields: [] });
-  if (filtered.length === 0) return { filtered, body: dsEmptyState('לא נמצאו אנשי קשר') };
+  if (filtered.length === 0) return { filtered, body: contactEmptyState(rows, filters) };
   const authorityGroups = groupByAuthorityThenSchool(filtered);
   const byLetter = groupByLetter(authorityGroups);
 
