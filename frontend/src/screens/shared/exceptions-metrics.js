@@ -17,6 +17,16 @@ export const APPROVED_EXCEPTION_TYPES = new Set(EXCEPTION_TYPE_ORDER);
 
 export const COURSE_EXCEPTION_TYPES = new Set(EXCEPTION_TYPE_ORDER);
 
+// Summer activities: only these two types are considered exceptions.
+// - missing_instructor: activity has no instructor assigned
+// - missing_start_date: activity has no start/activity date
+// All other exception types (missing_district, missing_end_date, end_date_passed, etc.)
+// are intentionally excluded for summer activities.
+const SUMMER_EXCEPTION_TYPES = new Set([
+  'missing_instructor',
+  'missing_start_date'
+]);
+
 export const SHORT_ACTIVITY_EXCEPTION_TYPES = new Set([
   'end_date_passed',
   'missing_instructor',
@@ -46,15 +56,11 @@ export function isExceptionTypeRelevantForActivity(activity, exceptionType) {
   const type = String(activity?.activity_type || activity?.item_type || '').trim();
   const normalizedType = normalizeExceptionType(exceptionType);
 
-  // end_date_after_cutoff is never relevant for summer activities
-  if (normalizedType === 'end_date_after_cutoff' && isSummerActivity(activity)) {
-    return false;
-  }
-
-  // Summer activities use the full exception set regardless of activity_type.
-  // SHORT_ACTIVITY_EXCEPTION_TYPES is intentionally NOT applied to summer season.
+  // Summer activities: only missing_instructor and missing_start_date are exceptions.
+  // All other types (missing_district, end_date_passed, end_date_after_cutoff, etc.)
+  // are not applicable to summer activities.
   if (isSummerActivity(activity)) {
-    return COURSE_EXCEPTION_TYPES.has(normalizedType);
+    return SUMMER_EXCEPTION_TYPES.has(normalizedType);
   }
 
   if (type === 'course') {
