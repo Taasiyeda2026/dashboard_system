@@ -512,8 +512,9 @@ function scheduleSortValue(entry, key, directory) {
     time: entry.time || '',
     authority: getActivityAuthorityName(activity),
     school: getActivitySchoolDisplayNameClean(activity),
-    activity: getActivityName(activity),
-    grade: getActivityGradeLabel(activity) || ''
+    instructor: entry.instructor || '',
+    grade: getActivityGradeLabel(activity) || '',
+    activity: getActivityName(activity)
   };
   return map[key] ?? '';
 }
@@ -838,14 +839,15 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
       <td class="ds-ops-col--time">${escapeHtml(entry.time || '—')}</td>
       <td>${escapeHtml(getActivityAuthorityName(activity))}</td>
       <td class="ds-ops-col--school"><strong>${escapeHtml(getActivitySchoolDisplayNameClean(activity))}</strong></td>
-      <td class="ds-ops-col--activity">${escapeHtml(getActivityName(activity))}</td>
+      <td class="ds-ops-col--instructor">${escapeHtml(entry.instructor || '—')}</td>
       <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
+      <td class="ds-ops-col--activity">${escapeHtml(getActivityName(activity))}</td>
     </tr>`;
   }).join('');
 
   const table = scheduleRows.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-schedule"><thead><tr>
-        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעות', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'כיתה', 'ds-ops-col--grade')}
+        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעות', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'instructor', 'מדריך', 'ds-ops-col--instructor')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'כיתה', 'ds-ops-col--grade')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}
       </tr></thead><tbody>${tableRows}</tbody></table>`)
     : dsEmptyState('לא נמצאו פעילויות בטווח הנבחר');
 
