@@ -405,6 +405,14 @@ function formatCurrency(num) {
   return Number(num).toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+function currencyAmountHtml(num) {
+  if (num == null || num === '' || isNaN(Number(num))) return '';
+  const value = Number(num);
+  const formatted = formatCurrency(Math.abs(value));
+  const prefix = value < 0 ? '-' : '';
+  return `<span class="pa-currency-amount" dir="ltr">${escapeHtml(`${prefix}${formatted}`)}\u00a0₪</span>`;
+}
+
 function sortRows(rows) {
   return [...(Array.isArray(rows) ? rows : [])].sort((a, b) => {
     const dateA = text(a.proposal_date) || '';
@@ -1210,18 +1218,18 @@ function proposalCostTableHtml(items = []) {
   const discount = Math.abs(rows.filter((row) => row.total < 0).reduce((sum, row) => sum + row.total, 0));
   const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
   const discountFooter = discount > 0
-    ? `<tr><td colspan="3">סה״כ לפני הנחה</td><td>${escapeHtml(formatCurrency(subtotal))} ₪</td></tr>
-       <tr><td colspan="3">הנחה</td><td>-${escapeHtml(formatCurrency(discount))} ₪</td></tr>`
+    ? `<tr><td colspan="3">סה״כ לפני הנחה</td><td>${currencyAmountHtml(subtotal)}</td></tr>
+       <tr><td colspan="3">הנחה</td><td>${currencyAmountHtml(-discount)}</td></tr>`
     : '';
   return `<table class="pa-cost-table">
     <thead><tr><th>פעילות</th><th>כמות</th><th>מחיר יחידה</th><th>סה״כ שורה</th></tr></thead>
     <tbody>${rows.map((row) => `<tr>
         <td>${escapeHtml(row.name)}</td>
         <td>${escapeHtml(formatCurrency(row.quantity))}</td>
-        <td>${escapeHtml(formatCurrency(row.unitPrice))} ₪</td>
-        <td>${escapeHtml(formatCurrency(row.total))} ₪</td>
+        <td>${currencyAmountHtml(row.unitPrice)}</td>
+        <td>${currencyAmountHtml(row.total)}</td>
       </tr>`).join('')}</tbody>
-    <tfoot>${discountFooter}<tr><td colspan="3">סה״כ לתשלום</td><td>${escapeHtml(formatCurrency(grandTotal))} ₪</td></tr></tfoot>
+    <tfoot>${discountFooter}<tr><td colspan="3">סה״כ לתשלום</td><td>${currencyAmountHtml(grandTotal)}</td></tr></tfoot>
   </table>`;
 }
 
@@ -1240,9 +1248,9 @@ function proposalDiscountSummaryHtml(items = []) {
   const payable = Math.max(subtotal - discount, 0);
   return `<table class="pa-cost-table pa-discount-summary-table">
     <tbody>
-      <tr><td>סה״כ לפני הנחה</td><td>${escapeHtml(formatCurrency(subtotal))} ₪</td></tr>
-      <tr><td>הנחה</td><td>-${escapeHtml(formatCurrency(discount))} ₪</td></tr>
-      <tr><td><strong>סה״כ לתשלום</strong></td><td><strong>${escapeHtml(formatCurrency(payable))} ₪</strong></td></tr>
+      <tr><td>סה״כ לפני הנחה</td><td>${currencyAmountHtml(subtotal)}</td></tr>
+      <tr><td>הנחה</td><td>${currencyAmountHtml(-discount)}</td></tr>
+      <tr><td><strong>סה״כ לתשלום</strong></td><td><strong>${currencyAmountHtml(payable)}</strong></td></tr>
     </tbody>
   </table>`;
 }
@@ -1271,17 +1279,17 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
     const unitPrice = numberValue(item.unit_price);
     const quantityTotal = itemQuantityTotal(item);
     const cells = [
-      publicActivityName(item.item_name),
-      shouldShowGefenForItem(item, contextGroup) ? text(item.gefen_number) : '',
-      item.meetings_count != null ? formatCurrency(item.meetings_count) : '',
-      item.hours_count != null ? formatCurrency(item.hours_count) : '',
-      item.hourly_price != null ? `${formatCurrency(item.hourly_price)} ₪` : '',
-      formatCurrency(quantity),
-      unitPrice != null ? `${formatCurrency(unitPrice)} ₪` : '',
-      quantityTotal != null ? `${formatCurrency(quantityTotal)} ₪` : ''
+      { value: publicActivityName(item.item_name) },
+      { value: shouldShowGefenForItem(item, contextGroup) ? text(item.gefen_number) : '' },
+      { value: item.meetings_count != null ? formatCurrency(item.meetings_count) : '' },
+      { value: item.hours_count != null ? formatCurrency(item.hours_count) : '' },
+      { value: item.hourly_price != null ? currencyAmountHtml(item.hourly_price) : '', html: true },
+      { value: formatCurrency(quantity) },
+      { value: unitPrice != null ? currencyAmountHtml(unitPrice) : '', html: true },
+      { value: quantityTotal != null ? currencyAmountHtml(quantityTotal) : '', html: true }
     ];
-    if (!cells.some(Boolean)) return '';
-    return `<tr>${cells.map((cell) => `<td>${escapeHtml(cell || '—')}</td>`).join('')}</tr>`;
+    if (!cells.some((cell) => cell.value)) return '';
+    return `<tr>${cells.map((cell) => `<td>${cell.html ? (cell.value || '—') : escapeHtml(cell.value || '—')}</td>`).join('')}</tr>`;
   }).filter(Boolean);
   if (!rows.length) return '';
   return `<table class="pa-item-details-table">
