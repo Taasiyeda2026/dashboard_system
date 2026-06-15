@@ -1605,7 +1605,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   const costTableHtml = proposalCostTableHtml(items);
   const costsIntro = costsIntroBody(row, items);
   const paymentTerms = (paymentTermsBody || costTableHtml || costsIntro)
-    ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}${costsIntro ? sectionBodyHtml(costsIntro) : ''}${costTableHtml}</section>`
+    ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</section>`
     : '';
 
   const signatureHtml = signatureSectionHtml(sectionBody('signature'));

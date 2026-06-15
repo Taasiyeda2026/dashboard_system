@@ -11622,9 +11622,10 @@ select.ds-input {
   direction: ltr;
 }
 .proposal-signature-line {
-  width: 165px;
+  width: 52mm;
   border-top: 1px solid #111827;
-  margin: 0 0 0 auto;
+  margin: 0;
+  margin-inline-start: auto;
 }
 .pa-doc-date {
   text-align: left;
@@ -15098,7 +15099,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pa-item-details-table { width: 92% !important; max-width: 176mm !important; margin-left: auto !important; margin-right: auto !important; }
   .proposal-signature { margin-top: 8pt !important; }
   .proposal-signature-greeting { font-size: 8.5pt !important; margin-bottom: 8pt !important; }
-  .proposal-signature-line { width: 42mm !important; border-top: 0.3mm solid #111827 !important; margin: 0 0 0 auto !important; }
+  .proposal-signature-line { width: 52mm !important; border-top: 0.3mm solid #111827 !important; margin: 0 !important; margin-inline-start: auto !important; }
   .proposal-signature-name { font-size: 9pt !important; }
 }
 
@@ -15211,13 +15212,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .proposal-header-left { width: auto; min-width: 165px; }
 .proposal-signature {
-  width: 58mm;
-  margin-inline-start: auto;
-  text-align: center;
+  width: 100%;
+  margin-inline-start: 0;
+  margin-top: auto;
 }
 .proposal-signature-line {
-  width: 100%;
-  margin: 0 auto;
+  width: 52mm;
+  margin: 0;
+  margin-inline-start: auto;
 }
 .proposal-signature-name {
   text-align: left;
@@ -15232,8 +15234,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     object-fit: contain !important;
   }
   .proposal-header-left { width: auto !important; min-width: 42mm !important; }
-  .proposal-signature { width: 58mm !important; margin-top: 8pt !important; margin-inline-start: auto !important; }
-  .proposal-signature-line { width: 100% !important; margin: 0 auto !important; }
+  .proposal-signature { width: 100% !important; margin-top: 8pt !important; margin-inline-start: 0 !important; }
+  .proposal-signature-line { width: 52mm !important; margin: 0 !important; margin-inline-start: auto !important; }
   .proposal-signature-name { text-align: left !important; direction: ltr !important; }
 }
 @media (max-width: 900px) {
@@ -15272,10 +15274,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .proposal-document .pa-section-body p,
 .proposal-document .pa-doc-intro p { margin: 0 0 10pt; }
 
-/* Signature: full-width so "בברכה," is truly centered on the page */
+/* Signature: full-width so "בברכה," is truly centered; margin-top:auto pins it
+   to the bottom of the flex column body (screen only). */
 .proposal-signature {
   width: 100%;
   margin-inline-start: 0;
+  margin-top: auto;
 }
 .proposal-signature-greeting {
   text-align: center;
@@ -15284,6 +15288,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .proposal-signature-name {
   text-align: left;
   direction: ltr;
+}
+/* Costs-intro heading ("להלן פירוט הקורסים...") */
+.pa-costs-intro-heading {
+  font-weight: 700;
+  font-size: 10.5pt;
+  color: #1f4e79;
+  text-align: right;
+  margin: 8pt 0 6pt;
+  line-height: 1.4;
 }
 
 /* Cost table: explicit right-alignment for RTL document
@@ -15312,6 +15325,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-signature {
     width: 100% !important;
     margin-inline-start: 0 !important;
+    margin-top: 0 !important;
+  }
+  .proposal-signature-line {
+    width: 52mm !important;
+    margin: 0 !important;
+    margin-inline-start: auto !important;
   }
   .proposal-signature-greeting {
     text-align: center !important;
