@@ -513,10 +513,7 @@ function scheduleSortValue(entry, key, directory) {
     authority: getActivityAuthorityName(activity),
     school: getActivitySchoolDisplayNameClean(activity),
     activity: getActivityName(activity),
-    grade: getActivityGradeLabel(activity) || '',
-    address: getActivityAddressResolved(activity, directory) || '',
-    contact: '',
-    phone: ''
+    grade: getActivityGradeLabel(activity) || ''
   };
   return map[key] ?? '';
 }
@@ -665,19 +662,15 @@ function opsManagementStylesHtml() {
   return `<style>
     .ds-ops-mgmt-screen .ds-ops-col--date,
     .ds-ops-mgmt-screen .ds-ops-col--weekday,
-    .ds-ops-mgmt-screen .ds-ops-col--time,
-    .ds-ops-mgmt-screen .ds-ops-col--phone { white-space: nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-col--time { white-space: nowrap; }
     .ds-ops-mgmt-screen .ds-ops-sortable-th { cursor:pointer; user-select:none; white-space:nowrap; background:#e6f6fb; color:#0f172a; font-weight:700; border:0; }
     .ds-ops-mgmt-screen .ds-ops-col--school,
-    .ds-ops-mgmt-screen .ds-ops-col--activity,
-    .ds-ops-mgmt-screen .ds-ops-col--address { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-col--address { max-width:260px; }
+    .ds-ops-mgmt-screen .ds-ops-col--activity { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-summary-line { display:block; margin:0 0 10px; padding:7px 10px; border:1px solid #d8e5ee; border-radius:10px; background:#f8fbfd; color:#334155; font-weight:700; font-size:13px; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters { padding:10px 12px; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters .ds-filter-panel__title { margin:0 0 6px; font-size:14px; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { gap:8px; grid-template-columns:repeat(5,minmax(140px,1fr)); align-items:end; }
     .ds-ops-mgmt-screen .ds-filter-field__label { font-size:11px; margin-bottom:2px; }
-    .ds-ops-mgmt-screen .ds-ops-contact-select { min-width:104px; max-width:150px; padding-block:3px; font-size:12px; }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(900px, 65%); margin-inline-start:auto; margin-inline-end:0; }
@@ -733,10 +726,9 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     const date = entry.date || '';
     const authority = getActivityAuthorityName(activity);
     const school = getActivitySchoolDisplayNameClean(activity);
-    const address = getActivityAddressResolved(activity, directory);
     const groupKey = `${date}|${normalizeOpsText(authority)}|${normalizeOpsText(school)}`;
     if (!groupMap.has(groupKey)) {
-      const group = { date, authority, school, address, entries: [] };
+      const group = { date, authority, school, entries: [] };
       groupMap.set(groupKey, group);
       groups.push(group);
     }
@@ -749,21 +741,12 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
   const dateRange = `${formatDateHe(ops.dateFrom) || '—'}–${formatDateHe(ops.dateTo) || '—'}`;
 
   const blocks = groups.map((group) => {
-    let contactName = '—';
-    let contactPhone = '—';
-    for (const entry of group.entries) {
-      const c = getSelectedContact(state, entry.activity, entry.date, directory, contactsIndex);
-      if (c) { contactName = c.name || '—'; contactPhone = c.phone || '—'; break; }
-    }
     const dateLabel = group.date
       ? `${formatDateHeWithWeekday(group.date).split(' · ')[0]} · ${formatDateHe(group.date)}`
       : '—';
     const metaParts = [
       group.authority ? `רשות: ${group.authority}` : '',
-      group.school ? `בית ספר: ${group.school}` : '',
-      group.address ? `כתובת: ${group.address}` : '',
-      `איש קשר: ${contactName}`,
-      `טלפון: ${contactPhone}`
+      group.school ? `בית ספר: ${group.school}` : ''
     ].filter(Boolean);
     const instructorHeader = showInstructor ? '<th>מדריך</th>' : '';
     const activityRows = group.entries.map((entry) => {
@@ -851,15 +834,12 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
       <td class="ds-ops-col--school"><strong>${escapeHtml(getActivitySchoolDisplayNameClean(activity))}</strong></td>
       <td class="ds-ops-col--activity">${escapeHtml(getActivityName(activity))}</td>
       <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
-      <td class="ds-ops-col--address">${mutedOrText(getActivityAddressResolved(activity, directory))}</td>
-      <td class="ds-ops-col--contact">${contactSelectHtml(state, activity, entry.date, directory, contactsIndex)}</td>
-      <td class="ds-ops-col--phone">${mutedOrText(getSelectedContact(state, activity, entry.date, directory, contactsIndex)?.phone)}</td>
     </tr>`;
   }).join('');
 
   const table = scheduleRows.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-schedule"><thead><tr>
-        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעה', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'שכבה / כיתה', 'ds-ops-col--grade')}${sortableTh(state, TAB_INSTRUCTORS, 'address', 'כתובת', 'ds-ops-col--address')}${sortableTh(state, TAB_INSTRUCTORS, 'contact', 'איש קשר', 'ds-ops-col--contact')}${sortableTh(state, TAB_INSTRUCTORS, 'phone', 'טלפון', 'ds-ops-col--phone')}
+        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעות', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'שכבה / כיתה', 'ds-ops-col--grade')}
       </tr></thead><tbody>${tableRows}</tbody></table>`)
     : dsEmptyState('לא נמצאו פעילויות בטווח הנבחר');
 
@@ -1003,13 +983,10 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
           <td class="ds-ops-col--activity">${escapeHtml(getActivityName(row))}</td>
           <td class="ds-ops-col--instructor">${escapeHtml(getActivityInstructorName(row))}</td>
           <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(row) || '—')}</td>
-          <td class="ds-ops-col--address">${mutedOrText(getActivityAddressResolved(row, directory))}</td>
-          <td class="ds-ops-col--contact">${contactSelectHtml(state, row, date, directory, contactsIndex)}</td>
-          <td class="ds-ops-col--phone">${mutedOrText(getSelectedContact(state, row, date, directory, contactsIndex)?.phone)}</td>
         </tr>`;
       }).join('');
       const detail = isOpen
-        ? `<div class="ds-ops-school-detail">${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>תאריך</th><th>יום</th><th>שעה</th><th>סדנה / פעילות</th><th>מדריך</th><th>שכבה / כיתה</th><th>כתובת</th><th>איש קשר</th><th>טלפון</th></tr></thead><tbody>${detailRows}</tbody></table>`)}</div>`
+        ? `<div class="ds-ops-school-detail">${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>תאריך</th><th>יום</th><th>שעות</th><th>סדנה / פעילות</th><th>מדריך</th><th>שכבה / כיתה</th></tr></thead><tbody>${detailRows}</tbody></table>`)}</div>`
         : '';
       const instructorsList = Array.from(school.instructors);
       const workshopList = Array.from(school.workshops);
@@ -1140,16 +1117,6 @@ export const operationsManagementScreen = {
       });
     });
 
-    root.querySelectorAll('[data-ops-contact-key]').forEach((select) => {
-      select.addEventListener('change', (ev) => {
-        ops.selectedContacts = ops.selectedContacts || {};
-        const key = ev.target.getAttribute('data-ops-contact-key') || '';
-        if (!key) return;
-        if (ev.target.value) ops.selectedContacts[key] = ev.target.value;
-        else delete ops.selectedContacts[key];
-        rerender?.();
-      });
-    });
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
 
