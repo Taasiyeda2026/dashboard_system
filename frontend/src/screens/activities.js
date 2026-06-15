@@ -1565,7 +1565,7 @@ export const activitiesScreen = {
       search: false,
       clear: false,
       bare: true,
-      optionsOverrides: { ...centralOptions, funding: fundingOptions }
+      dependent: true
     });
     const loadMoreHtml = hasMore
       ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ACTIVITIES_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`

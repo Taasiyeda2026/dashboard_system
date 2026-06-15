@@ -98,6 +98,47 @@ export function collectFilterOptions(rows, fields) {
   return result;
 }
 
+const DEPENDENT_EXCLUDE = new Set(['-', 'לא משויך', 'ללא שיוך']);
+
+/**
+ * Builds filter options where each field's options come from rows that pass
+ * all OTHER active filters (and the active free-text search), so the user
+ * never sees values that would yield empty results.
+ */
+export function collectDependentFilterOptions(rows, filterFields, activeFilters, searchText) {
+  const list = Array.isArray(rows) ? rows : [];
+  const fields = Array.isArray(filterFields) ? filterFields : [];
+  const filters = activeFilters || {};
+  const search = normalizeText(searchText || '');
+
+  const result = {};
+  fields.forEach((field) => {
+    const subset = list.filter((row) => {
+      if (search && !String(row?.__searchText || '').includes(search)) return false;
+      for (const f of fields) {
+        if (f.key === field.key) continue;
+        const selected = String(filters[f.key] || '').trim();
+        if (!selected) continue;
+        const vals = typeof f.getValues === 'function' ? f.getValues(row) : [row?.[f.key]];
+        const ok = (Array.isArray(vals) ? vals : [vals]).some((v) => String(v || '').trim() === selected);
+        if (!ok) return false;
+      }
+      return true;
+    });
+
+    const values = new Set();
+    subset.forEach((row) => {
+      const rawVals = typeof field.getValues === 'function' ? field.getValues(row) : [row?.[field.key]];
+      (Array.isArray(rawVals) ? rawVals : [rawVals]).forEach((value) => {
+        const text = String(value || '').trim();
+        if (text && !DEPENDENT_EXCLUDE.has(text)) values.add(text);
+      });
+    });
+    result[field.key] = Array.from(values).sort((a, b) => a.localeCompare(b, 'he'));
+  });
+  return result;
+}
+
 export function applyLocalFilters(rows, filters, config = {}) {
   const list = Array.isArray(rows) ? rows : [];
   const scoped = filters || {};
@@ -151,15 +192,29 @@ function selectInlineHtml(scope, field, filters, optionsMap) {
 export function filtersToolbarHtml(scope, rows, state, config = {}) {
   const filters = ensureActivityListFilters(state, scope);
   const filterFields = Array.isArray(config.filterFields) ? config.filterFields : [];
-  const optionsMap = collectFilterOptions(rows, filterFields);
 
-  if (config.optionsOverrides && typeof config.optionsOverrides === 'object') {
-    Object.keys(config.optionsOverrides).forEach((k) => {
-      if (Array.isArray(config.optionsOverrides[k]) && config.optionsOverrides[k].length) {
-        optionsMap[k] = Array.from(new Set([...(optionsMap[k] || []), ...config.optionsOverrides[k]]))
-          .sort((a, b) => a.localeCompare(b, 'he'));
+  let optionsMap;
+  if (config.dependent) {
+    const searchText = Object.prototype.hasOwnProperty.call(filters, 'appliedQ') ? filters.appliedQ : (filters.q || '');
+    optionsMap = collectDependentFilterOptions(rows, filterFields, filters, searchText);
+    // Auto-clear stale selections: if the currently selected value is no longer
+    // in the available options for that field, clear it silently.
+    filterFields.forEach((field) => {
+      const selected = String(filters[field.key] || '').trim();
+      if (selected && !(optionsMap[field.key] || []).includes(selected)) {
+        filters[field.key] = '';
       }
     });
+  } else {
+    optionsMap = collectFilterOptions(rows, filterFields);
+    if (config.optionsOverrides && typeof config.optionsOverrides === 'object') {
+      Object.keys(config.optionsOverrides).forEach((k) => {
+        if (Array.isArray(config.optionsOverrides[k]) && config.optionsOverrides[k].length) {
+          optionsMap[k] = Array.from(new Set([...(optionsMap[k] || []), ...config.optionsOverrides[k]]))
+            .sort((a, b) => a.localeCompare(b, 'he'));
+        }
+      });
+    }
   }
 
   const showSearch = config.search !== false;
