@@ -436,8 +436,7 @@ function topFiltersHtml(rows, state) {
 function tabsHtml(activeTab) {
   const tabs = [
     [TAB_INSTRUCTORS, 'סידור עבודה'],
-    [TAB_WORKSHOPS, 'כמויות סדנאות'],
-    [TAB_SCHOOLS, 'לפי בתי ספר']
+    [TAB_WORKSHOPS, 'כמויות סדנאות']
   ];
   return `<nav class="ds-exceptions-tabs ds-ops-mgmt-tabs no-print" aria-label="לשוניות ניהול תפעול" dir="rtl">
     ${tabs.map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
@@ -1028,9 +1027,8 @@ function renderTab(rows, state, data) {
   const stockMap = data?.workshopStockMap instanceof Map ? data.workshopStockMap : new Map();
   const directory = buildSchoolsDirectory(data?.schoolsDirectoryRows || []);
   const contactsIndex = buildContactsSchoolsIndex(data?.contactsSchoolsRows || []);
-  if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
+  if (ops.tab === TAB_SUMMER || ops.tab === TAB_SCHOOLS) ops.tab = TAB_INSTRUCTORS;
   if (ops.tab === TAB_WORKSHOPS) return workshopsTabHtml(rows, state, stockMap);
-  if (ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state, directory, contactsIndex);
   return instructorsTabHtml(rows, state, data, directory, contactsIndex);
 }
 
