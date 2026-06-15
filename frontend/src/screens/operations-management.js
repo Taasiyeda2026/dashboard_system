@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { supabase } from '../supabase-client.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeRangeShort } from './shared/format-date.js';
 import {
   dsPageHeader,
@@ -65,6 +66,14 @@ const PERIOD_OPTIONS = [
 
 const STATUS_OPTIONS = ['פתוח', 'סגור', 'בוטל', 'נמחק'];
 
+const SORT_DEFAULTS = {
+  [TAB_INSTRUCTORS]: { key: 'date', dir: 'asc' },
+  [TAB_SUMMER]: { key: 'district', dir: 'asc' },
+  [TAB_WORKSHOPS]: { key: 'activityCount', dir: 'desc' },
+  [TAB_SCHOOLS]: { key: 'authority', dir: 'asc' }
+};
+
+
 const FILTER_FIELDS = [
   { key: 'district', label: 'מחוז / אזור', getValues: (row) => [getActivityDistrict(row)] },
   { key: 'authority', label: 'רשות', getValues: (row) => [getActivityAuthorityName(row)] },
@@ -120,6 +129,11 @@ function ensureOpsState(state) {
   if (!ops.instructor) ops.instructor = '__all__';
   if (!ops.expandedWorkshop) ops.expandedWorkshop = '';
   if (!ops.expandedSchool) ops.expandedSchool = '';
+  ops.selectedContactKeys = ops.selectedContactKeys || {};
+  ops.sorts = ops.sorts || {};
+  Object.entries(SORT_DEFAULTS).forEach(([tab, sort]) => {
+    if (!ops.sorts[tab]) ops.sorts[tab] = { ...sort };
+  });
   const filters = ensureActivityListFilters(state, SCOPE);
   if (!filters.status) filters.status = 'פתוח';
   return ops;
@@ -312,6 +326,468 @@ function uniqueSorted(values) {
   return Array.from(new Set(values.map((v) => String(v || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'he'));
 }
 
+function getTabSort(state, tabKey) {
+  const ops = ensureOpsState(state);
+  const tab = tabKey || ops.tab || TAB_INSTRUCTORS;
+  ops.sorts = ops.sorts || {};
+  if (!ops.sorts[tab]) ops.sorts[tab] = { ...(SORT_DEFAULTS[tab] || { key: '', dir: 'asc' }) };
+  return ops.sorts[tab];
+}
+
+function sortIndicatorHtml(state, tabKey, key) {
+  const sort = getTabSort(state, tabKey);
+  if (sort.key !== key) return '';
+  return `<span class="ds-sort-indicator" aria-hidden="true">${sort.dir === 'desc' ? '▼' : '▲'}</span>`;
+}
+
+function sortableTh(state, tabKey, key, label, className = '') {
+  const classAttr = className ? ` class="${escapeHtml(className)}"` : '';
+  return `<th${classAttr}><button type="button" class="ds-sort-button" data-ops-sort="${escapeHtml(key)}" data-ops-sort-tab="${escapeHtml(tabKey)}">${escapeHtml(label)} ${sortIndicatorHtml(state, tabKey, key)}</button></th>`;
+}
+
+function compareValues(a, b, dir = 'asc') {
+  const multiplier = dir === 'desc' ? -1 : 1;
+  const emptyA = a === null || a === undefined || a === '';
+  const emptyB = b === null || b === undefined || b === '';
+  if (emptyA && emptyB) return 0;
+  if (emptyA) return 1;
+  if (emptyB) return -1;
+  const numA = Number(a);
+  const numB = Number(b);
+  if (Number.isFinite(numA) && Number.isFinite(numB)) {
+    return (numA - numB) * multiplier;
+  }
+  return String(a).localeCompare(String(b), 'he', { numeric: true }) * multiplier;
+}
+
+function sortByConfig(list, state, tabKey, valueGetters = {}) {
+  const sort = getTabSort(state, tabKey);
+  const getter = valueGetters[sort.key];
+  if (!getter) return list;
+  return list.sort((a, b) => compareValues(getter(a), getter(b), sort.dir));
+}
+
+function scheduleSortValue(entry, key) {
+  const activity = entry.activity || {};
+  const map = {
+    date: entry.date || '',
+    weekday: entry.date ? formatDateHeWithWeekday(entry.date).split(' · ')[0] : '',
+    time: entry.time || '',
+    authority: getActivityAuthorityName(activity),
+    school: getActivitySchoolDisplayName(activity),
+    activity: getActivityName(activity),
+    groups: getActivityGroupsCount(activity) || '',
+    grade: getActivityGradeLabel(activity) || '',
+    address: getActivityAddress(activity) || '',
+    contact: getActivityContactName(activity) || '',
+    phone: getActivityContactPhone(activity) || '',
+    notes: getActivityOperationalNotes(activity) || ''
+  };
+  return map[key] ?? '';
+}
+
+function sortScheduleRows(schedule, state) {
+  const sort = getTabSort(state, TAB_INSTRUCTORS);
+  schedule.sort((a, b) => {
+    const primary = compareValues(scheduleSortValue(a, sort.key), scheduleSortValue(b, sort.key), sort.dir);
+    if (primary !== 0) return primary;
+    const dateCmp = compareValues(a.date || '9999-99-99', b.date || '9999-99-99', 'asc');
+    if (dateCmp !== 0) return dateCmp;
+    if (a.hasTime && !b.hasTime) return -1;
+    if (!a.hasTime && b.hasTime) return 1;
+    return getActivityName(a.activity).localeCompare(getActivityName(b.activity), 'he');
+  });
+  return schedule;
+}
+
+function openOpsPrintWindow({ title = 'הדפסה', bodyHtml = '' } = {}) {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('הדפדפן חסם פתיחת חלון הדפסה. יש לאפשר חלונות קופצים לאתר.');
+    return;
+  }
+  const html = `<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body {
+      direction: rtl;
+      font-family: Assistant, Arial, sans-serif;
+      margin: 18px;
+      color: #111827;
+      background: #fff;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    h1, h2, h3 { margin: 0 0 8px; color: #0f172a; }
+    p { margin: 0 0 10px; }
+    .ds-ops-mgmt-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .ds-ops-mgmt-summary__card {
+      border: 1px solid #dbe4ef;
+      border-radius: 10px;
+      padding: 8px;
+      background: #f8fafc;
+    }
+    .ds-ops-mgmt-summary__icon { display: none; }
+    .ds-ops-mgmt-summary__label { display: block; color: #64748b; font-size: 11px; }
+    .ds-ops-mgmt-summary__value { display: block; font-size: 16px; margin-top: 2px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      table-layout: auto;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 6px 7px;
+      vertical-align: top;
+      text-align: right;
+    }
+    th {
+      background: #e6f6fb;
+      color: #0f172a;
+      font-weight: 700;
+    }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .ds-sort-button {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      font: inherit;
+      color: inherit;
+    }
+    .ds-sort-indicator,
+    .no-print,
+    button,
+    .ds-link-btn {
+      display: none !important;
+    }
+    .only-print { display: block !important; }
+    .ds-ops-mgmt-print-footer {
+      margin-top: 14px;
+      font-weight: 600;
+    }
+    @page {
+      size: A4 landscape;
+      margin: 12mm;
+    }
+    @media print {
+      body { margin: 0; }
+      tr { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>${bodyHtml}</body>
+</html>`;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
+}
+
+function printScheduleFromDom(root) {
+  const table = root.querySelector('.ds-ops-mgmt-schedule');
+  if (!table || !table.querySelector('tbody tr')) {
+    alert('אין פעילויות להדפסה בטווח הנבחר');
+    return;
+  }
+  const panel = root.querySelector('.ds-ops-mgmt-panel');
+  const header = panel?.querySelector('.ds-ops-mgmt-print-header')?.innerHTML || '<h2>סידור עבודה</h2>';
+  const summary = panel?.querySelector('.ds-ops-mgmt-summary')?.outerHTML || '';
+  const footer = panel?.querySelector('.ds-ops-mgmt-print-footer')?.outerHTML || '';
+  openOpsPrintWindow({
+    title: 'סידור עבודה',
+    bodyHtml: `<section>${header}${summary}${table.outerHTML}${footer}</section>`
+  });
+}
+
+function printWorkshopsFromDom(root) {
+  const table = root.querySelector('.ds-ops-workshops-table');
+  if (!table || !table.querySelector('tbody tr')) {
+    alert('אין כמויות סדנאות להדפסה בטווח הנבחר');
+    return;
+  }
+  const panel = root.querySelector('.ds-ops-workshops-panel');
+  const header = panel?.querySelector('.ds-ops-mgmt-print-header')?.innerHTML || '<h2>כמויות סדנאות</h2>';
+  const summary = panel?.querySelector('.ds-ops-mgmt-summary')?.outerHTML || '';
+  openOpsPrintWindow({
+    title: 'כמויות סדנאות',
+    bodyHtml: `<section>${header}${summary}${table.outerHTML}</section>`
+  });
+}
+
+
+function normalizeOpsText(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[״"]/g, '')
+    .replace(/[׳']/g, '')
+    .replace(/[\u2010-\u2015]/g, '-')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function nonEmptyOpsValue(...values) {
+  for (const value of values) {
+    const text = String(value ?? '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function normalizeDirectoryRow(row = {}) {
+  // מקור ההשלמה לעמוד ניהול תפעול הוא טבלת schools.
+  // השדות העיקריים שם: school_name, authority, institution_address, city,
+  // principal_name, school_phone, semel_mosad.
+  const authorityName = nonEmptyOpsValue(row.authority_name, row.authority, row.client_authority, row.client_name);
+  const schoolName = nonEmptyOpsValue(row.school_name, row.school, row.school_framework);
+  const city = nonEmptyOpsValue(row.city);
+  const rawAddress = nonEmptyOpsValue(row.institution_address, row.school_address, row.address);
+  const address = rawAddress && city && !normalizeOpsText(rawAddress).includes(normalizeOpsText(city))
+    ? `${rawAddress}, ${city}`
+    : nonEmptyOpsValue(rawAddress, city);
+  const principalName = nonEmptyOpsValue(row.principal_name, row.contact_name, row.contact, row.client_name);
+  const phone = nonEmptyOpsValue(row.school_phone, row.mobile, row.phone);
+  return {
+    ...row,
+    authority_id: row.authority_id ?? row.AuthorityID ?? '',
+    school_id: row.school_id ?? row.id ?? row.SchoolID ?? '',
+    semel_mosad: row.semel_mosad ?? row.semel ?? '',
+    authority_name: authorityName,
+    authority: authorityName,
+    school_name: schoolName,
+    school: schoolName,
+    school_address: address,
+    institution_address: rawAddress,
+    city,
+    principal_name: principalName,
+    contact_name: principalName,
+    contact_role: principalName ? nonEmptyOpsValue(row.contact_role, row.role, row.title, 'מנהל/ת בית הספר') : nonEmptyOpsValue(row.contact_role, row.role, row.title),
+    phone,
+    mobile: phone,
+    email: nonEmptyOpsValue(row.email, row.mail)
+  };
+}
+
+function contactHasDetails(contact = {}) {
+  return Boolean(
+    String(contact.contact_name || '').trim()
+    || String(contact.phone || contact.mobile || '').trim()
+    || String(contact.email || '').trim()
+  );
+}
+
+function contactKey(contact = {}) {
+  return [
+    contact.contact_name,
+    contact.contact_role,
+    contact.phone || contact.mobile,
+    contact.email
+  ].map((value) => normalizeOpsText(value)).join('|');
+}
+
+function contactLabel(contact = {}) {
+  const parts = [
+    contact.school_name || contact.school,
+    contact.contact_name,
+    contact.contact_role,
+    contact.phone || contact.mobile,
+    contact.email
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  return parts.length ? parts.join(' — ') : '—';
+}
+
+function buildOperationsDirectory(rows = []) {
+  const normalized = (Array.isArray(rows) ? rows : []).map(normalizeDirectoryRow);
+  const byAuthority = new Map();
+  const bySchoolId = new Map();
+  const bySchoolKey = new Map();
+  const contactsByAuthority = new Map();
+  const contactsBySchoolId = new Map();
+  const contactsBySchoolKey = new Map();
+
+  const add = (map, key, row) => {
+    const safeKey = String(key || '').trim();
+    if (!safeKey) return;
+    if (!map.has(safeKey)) map.set(safeKey, []);
+    map.get(safeKey).push(row);
+  };
+
+  normalized.forEach((row) => {
+    const authorityKey = normalizeOpsText(row.authority_name || row.authority);
+    const schoolKey = `${authorityKey}|${normalizeOpsText(row.school_name || row.school)}`;
+    const schoolId = String(row.school_id || '').trim();
+    add(byAuthority, authorityKey, row);
+    if (schoolId) add(bySchoolId, schoolId, row);
+    if (row.school_name || row.school) add(bySchoolKey, schoolKey, row);
+    if (contactHasDetails(row)) {
+      add(contactsByAuthority, authorityKey, row);
+      if (schoolId) add(contactsBySchoolId, schoolId, row);
+      if (row.school_name || row.school) add(contactsBySchoolKey, schoolKey, row);
+    }
+  });
+
+  return {
+    rows: normalized,
+    byAuthority,
+    bySchoolId,
+    bySchoolKey,
+    contactsByAuthority,
+    contactsBySchoolId,
+    contactsBySchoolKey
+  };
+}
+
+async function readOperationsSchoolsDirectory() {
+  if (!supabase) return { rows: [], source: 'none' };
+  try {
+    const { data, error } = await supabase
+      .from('schools')
+      .select('id, semel_mosad, school_name, authority, authority_id, district, principal_name, school_phone, institution_address, city')
+      .limit(10000);
+    if (error) throw error;
+    return { rows: Array.isArray(data) ? data : [], source: 'schools' };
+  } catch (error) {
+    console.warn('[operations-management] schools directory read failed', error?.message || error);
+    return { rows: [], source: 'error' };
+  }
+}
+
+function getActivitySchoolId(activity = {}) {
+  return String(activity.school_id || activity.single_school_id || '').trim();
+}
+
+function getActivityAuthorityKey(activity = {}) {
+  return normalizeOpsText(getActivityAuthorityName(activity) || activity.authority_name || activity.legacy_authority || activity.authority);
+}
+
+function getActivityDirectorySchoolKeys(activity = {}) {
+  const authorityKey = getActivityAuthorityKey(activity);
+  const names = getActivitySchoolNames(activity);
+  return names.map((name) => `${authorityKey}|${normalizeOpsText(name)}`).filter((key) => key !== `${authorityKey}|`);
+}
+
+function uniqueRowsByDirectoryKey(rows = []) {
+  const seen = new Set();
+  const result = [];
+  rows.forEach((row) => {
+    const key = [row.school_id, row.school_name, row.school_address, row.contact_name, row.phone || row.mobile, row.email]
+      .map((value) => String(value || '').trim()).join('|');
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(row);
+  });
+  return result;
+}
+
+function findDirectorySchoolsForActivity(activity, directory) {
+  const found = [];
+  const schoolId = getActivitySchoolId(activity);
+  if (schoolId && directory?.bySchoolId?.has(schoolId)) found.push(...directory.bySchoolId.get(schoolId));
+  getActivityDirectorySchoolKeys(activity).forEach((key) => {
+    if (directory?.bySchoolKey?.has(key)) found.push(...directory.bySchoolKey.get(key));
+  });
+  return uniqueRowsByDirectoryKey(found);
+}
+
+function getActivityAddressResolved(activity, directory) {
+  const direct = nonEmptyOpsValue(getActivityAddress(activity));
+  if (direct) return direct;
+  const schoolRows = findDirectorySchoolsForActivity(activity, directory);
+  const addresses = uniqueSorted(schoolRows.map((row) => nonEmptyOpsValue(row.school_address, row.institution_address, row.address, row.city)));
+  return addresses.join('; ');
+}
+
+function getActivityContactOptions(activity, directory) {
+  const options = [];
+  const add = (rows = []) => {
+    rows.forEach((row) => {
+      const contact = normalizeDirectoryRow(row);
+      if (contactHasDetails(contact)) options.push(contact);
+    });
+  };
+
+  const directName = nonEmptyOpsValue(getActivityContactName(activity));
+  const directPhone = nonEmptyOpsValue(getActivityContactPhone(activity));
+  if (directName || directPhone) {
+    options.push({
+      contact_name: directName,
+      contact_role: nonEmptyOpsValue(activity?.contact_role, activity?.contactRole),
+      phone: directPhone,
+      mobile: directPhone,
+      email: nonEmptyOpsValue(activity?.contact_email, activity?.email)
+    });
+  }
+
+  const schoolId = getActivitySchoolId(activity);
+  if (schoolId && directory?.contactsBySchoolId?.has(schoolId)) add(directory.contactsBySchoolId.get(schoolId));
+  getActivityDirectorySchoolKeys(activity).forEach((key) => {
+    if (directory?.contactsBySchoolKey?.has(key)) add(directory.contactsBySchoolKey.get(key));
+  });
+  const authorityKey = getActivityAuthorityKey(activity);
+  if (authorityKey && directory?.contactsByAuthority?.has(authorityKey)) add(directory.contactsByAuthority.get(authorityKey));
+
+  const seen = new Set();
+  return options.filter((contact) => {
+    const key = contactKey(contact);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function scheduleEntryKey(entry = {}) {
+  return [String(entry.activity?.row_id || entry.activity?.id || ''), String(entry.date || '')].join('|');
+}
+
+function selectedContactForEntry(entry, directory, ops) {
+  const options = getActivityContactOptions(entry.activity, directory);
+  if (!options.length) return { options, selected: null, selectedKey: '' };
+  const entryKey = scheduleEntryKey(entry);
+  const requested = String(ops?.selectedContactKeys?.[entryKey] || '').trim();
+  let selected = requested ? options.find((contact) => contactKey(contact) === requested) : null;
+  if (!selected) selected = options[0];
+  return { options, selected, selectedKey: contactKey(selected), entryKey };
+}
+
+function contactSelectCellHtml(entry, directory, ops) {
+  const { options, selected, selectedKey, entryKey } = selectedContactForEntry(entry, directory, ops);
+  if (!options.length || !selected) return '<span class="ds-ops-mgmt-cell-muted">—</span>';
+  const label = contactLabel(selected);
+  if (options.length === 1) {
+    return `<span class="ds-ops-contact-label">${escapeHtml(label)}</span>`;
+  }
+  return `<span class="ds-ops-contact-picker">
+    <select class="ds-input ds-input--xs no-print" data-ops-row-contact="${escapeHtml(entryKey)}" title="בחירת איש קשר">
+      ${options.map((contact) => {
+        const key = contactKey(contact);
+        return `<option value="${escapeHtml(key)}"${key === selectedKey ? ' selected' : ''}>${escapeHtml(contactLabel(contact))}</option>`;
+      }).join('')}
+    </select>
+    <span class="only-print">${escapeHtml(label)}</span>
+  </span>`;
+}
+
+function contactPhoneCellHtml(entry, directory, ops) {
+  const { selected } = selectedContactForEntry(entry, directory, ops);
+  const phone = nonEmptyOpsValue(selected?.phone, selected?.mobile, getActivityContactPhone(entry.activity));
+  return phone ? escapeHtml(phone) : '<span class="ds-ops-mgmt-cell-muted">—</span>';
+}
+
+function directorySourceNoteHtml(data = {}) {
+  const count = Array.isArray(data?.schoolsDirectoryRows) ? data.schoolsDirectoryRows.length : 0;
+  if (!count) return '';
+  return `<p class="ds-ops-mgmt-note ds-ops-mgmt-note--contacts no-print" dir="rtl">כתובת, סמל מוסד, מנהל/ת וטלפון משלימים נטענים מטבלת schools לפי רשות ובית ספר.</p>`;
+}
+
 function instructorOptions(rows) {
   const names = new Set();
   rows.forEach((row) => {
@@ -344,14 +820,7 @@ function buildScheduleRows(rows, state) {
     });
   });
 
-  schedule.sort((a, b) => {
-    const dateCmp = String(a.date || '9999-99-99').localeCompare(String(b.date || '9999-99-99'));
-    if (dateCmp !== 0) return dateCmp;
-    if (a.hasTime && !b.hasTime) return -1;
-    if (!a.hasTime && b.hasTime) return 1;
-    return getActivityName(a.activity).localeCompare(getActivityName(b.activity), 'he');
-  });
-  return schedule;
+  return sortScheduleRows(schedule, state);
 }
 
 function instructorSummary(rows, state, scheduleRows) {
@@ -370,7 +839,7 @@ function instructorSummary(rows, state, scheduleRows) {
   ]);
 }
 
-function instructorsTabHtml(rows, state) {
+function instructorsTabHtml(rows, state, data = {}, directory = buildOperationsDirectory([])) {
   const ops = ensureOpsState(state);
   const instructors = instructorOptions(rows);
   if (ops.instructor === '__all__' && instructors.length === 1) ops.instructor = instructors[0];
@@ -389,9 +858,9 @@ function instructorsTabHtml(rows, state) {
       <td>${escapeHtml(getActivityName(activity))}</td>
       <td class="ds-ops-col--groups">${escapeHtml(getActivityGroupsCount(activity) || '—')}</td>
       <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
-      <td class="ds-ops-col--address">${escapeHtml(getActivityAddress(activity) || '—')}</td>
-      <td class="ds-ops-col--contact">${escapeHtml(getActivityContactName(activity) || '—')}</td>
-      <td class="ds-ops-col--phone">${escapeHtml(getActivityContactPhone(activity) || '—')}</td>
+      <td class="ds-ops-col--address">${escapeHtml(getActivityAddressResolved(activity, directory) || '—')}</td>
+      <td class="ds-ops-col--contact">${contactSelectCellHtml(entry, directory, ops)}</td>
+      <td class="ds-ops-col--phone">${contactPhoneCellHtml(entry, directory, ops)}</td>
       <td class="ds-ops-col--notes">${escapeHtml(getActivityOperationalNotes(activity) || '—')}</td>
     </tr>`;
   }).join('');
@@ -399,8 +868,8 @@ function instructorsTabHtml(rows, state) {
   const table = scheduleRows.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-schedule">
       <thead><tr>
-        <th>תאריך</th><th>יום</th><th>שעה</th><th>רשות</th><th>בית ספר / מסגרת</th><th>פעילות</th>
-        <th class="ds-ops-col--groups">קבוצות</th><th class="ds-ops-col--grade">שכבה / כיתה</th><th class="ds-ops-col--address">כתובת</th><th class="ds-ops-col--contact">איש קשר</th><th class="ds-ops-col--phone">טלפון</th><th class="ds-ops-col--notes">הערות</th>
+        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעה', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות')}
+        ${sortableTh(state, TAB_INSTRUCTORS, 'groups', 'קבוצות', 'ds-ops-col--groups')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'שכבה / כיתה', 'ds-ops-col--grade')}${sortableTh(state, TAB_INSTRUCTORS, 'address', 'כתובת', 'ds-ops-col--address')}${sortableTh(state, TAB_INSTRUCTORS, 'contact', 'איש קשר', 'ds-ops-col--contact')}${sortableTh(state, TAB_INSTRUCTORS, 'phone', 'טלפון', 'ds-ops-col--phone')}${sortableTh(state, TAB_INSTRUCTORS, 'notes', 'הערות', 'ds-ops-col--notes')}
       </tr></thead><tbody>${tableRows}</tbody></table>`)
     : dsEmptyState('לא נמצאו פעילויות בטווח הנבחר');
 
@@ -408,8 +877,12 @@ function instructorsTabHtml(rows, state) {
     ? rows
     : rows.filter((row) => getActivityInstructorName(row) === selected);
 
+  const activeSummary = selected === '__all__'
+    ? tabOverviewSummary(rows)
+    : instructorSummary(instructorRows, state, scheduleRows);
+
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
-    ${tabOverviewSummary(rows)}
+    ${activeSummary}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <label class="ds-filter-field ds-ops-mgmt-instructor-field"><span class="ds-filter-field__label">מדריך לסידור</span>
         <select class="ds-input ds-input--sm" data-ops-instructor>
@@ -423,7 +896,7 @@ function instructorsTabHtml(rows, state) {
       <h2>סידור עבודה למדריך: ${escapeHtml(printTitle)}</h2>
       <p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p>
     </div>
-    ${selected !== '__all__' ? instructorSummary(instructorRows, state, scheduleRows) : ''}
+    ${directorySourceNoteHtml(data)}
     ${dsCard({ title: 'טבלת סידור עבודה', badge: String(scheduleRows.length), body: table, padded: false })}
     <p class="ds-ops-mgmt-print-footer only-print">יש לבדוק את פרטי הפעילות לפני הגעה. במקרה של שינוי, יש לעדכן את התפעול.</p>
   </section>`;
@@ -452,10 +925,17 @@ function summerTabHtml(rows, state) {
     if (isSummerOperationsException(row)) bucket.exceptions += 1;
   });
 
-  const districtRows = Array.from(byDistrict.values()).sort((a, b) => a.district.localeCompare(b.district, 'he'));
+  const districtRows = sortByConfig(Array.from(byDistrict.values()), state, TAB_SUMMER, {
+    district: (row) => row.district,
+    authorities: (row) => row.authorities.size,
+    schools: (row) => row.schools.size,
+    activities: (row) => row.activities,
+    instructors: (row) => row.instructors.size,
+    exceptions: (row) => row.exceptions
+  });
   const districtTable = districtRows.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table">
-      <thead><tr><th>מחוז / אזור</th><th>רשויות</th><th>בתי ספר</th><th>פעילויות</th><th>מדריכים</th><th>חריגות</th></tr></thead>
+      <thead><tr>${sortableTh(state, TAB_SUMMER, 'district', 'מחוז / אזור')}${sortableTh(state, TAB_SUMMER, 'authorities', 'רשויות')}${sortableTh(state, TAB_SUMMER, 'schools', 'בתי ספר')}${sortableTh(state, TAB_SUMMER, 'activities', 'פעילויות')}${sortableTh(state, TAB_SUMMER, 'instructors', 'מדריכים')}${sortableTh(state, TAB_SUMMER, 'exceptions', 'חריגות')}</tr></thead>
       <tbody>${districtRows.map((row) => `<tr data-ops-district="${escapeHtml(row.district)}"><td><button type="button" class="ds-link-btn" data-ops-district="${escapeHtml(row.district)}">${escapeHtml(row.district)}</button></td><td>${row.authorities.size}</td><td>${row.schools.size}</td><td>${row.activities}</td><td>${row.instructors.size}</td><td>${exceptionCountCell(row.exceptions)}</td></tr>`).join('')}</tbody>
     </table>`)
     : dsEmptyState('אין פעילויות קיץ בטווח הנבחר');
@@ -498,7 +978,14 @@ function summerTabHtml(rows, state) {
 
 function workshopsTabHtml(rows, state, stockMap) {
   const ops = ensureOpsState(state);
-  const metrics = workshopMetricsRows(rows, stockMap);
+  const metrics = sortByConfig(workshopMetricsRows(rows, stockMap), state, TAB_WORKSHOPS, {
+    workshopName: (row) => row.workshopName,
+    activityCount: (row) => row.activityCount,
+    estimatedQuantity: (row) => row.estimatedQuantity,
+    actualQuantity: (row) => row.actualQuantity ?? '',
+    stockQuantity: (row) => row.stockQuantity ?? '',
+    gap: (row) => row.gap ?? ''
+  });
   const groupsByName = new Map();
   rows.forEach((row) => {
     const name = getActivityName(row);
@@ -509,12 +996,12 @@ function workshopsTabHtml(rows, state, stockMap) {
   const table = metrics.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table">
       <thead><tr>
-        <th>שם סדנה</th>
-        <th>מספר סדנאות</th>
-        <th>כמות משוערת לפי ${WORKSHOP_ESTIMATE_PER_ACTIVITY}</th>
-        <th>כמות בפועל</th>
-        <th>כמות במלאי</th>
-        <th>פער מול מלאי</th>
+        ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם סדנה')}
+        ${sortableTh(state, TAB_WORKSHOPS, 'activityCount', 'מספר סדנאות')}
+        ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', `כמות משוערת לפי ${WORKSHOP_ESTIMATE_PER_ACTIVITY}`)}
+        ${sortableTh(state, TAB_WORKSHOPS, 'actualQuantity', 'כמות בפועל')}
+        ${sortableTh(state, TAB_WORKSHOPS, 'stockQuantity', 'כמות במלאי')}
+        ${sortableTh(state, TAB_WORKSHOPS, 'gap', 'פער מול מלאי')}
       </tr></thead>
       <tbody>${metrics.map((row) => `<tr>
         <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
@@ -595,10 +1082,18 @@ function schoolsTabHtml(rows, state) {
     bucket.items.push(row);
   });
 
-  const list = Array.from(groups.values()).sort((a, b) => a.authority.localeCompare(b.authority, 'he') || a.school.localeCompare(b.school, 'he'));
+  const list = sortByConfig(Array.from(groups.values()), state, TAB_SCHOOLS, {
+    authority: (row) => row.authority,
+    school: (row) => row.school,
+    activities: (row) => row.activities,
+    workshops: (row) => row.workshops.size,
+    instructors: (row) => row.instructors.size,
+    dates: (row) => Array.from(row.dates).sort()[0] || '',
+    exceptions: (row) => row.exceptions
+  });
   const table = list.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table">
-      <thead><tr><th>רשות</th><th>בית ספר / מסגרת</th><th>פעילויות</th><th>סדנאות</th><th>מדריכים</th><th>תאריכים</th><th>חריגות</th></tr></thead>
+      <thead><tr>${sortableTh(state, TAB_SCHOOLS, 'authority', 'רשות')}${sortableTh(state, TAB_SCHOOLS, 'school', 'בית ספר / מסגרת')}${sortableTh(state, TAB_SCHOOLS, 'activities', 'פעילויות')}${sortableTh(state, TAB_SCHOOLS, 'workshops', 'סדנאות')}${sortableTh(state, TAB_SCHOOLS, 'instructors', 'מדריכים')}${sortableTh(state, TAB_SCHOOLS, 'dates', 'תאריכים')}${sortableTh(state, TAB_SCHOOLS, 'exceptions', 'חריגות')}</tr></thead>
       <tbody>${list.map((row) => `<tr><td>${escapeHtml(row.authority)}</td><td class="ds-ops-col--school"><button type="button" class="ds-link-btn" data-ops-school="${escapeHtml(row.key)}">${escapeHtml(row.school)}</button></td><td>${row.activities}</td><td>${escapeHtml(Array.from(row.workshops).join(' · '))}</td><td>${escapeHtml(Array.from(row.instructors).join(' · '))}</td><td>${escapeHtml(Array.from(row.dates).slice(0, 4).map(formatDateHe).join(' · '))}</td><td>${exceptionCountCell(row.exceptions)}</td></tr>`).join('')}</tbody>
     </table>`)
     : dsEmptyState('לא נמצאו בתי ספר / מסגרות');
@@ -630,24 +1125,29 @@ function schoolsTabHtml(rows, state) {
 function renderTab(rows, state, data) {
   const ops = ensureOpsState(state);
   const stockMap = data?.workshopStockMap instanceof Map ? data.workshopStockMap : new Map();
+  const directory = buildOperationsDirectory(data?.schoolsDirectoryRows || []);
   if (ops.tab === TAB_SUMMER) return summerTabHtml(rows, state);
   if (ops.tab === TAB_WORKSHOPS) return workshopsTabHtml(rows, state, stockMap);
   if (ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state);
-  return instructorsTabHtml(rows, state);
+  return instructorsTabHtml(rows, state, data, directory);
 }
 
 export const operationsManagementScreen = {
   load: async ({ api }) => {
-    const [activities, lists] = await Promise.all([
+    const [activities, lists, schoolsDirectory] = await Promise.all([
       api.allActivities(),
-      api.adminLists().catch(() => ({ categories: [] }))
+      api.adminLists().catch(() => ({ categories: [] })),
+      readOperationsSchoolsDirectory()
     ]);
     return {
       ...activities,
+      schoolsDirectoryRows: schoolsDirectory.rows,
+      schoolsDirectorySource: schoolsDirectory.source,
       workshopStockMap: buildWorkshopStockMapFromLists(lists)
     };
   },
   render(data, { state } = {}) {
+    state = state || {};
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const prepared = prepareRows(allRows);
     const baseRows = applyBaseFilters(prepared, state);
@@ -663,6 +1163,7 @@ export const operationsManagementScreen = {
   },
   bind({ root, state, rerender }) {
     if (!root) return;
+    state = state || {};
     const ops = ensureOpsState(state);
     const filters = ensureActivityListFilters(state, SCOPE);
 
@@ -720,29 +1221,42 @@ export const operationsManagementScreen = {
       rerender?.();
     });
 
+    root.querySelectorAll('[data-ops-sort]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-ops-sort') || '';
+        const tab = btn.getAttribute('data-ops-sort-tab') || ops.tab || TAB_INSTRUCTORS;
+        if (!key) return;
+        ops.sorts = ops.sorts || {};
+        const current = ops.sorts[tab] || SORT_DEFAULTS[tab] || { key: '', dir: 'asc' };
+        ops.sorts[tab] = {
+          key,
+          dir: current.key === key && current.dir === 'asc' ? 'desc' : 'asc'
+        };
+        rerender?.();
+      });
+    });
+
     root.querySelector('[data-ops-instructor]')?.addEventListener('change', (ev) => {
       ops.instructor = ev.target.value || '__all__';
       rerender?.();
     });
 
+    root.querySelectorAll('[data-ops-row-contact]').forEach((select) => {
+      select.addEventListener('change', (ev) => {
+        const key = ev.target.getAttribute('data-ops-row-contact') || '';
+        if (!key) return;
+        ops.selectedContactKeys = ops.selectedContactKeys || {};
+        ops.selectedContactKeys[key] = ev.target.value || '';
+        rerender?.();
+      });
+    });
+
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => {
-      document.body.classList.add('is-ops-mgmt-print');
-      const cleanup = () => {
-        document.body.classList.remove('is-ops-mgmt-print');
-        window.removeEventListener('afterprint', cleanup);
-      };
-      window.addEventListener('afterprint', cleanup);
-      window.print();
+      printScheduleFromDom(root);
     });
 
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => {
-      document.body.classList.add('is-ops-mgmt-print', 'is-ops-mgmt-print-workshops');
-      const cleanup = () => {
-        document.body.classList.remove('is-ops-mgmt-print', 'is-ops-mgmt-print-workshops');
-        window.removeEventListener('afterprint', cleanup);
-      };
-      window.addEventListener('afterprint', cleanup);
-      window.print();
+      printWorkshopsFromDom(root);
     });
 
     root.querySelectorAll('[data-ops-district]').forEach((btn) => {
