@@ -776,7 +776,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
         <span class="pb-meta">${metaParts.map(escapeHtml).join(' | ')}</span>
       </div>
-      <table class="pb-act"><thead><tr><th>שעה</th><th>פעילות</th><th>שכבה / כיתה</th>${instructorHeader}</tr></thead>
+      <table class="pb-act"><thead><tr><th>שעות</th><th>פעילות</th><th>שכבה / כיתה</th>${instructorHeader}</tr></thead>
       <tbody>${activityRows}</tbody></table>
     </div>`;
   }).join('');
