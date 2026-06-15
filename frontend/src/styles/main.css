@@ -15840,28 +15840,31 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 /* ── Screen ── */
 .proposal-document-header {
-  justify-content: space-between !important;
-  align-items: flex-start !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;  /* RTL flex-end = ימין פיזי */
+  justify-content: flex-start !important;
   direction: rtl !important;
   max-width: none !important;
   margin-inline: 0 !important;
-  gap: 12px !important;
+  gap: 8px !important;
 }
 .proposal-header-brand {
-  align-items: flex-start !important;
-  text-align: left !important;
+  align-items: flex-end !important;
+  text-align: right !important;
   margin-inline: 0 !important;
   flex-shrink: 0 !important;
+  width: 100% !important;
 }
 .pa-doc-address {
   position: static !important;
-  flex: 1 1 auto !important;
-  max-width: 58% !important;
+  flex: unset !important;
+  max-width: 100% !important;
   inset: auto !important;
+  text-align: right !important;
 }
 .pa-doc-date {
-  margin-top: 10mm !important;
-  text-align: left !important;
+  margin-top: 4px !important;
+  text-align: right !important;
   width: auto !important;
 }
 /* קו — רוחב מלא לאורך כל ההצעה */
@@ -15903,29 +15906,31 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 /* ── Print ── */
 @media print {
   .proposal-document-header {
-    justify-content: space-between !important;
-    align-items: flex-start !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    justify-content: flex-start !important;
     direction: rtl !important;
     max-width: none !important;
     margin-inline: 0 !important;
     gap: 8px !important;
-    min-height: 18mm !important;
   }
   .proposal-header-brand {
-    align-items: flex-start !important;
-    text-align: left !important;
+    align-items: flex-end !important;
+    text-align: right !important;
     margin-inline: 0 !important;
     flex-shrink: 0 !important;
+    width: 100% !important;
   }
   .pa-doc-address {
     position: static !important;
-    flex: 1 1 auto !important;
-    max-width: 58% !important;
+    flex: unset !important;
+    max-width: 100% !important;
     inset: auto !important;
+    text-align: right !important;
   }
   .pa-doc-date {
-    margin-top: 10mm !important;
-    text-align: left !important;
+    margin-top: 4px !important;
+    text-align: right !important;
     width: auto !important;
   }
   .pa-doc-divider {
