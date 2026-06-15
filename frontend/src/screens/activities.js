@@ -505,16 +505,16 @@ function getActivitySchoolNames(row) {
 }
 
 /**
- * שם בית ספר לתצוגה:
- * עדיפות: linked_school_names > single_school_name > legacy_school/school > 'לא משויך'
+ * שם בית ספר / מסגרת לתצוגה.
+ * עדיפות: linked_school_names > single_school_name > school/legacy_school > 'לא משויך'
+ * אין לסנן לפי school_id — פעילות עם school טקסטואלי בלבד תוצג כרגיל.
  */
 function getActivitySchoolDisplayName(row) {
-  const linkedCount = Number(row?.linked_schools_count || 0);
   const lsn = String(row?.linked_school_names || '').trim();
-  if (linkedCount > 0 && lsn) return lsn;
+  if (lsn) return lsn;
   const ssn = String(row?.single_school_name || '').trim();
   if (ssn) return ssn;
-  const ls = String(row?.legacy_school || row?.school || '').trim();
+  const ls = String(row?.school || row?.legacy_school || '').trim();
   return ls || 'לא משויך';
 }
 
