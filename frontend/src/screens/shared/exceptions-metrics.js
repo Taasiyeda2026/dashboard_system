@@ -46,8 +46,15 @@ export function isExceptionTypeRelevantForActivity(activity, exceptionType) {
   const type = String(activity?.activity_type || activity?.item_type || '').trim();
   const normalizedType = normalizeExceptionType(exceptionType);
 
+  // end_date_after_cutoff is never relevant for summer activities
   if (normalizedType === 'end_date_after_cutoff' && isSummerActivity(activity)) {
     return false;
+  }
+
+  // Summer activities use the full exception set regardless of activity_type.
+  // SHORT_ACTIVITY_EXCEPTION_TYPES is intentionally NOT applied to summer season.
+  if (isSummerActivity(activity)) {
+    return COURSE_EXCEPTION_TYPES.has(normalizedType);
   }
 
   if (type === 'course') {
