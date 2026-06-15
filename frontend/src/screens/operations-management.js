@@ -761,12 +761,13 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
       const instrCell = showInstructor ? `<td>${escapeHtml(entry.instructor || '—')}</td>` : '';
       return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
     }).join('');
+    const tableClass = showInstructor ? 'pb-act has-instructor' : 'pb-act';
     return `<div class="pb">
       <div class="pb-hdr">
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
         <span class="pb-meta">${metaParts.map(escapeHtml).join(' | ')}</span>
       </div>
-      <table class="pb-act"><thead><tr><th>שעות</th><th>פעילות</th><th>כיתה</th>${instructorHeader}</tr></thead>
+      <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>כיתה</th>${instructorHeader}</tr></thead>
       <tbody>${activityRows}</tbody></table>
     </div>`;
   }).join('');
@@ -792,10 +793,17 @@ function printInstructorSchedule() {
     .pb-date{font-weight:700;font-size:11.5px;color:#0369a1;margin-left:6px}
     .pb-meta{font-size:12px;font-weight:700;color:#1e293b;display:block;line-height:1.3;margin-top:2px;text-align:center}
     table{border-collapse:collapse;margin:0}
-    .pb-act{width:60%;margin:0 auto}
-    .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 5px;text-align:right;font-size:10.5px;line-height:1.2;white-space:nowrap}
+    .pb-act{width:60%;margin:0 auto;border-collapse:collapse;table-layout:fixed}
+    .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 5px;text-align:right;font-size:10.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pb-act th{background:#e6f6fb;font-weight:700}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
+    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:28%}
+    .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:52%}
+    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:20%}
+    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:24%}
+    .pb-act.has-instructor th:nth-child(2),.pb-act.has-instructor td:nth-child(2){width:42%}
+    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:14%}
+    .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:20%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
     @page{size:A4 portrait;margin:8mm}
     @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}}

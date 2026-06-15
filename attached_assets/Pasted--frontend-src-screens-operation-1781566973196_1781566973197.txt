@@ -1,0 +1,152 @@
+תיקון נקודתי בהדפסת **סידור עבודה** בעמוד **ניהול תפעול**.
+
+קובץ:
+`frontend/src/screens/operations-management.js`
+
+אם CSS ההדפסה נמצא בקובץ אחר — לעדכן שם נקודתית.
+
+לא SQL.
+לא לשנות Supabase.
+לא לשנות נתונים.
+לא לשנות את המסך הרגיל.
+רק תיקון מבנה ההדפסה.
+
+## הבעיה
+
+בהדפסה, טבלאות הפעילויות מקבלות רוחב עמודות שונה בכל בלוק לפי אורך הטקסט.
+
+זה גורם לכך שכל טבלה נראית אחרת, ואין מבנה קבוע וברור.
+
+## הדרישה
+
+בהדפסת סידור עבודה, לכל טבלאות הפעילויות יהיה אותו מבנה קבוע:
+
+אם מדפיסים מדריך יחיד:
+
+* שעות
+* פעילות
+* כיתה
+
+אם מדפיסים כל המדריכים:
+
+* שעות
+* פעילות
+* כיתה
+* מדריך
+
+## לקבוע רוחב עמודות קבוע
+
+יש להשתמש ב־`table-layout: fixed`.
+
+לדוגמה:
+
+```css
+.ops-print-activities-table {
+  width: 60%;
+  margin: 0 auto;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+```
+
+## רוחב עמודות מומלץ — מדריך יחיד
+
+```css
+.ops-print-activities-table th:nth-child(1),
+.ops-print-activities-table td:nth-child(1) {
+  width: 28%;
+}
+
+.ops-print-activities-table th:nth-child(2),
+.ops-print-activities-table td:nth-child(2) {
+  width: 52%;
+}
+
+.ops-print-activities-table th:nth-child(3),
+.ops-print-activities-table td:nth-child(3) {
+  width: 20%;
+}
+```
+
+כלומר:
+
+* שעות — 28%
+* פעילות — 52%
+* כיתה — 20%
+
+## רוחב עמודות אם יש עמודת מדריך
+
+אם מדובר בהדפסת “כל המדריכים” ויש 4 עמודות:
+
+```css
+.ops-print-activities-table.has-instructor th:nth-child(1),
+.ops-print-activities-table.has-instructor td:nth-child(1) {
+  width: 24%;
+}
+
+.ops-print-activities-table.has-instructor th:nth-child(2),
+.ops-print-activities-table.has-instructor td:nth-child(2) {
+  width: 42%;
+}
+
+.ops-print-activities-table.has-instructor th:nth-child(3),
+.ops-print-activities-table.has-instructor td:nth-child(3) {
+  width: 14%;
+}
+
+.ops-print-activities-table.has-instructor th:nth-child(4),
+.ops-print-activities-table.has-instructor td:nth-child(4) {
+  width: 20%;
+}
+```
+
+כלומר:
+
+* שעות — 24%
+* פעילות — 42%
+* כיתה — 14%
+* מדריך — 20%
+
+## למנוע פתיחת עמודות בגלל טקסט
+
+להוסיף:
+
+```css
+.ops-print-activities-table th,
+.ops-print-activities-table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+```
+
+אם פעילות ארוכה מדי — היא תקוצר עם `...` ולא תפתח את רוחב הטבלה.
+
+## חשוב
+
+* כל טבלאות ההדפסה צריכות להיראות באותו רוחב ובאותו מבנה.
+* לא לתת לכל טבלה לחשב עמודות לבד.
+* לא להשתמש ברוחב אוטומטי לפי תוכן.
+* לא להחזיר עמודות כתובת / איש קשר / טלפון.
+* לא לשנות את הטבלה במסך הרגיל.
+* לעדכן Service Worker/cache אם צריך.
+
+## בדיקות
+
+1. ללחוץ `הדפס סידור עבודה`.
+2. לבדוק כמה בלוקים שונים בהדפסה.
+3. לוודא שכל הטבלאות באותו רוחב.
+4. לוודא שרוחב העמודות זהה בכל הטבלאות.
+5. לוודא שטקסט ארוך לא פותח עמודות.
+6. לוודא שאין כתובת / איש קשר / טלפון.
+7. להריץ `npm run check:build`.
+8. לעדכן SW/cache אם צריך.
+
+בסיום להחזיר:
+
+1. איזה קובץ שונה.
+2. האם נוסף `table-layout: fixed`.
+3. האם רוחב העמודות קבוע.
+4. האם כל הטבלאות בהדפסה נראות באותו מבנה.
+5. האם עודכן SW/cache.
+6. האם build עבר.
