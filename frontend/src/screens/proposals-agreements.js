@@ -1300,9 +1300,11 @@ function recipientLineHtml(...values) {
 }
 
 function recipientBlockHtml(row = {}) {
+  const schoolName = text(row.school_framework) || text(row.school_name);
+  const authorityName = text(row.client_authority) || text(row.authority_name);
   const lines = [
     recipientLineHtml(row.contact_name, row.contact_role),
-    recipientLineHtml(row.school_framework, row.client_authority)
+    recipientLineHtml(schoolName, authorityName)
   ].filter(Boolean);
   if (!lines.length) return '';
   return `<div class="pa-doc-address">
@@ -1368,6 +1370,32 @@ function parseSectionBodyStructure(value, options = {}) {
   flushParagraph();
   flushBullets();
   return groups;
+}
+
+
+function selectedCourseShortNamesText(row = {}, items = []) {
+  const proposalGroup = normalizeProposalGroup(row.activity_type_group);
+  const sourceItems = (Array.isArray(items) ? items : []).filter((item) => {
+    if (isTestHoursItem(item) || text(item.proposal_display_mode) === 'bundle_child') return false;
+    if (!text(item.item_name)) return false;
+    const rowKind = `${groupKindText(proposalGroup)} ${normalizedKindText(row.activity_type_group)} ${proposalGroupTemplateKey(proposalGroup)}`;
+    const combined = isCombinedProposalGroup(proposalGroup) || /משולב(?:ת)?|combined/.test(rowKind);
+    if (!combined) return true;
+    const itemGroup = normalizeProposalGroup(item.proposal_group || item.activity_type_group);
+    const itemKind = itemKindText(item);
+    if (isSummerKindText(itemKind) || isWorkshopKindText(itemKind)) return false;
+    return isCourseKindText(groupKindText(itemGroup)) || isCourseKindText(itemKind) || itemCatalogKind(item) === 'course';
+  });
+  return sourceItems
+    .map((item) => text(item.course_short_name || item.short_name || item.item_short_name || item.item_name))
+    .filter(Boolean)
+    .join('\n');
+}
+
+function applyProposalTemplatePlaceholders(body, row = {}, items = []) {
+  const raw = normalizeMultilineText(body);
+  if (!raw) return '';
+  return raw.replace(/{{\s*selected_course_short_names\s*}}/g, selectedCourseShortNamesText(row, items));
 }
 
 function renderProposalSectionBody(body, options = {}) {
@@ -1507,7 +1535,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
     : [];
   const sectionsSource = resolveDocumentSections(row, sourceTemplateSections);
   const byKey = new Map(sectionsSource.map((section) => [text(section.section_key), section]));
-  const sectionBody = (key) => templateBodyText(byKey.get(key));
+  const sectionBody = (key) => applyProposalTemplatePlaceholders(templateBodyText(byKey.get(key)), row, items);
   const sectionTitle = (key) => text(byKey.get(key)?.section_title);
 
   const includeCatalog = false;
@@ -1536,6 +1564,13 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
       const section = renderActivitySection(heading, body);
       if (section) sections.push(section);
     });
+    if (!sections.length) {
+      const activitySection = renderActivitySection(
+        sectionTitle('activity_intro'),
+        activityIntro
+      );
+      if (activitySection) sections.push(activitySection);
+    }
   } else {
     const activitySection = renderActivitySection(
       sectionTitle('activity_intro'),
@@ -1553,12 +1588,10 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   // Payment section: general terms text comes from Supabase, while the price
   // breakdown is always built dynamically from proposal_agreement_items.
   const paymentTermsBody = sectionBody('payment_terms');
-  const itemDetailsHtml = proposalItemDetailsTableHtml(items, activityTypeGroup);
-  const usesUnifiedCourseCostTable = proposalActivityKind(row, items) === 'course' && itemDetailsHtml;
-  const costTableHtml = usesUnifiedCourseCostTable ? proposalDiscountSummaryHtml(items) : proposalCostTableHtml(items);
+  const costTableHtml = proposalCostTableHtml(items);
   const costsIntro = costsIntroBody(row, items);
-  const paymentTerms = (paymentTermsBody || costTableHtml || itemDetailsHtml || costsIntro)
-    ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${costsIntro ? sectionBodyHtml(costsIntro) : ''}${itemDetailsHtml}${costTableHtml}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}</section>`
+  const paymentTerms = (paymentTermsBody || costTableHtml || costsIntro)
+    ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}${costsIntro ? sectionBodyHtml(costsIntro) : ''}${costTableHtml}</section>`
     : '';
 
   const signatureHtml = signatureSectionHtml(sectionBody('signature'));

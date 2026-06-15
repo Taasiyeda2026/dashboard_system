@@ -1504,7 +1504,7 @@ test('catalog PDF appendices use fixed workshop/tour PDFs and specific selected 
 });
 
 
-test('course item details table separates quantity, unit group price, and quantity total', async () => {
+test('course preview renders one cost table with quantity, unit group price, and quantity total', async () => {
   const row = {
     ...sampleRows[0],
     id: 'course-price-breakdown-row',
@@ -1525,18 +1525,20 @@ test('course item details table separates quantity, unit group price, and quanti
   }];
 
   await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
-    const itemDetailsTable = dom.window.document.querySelector('.pa-item-details-table');
-    assert.ok(itemDetailsTable, 'course item details table should render');
-    const headers = [...itemDetailsTable.querySelectorAll('thead th')].map((th) => th.textContent.trim());
-    assert.deepEqual(headers.slice(-3), ['כמות', 'מחיר לקורס / קבוצה אחת', 'סה״כ לפי כמות']);
-    const cells = [...itemDetailsTable.querySelectorAll('tbody td')].map((td) => td.textContent.trim());
+    assert.equal(dom.window.document.querySelectorAll('.pa-cost-table').length, 1);
+    assert.equal(dom.window.document.querySelector('.pa-item-details-table'), null);
+    const costTable = dom.window.document.querySelector('.pa-cost-table');
+    assert.ok(costTable, 'cost table should render');
+    const headers = [...costTable.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+    assert.deepEqual(headers, ['פעילות', 'כמות', 'מחיר יחידה', 'סה״כ שורה']);
+    const cells = [...costTable.querySelectorAll('tbody td')].map((td) => td.textContent.trim());
     assert.equal(cells.at(-3), '2');
     assert.equal(cells.at(-2), '9,000 ₪');
     assert.equal(cells.at(-1), '18,000 ₪');
   });
 });
 
-test('course item details table calculates quantity total when total price is empty', async () => {
+test('course cost table calculates quantity total when total price is empty', async () => {
   const row = {
     ...sampleRows[0],
     id: 'course-price-breakdown-fallback-row',
@@ -1555,7 +1557,9 @@ test('course item details table calculates quantity total when total price is em
   }];
 
   await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
-    const cells = [...dom.window.document.querySelectorAll('.pa-item-details-table tbody td')].map((td) => td.textContent.trim());
+    assert.equal(dom.window.document.querySelectorAll('.pa-cost-table').length, 1);
+    assert.equal(dom.window.document.querySelector('.pa-item-details-table'), null);
+    const cells = [...dom.window.document.querySelectorAll('.pa-cost-table tbody td')].map((td) => td.textContent.trim());
     assert.equal(cells.at(-3), '2');
     assert.equal(cells.at(-2), '9,000 ₪');
     assert.equal(cells.at(-1), '18,000 ₪');
@@ -1877,6 +1881,69 @@ test('next_year proposal title uses template_name תוכניות from Supabase',
     const title = dom.window.document.querySelector('.pa-doc-subject')?.textContent || '';
     assert.match(title, /הצעת מחיר לתוכניות תעשיידע \| שנת הלימודים תשפ״ז/);
     assert.doesNotMatch(title, /קורסי תעשיידע/);
+  });
+});
+
+
+test('proposal preview replaces selected course placeholder and renders one cost table after payment text', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: '77777777-7777-7777-7777-777777777777',
+    activity_type_group: 'הצעה משולבת',
+    contact_name: 'דנה לוי',
+    contact_role: 'מנהלת',
+    school_framework: 'בית ספר אופק',
+    client_authority: 'רשות אביב'
+  };
+  const proposalTemplateSections = [
+    { template_key: 'combined', template_name: 'הצעת מחיר משולבת', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח.' },
+    { template_key: 'combined', section_key: 'activity_intro', section_title: 'הפעילות המוצעת', section_body: 'הקורסים שנבחרו:\n{{selected_course_short_names}}' },
+    { template_key: 'combined', section_key: 'payment_terms', section_title: 'עלות ותנאי תשלום', section_body: 'טקסט תנאי תשלום מסופק מסופאבייס.' }
+  ];
+  const items = [
+    { item_name: 'סדנת קיץ', unit_price: 300, total_price: 300, quantity: 1, proposal_group: 'קיץ תשפ״ו' },
+    { item_name: 'קורס רובוטיקה', unit_price: 500, total_price: 500, quantity: 1, proposal_group: 'שנת הלימודים תשפ״ז' },
+    { item_name: 'תוכנית יזמות', unit_price: 700, total_price: 700, quantity: 1, proposal_group: 'שנת הלימודים תשפ״ז' }
+  ];
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: {
+        rows: [row],
+        proposalTemplateSections,
+        proposalActivityGroups: [
+          { group_key: 'הצעה משולבת', display_name: 'הצעה משולבת', template_key: 'combined', is_combined: true, included_group_keys: ['קיץ תשפ״ו', 'שנת הלימודים תשפ״ז'] },
+          { group_key: 'קיץ תשפ״ו', display_name: 'קיץ תשפ״ו', template_key: 'summer' },
+          { group_key: 'שנת הלימודים תשפ״ז', display_name: 'שנת הלימודים תשפ״ז', template_key: 'next_year' }
+        ]
+      },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => items }
+    });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+
+    const doc = dom.window.document.querySelector('.proposal-document');
+    assert.ok(doc, 'proposal document should render');
+    assert.match(doc.querySelector('.pa-doc-address')?.textContent || '', /לכבוד:/);
+    assert.match(doc.querySelector('.pa-doc-address')?.textContent || '', /דנה לוי, מנהלת/);
+    assert.doesNotMatch(doc.textContent, /undefined|{{selected_course_short_names}}/);
+    assert.match(doc.textContent, /קורס רובוטיקה/);
+    assert.match(doc.textContent, /תוכנית יזמות/);
+
+    const activitySection = Array.from(doc.querySelectorAll('.pa-section')).find((section) => section.textContent.includes('הקורסים שנבחרו'));
+    assert.ok(activitySection, 'activity section should contain selected courses');
+    assert.doesNotMatch(activitySection.textContent, /סדנת קיץ|300|500|700|גפ"ן|מפגשים|שעות/);
+
+    const tables = doc.querySelectorAll('.pa-cost-table');
+    assert.equal(tables.length, 1);
+    const paymentSection = doc.querySelector('.pa-cost-section');
+    assert.ok(paymentSection?.contains(tables[0]), 'cost table should be inside payment section');
+    assert.ok((paymentSection.textContent || '').indexOf('טקסט תנאי תשלום') < (paymentSection.textContent || '').indexOf('סה״כ לתשלום'));
+    assert.equal(doc.querySelectorAll('.proposal-signature').length, 1);
   });
 });
 
