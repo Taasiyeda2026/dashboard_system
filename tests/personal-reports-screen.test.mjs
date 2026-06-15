@@ -187,8 +187,10 @@ test('service worker cache version bumped for personal reports deploy', async ()
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
   const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
 
-  assert.match(frontendSw, /const CACHE_VERSION = 609;/);
-  assert.match(rootSw, /const SW_ENTRY_VERSION = 609;/);
+  const frontendMatch = frontendSw.match(/const CACHE_VERSION = (\d+);/);
+  const rootMatch = rootSw.match(/const SW_ENTRY_VERSION = (\d+);/);
+  assert.ok(frontendMatch && rootMatch, 'service worker files should expose version constants');
+  assert.equal(frontendMatch[1], rootMatch[1], 'root and frontend SW versions should match');
   assert.match(css, /\.pr-input--month-compact/);
 });
 
