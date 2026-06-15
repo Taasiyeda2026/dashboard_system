@@ -337,7 +337,8 @@ function normalizeSearch(value) {
 
 export function buildProposalsAgreementsSearchText(row = {}) {
   return [
-    row.id, row.client_name, row.client_authority, row.school_framework, row.document_type,
+    row.id, row.client_name, row.client_authority, row.school_framework, row.authority_code, row.semel_mosad,
+    row.document_type,
     row.activity_type_group, proposalGroupDisplayName(row.activity_type_group),
     Array.isArray(row.activity_names) ? row.activity_names.join(' ') : row.activity_names,
     row.notes, row.contact_name, row.contact_role, row.phone, row.email,
@@ -357,6 +358,8 @@ export function normalizeProposalAgreementRow(row = {}) {
     client_type:         text(row.client_type),
     client_authority:    text(row.client_authority),
     school_framework:    text(row.school_framework),
+    authority_code:      text(row.authority_code),
+    semel_mosad:         text(row.semel_mosad),
     document_type:       text(row.document_type) || 'הצעת מחיר',
     activity_type_group: normalizeProposalGroup(rawGroup),
     proposal_date:       text(row.proposal_date),
@@ -2648,7 +2651,7 @@ export const proposalsAgreementsScreen = {
           ? text(c.authority)
           : (text(c.school) || text(c.authority) || text(c.client_name) || text(c.semel_mosad));
         if (!typeOk) return false;
-        const haystack = [c.school, c.authority, c.client_name, c.contact_name, c.contact_role, c.phone, c.mobile, c.email, c.semel_mosad]
+        const haystack = [c.school, c.authority, c.client_name, c.contact_name, c.contact_role, c.phone, c.mobile, c.email, c.semel_mosad, c.authority_code]
           .map(normalizeSearch).join(' ');
         if (!haystack.includes(q)) return false;
         const key = [text(c.authority), text(c.school), text(c.contact_name), text(c.phone || c.mobile || ''), text(c.email)].join('||');
@@ -2666,7 +2669,10 @@ export const proposalsAgreementsScreen = {
       const role = text(contact.contact_role);
       const semel = text(contact.semel_mosad);
       if (selectedType === 'authority') {
-        return [authority, role ? `${contactName} (${role})` : contactName].filter(Boolean).join(' — ');
+        const code = text(contact.authority_code);
+        const parts = [authority, role ? `${contactName} (${role})` : contactName].filter(Boolean);
+        if (code) parts.push(`מספר רשות: ${code}`);
+        return parts.join(' — ');
       }
       const displayName = school || clientName || authority;
       const parts = [displayName];
@@ -2753,7 +2759,8 @@ export const proposalsAgreementsScreen = {
         const phone = text(contact.phone || contact.mobile || '');
         const email = text(contact.email || '');
         const semel = text(contact.semel_mosad || '');
-        const metaParts = [phone, email, semel ? `סמל ${semel}` : ''].filter(Boolean);
+        const authorityCode = text(contact.authority_code || '');
+        const metaParts = [phone, email, semel ? `סמל ${semel}` : '', authorityCode ? `מספר רשות ${authorityCode}` : ''].filter(Boolean);
         return `<button type="button" class="ds-pa-client-result" data-pa-client-result="${idx}">
           <strong>${escapeHtml(clientResultLabel(contact, type))}</strong>
           ${metaParts.length ? `<span class="ds-pa-client-result-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}

@@ -414,6 +414,293 @@ async function selectActivitiesByDateRangeFromSupabase({
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
 
+const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,hp_number,district,active';
+const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,active';
+
+function normalizeCatalogText(value) {
+  return String(value == null ? '' : value).trim();
+}
+
+async function readAuthoritiesCatalogFromSupabase() {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from('authorities')
+      .select(AUTHORITIES_CATALOG_COLUMNS)
+      .order('authority_name', { ascending: true });
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[supabase] Failed to load authorities:', error);
+      return [];
+    }
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[supabase] Unexpected authorities fetch error:', error);
+    return [];
+  }
+}
+
+async function readSchoolsCatalogFromSupabase() {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from('schools')
+      .select(SCHOOLS_CATALOG_COLUMNS)
+      .order('authority', { ascending: true })
+      .order('school_name', { ascending: true });
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[supabase] Failed to load schools:', error);
+      return [];
+    }
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[supabase] Unexpected schools fetch error:', error);
+    return [];
+  }
+}
+
+async function readAuthoritySchoolCatalog() {
+  const [authorities, schools] = await Promise.all([
+    readAuthoritiesCatalogFromSupabase(),
+    readSchoolsCatalogFromSupabase()
+  ]);
+  return {
+    authorities,
+    schools,
+    authorityLookup: buildAuthorityCatalogLookup(authorities),
+    schoolLookup: buildSchoolCatalogLookup(schools)
+  };
+}
+
+function buildAuthorityCatalogLookup(authorities = []) {
+  const byId = new Map();
+  const byName = new Map();
+  const list = [];
+  for (const row of authorities) {
+    const id = normalizeCatalogText(row.id);
+    const authority_name = normalizeCatalogText(row.authority_name);
+    const authority_code = normalizeCatalogText(row.authority_code);
+    const entry = {
+      id: id || null,
+      authority_name,
+      authority_code,
+      hp_number: normalizeCatalogText(row.hp_number),
+      district: normalizeCatalogText(row.district),
+      active: normalizeCatalogText(row.active) || 'yes'
+    };
+    if (!authority_name && !id) continue;
+    list.push(entry);
+    if (id) byId.set(id, entry);
+    if (authority_name) byName.set(authority_name.toLowerCase(), entry);
+  }
+  return { byId, byName, list };
+}
+
+function buildSchoolCatalogLookup(schools = []) {
+  const byId = new Map();
+  const bySemel = new Map();
+  const byAuthoritySchool = new Map();
+  const list = [];
+  for (const row of schools) {
+    const id = normalizeCatalogText(row.id);
+    const school_name = normalizeCatalogText(row.school_name);
+    const authority = normalizeCatalogText(row.authority);
+    const semel_mosad = normalizeCatalogText(row.semel_mosad);
+    const authority_id = normalizeCatalogText(row.authority_id);
+    const entry = {
+      id: id || null,
+      school_name,
+      authority,
+      semel_mosad,
+      authority_id: authority_id || null,
+      active: normalizeCatalogText(row.active) || 'yes'
+    };
+    if (!school_name && !id) continue;
+    list.push(entry);
+    if (id) byId.set(id, entry);
+    if (semel_mosad) bySemel.set(semel_mosad, entry);
+    if (school_name) {
+      byAuthoritySchool.set(`${authority.toLowerCase()}|${school_name.toLowerCase()}`, entry);
+      if (!authority) byAuthoritySchool.set(`|${school_name.toLowerCase()}`, entry);
+    }
+  }
+  return { byId, bySemel, byAuthoritySchool, list };
+}
+
+function resolveAuthorityCatalogEntry(lookup, { authority_id, authority } = {}) {
+  const id = normalizeCatalogText(authority_id);
+  const name = normalizeCatalogText(authority);
+  if (id && lookup.byId.has(id)) return lookup.byId.get(id);
+  if (name && lookup.byName.has(name.toLowerCase())) return lookup.byName.get(name.toLowerCase());
+  return null;
+}
+
+function resolveSchoolCatalogEntry(lookup, { school_id, semel_mosad, school, authority } = {}) {
+  const id = normalizeCatalogText(school_id);
+  const semel = normalizeCatalogText(semel_mosad);
+  const schoolName = normalizeCatalogText(school);
+  const authName = normalizeCatalogText(authority);
+  if (id && lookup.byId.has(id)) return lookup.byId.get(id);
+  if (semel && lookup.bySemel.has(semel)) return lookup.bySemel.get(semel);
+  if (schoolName) {
+    const key = `${authName.toLowerCase()}|${schoolName.toLowerCase()}`;
+    if (lookup.byAuthoritySchool.has(key)) return lookup.byAuthoritySchool.get(key);
+    if (lookup.byAuthoritySchool.has(`|${schoolName.toLowerCase()}`)) return lookup.byAuthoritySchool.get(`|${schoolName.toLowerCase()}`);
+  }
+  return null;
+}
+
+function enrichSchoolContactRow(row, authorityLookup, schoolLookup) {
+  if (!row || typeof row !== 'object') return row;
+  const authorityName = normalizeCatalogText(row.authority || row.client_name);
+  const schoolName = normalizeCatalogText(row.school);
+  const schoolMeta = resolveSchoolCatalogEntry(schoolLookup, {
+    school_id: row.school_id,
+    semel_mosad: row.semel_mosad,
+    school: schoolName,
+    authority: authorityName
+  });
+  const authorityMeta = resolveAuthorityCatalogEntry(authorityLookup, {
+    authority_id: row.authority_id || schoolMeta?.authority_id,
+    authority: authorityName || schoolMeta?.authority
+  }) || (schoolMeta?.authority_id
+    ? authorityLookup.byId.get(normalizeCatalogText(schoolMeta.authority_id))
+    : null);
+
+  return {
+    ...row,
+    authority_id: row.authority_id ?? authorityMeta?.id ?? schoolMeta?.authority_id ?? null,
+    school_id: row.school_id ?? schoolMeta?.id ?? null,
+    semel_mosad: normalizeCatalogText(row.semel_mosad) || schoolMeta?.semel_mosad || null,
+    authority_code: normalizeCatalogText(row.authority_code) || authorityMeta?.authority_code || null,
+    authority: authorityName || schoolMeta?.authority || row.authority,
+    school: schoolName || schoolMeta?.school_name || row.school
+  };
+}
+
+function buildAuthoritySchoolCatalogClientSettings(authorityLookup, schoolLookup) {
+  const activeSchools = schoolLookup.list.filter((school) => school.active !== 'no');
+  const activeAuthorities = authorityLookup.list.filter((authority) => authority.active !== 'no');
+  const authorities = activeAuthorities.map((authority) => authority.authority_name).filter(Boolean);
+  const schools = activeSchools.map((school) => school.school_name).filter(Boolean);
+  const school_records = activeSchools.map((school) => ({
+    name: school.school_name,
+    value: school.school_name,
+    school_id: school.id,
+    authority_id: school.authority_id,
+    authority: school.authority,
+    semel_mosad: school.semel_mosad
+  })).filter((school) => school.name);
+  const authority_records = activeAuthorities.map((authority) => ({
+    id: authority.id,
+    name: authority.authority_name,
+    value: authority.authority_name,
+    authority_code: authority.authority_code
+  })).filter((authority) => authority.name);
+
+  return {
+    dropdown_options: {
+      authority: authorities,
+      authorities,
+      school: schools,
+      schools,
+      school_records,
+      authority_records
+    }
+  };
+}
+
+function mergeClientSettingsWithAuthoritySchoolCatalog(baseSettings, catalogOverlay) {
+  if (!catalogOverlay?.dropdown_options) return baseSettings;
+  const base = baseSettings && typeof baseSettings === 'object' ? baseSettings : {};
+  const baseDropdown = base.dropdown_options && typeof base.dropdown_options === 'object' ? base.dropdown_options : {};
+  const overlay = catalogOverlay.dropdown_options;
+  const preferCatalog = (catalogValues, fallbackValues) => (
+    Array.isArray(catalogValues) && catalogValues.length ? catalogValues : fallbackValues
+  );
+  return {
+    ...base,
+    dropdown_options: {
+      ...baseDropdown,
+      authority: preferCatalog(overlay.authority, baseDropdown.authority),
+      authorities: preferCatalog(overlay.authorities, baseDropdown.authorities),
+      school: preferCatalog(overlay.school, baseDropdown.school),
+      schools: preferCatalog(overlay.schools, baseDropdown.schools),
+      school_records: preferCatalog(overlay.school_records, baseDropdown.school_records),
+      authority_records: preferCatalog(overlay.authority_records, baseDropdown.authority_records)
+    }
+  };
+}
+
+function buildProposalClientSearchOptions(contactRows, authorityLookup, schoolLookup) {
+  const options = (Array.isArray(contactRows) ? contactRows : [])
+    .map((row) => enrichSchoolContactRow(row, authorityLookup, schoolLookup));
+  const seen = new Set();
+
+  const addOption = (opt) => {
+    const key = [
+      normalizeCatalogText(opt.authority),
+      normalizeCatalogText(opt.school),
+      normalizeCatalogText(opt.contact_name),
+      normalizeCatalogText(opt.phone || opt.mobile),
+      normalizeCatalogText(opt.email),
+      normalizeCatalogText(opt._catalog_source || 'contact')
+    ].join('||');
+    if (seen.has(key)) return;
+    seen.add(key);
+    options.push(opt);
+  };
+
+  for (const auth of authorityLookup.list) {
+    if (auth.active === 'no' || !auth.authority_name) continue;
+    addOption({
+      client_type: 'authority',
+      client_name: auth.authority_name,
+      authority_id: auth.id,
+      school_id: null,
+      semel_mosad: '',
+      authority: auth.authority_name,
+      school: '',
+      authority_code: auth.authority_code,
+      contact_name: '',
+      contact_role: '',
+      phone: '',
+      email: '',
+      mobile: '',
+      _catalog_source: 'authorities'
+    });
+  }
+
+  for (const school of schoolLookup.list) {
+    if (school.active === 'no' || !school.school_name) continue;
+    const authorityMeta = resolveAuthorityCatalogEntry(authorityLookup, {
+      authority_id: school.authority_id,
+      authority: school.authority
+    });
+    addOption({
+      client_type: 'school',
+      client_name: school.school_name,
+      authority_id: school.authority_id || authorityMeta?.id || null,
+      school_id: school.id,
+      semel_mosad: school.semel_mosad,
+      authority: school.authority || authorityMeta?.authority_name || '',
+      school: school.school_name,
+      authority_code: authorityMeta?.authority_code || '',
+      contact_name: '',
+      contact_role: '',
+      phone: '',
+      email: '',
+      mobile: '',
+      _catalog_source: 'schools'
+    });
+  }
+
+  return options;
+}
+
 /**
  * Reads contacts_instructors + contacts_directory_view from Supabase.
  * Returns partial data when one source fails; contacts_directory_view falls back to contacts_schools.
@@ -449,10 +736,18 @@ async function readContactsFromSupabase() {
   };
 
   try {
-    const [instructor_rows, school_rows] = await Promise.all([readInstructors(), readSchoolContacts()]);
+    const [instructor_rows, schoolRowsRaw, catalog] = await Promise.all([
+      readInstructors(),
+      readSchoolContacts(),
+      readAuthoritySchoolCatalog()
+    ]);
+    const school_rows = (Array.isArray(schoolRowsRaw) ? schoolRowsRaw : [])
+      .map((row) => enrichSchoolContactRow(row, catalog.authorityLookup, catalog.schoolLookup));
     return {
       instructor_rows,
       school_rows,
+      authority_catalog: catalog.authorities,
+      school_catalog: catalog.schools,
       can_view_instructors: true,
       can_view_schools: true,
       _source: 'supabase'
@@ -1635,6 +1930,8 @@ function buildProposalAgreementSearchText(row = {}) {
     row.id,
     row.client_authority,
     row.school_framework,
+    row.authority_code,
+    row.semel_mosad,
     row.document_type,
     row.activity_type_group,
     activityNames,
@@ -1664,6 +1961,8 @@ function normalizeProposalAgreementRow(row = {}) {
     authority_id:        row.authority_id ?? null,
     school_id:           row.school_id ?? null,
     contact_school_id:   row.contact_school_id ?? null,
+    authority_code:      cleanProposalAgreementText(row.authority_code),
+    semel_mosad:         cleanProposalAgreementText(row.semel_mosad),
     authority:           authorityName,
     school:              schoolFramework,
     client_authority:    authorityName,
@@ -1979,35 +2278,41 @@ async function readProposalTemplateSectionsFromSupabase() {
 async function readContactsSchoolsForProposals() {
   try {
     const selectColumns = 'id,client_type,client_name,authority_id,school_id,semel_mosad,authority,school,contact_name,contact_role,phone,email,mobile';
-    let { data, error } = await supabase
-      .from('contacts_directory_view')
-      .select(selectColumns)
-      .order('authority', { ascending: true });
-    if (error) {
-      // eslint-disable-next-line no-console
-      console.warn('[supabase] Failed to load contacts_directory_view for proposals; falling back to contacts_schools:', error);
-      const fallback = await supabase
-        .from('contacts_schools')
-        .select(selectColumns)
-        .order('authority', { ascending: true });
-      data = fallback.data;
-      error = fallback.error;
-    }
-    if (error) return [];
-    return (Array.isArray(data) ? data : []).map((c) => ({
-      id:           cleanProposalAgreementText(c.id),
-      client_type:  cleanProposalAgreementText(c.client_type),
-      client_name:  cleanProposalAgreementText(c.client_name),
-      authority_id: c.authority_id ?? null,
-      school_id:    c.school_id ?? null,
-      semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
-      authority:    cleanProposalAgreementText(c.authority),
-      school:       cleanProposalAgreementText(c.school),
-      contact_name: cleanProposalAgreementText(c.contact_name),
-      contact_role: cleanProposalAgreementText(c.contact_role),
-      phone:        cleanProposalAgreementText(c.phone || c.mobile || ''),
-      email:        cleanProposalAgreementText(c.email || '')
-    })).filter((c) => c.authority);
+    const [catalog, contactsResult] = await Promise.all([
+      readAuthoritySchoolCatalog(),
+      (async () => {
+        let { data, error } = await supabase
+          .from('contacts_directory_view')
+          .select(selectColumns)
+          .order('authority', { ascending: true });
+        if (error) {
+          // eslint-disable-next-line no-console
+          console.warn('[supabase] Failed to load contacts_directory_view for proposals; falling back to contacts_schools:', error);
+          const fallback = await supabase
+            .from('contacts_schools')
+            .select(selectColumns)
+            .order('authority', { ascending: true });
+          data = fallback.data;
+          error = fallback.error;
+        }
+        if (error) return [];
+        return (Array.isArray(data) ? data : []).map((c) => ({
+          id:           cleanProposalAgreementText(c.id),
+          client_type:  cleanProposalAgreementText(c.client_type),
+          client_name:  cleanProposalAgreementText(c.client_name),
+          authority_id: c.authority_id ?? null,
+          school_id:    c.school_id ?? null,
+          semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
+          authority:    cleanProposalAgreementText(c.authority),
+          school:       cleanProposalAgreementText(c.school),
+          contact_name: cleanProposalAgreementText(c.contact_name),
+          contact_role: cleanProposalAgreementText(c.contact_role),
+          phone:        cleanProposalAgreementText(c.phone || c.mobile || ''),
+          email:        cleanProposalAgreementText(c.email || '')
+        })).filter((c) => c.authority || c.school);
+      })()
+    ]);
+    return buildProposalClientSearchOptions(contactsResult, catalog.authorityLookup, catalog.schoolLookup);
   } catch {
     return [];
   }
@@ -3268,10 +3573,14 @@ async function readCatalogProgramsFromSupabase() {
 }
 export const api = {
   login: async (user_id, entry_code) => {
-    const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows, catalog] = await Promise.all([
       loginWithSupabaseAuth(user_id, entry_code),
       readListsFromSupabase().catch(() => null),
-      readSettingsRowsFromSupabase().catch(() => [])
+      readSettingsRowsFromSupabase().catch(() => []),
+      readAuthoritySchoolCatalog().catch(() => ({
+        authorityLookup: buildAuthorityCatalogLookup([]),
+        schoolLookup: buildSchoolCatalogLookup([])
+      }))
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
@@ -3302,19 +3611,29 @@ export const api = {
         manage_proposals_agreements: permissionFlagYes(flat.manage_proposals_agreements) || undefined
       },
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows)
+      client_settings: mergeClientSettingsWithAuthoritySchoolCatalog(
+        buildClientSettingsFromLists(listsData, settingsRows),
+        buildAuthoritySchoolCatalogClientSettings(catalog.authorityLookup, catalog.schoolLookup)
+      )
     };
   },
   bootstrap: async () => {
     await waitForSupabaseAuthSession();
-    const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows, catalog] = await Promise.all([
       readCurrentUserBySession(),
       readListsFromSupabase().catch(() => null),
-      readSettingsRowsFromSupabase().catch(() => [])
+      readSettingsRowsFromSupabase().catch(() => []),
+      readAuthoritySchoolCatalog().catch(() => ({
+        authorityLookup: buildAuthorityCatalogLookup([]),
+        schoolLookup: buildSchoolCatalogLookup([])
+      }))
     ]);
     return {
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows)
+      client_settings: mergeClientSettingsWithAuthoritySchoolCatalog(
+        buildClientSettingsFromLists(listsData, settingsRows),
+        buildAuthoritySchoolCatalogClientSettings(catalog.authorityLookup, catalog.schoolLookup)
+      )
     };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),
