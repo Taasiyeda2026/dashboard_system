@@ -28,7 +28,6 @@ import {
   getActivityPrimaryDate,
   getActivityScheduleDates,
   getActivityAuthorityName,
-  getActivityDistrict,
   getActivityName,
   getActivityTimeRange,
   getActivityGradeLabel,
@@ -62,7 +61,6 @@ const PERIOD_OPTIONS = [
 ];
 
 const FILTER_FIELDS = [
-  { key: 'district', label: 'מחוז / אזור', getValues: (row) => [getActivityDistrict(row)] },
   { key: 'authority', label: 'רשות', getValues: (row) => [getActivityAuthorityName(row)] },
   { key: 'school', label: 'בית ספר / מסגרת', getValues: getActivitySchoolNames },
   { key: 'instructor', label: 'מדריך', getValues: (row) => {
@@ -199,7 +197,7 @@ function getActivitySchoolDisplayNameClean(activity) {
 }
 
 function formatAddressFromSchool(row = {}) {
-  const address = nonEmptyOpsValue(row.institution_address, row.school_address, row.address);
+  const address = nonEmptyOpsValue(row.institution_address);
   const city = nonEmptyOpsValue(row.city);
   if (address && city && !normalizeOpsText(address).includes(normalizeOpsText(city))) return `${address}, ${city}`;
   return nonEmptyOpsValue(address, city);
@@ -296,24 +294,48 @@ function findSchoolsForActivity(activity, directory) {
 }
 
 function getActivityAddressResolved(activity, directory) {
-  const direct = nonEmptyOpsValue(getActivityAddress(activity));
-  if (direct) return direct;
   const addresses = uniqueSorted(findSchoolsForActivity(activity, directory).map((row) => row.address));
   return addresses.join('; ');
 }
 
-function getActivityContactResolved(activity, directory) {
-  const direct = nonEmptyOpsValue(getActivityContactName(activity));
-  if (direct) return direct;
-  const contacts = uniqueSorted(findSchoolsForActivity(activity, directory).map((row) => row.principal_name));
-  return contacts.join('; ');
+function getActivityContactOptions(activity, directory) {
+  const options = [];
+  const add = (name, phone = '') => {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) return;
+    const cleanPhone = String(phone || '').trim();
+    const key = `${normalizeOpsText(cleanName)}|${normalizeOpsText(cleanPhone)}`;
+    if (options.some((option) => option.key === key)) return;
+    options.push({ key, name: cleanName, phone: cleanPhone, label: cleanPhone ? `${cleanName} — ${cleanPhone}` : cleanName });
+  };
+  add(getActivityContactName(activity), getActivityContactPhone(activity));
+  findSchoolsForActivity(activity, directory).forEach((row) => add(row.principal_name, row.school_phone));
+  return options;
 }
 
-function getActivityPhoneResolved(activity, directory) {
-  const direct = nonEmptyOpsValue(getActivityContactPhone(activity));
-  if (direct) return direct;
-  const phones = uniqueSorted(findSchoolsForActivity(activity, directory).map((row) => row.school_phone));
-  return phones.join('; ');
+function getOpsActivityKey(activity = {}, date = '') {
+  return [activity.id, activity.activity_id, activity.uuid, date, getActivityName(activity), getActivitySchoolDisplayNameClean(activity)]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join('|');
+}
+
+function getSelectedContact(state, activity, date, directory) {
+  const ops = ensureOpsState(state);
+  ops.selectedContacts = ops.selectedContacts || {};
+  const selectedKey = ops.selectedContacts[getOpsActivityKey(activity, date)] || '';
+  if (!selectedKey) return null;
+  return getActivityContactOptions(activity, directory).find((option) => option.key === selectedKey) || null;
+}
+
+function contactSelectHtml(state, activity, date, directory) {
+  const key = getOpsActivityKey(activity, date);
+  const selected = getSelectedContact(state, activity, date, directory);
+  const options = getActivityContactOptions(activity, directory);
+  return `<select class="ds-input ds-input--xs ds-ops-contact-select no-print" data-ops-contact-key="${escapeHtml(key)}">
+    <option value="">ללא</option>
+    ${options.map((option) => `<option value="${escapeHtml(option.key)}"${selected?.key === option.key ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+  </select><span class="only-print">${selected ? escapeHtml(selected.name) : '—'}</span>`;
 }
 
 function mutedOrText(value) {
@@ -449,8 +471,8 @@ function scheduleSortValue(entry, key, directory) {
     activity: getActivityName(activity),
     grade: getActivityGradeLabel(activity) || '',
     address: getActivityAddressResolved(activity, directory) || '',
-    contact: getActivityContactResolved(activity, directory) || '',
-    phone: getActivityPhoneResolved(activity, directory) || ''
+    contact: '',
+    phone: ''
   };
   return map[key] ?? '';
 }
@@ -490,15 +512,20 @@ function buildScheduleRows(rows, state, directory) {
   return sortScheduleRows(schedule, state, directory);
 }
 
-function tabOverviewSummary(rows) {
-  const instructors = instructorOptions(rows);
+function compactSummaryLineHtml(items = []) {
+  const text = items.filter((item) => item?.value !== undefined && item?.value !== null).map((item) => `${item.value} ${item.label}`).join(' · ');
+  return text ? `<div class="ds-ops-mgmt-summary-line" dir="rtl">${escapeHtml(text)}</div>` : '';
+}
+
+function tabOverviewSummary(rows, scheduleRows = []) {
+  const workDays = uniqueSorted(scheduleRows.map((row) => row.date).filter(Boolean)).length;
   const schools = uniqueSorted(rows.map(getActivitySchoolDisplayNameClean).filter((name) => name !== 'לא משויך'));
   const authorities = uniqueSorted(rows.map(getActivityAuthorityName));
-  return summaryKpiHtml([
-    { icon: '📋', label: 'פעילויות', value: rows.length },
-    { icon: '👥', label: 'מדריכים', value: instructors.length },
-    { icon: '🏫', label: 'בתי ספר / מסגרות', value: schools.length },
-    { icon: '🏛️', label: 'רשויות', value: authorities.length }
+  return compactSummaryLineHtml([
+    { label: 'פעילויות', value: rows.length },
+    { label: 'ימי עבודה', value: workDays },
+    { label: 'בתי ספר', value: schools.length },
+    { label: 'רשויות', value: authorities.length }
   ]);
 }
 
@@ -508,12 +535,12 @@ function instructorSummary(rows, state, scheduleRows) {
   const workDays = uniqueSorted(scheduleRows.map((row) => row.date).filter(Boolean)).length;
   const authorities = uniqueSorted(rows.map(getActivityAuthorityName));
   const schools = uniqueSorted(rows.map(getActivitySchoolDisplayNameClean).filter((name) => name !== 'לא משויך'));
-  return summaryKpiHtml([
-    { icon: '👤', label: 'מדריך', value: selected },
-    { icon: '📅', label: 'ימי עבודה', value: workDays },
-    { icon: '📋', label: 'פעילויות', value: rows.length },
-    { icon: '🏫', label: 'בתי ספר / מסגרות', value: schools.length },
-    { icon: '🏛️', label: 'רשויות', value: authorities.length }
+  return compactSummaryLineHtml([
+    { label: `מדריך: ${selected}`, value: '' },
+    { label: 'ימי עבודה', value: workDays },
+    { label: 'פעילויות', value: rows.length },
+    { label: 'בתי ספר', value: schools.length },
+    { label: 'רשויות', value: authorities.length }
   ]);
 }
 
@@ -596,7 +623,17 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-col--weekday,
     .ds-ops-mgmt-screen .ds-ops-col--time,
     .ds-ops-mgmt-screen .ds-ops-col--phone { white-space: nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-sortable-th { cursor:pointer; user-select:none; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-sortable-th { cursor:pointer; user-select:none; white-space:nowrap; background:#e6f6fb; color:#0f172a; font-weight:700; border:0; }
+    .ds-ops-mgmt-screen .ds-ops-col--school,
+    .ds-ops-mgmt-screen .ds-ops-col--activity,
+    .ds-ops-mgmt-screen .ds-ops-col--address { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-col--address { max-width:260px; }
+    .ds-ops-mgmt-screen .ds-ops-mgmt-summary-line { display:block; margin:0 0 10px; padding:7px 10px; border:1px solid #d8e5ee; border-radius:10px; background:#f8fbfd; color:#334155; font-weight:700; font-size:13px; }
+    .ds-ops-mgmt-screen .ds-ops-mgmt-filters { padding:10px 12px; }
+    .ds-ops-mgmt-screen .ds-ops-mgmt-filters .ds-filter-panel__title { margin:0 0 6px; font-size:14px; }
+    .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { gap:8px; grid-template-columns:repeat(5,minmax(140px,1fr)); align-items:end; }
+    .ds-ops-mgmt-screen .ds-filter-field__label { font-size:11px; margin-bottom:2px; }
+    .ds-ops-mgmt-screen .ds-ops-contact-select { min-width:104px; max-width:150px; padding-block:3px; font-size:12px; }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:60%; margin-inline-start:auto; margin-inline-end:0; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
@@ -606,11 +643,10 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-tag-list { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
     .ds-ops-mgmt-screen .ds-ops-pill { display:inline-flex; align-items:center; border:1px solid #dbe7ef; background:#f8fbfd; color:#475569; border-radius:999px; padding:2px 8px; font-size:12px; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-schools-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; padding:12px; }
-    .ds-ops-mgmt-screen .ds-ops-school-card { border:1px solid #d8e5ee; border-radius:14px; background:#fff; padding:12px; box-shadow:0 2px 8px rgba(15,23,42,.04); }
+    .ds-ops-mgmt-screen .ds-ops-school-card { border:1px solid #d8e5ee; border-radius:12px; background:#fff; padding:10px; box-shadow:none; }
     .ds-ops-mgmt-screen .ds-ops-school-card__top { display:flex; justify-content:space-between; gap:10px; align-items:start; margin-bottom:8px; }
     .ds-ops-mgmt-screen .ds-ops-school-card__title { font-size:15px; font-weight:800; color:#0f172a; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-school-card__toggle { border:1px solid #cfe1ec; background:#f8fbfd; color:#0f8fa8; border-radius:999px; padding:5px 10px; font-weight:700; cursor:pointer; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-tag-list { margin-top:10px; }
     .ds-ops-mgmt-screen .ds-ops-tag { border-radius:999px; padding:3px 8px; font-size:12px; background:#eef6ff; border:1px solid #d5e8ff; color:#1e3a8a; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-tag--guide { background:#f5f3ff; border-color:#ddd6fe; color:#5b21b6; }
     .ds-ops-mgmt-screen .ds-ops-tag--warn { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
@@ -627,10 +663,7 @@ function openOpsPrintWindow({ title = 'הדפסה', bodyHtml = '' } = {}) {
   const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
     body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:18px;color:#111827;background:#fff;font-size:12px;line-height:1.45}
     h1,h2,h3{margin:0 0 8px;color:#0f172a} p{margin:0 0 10px}
-    .ds-ops-mgmt-summary{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px;margin:12px 0}
-    .ds-ops-mgmt-summary__card{border:1px solid #dbe4ef;border-radius:10px;padding:8px;background:#f8fafc}
-    .ds-ops-mgmt-summary__icon{display:none}.ds-ops-mgmt-summary__label{display:block;color:#64748b;font-size:11px}.ds-ops-mgmt-summary__value{display:block;font-size:16px;margin-top:2px}
-    table{width:100%;border-collapse:collapse;margin-top:10px;table-layout:auto} th,td{border:1px solid #cbd5e1;padding:6px 7px;vertical-align:top;text-align:right} th{background:#e6f6fb;color:#0f172a;font-weight:700} tr:nth-child(even) td{background:#f8fafc}
+    table{width:100%;border-collapse:collapse;margin-top:10px;table-layout:auto} th,td{border:1px solid #cbd5e1;padding:6px 7px;vertical-align:top;text-align:right} th{background:#e6f6fb;color:#0f172a;font-weight:700} tr:nth-child(even) td{background:#f8fafc}.ds-ops-col--date,.ds-ops-col--weekday,.ds-ops-col--time,.ds-ops-col--phone{white-space:nowrap}.ds-ops-col--school,.ds-ops-col--activity,.ds-ops-col--address{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .no-print,button,.ds-link-btn,.ds-sort-indicator{display:none!important}.only-print{display:block!important}.ds-ops-mgmt-print-footer{margin-top:14px;font-weight:600}
     @page{size:A4 landscape;margin:12mm}@media print{body{margin:0}tr{break-inside:avoid}}
   </style></head><body>${bodyHtml}</body></html>`;
@@ -682,22 +715,22 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
       <td class="ds-ops-col--time">${escapeHtml(entry.time || '—')}</td>
       <td>${escapeHtml(getActivityAuthorityName(activity))}</td>
       <td class="ds-ops-col--school"><strong>${escapeHtml(getActivitySchoolDisplayNameClean(activity))}</strong></td>
-      <td>${escapeHtml(getActivityName(activity))}</td>
+      <td class="ds-ops-col--activity">${escapeHtml(getActivityName(activity))}</td>
       <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
       <td class="ds-ops-col--address">${mutedOrText(getActivityAddressResolved(activity, directory))}</td>
-      <td class="ds-ops-col--contact">${mutedOrText(getActivityContactResolved(activity, directory))}</td>
-      <td class="ds-ops-col--phone">${mutedOrText(getActivityPhoneResolved(activity, directory))}</td>
+      <td class="ds-ops-col--contact">${contactSelectHtml(state, activity, entry.date, directory)}</td>
+      <td class="ds-ops-col--phone">${mutedOrText(getSelectedContact(state, activity, entry.date, directory)?.phone)}</td>
     </tr>`;
   }).join('');
 
   const table = scheduleRows.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-schedule"><thead><tr>
-        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעה', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'שכבה / כיתה', 'ds-ops-col--grade')}${sortableTh(state, TAB_INSTRUCTORS, 'address', 'כתובת', 'ds-ops-col--address')}${sortableTh(state, TAB_INSTRUCTORS, 'contact', 'איש קשר', 'ds-ops-col--contact')}${sortableTh(state, TAB_INSTRUCTORS, 'phone', 'טלפון', 'ds-ops-col--phone')}
+        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעה', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'שכבה / כיתה', 'ds-ops-col--grade')}${sortableTh(state, TAB_INSTRUCTORS, 'address', 'כתובת', 'ds-ops-col--address')}${sortableTh(state, TAB_INSTRUCTORS, 'contact', 'איש קשר', 'ds-ops-col--contact')}${sortableTh(state, TAB_INSTRUCTORS, 'phone', 'טלפון', 'ds-ops-col--phone')}
       </tr></thead><tbody>${tableRows}</tbody></table>`)
     : dsEmptyState('לא נמצאו פעילויות בטווח הנבחר');
 
   const instructorRows = selected === '__all__' ? rows : rows.filter((row) => getActivityInstructorName(row) === selected);
-  const activeSummary = selected === '__all__' ? tabOverviewSummary(rows) : instructorSummary(instructorRows, state, scheduleRows);
+  const activeSummary = selected === '__all__' ? tabOverviewSummary(rows, scheduleRows) : instructorSummary(instructorRows, state, scheduleRows);
   const directoryNote = Array.isArray(data?.schoolsDirectoryRows) && data.schoolsDirectoryRows.length
     ? '<p class="ds-ops-mgmt-note ds-ops-mgmt-note--contacts no-print" dir="rtl">כתובת, איש קשר וטלפון מושלמים מטבלת schools לפי רשות ובית ספר.</p>'
     : '';
@@ -775,11 +808,11 @@ function workshopsTabHtml(rows, state, stockMap) {
   const stockCount = metrics.filter((row) => row.stockQuantity !== null).length;
   const shortageCount = metrics.filter((row) => row.stockQuantity !== null && Number(row.gap) < 0).length;
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
-    ${summaryKpiHtml([
-      { icon: '🎨', label: 'סדנאות שונות', value: metrics.length },
-      { icon: '📋', label: 'פעילויות', value: rows.length },
-      { icon: '📦', label: 'עם נתון מלאי', value: stockCount },
-      { icon: '⚠️', label: 'חוסר במלאי', value: shortageCount, tone: shortageCount ? 'alert' : 'ok' }
+    ${compactSummaryLineHtml([
+      { label: 'סדנאות שונות', value: metrics.length },
+      { label: 'פעילויות', value: rows.length },
+      { label: 'עם נתון מלאי', value: stockCount },
+      { label: 'חוסר במלאי', value: shortageCount }
     ])}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <p class="ds-ops-mgmt-note">כמות משוערת = מספר סדנאות × ${WORKSHOP_ESTIMATE_PER_ACTIVITY}. מלאי לפי שם תוצר/סדנה מרשימות המערכת, אם קיים.</p>
@@ -848,12 +881,12 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([])) {
           <td class="ds-ops-col--date">${escapeHtml(formatDateHe(date) || '—')}</td>
           <td class="ds-ops-col--weekday">${escapeHtml(date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—')}</td>
           <td class="ds-ops-col--time">${escapeHtml(getDetailTimeForActivity(row) || '—')}</td>
-          <td>${escapeHtml(getActivityName(row))}</td>
+          <td class="ds-ops-col--activity">${escapeHtml(getActivityName(row))}</td>
           <td class="ds-ops-col--instructor">${escapeHtml(getActivityInstructorName(row))}</td>
           <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(row) || '—')}</td>
           <td class="ds-ops-col--address">${mutedOrText(getActivityAddressResolved(row, directory))}</td>
-          <td class="ds-ops-col--contact">${mutedOrText(getActivityContactResolved(row, directory))}</td>
-          <td class="ds-ops-col--phone">${mutedOrText(getActivityPhoneResolved(row, directory))}</td>
+          <td class="ds-ops-col--contact">${contactSelectHtml(state, row, date, directory)}</td>
+          <td class="ds-ops-col--phone">${mutedOrText(getSelectedContact(state, row, date, directory)?.phone)}</td>
         </tr>`;
       }).join('');
       const detail = isOpen
@@ -869,8 +902,6 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([])) {
           </div>
           <div class="ds-ops-school-card__meta" style="margin-top:6px"><span class="ds-ops-pill">${escapeHtml(formatSchoolDateRange(Array.from(school.dates)))}</span></div>
         </div><button type="button" class="ds-ops-school-card__toggle no-print" data-ops-school="${escapeHtml(school.key)}">${isOpen ? 'סגור' : 'פירוט'}</button></div>
-        ${compactTagListHtml(workshopList, '', 4)}
-        ${instructorsList.length ? compactTagListHtml(instructorsList, 'ds-ops-tag--guide', 4) : `<div class="ds-ops-tag-list"><span class="ds-ops-tag ds-ops-tag--warn">ללא מדריך</span></div>`}
         ${detail}
       </article>`;
     }).join('');
@@ -878,11 +909,11 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([])) {
   }).join('');
 
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
-    ${summaryKpiHtml([
-      { icon: '🏛️', label: 'רשויות', value: byAuthority.size },
-      { icon: '🏫', label: 'בתי ספר / מסגרות', value: schoolList.length },
-      { icon: '📋', label: 'פעילויות', value: rows.length },
-      { icon: '👥', label: 'מדריכים', value: instructorOptions(rows).length }
+    ${compactSummaryLineHtml([
+      { label: 'רשויות', value: byAuthority.size },
+      { label: 'בתי ספר / מסגרות', value: schoolList.length },
+      { label: 'פעילויות', value: rows.length },
+      { label: 'מדריכים', value: instructorOptions(rows).length }
     ])}
     ${authoritySections || dsEmptyState('לא נמצאו בתי ספר / מסגרות')}
   </section>`;
@@ -988,6 +1019,16 @@ export const operationsManagementScreen = {
     });
 
     root.querySelector('[data-ops-instructor]')?.addEventListener('change', (ev) => { ops.instructor = ev.target.value || '__all__'; rerender?.(); });
+    root.querySelectorAll('[data-ops-contact-key]').forEach((select) => {
+      select.addEventListener('change', (ev) => {
+        ops.selectedContacts = ops.selectedContacts || {};
+        const key = ev.target.getAttribute('data-ops-contact-key') || '';
+        if (!key) return;
+        if (ev.target.value) ops.selectedContacts[key] = ev.target.value;
+        else delete ops.selectedContacts[key];
+        rerender?.();
+      });
+    });
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => printScheduleFromDom(root));
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
 
