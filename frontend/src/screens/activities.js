@@ -219,23 +219,23 @@ function availableActivityMonthsForPeriod(rows, periodKey) {
 }
 
 function pickBestMonthForPeriod(rows, periodKey) {
-  const first = firstActivityMonthYm(activityPeriodRows(rows, periodKey));
-  if (first) return first;
-  for (const tab of ACTIVITY_PERIOD_TABS) {
-    if (tab.key === periodKey || tab.archive) continue;
-    const other = firstActivityMonthYm(activityPeriodRows(rows, tab.key));
-    if (other) return other;
-  }
-  return currentYm();
+  const available = availableActivityMonthsForPeriod(rows, periodKey);
+  if (available.length > 0) return available[0];
+  return periodKey === 'summer_2026' ? SUMMER_DEFAULT_MONTH_YM : '';
 }
 
 function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
-  if (state?.activityPeriodTab !== 'summer_2026') return;
-  if (!force && state._activitiesSummerMonthInitialized) return;
-  const firstMonth = firstActivityMonthYm(activityPeriodRows(rows, 'summer_2026'));
-  const targetMonth = firstMonth || SUMMER_DEFAULT_MONTH_YM;
-  if (state.activitiesMonthYm !== targetMonth) state.activitiesMonthYm = targetMonth;
-  state._activitiesSummerMonthInitialized = true;
+  if (!activityPeriodUsesMonthNavigation(state)) return;
+  const available = availableActivityMonthsForPeriod(rows, state.activityPeriodTab);
+  if (available.length === 0) {
+    if (force || !state.activitiesMonthYm) {
+      state.activitiesMonthYm = state.activityPeriodTab === 'summer_2026' ? SUMMER_DEFAULT_MONTH_YM : '';
+    }
+    return;
+  }
+  if (force || !state.activitiesMonthYm || !available.includes(state.activitiesMonthYm)) {
+    state.activitiesMonthYm = available[0];
+  }
 }
 
 function allActivitiesStatusFilterHtml(state = {}) {
@@ -748,9 +748,9 @@ function activityMeetingDates(row = {}) {
     const date = normalizedActivityDateValue(value);
     if (date && !dates.includes(date)) dates.push(date);
   };
-  const cols = Array.isArray(row?.meeting_dates) ? row.meeting_dates
-    : Array.isArray(row?.date_cols) ? row.date_cols : [];
-  cols.forEach(addDate);
+  const meetingDates = Array.isArray(row?.meeting_dates) ? row.meeting_dates : [];
+  const dateCols = Array.isArray(row?.date_cols) ? row.date_cols : [];
+  [...meetingDates, ...dateCols].forEach(addDate);
   for (let i = 1; i <= 35; i++) {
     addDate(row?.[`date_${i}`]);
     addDate(row?.[`Date${i}`]);
@@ -761,17 +761,15 @@ function activityMeetingDates(row = {}) {
 function activityOccursInSelectedMonth(row = {}, ym = '') {
   const range = selectedMonthRange(ym);
   if (!range) return true;
-  const dates = activityMeetingDates(row);
-  if (dates.length > 0) return dates.some((date) => date >= range.start && date <= range.end);
-
   const start = normalizedActivityDateValue(row?.start_date ?? row?.date_start);
-  if (!start) return false;
-  const end = normalizedActivityDateValue(row?.end_date ?? row?.date_end) || start;
-  return start <= range.end && end >= range.start;
+  const end = normalizedActivityDateValue(row?.end_date ?? row?.date_end);
+  const dates = [start, end, ...activityMeetingDates(row)].filter(Boolean);
+  if (dates.length > 0) return dates.some((date) => date >= range.start && date <= range.end);
+  return false;
 }
 
 function applySelectedActivitiesMonth(rows, state) {
-  return (Array.isArray(rows) ? rows : []).filter((row) => activityMatchesSelectedStartMonth(row, state?.activitiesMonthYm));
+  return (Array.isArray(rows) ? rows : []).filter((row) => activityOccursInSelectedMonth(row, state?.activitiesMonthYm));
 }
 
 function currentYm() {
@@ -1400,18 +1398,7 @@ export const activitiesScreen = {
       include_inactive: true
     });
     const loadedRows = Array.isArray(result?.rows) ? result.rows : [];
-    if (state.activityPeriodTab === 'summer_2026') {
-      state._activitiesSummerMonthInitialized = false;
-    }
     ensureActivityPeriodMonth(state, loadedRows);
-    if (!state.activitiesMonthYm) {
-      state.activitiesMonthYm = pickBestMonthForPeriod(loadedRows, state.activityPeriodTab);
-    } else if (shouldApplyActivitiesMonthFilter(state)) {
-      const pRows = activityPeriodRows(loadedRows, state.activityPeriodTab);
-      if (pRows.length > 0 && !pRows.some((row) => activityOccursInSelectedMonth(row, state.activitiesMonthYm))) {
-        state.activitiesMonthYm = firstActivityMonthYm(pRows) || pickBestMonthForPeriod(loadedRows, state.activityPeriodTab);
-      }
-    }
     return result;
   },
 
@@ -1424,16 +1411,10 @@ export const activitiesScreen = {
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     ensureActivityPeriodMonth(state, allRows);
-    if (!state.activitiesMonthYm) {
-      state.activitiesMonthYm = pickBestMonthForPeriod(allRows, state.activityPeriodTab);
-    }
     state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const isAllMode = isAllActivitiesMode(state);
     const periodRows    = isAllMode ? allActivitiesRows(allRows, state) : activityPeriodRows(allRows, state.activityPeriodTab);
-    if (!isAllMode && shouldApplyActivitiesMonthFilter(state) && periodRows.length > 0 &&
-        !periodRows.some((row) => activityOccursInSelectedMonth(row, state.activitiesMonthYm))) {
-      state.activitiesMonthYm = firstActivityMonthYm(periodRows) || pickBestMonthForPeriod(allRows, state.activityPeriodTab);
-    }
+    if (!isAllMode) ensureActivityPeriodMonth(state, allRows);
     const monthRows     = activityRowsForPeriodAndMonth(allRows, state);
     const filteredRows  = applyActivitiesLocalFilters(monthRows, state, state?.clientSettings);
 
@@ -1598,6 +1579,10 @@ export const activitiesScreen = {
     </div>`;
 
     const usesMonthNavigation = activityPeriodUsesMonthNavigation(state);
+    const availableMonths = usesMonthNavigation ? availableActivityMonthsForPeriod(allRows, state.activityPeriodTab) : [];
+    const selectedMonthIndex = availableMonths.indexOf(state.activitiesMonthYm);
+    const disablePrevMonth = isNavLoading || selectedMonthIndex <= 0;
+    const disableNextMonth = isNavLoading || selectedMonthIndex < 0 || selectedMonthIndex >= availableMonths.length - 1;
     const periodLabel = activityPeriodLabelForKey(state.activityPeriodTab) || 'פעילויות';
     const titleNavRow = isAllMode
       ? `<nav class="ds-activities-title-row" aria-label="חיפוש בכל הפעילויות" dir="rtl">
@@ -1605,9 +1590,9 @@ export const activitiesScreen = {
     </nav>`
       : usesMonthNavigation
         ? `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם" title="חודש קודם" ${isNavLoading ? 'disabled' : ''}>▶</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם" title="חודש קודם" ${disablePrevMonth ? 'disabled' : ''}>▶</button>
       <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${total} פעילויות ${navLoadingChip}</h2>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא" title="חודש הבא" ${isNavLoading ? 'disabled' : ''}>◀</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא" title="חודש הבא" ${disableNextMonth ? 'disabled' : ''}>◀</button>
     </nav>`
         : `<nav class="ds-activities-title-row" aria-label="${escapeHtml(periodLabel)}" dir="rtl">
       <h2 class="ds-activities-page-title">${escapeHtml(periodLabel)} · ${total} פעילויות</h2>
@@ -1802,16 +1787,11 @@ export const activitiesScreen = {
       if (!activityPeriodUsesMonthNavigation(state)) return;
       if (state.activitiesNavLoading) return;
       const available = availableActivityMonthsForPeriod(activitiesRows, state.activityPeriodTab);
-      const currentMonth = state.activitiesMonthYm || currentYm();
-      let nextMonth;
-      if (available.length === 0) {
-        nextMonth = shiftYm(currentMonth, delta);
-      } else if (delta > 0) {
-        nextMonth = available.find((m) => m > currentMonth) || currentMonth;
-      } else {
-        const earlier = available.filter((m) => m < currentMonth);
-        nextMonth = earlier.length > 0 ? earlier[earlier.length - 1] : currentMonth;
-      }
+      if (available.length === 0) return;
+      if (!available.includes(state.activitiesMonthYm)) state.activitiesMonthYm = available[0];
+      const currentMonth = state.activitiesMonthYm;
+      const currentIndex = available.indexOf(currentMonth);
+      const nextMonth = available[currentIndex + (delta > 0 ? 1 : -1)] || currentMonth;
       if (nextMonth === currentMonth) return;
       const startedAt = Date.now();
       state.activitiesNavLoading = true;
@@ -2129,9 +2109,6 @@ export const activitiesScreen = {
       btn.addEventListener('click', () => {
         state.activityPeriodTab = normalizeActivityPeriodTab(btn.getAttribute('data-activity-period-tab'));
         if (shouldApplyActivitiesMonthFilter(state)) {
-          state.activitiesMonthYm = pickBestMonthForPeriod(activitiesRows, state.activityPeriodTab);
-          state._activitiesSummerMonthInitialized = false;
-        } else {
           ensureActivityPeriodMonth(state, activitiesRows, { force: true });
         }
         ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
