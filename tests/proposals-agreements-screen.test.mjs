@@ -1605,8 +1605,37 @@ test('course preview renders one cost table with quantity, unit group price, and
     assert.deepEqual(headers, ['פעילות', 'כמות', 'מחיר יחידה', 'סה״כ שורה']);
     const cells = [...costTable.querySelectorAll('tbody td')].map((td) => td.textContent.trim());
     assert.equal(cells.at(-3), '2');
-    assert.equal(cells.at(-2), '9,000 ₪');
-    assert.equal(cells.at(-1), '18,000 ₪');
+    assert.match(cells.at(-2), /^9,000\s*₪$/);
+    assert.match(cells.at(-1), /^18,000\s*₪$/);
+    const unitPriceCell = costTable.querySelector('tbody td:nth-child(3) .pa-currency-amount');
+    assert.ok(unitPriceCell, 'unit price should use isolated currency span');
+    assert.equal(unitPriceCell.getAttribute('dir'), 'ltr');
+  });
+});
+
+test('proposal cost table renders currency with consistent LTR direction', async () => {
+  const row = {
+    ...sampleRows[0],
+    activity_type_group: 'קיץ תשפ״ו',
+    proposal_date: '2026-06-01'
+  };
+  const items = [{
+    item_name: 'סדנת רובוטיקה',
+    quantity: 1,
+    unit_price: 450,
+    total_price: 450
+  }];
+
+  await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
+    const amounts = [...dom.window.document.querySelectorAll('.pa-cost-table .pa-currency-amount')];
+    assert.ok(amounts.length >= 2, 'cost table should render currency amounts');
+    amounts.forEach((el) => {
+      assert.equal(el.getAttribute('dir'), 'ltr');
+      assert.match(el.textContent, /^\d[\d,]*\s*₪$/);
+    });
+    const totalRow = dom.window.document.querySelector('.pa-cost-table tfoot .pa-currency-amount');
+    assert.ok(totalRow);
+    assert.equal(totalRow.textContent.trim().replace(/\u00a0/g, ' '), '450 ₪');
   });
 });
 
@@ -1633,8 +1662,8 @@ test('course cost table calculates quantity total when total price is empty', as
     assert.equal(dom.window.document.querySelector('.pa-item-details-table'), null);
     const cells = [...dom.window.document.querySelectorAll('.pa-cost-table tbody td')].map((td) => td.textContent.trim());
     assert.equal(cells.at(-3), '2');
-    assert.equal(cells.at(-2), '9,000 ₪');
-    assert.equal(cells.at(-1), '18,000 ₪');
+    assert.match(cells.at(-2), /^9,000\s*₪$/);
+    assert.match(cells.at(-1), /^18,000\s*₪$/);
   });
 });
 
