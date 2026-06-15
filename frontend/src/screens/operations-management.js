@@ -699,6 +699,8 @@ function opsManagementStylesHtml() {
   </style>`;
 }
 
+let _schedulePrintContext = null;
+
 function openOpsPrintWindow({ title = 'הדפסה', bodyHtml = '' } = {}) {
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
@@ -719,17 +721,102 @@ function openOpsPrintWindow({ title = 'הדפסה', bodyHtml = '' } = {}) {
   setTimeout(() => printWindow.print(), 250);
 }
 
-function printScheduleFromDom(root) {
-  const table = root.querySelector('.ds-ops-mgmt-schedule');
-  if (!table || !table.querySelector('tbody tr')) {
+function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilter, directory, contactsIndex }) {
+  if (!scheduleRows || !scheduleRows.length) return '<p>אין פעילויות להדפסה.</p>';
+  const ops = ensureOpsState(state);
+  const showInstructor = !selectedInstructorFilter;
+
+  const groups = [];
+  const groupMap = new Map();
+  scheduleRows.forEach((entry) => {
+    const activity = entry.activity;
+    const date = entry.date || '';
+    const authority = getActivityAuthorityName(activity);
+    const school = getActivitySchoolDisplayNameClean(activity);
+    const address = getActivityAddressResolved(activity, directory);
+    const groupKey = `${date}|${normalizeOpsText(authority)}|${normalizeOpsText(school)}`;
+    if (!groupMap.has(groupKey)) {
+      const group = { date, authority, school, address, entries: [] };
+      groupMap.set(groupKey, group);
+      groups.push(group);
+    }
+    groupMap.get(groupKey).entries.push(entry);
+  });
+
+  const title = selectedInstructorFilter
+    ? `סידור עבודה למדריך: ${selectedInstructorFilter}`
+    : 'סידור עבודה — כל המדריכים';
+  const dateRange = `${formatDateHe(ops.dateFrom) || '—'}–${formatDateHe(ops.dateTo) || '—'}`;
+
+  const blocks = groups.map((group) => {
+    let contactName = '—';
+    let contactPhone = '—';
+    for (const entry of group.entries) {
+      const c = getSelectedContact(state, entry.activity, entry.date, directory, contactsIndex);
+      if (c) { contactName = c.name || '—'; contactPhone = c.phone || '—'; break; }
+    }
+    const dateLabel = group.date
+      ? `${formatDateHeWithWeekday(group.date).split(' · ')[0]} · ${formatDateHe(group.date)}`
+      : '—';
+    const addressRow = group.address ? `<tr><td>כתובת</td><td>${escapeHtml(group.address)}</td></tr>` : '';
+    const instructorHeader = showInstructor ? '<th>מדריך</th>' : '';
+    const activityRows = group.entries.map((entry) => {
+      const a = entry.activity;
+      const instrCell = showInstructor ? `<td>${escapeHtml(entry.instructor || '—')}</td>` : '';
+      return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
+    }).join('');
+    return `<div class="pb">
+      <div class="pb-date">${escapeHtml(dateLabel)}</div>
+      <table class="pb-loc"><tbody>
+        <tr><td>רשות</td><td>${escapeHtml(group.authority || '—')}</td></tr>
+        <tr><td>בית ספר / מסגרת</td><td><strong>${escapeHtml(group.school || '—')}</strong></td></tr>
+        ${addressRow}
+        <tr><td>איש קשר</td><td>${escapeHtml(contactName)}</td></tr>
+        <tr><td>טלפון</td><td>${escapeHtml(contactPhone)}</td></tr>
+      </tbody></table>
+      <table class="pb-act"><thead><tr><th>שעה</th><th>פעילות</th><th>שכבה / כיתה</th>${instructorHeader}</tr></thead>
+      <tbody>${activityRows}</tbody></table>
+    </div>`;
+  }).join('');
+
+  return `<h1>${escapeHtml(title)}</h1><p class="subtitle">טווח תאריכים: ${escapeHtml(dateRange)}</p>${blocks}<p class="footer">יש לבדוק את פרטי הפעילות לפני הגעה. במקרה של שינוי, יש לעדכן את התפעול.</p>`;
+}
+
+function printInstructorSchedule() {
+  const ctx = _schedulePrintContext;
+  if (!ctx || !ctx.scheduleRows || !ctx.scheduleRows.length) {
     alert('אין פעילויות להדפסה בטווח הנבחר');
     return;
   }
-  const panel = root.querySelector('.ds-ops-mgmt-panel');
-  const header = panel?.querySelector('.ds-ops-mgmt-print-header')?.innerHTML || '<h2>סידור עבודה</h2>';
-  const summary = panel?.querySelector('.ds-ops-mgmt-summary')?.outerHTML || '';
-  const footer = panel?.querySelector('.ds-ops-mgmt-print-footer')?.outerHTML || '';
-  openOpsPrintWindow({ title: 'סידור עבודה', bodyHtml: `<section>${header}${summary}${table.outerHTML}${footer}</section>` });
+  const title = ctx.selectedInstructorFilter
+    ? `סידור עבודה — ${ctx.selectedInstructorFilter}`
+    : 'סידור עבודה';
+  const css = `
+    body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:18px 22px;color:#111827;background:#fff;font-size:12px;line-height:1.5}
+    h1{margin:0 0 4px;font-size:16px;color:#0f172a}.subtitle{margin:0 0 18px;color:#475569;font-size:12px}
+    .pb{border:1px solid #cbd5e1;border-radius:6px;padding:10px 14px;margin-bottom:14px;page-break-inside:avoid}
+    .pb-date{font-weight:700;font-size:13px;color:#0369a1;margin-bottom:8px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
+    table{border-collapse:collapse;margin:0}
+    .pb-loc{width:auto;margin-bottom:8px}
+    .pb-loc td{border:none;padding:2px 12px 2px 0;vertical-align:top}
+    .pb-loc td:first-child{color:#64748b;white-space:nowrap;min-width:120px}
+    .pb-act{width:100%}
+    .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:4px 8px;text-align:right;vertical-align:top}
+    .pb-act th{background:#e6f6fb;font-weight:700}
+    .pb-act tr:nth-child(even) td{background:#f8fafc}
+    .footer{margin-top:18px;font-size:11px;color:#64748b}
+    @page{size:A4 portrait;margin:12mm}
+    @media print{body{margin:0}.pb{page-break-inside:avoid}}
+  `;
+  const bodyHtml = buildGroupedScheduleHtml(ctx);
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) { alert('הדפדפן חסם פתיחת חלון הדפסה. יש לאפשר חלונות קופצים לאתר.'); return; }
+  const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${css}</style></head><body>${bodyHtml}</body></html>`;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
 }
 
 function printWorkshopsFromDom(root) {
@@ -750,6 +837,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
   const scheduleRows = buildScheduleRows(rows, state, directory);
   const selectedInstructorFilter = String(filters.instructor || '').trim();
   const printTitle = selectedInstructorFilter ? selectedInstructorFilter : 'כל המדריכים';
+  _schedulePrintContext = { scheduleRows, state, selectedInstructorFilter, directory, contactsIndex };
 
   const tableRows = scheduleRows.map((entry) => {
     const activity = entry.activity;
@@ -1060,7 +1148,7 @@ export const operationsManagementScreen = {
         rerender?.();
       });
     });
-    root.querySelector('[data-ops-print]')?.addEventListener('click', () => printScheduleFromDom(root));
+    root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
 
     root.querySelectorAll('[data-ops-workshop]').forEach((btn) => {
