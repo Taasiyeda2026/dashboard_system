@@ -184,10 +184,6 @@ function instrDrawerHtml(row, hideEmpIds) {
 function renderInstrCard(row) {
   const nameRaw = row.full_name || row.emp_id || '—';
   const name = escapeHtml(nameRaw);
-  const phone = escapeHtml(row.mobile || '');
-  const email = row.email ? escapeHtml(String(row.email)) : '';
-  const roleRaw = String(row.contact_role || row.role || row.employment_type || '').trim();
-  const role = roleRaw ? escapeHtml(roleRaw) : '';
   const isInactive = String(row.active || '').toLowerCase() === 'no';
   const initials = escapeHtml(avatarInitials(nameRaw));
   const bg = avatarColor(row.emp_id || nameRaw);
@@ -199,9 +195,6 @@ function renderInstrCard(row) {
         <span class="ci-person-card__avatar" style="background:${bg}" aria-hidden="true">${initials}</span>
         <span class="ci-person-card__info">
           <span class="ci-person-card__name">${name}</span>
-          ${role ? `<span class="ci-person-card__role">${role}</span>` : ''}
-          <span class="ci-person-card__phone">${phone || '—'}</span>
-          <span class="ci-person-card__email">${email || '—'}</span>
         </span>
       </button>
       <span class="ci-person-card__actions">${actionBtn('edit-instr', { emp_id: row.emp_id }, '✎')}</span>
