@@ -461,10 +461,11 @@ test('activities all activities mode ignores month/period filters and supports s
   assert.match(undatedHtml, /פעילות ללא תאריך/);
   assert.doesNotMatch(undatedHtml, /פעילות נמחקה/);
 
+  // include_deleted הוסר מה-UI — ערך לא-ידוע חוזר ל-'all' ונמחקים אף פעם לא מוצגים
   state.allActivitiesStatusFilter = 'include_deleted';
-  const includeDeletedHtml = activitiesScreen.render(data, { state });
-  assert.match(includeDeletedHtml, /חיפוש בכל הפעילויות · 5 פעילויות/);
-  assert.match(includeDeletedHtml, /פעילות נמחקה/);
+  const unknownFilterHtml = activitiesScreen.render(data, { state });
+  assert.match(unknownFilterHtml, /חיפוש בכל הפעילויות · 4 פעילויות/);
+  assert.doesNotMatch(unknownFilterHtml, /פעילות נמחקה/);
 });
 
 test('all activities mode definition: includes school/summer/closed/undated/anomalous, excludes deleted', () => {

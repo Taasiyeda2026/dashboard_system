@@ -52,8 +52,7 @@ const ALL_ACTIVITIES_STATUS_FILTERS = [
   { key: 'all', label: 'הכל' },
   { key: 'open', label: 'פתוח' },
   { key: 'closed', label: 'סגור' },
-  { key: 'undated', label: 'ללא תאריך' },
-  { key: 'include_deleted', label: 'כולל נמחקים' }
+  { key: 'undated', label: 'ללא תאריך' }
 ];
 const ACTIVITY_PERIOD_TABS = [
   { key: 'school_2026', label: 'תשפ״ו / 2026', start: '', end: '2026-06-30' },
@@ -168,8 +167,8 @@ function activityPeriodRows(rows, periodKey) {
 function allActivitiesRows(rows, state = {}) {
   const filter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
   return (Array.isArray(rows) ? rows : []).filter((row) => {
-    if (filter !== 'include_deleted' && isDeletedActivity(row)) return false;
-    if (filter === 'open') return !isClosedActivity(row) && !isDeletedActivity(row);
+    if (isDeletedActivity(row)) return false;
+    if (filter === 'open') return !isClosedActivity(row);
     if (filter === 'closed') return isClosedActivity(row);
     if (filter === 'undated') return !normalizedActivityStartDate(row);
     return true;
