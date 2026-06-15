@@ -177,8 +177,7 @@ function allActivitiesRows(rows, state = {}) {
 }
 
 function shouldApplyActivitiesMonthFilter(state = {}) {
-  const tab = normalizeActivityPeriodTab(state.activityPeriodTab);
-  return tab === 'school_2026' || tab === 'school_2027';
+  return activityPeriodUsesMonthNavigation(state);
 }
 
 function activityRowsForPeriodAndMonth(rows, state = {}) {
@@ -201,6 +200,22 @@ function firstActivityMonthYm(rows) {
     });
   });
   return [...months].sort()[0] || '';
+}
+
+function availableActivityMonthsForPeriod(rows, periodKey) {
+  const pRows = activityPeriodRows(rows, periodKey);
+  const months = new Set();
+  pRows.forEach((row) => {
+    [
+      normalizedActivityStartDate(row),
+      String(row?.end_date ?? row?.date_end ?? '').trim().slice(0, 10),
+      ...activityMeetingDates(row)
+    ].forEach((date) => {
+      const val = String(date || '').trim().slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) months.add(val.slice(0, 7));
+    });
+  });
+  return [...months].sort().filter((ym) => pRows.some((row) => activityOccursInSelectedMonth(row, ym)));
 }
 
 function pickBestMonthForPeriod(rows, periodKey) {
@@ -232,7 +247,8 @@ function allActivitiesStatusFilterHtml(state = {}) {
 }
 
 function activityPeriodUsesMonthNavigation(state = {}) {
-  return shouldApplyActivitiesMonthFilter(state) || normalizeActivityPeriodTab(state.activityPeriodTab) === 'summer_2026';
+  const tab = normalizeActivityPeriodTab(state.activityPeriodTab);
+  return tab === 'school_2026' || tab === 'summer_2026' || tab === 'school_2027';
 }
 
 function activityPeriodTabsHtml(rows, activeKey, state = {}) {
@@ -1785,9 +1801,21 @@ export const activitiesScreen = {
     const runMonthShift = (delta) => {
       if (!activityPeriodUsesMonthNavigation(state)) return;
       if (state.activitiesNavLoading) return;
+      const available = availableActivityMonthsForPeriod(activitiesRows, state.activityPeriodTab);
+      const currentMonth = state.activitiesMonthYm || currentYm();
+      let nextMonth;
+      if (available.length === 0) {
+        nextMonth = shiftYm(currentMonth, delta);
+      } else if (delta > 0) {
+        nextMonth = available.find((m) => m > currentMonth) || currentMonth;
+      } else {
+        const earlier = available.filter((m) => m < currentMonth);
+        nextMonth = earlier.length > 0 ? earlier[earlier.length - 1] : currentMonth;
+      }
+      if (nextMonth === currentMonth) return;
       const startedAt = Date.now();
       state.activitiesNavLoading = true;
-      state.activitiesMonthYm = shiftYm(state.activitiesMonthYm || currentYm(), delta);
+      state.activitiesMonthYm = nextMonth;
       rerenderLocal();
       const minMs = 420;
       setTimeout(() => {
