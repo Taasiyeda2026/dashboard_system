@@ -10326,6 +10326,12 @@ select.ds-input {
 [data-pa-contact-picker-host]:empty {
   display: none;
 }
+/* Contact manual fields — 4 inputs in one row, spanning full parent grid width */
+.ds-pa-contact-manual-fields {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px 12px;
+}
 
 .ds-pa-form-field {
   display: grid;
@@ -11173,10 +11179,10 @@ select.ds-input {
   margin: 6px 0 4px;
 }
 .ds-pa-type-card {
-  flex: 1 1 150px;
-  min-width: 120px;
-  min-height: 62px;
-  padding: 10px 14px;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px 12px;
   border: 2px solid #c7d2de;
   border-radius: 10px;
   background: #fff;
@@ -15134,6 +15140,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   color: #64748b;
   font-size: 0.8rem;
 }
+.ds-pa-client-result-meta {
+  display: block;
+  color: #64748b;
+  font-size: 0.75rem;
+  margin-top: 1px;
+}
 .ds-pa-notes-details:not([open]) .ds-pa-notes-summary {
   display: inline-flex;
   align-items: center;
@@ -15181,6 +15193,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .ds-pa-form--compact { padding: 12px; }
   .ds-pa-client-search { grid-template-columns: 1fr; }
   .ds-pa-form-grid { grid-template-columns: 1fr; }
+  .ds-pa-contact-manual-fields { grid-template-columns: 1fr 1fr; }
 }
 
 .ds-pa-client-results[hidden],

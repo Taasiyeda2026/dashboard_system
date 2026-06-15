@@ -1921,8 +1921,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
         </div>
         <div class="ds-pa-type-meta-aux">
-          <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
-          <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.status)}</span><output class="ds-pa-status-output">${escapeHtml(STATUS_LABELS[currentStatus] || currentStatus)}</output></label>
+          ${mode === 'edit' ? `<label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>` : `<input type="hidden" name="proposal_date" value="${escapeHtml(proposalDate)}">`}
           <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
         </div>
       </div>
@@ -2612,24 +2611,36 @@ export const proposalsAgreementsScreen = {
       if (!q || q.length < 2) return [];
       const seen = new Set();
       return contactOptions.filter((c) => {
-        const typeOk = selectedType === 'authority' ? text(c.authority) : (text(c.school) || text(c.authority) || text(c.client_name));
+        const typeOk = selectedType === 'authority'
+          ? text(c.authority)
+          : (text(c.school) || text(c.authority) || text(c.client_name) || text(c.semel_mosad));
         if (!typeOk) return false;
-        const haystack = [c.school, c.authority, c.client_name, c.contact_name, c.phone, c.mobile, c.email]
+        const haystack = [c.school, c.authority, c.client_name, c.contact_name, c.contact_role, c.phone, c.mobile, c.email, c.semel_mosad]
           .map(normalizeSearch).join(' ');
         if (!haystack.includes(q)) return false;
         const key = [text(c.authority), text(c.school), text(c.contact_name), text(c.phone || c.mobile || ''), text(c.email)].join('||');
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
-      }).slice(0, 12);
+      }).slice(0, 15);
     };
 
     const clientResultLabel = (contact, selectedType) => {
       const school = text(contact.school);
       const authority = text(contact.authority);
+      const clientName = text(contact.client_name);
       const contactName = text(contact.contact_name);
-      if (selectedType === 'authority') return [authority, contactName].filter(Boolean).join(' — ');
-      return [school || text(contact.client_name), authority, contactName].filter(Boolean).join(' — ');
+      const role = text(contact.contact_role);
+      const semel = text(contact.semel_mosad);
+      if (selectedType === 'authority') {
+        return [authority, role ? `${contactName} (${role})` : contactName].filter(Boolean).join(' — ');
+      }
+      const displayName = school || clientName || authority;
+      const parts = [displayName];
+      if (authority && authority !== displayName) parts.push(authority);
+      if (contactName) parts.push(role ? `${contactName} (${role})` : contactName);
+      if (semel) parts.push(`סמל: ${semel}`);
+      return parts.filter(Boolean).join(' — ');
     };
 
     const applyClientTypeMode = (form) => {
@@ -2658,7 +2669,7 @@ export const proposalsAgreementsScreen = {
       }
       if (authorityInput) {
         const label = authorityInput.closest('label')?.querySelector('span');
-        if (label) label.textContent = `${isOther ? 'שם גוף' : clientTypeLabel(type)} *`;
+        if (label) label.textContent = `${isOther ? 'שם גוף' : 'רשות'} *`;
       }
     };
 
@@ -2705,10 +2716,16 @@ export const proposalsAgreementsScreen = {
         results.hidden = false;
         return;
       }
-      results.innerHTML = matches.map((contact, idx) => `<button type="button" class="ds-pa-client-result" data-pa-client-result="${idx}">
-        <strong>${escapeHtml(clientResultLabel(contact, type))}</strong>
-        ${text(contact.phone || contact.mobile || contact.email) ? `<span>${escapeHtml([contact.phone || contact.mobile, contact.email].map(text).filter(Boolean).join(' · '))}</span>` : ''}
-      </button>`).join('');
+      results.innerHTML = matches.map((contact, idx) => {
+        const phone = text(contact.phone || contact.mobile || '');
+        const email = text(contact.email || '');
+        const semel = text(contact.semel_mosad || '');
+        const metaParts = [phone, email, semel ? `סמל ${semel}` : ''].filter(Boolean);
+        return `<button type="button" class="ds-pa-client-result" data-pa-client-result="${idx}">
+          <strong>${escapeHtml(clientResultLabel(contact, type))}</strong>
+          ${metaParts.length ? `<span class="ds-pa-client-result-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
+        </button>`;
+      }).join('');
       results.hidden = false;
       results.querySelectorAll('[data-pa-client-result]').forEach((btn) => {
         btn.addEventListener('click', () => selectExistingClient(form, matches[Number(btn.dataset.paClientResult)]), { signal });
