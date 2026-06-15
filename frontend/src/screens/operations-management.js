@@ -781,7 +781,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     </div>`;
   }).join('');
 
-  return `<h1>${escapeHtml(title)}</h1><p class="subtitle">טווח תאריכים: ${escapeHtml(dateRange)}</p>${blocks}<p class="footer">לפני כל יום פעילות, נדרש לאשר את קיום הפעילות מול איש הקשר של בית הספר לפחות 48 שעות מראש.</p>`;
+  return `<div class="ops-print-page"><h1>${escapeHtml(title)}</h1><p class="subtitle">טווח תאריכים: ${escapeHtml(dateRange)}</p>${blocks}<p class="footer">לפני כל יום פעילות, נדרש לאשר את קיום הפעילות מול איש הקשר של בית הספר לפחות 48 שעות מראש.</p></div>`;
 }
 
 function printInstructorSchedule() {
@@ -795,17 +795,18 @@ function printInstructorSchedule() {
     : 'סידור עבודה';
   const css = `
     body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:10px 14px;color:#111;background:#fff;font-size:11px;line-height:1.3}
+    .ops-print-page{width:80%;margin:0 auto}
     h1{margin:0 0 2px;font-size:14px;color:#0f172a}.subtitle{margin:0 0 8px;color:#475569;font-size:10.5px}
-    .pb{border:1px solid #cfd8dc;padding:5px 8px;margin-bottom:6px;page-break-inside:avoid;break-inside:avoid}
+    .pb{border:1px solid #cfd8dc;padding:5px 8px;margin:0 auto 6px auto;page-break-inside:avoid;break-inside:avoid}
     .pb-hdr{margin-bottom:3px}
     .pb-date{font-weight:700;font-size:11.5px;color:#0369a1;margin-left:6px}
-    .pb-meta{font-size:10.5px;color:#334155;display:block;line-height:1.25;margin-top:1px}
+    .pb-meta{font-size:10.5px;color:#334155;display:block;line-height:1.25;margin-top:1px;text-align:center}
     table{border-collapse:collapse;margin:0}
-    .pb-act{width:60%;margin-inline-start:auto;margin-inline-end:auto}
+    .pb-act{width:60%;margin:0 auto}
     .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 5px;text-align:right;font-size:10.5px;line-height:1.2;white-space:nowrap}
     .pb-act th{background:#e6f6fb;font-weight:700}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
-    .footer{margin-top:10px;font-size:10px;color:#64748b}
+    .footer{margin-top:10px;font-size:10px;color:#64748b;text-align:center}
     @page{size:A4 portrait;margin:8mm}
     @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}}
   `;
