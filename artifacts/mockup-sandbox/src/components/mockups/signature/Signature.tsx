@@ -17,6 +17,7 @@ export function Signature() {
   const [sigGap, setSigGap] = useState(28);
   const [sigFontSize, setSigFontSize] = useState(8.5);
   const [sigAlign, setSigAlign] = useState<Align>("flex-start");
+  const [sigOffset, setSigOffset] = useState(0); // px מהקצה הימני
 
   const alignLabel: Record<Align, string> = {
     "flex-start": "ימין",
@@ -71,7 +72,7 @@ export function Signature() {
               <Row label={`פונט: ${sigFontSize}pt`}>
                 <input type="range" min={7} max={14} step={0.5} value={sigFontSize} onChange={e => setSigFontSize(Number(e.target.value))} style={{ width: "100%" }} />
               </Row>
-              <Row label="מיקום:">
+              <Row label="עוגן:">
                 <div style={{ display: "flex", gap: 4 }}>
                   {(["flex-start", "center", "flex-end"] as Align[]).map(a => (
                     <button key={a} onClick={() => setSigAlign(a)} style={{
@@ -83,6 +84,11 @@ export function Signature() {
                     }}>{alignLabel[a]}</button>
                   ))}
                 </div>
+              </Row>
+              <Row label={`הזזה: ${sigOffset > 0 ? "←" : sigOffset < 0 ? "→" : "•"} ${Math.abs(sigOffset)}px`}>
+                <input type="range" min={-300} max={300} value={sigOffset}
+                  onChange={e => setSigOffset(Number(e.target.value))}
+                  style={{ width: "100%" }} />
               </Row>
             </div>
           </div>
@@ -146,7 +152,7 @@ export function Signature() {
           <p style={{ margin: 0, marginBottom: sigGap + "pt", textAlign: "right", direction: "rtl", fontSize: "9pt" }}>
             {greeting}
           </p>
-          <div className="sig-block">
+          <div className="sig-block" style={{ transform: `translateX(${sigOffset}px)` }}>
             <div className="sig-line" />
             <p className="sig-name" style={{ fontSize: sigFontSize + "pt" }}>{sigName}</p>
           </div>
