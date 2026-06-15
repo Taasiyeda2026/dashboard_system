@@ -156,51 +156,34 @@ function firstHebrewLetter(str) {
   return HE_ALPHA.includes(ch) ? ch : '#';
 }
 
-function groupByAuthorityThenSchool(rows) {
+function groupByAuthorityStructured(rows) {
   const authMap = new Map();
   for (const row of rows) {
     const authority = String(row.authority || row.client_name || '').trim() || '—';
-    if (!authMap.has(authority)) authMap.set(authority, []);
-    authMap.get(authority).push(row);
-  }
-  const sorted = new Map([...authMap.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he')));
-  const result = new Map();
-  sorted.forEach((authRows, authority) => {
-    const schoolMap = new Map();
-    for (const row of authRows) {
-      const isAuthorityType = String(row.client_type || '').trim() === 'authority' || !String(row.school || '').trim();
-      if (isAuthorityType) {
-        if (!schoolMap.has('__direct__')) schoolMap.set('__direct__', []);
-        schoolMap.get('__direct__').push(row);
-      } else {
-        const school = String(row.school || '').trim() || '—';
-        if (!schoolMap.has(school)) schoolMap.set(school, []);
-        schoolMap.get(school).push(row);
-      }
+    if (!authMap.has(authority)) authMap.set(authority, { schools: new Map(), authority: [], other: [] });
+    const bucket = authMap.get(authority);
+    const clientType = String(row.client_type || '').trim();
+    const schoolName = String(row.school || '').trim();
+    if (clientType === 'other') {
+      bucket.other.push(row);
+    } else if (schoolName && clientType !== 'authority') {
+      if (!bucket.schools.has(schoolName)) bucket.schools.set(schoolName, []);
+      bucket.schools.get(schoolName).push(row);
+    } else {
+      bucket.authority.push(row);
     }
-    result.set(authority, new Map([...schoolMap.entries()].sort((a, b) => {
-      if (a[0] === '__direct__') return -1;
-      if (b[0] === '__direct__') return 1;
-      return a[0].localeCompare(b[0], 'he');
-    })));
-  });
-  return result;
+  }
+  return new Map([...authMap.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he')));
 }
 
-function groupByLetter(authorityGroupsMap) {
-  const letterMap = new Map();
-  authorityGroupsMap.forEach((schoolsMap, authority) => {
-    const letter = firstHebrewLetter(authority);
-    if (!letterMap.has(letter)) letterMap.set(letter, new Map());
-    letterMap.get(letter).set(authority, schoolsMap);
-  });
-  return letterMap;
-}
-
-function renderSchoolCard(schoolName, rows) {
+function renderSchoolAccordion(schoolName, rows) {
   const personsHtml = rows.map(schoolPersonHtml).filter(Boolean).join('');
   if (!personsHtml) return '';
+  const semelMosad = rows.map((r) => String(r.semel_mosad || '').trim()).find(Boolean);
   const countLabel = rows.length === 1 ? '1 איש קשר' : `${rows.length} אנשי קשר`;
+  const metaHtml = semelMosad
+    ? `<div class="sc-school-meta"><span class="sc-school-meta__label">סמל מוסד:</span> <span class="sc-school-meta__val">${escapeHtml(semelMosad)}</span></div>`
+    : '';
   return `<details class="sc-card">
     <summary class="sc-card__head">
       <span class="sc-card__chevron" aria-hidden="true">›</span>
@@ -209,31 +192,59 @@ function renderSchoolCard(schoolName, rows) {
       <span class="sc-card__count">${escapeHtml(countLabel)}</span>
     </summary>
     <div class="sc-card__body">
-      <div class="sc-contact-section-title">אנשי קשר</div>
+      ${metaHtml}
       <div class="sc-contact-list">${personsHtml}</div>
     </div>
   </details>`;
 }
 
-function renderAuthorityGroup(authority, schoolsMap) {
-  let directPersonsHtml = '';
+function renderAuthorityAccordion(authority, bucket) {
+  const { schools, authority: authContacts, other } = bucket;
   let schoolsHtml = '';
-  schoolsMap.forEach((rows, schoolName) => {
-    if (schoolName === '__direct__') {
-      directPersonsHtml = rows.map(schoolPersonHtml).filter(Boolean).join('');
-    } else {
-      schoolsHtml += renderSchoolCard(schoolName, rows);
-    }
-  });
-  if (!directPersonsHtml && !schoolsHtml) return '';
-  return `<div class="sc-authority-group">
-    <div class="sc-authority-head">
+  const sortedSchools = [...schools.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he'));
+  sortedSchools.forEach(([schoolName, rows]) => { schoolsHtml += renderSchoolAccordion(schoolName, rows); });
+  const authPersonsHtml = authContacts.map(schoolPersonHtml).filter(Boolean).join('');
+  const otherPersonsHtml = other.map(schoolPersonHtml).filter(Boolean).join('');
+  if (!schoolsHtml && !authPersonsHtml && !otherPersonsHtml) return '';
+
+  let totalContacts = authContacts.length + other.length;
+  schools.forEach((rows) => { totalContacts += rows.length; });
+  const schoolCount = schools.size;
+  const badges = [
+    schoolCount > 0 ? `${schoolCount} ביה"ס` : '',
+    totalContacts > 0 ? `${totalContacts} אנשי קשר` : ''
+  ].filter(Boolean).join(' · ');
+
+  const schoolsSection = schoolsHtml
+    ? `<section class="sc-sub-group sc-sub-group--schools">
+        <div class="sc-sub-group__title"><span aria-hidden="true">🏫</span> בתי ספר <span class="sc-sub-group__count">${schoolCount}</span></div>
+        <div class="sc-school-stack">${schoolsHtml}</div>
+      </section>`
+    : '';
+  const authoritySection = authPersonsHtml
+    ? `<section class="sc-sub-group sc-sub-group--authority">
+        <div class="sc-sub-group__title"><span aria-hidden="true">🏛️</span> רשות <span class="sc-sub-group__count">${authContacts.length}</span></div>
+        <div class="sc-contact-list">${authPersonsHtml}</div>
+      </section>`
+    : '';
+  const otherSection = otherPersonsHtml
+    ? `<section class="sc-sub-group sc-sub-group--other">
+        <div class="sc-sub-group__title"><span aria-hidden="true">📋</span> אחר <span class="sc-sub-group__count">${other.length}</span></div>
+        <div class="sc-contact-list">${otherPersonsHtml}</div>
+      </section>`
+    : '';
+
+  return `<details class="sc-authority-accordion">
+    <summary class="sc-authority-head sc-authority-head--accordion">
+      <span class="sc-card__chevron" aria-hidden="true">›</span>
       <span class="sc-authority-icon" aria-hidden="true">🏛️</span>
       <span class="sc-authority-name">${escapeHtml(authority)}</span>
+      ${badges ? `<span class="sc-authority-badges">${escapeHtml(badges)}</span>` : ''}
+    </summary>
+    <div class="sc-authority-body">
+      ${schoolsSection}${authoritySection}${otherSection}
     </div>
-    ${directPersonsHtml ? `<div class="sc-contact-list">${directPersonsHtml}</div>` : ''}
-    ${schoolsHtml ? `<div class="sc-school-stack">${schoolsHtml}</div>` : ''}
-  </div>`;
+  </details>`;
 }
 
 function selectOptionsHtml(values, selected = '', placeholder = '—') {
@@ -296,15 +307,6 @@ function schoolFormHtml(row = {}) {
   `;
 }
 
-function renderLetterSection(letter, authoritiesMap) {
-  let authHtml = '';
-  authoritiesMap.forEach((schoolsMap, authority) => { authHtml += renderAuthorityGroup(authority, schoolsMap); });
-  if (!authHtml) return '';
-  return `<div class="sc-letter-section" data-letter-section="${escapeHtml(letter)}" hidden>
-    <div class="sc-card-list">${authHtml}</div>
-  </div>`;
-}
-
 function activeContactRows(tab, instrRows, schoolRows) {
   return tab === 'instr' ? instrRows : schoolRows;
 }
@@ -318,18 +320,47 @@ function contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr = tru
 function schoolTabHtml(rows, filters) {
   const filtered = applyLocalFilters(rows, filters, { filterFields: [] });
   if (filtered.length === 0) return { filtered, body: contactEmptyState(rows, filters) };
-  const authorityGroups = groupByAuthorityThenSchool(filtered);
-  const byLetter = groupByLetter(authorityGroups);
 
-  const alphaBtns = [...byLetter.keys()].map((letter) =>
+  const authorityMap = groupByAuthorityStructured(filtered);
+
+  let totalSchools = 0;
+  authorityMap.forEach((bucket) => { totalSchools += bucket.schools.size; });
+  const summaryHtml = `<div class="sc-summary-bar" dir="rtl">
+    <span class="sc-summary-bar__item">רשויות: <strong>${authorityMap.size}</strong></span>
+    <span class="sc-summary-bar__sep" aria-hidden="true">·</span>
+    <span class="sc-summary-bar__item">בתי ספר: <strong>${totalSchools}</strong></span>
+    <span class="sc-summary-bar__sep" aria-hidden="true">·</span>
+    <span class="sc-summary-bar__item">אנשי קשר: <strong>${filtered.length}</strong></span>
+  </div>`;
+
+  const letterMap = new Map();
+  authorityMap.forEach((_, authority) => {
+    const letter = firstHebrewLetter(authority);
+    if (!letterMap.has(letter)) letterMap.set(letter, []);
+    letterMap.get(letter).push(authority);
+  });
+
+  const alphaBtns = [...letterMap.keys()].map((letter) =>
     `<button type="button" class="sc-alpha-btn" data-alpha-btn="${escapeHtml(letter)}" aria-expanded="false">${escapeHtml(letter)}</button>`
   ).join('');
   const alphaBar = `<div class="sc-alpha-bar" role="toolbar" aria-label="אלפון א-ת" dir="rtl">${alphaBtns}</div>`;
 
-  let sectionsHtml = '';
-  byLetter.forEach((authoritiesMap, letter) => { sectionsHtml += renderLetterSection(letter, authoritiesMap); });
+  const letterSections = new Map();
+  authorityMap.forEach((bucket, authority) => {
+    const letter = firstHebrewLetter(authority);
+    if (!letterSections.has(letter)) letterSections.set(letter, '');
+    letterSections.set(letter, letterSections.get(letter) + renderAuthorityAccordion(authority, bucket));
+  });
 
-  return { filtered, body: `${alphaBar}${sectionsHtml}` };
+  let sectionsHtml = '';
+  letterSections.forEach((authHtml, letter) => {
+    if (!authHtml) return;
+    sectionsHtml += `<div class="sc-letter-section" data-letter-section="${escapeHtml(letter)}" hidden>
+      <div class="sc-auth-accordion-list">${authHtml}</div>
+    </div>`;
+  });
+
+  return { filtered, body: `${summaryHtml}${alphaBar}${sectionsHtml}` };
 }
 
 /* ─── Screen ─── */
@@ -368,7 +399,7 @@ export const contactsScreen = {
 
     searchInput = filtersToolbarHtml(CONTACTS_SCOPE, activeContactRows(tab, instrRows, schoolRows), state, {
       searchPlaceholder: 'חיפוש לפי שם / תפקיד / טלפון / מייל / רשות / בית ספר…',
-      filterFields: ['authority', 'school', 'client_type', 'contact_name'],
+      filterFields: ['authority', 'school', 'client_type', 'contact_name', 'semel_mosad', 'contact_role'],
       search: true
     });
 
