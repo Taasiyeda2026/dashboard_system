@@ -1,0 +1,38 @@
+.sig-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* RTL flex-start = physical right */
+  direction: rtl;
+}
+
+.sig-greeting {
+  text-align: right;
+  direction: rtl;
+  margin: 0;
+  font-size: 10pt;
+  color: #222;
+}
+
+/* block: width = exact text width */
+.sig-block {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  direction: ltr;
+  align-self: flex-start;
+}
+
+.sig-line {
+  width: 100%;
+  height: 1px;
+  background: #222;
+  margin-bottom: 3px;
+}
+
+.sig-name {
+  text-align: left;
+  direction: ltr;
+  margin: 0;
+  white-space: nowrap;
+  color: #222;
+}
