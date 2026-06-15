@@ -1505,7 +1505,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   return `
     <div class="proposal-document" dir="rtl">
       <div class="proposal-document-header">
-        <div class="proposal-header-left">
+        <div class="proposal-header-brand">
           <img
             src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
             alt="לוגו תעשיידע"
@@ -1516,19 +1516,21 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           >
           ${dateDisplay ? `<div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>` : ''}
         </div>
-      </div>
-      <div class="proposal-document-body">
         ${recipientBlockHtml(row)}
-        <hr class="pa-doc-divider">
-        ${title ? `<h1 class="pa-doc-subject">${escapeHtml(title)}</h1>` : ''}
-        ${introText ? sectionLines(introText, { className: 'pa-doc-intro' }) : ''}
-        ${sections.join('')}
-        ${orgResponsibility}
-        ${schoolResponsibility}
-        ${paymentTerms}
-        ${changesCancellation}
-        ${remarks}
-        ${signatureHtml}
+      </div>
+      <hr class="pa-doc-divider">
+      <div class="proposal-document-body">
+        <div class="proposal-document-content">
+          ${title ? `<h1 class="pa-doc-subject">${escapeHtml(title)}</h1>` : ''}
+          ${introText ? sectionLines(introText, { className: 'pa-doc-intro' }) : ''}
+          ${sections.join('')}
+          ${orgResponsibility}
+          ${schoolResponsibility}
+          ${paymentTerms}
+          ${changesCancellation}
+          ${remarks}
+          ${signatureHtml}
+        </div>
       </div>
       <div class="proposal-document-footer">
         <img
@@ -1617,8 +1619,11 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   const paymentTermsBody = sectionBody('payment_terms');
   const costTableHtml = proposalCostTableHtml(items);
   const costsIntro = costsIntroBody(row, items);
-  const paymentTerms = (paymentTermsBody || costTableHtml || costsIntro)
-    ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</section>`
+  const costTableBlock = (costsIntro || costTableHtml)
+    ? `<div class="pa-cost-table-block">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>`
+    : '';
+  const paymentTerms = (paymentTermsBody || costTableBlock)
+    ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}${costTableBlock}</section>`
     : '';
 
   const signatureHtml = signatureSectionHtml(sectionBody('signature'));

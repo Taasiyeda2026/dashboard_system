@@ -11540,38 +11540,40 @@ select.ds-input {
   max-width: 100%;
   min-height: 1123px;
   font-family: Arial, "Noto Sans Hebrew", "David", sans-serif;
-  font-size: 8.5pt;
-  line-height: 1.4;
+  font-size: 9pt;
+  line-height: 1.35;
   letter-spacing: 0.1px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
   border-radius: 2px;
   display: flex;
   flex-direction: column;
-  padding: 32px 36px 16px;
+  padding: 24px 40px 16px;
   box-sizing: border-box;
 }
 .proposal-document-header {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: flex-start;
+  gap: 16px;
   direction: ltr;
   width: 100%;
-  margin-bottom: 10px;
-  padding-top: 5mm;
+  margin-bottom: 4pt;
+  padding-top: 0;
 }
-.proposal-header-left {
+.proposal-header-brand {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  width: 320px;
+  flex: 0 0 auto;
+  max-width: 42%;
 }
 .proposal-logo {
-  width: 320px;
-  max-width: 100%;
+  width: auto;
+  max-width: 165px;
+  max-height: 52px;
   height: auto;
   object-fit: contain;
   display: block;
-  margin-left: 0;
 }
 .proposal-document-body {
   flex: 1 1 auto;
@@ -11580,6 +11582,11 @@ select.ds-input {
   min-height: 0;
   overflow-wrap: anywhere;
   word-break: normal;
+}
+.proposal-document-content {
+  width: 100%;
+  max-width: 148mm;
+  margin-inline: auto;
 }
 .proposal-document-footer {
   width: 100%;
@@ -11592,29 +11599,27 @@ select.ds-input {
   width: 100%;
   height: auto;
   max-width: none;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
   opacity: 1;
 }
 
 /* ── Signature ────────────────────────────────────────────────────── */
-/* Inline-flow block after the last section ("בברכה," + name from Supabase).
-   "בברכה" centered; name left-aligned. Never absolute/fixed. */
 .proposal-signature {
-  margin: 10pt 0 2pt;
+  margin: 14pt 0 4pt;
   display: block;
   direction: rtl;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 .proposal-signature-greeting {
-  margin: 0 0 10pt;
-  font-size: 8.5pt;
+  margin: 0 0 6pt;
+  font-size: 9pt;
   color: #111827;
   text-align: center;
 }
 .proposal-signature-name {
-  margin: 3pt 0 0;
+  margin: 2pt 0 0;
   font-size: 9pt;
   font-weight: 700;
   color: #111827;
@@ -11622,47 +11627,51 @@ select.ds-input {
   direction: ltr;
 }
 .proposal-signature-line {
-  width: 52mm;
-  border-top: 1px solid #111827;
-  margin: 0;
+  width: 48mm;
+  max-width: 100%;
+  border-top: 1px solid #374151;
+  margin: 0 0 2pt;
   margin-inline-start: auto;
 }
 .pa-doc-date {
   text-align: left;
   direction: ltr;
-  font-size: 7.5pt;
-  color: #374151;
-  margin-top: 4px;
-  margin-left: 0;
-  margin-right: 0;
-  transform: translateX(10mm);
+  font-size: 7pt;
+  color: #6b7280;
+  margin-top: 3pt;
 }
 .pa-doc-address {
-  margin: 0 0 6pt;
-  font-size: 9.5pt;
-  line-height: 1.4;
+  direction: rtl;
   text-align: right;
+  margin: 0;
+  font-size: 9pt;
+  line-height: 1.35;
+  flex: 1 1 auto;
+  min-width: 0;
 }
-.pa-doc-address p { margin: 0; }
+.pa-doc-address p { margin: 0 0 1pt; }
 .pa-doc-divider {
   border: none;
-  border-top: 1px solid #1f4e79;
-  margin: 8pt 0 10pt;
+  border-top: 1px solid #c5d5e8;
+  margin: 6pt 0 8pt;
+  width: 100%;
+  max-width: 148mm;
+  margin-inline: auto;
 }
 .pa-doc-subject {
-  margin: 12pt 0 10pt;
+  margin: 8pt 0 8pt;
   color: #1f4e79;
-  font-size: 11.5pt;
+  font-size: 12pt;
   font-weight: 700;
   text-decoration: none;
-  line-height: 1.4;
+  line-height: 1.35;
   text-align: center;
   letter-spacing: 0.2px;
 }
 .pa-section {
-  margin: 7pt 0 4pt;
-  break-inside: avoid;
-  page-break-inside: avoid;
+  margin: 6pt 0 3pt;
+  break-inside: auto;
+  page-break-inside: auto;
 }
 .pa-section h3 {
   font-size: 10pt;
@@ -11671,42 +11680,45 @@ select.ds-input {
   font-weight: 700;
   text-decoration: none;
   color: #1f4e79;
-  margin: 0 0 4pt;
-  line-height: 1.4;
+  margin: 0 0 3pt;
+  line-height: 1.35;
   letter-spacing: 0.15px;
-  padding: 0;
+  padding: 0 0 2pt;
   border: 0;
+  border-bottom: 1px solid #d0daea;
   background: transparent;
+  text-align: right;
 }
 .pa-doc-intro,
 .pa-section-body {
-  font-size: 9.5pt;
-  line-height: 1.4;
+  font-size: 9pt;
+  line-height: 1.35;
   letter-spacing: 0.15px;
-  margin: 0 0 4pt;
+  margin: 0 0 3pt;
+  text-align: right;
 }
 .pa-section-body {
   margin: 0;
 }
 .proposal-document .pa-section-body p,
 .proposal-document .pa-doc-intro p {
-  margin: 0 0 6px;
+  margin: 0 0 4pt;
 }
 .proposal-document .pa-section-body ul,
 .proposal-document .pa-doc-intro ul {
-  margin: 6px 0 10px;
+  margin: 2pt 0 4pt;
   padding-inline-start: 0;
   list-style: none;
 }
 .proposal-document .pa-section-body ol,
 .proposal-document .pa-doc-intro ol {
-  margin: 6px 0 10px;
+  margin: 2pt 0 4pt;
   padding-inline-start: 22px;
 }
 .proposal-document .pa-section-body li,
 .proposal-document .pa-doc-intro li {
-  margin: 0 0 7px;
-  line-height: 1.4;
+  margin: 0 0 2pt;
+  line-height: 1.35;
   white-space: normal;
   word-break: break-word;
   break-inside: avoid;
@@ -11715,7 +11727,7 @@ select.ds-input {
 .proposal-document .pa-section-body ul li,
 .proposal-document .pa-doc-intro ul li {
   position: relative;
-  padding-inline-start: 22px;
+  padding-inline-start: 18px;
 }
 .proposal-document .pa-section-body ul li::before,
 .proposal-document .pa-doc-intro ul li::before {
@@ -11730,23 +11742,38 @@ select.ds-input {
 .pa-proposal-lines {
   margin-top: 2pt;
 }
-/* Legacy wrapper: the signature is no longer pushed to the bottom of the page. */
 .pa-doc-bottom {
   margin: 0;
   width: 100%;
 }
 /* ── Cost / payment table (built from proposal_agreement_items) ───── */
+.pa-costs-intro-heading {
+  font-weight: 700;
+  font-size: 10pt;
+  color: #1f4e79;
+  text-align: right;
+  margin: 6pt 0 4pt;
+  line-height: 1.35;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.pa-cost-table-block {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.pa-cost-section .pa-section-body p { margin-bottom: 2pt; }
 .pa-cost-table {
-  width: 90%;
-  max-width: 620px;
+  width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
-  font-size: 9.5pt;
-  margin: 4pt 0 7pt auto;
+  font-size: 9pt;
+  margin: 2pt 0 4pt;
+  direction: rtl;
 }
 .pa-cost-table th,
 .pa-cost-table td {
-  border: 1px solid #cbd5e1;
-  padding: 3pt 6pt;
+  border: 1px solid #c5d0dc;
+  padding: 3pt 5pt;
   text-align: right;
   vertical-align: top;
 }
@@ -11756,13 +11783,21 @@ select.ds-input {
   font-weight: 700;
 }
 .pa-cost-table th:first-child,
-.pa-cost-table td:first-child { width: 58%; }
+.pa-cost-table td:first-child { width: 50%; }
 .pa-cost-table th:nth-child(2),
 .pa-cost-table td:nth-child(2) { width: 12%; text-align: center; }
 .pa-cost-table th:nth-child(3),
 .pa-cost-table td:nth-child(3),
 .pa-cost-table th:nth-child(4),
-.pa-cost-table td:nth-child(4) { width: 15%; white-space: nowrap; }
+.pa-cost-table td:nth-child(4) { width: 19%; white-space: nowrap; text-align: left; direction: ltr; }
+.pa-cost-table tfoot td {
+  font-weight: 700;
+  background: #f8fbff;
+}
+.pa-cost-table tfoot td:last-child {
+  text-align: left;
+  direction: ltr;
+}
 .pa-item-details-table {
   width: 92%;
   max-width: 660px;
@@ -11784,11 +11819,6 @@ select.ds-input {
 }
 .pa-item-details-table th:first-child,
 .pa-item-details-table td:first-child { width: 36%; }
-.pa-cost-section .pa-section-body p { margin-bottom: 3pt; }
-.pa-cost-table tfoot td {
-  font-weight: 700;
-  background: #f8fbff;
-}
 .pa-cost-bundle-detail {
   margin: 2pt 0 0;
   padding-inline-start: 12pt;
@@ -11851,11 +11881,19 @@ select.ds-input {
   .proposal-document {
     width: calc(100vw - 8px);
     min-height: auto;
-    padding: 24px 18px 24px;
+    padding: 20px 16px 20px;
+  }
+  .proposal-document-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .proposal-header-brand {
+    max-width: 100%;
   }
   .proposal-logo {
-    width: 200px;
-    max-width: 48%;
+    max-width: 140px;
+    max-height: 44px;
   }
 }
 
@@ -11931,7 +11969,7 @@ select.ds-input {
     min-height: 297mm !important;
     height: auto !important;
     margin: 0 !important;
-    padding: 10mm 12mm 6mm !important;
+    padding: 12mm 18mm 8mm !important;
     box-shadow: none !important;
     border: none !important;
     border-radius: 0 !important;
@@ -11939,8 +11977,8 @@ select.ds-input {
     color: #000 !important;
     direction: rtl !important;
     font-family: Arial, "Noto Sans Hebrew", "David", sans-serif !important;
-    font-size: 8.5pt !important;
-    line-height: 1.4 !important;
+    font-size: 9pt !important;
+    line-height: 1.35 !important;
     letter-spacing: 0.1px !important;
     display: block !important;
     box-sizing: border-box !important;
@@ -11948,41 +11986,39 @@ select.ds-input {
     print-color-adjust: exact;
   }
 
-  /* Header — normal flow (same as screen) */
+  /* Header — compact logo/date left, לכבוד right */
   .proposal-document-header {
     position: static !important;
-    height: auto !important;
     display: flex !important;
-    justify-content: flex-start !important;
+    justify-content: space-between !important;
     align-items: flex-start !important;
-    padding-top: 5mm !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    padding-bottom: 0 !important;
-    background: transparent !important;
+    gap: 12px !important;
     direction: ltr !important;
-    margin-bottom: 16px !important;
+    padding: 0 !important;
+    margin-bottom: 3pt !important;
+    background: transparent !important;
   }
-  .proposal-header-left {
+  .proposal-header-brand {
     display: flex !important;
     flex-direction: column !important;
     align-items: flex-start !important;
+    max-width: 42% !important;
   }
   .proposal-logo {
-    width: 300px !important;
-    max-width: 100% !important;
+    width: auto !important;
+    max-width: 40mm !important;
+    max-height: 14mm !important;
     height: auto !important;
     object-fit: contain !important;
     display: block !important;
-    margin-left: 0 !important;
   }
 
-  /* Footer — reserved inside the proposal page, never pushed alone to a blank page */
+  /* Footer — fixed at bottom of each printed page */
   .proposal-document-footer {
-    position: absolute !important;
-    right: 12mm !important;
-    left: 12mm !important;
-    bottom: 6mm !important;
+    position: fixed !important;
+    right: 18mm !important;
+    left: 18mm !important;
+    bottom: 5mm !important;
     width: auto !important;
     height: auto !important;
     padding: 0 !important;
@@ -11997,20 +12033,25 @@ select.ds-input {
   .proposal-footer-logo {
     width: 100% !important;
     height: auto !important;
-    max-height: 24mm !important;
+    max-height: 20mm !important;
     max-width: none !important;
     object-fit: contain !important;
     display: block !important;
     opacity: 1 !important;
   }
 
-  /* Body — normal block flow, no flex stretching */
+  /* Body — centered readable column, room for footer */
   .proposal-document-body {
     display: block !important;
     flex: none !important;
-    padding: 0 0 25mm !important;
+    padding: 0 0 22mm !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
+  }
+  .proposal-document-content {
+    width: 100% !important;
+    max-width: 148mm !important;
+    margin-inline: auto !important;
   }
   .pa-doc-bottom {
     margin: 0 !important;
@@ -12022,38 +12063,37 @@ select.ds-input {
     text-align: left !important;
     direction: ltr !important;
     line-height: 1.3 !important;
-    color: #374151 !important;
-    margin-top: 3pt !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    transform: translateX(10mm) !important;
+    color: #6b7280 !important;
+    margin-top: 2pt !important;
   }
   .pa-doc-address {
-    text-align: right !important;
     direction: rtl !important;
-    font-size: 9.5pt !important;
-    line-height: 1.4 !important;
-    margin-bottom: 4pt !important;
+    text-align: right !important;
+    font-size: 9pt !important;
+    line-height: 1.35 !important;
+    margin: 0 !important;
     overflow-wrap: anywhere !important;
   }
-  .pa-doc-address p { margin: 0 !important; }
+  .pa-doc-address p { margin: 0 0 1pt !important; }
   .pa-doc-divider {
     border: none !important;
-    border-top: 1px solid #1f4e79 !important;
-    margin: 8pt 0 10pt !important;
+    border-top: 1px solid #c5d5e8 !important;
+    margin: 5pt auto 7pt !important;
+    width: 100% !important;
+    max-width: 148mm !important;
   }
   .pa-doc-subject {
     text-align: center !important;
-    font-size: 11pt !important;
+    font-size: 12pt !important;
     font-weight: 700 !important;
     color: #1f4e79 !important;
     text-decoration: none !important;
-    margin: 10pt 0 8pt !important;
-    line-height: 1.4 !important;
+    margin: 6pt 0 7pt !important;
+    line-height: 1.35 !important;
     overflow-wrap: anywhere !important;
   }
   .pa-section {
-    margin: 6pt 0 3pt !important;
+    margin: 5pt 0 2pt !important;
     break-inside: auto !important;
     page-break-inside: auto !important;
   }
@@ -12065,39 +12105,41 @@ select.ds-input {
     text-decoration: none !important;
     color: #1f4e79 !important;
     margin: 0 0 2pt !important;
-    line-height: 1.4 !important;
+    line-height: 1.35 !important;
     padding-bottom: 2pt !important;
-    border-bottom: 1px solid #d8e5f2 !important;
+    border-bottom: 1px solid #d0daea !important;
+    text-align: right !important;
   }
   .pa-doc-intro,
   .pa-section-body,
   .pa-proposal-lines {
-    font-size: 9.5pt !important;
-    line-height: 1.4 !important;
+    font-size: 9pt !important;
+    line-height: 1.35 !important;
     color: #000 !important;
+    text-align: right !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
   }
   .proposal-document .pa-section-body p,
   .proposal-document .pa-doc-intro p {
-    margin: 0 0 4pt !important;
+    margin: 0 0 3pt !important;
     overflow-wrap: anywhere !important;
   }
   .proposal-document .pa-section-body ul,
   .proposal-document .pa-doc-intro ul {
-    margin: 4pt 0 8pt !important;
+    margin: 2pt 0 4pt !important;
     padding-inline-start: 0 !important;
     list-style: none !important;
   }
   .proposal-document .pa-section-body ol,
   .proposal-document .pa-doc-intro ol {
-    margin: 4pt 0 8pt !important;
+    margin: 2pt 0 4pt !important;
     padding-inline-start: 22px !important;
   }
   .proposal-document .pa-section-body li,
   .proposal-document .pa-doc-intro li {
-    margin: 0 0 6pt !important;
-    line-height: 1.4 !important;
+    margin: 0 0 2pt !important;
+    line-height: 1.35 !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
     break-inside: avoid !important;
@@ -12106,7 +12148,7 @@ select.ds-input {
   .proposal-document .pa-section-body ul li,
   .proposal-document .pa-doc-intro ul li {
     position: relative !important;
-    padding-inline-start: 22px !important;
+    padding-inline-start: 18px !important;
   }
   .proposal-document .pa-section-body ul li::before,
   .proposal-document .pa-doc-intro ul li::before {
@@ -12118,30 +12160,71 @@ select.ds-input {
     font-weight: 400 !important;
     color: inherit !important;
   }
+  .pa-costs-intro-heading {
+    font-weight: 700 !important;
+    font-size: 10pt !important;
+    color: #1f4e79 !important;
+    text-align: right !important;
+    margin: 5pt 0 3pt !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+  .pa-cost-table-block {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .pa-cost-table {
+    width: 100% !important;
+    margin: 2pt 0 4pt !important;
+    font-size: 9pt !important;
+  }
+  .pa-cost-table th,
+  .pa-cost-table td {
+    border: 1px solid #c5d0dc !important;
+    padding: 3pt 5pt !important;
+  }
+  .pa-cost-table thead th {
+    background: #eef4fa !important;
+    color: #1f4e79 !important;
+  }
+  .pa-cost-table tfoot td {
+    font-weight: 700 !important;
+    background: #f8fbff !important;
+  }
   .proposal-signature,
   .ds-pa-doc-signature {
+    position: static !important;
+    margin: 12pt 0 4pt !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
   .proposal-signature-greeting {
     text-align: center !important;
-    margin: 0 0 8pt !important;
+    margin: 0 0 5pt !important;
+    font-size: 9pt !important;
+  }
+  .proposal-signature-line {
+    width: 48mm !important;
+    max-width: 100% !important;
+    margin: 0 0 2pt !important;
+    margin-inline-start: auto !important;
   }
   .proposal-signature-name {
     text-align: left !important;
     direction: ltr !important;
+    font-size: 9pt !important;
   }
   .pa-proposal-lines ul {
     list-style: none !important;
     padding-inline-start: 0 !important;
-    margin: 2pt 0 6pt !important;
+    margin: 2pt 0 4pt !important;
   }
   .pa-proposal-lines ul li {
     position: relative !important;
     padding-inline-start: 14pt !important;
-    margin: 3pt 0 !important;
-    line-height: 1.4 !important;
-    font-size: 9.5pt !important;
+    margin: 2pt 0 !important;
+    line-height: 1.35 !important;
+    font-size: 9pt !important;
     color: #000 !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
@@ -12150,9 +12233,9 @@ select.ds-input {
     content: '•' !important;
     position: absolute !important;
     inset-inline-start: 1px !important;
-    font-size: 12pt !important;
+    font-size: 11pt !important;
     line-height: 1.3 !important;
-    font-weight: 900 !important;
+    font-weight: 700 !important;
     color: #1f4e79 !important;
   }
 
@@ -15203,41 +15286,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   border-radius: 999px;
   background: #fff;
 }
-.proposal-logo {
-  width: auto;
-  max-width: 165px;
-  max-height: 58px;
-  height: auto;
-  object-fit: contain;
-}
-.proposal-header-left { width: auto; min-width: 165px; }
-.proposal-signature {
-  width: 100%;
-  margin-inline-start: 0;
-  margin-top: auto;
-}
-.proposal-signature-line {
-  width: 52mm;
-  margin: 0;
-  margin-inline-start: auto;
-}
-.proposal-signature-name {
-  text-align: left;
-  direction: ltr;
-}
-@media print {
-  .proposal-logo {
-    width: auto !important;
-    max-width: 42mm !important;
-    max-height: 16mm !important;
-    height: auto !important;
-    object-fit: contain !important;
-  }
-  .proposal-header-left { width: auto !important; min-width: 42mm !important; }
-  .proposal-signature { width: 100% !important; margin-top: 8pt !important; margin-inline-start: 0 !important; }
-  .proposal-signature-line { width: 52mm !important; margin: 0 !important; margin-inline-start: auto !important; }
-  .proposal-signature-name { text-align: left !important; direction: ltr !important; }
-}
 @media (max-width: 900px) {
   .ds-pa-form { width: 100%; padding: 12px; }
   .ds-pa-form--compact { padding: 12px; }
@@ -15249,241 +15297,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-pa-client-results[hidden],
 [data-pa-contact-picker-host]:empty {
   display: none !important;
-}
-
-/* ── Proposal document: font -1pt, paragraph spacing, signature & table fixes ── */
-
-/* Font size: base document -0.5pt (8.5→8) */
-.proposal-document { font-size: 8pt; }
-
-/* Body text -0.5pt (9.5→9) */
-.pa-doc-intro,
-.pa-section-body { font-size: 9pt; }
-
-.pa-section h3 { font-size: 9.5pt; }
-.pa-doc-subject { font-size: 11pt; }
-.pa-doc-address { font-size: 9pt; }
-.pa-cost-table { font-size: 9pt; }
-
-.pa-proposal-lines ul li { font-size: 9pt; }
-
-.proposal-signature-greeting { font-size: 8pt; }
-.proposal-signature-name { font-size: 8.5pt; }
-
-/* Paragraph spacing: empty lines create a visible gap between paragraphs */
-.proposal-document .pa-section-body p,
-.proposal-document .pa-doc-intro p { margin: 0 0 10pt; }
-
-/* Signature: full-width so "בברכה," is truly centered; margin-top:auto pins it
-   to the bottom of the flex column body (screen only). */
-.proposal-signature {
-  width: 100%;
-  margin-inline-start: 0;
-  margin-top: auto;
-}
-.proposal-signature-greeting {
-  text-align: center;
-  margin-bottom: 24pt; /* ~2 blank lines */
-}
-.proposal-signature-name {
-  text-align: left;
-  direction: ltr;
-}
-/* Costs-intro heading ("להלן פירוט הקורסים...") */
-.pa-costs-intro-heading {
-  font-weight: 700;
-  font-size: 10.5pt;
-  color: #1f4e79;
-  text-align: right;
-  margin: 8pt 0 6pt;
-  line-height: 1.4;
-}
-
-/* Cost table: explicit right-alignment for RTL document
-   margin-inline-end: auto = margin-left: auto in RTL = pushes to physical right */
-.pa-cost-table {
-  margin-inline-start: 0;
-  margin-inline-end: auto;
-}
-
-@media print {
-  html, body { font-size: 8pt !important; }
-  .proposal-document { font-size: 8pt !important; }
-
-  .pa-doc-intro,
-  .pa-section-body,
-  .pa-proposal-lines { font-size: 9pt !important; }
-
-  .pa-section h3 { font-size: 9.5pt !important; }
-  .pa-doc-subject { font-size: 11pt !important; }
-  .pa-doc-address { font-size: 9pt !important; }
-  .pa-proposal-lines ul li { font-size: 9pt !important; }
-
-  .proposal-document .pa-section-body p,
-  .proposal-document .pa-doc-intro p { margin: 0 0 7pt !important; }
-
-  .proposal-signature {
-    width: 100% !important;
-    margin-inline-start: 0 !important;
-    margin-top: 0 !important;
-  }
-  .proposal-signature-line {
-    width: 52mm !important;
-    margin: 0 !important;
-    margin-inline-start: auto !important;
-  }
-  .proposal-signature-greeting {
-    text-align: center !important;
-    font-size: 8pt !important;
-    margin-bottom: 20pt !important;
-  }
-  .proposal-signature-name {
-    text-align: left !important;
-    direction: ltr !important;
-    font-size: 8.5pt !important;
-  }
-  .pa-cost-table {
-    margin-inline-start: 0 !important;
-    margin-inline-end: auto !important;
-  }
-
-  /* ── Proposal document footer: fixed to bottom of every printed page ── */
-  .proposal-document-footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-  }
-
-  .proposal-document-body {
-    padding-bottom: 60px;
-  }
-
-  /* ── Spacing between sections ── */
-  .pa-section {
-    margin-bottom: 14pt;
-  }
-
-  .pa-section h3 {
-    margin-bottom: 4pt;
-    font-size: 11pt;
-    font-weight: 700;
-  }
-
-  .pa-section-body p,
-  .pa-section-body ul,
-  .pa-section-body li {
-    margin-bottom: 4pt;
-    line-height: 1.5;
-  }
-
-  .pa-section-body ul {
-    padding-right: 16pt;
-  }
-
-  .pa-doc-address {
-    margin-bottom: 12pt;
-  }
-
-  .pa-doc-address p {
-    margin: 2pt 0;
-  }
-
-  .pa-doc-divider {
-    margin: 8pt 0;
-  }
-
-  .pa-doc-subject {
-    margin: 8pt 0 12pt;
-  }
-
-  .pa-cost-table {
-    margin-top: 8pt;
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .pa-cost-table th,
-  .pa-cost-table td {
-    padding: 4pt 6pt;
-    border: 1pt solid #ccc;
-    font-size: 9pt;
-  }
-
-  .proposal-signature {
-    margin-top: 20pt;
-  }
-
-  .proposal-signature-greeting {
-    margin-bottom: 24pt;
-  }
-
-  .pa-doc-intro {
-    margin-bottom: 10pt;
-  }
-}
-
-/* ── הצעת מחיר: עיצוב מסמך רשמי (Word-like) ──────────────────────────────
-   מסך: כותרות סעיפים עם קו תחתון כחול, רשימות קומפקטיות, פחות shadow.
-   הדפסה: שוליים רחבים → תוכן צר ומרוכז, רשימות צמודות, כותרת+טבלה לא נשברים.
-   ─────────────────────────────────────────────────────────────────────────── */
-
-/* Screen: כותרות סעיפים — כחול, מודגש, קו תחתון עדין */
-.proposal-document .pa-section h3 {
-  border-bottom: 1px solid #d0daea;
-  padding-bottom: 2pt;
-  margin-bottom: 4pt;
-}
-
-/* Screen: רשימות — רווח קומפקטי בין פריטים */
-.proposal-document .pa-section-body li,
-.proposal-document .pa-doc-intro li {
-  margin: 0 0 3px;
-}
-
-/* Screen: צל עדין יותר — פחות "דשבורד" */
-.proposal-document {
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-@media print {
-  /* תוכן צר ומרוכז: שוליים רחבים משני הצדדים */
-  .proposal-document {
-    padding: 14mm 22mm 10mm !important;
-  }
-
-  /* כותרות סעיפים: כחול + קו תחתון (מחזק את הקיים) */
-  .proposal-document .pa-section h3,
-  .pa-section h3 {
-    border-bottom: 1px solid #c8d9ee !important;
-    padding-bottom: 2pt !important;
-    margin-bottom: 3pt !important;
-  }
-
-  /* רשימות צמודות */
-  .proposal-document .pa-section-body li,
-  .proposal-document .pa-doc-intro li,
-  .pa-section-body li,
-  .pa-doc-intro li {
-    margin: 0 0 2pt !important;
-  }
-
-  /* סעיף עלויות: כותרת+טבלה לא נשברים בין עמודים */
-  .pa-cost-section {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-
-  /* טבלת עלויות: רקע כותרת מעודן יותר */
-  .pa-cost-table thead th {
-    background: #eef4fb !important;
-  }
-
-  /* כותרות סעיפים: פונט ≥10pt */
-  .pa-section h3 {
-    font-size: 10pt !important;
-  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
