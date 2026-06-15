@@ -1505,6 +1505,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   return `
     <div class="proposal-document" dir="rtl">
       <div class="proposal-document-header">
+        ${recipientBlockHtml(row)}
         <div class="proposal-header-brand">
           <img
             src="${PUBLIC_BASE}proposals/proposal-header-logo.png"

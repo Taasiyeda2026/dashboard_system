@@ -11555,8 +11555,10 @@ select.ds-input {
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  direction: ltr;
+  direction: rtl;
   width: 100%;
+  max-width: 148mm;
+  margin-inline: auto;
   margin-bottom: 4pt;
   padding-top: 0;
 }
@@ -11566,6 +11568,7 @@ select.ds-input {
   align-items: flex-start;
   flex: 0 0 auto;
   max-width: 42%;
+  direction: ltr;
 }
 .proposal-logo {
   width: auto;
@@ -11587,6 +11590,10 @@ select.ds-input {
   width: 100%;
   max-width: 148mm;
   margin-inline: auto;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .proposal-document-footer {
   width: 100%;
@@ -11606,7 +11613,8 @@ select.ds-input {
 
 /* ── Signature ────────────────────────────────────────────────────── */
 .proposal-signature {
-  margin: 14pt 0 4pt;
+  margin-top: auto;
+  margin-bottom: 9pt;
   display: block;
   direction: rtl;
   break-inside: avoid;
@@ -11644,12 +11652,18 @@ select.ds-input {
   direction: rtl;
   text-align: right;
   margin: 0;
+  margin-inline-start: auto;
   font-size: 9pt;
   line-height: 1.35;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 55%;
+  align-self: flex-start;
 }
-.pa-doc-address p { margin: 0 0 1pt; }
+.pa-doc-address p {
+  margin: 0 0 1pt;
+  text-align: right;
+}
 .pa-doc-divider {
   border: none;
   border-top: 1px solid #c5d5e8;
@@ -11980,20 +11994,24 @@ select.ds-input {
     font-size: 9pt !important;
     line-height: 1.35 !important;
     letter-spacing: 0.1px !important;
-    display: block !important;
+    display: flex !important;
+    flex-direction: column !important;
     box-sizing: border-box !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  /* Header — compact logo/date left, לכבוד right */
+  /* Header — לכבוד ימין, לוגו+תאריך שמאל */
   .proposal-document-header {
     position: static !important;
     display: flex !important;
     justify-content: space-between !important;
     align-items: flex-start !important;
     gap: 12px !important;
-    direction: ltr !important;
+    direction: rtl !important;
+    max-width: 148mm !important;
+    width: 100% !important;
+    margin-inline: auto !important;
     padding: 0 !important;
     margin-bottom: 3pt !important;
     background: transparent !important;
@@ -12003,6 +12021,7 @@ select.ds-input {
     flex-direction: column !important;
     align-items: flex-start !important;
     max-width: 42% !important;
+    direction: ltr !important;
   }
   .proposal-logo {
     width: auto !important;
@@ -12042,9 +12061,10 @@ select.ds-input {
 
   /* Body — centered readable column, room for footer */
   .proposal-document-body {
-    display: block !important;
-    flex: none !important;
-    padding: 0 0 22mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    padding: 0 0 calc(20mm + 5mm + 9pt) !important;
     overflow-wrap: anywhere !important;
     word-break: normal !important;
   }
@@ -12052,6 +12072,10 @@ select.ds-input {
     width: 100% !important;
     max-width: 148mm !important;
     margin-inline: auto !important;
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
   }
   .pa-doc-bottom {
     margin: 0 !important;
@@ -12072,9 +12096,16 @@ select.ds-input {
     font-size: 9pt !important;
     line-height: 1.35 !important;
     margin: 0 !important;
+    margin-inline-start: auto !important;
+    flex: 0 1 auto !important;
+    max-width: 55% !important;
+    align-self: flex-start !important;
     overflow-wrap: anywhere !important;
   }
-  .pa-doc-address p { margin: 0 0 1pt !important; }
+  .pa-doc-address p {
+    margin: 0 0 1pt !important;
+    text-align: right !important;
+  }
   .pa-doc-divider {
     border: none !important;
     border-top: 1px solid #c5d5e8 !important;
@@ -12194,7 +12225,8 @@ select.ds-input {
   .proposal-signature,
   .ds-pa-doc-signature {
     position: static !important;
-    margin: 12pt 0 4pt !important;
+    margin-top: auto !important;
+    margin-bottom: 9pt !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
@@ -15180,10 +15212,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 @media print {
   .pa-cost-table { width: 90% !important; max-width: 168mm !important; margin-right: 0 !important; margin-left: auto !important; }
   .pa-item-details-table { width: 92% !important; max-width: 176mm !important; margin-left: auto !important; margin-right: auto !important; }
-  .proposal-signature { margin-top: 8pt !important; }
-  .proposal-signature-greeting { font-size: 8.5pt !important; margin-bottom: 8pt !important; }
+  .proposal-signature { margin-top: auto !important; margin-bottom: 9pt !important; }
+  .proposal-signature-greeting { font-size: 8.5pt !important; margin-bottom: 6pt !important; }
   .proposal-signature-line { width: 52mm !important; border-top: 0.3mm solid #111827 !important; margin: 0 !important; margin-inline-start: auto !important; }
-  .proposal-signature-name { font-size: 9pt !important; }
+  .proposal-signature-name { font-size: 9pt !important; margin: 0 !important; }
 }
 
 /* Proposals polish: compact workspace, clearer fields, search-first client picking. */
