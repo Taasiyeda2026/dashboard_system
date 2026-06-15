@@ -11014,20 +11014,51 @@ select.ds-input {
   line-height: 1.7;
 }
 .ds-pa-summary {
-  border: 1px solid #93c5fd;
+  border: 1px solid #c7d2de;
   border-radius: 8px;
-  background: #eff6ff;
-  padding: 8px 14px;
-  margin: 4px 0 10px;
+  background: #f8fafd;
+  padding: 7px 12px;
+  margin: 4px 0 6px;
 }
-.ds-pa-summary-title {
-  margin: 0 0 5px;
-  color: #1e3a5f;
-  font-size: 0.78rem;
+.ds-pa-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+.ds-pa-summary-pill {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #fff;
+  border: 1px solid #dbe7f3;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.ds-pa-summary-pill--total {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+.ds-pa-summary-pill .ds-pa-summary-label {
+  font-size: 0.7rem;
+  color: #4b6280;
+  font-weight: 600;
+}
+.ds-pa-summary-pill .ds-pa-summary-value {
+  font-size: 0.82rem;
+  color: #1e293b;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
+.ds-pa-summary-pill--total .ds-pa-summary-value { color: #1d4ed8; }
+.ds-pa-discount-details {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #dbe7f3;
+  border-radius: 8px;
+}
+.ds-pa-discount-details[hidden] { display: none; }
 .ds-pa-summary-row {
   display: flex;
   align-items: center;
@@ -11044,7 +11075,7 @@ select.ds-input {
 /* ═══════════════════════════════════════════════════════════════════
    Proposals – Items editor
    ═══════════════════════════════════════════════════════════════════ */
-.ds-pa-items-section { margin: 10px 0 8px; }
+.ds-pa-items-section { margin: 6px 0 4px; }
 .ds-pa-items-section,
 .ds-pa-items-list,
 .ds-pa-item-card { min-width: 0; overflow-x: clip; }
@@ -11052,18 +11083,18 @@ select.ds-input {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin-bottom: 5px;
 }
 .ds-pa-items-header [data-pa-add-item] { order: -1; }
-.ds-pa-items-list { display: grid; gap: 10px; }
+.ds-pa-items-list { display: grid; gap: 6px; }
 .ds-pa-item-card {
   border: 1px solid #c7d2de;
-  border-radius: 10px;
-  padding: 14px;
+  border-radius: 8px;
+  padding: 9px 12px;
   background: #fff;
   display: grid;
-  gap: 12px;
+  gap: 6px;
   max-width: 100%;
 }
 .ds-pa-item-details {
@@ -11118,7 +11149,7 @@ select.ds-input {
 }
 .ds-pa-item-actions { display: flex; justify-content: flex-start; }
 .ds-pa-items-total-row {
-  font-size: 0.82rem; margin: 8px 0 0; color: var(--ds-color-text-muted, #64748b);
+  font-size: 0.8rem; margin: 5px 0 0; color: var(--ds-color-text-muted, #64748b);
 }
 .ds-pa-items-total-row strong { color: var(--ds-color-text, #0f172a); }
 @media (max-width: 760px) {
@@ -11240,18 +11271,18 @@ select.ds-input {
   background: #f8fafd;
   border: 1px solid #c7d2de;
   border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .ds-pa-form-type-panel {
   background: #f8fafd;
   border: 1px solid #c7d2de;
   border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
 }
 
 .ds-pa-type-meta-grid {
@@ -11271,16 +11302,16 @@ select.ds-input {
   flex-wrap: wrap;
 }
 
-.ds-pa-form-activities-panel { margin-bottom: 12px; }
+.ds-pa-form-activities-panel { margin-bottom: 8px; }
 
 .ds-pa-form-bottom-panel {
   background: #f8fafd;
   border: 1px solid #c7d2de;
   border-radius: 10px;
-  padding: 14px 16px;
+  padding: 10px 14px;
 }
 
-.ds-pa-notes-details { margin-bottom: 10px; }
+.ds-pa-notes-details { margin-bottom: 6px; }
 .ds-pa-notes-summary {
   cursor: pointer;
   font-size: 0.84rem;
@@ -11305,20 +11336,24 @@ select.ds-input {
    ═══════════════════════════════════════════════════════════════════ */
 .ds-pa-item-quick-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: flex-end;
-  gap: 10px;
+  gap: 7px;
 }
 .ds-pa-item-quick-row .ds-pa-item-field--select {
-  flex: 1 1 280px;
-  min-width: 220px;
+  flex: 1 1 220px;
+  min-width: 160px;
   max-width: none;
   width: auto;
 }
-.ds-pa-item-quick-row .ds-pa-item-field--qty { flex: 0 0 96px; width: 96px; }
-.ds-pa-item-quick-row .ds-pa-item-field--price { flex: 0 0 124px; width: 124px; }
-.ds-pa-item-quick-row .ds-pa-item-field--total { flex: 0 0 auto; min-width: 112px; }
+.ds-pa-item-quick-row .ds-pa-item-field--qty { flex: 0 0 80px; width: 80px; }
+.ds-pa-item-quick-row .ds-pa-item-field--price { flex: 0 0 104px; width: 104px; }
+.ds-pa-item-quick-row .ds-pa-item-field--total { flex: 0 0 auto; min-width: 96px; }
 .ds-pa-item-remove { align-self: flex-end; flex: 0 0 auto; }
+@media (max-width: 700px) {
+  .ds-pa-item-quick-row { flex-wrap: wrap; gap: 6px; }
+  .ds-pa-item-quick-row .ds-pa-item-field--select { flex: 1 1 100%; min-width: 0; }
+}
 
 .ds-pa-item-extra {
   margin-top: 4px;
@@ -11452,6 +11487,17 @@ select.ds-input {
   .ds-pa-summary-grid { gap: 4px 10px; }
   .ds-pa-summary-item--total { margin-inline-start: 0; }
 }
+/* Compact discount row inside collapsible details */
+.ds-pa-discount-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+.ds-pa-discount-amount-field { flex: 0 0 110px; }
+.ds-pa-discount-note-field { flex: 1 1 180px; }
+.ds-pa-discount-row .ds-pa-form-field { margin: 0; }
+.ds-pa-discount-row .ds-input { min-height: 34px; font-size: 0.8rem; }
 
 /* ═══════════════════════════════════════════════════════════════════
    Proposals – Preview toolbar improvements
@@ -15056,21 +15102,23 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-signature-name { font-size: 9pt !important; }
 }
 
-/* Proposals polish: wider workspace, clearer fields, search-first client picking. */
+/* Proposals polish: compact workspace, clearer fields, search-first client picking. */
 .ds-pa-form {
-  width: min(1480px, calc(100vw - 48px));
-  padding: 22px;
+  max-width: 1120px;
+  margin-inline: auto;
+  width: min(1120px, calc(100vw - 32px));
+  padding: 16px;
 }
-.ds-pa-form--compact { padding: 22px; }
+.ds-pa-form--compact { padding: 16px; }
 .ds-pa-form-meta-panel,
 .ds-pa-form-type-panel,
 .ds-pa-form-bottom-panel {
-  padding: 18px 20px;
-  border-radius: 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
 }
 .ds-pa-form-grid {
-  grid-template-columns: repeat(4, minmax(190px, 1fr));
-  gap: 14px 18px;
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  gap: 10px 14px;
 }
 .ds-pa-form-field {
   gap: 6px;

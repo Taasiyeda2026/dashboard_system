@@ -946,19 +946,33 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
 function proposalSummaryHtml(totalAmount) {
   const initialTotal = Number(totalAmount) || 0;
   return `<section class="ds-pa-summary" aria-label="סיכום הצעה">
-    <h4 class="ds-pa-summary-title">סיכום הצעה</h4>
-    <div class="ds-pa-summary-grid">
-      <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">רשות / גורם מקבל</span><strong class="ds-pa-summary-value" data-pa-summary-client>—</strong></div>
-      <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">סוג הצעה</span><strong class="ds-pa-summary-value" data-pa-summary-type>—</strong></div>
-      <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">מספר פעילויות</span><strong class="ds-pa-summary-value" data-pa-summary-count>—</strong></div>
-      <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">סה״כ לפני הנחה</span><strong class="ds-pa-summary-value" data-pa-summary-subtotal>₪0</strong></div>
-      <div class="ds-pa-summary-item"><span class="ds-pa-summary-label">הנחה</span><strong class="ds-pa-summary-value" data-pa-summary-discount>₪0</strong></div>
-      <div class="ds-pa-summary-item ds-pa-summary-item--total"><span class="ds-pa-summary-label">סה״כ לתשלום</span><strong class="ds-pa-summary-value ds-pa-summary-total-val" data-pa-summary-total>${initialTotal ? `₪${formatCurrency(initialTotal)}` : '₪0'}</strong></div>
+    <span style="display:none" data-pa-summary-client></span>
+    <span style="display:none" data-pa-summary-type></span>
+    <div class="ds-pa-summary-bar">
+      <div class="ds-pa-summary-pill">
+        <span class="ds-pa-summary-label">פעילויות</span>
+        <strong class="ds-pa-summary-value" data-pa-summary-count>—</strong>
+      </div>
+      <div class="ds-pa-summary-pill">
+        <span class="ds-pa-summary-label">לפני הנחה</span>
+        <strong class="ds-pa-summary-value" data-pa-summary-subtotal>₪0</strong>
+      </div>
+      <div class="ds-pa-summary-pill">
+        <span class="ds-pa-summary-label">הנחה</span>
+        <strong class="ds-pa-summary-value" data-pa-summary-discount>₪0</strong>
+      </div>
+      <div class="ds-pa-summary-pill ds-pa-summary-pill--total">
+        <span class="ds-pa-summary-label">לתשלום</span>
+        <strong class="ds-pa-summary-value ds-pa-summary-total-val" data-pa-summary-total>${initialTotal ? `₪${formatCurrency(initialTotal)}` : '₪0'}</strong>
+      </div>
+      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-discount-toggle>+ הנחה / הערות</button>
     </div>
-    <div class="ds-pa-discount-row" data-pa-discount-controls>
-      <label class="ds-pa-form-field"><span>הנחה</span><select class="ds-input ds-input--sm" name="discount_type" data-pa-discount-type><option value="amount">₪</option><option value="percent">%</option></select></label>
-      <label class="ds-pa-form-field"><span>סכום / אחוז</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="discount_value" data-pa-discount-value></label>
-      <label class="ds-pa-form-field"><span>הערת הנחה</span><input class="ds-input ds-input--sm" name="discount_note" data-pa-discount-note placeholder="אופציונלי"></label>
+    <div class="ds-pa-discount-details" data-pa-discount-details hidden>
+      <div class="ds-pa-discount-row" data-pa-discount-controls>
+        <label class="ds-pa-form-field"><span>הנחה</span><select class="ds-input ds-input--sm" name="discount_type" data-pa-discount-type><option value="amount">₪</option><option value="percent">%</option></select></label>
+        <label class="ds-pa-form-field ds-pa-discount-amount-field"><span>סכום / אחוז</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="discount_value" data-pa-discount-value></label>
+        <label class="ds-pa-form-field ds-pa-discount-note-field"><span>הערת הנחה</span><input class="ds-input ds-input--sm" name="discount_note" data-pa-discount-note placeholder="אופציונלי"></label>
+      </div>
     </div>
   </section>`;
 }
@@ -3261,6 +3275,18 @@ export const proposalsAgreementsScreen = {
 
     // ── Click handler ─────────────────────────────────────────────────────────
     root.addEventListener('click', async (event) => {
+      // Discount / notes section toggle
+      const discountToggle = event.target.closest?.('[data-pa-discount-toggle]');
+      if (discountToggle) {
+        const summary = discountToggle.closest('[data-pa-discount-details]')
+          || discountToggle.closest('.ds-pa-summary')?.querySelector('[data-pa-discount-details]');
+        if (summary) {
+          summary.hidden = !summary.hidden;
+          discountToggle.textContent = summary.hidden ? '+ הנחה / הערות' : '− סגור הנחה / הערות';
+        }
+        return;
+      }
+
       // Type card selection (proposal type wizard cards)
       const typeCardBtn = event.target.closest?.('[data-pa-type-btn]');
       if (typeCardBtn) {
