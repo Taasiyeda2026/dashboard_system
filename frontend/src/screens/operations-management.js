@@ -235,6 +235,33 @@ async function readOperationsSchoolsDirectory() {
   }
 }
 
+async function readContactsSchools() {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from('contacts_schools')
+      .select('authority, school, school_id, contact_name, contact_role, phone')
+      .limit(10000);
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('[operations-management] contacts_schools read failed', err?.message || err);
+    return [];
+  }
+}
+
+function buildContactsSchoolsIndex(rows = []) {
+  const index = new Map();
+  rows.forEach((row) => {
+    const name = String(row.contact_name || '').trim();
+    if (!name) return;
+    const key = `${normalizeOpsText(row.authority || '')}|${normalizeOpsText(row.school || '')}`;
+    if (!index.has(key)) index.set(key, []);
+    index.get(key).push({ name, phone: String(row.phone || '').trim(), role: String(row.contact_role || '').trim() });
+  });
+  return index;
+}
+
 function buildSchoolsDirectory(rows = []) {
   const list = (Array.isArray(rows) ? rows : []).map(normalizeSchoolRow);
   const byId = new Map();
@@ -298,18 +325,35 @@ function getActivityAddressResolved(activity, directory) {
   return addresses.join('; ');
 }
 
-function getActivityContactOptions(activity, directory) {
+function getActivityContactOptions(activity, directory, contactsIndex) {
   const options = [];
-  const add = (name, phone = '') => {
+  const add = (name, phone = '', role = '') => {
     const cleanName = String(name || '').trim();
     if (!cleanName) return;
     const cleanPhone = String(phone || '').trim();
+    const cleanRole = String(role || '').trim();
     const key = `${normalizeOpsText(cleanName)}|${normalizeOpsText(cleanPhone)}`;
     if (options.some((option) => option.key === key)) return;
-    options.push({ key, name: cleanName, phone: cleanPhone, label: cleanPhone ? `${cleanName} — ${cleanPhone}` : cleanName });
+    const roleSuffix = cleanRole ? ` (${cleanRole})` : '';
+    const label = cleanPhone ? `${cleanName}${roleSuffix} — ${cleanPhone}` : `${cleanName}${roleSuffix}`;
+    options.push({ key, name: cleanName, phone: cleanPhone, role: cleanRole, label });
   };
+  // 1. מהפעילות עצמה
   add(getActivityContactName(activity), getActivityContactPhone(activity));
+  // 2. מספריית בתי הספר (מנהל + טלפון)
   findSchoolsForActivity(activity, directory).forEach((row) => add(row.principal_name, row.school_phone));
+  // 3. מ-contacts_schools — לפי רשות + בית ספר
+  if (contactsIndex instanceof Map) {
+    const authorityKey = getActivityAuthorityKey(activity);
+    getActivitySchoolNames(activity).forEach((schoolName) => {
+      const key = `${authorityKey}|${normalizeOpsText(schoolName)}`;
+      (contactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
+    });
+    // גם ניסיון ללא שם בית ספר (רק רשות)
+    if (authorityKey) {
+      (contactsIndex.get(`${authorityKey}|`) || []).forEach((c) => add(c.name, c.phone, c.role));
+    }
+  }
   return options;
 }
 
@@ -320,18 +364,18 @@ function getOpsActivityKey(activity = {}, date = '') {
     .join('|');
 }
 
-function getSelectedContact(state, activity, date, directory) {
+function getSelectedContact(state, activity, date, directory, contactsIndex) {
   const ops = ensureOpsState(state);
   ops.selectedContacts = ops.selectedContacts || {};
   const selectedKey = ops.selectedContacts[getOpsActivityKey(activity, date)] || '';
   if (!selectedKey) return null;
-  return getActivityContactOptions(activity, directory).find((option) => option.key === selectedKey) || null;
+  return getActivityContactOptions(activity, directory, contactsIndex).find((option) => option.key === selectedKey) || null;
 }
 
-function contactSelectHtml(state, activity, date, directory) {
+function contactSelectHtml(state, activity, date, directory, contactsIndex) {
   const key = getOpsActivityKey(activity, date);
-  const selected = getSelectedContact(state, activity, date, directory);
-  const options = getActivityContactOptions(activity, directory);
+  const selected = getSelectedContact(state, activity, date, directory, contactsIndex);
+  const options = getActivityContactOptions(activity, directory, contactsIndex);
   return `<select class="ds-input ds-input--xs ds-ops-contact-select no-print" data-ops-contact-key="${escapeHtml(key)}">
     <option value="">ללא</option>
     ${options.map((option) => `<option value="${escapeHtml(option.key)}"${selected?.key === option.key ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
@@ -699,7 +743,7 @@ function printWorkshopsFromDom(root) {
   openOpsPrintWindow({ title: 'כמויות סדנאות', bodyHtml: `<section>${header}${summary}${table.outerHTML}</section>` });
 }
 
-function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([])) {
+function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
   const ops = ensureOpsState(state);
   const instructors = instructorOptions(rows);
   if (ops.instructor === '__all__' && instructors.length === 1) ops.instructor = instructors[0];
@@ -718,8 +762,8 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
       <td class="ds-ops-col--activity">${escapeHtml(getActivityName(activity))}</td>
       <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
       <td class="ds-ops-col--address">${mutedOrText(getActivityAddressResolved(activity, directory))}</td>
-      <td class="ds-ops-col--contact">${contactSelectHtml(state, activity, entry.date, directory)}</td>
-      <td class="ds-ops-col--phone">${mutedOrText(getSelectedContact(state, activity, entry.date, directory)?.phone)}</td>
+      <td class="ds-ops-col--contact">${contactSelectHtml(state, activity, entry.date, directory, contactsIndex)}</td>
+      <td class="ds-ops-col--phone">${mutedOrText(getSelectedContact(state, activity, entry.date, directory, contactsIndex)?.phone)}</td>
     </tr>`;
   }).join('');
 
@@ -824,7 +868,7 @@ function workshopsTabHtml(rows, state, stockMap) {
   </section>`;
 }
 
-function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([])) {
+function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
   const ops = ensureOpsState(state);
   const groups = new Map();
   rows.forEach((row) => {
@@ -885,8 +929,8 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([])) {
           <td class="ds-ops-col--instructor">${escapeHtml(getActivityInstructorName(row))}</td>
           <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(row) || '—')}</td>
           <td class="ds-ops-col--address">${mutedOrText(getActivityAddressResolved(row, directory))}</td>
-          <td class="ds-ops-col--contact">${contactSelectHtml(state, row, date, directory)}</td>
-          <td class="ds-ops-col--phone">${mutedOrText(getSelectedContact(state, row, date, directory)?.phone)}</td>
+          <td class="ds-ops-col--contact">${contactSelectHtml(state, row, date, directory, contactsIndex)}</td>
+          <td class="ds-ops-col--phone">${mutedOrText(getSelectedContact(state, row, date, directory, contactsIndex)?.phone)}</td>
         </tr>`;
       }).join('');
       const detail = isOpen
@@ -923,24 +967,27 @@ function renderTab(rows, state, data) {
   const ops = ensureOpsState(state);
   const stockMap = data?.workshopStockMap instanceof Map ? data.workshopStockMap : new Map();
   const directory = buildSchoolsDirectory(data?.schoolsDirectoryRows || []);
+  const contactsIndex = buildContactsSchoolsIndex(data?.contactsSchoolsRows || []);
   if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
   if (ops.tab === TAB_WORKSHOPS) return workshopsTabHtml(rows, state, stockMap);
-  if (ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state, directory);
-  return instructorsTabHtml(rows, state, data, directory);
+  if (ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state, directory, contactsIndex);
+  return instructorsTabHtml(rows, state, data, directory, contactsIndex);
 }
 
 export const operationsManagementScreen = {
   load: async ({ api }) => {
-    const [activities, lists, schoolsDirectory] = await Promise.all([
+    const [activities, lists, schoolsDirectory, contactsSchoolsRows] = await Promise.all([
       api.allActivities(),
       api.adminLists().catch(() => ({ categories: [] })),
-      readOperationsSchoolsDirectory()
+      readOperationsSchoolsDirectory(),
+      readContactsSchools()
     ]);
     return {
       ...activities,
       schoolsDirectoryRows: schoolsDirectory.rows,
       schoolsDirectorySource: schoolsDirectory.source,
-      workshopStockMap: buildWorkshopStockMapFromLists(lists)
+      workshopStockMap: buildWorkshopStockMapFromLists(lists),
+      contactsSchoolsRows
     };
   },
   render(data, { state } = {}) {
