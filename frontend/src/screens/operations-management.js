@@ -776,9 +776,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
 
   const instructorRows = selected === '__all__' ? rows : rows.filter((row) => getActivityInstructorName(row) === selected);
   const activeSummary = selected === '__all__' ? tabOverviewSummary(rows, scheduleRows) : instructorSummary(instructorRows, state, scheduleRows);
-  const directoryNote = Array.isArray(data?.schoolsDirectoryRows) && data.schoolsDirectoryRows.length
-    ? '<p class="ds-ops-mgmt-note ds-ops-mgmt-note--contacts no-print" dir="rtl">כתובת, איש קשר וטלפון מושלמים מטבלת schools לפי רשות ובית ספר.</p>'
-    : '';
+  const directoryNote = '';
 
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
     ${activeSummary}
@@ -853,14 +851,7 @@ function workshopsTabHtml(rows, state, stockMap) {
   const stockCount = metrics.filter((row) => row.stockQuantity !== null).length;
   const shortageCount = metrics.filter((row) => row.stockQuantity !== null && Number(row.gap) < 0).length;
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
-    ${compactSummaryLineHtml([
-      { label: 'סדנאות שונות', value: metrics.length },
-      { label: 'פעילויות', value: rows.length },
-      { label: 'עם נתון מלאי', value: stockCount },
-      { label: 'חוסר במלאי', value: shortageCount }
-    ])}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
-      <p class="ds-ops-mgmt-note">כמות משוערת = מספר סדנאות × ${WORKSHOP_ESTIMATE_PER_ACTIVITY}. מלאי לפי שם תוצר/סדנה מרשימות המערכת, אם קיים.</p>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס כמויות סדנאות</button>
     </div>
     <div class="ds-ops-mgmt-print-header only-print"><h2>כמויות סדנאות ומלאי</h2><p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p></div>
@@ -998,7 +989,7 @@ export const operationsManagementScreen = {
     const baseRows = applyBaseFilters(prepared, state);
     const filteredRows = applyAllFilters(baseRows, state);
     const ops = ensureOpsState(state);
-    return `<div class="ds-screen-stack ds-ops-mgmt-screen">${opsManagementStylesHtml()}${dsPageHeader('ניהול תפעול', 'עמוד תפעולי להצגת סידור עבודה למדריכים, כמויות סדנאות ופירוט מסודר לפי בתי ספר.')}
+    return `<div class="ds-screen-stack ds-ops-mgmt-screen">${opsManagementStylesHtml()}${dsPageHeader('ניהול תפעול')}
       ${topFiltersHtml(baseRows, state)}
       ${tabsHtml(ops.tab)}
       <div class="ds-ops-mgmt-content">${renderTab(filteredRows, state, data)}</div>
