@@ -15874,14 +15874,17 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin-inline: 0 !important;
 }
 
-/* ── חתימה: "בברכה" ימין, רווח 2 שורות, קו+שם שמאל ── */
+/* ── חתימה: "בברכה" ימין + שם+קו שמאל — שורה אחת ── */
 .proposal-signature {
-  align-items: flex-start !important;  /* RTL flex-start = ימין פיזי */
+  flex-direction: row !important;
+  justify-content: space-between !important;
+  align-items: flex-end !important;
+  direction: rtl !important;
 }
 .proposal-signature-greeting {
   text-align: right !important;
   direction: rtl !important;
-  margin-bottom: 28pt !important;  /* ~2 שורות רווח */
+  margin-bottom: 0 !important;
 }
 /* קונטיינר לקו + שם: רוחב = בדיוק רוחב הטקסט */
 .proposal-signature-block {
@@ -15889,7 +15892,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   flex-direction: column !important;
   align-items: stretch !important;
   direction: ltr !important;
-  align-self: flex-start !important;
+  align-self: flex-end !important;
 }
 .proposal-signature-line {
   width: 100% !important;
@@ -15939,19 +15942,22 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     margin-inline: 0 !important;
   }
   .proposal-signature {
-    align-items: flex-start !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: flex-end !important;
+    direction: rtl !important;
   }
   .proposal-signature-greeting {
     text-align: right !important;
     direction: rtl !important;
-    margin-bottom: 28pt !important;
+    margin-bottom: 0 !important;
   }
   .proposal-signature-block {
     display: inline-flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
     direction: ltr !important;
-    align-self: flex-start !important;
+    align-self: flex-end !important;
   }
   .proposal-signature-line {
     width: 100% !important;
