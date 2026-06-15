@@ -444,6 +444,9 @@ test('activities all activities mode ignores month/period filters and supports s
   assert.match(html, /פעילות ללא תאריך/);
   assert.doesNotMatch(html, /פעילות נמחקה/);
   assert.match(html, /data-all-activities-status-filter/);
+  assert.match(html, /<select[^>]+data-all-activities-status-filter/);
+  assert.doesNotMatch(html, /ds-filter-inline--all-activities/);
+  assert.doesNotMatch(html, /<span>סטטוס<\/span>/);
   assert.match(html, /חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד/);
 
   state.allActivitiesStatusFilter = 'closed';
@@ -505,6 +508,52 @@ test('activities month navigation updates the single selected month state and re
     assert.match(root.textContent, /ניהול פעילויות · מאי · 1 פעילויות/);
     assert.match(root.textContent, /פעילות מאי/);
     assert.doesNotMatch(root.textContent, /פעילות יוני/);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+    if (previousAbortController === undefined) delete globalThis.AbortController;
+    else globalThis.AbortController = previousAbortController;
+  }
+});
+
+
+test('activities period tab click resets regular school tab to current month and keeps all mode monthless', async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
+  const dom = new JSDOM('<main id="root"></main>', { url: 'https://example.test/dashboard?route=activities' });
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const state = baseState();
+    state.activityPeriodTab = 'all_activities';
+    state.activitiesMonthYm = '2026-08';
+    const expectedCurrentYm = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const data = { rows: [] };
+    const root = dom.window.document.querySelector('#root');
+    const rerender = () => {
+      root.innerHTML = activitiesScreen.render(data, { state });
+      activitiesScreen.bind({ root, data, state, rerender, api: {}, ui: { bindInteractiveCards() {} } });
+    };
+
+    rerender();
+    assert.match(root.textContent, /חיפוש בכל הפעילויות/);
+    assert.equal(root.querySelector('[data-activities-month-next]'), null);
+
+    root.querySelector('[data-activity-period-tab="school_2026"]').click();
+    assert.equal(state.activityPeriodTab, 'school_2026');
+    assert.equal(state.activitiesMonthYm, expectedCurrentYm);
+    assert.match(root.textContent, /ניהול פעילויות/);
+    assert.notEqual(root.querySelector('[data-activities-month-next]'), null);
+
+    root.querySelector('[data-activities-month-next]').click();
+    assert.notEqual(state.activitiesMonthYm, expectedCurrentYm);
+    assert.equal(state.activityPeriodTab, 'school_2026');
+
     await new Promise((resolve) => setTimeout(resolve, 450));
   } finally {
     if (previousWindow === undefined) delete globalThis.window;

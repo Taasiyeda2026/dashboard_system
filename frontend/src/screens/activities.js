@@ -215,12 +215,13 @@ function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
 function allActivitiesStatusFilterHtml(state = {}) {
   if (!isAllActivitiesMode(state)) return '';
   const selected = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
-  return `<label class="ds-filter-inline ds-filter-inline--all-activities" dir="rtl">
-    <span>סטטוס</span>
-    <select class="ds-input ds-input--sm" data-all-activities-status-filter aria-label="סינון סטטוס בכל הפעילויות">
-      ${ALL_ACTIVITIES_STATUS_FILTERS.map((filter) => `<option value="${escapeHtml(filter.key)}"${filter.key === selected ? ' selected' : ''}>${escapeHtml(filter.label)}</option>`).join('')}
-    </select>
-  </label>`;
+  return `<select class="ds-input ds-input--sm ds-filter-select-inline ds-filter-select-inline--all-status" data-all-activities-status-filter aria-label="סינון סטטוס בכל הפעילויות" title="סטטוס" dir="rtl">
+      ${ALL_ACTIVITIES_STATUS_FILTERS.map((filter) => `<option value="${escapeHtml(filter.key)}"${filter.key === selected ? ' selected' : ''}>${escapeHtml(filter.key === 'all' ? 'סטטוס: הכל' : filter.label)}</option>`).join('')}
+    </select>`;
+}
+
+function activityPeriodUsesMonthNavigation(state = {}) {
+  return shouldApplyActivitiesMonthFilter(state) || normalizeActivityPeriodTab(state.activityPeriodTab) === 'summer_2026';
 }
 
 function activityPeriodTabsHtml(rows, activeKey, state = {}) {
@@ -1550,14 +1551,20 @@ export const activitiesScreen = {
       </div>
     </div>`;
 
+    const usesMonthNavigation = activityPeriodUsesMonthNavigation(state);
+    const periodLabel = activityPeriodLabelForKey(state.activityPeriodTab) || 'פעילויות';
     const titleNavRow = isAllMode
       ? `<nav class="ds-activities-title-row" aria-label="חיפוש בכל הפעילויות" dir="rtl">
       <h2 class="ds-activities-page-title">חיפוש בכל הפעילויות · ${total} פעילויות</h2>
     </nav>`
-      : `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
+      : usesMonthNavigation
+        ? `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם" title="חודש קודם" ${isNavLoading ? 'disabled' : ''}>▶</button>
       <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${total} פעילויות ${navLoadingChip}</h2>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא" title="חודש הבא" ${isNavLoading ? 'disabled' : ''}>◀</button>
+    </nav>`
+        : `<nav class="ds-activities-title-row" aria-label="${escapeHtml(periodLabel)}" dir="rtl">
+      <h2 class="ds-activities-page-title">${escapeHtml(periodLabel)} · ${total} פעילויות</h2>
     </nav>`;
     const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab, state);
 
@@ -1746,6 +1753,7 @@ export const activitiesScreen = {
     bindActivitiesViewSwitcher(root, state, rerender);
 
     const runMonthShift = (delta) => {
+      if (!activityPeriodUsesMonthNavigation(state)) return;
       if (state.activitiesNavLoading) return;
       const startedAt = Date.now();
       state.activitiesNavLoading = true;
@@ -2062,7 +2070,12 @@ export const activitiesScreen = {
     root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activityPeriodTab = normalizeActivityPeriodTab(btn.getAttribute('data-activity-period-tab'));
-        ensureActivityPeriodMonth(state, activitiesRows, { force: true });
+        if (shouldApplyActivitiesMonthFilter(state)) {
+          state.activitiesMonthYm = currentYm();
+          state._activitiesSummerMonthInitialized = false;
+        } else {
+          ensureActivityPeriodMonth(state, activitiesRows, { force: true });
+        }
         ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
         rerenderLocal();
       });
