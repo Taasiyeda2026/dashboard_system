@@ -15830,3 +15830,78 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     padding: 2.5mm 2mm;
   }
 }
+
+/* ── הצעת מחיר: כותרת דו-עמודית — לוגו שמאל | לכבוד ימין ──────────────────
+   מסך + הדפסה: flex RTL עם space-between.
+   pa-doc-address (לכבוד) = ראשון ב-DOM → ימין ב-RTL.
+   proposal-header-brand (לוגו) = שני ב-DOM → שמאל ב-RTL.
+   קו (pa-doc-divider) = רוחב מלא ללא max-width.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── Screen ── */
+.proposal-document-header {
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  direction: rtl !important;
+  max-width: none !important;
+  margin-inline: 0 !important;
+  gap: 12px !important;
+}
+.proposal-header-brand {
+  align-items: flex-start !important;
+  text-align: left !important;
+  margin-inline: 0 !important;
+  flex-shrink: 0 !important;
+}
+.pa-doc-address {
+  position: static !important;
+  flex: 1 1 auto !important;
+  max-width: 58% !important;
+  inset: auto !important;
+}
+.pa-doc-date {
+  margin-top: 10mm !important;
+  text-align: left !important;
+  width: auto !important;
+}
+/* קו — רוחב מלא לאורך כל ההצעה */
+.pa-doc-divider {
+  max-width: none !important;
+  width: 100% !important;
+  margin-inline: 0 !important;
+}
+
+/* ── Print ── */
+@media print {
+  .proposal-document-header {
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    direction: rtl !important;
+    max-width: none !important;
+    margin-inline: 0 !important;
+    gap: 8px !important;
+    min-height: 18mm !important;
+  }
+  .proposal-header-brand {
+    align-items: flex-start !important;
+    text-align: left !important;
+    margin-inline: 0 !important;
+    flex-shrink: 0 !important;
+  }
+  .pa-doc-address {
+    position: static !important;
+    flex: 1 1 auto !important;
+    max-width: 58% !important;
+    inset: auto !important;
+  }
+  .pa-doc-date {
+    margin-top: 10mm !important;
+    text-align: left !important;
+    width: auto !important;
+  }
+  .pa-doc-divider {
+    max-width: none !important;
+    width: 100% !important;
+    margin-inline: 0 !important;
+  }
+}
