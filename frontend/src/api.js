@@ -2180,6 +2180,11 @@ function flattenUserRow(userRow = {}) {
     active: userRow.is_active ? 'yes' : 'no',
     ...permissions
   };
+  if (userRow.can_request_edit != null) flat.can_request_edit = userRow.can_request_edit;
+  if (userRow.can_request_edit_2 != null) flat.can_request_edit_2 = userRow.can_request_edit_2;
+  if (userRow.can_request_create_activity != null) flat.can_request_create_activity = userRow.can_request_create_activity;
+  if (userRow.can_edit_direct != null) flat.can_edit_direct = userRow.can_edit_direct;
+  if (userRow.can_add_activity != null) flat.can_add_activity = userRow.can_add_activity;
   if (userRow.can_review_requests != null) flat.can_review_requests = userRow.can_review_requests;
   if (userRow.view_proposals_agreements != null) flat.view_proposals_agreements = userRow.view_proposals_agreements;
   if (userRow.manage_proposals_agreements != null) flat.manage_proposals_agreements = userRow.manage_proposals_agreements;
@@ -2380,9 +2385,12 @@ async function buildActivityMutationAuthContext() {
   const context = {
     auth_uid: '',
     user_id: '',
-    role: '',
-    can_edit_direct: null,
-    can_add_activity: null
+    state_user_id: String(state?.user?.user_id || '').trim(),
+    requested_by_user_id: String(state?.user?.user_id || '').trim(),
+    role: String(state?.user?.role || '').trim(),
+    can_request_edit: state?.user?.can_request_edit ?? null,
+    can_edit_direct: state?.user?.can_edit_direct ?? null,
+    can_add_activity: state?.user?.can_add_activity ?? null
   };
   if (!supabase) return context;
   try {
@@ -2398,19 +2406,23 @@ async function buildActivityMutationAuthContext() {
       supabase.rpc('app_can_edit_direct'),
       supabase.rpc('app_can_add_activity')
     ]);
-    context.role = typeof roleData === 'string' ? roleData : '';
-    context.can_edit_direct = typeof canEditData === 'boolean' ? canEditData : null;
-    context.can_add_activity = typeof canAddData === 'boolean' ? canAddData : null;
+    context.role = typeof roleData === 'string' && roleData ? roleData : context.role;
+    context.can_edit_direct = typeof canEditData === 'boolean' ? canEditData : context.can_edit_direct;
+    context.can_add_activity = typeof canAddData === 'boolean' ? canAddData : context.can_add_activity;
   } catch {
     /* ignore */
   }
   try {
     const { data: userRow } = await supabase
       .from('users')
-      .select('user_id')
+      .select('user_id,role,can_request_edit,can_request_edit_2,can_edit_direct,can_add_activity')
       .eq('auth_user_id', context.auth_uid)
       .maybeSingle();
     context.user_id = String(userRow?.user_id || '').trim();
+    context.role = String(userRow?.role || context.role || '').trim();
+    context.can_request_edit = permissionFlagYes(userRow?.can_request_edit) || permissionFlagYes(userRow?.can_request_edit_2) || context.can_request_edit;
+    context.can_edit_direct = userRow?.can_edit_direct == null ? context.can_edit_direct : permissionFlagYes(userRow.can_edit_direct);
+    context.can_add_activity = userRow?.can_add_activity == null ? context.can_add_activity : permissionFlagYes(userRow.can_add_activity);
   } catch {
     /* ignore */
   }
@@ -3940,8 +3952,11 @@ export const api = {
         table: 'edit_requests',
         row_id: rowId,
         auth_uid: authContext.auth_uid,
+        state_user_id: authContext.state_user_id,
         user_id: authContext.user_id,
+        requested_by_user_id: row.requested_by_user_id,
         role: authContext.role,
+        can_request_edit: authContext.can_request_edit,
         can_edit_direct: authContext.can_edit_direct,
         can_add_activity: authContext.can_add_activity,
         supabase_error_code: error?.code || error?.status || '',
