@@ -1384,9 +1384,17 @@ export const activitiesScreen = {
       include_inactive: true
     });
     const loadedRows = Array.isArray(result?.rows) ? result.rows : [];
+    if (state.activityPeriodTab === 'summer_2026') {
+      state._activitiesSummerMonthInitialized = false;
+    }
     ensureActivityPeriodMonth(state, loadedRows);
     if (!state.activitiesMonthYm) {
       state.activitiesMonthYm = pickBestMonthForPeriod(loadedRows, state.activityPeriodTab);
+    } else if (shouldApplyActivitiesMonthFilter(state)) {
+      const pRows = activityPeriodRows(loadedRows, state.activityPeriodTab);
+      if (pRows.length > 0 && !pRows.some((row) => activityOccursInSelectedMonth(row, state.activitiesMonthYm))) {
+        state.activitiesMonthYm = firstActivityMonthYm(pRows) || pickBestMonthForPeriod(loadedRows, state.activityPeriodTab);
+      }
     }
     return result;
   },
@@ -1406,6 +1414,10 @@ export const activitiesScreen = {
     state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const isAllMode = isAllActivitiesMode(state);
     const periodRows    = isAllMode ? allActivitiesRows(allRows, state) : activityPeriodRows(allRows, state.activityPeriodTab);
+    if (!isAllMode && shouldApplyActivitiesMonthFilter(state) && periodRows.length > 0 &&
+        !periodRows.some((row) => activityOccursInSelectedMonth(row, state.activitiesMonthYm))) {
+      state.activitiesMonthYm = firstActivityMonthYm(periodRows) || pickBestMonthForPeriod(allRows, state.activityPeriodTab);
+    }
     const monthRows     = activityRowsForPeriodAndMonth(allRows, state);
     const filteredRows  = applyActivitiesLocalFilters(monthRows, state, state?.clientSettings);
 
