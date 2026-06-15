@@ -1412,6 +1412,7 @@ test('proposal preview renders recipient block before title without empty commas
     const address = dom.window.document.querySelector('.pa-doc-address');
     const intro = dom.window.document.querySelector('.pa-doc-intro');
     assert.ok(subject, 'proposal title should render');
+    assert.equal(dom.window.document.querySelectorAll('.pa-doc-address').length, 1, 'recipient block should render once');
     assert.ok(address, 'recipient block should render');
     assert.ok(intro, 'intro should render after recipient block');
     assert.ok(address.compareDocumentPosition(subject) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);

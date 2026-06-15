@@ -1520,7 +1520,6 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           >
           ${dateDisplay ? `<div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>` : ''}
         </div>
-        ${recipientBlockHtml(row)}
       </div>
       <hr class="pa-doc-divider">
       <div class="proposal-document-body">
