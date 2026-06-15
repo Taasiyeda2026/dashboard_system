@@ -758,7 +758,13 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     const dateLabel = group.date
       ? `${formatDateHeWithWeekday(group.date).split(' · ')[0]} · ${formatDateHe(group.date)}`
       : '—';
-    const addressRow = group.address ? `<tr><td>כתובת</td><td>${escapeHtml(group.address)}</td></tr>` : '';
+    const metaParts = [
+      group.authority ? `רשות: ${group.authority}` : '',
+      group.school ? `בית ספר: ${group.school}` : '',
+      group.address ? `כתובת: ${group.address}` : '',
+      `איש קשר: ${contactName}`,
+      `טלפון: ${contactPhone}`
+    ].filter(Boolean);
     const instructorHeader = showInstructor ? '<th>מדריך</th>' : '';
     const activityRows = group.entries.map((entry) => {
       const a = entry.activity;
@@ -766,20 +772,16 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
       return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
     }).join('');
     return `<div class="pb">
-      <div class="pb-date">${escapeHtml(dateLabel)}</div>
-      <table class="pb-loc"><tbody>
-        <tr><td>רשות</td><td>${escapeHtml(group.authority || '—')}</td></tr>
-        <tr><td>בית ספר / מסגרת</td><td><strong>${escapeHtml(group.school || '—')}</strong></td></tr>
-        ${addressRow}
-        <tr><td>איש קשר</td><td>${escapeHtml(contactName)}</td></tr>
-        <tr><td>טלפון</td><td>${escapeHtml(contactPhone)}</td></tr>
-      </tbody></table>
+      <div class="pb-hdr">
+        <span class="pb-date">${escapeHtml(dateLabel)}</span>
+        <span class="pb-meta">${metaParts.map(escapeHtml).join(' | ')}</span>
+      </div>
       <table class="pb-act"><thead><tr><th>שעה</th><th>פעילות</th><th>שכבה / כיתה</th>${instructorHeader}</tr></thead>
       <tbody>${activityRows}</tbody></table>
     </div>`;
   }).join('');
 
-  return `<h1>${escapeHtml(title)}</h1><p class="subtitle">טווח תאריכים: ${escapeHtml(dateRange)}</p>${blocks}<p class="footer">יש לבדוק את פרטי הפעילות לפני הגעה. במקרה של שינוי, יש לעדכן את התפעול.</p>`;
+  return `<h1>${escapeHtml(title)}</h1><p class="subtitle">טווח תאריכים: ${escapeHtml(dateRange)}</p>${blocks}<p class="footer">לפני כל יום פעילות, נדרש לאשר את קיום הפעילות מול איש הקשר של בית הספר לפחות 48 שעות מראש.</p>`;
 }
 
 function printInstructorSchedule() {
@@ -792,21 +794,20 @@ function printInstructorSchedule() {
     ? `סידור עבודה — ${ctx.selectedInstructorFilter}`
     : 'סידור עבודה';
   const css = `
-    body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:18px 22px;color:#111827;background:#fff;font-size:12px;line-height:1.5}
-    h1{margin:0 0 4px;font-size:16px;color:#0f172a}.subtitle{margin:0 0 18px;color:#475569;font-size:12px}
-    .pb{border:1px solid #cbd5e1;border-radius:6px;padding:10px 14px;margin-bottom:14px;page-break-inside:avoid}
-    .pb-date{font-weight:700;font-size:13px;color:#0369a1;margin-bottom:8px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
+    body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:10px 14px;color:#111;background:#fff;font-size:11px;line-height:1.3}
+    h1{margin:0 0 2px;font-size:14px;color:#0f172a}.subtitle{margin:0 0 8px;color:#475569;font-size:10.5px}
+    .pb{border:1px solid #cfd8dc;padding:5px 8px;margin-bottom:6px;page-break-inside:avoid;break-inside:avoid}
+    .pb-hdr{margin-bottom:3px}
+    .pb-date{font-weight:700;font-size:11.5px;color:#0369a1;margin-left:6px}
+    .pb-meta{font-size:10.5px;color:#334155;display:block;line-height:1.25;margin-top:1px}
     table{border-collapse:collapse;margin:0}
-    .pb-loc{width:auto;margin-bottom:8px}
-    .pb-loc td{border:none;padding:2px 12px 2px 0;vertical-align:top}
-    .pb-loc td:first-child{color:#64748b;white-space:nowrap;min-width:120px}
-    .pb-act{width:100%}
-    .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:4px 8px;text-align:right;vertical-align:top}
+    .pb-act{width:70%;margin-inline-start:auto;margin-inline-end:0}
+    .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 5px;text-align:right;font-size:10.5px;line-height:1.2}
     .pb-act th{background:#e6f6fb;font-weight:700}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
-    .footer{margin-top:18px;font-size:11px;color:#64748b}
-    @page{size:A4 portrait;margin:12mm}
-    @media print{body{margin:0}.pb{page-break-inside:avoid}}
+    .footer{margin-top:10px;font-size:10px;color:#64748b}
+    @page{size:A4 portrait;margin:8mm}
+    @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}}
   `;
   const bodyHtml = buildGroupedScheduleHtml(ctx);
   const printWindow = window.open('', '_blank');
