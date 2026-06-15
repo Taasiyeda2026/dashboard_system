@@ -435,7 +435,7 @@ function topFiltersHtml(rows, state) {
 
 function tabsHtml(activeTab) {
   const tabs = [
-    [TAB_INSTRUCTORS, 'סידור מדריכים'],
+    [TAB_INSTRUCTORS, 'סידור עבודה'],
     [TAB_WORKSHOPS, 'כמויות סדנאות'],
     [TAB_SCHOOLS, 'לפי בתי ספר']
   ];
@@ -746,11 +746,10 @@ function printWorkshopsFromDom(root) {
 
 function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
   const ops = ensureOpsState(state);
-  const instructors = instructorOptions(rows);
-  if (ops.instructor === '__all__' && instructors.length === 1) ops.instructor = instructors[0];
+  const filters = ensureActivityListFilters(state, SCOPE);
   const scheduleRows = buildScheduleRows(rows, state, directory);
-  const selected = String(ops.instructor || '__all__').trim();
-  const printTitle = selected === '__all__' ? 'כל המדריכים' : selected;
+  const selectedInstructorFilter = String(filters.instructor || '').trim();
+  const printTitle = selectedInstructorFilter ? selectedInstructorFilter : 'כל המדריכים';
 
   const tableRows = scheduleRows.map((entry) => {
     const activity = entry.activity;
@@ -774,23 +773,17 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
       </tr></thead><tbody>${tableRows}</tbody></table>`)
     : dsEmptyState('לא נמצאו פעילויות בטווח הנבחר');
 
-  const instructorRows = selected === '__all__' ? rows : rows.filter((row) => getActivityInstructorName(row) === selected);
-  const activeSummary = selected === '__all__' ? tabOverviewSummary(rows, scheduleRows) : instructorSummary(instructorRows, state, scheduleRows);
+  const instructorRows = selectedInstructorFilter ? rows.filter((row) => getActivityInstructorName(row) === selectedInstructorFilter) : rows;
+  const activeSummary = selectedInstructorFilter ? instructorSummary(instructorRows, state, scheduleRows) : tabOverviewSummary(rows, scheduleRows);
   const directoryNote = '';
 
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
     ${activeSummary}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
-      <label class="ds-filter-field ds-ops-mgmt-instructor-field"><span class="ds-filter-field__label">מדריך לסידור</span>
-        <select class="ds-input ds-input--sm" data-ops-instructor>
-          <option value="__all__"${selected === '__all__' ? ' selected' : ''}>כל המדריכים</option>
-          ${instructors.map((name) => `<option value="${escapeHtml(name)}"${name === selected ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}
-        </select>
-      </label>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור מדריך</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button>
     </div>
     <div class="ds-ops-mgmt-print-header only-print">
-      <h2>סידור עבודה למדריך: ${escapeHtml(printTitle)}</h2>
+      <h2>סידור עבודה — ${escapeHtml(printTitle)}</h2>
       <p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p>
     </div>
     ${directoryNote}
@@ -1057,7 +1050,6 @@ export const operationsManagementScreen = {
       });
     });
 
-    root.querySelector('[data-ops-instructor]')?.addEventListener('change', (ev) => { ops.instructor = ev.target.value || '__all__'; rerender?.(); });
     root.querySelectorAll('[data-ops-contact-key]').forEach((select) => {
       select.addEventListener('change', (ev) => {
         ops.selectedContacts = ops.selectedContacts || {};
