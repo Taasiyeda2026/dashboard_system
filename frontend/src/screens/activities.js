@@ -39,7 +39,7 @@ import {
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
-import { ACTIVITY_SEASON_OPTIONS, SUMMER_DEFAULT_MONTH_YM, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
+import { ACTIVITY_SEASON_OPTIONS, SUMMER_DEFAULT_MONTH_YM, normalizeActivitySeason } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
@@ -141,8 +141,10 @@ function isActiveActivity(row = {}) {
 function activityPeriodKey(row = {}) {
   if (isDeletedActivity(row)) return 'deleted';
   if (isClosedActivity(row)) return 'archive';
-  if (isSummerActivity(row)) return 'summer_2026';
   if (!isActiveActivity(row)) return 'inactive';
+  const season = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
+  if (season === 'summer_2026') return 'summer_2026';
+  if (season === 'school_2027') return 'school_2027';
   const start = normalizedActivityStartDate(row);
   if (!start) return 'school_2026';
   if (start >= '2026-09-01') return 'school_2027';
@@ -220,21 +222,31 @@ function availableActivityMonthsForPeriod(rows, periodKey) {
 
 function pickBestMonthForPeriod(rows, periodKey) {
   const available = availableActivityMonthsForPeriod(rows, periodKey);
-  if (available.length > 0) return available[0];
-  return periodKey === 'summer_2026' ? SUMMER_DEFAULT_MONTH_YM : '';
+  if (available.length === 0) {
+    return periodKey === 'summer_2026' ? SUMMER_DEFAULT_MONTH_YM : '';
+  }
+
+  const current = currentYm();
+  if (available.includes(current)) return current;
+
+  const pastOrCurrent = available.filter((ym) => ym <= current);
+  if (pastOrCurrent.length > 0) return pastOrCurrent[pastOrCurrent.length - 1];
+
+  return available[0];
 }
 
 function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
   if (!activityPeriodUsesMonthNavigation(state)) return;
+
   const available = availableActivityMonthsForPeriod(rows, state.activityPeriodTab);
+
   if (available.length === 0) {
-    if (force || !state.activitiesMonthYm) {
-      state.activitiesMonthYm = state.activityPeriodTab === 'summer_2026' ? SUMMER_DEFAULT_MONTH_YM : '';
-    }
+    state.activitiesMonthYm = state.activityPeriodTab === 'summer_2026' ? SUMMER_DEFAULT_MONTH_YM : '';
     return;
   }
+
   if (force || !state.activitiesMonthYm || !available.includes(state.activitiesMonthYm)) {
-    state.activitiesMonthYm = available[0];
+    state.activitiesMonthYm = pickBestMonthForPeriod(rows, state.activityPeriodTab);
   }
 }
 
@@ -1584,15 +1596,19 @@ export const activitiesScreen = {
     const disablePrevMonth = isNavLoading || selectedMonthIndex <= 0;
     const disableNextMonth = isNavLoading || selectedMonthIndex < 0 || selectedMonthIndex >= availableMonths.length - 1;
     const periodLabel = activityPeriodLabelForKey(state.activityPeriodTab) || 'פעילויות';
+    const periodTotal = usesMonthNavigation ? activityPeriodRows(allRows, state.activityPeriodTab).length : total;
+    const monthTitleCount = `${total} מתוך ${periodTotal}`;
+    const prevMonthTitle = disablePrevMonth ? 'אין חודש קודם עם פעילויות בתקופה זו' : 'חודש קודם';
+    const nextMonthTitle = disableNextMonth ? 'אין חודש הבא עם פעילויות בתקופה זו' : 'חודש הבא';
     const titleNavRow = isAllMode
       ? `<nav class="ds-activities-title-row" aria-label="חיפוש בכל הפעילויות" dir="rtl">
       <h2 class="ds-activities-page-title">חיפוש בכל הפעילויות · ${total} פעילויות</h2>
     </nav>`
       : usesMonthNavigation
         ? `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="חודש קודם" title="חודש קודם" ${disablePrevMonth ? 'disabled' : ''}>▶</button>
-      <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${total} פעילויות ${navLoadingChip}</h2>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="חודש הבא" title="חודש הבא" ${disableNextMonth ? 'disabled' : ''}>◀</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="${escapeHtml(prevMonthTitle)}" title="${escapeHtml(prevMonthTitle)}" ${disablePrevMonth ? 'disabled' : ''}>▶</button>
+      <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${escapeHtml(monthTitleCount)} פעילויות בת${escapeHtml(periodLabel)} ${navLoadingChip}</h2>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="${escapeHtml(nextMonthTitle)}" title="${escapeHtml(nextMonthTitle)}" ${disableNextMonth ? 'disabled' : ''}>◀</button>
     </nav>`
         : `<nav class="ds-activities-title-row" aria-label="${escapeHtml(periodLabel)}" dir="rtl">
       <h2 class="ds-activities-page-title">${escapeHtml(periodLabel)} · ${total} פעילויות</h2>
@@ -1788,7 +1804,7 @@ export const activitiesScreen = {
       if (state.activitiesNavLoading) return;
       const available = availableActivityMonthsForPeriod(activitiesRows, state.activityPeriodTab);
       if (available.length === 0) return;
-      if (!available.includes(state.activitiesMonthYm)) state.activitiesMonthYm = available[0];
+      if (!available.includes(state.activitiesMonthYm)) state.activitiesMonthYm = pickBestMonthForPeriod(activitiesRows, state.activityPeriodTab);
       const currentMonth = state.activitiesMonthYm;
       const currentIndex = available.indexOf(currentMonth);
       const nextMonth = available[currentIndex + (delta > 0 ? 1 : -1)] || currentMonth;
@@ -2108,8 +2124,10 @@ export const activitiesScreen = {
     root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activityPeriodTab = normalizeActivityPeriodTab(btn.getAttribute('data-activity-period-tab'));
-        if (shouldApplyActivitiesMonthFilter(state)) {
+        if (activityPeriodUsesMonthNavigation(state)) {
           ensureActivityPeriodMonth(state, activitiesRows, { force: true });
+        } else {
+          state.activitiesMonthYm = '';
         }
         ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
         rerenderLocal();
