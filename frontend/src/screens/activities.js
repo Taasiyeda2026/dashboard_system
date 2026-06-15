@@ -1638,6 +1638,7 @@ export const activitiesScreen = {
     const showDiag = isAdmin && isDebugMode;
     const prevMonthTitle = disablePrevMonth ? 'אין חודש קודם עם פעילויות בתקופה זו' : 'חודש קודם';
     const nextMonthTitle = disableNextMonth ? 'אין חודש הבא עם פעילויות בתקופה זו' : 'חודש הבא';
+    const monthNavLabel = heMonthLabel(state.activitiesMonthYm);
     const allSummerBtn = isSummerTab
       ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn${summerShowAll ? ' is-active' : ''}" data-activities-all-summer aria-pressed="${summerShowAll ? 'true' : 'false'}">כל הקיץ</button>`
       : '';
@@ -1653,7 +1654,7 @@ export const activitiesScreen = {
     </nav>`
           : `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="${escapeHtml(prevMonthTitle)}" title="${escapeHtml(prevMonthTitle)}" ${disablePrevMonth ? 'disabled' : ''}>▶</button>
-      <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${escapeHtml(monthTitleCount)} בת${escapeHtml(periodLabel)} ${navLoadingChip}</h2>
+      <h2 class="ds-activities-page-title">ניהול פעילויות${monthNavLabel ? ` · ${escapeHtml(monthNavLabel)}` : ''} · ${escapeHtml(monthTitleCount)} ${escapeHtml(periodLabel)} ${navLoadingChip}</h2>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="${escapeHtml(nextMonthTitle)}" title="${escapeHtml(nextMonthTitle)}" ${disableNextMonth ? 'disabled' : ''}>◀</button>
       ${allSummerBtn}
     </nav>`
