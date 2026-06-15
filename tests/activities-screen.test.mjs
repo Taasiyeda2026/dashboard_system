@@ -467,6 +467,70 @@ test('activities all activities mode ignores month/period filters and supports s
   assert.match(includeDeletedHtml, /פעילות נמחקה/);
 });
 
+test('all activities mode definition: includes school/summer/closed/undated/anomalous, excludes deleted', () => {
+  const state = baseState();
+  state.activityPeriodTab = 'all_activities';
+  state.activitiesMonthYm = '2026-06';
+  state.allActivitiesStatusFilter = 'all';
+  const data = {
+    rows: [
+      // 1. פעילות רגילה תשפ״ו / 2026
+      { RowID: 'SCHOOL-2026-APR', row_id: 'SCHOOL-2026-APR', activity_name: 'פעילות בית ספר אפריל', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-04-10', status: 'פעיל' },
+      // 2. פעילות קיץ 2026 (summer_ prefix)
+      { RowID: 'summer_abc', row_id: 'summer_abc', activity_name: 'פעילות קיץ יולי', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-07-15', status: 'פעיל' },
+      // 3. פעילות סגורה / ארכיון
+      { RowID: 'CLOSED-MARCH', row_id: 'CLOSED-MARCH', activity_name: 'פעילות סגורה מרץ', activity_type: 'course', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-03-01', status: 'סגור' },
+      // 4. פעילות ללא תאריך
+      { RowID: 'UNDATED-ONE', row_id: 'UNDATED-ONE', activity_name: 'פעילות ללא תאריך', activity_type: 'tour', authority: 'רשות ד', school: 'בית ספר ד', start_date: '', status: 'פעיל' },
+      // 5. פעילות חריגה (סטטוס לא סטנדרטי)
+      { RowID: 'ANOMALY-ONE', row_id: 'ANOMALY-ONE', activity_name: 'פעילות חריגה', activity_type: 'course', authority: 'רשות ה', school: 'בית ספר ה', start_date: '2026-02-01', status: 'חריגה' },
+      // לא כולל: נמחק
+      { RowID: 'DELETED-X', row_id: 'DELETED-X', activity_name: 'פעילות נמחקה', activity_type: 'tour', authority: 'רשות ו', school: 'בית ספר ו', start_date: '2026-05-01', status: 'נמחק' }
+    ]
+  };
+
+  const html = activitiesScreen.render(data, { state });
+
+  // כותרת: חיפוש בכל הפעילויות, 5 פעילויות (לא כולל נמחק)
+  assert.match(html, /חיפוש בכל הפעילויות · 5 פעילויות/);
+  // אין ניווט חודשי
+  assert.doesNotMatch(html, /data-activities-month-prev/);
+  // כל 5 הסוגים מופיעים
+  assert.match(html, /פעילות בית ספר אפריל/);
+  assert.match(html, /פעילות קיץ יולי/);
+  assert.match(html, /פעילות סגורה מרץ/);
+  assert.match(html, /פעילות ללא תאריך/);
+  assert.match(html, /פעילות חריגה/);
+  // נמחק לא מופיע
+  assert.doesNotMatch(html, /פעילות נמחקה/);
+  // הספירה שווה לאורך הרשימה המוצגת (5 === 5)
+  assert.match(html, /חיפוש בכל הפעילויות · 5 פעילויות/);
+});
+
+test('all activities mode: activityEndingCurrentMonth does not filter rows (month filter blocked)', () => {
+  const state = baseState();
+  state.activityPeriodTab = 'all_activities';
+  state.activitiesMonthYm = '2026-06';
+  state.activityEndingCurrentMonth = true; // פילטר "נגמר החודש" – אמור להיות מוסתר במצב all_activities
+  const data = {
+    rows: [
+      { RowID: 'ENDS-JUNE', activity_name: 'נגמר ביוני', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-05-01', end_date: '2026-06-30', status: 'פעיל' },
+      { RowID: 'ENDS-MAY', activity_name: 'נגמר במאי', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-04-01', end_date: '2026-05-31', status: 'פעיל' },
+      { RowID: 'NO-END', activity_name: 'ללא תאריך סיום', activity_type: 'course', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-03-01', end_date: '', status: 'פעיל' },
+      { RowID: 'DELETED-END', activity_name: 'פעילות מסולקת ביוני', activity_type: 'tour', authority: 'רשות ד', school: 'בית ספר ד', start_date: '2026-06-01', end_date: '2026-06-15', status: 'נמחק' }
+    ]
+  };
+
+  const html = activitiesScreen.render(data, { state });
+
+  // כל 3 הפעילויות הלא-נמחקות מוצגות – הפילטר "נגמר החודש" לא אמור לחול
+  assert.match(html, /חיפוש בכל הפעילויות · 3 פעילויות/);
+  assert.match(html, /נגמר ביוני/);
+  assert.match(html, /נגמר במאי/);
+  assert.match(html, /ללא תאריך סיום/);
+  assert.doesNotMatch(html, /פעילות מסולקת ביוני/);
+});
+
 test('activities month navigation updates the single selected month state and rerenders RTL title/table', async () => {
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;

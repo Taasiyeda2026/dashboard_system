@@ -783,7 +783,7 @@ function applyClientFilters(rows, state, settings) {
   if (state.activityQuickManager) {
     out = out.filter((row) => matchesQuickDistrictOrManager(row, state.activityQuickManager));
   }
-  if (state.activityEndingCurrentMonth) {
+  if (state.activityEndingCurrentMonth && !isAllActivitiesMode(state)) {
     out = out.filter((row) => isEndingInMonth(row, state.activitiesMonthYm));
   }
   return out;
@@ -1389,7 +1389,7 @@ export const activitiesScreen = {
     ensureActivityPeriodMonth(state, allRows);
     state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const isAllMode = isAllActivitiesMode(state);
-    const periodRows    = isAllMode ? allActivitiesRows(allRows, { allActivitiesStatusFilter: 'include_deleted' }) : activityPeriodRows(allRows, state.activityPeriodTab);
+    const periodRows    = isAllMode ? allActivitiesRows(allRows, state) : activityPeriodRows(allRows, state.activityPeriodTab);
     const monthRows     = activityRowsForPeriodAndMonth(allRows, state);
     const filteredRows  = applyActivitiesLocalFilters(monthRows, state, state?.clientSettings);
 
@@ -1525,11 +1525,13 @@ export const activitiesScreen = {
                 <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>הערות</th></tr></thead>`;
     const tableSection =
       safeRows.length === 0
-        ? dsEmptyState(periodRows.length === 0
-            ? 'אין פעילויות להצגה בתקופה זו'
-            : (monthRows.length === 0)
-              ? 'אין פעילויות להצגה בחודש הנבחר'
-              : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
+        ? dsEmptyState(isAllMode
+            ? (monthRows.length === 0 ? 'אין פעילויות להצגה' : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
+            : periodRows.length === 0
+              ? 'אין פעילויות להצגה בתקופה זו'
+              : (monthRows.length === 0)
+                ? 'אין פעילויות להצגה בחודש הנבחר'
+                : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
                 ${tableColsHtml}
                 <tbody>${tableRows}</tbody>
