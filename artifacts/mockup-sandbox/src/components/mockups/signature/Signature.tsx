@@ -112,22 +112,22 @@ export function Signature() {
 
         {/* Header: לוגו+תאריך (ימין) | לכבוד (שמאל) */}
         <div style={{ display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", direction: "rtl", gap: headerGap, marginBottom: 4 }}>
-          {/* לוגו + תאריך — ימין */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", direction: "rtl" }}>
+          {/* לכבוד — ימין */}
+          <div style={{ textAlign: "right", direction: "rtl" }}>
+            <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: "9pt" }}>לכבוד:</p>
+            {contactName && <p style={{ margin: "0 0 1px", fontWeight: 700 }}>{contactName}</p>}
+            {orgName && <p style={{ margin: 0 }}>{orgName}</p>}
+          </div>
+          {/* לוגו + תאריך — שמאל */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", direction: "ltr" }}>
             <img
               src="/__mockup/images/proposal-header-logo.png"
               alt="לוגו תעשיידע"
               style={{ height: logoSize, width: "auto", maxWidth: 200, objectFit: "contain", display: "block" }}
             />
             {dateText && (
-              <div style={{ fontSize: "9pt", color: "#555", marginTop: 6, textAlign: "right" }}>{dateText}</div>
+              <div style={{ fontSize: "9pt", color: "#555", marginTop: 6, textAlign: "left" }}>{dateText}</div>
             )}
-          </div>
-          {/* לכבוד — שמאל */}
-          <div style={{ textAlign: "left", direction: "ltr" }}>
-            <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: "9pt" }}>לכבוד:</p>
-            {contactName && <p style={{ margin: "0 0 1px", fontWeight: 700 }}>{contactName}</p>}
-            {orgName && <p style={{ margin: 0 }}>{orgName}</p>}
           </div>
         </div>
 
