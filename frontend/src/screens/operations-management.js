@@ -663,9 +663,15 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-col--date,
     .ds-ops-mgmt-screen .ds-ops-col--weekday,
     .ds-ops-mgmt-screen .ds-ops-col--time { white-space: nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-col--time,
+    .ds-ops-mgmt-screen .ds-ops-col--time th { text-align: center; }
     .ds-ops-mgmt-screen .ds-ops-sortable-th { cursor:pointer; user-select:none; white-space:nowrap; background:#e6f6fb; color:#0f172a; font-weight:700; border:0; }
+    .ds-ops-mgmt-screen .ds-ops-sortable-th.ds-ops-col--time { text-align: center; }
     .ds-ops-mgmt-screen .ds-ops-col--school,
     .ds-ops-mgmt-screen .ds-ops-col--activity { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-col--grade { width:70px; max-width:70px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-mgmt-schedule { width:80%; }
+    .ds-ops-mgmt-screen .ds-card { max-width:100%; box-shadow:none; border:1px solid #d8e5ee; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-summary-line { display:block; margin:0 0 10px; padding:7px 10px; border:1px solid #d8e5ee; border-radius:10px; background:#f8fbfd; color:#334155; font-weight:700; font-size:13px; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters { padding:10px 12px; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters .ds-filter-panel__title { margin:0 0 6px; font-size:14px; }
@@ -759,7 +765,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
         <span class="pb-meta">${metaParts.map(escapeHtml).join(' | ')}</span>
       </div>
-      <table class="pb-act"><thead><tr><th>שעות</th><th>פעילות</th><th>שכבה / כיתה</th>${instructorHeader}</tr></thead>
+      <table class="pb-act"><thead><tr><th>שעות</th><th>פעילות</th><th>כיתה</th>${instructorHeader}</tr></thead>
       <tbody>${activityRows}</tbody></table>
     </div>`;
   }).join('');
@@ -839,7 +845,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
 
   const table = scheduleRows.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-schedule"><thead><tr>
-        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעות', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'שכבה / כיתה', 'ds-ops-col--grade')}
+        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעות', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'כיתה', 'ds-ops-col--grade')}
       </tr></thead><tbody>${tableRows}</tbody></table>`)
     : dsEmptyState('לא נמצאו פעילויות בטווח הנבחר');
 
@@ -986,7 +992,7 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
         </tr>`;
       }).join('');
       const detail = isOpen
-        ? `<div class="ds-ops-school-detail">${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>תאריך</th><th>יום</th><th>שעות</th><th>סדנה / פעילות</th><th>מדריך</th><th>שכבה / כיתה</th></tr></thead><tbody>${detailRows}</tbody></table>`)}</div>`
+        ? `<div class="ds-ops-school-detail">${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>תאריך</th><th>יום</th><th>שעות</th><th>סדנה / פעילות</th><th>מדריך</th><th>כיתה</th></tr></thead><tbody>${detailRows}</tbody></table>`)}</div>`
         : '';
       const instructorsList = Array.from(school.instructors);
       const workshopList = Array.from(school.workshops);
