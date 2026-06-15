@@ -304,16 +304,44 @@ test('activities period tabs split rows by start_date and default to school 2026
 
   const html = activitiesScreen.render(data, { state });
 
-  assert.match(html, /data-activity-period-tab="school_2026"[\s\S]*תשפ״ו \/ 2026[\s\S]*<strong>1<\/strong>/);
+  assert.match(html, /data-activity-period-tab="school_2026"[\s\S]*תשפ״ו \/ 2026[\s\S]*<strong>3<\/strong>/);
   assert.match(html, /aria-selected="true" data-activity-period-tab="school_2026"/);
   assert.match(html, /data-activity-period-tab="school_2027"[\s\S]*<strong>0<\/strong>/);
-  assert.match(html, /data-activity-period-tab="archive"[\s\S]*<strong>0<\/strong>/);
+  assert.match(html, /data-activity-period-tab="archive"[\s\S]*<strong>1<\/strong>/);
   assert.match(html, /פעילות יוני/);
   assert.doesNotMatch(html, /פעילות יולי/);
   assert.doesNotMatch(html, /פעילות ספטמבר/);
   assert.doesNotMatch(html, /פעילות סגורה/);
   assert.match(html, /data-activity-period-tab="all_activities"[\s\S]*כל הפעילויות/);
 });
+
+test('activities period tab badges are computed before month filtering', () => {
+  const state = baseState();
+  state.activitiesMonthYm = '2026-06';
+  state.activityPeriodTab = 'school_2026';
+  const data = {
+    rows: [
+      { RowID: 'REG-JUNE', activity_name: 'פעילות יוני', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-06-10', status: 'פעיל' },
+      { RowID: 'REG-MAY', activity_name: 'פעילות מאי', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-05-10', status: 'פעיל' },
+      { RowID: 'summer_july', activity_name: 'קיץ יולי', activity_type: 'workshop', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-07-10', status: 'פעיל' },
+      { RowID: 'summer_undated', activity_name: 'קיץ ללא תאריך', activity_type: 'workshop', authority: 'רשות ד', school: 'בית ספר ד', start_date: '', status: 'פעיל' },
+      { RowID: 'summer_closed', activity_name: 'קיץ סגור', activity_type: 'workshop', authority: 'רשות ה', school: 'בית ספר ה', start_date: '2026-07-11', status: 'סגור' },
+      { RowID: 'CLOSED-REG', activity_name: 'ארכיון רגיל', activity_type: 'course', authority: 'רשות ו', school: 'בית ספר ו', start_date: '2026-05-10', status: 'סגור' },
+      { RowID: 'DELETED-REG', activity_name: 'נמחק רגיל', activity_type: 'course', authority: 'רשות ז', school: 'בית ספר ז', start_date: '2026-05-10', status: 'נמחק' }
+    ]
+  };
+
+  const html = activitiesScreen.render(data, { state });
+
+  assert.match(html, /data-activity-period-tab="all_activities"[\s\S]*<strong>6<\/strong>/);
+  assert.match(html, /data-activity-period-tab="school_2026"[\s\S]*<strong>2<\/strong>/);
+  assert.match(html, /data-activity-period-tab="summer_2026"[\s\S]*<strong>2<\/strong>/);
+  assert.match(html, /data-activity-period-tab="archive"[\s\S]*<strong>2<\/strong>/);
+  assert.match(html, /ניהול פעילויות · יוני · 1 פעילויות/);
+  assert.match(html, /פעילות יוני/);
+  assert.doesNotMatch(html, /פעילות מאי/);
+});
+
 
 test('activities summer tab opens on first dated summer month and filters rows by start_date month', () => {
   const state = baseState();
@@ -331,11 +359,11 @@ test('activities summer tab opens on first dated summer month and filters rows b
   const html = activitiesScreen.render(data, { state });
 
   assert.equal(state.activitiesMonthYm, '2026-07');
-  assert.match(html, /data-activity-period-tab="summer_2026"[\s\S]*<strong>1<\/strong>/);
-  assert.match(html, /ניהול פעילויות · יולי · 1 פעילויות/);
+  assert.match(html, /data-activity-period-tab="summer_2026"[\s\S]*<strong>2<\/strong>/);
+  assert.match(html, /ניהול פעילויות · יולי · 2 פעילויות/);
   assert.match(html, /פעילות יולי/);
-  assert.doesNotMatch(html, /פעילות קיץ ללא תאריך/);
-  assert.doesNotMatch(html, /דורש שיבוץ תאריך/);
+  assert.match(html, /פעילות קיץ ללא תאריך/);
+  assert.match(html, /דורש שיבוץ תאריך/);
   assert.doesNotMatch(html, /פעילות קיץ מבוטלת/);
   assert.doesNotMatch(html, /פעילות רגילה ביולי/);
 });
@@ -358,8 +386,8 @@ test('activities summer month initialization does not override manual summer nav
   state.activitiesMonthYm = '2026-08';
   const html = activitiesScreen.render(data, { state });
   assert.equal(state.activitiesMonthYm, '2026-08');
-  assert.match(html, /ניהול פעילויות · אוגוסט · 0 פעילויות/);
-  assert.doesNotMatch(html, /פעילות יולי/);
+  assert.match(html, /ניהול פעילויות · אוגוסט · 1 פעילויות/);
+  assert.match(html, /פעילות יולי/);
 });
 
 test('activities selected month drives title, count and table rows', () => {
@@ -416,6 +444,9 @@ test('activities all activities mode ignores month/period filters and supports s
   assert.match(html, /פעילות ללא תאריך/);
   assert.doesNotMatch(html, /פעילות נמחקה/);
   assert.match(html, /data-all-activities-status-filter/);
+  assert.match(html, /<select[^>]+data-all-activities-status-filter/);
+  assert.doesNotMatch(html, /ds-filter-inline--all-activities/);
+  assert.doesNotMatch(html, /<span>סטטוס<\/span>/);
   assert.match(html, /חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד/);
 
   state.allActivitiesStatusFilter = 'closed';
@@ -477,6 +508,52 @@ test('activities month navigation updates the single selected month state and re
     assert.match(root.textContent, /ניהול פעילויות · מאי · 1 פעילויות/);
     assert.match(root.textContent, /פעילות מאי/);
     assert.doesNotMatch(root.textContent, /פעילות יוני/);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+    if (previousAbortController === undefined) delete globalThis.AbortController;
+    else globalThis.AbortController = previousAbortController;
+  }
+});
+
+
+test('activities period tab click resets regular school tab to current month and keeps all mode monthless', async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
+  const dom = new JSDOM('<main id="root"></main>', { url: 'https://example.test/dashboard?route=activities' });
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const state = baseState();
+    state.activityPeriodTab = 'all_activities';
+    state.activitiesMonthYm = '2026-08';
+    const expectedCurrentYm = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const data = { rows: [] };
+    const root = dom.window.document.querySelector('#root');
+    const rerender = () => {
+      root.innerHTML = activitiesScreen.render(data, { state });
+      activitiesScreen.bind({ root, data, state, rerender, api: {}, ui: { bindInteractiveCards() {} } });
+    };
+
+    rerender();
+    assert.match(root.textContent, /חיפוש בכל הפעילויות/);
+    assert.equal(root.querySelector('[data-activities-month-next]'), null);
+
+    root.querySelector('[data-activity-period-tab="school_2026"]').click();
+    assert.equal(state.activityPeriodTab, 'school_2026');
+    assert.equal(state.activitiesMonthYm, expectedCurrentYm);
+    assert.match(root.textContent, /ניהול פעילויות/);
+    assert.notEqual(root.querySelector('[data-activities-month-next]'), null);
+
+    root.querySelector('[data-activities-month-next]').click();
+    assert.notEqual(state.activitiesMonthYm, expectedCurrentYm);
+    assert.equal(state.activityPeriodTab, 'school_2026');
+
     await new Promise((resolve) => setTimeout(resolve, 450));
   } finally {
     if (previousWindow === undefined) delete globalThis.window;
