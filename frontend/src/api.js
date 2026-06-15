@@ -412,31 +412,41 @@ async function selectActivitiesByDateRangeFromSupabase({
 }
 
 /**
- * Reads contacts_instructors + contacts_schools from Supabase.
- * Returns { instructor_rows, school_rows, can_view_instructors, can_view_schools, _source }
- * or null on any failure.
+ * Reads contacts_instructors + contacts_directory_view from Supabase.
+ * Returns partial data when one source fails; contacts_directory_view falls back to contacts_schools.
  *
  * ⚠️ permissions table is intentionally excluded — login credentials must never be read client-side.
  */
 async function readContactsFromSupabase() {
   if (!supabase) return null;
+
+  const readInstructors = async () => {
+    const result = await supabase.from('contacts_instructors').select('*');
+    if (result.error) {
+      // eslint-disable-next-line no-console
+      console.warn('[supabase] Failed to load contacts_instructors:', result.error);
+      return [];
+    }
+    return Array.isArray(result.data) ? result.data : [];
+  };
+
+  const readSchoolContacts = async () => {
+    const viewResult = await supabase.from('contacts_directory_view').select('*');
+    if (!viewResult.error) return Array.isArray(viewResult.data) ? viewResult.data : [];
+
+    // eslint-disable-next-line no-console
+    console.warn('[supabase] Failed to load contacts_directory_view; falling back to contacts_schools:', viewResult.error);
+    const fallbackResult = await supabase.from('contacts_schools').select('*');
+    if (fallbackResult.error) {
+      // eslint-disable-next-line no-console
+      console.warn('[supabase] Failed to load contacts_schools fallback:', fallbackResult.error);
+      return [];
+    }
+    return Array.isArray(fallbackResult.data) ? fallbackResult.data : [];
+  };
+
   try {
-    const [instrResult, schoolResult] = await Promise.all([
-      supabase.from('contacts_instructors').select('*'),
-      supabase.from('contacts_directory_view').select('*')
-    ]);
-    if (instrResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load contacts_instructors:', instrResult.error);
-      return null;
-    }
-    if (schoolResult.error) {
-      // eslint-disable-next-line no-console
-      console.error('[supabase] Failed to load contacts_directory_view:', schoolResult.error);
-      return null;
-    }
-    const instructor_rows = Array.isArray(instrResult.data) ? instrResult.data : [];
-    const school_rows = Array.isArray(schoolResult.data) ? schoolResult.data : [];
+    const [instructor_rows, school_rows] = await Promise.all([readInstructors(), readSchoolContacts()]);
     return {
       instructor_rows,
       school_rows,
@@ -446,8 +456,14 @@ async function readContactsFromSupabase() {
     };
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('[supabase] Unexpected contacts fetch error:', error);
-    return null;
+    console.warn('[supabase] Unexpected contacts fetch error:', error);
+    return {
+      instructor_rows: [],
+      school_rows: [],
+      can_view_instructors: true,
+      can_view_schools: true,
+      _source: 'supabase'
+    };
   }
 }
 
@@ -1954,10 +1970,21 @@ async function readProposalTemplateSectionsFromSupabase() {
 
 async function readContactsSchoolsForProposals() {
   try {
-    const { data, error } = await supabase
-      .from('contacts_schools')
-      .select('id,client_type,client_name,authority_id,school_id,semel_mosad,authority,school,contact_name,contact_role,phone,email,mobile')
+    const selectColumns = 'id,client_type,client_name,authority_id,school_id,semel_mosad,authority,school,contact_name,contact_role,phone,email,mobile';
+    let { data, error } = await supabase
+      .from('contacts_directory_view')
+      .select(selectColumns)
       .order('authority', { ascending: true });
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[supabase] Failed to load contacts_directory_view for proposals; falling back to contacts_schools:', error);
+      const fallback = await supabase
+        .from('contacts_schools')
+        .select(selectColumns)
+        .order('authority', { ascending: true });
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (error) return [];
     return (Array.isArray(data) ? data : []).map((c) => ({
       id:           cleanProposalAgreementText(c.id),
