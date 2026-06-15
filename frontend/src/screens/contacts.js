@@ -6,7 +6,9 @@ import {
   ensureActivityListFilters,
   prepareRowsForSearch,
   applyLocalFilters,
-  filtersToolbarHtml
+  filtersToolbarHtml,
+  bindLocalFilters,
+  normalizeText
 } from './shared/activity-list-filters.js';
 import { getManagerUsers } from './shared/activity-options.js';
 
@@ -16,6 +18,109 @@ const AVATAR_COLORS = [
   '#f43f5e', '#a855f7'
 ];
 const CONTACTS_SCOPE = 'contacts';
+
+const INSTR_SEARCH_FIELDS = [
+  'full_name', 'mobile', 'email', 'contact_role', 'role', 'employment_type'
+];
+
+const SCHOOL_FILTER_FIELDS = [
+  { key: 'authority', label: 'רשות' },
+  { key: 'school', label: 'בית ספר / מסגרת' },
+  { key: 'contact_role', label: 'תפקיד' }
+];
+
+function isValidContact(row) {
+  return Boolean(
+    String(row?.contact_name || '').trim()
+    || String(row?.mobile || row?.phone || '').trim()
+    || String(row?.email || '').trim()
+  );
+}
+
+function contactDedupeKey(row) {
+  return [
+    String(row?.authority || row?.client_name || '').trim().toLowerCase(),
+    String(row?.school || '').trim().toLowerCase(),
+    String(row?.contact_name || '').trim().toLowerCase(),
+    String(row?.mobile || row?.phone || '').trim(),
+    String(row?.email || '').trim().toLowerCase()
+  ].join('|');
+}
+
+function applyInstrFilters(rows, filters) {
+  const list = Array.isArray(rows) ? rows : [];
+  const rawSearch = Object.prototype.hasOwnProperty.call(filters || {}, 'appliedQ')
+    ? filters.appliedQ
+    : filters?.q;
+  const search = normalizeText(rawSearch || '');
+  if (!search) return list;
+  return list.filter((row) => {
+    const hay = INSTR_SEARCH_FIELDS
+      .map((field) => row?.[field])
+      .filter(Boolean)
+      .map((v) => normalizeText(v))
+      .join(' ');
+    return hay.includes(search);
+  });
+}
+
+function instrToolbarHtml(scope, state) {
+  const filters = ensureActivityListFilters(state, scope);
+  return `<div class="ds-toolbar ds-toolbar--filters-inline ds-toolbar--contacts-instr" dir="rtl" data-local-filters="${escapeHtml(scope)}">
+    <input type="search" class="ds-input ds-input--sm ds-filter-search-sm" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="חיפוש לפי שם / טלפון / מייל / תפקיד…" />
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-filter-clear="${escapeHtml(scope)}">ניקוי</button>
+  </div>`;
+}
+
+function computeSchoolTabStats(authorityMap, activeLetter = '') {
+  let authorities = 0;
+  let schools = 0;
+  const contactKeys = new Set();
+
+  authorityMap.forEach((bucket, authority) => {
+    if (activeLetter && firstHebrewLetter(authority) !== activeLetter) return;
+    let hasContent = false;
+
+    bucket.schools.forEach((schoolRows, schoolName) => {
+      if (!String(schoolName || '').trim()) return;
+      const valid = schoolRows.filter(isValidContact);
+      if (!valid.length) return;
+      schools += 1;
+      hasContent = true;
+      valid.forEach((row) => contactKeys.add(contactDedupeKey(row)));
+    });
+
+    [...bucket.authority, ...bucket.other].forEach((row) => {
+      if (!isValidContact(row)) return;
+      hasContent = true;
+      contactKeys.add(contactDedupeKey(row));
+    });
+
+    if (hasContent) authorities += 1;
+  });
+
+  return { authorities, schools, contacts: contactKeys.size };
+}
+
+function countAuthorityBucket(bucket) {
+  let schoolCount = 0;
+  const contactKeys = new Set();
+
+  bucket.schools.forEach((schoolRows, schoolName) => {
+    if (!String(schoolName || '').trim()) return;
+    const valid = schoolRows.filter(isValidContact);
+    if (!valid.length) return;
+    schoolCount += 1;
+    valid.forEach((row) => contactKeys.add(contactDedupeKey(row)));
+  });
+
+  [...bucket.authority, ...bucket.other].forEach((row) => {
+    if (!isValidContact(row)) return;
+    contactKeys.add(contactDedupeKey(row));
+  });
+
+  return { schoolCount, contactCount: contactKeys.size };
+}
 
 /* ─── Copy button ─── */
 
@@ -80,6 +185,9 @@ function renderInstrCard(row) {
   const nameRaw = row.full_name || row.emp_id || '—';
   const name = escapeHtml(nameRaw);
   const phone = escapeHtml(row.mobile || '');
+  const email = row.email ? escapeHtml(String(row.email)) : '';
+  const roleRaw = String(row.contact_role || row.role || row.employment_type || '').trim();
+  const role = roleRaw ? escapeHtml(roleRaw) : '';
   const isInactive = String(row.active || '').toLowerCase() === 'no';
   const initials = escapeHtml(avatarInitials(nameRaw));
   const bg = avatarColor(row.emp_id || nameRaw);
@@ -91,16 +199,22 @@ function renderInstrCard(row) {
         <span class="ci-person-card__avatar" style="background:${bg}" aria-hidden="true">${initials}</span>
         <span class="ci-person-card__info">
           <span class="ci-person-card__name">${name}</span>
+          ${role ? `<span class="ci-person-card__role">${role}</span>` : ''}
           <span class="ci-person-card__phone">${phone || '—'}</span>
+          <span class="ci-person-card__email">${email || '—'}</span>
         </span>
       </button>
       <span class="ci-person-card__actions">${actionBtn('edit-instr', { emp_id: row.emp_id }, '✎')}</span>
     </div>`;
 }
 
+function hasActiveInstrFilters(filters = {}) {
+  return Boolean(String(filters.appliedQ || filters.q || '').trim());
+}
+
 function hasActiveContactFilters(filters = {}) {
   return Boolean(String(filters.appliedQ || filters.q || '').trim())
-    || Object.entries(filters || {}).some(([key, value]) => key.startsWith('field:') && String(value || '').trim());
+    || SCHOOL_FILTER_FIELDS.some((field) => String(filters?.[field.key] || '').trim());
 }
 
 function contactEmptyState(rows, filters) {
@@ -110,27 +224,31 @@ function contactEmptyState(rows, filters) {
   return dsEmptyState('לא נמצאו אנשי קשר');
 }
 
+function instrEmptyState(rows, filters) {
+  if (Array.isArray(rows) && rows.length && hasActiveInstrFilters(filters)) {
+    return dsEmptyState('לא נמצאו מדריכים לפי הסינון הנוכחי');
+  }
+  return dsEmptyState('לא נמצאו מדריכים');
+}
+
 function instrTabHtml(rows, filters) {
-  const filtered = applyLocalFilters(rows, filters, { filterFields: [] });
+  const filtered = applyInstrFilters(rows, filters);
+  const countHtml = `<div class="ci-instr-count" dir="rtl">מדריכים: <strong>${filtered.length}</strong></div>`;
   const body = filtered.length === 0
-    ? contactEmptyState(rows, filters)
+    ? instrEmptyState(rows, filters)
     : `<div class="ci-person-grid">${filtered.map((r) => renderInstrCard(r)).join('')}</div>`;
-  return { filtered, body };
+  return { filtered, body: `${countHtml}${body}` };
 }
 
 /* ─── School contacts ─── */
 
 function schoolPersonHtml(row) {
-  const name = row.contact_name ? escapeHtml(String(row.contact_name)) : '';
-  const role = row.contact_role ? escapeHtml(String(row.contact_role)) : '';
-  const mobile = row.mobile ? escapeHtml(String(row.mobile)) : '';
-  const email = row.email ? escapeHtml(String(row.email)) : '';
-  if (!name && !role && !mobile && !email) return '';
-
-  const contactItems = [
-    mobile ? `<span class="sc-person__contact-item sc-person__contact-item--mobile" dir="ltr">${mobile}</span>` : '',
-    email ? `<span class="sc-person__contact-item sc-person__contact-item--email" dir="ltr"><span class="ci-dv">${email}</span>${copyBtn(email, 'העתק מייל')}</span>` : ''
-  ].filter(Boolean).join('<span class="sc-person__contact-sep" aria-hidden="true">•</span>');
+  const name = row.contact_name ? escapeHtml(String(row.contact_name)) : '—';
+  const role = row.contact_role ? escapeHtml(String(row.contact_role)) : '—';
+  const mobile = row.mobile || row.phone;
+  const phone = mobile ? escapeHtml(String(mobile)) : '—';
+  const email = row.email ? escapeHtml(String(row.email)) : '—';
+  if (!isValidContact(row)) return '';
 
   const editBtn = actionBtn('edit-school', {
     _row_index: row._row_index,
@@ -139,13 +257,14 @@ function schoolPersonHtml(row) {
     contact_name: row.contact_name
   }, '✎');
 
-  return `<article class="sc-person">
+  return `<article class="sc-person sc-person--compact">
     <div class="sc-person__top">
-      ${name ? `<div class="sc-person__name">${name}</div>` : ''}
+      <div class="sc-person__name">${name}</div>
       <span class="sc-person__actions">${editBtn}</span>
     </div>
-    ${role ? `<div class="sc-person__role">${role}</div>` : ''}
-    ${contactItems ? `<div class="sc-person__contact-row">${contactItems}</div>` : ''}
+    <div class="sc-person__role">${role}</div>
+    <div class="sc-person__field sc-person__field--phone" dir="ltr">${phone}</div>
+    <div class="sc-person__field sc-person__field--email" dir="ltr">${email === '—' ? '—' : `<span class="ci-dv">${email}</span>${copyBtn(row.email, 'העתק מייל')}`}</div>
   </article>`;
 }
 
@@ -177,14 +296,16 @@ function groupByAuthorityStructured(rows) {
 }
 
 function renderSchoolAccordion(schoolName, rows) {
-  const personsHtml = rows.map(schoolPersonHtml).filter(Boolean).join('');
+  const validRows = rows.filter(isValidContact);
+  const personsHtml = validRows.map(schoolPersonHtml).filter(Boolean).join('');
   if (!personsHtml) return '';
-  const semelMosad = rows.map((r) => String(r.semel_mosad || '').trim()).find(Boolean);
-  const countLabel = rows.length === 1 ? '1 איש קשר' : `${rows.length} אנשי קשר`;
+  const contactCount = validRows.length;
+  const countLabel = contactCount === 1 ? '1 איש קשר' : `${contactCount} אנשי קשר`;
+  const semelMosad = validRows.map((r) => String(r.semel_mosad || '').trim()).find(Boolean);
   const metaHtml = semelMosad
     ? `<div class="sc-school-meta"><span class="sc-school-meta__label">סמל מוסד:</span> <span class="sc-school-meta__val">${escapeHtml(semelMosad)}</span></div>`
     : '';
-  return `<details class="sc-card">
+  return `<details class="sc-card sc-card--compact">
     <summary class="sc-card__head">
       <span class="sc-card__chevron" aria-hidden="true">›</span>
       <span class="sc-card__school-icon" aria-hidden="true">🏫</span>
@@ -193,7 +314,7 @@ function renderSchoolAccordion(schoolName, rows) {
     </summary>
     <div class="sc-card__body">
       ${metaHtml}
-      <div class="sc-contact-list">${personsHtml}</div>
+      <div class="sc-contact-list sc-contact-list--grid">${personsHtml}</div>
     </div>
   </details>`;
 }
@@ -201,40 +322,43 @@ function renderSchoolAccordion(schoolName, rows) {
 function renderAuthorityAccordion(authority, bucket) {
   const { schools, authority: authContacts, other } = bucket;
   let schoolsHtml = '';
-  const sortedSchools = [...schools.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he'));
+  const sortedSchools = [...schools.entries()]
+    .filter(([schoolName, rows]) => String(schoolName || '').trim() && rows.some(isValidContact))
+    .sort((a, b) => a[0].localeCompare(b[0], 'he'));
   sortedSchools.forEach(([schoolName, rows]) => { schoolsHtml += renderSchoolAccordion(schoolName, rows); });
-  const authPersonsHtml = authContacts.map(schoolPersonHtml).filter(Boolean).join('');
-  const otherPersonsHtml = other.map(schoolPersonHtml).filter(Boolean).join('');
+
+  const authValid = authContacts.filter(isValidContact);
+  const otherValid = other.filter(isValidContact);
+  const authPersonsHtml = authValid.map(schoolPersonHtml).filter(Boolean).join('');
+  const otherPersonsHtml = otherValid.map(schoolPersonHtml).filter(Boolean).join('');
   if (!schoolsHtml && !authPersonsHtml && !otherPersonsHtml) return '';
 
-  let totalContacts = authContacts.length + other.length;
-  schools.forEach((rows) => { totalContacts += rows.length; });
-  const schoolCount = schools.size;
+  const { schoolCount, contactCount } = countAuthorityBucket(bucket);
   const badges = [
-    schoolCount > 0 ? `${schoolCount} ביה"ס` : '',
-    totalContacts > 0 ? `${totalContacts} אנשי קשר` : ''
+    schoolCount > 0 ? `${schoolCount} בתי ספר / מסגרות` : '',
+    contactCount > 0 ? `${contactCount} אנשי קשר` : ''
   ].filter(Boolean).join(' · ');
 
   const schoolsSection = schoolsHtml
     ? `<section class="sc-sub-group sc-sub-group--schools">
-        <div class="sc-sub-group__title"><span aria-hidden="true">🏫</span> בתי ספר <span class="sc-sub-group__count">${schoolCount}</span></div>
-        <div class="sc-school-stack">${schoolsHtml}</div>
+        <div class="sc-sub-group__title"><span aria-hidden="true">🏫</span> בתי ספר / מסגרות <span class="sc-sub-group__count">${schoolCount}</span></div>
+        <div class="sc-school-grid">${schoolsHtml}</div>
       </section>`
     : '';
   const authoritySection = authPersonsHtml
     ? `<section class="sc-sub-group sc-sub-group--authority">
-        <div class="sc-sub-group__title"><span aria-hidden="true">🏛️</span> רשות <span class="sc-sub-group__count">${authContacts.length}</span></div>
-        <div class="sc-contact-list">${authPersonsHtml}</div>
+        <div class="sc-sub-group__title"><span aria-hidden="true">🏛️</span> אנשי קשר ברשות <span class="sc-sub-group__count">${authValid.length}</span></div>
+        <div class="sc-contact-list sc-contact-list--grid">${authPersonsHtml}</div>
       </section>`
     : '';
   const otherSection = otherPersonsHtml
     ? `<section class="sc-sub-group sc-sub-group--other">
-        <div class="sc-sub-group__title"><span aria-hidden="true">📋</span> אחר <span class="sc-sub-group__count">${other.length}</span></div>
-        <div class="sc-contact-list">${otherPersonsHtml}</div>
+        <div class="sc-sub-group__title"><span aria-hidden="true">📋</span> אחר <span class="sc-sub-group__count">${otherValid.length}</span></div>
+        <div class="sc-contact-list sc-contact-list--grid">${otherPersonsHtml}</div>
       </section>`
     : '';
 
-  return `<details class="sc-authority-accordion">
+  return `<details class="sc-authority-accordion sc-authority-accordion--compact">
     <summary class="sc-authority-head sc-authority-head--accordion">
       <span class="sc-card__chevron" aria-hidden="true">›</span>
       <span class="sc-authority-icon" aria-hidden="true">🏛️</span>
@@ -307,60 +431,82 @@ function schoolFormHtml(row = {}) {
   `;
 }
 
-function activeContactRows(tab, instrRows, schoolRows) {
-  return tab === 'instr' ? instrRows : schoolRows;
-}
-
-function contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr = true, canViewSchool = true) {
+function contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr = true, canViewSchool = true, activeLetter = '') {
   if (tab === 'instr' && canViewInstr) return instrTabHtml(instrRows, filters).body;
-  if (tab === 'school' && canViewSchool) return schoolTabHtml(schoolRows, filters).body;
+  if (tab === 'school' && canViewSchool) return schoolTabHtml(schoolRows, filters, activeLetter).body;
   return dsEmptyState('לא נמצאו אנשי קשר');
 }
 
-function schoolTabHtml(rows, filters) {
-  const filtered = applyLocalFilters(rows, filters, { filterFields: [] });
-  if (filtered.length === 0) return { filtered, body: contactEmptyState(rows, filters) };
+function contactTabCounts(instrRows, schoolRows, filters, activeLetter = '') {
+  const instrCount = applyInstrFilters(instrRows, filters).length;
+  const schoolStats = computeSchoolTabStats(
+    groupByAuthorityStructured(applyLocalFilters(schoolRows, filters, { filterFields: SCHOOL_FILTER_FIELDS })),
+    activeLetter
+  );
+  return { instrCount, schoolContacts: schoolStats.contacts };
+}
 
+function schoolTabHtml(rows, filters, activeLetter = '') {
+  const filtered = applyLocalFilters(rows, filters, { filterFields: SCHOOL_FILTER_FIELDS });
   const authorityMap = groupByAuthorityStructured(filtered);
+  const stats = computeSchoolTabStats(authorityMap, activeLetter);
 
-  let totalSchools = 0;
-  authorityMap.forEach((bucket) => { totalSchools += bucket.schools.size; });
-  const summaryHtml = `<div class="sc-summary-bar" dir="rtl">
-    <span class="sc-summary-bar__item">רשויות: <strong>${authorityMap.size}</strong></span>
+  if (!stats.authorities && !stats.contacts) {
+    return { filtered, stats, body: contactEmptyState(rows, filters) };
+  }
+
+  const summaryHtml = `<div class="sc-summary-bar contacts-summary-bar" dir="rtl">
+    <span class="sc-summary-bar__item">רשויות: <strong>${stats.authorities}</strong></span>
     <span class="sc-summary-bar__sep" aria-hidden="true">·</span>
-    <span class="sc-summary-bar__item">בתי ספר: <strong>${totalSchools}</strong></span>
+    <span class="sc-summary-bar__item">בתי ספר / מסגרות: <strong>${stats.schools}</strong></span>
     <span class="sc-summary-bar__sep" aria-hidden="true">·</span>
-    <span class="sc-summary-bar__item">אנשי קשר: <strong>${filtered.length}</strong></span>
+    <span class="sc-summary-bar__item">אנשי קשר: <strong>${stats.contacts}</strong></span>
   </div>`;
 
   const letterMap = new Map();
-  authorityMap.forEach((_, authority) => {
+  authorityMap.forEach((bucket, authority) => {
+    if (!countAuthorityBucket(bucket).contactCount) return;
     const letter = firstHebrewLetter(authority);
     if (!letterMap.has(letter)) letterMap.set(letter, []);
     letterMap.get(letter).push(authority);
   });
 
-  const alphaBtns = [...letterMap.keys()].map((letter) =>
-    `<button type="button" class="sc-alpha-btn" data-alpha-btn="${escapeHtml(letter)}" aria-expanded="false">${escapeHtml(letter)}</button>`
+  const alphaBtns = [...letterMap.keys()].sort((a, b) => {
+    if (a === '#') return 1;
+    if (b === '#') return -1;
+    return a.localeCompare(b, 'he');
+  }).map((letter) =>
+    `<button type="button" class="sc-alpha-btn${activeLetter === letter ? ' is-active' : ''}" data-alpha-btn="${escapeHtml(letter)}" aria-expanded="${activeLetter === letter ? 'true' : 'false'}">${escapeHtml(letter)}</button>`
   ).join('');
-  const alphaBar = `<div class="sc-alpha-bar" role="toolbar" aria-label="אלפון א-ת" dir="rtl">${alphaBtns}</div>`;
+  const alphaBar = letterMap.size
+    ? `<div class="sc-alpha-bar sc-alpha-bar--compact" role="toolbar" aria-label="אלפון א-ת" dir="rtl">${alphaBtns}</div>`
+    : '';
 
   const letterSections = new Map();
   authorityMap.forEach((bucket, authority) => {
     const letter = firstHebrewLetter(authority);
+    if (activeLetter && letter !== activeLetter) return;
+    const authHtml = renderAuthorityAccordion(authority, bucket);
+    if (!authHtml) return;
     if (!letterSections.has(letter)) letterSections.set(letter, '');
-    letterSections.set(letter, letterSections.get(letter) + renderAuthorityAccordion(authority, bucket));
+    letterSections.set(letter, letterSections.get(letter) + authHtml);
   });
 
   let sectionsHtml = '';
-  letterSections.forEach((authHtml, letter) => {
+  const sortedLetters = [...letterSections.keys()].sort((a, b) => {
+    if (a === '#') return 1;
+    if (b === '#') return -1;
+    return a.localeCompare(b, 'he');
+  });
+  sortedLetters.forEach((letter) => {
+    const authHtml = letterSections.get(letter);
     if (!authHtml) return;
-    sectionsHtml += `<div class="sc-letter-section" data-letter-section="${escapeHtml(letter)}" hidden>
+    sectionsHtml += `<div class="sc-letter-section" data-letter-section="${escapeHtml(letter)}">
       <div class="sc-auth-accordion-list">${authHtml}</div>
     </div>`;
   });
 
-  return { filtered, body: `${summaryHtml}${alphaBar}${sectionsHtml}` };
+  return { filtered, stats, body: `${summaryHtml}${alphaBar}${sectionsHtml}` };
 }
 
 /* ─── Screen ─── */
@@ -387,25 +533,29 @@ export const contactsScreen = {
     const canViewInstr  = data?.can_view_instructors !== false;
     const canViewSchool = data?.can_view_schools     !== false;
     const tab     = state?.contactsTab || (canViewInstr ? 'instr' : 'school');
+    const activeLetter = tab === 'school' ? String(state?.contactsAlphaLetter || '') : '';
+    const counts = contactTabCounts(instrRows, schoolRows, filters, activeLetter);
     const tabBtns = [
-      canViewInstr  && { key: 'instr',  label: `אנשי קשר מדריכים (${instrRows.length})`  },
-      canViewSchool && { key: 'school', label: `לקוחות ואנשי קשר (${schoolRows.length})` }
+      canViewInstr  && { key: 'instr',  label: `אנשי קשר מדריכים (${counts.instrCount})`  },
+      canViewSchool && { key: 'school', label: `לקוחות ואנשי קשר (${counts.schoolContacts})` }
     ].filter(Boolean).map((t) =>
       `<button type="button" class="ds-chip--tab${tab === t.key ? ' is-active' : ''}" data-contacts-tab="${t.key}">${escapeHtml(t.label)}</button>`
     ).join('');
 
-    let searchInput = '';
-    const listHtml = contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr, canViewSchool);
+    const listHtml = contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr, canViewSchool, activeLetter);
 
-    searchInput = filtersToolbarHtml(CONTACTS_SCOPE, activeContactRows(tab, instrRows, schoolRows), state, {
-      searchPlaceholder: 'חיפוש לפי שם / תפקיד / טלפון / מייל / רשות / בית ספר…',
-      filterFields: ['authority', 'school', 'client_type', 'contact_name', 'semel_mosad', 'contact_role'],
-      search: true
-    });
+    const searchInput = tab === 'instr'
+      ? instrToolbarHtml(CONTACTS_SCOPE, state)
+      : filtersToolbarHtml(CONTACTS_SCOPE, schoolRows, state, {
+        searchPlaceholder: 'חיפוש לפי שם / תפקיד / טלפון / מייל / רשות / בית ספר…',
+        filterFields: SCHOOL_FILTER_FIELDS,
+        dependent: true,
+        search: true
+      });
 
     return dsScreenStack(`
-      <div class="ds-chip-group" dir="rtl">${tabBtns}</div>
-      <div class="ds-screen-top-row">
+      <div class="ds-chip-group contacts-tab-bar" dir="rtl">${tabBtns}</div>
+      <div class="ds-screen-top-row contacts-toolbar-row">
         ${searchInput}
         <button type="button" class="ds-btn ds-btn--primary ds-btn--sm ds-btn--contact-add" data-contact-action="add-${tab === 'instr' ? 'instr' : 'school'}">+ הוסף</button>
       </div>
@@ -422,6 +572,7 @@ export const contactsScreen = {
     root.querySelectorAll('[data-contacts-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.contactsTab = btn.dataset.contactsTab;
+        if (state.contactsTab !== 'school') state.contactsAlphaLetter = '';
         rerender();
       });
     });
@@ -462,16 +613,9 @@ export const contactsScreen = {
         btn.dataset.alphaBound = 'yes';
         btn.addEventListener('click', () => {
           const letter = btn.dataset.alphaBtn;
-          const isOpen = btn.getAttribute('aria-expanded') === 'true';
-          root.querySelectorAll('[data-alpha-btn]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
-          root.querySelectorAll('[data-alpha-btn]').forEach((b) => b.classList.remove('is-active'));
-          root.querySelectorAll('[data-letter-section]').forEach((section) => { section.hidden = true; });
-          if (!isOpen) {
-            btn.setAttribute('aria-expanded', 'true');
-            btn.classList.add('is-active');
-            const section = root.querySelector(`[data-letter-section="${letter}"]`);
-            if (section) section.hidden = false;
-          }
+          const isOpen = state.contactsAlphaLetter === letter;
+          state.contactsAlphaLetter = isOpen ? '' : letter;
+          rerender();
         });
       });
     };
@@ -484,42 +628,9 @@ export const contactsScreen = {
 
     bindContactsListInteractions(root);
 
-    const renderContactsListOnly = () => {
-      const listWrap = root.querySelector('.contacts-list-wrap');
-      if (!listWrap) return;
-      const currentTab = state?.contactsTab || (data?.can_view_instructors !== false ? 'instr' : 'school');
-      const filters = ensureActivityListFilters(state, CONTACTS_SCOPE);
-      listWrap.innerHTML = contactListHtml(currentTab, instrRows, schoolRows, filters, data?.can_view_instructors !== false, data?.can_view_schools !== false);
-      bindContactsListInteractions(listWrap);
-    };
-
-    const filters = ensureActivityListFilters(state, CONTACTS_SCOPE);
-    const searchInput = root.querySelector(`[data-filter-search="${CONTACTS_SCOPE}"]`);
-    const clearBtn = root.querySelector(`[data-filter-clear="${CONTACTS_SCOPE}"]`);
-    let searchTimer;
-    searchInput?.addEventListener('input', (ev) => {
-      const nextValue = ev.target?.value || '';
-      filters.q = nextValue;
-      clearTimeout(searchTimer);
-      const applySearch = () => {
-        filters.appliedQ = nextValue;
-        filters.visibleCount = 200;
-        renderContactsListOnly();
-      };
-      if (!nextValue.trim()) {
-        applySearch();
-        return;
-      }
-      searchTimer = setTimeout(applySearch, 200);
-    });
-    clearBtn?.addEventListener('click', () => {
-      clearTimeout(searchTimer);
-      filters.q = '';
-      filters.appliedQ = '';
-      filters.visibleCount = 200;
-      if (searchInput) searchInput.value = '';
-      renderContactsListOnly();
-      searchInput?.focus();
+    bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, {
+      debounceMs: 200,
+      onClear: () => { state.contactsAlphaLetter = ''; }
     });
 
     const decodePayload = (node) => {
