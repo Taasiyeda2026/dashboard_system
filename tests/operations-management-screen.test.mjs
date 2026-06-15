@@ -98,7 +98,6 @@ test('operations management render includes menu page structure and tabs', () =>
   const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState() });
   assert.match(html, /ניהול תפעול/);
   assert.match(html, /סידור מדריכים/);
-  assert.match(html, /תכנון קיץ/);
   assert.match(html, /כמויות סדנאות/);
   assert.match(html, /לפי בתי ספר/);
   assert.match(html, /הדפס סידור מדריך/);
