@@ -17,6 +17,7 @@ function itemLabelHtml(item, counts = {}) {
 
 export const ACT_SUBNAV_ITEMS = [
   { route: 'activities',    label: 'כל הפעילויות',  icon: '📋' },
+  { route: 'operations-management', label: 'ניהול תפעול', icon: '🛠️' },
   { route: 'end-dates',     label: 'תאריכי סיום',   icon: '🏁' },
   { route: 'exceptions',    label: 'חריגות',         icon: '⚠️' },
   { route: 'instructors',   label: 'מדריכים',        icon: '👥' },

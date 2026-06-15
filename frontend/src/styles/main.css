@@ -15485,3 +15485,136 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     font-size: 10pt !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Operations management screen
+   ═══════════════════════════════════════════════════════════════════ */
+.ds-ops-mgmt-filters {
+  margin-bottom: 0.75rem;
+}
+
+.ds-ops-mgmt-filters__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: end;
+}
+
+.ds-ops-mgmt-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.ds-ops-mgmt-tab {
+  border: 1px solid var(--ds-border, #d5dde8);
+  background: var(--ds-surface, #fff);
+  color: var(--ds-text, #0f172a);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.ds-ops-mgmt-tab.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.ds-ops-mgmt-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.ds-ops-mgmt-summary__card {
+  min-width: 7rem;
+  border: 1px solid var(--ds-border, #d5dde8);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  background: var(--ds-surface-muted, #f8fafc);
+}
+
+.ds-ops-mgmt-summary__label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--ds-text-muted, #64748b);
+}
+
+.ds-ops-mgmt-summary__value {
+  font-size: 0.95rem;
+}
+
+.ds-ops-mgmt-panel__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: end;
+  margin-bottom: 0.65rem;
+}
+
+.ds-ops-mgmt-subtitle {
+  margin: 0.85rem 0 0.45rem;
+  font-size: 0.95rem;
+}
+
+.ds-ops-mgmt-count {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.ds-ops-mgmt-schedule th,
+.ds-ops-mgmt-schedule td {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.ds-link-btn {
+  border: 0;
+  background: none;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.only-print {
+  display: none;
+}
+
+@media print {
+  body.is-ops-mgmt-print .app-shell .shell-sidebar,
+  body.is-ops-mgmt-print .app-shell .shell-top,
+  body.is-ops-mgmt-print .no-print,
+  body.is-ops-mgmt-print .ds-ops-mgmt-tabs,
+  body.is-ops-mgmt-print .ds-page-header__subtitle {
+    display: none !important;
+  }
+
+  body.is-ops-mgmt-print .only-print {
+    display: block !important;
+  }
+
+  body.is-ops-mgmt-print .ds-ops-mgmt-print-header h2 {
+    margin: 0 0 0.25rem;
+    font-size: 1.1rem;
+  }
+
+  body.is-ops-mgmt-print .ds-ops-mgmt-print-header p {
+    margin: 0 0 0.75rem;
+  }
+
+  body.is-ops-mgmt-print .ds-ops-mgmt-print-footer {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+  }
+
+  body.is-ops-mgmt-print .ds-ops-mgmt-schedule {
+    width: 100%;
+    font-size: 9pt;
+  }
+}
