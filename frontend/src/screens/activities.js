@@ -240,6 +240,9 @@ function pickBestMonthForPeriod(rows, periodKey) {
 function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
   if (!activityPeriodUsesMonthNavigation(state)) return;
 
+  // Summer "show all" mode: user explicitly chose to see all summer — don't override unless forced (tab change)
+  if (!force && state.activitiesSummerShowAll && state.activityPeriodTab === 'summer_2026') return;
+
   const available = availableActivityMonthsForPeriod(rows, state.activityPeriodTab);
 
   if (available.length === 0) {
@@ -262,7 +265,7 @@ function allActivitiesStatusFilterHtml(state = {}) {
 
 function activityPeriodUsesMonthNavigation(state = {}) {
   const tab = normalizeActivityPeriodTab(state.activityPeriodTab);
-  return tab === 'school_2026' || tab === 'school_2027';
+  return tab === 'school_2026' || tab === 'summer_2026' || tab === 'school_2027';
 }
 
 function activityPeriodTabsHtml(rows, activeKey, state = {}) {
@@ -1622,6 +1625,7 @@ export const activitiesScreen = {
     </div>`;
 
     const usesMonthNavigation = activityPeriodUsesMonthNavigation(state);
+    const summerShowAll = isSummerTab && !!state.activitiesSummerShowAll;
     const availableMonths = usesMonthNavigation ? availableActivityMonthsForPeriod(allRows, state.activityPeriodTab) : [];
     const selectedMonthIndex = availableMonths.indexOf(state.activitiesMonthYm);
     const disablePrevMonth = isNavLoading || selectedMonthIndex <= 0;
@@ -1630,17 +1634,28 @@ export const activitiesScreen = {
     const periodTotal = usesMonthNavigation ? activityPeriodRows(allRows, state.activityPeriodTab).length : total;
     const monthTitleCount = `${total} פעילויות${periodTotal !== total ? ` מתוך ${periodTotal}` : ''}`;
     const diagnostics = buildActivitiesDiagnostics(allRows, state, filteredRows);
+    const isDebugMode = typeof window !== 'undefined' && new URLSearchParams(window?.location?.search || '').get('debug') === 'activities';
+    const showDiag = isAdmin && isDebugMode;
     const prevMonthTitle = disablePrevMonth ? 'אין חודש קודם עם פעילויות בתקופה זו' : 'חודש קודם';
     const nextMonthTitle = disableNextMonth ? 'אין חודש הבא עם פעילויות בתקופה זו' : 'חודש הבא';
+    const allSummerBtn = isSummerTab
+      ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn${summerShowAll ? ' is-active' : ''}" data-activities-all-summer aria-pressed="${summerShowAll ? 'true' : 'false'}">כל הקיץ</button>`
+      : '';
     const titleNavRow = isAllMode
       ? `<nav class="ds-activities-title-row" aria-label="חיפוש בכל הפעילויות" dir="rtl">
       <h2 class="ds-activities-page-title">חיפוש בכל הפעילויות · ${total} פעילויות</h2>
     </nav>`
       : usesMonthNavigation
-        ? `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
+        ? summerShowAll
+          ? `<nav class="ds-activities-title-row" aria-label="קיץ 2026 כל הפעילויות" dir="rtl">
+      <h2 class="ds-activities-page-title">קיץ 2026 · ${escapeHtml(monthTitleCount)} ${navLoadingChip}</h2>
+      ${allSummerBtn}
+    </nav>`
+          : `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="${escapeHtml(prevMonthTitle)}" title="${escapeHtml(prevMonthTitle)}" ${disablePrevMonth ? 'disabled' : ''}>▶</button>
       <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${escapeHtml(monthTitleCount)} בת${escapeHtml(periodLabel)} ${navLoadingChip}</h2>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="${escapeHtml(nextMonthTitle)}" title="${escapeHtml(nextMonthTitle)}" ${disableNextMonth ? 'disabled' : ''}>◀</button>
+      ${allSummerBtn}
     </nav>`
         : `<nav class="ds-activities-title-row" aria-label="${escapeHtml(periodLabel)}" dir="rtl">
       <h2 class="ds-activities-page-title">${escapeHtml(periodLabel)} · ${total} פעילויות</h2>
@@ -1651,7 +1666,7 @@ export const activitiesScreen = {
       ${viewSwitcher}
       ${titleNavRow}
       ${periodTabs}
-      ${activitiesDiagnosticsHtml(diagnostics)}
+      ${showDiag ? activitiesDiagnosticsHtml(diagnostics) : ''}
       ${mainToolbar}
       ${dsCard({ body: tableSection, padded: false })}
     </section>`);
@@ -1835,6 +1850,7 @@ export const activitiesScreen = {
     const runMonthShift = (delta) => {
       if (!activityPeriodUsesMonthNavigation(state)) return;
       if (state.activitiesNavLoading) return;
+      state.activitiesSummerShowAll = false;
       const available = availableActivityMonthsForPeriod(activitiesRows, state.activityPeriodTab);
       if (available.length === 0) return;
       if (!available.includes(state.activitiesMonthYm)) state.activitiesMonthYm = pickBestMonthForPeriod(activitiesRows, state.activityPeriodTab);
@@ -1855,6 +1871,11 @@ export const activitiesScreen = {
 
     root.querySelector('[data-activities-month-prev]')?.addEventListener('click', () => runMonthShift(-1));
     root.querySelector('[data-activities-month-next]')?.addEventListener('click', () => runMonthShift(1));
+    root.querySelector('[data-activities-all-summer]')?.addEventListener('click', () => {
+      state.activitiesSummerShowAll = true;
+      state.activitiesMonthYm = '';
+      rerenderLocal();
+    });
 
     const upsertLocalRow = (rowId, patch) => {
       const hit = activitiesRows.find((row) => String(row?.RowID || '') === String(rowId || ''));
@@ -2157,6 +2178,7 @@ export const activitiesScreen = {
     root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activityPeriodTab = normalizeActivityPeriodTab(btn.getAttribute('data-activity-period-tab'));
+        state.activitiesSummerShowAll = false;
         if (activityPeriodUsesMonthNavigation(state)) {
           ensureActivityPeriodMonth(state, activitiesRows, { force: true });
         } else {

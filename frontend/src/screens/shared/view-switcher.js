@@ -2,8 +2,8 @@ import { escapeHtml } from './html.js';
 
 const VIEW_SWITCH_ROUTES = [
   { route: 'activities', label: 'פעילויות' },
-  { route: 'week', label: 'שבוע' },
-  { route: 'month', label: 'חודש' }
+  { route: 'week', label: 'תצוגת שבוע' },
+  { route: 'month', label: 'תצוגת חודש' }
 ];
 
 export function renderActivitiesViewSwitcher(state, activeRoute) {
