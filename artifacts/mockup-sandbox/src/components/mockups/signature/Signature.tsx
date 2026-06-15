@@ -110,29 +110,23 @@ export function Signature() {
         fontSize: "9pt", color: "#111827", lineHeight: 1.35, direction: "rtl",
       }}>
 
-        {/* Header row: לכבוד (right) + logo (left) */}
-        <div style={{
-          display: "flex", justifyContent: "space-between", alignItems: "flex-start",
-          direction: "rtl", gap: headerGap, marginBottom: 4,
-        }}>
-          {/* לכבוד block */}
-          <div style={{ flex: "1 1 auto", maxWidth: "58%" }}>
+        {/* Header: לוגו → תאריך → לכבוד (אנכי) */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", direction: "rtl", gap: headerGap, marginBottom: 4 }}>
+          {/* לוגו */}
+          <img
+            src="/__mockup/images/proposal-header-logo.png"
+            alt="לוגו תעשיידע"
+            style={{ height: logoSize, width: "auto", maxWidth: 200, objectFit: "contain", display: "block" }}
+          />
+          {/* תאריך */}
+          {dateText && (
+            <div style={{ fontSize: "9pt", color: "#555" }}>{dateText}</div>
+          )}
+          {/* לכבוד */}
+          <div style={{ textAlign: "right" }}>
             <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: "9pt" }}>לכבוד:</p>
             {contactName && <p style={{ margin: "0 0 1px", fontWeight: 700 }}>{contactName}</p>}
             {orgName && <p style={{ margin: 0 }}>{orgName}</p>}
-          </div>
-          {/* Logo + date */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", direction: "ltr", flexShrink: 0 }}>
-            <img
-              src="/__mockup/images/proposal-header-logo.png"
-              alt="לוגו תעשיידע"
-              style={{ height: logoSize, width: "auto", maxWidth: 165, objectFit: "contain", display: "block" }}
-            />
-            {dateText && (
-              <div style={{ marginTop: 10, fontSize: "9pt", color: "#555", textAlign: "left" }}>
-                {dateText}
-              </div>
-            )}
           </div>
         </div>
 
