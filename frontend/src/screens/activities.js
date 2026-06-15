@@ -39,7 +39,7 @@ import {
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
-import { ACTIVITY_SEASON_OPTIONS, SUMMER_DEFAULT_MONTH_YM, normalizeActivitySeason } from './shared/summer-activity.js';
+import { ACTIVITY_SEASON_OPTIONS, SUMMER_DEFAULT_MONTH_YM, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
@@ -142,10 +142,12 @@ function activityPeriodKey(row = {}) {
   if (isDeletedActivity(row)) return 'deleted';
   if (isClosedActivity(row)) return 'archive';
   if (!isActiveActivity(row)) return 'inactive';
+  const hasExplicitSeason = String(row?.activity_season ?? row?.activitySeason ?? '').trim() !== '';
   const season = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
-  if (season === 'summer_2026') return 'summer_2026';
+  if (season === 'summer_2026' || isSummerActivity(row)) return 'summer_2026';
   if (season === 'school_2027') return 'school_2027';
   const start = normalizedActivityStartDate(row);
+  if (hasExplicitSeason && season === 'regular') return start >= '2026-09-01' ? 'school_2027' : 'school_2026';
   if (!start) return 'school_2026';
   if (start >= '2026-09-01') return 'school_2027';
   if (start >= '2026-07-01') return 'summer_2026';
@@ -260,7 +262,7 @@ function allActivitiesStatusFilterHtml(state = {}) {
 
 function activityPeriodUsesMonthNavigation(state = {}) {
   const tab = normalizeActivityPeriodTab(state.activityPeriodTab);
-  return tab === 'school_2026' || tab === 'summer_2026' || tab === 'school_2027';
+  return tab === 'school_2026' || tab === 'school_2027';
 }
 
 function activityPeriodTabsHtml(rows, activeKey, state = {}) {
@@ -396,9 +398,13 @@ function createAdminSummaryBucket(label) {
   };
 }
 
+function displayActivityName(row = {}) {
+  return normalizeAdminSummaryText(row.activity_name || row.title || row.name || row.program_name) || 'ללא שם פעילות';
+}
+
 function addRowToAdminSummaryBucket(bucket, row = {}) {
   const type = normalizeAdminActivityType(row.activity_type || row.activity_family || row.type);
-  const name = normalizeAdminSummaryText(row.activity_name || row.name || row.program_name) || 'ללא שם פעילות';
+  const name = displayActivityName(row);
   bucket.counts.total += 1;
   bucket.counts[type.key] = (bucket.counts[type.key] || 0) + 1;
   const detailKey = `${name}|${type.key}`;
@@ -477,7 +483,7 @@ const ACTIVITY_FILTER_FIELDS = [
 ];
 const ACTIVITY_SEARCH_FIELDS = [
   'id', 'RowID', 'row_id', 'source_row_id',
-  'activity_no', 'activity_number', 'activity_name', 'activity_type', 'activity_family',
+  'activity_no', 'activity_number', 'activity_name', 'name', 'title', 'program_name', 'activity_type', 'activity_family',
   'activity_manager', 'manager_name',
   'instructor_name', 'instructor_name_2', 'Instructor', 'Instructor2',
   'emp_id', 'emp_id_2', 'EmployeeID', 'EmployeeID2',
@@ -838,7 +844,7 @@ function compareActivityDefaultOrder(a, b) {
   const instructorB = String(b?.instructor_name || b?.Instructor || b?.instructor_name_2 || b?.Instructor2 || '').trim();
   const byInstructor = collator.compare(instructorA, instructorB);
   if (byInstructor) return byInstructor;
-  const byName = collator.compare(text(a, 'activity_name'), text(b, 'activity_name'));
+  const byName = collator.compare(displayActivityName(a), displayActivityName(b));
   if (byName) return byName;
   return String(a?.start_date || '').localeCompare(String(b?.start_date || ''));
 }
@@ -855,6 +861,31 @@ function applyActivitiesLocalFilters(rows, state, settings) {
   const gapRows = applyActivitiesGapFilter(familyRows, state.activitiesGapFilter);
   prepareRowsForSearch(gapRows, ACTIVITY_SEARCH_FIELDS);
   return applyLocalFilters(gapRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
+}
+
+function buildActivitiesDiagnostics(allRows, state, finalRows) {
+  const loaded = Array.isArray(allRows) ? allRows : [];
+  const afterStatus = loaded.filter((row) => !isDeletedActivity(row));
+  const afterPeriod = isAllActivitiesMode(state) ? allActivitiesRows(loaded, state) : activityPeriodRows(loaded, state.activityPeriodTab);
+  const afterMonth = activityRowsForPeriodAndMonth(loaded, state);
+  return {
+    loaded: loaded.length,
+    afterStatus: afterStatus.length,
+    afterPeriod: afterPeriod.length,
+    afterMonth: afterMonth.length,
+    afterFilters: Array.isArray(finalRows) ? finalRows.length : 0
+  };
+}
+
+function activitiesDiagnosticsHtml(diag) {
+  return `<div class="ds-activities-diagnostics" dir="rtl" data-activities-diagnostics>
+    <strong>אבחון טעינת פעילויות:</strong>
+    <span>נטענו מ-Supabase: ${escapeHtml(String(diag.loaded))}</span>
+    <span>אחרי סינון סטטוס: ${escapeHtml(String(diag.afterStatus))}</span>
+    <span>אחרי סינון תקופה: ${escapeHtml(String(diag.afterPeriod))}</span>
+    <span>אחרי סינון חודש: ${escapeHtml(String(diag.afterMonth))}</span>
+    <span>אחרי חיפוש/פילטרים: ${escapeHtml(String(diag.afterFilters))}</span>
+  </div>`;
 }
 
 function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
@@ -1458,7 +1489,8 @@ export const activitiesScreen = {
           ? `<span class="ds-activities-instructor-name${instructorMeta.hasName ? '' : ' is-derived'}">${escapeHtml(instructorMeta.text)}</span>`
           : '<span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>';
         const activityTypeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
-        const activityName = escapeHtml(row.activity_name || '—');
+        const rawActivityName = displayActivityName(row);
+        const activityName = escapeHtml(rawActivityName);
         const editStatus = editRequestStatusLabel(String(row.edit_request_status || ''));
         const editStatusBadge = editStatus
           ? `<span class="ds-chip ds-chip--status ds-chip--warn" title="${escapeHtml(editStatus)}">${escapeHtml(editStatus)}</span>`
@@ -1467,7 +1499,7 @@ export const activitiesScreen = {
         const rowSearch = [
           hideRowId ? '' : row.RowID,
           visibleActivityCategoryLabel(row.activity_type),
-          row.activity_name,
+          rawActivityName,
           row.start_date,
           row.end_date,
           row.school,
@@ -1583,7 +1615,7 @@ export const activitiesScreen = {
       ${allActivitiesStatusFilter}
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-btn--icon-only" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי סינון" title="ניקוי סינון">↻</button>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי כל הסינונים" title="ניקוי כל הסינונים">ניקוי כל הסינונים</button>
         ${canUseLayout ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn ds-activities-toolbar-btn--layout" data-activity-layout-list title="פריסת פעילות לבתי ספר עם שיבוץ מלא">פריסת פעילות</button>` : ''}
         ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-export-all title="ייצוא הפעילויות בלשונית הפעילה לאקסל">ייצוא לאקסל</button>` : ''}
         ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ${isCreateRequestOnly ? 'ds-activities-toolbar-btn' : 'ds-btn--icon-only'}" data-activities-add-btn aria-label="${isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות'}" title="${isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות'}">${isCreateRequestOnly ? 'בקשה להוספת פעילות' : '+'}</button>` : ''}
@@ -1597,7 +1629,8 @@ export const activitiesScreen = {
     const disableNextMonth = isNavLoading || selectedMonthIndex < 0 || selectedMonthIndex >= availableMonths.length - 1;
     const periodLabel = activityPeriodLabelForKey(state.activityPeriodTab) || 'פעילויות';
     const periodTotal = usesMonthNavigation ? activityPeriodRows(allRows, state.activityPeriodTab).length : total;
-    const monthTitleCount = `${total} מתוך ${periodTotal}`;
+    const monthTitleCount = `${total} פעילויות${periodTotal !== total ? ` מתוך ${periodTotal}` : ''}`;
+    const diagnostics = buildActivitiesDiagnostics(allRows, state, filteredRows);
     const prevMonthTitle = disablePrevMonth ? 'אין חודש קודם עם פעילויות בתקופה זו' : 'חודש קודם';
     const nextMonthTitle = disableNextMonth ? 'אין חודש הבא עם פעילויות בתקופה זו' : 'חודש הבא';
     const titleNavRow = isAllMode
@@ -1607,7 +1640,7 @@ export const activitiesScreen = {
       : usesMonthNavigation
         ? `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="${escapeHtml(prevMonthTitle)}" title="${escapeHtml(prevMonthTitle)}" ${disablePrevMonth ? 'disabled' : ''}>▶</button>
-      <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${escapeHtml(monthTitleCount)} פעילויות בת${escapeHtml(periodLabel)} ${navLoadingChip}</h2>
+      <h2 class="ds-activities-page-title">ניהול פעילויות · ${escapeHtml(heMonthLabel(state.activitiesMonthYm))} · ${escapeHtml(monthTitleCount)} בת${escapeHtml(periodLabel)} ${navLoadingChip}</h2>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="${escapeHtml(nextMonthTitle)}" title="${escapeHtml(nextMonthTitle)}" ${disableNextMonth ? 'disabled' : ''}>◀</button>
     </nav>`
         : `<nav class="ds-activities-title-row" aria-label="${escapeHtml(periodLabel)}" dir="rtl">
@@ -1619,6 +1652,7 @@ export const activitiesScreen = {
       ${viewSwitcher}
       ${titleNavRow}
       ${periodTabs}
+      ${activitiesDiagnosticsHtml(diagnostics)}
       ${mainToolbar}
       ${dsCard({ body: tableSection, padded: false })}
     </section>`);

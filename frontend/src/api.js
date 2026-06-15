@@ -144,10 +144,11 @@ async function readArchiveActivitiesFromSupabase() {
       .select('*')
       .eq('status', CLOSED_STATUS);
     if (error) throw new Error(error.message || 'archive_read_failed');
-    const rows = (Array.isArray(data) ? data : [])
+    const rawRows = Array.isArray(data) ? data : [];
+    const rows = rawRows
       .map(normalizeActivityRow)
       .sort((a, b) => String(b?.end_date || b?.start_date || '').localeCompare(String(a?.end_date || a?.start_date || '')));
-    return { rows, _source: 'supabase' };
+    return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities' } };
   } catch (err) {
     console.error('[supabase] archive fetch error:', err);
     return null;
@@ -158,13 +159,14 @@ async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
   try {
-    const { data, error } = await supabase.from('activities_directory_view').select('*');
-    if (error) throw new Error(error.message || 'activities_directory_view_read_failed');
-    const rows = (Array.isArray(data) ? data : [])
+    const { data, error } = await supabase.from('activities').select('*');
+    if (error) throw new Error(error.message || 'activities_read_failed');
+    const rawRows = Array.isArray(data) ? data : [];
+    const rows = rawRows
       .map(normalizeActivityRow)
       .filter((row) => filters?.include_inactive ? true : !isActivityInactive(row))
       .filter((row) => rowMatchesActivitiesFilters(row, filters));
-    return { rows, _source: 'supabase' };
+    return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities' } };
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Unexpected activities fetch error:', error);
@@ -218,6 +220,7 @@ function normalizeActivityRow(row = {}) {
     school: schoolName,
     activity_season: activitySeason,
     activitySeason,
+    activity_name: nonEmptyString(row?.activity_name) || nonEmptyString(row?.title) || nonEmptyString(row?.name) || nonEmptyString(row?.program_name) || 'ללא שם פעילות',
     activity_family: isLegacyOneDay ? 'one_day' : row?.activity_family,
     activity_type: canonicalOneDayType || row?.activity_type,
     item_type: canonicalOneDayType || row?.item_type || row?.activity_type || '',
