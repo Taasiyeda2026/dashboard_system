@@ -1530,8 +1530,14 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,authority,school,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
+  'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
+  'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
+  'contact_role', 'phone', 'email', 'notes', 'status', 'approval_note', 'total_amount',
+  'custom_document_sections', 'include_catalog'
+]);
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -1647,8 +1653,8 @@ function normalizeProposalAgreementRow(row = {}) {
   const parsedNotes = parseActivityNamesFromNotes(row.notes);
   const PA_VALID_STATUSES = new Set(['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
   const rawStatus = cleanProposalAgreementText(row.status);
-  const authorityName = cleanProposalAgreementText(row.authority_name || row.legacy_client_authority);
-  const schoolFramework = cleanProposalAgreementText(row.school_name || row.contact_client_name || row.legacy_school_framework);
+  const authorityName = cleanProposalAgreementText(row.client_authority || row.authority_name || row.legacy_client_authority || row.authority);
+  const schoolFramework = cleanProposalAgreementText(row.school_framework || row.school_name || row.contact_client_name || row.legacy_school_framework || row.school);
   const normalized = {
     id:                  cleanProposalAgreementText(row.id),
     client_type:         cleanProposalAgreementText(row.contact_client_type) || (row.school_id ? 'school' : 'authority'),
@@ -1784,15 +1790,12 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   const rawStatus = cleanProposalAgreementText(payload.status);
   const rawGroup = cleanProposalAgreementText(payload.activity_type_group);
   const clientType = cleanProposalAgreementText(payload.client_type) || (payload.school_id ? 'school' : 'authority');
-  const clientAuthority = cleanProposalAgreementText(payload.client_authority || payload.authority);
-  const schoolFramework = cleanProposalAgreementText(payload.school_framework || payload.school) || (clientType === 'other' ? cleanProposalAgreementText(payload.client_name) : clientAuthority);
+  const clientAuthority = cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority);
+  const schoolFramework = cleanProposalAgreementText(payload.school_framework || payload.school_name || payload.school) || (clientType === 'other' ? cleanProposalAgreementText(payload.client_name) : clientAuthority);
   const row = {
-    client_type:         clientType,
     authority_id:        payload.authority_id || null,
     school_id:           clientType === 'school' ? (payload.school_id || null) : null,
     contact_school_id:   payload.contact_school_id || null,
-    authority:           clientAuthority || null,
-    school:              schoolFramework || null,
     client_authority:    clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
@@ -1815,7 +1818,9 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     : ['client_authority', 'document_type', 'activity_type_group'];
   const missing = requiredKeys.filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
-  return row;
+  return Object.fromEntries(
+    Object.entries(row).filter(([key]) => PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS.has(key))
+  );
 }
 
 
