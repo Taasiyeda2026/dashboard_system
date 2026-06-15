@@ -790,7 +790,7 @@ function printInstructorSchedule() {
     .pb{border:1px solid #cfd8dc;padding:5px 8px;margin:0 auto 6px auto;page-break-inside:avoid;break-inside:avoid}
     .pb-hdr{margin-bottom:3px}
     .pb-date{font-weight:700;font-size:11.5px;color:#0369a1;margin-left:6px}
-    .pb-meta{font-size:10.5px;color:#334155;display:block;line-height:1.25;margin-top:1px;text-align:center}
+    .pb-meta{font-size:12px;font-weight:700;color:#1e293b;display:block;line-height:1.3;margin-top:2px;text-align:center}
     table{border-collapse:collapse;margin:0}
     .pb-act{width:60%;margin:0 auto}
     .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 5px;text-align:right;font-size:10.5px;line-height:1.2;white-space:nowrap}
