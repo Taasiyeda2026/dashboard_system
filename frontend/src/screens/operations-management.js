@@ -679,7 +679,8 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-filter-field__label { font-size:11px; margin-bottom:2px; }
     .ds-ops-mgmt-screen .ds-ops-contact-select { min-width:104px; max-width:150px; padding-block:3px; font-size:12px; }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:60%; margin-inline-start:auto; margin-inline-end:0; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(900px, 65%); margin-inline-start:auto; margin-inline-end:0; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; background:#eefaff; border-bottom:1px solid #d8e5ee; font-weight:700; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__stats,
@@ -863,7 +864,7 @@ function workshopsTabHtml(rows, state, stockMap) {
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס כמויות סדנאות</button>
     </div>
     <div class="ds-ops-mgmt-print-header only-print"><h2>כמויות סדנאות ומלאי</h2><p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p></div>
-    ${dsCard({ title: 'סיכום לפי שם סדנה', badge: String(metrics.length), body: `<div class="ds-ops-workshops-table-wrap">${table}</div>`, padded: false })}
+    <div class="ds-ops-workshops-card">${dsCard({ title: 'סיכום לפי שם סדנה', badge: String(metrics.length), body: `<div class="ds-ops-workshops-table-wrap">${table}</div>`, padded: false })}</div>
     ${detail}
   </section>`;
 }
