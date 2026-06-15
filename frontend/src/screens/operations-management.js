@@ -670,8 +670,9 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-col--school,
     .ds-ops-mgmt-screen .ds-ops-col--activity { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-col--grade { width:70px; max-width:70px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-mgmt-schedule { width:80%; }
-    .ds-ops-mgmt-screen .ds-card { max-width:100%; box-shadow:none; border:1px solid #d8e5ee; }
+    .ds-ops-mgmt-screen .ds-ops-schedule-wrap,
+    .ds-ops-mgmt-screen .ds-ops-schedule-wrap .ds-table-wrap,
+    .ds-ops-mgmt-screen .ds-ops-mgmt-schedule { width:100%; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-summary-line { display:block; margin:0 0 10px; padding:7px 10px; border:1px solid #d8e5ee; border-radius:10px; background:#f8fbfd; color:#334155; font-weight:700; font-size:13px; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters { padding:10px 12px; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters .ds-filter-panel__title { margin:0 0 6px; font-size:14px; }
@@ -864,7 +865,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
       <p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p>
     </div>
     ${directoryNote}
-    ${dsCard({ title: 'טבלת סידור עבודה', badge: String(scheduleRows.length), body: table, padded: false })}
+    <div class="ds-ops-schedule-wrap">${dsCard({ title: 'טבלת סידור עבודה', badge: String(scheduleRows.length), body: table, padded: false })}</div>
     <p class="ds-ops-mgmt-print-footer only-print">יש לבדוק את פרטי הפעילות לפני הגעה. במקרה של שינוי, יש לעדכן את התפעול.</p>
   </section>`;
 }
