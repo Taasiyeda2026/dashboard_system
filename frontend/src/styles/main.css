@@ -16649,13 +16649,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   object-fit: contain;
   margin: 0 0 6px;
 }
-.pa-footer-signature .pa-signature-approval-line {
-  margin: 4px 0 0;
-  font-size: 9px;
-  line-height: 1.25;
-  color: #666;
-  white-space: nowrap;
-}
 .pa-page-footer {
   margin-top: auto !important;
   border-top: 1px solid #bbb;

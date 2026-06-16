@@ -543,10 +543,11 @@ test('approved proposals render flow signature block inside the document', () =>
   assert.doesNotMatch(sentHtml, /signature-idan-nahum\.png/);
   assert.doesNotMatch(draftHtml, /אושר בתאריך/);
   assert.doesNotMatch(sentHtml, /אושר בתאריך/);
+  assert.doesNotMatch(approvedHtml, /אושר בתאריך/);
+  assert.doesNotMatch(approvedHtml, /pa-signature-approval-line/);
   assert.match(approvedHtml, /proposals\/signature-idan-nahum\.png/);
   assert.doesNotMatch(approvedHtml, /pa-signature-layer/);
   assert.doesNotMatch(approvedHtml, /data-pa-signature-sticker/);
-  assert.doesNotMatch(approvedHtml, /style="left:/);
 
   const doc = new JSDOM(approvedHtml).window.document;
   const signature = doc.querySelector('.pa-footer-signature');
@@ -559,7 +560,7 @@ test('approved proposals render flow signature block inside the document', () =>
   assert.equal(signatureChildren[0], 'pa-signature-image', 'signature image should appear before the signer name block');
   assert.equal(signatureChildren[1], 'pa-signer-name-block', 'signer name block should follow the signature image');
   assert.ok(signature.compareDocumentPosition(doc.querySelector('.pa-page-footer')) & doc.defaultView.Node.DOCUMENT_POSITION_FOLLOWING, 'signature should appear before page footer');
-  assert.match(signature.textContent || '', /אושר בתאריך: 16\/06\/2026/);
+  assert.doesNotMatch(signature.textContent || '', /אושר בתאריך/);
   assert.doesNotMatch(signature.textContent || '', /אושר ונחתם דיגיטלית/);
 });
 
