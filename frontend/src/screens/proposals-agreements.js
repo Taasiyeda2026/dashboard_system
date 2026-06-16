@@ -2043,12 +2043,14 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     <div class="ds-pa-form-meta-panel">
       <h4 class="pa-sidebar-section-title">פרטי נמען</h4>
       <div data-pa-step-panel="client">
-        <div class="ds-pa-client-row" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
+        <div class="ds-pa-client-search-block" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
           ${clientSearchHtml(contactOptions, row)}
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-new-client-toggle hidden>לא מצאת? הוסף ידנית</button>
+          <div class="ds-pa-client-manual-row">
+            <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-pa-manual-client-btn" data-pa-new-client-toggle hidden>לא מצאת? הוסף ידנית</button>
+          </div>
         </div>
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName) : ''}</div>
-        <div data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">לקוח חדש / הזנה ידנית</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לחיפוש</button></div>
+        <div class="ds-pa-new-client-hint" data-pa-new-client-hint hidden><span class="ds-pa-new-client-label">לקוח חדש / הזנה ידנית</span><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-back-existing-client>חזרה לחיפוש</button></div>
         <div class="ds-pa-form-grid" data-pa-client-fields${isLocked ? ' hidden' : ''}>
           ${textField('client_authority', FIELD_LABELS.client_authority, row.client_authority, true)}
           <div data-pa-school-field>
@@ -2878,7 +2880,7 @@ export const proposalsAgreementsScreen = {
       const results = form?.querySelector('[data-pa-client-results]');
       if (!input || !results || type === 'other') return;
       const matches = clientSearchMatches(input.value, type);
-      const manualBtn = form.querySelector('[data-pa-client-search-row] > [data-pa-new-client-toggle]');
+      const manualBtn = form.querySelector('[data-pa-client-search-row] [data-pa-new-client-toggle]');
       if (manualBtn) manualBtn.hidden = true;
       if (!text(input.value) || text(input.value).length < 2) {
         results.innerHTML = '<p class="ds-pa-client-results-empty">הקלידו לפחות שני תווים לחיפוש.</p>';
