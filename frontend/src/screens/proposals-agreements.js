@@ -1278,10 +1278,11 @@ function costTableRowsFromItem(item = {}) {
   const isBundleParent = displayMode === 'bundle_parent' || item.is_bundle_parent;
 
   if (isBundleParent && bundleItems.length) {
+    const parentQuantity = Number(item.quantity) || 1;
     const childRows = bundleItems.map((bundleItem) => {
       const name = publicActivityName(typeof bundleItem === 'object' ? bundleItem.activity_name : bundleItem);
       const unitPrice = numberValue(typeof bundleItem === 'object' ? bundleItem.unit_price : null);
-      const quantity = 1;
+      const quantity = parentQuantity;
       const total = unitPrice != null ? quantity * unitPrice : null;
       return costTableRowData(name, quantity, unitPrice, total);
     }).filter(Boolean);
