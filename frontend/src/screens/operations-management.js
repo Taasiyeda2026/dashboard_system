@@ -597,6 +597,13 @@ function normalizeWorkshopKey(name) {
   return String(name || '').trim().toLowerCase();
 }
 
+function isWorkshopInventoryRequired(workshopName) {
+  const name = String(workshopName || '').trim();
+  if (!name) return false;
+  const excluded = ['תמיר', 'עולם הביומימיקרי', 'עולם הביומימיקרי הקסום'];
+  return !excluded.some((term) => name.includes(term));
+}
+
 function formatStockCell(value) {
   if (value === null || value === undefined || value === '') return '<span class="ds-ops-mgmt-cell-muted">לא הוזן</span>';
   return escapeHtml(String(value));
@@ -901,7 +908,8 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
 function workshopsTabHtml(rows, state, stockMap) {
   const ops = ensureOpsState(state);
   const stockOverrides = ops.workshopStockOverrides || {};
-  const metrics = sortByConfig(workshopMetricsRows(rows, stockMap), state, TAB_WORKSHOPS, {
+  const inventoryRows = rows.filter((row) => isWorkshopInventoryRequired(getActivityName(row)));
+  const metrics = sortByConfig(workshopMetricsRows(inventoryRows, stockMap), state, TAB_WORKSHOPS, {
     workshopName: (row) => row.workshopName,
     activityCount: (row) => row.activityCount,
     estimatedQuantity: (row) => row.estimatedQuantity,
