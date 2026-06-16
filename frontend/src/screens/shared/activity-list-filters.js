@@ -22,6 +22,9 @@ export function normalizeText(value) {
   return String(value == null ? '' : value)
     .trim()
     .toLowerCase()
+    .normalize('NFKC')
+    .replace(/[\u05F3\u05F4'"`´”“„״׳]/g, '')
+    .replace(/[\u2010-\u2015\u2212\-_/\\]+/g, ' ')
     .replace(/\s+/g, ' ');
 }
 

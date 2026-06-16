@@ -37,6 +37,14 @@ function isValidContact(row) {
   );
 }
 
+function isActivityWithoutContact(row) {
+  return String(row?._source || '') === 'activity_without_contact';
+}
+
+function hasSchoolDirectoryEntry(rows) {
+  return (Array.isArray(rows) ? rows : []).some((row) => isValidContact(row) || isActivityWithoutContact(row));
+}
+
 function contactDedupeKey(row) {
   return [
     String(row?.authority || row?.client_name || '').trim().toLowerCase(),
@@ -84,7 +92,7 @@ function computeSchoolTabStats(authorityMap, activeLetter = '') {
     bucket.schools.forEach((schoolRows, schoolName) => {
       if (!String(schoolName || '').trim()) return;
       const valid = schoolRows.filter(isValidContact);
-      if (!valid.length) return;
+      if (!valid.length && !schoolRows.some(isActivityWithoutContact)) return;
       schools += 1;
       hasContent = true;
       valid.forEach((row) => contactKeys.add(contactDedupeKey(row)));
@@ -109,7 +117,7 @@ function countAuthorityBucket(bucket) {
   bucket.schools.forEach((schoolRows, schoolName) => {
     if (!String(schoolName || '').trim()) return;
     const valid = schoolRows.filter(isValidContact);
-    if (!valid.length) return;
+    if (!valid.length && !schoolRows.some(isActivityWithoutContact)) return;
     schoolCount += 1;
     valid.forEach((row) => contactKeys.add(contactDedupeKey(row)));
   });
@@ -288,13 +296,35 @@ function groupByAuthorityStructured(rows) {
   return new Map([...authMap.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he')));
 }
 
+function schoolWithoutContactHtml(row, schoolName) {
+  const addBtn = actionBtn('add-school-prefill', {
+    client_type: 'school',
+    authority: row?.authority,
+    school: row?.school || schoolName,
+    authority_id: row?.authority_id,
+    school_id: row?.school_id,
+    semel_mosad: row?.semel_mosad
+  }, 'הוסף איש קשר');
+  return `<article class="sc-person sc-person--compact sc-person--empty-contact">
+    <div class="sc-person__top">
+      <div class="sc-person__name">אין עדיין איש קשר לבית הספר הזה</div>
+      <span class="sc-person__actions">${addBtn}</span>
+    </div>
+    <div class="sc-person__role">בית הספר מופיע בפעילויות במערכת</div>
+  </article>`;
+}
+
 function renderSchoolAccordion(schoolName, rows) {
   const validRows = rows.filter(isValidContact);
-  const personsHtml = validRows.map(schoolPersonHtml).filter(Boolean).join('');
+  const activityRows = rows.filter(isActivityWithoutContact);
+  const noContactRow = activityRows[0] || rows[0] || {};
+  const personsHtml = validRows.length
+    ? validRows.map(schoolPersonHtml).filter(Boolean).join('')
+    : schoolWithoutContactHtml(noContactRow, schoolName);
   if (!personsHtml) return '';
   const contactCount = validRows.length;
-  const countLabel = contactCount === 1 ? '1 איש קשר' : `${contactCount} אנשי קשר`;
-  const semelMosad = validRows.map((r) => String(r.semel_mosad || '').trim()).find(Boolean);
+  const countLabel = contactCount === 0 ? 'אין איש קשר' : (contactCount === 1 ? '1 איש קשר' : `${contactCount} אנשי קשר`);
+  const semelMosad = rows.map((r) => String(r.semel_mosad || '').trim()).find(Boolean);
   const metaHtml = semelMosad
     ? `<div class="sc-school-meta"><span class="sc-school-meta__label">סמל מוסד:</span> <span class="sc-school-meta__val">${escapeHtml(semelMosad)}</span></div>`
     : '';
@@ -324,7 +354,7 @@ function renderAuthorityAccordion(authority, bucket) {
   const authorityCode = authorityCodeFromBucket(bucket);
   let schoolsHtml = '';
   const sortedSchools = [...schools.entries()]
-    .filter(([schoolName, rows]) => String(schoolName || '').trim() && rows.some(isValidContact))
+    .filter(([schoolName, rows]) => String(schoolName || '').trim() && hasSchoolDirectoryEntry(rows))
     .sort((a, b) => a[0].localeCompare(b[0], 'he'));
   sortedSchools.forEach(([schoolName, rows]) => { schoolsHtml += renderSchoolAccordion(schoolName, rows); });
 
@@ -467,7 +497,7 @@ function schoolTabHtml(rows, filters, activeLetter = '') {
 
   const letterMap = new Map();
   authorityMap.forEach((bucket, authority) => {
-    if (!countAuthorityBucket(bucket).contactCount) return;
+    if (!countAuthorityBucket(bucket).schoolCount && !countAuthorityBucket(bucket).contactCount) return;
     const letter = firstHebrewLetter(authority);
     if (!letterMap.has(letter)) letterMap.set(letter, []);
     letterMap.get(letter).push(authority);
@@ -792,6 +822,11 @@ export const contactsScreen = {
         }
         if (action === 'add-school') {
           ctx.openSchoolEditor?.({}, true);
+          return;
+        }
+        if (action === 'add-school-prefill') {
+          const payload = ctx.decodePayload?.(btn) || {};
+          ctx.openSchoolEditor?.({ ...payload, client_type: payload.client_type || 'school' }, true);
           return;
         }
         if (action === 'edit-instr') {
