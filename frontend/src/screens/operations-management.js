@@ -680,7 +680,19 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-filter-field__label { font-size:11px; margin-bottom:2px; }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(900px, 65%); margin-inline-start:auto; margin-inline-end:0; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(900px, 65%); margin-inline-start:auto; margin-inline-end:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#dbeafe; color:#1e3a8a; font-weight:800; font-size:12px; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(3),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(4),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(5),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(6) { text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(2),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(3),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(4),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(5),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(6) { text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; background:#eefaff; border-bottom:1px solid #d8e5ee; font-weight:700; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__stats,
@@ -900,10 +912,10 @@ function workshopsTabHtml(rows, state, stockMap) {
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"><thead><tr>
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם סדנה')}
         ${sortableTh(state, TAB_WORKSHOPS, 'activityCount', 'מספר סדנאות')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', `כמות משוערת לפי ${WORKSHOP_ESTIMATE_PER_ACTIVITY}`)}
+        ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'כמות נדרשת')}
         ${sortableTh(state, TAB_WORKSHOPS, 'actualQuantity', 'כמות בפועל')}
         ${sortableTh(state, TAB_WORKSHOPS, 'stockQuantity', 'כמות במלאי')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'gap', 'פער מול מלאי')}
+        ${sortableTh(state, TAB_WORKSHOPS, 'gap', 'יתרת מלאי')}
       </tr></thead><tbody>${metrics.map((row) => `<tr>
         <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
         <td>${row.activityCount}</td>
