@@ -1457,17 +1457,16 @@ function sectionLinesHtml(value, options = {}) {
   return renderProposalSectionBody(value, options);
 }
 
-// Signature content (name, role) comes only from Supabase (section_key = 'signature').
-// The block renders inline after the document sections, under "בברכה," — never floated
-// or pushed above the footer. When Supabase has no signature, nothing is rendered.
+// Signature is part of the fixed proposal document chrome and intentionally does not
+// render any legacy Supabase footer/signature markup. Keep this structure aligned with
+// Proposaleditor.html so the signer name sits on the signature line above the page footer.
 function signatureSectionHtml(_signatureBody = '') {
-  return `<section class="proposal-signature pa-footer-signature" aria-label="חתימה">
-    <p class="proposal-signature-greeting pa-blessing">בברכה,</p>
-    <div class="proposal-signature-block pa-signer-block">
-      <div class="proposal-signature-line pa-signer-line" aria-hidden="true"></div>
-      <p class="proposal-signature-name">עידן נחום, סמנכ״ל כספים</p>
+  return `<div class="pa-footer-signature" aria-label="חתימה">
+    <div class="pa-blessing">בברכה,</div>
+    <div class="pa-signer-block">
+      <div class="pa-signer-line">עידן נחום, סמנכ״ל כספים</div>
     </div>
-  </section>`;
+  </div>`;
 }
 
 
@@ -1545,11 +1544,11 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           ${signatureHtml}
         </div>
       </div>
-      <div class="proposal-document-footer pa-page-footer">
+      <div class="pa-page-footer">
         <img
           src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
           alt="לוגו תחתון תעשיידע"
-          class="proposal-footer-logo"
+          class="pa-page-footer-logo"
           loading="lazy"
           decoding="async"
           onerror="this.style.display='none';"
