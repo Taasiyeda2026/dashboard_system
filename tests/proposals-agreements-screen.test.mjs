@@ -1758,6 +1758,38 @@ test('summer proposal preview keeps prices out of activity section and expands b
 
 
 
+test('bundle parent cost table uses parent quantity in print preview', async () => {
+  const row = {
+    ...sampleRows[0],
+    activity_type_group: 'קיץ תשפ״ו',
+    proposal_date: '2026-06-01'
+  };
+  const items = [{
+    item_name: 'סדנאות STEM',
+    proposal_display_mode: 'bundle_parent',
+    quantity: 4,
+    unit_price: 450,
+    total_price: 1800,
+    proposal_group: 'קיץ תשפ״ו',
+    selected_bundle_items: [
+      { activity_name: 'רוטוקופטר', unit_price: 450 }
+    ]
+  }];
+
+  await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
+    const costTable = dom.window.document.querySelector('.pa-cost-table');
+    assert.ok(costTable, 'cost table should render');
+    const cells = [...costTable.querySelectorAll('tbody td')].map((td) => td.textContent.trim());
+    assert.equal(cells[0], 'רוטוקופטר');
+    assert.equal(cells[1], '4');
+    assert.match(cells[2], /^450\s*₪$/);
+    assert.match(cells[3], /^1,800\s*₪$/);
+    const grandTotal = costTable.querySelector('tfoot .pa-currency-amount');
+    assert.ok(grandTotal);
+    assert.equal(grandTotal.textContent.trim().replace(/\u00a0/g, ' '), '1,800 ₪');
+  });
+});
+
 test('catalog PDF appendices use fixed workshop/tour PDFs and specific selected course PDFs only', () => {
   const entries = buildProposalCatalogPdfEntries(
     { activity_type_group: 'הצעה משולבת' },
