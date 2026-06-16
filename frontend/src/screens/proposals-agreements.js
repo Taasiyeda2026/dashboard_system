@@ -414,7 +414,14 @@ function formatDateDisplay(iso) {
 }
 
 function approvalDateDisplay(row = {}) {
-  return formatDateDisplay(row.approved_at || row.signed_at || row.updated_at || row.proposal_date);
+  const rawDate = row.approved_at || row.signed_at || row.updated_at || row.proposal_date;
+  const s = String(rawDate || '').trim();
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const [y, m, d] = s.slice(0, 10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  return formatDateDisplay(rawDate);
 }
 
 function formatCurrency(num) {
@@ -1492,11 +1499,11 @@ function sectionLinesHtml(value, options = {}) {
 // Proposaleditor.html so the signer name sits on the signature line above the page footer.
 function signatureSectionHtml(_signatureBody = '', row = {}) {
   const isApproved = normalizeProposalStatus(row?.status) === 'approved';
-;;;  const signatureImage = isApproved
+  const signatureImage = isApproved
     ? `<img src="${PUBLIC_BASE}proposals/signature-idan-nahum.png" alt="חתימת עידן נחום" class="pa-signature-image" loading="eager" decoding="async" onerror="this.style.display='none';">`
     : '';
   const signedMeta = isApproved
-    ? `<div class="pa-signed-meta">אושר ונחתם דיגיטלית בתאריך: ${escapeHtml(approvalDateDisplay(row))}</div>`
+    ? `<div class="pa-signed-meta">אושר בתאריך: ${escapeHtml(approvalDateDisplay(row))}</div>`
     : '';
   return `<div class="pa-footer-signature" aria-label="חתימה">
     <div class="pa-blessing">בברכה,</div>
