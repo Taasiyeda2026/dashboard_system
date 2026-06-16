@@ -581,6 +581,96 @@ function enrichSchoolContactRow(row, authorityLookup, schoolLookup) {
   };
 }
 
+
+function normalizeContactMergeKeyPart(value) {
+  return normalizeCatalogText(value).toLowerCase().normalize('NFKC').replace(/[\u05F3\u05F4'"`´”“„״׳]/g, '').replace(/[\u2010-\u2015\u2212\-_/\\]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function activitySchoolContactKey(row) {
+  return [
+    normalizeContactMergeKeyPart(row?.authority || row?.client_name),
+    normalizeContactMergeKeyPart(row?.school)
+  ].join('|');
+}
+
+function activityAuthorityContactKey(row) {
+  return normalizeContactMergeKeyPart(row?.authority || row?.client_name);
+}
+
+function isContactRowUsable(row) {
+  return Boolean(
+    normalizeCatalogText(row?.contact_name)
+    || normalizeCatalogText(row?.mobile || row?.phone)
+    || normalizeCatalogText(row?.email)
+  );
+}
+
+function makeActivityContactPlaceholder(activity, authorityLookup, schoolLookup) {
+  const schoolName = normalizeCatalogText(activity?.school);
+  const authorityName = normalizeCatalogText(activity?.authority);
+  if (!schoolName && !authorityName) return null;
+  const schoolMeta = resolveSchoolCatalogEntry(schoolLookup, {
+    school_id: activity?.school_id,
+    semel_mosad: activity?.semel_mosad,
+    school: schoolName,
+    authority: authorityName
+  });
+  const authorityMeta = resolveAuthorityCatalogEntry(authorityLookup, {
+    authority_id: activity?.authority_id || schoolMeta?.authority_id,
+    authority: authorityName || schoolMeta?.authority
+  }) || (schoolMeta?.authority_id ? authorityLookup.byId.get(normalizeCatalogText(schoolMeta.authority_id)) : null);
+  const resolvedAuthority = authorityName || schoolMeta?.authority || authorityMeta?.authority_name || '';
+  const resolvedSchool = schoolName || schoolMeta?.school_name || '';
+  return {
+    client_type: resolvedSchool ? 'school' : 'authority',
+    client_name: resolvedSchool || resolvedAuthority,
+    authority_id: activity?.authority_id || authorityMeta?.id || schoolMeta?.authority_id || null,
+    school_id: resolvedSchool ? (activity?.school_id || schoolMeta?.id || null) : null,
+    semel_mosad: resolvedSchool ? (normalizeCatalogText(activity?.semel_mosad) || schoolMeta?.semel_mosad || null) : null,
+    authority_code: authorityMeta?.authority_code || null,
+    authority: resolvedAuthority,
+    school: resolvedSchool || null,
+    contact_name: '',
+    contact_role: '',
+    phone: '',
+    mobile: '',
+    email: '',
+    _source: 'activity_without_contact',
+    _activity_row_id: activity?.RowID || activity?.row_id || activity?.id || null
+  };
+}
+
+function mergeActivityPlaceholdersIntoSchoolRows(contactRows, activityRows, authorityLookup, schoolLookup) {
+  const rows = (Array.isArray(contactRows) ? contactRows : []).map((row) => enrichSchoolContactRow(row, authorityLookup, schoolLookup));
+  const contactSchoolKeys = new Set();
+  const contactAuthorityKeys = new Set();
+  rows.forEach((row) => {
+    if (!isContactRowUsable(row)) return;
+    const schoolKey = activitySchoolContactKey(row);
+    if (schoolKey !== '|') contactSchoolKeys.add(schoolKey);
+    const authorityKey = activityAuthorityContactKey(row);
+    if (authorityKey) contactAuthorityKeys.add(authorityKey);
+  });
+  const addedSchoolKeys = new Set();
+  const addedAuthorityKeys = new Set();
+  (Array.isArray(activityRows) ? activityRows : []).forEach((activity) => {
+    const placeholder = makeActivityContactPlaceholder(activity, authorityLookup, schoolLookup);
+    if (!placeholder) return;
+    if (placeholder.school) {
+      const key = activitySchoolContactKey(placeholder);
+      if (!key || key === '|' || contactSchoolKeys.has(key) || addedSchoolKeys.has(key)) return;
+      addedSchoolKeys.add(key);
+      rows.push(placeholder);
+      return;
+    }
+    const key = activityAuthorityContactKey(placeholder);
+    if (!key || contactAuthorityKeys.has(key) || addedAuthorityKeys.has(key)) return;
+    addedAuthorityKeys.add(key);
+    rows.push(placeholder);
+  });
+  return rows;
+}
+
 function buildAuthoritySchoolCatalogClientSettings(authorityLookup, schoolLookup) {
   const activeSchools = schoolLookup.list.filter((school) => school.active !== 'no');
   const activeAuthorities = authorityLookup.list.filter((authority) => authority.active !== 'no');
@@ -736,13 +826,22 @@ async function readContactsFromSupabase() {
   };
 
   try {
-    const [instructor_rows, schoolRowsRaw, catalog] = await Promise.all([
+    const [instructor_rows, schoolRowsRaw, activityRows, catalog] = await Promise.all([
       readInstructors(),
       readSchoolContacts(),
+      readAllActivitiesRowsSupabase().catch((error) => {
+        // eslint-disable-next-line no-console
+        console.warn('[supabase] Failed to load activities for contacts directory:', error);
+        return [];
+      }),
       readAuthoritySchoolCatalog()
     ]);
-    const school_rows = (Array.isArray(schoolRowsRaw) ? schoolRowsRaw : [])
-      .map((row) => enrichSchoolContactRow(row, catalog.authorityLookup, catalog.schoolLookup));
+    const school_rows = mergeActivityPlaceholdersIntoSchoolRows(
+      schoolRowsRaw,
+      activityRows,
+      catalog.authorityLookup,
+      catalog.schoolLookup
+    );
     return {
       instructor_rows,
       school_rows,
