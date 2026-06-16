@@ -458,7 +458,7 @@ test('non-admin manager submits proposals for approval instead of approving dire
   );
 });
 
-test('approved proposals render signature image only inside the signature block', () => {
+test('approved proposals render signature sticker once inside the A4 document', () => {
   const draftHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'draft' }, [], []);
   const sentHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'sent' }, [], []);
   const approvedHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'approved', approved_at: '2026-06-16T10:30:00.000Z' }, [], []);
@@ -473,10 +473,10 @@ test('approved proposals render signature image only inside the signature block'
   assert.equal(doc.querySelectorAll('.pa-footer-signature').length, 1);
   assert.equal(doc.querySelectorAll('.pa-page-footer').length, 1);
   assert.equal(doc.querySelectorAll('.pa-signature-image').length, 1);
-  assert.equal(doc.querySelectorAll('.pa-footer-signature .pa-signature-image').length, 1);
+  assert.equal(doc.querySelectorAll('.pa-signature-layer .pa-signature-image').length, 1);
   assert.equal(doc.querySelectorAll('.pa-footer-signature .pa-signer-line').length, 1);
-  assert.match(doc.querySelector('.pa-footer-signature')?.textContent || '', /אושר בתאריך: 16\/06\/2026/);
-  assert.doesNotMatch(doc.querySelector('.pa-footer-signature')?.textContent || '', /אושר ונחתם דיגיטלית/);
+  assert.match(doc.querySelector('.pa-signature-layer')?.textContent || '', /אושר בתאריך: 16\/06\/2026/);
+  assert.doesNotMatch(doc.querySelector('.pa-signature-layer')?.textContent || '', /אושר ונחתם דיגיטלית/);
 });
 
 test('admin sees approve and return actions for pending proposals', async () => {

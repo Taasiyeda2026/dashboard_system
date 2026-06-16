@@ -1828,13 +1828,13 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,approved_by,approved_at,created_at,updated_at';
-const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,approved_by,approved_at,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
   'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
   'contact_role', 'phone', 'email', 'notes', 'status', 'approval_note', 'total_amount',
-  'custom_document_sections', 'include_catalog'
+  'custom_document_sections', 'include_catalog', 'signature_meta'
 ]);
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
@@ -3934,7 +3934,7 @@ export const api = {
     if (error) throw new Error(error.message || 'proposals_agreement_delete_failed');
     return { ok: true, id: rowId };
   },
-  updateProposalAgreementStatus: async (id, status, approvalNote = '') => {
+  updateProposalAgreementStatus: async (id, status, approvalNote = '', signatureMeta = null) => {
     assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
     const cleanStatus = cleanProposalAgreementText(status);
@@ -3945,6 +3945,7 @@ export const api = {
     if (cleanStatus === 'approved') {
       patch.approved_by = state?.user?.auth_user_id || state?.user?.user_id || state?.user?.id || null;
       patch.approved_at = new Date().toISOString();
+      if (signatureMeta && typeof signatureMeta === 'object') patch.signature_meta = signatureMeta;
     }
     const { data, error } = await supabase
       .from('proposals_agreements')

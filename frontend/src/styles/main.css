@@ -16509,3 +16509,44 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   opacity: 0.72;
   background: var(--ds-status-neutral-soft, #e2e8f0);
 }
+
+.pa-a4-page { position: relative; overflow: hidden; }
+.pa-signature-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.pa-signature-sticker {
+  position: absolute;
+  max-width: 35%;
+  cursor: default;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: none;
+  transform: translate(0, 0);
+}
+.pa-signature-sticker.is-draggable {
+  cursor: move;
+  border: 1px dashed rgba(37, 99, 235, 0.55);
+  border-radius: 10px;
+  padding: 5px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+.pa-signature-sticker img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  -webkit-user-drag: none;
+}
+.pa-signature-approval-line {
+  margin-top: 2px;
+  font-size: 9px;
+  line-height: 1.25;
+  color: #666;
+  text-align: center;
+  white-space: nowrap;
+}
+.pa-signature-layer.is-editing .pa-signature-approval-line { color: #2563eb; }
