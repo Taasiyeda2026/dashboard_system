@@ -15971,3 +15971,84 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     white-space: nowrap !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Proposals – Proposaleditor-inspired official editor layout
+   Scoped to pa-editor/pa-sidebar/pa-preview so the dashboard stays isolated.
+   ═══════════════════════════════════════════════════════════════════ */
+.pa-editor.ds-pa-form--compact {
+  max-width: min(1760px, 100%);
+  margin-inline: auto;
+  padding: 12px;
+}
+.pa-editor-workspace {
+  display: grid;
+  grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.pa-sidebar {
+  position: sticky;
+  top: 76px;
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  padding: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dbe7f3;
+  border-radius: 18px;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.08);
+}
+.pa-sidebar .ds-pa-form-meta-panel,
+.pa-sidebar .ds-pa-form-type-panel,
+.pa-sidebar .ds-pa-form-bottom-panel,
+.pa-sidebar .ds-pa-item-card {
+  border-color: #d7e3ef;
+  box-shadow: none;
+}
+.pa-preview {
+  min-width: 0;
+  padding: 14px 10px 26px;
+  border-radius: 22px;
+  background: radial-gradient(circle at top, #eef7ff 0%, #e2e8f0 42%, #d7dee8 100%);
+  border: 1px solid #d6e0eb;
+}
+.pa-preview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto 12px;
+  max-width: 794px;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.pa-preview-canvas {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  padding: 8px 4px 18px;
+}
+.pa-preview-canvas .proposal-document {
+  transform-origin: top center;
+}
+@media (max-width: 1180px) {
+  .pa-editor-workspace { grid-template-columns: 1fr; }
+  .pa-sidebar { position: static; max-height: none; }
+  .pa-preview { padding-inline: 4px; }
+}
+@media (max-width: 760px) {
+  .pa-editor.ds-pa-form--compact { padding: 8px 0; }
+  .pa-sidebar { border-radius: 14px; padding: 10px; }
+  .pa-preview { border-radius: 16px; margin-inline: -6px; }
+  .pa-preview-canvas { justify-content: flex-start; }
+  .pa-preview-canvas .proposal-document { min-width: 720px; }
+}
+@media print {
+  .pa-editor-workspace,
+  .pa-sidebar,
+  .pa-preview-toolbar { display: contents; }
+  .pa-sidebar { display: none !important; }
+  .pa-preview { padding: 0 !important; background: transparent !important; border: 0 !important; }
+  .pa-preview-canvas { padding: 0 !important; overflow: visible !important; }
+}

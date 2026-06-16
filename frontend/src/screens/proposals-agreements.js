@@ -1925,12 +1925,25 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const primaryActionLabel = canApproveDirectly ? 'אישור והפקת הצעה' : 'שליחה לאישור';
   const primaryActionStatus = canApproveDirectly ? 'approved' : 'pending_approval';
 
-  return `<form class="ds-pa-form ds-pa-form--compact" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
+  const initialPreviewRow = normalizeProposalAgreementRow({
+    ...row,
+    document_type: text(row.document_type) || 'הצעת מחיר',
+    activity_type_group: normalizedActivityGroup,
+    proposal_date: proposalDate
+  });
+  const initialTemplateKey = proposalGroupTemplateKey(normalizedActivityGroup);
+  const initialTemplateSections = resolveDocumentSections(row, [])
+    .filter((section) => !text(section.template_key) || text(section.template_key) === initialTemplateKey);
+  const initialPreviewHtml = proposalPreviewBodyHtml(initialPreviewRow, items, initialTemplateSections);
+
+  return `<form class="ds-pa-form ds-pa-form--compact pa-editor" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
     <div class="ds-pa-form-header">
       <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
     </div>
 
+    <div class="pa-editor-workspace">
+      <aside class="pa-sidebar" aria-label="עריכת פרטי הצעת מחיר">
     <div class="ds-pa-form-meta-panel">
       <div data-pa-step-panel="client">
         <div class="ds-pa-client-row" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
@@ -1993,6 +2006,17 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
         </div>
       </div>
+    </div>
+      </aside>
+      <section class="pa-preview" aria-label="תצוגת מסמך A4">
+        <div class="pa-preview-toolbar no-print">
+          <span>תצוגה מקדימה חיה</span>
+          <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-preview-form>פתח לתצוגה / PDF</button>
+        </div>
+        <div class="pa-preview-canvas" data-pa-live-preview>
+          ${initialPreviewHtml}
+        </div>
+      </section>
     </div>
 
     <input type="hidden" name="status" data-pa-status-input value="${escapeHtml(currentStatus)}">
@@ -2802,6 +2826,21 @@ export const proposalsAgreementsScreen = {
     };
 
 
+    const updateLivePreview = (container) => {
+      const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
+      const previewHost = form?.querySelector?.('[data-pa-live-preview]');
+      if (!form || !previewHost) return;
+      const payload = payloadFromForm(form);
+      const row = normalizeProposalAgreementRow({
+        ...payload,
+        id: text(form.dataset.paId),
+        proposal_date: payload.proposal_date || localDateInputValue()
+      });
+      const templateKey = proposalGroupTemplateKey(row.activity_type_group);
+      const templateSections = proposalTemplateSections.filter((section) => text(section.template_key) === templateKey);
+      previewHost.innerHTML = proposalPreviewBodyHtml(row, payload._items || [], templateSections);
+    };
+
     // ── Items calc ────────────────────────────────────────────────────────────
     const calcItemRow = (rowEl) => {
       const qty = parseFloat(rowEl.querySelector('[data-pa-item-qty]')?.value || '0') || 0;
@@ -2838,6 +2877,7 @@ export const proposalsAgreementsScreen = {
         if (typeEl) typeEl.textContent = proposalGroupDisplayName(form.querySelector('[name="activity_type_group"]')?.value) || '—';
         const countEl = form.querySelector('[data-pa-summary-count]');
         if (countEl) countEl.textContent = String(form.querySelectorAll('[data-pa-item-row]').length) || '—';
+        updateLivePreview(form);
       }
       return sum;
     };
