@@ -11,7 +11,8 @@ const SEARCH_DEBOUNCE_MS = 280;
 const TEST_HOURS_REGEX = /(?:שעות\s*)?בדיק(?:ה|ות)?/i;
 const PUBLIC_BASE = import.meta.env?.BASE_URL || './';
 const PROPOSAL_SIGNATURE_IMAGE = 'proposals/signature-idan-nahum.png';
-const DEFAULT_SIGNATURE_META = Object.freeze({ image: PROPOSAL_SIGNATURE_IMAGE, xPercent: 68, yPercent: 78, widthPercent: 18 });
+const DEFAULT_SIGNATURE_META = Object.freeze({ image: PROPOSAL_SIGNATURE_IMAGE });
+const DEFAULT_SIGNER_NAME = 'עידן נחום, סמנכ״ל כספים ותפעול';
 
 export const STATUS_OPTIONS = ['draft', 'sent', 'returned_for_changes', 'approved', 'cancelled'];
 export const STATUS_LABELS = {
@@ -441,38 +442,39 @@ function normalizeSignatureMeta(value) {
   }
   const source = raw?.signature && typeof raw.signature === 'object' ? raw.signature : raw;
   if (!source || typeof source !== 'object') return null;
-  const xPercent = clampNumber(source.xPercent, 0, 100, null);
-  const yPercent = clampNumber(source.yPercent, 0, 100, null);
-  const widthPercent = clampNumber(source.widthPercent, 6, 35, DEFAULT_SIGNATURE_META.widthPercent);
-  if (xPercent == null || yPercent == null) return null;
-  return {
-    signature: {
-      image: text(source.image) || PROPOSAL_SIGNATURE_IMAGE,
-      xPercent,
-      yPercent,
-      widthPercent
-    }
-  };
+  const image = text(source.image) || PROPOSAL_SIGNATURE_IMAGE;
+  return { signature: { image } };
 }
 
-function signatureMetaForRow(row = {}) {
-  return normalizeSignatureMeta(row.signature_meta || row.approval_meta) || DEFAULT_SIGNATURE_META && { signature: { ...DEFAULT_SIGNATURE_META } };
+function defaultSignatureMeta() {
+  return { signature: { ...DEFAULT_SIGNATURE_META } };
 }
 
-function signatureLayerHtml(row = {}, { editable = false } = {}) {
+// Signature is part of the fixed proposal document chrome and intentionally does not
+// render any legacy Supabase footer/signature markup. Keep this structure aligned with
+// Proposaleditor.html: blessing, optional image, signature rule, signer name.
+function signatureSectionHtml(_signatureBody = '', row = {}, options = {}) {
   const isApproved = normalizeProposalStatus(row?.status) === 'approved';
-  if (!isApproved && !editable) return '';
-  const meta = normalizeSignatureMeta(row.signature_meta || row.approval_meta) || { signature: { ...DEFAULT_SIGNATURE_META } };
-  const sig = meta.signature;
-  const x = clampNumber(sig.xPercent, 0, 100, DEFAULT_SIGNATURE_META.xPercent);
-  const y = clampNumber(sig.yPercent, 0, 100, DEFAULT_SIGNATURE_META.yPercent);
-  const w = clampNumber(sig.widthPercent, 6, 35, DEFAULT_SIGNATURE_META.widthPercent);
-  const img = text(sig.image) || PROPOSAL_SIGNATURE_IMAGE;
+  const showSignatureImage = isApproved || options.showSignatureImage === true;
+  const meta = normalizeSignatureMeta(row.signature_meta || row.approval_meta);
+  const img = text(meta?.signature?.image) || PROPOSAL_SIGNATURE_IMAGE;
   const approvedText = isApproved ? approvalDateDisplay(row) : '';
-  return `<div class="pa-signature-layer${editable ? ' is-editing' : ''}" data-pa-signature-layer>
-    <div class="pa-signature-sticker${editable ? ' is-draggable' : ''}" data-pa-signature-sticker style="left:${x}%;top:${y}%;width:${w}%;" ${editable ? 'tabindex="0" role="button" aria-label="גרירת חתימה למיקום במסמך"' : ''}>
-      <img class="pa-signature-image" src="${PUBLIC_BASE}${escapeHtml(img)}" alt="חתימת עידן נחום" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';">
-      <div class="pa-signature-approval-line">${isApproved && approvedText ? `אושר בתאריך: ${escapeHtml(approvedText)}` : 'מקם את החתימה כאן'}</div>
+  const imageHtml = showSignatureImage
+    ? `<img class="pa-signature-image" src="${PUBLIC_BASE}${escapeHtml(img)}" alt="חתימת עידן נחום" loading="eager" decoding="async" onerror="this.style.display='none';">`
+    : '';
+  const approvalHtml = isApproved && approvedText
+    ? `<div class="pa-signature-approval-line">אושר בתאריך: ${escapeHtml(approvedText)}</div>`
+    : '';
+
+  return `<div class="pa-footer-signature" aria-label="חתימה">
+    <div class="pa-blessing">בברכה,</div>
+    <div class="pa-signer-block">
+      ${imageHtml}
+      <div class="pa-signer-name-block">
+        <div class="pa-signature-rule" aria-hidden="true"></div>
+        <div class="pa-signer-name">${DEFAULT_SIGNER_NAME}</div>
+      </div>
+      ${approvalHtml}
     </div>
   </div>`;
 }
@@ -1548,20 +1550,6 @@ function sectionLinesHtml(value, options = {}) {
   return renderProposalSectionBody(value, options);
 }
 
-// Signature is part of the fixed proposal document chrome and intentionally does not
-// render any legacy Supabase footer/signature markup. Keep this structure aligned with
-// Proposaleditor.html so the signer name sits on the signature line above the page footer.
-function signatureSectionHtml(_signatureBody = '', _row = {}) {
-  return `<div class="pa-footer-signature" aria-label="חתימה">
-    <div class="pa-blessing">בברכה,</div>
-    <div class="pa-signer-block">
-      <div class="pa-signer-line">עידן נחום, סמנכ״ל כספים ותפעול</div>
-    </div>
-  </div>`;
-}
-
-
-
 // Proposal document text must come from Supabase.
 // This frontend file is not the source of truth for proposal wording, clauses, appendices, or template sections.
 // Expected Supabase-fed shape: proposalTemplateSections[] with template_key, section_key, section_title, section_body, sort_order.
@@ -1607,7 +1595,6 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   const title = text(documentTitle);
   return `
     <div class="proposal-document pa-document pa-a4-page" dir="rtl">
-      ${signatureLayerHtml(row)}
       <div class="proposal-document-header pa-page-header">
         <div class="proposal-header-brand pa-logo-area">
           <img
@@ -1659,7 +1646,7 @@ function catalogAppendixNoticeHtml(row = {}, items = []) {
   return `<section class="pa-catalog-appendix-notice" data-pa-catalog-appendix-notice>${escapeHtml(message)}</section>`;
 }
 
-export function proposalPreviewBodyHtml(row, items = [], templateSections = []) {
+export function proposalPreviewBodyHtml(row, items = [], templateSections = [], renderOptions = {}) {
   const activityTypeGroup = normalizeProposalGroup(row.activity_type_group);
   const templateKey = proposalGroupTemplateKey(activityTypeGroup);
   // Date comes only from the proposal row — no "today" fallback in customer documents.
@@ -1731,7 +1718,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
     ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3 class="pa-section-heading">${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}${costTableBlock}</section>`
     : '';
 
-  const signatureHtml = signatureSectionHtml(sectionBody('signature'), row);
+  const signatureHtml = signatureSectionHtml(sectionBody('signature'), row, renderOptions);
 
   return buildProposalDocumentHtml({
     dateDisplay,
@@ -3159,49 +3146,18 @@ export const proposalsAgreementsScreen = {
           <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-close">← חזרה לעריכה</button>
           ${saveBtnHtml}
           ${submitBtnHtml}
-          ${signingMode ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-signature-confirm">אשר מיקום וחתום</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost no-print" id="pa-signature-cancel">ביטול</button>' : ''}
+          ${signingMode ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-signature-confirm">אשר וחתום</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost no-print" id="pa-signature-cancel">ביטול</button>' : ''}
           <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
           <span class="ds-pa-preview-client no-print">${clientLabel}</span>
           ${missingTemplateNotice}
           ${missingItemsNotice}
         </div>
         <div class="proposal-preview-area">
-          ${signingMode ? proposalPreviewBodyHtml({ ...freshRow, status: 'draft' }, items, templateSections).replace('<div class="proposal-document pa-document pa-a4-page" dir="rtl">', '<div class="proposal-document pa-document pa-a4-page" dir="rtl">' + signatureLayerHtml({ ...freshRow, status: 'draft' }, { editable: true })) : proposalPreviewBodyHtml(freshRow, items, templateSections)}
+          ${proposalPreviewBodyHtml(freshRow, items, templateSections, signingMode ? { showSignatureImage: true } : {})}
         </div>`;
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
-      const signatureSticker = signingMode ? overlay.querySelector('[data-pa-signature-sticker]') : null;
-      const signaturePage = signatureSticker?.closest('.pa-a4-page');
-      const readSignatureMeta = () => {
-        if (!signatureSticker || !signaturePage) return { signature: { ...DEFAULT_SIGNATURE_META } };
-        const pageRect = signaturePage.getBoundingClientRect();
-        const stickerRect = signatureSticker.getBoundingClientRect();
-        const widthPercent = clampNumber((stickerRect.width / pageRect.width) * 100, 6, 35, DEFAULT_SIGNATURE_META.widthPercent);
-        const xPercent = clampNumber(((stickerRect.left - pageRect.left) / pageRect.width) * 100, 0, 100 - widthPercent, DEFAULT_SIGNATURE_META.xPercent);
-        const yPercent = clampNumber(((stickerRect.top - pageRect.top) / pageRect.height) * 100, 0, 96, DEFAULT_SIGNATURE_META.yPercent);
-        return { signature: { image: PROPOSAL_SIGNATURE_IMAGE, xPercent: Math.round(xPercent * 100) / 100, yPercent: Math.round(yPercent * 100) / 100, widthPercent: Math.round(widthPercent * 100) / 100 } };
-      };
-      if (signatureSticker && signaturePage) {
-        let dragState = null;
-        signatureSticker.addEventListener('pointerdown', (e) => {
-          const pageRect = signaturePage.getBoundingClientRect();
-          const stickerRect = signatureSticker.getBoundingClientRect();
-          dragState = { dx: e.clientX - stickerRect.left, dy: e.clientY - stickerRect.top, pageRect };
-          signatureSticker.setPointerCapture?.(e.pointerId);
-          e.preventDefault();
-        });
-        signatureSticker.addEventListener('pointermove', (e) => {
-          if (!dragState) return;
-          const pageRect = signaturePage.getBoundingClientRect();
-          const stickerRect = signatureSticker.getBoundingClientRect();
-          const leftPx = Math.min(pageRect.width - stickerRect.width, Math.max(0, e.clientX - pageRect.left - dragState.dx));
-          const topPx = Math.min(pageRect.height - stickerRect.height, Math.max(0, e.clientY - pageRect.top - dragState.dy));
-          signatureSticker.style.left = `${(leftPx / pageRect.width) * 100}%`;
-          signatureSticker.style.top = `${(topPx / pageRect.height) * 100}%`;
-        });
-        signatureSticker.addEventListener('pointerup', () => { dragState = null; });
-        signatureSticker.addEventListener('pointercancel', () => { dragState = null; });
-      }
+      const readSignatureMeta = () => defaultSignatureMeta();
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const printButton = overlay.querySelector('#pa-print-btn');
       printButton?.addEventListener('click', () => {
@@ -3362,7 +3318,7 @@ export const proposalsAgreementsScreen = {
                 replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta });
                 refreshTable();
                 closeOverlay?.();
-                showToast('ההצעה אושרה ונחתמה במיקום שנבחר', 'success');
+                showToast('ההצעה אושרה ונחתמה', 'success');
               } catch (err) {
                 rowStatusSelect.disabled = false;
                 showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
@@ -3761,7 +3717,7 @@ export const proposalsAgreementsScreen = {
                 const drawer = root.querySelector('[data-pa-drawer]');
                 if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
                 closeOverlay?.();
-                showToast('ההצעה אושרה ונחתמה במיקום שנבחר', 'success');
+                showToast('ההצעה אושרה ונחתמה', 'success');
               } catch (err) {
                 statusActionBtn.disabled = false;
                 window.alert?.(`שגיאה באישור וחתימה: ${err?.message || err}`);
