@@ -1834,8 +1834,9 @@ const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
   'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
   'contact_role', 'phone', 'email', 'notes', 'status', 'approval_note', 'total_amount',
-  'custom_document_sections', 'include_catalog', 'signature_meta'
+  'custom_document_sections', 'include_catalog'
 ]);
+const PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS = new Set(['approved_by', 'approved_at', 'signature_position', 'signature_meta']);
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
 
 function parseActivityNamesFromNotes(notes) {
@@ -2095,7 +2096,16 @@ function enrichProposalPricingRows(rows = [], groupLookup = proposalGroupLookupC
   });
 }
 
+function assertProposalAgreementApprovalPayloadAllowed(payload = {}) {
+  const requestedStatus = cleanProposalAgreementText(payload.status);
+  const touchesApprovalField = Object.keys(payload || {}).some((key) => PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS.has(key));
+  if ((requestedStatus === 'approved' || touchesApprovalField) && !canApproveProposalsAgreementsApi()) {
+    throw new Error('proposals_agreements_approval_forbidden');
+  }
+}
+
 function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGroupLookupCache) {
+  assertProposalAgreementApprovalPayloadAllowed(payload);
   const activity_names = normalizeProposalAgreementActivityNames(payload.activity_names);
   const rawStatus = cleanProposalAgreementText(payload.status);
   const rawGroup = cleanProposalAgreementText(payload.activity_type_group);
@@ -2360,7 +2370,7 @@ async function readProposalsAgreementsFromSupabase() {
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,role,display_role,is_active,permissions,auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements';
+const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,role,display_role,is_active,permissions,auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements';
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
@@ -2536,6 +2546,7 @@ function flattenUserRow(userRow = {}) {
   if (userRow.can_review_requests != null) flat.can_review_requests = userRow.can_review_requests;
   if (userRow.view_proposals_agreements != null) flat.view_proposals_agreements = userRow.view_proposals_agreements;
   if (userRow.manage_proposals_agreements != null) flat.manage_proposals_agreements = userRow.manage_proposals_agreements;
+  if (userRow.approve_proposals_agreements != null) flat.approve_proposals_agreements = userRow.approve_proposals_agreements;
   return flat;
 }
 

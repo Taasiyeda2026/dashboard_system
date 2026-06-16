@@ -58,6 +58,7 @@ const ACT_NAV_FILE = new URL('../frontend/src/screens/shared/act-nav-grid.js', i
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
+const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 
 const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
@@ -201,6 +202,80 @@ test('role update migration allows business development manager for login and pr
   assert.match(migration, /app_can_manage_proposals_agreements[\s\S]*app_current_role\(\) in \('domain_manager', 'operation_manager', 'admin'\)/);
   assert.match(migration, /for insert[\s\S]*with check \(public\.app_can_manage_proposals_agreements\(\)\)/);
   assert.match(migration, /for update[\s\S]*using \(public\.app_can_manage_proposals_agreements\(\)\)/);
+});
+
+
+
+test('proposal approval UI is limited to admin or approve permission users', async () => {
+  const sentRow = { ...sampleRows[0], status: 'sent' };
+  const draftRow = { ...sampleRows[0], status: 'draft' };
+  const regularManager = stateFor('operation_manager');
+  regularManager.user.manage_proposals_agreements = true;
+  const privilegedManager = stateFor('operation_manager');
+  privilegedManager.user.manage_proposals_agreements = true;
+  privilegedManager.user.approve_proposals_agreements = true;
+
+  const regularHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: regularManager });
+  assert.doesNotMatch(regularHtml, /חתום ואשר/, 'unprivileged manager should not see sign-and-approve action');
+  const regularTable = regularHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.doesNotMatch(regularTable, /<option value="approved"/, 'unprivileged manager should not be able to select approved status');
+
+  const privilegedDraftHtml = proposalsAgreementsScreen.render({ rows: [draftRow] }, { state: privilegedManager });
+  assert.doesNotMatch(privilegedDraftHtml, /חתום ואשר/, 'privileged user should only see sign-and-approve for sent proposals');
+
+  const privilegedSentHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: privilegedManager });
+  assert.match(privilegedSentHtml, /חתום ואשר/, 'approve permission should reveal sign-and-approve for sent proposals');
+  const privilegedTable = privilegedSentHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.match(privilegedTable, /<option value="approved"/, 'approve permission should allow selecting approved status');
+});
+
+test('unprivileged users cannot open signature mode or save signature from forged approve actions', async () => {
+  const sentRow = { ...sampleRows[0], status: 'sent' };
+  const managerState = stateFor('operation_manager');
+  managerState.user.manage_proposals_agreements = true;
+  let updateCalls = 0;
+  let readCalls = 0;
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: managerState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [sentRow], activityNameOptions: [], contactOptions: [] },
+        state: managerState,
+        api: {
+          readProposalAgreementItems: async () => { readCalls += 1; return []; },
+          updateProposalAgreementStatus: async () => { updateCalls += 1; return { ok: true }; }
+        }
+      });
+      const forged = dom.window.document.createElement('button');
+      forged.type = 'button';
+      forged.dataset.paStatusAction = 'approved';
+      forged.dataset.paActionId = sentRow.id;
+      root.appendChild(forged);
+      forged.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null, 'signature placement overlay should not open');
+      assert.equal(readCalls, 0, 'signature flow should not load proposal items');
+      assert.equal(updateCalls, 0, 'signature save/update should not be called');
+    }
+  );
+});
+
+test('proposal approval API and RLS guard direct approval writes', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const migration = await readFile(APPROVAL_GUARD_MIGRATION_FILE, 'utf8');
+
+  assert.match(apiSource, /function canApproveProposalsAgreementsApi\(\)[\s\S]*role === 'admin'[\s\S]*approve_proposals_agreements/);
+  assert.match(apiSource, /assertProposalAgreementApprovalPayloadAllowed[\s\S]*PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS[\s\S]*requestedStatus === 'approved'/);
+  assert.match(apiSource, /PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS = new Set\(\['approved_by', 'approved_at', 'signature_position', 'signature_meta'\]\)/);
+  assert.match(apiSource, /updateProposalAgreementStatus[\s\S]*cleanStatus === 'approved' && !canApproveProposalsAgreementsApi\(\)[\s\S]*proposals_agreements_approval_forbidden/);
+
+  assert.match(migration, /app_can_approve_proposals_agreements[\s\S]*app_current_role\(\) = 'admin'[\s\S]*app_has_permission\('approve_proposals_agreements'\)/);
+  assert.match(migration, /guard_proposals_agreements_approval_update[\s\S]*new\.status = 'approved'[\s\S]*new\.approved_by is distinct from old\.approved_by[\s\S]*new\.approved_at is distinct from old\.approved_at[\s\S]*new\.signature_meta is distinct from old\.signature_meta/);
+  assert.match(migration, /raise exception 'proposals_agreements_approval_forbidden'/);
+  assert.match(migration, /create trigger trg_guard_proposals_agreements_approval_update/);
 });
 
 test('table structure includes all required columns including status', () => {
