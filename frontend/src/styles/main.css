@@ -15976,6 +15976,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
    Proposals – Proposaleditor-inspired official editor layout
    Scoped to pa-editor/pa-sidebar/pa-preview so the dashboard stays isolated.
    ═══════════════════════════════════════════════════════════════════ */
+.pa-editor-workspace {
+  --pa-sidebar-width: 380px;
+}
 .pa-editor.ds-pa-form--compact {
   max-width: min(1760px, 100%);
   margin-inline: auto;
@@ -15983,8 +15986,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pa-editor-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 480px) minmax(0, 1fr);
-  gap: 22px;
+  grid-template-columns: minmax(0, var(--pa-sidebar-width)) minmax(0, 1fr);
+  gap: 18px;
   align-items: start;
   min-width: 0;
 }
@@ -15994,8 +15997,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   align-self: start;
   overflow: visible;
   min-width: 0;
-  max-width: 100%;
-  padding: 18px 16px 20px;
+  width: 100%;
+  max-width: var(--pa-sidebar-width);
+  padding: 14px 12px 16px;
   direction: rtl;
   text-align: right;
   background: #fff;
@@ -16022,10 +16026,27 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-contact-manual-fields,
 .pa-sidebar .ds-pa-type-meta-grid,
 .pa-sidebar .ds-pa-type-meta-aux,
-.pa-sidebar .ds-pa-type-row {
+.pa-sidebar .ds-pa-type-row,
+.pa-sidebar .ds-pa-bundle-panel,
+.pa-sidebar .ds-pa-bundle-prompt,
+.pa-sidebar .ds-pa-summary,
+.pa-sidebar .ds-pa-catalog-attach,
+.pa-sidebar .ds-pa-validation-notice,
+.pa-sidebar .ds-pa-item-info-strip,
+.pa-sidebar .ds-pa-item-extra-body,
+.pa-sidebar .ds-pa-notes-details,
+.pa-sidebar .ds-pa-form-actions--workflow {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+}
+.pa-sidebar .ds-pa-form-field--wide,
+.pa-sidebar .ds-pa-form-field--wide .ds-input,
+.pa-sidebar .ds-pa-form-field--wide textarea.ds-input,
+.pa-sidebar .ds-pa-form-field--wide .ds-pa-activity-picker,
+.pa-sidebar .ds-pa-activity-picker {
+  width: 100%;
+  max-width: 100%;
 }
 .pa-sidebar input,
 .pa-sidebar select,
@@ -16043,15 +16064,33 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar textarea,
 .pa-sidebar .ds-input,
 .pa-sidebar .ds-select,
-.pa-sidebar .ds-pa-activity-trigger {
+.pa-sidebar .ds-pa-activity-trigger,
+.pa-sidebar .ds-btn {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  min-height: 42px;
-  padding: 9px 12px;
-  font-size: 0.86rem;
+}
+.pa-sidebar select,
+.pa-sidebar textarea,
+.pa-sidebar .ds-input,
+.pa-sidebar .ds-select,
+.pa-sidebar .ds-pa-activity-trigger {
+  min-height: 38px;
+  padding: 8px 10px;
+  font-size: 0.84rem;
   line-height: 1.45;
   border-radius: 8px;
+}
+.pa-sidebar .ds-btn {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+  justify-content: center;
+}
+.pa-sidebar .ds-btn--xs {
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 0.76rem;
 }
 .pa-sidebar select.ds-input {
   width: 100%;
@@ -16082,8 +16121,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-type-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
+  gap: 12px;
   align-items: stretch;
+}
+.pa-sidebar .ds-pa-type-meta-grid > .ds-pa-form-field {
+  flex: initial;
+  min-width: 0;
+}
+.pa-sidebar .ds-pa-type-meta-aux {
+  width: 100%;
 }
 .pa-sidebar .ds-pa-client-search-block {
   display: flex;
@@ -16161,8 +16207,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-form-type-panel,
 .pa-sidebar .ds-pa-form-bottom-panel {
   background: #f7f9fc;
-  padding: 16px;
-  margin-bottom: 14px;
+  padding: 12px;
+  margin-bottom: 12px;
   border-radius: 12px;
 }
 .pa-sidebar .ds-pa-form-meta-panel {
@@ -16230,13 +16276,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pa-sidebar .ds-pa-item-quick-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
-  align-items: stretch;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
 }
 .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--select,
-.pa-sidebar .ds-pa-line-total,
-.pa-sidebar .ds-pa-item-remove {
+.pa-sidebar .ds-pa-item-quick-row .ds-pa-item-remove {
   grid-column: 1 / -1;
 }
 .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--qty,
@@ -16245,27 +16290,108 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   width: 100%;
   min-width: 0;
 }
-.pa-sidebar .ds-pa-line-total output,
-.pa-sidebar .ds-pa-form-actions-main .ds-btn {
+.pa-sidebar .ds-pa-line-total output {
   width: 100%;
   max-width: 100%;
+  min-height: 38px;
   text-align: center;
 }
 .pa-sidebar .ds-pa-form-actions-main {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 8px;
 }
 .pa-sidebar .ds-pa-type-cards {
   direction: rtl;
+  flex-direction: column;
+  gap: 8px;
 }
 .pa-sidebar .ds-pa-type-card {
+  width: 100%;
+  flex: 1 1 auto;
   text-align: right;
 }
 .pa-sidebar .ds-pa-notes-summary,
 .pa-sidebar .ds-pa-item-extra-toggle {
   text-align: right;
   direction: rtl;
+}
+.pa-sidebar .ds-pa-activity-dropdown {
+  inline-size: 100%;
+  max-width: 100%;
+}
+.pa-sidebar .ds-pa-bundle-grid {
+  grid-template-columns: 1fr;
+}
+.pa-sidebar .ds-pa-bundle-child-card {
+  width: 100%;
+}
+.pa-sidebar .ds-pa-bundle-footer {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.pa-sidebar .ds-pa-bundle-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  width: 100%;
+}
+.pa-sidebar .ds-pa-summary-bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.pa-sidebar .ds-pa-summary-pill {
+  justify-content: space-between;
+  width: 100%;
+  white-space: normal;
+}
+.pa-sidebar .ds-pa-discount-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.pa-sidebar .ds-pa-discount-amount-field,
+.pa-sidebar .ds-pa-discount-note-field {
+  flex: 1 1 auto;
+  width: 100%;
+}
+.pa-sidebar .ds-pa-item-grid--extras {
+  grid-template-columns: 1fr;
+}
+.pa-sidebar .ds-pa-items-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.pa-sidebar .ds-pa-activity-type-filter {
+  width: 100%;
+}
+.pa-sidebar .ds-pa-activity-type-filter select {
+  width: 100%;
+  max-width: 100%;
+}
+.pa-sidebar .ds-pa-catalog-attach {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.pa-sidebar .ds-pa-new-client-hint {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.pa-sidebar .ds-pa-client-locked-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.pa-sidebar .ds-pa-client-locked-actions .ds-btn {
+  width: 100%;
+}
+.pa-sidebar .ds-pa-item-remove {
+  justify-self: stretch;
 }
 .pa-preview {
   min-width: 0;
@@ -16307,7 +16433,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 @media (max-width: 1180px) {
   .pa-editor-workspace { grid-template-columns: minmax(0, 1fr); }
-  .pa-sidebar { position: static; }
+  .pa-sidebar {
+    position: static;
+    width: min(100%, var(--pa-sidebar-width));
+    max-width: var(--pa-sidebar-width);
+    margin-inline: auto;
+  }
   .pa-preview { padding-inline: 4px; }
 }
 @media (max-width: 760px) {
