@@ -1013,7 +1013,7 @@ function activityTypeFilterHtml(pricingOptions) {
     ...types.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`)
   ].join('');
   return `<label class="ds-pa-activity-type-filter"><span style="font-size:0.75rem;white-space:nowrap">סוג פעילות:</span>
-    <select class="ds-input ds-input--sm" data-pa-activity-type-filter style="min-width:120px">${opts}</select>
+    <select class="ds-input ds-input--sm" data-pa-activity-type-filter>${opts}</select>
   </label>`;
 }
 
