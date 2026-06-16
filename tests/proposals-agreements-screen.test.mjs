@@ -458,6 +458,24 @@ test('non-admin manager submits proposals for approval instead of approving dire
   );
 });
 
+test('approved proposals render signature image only inside the signature block', () => {
+  const draftHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'draft' }, [], []);
+  const sentHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'sent' }, [], []);
+  const approvedHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'approved', approved_at: '2026-06-16T10:30:00.000Z' }, [], []);
+
+  assert.doesNotMatch(draftHtml, /signature-idan-nahum\.png/);
+  assert.doesNotMatch(sentHtml, /signature-idan-nahum\.png/);
+  assert.match(approvedHtml, /proposals\/signature-idan-nahum\.png/);
+
+  const doc = new JSDOM(approvedHtml).window.document;
+  assert.equal(doc.querySelectorAll('.pa-footer-signature').length, 1);
+  assert.equal(doc.querySelectorAll('.pa-page-footer').length, 1);
+  assert.equal(doc.querySelectorAll('.pa-signature-image').length, 1);
+  assert.equal(doc.querySelectorAll('.pa-footer-signature .pa-signature-image').length, 1);
+  assert.equal(doc.querySelectorAll('.pa-footer-signature .pa-signer-line').length, 1);
+  assert.match(doc.querySelector('.pa-footer-signature')?.textContent || '', /אושר ונחתם דיגיטלית בתאריך/);
+});
+
 test('admin sees approve and return actions for pending proposals', async () => {
   const pendingRow = { ...sampleRows[0], status: 'pending_approval' };
   await withJSDOM(
@@ -466,7 +484,7 @@ test('admin sees approve and return actions for pending proposals', async () => 
       proposalsAgreementsScreen.bind({ root, data: { rows: [pendingRow] }, state: stateFor('admin'), api: {} });
       root.querySelector(`[data-pa-row-id="${pendingRow.id}"]`)?.click();
       const drawerText = root.querySelector('[data-pa-drawer]')?.textContent || '';
-      assert.match(drawerText, /אישור/);
+      assert.match(drawerText, /חתום ואשר/);
       assert.match(drawerText, /החזרה לתיקון/);
     }
   );

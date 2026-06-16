@@ -16407,6 +16407,24 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-align: left;
   direction: rtl !important;
 }
+
+.pa-signature-image {
+  display: block;
+  max-width: 140px;
+  max-height: 64px;
+  object-fit: contain;
+  margin: 0 0 4px auto;
+}
+.pa-signed-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 8.5px;
+  line-height: 1.25;
+  color: #444;
+  white-space: nowrap;
+  text-align: left !important;
+  direction: rtl !important;
+}
 .pa-signer-line {
   display: block !important;
   width: 50mm !important;
