@@ -1492,12 +1492,16 @@ function sectionLinesHtml(value, options = {}) {
 // Proposaleditor.html so the signer name sits on the signature line above the page footer.
 function signatureSectionHtml(_signatureBody = '', row = {}) {
   const isApproved = normalizeProposalStatus(row?.status) === 'approved';
+;;;  const signatureImage = isApproved
+    ? `<img src="${PUBLIC_BASE}proposals/signature-idan-nahum.png" alt="חתימת עידן נחום" class="pa-signature-image" loading="eager" decoding="async" onerror="this.style.display='none';">`
+    : '';
   const signedMeta = isApproved
     ? `<div class="pa-signed-meta">אושר ונחתם דיגיטלית בתאריך: ${escapeHtml(approvalDateDisplay(row))}</div>`
     : '';
   return `<div class="pa-footer-signature" aria-label="חתימה">
     <div class="pa-blessing">בברכה,</div>
     <div class="pa-signer-block">
+      ${signatureImage}
       <div class="pa-signer-line">עידן נחום, סמנכ״ל כספים ותפעול</div>
       ${signedMeta}
     </div>
