@@ -350,6 +350,74 @@ test('new proposal tab opens compact form with preview and role-aware primary ac
   );
 });
 
+test('new proposal editor renders two-pane A4 layout and live preview updates key fields', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: {
+          rows: [],
+          activityNameOptions: [],
+          contactOptions: sampleContactOptions,
+          proposalActivityPricing: [{
+            activity_no: 'S1',
+            activity_name: 'סדנת מייקרים',
+            item_type: 'סדנה',
+            proposal_group: 'קיץ תשפ״ו',
+            unit_price: 450
+          }],
+          proposalActivityGroups: [{ group_key: 'קיץ תשפ״ו', display_name: 'קיץ תשפ״ו', template_key: 'summer' }],
+          proposalTemplateSections: [
+            { template_key: 'summer', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח להצעה' },
+            { template_key: 'summer', section_key: 'payment_terms', section_title: 'תנאי תשלום', section_body: 'תנאי תשלום' }
+          ]
+        },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      assert.ok(form.classList.contains('pa-editor'), 'form should use the official two-pane editor shell');
+      assert.ok(form.querySelector('.pa-sidebar'), 'editing sidebar should be present');
+      assert.ok(form.querySelector('[data-pa-live-preview] .proposal-document'), 'live A4 preview should be present');
+      assert.match(form.querySelector('.pa-sidebar')?.textContent || '', /פרטי נמען/);
+      assert.match(form.querySelector('.pa-sidebar')?.textContent || '', /פעילויות ומחירים/);
+
+      const searchInput = form.querySelector('[data-pa-client-search-input]');
+      searchInput.value = 'יוסי';
+      searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      form.querySelector('[data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      const typeInput = form.querySelector('[name="activity_type_group"]');
+      typeInput.value = 'קיץ תשפ״ו';
+      typeInput.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      await delay(0);
+
+      const pricingSelect = form.querySelector('[data-pa-pricing-select]');
+      pricingSelect.value = pricingSelect.querySelectorAll('option')[1]?.value || '';
+      pricingSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      await delay(0);
+      const qtyInput = form.querySelector('[data-pa-item-qty]');
+      qtyInput.value = '2';
+      qtyInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      const discountValue = form.querySelector('[data-pa-discount-value]');
+      discountValue.value = '100';
+      discountValue.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      await delay(20);
+
+      const previewText = form.querySelector('[data-pa-live-preview]')?.textContent || '';
+      assert.match(previewText, /לכבוד/, 'recipient block should be visible in live preview');
+      assert.match(previewText, /מסגרת ב/, 'selected school should update in live preview');
+      assert.match(previewText, /יוסי קשר/, 'selected contact should update in live preview');
+      assert.match(previewText, /סדנת מייקרים/, 'selected item should update in live preview');
+      assert.match(previewText, /900/, 'quantity × price should update in live preview');
+      assert.match(previewText, /100/, 'discount should update in live preview');
+    }
+  );
+});
+
 
 test('non-admin manager submits proposals for approval instead of approving directly', async () => {
   const managerState = stateFor('operation_manager');
