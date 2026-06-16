@@ -384,8 +384,10 @@ test('new proposal editor renders two-pane A4 layout and live preview updates ke
       assert.ok(liveDocument, 'live A4 preview should be present');
       assert.ok(liveDocument.classList.contains('pa-document'), 'document should use the scoped Proposaleditor document class');
       assert.ok(liveDocument.querySelector('.pa-page-header .pa-logo-area .proposal-logo'), 'document should render the Proposaleditor-style logo area');
-      assert.ok(liveDocument.querySelector('.pa-page-footer'), 'document should render the Proposaleditor-style footer');
+      assert.equal(liveDocument.querySelectorAll('.pa-page-footer').length, 1, 'document should render exactly one Proposaleditor-style footer');
+      assert.equal(liveDocument.querySelectorAll('.proposal-document-footer, .proposal-footer, .proposal-footer-logo').length, 0, 'new proposal document should not render legacy footer classes');
       assert.match(liveDocument.querySelector('.pa-page-footer')?.textContent || '', /www\.think\.org\.il/);
+      assert.equal(liveDocument.querySelectorAll('.pa-footer-signature').length, 1, 'document should render exactly one signature block');
       assert.ok(liveDocument.querySelector('.pa-footer-signature .pa-signer-line'), 'document should render the Proposaleditor-style signature line');
       assert.match(form.querySelector('.pa-sidebar')?.textContent || '', /פרטי נמען/);
       assert.match(form.querySelector('.pa-sidebar')?.textContent || '', /פעילויות ומחירים/);
@@ -1600,7 +1602,7 @@ test('summer proposal preview keeps prices out of activity section and expands b
     const paymentSection = doc.querySelector('.pa-cost-section');
     const costTable = paymentSection?.querySelector('.pa-cost-table');
     const address = doc.querySelector('.pa-doc-address');
-    const signature = doc.querySelector('.proposal-signature');
+    const signature = doc.querySelector('.pa-footer-signature');
 
     assert.ok(address, 'recipient block should render');
     assert.match(address.textContent, /לכבוד:/);
@@ -1619,7 +1621,7 @@ test('summer proposal preview keeps prices out of activity section and expands b
     assert.doesNotMatch(tableText, /סדנאות STEM/);
     assert.doesNotMatch(doc.textContent, /undefined|null|\(\)\s*₪|₪\s*לשעה|מחיר לשעה/);
     assert.ok(signature, 'signature should render from template section');
-    assert.equal(signature.querySelectorAll('.proposal-signature-name').length, 1);
+    assert.equal(signature.querySelectorAll('.pa-signer-line').length, 1);
     assert.match(signature.textContent, /בברכה,/);
     assert.match(signature.textContent, /עידן נחום, סמנכ״ל כספים/);
   });
@@ -2118,7 +2120,8 @@ test('proposal preview replaces selected course placeholder and renders one cost
     const paymentSection = doc.querySelector('.pa-cost-section');
     assert.ok(paymentSection?.contains(tables[0]), 'cost table should be inside payment section');
     assert.ok((paymentSection.textContent || '').indexOf('טקסט תנאי תשלום') < (paymentSection.textContent || '').indexOf('סה״כ לתשלום'));
-    assert.equal(doc.querySelectorAll('.proposal-signature').length, 1);
+    assert.equal(doc.querySelectorAll('.pa-footer-signature').length, 1);
+    assert.equal(doc.querySelectorAll('.pa-page-footer').length, 1);
   });
 });
 

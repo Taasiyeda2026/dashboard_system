@@ -16285,40 +16285,41 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   background: #f5f7fa !important;
 }
 .pa-footer-signature {
-  margin: auto 0 14px !important;
-  padding-top: 14px;
+  margin: 18pt 0 16pt !important;
+  padding-top: 0;
   text-align: left;
   display: block !important;
   width: 100%;
   max-width: none;
+  direction: rtl;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 .pa-footer-signature .pa-blessing {
   font-size: 12.5px;
-  margin: 0 0 10px !important;
-  text-align: center !important;
-  width: auto !important;
+  margin: 0 0 18pt !important;
+  text-align: left !important;
+  width: 50mm !important;
+  margin-inline-start: auto !important;
+  direction: rtl;
 }
 .pa-signer-block {
-  margin-top: 4.4em;
   display: block !important;
+  width: 50mm;
+  max-width: 100%;
+  margin-inline-start: auto;
   text-align: left;
   direction: rtl !important;
 }
 .pa-signer-line {
-  display: inline-block !important;
-  width: auto !important;
-  min-width: 50mm;
+  display: block !important;
+  width: 50mm !important;
+  max-width: 100%;
   border-top: 1px solid #555 !important;
-  padding-top: 1px;
+  padding-top: 3px;
   margin: 0 !important;
-}
-.pa-signer-block .proposal-signature-name {
-  display: block;
-  width: auto !important;
-  margin: 2px 0 0 !important;
   font-size: 10px !important;
+  line-height: 1.35;
   white-space: nowrap;
   text-align: left !important;
   direction: rtl !important;
@@ -16334,8 +16335,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   justify-content: center;
   gap: 8px;
   text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
-.pa-page-footer .proposal-footer-logo {
+.pa-page-footer .pa-page-footer-logo {
   height: 18px;
   max-height: 18px;
   width: auto;
@@ -16370,5 +16373,5 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     border-top: 1px solid #bbb !important;
     padding: 5px 0 7px !important;
   }
-  .pa-page-footer .proposal-footer-logo { height: 18px !important; max-height: 18px !important; }
+  .pa-page-footer .pa-page-footer-logo { height: 18px !important; max-height: 18px !important; }
 }
