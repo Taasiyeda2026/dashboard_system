@@ -1221,7 +1221,7 @@ function proposalCostTableHtml(items = []) {
     ? `<tr><td colspan="3">סה״כ לפני הנחה</td><td>${currencyAmountHtml(subtotal)}</td></tr>
        <tr><td colspan="3">הנחה</td><td>${currencyAmountHtml(-discount)}</td></tr>`
     : '';
-  return `<table class="pa-cost-table">
+  return `<table class="pa-cost-table pa-activities-table">
     <thead><tr><th>פעילות</th><th>כמות</th><th>מחיר יחידה</th><th>סה״כ שורה</th></tr></thead>
     <tbody>${rows.map((row) => `<tr>
         <td>${escapeHtml(row.name)}</td>
@@ -1246,7 +1246,7 @@ function proposalDiscountSummaryHtml(items = []) {
     return sum + (Number(total) || 0);
   }, 0);
   const payable = Math.max(subtotal - discount, 0);
-  return `<table class="pa-cost-table pa-discount-summary-table">
+  return `<table class="pa-cost-table pa-activities-table pa-discount-summary-table">
     <tbody>
       <tr><td>סה״כ לפני הנחה</td><td>${currencyAmountHtml(subtotal)}</td></tr>
       <tr><td>הנחה</td><td>${currencyAmountHtml(-discount)}</td></tr>
@@ -1292,7 +1292,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
     return `<tr>${cells.map((cell) => `<td>${cell.html ? (cell.value || '—') : escapeHtml(cell.value || '—')}</td>`).join('')}</tr>`;
   }).filter(Boolean);
   if (!rows.length) return '';
-  return `<table class="pa-item-details-table">
+  return `<table class="pa-item-details-table pa-activities-table">
     <thead><tr><th>תוכנית / פעילות</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>שעות</th><th>עלות לשעה</th><th>כמות</th><th>מחיר לקורס / קבוצה אחת</th><th>סה״כ לפי כמות</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
   </table>`;
@@ -1319,7 +1319,7 @@ function costsIntroBody(row = {}, items = []) {
 }
 
 function sectionHtml(title, body, className = '', options = {}) {
-  return `<section class="pa-section${className ? ` ${className}` : ''}"><h3>${escapeHtml(sectionHeadingText(title))}</h3>${sectionBodyHtml(body, options)}</section>`;
+  return `<section class="pa-section${className ? ` ${className}` : ''}"><h3 class="pa-section-heading">${escapeHtml(sectionHeadingText(title))}</h3>${sectionBodyHtml(body, options)}</section>`;
 }
 
 function recipientLineHtml(...values) {
@@ -1345,8 +1345,8 @@ function recipientBlockHtml(row = {}) {
   const contactLine = contactParts.length ? `<p>${contactParts.join(', ')}</p>` : '';
   const orgLine = recipientLineHtml(schoolName, authorityName);
   const lines = [contactLine, orgLine].filter(Boolean);
-  return `<div class="pa-doc-address">
-    <p><strong>לכבוד:</strong></p>
+  return `<div class="pa-doc-address pa-to-block">
+    <p class="pa-label-to"><strong>לכבוד:</strong></p>
     ${lines.join('\n    ')}
   </div>`;
 }
@@ -1442,11 +1442,11 @@ function renderProposalSectionBody(body, options = {}) {
   if (!groups.length) return '';
   const rendered = groups.map((group) => {
     if (group.type === 'ul') {
-      return `<ul>${group.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+      return `<ul class="pa-proposal-list">${group.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
     }
     return group.items.map((lines) => `<p>${lines.map((line) => escapeHtml(line)).join('<br>')}</p>`).join('');
   }).join('');
-  return `<div class="pa-section-body${className ? ` ${className}` : ''}">${rendered}</div>`;
+  return `<div class="pa-section-body pa-section-text${className ? ` ${className}` : ''}">${rendered}</div>`;
 }
 
 function renderSectionBodyHtml(value, options = {}) {
@@ -1461,10 +1461,10 @@ function sectionLinesHtml(value, options = {}) {
 // The block renders inline after the document sections, under "בברכה," — never floated
 // or pushed above the footer. When Supabase has no signature, nothing is rendered.
 function signatureSectionHtml(_signatureBody = '') {
-  return `<section class="proposal-signature" aria-label="חתימה">
-    <p class="proposal-signature-greeting">בברכה,</p>
-    <div class="proposal-signature-block">
-      <div class="proposal-signature-line" aria-hidden="true"></div>
+  return `<section class="proposal-signature pa-footer-signature" aria-label="חתימה">
+    <p class="proposal-signature-greeting pa-blessing">בברכה,</p>
+    <div class="proposal-signature-block pa-signer-block">
+      <div class="proposal-signature-line pa-signer-line" aria-hidden="true"></div>
       <p class="proposal-signature-name">עידן נחום, סמנכ״ל כספים</p>
     </div>
   </section>`;
@@ -1516,9 +1516,9 @@ function documentSectionsEditorHtml(sections = [], isCustom = false) {
 function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText, sections, orgResponsibility, schoolResponsibility, paymentTerms, changesCancellation, remarks, signatureHtml, sectionLinesHtml: sectionLines }) {
   const title = text(documentTitle);
   return `
-    <div class="proposal-document" dir="rtl">
-      <div class="proposal-document-header">
-        <div class="proposal-header-brand">
+    <div class="proposal-document pa-document pa-a4-page" dir="rtl">
+      <div class="proposal-document-header pa-page-header">
+        <div class="proposal-header-brand pa-logo-area">
           <img
             src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
             alt="לוגו תעשיידע"
@@ -1527,15 +1527,15 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
             decoding="async"
             onerror="this.style.display='none';"
           >
-          ${dateDisplay ? `<div class="pa-doc-date">${escapeHtml(dateDisplay)}</div>` : ''}
         </div>
-        ${recipientBlockHtml(row)}
       </div>
-      <hr class="pa-doc-divider">
+      ${recipientBlockHtml(row)}
+      <hr class="pa-doc-divider pa-divider">
+      ${dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
       <div class="proposal-document-body">
         <div class="proposal-document-content">
-          ${title ? `<h1 class="pa-doc-subject">${escapeHtml(title)}</h1>` : ''}
-          ${introText ? sectionLines(introText, { className: 'pa-doc-intro' }) : ''}
+          ${title ? `<h1 class="pa-doc-subject pa-doc-title">${escapeHtml(title)}</h1>` : ''}
+          ${introText ? sectionLines(introText, { className: 'pa-doc-intro pa-intro-text' }) : ''}
           ${sections.join('')}
           ${orgResponsibility}
           ${schoolResponsibility}
@@ -1545,7 +1545,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           ${signatureHtml}
         </div>
       </div>
-      <div class="proposal-document-footer">
+      <div class="proposal-document-footer pa-page-footer">
         <img
           src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
           alt="לוגו תחתון תעשיידע"
@@ -1554,6 +1554,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           decoding="async"
           onerror="this.style.display='none';"
         >
+        <span><strong>תעשיידע</strong> — תעשייה למען חינוך מתקדם (ע״ר) &nbsp;|&nbsp; www.think.org.il</span>
       </div>
     </div>`;
 }
@@ -1591,7 +1592,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
   const renderActivitySection = (heading, body) => {
     const bodyHtml = body ? sectionBodyHtml(body) : '';
     if (!bodyHtml) return '';
-    return `<section class="pa-section">${heading ? `<h3>${escapeHtml(sectionHeadingText(heading))}</h3>` : ''}${bodyHtml}</section>`;
+    return `<section class="pa-section">${heading ? `<h3 class="pa-section-heading">${escapeHtml(sectionHeadingText(heading))}</h3>` : ''}${bodyHtml}</section>`;
   };
 
   const sections = [];
@@ -1636,7 +1637,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = []) 
     ? `<div class="pa-cost-table-block">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>`
     : '';
   const paymentTerms = (paymentTermsBody || costTableBlock)
-    ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3>${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}${costTableBlock}</section>`
+    ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3 class="pa-section-heading">${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}${costTableBlock}</section>`
     : '';
 
   const signatureHtml = signatureSectionHtml(sectionBody('signature'));
@@ -1944,7 +1945,12 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
 
     <div class="pa-editor-workspace">
       <aside class="pa-sidebar" aria-label="עריכת פרטי הצעת מחיר">
+        <div class="pa-sidebar-heading">
+          <span class="pa-sidebar-kicker">עורך הצעה</span>
+          <strong>${escapeHtml(title)}</strong>
+        </div>
     <div class="ds-pa-form-meta-panel">
+      <h4 class="pa-sidebar-section-title">פרטי נמען</h4>
       <div data-pa-step-panel="client">
         <div class="ds-pa-client-row" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
           ${clientSearchHtml(contactOptions, row)}
@@ -1960,6 +1966,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         </div>
       </div>
       <div data-pa-step-panel="contact">
+        <h4 class="pa-sidebar-section-title">איש קשר</h4>
         <div class="ds-pa-form-grid">
           <div data-pa-contact-picker-host>${initPickerHtml}</div>
           <div class="ds-pa-form-grid ds-pa-contact-manual-fields" data-pa-contact-manual-fields${isLocked ? ' hidden' : ''}>
@@ -1973,6 +1980,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     </div>
 
     <div class="ds-pa-form-type-panel" data-pa-step-panel="proposal">
+      <h4 class="pa-sidebar-section-title">סוג ותאריך הצעה</h4>
       <div class="ds-pa-type-meta-grid">
         <div class="ds-pa-form-field">
           <span>${escapeHtml(FIELD_LABELS.activity_type_group)} *</span>
@@ -1988,10 +1996,12 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     </div>
 
     <div class="ds-pa-form-activities-panel" data-pa-step-panel="activity">
+      <h4 class="pa-sidebar-section-title">פעילויות ומחירים</h4>
       <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
     </div>
 
     <div class="ds-pa-form-bottom-panel" data-pa-step-panel="summary">
+      <h4 class="pa-sidebar-section-title">סיכום והפקה</h4>
       <details class="ds-pa-notes-details"${text(row.notes) ? ' open' : ''}>
         <summary class="ds-pa-notes-summary">הערות</summary>
         <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm ds-pa-notes-input" name="notes" rows="3">${escapeHtml(text(row.notes))}</textarea></label>
@@ -2629,6 +2639,7 @@ export const proposalsAgreementsScreen = {
           fillContactFields(form, contact);
           setContactSource(form, contact);
           lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.phone || contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority));
+          if (form) setTimeout(() => calcGrandTotal(form), 0);
         }
       }, { signal });
     };
@@ -2767,6 +2778,7 @@ export const proposalsAgreementsScreen = {
       const results = form.querySelector('[data-pa-client-results]');
       if (input) input.value = '';
       if (results) { results.hidden = true; results.innerHTML = ''; }
+      setTimeout(() => calcGrandTotal(form), 0);
     };
 
     const renderClientResults = (form) => {
