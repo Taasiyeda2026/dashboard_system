@@ -16418,9 +16418,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-signed-meta {
   display: block;
   margin-top: 2px;
-  font-size: 8.5px;
+  font-size: 9px;
   line-height: 1.25;
-  color: #444;
+  color: #666;
   white-space: nowrap;
   text-align: left !important;
   direction: rtl !important;

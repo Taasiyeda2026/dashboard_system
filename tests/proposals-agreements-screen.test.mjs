@@ -465,6 +465,8 @@ test('approved proposals render signature image only inside the signature block'
 
   assert.doesNotMatch(draftHtml, /signature-idan-nahum\.png/);
   assert.doesNotMatch(sentHtml, /signature-idan-nahum\.png/);
+  assert.doesNotMatch(draftHtml, /אושר בתאריך/);
+  assert.doesNotMatch(sentHtml, /אושר בתאריך/);
   assert.match(approvedHtml, /proposals\/signature-idan-nahum\.png/);
 
   const doc = new JSDOM(approvedHtml).window.document;
@@ -473,7 +475,8 @@ test('approved proposals render signature image only inside the signature block'
   assert.equal(doc.querySelectorAll('.pa-signature-image').length, 1);
   assert.equal(doc.querySelectorAll('.pa-footer-signature .pa-signature-image').length, 1);
   assert.equal(doc.querySelectorAll('.pa-footer-signature .pa-signer-line').length, 1);
-  assert.match(doc.querySelector('.pa-footer-signature')?.textContent || '', /אושר ונחתם דיגיטלית בתאריך/);
+  assert.match(doc.querySelector('.pa-footer-signature')?.textContent || '', /אושר בתאריך: 16\/06\/2026/);
+  assert.doesNotMatch(doc.querySelector('.pa-footer-signature')?.textContent || '', /אושר ונחתם דיגיטלית/);
 });
 
 test('admin sees approve and return actions for pending proposals', async () => {
