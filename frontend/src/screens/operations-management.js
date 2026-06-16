@@ -119,6 +119,9 @@ function ensureOpsState(state = {}) {
   }
   if (!ops.instructor) ops.instructor = '__all__';
   if (!ops.expandedWorkshop) ops.expandedWorkshop = '';
+  if (!ops.workshopStockOverrides) {
+    try { ops.workshopStockOverrides = JSON.parse(localStorage.getItem('operationsWorkshopStockOverrides') || '{}'); } catch { ops.workshopStockOverrides = {}; }
+  }
   if (!ops.expandedSchool) ops.expandedSchool = '';
   ops.sorts = ops.sorts || {};
   Object.entries(SORT_DEFAULTS).forEach(([tab, sort]) => {
@@ -590,6 +593,10 @@ function formatQuantityCell(value) {
   return escapeHtml(String(value));
 }
 
+function normalizeWorkshopKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
 function formatStockCell(value) {
   if (value === null || value === undefined || value === '') return '<span class="ds-ops-mgmt-cell-muted">לא הוזן</span>';
   return escapeHtml(String(value));
@@ -686,13 +693,13 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(3),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(4),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(5),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(6) { text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(5) { text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(2),
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(3),
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(4),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(5),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(6) { text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(5) { text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
+    .ds-ops-mgmt-screen .ds-ops-stock-input:focus { outline:2px solid #3b82f6; border-color:#3b82f6; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; background:#eefaff; border-bottom:1px solid #d8e5ee; font-weight:700; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__stats,
@@ -893,13 +900,11 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
 
 function workshopsTabHtml(rows, state, stockMap) {
   const ops = ensureOpsState(state);
+  const stockOverrides = ops.workshopStockOverrides || {};
   const metrics = sortByConfig(workshopMetricsRows(rows, stockMap), state, TAB_WORKSHOPS, {
     workshopName: (row) => row.workshopName,
     activityCount: (row) => row.activityCount,
     estimatedQuantity: (row) => row.estimatedQuantity,
-    actualQuantity: (row) => row.actualQuantity ?? '',
-    stockQuantity: (row) => row.stockQuantity ?? '',
-    gap: (row) => row.gap ?? ''
   });
   const groupsByName = new Map();
   rows.forEach((row) => {
@@ -913,17 +918,25 @@ function workshopsTabHtml(rows, state, stockMap) {
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם סדנה')}
         ${sortableTh(state, TAB_WORKSHOPS, 'activityCount', 'מספר סדנאות')}
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'כמות נדרשת')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'actualQuantity', 'כמות בפועל')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'stockQuantity', 'כמות במלאי')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'gap', 'יתרת מלאי')}
-      </tr></thead><tbody>${metrics.map((row) => `<tr>
-        <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
-        <td>${row.activityCount}</td>
-        <td>${row.estimatedQuantity}</td>
-        <td>${formatQuantityCell(row.actualQuantity)}</td>
-        <td>${formatStockCell(row.stockQuantity)}</td>
-        <td>${formatGapCell(row.gap, row.stockQuantity !== null)}</td>
-      </tr>`).join('')}</tbody></table>`)
+        <th class="ds-ops-col--stock-input">כמות מלאי</th>
+        <th>יתרת מלאי</th>
+      </tr></thead><tbody>${metrics.map((row) => {
+        const key = normalizeWorkshopKey(row.workshopName);
+        const override = stockOverrides[key];
+        const hasOverride = override !== undefined && override !== '' && Number.isFinite(Number(override));
+        const overrideVal = hasOverride ? Number(override) : '';
+        const gap = hasOverride ? Number(override) - row.estimatedQuantity : null;
+        const gapHtml = gap === null
+          ? '<span class="ds-ops-mgmt-cell-muted">—</span>'
+          : `<span class="ds-ops-gap ${gap < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${gap}</span>`;
+        return `<tr>
+          <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
+          <td>${row.activityCount}</td>
+          <td>${row.estimatedQuantity}</td>
+          <td><input type="number" class="ds-ops-stock-input" data-ops-stock-input="${escapeHtml(row.workshopName)}" value="${overrideVal}" placeholder="לא הוזן" min="0"></td>
+          <td data-ops-workshop-gap="${escapeHtml(row.workshopName)}" data-estimated="${row.estimatedQuantity}">${gapHtml}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`)
     : dsEmptyState('לא נמצאו סדנאות');
 
   const expanded = metrics.find((row) => row.workshopName === ops.expandedWorkshop);
@@ -1147,6 +1160,31 @@ export const operationsManagementScreen = {
 
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
+
+    root.querySelectorAll('[data-ops-stock-input]').forEach((input) => {
+      input.addEventListener('input', (ev) => {
+        const name = input.getAttribute('data-ops-stock-input') || '';
+        const key = normalizeWorkshopKey(name);
+        const val = ev.target.value.trim();
+        ops.workshopStockOverrides = ops.workshopStockOverrides || {};
+        if (val === '') {
+          delete ops.workshopStockOverrides[key];
+        } else {
+          ops.workshopStockOverrides[key] = Number(val);
+        }
+        try { localStorage.setItem('operationsWorkshopStockOverrides', JSON.stringify(ops.workshopStockOverrides)); } catch { /* ignore */ }
+        const gapCell = root.querySelector(`[data-ops-workshop-gap="${name.replace(/"/g, '&quot;')}"]`);
+        if (gapCell) {
+          const estimated = Number(gapCell.getAttribute('data-estimated') || '0');
+          if (val === '') {
+            gapCell.innerHTML = '<span class="ds-ops-mgmt-cell-muted">—</span>';
+          } else {
+            const gap = Number(val) - estimated;
+            gapCell.innerHTML = `<span class="ds-ops-gap ${gap < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${gap}</span>`;
+          }
+        }
+      });
+    });
 
     root.querySelectorAll('[data-ops-workshop]').forEach((btn) => {
       btn.addEventListener('click', () => {
