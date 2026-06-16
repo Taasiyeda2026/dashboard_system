@@ -380,7 +380,13 @@ test('new proposal editor renders two-pane A4 layout and live preview updates ke
       const form = openNewProposalForm(root, dom);
       assert.ok(form.classList.contains('pa-editor'), 'form should use the official two-pane editor shell');
       assert.ok(form.querySelector('.pa-sidebar'), 'editing sidebar should be present');
-      assert.ok(form.querySelector('[data-pa-live-preview] .proposal-document'), 'live A4 preview should be present');
+      const liveDocument = form.querySelector('[data-pa-live-preview] .proposal-document');
+      assert.ok(liveDocument, 'live A4 preview should be present');
+      assert.ok(liveDocument.classList.contains('pa-document'), 'document should use the scoped Proposaleditor document class');
+      assert.ok(liveDocument.querySelector('.pa-page-header .pa-logo-area .proposal-logo'), 'document should render the Proposaleditor-style logo area');
+      assert.ok(liveDocument.querySelector('.pa-page-footer'), 'document should render the Proposaleditor-style footer');
+      assert.match(liveDocument.querySelector('.pa-page-footer')?.textContent || '', /www\.think\.org\.il/);
+      assert.ok(liveDocument.querySelector('.pa-footer-signature .pa-signer-line'), 'document should render the Proposaleditor-style signature line');
       assert.match(form.querySelector('.pa-sidebar')?.textContent || '', /פרטי נמען/);
       assert.match(form.querySelector('.pa-sidebar')?.textContent || '', /פעילויות ומחירים/);
 
