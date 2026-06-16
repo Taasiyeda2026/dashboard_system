@@ -1,4 +1,4 @@
-import { getActivityDateColumns } from './format-date.js';
+import { getActivityDateColumns, formatTimeRangeShort } from './format-date.js';
 import { isSummerActivity, normalizeActivitySeason, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027 } from './summer-activity.js';
 
 const INVALID_INSTRUCTOR_NAMES = new Set(['-', 'לא משויך', 'ללא שיוך']);
@@ -111,10 +111,10 @@ export function getActivityName(activity) {
 }
 
 export function getActivityTimeRange(activity) {
-  const start = String(activity?.start_time || activity?.StartTime || '').trim();
-  const end = String(activity?.end_time || activity?.EndTime || '').trim();
-  if (start && end) return `${start}-${end}`;
-  return start || end || '';
+  const start = activity?.start_time ?? activity?.StartTime;
+  const end = activity?.end_time ?? activity?.EndTime;
+  const formatted = formatTimeRangeShort(start, end);
+  return formatted === '—' ? '' : formatted;
 }
 
 export const WORKSHOP_ESTIMATE_PER_ACTIVITY = 25;
