@@ -1,5 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from './shared/layout.js';
+import { showToast } from './shared/toast.js';
 
 export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 export const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
@@ -10,14 +11,20 @@ const SEARCH_DEBOUNCE_MS = 280;
 const TEST_HOURS_REGEX = /(?:שעות\s*)?בדיק(?:ה|ות)?/i;
 const PUBLIC_BASE = import.meta.env?.BASE_URL || './';
 
-export const STATUS_OPTIONS = ['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled'];
+export const STATUS_OPTIONS = ['draft', 'sent', 'returned_for_changes', 'approved', 'cancelled'];
 export const STATUS_LABELS = {
   draft:                'טיוטה',
-  pending_approval:     'ממתין לאישור',
+  sent:                 'נשלח',
+  pending_approval:     'נשלח',
   returned_for_changes: 'הוחזר לתיקון',
   approved:             'מאושר',
   cancelled:            'בוטל'
 };
+const STATUS_ALIASES = { pending_approval: 'sent' };
+function normalizeProposalStatus(status) {
+  const raw = text(status);
+  return STATUS_ALIASES[raw] || raw;
+}
 
 const FIELD_LABELS = {
   client_authority:    'רשות / מועצה / עירייה',
@@ -369,7 +376,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     phone:               text(row.phone),
     email:               text(row.email),
     notes:               text(row.notes),
-    status:              STATUS_OPTIONS.includes(text(row.status)) ? text(row.status) : 'draft',
+    status:              STATUS_OPTIONS.includes(normalizeProposalStatus(row.status)) ? normalizeProposalStatus(row.status) : 'draft',
     approval_note:       text(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
     custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections.map(normalizeDocumentSection) : [],
@@ -428,7 +435,7 @@ function rowMatches(row, filters) {
   const q = normalizeSearch(filters.q);
   if (q && !normalizeSearch(row._searchText).includes(q)) return false;
   if (filters.activity_type_group && normalizeProposalGroup(row.activity_type_group) !== normalizeProposalGroup(filters.activity_type_group)) return false;
-  if (filters.status && text(row.status) !== filters.status) return false;
+  if (filters.status && normalizeProposalStatus(row.status) !== filters.status) return false;
   return true;
 }
 
@@ -458,16 +465,25 @@ function statusFilterHtml() {
 }
 
 function statusBadgeHtml(status) {
-  const label = STATUS_LABELS[status] || status || '—';
+  const normalizedStatus = normalizeProposalStatus(status);
+  const label = STATUS_LABELS[normalizedStatus] || STATUS_LABELS[status] || status || '—';
   const colorMap = {
     draft:                '#888',
-    pending_approval:     '#d97706',
+    sent:                 '#2563eb',
+    pending_approval:     '#2563eb',
     returned_for_changes: '#dc2626',
     approved:             '#16a34a',
     cancelled:            '#6b7280'
   };
-  const color = colorMap[status] || '#888';
+  const color = colorMap[normalizedStatus] || colorMap[status] || '#888';
   return `<span class="ds-pa-badge" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.78rem;background:${color};color:#fff;white-space:nowrap">${escapeHtml(label)}</span>`;
+}
+
+function statusSelectHtml(row, enabled) {
+  const currentStatus = STATUS_OPTIONS.includes(normalizeProposalStatus(row?.status)) ? normalizeProposalStatus(row.status) : 'draft';
+  const options = STATUS_OPTIONS.map((status) => optionHtml(status, currentStatus, STATUS_LABELS[status] || status)).join('');
+  const disabled = enabled ? '' : ' disabled aria-disabled="true"';
+  return `<select class="ds-pa-status-select" data-pa-row-status data-pa-status-id="${escapeHtml(row?.id || '')}" data-pa-previous-status="${escapeHtml(currentStatus)}" aria-label="עדכון סטטוס הצעה"${disabled}>${options}</select>`;
 }
 
 function detailRowsHtml(row) {
@@ -537,7 +553,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
-      <td>${statusBadgeHtml(row.status)}</td>
+      <td>${statusSelectHtml(row, canManage)}</td>
       <td>${row.total_amount != null ? `₪${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
       <td class="ds-pa-actions-cell">${actionBtns.join('')}</td>
     </tr>`;
@@ -1908,7 +1924,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
   const normalizedActivityGroup = normalizeProposalGroup(row.activity_type_group);
   const filteredPricing = filterPricingByProposalType(pricingOptions, normalizedActivityGroup);
-  const currentStatus = STATUS_OPTIONS.includes(text(row.status)) ? text(row.status) : 'draft';
+  const currentStatus = STATUS_OPTIONS.includes(normalizeProposalStatus(row.status)) ? normalizeProposalStatus(row.status) : 'draft';
   const initAuth = text(row.client_authority);
   const initSchool = text(row.school_framework);
   const initContact = text(row.contact_name);
@@ -1923,7 +1939,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
   const canApproveDirectly = canApproveProposalsAgreements(state);
   const primaryActionLabel = canApproveDirectly ? 'אישור והפקת הצעה' : 'שליחה לאישור';
-  const primaryActionStatus = canApproveDirectly ? 'approved' : 'pending_approval';
+  const primaryActionStatus = canApproveDirectly ? 'approved' : 'sent';
 
   const initialPreviewRow = normalizeProposalAgreementRow({
     ...row,
@@ -2051,10 +2067,10 @@ function drawerActionButtons(row, state) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-edit-document="${escapeHtml(row.id)}">עריכת מסמך</button>`);
   }
   if (canManage && ['draft', 'returned_for_changes'].includes(status) && !isAdminRole) {
-    buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="pending_approval" data-pa-action-id="${escapeHtml(row.id)}">שליחה לאישור</button>`);
+    buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}">שליחה לאישור</button>`);
   }
   if (isAdminRole) {
-    if (status === 'pending_approval') {
+    if (status === 'sent' || status === 'pending_approval') {
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}">אישור</button>`);
       buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}">החזרה לתיקון</button>`);
     }
@@ -2214,7 +2230,7 @@ function payloadFromForm(form) {
 
 function validatePayload(payload, statusOverride) {
   const targetStatus = statusOverride || payload.status || 'draft';
-  const requiresCompleteProposal = targetStatus === 'pending_approval' || targetStatus === 'approved';
+  const requiresCompleteProposal = targetStatus === 'sent' || targetStatus === 'pending_approval' || targetStatus === 'approved';
   const requiredFields = requiresCompleteProposal
     ? REQUIRED_FIELDS_PENDING
     : REQUIRED_FIELDS_DRAFT;
@@ -3099,7 +3115,7 @@ export const proposalsAgreementsScreen = {
       // Always set status explicitly — 'draft' is the safe default
       const targetStatus = statusOverride || 'draft';
       payload.status = targetStatus;
-      const isPending = targetStatus === 'pending_approval';
+      const isPending = targetStatus === 'sent' || targetStatus === 'pending_approval';
 
       const validationErrors = validatePayload(payload, targetStatus);
       // No preview check here — the pending button handler manages the preview flow
@@ -3203,7 +3219,30 @@ export const proposalsAgreementsScreen = {
         }, rowGroup);
       }
     }, { signal });
-    root.addEventListener('change', (event) => {
+    root.addEventListener('change', async (event) => {
+
+      const rowStatusSelect = event.target.closest?.('[data-pa-row-status]');
+      if (rowStatusSelect) {
+        if (!canManage) return;
+        const id = text(rowStatusSelect.dataset.paStatusId);
+        const previousStatus = text(rowStatusSelect.dataset.paPreviousStatus) || 'draft';
+        const newStatus = text(rowStatusSelect.value);
+        if (!id || !newStatus || newStatus === previousStatus) return;
+        rowStatusSelect.disabled = true;
+        try {
+          const result = await api.updateProposalAgreementStatus(id, newStatus, '');
+          replaceLocalRow(data, result?.row || { id, status: newStatus, approval_note: '' });
+          refreshTable();
+          showToast('סטטוס ההצעה עודכן בהצלחה', 'success');
+        } catch (err) {
+          rowStatusSelect.value = previousStatus;
+          rowStatusSelect.disabled = false;
+          showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
+          window.alert?.(`שגיאה בעדכון סטטוס: ${err?.message || err}`);
+        }
+        return;
+      }
+
       // ── Activity type filter ──────────────────────────────────────────────
       const activityTypeFilter = event.target.closest?.('[data-pa-activity-type-filter]');
       if (activityTypeFilter) {
@@ -3684,7 +3723,7 @@ export const proposalsAgreementsScreen = {
       if (savePendingBtn) {
         const form = savePendingBtn.closest('[data-pa-form]');
         if (!form) return;
-        const targetStatus = text(savePendingBtn.dataset.paTargetStatus) || 'pending_approval';
+        const targetStatus = text(savePendingBtn.dataset.paTargetStatus) || 'sent';
         if (form.dataset.paPreviewSeen !== 'yes') {
           // Preview not yet seen — open it automatically with a submit button inside
           const payload = payloadFromForm(form);

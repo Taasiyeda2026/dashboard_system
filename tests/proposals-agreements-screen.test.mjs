@@ -447,13 +447,13 @@ test('non-admin manager submits proposals for approval instead of approving dire
       const form = openNewProposalForm(root, dom);
       const primary = form.querySelector('[data-pa-save-pending]');
       assert.equal(primary.textContent.trim(), 'שליחה לאישור');
-      assert.equal(primary.dataset.paTargetStatus, 'pending_approval');
+      assert.equal(primary.dataset.paTargetStatus, 'sent');
       assert.doesNotMatch(form.innerHTML, /אישור והפקת הצעה/);
 
       fillPendingMinimum(form, dom, { unit_price: '650', quantity: '3' });
       primary.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(30);
-      assert.equal(saves[0]?.status, 'pending_approval');
+      assert.equal(saves[0]?.status, 'sent');
     }
   );
 });
@@ -737,12 +737,44 @@ test('status filter shows only matching rows', async () => {
   );
 });
 
+test('table status dropdown updates status through the API and refreshes the row', async () => {
+  const localData = { rows: [{ ...sampleRows[0], status: 'draft' }] };
+  const saves = [];
+  await withJSDOM(
+    proposalsAgreementsScreen.render(localData, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: localData,
+        state: stateFor('admin'),
+        api: {
+          updateProposalAgreementStatus: async (id, status, note) => {
+            saves.push({ id, status, note });
+            return { ok: true, row: { ...localData.rows[0], id, status } };
+          }
+        }
+      });
+
+      const select = root.querySelector('[data-pa-row-status]');
+      assert.ok(select, 'status select should exist in the table row');
+      select.value = 'sent';
+      select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      await delay(30);
+
+      assert.deepEqual(saves, [{ id: sampleRows[0].id, status: 'sent', note: '' }]);
+      assert.equal(localData.rows[0].status, 'sent');
+      assert.equal(root.querySelector('[data-pa-row-status]').value, 'sent');
+    }
+  );
+});
+
 test('status badge is rendered in table rows with correct labels', () => {
   const html = proposalsAgreementsScreen.render({ rows: sampleRows }, { state: stateFor('admin') });
   assert.match(html, /טיוטה/);
-  assert.match(html, /ממתין לאישור/);
-  // Badge markup
-  assert.match(html, /ds-pa-badge/);
+  assert.match(html, /נשלח/);
+  // Inline table status control
+  assert.match(html, /data-pa-row-status/);
+  assert.doesNotMatch(html, /נחתם/);
 });
 
 test('multiple proposal item names are preserved on save', async () => {
@@ -855,7 +887,8 @@ test('status constants exported and complete', () => {
     assert.ok(STATUS_LABELS[s], `${s} should have a Hebrew label`);
   }
   assert.ok(STATUS_OPTIONS.includes('draft'));
-  assert.ok(STATUS_OPTIONS.includes('pending_approval'));
+  assert.ok(STATUS_OPTIONS.includes('sent'));
+  assert.ok(STATUS_LABELS.pending_approval, 'legacy pending_approval rows should still have a label');
   assert.ok(STATUS_OPTIONS.includes('approved'));
   assert.ok(STATUS_OPTIONS.includes('cancelled'));
   assert.ok(STATUS_OPTIONS.includes('returned_for_changes'));

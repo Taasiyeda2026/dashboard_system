@@ -13,8 +13,9 @@ export function showToast(message, kind = 'success', duration = 3000) {
 
   document.body.appendChild(el);
 
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => { el.classList.add('ds-toast--visible'); });
+  const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (callback) => setTimeout(callback, 0);
+  raf(() => {
+    raf(() => { el.classList.add('ds-toast--visible'); });
   });
 
   setTimeout(() => {
