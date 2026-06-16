@@ -7,6 +7,7 @@ import {
   getActivityInstructorName,
   getActivityPrimaryDate,
   getActivitySchoolNames,
+  getActivityTimeRange,
   isSummerOperationsException,
   buildWorkshopStockMapFromLists,
   buildWorkshopQuantityMetrics,
@@ -69,6 +70,14 @@ test('getActivityPrimaryDate uses start_date and meeting dates', () => {
   assert.equal(getActivityPrimaryDate({ date_1: '2026-05-02' }), '2026-05-02');
   assert.equal(getActivityPrimaryDate({ meeting_dates: ['2026-05-03'] }), '2026-05-03');
   assert.equal(getActivityPrimaryDate({}), '');
+});
+
+test('getActivityTimeRange formats HH:MM:SS to HH:MM for display and print', () => {
+  assert.equal(getActivityTimeRange({ start_time: '08:15:00', end_time: '09:00:00' }), '08:15-09:00');
+  assert.equal(getActivityTimeRange({ StartTime: '08:15:00', EndTime: '09:00:00' }), '08:15-09:00');
+  assert.equal(getActivityTimeRange({ start_time: '09:00', end_time: '12:30' }), '09:00-12:30');
+  assert.equal(getActivityTimeRange({ start_time: '08:15:00' }), '08:15');
+  assert.equal(getActivityTimeRange({}), '');
 });
 
 test('multi-school activity names are searchable and displayed', () => {
@@ -172,6 +181,23 @@ test('workshops tab shows inventory columns and print action', () => {
 test('actual participant count only uses existing activity fields', () => {
   assert.equal(getActivityActualParticipantCount({ participants_count: 25 }), 25);
   assert.equal(getActivityActualParticipantCount({ activity_name: 'סדנה' }), null);
+});
+
+test('operations management schedule shows HH:MM time range without seconds', () => {
+  const rows = [{
+    RowID: 'TIME-1',
+    status: 'פתוח',
+    authority: 'רשות א',
+    school: 'בית ספר',
+    activity_name: 'סדנה',
+    start_date: '2026-04-10',
+    start_time: '08:15:00',
+    end_time: '09:00:00',
+    instructor_name: 'דני'
+  }];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
+  assert.match(html, />08:15-09:00</);
+  assert.doesNotMatch(html, />08:15:00-09:00:00</);
 });
 
 test('operations management render shows text-school activities without school_id', () => {

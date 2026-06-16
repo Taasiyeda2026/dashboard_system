@@ -1,6 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { supabase } from '../supabase-client.js';
-import { formatDateHe, formatDateHeWithWeekday, formatTimeRangeShort } from './shared/format-date.js';
+import { formatDateHe, formatDateHeWithWeekday } from './shared/format-date.js';
 import {
   dsPageHeader,
   dsCard,
@@ -548,8 +548,8 @@ function buildScheduleRows(rows, state, directory) {
         date,
         activity,
         instructor,
-        time: getActivityTimeRange(activity) || formatTimeRangeShort(activity?.start_time, activity?.end_time),
-        hasTime: Boolean(getActivityTimeRange(activity) || activity?.start_time || activity?.StartTime)
+        time: getActivityTimeRange(activity),
+        hasTime: Boolean(getActivityTimeRange(activity))
       });
     });
   });
@@ -669,7 +669,7 @@ function getDetailDateForActivity(row) {
 }
 
 function getDetailTimeForActivity(row) {
-  return getActivityTimeRange(row) || formatTimeRangeShort(row?.start_time, row?.end_time) || '';
+  return getActivityTimeRange(row) || '';
 }
 
 function opsManagementStylesHtml() {
