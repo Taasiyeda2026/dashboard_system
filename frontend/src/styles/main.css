@@ -15983,21 +15983,99 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pa-editor-workspace {
   display: grid;
-  grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 430px) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+  min-width: 0;
 }
 .pa-sidebar {
   position: sticky;
   top: 76px;
   max-height: calc(100vh - 96px);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  max-width: 100%;
   padding: 12px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   border: 1px solid #dbe7f3;
   border-radius: 18px;
   box-shadow: 0 14px 38px rgba(15, 23, 42, 0.08);
 }
+
+.pa-sidebar,
+.pa-sidebar * {
+  box-sizing: border-box;
+}
+.pa-sidebar .ds-pa-form-meta-panel,
+.pa-sidebar .ds-pa-form-type-panel,
+.pa-sidebar .ds-pa-form-bottom-panel,
+.pa-sidebar .ds-pa-form-activities-panel,
+.pa-sidebar .ds-pa-items-section,
+.pa-sidebar .ds-pa-items-list,
+.pa-sidebar .ds-pa-item-card,
+.pa-sidebar .ds-pa-form-field,
+.pa-sidebar .ds-pa-item-field,
+.pa-sidebar .ds-pa-client-search,
+.pa-sidebar .ds-pa-contact-manual-fields,
+.pa-sidebar .ds-pa-type-meta-grid,
+.pa-sidebar .ds-pa-type-meta-aux,
+.pa-sidebar .ds-pa-type-row {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.pa-sidebar input,
+.pa-sidebar select,
+.pa-sidebar textarea,
+.pa-sidebar .ds-input,
+.pa-sidebar .ds-select,
+.pa-sidebar .ds-pa-activity-trigger {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.pa-sidebar .ds-pa-form-field,
+.pa-sidebar .ds-pa-item-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.pa-sidebar .ds-pa-form-field > span,
+.pa-sidebar .ds-pa-item-field > span,
+.pa-sidebar .ds-pa-field-label {
+  display: block;
+  min-width: 0;
+}
+.pa-sidebar .ds-pa-form-grid,
+.pa-sidebar .ds-pa-contact-manual-fields,
+.pa-sidebar .ds-pa-client-search,
+.pa-sidebar .ds-pa-client-row,
+.pa-sidebar .ds-pa-type-meta-grid,
+.pa-sidebar .ds-pa-type-meta-aux,
+.pa-sidebar .ds-pa-type-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+.pa-sidebar .ds-pa-client-row > *,
+.pa-sidebar .ds-pa-form-grid > *,
+.pa-sidebar .ds-pa-contact-manual-fields > *,
+.pa-sidebar .ds-pa-client-search > *,
+.pa-sidebar .ds-pa-type-meta-grid > *,
+.pa-sidebar .ds-pa-type-meta-aux > *,
+.pa-sidebar .ds-pa-type-row > *,
+.pa-sidebar .ds-pa-item-quick-row > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.pa-sidebar .ds-pa-type-meta-grid > .ds-pa-form-field,
+.pa-sidebar .ds-pa-type-row .ds-pa-form-field {
+  flex: initial;
+  min-width: 0;
+}
+
 .pa-sidebar-heading {
   margin: 0 0 12px;
   padding-bottom: 10px;
@@ -16065,8 +16143,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pa-sidebar .ds-pa-item-quick-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 72px 92px;
-  gap: 7px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
   align-items: end;
 }
 .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--select,
@@ -16075,9 +16153,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   grid-column: 1 / -1;
 }
 .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--qty,
-.pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--price {
-  width: auto;
+.pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--price,
+.pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--total {
+  width: 100%;
   min-width: 0;
+}
+.pa-sidebar .ds-pa-line-total output,
+.pa-sidebar .ds-pa-form-actions-main .ds-btn {
+  width: 100%;
+  max-width: 100%;
 }
 .pa-sidebar .ds-pa-form-actions-main {
   display: grid;
@@ -16111,8 +16195,20 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-preview-canvas .proposal-document {
   transform-origin: top center;
 }
+@media (max-width: 1200px) {
+  .pa-sidebar .ds-pa-form-grid,
+  .pa-sidebar .ds-pa-contact-manual-fields,
+  .pa-sidebar .ds-pa-client-search,
+  .pa-sidebar .ds-pa-client-row,
+  .pa-sidebar .ds-pa-type-meta-grid,
+  .pa-sidebar .ds-pa-type-meta-aux,
+  .pa-sidebar .ds-pa-type-row,
+  .pa-sidebar .ds-pa-item-quick-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 @media (max-width: 1180px) {
-  .pa-editor-workspace { grid-template-columns: 1fr; }
+  .pa-editor-workspace { grid-template-columns: minmax(0, 1fr); }
   .pa-sidebar { position: static; max-height: none; }
   .pa-preview { padding-inline: 4px; }
 }
