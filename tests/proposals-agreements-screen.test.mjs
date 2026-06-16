@@ -533,7 +533,7 @@ test('non-admin manager submits proposals for approval instead of approving dire
   );
 });
 
-test('approved proposals render signature sticker once inside the A4 document', () => {
+test('approved proposals render flow signature block inside the document', () => {
   const draftHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'draft' }, [], []);
   const sentHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'sent' }, [], []);
   const approvedHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'approved', approved_at: '2026-06-16T10:30:00.000Z' }, [], []);
@@ -543,15 +543,19 @@ test('approved proposals render signature sticker once inside the A4 document', 
   assert.doesNotMatch(draftHtml, /אושר בתאריך/);
   assert.doesNotMatch(sentHtml, /אושר בתאריך/);
   assert.match(approvedHtml, /proposals\/signature-idan-nahum\.png/);
+  assert.doesNotMatch(approvedHtml, /pa-signature-layer/);
+  assert.doesNotMatch(approvedHtml, /data-pa-signature-sticker/);
+  assert.doesNotMatch(approvedHtml, /style="left:/);
 
   const doc = new JSDOM(approvedHtml).window.document;
-  assert.equal(doc.querySelectorAll('.pa-footer-signature').length, 1);
+  const signature = doc.querySelector('.pa-footer-signature');
+  assert.ok(signature, 'signature block should render in document flow');
   assert.equal(doc.querySelectorAll('.pa-page-footer').length, 1);
-  assert.equal(doc.querySelectorAll('.pa-signature-image').length, 1);
-  assert.equal(doc.querySelectorAll('.pa-signature-layer .pa-signature-image').length, 1);
-  assert.equal(doc.querySelectorAll('.pa-footer-signature .pa-signer-line').length, 1);
-  assert.match(doc.querySelector('.pa-signature-layer')?.textContent || '', /אושר בתאריך: 16\/06\/2026/);
-  assert.doesNotMatch(doc.querySelector('.pa-signature-layer')?.textContent || '', /אושר ונחתם דיגיטלית/);
+  assert.equal(signature.querySelectorAll('.pa-signature-image').length, 1);
+  assert.equal(signature.querySelectorAll('.pa-signer-line').length, 1);
+  assert.ok(signature.compareDocumentPosition(doc.querySelector('.pa-page-footer')) & doc.defaultView.Node.DOCUMENT_POSITION_FOLLOWING, 'signature should appear before page footer');
+  assert.match(signature.textContent || '', /אושר בתאריך: 16\/06\/2026/);
+  assert.doesNotMatch(signature.textContent || '', /אושר ונחתם דיגיטלית/);
 });
 
 test('admin sees approve and return actions for pending proposals', async () => {
