@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'login-permissions-routes-v1'
+  HOTFIX_VERSION: 'proposal-footer-signature-v2'
 };
