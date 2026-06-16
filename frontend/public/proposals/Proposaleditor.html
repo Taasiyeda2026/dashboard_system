@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>עורך הצעת מחיר — תעשיידע</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Heebo', Arial, sans-serif; background: #dde3ea; direction: rtl; }
+
+  /* ===== EDITOR PANEL ===== */
+  #editor-panel {
+    position: fixed; top: 0; right: 0;
+    width: 420px; height: 100vh;
+    background: #f4f6f9; color: #1e2a3a;
+    overflow-y: auto; z-index: 100;
+    padding: 16px 18px;
+    font-size: 13px;
+    border-left: 1px solid #c8d0dc;
+    box-shadow: -2px 0 12px rgba(0,0,0,0.08);
+  }
+  #editor-panel h2 {
+    font-size: 14px; font-weight: 700; color: #1a2d4a;
+    margin-bottom: 12px; padding-bottom: 10px;
+    border-bottom: 2px solid #1a2d4a;
+  }
+
+  .mode-switcher { display: flex; gap: 6px; margin-bottom: 4px; }
+  .mode-btn {
+    flex: 1; padding: 8px 0; border: 2px solid #c8d0dc;
+    border-radius: 7px; font-family: 'Heebo', Arial, sans-serif;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: all 0.16s; background: #fff; color: #6b7a8d;
+  }
+  .mode-btn.active { background: #1a2d4a; color: #fff; border-color: #1a2d4a; box-shadow: 0 2px 8px rgba(26,45,74,0.25); }
+
+  .section-title {
+    font-size: 10px; font-weight: 700; color: #1a2d4a;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin: 14px 0 6px; padding-bottom: 3px;
+    border-bottom: 1px solid #c8d0dc;
+  }
+
+  .field-group { margin-bottom: 8px; }
+  .field-group label { display: block; font-size: 11px; color: #5a6a7a; margin-bottom: 3px; }
+  .field-group input, .field-group textarea {
+    width: 100%; background: #fff; border: 1px solid #c0cad6; border-radius: 5px;
+    color: #1e2a3a; font-family: 'Heebo', Arial, sans-serif;
+    font-size: 12px; padding: 5px 7px; direction: rtl; resize: vertical;
+  }
+  .field-group input:focus, .field-group textarea:focus { outline: none; border-color: #1a2d4a; box-shadow: 0 0 0 2px rgba(26,45,74,0.1); }
+  .field-group textarea { min-height: 52px; }
+
+  /* ACTIVITY ROWS */
+  .activity-row-wrapper { display: flex; gap: 4px; align-items: center; margin-bottom: 5px; }
+  .activity-row { display: grid; grid-template-columns: 1fr 50px 60px; gap: 4px; flex: 1; }
+  .activity-row input {
+    background: #fff; border: 1px solid #c0cad6; border-radius: 4px;
+    color: #1e2a3a; font-family: 'Heebo', Arial, sans-serif;
+    font-size: 10px; padding: 3px 5px; direction: rtl; width: 100%;
+  }
+  .activity-row input:focus { outline: none; border-color: #1a2d4a; }
+
+  .recipient-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 8px;
+    margin-bottom: 4px;
+  }
+  .recipient-grid .field-group { margin-bottom: 0; }
+
+  .activity-header { display: grid; grid-template-columns: 1fr 50px 60px; gap: 4px; margin-bottom: 3px; }
+  .activity-header span { font-size: 10px; color: #8a96a3; }
+
+  .btn-add-row {
+    background: #e8edf3; color: #1a2d4a; border: 1px solid #c0cad6;
+    border-radius: 5px; padding: 4px 10px;
+    font-family: 'Heebo', Arial, sans-serif; font-size: 12px; font-weight: 600;
+    cursor: pointer; margin-top: 3px; transition: background 0.15s;
+  }
+  .btn-add-row:hover { background: #d4dce8; }
+
+  .btn-del-row {
+    background: #fdecea; color: #c0392b; border: 1px solid #f5c0bb;
+    border-radius: 4px; width: 22px; height: 22px; font-size: 14px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .btn-del-row:hover { background: #f5c0bb; }
+
+  /* school-only field: textarea for activity desc */
+
+  .btn-print {
+    margin-top: 12px;
+    background: #1a2d4a; color: #fff; border: none; border-radius: 6px; padding: 5px 14px;
+    font-family: 'Heebo', Arial, sans-serif; font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: background 0.18s;
+  }
+  .btn-print:hover { background: #243d63; }
+  .btn-discount {
+    background: #e8edf3; color: #1a2d4a;
+    border: 1px solid #c0cad6; border-radius: 7px; padding: 9px 14px;
+    font-family: 'Heebo', Arial, sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: background 0.15s; white-space: nowrap;
+  }
+  .btn-discount:hover { background: #d4dce8; }
+  .btn-action {
+    flex: 1; padding: 7px 0;
+    background: #e8edf3; color: #1a2d4a;
+    border: 1px solid #c0cad6; border-radius: 7px;
+    font-family: 'Heebo', Arial, sans-serif; font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: background 0.15s; white-space: nowrap;
+    text-align: center;
+  }
+  .btn-action:hover { background: #d4dce8; }
+  .btn-action-dark { background: #1a2d4a; color: #fff; border-color: #1a2d4a; }
+  .btn-action-dark:hover { background: #243d63; }
+
+  /* ===== CANVAS ===== */
+  #canvas-area {
+    margin-right: 420px; padding: 30px 20px; align-items: center;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+  }
+
+  /* A4 */
+  .a4-page {
+    width: 794px; height: 1123px; background: #fff;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+    padding: 28px 67px 0 67px;
+    position: relative;
+    display: flex; flex-direction: column;
+    font-size: 11.5px; line-height: 1.58;
+    color: #111; direction: rtl;
+  }
+
+  .page-header { margin-bottom: 0px; text-align: left; }
+  .logo-area { margin-bottom: 0; }
+  .logo-area img { height: 58px; display: inline-block; }
+  .date-area { font-size: 10px; color: #444; margin-top: 3px; margin-bottom: 5px; text-align: left; }
+
+  .to-block { margin-bottom: 2px; }
+  .to-block .label-to { font-size: 12px; font-weight: 700; text-decoration: underline; }
+
+  hr.divider { border: none; border-top: 1px solid #bbb; margin: 3px 0; }
+
+  .doc-title { text-align: center; font-size: 14px; font-weight: 700; text-decoration: underline; margin-bottom: 5px; color: #1a2d4a; }
+  .intro-text { font-size: 11.2px; line-height: 1.5; margin-bottom: 5px; text-align: center; }
+
+  .section-heading { font-size: 12px; font-weight: 700; color: #2e5492; text-decoration: underline; margin: 5px 0 2px; }
+  .section-text { font-size: 11.2px; line-height: 1.5; margin-bottom: 4px; }
+  .section-text p { margin-bottom: 4px; }
+  .section-text p:last-child { margin-bottom: 0; }
+
+  ul.proposal-list { padding-right: 18px; margin-bottom: 4px; }
+  ul.proposal-list li { font-size: 11.2px; line-height: 1.5; }
+
+  .activities-table { width: auto; border-collapse: collapse; margin: 6px 0 8px; font-size: 10.2px; align-self: flex-start; }
+  .activities-table colgroup col:first-child { }
+  .activities-table th { background: #edf0f5; padding: 3px 14px; border: 1px solid #ccc; font-weight: 700; text-align: center; color: #1a2d4a; white-space: nowrap; }
+  .activities-table th:first-child { text-align: right; }
+  .activities-table td { padding: 3px 14px; border: 1px solid #ccc; text-align: center; white-space: nowrap; }
+  .activities-table td:first-child { text-align: right; }
+  .activities-table tr.total-row td { font-weight: 700; background: #f5f7fa; }
+
+  .footer-signature { margin-top: 14px; text-align: left; }
+  .signer-block { margin-top: 4.4em; }
+  .footer-signature .blessing { font-size: 12.5px; margin-bottom: 10px; text-align: center; }
+  .signer-line { display: inline-block; border-top: 1px solid #555; padding-top: 1px; font-size: 10px; white-space: nowrap; }
+
+  .page-footer {
+    margin-top: auto;
+    border-top: 1px solid #bbb;
+    padding: 8px 0 10px;
+    font-size: 10px; color: #666;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .page-footer img { height: 18px; }
+
+
+  @media print {
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { background: #fff; }
+    #editor-panel { display: none !important; }
+    #canvas-area { margin-right: 0; padding: 0; background: #fff; }
+
+    @page { size: A4 portrait; margin: 0; }
+
+    .a4-scale-wrapper {
+      transform: none !important;
+      margin-bottom: 0 !important;
+    }
+    .a4-page {
+      width: 210mm !important;
+      height: 297mm !important;
+      padding: 10mm 17mm 0 17mm !important;
+      display: flex !important;
+      flex-direction: column !important;
+      font-size: 11.5px !important;
+      box-shadow: none !important;
+    }
+
+    .page-footer {
+      margin-top: auto !important;
+      position: relative !important;
+      border-top: 1px solid #bbb !important;
+      padding: 5px 0 7px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 8px !important;
+      font-size: 10px !important;
+      color: #666 !important;
+    }
+    .page-footer img { height: 18px !important; }
+
+    .activities-table { page-break-inside: auto; width: auto; }
+    .activities-table tr { page-break-inside: avoid; }
+    .activities-table thead { display: table-header-group; }
+    .activities-table tfoot { display: table-footer-group; }
+    .section-heading { page-break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== EDITOR PANEL ===== -->
+<div id="editor-panel">
+  <h2>✏️ עורך הצעת מחיר</h2>
+
+  <div class="mode-switcher">
+    <button class="mode-btn" id="btn-summer" onclick="switchMode('summer')">☀️ קיץ</button>
+    <button class="mode-btn" id="btn-school" onclick="switchMode('school')">📚 תשפ״ז</button>
+  </div>
+
+<div id="editor-fields">
+  <div class="section-title">נמען</div>
+  <div class="recipient-grid">
+    <div class="field-group"><label>שם</label><input type="text" id="e-to-firstname"></div>
+    <div class="field-group"><label>תפקיד</label><input type="text" id="e-to-role"></div>
+    <div class="field-group"><label>שם בית ספר</label><input type="text" id="e-to-school"></div>
+    <div class="field-group"><label>רשות</label><input type="text" id="e-to-city"></div>
+    <div class="field-group"><label>טלפון</label><input type="tel" id="e-to-phone" dir="ltr"></div>
+    <div class="field-group"><label>מייל</label><input type="email" id="e-to-email" dir="ltr"></div>
+  </div>
+
+  <div class="section-title" id="label-table">פעילויות</div>
+  <div class="activity-header" id="activity-header-row"></div>
+  <div id="activities-editor"></div>
+  <div style="display:flex;gap:6px;margin-top:8px;">
+    <button class="btn-action" onclick="addActivityRow()">+ הוסף</button>
+    <button class="btn-action btn-action-dark" onclick="printWithFilename()">PDF</button>
+    <button class="btn-action" onclick="openDiscountModal()">% הנחה</button>
+  </div>
+</div><!-- end editor-fields -->
+</div><!-- end editor-panel -->
+
+<!-- DISCOUNT MODAL -->
+<div id="discount-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.35);align-items:center;justify-content:center;">
+  <div style="background:#f4f6f9;border-radius:12px;padding:24px 28px;width:340px;direction:rtl;font-family:Heebo,Arial,sans-serif;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <div style="font-size:15px;font-weight:700;color:#1a2d4a;margin-bottom:14px;">חישוב הנחה</div>
+
+    <!-- Type selector -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button id="disc-type-pct" onclick="setDiscountType('pct')"
+        style="flex:1;padding:7px;border-radius:6px;border:2px solid #1a2d4a;background:#1a2d4a;color:#fff;font-family:Heebo,Arial,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">
+        אחוזים %
+      </button>
+      <button id="disc-type-fixed" onclick="setDiscountType('fixed')"
+        style="flex:1;padding:7px;border-radius:6px;border:2px solid #c0cad6;background:#fff;color:#6b7a8d;font-family:Heebo,Arial,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">
+        סכום קבוע ₪
+      </button>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <input type="number" id="discount-val" min="0" value="10"
+        style="flex:1;padding:7px 10px;border:1px solid #c0cad6;border-radius:6px;font-size:15px;font-family:Heebo,Arial,sans-serif;text-align:center;">
+      <span id="disc-unit" style="font-size:14px;color:#1a2d4a;font-weight:700;min-width:20px;">%</span>
+    </div>
+
+    <div id="discount-summary" style="background:#fff;border:1px solid #c0cad6;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.8;color:#1e2a3a;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="applyDiscount()" style="flex:1;background:#1a2d4a;color:#fff;border:none;border-radius:7px;padding:9px;font-family:Heebo,Arial,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">החל הנחה</button>
+      <button onclick="closeDiscountModal()" style="flex:1;background:#e8edf3;color:#1a2d4a;border:1px solid #c0cad6;border-radius:7px;padding:9px;font-family:Heebo,Arial,sans-serif;font-size:13px;cursor:pointer;">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== A4 PAGE ===== -->
+<div id="canvas-area">
+<div class="a4-scale-wrapper">
+<div class="a4-page">
+
+  <div class="page-header">
+    <div class="logo-area"><img src="logo.png" alt="תעשיידע"></div>
+  </div>
+
+  <div class="to-block">
+    <div class="label-to">לכבוד:</div>
+    <div id="d-to-line1"></div>
+    <div id="d-to-line2"></div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="date-area" id="d-date">15/06/2026</div>
+
+  <div class="doc-title" id="d-title"></div>
+  <div class="intro-text" id="d-intro"></div>
+
+  <div class="section-heading" id="d-heading-activity"></div>
+  <div class="section-text" id="d-activity-desc"></div>
+  <ul class="proposal-list" id="d-activity-course-list"></ul>
+
+  <div class="section-heading" id="d-heading-taasiyeda"></div>
+  <ul class="proposal-list" id="d-taasiyeda-list"></ul>
+
+  <div class="section-heading" id="d-heading-school"></div>
+  <ul class="proposal-list" id="d-school-list"></ul>
+
+  <div class="section-heading" id="d-heading-price"></div>
+  <div class="section-text" id="d-price-desc"></div>
+
+  <div class="section-heading" id="d-table-heading"></div>
+  <table class="activities-table" id="d-activities-table">
+    <colgroup id="d-table-colgroup"></colgroup>
+    <thead id="d-table-head"></thead>
+    <tbody id="d-table-body"></tbody>
+    <tfoot id="d-table-foot"></tfoot>
+  </table>
+
+  <div class="section-heading" id="d-heading-cancel"></div>
+  <div class="section-text" id="d-cancellation"></div>
+
+  <div class="footer-signature">
+    <div class="blessing">בברכה,</div>
+    <div class="signer-block"><div class="signer-line">עידן נחום, סמנכ״ל כספים</div></div>
+  </div>
+
+  <div class="page-footer">
+    <img src="logo.png" alt="תעשיידע">
+    <span><strong>תעשיידע</strong> — תעשייה למען חינוך מתקדם (ע״ר) &nbsp;|&nbsp; www.think.org.il</span>
+  </div>
+
+</div>
+</div>
+</div>
+
+<script>
+const SUMMER_CATALOG = [
+  { name: 'סדנאות STEM',  price: 650 },
+  { name: 'סדנאות חלל',   price: 450 },
+  { name: 'חדר בריחה',    price: 450 },
+];
+
+const SCHOOL_CATALOG = [
+  { name: 'המצאות בהשראה מן הטבע – ביומימיקרי לתלמידי יסודי',      gapan: '6089',  meetings: 10, groups: 1, hours: 20, pricePerHour: 475,  price: 9500 },
+  { name: 'משחקי קופסה – פיתוח ופיצוח משחקי לוח',                   gapan: '27342', meetings: 12, groups: 1, hours: 24, pricePerHour: 400,  price: 9600 },
+  { name: 'פורצות דרך – יזמות, טכנולוגיה, הובלה והעצמה לבנות',      gapan: '67861', meetings: 12, groups: 1, hours: 24, pricePerHour: 525,  price: 12600 },
+  { name: 'טכנולוגיות החלל – חדשנות טכנולוגית בהשראת החלל',         gapan: '57651', meetings: 8,  groups: 1, hours: 16, pricePerHour: 500,  price: 8000 },
+  { name: 'יזמות פרימיום – מיומנויות העתיד',                        gapan: '960',   meetings: 12, groups: 1, hours: 24, pricePerHour: 525,  price: 12600 },
+  { name: 'ביומימיקרי – חדשנות סביבתית-טכנולוגית בהשראה מן הטבע',  gapan: '53828', meetings: 10, groups: 1, hours: 20, pricePerHour: 500,  price: 10000 },
+  { name: 'רוקחים עולם – יזמות לעולם הפרמצבטיקה',                   gapan: '46091', meetings: 14, groups: 1, hours: 28, pricePerHour: 500,  price: 14000 },
+  { name: 'סודות ויסודות הבינה המלאכותית',                          gapan: '9545',  meetings: 8,  groups: 1, hours: 16, pricePerHour: 500,  price: 8000 },
+  { name: 'יישומי AI – הבינה המלאכותית במציאות טכנולוגית משתנה',    gapan: '53819', meetings: 9,  groups: 1, hours: 18, pricePerHour: 550,  price: 9900 },
+  { name: 'מנהיגות ירוקה – אחריות סביבתית חכמה AI',                 gapan: '67867', meetings: 10, groups: 1, hours: 20, pricePerHour: 475,  price: 9500 },
+  { name: 'השמיים אינם הגבול – חקר ויישומים טכנולוגיים בתוכנית החלל', gapan: '57646', meetings: 10, groups: 1, hours: 20, pricePerHour: 475, price: 9500 },
+  { name: 'אופק לתעשייה – מחברים בין חינוך לתעשייה',                gapan: '52279', meetings: 9,  groups: 1, hours: 18, pricePerHour: 550,  price: 9900 },
+];
+
+const PRESETS = {
+  summer: {
+    date: '15/06/2026',
+    title: 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו',
+    intro: [
+      'עמותת תעשיידע, מיסודה של התאחדות התעשיינים, פועלת משנת 1992 לקידום החינוך הטכנולוגי בישראל. העמותה מובילה תוכניות חינוכיות חדשניות בתחומי STEM המחברות בין מערכת החינוך לעולמות התעשייה, המדע, הטכנולוגיה וההנדסה. באמצעות קורסים, סדנאות והתנסויות מעשיות, תעשיידע מקדמת למידה חווייתית, מטפחת סקרנות וחשיבה יצירתית ומפתחת אצל התלמידים מיומנויות המאה ה-21 וכישורי עתיד חיוניים לעולם טכנולוגי משתנה.'
+    ],
+    headingActivity: 'הפעילות המוצעת:',
+    activityDesc: [
+      'ההצעה כוללת פעילויות מותאמות להפעלה במהלך חודש יולי, בין התאריכים 1.7.26–30.7.26.',
+      'כל פעילות נמשכת 45 דקות ומיועדת לקבוצה של עד 25 משתתפים.',
+      'בסדנאות כל משתתף מכין תוצר אישי ולוקח אותו איתו בסיום הפעילות.'
+    ],
+    headingTaasiyeda: 'אחריות תעשיידע:',
+    taasiyedaResp: [
+      'ביצוע הסדנאות בהתאם לתוכן חינוכי מאושר ומותאם לשכבת הגיל.',
+      'העברת הסדנאות באמצעות מדריכים מקצועיים מטעם תעשיידע.',
+      'אספקת הציוד, החומרים והאמצעים הנדרשים לקיום הסדנאות.',
+      'תיאום, ארגון וליווי שוטף של ההפעלה מול בית הספר או הגוף המזמין.'
+    ],
+    headingSchool: 'אחריות בית הספר:',
+    schoolResp: [
+      'מינוי איש קשר לתיאום שוטף מול תעשיידע.',
+      'נוכחות איש צוות מטעם בית הספר לאורך כל סדנה.',
+      'עדכון מראש בכל שינוי הנוגע ללוחות הזמנים או לתנאי ההפעלה.',
+      'העמדת מרחב מתאים לסדנה, הכולל מקרן, לוח וחיבור תקין לאינטרנט.'
+    ],
+    headingPrice: 'עלות ותנאי תשלום:',
+    priceDesc: [
+      'המחיר הנקוב חל על קבוצה של עד 25 משתתפים. כל משתתף נוסף מעבר למכסה זו יחויב בתוספת של 25 ₪.',
+      'חשבונית לתשלום תונפק עם תחילת הפעילות. תנאי התשלום: שוטף + 30 ממועד הנפקת החשבונית.'
+    ],
+    tableHeading: 'להלן פירוט הפעילויות והעלויות:',
+    colItem: 'פריט',
+    activities: [
+
+    ],
+    headingCancel: 'שינויים, ביטולים והתאמות:',
+    cancellation: [
+      'ביטול סדנה בפחות מ-2 ימי עסקים ממועד הפעילות יחויב בתשלום מלא.',
+      'במקרה שבו לא ניתן יהיה לקיים את הסדנה בשל הנחיות משרד החינוך, מצב חירום או נסיבות אחרות המונעות קיום פרונטלי, יתואם מועד חלופי בכפוף לזמינות הצדדים.'
+    ],
+    colNameLabel: 'שם פעילות',
+    tableSectionLabel: 'פעילויות'
+  },
+  school: {
+    date: '15/06/2026',
+    title: 'הצעת מחיר לתוכניות תעשיידע | תשפ״ז',
+    intro: [
+      'עמותת תעשיידע, מיסודה של התאחדות התעשיינים, פועלת משנת 1992 לקידום החינוך הטכנולוגי בישראל. העמותה מובילה תוכניות חינוכיות חדשניות בתחומי STEM המחברות בין מערכת החינוך לעולמות התעשייה, המדע, הטכנולוגיה וההנדסה. באמצעות קורסים, סדנאות והתנסויות מעשיות, תעשיידע מקדמת למידה חווייתית, מטפחת סקרנות וחשיבה יצירתית ומפתחת אצל התלמידים מיומנויות המאה ה-21 וכישורי עתיד חיוניים לעולם טכנולוגי משתנה.'
+    ],
+    headingActivity: 'הפעילות המוצעת:',
+    activityDesc: [
+      'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז:'
+    ],
+    headingTaasiyeda: 'אחריות תעשיידע:',
+    taasiyedaResp: [
+      'ביצוע הקורס בהתאם לסילבוס המאושר, באמצעות מדריך מקצועי מטעם תעשיידע.',
+      'אספקת חומרי ההדרכה, חומרי הפעילות והמשאבים הנדרשים לקיום הקורס.',
+      'ליווי מקצועי ותיאום שוטף מול צוות בית הספר לאורך תקופת הקורס.',
+      'קיום משוב והערכה לבחינת שביעות הרצון, איכות ההדרכה והתאמת המענה.'
+    ],
+    headingSchool: 'אחריות בית הספר:',
+    schoolResp: [
+      'מינוי איש קשר מטעם בית הספר לתיאום שוטף מול תעשיידע.',
+      'נוכחות איש צוות מטעם בית הספר לאורך כל מפגשי הקורס.',
+      'עדכון תעשיידע מראש בכל שינוי הנוגע למועדי הקורס או ללוחות הזמנים.',
+      'העמדת מרחב מתאים לקורס, הכולל מקרן, לוח וחיבור תקין לאינטרנט.'
+    ],
+    headingPrice: 'עלות ותנאי תשלום:',
+    priceDesc: [
+      'התשלום יבוצע בשני חלקים: חשבונית ראשונה תונפק עם תחילת הקורס וחשבונית שנייה תונפק לאחר השלמת מחצית מהיקף הקורס.',
+      'כל חשבונית תשולם בתנאי שוטף + 30 ממועד הנפקתה.'
+    ],
+    tableHeading: 'להלן פירוט הקורסים והעלויות הכלולות בהצעה:',
+    colItem: 'שם הקורס',
+    activities: [],
+    headingCancel: 'שינויים, ביטולים והתאמות:',
+    cancellation: [
+      'ביטול מפגש בהתראה של פחות מ-2 ימי עסקים יחויב בתשלום מלא.',
+      'הפסקת קורס ביוזמת בית הספר תחויב בתשלום עבור המפגשים שהתקיימו בפועל ובתוספת 10% מיתרת עלות הקורס.',
+      'במקרה של הפסקת לימודים פרונטליים בשל הנחיות משרד החינוך או מצב חירום, הקורס יועבר ללמידה מקוונת ללא שינוי בעלות. עם החזרה ללמידה פרונטלית, הקורס יימשך בבית הספר בתיאום בין הצדדים.'
+    ],
+    colNameLabel: 'שם קורס',
+    tableSectionLabel: 'קורסים'
+  }
+};
+
+let currentMode = 'summer';
+let activities = [];
+
+// Render array of strings as <p> elements with spacing
+let discountType = 'pct'; // 'pct' or 'fixed'
+
+function setDiscountType(type) {
+  discountType = type;
+  document.getElementById('disc-unit').textContent = type === 'pct' ? '%' : '₪';
+  const pctBtn = document.getElementById('disc-type-pct');
+  const fixBtn = document.getElementById('disc-type-fixed');
+  if (type === 'pct') {
+    pctBtn.style.cssText = pctBtn.style.cssText.replace('background:#fff;color:#6b7a8d;border:2px solid #c0cad6','background:#1a2d4a;color:#fff;border:2px solid #1a2d4a');
+    fixBtn.style.cssText = fixBtn.style.cssText.replace('background:#1a2d4a;color:#fff;border:2px solid #1a2d4a','background:#fff;color:#6b7a8d;border:2px solid #c0cad6');
+  } else {
+    fixBtn.style.cssText = fixBtn.style.cssText.replace('background:#fff;color:#6b7a8d;border:2px solid #c0cad6','background:#1a2d4a;color:#fff;border:2px solid #1a2d4a');
+    pctBtn.style.cssText = pctBtn.style.cssText.replace('background:#1a2d4a;color:#fff;border:2px solid #1a2d4a','background:#fff;color:#6b7a8d;border:2px solid #c0cad6');
+  }
+  updateDiscountSummary();
+}
+
+function openDiscountModal() {
+  discountType = 'pct';
+  document.getElementById('disc-unit').textContent = '%';
+  document.getElementById('discount-val').value = 10;
+  updateDiscountSummary();
+  document.getElementById('discount-modal').style.display = 'flex';
+}
+function closeDiscountModal() {
+  document.getElementById('discount-modal').style.display = 'none';
+}
+function getTotal() {
+  return activities.reduce((sum, a) => sum + (currentMode === 'summer' ? (a.qty||1)*(a.price||0) : (a.price||0)), 0);
+}
+function updateDiscountSummary() {
+  const val = parseFloat(document.getElementById('discount-val').value) || 0;
+  const total = getTotal();
+  const discount = discountType === 'pct' ? Math.round(total * val / 100) : Math.min(val, total);
+  const after = total - discount;
+  const label = discountType === 'pct' ? `${val}%` : `₪${val.toLocaleString()}`;
+  document.getElementById('discount-summary').innerHTML =
+    `<div>מחיר מקורי: <strong>₪${total.toLocaleString()}</strong></div>` +
+    `<div>הנחה (${label}): <strong style="color:#c0392b">– ₪${discount.toLocaleString()}</strong></div>` +
+    `<div style="border-top:1px solid #e0e0e0;margin-top:6px;padding-top:6px;">מחיר לאחר הנחה: <strong style="color:#1a2d4a;font-size:14px;">₪${after.toLocaleString()}</strong></div>`;
+}
+function applyDiscount() {
+  const val = parseFloat(document.getElementById('discount-val').value) || 0;
+  if (val <= 0) return;
+  const total = getTotal();
+  const totalDiscount = discountType === 'pct' ? Math.round(total * val / 100) : Math.min(val, total);
+  const ratio = total > 0 ? (total - totalDiscount) / total : 1;
+  activities.forEach(act => {
+    act.price = Math.round((act.price||0) * ratio);
+    if (currentMode === 'school') {
+      const h = act.hours||0, g = act.groups||1;
+      act.pricePerHour = (h*g) > 0 ? Math.round(act.price/(h*g)) : 0;
+    }
+  });
+  closeDiscountModal();
+  renderActivityEditor();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('discount-val').addEventListener('input', updateDiscountSummary);
+});
+
+function printWithFilename() {
+  const school = document.getElementById('e-to-school').value.trim();
+  const filename = school ? `הצעת מחיר (${school})` : 'הצעת מחיר';
+  document.title = filename;
+  window.print();
+}
+
+function renderParas(elId, arr) {
+  const el = document.getElementById(elId);
+  el.innerHTML = arr.map(t => `<p>${t}</p>`).join('');
+}
+
+function switchMode(mode) {
+  document.getElementById('editor-fields').style.display = 'block';
+  document.getElementById('canvas-area').style.display = 'flex';
+  currentMode = mode;
+  document.getElementById('btn-summer').classList.toggle('active', mode === 'summer');
+  document.getElementById('btn-school').classList.toggle('active', mode === 'school');
+
+  const p = PRESETS[mode];
+  activities = p.activities.map(a => ({...a}));
+
+  // Static doc fields
+  document.getElementById('d-date').textContent = p.date;
+  document.getElementById('d-title').textContent = p.title;
+  renderParas('d-intro', Array.isArray(p.intro) ? p.intro : [p.intro]);
+  document.getElementById('d-heading-activity').textContent = p.headingActivity;
+  renderParas('d-activity-desc', p.activityDesc);
+  document.getElementById('d-heading-taasiyeda').textContent = p.headingTaasiyeda;
+  document.getElementById('d-heading-school').textContent = p.headingSchool;
+  document.getElementById('d-heading-price').textContent = p.headingPrice;
+  renderParas('d-price-desc', p.priceDesc);
+  document.getElementById('d-table-heading').textContent = p.tableHeading;
+  document.getElementById('d-heading-cancel').textContent = p.headingCancel;
+  renderParas('d-cancellation', p.cancellation);
+
+  // Lists
+  renderStaticList('d-taasiyeda-list', p.taasiyedaResp);
+  renderStaticList('d-school-list', p.schoolResp);
+
+  // Panel labels
+  const labelTable = document.getElementById('label-table');
+  if (labelTable) labelTable.textContent = p.tableSectionLabel;
+
+  // Show activity-desc textarea only in school mode
+  renderActivityEditor();
+  // ensure course list is populated on mode switch
+  if (mode === 'school') {
+    const names = activities.map(a => a.name).filter(n => n.trim());
+    const listEl = document.getElementById('d-activity-course-list');
+    if (listEl) listEl.innerHTML = names.map(n => `<li>${n}</li>`).join('');
+  } else {
+    const listEl = document.getElementById('d-activity-course-list');
+    if (listEl) listEl.innerHTML = '';
+  }
+}
+
+function renderStaticList(ulId, items) {
+  const ul = document.getElementById(ulId);
+  ul.innerHTML = '';
+  items.forEach(item => {
+    const li = document.createElement('li');
+    li.textContent = item;
+    ul.appendChild(li);
+  });
+}
+
+function showSchoolPicker() {
+  const existing = document.getElementById('school-picker');
+  if (existing) { existing.remove(); return; }
+
+  const picker = document.createElement('div');
+  picker.id = 'school-picker';
+  picker.style.cssText = 'background:#fff;border:1px solid #c0cad6;border-radius:6px;margin-top:4px;overflow:hidden;max-height:260px;overflow-y:auto;';
+
+  // filter already-selected
+  const selectedNames = activities.map(a => a.name);
+  const available = SCHOOL_CATALOG.filter(item => !selectedNames.includes(item.name));
+
+  if (available.length === 0) {
+    const msg = document.createElement('div');
+    msg.style.cssText = 'padding:10px;font-size:12px;color:#888;text-align:center;';
+    msg.textContent = 'כל הקורסים כבר נבחרו';
+    picker.appendChild(msg);
+  } else {
+    available.forEach(item => {
+      const btn = document.createElement('button');
+      btn.style.cssText = 'display:block;width:100%;text-align:right;padding:6px 10px;border:none;background:transparent;font-family:Heebo,Arial,sans-serif;font-size:11.5px;color:#1e2a3a;cursor:pointer;border-bottom:1px solid #eee;';
+      btn.textContent = item.name;
+      btn.onmouseenter = () => btn.style.background = '#edf0f5';
+      btn.onmouseleave = () => btn.style.background = 'transparent';
+      btn.onclick = () => {
+        activities.push({ ...item });
+        picker.remove();
+        renderActivityEditor();
+      };
+      picker.appendChild(btn);
+    });
+  }
+
+  const custom = document.createElement('button');
+  custom.style.cssText = 'display:block;width:100%;text-align:right;padding:6px 10px;border:none;background:transparent;font-family:Heebo,Arial,sans-serif;font-size:12px;color:#2e5492;cursor:pointer;font-weight:600;';
+  custom.textContent = '+ הוסף קורס חופשי';
+  custom.onmouseenter = () => custom.style.background = '#edf0f5';
+  custom.onmouseleave = () => custom.style.background = 'transparent';
+  custom.onclick = () => {
+    activities.push({ name: '', gapan: '', meetings: 0, groups: 1, hours: 0, pricePerHour: 0, price: 0 });
+    picker.remove();
+    renderActivityEditor();
+  };
+  picker.appendChild(custom);
+
+  const container = document.getElementById('activities-editor');
+  container.parentNode.insertBefore(picker, container.nextSibling);
+}
+
+// Recipient live binding
+function updateRecipient() {
+  const name = document.getElementById('e-to-firstname').value;
+  const role = document.getElementById('e-to-role').value;
+  const school = document.getElementById('e-to-school').value;
+  const city = document.getElementById('e-to-city').value;
+  document.getElementById('d-to-line1').textContent = [name, role].filter(Boolean).join(', ');
+  document.getElementById('d-to-line2').textContent = [school, city].filter(Boolean).join(', ');
+}
+['e-to-firstname','e-to-role','e-to-school','e-to-city'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateRecipient);
+});
+
+// Activity table
+function renderActivityEditor() {
+  const isSummer = currentMode === 'summer';
+  const container = document.getElementById('activities-editor');
+  container.innerHTML = '';
+
+  // Panel header labels
+  const header = document.getElementById('activity-header-row');
+  if (isSummer) {
+    header.style.gridTemplateColumns = '1fr 50px 60px';
+    header.innerHTML = '<span>שם פעילות</span><span style="text-align:center">כמות</span><span style="text-align:center">מחיר ₪</span>';
+  } else {
+    header.style.gridTemplateColumns = '1fr 58px 52px 48px 54px 66px 70px';
+    header.innerHTML = '<span>קורס</span><span style="text-align:center">גפ"ן</span><span style="text-align:center">מפגשים</span><span style="text-align:center">קבוצות</span><span style="text-align:center">שעות</span><span style="text-align:center">₪/שעה</span><span style="text-align:center">סה"כ ₪</span>';
+  }
+  header.style.display = 'grid';
+  header.style.gap = '4px';
+  header.style.marginBottom = '3px';
+  header.querySelectorAll('span').forEach(s => { s.style.fontSize = '10px'; s.style.color = '#8a96a3'; });
+
+  activities.forEach((act, i) => {
+    const idx = i; // capture for closure
+    const wrapper = document.createElement('div');
+    wrapper.className = 'activity-row-wrapper';
+    const grid = document.createElement('div');
+    grid.className = 'activity-row';
+
+    const mkInput = (val, field, type='text') => {
+      const inp = document.createElement('input');
+      inp.type = type; inp.value = val;
+      inp.addEventListener('input', e => {
+        activities[idx][field] = (field === 'name' || field === 'gapan') ? e.target.value : (parseFloat(e.target.value)||0);
+        renderDocTable();
+      });
+      return inp;
+    };
+
+    if (isSummer) {
+      grid.style.gridTemplateColumns = '1fr 50px 60px';
+      grid.appendChild(mkInput(act.name, 'name'));
+      grid.appendChild(mkInput(act.qty, 'qty', 'number'));
+      grid.appendChild(mkInput(act.price, 'price', 'number'));
+    } else {
+      grid.style.gridTemplateColumns = '1fr 58px 52px 48px 54px 66px 70px';
+      grid.appendChild(mkInput(act.name, 'name'));
+      grid.appendChild(mkInput(act.gapan||'', 'gapan'));
+      grid.appendChild(mkInput(act.meetings||0, 'meetings', 'number'));
+      grid.appendChild(mkInput(act.groups||1, 'groups', 'number'));
+      grid.appendChild(mkInput(act.hours||0, 'hours', 'number'));
+      const pphInp = mkInput(act.pricePerHour||0, 'pricePerHour', 'number');
+      const totalInp = mkInput(act.price||0, 'price', 'number');
+      // cross-update: pricePerHour ↔ price
+      const origPph = pphInp.addEventListener;
+      pphInp.addEventListener('input', () => {
+        const h = parseFloat(document.querySelectorAll('#activities-editor .activity-row')[idx]?.querySelectorAll('input')[4]?.value)||0;
+        const g = parseFloat(document.querySelectorAll('#activities-editor .activity-row')[idx]?.querySelectorAll('input')[3]?.value)||1;
+        activities[idx].price = Math.round(activities[idx].pricePerHour * h * g);
+        totalInp.value = activities[idx].price;
+        renderDocTable();
+      });
+      totalInp.addEventListener('input', () => {
+        const h = parseFloat(document.querySelectorAll('#activities-editor .activity-row')[idx]?.querySelectorAll('input')[4]?.value)||0;
+        const g = parseFloat(document.querySelectorAll('#activities-editor .activity-row')[idx]?.querySelectorAll('input')[3]?.value)||1;
+        activities[idx].pricePerHour = (h * g) > 0 ? Math.round(activities[idx].price / (h * g)) : 0;
+        pphInp.value = activities[idx].pricePerHour;
+        renderDocTable();
+      });
+      grid.appendChild(pphInp);
+      grid.appendChild(totalInp);
+    }
+
+    const del = document.createElement('button');
+    del.className = 'btn-del-row'; del.textContent = '×';
+    del.onclick = () => { activities.splice(i,1); renderActivityEditor(); };
+
+    wrapper.appendChild(grid); wrapper.appendChild(del);
+    container.appendChild(wrapper);
+  });
+  renderDocTable();
+}
+
+function addActivityRow() {
+  if (currentMode === 'summer') {
+    showSummerPicker();
+  } else {
+    showSchoolPicker();
+  }
+}
+
+function showSummerPicker() {
+  // Remove existing picker if open
+  const existing = document.getElementById('summer-picker');
+  if (existing) { existing.remove(); return; }
+
+  const picker = document.createElement('div');
+  picker.id = 'summer-picker';
+  picker.style.cssText = 'background:#fff;border:1px solid #c0cad6;border-radius:6px;margin-top:4px;overflow:hidden;';
+
+  SUMMER_CATALOG.forEach(item => {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'display:block;width:100%;text-align:right;padding:7px 10px;border:none;background:transparent;font-family:Heebo,Arial,sans-serif;font-size:12px;color:#1e2a3a;cursor:pointer;border-bottom:1px solid #eee;';
+    btn.textContent = item.name + ' — ₪' + item.price.toLocaleString();
+    btn.onmouseenter = () => btn.style.background = '#edf0f5';
+    btn.onmouseleave = () => btn.style.background = 'transparent';
+    btn.onclick = () => {
+      activities.push({ name: item.name, qty: 1, price: item.price });
+      picker.remove();
+      renderActivityEditor();
+    };
+    picker.appendChild(btn);
+  });
+
+  // custom option
+  const custom = document.createElement('button');
+  custom.style.cssText = 'display:block;width:100%;text-align:right;padding:7px 10px;border:none;background:transparent;font-family:Heebo,Arial,sans-serif;font-size:12px;color:#2e5492;cursor:pointer;font-weight:600;';
+  custom.textContent = '+ הוסף פעילות חופשית';
+  custom.onmouseenter = () => custom.style.background = '#edf0f5';
+  custom.onmouseleave = () => custom.style.background = 'transparent';
+  custom.onclick = () => {
+    activities.push({ name: '', qty: 1, price: 0 });
+    picker.remove();
+    renderActivityEditor();
+  };
+  picker.appendChild(custom);
+
+  const container = document.getElementById('activities-editor');
+  container.parentNode.insertBefore(picker, container.nextSibling);
+}
+
+function renderDocTable() {
+  const isSummer = currentMode === 'summer';
+  const colgroup = document.getElementById('d-table-colgroup');
+  const thead = document.getElementById('d-table-head');
+  const tbody = document.getElementById('d-table-body');
+  const tfoot = document.getElementById('d-table-foot');
+
+  if (isSummer) {
+    colgroup.innerHTML = '<col><col style="width:56px"><col style="width:72px"><col style="width:72px">';
+    thead.innerHTML = '<tr><th style="text-align:right">פריט</th><th>כמות</th><th>מחיר</th><th>סהךכ</th></tr>';
+    tbody.innerHTML = '';
+    let totalQty = 0, totalPrice = 0;
+    activities.forEach(act => {
+      const sub = (act.qty||1) * (act.price||0);
+      totalQty += (act.qty||1); totalPrice += sub;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${act.name}</td><td>${act.qty||1}</td><td>₪${(act.price||0).toLocaleString()}</td><td>₪${sub.toLocaleString()}</td>`;
+      tbody.appendChild(tr);
+    });
+    tfoot.innerHTML = `<tr class="total-row"><td>סהךכ</td><td>${totalQty}</td><td></td><td>₪${totalPrice.toLocaleString()}</td></tr>`;
+    const listEl = document.getElementById('d-activity-course-list');
+    if (listEl) listEl.innerHTML = '';
+  } else {
+    colgroup.innerHTML = '<col><col style="width:48px"><col style="width:46px"><col style="width:42px"><col style="width:38px"><col style="width:54px"><col style="width:66px">';
+    thead.innerHTML = '<tr><th style="text-align:right">קורס / תוכנית</th><th>מסֹ גפ"ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה"כ</th></tr>';
+    tbody.innerHTML = '';
+    let grandTotal = 0;
+    activities.forEach(act => {
+      const price = act.price||0;
+      const pph = act.pricePerHour||0;
+      grandTotal += price;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${act.name||''}</td><td>${act.gapan||''}</td><td>${act.meetings||0}</td><td>${act.groups||1}</td><td>${act.hours||0}</td><td>₪${pph.toLocaleString()}</td><td>₪${price.toLocaleString()}</td>`;
+      tbody.appendChild(tr);
+    });
+    tfoot.innerHTML = `<tr class="total-row"><td>סה"כ</td><td></td><td></td><td></td><td></td><td></td><td>₪${grandTotal.toLocaleString()}</td></tr>`;
+    // Update course names list
+    const names = activities.map(a => a.name).filter(n => n && n.trim());
+    const listEl = document.getElementById('d-activity-course-list');
+    if (listEl) listEl.innerHTML = names.map(n => `<li>${n}</li>`).join('');
+  }
+}
+
+// Show only the mode switcher on load, hide everything else
+function initScreen() {
+  document.getElementById('editor-fields').style.display = 'none';
+  document.getElementById('canvas-area').style.display = 'none';
+}
+
+initScreen();
+</script>
+</body>
+</html>
