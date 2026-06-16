@@ -16471,3 +16471,23 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
   .pa-page-footer .pa-page-footer-logo { height: 18px !important; max-height: 18px !important; }
 }
+
+.ds-pa-status-select {
+  max-width: 112px;
+  min-width: 92px;
+  height: 28px;
+  padding: 2px 8px;
+  border: 1px solid var(--ds-border, #cbd5e1);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ds-text, #0f172a);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  direction: rtl;
+}
+
+.ds-pa-status-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+  background: var(--ds-status-neutral-soft, #e2e8f0);
+}

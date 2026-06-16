@@ -1917,7 +1917,8 @@ function normalizeProposalContactPhone(value) {
 
 const PA_STATUS_LABELS = {
   draft:                'טיוטה',
-  pending_approval:     'ממתין לאישור',
+  sent:                 'נשלח',
+  pending_approval:     'נשלח',
   returned_for_changes: 'הוחזר לתיקון',
   approved:             'מאושר',
   cancelled:            'בוטל'
@@ -1951,7 +1952,7 @@ function normalizeProposalAgreementActivityNames(value) {
 
 function normalizeProposalAgreementRow(row = {}) {
   const parsedNotes = parseActivityNamesFromNotes(row.notes);
-  const PA_VALID_STATUSES = new Set(['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
+  const PA_VALID_STATUSES = new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
   const rawStatus = cleanProposalAgreementText(row.status);
   const authorityName = cleanProposalAgreementText(row.client_authority || row.authority_name || row.legacy_client_authority || row.authority);
   const schoolFramework = cleanProposalAgreementText(row.school_framework || row.school_name || row.contact_client_name || row.legacy_school_framework || row.school);
@@ -1980,7 +1981,7 @@ function normalizeProposalAgreementRow(row = {}) {
     phone:               cleanProposalAgreementText(row.phone),
     email:               cleanProposalAgreementText(row.email),
     notes:               parsedNotes.notes,
-    status:              PA_VALID_STATUSES.has(rawStatus) ? rawStatus : 'draft',
+    status:              PA_VALID_STATUSES.has(rawStatus) ? (rawStatus === 'pending_approval' ? 'sent' : rawStatus) : 'draft',
     approval_note:       cleanProposalAgreementText(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
     custom_document_sections: Array.isArray(row.custom_document_sections)
@@ -1997,7 +1998,7 @@ function normalizeProposalAgreementRow(row = {}) {
   return normalized;
 }
 
-const PA_VALID_STATUSES_SET = new Set(['draft', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
+const PA_VALID_STATUSES_SET = new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
 
 // Proposal group definitions and legacy-name aliases are business data and live in Supabase
 // (proposal_activity_groups / proposal_group_aliases). The lookup below is loaded from there
@@ -2109,7 +2110,7 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     phone:               cleanProposalAgreementText(payload.phone),
     email:               cleanProposalAgreementText(payload.email),
     notes:               parseActivityNamesFromNotes(payload.notes).notes,
-    status:              PA_VALID_STATUSES_SET.has(rawStatus) ? rawStatus : 'draft',
+    status:              PA_VALID_STATUSES_SET.has(rawStatus) ? (rawStatus === 'pending_approval' ? 'sent' : rawStatus) : 'draft',
     approval_note:       cleanProposalAgreementText(payload.approval_note),
     total_amount:        payload.total_amount != null ? Number(payload.total_amount) || null : null,
     custom_document_sections: Array.isArray(payload.custom_document_sections) ? payload.custom_document_sections : [],
