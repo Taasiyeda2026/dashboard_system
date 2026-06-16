@@ -417,17 +417,26 @@ function formatDateDisplay(iso) {
   return s;
 }
 
-function approvalDateDisplay(row = {}) {
-  const rawDate = row.approved_at || row.signed_at || row.updated_at || row.proposal_date;
-  const s = String(rawDate || '').trim();
-  if (!s) return '';
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-    const [y, m, d] = s.slice(0, 10).split('-');
-    return `${d}/${m}/${y}`;
-  }
-  return formatDateDisplay(rawDate);
-}
+function signatureSectionHtml(_signatureBody = '', row = {}, options = {}) {
+  const isApproved = normalizeProposalStatus(row?.status) === 'approved';
+  const showSignatureImage = isApproved || options.showSignatureImage === true;
+  const meta = normalizeSignatureMeta(row.signature_meta || row.approval_meta);
+  const img = text(meta?.signature?.image) || PROPOSAL_SIGNATURE_IMAGE;
+  const imageHtml = showSignatureImage
+    ? `<img class="pa-signature-image" src="${PUBLIC_BASE}${escapeHtml(img)}" alt="חתימת עידן נחום" loading="eager" decoding="async" onerror="this.style.display='none';">`
+    : '';
 
+  return `<div class="pa-footer-signature" aria-label="חתימה">
+    <div class="pa-blessing">בברכה,</div>
+    <div class="pa-signer-block">
+      ${imageHtml}
+      <div class="pa-signer-name-block">
+        <div class="pa-signature-rule" aria-hidden="true"></div>
+        <div class="pa-signer-name">${DEFAULT_SIGNER_NAME}</div>
+      </div>
+    </div>
+  </div>`;
+}
 
 function clampNumber(value, min, max, fallback) {
   const n = Number(value);
@@ -448,35 +457,6 @@ function normalizeSignatureMeta(value) {
 
 function defaultSignatureMeta() {
   return { signature: { ...DEFAULT_SIGNATURE_META } };
-}
-
-// Signature is part of the fixed proposal document chrome and intentionally does not
-// render any legacy Supabase footer/signature markup. Keep this structure aligned with
-// Proposaleditor.html: blessing, optional image, signature rule, signer name.
-function signatureSectionHtml(_signatureBody = '', row = {}, options = {}) {
-  const isApproved = normalizeProposalStatus(row?.status) === 'approved';
-  const showSignatureImage = isApproved || options.showSignatureImage === true;
-  const meta = normalizeSignatureMeta(row.signature_meta || row.approval_meta);
-  const img = text(meta?.signature?.image) || PROPOSAL_SIGNATURE_IMAGE;
-  const approvedText = isApproved ? approvalDateDisplay(row) : '';
-  const imageHtml = showSignatureImage
-    ? `<img class="pa-signature-image" src="${PUBLIC_BASE}${escapeHtml(img)}" alt="חתימת עידן נחום" loading="eager" decoding="async" onerror="this.style.display='none';">`
-    : '';
-  const approvalHtml = isApproved && approvedText
-    ? `<div class="pa-signature-approval-line">אושר בתאריך: ${escapeHtml(approvedText)}</div>`
-    : '';
-
-  return `<div class="pa-footer-signature" aria-label="חתימה">
-    <div class="pa-blessing">בברכה,</div>
-    <div class="pa-signer-block">
-      ${imageHtml}
-      <div class="pa-signer-name-block">
-        <div class="pa-signature-rule" aria-hidden="true"></div>
-        <div class="pa-signer-name">${DEFAULT_SIGNER_NAME}</div>
-      </div>
-      ${approvalHtml}
-    </div>
-  </div>`;
 }
 
 function formatCurrency(num) {
