@@ -452,7 +452,7 @@ function defaultSignatureMeta() {
 
 // Signature is part of the fixed proposal document chrome and intentionally does not
 // render any legacy Supabase footer/signature markup. Keep this structure aligned with
-// Proposaleditor.html so the signer name sits on the signature line above the page footer.
+// Proposaleditor.html: blessing, optional image, signature rule, signer name.
 function signatureSectionHtml(_signatureBody = '', row = {}, options = {}) {
   const isApproved = normalizeProposalStatus(row?.status) === 'approved';
   const showSignatureImage = isApproved || options.showSignatureImage === true;
@@ -470,8 +470,11 @@ function signatureSectionHtml(_signatureBody = '', row = {}, options = {}) {
     <div class="pa-blessing">בברכה,</div>
     <div class="pa-signer-block">
       ${imageHtml}
+      <div class="pa-signer-name-block">
+        <div class="pa-signature-rule" aria-hidden="true"></div>
+        <div class="pa-signer-name">${DEFAULT_SIGNER_NAME}</div>
+      </div>
       ${approvalHtml}
-      <div class="pa-signer-line">${DEFAULT_SIGNER_NAME}</div>
     </div>
   </div>`;
 }

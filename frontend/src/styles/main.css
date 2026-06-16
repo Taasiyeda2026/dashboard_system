@@ -16624,11 +16624,22 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-signer-block {
   margin-top: 4.4em;
 }
-.pa-signer-line {
+.pa-signer-name-block {
   display: inline-block;
+  max-width: 100%;
+  text-align: left;
+}
+.pa-signature-rule {
+  display: block;
   border-top: 1px solid #555;
+  margin: 0;
+  height: 0;
+}
+.pa-signer-name {
+  display: block;
   padding-top: 1px;
   font-size: 10px;
+  line-height: 1.35;
   white-space: nowrap;
 }
 .pa-footer-signature .pa-signature-image {
@@ -16639,7 +16650,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin: 0 0 6px;
 }
 .pa-footer-signature .pa-signature-approval-line {
-  margin: 0 0 4px;
+  margin: 4px 0 0;
   font-size: 9px;
   line-height: 1.25;
   color: #666;

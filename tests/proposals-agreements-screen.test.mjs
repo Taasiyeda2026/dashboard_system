@@ -463,7 +463,8 @@ test('new proposal editor renders two-pane A4 layout and live preview updates ke
       assert.equal(liveDocument.querySelectorAll('.proposal-document-footer, .proposal-footer, .proposal-footer-logo').length, 0, 'new proposal document should not render legacy footer classes');
       assert.match(liveDocument.querySelector('.pa-page-footer')?.textContent || '', /www\.think\.org\.il/);
       assert.equal(liveDocument.querySelectorAll('.pa-footer-signature').length, 1, 'document should render exactly one signature block');
-      assert.ok(liveDocument.querySelector('.pa-footer-signature .pa-signer-line'), 'document should render the Proposaleditor-style signature line');
+      assert.ok(liveDocument.querySelector('.pa-footer-signature .pa-signature-rule'), 'document should render the Proposaleditor-style signature rule');
+      assert.ok(liveDocument.querySelector('.pa-footer-signature .pa-signer-name'), 'document should render the signer name below the signature rule');
       assert.match(form.querySelector('.pa-sidebar')?.textContent || '', /פרטי נמען/);
       assert.match(form.querySelector('.pa-sidebar')?.textContent || '', /פעילויות ומחירים/);
 
@@ -552,7 +553,11 @@ test('approved proposals render flow signature block inside the document', () =>
   assert.ok(signature, 'signature block should render in document flow');
   assert.equal(doc.querySelectorAll('.pa-page-footer').length, 1);
   assert.equal(signature.querySelectorAll('.pa-signature-image').length, 1);
-  assert.equal(signature.querySelectorAll('.pa-signer-line').length, 1);
+  assert.equal(signature.querySelectorAll('.pa-signature-rule').length, 1);
+  assert.equal(signature.querySelectorAll('.pa-signer-name').length, 1);
+  const signatureChildren = [...signature.querySelector('.pa-signer-block').children].map((node) => node.className);
+  assert.equal(signatureChildren[0], 'pa-signature-image', 'signature image should appear before the signer name block');
+  assert.equal(signatureChildren[1], 'pa-signer-name-block', 'signer name block should follow the signature image');
   assert.ok(signature.compareDocumentPosition(doc.querySelector('.pa-page-footer')) & doc.defaultView.Node.DOCUMENT_POSITION_FOLLOWING, 'signature should appear before page footer');
   assert.match(signature.textContent || '', /אושר בתאריך: 16\/06\/2026/);
   assert.doesNotMatch(signature.textContent || '', /אושר ונחתם דיגיטלית/);
@@ -1754,7 +1759,8 @@ test('summer proposal preview keeps prices out of activity section and expands b
     assert.doesNotMatch(tableText, /סדנאות STEM/);
     assert.doesNotMatch(doc.textContent, /undefined|null|\(\)\s*₪|₪\s*לשעה|מחיר לשעה/);
     assert.ok(signature, 'signature should render from template section');
-    assert.equal(signature.querySelectorAll('.pa-signer-line').length, 1);
+    assert.equal(signature.querySelectorAll('.pa-signature-rule').length, 1);
+    assert.equal(signature.querySelectorAll('.pa-signer-name').length, 1);
     assert.match(signature.textContent, /בברכה,/);
     assert.match(signature.textContent, /עידן נחום, סמנכ״ל כספים/);
   });
