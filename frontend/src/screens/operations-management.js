@@ -787,7 +787,7 @@ function printInstructorSchedule() {
   const css = `
     body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:10px 14px;color:#111;background:#fff;font-size:11px;line-height:1.3}
     .ops-print-page{width:96%;margin:0 auto}
-    h1{margin:0 0 2px;font-size:14px;color:#0f172a}.subtitle{margin:0 0 6px;color:#475569;font-size:10.5px}
+    h1{margin:0 0 2px;font-size:14px;color:#0f172a}.subtitle{margin:0 0 14px;color:#475569;font-size:10.5px}
     .ops-print-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;align-items:start}
     .pb{border:1px solid #cfd8dc;padding:5px 6px;page-break-inside:avoid;break-inside:avoid}
     .pb-hdr{margin-bottom:3px}
