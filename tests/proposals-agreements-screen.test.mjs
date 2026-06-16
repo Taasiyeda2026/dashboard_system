@@ -466,7 +466,7 @@ test('admin sees approve and return actions for pending proposals', async () => 
       proposalsAgreementsScreen.bind({ root, data: { rows: [pendingRow] }, state: stateFor('admin'), api: {} });
       root.querySelector(`[data-pa-row-id="${pendingRow.id}"]`)?.click();
       const drawerText = root.querySelector('[data-pa-drawer]')?.textContent || '';
-      assert.match(drawerText, /אישור/);
+      assert.match(drawerText, /חתום ואשר/);
       assert.match(drawerText, /החזרה לתיקון/);
     }
   );
