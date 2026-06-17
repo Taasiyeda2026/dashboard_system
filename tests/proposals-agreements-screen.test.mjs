@@ -535,9 +535,13 @@ test('non-admin manager submits proposals for approval instead of approving dire
 });
 
 test('approved proposals render flow signature block inside the document', () => {
+  const savedSignatureMeta = { signature: { image: 'proposals/signature-idan-nahum.png' } };
   const draftHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'draft' }, [], []);
   const sentHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'sent' }, [], []);
-  const approvedHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'approved', approved_at: '2026-06-16T10:30:00.000Z' }, [], []);
+  // Approved row with signature_meta (signature is stored on approval)
+  const approvedHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'approved', approved_at: '2026-06-16T10:30:00.000Z', signature_meta: savedSignatureMeta }, [], []);
+  // Sent row that was previously approved — signature_meta persists even after status change
+  const sentAfterApprovalHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'sent', approved_at: '2026-06-16T10:30:00.000Z', signature_meta: savedSignatureMeta }, [], []);
 
   assert.doesNotMatch(draftHtml, /signature-idan-nahum\.png/);
   assert.doesNotMatch(sentHtml, /signature-idan-nahum\.png/);
@@ -546,6 +550,8 @@ test('approved proposals render flow signature block inside the document', () =>
   assert.doesNotMatch(approvedHtml, /אושר בתאריך/);
   assert.doesNotMatch(approvedHtml, /pa-signature-approval-line/);
   assert.match(approvedHtml, /proposals\/signature-idan-nahum\.png/);
+  // signature persists when status is changed to sent after approval
+  assert.match(sentAfterApprovalHtml, /proposals\/signature-idan-nahum\.png/);
   assert.doesNotMatch(approvedHtml, /pa-signature-layer/);
   assert.doesNotMatch(approvedHtml, /data-pa-signature-sticker/);
 

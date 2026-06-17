@@ -2096,7 +2096,7 @@ function normalizeProposalAgreementRow(row = {}) {
     phone:               cleanProposalAgreementText(row.phone),
     email:               cleanProposalAgreementText(row.email),
     notes:               parsedNotes.notes,
-    status:              PA_VALID_STATUSES.has(rawStatus) ? (rawStatus === 'pending_approval' ? 'sent' : rawStatus) : 'draft',
+    status:              PA_VALID_STATUSES.has(rawStatus) ? rawStatus : 'draft',
     approval_note:       cleanProposalAgreementText(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
     custom_document_sections: Array.isArray(row.custom_document_sections)
@@ -2106,6 +2106,7 @@ function normalizeProposalAgreementRow(row = {}) {
       }))
       : [],
     include_catalog:     row.include_catalog === true || row.include_catalog === 'yes',
+    signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' && !Array.isArray(row.signature_meta)) ? row.signature_meta : null,
     approved_by:         cleanProposalAgreementText(row.approved_by),
     approved_at:         cleanProposalAgreementText(row.approved_at),
     created_at:          cleanProposalAgreementText(row.created_at),

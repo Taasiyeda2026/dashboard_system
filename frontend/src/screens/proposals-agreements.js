@@ -18,7 +18,7 @@ export const STATUS_OPTIONS = ['draft', 'sent', 'returned_for_changes', 'approve
 export const STATUS_LABELS = {
   draft:                'טיוטה',
   sent:                 'נשלח',
-  pending_approval:     'נשלח',
+  pending_approval:     'ממתין לאישור',
   returned_for_changes: 'הוחזר לתיקון',
   approved:             'מאושר',
   cancelled:            'בוטל'
@@ -379,7 +379,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     phone:               text(row.phone),
     email:               text(row.email),
     notes:               text(row.notes),
-    status:              STATUS_OPTIONS.includes(normalizeProposalStatus(row.status)) ? normalizeProposalStatus(row.status) : 'draft',
+    status:              (new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled'])).has(text(row.status)) ? text(row.status) : 'draft',
     approval_note:       text(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
     custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections.map(normalizeDocumentSection) : [],
@@ -418,10 +418,9 @@ function formatDateDisplay(iso) {
 }
 
 function signatureSectionHtml(_signatureBody = '', row = {}, options = {}) {
-  const isApproved = normalizeProposalStatus(row?.status) === 'approved';
   const meta = normalizeSignatureMeta(row.signature_meta || row.approval_meta);
-  const hasStoredSignature = meta !== null && !!(text(row.approved_at) || text(row.approved_by));
-  const showSignatureImage = isApproved || hasStoredSignature || options.showSignatureImage === true;
+  const hasSavedSignature = Boolean(meta?.signature?.image);
+  const showSignatureImage = hasSavedSignature || options.showSignatureImage === true;
   const img = text(meta?.signature?.image) || PROPOSAL_SIGNATURE_IMAGE;
   const imageHtml = showSignatureImage
     ? `<img class="pa-signature-image" src="${PUBLIC_BASE}${escapeHtml(img)}" alt="חתימת עידן נחום" loading="eager" decoding="async" onerror="this.style.display='none';">`
@@ -517,16 +516,16 @@ function statusFilterHtml() {
 
 function statusBadgeHtml(status) {
   const normalizedStatus = normalizeProposalStatus(status);
-  const label = STATUS_LABELS[normalizedStatus] || STATUS_LABELS[status] || status || '—';
+  const label = STATUS_LABELS[status] || STATUS_LABELS[normalizedStatus] || status || '—';
   const colorMap = {
     draft:                '#888',
     sent:                 '#16a34a',
-    pending_approval:     '#16a34a',
+    pending_approval:     '#d97706',
     returned_for_changes: '#dc2626',
     approved:             '#16a34a',
     cancelled:            '#6b7280'
   };
-  const color = colorMap[normalizedStatus] || colorMap[status] || '#888';
+  const color = colorMap[status] || colorMap[normalizedStatus] || '#888';
   return `<span class="ds-pa-badge" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.78rem;background:${color};color:#fff;white-space:nowrap">${escapeHtml(label)}</span>`;
 }
 
