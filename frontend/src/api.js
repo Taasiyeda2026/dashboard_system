@@ -424,7 +424,7 @@ async function selectActivitiesByDateRangeFromSupabase({
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
 
-const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,hp_number,district,active';
+const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,district,active';
 const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,active';
 
 function normalizeCatalogText(value) {
@@ -493,10 +493,12 @@ function buildAuthorityCatalogLookup(authorities = []) {
     const id = normalizeCatalogText(row.id);
     const authority_name = normalizeCatalogText(row.authority_name);
     const authority_code = normalizeCatalogText(row.authority_code);
+    const authority_type = normalizeCatalogText(row.authority_type);
     const entry = {
       id: id || null,
       authority_name,
       authority_code,
+      authority_type,
       hp_number: normalizeCatalogText(row.hp_number),
       district: normalizeCatalogText(row.district),
       active: normalizeCatalogText(row.active) || 'yes'
@@ -765,6 +767,7 @@ function buildProposalClientSearchOptions(contactRows, authorityLookup, schoolLo
       authority: auth.authority_name,
       school: '',
       authority_code: auth.authority_code,
+      authority_type: auth.authority_type,
       district: auth.district,
       contact_name: '',
       contact_role: '',
