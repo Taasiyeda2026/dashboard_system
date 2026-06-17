@@ -2914,7 +2914,7 @@ export const proposalsAgreementsScreen = {
         }
         let haystack;
         if (selectedType === 'authority' || (selectedType === 'school' && schoolStep === 'authority')) {
-          haystack = [c.authority, c.client_name, c.authority_code, c.district, c.authority_type]
+          haystack = [c.authority, c.client_name, c.long_name, c.authority_code, c.district, c.authority_type]
             .map(normalizeSearch).join(' ');
         } else {
           haystack = [c.school, c.client_name, c.semel_mosad]
@@ -3048,7 +3048,7 @@ export const proposalsAgreementsScreen = {
       if (!matches.length) {
         const schoolStep = form.dataset.paSearchStep || 'authority';
         const stepLabel = (type === 'school' && schoolStep === 'school') ? 'בית ספר' : 'רשות';
-        results.innerHTML = `<p class="ds-pa-client-results-empty">לא נמצאה ${stepLabel} ברשימה. יש לחפש לפי שם מדויק.</p>`;
+        results.innerHTML = `<p class="ds-pa-client-results-empty">לא נמצאה ${stepLabel} ברשימה. נסו שם אחר, שם מלא או קוד רשות.</p>`;
         results.hidden = false;
         return;
       }

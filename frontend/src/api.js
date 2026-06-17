@@ -424,7 +424,7 @@ async function selectActivitiesByDateRangeFromSupabase({
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
 
-const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,district,active';
+const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,long_name';
 const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,active';
 
 function normalizeCatalogText(value) {
@@ -433,22 +433,31 @@ function normalizeCatalogText(value) {
 
 async function readAuthoritiesCatalogFromSupabase() {
   if (!supabase) return [];
-  try {
-    const { data, error } = await supabase
-      .from('authorities')
-      .select(AUTHORITIES_CATALOG_COLUMNS)
-      .order('authority_name', { ascending: true });
-    if (error) {
+  const columnSets = [
+    AUTHORITIES_CATALOG_COLUMNS,
+    'id,authority_name,authority_code,authority_type,hp_number,long_name,active',
+    'id,authority_name,authority_code,authority_type,hp_number,district,active',
+    'id,authority_name,authority_code'
+  ];
+  for (const columns of columnSets) {
+    try {
+      const { data, error } = await supabase
+        .from('authorities')
+        .select(columns)
+        .order('authority_name', { ascending: true });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.warn('[supabase] Failed to load authorities with columns', columns, error);
+        continue;
+      }
+      if (Array.isArray(data) && data.length) return data;
+      if (Array.isArray(data)) return data;
+    } catch (error) {
       // eslint-disable-next-line no-console
-      console.warn('[supabase] Failed to load authorities:', error);
-      return [];
+      console.warn('[supabase] Unexpected authorities fetch error:', error);
     }
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.warn('[supabase] Unexpected authorities fetch error:', error);
-    return [];
   }
+  return [];
 }
 
 async function readSchoolsCatalogFromSupabase() {
@@ -494,11 +503,13 @@ function buildAuthorityCatalogLookup(authorities = []) {
     const authority_name = normalizeCatalogText(row.authority_name);
     const authority_code = normalizeCatalogText(row.authority_code);
     const authority_type = normalizeCatalogText(row.authority_type);
+    const long_name = normalizeCatalogText(row.long_name);
     const entry = {
       id: id || null,
       authority_name,
       authority_code,
       authority_type,
+      long_name,
       hp_number: normalizeCatalogText(row.hp_number),
       district: normalizeCatalogText(row.district),
       active: normalizeCatalogText(row.active) || 'yes'
@@ -768,6 +779,7 @@ function buildProposalClientSearchOptions(contactRows, authorityLookup, schoolLo
       school: '',
       authority_code: auth.authority_code,
       authority_type: auth.authority_type,
+      long_name: auth.long_name,
       district: auth.district,
       contact_name: '',
       contact_role: '',
