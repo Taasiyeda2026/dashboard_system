@@ -2058,7 +2058,15 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         <h4 class="pa-sidebar-section-title">איש קשר</h4>
         <div class="ds-pa-form-grid">
           <div data-pa-contact-picker-host>${initPickerHtml}</div>
-          <div class="ds-pa-form-grid ds-pa-contact-manual-fields" data-pa-contact-manual-fields${isLocked ? ' hidden' : ''}>
+          <div data-pa-add-contact-row hidden>
+            <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-add-contact-toggle>לא מצאת? הוסף איש קשר ידנית</button>
+            <p class="ds-pa-add-contact-note">איש הקשר יתווסף לרשות ולבית הספר שנבחרו.</p>
+          </div>
+          <div class="ds-pa-form-grid ds-pa-contact-manual-fields" data-pa-contact-manual-fields hidden>
+            <div data-pa-contact-ro-ctx hidden>
+              <label class="ds-pa-form-field"><span>רשות</span><input type="text" class="ds-input ds-input--sm" data-pa-contact-ro-authority readonly tabindex="-1"></label>
+              <label class="ds-pa-form-field"><span>בית ספר</span><input type="text" class="ds-input ds-input--sm" data-pa-contact-ro-school readonly tabindex="-1"></label>
+            </div>
             ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
             ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
             ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
@@ -2688,7 +2696,21 @@ export const proposalsAgreementsScreen = {
       if (fieldsEl) fieldsEl.hidden = true;
       if (searchRow) searchRow.hidden = true;
       if (results) { results.hidden = true; results.innerHTML = ''; }
-      form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = Boolean(cName); });
+      const clientType = form?.querySelector('[data-pa-new-client-type]')?.value || 'school';
+      const addContactRow = form?.querySelector('[data-pa-add-contact-row]');
+      if (clientType !== 'other') {
+        const roAuth = form?.querySelector('[data-pa-contact-ro-authority]');
+        const roSchoolEl = form?.querySelector('[data-pa-contact-ro-school]');
+        const roCtx = form?.querySelector('[data-pa-contact-ro-ctx]');
+        if (roAuth) roAuth.value = auth;
+        if (roSchoolEl) roSchoolEl.value = school;
+        if (roCtx) roCtx.hidden = false;
+        form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+        if (addContactRow) addContactRow.hidden = Boolean(cName);
+      } else {
+        form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = Boolean(cName); });
+        if (addContactRow) addContactRow.hidden = true;
+      }
       if (hintEl) hintEl.hidden = true;
     };
 
@@ -2700,6 +2722,10 @@ export const proposalsAgreementsScreen = {
       if (fieldsEl) fieldsEl.hidden = false;
       if (searchRow) searchRow.hidden = false;
       form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
+      const addContactRow = form?.querySelector('[data-pa-add-contact-row]');
+      if (addContactRow) addContactRow.hidden = true;
+      const roCtx = form?.querySelector('[data-pa-contact-ro-ctx]');
+      if (roCtx) roCtx.hidden = true;
     };
 
     // ── Contact / client setup ────────────────────────────────────────────────
@@ -2853,6 +2879,8 @@ export const proposalsAgreementsScreen = {
       if (searchWrap) searchWrap.classList.toggle('is-manual-only', isOther);
       if (searchField) searchField.hidden = isOther;
       if (results) { results.hidden = true; results.innerHTML = ''; }
+      const manualSearchBtn = form?.querySelector('[data-pa-client-search-row] [data-pa-new-client-toggle]');
+      if (manualSearchBtn) manualSearchBtn.hidden = !isOther;
       const schoolStep = form?.dataset?.paSearchStep || 'authority';
       const searchLabelText = type === 'school'
         ? (schoolStep === 'school' ? 'בית ספר' : 'רשות (שלב 1 מתוך 2)')
@@ -2876,6 +2904,11 @@ export const proposalsAgreementsScreen = {
       const isLocked = clientCardEl && !clientCardEl.hidden && clientCardEl.children.length > 0;
       if (!isLocked && clientFieldsEl) {
         clientFieldsEl.hidden = !isOther;
+      }
+      if (!isLocked) {
+        form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = !isOther; });
+        const addContactRowEl = form?.querySelector('[data-pa-add-contact-row]');
+        if (addContactRowEl) addContactRowEl.hidden = true;
       }
     };
 
@@ -2995,6 +3028,23 @@ export const proposalsAgreementsScreen = {
       if (!form || form.dataset.paClientSearchBound === 'yes') return;
       form.dataset.paClientSearchBound = 'yes';
       applyClientTypeMode(form);
+      // Init contact area for forms already locked on mount (edit mode)
+      const initCard = form.querySelector('[data-pa-client-card]');
+      const initIsLocked = initCard && !initCard.hidden && initCard.children.length > 0;
+      if (initIsLocked) {
+        const initType = form.querySelector('[data-pa-new-client-type]')?.value || 'school';
+        if (initType !== 'other') {
+          const initCName = text(form.querySelector('input[name="contact_name"]')?.value || '');
+          const addContactRowInit = form.querySelector('[data-pa-add-contact-row]');
+          if (addContactRowInit) addContactRowInit.hidden = Boolean(initCName);
+          const roAuthInit = form.querySelector('[data-pa-contact-ro-authority]');
+          const roSchoolInit = form.querySelector('[data-pa-contact-ro-school]');
+          const roCtxInit = form.querySelector('[data-pa-contact-ro-ctx]');
+          if (roAuthInit) roAuthInit.value = text(form.querySelector('input[name="client_authority"]')?.value || '');
+          if (roSchoolInit) roSchoolInit.value = text(form.querySelector('input[name="school_framework"]')?.value || '');
+          if (roCtxInit) roCtxInit.hidden = false;
+        }
+      }
       form.querySelector('[data-pa-client-search-input]')?.addEventListener('input', () => renderClientResults(form), { signal });
       form.querySelector('[data-pa-new-client-type]')?.addEventListener('change', () => {
         form.dataset.paNewClient = 'no';
@@ -4114,6 +4164,10 @@ export const proposalsAgreementsScreen = {
           const fields = form.querySelector('[data-pa-client-fields]');
           if (fields) fields.hidden = true;
           form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+          const addContactRowUnlock = form.querySelector('[data-pa-add-contact-row]');
+          if (addContactRowUnlock) addContactRowUnlock.hidden = true;
+          const roCtxUnlock = form.querySelector('[data-pa-contact-ro-ctx]');
+          if (roCtxUnlock) roCtxUnlock.hidden = true;
           const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
           if (pickerHost) pickerHost.innerHTML = '';
           const results = form.querySelector('[data-pa-client-results]');
@@ -4174,12 +4228,28 @@ export const proposalsAgreementsScreen = {
         const fields = form.querySelector('[data-pa-client-fields]');
         if (fields) fields.hidden = true;
         form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+        const addContactRowClear = form.querySelector('[data-pa-add-contact-row]');
+        if (addContactRowClear) addContactRowClear.hidden = true;
+        const roCtxClear = form.querySelector('[data-pa-contact-ro-ctx]');
+        if (roCtxClear) roCtxClear.hidden = true;
         const search = form.querySelector('[data-pa-client-search-input]');
         if (search) { search.value = ''; search.focus(); }
         const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
         if (pickerHost) pickerHost.innerHTML = '';
         applyClientTypeMode(form);
         updateProposalStepper(form);
+        return;
+      }
+
+      if (event.target.closest?.('[data-pa-add-contact-toggle]')) {
+        const form = event.target.closest('[data-pa-form]');
+        if (!form) return;
+        const addContactRow = form.querySelector('[data-pa-add-contact-row]');
+        if (addContactRow) addContactRow.hidden = true;
+        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
+        const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
+        if (roCtx) roCtx.hidden = false;
+        form.querySelector('input[name="contact_name"]')?.focus();
         return;
       }
 
