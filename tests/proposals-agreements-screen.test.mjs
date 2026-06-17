@@ -2203,40 +2203,65 @@ test('catalog PDF appendices use fixed workshop/tour PDFs and specific selected 
 });
 
 
-test('course preview renders one cost table with quantity, unit group price, and quantity total', async () => {
+test('course preview renders the course item details table instead of the workshop cost table', async () => {
   const row = {
     ...sampleRows[0],
     id: 'course-price-breakdown-row',
-    activity_type_group: 'שנת הלימודים תשפ״ז',
+    activity_type_group: 'שנה הבאה',
     proposal_date: '2026-06-01'
   };
   const items = [{
-    item_name: 'קורס רובוטיקה',
+    item_name: 'סודות הבינה המלאכותית',
     item_type: 'קורס',
-    proposal_group: 'שנת הלימודים תשפ״ז',
+    proposal_group: 'שנה הבאה',
     gefen_number: '9545',
-    meetings_count: 10,
-    hours_count: 20,
-    hourly_price: 450,
+    meetings_count: 8,
     quantity: 2,
-    unit_price: 9000,
-    total_price: 18000
+    hours_count: 16,
+    unit_price: 7500,
+    hourly_price: 468.75,
+    total_price: 15000
   }];
 
   await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
-    assert.equal(dom.window.document.querySelectorAll('.pa-cost-table').length, 1);
-    assert.equal(dom.window.document.querySelector('.pa-item-details-table'), null);
+    const courseTable = dom.window.document.querySelector('.pa-item-details-table');
+    assert.ok(courseTable, 'course details table should render');
+    assert.equal(dom.window.document.querySelector('.pa-cost-table'), null);
+    const headers = [...courseTable.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+    assert.ok(headers.includes('קורס / תוכנית'));
+    assert.ok(headers.includes('מס׳ גפ״ן'));
+    assert.ok(headers.includes('מפגשים'));
+    assert.ok(headers.includes('מחיר לשעה'));
+    assert.ok(courseTable.textContent.includes('סודות הבינה המלאכותית'));
+    assert.ok(!headers.includes('פעילות'));
+    assert.ok(!headers.includes('מחיר יחידה'));
+    assert.ok(!headers.includes('סה״כ שורה'));
+  });
+});
+
+test('summer preview keeps the workshop cost table instead of the course details table', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: 'summer-price-breakdown-row',
+    activity_type_group: 'פעילויות קיץ',
+    proposal_date: '2026-06-01'
+  };
+  const items = [{
+    item_name: 'סדנת רובוטיקה',
+    item_type: 'סדנה',
+    proposal_group: 'פעילויות קיץ',
+    quantity: 3,
+    unit_price: 450,
+    total_price: 1350
+  }];
+
+  await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
     const costTable = dom.window.document.querySelector('.pa-cost-table');
-    assert.ok(costTable, 'cost table should render');
+    assert.ok(costTable, 'workshop cost table should render');
+    assert.equal(dom.window.document.querySelector('.pa-item-details-table'), null);
     const headers = [...costTable.querySelectorAll('thead th')].map((th) => th.textContent.trim());
     assert.deepEqual(headers, ['פעילות', 'כמות', 'מחיר יחידה', 'סה״כ שורה']);
-    const cells = [...costTable.querySelectorAll('tbody td')].map((td) => td.textContent.trim());
-    assert.equal(cells.at(-3), '2');
-    assert.match(cells.at(-2), /^9,000\s*₪$/);
-    assert.match(cells.at(-1), /^18,000\s*₪$/);
-    const unitPriceCell = costTable.querySelector('tbody td:nth-child(3) .pa-currency-amount');
-    assert.ok(unitPriceCell, 'unit price should use isolated currency span');
-    assert.equal(unitPriceCell.getAttribute('dir'), 'ltr');
+    assert.ok(!headers.includes('קורס / תוכנית'));
   });
 });
 
@@ -2266,31 +2291,29 @@ test('proposal cost table renders currency with consistent LTR direction', async
   });
 });
 
-test('course cost table calculates quantity total when total price is empty', async () => {
+test('course item details table keeps a row when only name and pricing fields exist', async () => {
   const row = {
     ...sampleRows[0],
     id: 'course-price-breakdown-fallback-row',
-    activity_type_group: 'שנת הלימודים תשפ״ז',
+    activity_type_group: 'שנה הבאה',
     proposal_date: '2026-06-01'
   };
   const items = [{
     item_name: 'קורס רובוטיקה',
     item_type: 'קורס',
-    proposal_group: 'שנת הלימודים תשפ״ז',
-    gefen_number: '9545',
-    meetings_count: 10,
+    proposal_group: 'שנה הבאה',
     quantity: 2,
     unit_price: 9000,
     total_price: ''
   }];
 
   await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
-    assert.equal(dom.window.document.querySelectorAll('.pa-cost-table').length, 1);
-    assert.equal(dom.window.document.querySelector('.pa-item-details-table'), null);
-    const cells = [...dom.window.document.querySelectorAll('.pa-cost-table tbody td')].map((td) => td.textContent.trim());
-    assert.equal(cells.at(-3), '2');
-    assert.match(cells.at(-2), /^9,000\s*₪$/);
-    assert.match(cells.at(-1), /^18,000\s*₪$/);
+    const courseTable = dom.window.document.querySelector('.pa-item-details-table');
+    assert.ok(courseTable, 'course details table should render even without pedagogic fields');
+    const cells = [...courseTable.querySelectorAll('tbody td')].map((td) => td.textContent.trim());
+    assert.equal(cells[0], 'קורס רובוטיקה');
+    assert.equal(cells[3], '2');
+    assert.match(cells[6], /^18,000\s*₪$/);
   });
 });
 
