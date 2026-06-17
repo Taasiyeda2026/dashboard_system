@@ -1342,11 +1342,15 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
 
 function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions = []) {
   const ops = ensureOpsState(state);
-  const metrics = sortByConfig(workshopMetricsRows(rows, stockMap, catalogRows), state, TAB_WORKSHOPS, {
+  const allMetrics = sortByConfig(workshopMetricsRows(rows, stockMap, catalogRows), state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
     workshopName: (row) => row.workshopName,
     activityCount: (row) => row.activityCount,
     estimatedQuantity: (row) => row.estimatedQuantity,
+  });
+  const metrics = allMetrics.filter((row) => {
+    const stock = row.stockQuantity !== null && row.stockQuantity !== undefined && Number.isFinite(Number(row.stockQuantity)) ? Number(row.stockQuantity) : 0;
+    return row.activityCount > 0 || stock > 0;
   });
 
   const table = metrics.length
