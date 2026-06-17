@@ -1173,6 +1173,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
         ${sortableTh(state, TAB_WORKSHOPS, 'activityCount', 'כמות סדנאות')}
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'כמות נדרשת')}
         <th>כמות מלאי</th>
+        <th>שימוש מלאי</th>
         <th>יתרת מלאי</th>
       </tr></thead><tbody>${metrics.map((row) => {
         const defaultStock = row.stockQuantity ?? row.catalogStock;
@@ -1180,18 +1181,22 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
         const shownStock = hasDefaultStock ? Number(defaultStock) : '';
         const stockDisplay = shownStock !== '' ? String(shownStock) : '—';
         const requiredQuantity = row.actualQuantity !== null ? row.actualQuantity : row.estimatedQuantity;
-        const gap = shownStock === '' ? null : Number(shownStock) - requiredQuantity;
-        const gapHtml = gap === null
+        const usage = distributions
+          .filter(d => d.stock_group_key === row.stockGroupKey)
+          .reduce((sum, d) => sum + (Number.isFinite(Number(d.quantity_received)) ? Number(d.quantity_received) : 0), 0);
+        const remainder = shownStock !== '' ? Number(shownStock) - usage : null;
+        const remainderHtml = remainder === null
           ? '<span class="ds-ops-mgmt-cell-muted">—</span>'
-          : `<span class="ds-ops-gap ${gap < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${gap}</span>`;
+          : `<span class="ds-ops-gap ${remainder < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${remainder}</span>`;
         const isExpanded = ops.expandedWorkshop === row.workshopName;
         return `<tr${isExpanded ? ' class="ds-ops-row--expanded"' : ''}>
           <td>${escapeHtml(row.workshopNo || '—')}</td>
           <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
           <td>${row.activityCount}</td>
           <td>${requiredQuantity}</td>
-          <td class="ds-ops-stock-cell" data-ops-stock-group="${escapeHtml(row.stockGroupKey)}" data-ops-stock-value="${escapeHtml(String(shownStock))}"><span class="ds-ops-stock-display">${escapeHtml(stockDisplay)}</span><button type="button" class="ds-ops-stock-edit-btn" title="עדכן מלאי">✎</button></td>
-          <td data-ops-workshop-gap="${escapeHtml(row.workshopName)}" data-estimated="${requiredQuantity}">${gapHtml}</td>
+          <td>${escapeHtml(stockDisplay)}</td>
+          <td class="ds-ops-usage-cell"><span class="ds-ops-usage-display">${usage}</span><button type="button" class="ds-ops-stock-edit-btn" data-ops-workshop="${escapeHtml(row.workshopName)}" title="ערוך חלוקת מלאי למדריכים">✎</button></td>
+          <td>${remainderHtml}</td>
         </tr>`;
       }).join('')}</tbody></table>`)
     : dsEmptyState('לא נמצאו סדנאות בתקופת הקיץ');
@@ -1476,76 +1481,6 @@ export const operationsManagementScreen = {
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
     root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
 
-    root.querySelectorAll('.ds-ops-stock-edit-btn').forEach((editBtn) => {
-      editBtn.addEventListener('click', () => {
-        const cell = editBtn.closest('.ds-ops-stock-cell');
-        if (!cell || cell.querySelector('.ds-ops-stock-input')) return;
-        const stockGroupKey = cell.getAttribute('data-ops-stock-group') || '';
-        const currentValue = cell.getAttribute('data-ops-stock-value') || '';
-        const displaySpan = cell.querySelector('.ds-ops-stock-display');
-        if (!displaySpan) return;
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.className = 'ds-ops-stock-input';
-        input.value = currentValue;
-        input.min = '0';
-        input.placeholder = 'כמות';
-        const saveBtn = document.createElement('button');
-        saveBtn.type = 'button';
-        saveBtn.className = 'ds-ops-stock-save-btn';
-        saveBtn.textContent = '✓';
-        saveBtn.title = 'שמור';
-        const cancelBtn = document.createElement('button');
-        cancelBtn.type = 'button';
-        cancelBtn.className = 'ds-ops-stock-cancel-btn';
-        cancelBtn.textContent = '✕';
-        cancelBtn.title = 'ביטול';
-        displaySpan.style.display = 'none';
-        editBtn.style.display = 'none';
-        cell.appendChild(input);
-        cell.appendChild(saveBtn);
-        cell.appendChild(cancelBtn);
-        input.focus();
-        input.select();
-        const revert = () => {
-          displaySpan.style.display = '';
-          editBtn.style.display = '';
-          input.remove();
-          saveBtn.remove();
-          cancelBtn.remove();
-        };
-        cancelBtn.addEventListener('click', revert);
-        const save = async () => {
-          const value = input.value.trim();
-          if (value === '' || !Number.isFinite(Number(value))) { revert(); return; }
-          saveBtn.disabled = true;
-          cancelBtn.disabled = true;
-          try {
-            const stockQuantity = Number(value);
-            await updateWorkshopStockGroup(stockGroupKey, stockQuantity);
-            cell.setAttribute('data-ops-stock-value', value);
-            displaySpan.textContent = value;
-            const gapCell = cell.closest('tr')?.querySelector('[data-ops-workshop-gap]');
-            if (gapCell) {
-              const estimated = Number(gapCell.getAttribute('data-estimated') || '0');
-              const gap = stockQuantity - estimated;
-              gapCell.innerHTML = `<span class="ds-ops-gap ${gap < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${gap}</span>`;
-            }
-            revert();
-          } catch (error) {
-            console.error('[operations-management] Failed to update workshop stock group:', error);
-            alert('עדכון המלאי נכשל. יש לנסות שוב.');
-            saveBtn.disabled = false;
-            cancelBtn.disabled = false;
-          }
-        };
-        saveBtn.addEventListener('click', save);
-        input.addEventListener('keydown', (ev) => {
-          if (ev.key === 'Enter') save();
-          if (ev.key === 'Escape') revert();
-        });
-      });
-    });
 
     root.querySelectorAll('[data-ops-workshop]').forEach((btn) => {
       btn.addEventListener('click', () => {
