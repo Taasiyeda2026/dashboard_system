@@ -506,8 +506,13 @@ test('proposals-agreements screen bypasses persistent and in-memory screen cache
   assert.match(mainSource, /'proposals-agreements': 0/);
   assert.match(mainSource, /'proposals-agreements'/);
   assert.match(mainSource, /MEMORY_ONLY_CACHE_PREFIXES[\s\S]*'proposals-agreements'/);
+  assert.match(mainSource, /MEMORY_ONLY_CACHE_PREFIXES[\s\S]*'contacts'/);
+  assert.match(mainSource, /purgeProposalsRelatedCaches/);
+  assert.match(mainSource, /PROPOSALS_RELATED_CACHE_PREFIXES[\s\S]*'contacts'/);
   assert.match(mainSource, /\[pa-data-contact-options\]/);
-  assert.match(mainSource, /routeName === 'proposals-agreements'[\s\S]*purgeScreenCacheEntry/);
+  assert.match(mainSource, /routeName === 'proposals-agreements'[\s\S]*purgeProposalsRelatedCaches/);
+  assert.match(mainSource, /requestedRoute === 'proposals-agreements'[\s\S]*\? null/);
+  assert.match(mainSource, /if \(routeName === 'proposals-agreements'\) \{[\s\S]*?\} else \{[\s\S]*maybePersistScreenCacheEntry/);
 });
 
 test('proposals agreements directory view uses only existing Supabase columns', async () => {

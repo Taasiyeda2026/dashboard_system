@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { config } from './config.js';
 import { state, setSession, defaultClientSettings } from './state.js';
-import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry } from './cache-persist.js';
+import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry, deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
@@ -1157,8 +1157,28 @@ function screenCacheTtl() {
 const MEMORY_ONLY_CACHE_PREFIXES = [
   'activityDetail:',
   'operations:',
-  'proposals-agreements'
+  'proposals-agreements',
+  'contacts'
 ];
+
+const PROPOSALS_RELATED_CACHE_PREFIXES = ['proposals-agreements', 'contacts'];
+
+function purgeProposalsRelatedCaches() {
+  const deletedKeys = [];
+  Object.keys(state.screenDataCache || {}).forEach((key) => {
+    if (PROPOSALS_RELATED_CACHE_PREFIXES.some((prefix) => key === prefix || key.startsWith(`${prefix}:`))) {
+      delete state.screenDataCache[key];
+      deletedKeys.push(key);
+    }
+  });
+  const persistedKeys = deletePersistedCacheByPrefixes(PROPOSALS_RELATED_CACHE_PREFIXES);
+  deletedKeys.push(...persistedKeys.filter((key) => !deletedKeys.includes(key)));
+  deletedKeys.forEach((key) => persistCacheDelete(key));
+  if (deletedKeys.length) {
+    // eslint-disable-next-line no-console
+    console.info('[proposals-cache-purge]', { deletedKeys });
+  }
+}
 
 function purgeScreenCacheEntry(cacheKey) {
   if (!cacheKey) return;
@@ -1225,7 +1245,7 @@ async function loadScreenDataWithCache(screen) {
   const routePerfStart = routePerfEnabled ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0;
   const key = screenDataCacheKey();
   if (routeName === 'proposals-agreements') {
-    purgeScreenCacheEntry(key);
+    purgeProposalsRelatedCaches();
   }
   const hit = state.screenDataCache[key];
   const ttl = screenCacheTtl();
@@ -1280,11 +1300,12 @@ async function loadScreenDataWithCache(screen) {
         });
       }
       const entry = { data, t: Date.now() };
-      state.screenDataCache[key] = entry;
-      maybePersistScreenCacheEntry(key, entry);
       if (routeName === 'proposals-agreements') {
         logProposalsAgreementsContactOptions(data);
         syncPendingApprovedProposalsCountFromRows(data?.rows);
+      } else {
+        state.screenDataCache[key] = entry;
+        maybePersistScreenCacheEntry(key, entry);
       }
       if (key === 'exceptions') updateExceptionNavCount();
       inflightRequests.delete(key);
@@ -1319,8 +1340,10 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     const data = await p;
     inflightRequests.delete(cacheKey);
     const entry = { data, t: Date.now() };
-    state.screenDataCache[cacheKey] = entry;
-    maybePersistScreenCacheEntry(cacheKey, entry);
+    if (cacheKey !== 'proposals-agreements') {
+      state.screenDataCache[cacheKey] = entry;
+      maybePersistScreenCacheEntry(cacheKey, entry);
+    }
     if (cacheKey === 'exceptions') updateExceptionNavCount();
     if (cacheKey === 'proposals-agreements') syncPendingApprovedProposalsCountFromRows(data?.rows);
     if (
@@ -1699,6 +1722,7 @@ function backgroundSyncBootstrap() {
       }
       refreshOpenEditRequestsCount().catch(() => {});
       refreshPendingApprovedProposalsCount().catch(() => {});
+      purgeProposalsRelatedCaches();
     })
     .catch(() => {
       state.permissionsReady = true;
@@ -1719,6 +1743,7 @@ async function restoreSession() {
   clearFinancePrefsIfUserChanged(state.user?.user_id);
   refreshOpenEditRequestsCount().catch(() => {});
   refreshPendingApprovedProposalsCount().catch(() => {});
+  purgeProposalsRelatedCaches();
 }
 
 async function mountScreen() {
@@ -1787,11 +1812,13 @@ async function mountScreen() {
   const cacheKey = screenDataCacheKey();
   const routeLoadStartMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
   if (requestedRoute === 'proposals-agreements') {
-    purgeScreenCacheEntry(cacheKey);
+    purgeProposalsRelatedCaches();
   }
   // eslint-disable-next-line no-console
   console.info('[route-load:start]', { route: requestedRoute, cacheKey });
-  const rawEntry = screen.load ? state.screenDataCache[cacheKey] : null;
+  const rawEntry = (requestedRoute === 'proposals-agreements' || !screen.load)
+    ? null
+    : state.screenDataCache[cacheKey];
   const isStale = rawEntry && (Date.now() - rawEntry.t >= screenCacheTtl() || rawEntry.data?._is_stale === true);
 
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
@@ -2099,6 +2126,7 @@ async function render() {
             });
             refreshOpenEditRequestsCount().catch(() => {});
             refreshPendingApprovedProposalsCount().catch(() => {});
+            purgeProposalsRelatedCaches();
             loginBootstrapDurationMs = performance.now() - bootstrapApplyStartMs;
             applyGlobalAccent(accentNameFromStorage(state.clientSettings));
             renderShellLoadingImmediately();
