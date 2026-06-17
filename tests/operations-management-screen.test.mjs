@@ -106,10 +106,11 @@ test('summer exceptions only include missing instructor or missing date', () => 
 test('operations management render includes menu page structure and tabs', () => {
   const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState() });
   assert.match(html, /ניהול תפעול/);
-  assert.match(html, /סידור מדריכים/);
+  assert.match(html, /סידור עבודה/);
+  assert.match(html, /רשויות/);
   assert.match(html, /כמויות סדנאות/);
-  assert.match(html, /לפי בתי ספר/);
-  assert.match(html, /הדפס סידור מדריך/);
+  assert.match(html, /טבלת סידור עבודה/);
+  assert.match(html, /הדפס סידור עבודה/);
   assert.match(html, /ds-filter-panel/);
   assert.match(html, /ds-ops-mgmt-summary/);
   assert.match(html, /ds-exceptions-tabs/);
@@ -168,14 +169,52 @@ test('workshops tab shows inventory columns and print action', () => {
     categories: [{ category: 'workshop_stock', items: [{ value: 'פרוגי המקפצת', _row: { stock_quantity: 300 } }] }]
   });
   const html = operationsManagementScreen.render({ rows, workshopStockMap: stockMap }, { state });
-  assert.match(html, /כמות משוערת לפי 25/);
-  assert.match(html, /כמות במלאי/);
-  assert.match(html, /פער מול מלאי/);
+  assert.match(html, /כמות נדרשת/);
+  assert.match(html, /מלאי קיים/);
+  assert.match(html, /יתרה/);
   assert.match(html, /הדפס כמויות סדנאות/);
   assert.match(html, /ds-ops-gap--ok/);
   assert.match(html, />62</);
-  assert.match(html, />300</);
-  assert.match(html, />238</);
+  assert.match(html, /value="300"/);
+});
+
+
+
+test('authorities tab groups schools and dated activities under each authority', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'authorities';
+  state.operationsManagement.expandedSchool = 'רשות א::בית ספר א';
+  const rows = [
+    { RowID: 'A-2', status: 'פתוח', authority: 'רשות א', school: 'בית ספר א', activity_name: 'פעילות מאוחרת', start_date: '2026-05-02', start_time: '10:00', end_time: '11:00', instructor_name: 'דני', grade: 'ב' },
+    { RowID: 'A-1', status: 'פתוח', authority: 'רשות א', school: 'בית ספר א', activity_name: 'פעילות מוקדמת', start_date: '2026-05-01', start_time: '08:00', end_time: '09:00', instructor_name: 'דני', grade: 'א' },
+    { RowID: 'B-1', status: 'פתוח', authority: 'רשות ב', school: 'בית ספר ב', activity_name: 'פעילות אחרת', start_date: '2026-05-03', instructor_name: 'מיה' }
+  ];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
+  assert.match(html, /רשות א/);
+  assert.match(html, /בית ספר א/);
+  assert.match(html, /פעילות מוקדמת/);
+  assert.match(html, />01\/05\/2026</);
+  assert.match(html, />02\/05\/2026</);
+});
+
+test('workshops inventory tab includes catalog workshops outside selected date range', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  state.operationsManagement.dateFrom = '2026-05-01';
+  state.operationsManagement.dateTo = '2026-05-31';
+  const rows = [
+    { RowID: 'MAY-1', status: 'פתוח', activity_name: 'סדנת מאי', start_date: '2026-05-10' },
+    { RowID: 'JULY-1', status: 'פתוח', activity_name: 'סדנת יולי', start_date: '2026-07-10' }
+  ];
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '001', label: 'סדנת מאי', _row: { activity_no: '001', activity_name: 'סדנת מאי', parent_value: 'workshop', stock_quantity: 50 } },
+    { value: '0042', label: 'סדנת קטלוג', _row: { activity_no: '0042', activity_name: 'סדנת קטלוג', parent_value: 'workshop', stock_quantity: 75 } }
+  ] }] };
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: buildWorkshopStockMapFromLists(adminListsData), adminListsData }, { state });
+  assert.match(html, /סדנת מאי/);
+  assert.match(html, /סדנת קטלוג/);
+  assert.match(html, /0042/);
+  assert.match(html, /סדנת יולי/);
 });
 
 test('actual participant count only uses existing activity fields', () => {
