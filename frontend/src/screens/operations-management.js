@@ -1373,13 +1373,20 @@ function renderTab(rows, state, data, allPreparedRows = []) {
 
 export const operationsManagementScreen = {
   load: async ({ api }) => {
-    const [activities, lists, schoolsDirectory, contactsSchoolsRows, distResult] = await Promise.all([
+    const [activities, lists, schoolsDirectory, contactsSchoolsRows] = await Promise.all([
       api.allActivities(),
       api.adminLists().catch(() => ({ categories: [] })),
       readOperationsSchoolsDirectory(),
-      readContactsSchools(),
-      supabase.from('workshop_stock_distributions').select('*').catch(() => ({ data: [] }))
+      readContactsSchools()
     ]);
+    let workshopDistributions = [];
+    try {
+      const { data, error } = await supabase.from('workshop_stock_distributions').select('*');
+      if (error) throw error;
+      workshopDistributions = Array.isArray(data) ? data : [];
+    } catch (err) {
+      console.warn('[operations-management] Failed to load workshop_stock_distributions:', err);
+    }
     return {
       ...activities,
       schoolsDirectoryRows: schoolsDirectory.rows,
@@ -1387,7 +1394,7 @@ export const operationsManagementScreen = {
       workshopStockMap: buildWorkshopStockMapFromLists(lists),
       adminListsData: lists,
       contactsSchoolsRows,
-      workshopDistributions: Array.isArray(distResult?.data) ? distResult.data : []
+      workshopDistributions
     };
   },
   render(data, { state } = {}) {
