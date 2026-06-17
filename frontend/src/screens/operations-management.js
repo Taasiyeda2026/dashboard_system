@@ -42,7 +42,6 @@ import {
   schoolGroupKey,
   buildActivitySearchText,
   buildWorkshopStockMapFromLists,
-  buildWorkshopQuantityMetrics,
   getActivityActualParticipantCount,
   WORKSHOP_ESTIMATE_PER_ACTIVITY
 } from './shared/operations-activity-helpers.js';
@@ -600,6 +599,12 @@ function normalizeWorkshopKey(name) {
   return String(name || '').trim().toLowerCase();
 }
 
+function isTruthyListValue(value) {
+  if (value === true || value === 1) return true;
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return ['true', '1', 'yes', 'y', 'active', 'פעיל', 'כן'].includes(normalized);
+}
+
 function isWorkshopInventoryRequired(workshopName) {
   const name = String(workshopName || '').trim();
   if (!name) return false;
@@ -607,9 +612,22 @@ function isWorkshopInventoryRequired(workshopName) {
   return !excluded.some((term) => name.includes(term));
 }
 
-function formatStockCell(value) {
-  if (value === null || value === undefined || value === '') return '<span class="ds-ops-mgmt-cell-muted">לא הוזן</span>';
-  return escapeHtml(String(value));
+function isOfficialWorkshopListRow(row = {}, category = '') {
+  const cat = String(category || row?.category || '').trim().toLowerCase();
+  const type = String(row?.type || '').trim().toLowerCase();
+  const activityType = String(row?.activity_type || '').trim().toLowerCase();
+  return cat === 'activity_names' && type === 'workshop' && activityType === 'workshop';
+}
+
+function officialWorkshopStockGroupKey(row = {}) {
+  const rawGroup = String(row?.stock_group_key || '').trim();
+  if (rawGroup) return rawGroup;
+  const activityNo = String(row?.activity_no || '').trim();
+  return activityNo ? `activity_${activityNo}` : normalizeWorkshopKey(row?.activity_name);
+}
+
+function officialWorkshopStockGroupName(row = {}) {
+  return String(row?.stock_group_name || row?.stock_item_name || row?.stock_label || row?.activity_name || '').trim();
 }
 
 function formatGapCell(gap, hasStock) {
@@ -623,31 +641,36 @@ function formatGapCell(gap, hasStock) {
 function extractWorkshopCatalogRows(listsData, activityRows = []) {
   const rows = [];
   const seen = new Set();
-  const add = ({ no = '', name = '', stock = null } = {}) => {
+  const add = ({ no = '', name = '', stock = null, stockGroupKey = '', stockGroupName = '' } = {}) => {
     const cleanName = String(name || '').trim();
     if (!cleanName || !isWorkshopInventoryRequired(cleanName)) return;
-    const key = normalizeWorkshopKey(cleanName);
+    const key = `${String(stockGroupKey || '').trim()}|${String(no || '').trim()}|${normalizeWorkshopKey(cleanName)}`;
     if (seen.has(key)) return;
     seen.add(key);
-    rows.push({ workshopNo: String(no || '').trim(), workshopName: cleanName, stockQuantity: stock });
+    rows.push({
+      workshopNo: String(no || '').trim(),
+      workshopName: cleanName,
+      stockQuantity: stock,
+      stockGroupKey: String(stockGroupKey || '').trim(),
+      stockGroupName: String(stockGroupName || cleanName).trim()
+    });
   };
   (Array.isArray(listsData?.categories) ? listsData.categories : []).forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
     const list = Array.isArray(items) ? items : [];
-    if (!['activity_names', 'activity_name', 'activities', 'activity', 'workshop_stock', 'workshop_inventory', 'inventory', 'stock'].includes(cat)) return;
+    if (cat !== 'activity_names') return;
     list.forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
-      const typeText = String(row?.activity_type || row?.parent_value || row?.type || row?.category || '').toLowerCase();
-      const isCatalog = ['activity_names', 'activity_name', 'activities', 'activity'].includes(cat);
-      if (isCatalog && typeText && !typeText.includes('workshop') && !String(typeText).includes('סדנ')) return;
+      if (!isOfficialWorkshopListRow(row, cat) || !isTruthyListValue(row?.active)) return;
       add({
-        no: row?.activity_no || row?.workshop_no || row?.workshop_number || row?.item_no || row?.id || item?.value,
-        name: row?.activity_name || row?.label_he || row?.workshop_name || row?.product_name || row?.item_name || item?.label || item?.value,
-        stock: stockMapValue(row)
+        no: row?.activity_no,
+        name: row?.activity_name,
+        stock: stockMapValue(row),
+        stockGroupKey: officialWorkshopStockGroupKey(row),
+        stockGroupName: officialWorkshopStockGroupName(row)
       });
     });
   });
-  activityRows.forEach((row) => add({ no: row?.activity_no || row?.workshop_no || '', name: getActivityName(row), stock: null }));
   return rows.sort((a, b) => compareValues(a.workshopNo || a.workshopName, b.workshopNo || b.workshopName, 'asc'));
 }
 
@@ -659,29 +682,62 @@ function stockMapValue(row = {}) {
   return null;
 }
 
+function activityMatchesOfficialWorkshop(activity = {}, workshop = {}) {
+  const activityNo = String(activity?.activity_no || activity?.workshop_no || '').trim();
+  if (activityNo && workshop.workshopNo && activityNo === workshop.workshopNo) return true;
+  return normalizeWorkshopKey(getActivityName(activity)) === normalizeWorkshopKey(workshop.workshopName);
+}
+
 function workshopMetricsRows(rows, stockMap, catalogRows = []) {
   const groups = new Map();
-  rows.forEach((row) => {
-    const name = getActivityName(row);
-    if (!groups.has(name)) groups.set(name, { name, activities: 0, items: [] });
-    const bucket = groups.get(name);
-    bucket.activities += 1;
-    bucket.items.push(row);
-  });
   catalogRows.forEach((catalog) => {
-    if (!groups.has(catalog.workshopName)) groups.set(catalog.workshopName, { name: catalog.workshopName, no: catalog.workshopNo, activities: 0, items: [], catalogStock: catalog.stockQuantity });
+    const key = catalog.stockGroupKey || `activity_${catalog.workshopNo || normalizeWorkshopKey(catalog.workshopName)}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        stockGroupKey: key,
+        workshopName: catalog.stockGroupName || catalog.workshopName,
+        linkedWorkshops: [],
+        stockQuantity: catalog.stockQuantity,
+        activities: []
+      });
+    }
+    const group = groups.get(key);
+    group.linkedWorkshops.push(catalog);
+    if (group.stockQuantity === null || group.stockQuantity === undefined) group.stockQuantity = catalog.stockQuantity;
   });
-  return Array.from(groups.values())
-    .map((group) => ({
-      workshopNo: group.no || '',
-      ...buildWorkshopQuantityMetrics({
-        workshopName: group.name,
-        activityCount: group.activities,
-        activities: group.items,
-        stockMap
-      }),
-      catalogStock: group.catalogStock
-    }));
+
+  rows.forEach((row) => {
+    groups.forEach((group) => {
+      if (!group.linkedWorkshops.some((workshop) => activityMatchesOfficialWorkshop(row, workshop))) return;
+      group.activities.push(row);
+    });
+  });
+
+  return Array.from(groups.values()).map((group) => {
+    const activityCount = group.activities.length;
+    const estimatedQuantity = activityCount * WORKSHOP_ESTIMATE_PER_ACTIVITY;
+    let actualQuantity = null;
+    group.activities.forEach((activity) => {
+      const count = getActivityActualParticipantCount(activity);
+      if (count === null) return;
+      actualQuantity = (actualQuantity || 0) + count;
+    });
+    const required = actualQuantity !== null ? actualQuantity : estimatedQuantity;
+    const stock = group.stockQuantity !== null && group.stockQuantity !== undefined && Number.isFinite(Number(group.stockQuantity))
+      ? Number(group.stockQuantity)
+      : null;
+    return {
+      stockGroupKey: group.stockGroupKey,
+      workshopNo: group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
+      workshopName: group.workshopName,
+      linkedWorkshops: group.linkedWorkshops,
+      activityCount,
+      estimatedQuantity,
+      actualQuantity,
+      stockQuantity: stock,
+      gap: stock === null ? null : stock - required
+    };
+  });
 }
 
 function exceptionCountCell(count) {
@@ -749,19 +805,19 @@ function opsManagementStylesHtml() {
     @media (max-width: 460px) { .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { grid-template-columns:1fr; } }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(1100px, 100%); margin-inline-start:auto; margin-inline-end:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(935px, 100%); margin-inline-start:auto; margin-inline-end:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#dbeafe; color:#1e3a8a; font-weight:800; font-size:12px; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(3),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(4),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(5) { text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(1),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { width:90px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(2),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(3),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(4),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(5) { text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
-    .ds-ops-mgmt-screen .ds-ops-stock-input:focus { outline:2px solid #3b82f6; border-color:#3b82f6; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { width:335px; max-width:335px; text-align:right; white-space:normal; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3):nth-child(-n+6),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3):nth-child(-n+6) { width:120px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(7),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(7) { width:230px; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-stock-input { width:78px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; background:#eefaff; border-bottom:1px solid #d8e5ee; font-weight:700; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__stats,
@@ -777,6 +833,12 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-tag--guide { background:#f5f3ff; border-color:#ddd6fe; color:#5b21b6; }
     .ds-ops-mgmt-screen .ds-ops-tag--warn { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
     .ds-ops-mgmt-screen .ds-ops-school-detail { margin-top:12px; border-top:1px solid #e2e8f0; padding-top:10px; }
+    .ds-ops-mgmt-screen .ds-ops-authority-school { border:1px solid #d8e5ee; border-radius:12px; background:#fff; margin:10px 12px; overflow:hidden; }
+    .ds-ops-mgmt-screen .ds-ops-authority-school__header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:9px 12px; background:#f8fbfd; border-bottom:1px solid #e2e8f0; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date { padding:10px 12px 12px; border-top:1px solid #eef2f7; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date:first-of-type { border-top:0; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date__title { display:inline-flex; align-items:center; gap:6px; margin:0 0 7px; padding:3px 9px; border-radius:999px; background:#eef6ff; color:#1e3a8a; font-size:12px; font-weight:800; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { margin-top:0; }
   </style>`;
 }
 
@@ -913,6 +975,24 @@ function printWorkshopsFromDom(root) {
   openOpsPrintWindow({ title: 'כמויות סדנאות', bodyHtml: `<section>${header}${summary}${table.outerHTML}</section>` });
 }
 
+async function updateWorkshopStockGroup(stockGroupKey, stockQuantity) {
+  if (!supabase) throw new Error('Supabase client is not configured');
+  const cleanKey = String(stockGroupKey || '').trim();
+  const query = supabase
+    .from('lists')
+    .update({ stock_quantity: stockQuantity })
+    .eq('category', 'activity_names')
+    .eq('type', 'workshop')
+    .eq('activity_type', 'workshop');
+  if (cleanKey.startsWith('activity_')) {
+    query.eq('activity_no', cleanKey.replace(/^activity_/, ''));
+  } else {
+    query.eq('stock_group_key', cleanKey);
+  }
+  const { error } = await query;
+  if (error) throw error;
+}
+
 function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
   const ops = ensureOpsState(state);
   const filters = ensureActivityListFilters(state, SCOPE);
@@ -962,9 +1042,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
 
 function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
   const ops = ensureOpsState(state);
-  const stockOverrides = ops.workshopStockOverrides || {};
-  const inventoryRows = rows.filter((row) => isWorkshopInventoryRequired(getActivityName(row)));
-  const metrics = sortByConfig(workshopMetricsRows(inventoryRows, stockMap, catalogRows), state, TAB_WORKSHOPS, {
+  const metrics = sortByConfig(workshopMetricsRows(rows, stockMap, catalogRows), state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
     workshopName: (row) => row.workshopName,
     activityCount: (row) => row.activityCount,
@@ -984,15 +1062,12 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
         ${sortableTh(state, TAB_WORKSHOPS, 'activityCount', 'כמות משובצת')}
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'כמות נדרשת')}
         <th class="ds-ops-col--stock-input">מלאי קיים</th>
-        <th>יתרה</th>
+        <th>יתרת מלאי</th>
+        <th>סדנאות מקושרות</th>
       </tr></thead><tbody>${metrics.map((row) => {
-        const key = normalizeWorkshopKey(row.workshopName);
-        const override = stockOverrides[key];
-        const hasOverride = override !== undefined && override !== '' && Number.isFinite(Number(override));
         const defaultStock = row.stockQuantity ?? row.catalogStock;
         const hasDefaultStock = defaultStock !== null && defaultStock !== undefined && Number.isFinite(Number(defaultStock));
-        const shownStock = hasOverride ? Number(override) : (hasDefaultStock ? Number(defaultStock) : '');
-        const overrideVal = shownStock;
+        const shownStock = hasDefaultStock ? Number(defaultStock) : '';
         const requiredQuantity = row.actualQuantity !== null ? row.actualQuantity : row.estimatedQuantity;
         const gap = shownStock === '' ? null : Number(shownStock) - requiredQuantity;
         const gapHtml = gap === null
@@ -1003,8 +1078,9 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
           <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
           <td>${row.activityCount}</td>
           <td>${row.estimatedQuantity}</td>
-          <td><input type="number" class="ds-ops-stock-input" data-ops-stock-input="${escapeHtml(row.workshopName)}" value="${overrideVal}" placeholder="לא הוזן" min="0"></td>
+          <td><input type="number" class="ds-ops-stock-input" data-ops-stock-group="${escapeHtml(row.stockGroupKey)}" value="${escapeHtml(String(shownStock))}" placeholder="לא הוזן" min="0"></td>
           <td data-ops-workshop-gap="${escapeHtml(row.workshopName)}" data-estimated="${requiredQuantity}">${gapHtml}</td>
+          <td>${(row.linkedWorkshops || []).map((workshop) => `<div>${escapeHtml(`${workshop.workshopNo} - ${workshop.workshopName}`)}</div>`).join('')}</td>
         </tr>`;
       }).join('')}</tbody></table>`)
     : dsEmptyState('לא נמצאו סדנאות');
@@ -1035,92 +1111,107 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
   </section>`;
 }
 
-function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
-  const ops = ensureOpsState(state);
-  const groups = new Map();
-  rows.forEach((row) => {
-    const authority = getActivityAuthorityName(row);
-    const school = getActivitySchoolDisplayNameClean(row);
-    const key = schoolGroupKey(row);
-    if (!groups.has(key)) {
-      groups.set(key, { key, authority, school, activities: 0, workshops: new Set(), instructors: new Set(), dates: new Set(), exceptions: 0, items: [] });
-    }
-    const bucket = groups.get(key);
-    bucket.activities += 1;
-    bucket.workshops.add(getActivityName(row));
-    const instructor = getActivityInstructorName(row);
-    if (instructor !== 'לא משויך') bucket.instructors.add(instructor);
-    getActivityScheduleDates(row).forEach((date) => bucket.dates.add(date));
-    const primaryDate = getActivityPrimaryDate(row);
-    if (primaryDate) bucket.dates.add(primaryDate);
-    if (isSummerOperationsException(row)) bucket.exceptions += 1;
-    bucket.items.push(row);
-  });
+function authorityScheduleEntryKey(entry = {}) {
+  const activity = entry.activity || {};
+  return [
+    activity.RowID, activity.row_id, activity.id, activity.activity_id, activity.uuid,
+    entry.date, entry.time, getActivityAuthorityName(activity), getActivitySchoolDisplayNameClean(activity),
+    getActivityInstructorName(activity), getActivityGradeLabel(activity), getActivityName(activity)
+  ].map((value) => String(value || '').trim()).filter(Boolean).join('|');
+}
 
-  const schoolList = Array.from(groups.values()).sort((a, b) => {
-    const authorityCmp = a.authority.localeCompare(b.authority, 'he');
+function sortAuthorityScheduleRows(scheduleRows = []) {
+  return scheduleRows.slice().sort((a, b) => {
+    const authorityCmp = getActivityAuthorityName(a.activity).localeCompare(getActivityAuthorityName(b.activity), 'he');
     if (authorityCmp !== 0) return authorityCmp;
-    const countCmp = b.activities - a.activities;
-    if (countCmp !== 0) return countCmp;
-    return a.school.localeCompare(b.school, 'he');
+    const schoolCmp = getActivitySchoolDisplayNameClean(a.activity).localeCompare(getActivitySchoolDisplayNameClean(b.activity), 'he');
+    if (schoolCmp !== 0) return schoolCmp;
+    const dateCmp = compareValues(a.date || '9999-99-99', b.date || '9999-99-99', 'asc');
+    if (dateCmp !== 0) return dateCmp;
+    const timeCmp = compareValues(a.time || '99:99', b.time || '99:99', 'asc');
+    if (timeCmp !== 0) return timeCmp;
+    const workshopCmp = getActivityName(a.activity).localeCompare(getActivityName(b.activity), 'he');
+    if (workshopCmp !== 0) return workshopCmp;
+    return getActivityInstructorName(a.activity).localeCompare(getActivityInstructorName(b.activity), 'he');
   });
+}
 
+function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
+  const scheduleRows = sortAuthorityScheduleRows(buildScheduleRows(rows, state, directory));
+  const seenEntries = new Set();
   const byAuthority = new Map();
-  schoolList.forEach((school) => {
-    if (!byAuthority.has(school.authority)) byAuthority.set(school.authority, []);
-    byAuthority.get(school.authority).push(school);
+
+  scheduleRows.forEach((entry) => {
+    const key = authorityScheduleEntryKey(entry);
+    if (seenEntries.has(key)) return;
+    seenEntries.add(key);
+
+    const activity = entry.activity;
+    const authority = getActivityAuthorityName(activity);
+    const school = getActivitySchoolDisplayNameClean(activity);
+    const date = entry.date || '';
+    if (!byAuthority.has(authority)) {
+      byAuthority.set(authority, { authority, schools: new Map(), activities: 0, instructors: new Set() });
+    }
+    const authorityGroup = byAuthority.get(authority);
+    authorityGroup.activities += 1;
+    const instructor = getActivityInstructorName(activity);
+    if (instructor !== 'לא משויך') authorityGroup.instructors.add(instructor);
+
+    if (!authorityGroup.schools.has(school)) {
+      authorityGroup.schools.set(school, { school, dates: new Map(), activities: 0, workshops: new Set(), instructors: new Set() });
+    }
+    const schoolGroup = authorityGroup.schools.get(school);
+    schoolGroup.activities += 1;
+    schoolGroup.workshops.add(getActivityName(activity));
+    if (instructor !== 'לא משויך') schoolGroup.instructors.add(instructor);
+
+    if (!schoolGroup.dates.has(date)) schoolGroup.dates.set(date, []);
+    schoolGroup.dates.get(date).push(entry);
   });
 
-  const authoritySections = Array.from(byAuthority.entries()).map(([authority, schools]) => {
-    const activityCount = schools.reduce((sum, school) => sum + school.activities, 0);
-    const instructors = new Set();
-    schools.forEach((school) => school.instructors.forEach((name) => instructors.add(name)));
-    const cards = schools.map((school) => {
-      const isOpen = ops.expandedSchool === school.key;
-      const sortedItems = school.items.slice().sort((a, b) => {
-        const dateCmp = compareValues(getDetailDateForActivity(a) || '9999-99-99', getDetailDateForActivity(b) || '9999-99-99', 'asc');
-        if (dateCmp !== 0) return dateCmp;
-        const timeCmp = compareValues(getDetailTimeForActivity(a) || '99:99', getDetailTimeForActivity(b) || '99:99', 'asc');
-        if (timeCmp !== 0) return timeCmp;
-        const workshopCmp = getActivityName(a).localeCompare(getActivityName(b), 'he');
-        if (workshopCmp !== 0) return workshopCmp;
-        return getActivityInstructorName(a).localeCompare(getActivityInstructorName(b), 'he');
-      });
-      const detailRows = sortedItems.map((row) => {
-        const date = getDetailDateForActivity(row);
-        return `<tr>
-          <td class="ds-ops-col--date">${escapeHtml(formatDateHe(date) || '—')}</td>
-          <td class="ds-ops-col--weekday">${escapeHtml(date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—')}</td>
-          <td class="ds-ops-col--time">${escapeHtml(getDetailTimeForActivity(row) || '—')}</td>
-          <td class="ds-ops-col--activity">${escapeHtml(getActivityName(row))}</td>
-          <td class="ds-ops-col--instructor">${escapeHtml(getActivityInstructorName(row))}</td>
-          <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(row) || '—')}</td>
-        </tr>`;
+  const authoritySections = Array.from(byAuthority.values()).map((authorityGroup) => {
+    const schools = Array.from(authorityGroup.schools.values()).sort((a, b) => a.school.localeCompare(b.school, 'he'));
+    const schoolBlocks = schools.map((schoolGroup) => {
+      const dateBlocks = Array.from(schoolGroup.dates.entries()).sort(([a], [b]) => compareValues(a || '9999-99-99', b || '9999-99-99', 'asc')).map(([date, entries]) => {
+        const sortedEntries = entries.slice().sort((a, b) => {
+          const timeCmp = compareValues(a.time || '99:99', b.time || '99:99', 'asc');
+          if (timeCmp !== 0) return timeCmp;
+          return getActivityName(a.activity).localeCompare(getActivityName(b.activity), 'he');
+        });
+        const rowsHtml = sortedEntries.map((entry) => {
+          const activity = entry.activity;
+          return `<tr>
+            <td class="ds-ops-col--date"><strong>${escapeHtml(formatDateHe(entry.date) || '—')}</strong></td>
+            <td class="ds-ops-col--weekday">${escapeHtml(entry.date ? formatDateHeWithWeekday(entry.date).split(' · ')[0] : '—')}</td>
+            <td class="ds-ops-col--time">${escapeHtml(entry.time || '—')}</td>
+            <td class="ds-ops-col--instructor">${escapeHtml(entry.instructor || '—')}</td>
+            <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
+            <td class="ds-ops-col--activity">${escapeHtml(getActivityName(activity))}</td>
+          </tr>`;
+        }).join('');
+        return `<section class="ds-ops-authority-date">
+          <h4 class="ds-ops-authority-date__title">${escapeHtml(formatDateHe(date) || 'ללא תאריך')} · ${escapeHtml(date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—')}</h4>
+          ${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>תאריך</th><th>יום</th><th>שעות</th><th>מדריך</th><th>כיתה</th><th>פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}
+        </section>`;
       }).join('');
-      const detail = isOpen
-        ? `<div class="ds-ops-school-detail">${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>תאריך</th><th>יום</th><th>שעות</th><th>סדנה / פעילות</th><th>מדריך</th><th>כיתה</th></tr></thead><tbody>${detailRows}</tbody></table>`)}</div>`
-        : '';
-      const instructorsList = Array.from(school.instructors);
-      const workshopList = Array.from(school.workshops);
-      return `<article class="ds-ops-school-card">
-        <div class="ds-ops-school-card__top"><div>
-          <div class="ds-ops-school-card__title">${escapeHtml(school.school)}</div>
-          <div class="ds-ops-school-card__meta">
-            <span class="ds-ops-pill">${escapeHtml(school.authority)}</span><span class="ds-ops-pill">${school.activities} פעילויות</span><span class="ds-ops-pill">${school.workshops.size} סדנאות</span><span class="ds-ops-pill">${school.instructors.size} מדריכים</span>${school.exceptions ? `<span class="ds-ops-pill">${school.exceptions} חריגות</span>` : ''}
-          </div>
-          <div class="ds-ops-school-card__meta" style="margin-top:6px"><span class="ds-ops-pill">${escapeHtml(formatSchoolDateRange(Array.from(school.dates)))}</span></div>
-        </div><button type="button" class="ds-ops-school-card__toggle no-print" data-ops-school="${escapeHtml(school.key)}">${isOpen ? 'סגור' : 'פירוט'}</button></div>
-        ${detail}
+      return `<article class="ds-ops-authority-school">
+        <header class="ds-ops-authority-school__header">
+          <strong class="ds-ops-school-card__title">${escapeHtml(schoolGroup.school)}</strong>
+          <span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">${schoolGroup.activities} פעילויות</span><span class="ds-ops-pill">${schoolGroup.workshops.size} סדנאות</span><span class="ds-ops-pill">${schoolGroup.instructors.size} מדריכים</span><span class="ds-ops-pill">${schoolGroup.dates.size} תאריכים</span></span>
+        </header>
+        ${dateBlocks}
       </article>`;
     }).join('');
-    return `<section class="ds-ops-schools-authority"><header class="ds-ops-schools-authority__header"><strong>${escapeHtml(authority)}</strong><span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">${schools.length} בתי ספר / מסגרות</span><span class="ds-ops-pill">${activityCount} פעילויות</span><span class="ds-ops-pill">${instructors.size} מדריכים</span></span></header><div class="ds-ops-schools-grid">${cards}</div></section>`;
+    return `<section class="ds-ops-schools-authority"><header class="ds-ops-schools-authority__header"><strong>${escapeHtml(authorityGroup.authority)}</strong><span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">${schools.length} בתי ספר / מסגרות</span><span class="ds-ops-pill">${authorityGroup.activities} פעילויות</span><span class="ds-ops-pill">${authorityGroup.instructors.size} מדריכים</span></span></header>${schoolBlocks}</section>`;
   }).join('');
 
+  const schoolCount = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.schools.size, 0);
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
     ${compactSummaryLineHtml([
       { label: 'רשויות', value: byAuthority.size },
-      { label: 'בתי ספר / מסגרות', value: schoolList.length },
-      { label: 'פעילויות', value: rows.length },
+      { label: 'בתי ספר / מסגרות', value: schoolCount },
+      { label: 'פעילויות', value: seenEntries.size },
       { label: 'מדריכים', value: instructorOptions(rows).length }
     ])}
     ${authoritySections || dsEmptyState('לא נמצאו בתי ספר / מסגרות')}
@@ -1136,7 +1227,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   if (ops.tab === TAB_AUTHORITIES || ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state, directory, contactsIndex);
   if (ops.tab === TAB_WORKSHOPS) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
-    return workshopsTabHtml(rows, state, stockMap, catalogRows);
+    return workshopsTabHtml(allPreparedRows, state, stockMap, catalogRows);
   }
   return instructorsTabHtml(rows, state, data, directory, contactsIndex);
 }
@@ -1236,27 +1327,26 @@ export const operationsManagementScreen = {
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
 
-    root.querySelectorAll('[data-ops-stock-input]').forEach((input) => {
-      input.addEventListener('input', (ev) => {
-        const name = input.getAttribute('data-ops-stock-input') || '';
-        const key = normalizeWorkshopKey(name);
-        const val = ev.target.value.trim();
-        ops.workshopStockOverrides = ops.workshopStockOverrides || {};
-        if (val === '') {
-          delete ops.workshopStockOverrides[key];
-        } else {
-          ops.workshopStockOverrides[key] = Number(val);
-        }
-        try { localStorage.setItem('operationsWorkshopStockOverrides', JSON.stringify(ops.workshopStockOverrides)); } catch { /* ignore */ }
-        const gapCell = root.querySelector(`[data-ops-workshop-gap="${name.replace(/"/g, '&quot;')}"]`);
-        if (gapCell) {
-          const estimated = Number(gapCell.getAttribute('data-estimated') || '0');
-          if (val === '') {
-            gapCell.innerHTML = '<span class="ds-ops-mgmt-cell-muted">—</span>';
-          } else {
-            const gap = Number(val) - estimated;
+    root.querySelectorAll('[data-ops-stock-group]').forEach((input) => {
+      input.addEventListener('change', async (ev) => {
+        const stockGroupKey = input.getAttribute('data-ops-stock-group') || '';
+        const value = ev.target.value.trim();
+        if (!stockGroupKey || value === '' || !Number.isFinite(Number(value))) return;
+        input.disabled = true;
+        try {
+          const stockQuantity = Number(value);
+          await updateWorkshopStockGroup(stockGroupKey, stockQuantity);
+          const gapCell = input.closest('tr')?.querySelector('[data-ops-workshop-gap]');
+          if (gapCell) {
+            const estimated = Number(gapCell.getAttribute('data-estimated') || '0');
+            const gap = stockQuantity - estimated;
             gapCell.innerHTML = `<span class="ds-ops-gap ${gap < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${gap}</span>`;
           }
+          input.disabled = false;
+        } catch (error) {
+          console.error('[operations-management] Failed to update workshop stock group:', error);
+          alert('עדכון המלאי נכשל. יש לנסות שוב או לעדכן ישירות ב-Supabase.');
+          input.disabled = false;
         }
       });
     });
