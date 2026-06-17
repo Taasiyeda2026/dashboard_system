@@ -127,10 +127,21 @@ function setProposalCatalogIds(form, {
 }
 
 function selectClientResult(form, dom, query) {
-  const searchInput = form.querySelector('[data-pa-client-search-input]');
+  const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
+  const schoolChoicePanel = form.querySelector('[data-pa-school-choice-panel]');
+  if (schoolChoicePanel && !schoolChoicePanel.hidden && !(schoolSearchPanel && !schoolSearchPanel.hidden)) {
+    form.querySelector('[data-pa-choose-school]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  }
+  const useSchoolSearch = schoolSearchPanel && !schoolSearchPanel.hidden;
+  const searchInput = useSchoolSearch
+    ? form.querySelector('[data-pa-school-search-input]')
+    : form.querySelector('[data-pa-client-search-input]');
   searchInput.value = query;
   searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-  form.querySelector('[data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  const resultsHost = useSchoolSearch
+    ? form.querySelector('[data-pa-school-results]')
+    : form.querySelector('[data-pa-client-results]');
+  resultsHost?.querySelector('[data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 }
 
 const sampleRows = [
@@ -167,6 +178,7 @@ const sampleCatalogAuthorities = [
     client_name: 'רשות א',
     authority_id: 'auth-a',
     school_id: null,
+    authority_name: 'רשות א',
     authority: 'רשות א',
     school: '',
     authority_code: '101',
@@ -184,6 +196,7 @@ const sampleCatalogAuthorities = [
     client_name: 'רשות ב',
     authority_id: 'auth-b',
     school_id: null,
+    authority_name: 'רשות ב',
     authority: 'רשות ב',
     school: '',
     authority_code: '102',
@@ -204,7 +217,9 @@ const sampleCatalogSchools = [
     client_name: 'בית ספר א',
     authority_id: 'auth-a',
     school_id: 'school-a',
+    authority_name: 'רשות א',
     authority: 'רשות א',
+    school_name: 'בית ספר א',
     school: 'בית ספר א',
     semel_mosad: '11111',
     contact_name: '',
@@ -219,7 +234,9 @@ const sampleCatalogSchools = [
     client_name: 'מסגרת ב',
     authority_id: 'auth-b',
     school_id: 'school-b',
+    authority_name: 'רשות ב',
     authority: 'רשות ב',
+    school_name: 'מסגרת ב',
     school: 'מסגרת ב',
     semel_mosad: '22222',
     contact_name: '',
@@ -704,9 +721,6 @@ test('client selector auto-fills contact fields when existing client is chosen',
       });
 
       const form = openNewProposalForm(root, dom);
-      const typeSelect = form.querySelector('[data-pa-new-client-type]');
-      typeSelect.value = 'school';
-      typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
       selectClientResult(form, dom, 'רשות ב');
       selectClientResult(form, dom, 'מסגרת');
 
@@ -724,6 +738,59 @@ test('client selector auto-fills contact fields when existing client is chosen',
       assert.equal(form.querySelector('[data-pa-client-results]').hidden, true, 'results should close after selection');
       assert.equal(form.querySelector('[data-pa-client-search-row]').hidden, true, 'search row should close after selection');
       assert.match(form.querySelector('[data-pa-client-card]').textContent, /נבחר:.*מסגרת ב.*רשות ב.*יוסי קשר/, 'clear selected-client summary should be shown');
+    }
+  );
+});
+
+test('new proposal form starts with authority search and has no client type field', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      assert.equal(form.querySelector('[data-pa-new-client-type]'), null, 'client type dropdown should be removed');
+      assert.doesNotMatch(form.innerHTML, /סוג גורם/);
+      assert.match(form.innerHTML, /data-pa-client-search-input/);
+      assert.equal(form.querySelector('[data-pa-client-search-label]')?.textContent, 'רשות');
+      assert.doesNotMatch(form.innerHTML, /הוסף ידנית/);
+    }
+  );
+});
+
+test('authority search shows school choice after selection and supports continue without school', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      const searchInput = form.querySelector('[data-pa-client-search-input]');
+      searchInput.value = 'רשות א';
+      searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      form.querySelector('[data-pa-client-results] [data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+
+      const schoolChoicePanel = form.querySelector('[data-pa-school-choice-panel]');
+      assert.ok(schoolChoicePanel, 'school choice panel should exist');
+      assert.equal(schoolChoicePanel.hidden, false, 'school choice should appear after authority selection');
+      assert.match(schoolChoicePanel.textContent, /בחר בית ספר \/ מסגרת/);
+      assert.match(schoolChoicePanel.textContent, /המשך ללא בית ספר/);
+
+      form.querySelector('[data-pa-skip-school]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      assert.equal(form.querySelector('input[name="client_authority"]').value, 'רשות א');
+      assert.equal(form.querySelector('input[name="contact_source_authority_id"]').value, 'auth-a');
+      assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_source_school_required"]').value, 'no');
     }
   );
 });

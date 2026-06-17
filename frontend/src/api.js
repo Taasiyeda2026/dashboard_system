@@ -424,8 +424,13 @@ async function selectActivitiesByDateRangeFromSupabase({
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
 
-const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,long_name';
-const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,active';
+const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,long_name,district,active';
+const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,district,city,active';
+
+function isCatalogActive(value) {
+  if (value === false || value === 'no' || value === 0 || value === '0') return false;
+  return true;
+}
 
 function normalizeCatalogText(value) {
   return String(value == null ? '' : value).trim();
@@ -539,6 +544,8 @@ function buildSchoolCatalogLookup(schools = []) {
       authority,
       semel_mosad,
       authority_id: authority_id || null,
+      district: normalizeCatalogText(row.district),
+      city: normalizeCatalogText(row.city),
       active: normalizeCatalogText(row.active) || 'yes'
     };
     if (!school_name && !id) continue;
@@ -578,8 +585,8 @@ function resolveSchoolCatalogEntry(lookup, { school_id, semel_mosad, school, aut
 
 function enrichSchoolContactRow(row, authorityLookup, schoolLookup) {
   if (!row || typeof row !== 'object') return row;
-  const authorityName = normalizeCatalogText(row.authority || row.client_name);
-  const schoolName = normalizeCatalogText(row.school);
+  const authorityName = normalizeCatalogText(row.authority_name || row.authority || row.client_name);
+  const schoolName = normalizeCatalogText(row.school_name || row.school);
   const schoolMeta = resolveSchoolCatalogEntry(schoolLookup, {
     school_id: row.school_id,
     semel_mosad: row.semel_mosad,
@@ -599,7 +606,11 @@ function enrichSchoolContactRow(row, authorityLookup, schoolLookup) {
     school_id: row.school_id ?? schoolMeta?.id ?? null,
     semel_mosad: normalizeCatalogText(row.semel_mosad) || schoolMeta?.semel_mosad || null,
     authority_code: normalizeCatalogText(row.authority_code) || authorityMeta?.authority_code || null,
-    authority: authorityName || schoolMeta?.authority || row.authority,
+    authority_type: normalizeCatalogText(row.authority_type) || authorityMeta?.authority_type || null,
+    district: normalizeCatalogText(row.district || row.authority_district || row.school_district) || authorityMeta?.district || null,
+    authority_name: authorityName || authorityMeta?.authority_name || schoolMeta?.authority || row.authority_name || null,
+    school_name: schoolName || schoolMeta?.school_name || row.school_name || null,
+    authority: authorityName || authorityMeta?.authority_name || schoolMeta?.authority || row.authority,
     school: schoolName || schoolMeta?.school_name || row.school
   };
 }
@@ -695,8 +706,8 @@ function mergeActivityPlaceholdersIntoSchoolRows(contactRows, activityRows, auth
 }
 
 function buildAuthoritySchoolCatalogClientSettings(authorityLookup, schoolLookup) {
-  const activeSchools = schoolLookup.list.filter((school) => school.active !== 'no');
-  const activeAuthorities = authorityLookup.list.filter((authority) => authority.active !== 'no');
+  const activeSchools = schoolLookup.list.filter((school) => isCatalogActive(school.active));
+  const activeAuthorities = authorityLookup.list.filter((authority) => isCatalogActive(authority.active));
   const authorities = activeAuthorities.map((authority) => authority.authority_name).filter(Boolean);
   const schools = activeSchools.map((school) => school.school_name).filter(Boolean);
   const school_records = activeSchools.map((school) => ({
@@ -768,14 +779,16 @@ function buildProposalClientSearchOptions(contactRows, authorityLookup, schoolLo
   };
 
   for (const auth of authorityLookup.list) {
-    if (auth.active === 'no' || !auth.authority_name) continue;
+    if (!isCatalogActive(auth.active) || !auth.authority_name) continue;
     addOption({
       client_type: 'authority',
       client_name: auth.authority_name,
       authority_id: auth.id,
       school_id: null,
       semel_mosad: '',
+      authority_name: auth.authority_name,
       authority: auth.authority_name,
+      school_name: '',
       school: '',
       authority_code: auth.authority_code,
       authority_type: auth.authority_type,
@@ -791,20 +804,25 @@ function buildProposalClientSearchOptions(contactRows, authorityLookup, schoolLo
   }
 
   for (const school of schoolLookup.list) {
-    if (school.active === 'no' || !school.school_name) continue;
+    if (!isCatalogActive(school.active) || !school.school_name) continue;
     const authorityMeta = resolveAuthorityCatalogEntry(authorityLookup, {
       authority_id: school.authority_id,
       authority: school.authority
     });
+    const authorityName = school.authority || authorityMeta?.authority_name || '';
     addOption({
       client_type: 'school',
       client_name: school.school_name,
       authority_id: school.authority_id || authorityMeta?.id || null,
       school_id: school.id,
       semel_mosad: school.semel_mosad,
-      authority: school.authority || authorityMeta?.authority_name || '',
+      authority_name: authorityName,
+      authority: authorityName,
+      school_name: school.school_name,
       school: school.school_name,
       authority_code: authorityMeta?.authority_code || '',
+      district: school.district || authorityMeta?.district || '',
+      city: school.city || '',
       contact_name: '',
       contact_role: '',
       phone: '',
@@ -2421,41 +2439,70 @@ async function readProposalTemplateSectionsFromSupabase() {
 
 async function readContactsSchoolsForProposals() {
   try {
-    const selectColumns = 'id,client_type,client_name,authority_id,school_id,semel_mosad,authority,school,contact_name,contact_role,phone,email,mobile';
+    const directoryColumns = 'id,client_type,authority_id,authority_code,authority_name,authority_type,authority_district,school_id,semel_mosad,school_name,contact_name,contact_role,phone,mobile,email,active';
+    const legacyColumns = 'id,client_type,client_name,authority_id,school_id,semel_mosad,authority,school,contact_name,contact_role,phone,email,mobile';
     const [catalog, contactsResult] = await Promise.all([
       readAuthoritySchoolCatalog(),
       (async () => {
         let { data, error } = await supabase
           .from('contacts_directory_view')
-          .select(selectColumns)
-          .order('authority', { ascending: true });
+          .select(directoryColumns)
+          .order('authority_name', { ascending: true });
         if (error) {
           // eslint-disable-next-line no-console
           console.warn('[supabase] Failed to load contacts_directory_view for proposals; falling back to contacts_schools:', error);
           const fallback = await supabase
             .from('contacts_schools')
-            .select(selectColumns)
+            .select(legacyColumns)
             .order('authority', { ascending: true });
           data = fallback.data;
           error = fallback.error;
         }
         if (error) return [];
-        return (Array.isArray(data) ? data : []).map((c) => ({
-          id:           cleanProposalAgreementText(c.id),
-          client_type:  cleanProposalAgreementText(c.client_type),
-          client_name:  cleanProposalAgreementText(c.client_name),
-          authority_id: c.authority_id ?? null,
-          school_id:    c.school_id ?? null,
-          semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
-          authority:    cleanProposalAgreementText(c.authority),
-          school:       cleanProposalAgreementText(c.school),
-          contact_name: cleanProposalAgreementText(c.contact_name),
-          contact_role: cleanProposalAgreementText(c.contact_role),
-          phone:        cleanProposalAgreementText(c.phone || c.mobile || ''),
-          email:        cleanProposalAgreementText(c.email || '')
-        })).filter((c) => c.authority || c.school);
+        return (Array.isArray(data) ? data : []).map((c) => {
+          const authorityName = cleanProposalAgreementText(c.authority_name || c.authority || c.client_name);
+          const schoolName = cleanProposalAgreementText(c.school_name || c.school);
+          return {
+            id:           cleanProposalAgreementText(c.id),
+            client_type:  cleanProposalAgreementText(c.client_type),
+            client_name:  cleanProposalAgreementText(c.client_name) || schoolName || authorityName,
+            authority_id: c.authority_id ?? null,
+            school_id:    c.school_id ?? null,
+            semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
+            authority_code: cleanProposalAgreementText(c.authority_code),
+            authority_type: cleanProposalAgreementText(c.authority_type),
+            authority_name: authorityName,
+            school_name:  schoolName,
+            district:     cleanProposalAgreementText(c.authority_district || c.district),
+            authority:    authorityName,
+            school:       schoolName,
+            contact_name: cleanProposalAgreementText(c.contact_name),
+            contact_role: cleanProposalAgreementText(c.contact_role),
+            phone:        cleanProposalAgreementText(c.phone || ''),
+            mobile:       cleanProposalAgreementText(c.mobile || ''),
+            email:        cleanProposalAgreementText(c.email || ''),
+            active:       c.active
+          };
+        }).filter((c) => c.authority_name || c.school_name || c.authority || c.school);
       })()
     ]);
+
+    // eslint-disable-next-line no-console
+    console.info('[proposal-catalog-authorities]', {
+      count: catalog.authorities?.length,
+      sample: catalog.authorities?.slice(0, 5)
+    });
+    // eslint-disable-next-line no-console
+    console.info('[proposal-catalog-schools]', {
+      count: catalog.schools?.length,
+      sample: catalog.schools?.slice(0, 5)
+    });
+    // eslint-disable-next-line no-console
+    console.info('[proposal-contact-options]', {
+      count: contactsResult?.length,
+      sample: contactsResult?.slice(0, 5)
+    });
+
     return buildProposalClientSearchOptions(contactsResult, catalog.authorityLookup, catalog.schoolLookup);
   } catch {
     return [];
