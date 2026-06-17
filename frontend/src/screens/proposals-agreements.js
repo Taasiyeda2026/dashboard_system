@@ -1380,10 +1380,16 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   const visibleItems = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
   const rows = visibleItems.map((item) => {
-    const hasPedagogicPricingData = Boolean(
-      text(item.gefen_number) || item.meetings_count != null || item.hours_count != null || item.hourly_price != null
+    const hasCourseRowData = Boolean(
+      text(item.item_name)
+      || text(item.gefen_number)
+      || item.meetings_count != null
+      || item.hours_count != null
+      || item.hourly_price != null
+      || item.unit_price != null
+      || item.total_price != null
     );
-    if (!hasPedagogicPricingData) return '';
+    if (!hasCourseRowData) return '';
     const quantity = itemQuantity(item);
     const quantityTotal = itemQuantityTotal(item);
     const cells = [
@@ -1723,7 +1729,10 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   // Payment section: general terms text comes from Supabase, while the price
   // breakdown is always built dynamically from proposal_agreement_items.
   const paymentTermsBody = sectionBody('payment_terms');
-  const costTableHtml = proposalCostTableHtml(items);
+  const proposalKind = proposalActivityKind(row, items);
+  const costTableHtml = proposalKind === 'course'
+    ? proposalItemDetailsTableHtml(items, activityTypeGroup)
+    : proposalCostTableHtml(items);
   const costsIntro = costsIntroBody(row, items);
   const costTableBlock = (costsIntro || costTableHtml)
     ? `<div class="pa-cost-table-block">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>`
