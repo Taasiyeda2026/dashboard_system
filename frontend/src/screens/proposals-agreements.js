@@ -610,7 +610,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td>${statusSelectHtml(row, canManage, isAdmin)}</td>
-      <td>${row.total_amount != null ? `₪${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
+      <td>${row.total_amount != null ? `${escapeHtml(formatCurrency(row.total_amount))} ₪` : ''}</td>
       <td class="ds-pa-actions-cell">${actionBtns.join('')}</td>
     </tr>`;
   }).join('');
@@ -902,15 +902,15 @@ function buildInfoStripInnerHtml(item = {}, contextGroup = '') {
   // Hourly price (annual / combined only)
   if (showGefen) {
     const hourlyPrice = numVal(item.hourly_price);
-    if (hourlyPrice != null && hourlyPrice > 0) parts.push(`₪${formatCurrency(hourlyPrice)} לשעה`);
+    if (hourlyPrice != null && hourlyPrice > 0) parts.push(`${formatCurrency(hourlyPrice)} ₪ לשעה`);
   }
 
   // Unit price
   const unitPrice = numVal(item.unit_price);
   if (unitPrice != null && unitPrice > 0) {
     parts.push(showGefen
-      ? `מחיר לקבוצה ₪${formatCurrency(unitPrice)}`
-      : `₪${formatCurrency(unitPrice)}`);
+      ? `מחיר לקבוצה ${formatCurrency(unitPrice)} ₪`
+      : `${formatCurrency(unitPrice)} ₪`);
   }
 
   if (!parts.length) return '';
@@ -944,7 +944,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
       <label class="ds-pa-item-field ds-pa-item-field--select"><span>${activitySelectLabel}</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><span>כמות קבוצות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
       <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
-      <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪${formatCurrency(calcTotal)}` : '₪0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
+      <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `${formatCurrency(calcTotal)} ₪` : '0 ₪'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove" data-pa-remove-item aria-label="הסר שורה">✕ הסר</button>
     </div>
     <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
@@ -1047,15 +1047,15 @@ function proposalSummaryHtml(totalAmount) {
       </div>
       <div class="ds-pa-summary-pill">
         <span class="ds-pa-summary-label">לפני הנחה</span>
-        <strong class="ds-pa-summary-value" data-pa-summary-subtotal>₪0</strong>
+        <strong class="ds-pa-summary-value" data-pa-summary-subtotal>0 ₪</strong>
       </div>
       <div class="ds-pa-summary-pill">
         <span class="ds-pa-summary-label">הנחה</span>
-        <strong class="ds-pa-summary-value" data-pa-summary-discount>₪0</strong>
+        <strong class="ds-pa-summary-value" data-pa-summary-discount>0 ₪</strong>
       </div>
       <div class="ds-pa-summary-pill ds-pa-summary-pill--total">
         <span class="ds-pa-summary-label">לתשלום</span>
-        <strong class="ds-pa-summary-value ds-pa-summary-total-val" data-pa-summary-total>${initialTotal ? `₪${formatCurrency(initialTotal)}` : '₪0'}</strong>
+        <strong class="ds-pa-summary-value ds-pa-summary-total-val" data-pa-summary-total>${initialTotal ? `${formatCurrency(initialTotal)} ₪` : '0 ₪'}</strong>
       </div>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-discount-toggle>+ הנחה / הערות</button>
     </div>
@@ -1152,7 +1152,7 @@ function itemsSummaryHtml(items = []) {
     const bundleLinesList = bundleItems.map((bi) => {
       if (typeof bi === 'object') {
         const parts = [publicActivityName(bi.activity_name)].filter(Boolean);
-        if (bi.unit_price != null && bi.unit_price !== '') parts.push(`₪${formatCurrency(Number(bi.unit_price))}`);
+        if (bi.unit_price != null && bi.unit_price !== '') parts.push(`${formatCurrency(Number(bi.unit_price))} ₪`);
         return parts.join(' — ');
       }
       return publicActivityName(bi);
@@ -1172,8 +1172,8 @@ function itemsSummaryHtml(items = []) {
       <td>${escapeHtml(publicActivityName(item.item_name) || '')}${details ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(details)}</div>` : ''}${bundleDetailHtml}</td>
       <td>${escapeHtml(item.item_type || '')}</td>
       <td>${item.quantity != null ? item.quantity : ''}</td>
-      <td>${item.unit_price != null ? '₪' + formatCurrency(item.unit_price) : ''}</td>
-      <td>${t ? '₪' + formatCurrency(t) : ''}</td>
+      <td>${item.unit_price != null ? `${formatCurrency(item.unit_price)} ₪` : ''}</td>
+      <td>${t ? `${formatCurrency(t)} ₪` : ''}</td>
     </tr>`;
   }).join('');
   return `<div class="ds-pa-items-summary">
@@ -1182,7 +1182,7 @@ function itemsSummaryHtml(items = []) {
       <thead><tr><th>פעילות ופרטים</th><th>סוג</th><th>כמות</th><th>מחיר יח׳</th><th>סה״כ</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="font-size:0.83rem;margin:4px 0;text-align:start">סה״כ: <strong>₪${formatCurrency(total)}</strong></p>
+    <p style="font-size:0.83rem;margin:4px 0;text-align:start">סה״כ: <strong>${formatCurrency(total)} ₪</strong></p>
   </div>`;
 }
 
@@ -1349,30 +1349,28 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
     );
     if (!hasPedagogicPricingData) return '';
     const quantity = itemQuantity(item);
-    const unitPrice = numberValue(item.unit_price);
     const quantityTotal = itemQuantityTotal(item);
     const cells = [
       { value: publicActivityName(item.item_name) },
       { value: shouldShowGefenForItem(item, contextGroup) ? text(item.gefen_number) : '' },
       { value: item.meetings_count != null ? formatCurrency(item.meetings_count) : '' },
+      { value: formatCurrency(quantity) },
       { value: item.hours_count != null ? formatCurrency(item.hours_count) : '' },
       { value: item.hourly_price != null ? currencyAmountHtml(item.hourly_price) : '', html: true },
-      { value: formatCurrency(quantity) },
-      { value: unitPrice != null ? currencyAmountHtml(unitPrice) : '', html: true },
       { value: quantityTotal != null ? currencyAmountHtml(quantityTotal) : '', html: true }
     ];
     if (!cells.some((cell) => cell.value)) return '';
-    return `<tr>${cells.map((cell) => `<td>${cell.html ? (cell.value || '—') : escapeHtml(cell.value || '—')}</td>`).join('')}</tr>`;
+    return `<tr>${cells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
   }).filter(Boolean);
   if (!rows.length) return '';
   return `<table class="pa-item-details-table pa-activities-table">
-    <thead><tr><th>תוכנית / פעילות</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>שעות</th><th>עלות לשעה</th><th>כמות</th><th>מחיר לקורס / קבוצה אחת</th><th>סה״כ לפי כמות</th></tr></thead>
+    <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
   </table>`;
 }
 
 function summerActivityProposalBody() {
-  return 'ההצעה כוללת פעילויות מותאמות להפעלה במהלך חודש יולי, בין התאריכים 1.7.26–30.7.26. כל פעילות נמשכת 45 דקות ומיועדת לקבוצה של עד 25 משתתפים.\nבסדנאות כל משתתף מכין תוצר אישי ולוקח אותו איתו בסיום הפעילות.';
+  return 'ההצעה כוללת פעילויות מותאמות להפעלה במהלך חודש יולי, בין התאריכים 1.7.26–30.7.26.\nכל פעילות נמשכת 45 דקות ומיועדת לקבוצה של עד 25 משתתפים.\nבסדנאות כל משתתף מכין תוצר אישי ולוקח אותו איתו בסיום הפעילות.';
 }
 
 function costsIntroBody(row = {}, items = []) {
@@ -1605,7 +1603,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
       </div>
       <div class="pa-page-footer">
         <img
-          src="${PUBLIC_BASE}proposals/proposal-footer-logo.png"
+          src="${PUBLIC_BASE}proposals/logo.png"
           alt="לוגו תחתון תעשיידע"
           class="pa-page-footer-logo"
           loading="lazy"
@@ -1781,7 +1779,7 @@ function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey) {
     const labelParts = [
       name,
       isBundleParent ? 'הגדרה כוללת' : text(row.item_type),
-      price != null && price > 0 ? `₪${formatCurrency(price)}` : ''
+      price != null && price > 0 ? `${formatCurrency(price)} ₪` : ''
     ].filter(Boolean);
     return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}${isBundleParent ? ' data-bundle-parent="1"' : ''}>${escapeHtml(labelParts.join(' — '))}</option>`;
   })].join('');
@@ -2141,7 +2139,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const totalHtml = row.total_amount != null ? `
     <div class="ds-pa-detail-row">
       <span class="ds-pa-detail-label">סה״כ</span>
-      <span class="ds-pa-detail-value"><strong>₪${formatCurrency(row.total_amount)}</strong></span>
+      <span class="ds-pa-detail-value"><strong>${formatCurrency(row.total_amount)} ₪</strong></span>
     </div>` : '';
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
   const customBadge = hasCustomSections
@@ -2921,7 +2919,7 @@ export const proposalsAgreementsScreen = {
       const totalDisplay = rowEl.querySelector('[data-pa-item-total-display]');
       const total = qty && price ? qty * price : 0;
       if (totalInput) totalInput.value = total ? total.toFixed(2) : '';
-      if (totalDisplay) totalDisplay.textContent = total ? `₪${formatCurrency(total)}` : '';
+      if (totalDisplay) totalDisplay.textContent = total ? `${formatCurrency(total)} ₪` : '';
       return total;
     };
 
@@ -2933,13 +2931,13 @@ export const proposalsAgreementsScreen = {
       const discount = discountType === 'percent' ? subtotal * (Math.min(discountValue, 100) / 100) : Math.min(discountValue, subtotal);
       const sum = Math.max(subtotal - discount, 0);
       const el = container.querySelector('[data-pa-grand-total]');
-      if (el) el.textContent = sum ? `₪${formatCurrency(sum)}` : '₪0';
+      if (el) el.textContent = sum ? `${formatCurrency(sum)} ₪` : '0 ₪';
       const subtotalEl = container.querySelector('[data-pa-summary-subtotal]');
-      if (subtotalEl) subtotalEl.textContent = subtotal ? `₪${formatCurrency(subtotal)}` : '₪0';
+      if (subtotalEl) subtotalEl.textContent = subtotal ? `${formatCurrency(subtotal)} ₪` : '0 ₪';
       const discountEl = container.querySelector('[data-pa-summary-discount]');
-      if (discountEl) discountEl.textContent = discount ? `-₪${formatCurrency(discount)}` : '₪0';
+      if (discountEl) discountEl.textContent = discount ? `-${formatCurrency(discount)} ₪` : '0 ₪';
       const summaryEl = container.querySelector('[data-pa-summary-total]');
-      if (summaryEl) summaryEl.textContent = sum ? `₪${formatCurrency(sum)}` : '₪0';
+      if (summaryEl) summaryEl.textContent = sum ? `${formatCurrency(sum)} ₪` : '0 ₪';
       // Update summary card fields
       const form = container.closest?.('[data-pa-form]') || (container.matches?.('[data-pa-form]') ? container : null);
       if (form) {
@@ -3010,7 +3008,7 @@ export const proposalsAgreementsScreen = {
       const selected = selectedBundleChildren(itemRow);
       const sum = selected.reduce((acc, child) => acc + (numberValue(child.unit_price) || 0), 0);
       summary.textContent = selected.length
-        ? `${selected.length} פעילויות נבחרו${sum ? ` | ₪${formatCurrency(sum)}` : ''}`
+        ? `${selected.length} פעילויות נבחרו${sum ? ` | ${formatCurrency(sum)} ₪` : ''}`
         : 'לא נבחרו פעילויות לפירוט';
     };
 
@@ -3112,7 +3110,9 @@ export const proposalsAgreementsScreen = {
       const clientLabel = [freshRow.client_authority, freshRow.school_framework].filter(Boolean).map(escapeHtml).join(' — ');
       const saveBtnHtml = '';
       const signingMode = options.signatureMode === true;
+      const canApproveFromPreview = !signingMode && canApproveProposalsAgreements(state) && normalizeProposalStatus(freshRow.status) !== 'approved' && text(freshRow.id);
       const submitBtnHtml = options.onSubmit ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-submit">${escapeHtml(options.submitLabel || 'שליחה לאישור')}</button>` : '';
+      const approvePreviewBtnHtml = canApproveFromPreview ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-approve-sign">אישור וחתימה</button>' : '';
       const hasCustomSections = Array.isArray(freshRow.custom_document_sections) && freshRow.custom_document_sections.length > 0;
       const missingTemplateNotice = (!templateSections.length && !hasCustomSections)
         ? '<p class="ds-pa-template-missing-notice no-print" role="alert" style="margin:6px 0 0;color:#b45309;font-size:0.85rem">לא נמצאה תבנית פעילה לסוג הצעה זה</p>'
@@ -3126,7 +3126,8 @@ export const proposalsAgreementsScreen = {
           <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-close">← חזרה לעריכה</button>
           ${saveBtnHtml}
           ${submitBtnHtml}
-          ${signingMode ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-signature-confirm">אשר וחתום</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost no-print" id="pa-signature-cancel">ביטול</button>' : ''}
+          ${approvePreviewBtnHtml}
+          ${signingMode ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-signature-confirm">אישור וחתימה</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost no-print" id="pa-signature-cancel">ביטול</button>' : ''}
           <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
           <span class="ds-pa-preview-client no-print">${clientLabel}</span>
           ${missingTemplateNotice}
@@ -3147,6 +3148,24 @@ export const proposalsAgreementsScreen = {
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', closeOverlay);
       overlay.querySelector('#pa-signature-cancel')?.addEventListener('click', closeOverlay);
       overlay.querySelector('#pa-signature-confirm')?.addEventListener('click', () => options.onSignatureConfirm?.(readSignatureMeta(), closeOverlay));
+      overlay.querySelector('#pa-preview-approve-sign')?.addEventListener('click', async (event) => {
+        const btn = event.currentTarget;
+        btn.disabled = true;
+        try {
+          const signatureMeta = readSignatureMeta();
+          const result = await api.updateProposalAgreementStatus(text(freshRow.id), 'approved', '', signatureMeta);
+          replaceLocalRow(data, result?.row || { ...freshRow, status: 'approved', approval_note: '', signature_meta: signatureMeta });
+          refreshTable();
+          const approvedRow = data.rows.find((item) => text(item.id) === text(freshRow.id)) || { ...freshRow, status: 'approved', signature_meta: signatureMeta };
+          overlay.querySelector('.proposal-preview-area').innerHTML = proposalPreviewBodyHtml(approvedRow, items, templateSections, { showSignatureImage: true });
+          btn.remove();
+          showToast('ההצעה אושרה ונחתמה', 'success');
+        } catch (err) {
+          btn.disabled = false;
+          showToast('שגיאה באישור וחתימה', 'error');
+          window.alert?.(`שגיאה באישור וחתימה: ${err?.message || err}`);
+        }
+      });
       if (options.onSubmit) overlay.querySelector('#pa-preview-submit')?.addEventListener('click', () => { closeOverlay(); options.onSubmit(); });
       overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
 
@@ -3410,7 +3429,7 @@ export const proposalsAgreementsScreen = {
               return `<label class="ds-pa-bundle-child-card">
                 <input type="checkbox" name="bundle_child_sel" value="${escapeHtml(childName)}" data-pa-bundle-child-check data-bundle-child-idx="${ci}" data-child-json="${escapeHtml(JSON.stringify(childData))}">
                 <span class="ds-pa-bundle-child-name">${escapeHtml(childName)}</span>
-                <span class="ds-pa-bundle-child-price">${unitPrice != null && unitPrice > 0 ? `₪${escapeHtml(formatCurrency(unitPrice))}` : '—'}</span>
+                <span class="ds-pa-bundle-child-price">${unitPrice != null && unitPrice > 0 ? `${escapeHtml(formatCurrency(unitPrice))} ₪` : '—'}</span>
               </label>`;
             }).join('')
           : '<p class="ds-pa-bundle-empty">אין פריטי פירוט מוגדרים עבור הגדרה זו</p>';
