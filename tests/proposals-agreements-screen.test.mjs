@@ -465,6 +465,15 @@ test('screen and API source enforce authorization before API/Supabase calls', as
   assert.match(apiSource, /assertCanUseProposalsAgreementsApi\(\);[\s\S]*\.from\('proposals_agreements'\)/);
 });
 
+test('proposals-agreements screen bypasses persistent and in-memory screen cache', async () => {
+  const mainSource = await readFile(MAIN_FILE, 'utf8');
+  assert.match(mainSource, /'proposals-agreements': 0/);
+  assert.match(mainSource, /'proposals-agreements'/);
+  assert.match(mainSource, /MEMORY_ONLY_CACHE_PREFIXES[\s\S]*'proposals-agreements'/);
+  assert.match(mainSource, /\[pa-data-contact-options\]/);
+  assert.match(mainSource, /routeName === 'proposals-agreements'[\s\S]*purgeScreenCacheEntry/);
+});
+
 test('proposals agreements directory view uses only existing Supabase columns', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
   const columnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = '([^']+)'/);

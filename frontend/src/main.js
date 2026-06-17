@@ -1098,6 +1098,7 @@ const SCREEN_CACHE_TTL_MS = {
   week: 8 * 60 * 1000,
   month: 8 * 60 * 1000,
   exceptions: 8 * 60 * 1000,
+  'proposals-agreements': 0,
 };
 const DEFAULT_CACHE_TTL_MS = 15 * 60 * 1000;
 
@@ -1106,8 +1107,26 @@ function screenCacheTtl() {
 }
 const MEMORY_ONLY_CACHE_PREFIXES = [
   'activityDetail:',
-  'operations:'
+  'operations:',
+  'proposals-agreements'
 ];
+
+function purgeScreenCacheEntry(cacheKey) {
+  if (!cacheKey) return;
+  delete state.screenDataCache[cacheKey];
+  persistCacheDelete(cacheKey);
+}
+
+function logProposalsAgreementsContactOptions(data) {
+  const options = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
+  // eslint-disable-next-line no-console
+  console.info('[pa-data-contact-options]', {
+    total: options.length,
+    authorities: options.filter((c) => c._catalog_source === 'authorities').length,
+    schools: options.filter((c) => c._catalog_source === 'schools').length,
+    sampleAuthority: options.find((c) => c._catalog_source === 'authorities')
+  });
+}
 
 const MAX_PERSISTED_CACHE_ENTRY_BYTES = 80000;
 
@@ -1156,6 +1175,9 @@ async function loadScreenDataWithCache(screen) {
   const routePerfEnabled = routeName === 'dashboard' || routeName === 'activities' || routeName === 'week' || routeName === 'month';
   const routePerfStart = routePerfEnabled ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0;
   const key = screenDataCacheKey();
+  if (routeName === 'proposals-agreements') {
+    purgeScreenCacheEntry(key);
+  }
   const hit = state.screenDataCache[key];
   const ttl = screenCacheTtl();
   const age = hit ? Date.now() - hit.t : 0;
@@ -1211,6 +1233,9 @@ async function loadScreenDataWithCache(screen) {
       const entry = { data, t: Date.now() };
       state.screenDataCache[key] = entry;
       maybePersistScreenCacheEntry(key, entry);
+      if (routeName === 'proposals-agreements') {
+        logProposalsAgreementsContactOptions(data);
+      }
       if (key === 'exceptions') updateExceptionNavCount();
       inflightRequests.delete(key);
       return data;
@@ -1487,6 +1512,9 @@ function clearScreenDataCache() {
 
 function bindScreen(screen, screenRoot, data) {
   const routeAtBind = state.route;
+  if (routeAtBind === 'proposals-agreements') {
+    logProposalsAgreementsContactOptions(data);
+  }
   screen.bind?.({
     root: screenRoot,
     data,
@@ -1705,6 +1733,9 @@ async function mountScreen() {
 
   const cacheKey = screenDataCacheKey();
   const routeLoadStartMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (requestedRoute === 'proposals-agreements') {
+    purgeScreenCacheEntry(cacheKey);
+  }
   // eslint-disable-next-line no-console
   console.info('[route-load:start]', { route: requestedRoute, cacheKey });
   const rawEntry = screen.load ? state.screenDataCache[cacheKey] : null;
