@@ -419,8 +419,9 @@ function formatDateDisplay(iso) {
 
 function signatureSectionHtml(_signatureBody = '', row = {}, options = {}) {
   const isApproved = normalizeProposalStatus(row?.status) === 'approved';
-  const showSignatureImage = isApproved || options.showSignatureImage === true;
   const meta = normalizeSignatureMeta(row.signature_meta || row.approval_meta);
+  const hasStoredSignature = meta !== null && !!(text(row.approved_at) || text(row.approved_by));
+  const showSignatureImage = isApproved || hasStoredSignature || options.showSignatureImage === true;
   const img = text(meta?.signature?.image) || PROPOSAL_SIGNATURE_IMAGE;
   const imageHtml = showSignatureImage
     ? `<img class="pa-signature-image" src="${PUBLIC_BASE}${escapeHtml(img)}" alt="חתימת עידן נחום" loading="eager" decoding="async" onerror="this.style.display='none';">`
@@ -519,8 +520,8 @@ function statusBadgeHtml(status) {
   const label = STATUS_LABELS[normalizedStatus] || STATUS_LABELS[status] || status || '—';
   const colorMap = {
     draft:                '#888',
-    sent:                 '#2563eb',
-    pending_approval:     '#2563eb',
+    sent:                 '#16a34a',
+    pending_approval:     '#16a34a',
     returned_for_changes: '#dc2626',
     approved:             '#16a34a',
     cancelled:            '#6b7280'

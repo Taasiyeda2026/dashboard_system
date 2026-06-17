@@ -863,6 +863,7 @@ function opsManagementStylesHtml() {
 
 let _schedulePrintContext = null;
 let _schoolsPrintContext = null;
+let _workshopsDistContext = null;
 
 function openOpsPrintWindow({ title = 'הדפסה', bodyHtml = '' } = {}) {
   const printWindow = window.open('', '_blank');
@@ -1092,6 +1093,184 @@ async function saveWorkshopDistribution(stockGroupKey, instructorName, quantityR
   if (error) throw error;
 }
 
+async function saveWorkshopDistributionWithNotes(stockGroupKey, instructorName, quantityReceived, notes = '') {
+  if (!supabase) throw new Error('Supabase client is not configured');
+  const payload = {
+    stock_group_key: String(stockGroupKey || '').trim(),
+    instructor_name: String(instructorName || '').trim(),
+    quantity_received: quantityReceived !== null && Number.isFinite(Number(quantityReceived)) ? Number(quantityReceived) : null,
+    period_start: SUMMER_2026_FROM,
+    period_end: SUMMER_2026_TO,
+    notes: String(notes || '').trim() || null,
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await supabase.from('workshop_stock_distributions').upsert(payload, { onConflict: 'stock_group_key,instructor_name,period_start' });
+  if (error) throw error;
+}
+
+function openWorkshopDistModal(workshopName, rerender) {
+  const ctx = _workshopsDistContext;
+  if (!ctx) return;
+  const row = ctx.metrics.find((m) => m.workshopName === workshopName);
+  if (!row) return;
+
+  const instructorGroups = new Map();
+  (row.activities || []).forEach((activity) => {
+    const name = getActivityInstructorName(activity);
+    if (!name) return;
+    if (!instructorGroups.has(name)) instructorGroups.set(name, { name, count: 0 });
+    instructorGroups.get(name).count++;
+  });
+  const instructorList = Array.from(instructorGroups.values()).sort((a, b) => b.count - a.count);
+
+  const stockDisplay = row.stockQuantity !== null && row.stockQuantity !== undefined ? String(row.stockQuantity) : '—';
+
+  if (!document.getElementById('ds-ops-dist-modal-style')) {
+    const style = document.createElement('style');
+    style.id = 'ds-ops-dist-modal-style';
+    style.textContent = [
+      '.ds-dist-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center}',
+      '.ds-dist-modal{background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.22);padding:20px 24px 16px;min-width:320px;max-width:560px;width:96vw;max-height:88vh;overflow-y:auto;direction:rtl;font-family:Assistant,Arial,sans-serif;font-size:13px;color:#111;position:relative}',
+      '.ds-dist-modal h3{margin:0 0 10px;font-size:15px;color:#0f172a;border-bottom:1px solid #e2e8f0;padding-bottom:8px;padding-left:28px}',
+      '.ds-dist-modal__info{font-size:12px;color:#475569;margin-bottom:8px}',
+      '.ds-dist-modal__summary{display:flex;gap:18px;background:#f1f5f9;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px;flex-wrap:wrap}',
+      '.ds-dist-modal__summary b{color:#0f172a}',
+      '.ds-dist-modal__summary .ds-rem-shortage{color:#dc2626;font-weight:700}',
+      '.ds-dist-modal__summary .ds-rem-ok{color:#16a34a;font-weight:700}',
+      '.ds-dist-modal table{width:100%;border-collapse:collapse;font-size:12px}',
+      '.ds-dist-modal th,.ds-dist-modal td{border:1px solid #cbd5e1;padding:5px 7px;text-align:right}',
+      '.ds-dist-modal th{background:#dbeafe;color:#1e3a8a;font-weight:700}',
+      '.ds-dist-modal input[type=number]{width:68px;padding:3px 4px;border:1px solid #94a3b8;border-radius:4px;text-align:center;font-size:12px}',
+      '.ds-dist-modal input[type=text]{width:120px;padding:3px 4px;border:1px solid #94a3b8;border-radius:4px;font-size:12px}',
+      '.ds-dist-modal__footer{display:flex;gap:8px;justify-content:flex-start;margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px}',
+      '.ds-dist-modal__close-btn{position:absolute;top:14px;left:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#64748b;line-height:1;padding:0 4px}',
+      '.ds-dist-modal__close-btn:hover{color:#111}'
+    ].join('');
+    document.head.appendChild(style);
+  }
+
+  const instrRowsHtml = instructorList.map((ig) => {
+    const dist = ctx.distributions.find((d) => d.stock_group_key === row.stockGroupKey && d.instructor_name === ig.name);
+    const qty = dist?.quantity_received !== null && dist?.quantity_received !== undefined ? String(dist.quantity_received) : '';
+    const notes = dist?.notes || '';
+    return `<tr>
+      <td>${escapeHtml(ig.name)}<small style="color:#94a3b8;margin-right:4px">(${ig.count} סדנאות)</small></td>
+      <td><input type="number" class="ds-dist-qty-input" data-instructor="${escapeHtml(ig.name)}" value="${escapeHtml(qty)}" min="0" placeholder="—"></td>
+      <td><input type="text" class="ds-dist-notes-input" data-instructor="${escapeHtml(ig.name)}" value="${escapeHtml(notes)}" placeholder="הערה..."></td>
+    </tr>`;
+  }).join('');
+
+  const calcUsage = () => {
+    let total = 0;
+    ctx.distributions.filter((d) => d.stock_group_key === row.stockGroupKey).forEach((d) => {
+      const v = Number(d.quantity_received);
+      if (Number.isFinite(v)) total += v;
+    });
+    return total;
+  };
+
+  const initUsage = calcUsage();
+  const initRemainder = row.stockQuantity !== null ? row.stockQuantity - initUsage : null;
+  const remClass = (v) => (v !== null && v < 0 ? 'ds-rem-shortage' : 'ds-rem-ok');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'ds-dist-overlay';
+  overlay.innerHTML = `
+    <div class="ds-dist-modal">
+      <button type="button" class="ds-dist-modal__close-btn" title="סגור">✕</button>
+      <h3>עדכון שימוש מלאי לפי מדריכים</h3>
+      <div class="ds-dist-modal__info"><strong>${escapeHtml(row.workshopName)}</strong>${row.workshopNo ? ` · מס׳ ${escapeHtml(row.workshopNo)}` : ''}</div>
+      <div class="ds-dist-modal__summary">
+        <div>כמות מלאי: <b>${escapeHtml(stockDisplay)}</b></div>
+        <div>שימוש נוכחי: <b class="ds-dist-usage-sum">${initUsage}</b></div>
+        <div>יתרה: <b class="ds-dist-remainder ${remClass(initRemainder)}">${initRemainder !== null ? String(initRemainder) : '—'}</b></div>
+      </div>
+      <table>
+        <thead><tr><th>מדריך</th><th>כמות שחולקה</th><th>הערות</th></tr></thead>
+        <tbody>${instrRowsHtml || '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:10px">לא נמצאו מדריכים בסדנאות אלה</td></tr>'}</tbody>
+      </table>
+      <div class="ds-dist-modal__footer">
+        <button type="button" class="ds-btn ds-btn--primary ds-dist-save-btn">שמירה</button>
+        <button type="button" class="ds-btn ds-dist-cancel-btn">ביטול</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  function updateSummary() {
+    let total = 0;
+    overlay.querySelectorAll('.ds-dist-qty-input').forEach((inp) => {
+      const v = Number(inp.value);
+      if (Number.isFinite(v) && v >= 0) total += v;
+    });
+    overlay.querySelector('.ds-dist-usage-sum').textContent = String(total);
+    const rem = row.stockQuantity !== null ? row.stockQuantity - total : null;
+    const remEl = overlay.querySelector('.ds-dist-remainder');
+    remEl.textContent = rem !== null ? String(rem) : '—';
+    remEl.className = `ds-dist-remainder ${remClass(rem)}`;
+  }
+  overlay.querySelectorAll('.ds-dist-qty-input').forEach((inp) => inp.addEventListener('input', updateSummary));
+
+  function hasChanges() {
+    let changed = false;
+    overlay.querySelectorAll('.ds-dist-qty-input').forEach((inp) => {
+      const name = inp.getAttribute('data-instructor');
+      const dist = ctx.distributions.find((d) => d.stock_group_key === row.stockGroupKey && d.instructor_name === name);
+      const saved = dist?.quantity_received !== null && dist?.quantity_received !== undefined ? String(dist.quantity_received) : '';
+      if (inp.value !== saved) changed = true;
+    });
+    overlay.querySelectorAll('.ds-dist-notes-input').forEach((inp) => {
+      const name = inp.getAttribute('data-instructor');
+      const dist = ctx.distributions.find((d) => d.stock_group_key === row.stockGroupKey && d.instructor_name === name);
+      const saved = dist?.notes || '';
+      if (inp.value !== saved) changed = true;
+    });
+    return changed;
+  }
+
+  function closeModal() { overlay.remove(); }
+
+  function confirmClose() {
+    if (hasChanges() && !confirm('יש שינויים שלא נשמרו. לצאת בלי לשמור?')) return;
+    closeModal();
+  }
+
+  overlay.querySelector('.ds-dist-modal__close-btn').addEventListener('click', confirmClose);
+  overlay.querySelector('.ds-dist-cancel-btn').addEventListener('click', confirmClose);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) confirmClose(); });
+
+  const saveBtn = overlay.querySelector('.ds-dist-save-btn');
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'שומר...';
+    try {
+      const saves = [];
+      overlay.querySelectorAll('.ds-dist-qty-input').forEach((inp) => {
+        const instructorName = inp.getAttribute('data-instructor');
+        const notesInput = overlay.querySelector(`.ds-dist-notes-input[data-instructor="${CSS.escape(instructorName)}"]`);
+        const rawQty = inp.value.trim();
+        const qty = rawQty !== '' && Number.isFinite(Number(rawQty)) ? Number(rawQty) : null;
+        const notesVal = notesInput ? notesInput.value.trim() : '';
+        saves.push(
+          saveWorkshopDistributionWithNotes(row.stockGroupKey, instructorName, qty, notesVal).then(() => {
+            const idx = ctx.distributions.findIndex((d) => d.stock_group_key === row.stockGroupKey && d.instructor_name === instructorName);
+            const entry = { stock_group_key: row.stockGroupKey, instructor_name: instructorName, quantity_received: qty, notes: notesVal, period_start: SUMMER_2026_FROM };
+            if (idx >= 0) ctx.distributions[idx] = { ...ctx.distributions[idx], ...entry };
+            else ctx.distributions.push(entry);
+          })
+        );
+      });
+      await Promise.all(saves);
+      saveBtn.textContent = '✓ נשמר!';
+      setTimeout(() => { closeModal(); rerender?.(); }, 850);
+    } catch (err) {
+      console.error('[operations-management] Failed to save distributions:', err);
+      alert('שמירה נכשלה. יש לנסות שוב.');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'שמירה';
+    }
+  });
+}
+
 async function updateWorkshopStockGroup(stockGroupKey, stockQuantity) {
   if (!supabase) throw new Error('Supabase client is not configured');
   const cleanKey = String(stockGroupKey || '').trim();
@@ -1188,51 +1367,19 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
         const remainderHtml = remainder === null
           ? '<span class="ds-ops-mgmt-cell-muted">—</span>'
           : `<span class="ds-ops-gap ${remainder < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${remainder}</span>`;
-        const isExpanded = ops.expandedWorkshop === row.workshopName;
-        return `<tr${isExpanded ? ' class="ds-ops-row--expanded"' : ''}>
+        return `<tr>
           <td>${escapeHtml(row.workshopNo || '—')}</td>
-          <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
+          <td>${escapeHtml(row.workshopName)}</td>
           <td>${row.activityCount}</td>
           <td>${requiredQuantity}</td>
           <td>${escapeHtml(stockDisplay)}</td>
-          <td class="ds-ops-usage-cell"><span class="ds-ops-usage-display">${usage}</span><button type="button" class="ds-ops-stock-edit-btn" data-ops-workshop="${escapeHtml(row.workshopName)}" title="ערוך חלוקת מלאי למדריכים">✎</button></td>
+          <td class="ds-ops-usage-cell"><span class="ds-ops-usage-display">${usage}</span><button type="button" class="ds-ops-stock-edit-btn" data-ops-dist-edit="${escapeHtml(row.workshopName)}" title="ערוך חלוקת מלאי למדריכים">✎</button></td>
           <td>${remainderHtml}</td>
         </tr>`;
       }).join('')}</tbody></table>`)
     : dsEmptyState('לא נמצאו סדנאות בתקופת הקיץ');
 
-  // Instructor accordion for expanded stock group
-  const expanded = metrics.find((row) => row.workshopName === ops.expandedWorkshop);
-  let detail = '';
-  if (expanded) {
-    const instructorGroups = new Map();
-    (expanded.activities || []).forEach((activity) => {
-      const name = getActivityInstructorName(activity);
-      if (!instructorGroups.has(name)) instructorGroups.set(name, { name, count: 0, estimatedQty: 0 });
-      const ig = instructorGroups.get(name);
-      ig.count++;
-      ig.estimatedQty += WORKSHOP_ESTIMATE_PER_ACTIVITY;
-    });
-    const instructorList = Array.from(instructorGroups.values()).sort((a, b) => b.count - a.count);
-    const distRows = instructorList.map((ig) => {
-      const dist = distributions.find(d => d.stock_group_key === expanded.stockGroupKey && d.instructor_name === ig.name);
-      const receivedVal = dist?.quantity_received !== null && dist?.quantity_received !== undefined ? String(dist.quantity_received) : '';
-      return `<tr>
-        <td>${escapeHtml(ig.name)}</td>
-        <td>${ig.count}</td>
-        <td>${ig.estimatedQty}</td>
-        <td><input type="number" class="ds-ops-dist-input" data-stock-group="${escapeHtml(expanded.stockGroupKey)}" data-instructor="${escapeHtml(ig.name)}" value="${escapeHtml(receivedVal)}" min="0" placeholder="—"></td>
-        <td><button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-save-dist-btn" data-stock-group="${escapeHtml(expanded.stockGroupKey)}" data-instructor="${escapeHtml(ig.name)}">שמור</button></td>
-      </tr>`;
-    }).join('');
-    detail = dsCard({
-      title: `מדריכים: ${expanded.workshopName} — קיץ 2026`,
-      body: instructorList.length
-        ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-dist-table"><thead><tr><th>מדריך</th><th>כמות סדנאות</th><th>כמות נדרשת</th><th>כמות שקיבל</th><th></th></tr></thead><tbody>${distRows}</tbody></table>`)
-        : dsEmptyState('לא נמצאו מדריכים משובצים בטווח הקיץ'),
-      padded: false
-    });
-  }
+  _workshopsDistContext = { metrics, distributions };
 
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
     <div class="ds-ops-mgmt-panel__toolbar no-print">
@@ -1240,7 +1387,6 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
     </div>
     <div class="ds-ops-mgmt-print-header only-print"><h2>מלאי סדנאות — קיץ 2026</h2><p>טווח: ${SUMMER_2026_FROM} – ${SUMMER_2026_TO}</p></div>
     <div class="ds-ops-workshops-card">${dsCard({ title: `מלאי סדנאות — קיץ 2026`, badge: String(metrics.length), body: `<div class="ds-ops-workshops-table-wrap">${table}</div>`, padded: false })}</div>
-    ${detail}
   </section>`;
 }
 
@@ -1482,35 +1628,10 @@ export const operationsManagementScreen = {
     root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
 
 
-    root.querySelectorAll('[data-ops-workshop]').forEach((btn) => {
+    root.querySelectorAll('[data-ops-dist-edit]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const name = btn.getAttribute('data-ops-workshop') || '';
-        ops.expandedWorkshop = ops.expandedWorkshop === name ? '' : name;
-        rerender?.();
-      });
-    });
-
-    root.querySelectorAll('.ds-ops-save-dist-btn').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const stockGroupKey = btn.getAttribute('data-stock-group') || '';
-        const instructorName = btn.getAttribute('data-instructor') || '';
-        const input = btn.closest('tr')?.querySelector('.ds-ops-dist-input');
-        if (!input || !stockGroupKey || !instructorName) return;
-        const value = input.value.trim();
-        const qty = value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
-        btn.disabled = true;
-        const origText = btn.textContent;
-        btn.textContent = '...';
-        try {
-          await saveWorkshopDistribution(stockGroupKey, instructorName, qty);
-          btn.textContent = '✓ נשמר';
-          setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2500);
-        } catch (error) {
-          console.error('[operations-management] Failed to save distribution:', error);
-          alert('שמירה נכשלה. יש לנסות שוב.');
-          btn.textContent = origText;
-          btn.disabled = false;
-        }
+        const name = btn.getAttribute('data-ops-dist-edit') || '';
+        openWorkshopDistModal(name, rerender);
       });
     });
 
