@@ -15528,6 +15528,20 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   display: none !important;
 }
 
+.ds-pa-school-step-indicator {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+.ds-pa-school-step-indicator[hidden] { display: none !important; }
+.ds-pa-school-step-text { flex: 1; color: #1e40af; }
+
 /* ═══════════════════════════════════════════════════════════════════
    Operations management screen
    ═══════════════════════════════════════════════════════════════════ */
