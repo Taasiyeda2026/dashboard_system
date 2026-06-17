@@ -366,6 +366,9 @@ export function normalizeProposalAgreementRow(row = {}) {
     id:                  text(row.id),
     client_name:         text(row.client_name),
     client_type:         text(row.client_type),
+    authority_id:        row.authority_id ?? null,
+    school_id:           row.school_id ?? null,
+    contact_school_id:   row.contact_school_id ?? null,
     client_authority:    text(row.client_authority),
     school_framework:    text(row.school_framework),
     authority_code:      text(row.authority_code),
@@ -686,6 +689,10 @@ function clientSearchHtml(_contactOptions, row = {}) {
         <option value="other"${selectedType === 'other' ? ' selected' : ''}>אחר</option>
       </select>
     </label>
+    <div class="ds-pa-school-step-indicator" data-pa-school-step-indicator hidden>
+      <span class="ds-pa-school-step-text">רשות נבחרה: <strong data-pa-step-authority-name></strong></span>
+      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-change-authority-step>שנה רשות</button>
+    </div>
     <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-client-search-field>
       <span data-pa-client-search-label>${escapeHtml(clientTypeLabel(selectedType))}</span>
       <input class="ds-input ds-input--sm" type="search" data-pa-client-search-input value="${escapeHtml(existingValue)}" placeholder="התחילו להקליד לחיפוש" autocomplete="off" aria-autocomplete="list">
@@ -694,10 +701,12 @@ function clientSearchHtml(_contactOptions, row = {}) {
   </div>`;
 }
 
-function contactPickerHtml(contactOptions, authority, school, selectedContactName) {
-  const contacts = (Array.isArray(contactOptions) ? contactOptions : []).filter(
-    (c) => text(c.authority) === authority && text(c.school) === school
-  );
+function contactPickerHtml(contactOptions, authority, school, selectedContactName, authorityId = null) {
+  const contacts = (Array.isArray(contactOptions) ? contactOptions : []).filter((c) => {
+    if (!text(c.contact_name)) return false;
+    if (authorityId && text(c.authority_id) && text(c.authority_id) !== authorityId) return false;
+    return text(c.authority) === authority && text(c.school) === school;
+  });
   if (contacts.length <= 1) return '';
   const optionsHtml = ['<option value="">— בחרו איש קשר —</option>',
     ...contacts.map((c) => {
@@ -1840,6 +1849,25 @@ function findContactForProposalRow(contactOptions = [], row = {}) {
   return (Array.isArray(contactOptions) ? contactOptions : []).find((contact) => contactMatchesProposalRow(contact, row)) || null;
 }
 
+function buildContactSourceFromRow(row = {}) {
+  if (!row.authority_id) return null;
+  const school = text(row.school_framework) !== text(row.client_authority) ? text(row.school_framework) : '';
+  return {
+    id:           text(row.contact_school_id) || null,
+    authority_id: row.authority_id,
+    school_id:    row.school_id || null,
+    client_type:  text(row.client_type) || (row.school_id ? 'school' : 'authority'),
+    client_name:  school || text(row.client_authority),
+    authority:    text(row.client_authority),
+    school,
+    contact_name: text(row.contact_name),
+    contact_role: text(row.contact_role),
+    phone:        text(row.phone),
+    email:        text(row.email),
+    mobile:       ''
+  };
+}
+
 function contactSourceInputsHtml(contact = {}) {
   const source = contact || {};
   return `
@@ -1971,8 +1999,9 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initPhone = text(row.phone);
   const initEmail = text(row.email);
   const isLocked = !!initAuth;
-  const initContactSource = findContactForProposalRow(contactOptions, row);
-  const initPickerHtml = initAuth ? contactPickerHtml(contactOptions, initAuth, initSchool, initContact) : '';
+  const initContactSource = findContactForProposalRow(contactOptions, row) || buildContactSourceFromRow(row);
+  const initAuthorityId = text(initContactSource?.authority_id) || null;
+  const initPickerHtml = initAuth ? contactPickerHtml(contactOptions, initAuth, initSchool, initContact, initAuthorityId) : '';
   const initClientName = text(initContactSource?.client_name) || initSchool || initAuth;
   const proposalDate = mode === 'add' ? (text(row.proposal_date) || localDateInputValue()) : text(row.proposal_date);
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
@@ -2277,6 +2306,14 @@ function validatePayload(payload, statusOverride) {
     : REQUIRED_FIELDS_DRAFT;
   const missing = requiredFields.filter((key) => !text(payload[key]));
   const errors = missing.map((key) => FIELD_LABELS[key] || key);
+
+  const clientType = text(payload.client_type);
+  if (clientType !== 'other' && !text(payload.authority_id)) {
+    errors.push('יש לבחור רשות מתוך רשימת הרשויות המלאה.');
+  }
+  if (clientType === 'school' && !text(payload.school_id)) {
+    errors.push('יש לבחור בית ספר מתוך רשימת בתי הספר של הרשות.');
+  }
 
   if (requiresCompleteProposal) {
     const grp = normalizeProposalGroup(payload.activity_type_group);
@@ -2742,15 +2779,31 @@ export const proposalsAgreementsScreen = {
       });
     };
 
-    const clientSearchMatches = (query, selectedType) => {
+    const clientSearchMatches = (query, selectedType, form) => {
       const q = normalizeSearch(query);
       if (!q || q.length < 2) return [];
+      const schoolStep = form?.dataset?.paSearchStep || 'authority';
+      const selectedAuthorityId = form?.dataset?.paAuthorityId || '';
       const seen = new Set();
       return contactOptions.filter((c) => {
-        const typeOk = selectedType === 'authority'
-          ? text(c.authority)
-          : (text(c.school) || text(c.authority) || text(c.client_name) || text(c.semel_mosad));
-        if (!typeOk) return false;
+        if (selectedType === 'authority') {
+          if (!text(c.authority)) return false;
+          if (text(c.school)) return false;
+          if (c._catalog_source !== 'authorities' && text(c.client_type) !== 'authority') return false;
+        } else if (selectedType === 'school') {
+          if (schoolStep === 'authority') {
+            if (!text(c.authority)) return false;
+            if (text(c.school)) return false;
+            if (c._catalog_source !== 'authorities' && text(c.client_type) !== 'authority') return false;
+          } else {
+            if (!text(c.school)) return false;
+            if (c._catalog_source !== 'schools' && text(c.client_type) !== 'school') return false;
+            if (selectedAuthorityId && text(c.authority_id) !== selectedAuthorityId) return false;
+          }
+        } else {
+          const typeOk = text(c.school) || text(c.authority) || text(c.client_name) || text(c.semel_mosad);
+          if (!typeOk) return false;
+        }
         const haystack = [c.school, c.authority, c.client_name, c.contact_name, c.contact_role, c.phone, c.mobile, c.email, c.semel_mosad, c.authority_code]
           .map(normalizeSearch).join(' ');
         if (!haystack.includes(q)) return false;
@@ -2758,19 +2811,20 @@ export const proposalsAgreementsScreen = {
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
-      }).slice(0, 15);
+      }).slice(0, 20);
     };
 
-    const clientResultLabel = (contact, selectedType) => {
+    const clientResultLabel = (contact, selectedType, form) => {
       const school = text(contact.school);
       const authority = text(contact.authority);
       const clientName = text(contact.client_name);
       const contactName = text(contact.contact_name);
       const role = text(contact.contact_role);
       const semel = text(contact.semel_mosad);
-      if (selectedType === 'authority') {
+      const schoolStep = form?.dataset?.paSearchStep || 'authority';
+      if (selectedType === 'authority' || (selectedType === 'school' && schoolStep === 'authority')) {
         const code = text(contact.authority_code);
-        const parts = [authority, role ? `${contactName} (${role})` : contactName].filter(Boolean);
+        const parts = [authority].filter(Boolean);
         if (code) parts.push(`מספר רשות: ${code}`);
         return parts.join(' — ');
       }
@@ -2792,12 +2846,25 @@ export const proposalsAgreementsScreen = {
       const schoolField = form?.querySelector('[data-pa-school-field]');
       const authorityInput = form?.querySelector('input[name="client_authority"]');
       const schoolInput = form?.querySelector('input[name="school_framework"]');
+      const stepIndicator = form?.querySelector('[data-pa-school-step-indicator]');
       const isOther = type === 'other';
+      if (type === 'school') {
+        if (!form.dataset.paSearchStep) form.dataset.paSearchStep = 'authority';
+      } else {
+        delete form.dataset.paSearchStep;
+        delete form.dataset.paAuthorityId;
+        delete form.dataset.paAuthorityName;
+        if (stepIndicator) stepIndicator.hidden = true;
+      }
       if (searchWrap) searchWrap.classList.toggle('is-manual-only', isOther);
       if (searchField) searchField.hidden = isOther;
       if (results) { results.hidden = true; results.innerHTML = ''; }
-      if (searchLabel) searchLabel.textContent = clientTypeLabel(type);
-      if (searchInput) searchInput.placeholder = isOther ? '' : `חיפוש לפי ${clientTypeLabel(type)}, איש קשר, טלפון או דוא״ל`;
+      const schoolStep = form?.dataset?.paSearchStep || 'authority';
+      const searchLabelText = type === 'school'
+        ? (schoolStep === 'school' ? 'בית ספר' : 'רשות (שלב 1 מתוך 2)')
+        : clientTypeLabel(type);
+      if (searchLabel) searchLabel.textContent = searchLabelText;
+      if (searchInput) searchInput.placeholder = isOther ? '' : `חיפוש לפי ${clientTypeLabel(type)}...`;
       if (schoolField) schoolField.hidden = type === 'authority';
       if (schoolInput) {
         schoolInput.required = type === 'school';
@@ -2810,26 +2877,67 @@ export const proposalsAgreementsScreen = {
         const label = authorityInput.closest('label')?.querySelector('span');
         if (label) label.textContent = `${isOther ? 'שם גוף' : 'רשות'} *`;
       }
+      const clientFieldsEl = form?.querySelector('[data-pa-client-fields]');
+      const clientCardEl = form?.querySelector('[data-pa-client-card]');
+      const isLocked = clientCardEl && !clientCardEl.hidden && clientCardEl.children.length > 0;
+      if (!isLocked && clientFieldsEl) {
+        clientFieldsEl.hidden = !isOther;
+      }
     };
 
     const selectExistingClient = (form, contact) => {
       if (!form || !contact) return;
+      const selectedType = form?.querySelector('[data-pa-new-client-type]')?.value || 'school';
+      const schoolStep = form?.dataset?.paSearchStep || 'authority';
+
+      if (selectedType === 'school' && schoolStep === 'authority') {
+        form.dataset.paAuthorityId = text(contact.authority_id) || '';
+        form.dataset.paAuthorityName = text(contact.authority) || '';
+        form.dataset.paSearchStep = 'school';
+        const stepIndicator = form.querySelector('[data-pa-school-step-indicator]');
+        if (stepIndicator) {
+          stepIndicator.hidden = false;
+          const nameEl = stepIndicator.querySelector('[data-pa-step-authority-name]');
+          if (nameEl) nameEl.textContent = text(contact.authority);
+        }
+        const searchLabel = form.querySelector('[data-pa-client-search-label]');
+        if (searchLabel) searchLabel.textContent = 'בית ספר';
+        const searchInput = form.querySelector('[data-pa-client-search-input]');
+        if (searchInput) { searchInput.value = ''; searchInput.placeholder = 'חיפוש לפי שם בית ספר...'; searchInput.focus(); }
+        const results = form.querySelector('[data-pa-client-results]');
+        if (results) { results.hidden = true; results.innerHTML = ''; }
+        return;
+      }
+
       form.dataset.paNewClient = 'no';
-      const authority = text(contact.authority);
-      const school = text(contact.school);
+      let finalContact = contact;
+      if (selectedType === 'school' && schoolStep === 'school') {
+        const storedAuthorityId = form.dataset.paAuthorityId || '';
+        const storedAuthorityName = form.dataset.paAuthorityName || '';
+        if (storedAuthorityId && !text(contact.authority_id)) {
+          finalContact = { ...contact, authority_id: storedAuthorityId, authority: storedAuthorityName || text(contact.authority) };
+        }
+      }
+
+      const authority = text(finalContact.authority);
+      const school = text(finalContact.school);
       const authInput = form.querySelector('input[name="client_authority"]');
       const schoolInput = form.querySelector('input[name="school_framework"]');
       if (authInput) authInput.value = authority;
       if (schoolInput) schoolInput.value = school;
-      fillContactFields(form, contact);
-      setContactSource(form, contact);
+      fillContactFields(form, finalContact);
+      setContactSource(form, finalContact);
       const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
-      if (pickerHost) pickerHost.innerHTML = '';
-      const cName = text(contact.contact_name);
-      const cRole = text(contact.contact_role);
-      const phone = text(contact.phone || contact.mobile || '');
-      const email = text(contact.email || '');
-      lockClientFields(form, authority, school, cName, cRole, phone, email, text(contact.client_name) || school || authority);
+      const authorityId = text(finalContact.authority_id) || null;
+      if (pickerHost) {
+        pickerHost.innerHTML = contactPickerHtml(contactOptions, authority, school, text(finalContact.contact_name), authorityId);
+        if (pickerHost.children.length) setupContactPicker(pickerHost, form);
+      }
+      const cName = text(finalContact.contact_name);
+      const cRole = text(finalContact.contact_role);
+      const phone = text(finalContact.phone || finalContact.mobile || '');
+      const email = text(finalContact.email || '');
+      lockClientFields(form, authority, school, cName, cRole, phone, email, text(finalContact.client_name) || school || authority);
       const input = form.querySelector('[data-pa-client-search-input]');
       const results = form.querySelector('[data-pa-client-results]');
       if (input) input.value = '';
@@ -2842,7 +2950,7 @@ export const proposalsAgreementsScreen = {
       const input = form?.querySelector('[data-pa-client-search-input]');
       const results = form?.querySelector('[data-pa-client-results]');
       if (!input || !results || type === 'other') return;
-      const matches = clientSearchMatches(input.value, type);
+      const matches = clientSearchMatches(input.value, type, form);
       const manualBtn = form.querySelector('[data-pa-client-search-row] [data-pa-new-client-toggle]');
       if (manualBtn) manualBtn.hidden = true;
       if (!text(input.value) || text(input.value).length < 2) {
@@ -2851,8 +2959,14 @@ export const proposalsAgreementsScreen = {
         return;
       }
       if (!matches.length) {
-        if (manualBtn) manualBtn.hidden = false;
-        results.innerHTML = '<p class="ds-pa-client-results-empty">לא נמצאו תוצאות.</p><button type="button" class="ds-pa-client-result ds-pa-client-result--manual" data-pa-new-client-toggle>לא מצאת? הוסף ידנית</button>';
+        const schoolStep = form.dataset.paSearchStep || 'authority';
+        if (type === 'school' || type === 'authority') {
+          const stepLabel = (type === 'school' && schoolStep === 'school') ? 'בית ספר' : 'רשות';
+          results.innerHTML = `<p class="ds-pa-client-results-empty">לא נמצאה ${stepLabel} ברשימה. יש לחפש לפי שם מדויק.</p>`;
+        } else {
+          if (manualBtn) manualBtn.hidden = false;
+          results.innerHTML = '<p class="ds-pa-client-results-empty">לא נמצאו תוצאות.</p><button type="button" class="ds-pa-client-result ds-pa-client-result--manual" data-pa-new-client-toggle>לא מצאת? הוסף ידנית</button>';
+        }
         results.hidden = false;
         return;
       }
@@ -2863,7 +2977,7 @@ export const proposalsAgreementsScreen = {
         const authorityCode = text(contact.authority_code || '');
         const metaParts = [phone, email, semel ? `סמל ${semel}` : '', authorityCode ? `מספר רשות ${authorityCode}` : ''].filter(Boolean);
         return `<button type="button" class="ds-pa-client-result" data-pa-client-result="${idx}">
-          <strong>${escapeHtml(clientResultLabel(contact, type))}</strong>
+          <strong>${escapeHtml(clientResultLabel(contact, type, form))}</strong>
           ${metaParts.length ? `<span class="ds-pa-client-result-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
         </button>`;
       }).join('');
@@ -3908,6 +4022,8 @@ export const proposalsAgreementsScreen = {
             }
           } catch { sourceItems = []; }
           const clonePayload = {
+            authority_id: sourceRow.authority_id || null,
+            school_id: sourceRow.school_id || null,
             client_authority: text(sourceRow.client_authority),
             school_framework: text(sourceRow.school_framework),
             contact_name: text(sourceRow.contact_name),
@@ -3949,6 +4065,39 @@ export const proposalsAgreementsScreen = {
 
       if (event.target.closest?.('[data-pa-unlock-client]')) {
         const form = event.target.closest('[data-pa-form]');
+        const clientType = form?.querySelector('[data-pa-new-client-type]')?.value || 'school';
+        if (clientType === 'school' || clientType === 'authority') {
+          form.dataset.paNewClient = 'no';
+          if (clientType === 'school') {
+            form.dataset.paSearchStep = 'authority';
+            delete form.dataset.paAuthorityId;
+            delete form.dataset.paAuthorityName;
+            const stepIndicator = form.querySelector('[data-pa-school-step-indicator]');
+            if (stepIndicator) stepIndicator.hidden = true;
+          }
+          ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {
+            const inp = form.querySelector(`input[name="${name}"]`);
+            if (inp) inp.value = '';
+          });
+          setContactSource(form, {});
+          const card = form.querySelector('[data-pa-client-card]');
+          if (card) { card.hidden = true; card.innerHTML = ''; }
+          const searchRow = form.querySelector('[data-pa-client-search-row]');
+          if (searchRow) searchRow.hidden = false;
+          const fields = form.querySelector('[data-pa-client-fields]');
+          if (fields) fields.hidden = true;
+          form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+          const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+          if (pickerHost) pickerHost.innerHTML = '';
+          const results = form.querySelector('[data-pa-client-results]');
+          if (results) { results.hidden = true; results.innerHTML = ''; }
+          const search = form.querySelector('[data-pa-client-search-input]');
+          if (search) { search.value = ''; }
+          applyClientTypeMode(form);
+          updateProposalStepper(form);
+          search?.focus();
+          return;
+        }
         unlockClientFields(form);
         const hint = form?.querySelector('[data-pa-new-client-hint]');
         if (hint) hint.hidden = true;
@@ -3957,10 +4106,35 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
+      if (event.target.closest?.('[data-pa-change-authority-step]')) {
+        const form = event.target.closest('[data-pa-form]');
+        if (!form) return;
+        form.dataset.paSearchStep = 'authority';
+        delete form.dataset.paAuthorityId;
+        delete form.dataset.paAuthorityName;
+        const stepIndicator = form.querySelector('[data-pa-school-step-indicator]');
+        if (stepIndicator) stepIndicator.hidden = true;
+        const searchLabel = form.querySelector('[data-pa-client-search-label]');
+        if (searchLabel) searchLabel.textContent = 'רשות (שלב 1 מתוך 2)';
+        const searchInput = form.querySelector('[data-pa-client-search-input]');
+        if (searchInput) { searchInput.value = ''; searchInput.placeholder = 'חיפוש לפי שם רשות...'; searchInput.focus(); }
+        const results = form.querySelector('[data-pa-client-results]');
+        if (results) { results.hidden = true; results.innerHTML = ''; }
+        return;
+      }
+
       if (event.target.closest?.('[data-pa-clear-client]')) {
         const form = event.target.closest('[data-pa-form]');
         if (!form) return;
         form.dataset.paNewClient = 'no';
+        const clientType = form?.querySelector('[data-pa-new-client-type]')?.value || 'school';
+        if (clientType === 'school') {
+          form.dataset.paSearchStep = 'authority';
+          delete form.dataset.paAuthorityId;
+          delete form.dataset.paAuthorityName;
+          const stepIndicator = form.querySelector('[data-pa-school-step-indicator]');
+          if (stepIndicator) stepIndicator.hidden = true;
+        }
         ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {
           const inp = form.querySelector(`input[name="${name}"]`);
           if (inp) inp.value = '';
@@ -3975,6 +4149,9 @@ export const proposalsAgreementsScreen = {
         form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
         const search = form.querySelector('[data-pa-client-search-input]');
         if (search) { search.value = ''; search.focus(); }
+        const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+        if (pickerHost) pickerHost.innerHTML = '';
+        applyClientTypeMode(form);
         updateProposalStepper(form);
         return;
       }
