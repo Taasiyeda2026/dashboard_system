@@ -128,10 +128,6 @@ function setProposalCatalogIds(form, {
 
 function selectClientResult(form, dom, query) {
   const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
-  const schoolChoicePanel = form.querySelector('[data-pa-school-choice-panel]');
-  if (schoolChoicePanel && !schoolChoicePanel.hidden && !(schoolSearchPanel && !schoolSearchPanel.hidden)) {
-    form.querySelector('[data-pa-choose-school]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-  }
   const useSchoolSearch = schoolSearchPanel && !schoolSearchPanel.hidden;
   const searchInput = useSchoolSearch
     ? form.querySelector('[data-pa-school-search-input]')
@@ -411,6 +407,15 @@ test('table structure includes all required columns including status', () => {
   assert.doesNotMatch(html, /<th>סוג מסמך<\/th>/);
   assert.match(html, /data-pa-table-region/);
   assert.match(html, /ds-pa-table/);
+});
+
+test('sent status row keeps green badge only without row highlight', () => {
+  const sentRow = { ...sampleRows[0], status: 'sent' };
+  const html = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: stateFor('admin') });
+  const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.match(tableBody, /ds-pa-badge--sent/);
+  assert.match(tableBody, /✓ נשלח/);
+  assert.doesNotMatch(tableBody, /proposal-row--sent/);
 });
 
 test('contact details are hidden from the outer table and available only in drawer markup', () => {
@@ -772,7 +777,35 @@ test('new proposal form starts with authority search and has no client type fiel
   );
 });
 
-test('authority search shows school choice after selection and supports continue without school', async () => {
+test('new proposal form hides contact panel until school is selected', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
+      assert.ok(contactPanel, 'contact panel should exist');
+      assert.equal(contactPanel.hidden, true, 'contact panel should be hidden before school selection');
+
+      selectClientResult(form, dom, 'רשות א');
+      assert.equal(contactPanel.hidden, true, 'contact panel should stay hidden after authority only');
+
+      const schoolPanel = form.querySelector('[data-pa-school-search-panel]');
+      assert.equal(schoolPanel.hidden, false, 'school search should open after authority selection');
+
+      selectClientResult(form, dom, 'בית ספר');
+      assert.equal(contactPanel.hidden, false, 'contact panel should appear after school selection');
+    }
+  );
+});
+
+test('authority search opens school search immediately after authority selection', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     (root, dom) => {
@@ -789,17 +822,13 @@ test('authority search shows school choice after selection and supports continue
       searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
       form.querySelector('[data-pa-client-results] [data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
-      const schoolChoicePanel = form.querySelector('[data-pa-school-choice-panel]');
-      assert.ok(schoolChoicePanel, 'school choice panel should exist');
-      assert.equal(schoolChoicePanel.hidden, false, 'school choice should appear after authority selection');
-      assert.match(schoolChoicePanel.textContent, /בחר בית ספר \/ מסגרת/);
-      assert.match(schoolChoicePanel.textContent, /המשך ללא בית ספר/);
-
-      form.querySelector('[data-pa-skip-school]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
+      assert.ok(schoolSearchPanel, 'school search panel should exist');
+      assert.equal(schoolSearchPanel.hidden, false, 'school search should open immediately after authority');
+      assert.doesNotMatch(form.innerHTML, /המשך ללא בית ספר/);
       assert.equal(form.querySelector('input[name="client_authority"]').value, 'רשות א');
       assert.equal(form.querySelector('input[name="contact_source_authority_id"]').value, 'auth-a');
       assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, '');
-      assert.equal(form.querySelector('input[name="contact_source_school_required"]').value, 'no');
     }
   );
 });
