@@ -699,8 +699,8 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
         ${datePickers}
       </div>
       <div class="activity-drawer__date-mode" data-mode="edit" data-chain-toggle hidden>
-        <button type="button" class="activity-drawer__toggle" data-date-mode="single">בודד</button>
-        <button type="button" class="activity-drawer__toggle is-active" data-date-mode="chain">שרשרת</button>
+        <button type="button" class="activity-drawer__toggle is-active" data-date-mode="single">תיקון נקודתי — רק המפגש הזה</button>
+        <button type="button" class="activity-drawer__toggle" data-date-mode="chain">תיקון שרשרת — המפגש הזה וכל הבאים אחריו</button>
       </div>
       <button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-mode="edit" hidden>➕ הוסף מפגש</button>
     </section>
