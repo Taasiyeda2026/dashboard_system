@@ -1348,8 +1348,8 @@ function activityLayoutDocumentHtml(group) {
     col.col-date { width: 25mm; }
     col.col-start { width: 25mm; }
     col.col-end { width: 25mm; }
-    col.col-grade { width: 20mm; }
-    col.col-activity { width: 55mm; }
+    col.col-grade { width: 23mm; }
+    col.col-activity { width: 52mm; }
     col.col-instructor { width: 30mm; }
 
     th,
@@ -1419,8 +1419,8 @@ function activityLayoutDocumentHtml(group) {
     </section>
     <p>שלום רב,</p>
     <p>בהמשך לתיאום, מצורפת פריסת הפעילויות המתוכננת במסגרת קיץ תשפ"ו | 2026.</p>
-    <p>נבקש לעדכן את צוות תעשיידע מראש במקרה של שינוי בלוחות הזמנים, בהרכב הקבוצות, במיקום הפעילות או בכל צורך תפעולי אחר, כדי שנוכל להיערך בהתאם.</p>
     <table><colgroup><col class="col-date"><col class="col-start"><col class="col-end"><col class="col-grade"><col class="col-activity"><col class="col-instructor"></colgroup><thead><tr><th class="col-date">תאריך</th><th class="col-center">שעת התחלה</th><th class="col-center">שעת סיום</th><th class="col-center">כיתה</th><th class="col-activity">פעילות / סדנה</th><th class="col-instructor">מדריך</th></tr></thead><tbody>${tableRows || '<tr><td colspan="6">לא נמצאו שיבוצים להצגה.</td></tr>'}</tbody></table>
+    <p>נבקש לעדכן את צוות תעשיידע מראש במקרה של שינוי בלוחות הזמנים, בהרכב הקבוצות, במיקום הפעילות או בכל צורך תפעולי אחר, כדי שנוכל להיערך בהתאם.</p>
     <div class="signature">בברכה,<br>תעשיידע</div>
   </main></body></html>`;
 }
