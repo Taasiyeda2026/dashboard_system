@@ -196,6 +196,16 @@ function oneDayTypeFromActivityFields(activityType, itemType) {
   return canonicalOneDayActivityType(activityType) || canonicalOneDayActivityType(itemType);
 }
 
+/**
+ * Normalizes a human-readable name field by replacing underscores with spaces.
+ * Used to guard against underscore-encoded names (e.g. from the lists table value field).
+ * Safe to apply to any display name — does NOT touch technical IDs or slugs.
+ */
+function normalizeHumanName(value) {
+  if (value === null || value === undefined) return value;
+  return String(value).replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function normalizeActivityRow(row = {}) {
   const canonicalOneDayType = oneDayTypeFromActivityFields(row?.activity_type, row?.item_type);
   const isLegacyOneDay = canonicalOneDayType && (String(row?.activity_family || '').trim() === 'one_day' || !String(row?.item_type || '').trim());
@@ -973,7 +983,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
   }
 
   const instructorUsers = instructorItems.map((i) => ({
-    name:   i.label || i.value,
+    name:   normalizeHumanName(i.label || i.value),
     emp_id: String(i._row?.emp_id || i._row?.employee_id || '').trim()
   }));
 
@@ -3101,6 +3111,7 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
   const source = payload && typeof payload === 'object' ? payload : {};
   const bigintFields = new Set(['activity_no', 'sessions', 'price', 'emp_id']);
   const timeFields = new Set(['start_time', 'end_time']);
+  const humanNameFields = new Set(['instructor_name', 'instructor_name_2', 'activity_manager', 'previous_activity_manager']);
   for (const [key, rawValue] of Object.entries(source)) {
     if (!ALLOWED_ACTIVITY_COLUMNS.has(key)) continue;
     if (!includeRowId && key === 'row_id') continue;
@@ -3113,6 +3124,8 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
       nextValue = normalizeBigintFieldForSupabase(rawValue);
     } else if (timeFields.has(key)) {
       nextValue = normalizeTimeFieldForSupabase(rawValue);
+    } else if (humanNameFields.has(key)) {
+      nextValue = normalizeHumanName(rawValue);
     }
     sanitized[key] = nextValue === undefined ? null : nextValue;
   }

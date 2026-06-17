@@ -14,7 +14,7 @@ const UNASSIGNED_INSTRUCTOR_LABELS = new Set([
 ]);
 
 export function cleanInstructorName(value) {
-  const clean = text(value).replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+  const clean = text(value).replace(/\u00A0/g, ' ').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
   if (!clean) return '';
   if (UNASSIGNED_INSTRUCTOR_LABELS.has(clean.toLowerCase())) return '';
   return clean;
