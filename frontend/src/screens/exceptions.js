@@ -74,6 +74,37 @@ function exceptionDistrictKey(row = {}) {
   return String(row?.district || '').trim() || 'ללא מחוז / לא משויך';
 }
 
+function exceptionRowIdentity(row = {}) {
+  return [row?.RowID, row?.row_id, row?.source_row_id]
+    .map((value) => String(value ?? '').trim())
+    .find(Boolean) || '';
+}
+
+export function dedupeExceptionInstanceRows(rows = []) {
+  const seen = new Set();
+  const deduped = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const rowId = exceptionRowIdentity(row);
+    const exceptionType = String(row?.exception_type || '').trim();
+    if (!rowId || !exceptionType) {
+      deduped.push(row);
+      continue;
+    }
+    const key = `${rowId}:${exceptionType}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(row);
+  }
+  return deduped;
+}
+
+function prepareExceptionDisplayRows(data = {}) {
+  const sourceRows = Array.isArray(data?.exceptionInstances)
+    ? approvedExceptionRows(data.exceptionInstances)
+    : exceptionInstanceRows(data?.rows || []);
+  return dedupeExceptionInstanceRows(sourceRows);
+}
+
 function exceptionInstanceRows(rows = []) {
   const list = Array.isArray(rows) ? rows : [];
   return list.flatMap((row) => {
@@ -249,8 +280,7 @@ export const exceptionsScreen = {
     return api.exceptions({ month });
   },
   render(data, { state } = {}) {
-    const rawRows   = Array.isArray(data?.exceptionInstances) ? approvedExceptionRows(data.exceptionInstances) : exceptionInstanceRows(data?.rows || []);
-    const allRows   = rawRows;
+    const allRows   = prepareExceptionDisplayRows(data);
     const filterState = ensureActivityListFilters(state, EXCEPTIONS_SCOPE);
     prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type', 'exception_types']);
     const filteredRows = applyLocalFilters(allRows, filterState, { filterFields: EXCEPTION_FILTER_FIELDS });
@@ -297,7 +327,7 @@ export const exceptionsScreen = {
   },
   bind({ root, data, ui, state, rerender, api, clearScreenDataCache }) {
     try { sessionStorage.removeItem('ds_exceptions_save_notice'); } catch { /* ignore */ }
-    const allRows   = Array.isArray(data?.exceptionInstances) ? approvedExceptionRows(data.exceptionInstances) : exceptionInstanceRows(data?.rows || []);
+    const allRows   = prepareExceptionDisplayRows(data);
     bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 150 });
     const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);

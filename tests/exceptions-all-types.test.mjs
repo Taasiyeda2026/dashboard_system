@@ -31,7 +31,7 @@ if (!globalThis.localStorage) {
   };
 }
 
-const { exceptionsScreen } = await import('../frontend/src/screens/exceptions.js');
+const { exceptionsScreen, dedupeExceptionInstanceRows } = await import('../frontend/src/screens/exceptions.js');
 
 const read = (p) => readFile(new URL(`../${p}`, import.meta.url), 'utf8');
 
@@ -415,10 +415,34 @@ test('exceptions screen group count uses unique activities and explains duplicat
   assert.match(html, /הסתיימה ולא נסגרה · 1/);
   assert.match(html, /תאריך סיום מאוחר · 2/);
   assert.match(html, /ללא מדריך · 1/);
-  assert.match(html, /1 פעילויות \(2 רשומות\)/);
+  assert.doesNotMatch(html, /פעילויות \([2-9] רשומות\)/);
   const clickableCards = (html.match(/data-card-action="exception:/g) || []).length;
-  assert.equal(clickableCards, 5, 'each grouped appearance must still be rendered as a clickable card');
+  assert.equal(clickableCards, 4, 'duplicate RowID+exception_type rows should render once');
   assert.doesNotMatch(html, /data-action="delete"/);
+});
+
+test('exceptions screen dedupes duplicate exceptionInstances with the same RowID and exception_type', () => {
+  const data = {
+    month: '2026-05',
+    exceptionInstances: [
+      { RowID: 'A1', activity_name: 'פעילות א', authority: 'ר1', school: 'ב1', exception_type: 'missing_instructor', exception_types: ['missing_instructor'] },
+      { RowID: 'A1', activity_name: 'פעילות א', authority: 'ר1', school: 'ב1', exception_type: 'missing_instructor', exception_types: ['missing_instructor'] },
+      { RowID: 'A1', activity_name: 'פעילות א', authority: 'ר1', school: 'ב1', exception_type: 'missing_start_date', exception_types: ['missing_start_date', 'missing_instructor'] },
+      { RowID: 'B2', activity_name: 'פעילות ב', authority: 'ר2', school: 'ב2', exception_type: 'missing_instructor', exception_types: ['missing_instructor'] },
+      { RowID: 'B2', activity_name: 'פעילות ב', authority: 'ר2', school: 'ב2', exception_type: 'missing_instructor', exception_types: ['missing_instructor'] }
+    ]
+  };
+  const deduped = dedupeExceptionInstanceRows(data.exceptionInstances.map((row) => ({
+    ...row,
+    exception_type: row.exception_type,
+    exception_types: row.exception_types
+  })));
+  assert.equal(deduped.length, 3);
+  const html = exceptionsScreen.render(data, { state: { listFilters: {}, clientSettings: {} } });
+  assert.equal((html.match(/data-card-action="exception:A1"/g) || []).length, 2, 'same activity with two exception types should render two cards');
+  assert.equal((html.match(/data-card-action="exception:B2"/g) || []).length, 1, 'duplicate same-type instances should render one card');
+  assert.equal((html.match(/data-exception-type="missing_instructor"/g) || []).length, 2);
+  assert.doesNotMatch(html, /פעילויות \([2-9] רשומות\)/);
 });
 
 test('exceptions screen totals, district sum, and rendered cards use the same exception instances', () => {
