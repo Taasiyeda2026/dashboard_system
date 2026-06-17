@@ -804,6 +804,60 @@ test('authority search shows school choice after selection and supports continue
   );
 });
 
+test('authority search finds אשכול with type district and code metadata', async () => {
+  const ashkolAuthority = {
+    _catalog_source: 'authorities',
+    client_type: 'authority',
+    client_name: 'אשכול',
+    authority_id: '468',
+    school_id: null,
+    authority_name: 'אשכול',
+    authority: 'אשכול',
+    school: '',
+    authority_code: '5538',
+    authority_type: 'מועצה אזורית',
+    district: 'הדרום',
+    contact_name: '',
+    contact_role: '',
+    phone: '',
+    email: '',
+    mobile: ''
+  };
+  const options = [ashkolAuthority, ...sampleCatalogSchools, ...sampleContactRows];
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: options }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: options },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      const searchInput = form.querySelector('[data-pa-client-search-input]');
+      searchInput.value = 'אשכול';
+      searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+
+      const results = form.querySelector('[data-pa-client-results]');
+      assert.ok(results, 'results host should exist');
+      assert.match(results.innerHTML, /אשכול/);
+      assert.match(results.innerHTML, /מועצה אזורית/);
+      assert.match(results.innerHTML, /הדרום/);
+      assert.match(results.innerHTML, /קוד 5538/);
+      assert.doesNotMatch(results.innerHTML, /אין תוצאה|לא נמצאה/);
+    }
+  );
+});
+
+test('proposals screen logs proposal-authorities-debug on bind', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(screenSource, /\[proposal-authorities-debug\]/);
+  assert.match(screenSource, /authoritiesCount/);
+  assert.match(screenSource, /firstAuthorities/);
+});
+
 test('authority search shows only catalog authorities without contact details', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
