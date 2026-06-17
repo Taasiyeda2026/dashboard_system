@@ -6,7 +6,7 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 ## Runtime
 - Static server: `npx serve dist -l 5000` (workflow: "Start application")
 - SW cache bump: edit `CACHE_VERSION` in `frontend/sw.js` after any JS/CSS change.
-- **Current versions**: SW v775 (frontend/sw.js + root sw.js)
+- **Current versions**: SW v776 (frontend/sw.js + root sw.js)
 
 ## Key identifiers
 - Supabase URL: `https://szinlhjuwyiyszdpsdop.supabase.co` (anon key in `frontend/src/supabase-client.js`)
