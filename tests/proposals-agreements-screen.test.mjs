@@ -60,7 +60,7 @@ const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, countPendingApprovedProposals, isProposalApprovedPendingSend } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -310,6 +310,42 @@ test('proposals-agreements route is registered and role-gated in route definitio
   assert.doesNotMatch(apiSource, /instructor: \[[^\]]*'proposals-agreements'/);
 });
 
+test('pending approved proposals nav count includes approved unsigned sent excludes sent and cancelled', () => {
+  const approved = { id: '1', status: 'approved' };
+  const signed = { id: '2', status: 'draft', approved_at: '2026-06-01T10:00:00Z' };
+  const signatureOnly = { id: '3', status: 'draft', signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } } };
+  const sent = { id: '4', status: 'sent', approved_at: '2026-06-01T10:00:00Z' };
+  const pendingAlias = { id: '5', status: 'pending_approval', approved_at: '2026-06-01T10:00:00Z' };
+  const cancelled = { id: '6', status: 'cancelled', approved_at: '2026-06-01T10:00:00Z' };
+  const draft = { id: '7', status: 'draft' };
+
+  assert.equal(isProposalApprovedPendingSend(approved), true);
+  assert.equal(isProposalApprovedPendingSend(signed), true);
+  assert.equal(isProposalApprovedPendingSend(signatureOnly), true);
+  assert.equal(isProposalApprovedPendingSend(sent), false);
+  assert.equal(isProposalApprovedPendingSend(pendingAlias), false);
+  assert.equal(isProposalApprovedPendingSend(cancelled), false);
+  assert.equal(isProposalApprovedPendingSend(draft), false);
+  assert.equal(countPendingApprovedProposals([approved, signed, sent, draft, signatureOnly]), 3);
+});
+
+test('sidebar proposals pending badge is wired in main shell nav', async () => {
+  const mainSource = await readFile(MAIN_FILE, 'utf8');
+  assert.match(mainSource, /ds-nav-count-badge--proposals-pending/);
+  assert.match(mainSource, /pendingApprovedProposalsCount/);
+  assert.match(mainSource, /refreshPendingApprovedProposalsCount/);
+  assert.match(mainSource, /app:proposals-pending-updated/);
+  assert.match(mainSource, /'proposals-agreements'/);
+  assert.match(mainSource, /navLabelHtmlForRoute[\s\S]*proposals-agreements/);
+});
+
+test('proposals screen dispatches pending nav updates on bind and local row changes', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(screenSource, /app:proposals-pending-updated/);
+  assert.match(screenSource, /notifyPendingProposalsNav\(data\.rows\)/);
+  assert.match(screenSource, /function replaceLocalRow[\s\S]*notifyPendingProposalsNav\(data\.rows\)/);
+});
+
 
 
 test('role update migration allows business development manager for login and proposals', async () => {
@@ -475,8 +511,13 @@ test('proposals-agreements screen bypasses persistent and in-memory screen cache
   assert.match(mainSource, /'proposals-agreements': 0/);
   assert.match(mainSource, /'proposals-agreements'/);
   assert.match(mainSource, /MEMORY_ONLY_CACHE_PREFIXES[\s\S]*'proposals-agreements'/);
+  assert.match(mainSource, /MEMORY_ONLY_CACHE_PREFIXES[\s\S]*'contacts'/);
+  assert.match(mainSource, /purgeProposalsRelatedCaches/);
+  assert.match(mainSource, /PROPOSALS_RELATED_CACHE_PREFIXES[\s\S]*'contacts'/);
   assert.match(mainSource, /\[pa-data-contact-options\]/);
-  assert.match(mainSource, /routeName === 'proposals-agreements'[\s\S]*purgeScreenCacheEntry/);
+  assert.match(mainSource, /routeName === 'proposals-agreements'[\s\S]*purgeProposalsRelatedCaches/);
+  assert.match(mainSource, /requestedRoute === 'proposals-agreements'[\s\S]*\? null/);
+  assert.match(mainSource, /if \(routeName === 'proposals-agreements'\) \{[\s\S]*?\} else \{[\s\S]*maybePersistScreenCacheEntry/);
 });
 
 test('proposals agreements directory view uses only existing Supabase columns', async () => {

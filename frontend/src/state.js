@@ -109,6 +109,8 @@ export const state = {
   screenDataCache: {},
   /** Sidebar badge for open approval requests (null = not loaded yet). */
   openEditRequestsCount: null,
+  /** Sidebar badge for approved proposals awaiting send (null = not loaded yet). */
+  pendingApprovedProposalsCount: null,
   /** True once Supabase Auth session is available on the shared client. */
   authSessionReady: false,
   /** False while bootstrap/profile permission sync is in flight after reload. */
@@ -174,6 +176,7 @@ export function setSession(session) {
     state.clientSettings = defaultClientSettings();
     state.screenDataCache = {};
     state.openEditRequestsCount = null;
+    state.pendingApprovedProposalsCount = null;
     state.authSessionReady = false;
     state.permissionsReady = false;
     resetSupabaseAuthSessionWait();
@@ -218,6 +221,7 @@ export function setSession(session) {
   cleanupLegacyCalendarMonthLocalStorage(state.user.user_id);
   state.screenDataCache = {};
   state.openEditRequestsCount = null;
+  state.pendingApprovedProposalsCount = null;
   localStorage.setItem('dashboard_token', session.token);
   localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   sessionStorage.setItem('ds_session_alive', '1');

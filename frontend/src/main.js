@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { config } from './config.js';
 import { state, setSession, defaultClientSettings } from './state.js';
-import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry } from './cache-persist.js';
+import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry, deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
@@ -12,6 +12,7 @@ import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-s
 import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindAccentPickerListenerOnce } from './accent-picker.js';
 import { waitForSupabaseAuthSession } from './supabase-client.js';
 import { permissionFlagYes as permissionEnabled } from './permissions.js';
+import { countPendingApprovedProposals } from './screens/shared/proposals-pending-count.js';
 
 const app = document.getElementById('app');
 const loginLogoSrc  = new URL('../assets/logo1.png',      import.meta.url).href;
@@ -581,6 +582,38 @@ async function refreshOpenEditRequestsCount() {
   }
 }
 
+function setPendingApprovedProposalsCount(count) {
+  const normalized = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+  if (state.pendingApprovedProposalsCount !== normalized) {
+    state.pendingApprovedProposalsCount = normalized;
+    updateNavCountBadges();
+  }
+}
+
+function syncPendingApprovedProposalsCountFromRows(rows) {
+  enforceProposalsAgreementsRoute();
+  if (!isAllowedRoute('proposals-agreements')) {
+    setPendingApprovedProposalsCount(0);
+    return;
+  }
+  setPendingApprovedProposalsCount(countPendingApprovedProposals(rows));
+}
+
+async function refreshPendingApprovedProposalsCount() {
+  enforceProposalsAgreementsRoute();
+  if (!isAllowedRoute('proposals-agreements')) {
+    setPendingApprovedProposalsCount(0);
+    return;
+  }
+  try {
+    const data = await api.proposalsAgreements();
+    const rows = Array.isArray(data?.rows) ? data.rows : [];
+    setPendingApprovedProposalsCount(countPendingApprovedProposals(rows));
+  } catch {
+    // Keep existing count on transient failures.
+  }
+}
+
 const screenLoaders = {
   dashboard: () => import('./screens/dashboard.js').then((m) => m.dashboardScreen),
   activities: () => import('./screens/activities.js').then((m) => m.activitiesScreen),
@@ -838,6 +871,15 @@ function shellUserDisplayName() {
 }
 
 
+function proposalsNavCount() {
+  const stored = Number(state.pendingApprovedProposalsCount);
+  if (Number.isFinite(stored) && stored > 0) return stored;
+  const entry = state.screenDataCache?.['proposals-agreements'];
+  const rows = Array.isArray(entry?.data?.rows) ? entry.data.rows : [];
+  if (rows.length) return countPendingApprovedProposals(rows);
+  return Number.isFinite(stored) ? stored : 0;
+}
+
 function exceptionsNavCount() {
   const entry = state.screenDataCache?.exceptions;
   const instances = Array.isArray(entry?.data?.exceptionInstances) ? entry.data.exceptionInstances : [];
@@ -875,6 +917,13 @@ function navLabelHtmlForRoute(route) {
     const safeCount = escapeHtml(String(count));
     return `${label} <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" aria-label="${safeCount} בקשות עריכה פתוחות">${safeCount}</span>`;
   }
+  if (route === 'proposals-agreements') {
+    const count = proposalsNavCount();
+    const label = escapeHtml(baseLabel);
+    if (!Number.isFinite(count) || count <= 0) return label;
+    const safeCount = escapeHtml(String(count));
+    return `${label} <span class="ds-nav-count-badge ds-nav-count-badge--proposals-pending" aria-label="${safeCount} הצעות מחיר מאושרות ממתינות לשליחה">${safeCount}</span>`;
+  }
   const label = escapeHtml(navLabelForRoute(route));
   if (route !== 'exceptions') return label;
   const count = exceptionsNavCount();
@@ -885,7 +934,7 @@ function navLabelHtmlForRoute(route) {
 
 function updateNavCountBadges() {
   if (typeof document === 'undefined') return;
-  ['exceptions', 'edit-requests'].forEach((route) => {
+  ['exceptions', 'edit-requests', 'proposals-agreements'].forEach((route) => {
     document.querySelectorAll(`[data-route="${route}"] .ds-act-nav-item__label`).forEach((node) => {
       node.innerHTML = navLabelHtmlForRoute(route);
     });
@@ -1108,8 +1157,28 @@ function screenCacheTtl() {
 const MEMORY_ONLY_CACHE_PREFIXES = [
   'activityDetail:',
   'operations:',
-  'proposals-agreements'
+  'proposals-agreements',
+  'contacts'
 ];
+
+const PROPOSALS_RELATED_CACHE_PREFIXES = ['proposals-agreements', 'contacts'];
+
+function purgeProposalsRelatedCaches() {
+  const deletedKeys = [];
+  Object.keys(state.screenDataCache || {}).forEach((key) => {
+    if (PROPOSALS_RELATED_CACHE_PREFIXES.some((prefix) => key === prefix || key.startsWith(`${prefix}:`))) {
+      delete state.screenDataCache[key];
+      deletedKeys.push(key);
+    }
+  });
+  const persistedKeys = deletePersistedCacheByPrefixes(PROPOSALS_RELATED_CACHE_PREFIXES);
+  deletedKeys.push(...persistedKeys.filter((key) => !deletedKeys.includes(key)));
+  deletedKeys.forEach((key) => persistCacheDelete(key));
+  if (deletedKeys.length) {
+    // eslint-disable-next-line no-console
+    console.info('[proposals-cache-purge]', { deletedKeys });
+  }
+}
 
 function purgeScreenCacheEntry(cacheKey) {
   if (!cacheKey) return;
@@ -1176,7 +1245,7 @@ async function loadScreenDataWithCache(screen) {
   const routePerfStart = routePerfEnabled ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0;
   const key = screenDataCacheKey();
   if (routeName === 'proposals-agreements') {
-    purgeScreenCacheEntry(key);
+    purgeProposalsRelatedCaches();
   }
   const hit = state.screenDataCache[key];
   const ttl = screenCacheTtl();
@@ -1231,10 +1300,12 @@ async function loadScreenDataWithCache(screen) {
         });
       }
       const entry = { data, t: Date.now() };
-      state.screenDataCache[key] = entry;
-      maybePersistScreenCacheEntry(key, entry);
       if (routeName === 'proposals-agreements') {
         logProposalsAgreementsContactOptions(data);
+        syncPendingApprovedProposalsCountFromRows(data?.rows);
+      } else {
+        state.screenDataCache[key] = entry;
+        maybePersistScreenCacheEntry(key, entry);
       }
       if (key === 'exceptions') updateExceptionNavCount();
       inflightRequests.delete(key);
@@ -1269,9 +1340,12 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     const data = await p;
     inflightRequests.delete(cacheKey);
     const entry = { data, t: Date.now() };
-    state.screenDataCache[cacheKey] = entry;
-    maybePersistScreenCacheEntry(cacheKey, entry);
+    if (cacheKey !== 'proposals-agreements') {
+      state.screenDataCache[cacheKey] = entry;
+      maybePersistScreenCacheEntry(cacheKey, entry);
+    }
     if (cacheKey === 'exceptions') updateExceptionNavCount();
+    if (cacheKey === 'proposals-agreements') syncPendingApprovedProposalsCountFromRows(data?.rows);
     if (
       activeNavigationToken === guardedToken &&
       state.route === guardedRoute &&
@@ -1647,6 +1721,8 @@ function backgroundSyncBootstrap() {
         if (state.route === 'personal-reports') render().catch(() => {});
       }
       refreshOpenEditRequestsCount().catch(() => {});
+      refreshPendingApprovedProposalsCount().catch(() => {});
+      purgeProposalsRelatedCaches();
     })
     .catch(() => {
       state.permissionsReady = true;
@@ -1666,6 +1742,8 @@ async function restoreSession() {
   consumePendingRouteFromUrlOrSession();
   clearFinancePrefsIfUserChanged(state.user?.user_id);
   refreshOpenEditRequestsCount().catch(() => {});
+  refreshPendingApprovedProposalsCount().catch(() => {});
+  purgeProposalsRelatedCaches();
 }
 
 async function mountScreen() {
@@ -1734,11 +1812,13 @@ async function mountScreen() {
   const cacheKey = screenDataCacheKey();
   const routeLoadStartMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
   if (requestedRoute === 'proposals-agreements') {
-    purgeScreenCacheEntry(cacheKey);
+    purgeProposalsRelatedCaches();
   }
   // eslint-disable-next-line no-console
   console.info('[route-load:start]', { route: requestedRoute, cacheKey });
-  const rawEntry = screen.load ? state.screenDataCache[cacheKey] : null;
+  const rawEntry = (requestedRoute === 'proposals-agreements' || !screen.load)
+    ? null
+    : state.screenDataCache[cacheKey];
   const isStale = rawEntry && (Date.now() - rawEntry.t >= screenCacheTtl() || rawEntry.data?._is_stale === true);
 
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
@@ -1939,6 +2019,15 @@ function bindShell() {
     refreshOpenEditRequestsCount().catch(() => {});
   });
 
+  document.addEventListener('app:proposals-pending-updated', (e) => {
+    const rows = e?.detail?.rows;
+    if (Array.isArray(rows)) {
+      syncPendingApprovedProposalsCountFromRows(rows);
+      return;
+    }
+    refreshPendingApprovedProposalsCount().catch(() => {});
+  });
+
   document.querySelectorAll('[data-route]').forEach((button) => {
     button.addEventListener('click', () => {
       navigateToRoute(button.dataset.route);
@@ -2036,6 +2125,8 @@ async function render() {
               default_route: state.route
             });
             refreshOpenEditRequestsCount().catch(() => {});
+            refreshPendingApprovedProposalsCount().catch(() => {});
+            purgeProposalsRelatedCaches();
             loginBootstrapDurationMs = performance.now() - bootstrapApplyStartMs;
             applyGlobalAccent(accentNameFromStorage(state.clientSettings));
             renderShellLoadingImmediately();
