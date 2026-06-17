@@ -837,6 +837,14 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-authority-date:first-of-type { border-top:0; }
     .ds-ops-mgmt-screen .ds-ops-authority-date__title { display:inline-flex; align-items:center; gap:6px; margin:0 0 7px; padding:3px 9px; border-radius:999px; background:#eef6ff; color:#1e3a8a; font-size:12px; font-weight:800; }
     .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { margin-top:0; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table { width:85%; margin:0 auto; table-layout:fixed; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--date { width:11%; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--weekday { width:8%; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--time { width:12%; white-space:nowrap; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--instructor { width:14%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--grade { width:7%; text-align:center; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:48%; overflow:hidden; text-overflow:ellipsis; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table th,.ds-ops-mgmt-screen .ds-ops-authorities-table td { padding-top:0.25rem; padding-bottom:0.25rem; padding-inline:0.35rem; }
   </style>`;
 }
 
@@ -996,15 +1004,15 @@ function printSchoolsSchedule() {
           const activity = entry.activity;
           return `<tr>
             <td class="col-time">${escapeHtml(entry.time || '—')}</td>
-            <td>${escapeHtml(entry.instructor || '—')}</td>
+            <td class="col-instructor">${escapeHtml(entry.instructor || '—')}</td>
             <td class="col-grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
-            <td>${escapeHtml(getActivityName(activity))}</td>
+            <td class="col-activity">${escapeHtml(getActivityName(activity))}</td>
           </tr>`;
         }).join('');
         const dayLabel = date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—';
         return `<div class="date-block">
           <div class="date-title">${escapeHtml(formatDateHe(date) || date)} · ${escapeHtml(dayLabel)}</div>
-          <table><thead><tr><th class="col-time">שעות</th><th>מדריך</th><th class="col-grade">כיתה</th><th>פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+          <table><colgroup><col class="col-time"><col class="col-instructor"><col class="col-grade"><col class="col-activity"></colgroup><thead><tr><th class="col-time">שעות</th><th class="col-instructor">מדריך</th><th class="col-grade">כיתה</th><th class="col-activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
         </div>`;
       }).join('');
       return `<div class="school-block">
@@ -1029,15 +1037,17 @@ function printSchoolsSchedule() {
     .school-title{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:3px;padding:1px 4px;background:#f1f5f9;border-right:3px solid #0369a1}
     .date-block{margin-bottom:5px;page-break-inside:avoid;break-inside:avoid}
     .date-title{font-size:10px;color:#475569;font-weight:600;margin-bottom:2px}
-    table{border-collapse:collapse;width:100%}
-    th,td{border:1px solid #cbd5e1;padding:2px 5px;text-align:right;font-size:10px;line-height:1.3}
+    table{border-collapse:collapse;width:85%;margin:0 auto;table-layout:fixed}
+    th,td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     th{background:#e6f6fb;font-weight:700}
     tr:nth-child(even) td{background:#f8fafc}
-    .col-time{width:60px;white-space:nowrap;text-align:center}
-    .col-grade{width:48px;text-align:center}
+    .col-time{width:15%;text-align:center}
+    .col-instructor{width:22%}
+    .col-grade{width:10%;text-align:center}
+    .col-activity{width:53%;white-space:normal}
     .footer{margin-top:10px;font-size:11px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:5px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}.date-block{page-break-inside:avoid;break-inside:avoid}}
+    @media print{body{margin:0}table{width:85%;margin:0 auto;table-layout:fixed}.date-block{page-break-inside:avoid;break-inside:avoid}}
   `;
   const bodyHtml = `
     <h1>${escapeHtml(title)}</h1>
@@ -1269,7 +1279,7 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
         }).join('');
         return `<section class="ds-ops-authority-date">
           <h4 class="ds-ops-authority-date__title">${escapeHtml(formatDateHe(date) || 'ללא תאריך')} · ${escapeHtml(date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—')}</h4>
-          ${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>תאריך</th><th>יום</th><th>שעות</th><th>מדריך</th><th>כיתה</th><th>פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}
+          ${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-authorities-table"><colgroup><col class="ds-ops-col--date"><col class="ds-ops-col--weekday"><col class="ds-ops-col--time"><col class="ds-ops-col--instructor"><col class="ds-ops-col--grade"><col class="ds-ops-col--activity"></colgroup><thead><tr><th class="ds-ops-col--date">תאריך</th><th class="ds-ops-col--weekday">יום</th><th class="ds-ops-col--time">שעות</th><th class="ds-ops-col--instructor">מדריך</th><th class="ds-ops-col--grade">כיתה</th><th class="ds-ops-col--activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}
         </section>`;
       }).join('');
       return `<article class="ds-ops-authority-school">
