@@ -805,19 +805,17 @@ function opsManagementStylesHtml() {
     @media (max-width: 460px) { .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { grid-template-columns:1fr; } }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(935px, 100%); margin-inline-start:auto; margin-inline-end:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(790px, 85%); margin-inline-start:auto; margin-inline-end:auto; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8; padding:4px 6px; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#dbeafe; color:#1e3a8a; font-weight:800; font-size:12px; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(1),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { width:90px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { width:76px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(2),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { width:335px; max-width:335px; text-align:right; white-space:normal; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3):nth-child(-n+6),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3):nth-child(-n+6) { width:120px; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(7),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(7) { width:230px; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-stock-input { width:78px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { text-align:right; white-space:normal; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3) { width:100px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-stock-input { width:68px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; background:#eefaff; border-bottom:1px solid #d8e5ee; font-weight:700; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__stats,
@@ -1059,11 +1057,9 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"><thead><tr>
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מספר סדנה')}
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם סדנה')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'activityCount', 'כמות משובצת')}
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'כמות נדרשת')}
-        <th class="ds-ops-col--stock-input">מלאי קיים</th>
+        <th>כמות מלאי</th>
         <th>יתרת מלאי</th>
-        <th>סדנאות מקושרות</th>
       </tr></thead><tbody>${metrics.map((row) => {
         const defaultStock = row.stockQuantity ?? row.catalogStock;
         const hasDefaultStock = defaultStock !== null && defaultStock !== undefined && Number.isFinite(Number(defaultStock));
@@ -1076,11 +1072,9 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
         return `<tr>
           <td>${escapeHtml(row.workshopNo || '—')}</td>
           <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
-          <td>${row.activityCount}</td>
           <td>${row.estimatedQuantity}</td>
           <td><input type="number" class="ds-ops-stock-input" data-ops-stock-group="${escapeHtml(row.stockGroupKey)}" value="${escapeHtml(String(shownStock))}" placeholder="לא הוזן" min="0"></td>
           <td data-ops-workshop-gap="${escapeHtml(row.workshopName)}" data-estimated="${requiredQuantity}">${gapHtml}</td>
-          <td>${(row.linkedWorkshops || []).map((workshop) => `<div>${escapeHtml(`${workshop.workshopNo} - ${workshop.workshopName}`)}</div>`).join('')}</td>
         </tr>`;
       }).join('')}</tbody></table>`)
     : dsEmptyState('לא נמצאו סדנאות');
