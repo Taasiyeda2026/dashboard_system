@@ -850,13 +850,13 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-authority-date:first-of-type { border-top:0; }
     .ds-ops-mgmt-screen .ds-ops-authority-date__title { display:inline-flex; align-items:center; gap:6px; margin:0 0 7px; padding:3px 9px; border-radius:999px; background:#eef6ff; color:#1e3a8a; font-size:12px; font-weight:800; }
     .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { margin-top:0; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table { width:85%; margin:0 auto; table-layout:fixed; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--date { width:11%; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table { width:60%; margin:0 auto; table-layout:fixed; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--date { width:12%; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--weekday { width:8%; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--time { width:12%; white-space:nowrap; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--instructor { width:14%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--grade { width:7%; text-align:center; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:48%; overflow:hidden; text-overflow:ellipsis; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--instructor { width:12%; white-space:normal; word-break:break-word; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--grade { width:9%; text-align:center; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:47%; white-space:normal; word-break:break-word; }
     .ds-ops-mgmt-screen .ds-ops-authorities-table th,.ds-ops-mgmt-screen .ds-ops-authorities-table td { padding-top:0.25rem; padding-bottom:0.25rem; padding-inline:0.35rem; }
   </style>`;
 }
@@ -1044,24 +1044,24 @@ function printSchoolsSchedule() {
     body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:10px 14px;color:#111;background:#fff;font-size:11px;line-height:1.3}
     h1{margin:0 0 2px;font-size:14px;color:#0f172a}
     .subtitle{margin:0 0 12px;color:#475569;font-size:10.5px}
-    .authority-section{margin-bottom:14px;page-break-inside:avoid}
+    .authority-section{margin-bottom:14px;}
     .authority-header{font-size:12.5px;font-weight:800;color:#0369a1;border-bottom:2px solid #0369a1;margin-bottom:5px;padding-bottom:2px}
     .authority-stats{font-size:10px;font-weight:400;color:#64748b}
     .school-block{margin-bottom:8px;padding-right:6px}
-    .school-title{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:3px;padding:1px 4px;background:#f1f5f9;border-right:3px solid #0369a1}
-    .date-block{margin-bottom:5px;page-break-inside:avoid;break-inside:avoid}
+    .school-title{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:3px;padding:1px 4px;background:#f1f5f9;border-right:3px solid #0369a1;break-after:avoid;page-break-after:avoid}
+    .date-block{margin-bottom:5px;}
     .date-title{font-size:10px;color:#475569;font-weight:600;margin-bottom:2px;break-after:avoid;page-break-after:avoid}
-    table{border-collapse:collapse;width:85%;margin:0 auto;table-layout:fixed}
-    th,td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    table{border-collapse:collapse;width:60%;margin:0 auto;table-layout:fixed}
+    th,td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.3;white-space:normal;word-break:break-word}
     th{background:#e6f6fb;font-weight:700}
     tr:nth-child(even) td{background:#f8fafc}
-    .col-time{width:15%;text-align:center}
-    .col-instructor{width:22%}
-    .col-grade{width:10%;text-align:center}
-    .col-activity{width:53%;white-space:normal}
+    .col-time{width:12%;text-align:center;white-space:nowrap}
+    .col-instructor{width:15%}
+    .col-grade{width:12%;text-align:center;white-space:nowrap}
+    .col-activity{width:61%}
     .footer{margin-top:10px;font-size:11px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:5px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}table{width:85%;margin:0 auto;table-layout:fixed;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}.date-block{page-break-inside:avoid;break-inside:avoid}.date-title{break-after:avoid;page-break-after:avoid}.date-block table{break-before:avoid;page-break-before:avoid}.authority-section{page-break-inside:avoid;break-inside:avoid}}
+    @media print{body{margin:0}table{width:60%!important;margin:0 auto;table-layout:fixed;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}.date-block{break-inside:auto;page-break-inside:auto}.date-title{break-after:avoid;page-break-after:avoid}.date-block table{break-before:avoid;page-break-before:avoid}.school-title{break-after:avoid;page-break-after:avoid}}
   `;
   const bodyHtml = `
     <h1>${escapeHtml(title)}</h1>
