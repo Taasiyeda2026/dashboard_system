@@ -284,14 +284,25 @@ export function bindActivityEditForm(contentRoot, {
     if (hasMeetingDatesChanged(form, initialValues)) {
       const snapshot = buildMeetingDatesSnapshot(form);
       const isOnce = form.dataset.isOnce === 'yes';
+
       for (let i = 0; i < 35; i++) {
-        changes[`meeting_date_${i}`] = snapshot.dates[i];
+        const current = String(snapshot.dates[i] || '').trim();
+        const prev = String(initialValues[`meeting_date_${i}`] ?? initialValues[`date_${i + 1}`] ?? '').trim();
+        if (current !== prev) {
+          changes[`meeting_date_${i}`] = current;
+        }
       }
-      changes.start_date = snapshot.startDate;
-      changes.end_date = isOnce ? snapshot.startDate : snapshot.endDate;
-      if (isOnce && snapshot.startDate) {
-        changes.date_1 = snapshot.startDate;
-        changes.end_date = snapshot.startDate;
+
+      const prevEndDate = (() => {
+        for (let j = 34; j >= 0; j--) {
+          const v = String(initialValues[`meeting_date_${j}`] ?? initialValues[`date_${j + 1}`] ?? '').trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+        }
+        return '';
+      })();
+      const computedEndDate = isOnce ? snapshot.startDate : snapshot.endDate;
+      if (computedEndDate && computedEndDate !== prevEndDate) {
+        changes.end_date = computedEndDate;
       }
     }
 
