@@ -3216,6 +3216,34 @@ async function updateActivityInSupabase(payload = {}) {
   }
   if (!Object.keys(changes).length) throw new Error('No changes to submit');
   const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes };
+  const { data: rowIdMatches, error: rowIdMatchesError } = await supabase
+    .from('activities')
+    .select('row_id')
+    .eq('row_id', rowId)
+    .limit(2);
+  if (rowIdMatchesError) throw buildSupabaseMutationError('saveActivity', rowIdMatchesError, 'save_failed');
+  if (Array.isArray(rowIdMatches) && rowIdMatches.length > 1) {
+    const duplicateRowIdError = new Error(`duplicate key value violates unique constraint "activities_row_id_key" | Key (row_id)=(${rowId}) appears more than once`);
+    duplicateRowIdError.name = 'SupabaseMutationError';
+    duplicateRowIdError.operation = 'saveActivity';
+    duplicateRowIdError.code = '23505';
+    duplicateRowIdError.details = `row_id ${rowId} matched ${rowIdMatches.length} activities rows before update`;
+    // eslint-disable-next-line no-console
+    console.error('[activity-save-error]', {
+      action: 'saveActivity',
+      table: 'activities',
+      row_id: rowId,
+      source_sheet: sourceSheet,
+      changed_fields: Object.keys(changes),
+      supabase_error_code: duplicateRowIdError.code,
+      supabase_error_message: duplicateRowIdError.message,
+      supabase_error_details: duplicateRowIdError.details,
+      supabase_error_hint: 'Fix duplicate activities.row_id rows before saving this activity.',
+      payload: debugPayload,
+      error: duplicateRowIdError
+    });
+    throw duplicateRowIdError;
+  }
   logActivityMutationDebug('request', 'saveActivity', debugPayload, { table: 'activities' });
   const { data, error } = await supabase
     .from('activities')
@@ -3230,6 +3258,8 @@ async function updateActivityInSupabase(payload = {}) {
       action: 'saveActivity',
       table: 'activities',
       row_id: rowId,
+      source_sheet: sourceSheet,
+      changed_fields: Object.keys(changes),
       auth_uid: authContext.auth_uid,
       user_id: authContext.user_id,
       role: authContext.role,
@@ -3238,6 +3268,7 @@ async function updateActivityInSupabase(payload = {}) {
       supabase_error_code: error?.code || error?.status || '',
       supabase_error_message: String(error?.message || 'save_failed'),
       supabase_error_details: String(error?.details || ''),
+      supabase_error_hint: String(error?.hint || ''),
       payload: debugPayload,
       error
     });

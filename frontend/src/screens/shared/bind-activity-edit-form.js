@@ -250,6 +250,14 @@ export function bindActivityEditForm(contentRoot, {
   const { signal } = abortController;
 
   async function saveActivityForm(form) {
+    if (form.dataset.saveInFlight === 'yes') {
+      // eslint-disable-next-line no-console
+      console.warn('[activity-save:duplicate-submit-blocked]', {
+        rowId: form.getAttribute('data-row-id') || '',
+        source_sheet: form.getAttribute('data-source-sheet') || ''
+      });
+      return;
+    }
     const statusEl = form.querySelector('.ds-activity-edit-status');
     const submitBtn = form.querySelector('[data-action="save-edit"]');
     const sourceSheet = form.getAttribute('data-source-sheet') || '';
@@ -329,6 +337,7 @@ export function bindActivityEditForm(contentRoot, {
       }
 
       setStatus(statusEl, 'is-pending', canDirectEdit ? 'שומר...' : 'שולח בקשת עריכה...');
+      form.dataset.saveInFlight = 'yes';
       if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.classList.add('is-loading');
@@ -378,12 +387,22 @@ export function bindActivityEditForm(contentRoot, {
         });
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[activity-save-error]', err);
       const errMsg = err?.message || err?.status || err?.code || '';
+      // eslint-disable-next-line no-console
+      console.error('[activity-save-error]', {
+        rowId: sourceRowId,
+        source_sheet: sourceSheet,
+        changed_fields: Object.keys(changes),
+        supabase_error_code: err?.code || err?.status || '',
+        supabase_error_message: err?.message || '',
+        supabase_error_details: err?.details || '',
+        supabase_error_hint: err?.hint || '',
+        error: err
+      });
       const isTimeout = errMsg === 'save_timeout' || errMsg === 'request_timeout' || String(errMsg).toLowerCase().includes('timeout');
       setStatus(statusEl, isTimeout ? 'is-warning' : 'is-error', `⚠️ ${translateApiErrorForUser(errMsg)}`);
     } finally {
+      form.dataset.saveInFlight = 'no';
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.classList.remove('is-loading');

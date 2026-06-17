@@ -118,6 +118,10 @@ function exceptionInstanceRows(rows = []) {
   });
 }
 
+function exceptionCardActionKey(row = {}) {
+  return String(row?.exception_instance_key || `${exceptionRowIdentity(row)}:${row?.exception_type || ''}`).trim();
+}
+
 function splitRowsByExceptionTab(rows = []) {
   const general = [];
   const summerDates = [];
@@ -165,13 +169,14 @@ function exceptionCardHtml(row, groupKey) {
   const school = String(row?.school || '').trim() || 'ללא בית ספר';
   const authority = String(row?.authority || '').trim() || 'ללא רשות';
   const tone = groupKey || exceptionCardTone(row);
+  const actionKey = exceptionCardActionKey(row);
   return `<div data-list-item class="ds-exception-list-item">
     <button
       type="button"
       class="ds-interactive-card ds-interactive-card--session ds-exception-card"
       data-exception-tone="${escapeHtml(tone)}"
       data-exception-type="${escapeHtml(String(row?.exception_type || ''))}"
-      data-card-action="${escapeHtml(`exception:${row.RowID}`)}"
+      data-card-action="${escapeHtml(`exception:${actionKey}`)}"
       aria-label="פתיחת פרטי חריגה עבור ${escapeHtml(activityName)}"
     >
       <span class="ds-exception-card__accent" aria-hidden="true"></span>
@@ -458,8 +463,8 @@ export const exceptionsScreen = {
 
     ui?.bindInteractiveCards(root, (action) => {
       if (action.startsWith('exception:')) {
-        const rowId = action.slice('exception:'.length);
-        const idx = allRows.findIndex((row) => String(row.RowID) === rowId);
+        const actionKey = action.slice('exception:'.length);
+        const idx = allRows.findIndex((row) => exceptionCardActionKey(row) === actionKey);
         openAt(idx);
         return;
       }

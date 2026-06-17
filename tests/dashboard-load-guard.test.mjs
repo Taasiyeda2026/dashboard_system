@@ -106,6 +106,13 @@ test('translateApiErrorForUser maps Supabase write failures to precise Hebrew me
     'validation/bad request statuses should map to a precise invalid request message');
 });
 
+test('translateApiErrorForUser exposes constraint field for duplicate key failures', async () => {
+  const mod = await import(`${new URL('../frontend/src/screens/shared/ui-hebrew.js', import.meta.url).href}?bust=${Date.now()}-${Math.random()}`);
+  const message = mod.translateApiErrorForUser('23505 | duplicate key value violates unique constraint "activities_row_id_key" | Key (row_id)=(ACT-1) already exists.');
+  assert.match(message, /שדה/);
+  assert.match(message, /row_id|RowID|מזהה/);
+});
+
 test('main.js emits route-render lifecycle logs for dashboard rendering', async () => {
   const src = await read(MAIN_FILE);
   assert.match(src, /console\.info\('\[route-render:start\]'/,

@@ -109,6 +109,33 @@ test('user with can_edit_direct calls saveActivity and not submitEditRequest', a
   });
 });
 
+test('activity edit form blocks duplicate save clicks while first save is in flight', async () => {
+  const { bindActivityEditForm } = await import(`${BIND_MODULE}?bust=${Date.now()}-${Math.random()}`);
+  let resolveSave;
+  const calls = [];
+  const root = buildEditRoot({ canDirectEdit: true });
+  const form = root.querySelector('[data-drawer-form]');
+
+  bindActivityEditForm(root, {
+    api: {
+      saveActivity: async (...args) => {
+        calls.push(['saveActivity', ...args]);
+        return new Promise((resolve) => { resolveSave = resolve; });
+      },
+      submitEditRequest: async (...args) => calls.push(['submitEditRequest', ...args])
+    }
+  });
+
+  form.querySelector('[name="activity_name"]').value = 'שם חדש';
+  const saveBtn = form.querySelector('[data-action="save-edit"]');
+  saveBtn.click();
+  saveBtn.click();
+  await wait(20);
+  assert.equal(calls.filter(([name]) => name === 'saveActivity').length, 1);
+  resolveSave({ ok: true });
+  await wait(20);
+});
+
 test('approving removes request immediately from pending filter', async () => {
   const source = await fs.readFile(new URL('../frontend/src/screens/edit-requests.js', import.meta.url), 'utf8');
   assert.match(source, /const status = action === 'approve' \? 'approved' : 'rejected';/);

@@ -837,7 +837,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
     <form class="activity-drawer__form" data-drawer-form data-editing="no"
       data-export-row="${jsonAttr(row)}"
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
-      data-row-id="${escapeHtml(String(row.RowID || ''))}"
+      data-row-id="${escapeHtml(String(row.RowID || row.row_id || row.source_row_id || ''))}"
       data-can-direct-edit="${canDirectEdit ? 'yes' : 'no'}"
       data-can-request-edit="${canRequestEdit ? 'yes' : 'no'}"
       data-auto-end-date="${escapeHtml(computedEnd)}"
