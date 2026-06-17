@@ -815,7 +815,12 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { text-align:right; white-space:normal; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3) { width:100px; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-stock-input { width:68px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
+    .ds-ops-mgmt-screen .ds-ops-stock-cell { white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-btn { background:none; border:1px solid #94a3b8; border-radius:4px; cursor:pointer; padding:1px 5px; font-size:11px; color:#475569; margin-inline-start:4px; line-height:1.4; vertical-align:middle; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-btn:hover { background:#f1f5f9; color:#0369a1; }
+    .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
+    .ds-ops-mgmt-screen .ds-ops-stock-save-btn { background:#0369a1; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; margin-inline-start:2px; }
+    .ds-ops-mgmt-screen .ds-ops-stock-cancel-btn { background:#94a3b8; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; margin-inline-start:2px; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; background:#eefaff; border-bottom:1px solid #d8e5ee; font-weight:700; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__stats,
@@ -860,7 +865,7 @@ function openOpsPrintWindow({ title = 'הדפסה', bodyHtml = '' } = {}) {
   const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
     body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:18px;color:#111827;background:#fff;font-size:12px;line-height:1.45}
     h1,h2,h3{margin:0 0 8px;color:#0f172a} p{margin:0 0 10px}
-    table{width:100%;border-collapse:collapse;margin-top:10px;table-layout:auto} th,td{border:1px solid #cbd5e1;padding:6px 7px;vertical-align:top;text-align:right} th{background:#e6f6fb;color:#0f172a;font-weight:700} tr:nth-child(even) td{background:#f8fafc}.ds-ops-col--date,.ds-ops-col--weekday,.ds-ops-col--time,.ds-ops-col--phone{white-space:nowrap}.ds-ops-col--school,.ds-ops-col--activity,.ds-ops-col--address{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    table{width:100%;border-collapse:collapse;margin-top:10px;table-layout:auto} th,td{border:1px solid #cbd5e1;padding:6px 7px;vertical-align:top;text-align:right} th{background:#e6f6fb;color:#0f172a;font-weight:700} tr:nth-child(even) td{background:#f8fafc}.ds-ops-col--date,.ds-ops-col--weekday,.ds-ops-col--time,.ds-ops-col--phone{white-space:nowrap}.ds-ops-col--school,.ds-ops-col--activity,.ds-ops-col--address{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-ops-stock-edit-btn,.ds-ops-stock-save-btn,.ds-ops-stock-cancel-btn{display:none}
     .no-print,button,.ds-link-btn,.ds-sort-indicator{display:none!important}.only-print{display:block!important}.ds-ops-mgmt-print-footer{margin-top:14px;font-weight:600}
     @page{size:A4 landscape;margin:12mm}@media print{body{margin:0}tr{break-inside:avoid}}
   </style></head><body>${bodyHtml}</body></html>`;
@@ -1147,8 +1152,8 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
 
   const table = metrics.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"><thead><tr>
-        ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מספר סדנה')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם סדנה')}
+        ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מס׳ / קבוצה')}
+        ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם פריט מלאי')}
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'כמות נדרשת')}
         <th>כמות מלאי</th>
         <th>יתרת מלאי</th>
@@ -1156,6 +1161,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
         const defaultStock = row.stockQuantity ?? row.catalogStock;
         const hasDefaultStock = defaultStock !== null && defaultStock !== undefined && Number.isFinite(Number(defaultStock));
         const shownStock = hasDefaultStock ? Number(defaultStock) : '';
+        const stockDisplay = shownStock !== '' ? String(shownStock) : '—';
         const requiredQuantity = row.actualQuantity !== null ? row.actualQuantity : row.estimatedQuantity;
         const gap = shownStock === '' ? null : Number(shownStock) - requiredQuantity;
         const gapHtml = gap === null
@@ -1165,7 +1171,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
           <td>${escapeHtml(row.workshopNo || '—')}</td>
           <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
           <td>${row.estimatedQuantity}</td>
-          <td><input type="number" class="ds-ops-stock-input" data-ops-stock-group="${escapeHtml(row.stockGroupKey)}" value="${escapeHtml(String(shownStock))}" placeholder="לא הוזן" min="0"></td>
+          <td class="ds-ops-stock-cell" data-ops-stock-group="${escapeHtml(row.stockGroupKey)}" data-ops-stock-value="${escapeHtml(String(shownStock))}"><span class="ds-ops-stock-display">${escapeHtml(stockDisplay)}</span><button type="button" class="ds-ops-stock-edit-btn" title="עדכן מלאי">✎</button></td>
           <td data-ops-workshop-gap="${escapeHtml(row.workshopName)}" data-estimated="${requiredQuantity}">${gapHtml}</td>
         </tr>`;
       }).join('')}</tbody></table>`)
@@ -1420,27 +1426,74 @@ export const operationsManagementScreen = {
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
     root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
 
-    root.querySelectorAll('[data-ops-stock-group]').forEach((input) => {
-      input.addEventListener('change', async (ev) => {
-        const stockGroupKey = input.getAttribute('data-ops-stock-group') || '';
-        const value = ev.target.value.trim();
-        if (!stockGroupKey || value === '' || !Number.isFinite(Number(value))) return;
-        input.disabled = true;
-        try {
-          const stockQuantity = Number(value);
-          await updateWorkshopStockGroup(stockGroupKey, stockQuantity);
-          const gapCell = input.closest('tr')?.querySelector('[data-ops-workshop-gap]');
-          if (gapCell) {
-            const estimated = Number(gapCell.getAttribute('data-estimated') || '0');
-            const gap = stockQuantity - estimated;
-            gapCell.innerHTML = `<span class="ds-ops-gap ${gap < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${gap}</span>`;
+    root.querySelectorAll('.ds-ops-stock-edit-btn').forEach((editBtn) => {
+      editBtn.addEventListener('click', () => {
+        const cell = editBtn.closest('.ds-ops-stock-cell');
+        if (!cell || cell.querySelector('.ds-ops-stock-input')) return;
+        const stockGroupKey = cell.getAttribute('data-ops-stock-group') || '';
+        const currentValue = cell.getAttribute('data-ops-stock-value') || '';
+        const displaySpan = cell.querySelector('.ds-ops-stock-display');
+        if (!displaySpan) return;
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'ds-ops-stock-input';
+        input.value = currentValue;
+        input.min = '0';
+        input.placeholder = 'כמות';
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'ds-ops-stock-save-btn';
+        saveBtn.textContent = '✓';
+        saveBtn.title = 'שמור';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'ds-ops-stock-cancel-btn';
+        cancelBtn.textContent = '✕';
+        cancelBtn.title = 'ביטול';
+        displaySpan.style.display = 'none';
+        editBtn.style.display = 'none';
+        cell.appendChild(input);
+        cell.appendChild(saveBtn);
+        cell.appendChild(cancelBtn);
+        input.focus();
+        input.select();
+        const revert = () => {
+          displaySpan.style.display = '';
+          editBtn.style.display = '';
+          input.remove();
+          saveBtn.remove();
+          cancelBtn.remove();
+        };
+        cancelBtn.addEventListener('click', revert);
+        const save = async () => {
+          const value = input.value.trim();
+          if (value === '' || !Number.isFinite(Number(value))) { revert(); return; }
+          saveBtn.disabled = true;
+          cancelBtn.disabled = true;
+          try {
+            const stockQuantity = Number(value);
+            await updateWorkshopStockGroup(stockGroupKey, stockQuantity);
+            cell.setAttribute('data-ops-stock-value', value);
+            displaySpan.textContent = value;
+            const gapCell = cell.closest('tr')?.querySelector('[data-ops-workshop-gap]');
+            if (gapCell) {
+              const estimated = Number(gapCell.getAttribute('data-estimated') || '0');
+              const gap = stockQuantity - estimated;
+              gapCell.innerHTML = `<span class="ds-ops-gap ${gap < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${gap}</span>`;
+            }
+            revert();
+          } catch (error) {
+            console.error('[operations-management] Failed to update workshop stock group:', error);
+            alert('עדכון המלאי נכשל. יש לנסות שוב.');
+            saveBtn.disabled = false;
+            cancelBtn.disabled = false;
           }
-          input.disabled = false;
-        } catch (error) {
-          console.error('[operations-management] Failed to update workshop stock group:', error);
-          alert('עדכון המלאי נכשל. יש לנסות שוב או לעדכן ישירות ב-Supabase.');
-          input.disabled = false;
-        }
+        };
+        saveBtn.addEventListener('click', save);
+        input.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') save();
+          if (ev.key === 'Escape') revert();
+        });
       });
     });
 
