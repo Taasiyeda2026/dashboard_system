@@ -2788,14 +2788,10 @@ export const proposalsAgreementsScreen = {
       const seen = new Set();
       return contactOptions.filter((c) => {
         if (selectedType === 'authority') {
-          if (!text(c.authority)) return false;
-          if (text(c.school)) return false;
-          if (c._catalog_source !== 'authorities' && text(c.client_type) !== 'authority') return false;
+          if (c._catalog_source !== 'authorities') return false;
         } else if (selectedType === 'school') {
           if (schoolStep === 'authority') {
-            if (!text(c.authority)) return false;
-            if (text(c.school)) return false;
-            if (c._catalog_source !== 'authorities' && text(c.client_type) !== 'authority') return false;
+            if (c._catalog_source !== 'authorities') return false;
           } else {
             if (!text(c.school)) return false;
             if (c._catalog_source !== 'schools' && text(c.client_type) !== 'school') return false;
@@ -2824,10 +2820,7 @@ export const proposalsAgreementsScreen = {
       const semel = text(contact.semel_mosad);
       const schoolStep = form?.dataset?.paSearchStep || 'authority';
       if (selectedType === 'authority' || (selectedType === 'school' && schoolStep === 'authority')) {
-        const code = text(contact.authority_code);
-        const parts = [authority].filter(Boolean);
-        if (code) parts.push(`מספר רשות: ${code}`);
-        return parts.join(' — ');
+        return authority || '';
       }
       const displayName = school || clientName || authority;
       const parts = [displayName];
@@ -2971,12 +2964,21 @@ export const proposalsAgreementsScreen = {
         results.hidden = false;
         return;
       }
+      const _schoolStepForRender = form.dataset.paSearchStep || 'authority';
+      const _isAuthorityStep = type === 'authority' || (type === 'school' && _schoolStepForRender === 'authority');
       results.innerHTML = matches.map((contact, idx) => {
-        const phone = text(contact.phone || contact.mobile || '');
-        const email = text(contact.email || '');
-        const semel = text(contact.semel_mosad || '');
-        const authorityCode = text(contact.authority_code || '');
-        const metaParts = [phone, email, semel ? `סמל ${semel}` : '', authorityCode ? `מספר רשות ${authorityCode}` : ''].filter(Boolean);
+        let metaParts;
+        if (_isAuthorityStep) {
+          const authorityCode = text(contact.authority_code || '');
+          const district = text(contact.district || '');
+          metaParts = [authorityCode ? `מספר רשות ${authorityCode}` : '', district].filter(Boolean);
+        } else {
+          const phone = text(contact.phone || contact.mobile || '');
+          const email = text(contact.email || '');
+          const semel = text(contact.semel_mosad || '');
+          const authorityCode = text(contact.authority_code || '');
+          metaParts = [phone, email, semel ? `סמל ${semel}` : '', authorityCode ? `מספר רשות ${authorityCode}` : ''].filter(Boolean);
+        }
         return `<button type="button" class="ds-pa-client-result" data-pa-client-result="${idx}">
           <strong>${escapeHtml(clientResultLabel(contact, type, form))}</strong>
           ${metaParts.length ? `<span class="ds-pa-client-result-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
