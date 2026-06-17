@@ -316,6 +316,19 @@ test('route registration exists for operations-management', async () => {
   assert.match(navSrc, /operations-management/);
 });
 
+test('authorities print layout uses 60% table with page-relative column widths', async () => {
+  const src = await readFile(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
+  assert.match(src, /class="authorities-table"/);
+  assert.match(src, /class="col-class"/);
+  assert.match(src, /authorities-title-table-block/);
+  assert.match(src, /authorities-group-title/);
+  assert.match(src, /\.authorities-table \.col-time\{width:20%/);
+  assert.match(src, /\.authorities-table \.col-instructor\{width:26\.666%/);
+  assert.match(src, /\.authorities-table \.col-class\{width:20%/);
+  assert.match(src, /\.authorities-table \.col-activity\{width:33\.333%/);
+  assert.doesNotMatch(src, /col-grade/);
+});
+
 test('service worker cache versions are aligned', async () => {
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');

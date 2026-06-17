@@ -1019,18 +1019,18 @@ function printSchoolsSchedule() {
           return `<tr>
             <td class="col-time">${escapeHtml(entry.time || '—')}</td>
             <td class="col-instructor">${escapeHtml(entry.instructor || '—')}</td>
-            <td class="col-grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
+            <td class="col-class">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
             <td class="col-activity">${escapeHtml(getActivityName(activity))}</td>
           </tr>`;
         }).join('');
         const dayLabel = date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—';
-        return `<div class="date-block">
-          <div class="date-title">${escapeHtml(formatDateHe(date) || date)} · ${escapeHtml(dayLabel)}</div>
-          <table><colgroup><col class="col-time"><col class="col-instructor"><col class="col-grade"><col class="col-activity"></colgroup><thead><tr><th class="col-time">שעות</th><th class="col-instructor">מדריך</th><th class="col-grade">כיתה</th><th class="col-activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+        return `<div class="date-block authorities-title-table-block">
+          <div class="date-title authorities-group-title">${escapeHtml(formatDateHe(date) || date)} · ${escapeHtml(dayLabel)}</div>
+          <table class="authorities-table"><colgroup><col class="col-time"><col class="col-instructor"><col class="col-class"><col class="col-activity"></colgroup><thead><tr><th class="col-time">שעות</th><th class="col-instructor">מדריך</th><th class="col-class">כיתה</th><th class="col-activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
         </div>`;
       }).join('');
       return `<div class="school-block">
-        <div class="school-title">${escapeHtml(schoolGroup.school)}</div>
+        <div class="school-title authorities-group-title">${escapeHtml(schoolGroup.school)}</div>
         ${datesHtml}
       </div>`;
     }).join('');
@@ -1048,20 +1048,24 @@ function printSchoolsSchedule() {
     .authority-header{font-size:12.5px;font-weight:800;color:#0369a1;border-bottom:2px solid #0369a1;margin-bottom:5px;padding-bottom:2px}
     .authority-stats{font-size:10px;font-weight:400;color:#64748b}
     .school-block{margin-bottom:8px;padding-right:6px}
-    .school-title{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:3px;padding:1px 4px;background:#f1f5f9;border-right:3px solid #0369a1;break-after:avoid;page-break-after:avoid}
+    .school-title{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:3px;padding:1px 4px;background:#f1f5f9;border-right:3px solid #0369a1;break-after:avoid-page;page-break-after:avoid}
     .date-block{margin-bottom:5px;}
-    .date-title{font-size:10px;color:#475569;font-weight:600;margin-bottom:2px;break-after:avoid;page-break-after:avoid}
-    table{border-collapse:collapse;width:60%;margin:0 auto;table-layout:fixed}
-    th,td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.3;white-space:normal;word-break:break-word}
-    th{background:#e6f6fb;font-weight:700}
-    tr:nth-child(even) td{background:#f8fafc}
-    .col-time{width:12%;text-align:center;white-space:nowrap}
-    .col-instructor{width:15%}
-    .col-grade{width:12%;text-align:center;white-space:nowrap}
-    .col-activity{width:61%}
+    .date-title{font-size:10px;color:#475569;font-weight:600;margin-bottom:2px}
+    .authorities-table{border-collapse:collapse;width:60%;max-width:60%;margin-inline:auto;table-layout:fixed}
+    .authorities-table .col-time{width:20%;text-align:center}
+    .authorities-table .col-instructor{width:26.666%}
+    .authorities-table .col-class{width:20%;text-align:center}
+    .authorities-table .col-activity{width:33.333%}
+    .authorities-table th,.authorities-table td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:9px;line-height:1.15;white-space:normal;word-break:break-word;overflow-wrap:anywhere}
+    .authorities-table th{background:#e6f6fb;font-weight:700}
+    .authorities-table tr:nth-child(even) td{background:#f8fafc}
+    .authorities-group-title{break-after:avoid-page;page-break-after:avoid}
+    .authorities-group-title+table,.authorities-group-title+.authorities-table{break-before:avoid-page;page-break-before:avoid}
+    .authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}
+    .authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}
     .footer{margin-top:10px;font-size:11px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:5px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}table{width:60%!important;margin:0 auto;table-layout:fixed;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}.date-block{break-inside:auto;page-break-inside:auto}.date-title{break-after:avoid;page-break-after:avoid}.date-block table{break-before:avoid;page-break-before:avoid}.school-title{break-after:avoid;page-break-after:avoid}}
+    @media print{body{margin:0}.authorities-table{width:60%!important;max-width:60%!important;margin-inline:auto!important;table-layout:fixed!important}.authorities-table .col-time{width:20%!important}.authorities-table .col-instructor{width:26.666%!important}.authorities-table .col-class{width:20%!important}.authorities-table .col-activity{width:33.333%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.authorities-group-title{break-after:avoid-page;page-break-after:avoid}.authorities-group-title+table,.authorities-group-title+.authorities-table{break-before:avoid-page;page-break-before:avoid}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}.school-title{break-after:avoid-page;page-break-after:avoid}.school-block .date-block:first-of-type{break-before:avoid-page;page-break-before:avoid}}
   `;
   const bodyHtml = `
     <h1>${escapeHtml(title)}</h1>
