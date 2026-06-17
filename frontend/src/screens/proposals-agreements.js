@@ -607,9 +607,8 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     if (isAdmin) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--danger" data-pa-delete-row="${escapeHtml(row.id)}" title="מחיקה">מחיקה</button>`);
     }
-    const rowClass = isSent ? ' class="proposal-row--sent"' : '';
     return `
-    <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0"${rowClass}>
+    <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td>${escapeHtml(row.client_name || row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>

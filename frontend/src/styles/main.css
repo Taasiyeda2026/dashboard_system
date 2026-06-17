@@ -10277,17 +10277,6 @@ select.ds-input {
   outline: none;
 }
 
-.ds-pa-table tbody tr.proposal-row--sent {
-  background: #ecfdf5;
-  border-inline-start: 5px solid #16a34a;
-}
-
-.ds-pa-table tbody tr.proposal-row--sent:hover,
-.ds-pa-table tbody tr.proposal-row--sent:focus {
-  background: #d1fae5;
-  outline: none;
-}
-
 .ds-pa-badge--sent {
   display: inline-flex;
   align-items: center;

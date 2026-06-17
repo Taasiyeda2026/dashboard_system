@@ -409,6 +409,15 @@ test('table structure includes all required columns including status', () => {
   assert.match(html, /ds-pa-table/);
 });
 
+test('sent status row keeps green badge only without row highlight', () => {
+  const sentRow = { ...sampleRows[0], status: 'sent' };
+  const html = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: stateFor('admin') });
+  const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.match(tableBody, /ds-pa-badge--sent/);
+  assert.match(tableBody, /✓ נשלח/);
+  assert.doesNotMatch(tableBody, /proposal-row--sent/);
+});
+
 test('contact details are hidden from the outer table and available only in drawer markup', () => {
   const html = proposalsAgreementsScreen.render({ rows: sampleRows }, { state: stateFor('admin') });
   const tableRegion = html.match(/<div data-pa-table-region>[\s\S]*?<aside class="ds-pa-drawer"/)?.[0] || '';
