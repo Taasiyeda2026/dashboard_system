@@ -1,0 +1,195 @@
+צריך לתקן שתי בעיות במודול הצעות מחיר.
+
+בעיה 1 - חיווי אדום ליד “הצעות מחיר” מציג 10 במקום 3
+
+בדקנו ב־Supabase:
+
+יש בפועל:
+
+* `status = approved` → 3 הצעות
+* `status = draft` → 7 הצעות
+* `status = sent` → 9 הצעות
+
+החיווי האדום מציג 10 כי הוא כנראה סופר גם הצעות שבהן `signature_meta IS NOT NULL`.
+
+הבעיה:
+בכל 10 ההצעות שלא נשלחו יש `signature_meta`, אבל אצל 7 הטיוטות הערך הוא ריק `{}`.
+אסור לספור `signature_meta` ריק כחתימה.
+
+צריך לתקן את פונקציית הספירה של החיווי כך שתספור רק הצעות שממתינות לשליחה באמת.
+
+התנאי הנכון לחיווי:
+
+* לספור רק הצעות עם:
+  `status === 'approved'`
+* ולא לספור:
+  `status === 'sent'`
+  `status === 'draft'`
+  `status === 'cancelled'`
+  `signature_meta = {}`
+  `signature_meta` ריק
+  טיוטות
+
+כלומר החיווי צריך להיות 3, לא 10.
+
+אם עדיין רוצים להתחשב בחתימה בפועל, אז רק אם יש תמונת חתימה אמיתית:
+
+```js
+function hasRealSignature(row) {
+  const meta = row?.signature_meta || row?.approval_meta;
+  if (!meta || typeof meta !== 'object') return false;
+
+  const signature = meta.signature && typeof meta.signature === 'object'
+    ? meta.signature
+    : meta;
+
+  return Boolean(String(signature.image || '').trim());
+}
+```
+
+אבל לא לספור עצם קיום של `signature_meta`.
+
+התיקון המומלץ:
+
+```js
+export function isProposalApprovedPendingSend(row) {
+  if (!row || typeof row !== 'object') return false;
+
+  const status = normalizeProposalStatus(row.status);
+
+  if (status === 'sent' || status === 'cancelled') return false;
+
+  return status === 'approved';
+}
+```
+
+אם רוצים לכלול גם הצעות חתומות ממש בלי status approved, אז רק כך:
+
+```js
+export function isProposalApprovedPendingSend(row) {
+  if (!row || typeof row !== 'object') return false;
+
+  const status = normalizeProposalStatus(row.status);
+
+  if (status === 'sent' || status === 'cancelled' || status === 'draft') return false;
+
+  return status === 'approved' || Boolean(String(row.approved_at || '').trim()) || hasRealSignature(row);
+}
+```
+
+אבל בשום מצב לא לספור `signature_meta = {}`.
+
+בדיקת קבלה לחיווי:
+
+1. לפתוח את המערכת.
+2. לבדוק שהחיווי ליד “הצעות מחיר” מציג 3.
+3. לוודא שטיוטות לא נספרות.
+4. לוודא שהצעות שנשלחו לא נספרות.
+5. לוודא ש־`signature_meta = {}` לא נספר כחתימה.
+
+בעיה 2 - אחרי בחירת רשות לא מופיעים בתי ספר
+
+בדקנו את Supabase:
+לטבלת `public.schools` כבר קיימת הרשאת קריאה תקינה:
+
+```text
+policy: schools_select_all
+roles: public
+cmd: SELECT
+using: true
+```
+
+בדקנו גם את רשות אשכול:
+
+```text
+authority_id = 468
+בתי ספר תחת אשכול = 11
+בתי ספר פעילים = 11
+```
+
+לכן לא נדרש SQL להרשאות בתי ספר.
+
+אם אחרי בחירת רשות לא מופיעים בתי ספר, הבעיה היא בקוד.
+
+צריך לבדוק ולתקן:
+
+1. אחרי בחירת רשות, לוודא שנשמר:
+
+```js
+selectedAuthority.id === 468
+```
+
+2. בסינון בתי הספר להשתמש בהשוואת מחרוזות ולא השוואה קשיחה של מספר מול טקסט:
+
+```js
+String(school.authority_id) === String(selectedAuthority.id)
+```
+
+3. לא לסנן `active` רק לפי boolean:
+
+לא תקין:
+
+```js
+school.active === true
+```
+
+כן תקין:
+
+```js
+const isActive = school.active === true
+  || school.active === 'yes'
+  || school.active === 'active'
+  || school.active === 1
+  || school.active === '1';
+```
+
+4. לוודא שהקוד משתמש בשמות העמודות הנכונים:
+
+```js
+school_id = row.id
+school_name = row.school_name
+semel_mosad = row.semel_mosad
+authority_id = row.authority_id
+active = row.active
+```
+
+לא להשתמש ב:
+
+```js
+row.school
+row.name
+row.client_name
+```
+
+5. להוסיף לוג זמני אחרי בחירת רשות:
+
+```js
+console.info('[proposal-schools-filter]', {
+  selectedAuthority,
+  selectedAuthorityId: selectedAuthority?.id,
+  allSchoolsCount: schools?.length,
+  matchingSchoolsCount: schools
+    ?.filter((s) => String(s.authority_id) === String(selectedAuthority?.id))
+    ?.length,
+  sampleMatchingSchools: schools
+    ?.filter((s) => String(s.authority_id) === String(selectedAuthority?.id))
+    ?.slice(0, 10)
+});
+```
+
+בדיקת קבלה לבתי ספר:
+
+1. לפתוח הצעת מחיר חדשה.
+2. לבחור רשות “אשכול”.
+3. אחרי בחירת הרשות חייבים להופיע 11 בתי ספר.
+4. אם לא מופיעים, לבדוק את הלוג:
+   `[proposal-schools-filter]`
+5. אם `allSchoolsCount = 0`, הבעיה בטעינת קטלוג בתי הספר.
+6. אם `allSchoolsCount > 0` אבל `matchingSchoolsCount = 0`, הבעיה בסינון `authority_id`.
+7. אם `matchingSchoolsCount = 11` ועדיין לא מוצג כלום, הבעיה ברינדור ה־UI.
+
+לאחר התיקון:
+
+* לבצע build
+* לעדכן Service Worker כללי
+* לנקות cache של מסך הצעות מחיר

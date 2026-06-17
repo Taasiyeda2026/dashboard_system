@@ -3036,6 +3036,18 @@ export const proposalsAgreementsScreen = {
       form.dataset.paAuthorityId = authorityId;
       form.dataset.paAuthorityName = authorityName;
       form.dataset.paNewClient = 'no';
+      // eslint-disable-next-line no-console
+      console.info('[proposal-schools-filter]', {
+        selectedAuthority: { id: authorityId, name: authorityName },
+        selectedAuthorityId: authorityId,
+        allSchoolsCount: contactOptions.filter((c) => c._catalog_source === 'schools').length,
+        matchingSchoolsCount: contactOptions
+          .filter((c) => c._catalog_source === 'schools' && String(c.authority_id) === String(authorityId))
+          .length,
+        sampleMatchingSchools: contactOptions
+          .filter((c) => c._catalog_source === 'schools' && String(c.authority_id) === String(authorityId))
+          .slice(0, 10)
+      });
 
       const authInput = form.querySelector('input[name="client_authority"]');
       const schoolInput = form.querySelector('input[name="school_framework"]');
