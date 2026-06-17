@@ -765,6 +765,7 @@ function buildProposalClientSearchOptions(contactRows, authorityLookup, schoolLo
       authority: auth.authority_name,
       school: '',
       authority_code: auth.authority_code,
+      district: auth.district,
       contact_name: '',
       contact_role: '',
       phone: '',
