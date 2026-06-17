@@ -167,24 +167,16 @@ export function parseStockQuantityFromRow(row = {}) {
   return null;
 }
 
-const STOCK_LIST_CATEGORIES = new Set([
-  'workshop_stock',
-  'product_stock',
-  'inventory',
-  'stock',
-  'workshop_inventory',
-  'product_inventory',
-  'מלאי',
-  'מלאי סדנאות',
-  'מלאי תוצרים'
+const ACTIVITY_NAME_LIST_CATEGORIES = new Set([
+  'activity_names'
 ]);
 
-const ACTIVITY_NAME_LIST_CATEGORIES = new Set([
-  'activity_names',
-  'activity_name',
-  'activities',
-  'activity'
-]);
+function isOfficialWorkshopListRow(row = {}, category = '') {
+  const cat = String(category || row?.category || '').trim().toLowerCase();
+  const type = String(row?.type || '').trim().toLowerCase();
+  const activityType = String(row?.activity_type || '').trim().toLowerCase();
+  return cat === 'activity_names' && type === 'workshop' && activityType === 'workshop';
+}
 
 function addStockToMap(map, names, stock) {
   if (stock === null) return;
@@ -198,18 +190,14 @@ export function buildWorkshopStockMapFromLists(listsData) {
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
+    if (!ACTIVITY_NAME_LIST_CATEGORIES.has(cat)) return;
     const list = Array.isArray(items) ? items : [];
-    const isStockCategory = STOCK_LIST_CATEGORIES.has(cat);
-    const isActivityNamesCategory = ACTIVITY_NAME_LIST_CATEGORIES.has(cat);
-    if (!isStockCategory && !isActivityNamesCategory) return;
     list.forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
+      if (!isOfficialWorkshopListRow(row, cat)) return;
       const stock = parseStockQuantityFromRow(row);
       if (stock === null) return;
-      const names = isStockCategory
-        ? [item?.value, item?.label, row?.product_name, row?.item_name, row?.activity_name, row?.workshop_name]
-        : [item?.value, item?.label, row?.activity_name, row?.label_he];
-      addStockToMap(map, names, stock);
+      addStockToMap(map, [row?.activity_name, row?.label_he, item?.label], stock);
     });
   });
   return map;

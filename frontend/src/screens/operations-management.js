@@ -42,7 +42,6 @@ import {
   schoolGroupKey,
   buildActivitySearchText,
   buildWorkshopStockMapFromLists,
-  buildWorkshopQuantityMetrics,
   getActivityActualParticipantCount,
   WORKSHOP_ESTIMATE_PER_ACTIVITY
 } from './shared/operations-activity-helpers.js';
@@ -600,6 +599,12 @@ function normalizeWorkshopKey(name) {
   return String(name || '').trim().toLowerCase();
 }
 
+function isTruthyListValue(value) {
+  if (value === true || value === 1) return true;
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return ['true', '1', 'yes', 'y', 'active', 'פעיל', 'כן'].includes(normalized);
+}
+
 function isWorkshopInventoryRequired(workshopName) {
   const name = String(workshopName || '').trim();
   if (!name) return false;
@@ -607,19 +612,22 @@ function isWorkshopInventoryRequired(workshopName) {
   return !excluded.some((term) => name.includes(term));
 }
 
-function isWorkshopKindRow(row = {}) {
-  const kindText = [
-    row?.activity_type, row?.activity_kind, row?.activity_category, row?.activity_group,
-    row?.parent_value, row?.type, row?.category, row?.item_type, row?.product_type
-  ].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean).join(' ');
-  if (/after\s*school|afterschool|אפטר|צהרון|course|קורס|תוכנית|תכנית/.test(kindText)) return false;
-  if (/workshop|סדנ/.test(kindText)) return true;
-  return kindText === '';
+function isOfficialWorkshopListRow(row = {}, category = '') {
+  const cat = String(category || row?.category || '').trim().toLowerCase();
+  const type = String(row?.type || '').trim().toLowerCase();
+  const activityType = String(row?.activity_type || '').trim().toLowerCase();
+  return cat === 'activity_names' && type === 'workshop' && activityType === 'workshop';
 }
 
-function formatStockCell(value) {
-  if (value === null || value === undefined || value === '') return '<span class="ds-ops-mgmt-cell-muted">לא הוזן</span>';
-  return escapeHtml(String(value));
+function officialWorkshopStockGroupKey(row = {}) {
+  const rawGroup = String(row?.stock_group_key || '').trim();
+  if (rawGroup) return rawGroup;
+  const activityNo = String(row?.activity_no || '').trim();
+  return activityNo ? `activity_${activityNo}` : normalizeWorkshopKey(row?.activity_name);
+}
+
+function officialWorkshopStockGroupName(row = {}) {
+  return String(row?.stock_group_name || row?.stock_item_name || row?.stock_label || row?.activity_name || '').trim();
 }
 
 function formatGapCell(gap, hasStock) {
@@ -633,32 +641,35 @@ function formatGapCell(gap, hasStock) {
 function extractWorkshopCatalogRows(listsData, activityRows = []) {
   const rows = [];
   const seen = new Set();
-  const add = ({ no = '', name = '', stock = null } = {}) => {
+  const add = ({ no = '', name = '', stock = null, stockGroupKey = '', stockGroupName = '' } = {}) => {
     const cleanName = String(name || '').trim();
     if (!cleanName || !isWorkshopInventoryRequired(cleanName)) return;
-    const key = normalizeWorkshopKey(cleanName);
+    const key = `${String(stockGroupKey || '').trim()}|${String(no || '').trim()}|${normalizeWorkshopKey(cleanName)}`;
     if (seen.has(key)) return;
     seen.add(key);
-    rows.push({ workshopNo: String(no || '').trim(), workshopName: cleanName, stockQuantity: stock });
+    rows.push({
+      workshopNo: String(no || '').trim(),
+      workshopName: cleanName,
+      stockQuantity: stock,
+      stockGroupKey: String(stockGroupKey || '').trim(),
+      stockGroupName: String(stockGroupName || cleanName).trim()
+    });
   };
   (Array.isArray(listsData?.categories) ? listsData.categories : []).forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
     const list = Array.isArray(items) ? items : [];
-    if (!['activity_names', 'activity_name', 'activities', 'activity', 'workshop_stock', 'workshop_inventory', 'inventory', 'stock'].includes(cat)) return;
+    if (cat !== 'activity_names') return;
     list.forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
-      const isCatalog = ['activity_names', 'activity_name', 'activities', 'activity'].includes(cat);
-      if (isCatalog && !isWorkshopKindRow(row)) return;
+      if (!isOfficialWorkshopListRow(row, cat) || !isTruthyListValue(row?.active)) return;
       add({
-        no: row?.activity_no || row?.workshop_no || row?.workshop_number || row?.item_no || row?.id || item?.value,
-        name: row?.activity_name || row?.label_he || row?.workshop_name || row?.product_name || row?.item_name || item?.label || item?.value,
-        stock: stockMapValue(row)
+        no: row?.activity_no,
+        name: row?.activity_name,
+        stock: stockMapValue(row),
+        stockGroupKey: officialWorkshopStockGroupKey(row),
+        stockGroupName: officialWorkshopStockGroupName(row)
       });
     });
-  });
-  activityRows.forEach((row) => {
-    if (!isWorkshopKindRow(row)) return;
-    add({ no: row?.activity_no || row?.workshop_no || '', name: getActivityName(row), stock: null });
   });
   return rows.sort((a, b) => compareValues(a.workshopNo || a.workshopName, b.workshopNo || b.workshopName, 'asc'));
 }
@@ -671,29 +682,62 @@ function stockMapValue(row = {}) {
   return null;
 }
 
+function activityMatchesOfficialWorkshop(activity = {}, workshop = {}) {
+  const activityNo = String(activity?.activity_no || activity?.workshop_no || '').trim();
+  if (activityNo && workshop.workshopNo && activityNo === workshop.workshopNo) return true;
+  return normalizeWorkshopKey(getActivityName(activity)) === normalizeWorkshopKey(workshop.workshopName);
+}
+
 function workshopMetricsRows(rows, stockMap, catalogRows = []) {
   const groups = new Map();
-  rows.forEach((row) => {
-    const name = getActivityName(row);
-    if (!groups.has(name)) groups.set(name, { name, activities: 0, items: [] });
-    const bucket = groups.get(name);
-    bucket.activities += 1;
-    bucket.items.push(row);
-  });
   catalogRows.forEach((catalog) => {
-    if (!groups.has(catalog.workshopName)) groups.set(catalog.workshopName, { name: catalog.workshopName, no: catalog.workshopNo, activities: 0, items: [], catalogStock: catalog.stockQuantity });
+    const key = catalog.stockGroupKey || `activity_${catalog.workshopNo || normalizeWorkshopKey(catalog.workshopName)}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        stockGroupKey: key,
+        workshopName: catalog.stockGroupName || catalog.workshopName,
+        linkedWorkshops: [],
+        stockQuantity: catalog.stockQuantity,
+        activities: []
+      });
+    }
+    const group = groups.get(key);
+    group.linkedWorkshops.push(catalog);
+    if (group.stockQuantity === null || group.stockQuantity === undefined) group.stockQuantity = catalog.stockQuantity;
   });
-  return Array.from(groups.values())
-    .map((group) => ({
-      workshopNo: group.no || '',
-      ...buildWorkshopQuantityMetrics({
-        workshopName: group.name,
-        activityCount: group.activities,
-        activities: group.items,
-        stockMap
-      }),
-      catalogStock: group.catalogStock
-    }));
+
+  rows.forEach((row) => {
+    groups.forEach((group) => {
+      if (!group.linkedWorkshops.some((workshop) => activityMatchesOfficialWorkshop(row, workshop))) return;
+      group.activities.push(row);
+    });
+  });
+
+  return Array.from(groups.values()).map((group) => {
+    const activityCount = group.activities.length;
+    const estimatedQuantity = activityCount * WORKSHOP_ESTIMATE_PER_ACTIVITY;
+    let actualQuantity = null;
+    group.activities.forEach((activity) => {
+      const count = getActivityActualParticipantCount(activity);
+      if (count === null) return;
+      actualQuantity = (actualQuantity || 0) + count;
+    });
+    const required = actualQuantity !== null ? actualQuantity : estimatedQuantity;
+    const stock = group.stockQuantity !== null && group.stockQuantity !== undefined && Number.isFinite(Number(group.stockQuantity))
+      ? Number(group.stockQuantity)
+      : null;
+    return {
+      stockGroupKey: group.stockGroupKey,
+      workshopNo: group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
+      workshopName: group.workshopName,
+      linkedWorkshops: group.linkedWorkshops,
+      activityCount,
+      estimatedQuantity,
+      actualQuantity,
+      stockQuantity: stock,
+      gap: stock === null ? null : stock - required
+    };
+  });
 }
 
 function exceptionCountCell(count) {
@@ -769,8 +813,11 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { width:90px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(2),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { width:335px; max-width:335px; text-align:right; white-space:normal; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3) { width:120px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3):nth-child(-n+6),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3):nth-child(-n+6) { width:120px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(7),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(7) { width:230px; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-stock-input { width:78px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; background:#eefaff; border-bottom:1px solid #d8e5ee; font-weight:700; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__stats,
@@ -928,6 +975,24 @@ function printWorkshopsFromDom(root) {
   openOpsPrintWindow({ title: 'כמויות סדנאות', bodyHtml: `<section>${header}${summary}${table.outerHTML}</section>` });
 }
 
+async function updateWorkshopStockGroup(stockGroupKey, stockQuantity) {
+  if (!supabase) throw new Error('Supabase client is not configured');
+  const cleanKey = String(stockGroupKey || '').trim();
+  const query = supabase
+    .from('lists')
+    .update({ stock_quantity: stockQuantity })
+    .eq('category', 'activity_names')
+    .eq('type', 'workshop')
+    .eq('activity_type', 'workshop');
+  if (cleanKey.startsWith('activity_')) {
+    query.eq('activity_no', cleanKey.replace(/^activity_/, ''));
+  } else {
+    query.eq('stock_group_key', cleanKey);
+  }
+  const { error } = await query;
+  if (error) throw error;
+}
+
 function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
   const ops = ensureOpsState(state);
   const filters = ensureActivityListFilters(state, SCOPE);
@@ -977,8 +1042,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
 
 function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
   const ops = ensureOpsState(state);
-  const inventoryRows = rows.filter((row) => isWorkshopKindRow(row) && isWorkshopInventoryRequired(getActivityName(row)));
-  const metrics = sortByConfig(workshopMetricsRows(inventoryRows, stockMap, catalogRows), state, TAB_WORKSHOPS, {
+  const metrics = sortByConfig(workshopMetricsRows(rows, stockMap, catalogRows), state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
     workshopName: (row) => row.workshopName,
     activityCount: (row) => row.activityCount,
@@ -999,6 +1063,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'כמות נדרשת')}
         <th class="ds-ops-col--stock-input">מלאי קיים</th>
         <th>יתרת מלאי</th>
+        <th>סדנאות מקושרות</th>
       </tr></thead><tbody>${metrics.map((row) => {
         const defaultStock = row.stockQuantity ?? row.catalogStock;
         const hasDefaultStock = defaultStock !== null && defaultStock !== undefined && Number.isFinite(Number(defaultStock));
@@ -1013,8 +1078,9 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
           <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
           <td>${row.activityCount}</td>
           <td>${row.estimatedQuantity}</td>
-          <td>${formatStockCell(shownStock)}</td>
+          <td><input type="number" class="ds-ops-stock-input" data-ops-stock-group="${escapeHtml(row.stockGroupKey)}" value="${escapeHtml(String(shownStock))}" placeholder="לא הוזן" min="0"></td>
           <td data-ops-workshop-gap="${escapeHtml(row.workshopName)}" data-estimated="${requiredQuantity}">${gapHtml}</td>
+          <td>${(row.linkedWorkshops || []).map((workshop) => `<div>${escapeHtml(`${workshop.workshopNo} - ${workshop.workshopName}`)}</div>`).join('')}</td>
         </tr>`;
       }).join('')}</tbody></table>`)
     : dsEmptyState('לא נמצאו סדנאות');
@@ -1260,6 +1326,30 @@ export const operationsManagementScreen = {
 
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
+
+    root.querySelectorAll('[data-ops-stock-group]').forEach((input) => {
+      input.addEventListener('change', async (ev) => {
+        const stockGroupKey = input.getAttribute('data-ops-stock-group') || '';
+        const value = ev.target.value.trim();
+        if (!stockGroupKey || value === '' || !Number.isFinite(Number(value))) return;
+        input.disabled = true;
+        try {
+          const stockQuantity = Number(value);
+          await updateWorkshopStockGroup(stockGroupKey, stockQuantity);
+          const gapCell = input.closest('tr')?.querySelector('[data-ops-workshop-gap]');
+          if (gapCell) {
+            const estimated = Number(gapCell.getAttribute('data-estimated') || '0');
+            const gap = stockQuantity - estimated;
+            gapCell.innerHTML = `<span class="ds-ops-gap ${gap < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${gap}</span>`;
+          }
+          input.disabled = false;
+        } catch (error) {
+          console.error('[operations-management] Failed to update workshop stock group:', error);
+          alert('עדכון המלאי נכשל. יש לנסות שוב או לעדכן ישירות ב-Supabase.');
+          input.disabled = false;
+        }
+      });
+    });
 
     root.querySelectorAll('[data-ops-workshop]').forEach((btn) => {
       btn.addEventListener('click', () => {

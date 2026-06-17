@@ -120,8 +120,8 @@ test('operations management render includes menu page structure and tabs', () =>
 test('workshop quantity metrics use x25 estimate and stock gap rules', () => {
   const stockMap = buildWorkshopStockMapFromLists({
     categories: [{
-      category: 'workshop_stock',
-      items: [{ label: 'פרוגי המקפצת', value: 'פרוגי המקפצת', _row: { stock_quantity: 300 } }]
+      category: 'activity_names',
+      items: [{ label: 'פרוגי המקפצת', value: '001', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '001', activity_name: 'פרוגי המקפצת', stock_quantity: 300 } }]
     }]
   });
   const withActual = buildWorkshopQuantityMetrics({
@@ -140,7 +140,7 @@ test('workshop quantity metrics use x25 estimate and stock gap rules', () => {
     activityCount: 8,
     activities: [{ activity_name: 'אסטרונאוט על חוטים' }],
     stockMap: buildWorkshopStockMapFromLists({
-      categories: [{ category: 'inventory', items: [{ value: 'אסטרונאוט על חוטים', _row: { inventory: 150 } }] }]
+      categories: [{ category: 'activity_names', items: [{ value: '002', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '002', activity_name: 'אסטרונאוט על חוטים', stock_quantity: 150 } }] }]
     })
   });
   assert.equal(withoutActual.estimatedQuantity, 200);
@@ -165,18 +165,17 @@ test('workshops tab shows inventory columns and print action', () => {
     { RowID: 'W-1', status: 'פתוח', activity_name: 'פרוגי המקפצת', start_date: '2026-04-10', participants_count: 120 },
     { RowID: 'W-2', status: 'פתוח', activity_name: 'פרוגי המקפצת', start_date: '2026-04-11', participants_count: 118 }
   ];
-  const stockMap = buildWorkshopStockMapFromLists({
-    categories: [{ category: 'workshop_stock', items: [{ value: 'פרוגי המקפצת', _row: { stock_quantity: 300 } }] }]
-  });
-  const html = operationsManagementScreen.render({ rows, workshopStockMap: stockMap }, { state });
+  const adminListsData = { categories: [{ category: 'activity_names', items: [{ value: '001', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '001', activity_name: 'פרוגי המקפצת', stock_quantity: 300 } }] }] };
+  const stockMap = buildWorkshopStockMapFromLists(adminListsData);
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: stockMap, adminListsData }, { state });
   assert.match(html, /כמות נדרשת/);
   assert.match(html, /מלאי קיים/);
   assert.match(html, /יתרת מלאי/);
   assert.match(html, /הדפס כמויות סדנאות/);
   assert.match(html, /ds-ops-gap--ok/);
   assert.match(html, />62</);
-  assert.match(html, />300</);
-  assert.doesNotMatch(html, /<input[^>]*ds-ops-stock-input/);
+  assert.match(html, /value="300"/);
+  assert.match(html, /<input[^>]*ds-ops-stock-input/);
 });
 
 
@@ -184,9 +183,9 @@ test('workshops inventory tab excludes courses and after-school catalog rows', (
   const state = baseState();
   state.operationsManagement.tab = 'workshops';
   const adminListsData = { categories: [{ category: 'activity_names', items: [
-    { value: '001', label: 'סדנה אמיתית', _row: { activity_no: '001', activity_name: 'סדנה אמיתית', parent_value: 'workshop', stock_quantity: 40 } },
-    { value: '002', label: 'קורס רובוטיקה', _row: { activity_no: '002', activity_name: 'קורס רובוטיקה', parent_value: 'course', stock_quantity: 40 } },
-    { value: '003', label: 'אפטר סקול מדעים', _row: { activity_no: '003', activity_name: 'אפטר סקול מדעים', parent_value: 'after_school', stock_quantity: 40 } }
+    { value: '001', label: 'סדנה אמיתית', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '001', activity_name: 'סדנה אמיתית', stock_quantity: 40 } },
+    { value: '002', label: 'קורס רובוטיקה', _row: { category: 'activity_names', type: 'course', activity_type: 'course', active: true, activity_no: '002', activity_name: 'קורס רובוטיקה', stock_quantity: 40 } },
+    { value: '003', label: 'אפטר סקול מדעים', _row: { category: 'activity_names', type: 'after_school', activity_type: 'after_school', active: true, activity_no: '003', activity_name: 'אפטר סקול מדעים', stock_quantity: 40 } }
   ] }] };
   const html = operationsManagementScreen.render({
     rows: [
@@ -246,14 +245,36 @@ test('workshops inventory tab includes catalog workshops outside selected date r
     { RowID: 'JULY-1', status: 'פתוח', activity_name: 'סדנת יולי', start_date: '2026-07-10' }
   ];
   const adminListsData = { categories: [{ category: 'activity_names', items: [
-    { value: '001', label: 'סדנת מאי', _row: { activity_no: '001', activity_name: 'סדנת מאי', parent_value: 'workshop', stock_quantity: 50 } },
-    { value: '0042', label: 'סדנת קטלוג', _row: { activity_no: '0042', activity_name: 'סדנת קטלוג', parent_value: 'workshop', stock_quantity: 75 } }
+    { value: '001', label: 'סדנת מאי', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '001', activity_name: 'סדנת מאי', stock_quantity: 50 } },
+    { value: '0042', label: 'סדנת קטלוג', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '0042', activity_name: 'סדנת קטלוג', stock_quantity: 75 } }
   ] }] };
   const html = operationsManagementScreen.render({ rows, workshopStockMap: buildWorkshopStockMapFromLists(adminListsData), adminListsData }, { state });
   assert.match(html, /סדנת מאי/);
   assert.match(html, /סדנת קטלוג/);
   assert.match(html, /0042/);
-  assert.match(html, /סדנת יולי/);
+  assert.doesNotMatch(html, /סדנת יולי/);
+});
+
+test('workshops inventory groups physical stock by stock_group_key', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '024', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '024', activity_name: 'קופת קסם (ד׳–ו׳)', stock_group_key: 'magic_box', stock_group_name: 'קופת קסם', stock_quantity: 390 } },
+    { value: '029', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '029', activity_name: 'קופת קסם – מדע או אשליה?', stock_group_key: 'magic_box', stock_group_name: 'קופת קסם', stock_quantity: 390 } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'MB-1', status: 'פתוח', activity_name: 'קופת קסם (ד׳–ו׳)', start_date: '2026-05-01' },
+      { RowID: 'MB-2', status: 'פתוח', activity_name: 'קופת קסם – מדע או אשליה?', start_date: '2026-05-02' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData
+  }, { state });
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  assert.equal((tableHtml.match(/data-ops-stock-group="magic_box"/g) || []).length, 1);
+  assert.match(tableHtml, /024 - קופת קסם/);
+  assert.match(tableHtml, /029 - קופת קסם/);
+  assert.match(tableHtml, /value="390"/);
 });
 
 test('actual participant count only uses existing activity fields', () => {
