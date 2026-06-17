@@ -841,6 +841,7 @@ function opsManagementStylesHtml() {
 }
 
 let _schedulePrintContext = null;
+let _schoolsPrintContext = null;
 
 function openOpsPrintWindow({ title = 'הדפסה', bodyHtml = '' } = {}) {
   const printWindow = window.open('', '_blank');
@@ -971,6 +972,87 @@ function printWorkshopsFromDom(root) {
   const header = panel?.querySelector('.ds-ops-mgmt-print-header')?.innerHTML || '<h2>כמויות סדנאות</h2>';
   const summary = panel?.querySelector('.ds-ops-mgmt-summary')?.outerHTML || '';
   openOpsPrintWindow({ title: 'כמויות סדנאות', bodyHtml: `<section>${header}${summary}${table.outerHTML}</section>` });
+}
+
+function printSchoolsSchedule() {
+  const ctx = _schoolsPrintContext;
+  if (!ctx || !ctx.byAuthority || ctx.byAuthority.size === 0) {
+    alert('אין רשויות להדפסה בטווח הנבחר');
+    return;
+  }
+  const { byAuthority, ops } = ctx;
+  const title = 'רשויות — סידור עבודה';
+  const dateRange = (ops?.dateFrom && ops?.dateTo)
+    ? `טווח תאריכים: ${formatDateHe(ops.dateFrom)}–${formatDateHe(ops.dateTo)}`
+    : '';
+
+  const sectionsHtml = Array.from(byAuthority.values()).map((authorityGroup) => {
+    const schools = Array.from(authorityGroup.schools.values()).sort((a, b) => a.school.localeCompare(b.school, 'he'));
+    const schoolsHtml = schools.map((schoolGroup) => {
+      const dates = Array.from(schoolGroup.dates.entries()).sort(([a], [b]) => compareValues(a || '9999', b || '9999', 'asc'));
+      const datesHtml = dates.map(([date, entries]) => {
+        const sorted = entries.slice().sort((a, b) => compareValues(a.time || '99:99', b.time || '99:99', 'asc'));
+        const rowsHtml = sorted.map((entry) => {
+          const activity = entry.activity;
+          return `<tr>
+            <td class="col-time">${escapeHtml(entry.time || '—')}</td>
+            <td>${escapeHtml(entry.instructor || '—')}</td>
+            <td class="col-grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
+            <td>${escapeHtml(getActivityName(activity))}</td>
+          </tr>`;
+        }).join('');
+        const dayLabel = date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—';
+        return `<div class="date-block">
+          <div class="date-title">${escapeHtml(formatDateHe(date) || date)} · ${escapeHtml(dayLabel)}</div>
+          <table><thead><tr><th class="col-time">שעות</th><th>מדריך</th><th class="col-grade">כיתה</th><th>פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+        </div>`;
+      }).join('');
+      return `<div class="school-block">
+        <div class="school-title">${escapeHtml(schoolGroup.school)}</div>
+        ${datesHtml}
+      </div>`;
+    }).join('');
+    return `<div class="authority-section">
+      <div class="authority-header">${escapeHtml(authorityGroup.authority)} <span class="authority-stats">(${schools.length} מסגרות · ${authorityGroup.activities} פעילויות)</span></div>
+      ${schoolsHtml}
+    </div>`;
+  }).join('');
+
+  const css = `
+    body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:10px 14px;color:#111;background:#fff;font-size:11px;line-height:1.3}
+    h1{margin:0 0 2px;font-size:14px;color:#0f172a}
+    .subtitle{margin:0 0 12px;color:#475569;font-size:10.5px}
+    .authority-section{margin-bottom:14px;page-break-inside:avoid}
+    .authority-header{font-size:12.5px;font-weight:800;color:#0369a1;border-bottom:2px solid #0369a1;margin-bottom:5px;padding-bottom:2px}
+    .authority-stats{font-size:10px;font-weight:400;color:#64748b}
+    .school-block{margin-bottom:8px;padding-right:6px}
+    .school-title{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:3px;padding:1px 4px;background:#f1f5f9;border-right:3px solid #0369a1}
+    .date-block{margin-bottom:5px;page-break-inside:avoid;break-inside:avoid}
+    .date-title{font-size:10px;color:#475569;font-weight:600;margin-bottom:2px}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #cbd5e1;padding:2px 5px;text-align:right;font-size:10px;line-height:1.3}
+    th{background:#e6f6fb;font-weight:700}
+    tr:nth-child(even) td{background:#f8fafc}
+    .col-time{width:60px;white-space:nowrap;text-align:center}
+    .col-grade{width:48px;text-align:center}
+    .footer{margin-top:10px;font-size:11px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:5px}
+    @page{size:A4 portrait;margin:8mm}
+    @media print{body{margin:0}.date-block{page-break-inside:avoid;break-inside:avoid}}
+  `;
+  const bodyHtml = `
+    <h1>${escapeHtml(title)}</h1>
+    ${dateRange ? `<p class="subtitle">${escapeHtml(dateRange)}</p>` : ''}
+    ${sectionsHtml}
+    <div class="footer">הופק ממערכת ניהול הפעילויות</div>
+  `;
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) { alert('הדפדפן חסם פתיחת חלון הדפסה. יש לאפשר חלונות קופצים לאתר.'); return; }
+  const fullHtml = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${css}</style></head><body>${bodyHtml}</body></html>`;
+  printWindow.document.open();
+  printWindow.document.write(fullHtml);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
 }
 
 async function updateWorkshopStockGroup(stockGroupKey, stockQuantity) {
@@ -1131,6 +1213,7 @@ function sortAuthorityScheduleRows(scheduleRows = []) {
 }
 
 function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
+  const ops = ensureOpsState(state);
   const scheduleRows = sortAuthorityScheduleRows(buildScheduleRows(rows, state, directory));
   const seenEntries = new Set();
   const byAuthority = new Map();
@@ -1201,7 +1284,12 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
   }).join('');
 
   const schoolCount = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.schools.size, 0);
+  _schoolsPrintContext = { byAuthority, ops };
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
+    <div class="ds-ops-mgmt-panel__toolbar no-print">
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-schools>הדפס רשויות</button>
+    </div>
+    <div class="ds-ops-mgmt-print-header only-print"><h2>רשויות — סידור עבודה</h2><p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p></div>
     ${compactSummaryLineHtml([
       { label: 'רשויות', value: byAuthority.size },
       { label: 'בתי ספר / מסגרות', value: schoolCount },
@@ -1320,6 +1408,7 @@ export const operationsManagementScreen = {
 
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
+    root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
 
     root.querySelectorAll('[data-ops-stock-group]').forEach((input) => {
       input.addEventListener('change', async (ev) => {
