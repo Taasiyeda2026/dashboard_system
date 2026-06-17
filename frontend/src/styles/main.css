@@ -16609,7 +16609,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   font-weight: 700;
   background: #f5f7fa !important;
 }
-/* Footer text signature — aligned with Proposaleditor.html .footer-signature */
+/* Footer signature: one in-flow block (blessing, image, rule, signer). */
 .pa-footer-signature {
   margin-top: 14px;
   text-align: left;
@@ -16617,20 +16617,24 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   page-break-inside: avoid;
 }
 .pa-footer-signature .pa-blessing {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 0 10px auto;
   font-size: 12.5px;
-  margin-bottom: 10px;
-  text-align: center;
+  text-align: right;
 }
 .pa-signer-block {
-  margin-top: 4.4em;
-}
-.pa-signer-name-block {
-  display: inline-block;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
   max-width: 100%;
   text-align: left;
+  vertical-align: top;
 }
 .pa-signature-rule {
   display: block;
+  width: 100%;
   border-top: 1px solid #555;
   margin: 0;
   height: 0;
@@ -16644,6 +16648,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pa-footer-signature .pa-signature-image {
   display: block;
+  align-self: center;
+  width: auto;
   max-width: 140px;
   max-height: 64px;
   object-fit: contain;

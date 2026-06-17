@@ -556,9 +556,14 @@ test('approved proposals render flow signature block inside the document', () =>
   assert.equal(signature.querySelectorAll('.pa-signature-image').length, 1);
   assert.equal(signature.querySelectorAll('.pa-signature-rule').length, 1);
   assert.equal(signature.querySelectorAll('.pa-signer-name').length, 1);
-  const signatureChildren = [...signature.querySelector('.pa-signer-block').children].map((node) => node.className);
-  assert.equal(signatureChildren[0], 'pa-signature-image', 'signature image should appear before the signer name block');
-  assert.equal(signatureChildren[1], 'pa-signer-name-block', 'signer name block should follow the signature image');
+  const signatureChildren = [...signature.children].map((node) => node.className);
+  assert.deepEqual(signatureChildren, ['pa-blessing', 'pa-signer-block'], 'signature area should be one normal document-flow block');
+  const signerChildren = [...signature.querySelector('.pa-signer-block').children].map((node) => node.className);
+  assert.deepEqual(
+    signerChildren,
+    ['pa-signature-image', 'pa-signature-rule', 'pa-signer-name'],
+    'signature image, rule, and signer name should render in fixed vertical order'
+  );
   assert.ok(signature.compareDocumentPosition(doc.querySelector('.pa-page-footer')) & doc.defaultView.Node.DOCUMENT_POSITION_FOLLOWING, 'signature should appear before page footer');
   assert.doesNotMatch(signature.textContent || '', /אושר בתאריך/);
   assert.doesNotMatch(signature.textContent || '', /אושר ונחתם דיגיטלית/);
