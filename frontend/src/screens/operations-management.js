@@ -953,11 +953,11 @@ function printInstructorSchedule() {
     h1{margin:0 0 2px;font-size:14px;color:#0f172a}.subtitle{margin:0 0 14px;color:#475569;font-size:10.5px}
     .ops-print-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;align-items:start}
     .pb{border:1px solid #cfd8dc;padding:5px 6px;page-break-inside:avoid;break-inside:avoid}
-    .pb-hdr{margin-bottom:3px}
+    .pb-hdr{margin-bottom:3px;break-after:avoid;page-break-after:avoid}
     .pb-date{font-weight:700;font-size:11px;color:#0369a1;margin-left:4px}
     .pb-meta{font-size:11px;font-weight:700;color:#1e293b;display:block;line-height:1.3;margin-top:1px;text-align:center}
     table{border-collapse:collapse;margin:0}
-    .pb-act{width:100%;border-collapse:collapse;table-layout:fixed}
+    .pb-act{width:100%;border-collapse:collapse;table-layout:fixed;break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}
     .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pb-act th{background:#e6f6fb;font-weight:700}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
@@ -970,7 +970,7 @@ function printInstructorSchedule() {
     .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:20%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}}
+    @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}.pb-hdr{break-after:avoid;page-break-after:avoid}.pb-act{break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}}
   `;
   const bodyHtml = buildGroupedScheduleHtml(ctx);
   const printWindow = window.open('', '_blank');
@@ -1049,7 +1049,7 @@ function printSchoolsSchedule() {
     .school-block{margin-bottom:8px;padding-right:6px}
     .school-title{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:3px;padding:1px 4px;background:#f1f5f9;border-right:3px solid #0369a1}
     .date-block{margin-bottom:5px;page-break-inside:avoid;break-inside:avoid}
-    .date-title{font-size:10px;color:#475569;font-weight:600;margin-bottom:2px}
+    .date-title{font-size:10px;color:#475569;font-weight:600;margin-bottom:2px;break-after:avoid;page-break-after:avoid}
     table{border-collapse:collapse;width:85%;margin:0 auto;table-layout:fixed}
     th,td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     th{background:#e6f6fb;font-weight:700}
@@ -1060,7 +1060,7 @@ function printSchoolsSchedule() {
     .col-activity{width:53%;white-space:normal}
     .footer{margin-top:10px;font-size:11px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:5px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}table{width:85%;margin:0 auto;table-layout:fixed}.date-block{page-break-inside:avoid;break-inside:avoid}}
+    @media print{body{margin:0}table{width:85%;margin:0 auto;table-layout:fixed;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}.date-block{page-break-inside:avoid;break-inside:avoid}.date-title{break-after:avoid;page-break-after:avoid}.date-block table{break-before:avoid;page-break-before:avoid}.authority-section{page-break-inside:avoid;break-inside:avoid}}
   `;
   const bodyHtml = `
     <h1>${escapeHtml(title)}</h1>
